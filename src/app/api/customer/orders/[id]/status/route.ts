@@ -11,6 +11,7 @@ const decisionSchema = z.object({
     "accept",
     "reject",
     "paid",
+    "request_bill",
     "whatsapp_sent",
     "waiter_cash_received",
     "waiter_cash_deposited",

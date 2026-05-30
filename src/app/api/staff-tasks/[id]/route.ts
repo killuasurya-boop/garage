@@ -24,16 +24,22 @@ export async function PATCH(
   const body = await readJson(request, patchSchema);
   if (body.error) return body.error;
 
-  const updated = await updateStaffTaskStatus({
+  const result = await updateStaffTaskStatus({
     taskId: id,
     action: body.data.action,
     actorUserId: session.data.user.id,
+    actorRole: session.data.profile.role,
     cancellationReason: body.data.cancellationReason,
   });
 
-  if (!updated) {
-    return fail(404, "TASK_NOT_FOUND", "Task tidak ditemukan.");
+  if (!result.ok) {
+    if (result.reason === "not_found") {
+      return fail(404, "TASK_NOT_FOUND", "Task tidak ditemukan.");
+    }
+    return fail(403, "FORBIDDEN", "Anda tidak berwenang mengubah task ini.");
   }
+
+  const updated = result.task;
 
   void createAuditLog({
     actor: session.data.user.name ?? session.data.user.email,

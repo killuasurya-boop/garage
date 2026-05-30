@@ -522,7 +522,16 @@ export type PublicOrderStatus = {
 export type TableLiveRow = {
   tableNumber: string;
   tableLabel: string;
-  status: "empty" | "pending" | "accepted" | "paid" | "ready" | "needs_cleaning" | "rejected" | string;
+  status:
+    | "empty"
+    | "pending"
+    | "awaiting_payment"
+    | "accepted"
+    | "paid"
+    | "ready"
+    | "needs_cleaning"
+    | "rejected"
+    | string;
   currentOrderId: string | null;
   orderNo: string | null;
   customerName: string | null;

@@ -251,10 +251,13 @@ export const staffProfiles = pgTable(
     role: text("role").notNull(),
     shiftLabel: text("shift_label").notNull().default("Shift aktif"),
     deviceLabel: text("device_label").notNull().default("POS-01"),
+    division: text("division"),
+    position: text("position"),
     status: text("status").notNull().default("active"),
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendedReason: text("suspended_reason"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    pinCode: text("pin_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1932,3 +1935,225 @@ export type SegmentRule = {
   value: string | number | boolean;
   logic?: "AND" | "OR";
 };
+
+
+export const employeeAttendances = pgTable(
+  "employee_attendances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "cascade" }),
+    action: text("action").notNull(), // 'in' or 'out'
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    staffIdx: index("employee_attendances_staff_idx").on(table.staffId),
+    outletIdx: index("employee_attendances_outlet_idx").on(table.outletId),
+    timeIdx: index("employee_attendances_time_idx").on(table.timestamp),
+  })
+);
+
+export const shiftSchedules = pgTable(
+  "shift_schedules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    shiftType: text("shift_type").notNull(), // 'morning', 'evening', 'off'
+    startTime: text("start_time"), // '08:00'
+    endTime: text("end_time"), // '16:00'
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    staffIdx: index("shift_schedules_staff_idx").on(table.staffId),
+    dateIdx: index("shift_schedules_date_idx").on(table.date),
+  })
+);
+
+export const sopChecklists = pgTable(
+  "sop_checklists",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    roleTarget: text("role_target").notNull(), // e.g., 'Kasir', 'Barista', 'All'
+    shiftTarget: text("shift_target").notNull(), // 'morning', 'evening', 'all'
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
+
+export const sopLogs = pgTable(
+  "sop_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    checklistId: uuid("checklist_id").notNull().references(() => sopChecklists.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    status: text("status").notNull(), // 'done', 'skipped'
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    checklistIdx: index("sop_logs_checklist_idx").on(table.checklistId),
+    dateIdx: index("sop_logs_date_idx").on(table.date),
+  })
+);
+
+export const kpiEvaluations = pgTable(
+  "kpi_evaluations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    evaluatorId: text("evaluator_id").references(() => user.id, { onDelete: "set null" }),
+    period: text("period").notNull(), // e.g., '2026-05'
+    score: real("score").notNull(),
+    feedback: text("feedback"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    staffIdx: index("kpi_evaluations_staff_idx").on(table.staffId),
+    periodIdx: index("kpi_evaluations_period_idx").on(table.period),
+  })
+);
+
+export const staffSalaries = pgTable(
+  "staff_salaries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    baseSalary: integer("base_salary").notNull(),
+    allowance: integer("allowance").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    staffIdx: index("staff_salaries_staff_idx").on(table.staffId),
+  })
+);
+
+export const staffPayrolls = pgTable(
+  "staff_payrolls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    period: text("period").notNull(),
+    baseSalary: integer("base_salary").notNull(),
+    allowance: integer("allowance").notNull(),
+    bonus: integer("bonus").notNull().default(0),
+    deduction: integer("deduction").notNull().default(0),
+    netSalary: integer("net_salary").notNull(),
+    status: text("status").notNull().default("draft"), // 'draft', 'approved', 'paid'
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    staffIdx: index("staff_payrolls_staff_idx").on(table.staffId),
+    periodIdx: index("staff_payrolls_period_idx").on(table.period),
+    statusIdx: index("staff_payrolls_status_idx").on(table.status),
+  })
+);
+
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    targetRole: text("target_role").notNull().default("All"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletIdx: index("announcements_outlet_idx").on(table.outletId),
+  })
+);
+
+export const staffAdvances = pgTable(
+  "staff_advances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    period: text("period").notNull(), // Format 'YYYY-MM'
+    amount: integer("amount").notNull(),
+    reason: text("reason"),
+    status: text("status").notNull().default("pending"), // 'pending', 'approved', 'deducted', 'rejected'
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    staffIdx: index("staff_advances_staff_idx").on(table.staffId),
+    periodIdx: index("staff_advances_period_idx").on(table.period),
+    statusIdx: index("staff_advances_status_idx").on(table.status),
+  })
+);
+
+export const staffShiftHandovers = pgTable(
+  "staff_shift_handovers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "cascade" }),
+    fromStaffId: uuid("from_staff_id").notNull().references(() => staffProfiles.id, { onDelete: "cascade" }),
+    toStaffId: uuid("to_staff_id").references(() => staffProfiles.id, { onDelete: "set null" }),
+    fromShift: text("from_shift").notNull(), // 'pagi' | 'sore' | 'malam'
+    toShift: text("to_shift").notNull(),
+    cashInDrawer: integer("cash_in_drawer").notNull(),
+    notes: text("notes"),
+    status: text("status").notNull().default("pending_validation"), // pending_validation | validated | disputed
+    disputeReason: text("dispute_reason"),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletIdx: index("staff_shift_handovers_outlet_idx").on(table.outletId),
+    statusIdx: index("staff_shift_handovers_status_idx").on(table.status),
+    createdIdx: index("staff_shift_handovers_created_at_idx").on(table.createdAt),
+  })
+);
+
+export const operationLocations = pgTable(
+  "operation_locations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // e.g., 'Outlet Utama', 'Kunjungan Servis Matraman'
+    type: text("type").notNull(), // 'presensi' atau 'kunjungan'
+    latitude: real("latitude").notNull(),
+    longitude: real("longitude").notNull(),
+    radius: integer("radius").notNull().default(100), // radius toleransi dalam meter
+    address: text("address"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletIdx: index("operation_locations_outlet_idx").on(table.outletId),
+    typeIdx: index("operation_locations_type_idx").on(table.type),
+  })
+);
+
+export const operationGlossary = pgTable(
+  "operation_glossary",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    term: text("term").notNull(), // e.g., 'Dialing Espresso', 'CV Joint', 'Oli SAE 10W-30'
+    definition: text("definition").notNull(),
+    category: text("category").notNull(), // 'F&B Kafe', 'Bengkel Motor', 'Umum'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    termIdx: index("operation_glossary_term_idx").on(table.term),
+    categoryIdx: index("operation_glossary_category_idx").on(table.category),
+  })
+);

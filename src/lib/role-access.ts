@@ -74,7 +74,6 @@ export const rolePermissions: Record<Role, Permission[]> = {
   Admin: ownerPermissions.filter(
     (permission) =>
       permission !== "ai:manage" &&
-      permission !== "staff:manage" &&
       permission !== "company:read" &&
       permission !== "company:manage",
   ),
@@ -87,7 +86,6 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "kitchen:write",
     "inventory:read",
     "inventory:write",
-    "finance:read",
     "crm:read",
     "crm:write",
     "marketing:read",
@@ -95,6 +93,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "approvals:read",
     "approvals:decide",
     "audit:read",
+    "staff:manage",
     "ai:use",
     "tables:read",
     "tables:write",
@@ -178,6 +177,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "pos",
     "ai-agent",
     "kitchen",
+    "waiter",
     "inventory",
     "finance",
     "crm",
@@ -188,6 +188,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "company-control",
     "earnings",
     "audit",
+    "team-management",
     "settings",
   ],
   Admin: [
@@ -195,6 +196,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "pos",
     "ai-agent",
     "kitchen",
+    "waiter",
     "inventory",
     "finance",
     "crm",
@@ -204,6 +206,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "website",
     "earnings",
     "audit",
+    "team-management",
     "settings",
   ],
   "Manager Operasional": [
@@ -211,6 +214,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "pos",
     "ai-agent",
     "kitchen",
+    "waiter",
     "inventory",
     "finance",
     "crm",
@@ -219,6 +223,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "approvals",
     "earnings",
     "audit",
+    "team-management",
     "settings",
   ],
   "Finance / CFO": ["dashboard", "ai-agent", "finance", "earnings", "approvals", "audit"],
@@ -226,8 +231,11 @@ export const roleModules: Record<Role, ModuleId[]> = {
   Barista: ["kitchen", "inventory", "earnings", "ai-agent"],
   Koki: ["kitchen", "inventory", "earnings", "ai-agent"],
   "Asisten Koki": ["kitchen", "inventory", "earnings", "ai-agent"],
-  "Waiter 1": ["pos", "earnings", "ai-agent"],
-  "Waiter 2": ["pos", "earnings", "ai-agent"],
+  // Waiter bukan kasir — TIDAK boleh kena shift gate / cash control.
+  // Modul "waiter" sudah cukup utk tugas operasional mereka (antar, bersih meja,
+  // notifikasi order ready). POS dihilangkan dari sidebar mereka.
+  "Waiter 1": ["waiter", "earnings", "ai-agent"],
+  "Waiter 2": ["waiter", "earnings", "ai-agent"],
   "Kitchen / Barista": ["kitchen", "inventory", "earnings", "ai-agent"],
   Gudang: ["inventory", "ai-agent"],
   "Supervisor Shift": [
@@ -235,6 +243,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "pos",
     "ai-agent",
     "kitchen",
+    "waiter",
     "inventory",
     "approvals",
   ],

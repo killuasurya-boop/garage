@@ -149,6 +149,7 @@ type CustomerOrderActionInput = {
     | "accept"
     | "reject"
     | "paid"
+    | "request_bill"
     | "whatsapp_sent"
     | "waiter_cash_received"
     | "waiter_cash_deposited";
@@ -5709,7 +5710,8 @@ function tableStatusFromOrder(
   if (needsCleaning) return "needs_cleaning";
   if (!order) return "empty";
   if (order.status === "rejected") return "rejected";
-  if (order.status === "pending_cashier" || order.status === "awaiting_payment") return "pending";
+  if (order.status === "awaiting_payment") return "awaiting_payment";
+  if (order.status === "pending_cashier") return "pending";
   if (kitchenStatus === "ready") return "ready";
   if (order.status === "paid") return "paid";
   if (order.status === "accepted") return "accepted";
@@ -5903,7 +5905,7 @@ export async function getPublicTableLiveData() {
         ? "empty"
         : row.status === "pending"
           ? "pending"
-          : ["accepted", "paid", "ready"].includes(row.status)
+          : ["accepted", "awaiting_payment", "paid", "ready"].includes(row.status)
             ? "occupied"
             : "unavailable";
 
@@ -6939,7 +6941,8 @@ export async function updateCustomerOrderStatus(
 
     if (
       (input.action === "accept" && order.status === "accepted") ||
-      (input.action === "paid" && order.status === "paid")
+      (input.action === "paid" && order.status === "paid") ||
+      (input.action === "request_bill" && order.status === "awaiting_payment")
     ) {
       const existingTickets = await tx
         .select()
@@ -6963,6 +6966,7 @@ export async function updateCustomerOrderStatus(
     const cashierActionStatuses = ["pending_cashier", "awaiting_payment"];
     const paidActionStatuses = [...cashierActionStatuses, "accepted"];
     const waiterCashActionStatuses = [...cashierActionStatuses, "accepted"];
+    const waiterBillActionStatuses = ["accepted", "awaiting_payment"];
 
     if (
       (input.action === "waiter_cash_received" ||
@@ -6974,6 +6978,10 @@ export async function updateCustomerOrderStatus(
 
     if (input.action === "paid" && !canConfirmCustomerPayment(garage.profile.role)) {
       throw new Error("Waiter tidak boleh menjadikan cash meja langsung lunas. Setor ke kasir dulu.");
+    }
+
+    if (input.action === "request_bill" && !isWaiterRole(garage.profile.role)) {
+      throw new Error("Hanya waiter yang boleh meminta bill meja ke kasir.");
     }
 
     if (input.action === "reject" && !cashierActionStatuses.includes(order.status)) {
@@ -7019,6 +7027,10 @@ export async function updateCustomerOrderStatus(
       throw new Error("Cash meja hanya bisa diproses dari order yang masih aktif.");
     }
 
+    if (input.action === "request_bill" && !waiterBillActionStatuses.includes(order.status)) {
+      throw new Error("Bill hanya bisa diminta untuk order meja yang sudah aktif.");
+    }
+
     if (input.action === "whatsapp_sent") {
       if (order.status === "rejected") {
         throw new Error("Invoice WhatsApp tidak bisa dikirim untuk order yang ditolak.");
@@ -7042,6 +7054,57 @@ export async function updateCustomerOrderStatus(
         status: "recorded",
         metadata: { orderId: order.id },
       });
+
+      return { order: customerOrderResponse(updated, itemRows), ticketNos: [] as string[] };
+    }
+
+    if (input.action === "request_bill") {
+      const [updated] = await tx
+        .update(orders)
+        .set({
+          status: "awaiting_payment",
+          updatedAt: now,
+        })
+        .where(eq(orders.id, order.id))
+        .returning();
+
+      await tx.insert(auditLogs).values({
+        time: nowTimeLabel(),
+        actor,
+        action: `Waiter request bill ${order.orderNo}`,
+        object: order.tableLabel,
+        device: garage.profile.deviceLabel,
+        status: "awaiting_payment",
+        metadata: {
+          orderId: order.id,
+          note: input.paymentNote?.trim() || null,
+        },
+      });
+
+      const tableNumber = normalizeTableNumber(order.tableLabel);
+      await tx
+        .insert(tableSessions)
+        .values({
+          outletId: order.outletId ?? garage.profile.outlet.id,
+          tableNumber,
+          tableLabel: tableLabelForNumber(tableNumber),
+          status: "awaiting_payment",
+          currentOrderId: order.id,
+          needsCleaning: false,
+          lastStatusAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [tableSessions.outletId, tableSessions.tableNumber],
+          set: {
+            tableLabel: tableLabelForNumber(tableNumber),
+            status: "awaiting_payment",
+            currentOrderId: order.id,
+            needsCleaning: false,
+            lastStatusAt: now,
+            updatedAt: now,
+          },
+        });
 
       return { order: customerOrderResponse(updated, itemRows), ticketNos: [] as string[] };
     }

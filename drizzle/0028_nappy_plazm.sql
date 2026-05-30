@@ -1,0 +1,1 @@
+-- No-op migration to resolve schema alignment

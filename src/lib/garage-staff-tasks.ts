@@ -127,13 +127,49 @@ export type UpdateStaffTaskInput = {
   taskId: string;
   action: "acknowledge" | "complete" | "cancel";
   actorUserId: string;
+  actorRole: Role;
   cancellationReason?: string;
 };
 
-export async function updateStaffTaskStatus(input: UpdateStaffTaskInput): Promise<StaffTaskRow | null> {
-  const db = getDb();
-  const now = new Date();
+const ELEVATED_ROLES: ReadonlyArray<Role> = [
+  "Owner / CEO",
+  "Admin",
+  "Manager Operasional",
+  "Supervisor Shift",
+];
 
+export type UpdateStaffTaskResult =
+  | { ok: true; task: StaffTaskRow }
+  | { ok: false; reason: "not_found" | "forbidden" };
+
+export async function updateStaffTaskStatus(input: UpdateStaffTaskInput): Promise<UpdateStaffTaskResult> {
+  const db = getDb();
+
+  const [existing] = await db
+    .select()
+    .from(staffTasks)
+    .where(eq(staffTasks.id, input.taskId))
+    .limit(1);
+
+  if (!existing) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const isElevated = ELEVATED_ROLES.includes(input.actorRole);
+  const isAssignee = existing.assigneeUserId === input.actorUserId;
+  const isTargetRole = existing.targetRole === input.actorRole;
+
+  // Cancel hanya boleh oleh elevated role (Owner/Admin/Manager/Supervisor).
+  // Acknowledge & complete boleh oleh assignee, target role, atau elevated.
+  if (input.action === "cancel") {
+    if (!isElevated) return { ok: false, reason: "forbidden" };
+  } else {
+    if (!isAssignee && !isTargetRole && !isElevated) {
+      return { ok: false, reason: "forbidden" };
+    }
+  }
+
+  const now = new Date();
   const patch: Partial<typeof staffTasks.$inferInsert> = { updatedAt: now };
 
   if (input.action === "acknowledge") {
@@ -144,7 +180,7 @@ export async function updateStaffTaskStatus(input: UpdateStaffTaskInput): Promis
     patch.status = "done";
     patch.completedAt = now;
     patch.completedBy = input.actorUserId;
-  } else if (input.action === "cancel") {
+  } else {
     patch.status = "cancelled";
     patch.cancelledAt = now;
     patch.cancellationReason = input.cancellationReason ?? null;
@@ -156,7 +192,7 @@ export async function updateStaffTaskStatus(input: UpdateStaffTaskInput): Promis
     .where(eq(staffTasks.id, input.taskId))
     .returning();
 
-  return row ? serialize(row) : null;
+  return row ? { ok: true, task: serialize(row) } : { ok: false, reason: "not_found" };
 }
 
 // Cari user yang punya staff_profile dengan role tsb. Pakai outletId optional

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { isDatabaseConfigured } from "@/db";
 import { fail, ok, readJson } from "@/lib/api-response";
-import { deleteAdminUser, updateAdminUser } from "@/lib/admin-user-service";
+import { deleteAdminUser, updateAdminUser, resetUserPassword } from "@/lib/admin-user-service";
 import type { Role } from "@/lib/garage-data";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -33,6 +33,7 @@ const patchSchema = z.object({
   deviceLabel: z.string().optional(),
   status: z.enum(["active", "suspended"]).optional(),
   suspendedReason: z.string().nullable().optional(),
+  newPassword: z.string().min(8, "Password minimal 8 karakter").optional().nullable(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -53,11 +54,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     return fail(400, "CANNOT_SUSPEND_SELF", "Tidak bisa men-suspend diri sendiri.");
   }
 
-  const result = await updateAdminUser(id, parsed.data, {
+  const actorConfig = {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
     deviceLabel: session.data.profile.deviceLabel,
-  });
+  };
+
+  if (parsed.data.newPassword) {
+    const resetResult = await resetUserPassword(id, parsed.data.newPassword, actorConfig);
+    if ("error" in resetResult) {
+      return fail(400, "RESET_PASSWORD_FAILED", resetResult.error);
+    }
+  }
+
+  const result = await updateAdminUser(id, parsed.data, actorConfig);
   if ("error" in result) {
     return fail(400, "UPDATE_USER_FAILED", result.error);
   }

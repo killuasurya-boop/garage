@@ -3,6 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   Activity,
+  Eye,
+  EyeOff,
   KeyRound,
   Loader2,
   LogOut,
@@ -549,6 +551,7 @@ function CreateUserDialog({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function submit() {
     setSubmitting(true);
@@ -595,13 +598,24 @@ function CreateUserDialog({
             />
           </Field>
           <Field label="Password awal">
-            <Input
-              type="text"
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              placeholder="min 8 karakter"
-              className="border-zinc-700 bg-zinc-900"
-            />
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                placeholder="min 8 karakter"
+                className="border-zinc-700 bg-zinc-900 pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-0 h-full w-10 text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Role">
@@ -707,17 +721,23 @@ function EditUserDialog({
     shiftLabel: row.shiftLabel,
     deviceLabel: row.deviceLabel,
     status: row.status,
+    newPassword: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setSubmitting(true);
     setError(null);
+    const payload = {
+      ...form,
+      newPassword: form.newPassword.trim() ? form.newPassword : null,
+    };
     const res = await fetch(`/api/admin/users/${row.userId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     setSubmitting(false);
@@ -818,6 +838,26 @@ function EditUserDialog({
               </SelectContent>
             </Select>
           </Field>
+          <Field label="Ganti Password Baru (Opsional)">
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={form.newPassword}
+                onChange={(event) => setForm({ ...form, newPassword: event.target.value })}
+                placeholder="Kosongkan jika tidak ingin mengganti password"
+                className="border-zinc-700 bg-zinc-900 pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-0 h-full w-10 text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          </Field>
           {error ? (
             <div className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
               {error}
@@ -860,6 +900,7 @@ function ResetPasswordDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function submit() {
     setSubmitting(true);
@@ -896,13 +937,24 @@ function ResetPasswordDialog({
           </div>
         ) : (
           <Field label="Password baru">
-            <Input
-              type="text"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="min 8 karakter"
-              className="border-zinc-700 bg-zinc-900"
-            />
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="min 8 karakter"
+                className="border-zinc-700 bg-zinc-900 pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-0 h-full w-10 text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
           </Field>
         )}
         {error ? (

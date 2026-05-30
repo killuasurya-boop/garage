@@ -2,9 +2,11 @@ import {
   Activity,
   BadgeCheck,
   BarChart3,
+  BellRing,
   Boxes,
   ChefHat,
   ClipboardCheck,
+  Clock,
   CreditCard,
   Gauge,
   History,
@@ -44,6 +46,7 @@ export type ModuleId =
   | "pos"
   | "ai-agent"
   | "kitchen"
+  | "waiter"
   | "inventory"
   | "finance"
   | "crm"
@@ -56,6 +59,7 @@ export type ModuleId =
   | "audit"
   | "chat"
   | "smart-notif"
+  | "team-management"
   | "settings";
 
 export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
@@ -138,6 +142,12 @@ export const modules = [
     icon: Sparkles,
   },
   { id: "kitchen", label: "Kitchen", description: "Live KDS", icon: ChefHat },
+  {
+    id: "waiter",
+    label: "Waiter",
+    description: "Antar pesanan & status meja",
+    icon: BellRing,
+  },
   { id: "inventory", label: "Produk Manajemen", description: "Produk & Gudang", icon: Boxes },
   { id: "finance", label: "Finance", description: "Cash closing", icon: CreditCard },
   { id: "crm", label: "CRM", description: "Members", icon: Users },
@@ -185,6 +195,12 @@ export const modules = [
     label: "Pengaturan",
     description: "Konfigurasi outlet & sistem",
     icon: Settings,
+  },
+  {
+    id: "team-management",
+    label: "Manajemen Tim",
+    description: "HR, SOP & Shift",
+    icon: Users,
   },
 ] satisfies Array<{
   id: ModuleId;

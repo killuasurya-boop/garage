@@ -260,6 +260,7 @@ import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
 import { VoiceSettingsDialog, VoiceStatusBadge } from "@/components/garage/voice-settings-dialog";
 import { InventorySmartReorderPanel } from "@/components/garage/inventory-smart-reorder-panel";
 import { KitchenEtaPanel } from "@/components/garage/kitchen-eta-panel";
+import { WaiterView } from "@/components/garage/waiter-view";
 import { CrmAutoSegmentsPanel } from "@/components/garage/crm-auto-segments-panel";
 import { FinanceView } from "@/components/garage/finance/finance-view";
 import { AuditSuspiciousPanel } from "@/components/garage/audit-suspicious-panel";
@@ -276,6 +277,7 @@ import {
 import { WarehouseCashierPos } from "@/components/garage/warehouse-cashier-pos";
 import { DatabasePurgePanel } from "@/components/garage/database-purge-panel";
 import { GlobalSettingsPanel } from "@/components/garage/admin/global-settings-panel";
+import { TeamManagementDashboard } from "@/components/garage/admin/team-management-dashboard";
 import { textForExecutiveVoice } from "@/lib/garage-ai-persona";
 import { isOnlineChannel, voice } from "@/lib/garage-voice";
 import {
@@ -432,7 +434,15 @@ function tableLiveStatusLabel(table: TableLiveRow | null | undefined) {
   if (!table) return "Belum sinkron";
   if (table.needsCleaning || table.status === "needs_cleaning") return "Perlu dibersihkan";
   if (table.status === "empty") return "Kosong";
-  if (table.status === "pending") return "Menunggu";
+  if (table.status === "paid") return "Lunas";
+  if (
+    table.status === "pending" ||
+    table.status === "accepted" ||
+    table.status === "awaiting_payment" ||
+    table.status === "ready"
+  ) {
+    return "Belum Bayar";
+  }
   if (occupiedTableStatuses.has(table.status)) return "Terisi";
   return table.status.replace(/_/g, " ");
 }
@@ -443,7 +453,15 @@ function tableLiveStatusTone(table: TableLiveRow | null | undefined) {
     return "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
   }
   if (table.status === "empty") return "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]";
-  if (table.status === "pending") return "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
+  if (table.status === "paid") return "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]";
+  if (
+    table.status === "pending" ||
+    table.status === "accepted" ||
+    table.status === "awaiting_payment" ||
+    table.status === "ready"
+  ) {
+    return "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]";
+  }
   if (occupiedTableStatuses.has(table.status)) {
     return "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
   }
@@ -2072,6 +2090,7 @@ function GarageWorkspace({
                 </div>
               </DateFilterProvider>
             )}
+            {safeActiveModule === "waiter" && <WaiterView me={data.me} />}
             {safeActiveModule === "inventory" && (
               <InventoryView
                 role={data.me.role}
@@ -2143,6 +2162,7 @@ function GarageWorkspace({
                 </div>
               </DateFilterProvider>
             )}
+            {safeActiveModule === "team-management" && <TeamManagementDashboard role={data.me.role} />}
             {safeActiveModule === "settings" && <SettingsView me={data.me} />}
             {safeActiveModule === "smart-notif" && (
               <VoiceSettingsDialog embedded />

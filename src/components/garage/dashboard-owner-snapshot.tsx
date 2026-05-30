@@ -557,21 +557,25 @@ export function DashboardOwnerSnapshot({
           icon={<DollarSign className="size-4" />}
           label="Finance"
           sub={data.finance ? compactCurrency(data.finance.today.revenue) : "—"}
+          onClick={() => onNavigateModule?.("finance")}
         />
         <QuickLink
           icon={<ShieldCheck className="size-4" />}
           label="Approvals"
           sub={`${data.approvals?.pending ?? 0} pending`}
+          onClick={() => onNavigateModule?.("approvals")}
         />
         <QuickLink
           icon={<ChefHat className="size-4" />}
           label="Kitchen"
           sub={`${data.pendingCustomerOrders} antrian`}
+          onClick={() => onNavigateModule?.("kitchen")}
         />
         <QuickLink
           icon={<Activity className="size-4" />}
           label="Audit Log"
           sub={`${data.audit?.eventsToday ?? 0} hari ini`}
+          onClick={() => onNavigateModule?.("audit")}
         />
       </div>
     </section>
@@ -619,13 +623,18 @@ function QuickLink({
   icon,
   label,
   sub,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   sub: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="group flex items-center gap-2 rounded-md border border-[#34343c] bg-[#17171c] p-3 transition-colors hover:border-[#f5a742]/45 hover:bg-[#f5a742]/8">
+    <div 
+      onClick={onClick}
+      className={`group flex items-center gap-2 rounded-md border border-[#34343c] bg-[#17171c] p-3 transition-colors ${onClick ? "cursor-pointer hover:border-[#f5a742]/45 hover:bg-[#f5a742]/8" : ""}`}
+    >
       <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#34343c] bg-[#111116] text-[#f5a742]">
         {icon}
       </div>

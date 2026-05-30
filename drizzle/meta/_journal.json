@@ -330,6 +330,48 @@
       "when": 1780083048444,
       "tag": "0046_minor_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1780145461300,
+      "tag": "0047_daffy_edwin_jarvis",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1780146111913,
+      "tag": "0048_flat_demogoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1780147422240,
+      "tag": "0049_silent_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1780147937273,
+      "tag": "0050_great_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1780148071945,
+      "tag": "0051_nervous_amphibian",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1780158335735,
+      "tag": "0052_foamy_namorita",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,171 @@
+// AppSettings type & defaults — di-extract ke file ini supaya bisa di-import
+// dari client component tanpa narik server-only deps (db, drizzle) yang ada
+// di garage-service.ts.
+
+export type AppSettings = {
+  // POS billing
+  serviceChargePct: number;
+  taxPct: number;
+  manualDiscountMaxPct: number;
+  manualDiscountApprovalPct: number;
+  receiptHistoryMax: number;
+  // Finance approval
+  expenseApprovalThreshold: number;
+  // Receipt branding
+  brandName: string;
+  brandTagline: string;
+  receiptFooter: string;
+  outletAddress: string;
+  outletPhone: string;
+  npwp: string;
+  // Notifikasi
+  approvalPollIntervalSec: number;
+  qrSoundOn: boolean;
+  autoPrintReceipt: boolean;
+  // Printer
+  defaultPrinterName: string;
+  receiptCopies: number;
+  // Loyalty
+  pointsPerThousand: number;
+  voucherMaxDiscountPct: number;
+  // Marketing
+  marketingCampaignName: string;
+  marketingMonthlyBudget: number;
+  marketingDefaultSegment: string;
+  marketingWhatsappTemplate: string;
+  marketingUtmSource: string;
+  marketingAutoLogEnabled: boolean;
+  marketingApprovalThreshold: number;
+  marketingDefaultChannel: string;
+  marketingDefaultVoucherType: "fixed" | "percent";
+  marketingDefaultVoucherValue: number;
+  marketingQuietHoursStart: number;
+  marketingQuietHoursEnd: number;
+  marketingDefaultDurationDays: number;
+  // GARAGE AI autopilot
+  aiAutopilotEnabled: boolean;
+  aiAutopilotStartHour: number;
+  aiAutopilotEndHour: number;
+  aiWhatsappHighAlerts: boolean;
+  aiWhatsappAlertTemplate: string;
+  aiWhatsappPhonesCashier: string;
+  aiWhatsappPhonesKitchen: string;
+  aiWhatsappPhonesGudang: string;
+  aiWhatsappPhonesManagement: string;
+  // Locale & general
+  timezone: string;
+  currency: string;
+  locale: string;
+  // POS extra
+  roundingMode: string;
+  requireManagerForVoid: boolean;
+  cashDrawerOnPayment: boolean;
+  defaultPaymentMethod: string;
+  quickReorderWindowMinutes: number;
+  // Receipt extra
+  receiptHeaderText: string;
+  receiptShowLogo: boolean;
+  receiptShowTaxBreakdown: boolean;
+  receiptShowMemberPoints: boolean;
+  // Notification extra
+  notificationPushEnabled: boolean;
+  lowStockThreshold: number;
+  newOrderSound: string;
+  // Security
+  securitySessionMaxHours: number;
+  securityIdleLogoutMinutes: number;
+  securityFailedLoginLockoutCount: number;
+  securityLockoutDurationMinutes: number;
+  securityRequire2faForOwner: boolean;
+  // Shift extra
+  shiftOpeningCashDefault: number;
+  shiftRequireManagerSignoff: boolean;
+  shiftDiscrepancyThreshold: number;
+  // AI Assistant control
+  aiAssistantEnabled: boolean;
+  aiAutonomyMode: string;
+  aiMaxRiskAuto: string;
+  // Garage OS theme
+  garageOsThemePreset: string;
+};
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  serviceChargePct: 5,
+  taxPct: 10,
+  manualDiscountMaxPct: 50,
+  manualDiscountApprovalPct: 10,
+  receiptHistoryMax: 20,
+  expenseApprovalThreshold: 1_000_000,
+  brandName: "GARAGE",
+  brandTagline: "Coffee & Motor",
+  receiptFooter: "TERIMA KASIH",
+  outletAddress: "",
+  outletPhone: "",
+  npwp: "",
+  approvalPollIntervalSec: 60,
+  qrSoundOn: true,
+  autoPrintReceipt: true,
+  defaultPrinterName: "",
+  receiptCopies: 1,
+  pointsPerThousand: 1,
+  voucherMaxDiscountPct: 30,
+  marketingCampaignName: "Garage Repeat Booster",
+  marketingMonthlyBudget: 1_500_000,
+  marketingDefaultSegment: "atRisk",
+  marketingWhatsappTemplate:
+    "Halo {name}, kami kangen kamu di {brand}. Minggu ini ada promo spesial: tunjukkan pesan ini ke kasir untuk cek reward kamu. {orderUrl}",
+  marketingUtmSource: "garage_marketing",
+  marketingAutoLogEnabled: true,
+  marketingApprovalThreshold: 2_000_000,
+  marketingDefaultChannel: "whatsapp",
+  marketingDefaultVoucherType: "fixed",
+  marketingDefaultVoucherValue: 10_000,
+  marketingQuietHoursStart: 22,
+  marketingQuietHoursEnd: 8,
+  marketingDefaultDurationDays: 14,
+  aiAutopilotEnabled: true,
+  aiAutopilotStartHour: 7,
+  aiAutopilotEndHour: 23,
+  aiWhatsappHighAlerts: true,
+  aiWhatsappAlertTemplate:
+    "[GARAGE AI] {brand}\nPrioritas: {priority}\n{title}\n{detail}\nBuka Garage OS dan tandai Sudah ditangani.",
+  aiWhatsappPhonesCashier: "",
+  aiWhatsappPhonesKitchen: "",
+  aiWhatsappPhonesGudang: "",
+  aiWhatsappPhonesManagement: "",
+  // Locale & general
+  timezone: "Asia/Jakarta",
+  currency: "IDR",
+  locale: "id-ID",
+  // POS extra
+  roundingMode: "nearest_100",
+  requireManagerForVoid: true,
+  cashDrawerOnPayment: true,
+  defaultPaymentMethod: "cash",
+  quickReorderWindowMinutes: 30,
+  // Receipt extra
+  receiptHeaderText: "Garage Coffee & Motor\nJl. Contoh No. 1, Jakarta",
+  receiptShowLogo: true,
+  receiptShowTaxBreakdown: true,
+  receiptShowMemberPoints: true,
+  // Notification extra
+  notificationPushEnabled: true,
+  lowStockThreshold: 5,
+  newOrderSound: "bell",
+  // Security
+  securitySessionMaxHours: 24,
+  securityIdleLogoutMinutes: 30,
+  securityFailedLoginLockoutCount: 5,
+  securityLockoutDurationMinutes: 15,
+  securityRequire2faForOwner: false,
+  // Shift extra
+  shiftOpeningCashDefault: 500_000,
+  shiftRequireManagerSignoff: true,
+  shiftDiscrepancyThreshold: 50_000,
+  // AI Assistant control
+  aiAssistantEnabled: true,
+  aiAutonomyMode: "controlled",
+  aiMaxRiskAuto: "low",
+  // Garage OS theme
+  garageOsThemePreset: "industrial-garage",
+};

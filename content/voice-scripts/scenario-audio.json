@@ -1,0 +1,143 @@
+{
+  "voice": "id-ID-GadisNeural",
+  "rate": "+6%",
+  "pitch": "+1Hz",
+  "publicBasePath": "/voice/scenarios",
+  "scenarios": [
+    {
+      "scenario": "order_new_kitchen",
+      "file": "order-new-kitchen.mp3",
+      "text": "Tim Dapur. Pesanan baru dari kasir telah masuk antrian."
+    },
+    {
+      "scenario": "order_new_bar",
+      "file": "order-new-bar.mp3",
+      "text": "Tim Bar. Pesanan minuman baru dari kasir telah masuk antrian."
+    },
+    {
+      "scenario": "airport_qr",
+      "file": "airport-qr.mp3",
+      "text": "Hai kasir, pesanan QR baru masuk. Cek dan terima sekarang."
+    },
+    {
+      "scenario": "online_new",
+      "file": "online-new.mp3",
+      "text": "Hai kasir, order online baru masuk. Segera cek ya."
+    },
+    {
+      "scenario": "kitchen_cooking",
+      "file": "kitchen-cooking.mp3",
+      "text": "Tim dapur, ada pesanan mulai dimasak. Tetap on time ya."
+    },
+    {
+      "scenario": "bar_mixing",
+      "file": "bar-mixing.mp3",
+      "text": "Hai bar, ada minuman diracik. Lanjutkan ya."
+    },
+    {
+      "scenario": "order_ready",
+      "file": "order-ready.mp3",
+      "text": "Hai semua, ada pesanan siap. Bisa diantar."
+    },
+    {
+      "scenario": "order_ready_deliver",
+      "file": "order-ready-deliver.mp3",
+      "text": "Hai runner, ada pesanan siap antar. Ke meja sekarang ya."
+    },
+    {
+      "scenario": "warning_printer",
+      "file": "warning-printer.mp3",
+      "text": "Kasir, printer belum nyambung. Cek kabel dan kertas sekarang."
+    },
+    {
+      "scenario": "warning_lowstock",
+      "file": "warning-lowstock.mp3",
+      "text": "Tim gudang, ada stok hampir habis. Cek dan isi ulang ya."
+    },
+    {
+      "scenario": "approval_pending",
+      "file": "approval-pending.mp3",
+      "text": "Manager, ada request approval menunggu persetujuan. Cek sekarang ya."
+    },
+    {
+      "scenario": "cash_anomaly",
+      "file": "cash-anomaly.mp3",
+      "text": "Manager, ada selisih kas saat tutup. Mohon verifikasi sekarang."
+    },
+    {
+      "scenario": "delivery_pickup",
+      "file": "delivery-pickup.mp3",
+      "text": "Hai kasir, driver delivery sudah datang menjemput pesanan. Serahkan sekarang ya."
+    },
+    {
+      "scenario": "member_vip",
+      "file": "member-vip.mp3",
+      "text": "Hai tim, member VIP baru tiba. Sambut dan utamakan ya."
+    },
+    {
+      "scenario": "audit_alert",
+      "file": "audit-alert.mp3",
+      "text": "Owner, audit mendeteksi anomali transaksi. Mohon ditinjau segera."
+    },
+    {
+      "scenario": "waiter_call",
+      "file": "waiter-call.mp3",
+      "text": "Perhatian Waiter. Pelanggan di meja memerlukan bantuan. Mohon segera dilayani."
+    },
+    {
+      "scenario": "waiter_bill_request",
+      "file": "waiter-bill-request.mp3",
+      "text": "Perhatian Waiter. Pelanggan meminta tagihan. Mohon segera diantarkan ke meja."
+    },
+    {
+      "scenario": "waiter_clear_table",
+      "file": "waiter-clear-table.mp3",
+      "text": "Perhatian Waiter. Meja perlu segera dibersihkan dan disiapkan kembali untuk pelanggan berikutnya."
+    },
+    {
+      "scenario": "waiter_reservation",
+      "file": "waiter-reservation.mp3",
+      "text": "Perhatian Waiter. Tamu reservasi telah tiba. Mohon segera disambut dan diantar ke meja."
+    },
+    {
+      "scenario": "waiter_refill",
+      "file": "waiter-refill.mp3",
+      "text": "Perhatian Waiter. Pelanggan meminta refill atau tambahan pesanan ringan. Mohon segera dilayani."
+    },
+    {
+      "scenario": "waiter_special_request",
+      "file": "waiter-special-request.mp3",
+      "text": "Perhatian Waiter. Terdapat permintaan khusus dari pelanggan. Mohon segera dikoordinasikan dengan dapur."
+    },
+    {
+      "scenario": "ai_alert_high",
+      "file": "ai-alert-high.mp3",
+      "text": "Perhatian. Terdapat tugas prioritas tinggi yang memerlukan tindakan segera."
+    },
+    {
+      "scenario": "test_ceo",
+      "file": "test-ceo.mp3",
+      "text": "Perhatian. Ini adalah tes suara Asisten Eksekutif Garage Coffee and Motor."
+    },
+    {
+      "scenario": "voice_command_ack",
+      "file": "voice-command-ack.mp3",
+      "text": "Perintah diterima."
+    },
+    {
+      "scenario": "role_alert",
+      "file": "role-alert.mp3",
+      "text": "Perhatian. Terdapat alert proaktif yang memerlukan perhatian Anda."
+    },
+    {
+      "scenario": "staff_monitor",
+      "file": "staff-monitor.mp3",
+      "text": "Perhatian. Update status staff monitor."
+    },
+    {
+      "scenario": "autopilot_alert",
+      "file": "autopilot-alert.mp3",
+      "text": "Perhatian. Autopilot alert membutuhkan tindakan Anda."
+    }
+  ]
+}

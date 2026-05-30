@@ -1,0 +1,136 @@
+{
+  "info": {
+    "name": "GARAGE Membership & Loyalty",
+    "_postman_id": "7a720ff1-e3e9-4d8d-9f41-garage-membership",
+    "description": "REST API collection for GARAGE member auth, loyalty points, redemption, and POS integration.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:3001" },
+    { "key": "posApiKey", "value": "garage-pos-dev-key" },
+    { "key": "terminalCode", "value": "GARAGE-POS-01" },
+    { "key": "memberPhone", "value": "081300001002" },
+    { "key": "memberPassword", "value": "member12345" }
+  ],
+  "item": [
+    {
+      "name": "Member Auth",
+      "item": [
+        {
+          "name": "Register Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Member Baru\",\n  \"phone\": \"081300009999\",\n  \"email\": \"member.baru@garage.local\",\n  \"password\": \"member12345\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/member/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "member", "auth", "register"] }
+          }
+        },
+        {
+          "name": "Login Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{memberPhone}}\",\n  \"password\": \"{{memberPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/member/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "member", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Refresh Member Session",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/member/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "member", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout Member",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/member/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "member", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Member",
+      "item": [
+        {
+          "name": "Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/member/profile", "host": ["{{baseUrl}}"], "path": ["api", "member", "profile"] }
+          }
+        },
+        {
+          "name": "History",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/member/history", "host": ["{{baseUrl}}"], "path": ["api", "member", "history"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Points",
+      "item": [
+        {
+          "name": "Earn Points Website",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 75000,\n  \"source\": \"WEBSITE\",\n  \"lastOrder\": \"Website order\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/points/earn", "host": ["{{baseUrl}}"], "path": ["api", "points", "earn"] }
+          }
+        },
+        {
+          "name": "Redeem Points",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pointsToRedeem\": 100\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/points/redeem", "host": ["{{baseUrl}}"], "path": ["api", "points", "redeem"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "POS Integration",
+      "item": [
+        {
+          "name": "Lookup Member By Phone",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{posApiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/pos/member/{{memberPhone}}", "host": ["{{baseUrl}}"], "path": ["api", "pos", "member", "{{memberPhone}}"] }
+          }
+        },
+        {
+          "name": "Sync POS Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{posApiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"terminalCode\": \"{{terminalCode}}\",\n  \"memberPhone\": \"{{memberPhone}}\",\n  \"totalAmount\": 45000\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/pos/sync-transaction", "host": ["{{baseUrl}}"], "path": ["api", "pos", "sync-transaction"] }
+          }
+        }
+      ]
+    }
+  ]
+}

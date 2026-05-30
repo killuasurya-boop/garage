@@ -1,0 +1,93 @@
+{
+  "publishedAt": "2026-05-26T00:53:31.501Z",
+  "voice": "id-ID-GadisNeural",
+  "rate": "+6%",
+  "pitch": "+1Hz",
+  "basePath": "/voice/scenarios",
+  "scenarios": [
+    {
+      "scenario": "order_new",
+      "file": "order-new.mp3",
+      "url": "/voice/scenarios/order-new.mp3",
+      "bytes": 33264
+    },
+    {
+      "scenario": "airport_qr",
+      "file": "airport-qr.mp3",
+      "url": "/voice/scenarios/airport-qr.mp3",
+      "bytes": 36864
+    },
+    {
+      "scenario": "online_new",
+      "file": "online-new.mp3",
+      "url": "/voice/scenarios/online-new.mp3",
+      "bytes": 34992
+    },
+    {
+      "scenario": "kitchen_cooking",
+      "file": "kitchen-cooking.mp3",
+      "url": "/voice/scenarios/kitchen-cooking.mp3",
+      "bytes": 34992
+    },
+    {
+      "scenario": "bar_mixing",
+      "file": "bar-mixing.mp3",
+      "url": "/voice/scenarios/bar-mixing.mp3",
+      "bytes": 31968
+    },
+    {
+      "scenario": "order_ready",
+      "file": "order-ready.mp3",
+      "url": "/voice/scenarios/order-ready.mp3",
+      "bytes": 32544
+    },
+    {
+      "scenario": "order_ready_deliver",
+      "file": "order-ready-deliver.mp3",
+      "url": "/voice/scenarios/order-ready-deliver.mp3",
+      "bytes": 36576
+    },
+    {
+      "scenario": "warning_printer",
+      "file": "warning-printer.mp3",
+      "url": "/voice/scenarios/warning-printer.mp3",
+      "bytes": 37008
+    },
+    {
+      "scenario": "warning_lowstock",
+      "file": "warning-lowstock.mp3",
+      "url": "/voice/scenarios/warning-lowstock.mp3",
+      "bytes": 36864
+    },
+    {
+      "scenario": "approval_pending",
+      "file": "approval-pending.mp3",
+      "url": "/voice/scenarios/approval-pending.mp3",
+      "bytes": 40320
+    },
+    {
+      "scenario": "cash_anomaly",
+      "file": "cash-anomaly.mp3",
+      "url": "/voice/scenarios/cash-anomaly.mp3",
+      "bytes": 39024
+    },
+    {
+      "scenario": "delivery_pickup",
+      "file": "delivery-pickup.mp3",
+      "url": "/voice/scenarios/delivery-pickup.mp3",
+      "bytes": 44784
+    },
+    {
+      "scenario": "member_vip",
+      "file": "member-vip.mp3",
+      "url": "/voice/scenarios/member-vip.mp3",
+      "bytes": 39024
+    },
+    {
+      "scenario": "audit_alert",
+      "file": "audit-alert.mp3",
+      "url": "/voice/scenarios/audit-alert.mp3",
+      "bytes": 41760
+    }
+  ]
+}

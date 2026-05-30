@@ -1,0 +1,172 @@
+{
+  "generatedAt": "2026-05-25T15:47:47.919Z",
+  "voice": "id-ID-GadisNeural",
+  "rate": "+6%",
+  "pitch": "+1Hz",
+  "manifest": "content/voice-scripts/garage-voice-id.json",
+  "outputDir": "exports/voice-mp3",
+  "files": [
+    {
+      "id": "01-tes-suara",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "01-ceo-tes-suara.mp3",
+      "relativePath": "exports/voice-mp3/01-ceo-tes-suara.mp3",
+      "text": "Halo CEO GARAGE Coffee and Motor. Ini tes suara asisten, ramah dan jelas. Siap mendampingi operasional ya.",
+      "bytes": 63504
+    },
+    {
+      "id": "02-briefing-pagi",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "02-ceo-briefing-pagi.mp3",
+      "relativePath": "exports/voice-mp3/02-ceo-briefing-pagi.mp3",
+      "text": "Halo CEO, briefing pagi dimulai. Cek penjualan semalam, antrian dapur, dan stok kritis. Prioritaskan layanan dan rasa. Semangat ya.",
+      "bytes": 84240
+    },
+    {
+      "id": "03-briefing-sore",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "03-ceo-briefing-sore.mp3",
+      "relativePath": "exports/voice-mp3/03-ceo-briefing-sore.mp3",
+      "text": "Halo CEO, briefing sore. Pantau penjualan, meja sibuk, online, dan kas harian. Jaga kecepatan dapur dan akurasi bayar. Lanjutkan standar GARAGE.",
+      "bytes": 92448
+    },
+    {
+      "id": "04-setuju",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "04-ceo-keputusan-disetujui.mp3",
+      "relativePath": "exports/voice-mp3/04-ceo-keputusan-disetujui.mp3",
+      "text": "Halo CEO, keputusan disetujui. Usulan aman untuk margin dan SOP. Silakan jalankan dengan pengawasan supervisor.",
+      "bytes": 65376
+    },
+    {
+      "id": "05-tolak",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "05-ceo-keputusan-ditolak.mp3",
+      "relativePath": "exports/voice-mp3/05-ceo-keputusan-ditolak.mp3",
+      "text": "Halo CEO, keputusan ditolak. Risiko terlalu tinggi atau data belum lengkap. Gunakan alternatif yang lebih aman dulu ya.",
+      "bytes": 65232
+    },
+    {
+      "id": "06-tinjauan",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "06-ceo-perlu-tinjauan.mp3",
+      "relativePath": "exports/voice-mp3/06-ceo-perlu-tinjauan.mp3",
+      "text": "Halo CEO, perlu tinjauan dulu. Data belum cukup untuk putusan final. Kumpulkan angka terbaru lalu ajukan ulang.",
+      "bytes": 65520
+    },
+    {
+      "id": "07-prioritas-kritis",
+      "packId": "executive-ceo",
+      "packLabel": "CEO Executive Assistant (Bahasa Indonesia)",
+      "file": "07-ceo-prioritas-kritis.mp3",
+      "relativePath": "exports/voice-mp3/07-ceo-prioritas-kritis.mp3",
+      "text": "Halo CEO, prioritas kritis shift ini. Fokus antrian dapur, kas, dan stok kritis. Supervisor koordinasi sekarang ya.",
+      "bytes": 72576
+    },
+    {
+      "id": "10-qr-pending",
+      "packId": "pengawasan-staf",
+      "packLabel": "Pengingat pengawasan karyawan",
+      "file": "10-pengingat-qr-pending.mp3",
+      "relativePath": "exports/voice-mp3/10-pengingat-qr-pending.mp3",
+      "text": "Hai kasir dan waiter, ada QR meja belum diproses. Terima atau tolak sesuai SOP ya. Supervisor sudah tahu.",
+      "bytes": 63792
+    },
+    {
+      "id": "11-pembayaran-pending",
+      "packId": "pengawasan-staf",
+      "packLabel": "Pengingat pengawasan karyawan",
+      "file": "11-pengingat-pembayaran-pending.mp3",
+      "relativePath": "exports/voice-mp3/11-pengingat-pembayaran-pending.mp3",
+      "text": "Hai kasir, ada order sudah diterima tapi bayar masih tertunda. Selesaikan atau kabari supervisor sekarang.",
+      "bytes": 55728
+    },
+    {
+      "id": "12-kitchen-delay",
+      "packId": "pengawasan-staf",
+      "packLabel": "Pengingat pengawasan karyawan",
+      "file": "12-pengingat-kitchen-delay.mp3",
+      "relativePath": "exports/voice-mp3/12-pengingat-kitchen-delay.mp3",
+      "text": "Hai tim dapur dan bar, antrian masak melewati target. Percepat ticket dan update kasir ya.",
+      "bytes": 46512
+    },
+    {
+      "id": "13-stok-kritis",
+      "packId": "pengawasan-staf",
+      "packLabel": "Pengingat pengawasan karyawan",
+      "file": "13-pengingat-stok-kritis.mp3",
+      "relativePath": "exports/voice-mp3/13-pengingat-stok-kritis.mp3",
+      "text": "Hai gudang dan manager, ada stok kritis. Cek persediaan dan ajukan pengadaan jika perlu.",
+      "bytes": 48096
+    },
+    {
+      "id": "14-approval-menumpuk",
+      "packId": "pengawasan-staf",
+      "packLabel": "Pengingat pengawasan karyawan",
+      "file": "14-pengingat-approval-menumpuk.mp3",
+      "relativePath": "exports/voice-mp3/14-pengingat-approval-menumpuk.mp3",
+      "text": "Hai manager dan finance, approval masih menumpuk. Tinjau dan putuskan agar operasional lancar.",
+      "bytes": 48960
+    },
+    {
+      "id": "20-order-masuk",
+      "packId": "operasional-pos",
+      "packLabel": "Suara operasional POS dan dapur",
+      "file": "20-order-masuk-kasir.mp3",
+      "relativePath": "exports/voice-mp3/20-order-masuk-kasir.mp3",
+      "text": "Hai kasir, order baru masuk. Konfirmasi dan arahkan ke dapur sesuai alur GARAGE ya.",
+      "bytes": 45216
+    },
+    {
+      "id": "21-qr-masuk",
+      "packId": "operasional-pos",
+      "packLabel": "Suara operasional POS dan dapur",
+      "file": "21-order-qr-masuk.mp3",
+      "relativePath": "exports/voice-mp3/21-order-qr-masuk.mp3",
+      "text": "Hai kasir, pesanan QR meja baru masuk. Cek detail meja dan waktunya sekarang.",
+      "bytes": 45072
+    },
+    {
+      "id": "22-masak",
+      "packId": "operasional-pos",
+      "packLabel": "Suara operasional POS dan dapur",
+      "file": "22-kitchen-mulai-masak.mp3",
+      "relativePath": "exports/voice-mp3/22-kitchen-mulai-masak.mp3",
+      "text": "Tim dapur, ticket masuk antrian masak. Mulai sesuai prioritas waktu pesanan ya.",
+      "bytes": 43344
+    },
+    {
+      "id": "23-siap",
+      "packId": "operasional-pos",
+      "packLabel": "Suara operasional POS dan dapur",
+      "file": "23-order-siap-ambil.mp3",
+      "relativePath": "exports/voice-mp3/23-order-siap-ambil.mp3",
+      "text": "Hai kasir dan runner, pesanan sudah siap. Antar ke meja atau serahkan ke pelanggan.",
+      "bytes": 45216
+    },
+    {
+      "id": "24-printer",
+      "packId": "operasional-pos",
+      "packLabel": "Suara operasional POS dan dapur",
+      "file": "24-peringatan-printer.mp3",
+      "relativePath": "exports/voice-mp3/24-peringatan-printer.mp3",
+      "text": "Kasir, printer struk bermasalah. Cek koneksi dan kertas, lalu tes cetak ulang.",
+      "bytes": 46368
+    },
+    {
+      "id": "25-stok-rendah",
+      "packId": "operasional-pos",
+      "packLabel": "Suara operasional POS dan dapur",
+      "file": "25-peringatan-stok-rendah.mp3",
+      "relativePath": "exports/voice-mp3/25-peringatan-stok-rendah.mp3",
+      "text": "Hai gudang, ada item stok rendah. Cek on hand dan rencanakan isi ulang ya.",
+      "bytes": 42336
+    }
+  ]
+}

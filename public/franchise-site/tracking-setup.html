@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tracking Setup · GARAGE Internal</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Cpath d='M16 4 L28 26 L4 26 Z' stroke='%23C0C0C0' stroke-width='2' fill='none'/%3E%3Cpath d='M16 12 L22 24 L14 24 Z' fill='%23CC0000'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/page.css">
+<style>
+  .page-body .container { width: min(1100px, 92vw); }
+
+  /* Code blocks */
+  pre {
+    background: #050505;
+    border: 1px solid var(--line-2);
+    padding: 20px 24px;
+    margin: 16px 0 24px;
+    overflow-x: auto;
+    border-left: 3px solid var(--red);
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--chrome);
+  }
+  pre::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 0; right: 0;
+    background: var(--red);
+    color: white;
+    padding: 4px 12px;
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  pre code { color: var(--chrome); }
+  pre .k { color: #ff7b6b; } /* keyword */
+  pre .s { color: #c7f59c; } /* string */
+  pre .c { color: var(--chrome-dim); font-style: italic; } /* comment */
+  pre .n { color: #ffbd64; } /* number */
+  pre .v { color: #6bcfff; } /* variable */
+
+  .copy-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: var(--black-2);
+    color: var(--chrome);
+    border: 1px solid var(--line-2);
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .copy-btn:hover { background: var(--red); color: white; border-color: var(--red); }
+  .copy-btn.copied { background: var(--hud); color: var(--black); border-color: var(--hud); }
+
+  /* Service cards */
+  .svc-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line-2);
+    margin: 24px 0 48px;
+  }
+  @media (max-width: 720px) { .svc-grid { grid-template-columns: 1fr; } }
+  .svc {
+    background: var(--black);
+    padding: 24px 28px;
+  }
+  .svc .b {
+    display: flex; gap: 14px; align-items: center;
+    margin-bottom: 12px;
+  }
+  .svc .ic {
+    width: 44px; height: 44px;
+    display: grid; place-items: center;
+    border: 1px solid var(--line-2);
+    background: var(--black-2);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--red);
+    letter-spacing: .04em;
+  }
+  .svc h4 { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: .03em; margin: 0; }
+  .svc .role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .18em;
+    color: var(--chrome-dim);
+    text-transform: uppercase;
+    margin: 2px 0 0;
+  }
+  .svc p { color: var(--chrome); font-size: 14px; margin: 0 0 16px; line-height: 1.6; }
+  .svc .row {
+    display: grid; grid-template-columns: 90px 1fr;
+    gap: 12px;
+    padding: 6px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--chrome);
+  }
+  .svc .row .l { color: var(--chrome-dim); letter-spacing: .12em; }
+  .svc .row strong { color: var(--white); }
+  .svc .free { color: var(--hud); }
+  .svc .paid { color: var(--amber); }
+
+  /* Step blocks */
+  .step-block {
+    display: grid; grid-template-columns: 48px 1fr;
+    gap: 20px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .step-block:last-child { border-bottom: none; }
+  .step-block .n {
+    width: 40px; height: 40px;
+    background: var(--red); color: white;
+    display: grid; place-items: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: .04em;
+  }
+  .step-block h4 { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: .03em; margin: 0 0 8px; line-height: 1; }
+  .step-block .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .18em; color: var(--chrome-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .step-block p { color: var(--chrome); font-size: 14.5px; margin: 0 0 12px; line-height: 1.6; }
+
+  /* Event table */
+  .ev-table .tbl td:nth-child(2) {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--red);
+    font-size: 13px;
+  }
+
+  /* Anchor tabs */
+  .anchor-tabs {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    background: var(--black-2);
+    padding: 4px;
+    margin: 32px 0 48px;
+    border: 1px solid var(--line-2);
+  }
+  .anchor-tabs a {
+    flex: 1;
+    text-align: center;
+    padding: 12px 14px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--chrome);
+    text-decoration: none;
+    transition: all .15s;
+  }
+  .anchor-tabs a:hover { background: var(--black); color: var(--red); text-decoration: none; }
+
+  .check-list { margin: 16px 0 24px; padding: 0; list-style: none; }
+  .check-list li {
+    padding: 6px 0;
+    display: grid; grid-template-columns: 24px 1fr;
+    gap: 10px;
+    font-size: 14.5px;
+    color: var(--white);
+  }
+  .check-list li::before { content: "✓"; color: var(--hud); font-weight: 700; }
+  .check-list li.no::before { content: "✕"; color: var(--red); }
+</style>
+</head>
+<body>
+
+<header class="page-nav">
+  <div class="inner">
+    <a class="brand" href="/franchise-site/marketing-hub.html">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <strong>GARAGE</strong>
+        <small>Internal · Tracking</small>
+      </div>
+    </a>
+    <a class="nav-back" href="/franchise-site/marketing-hub.html">← Kembali ke Hub</a>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow">Internal · Setup Guide · Tier 3</div>
+    <h1>Tracking<br><span class="red">Setup.</span></h1>
+    <p class="sub">Pasang Meta Pixel, Google Analytics 4, Microsoft Clarity, dan TikTok Pixel ke seluruh halaman. Copy-paste snippet di bawah, ganti ID-nya, deploy. Siap launch ads.</p>
+    <div class="meta">
+      <span>// 4 Tools<strong>Ready to paste</strong></span>
+      <span>// Setup Time<strong>30 menit</strong></span>
+      <span>// Cost<strong>Free</strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="page-body">
+  <div class="container">
+
+    <div class="anchor-tabs">
+      <a href="#stack">Stack</a>
+      <a href="#step1">Step 1 · Buat Akun</a>
+      <a href="#step2">Step 2 · Pasang Snippet</a>
+      <a href="#step3">Step 3 · Track Events</a>
+      <a href="#step4">Step 4 · Verify</a>
+    </div>
+
+    <!-- ============== STACK ============== -->
+    <h2 id="stack"><span class="num">01</span>Stack yang Akan Dipakai</h2>
+    <p>Empat tools yang melengkapi satu sama lain — semua versi gratisnya cukup untuk traffic &lt; 100K/bulan. Pakai semuanya untuk coverage maksimal.</p>
+
+    <div class="svc-grid">
+      <div class="svc">
+        <div class="b">
+          <div class="ic">M</div>
+          <div>
+            <h4>Meta Pixel</h4>
+            <div class="role">Facebook + Instagram Ads tracking</div>
+          </div>
+        </div>
+        <p>Wajib untuk Meta Ads. Track page views, lead form submits, retargeting audiences.</p>
+        <div class="row"><span class="l">// Cost</span><span class="free">Gratis</span></div>
+        <div class="row"><span class="l">// Setup</span><span><strong>business.facebook.com</strong></span></div>
+        <div class="row"><span class="l">// Output</span><span>Custom Audience untuk retargeting</span></div>
+      </div>
+
+      <div class="svc">
+        <div class="b">
+          <div class="ic">G</div>
+          <div>
+            <h4>Google Analytics 4</h4>
+            <div class="role">Universal web analytics</div>
+          </div>
+        </div>
+        <p>Standar industri. Track sumber traffic, funnel, demografi, behavior, conversion.</p>
+        <div class="row"><span class="l">// Cost</span><span class="free">Gratis</span></div>
+        <div class="row"><span class="l">// Setup</span><span><strong>analytics.google.com</strong></span></div>
+        <div class="row"><span class="l">// Output</span><span>Dashboard real-time + reports</span></div>
+      </div>
+
+      <div class="svc">
+        <div class="b">
+          <div class="ic">C</div>
+          <div>
+            <h4>Microsoft Clarity</h4>
+            <div class="role">Session recording &amp; heatmaps</div>
+          </div>
+        </div>
+        <p>Wajib! Rekam sesi visitor, heatmap, scroll depth. Insight kenapa orang bounce.</p>
+        <div class="row"><span class="l">// Cost</span><span class="free">Gratis (unlimited)</span></div>
+        <div class="row"><span class="l">// Setup</span><span><strong>clarity.microsoft.com</strong></span></div>
+        <div class="row"><span class="l">// Output</span><span>Video replay tiap pengunjung</span></div>
+      </div>
+
+      <div class="svc">
+        <div class="b">
+          <div class="ic">T</div>
+          <div>
+            <h4>TikTok Pixel</h4>
+            <div class="role">TikTok Ads tracking</div>
+          </div>
+        </div>
+        <p>Untuk TikTok Ads campaign. Demografi 25–40 di Indonesia, CPM lebih murah dari Meta.</p>
+        <div class="row"><span class="l">// Cost</span><span class="free">Gratis</span></div>
+        <div class="row"><span class="l">// Setup</span><span><strong>ads.tiktok.com</strong></span></div>
+        <div class="row"><span class="l">// Output</span><span>Retargeting + audience lookalike</span></div>
+      </div>
+    </div>
+
+    <!-- ============== STEP 1 ============== -->
+    <h2 id="step1"><span class="num">02</span>Step 1 · Buat Akun &amp; Dapatkan ID</h2>
+
+    <div class="step-block">
+      <div class="n">1</div>
+      <div>
+        <h4>Meta Pixel</h4>
+        <div class="meta">// business.facebook.com/events_manager</div>
+        <ol style="color: var(--chrome); font-size: 14.5px; line-height: 1.7;">
+          <li>Login ke Meta Business Suite (atau buat akun jika belum ada)</li>
+          <li>Events Manager → Connect Data Source → Web → "Meta Pixel"</li>
+          <li>Beri nama: <strong style="color: var(--white)">GARAGE Website Pixel</strong></li>
+          <li>Pilih "Set up the Pixel Now" → Manual Installation</li>
+          <li>Copy <strong style="color: var(--red)">Pixel ID</strong> (16 digit angka) — simpan baik-baik</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="n">2</div>
+      <div>
+        <h4>Google Analytics 4</h4>
+        <div class="meta">// analytics.google.com</div>
+        <ol style="color: var(--chrome); font-size: 14.5px; line-height: 1.7;">
+          <li>Login dengan Google Account (gunakan email founder@garagecoffee.id)</li>
+          <li>Buat Account → Buat Property → "GARAGE Website"</li>
+          <li>Pilih industri "Food &amp; Drink", time zone "Indonesia (WIB)"</li>
+          <li>Buat Data Stream → Web → URL: <strong style="color: var(--white)">https://garagecoffee.id</strong></li>
+          <li>Copy <strong style="color: var(--red)">Measurement ID</strong> (format: G-XXXXXXXXXX)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="n">3</div>
+      <div>
+        <h4>Microsoft Clarity</h4>
+        <div class="meta">// clarity.microsoft.com</div>
+        <ol style="color: var(--chrome); font-size: 14.5px; line-height: 1.7;">
+          <li>Login dengan Microsoft Account (atau buat akun gratis)</li>
+          <li>"Create new project" → Name: "GARAGE" → Site: garagecoffee.id</li>
+          <li>Pilih kategori "Marketing"</li>
+          <li>Copy <strong style="color: var(--red)">Project ID</strong> (format: alphanumeric pendek)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="n">4</div>
+      <div>
+        <h4>TikTok Pixel</h4>
+        <div class="meta">// ads.tiktok.com</div>
+        <ol style="color: var(--chrome); font-size: 14.5px; line-height: 1.7;">
+          <li>Login ke TikTok Ads Manager (region: Indonesia)</li>
+          <li>Assets → Events → Web Events → Set Up Web Events</li>
+          <li>Pilih "Manually install Pixel code"</li>
+          <li>Beri nama: <strong style="color: var(--white)">GARAGE TikTok Pixel</strong></li>
+          <li>Copy <strong style="color: var(--red)">Pixel Code ID</strong> (format: alphanumeric)</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- ============== STEP 2 ============== -->
+    <h2 id="step2"><span class="num">03</span>Step 2 · Paste Snippet ke Semua Halaman</h2>
+    <p>Ganti <code style="background: var(--black-2); padding: 2px 6px; color: var(--red); border: 1px solid var(--line-2); font-family: 'JetBrains Mono', monospace;">PIXEL_ID</code>, <code style="background: var(--black-2); padding: 2px 6px; color: var(--red); border: 1px solid var(--line-2); font-family: 'JetBrains Mono', monospace;">G-XXXXXXXXXX</code>, <code style="background: var(--black-2); padding: 2px 6px; color: var(--red); border: 1px solid var(--line-2); font-family: 'JetBrains Mono', monospace;">CLARITY_ID</code>, dan <code style="background: var(--black-2); padding: 2px 6px; color: var(--red); border: 1px solid var(--line-2); font-family: 'JetBrains Mono', monospace;">TIKTOK_PIXEL_ID</code> dengan ID asli dari Step 1, lalu paste semua snippet ini ke <strong>&lt;head&gt;</strong> di setiap halaman HTML.</p>
+
+    <h3 style="margin-top: 32px; color: var(--white); font-family: 'Bebas Neue'; font-size: 28px; letter-spacing: .03em;">Single Bundle Snippet (paste sekali, semua tools sekaligus)</h3>
+
+    <pre data-lang="HTML"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code id="bundle-code">&lt;!-- =============== GARAGE TRACKING BUNDLE =============== --&gt;
+
+&lt;!-- 1. Google Analytics 4 --&gt;
+&lt;script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"&gt;&lt;/script&gt;
+&lt;script&gt;
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX', {
+    'page_title': document.title,
+    'page_location': window.location.href
+  });
+&lt;/script&gt;
+
+&lt;!-- 2. Meta Pixel --&gt;
+&lt;script&gt;
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+  document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', 'PIXEL_ID');
+  fbq('track', 'PageView');
+&lt;/script&gt;
+&lt;noscript&gt;&lt;img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=PIXEL_ID&ev=PageView&noscript=1"/&gt;&lt;/noscript&gt;
+
+&lt;!-- 3. Microsoft Clarity --&gt;
+&lt;script type="text/javascript"&gt;
+  (function(c,l,a,r,i,t,y){
+    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+  })(window, document, "clarity", "script", "CLARITY_ID");
+&lt;/script&gt;
+
+&lt;!-- 4. TikTok Pixel --&gt;
+&lt;script&gt;
+  !function (w, d, t) {
+    w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i&lt;ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n&lt;ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+    ttq.load('TIKTOK_PIXEL_ID');
+    ttq.page();
+  }(window, document, 'ttq');
+&lt;/script&gt;
+
+&lt;!-- =============== END TRACKING BUNDLE =============== --&gt;</code></pre>
+
+    <div class="callout">
+      <div class="mono">// PRO TIP</div>
+      <p>Simpan snippet ini sebagai file terpisah <strong>tracking.html</strong>, lalu pakai server-side include atau gunakan Google Tag Manager. Lebih maintainable kalau ada perubahan ID.</p>
+    </div>
+
+    <!-- ============== STEP 3 ============== -->
+    <h2 id="step3"><span class="num">04</span>Step 3 · Track Events Penting</h2>
+    <p>PageView sudah di-track otomatis. Tapi yang paling penting untuk franchise sales adalah <strong>conversion events</strong> — kapan visitor jadi lead. Snippet di bawah sudah ada di form GARAGE (cari <code style="background: var(--black-2); padding: 2px 6px; color: var(--red);">fbq</code> dan <code style="background: var(--black-2); padding: 2px 6px; color: var(--red);">gtag</code> di unduh-brosur.html dan konsultasi.html).</p>
+
+    <table class="tbl ev-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Trigger</th>
+          <th>Halaman</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Lead (brosur)</td><td>fbq('track', 'Lead')</td><td>unduh-brosur.html</td></tr>
+        <tr><td>Schedule (booking)</td><td>fbq('track', 'Schedule')</td><td>konsultasi.html</td></tr>
+        <tr><td>Contact</td><td>fbq('track', 'Contact')</td><td>WA click di index</td></tr>
+        <tr><td>ViewContent</td><td>fbq('track', 'ViewContent')</td><td>brosur.html (auto)</td></tr>
+        <tr><td>InitiateCheckout</td><td>fbq('track', 'InitiateCheckout')</td><td>"Pilih Paket" click</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top: 24px; color: var(--white); font-family: 'Bebas Neue'; font-size: 24px;">Universal Tracker Function</h3>
+    <p>Pakai helper ini untuk fire event ke 4 tools sekaligus. Paste sekali di tracking bundle.</p>
+
+    <pre data-lang="JavaScript"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Universal event tracker
+window.garageTrack = function(eventName, params = {}) {
+  // Google Analytics 4
+  if (typeof gtag !== 'undefined') {
+    gtag('event', eventName, params);
+  }
+  // Meta Pixel
+  if (typeof fbq !== 'undefined') {
+    const standardEvents = ['Lead','Schedule','Contact','ViewContent','InitiateCheckout','CompleteRegistration'];
+    if (standardEvents.includes(eventName)) {
+      fbq('track', eventName, params);
+    } else {
+      fbq('trackCustom', eventName, params);
+    }
+  }
+  // TikTok Pixel
+  if (typeof ttq !== 'undefined') {
+    ttq.track(eventName, params);
+  }
+  // Console log for debugging
+  console.log('[track]', eventName, params);
+};
+
+// Usage:
+garageTrack('Lead', { value: 250000000, currency: 'IDR', content_name: 'Starter Cafe' });
+garageTrack('Schedule', { content_name: 'Konsultasi 30 menit' });
+garageTrack('ViewBrosur');  // custom event</code></pre>
+
+    <h3 style="margin-top: 32px; color: var(--white); font-family: 'Bebas Neue'; font-size: 24px;">Scroll Depth Tracking</h3>
+    <p>Auto-track berapa jauh user scroll. Insight penting: kalau banyak yang bounce di 30%, ada masalah di hero atau load speed.</p>
+
+    <pre data-lang="JavaScript"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Scroll depth tracker (25%, 50%, 75%, 100%)
+(function() {
+  const milestones = [25, 50, 75, 100];
+  const fired = new Set();
+  window.addEventListener('scroll', () => {
+    const pct = Math.round(
+      (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
+    );
+    milestones.forEach(m => {
+      if (pct >= m && !fired.has(m)) {
+        fired.add(m);
+        if (window.garageTrack) garageTrack('scroll_depth', { depth: m });
+      }
+    });
+  }, { passive: true });
+})();</code></pre>
+
+    <h3 style="margin-top: 32px; color: var(--white); font-family: 'Bebas Neue'; font-size: 24px;">UTM Capture</h3>
+    <p>Capture sumber traffic dari URL UTM params. Pass ke form submission supaya tahu lead dari kampanye mana.</p>
+
+    <pre data-lang="JavaScript"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Capture UTM params, save to sessionStorage, inject into forms
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const utm = {};
+  ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(k => {
+    const v = params.get(k);
+    if (v) utm[k] = v;
+  });
+  if (Object.keys(utm).length) {
+    sessionStorage.setItem('garage_utm', JSON.stringify(utm));
+  }
+  // Inject into all forms as hidden inputs
+  document.addEventListener('submit', (e) => {
+    const stored = JSON.parse(sessionStorage.getItem('garage_utm') || '{}');
+    Object.entries(stored).forEach(([k, v]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = v;
+      e.target.appendChild(input);
+    });
+  });
+})();
+
+// Example campaign URL:
+// https://garagecoffee.id/?utm_source=meta&utm_medium=cpc&utm_campaign=franchise_q1_2026</code></pre>
+
+    <!-- ============== STEP 4 ============== -->
+    <h2 id="step4"><span class="num">05</span>Step 4 · Verify &amp; Debug</h2>
+
+    <ul class="check-list">
+      <li><strong>Meta Pixel Helper</strong> (Chrome extension): install, buka landing page, lihat ikon di toolbar berubah jadi biru &amp; menunjukkan event yang fired.</li>
+      <li><strong>Google Tag Assistant</strong>: install dari Chrome Web Store, klik ikon di tab landing page, harus muncul "GA4" hijau.</li>
+      <li><strong>Clarity Dashboard</strong>: buka clarity.microsoft.com, project GARAGE → 5–10 menit setelah pasang, dashboard mulai populate.</li>
+      <li><strong>TikTok Pixel Helper</strong> (Chrome extension): test pixel fire di TikTok Events Manager.</li>
+      <li class="no"><strong>JANGAN</strong> verify dengan adblock aktif — semua pixel akan di-block.</li>
+      <li class="no"><strong>JANGAN</strong> test di mode incognito tanpa allow third-party cookie.</li>
+    </ul>
+
+    <div class="callout">
+      <div class="mono">// CHECKLIST PRE-LAUNCH</div>
+      <p>Sebelum launch ads:<br>
+      ✓ Test fire Lead event dari unduh-brosur.html<br>
+      ✓ Test fire Schedule event dari konsultasi.html<br>
+      ✓ Test fire Contact event dari WA click di index.html<br>
+      ✓ Cek scroll depth events firing di GA4 real-time<br>
+      ✓ Cek session recording masuk di Clarity</p>
+    </div>
+
+    <h2><span class="num">06</span>Cookie Consent Banner</h2>
+    <p>UU PDP No. 27/2022 mewajibkan disclosure cookie. Pakai snippet sederhana di bawah, atau gunakan tool seperti CookieYes (gratis).</p>
+
+    <pre data-lang="HTML + CSS + JS"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;!-- Paste sebelum &lt;/body&gt; --&gt;
+&lt;div id="cc-banner" style="display:none;position:fixed;bottom:20px;left:20px;right:20px;max-width:540px;margin:0 auto;background:#0A0A0A;border:1px solid #CC0000;padding:20px;z-index:9999;color:#fff;font-family:sans-serif;"&gt;
+  &lt;div style="font-size:14px;margin-bottom:12px;"&gt;
+    Situs ini menggunakan cookie untuk analytics &amp; marketing.
+    Dengan melanjutkan, Anda menyetujui &lt;a href="/franchise-site/privacy.html" style="color:#CC0000;"&gt;Kebijakan Privasi&lt;/a&gt; kami.
+  &lt;/div&gt;
+  &lt;div style="display:flex;gap:8px;"&gt;
+    &lt;button onclick="ccAccept()" style="background:#CC0000;color:#fff;border:0;padding:10px 18px;cursor:pointer;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:12px;"&gt;Terima&lt;/button&gt;
+    &lt;button onclick="ccDecline()" style="background:transparent;color:#C0C0C0;border:1px solid #333;padding:10px 18px;cursor:pointer;font-size:12px;"&gt;Tolak&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+&lt;script&gt;
+  if (!localStorage.getItem('cc_choice')) {
+    document.getElementById('cc-banner').style.display = 'block';
+  }
+  function ccAccept() {
+    localStorage.setItem('cc_choice','accept');
+    document.getElementById('cc-banner').style.display = 'none';
+  }
+  function ccDecline() {
+    localStorage.setItem('cc_choice','decline');
+    document.getElementById('cc-banner').style.display = 'none';
+    // Optional: disable tracking by removing scripts
+  }
+&lt;/script&gt;</code></pre>
+
+    <h2><span class="num">07</span>KPI Dashboard yang Wajib Di-Pantau</h2>
+    <table class="tbl">
+      <thead>
+        <tr><th>Metric</th><th>Tools</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Cost per Lead (CPL)</td><td>Meta Ads + GA4</td><td>&lt; Rp 50rb</td></tr>
+        <tr><td>Conversion Rate (LP → Lead)</td><td>GA4 + Meta Events</td><td>&gt; 5%</td></tr>
+        <tr><td>Bounce Rate Landing Page</td><td>GA4</td><td>&lt; 50%</td></tr>
+        <tr><td>Avg Session Duration</td><td>GA4</td><td>&gt; 2 menit</td></tr>
+        <tr><td>Scroll Depth (rata-rata)</td><td>GA4 custom event</td><td>&gt; 50%</td></tr>
+        <tr><td>Lead → Konsultasi Booking</td><td>CRM + GA4</td><td>&gt; 30%</td></tr>
+        <tr><td>Konsultasi → Closing</td><td>CRM</td><td>&gt; 40%</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout" style="margin-top: 48px;">
+      <div class="mono">// NEXT STEP</div>
+      <p>Setelah tracking pasang, lanjut ke <a href="/franchise-site/crm-integration.html" style="color: var(--white);">CRM Integration</a> untuk auto-capture lead ke database, lalu <a href="/franchise-site/email-drip.html" style="color: var(--white);">Email Drip Setup</a> untuk nurture sequence 7 hari.</p>
+    </div>
+
+  </div>
+</section>
+
+<footer class="page-foot">
+  <div class="inner">
+    <div class="legal-links">
+      <a href="/franchise-site/marketing-hub.html">Marketing Hub</a>
+      <a href="/franchise-site/crm-integration.html">CRM Integration</a>
+      <a href="/franchise-site/email-drip.html">Email Drip</a>
+      <a href="/franchise-site/privacy.html">Privasi</a>
+    </div>
+    <div class="row">
+      <span>© 2026 PT GARAGE INDONESIA · INTERNAL DOCUMENT</span>
+      <span style="color: var(--red);">● TIER 3 · TRACKING SETUP</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function copyCode(btn) {
+    const code = btn.parentElement.querySelector('code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      btn.classList.add('copied');
+      btn.textContent = '✓ Copied';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy';
+      }, 2000);
+    });
+  }
+</script>
+
+</body>
+</html>

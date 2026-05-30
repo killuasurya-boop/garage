@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM Integration · GARAGE Internal</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Cpath d='M16 4 L28 26 L4 26 Z' stroke='%23C0C0C0' stroke-width='2' fill='none'/%3E%3Cpath d='M16 12 L22 24 L14 24 Z' fill='%23CC0000'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/page.css">
+<style>
+  .page-body .container { width: min(1100px, 92vw); }
+
+  pre {
+    background: #050505; border: 1px solid var(--line-2);
+    padding: 20px 24px; margin: 16px 0 24px;
+    overflow-x: auto; border-left: 3px solid var(--red);
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.7; color: var(--chrome);
+  }
+  pre::before {
+    content: attr(data-lang); position: absolute; top: 0; right: 0;
+    background: var(--red); color: white; padding: 4px 12px;
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase; font-weight: 600;
+  }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--black-2); color: var(--chrome);
+    border: 1px solid var(--line-2);
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .copy-btn:hover { background: var(--red); color: white; border-color: var(--red); }
+  .copy-btn.copied { background: var(--hud); color: var(--black); border-color: var(--hud); }
+
+  /* Architecture diagram */
+  .diagram {
+    background: var(--black-2); border: 1px solid var(--line-2);
+    padding: 32px;
+    margin: 24px 0 48px;
+    position: relative;
+  }
+  .diagram::before {
+    content: "// ARCHITECTURE"; position: absolute; top: -10px; left: 24px;
+    background: var(--black-2); padding: 2px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .22em; color: var(--red);
+  }
+  .flow {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    align-items: center;
+  }
+  @media (max-width: 880px) { .flow { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .flow { grid-template-columns: 1fr; } }
+  .node {
+    background: var(--black); border: 1px solid var(--line-2);
+    padding: 20px 16px;
+    text-align: center;
+    position: relative;
+  }
+  .node.hi { border-color: var(--red); background: linear-gradient(135deg, #1a0707, var(--black-2)); }
+  .node.success { border-color: var(--hud); }
+  .node .ic {
+    font-family: 'Bebas Neue'; font-size: 32px;
+    color: var(--red); letter-spacing: .04em;
+    margin-bottom: 8px;
+  }
+  .node .lbl {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; font-size: 14px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .node .d {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .14em;
+    color: var(--chrome-dim); margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  /* Vendor cards */
+  .vendor-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+    margin: 24px 0 48px;
+  }
+  @media (max-width: 720px) { .vendor-grid { grid-template-columns: 1fr; } }
+  .vendor {
+    background: var(--black-2); border: 1px solid var(--line-2);
+    padding: 28px; position: relative;
+  }
+  .vendor.featured { border-color: var(--red); background: linear-gradient(135deg, #1a0707, var(--black-2)); }
+  .vendor .b { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .vendor h4 { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: .03em; }
+  .vendor .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; padding: 4px 10px;
+    border: 1px solid var(--line-2);
+    letter-spacing: .22em; text-transform: uppercase;
+    color: var(--chrome-dim);
+  }
+  .vendor.featured .tag { color: var(--red); border-color: var(--red); }
+  .vendor p { color: var(--chrome); font-size: 14px; margin: 0 0 16px; line-height: 1.6; }
+  .vendor .pros { margin: 12px 0; padding: 0; list-style: none; font-size: 13px; }
+  .vendor .pros li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 4px 0; color: var(--white); }
+  .vendor .pros li.pro::before { content: "✓"; color: var(--hud); }
+  .vendor .pros li.con::before { content: "−"; color: var(--amber); }
+  .vendor .pricing { font-family: 'Bebas Neue'; font-size: 18px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); letter-spacing: .03em; }
+  .vendor .pricing .price { color: var(--hud); }
+  .vendor .pricing .price.amber { color: var(--amber); }
+
+  /* Stage indicator */
+  .stage-box {
+    display: grid; grid-template-columns: 80px 1fr;
+    gap: 20px; margin: 24px 0;
+    padding: 24px;
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    border-left: 3px solid var(--red);
+  }
+  .stage-box .stage-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px; line-height: .85;
+    color: transparent; -webkit-text-stroke: 1.5px var(--red);
+  }
+  .stage-box h4 { font-family: 'Bebas Neue'; font-size: 26px; margin-bottom: 8px; }
+  .stage-box .who {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em;
+    color: var(--chrome-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .stage-box p { color: var(--chrome); font-size: 14.5px; line-height: 1.6; margin: 0; }
+
+  /* Status pill */
+  .pill {
+    display: inline-block;
+    padding: 3px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    border: 1px solid var(--line-2);
+    background: var(--black);
+    color: var(--chrome);
+  }
+  .pill.red { color: var(--red); border-color: var(--red); }
+  .pill.green { color: var(--hud); border-color: var(--hud); }
+  .pill.amber { color: var(--amber); border-color: var(--amber); }
+</style>
+</head>
+<body>
+
+<header class="page-nav">
+  <div class="inner">
+    <a class="brand" href="/franchise-site/marketing-hub.html">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <strong>GARAGE</strong>
+        <small>Internal · CRM Setup</small>
+      </div>
+    </a>
+    <a class="nav-back" href="/franchise-site/marketing-hub.html">← Kembali ke Hub</a>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow">Internal · Setup Guide · Tier 3</div>
+    <h1>CRM<br><span class="red">Integration.</span></h1>
+    <p class="sub">Auto-capture lead dari form ke database. Notif Slack/WA tim sales real-time. Tag &amp; status workflow lengkap. Zero lead leakage.</p>
+    <div class="meta">
+      <span>// Setup Time<strong>1–2 jam</strong></span>
+      <span>// Cost<strong>Free tier cukup</strong></span>
+      <span>// Tools<strong>Make · Notion · Slack</strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="page-body">
+  <div class="container">
+
+    <h2><span class="num">01</span>Arsitektur Sistem</h2>
+    <p>Flow dari form di website → backend → database lead → notif tim → automation. Semuanya pakai tools yang sudah terbukti dan punya free tier.</p>
+
+    <div class="diagram">
+      <div class="flow">
+        <div class="node hi">
+          <div class="ic">01</div>
+          <div class="lbl">Form Submit</div>
+          <div class="d">website</div>
+        </div>
+        <div class="node">
+          <div class="ic">02</div>
+          <div class="lbl">Webhook</div>
+          <div class="d">Make.com</div>
+        </div>
+        <div class="node">
+          <div class="ic">03</div>
+          <div class="lbl">Database</div>
+          <div class="d">Notion / Airtable</div>
+        </div>
+        <div class="node success">
+          <div class="ic">04</div>
+          <div class="lbl">Notif Tim</div>
+          <div class="d">Slack / WA</div>
+        </div>
+      </div>
+    </div>
+
+    <h2><span class="num">02</span>Pilih CRM yang Cocok</h2>
+    <p>Untuk franchise sales dengan ~50–200 lead/bulan, kamu <strong>tidak butuh</strong> CRM enterprise seperti Salesforce. Pilih yang ringan, gratis, mudah dipakai tim non-tech.</p>
+
+    <div class="vendor-grid">
+      <div class="vendor featured">
+        <div class="b">
+          <h4>Notion</h4>
+          <span class="tag">★ RECOMMENDED</span>
+        </div>
+        <p>Database flexible, view kanban/calendar/table, sharing mudah, sudah familiar untuk kebanyakan tim. Free tier cukup besar.</p>
+        <ul class="pros">
+          <li class="pro">Free unlimited (untuk personal/small team)</li>
+          <li class="pro">UI familiar, drag-and-drop</li>
+          <li class="pro">Multiple view (table, board, calendar, gallery)</li>
+          <li class="pro">Bisa di-share ke tim sales tanpa license tambahan</li>
+          <li class="con">Bukan CRM specialized — kurang reporting bawaan</li>
+        </ul>
+        <div class="pricing">// Cost: <span class="price">Free</span> · Setup: <span class="amber">30 menit</span></div>
+      </div>
+
+      <div class="vendor">
+        <div class="b">
+          <h4>Airtable</h4>
+          <span class="tag">ALTERNATIVE</span>
+        </div>
+        <p>Lebih powerful untuk relational data (lead ↔ outlet ↔ kontrak). UI seperti spreadsheet++. Bagus untuk yang familiar dengan Excel.</p>
+        <ul class="pros">
+          <li class="pro">Relational database (mirip database asli)</li>
+          <li class="pro">1.000 records free per base</li>
+          <li class="pro">Automation built-in</li>
+          <li class="con">UI sedikit lebih steep learning curve</li>
+          <li class="con">$10–20/user/bulan untuk team plan</li>
+        </ul>
+        <div class="pricing">// Cost: <span class="price">Free 1K records</span> / <span class="price amber">$10/user</span></div>
+      </div>
+
+      <div class="vendor">
+        <div class="b">
+          <h4>HubSpot Free</h4>
+          <span class="tag">PROPER CRM</span>
+        </div>
+        <p>Specialized CRM dengan pipeline, deal stage, email tracking. Cocok kalau tim sales kamu &gt;3 orang dan butuh disiplin process.</p>
+        <ul class="pros">
+          <li class="pro">Real CRM — pipeline visual, deal stages</li>
+          <li class="pro">Free unlimited contacts</li>
+          <li class="pro">Email tracking built-in (open, click)</li>
+          <li class="con">Free tier limited (1.000 contacts active)</li>
+          <li class="con">Upgrade Starter $20/bulan</li>
+        </ul>
+        <div class="pricing">// Cost: <span class="price">Free</span> / <span class="price amber">$20/m Starter</span></div>
+      </div>
+
+      <div class="vendor">
+        <div class="b">
+          <h4>Google Sheets</h4>
+          <span class="tag">MINIMAL</span>
+        </div>
+        <p>Paling sederhana. Cocok untuk MVP &lt;30 lead/bulan. Tidak ada otomasi, tapi 100% gratis dan familiar.</p>
+        <ul class="pros">
+          <li class="pro">100% gratis selamanya</li>
+          <li class="pro">Familiar untuk semua orang</li>
+          <li class="pro">Bisa di-link via Apps Script ke form</li>
+          <li class="con">No automation native</li>
+          <li class="con">Susah scale &gt;100 lead</li>
+        </ul>
+        <div class="pricing">// Cost: <span class="price">Free</span> · Setup: <span class="price">10 menit</span></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="mono">// REKOMENDASI</div>
+      <p>Untuk batch 1 (3 bulan pertama): <strong>Notion + Make.com</strong>. Murah, cepat setup, fleksibel. Migrasi ke HubSpot atau Airtable nanti kalau tim sudah &gt;5 orang.</p>
+    </div>
+
+    <h2><span class="num">03</span>Setup Notion Database (Recommended Path)</h2>
+
+    <div class="stage-box">
+      <div class="stage-num">01</div>
+      <div>
+        <h4>Buat Database "GARAGE Leads"</h4>
+        <div class="who">// di notion.so · 5 menit</div>
+        <p>Buat halaman baru → "/database" → Table view. Beri nama "GARAGE Leads · 2026". Tambahkan property berikut:</p>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead>
+        <tr><th>Property</th><th>Type</th><th>Options / Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Nama</td><td>Title</td><td>Default field</td></tr>
+        <tr><td>WhatsApp</td><td>Phone Number</td><td>Format +62 ...</td></tr>
+        <tr><td>Email</td><td>Email</td><td>—</td></tr>
+        <tr><td>Kota</td><td>Text</td><td>—</td></tr>
+        <tr><td>Paket Interest</td><td>Select</td><td>System / Starter / Flagship / Belum yakin</td></tr>
+        <tr><td>Source</td><td>Select</td><td>Meta Ads / TikTok Ads / Google / Organic / Referral</td></tr>
+        <tr><td>UTM Campaign</td><td>Text</td><td>Auto-capture dari form</td></tr>
+        <tr><td>Status</td><td>Select</td><td><span class="pill">New</span> <span class="pill amber">Contacted</span> <span class="pill amber">Qualified</span> <span class="pill green">Site Visit</span> <span class="pill green">Closing</span> <span class="pill red">Lost</span></td></tr>
+        <tr><td>Tahap</td><td>Select</td><td>Inquiry / Konsultasi / Site Visit / Kontrak / Closing</td></tr>
+        <tr><td>PIC Sales</td><td>Person</td><td>Assigned member tim</td></tr>
+        <tr><td>Inquiry Date</td><td>Created Time</td><td>Auto</td></tr>
+        <tr><td>Last Contact</td><td>Date</td><td>Manual update</td></tr>
+        <tr><td>Notes</td><td>Text</td><td>Catatan percakapan</td></tr>
+        <tr><td>Booking ID</td><td>Text</td><td>Dari konsultasi.html</td></tr>
+      </tbody>
+    </table>
+
+    <div class="stage-box">
+      <div class="stage-num">02</div>
+      <div>
+        <h4>Aktifkan Notion API</h4>
+        <div class="who">// notion.so/my-integrations · 5 menit</div>
+        <p>Buka integrations page → New integration → Beri nama "GARAGE Form Webhook" → Submit. Copy <strong>Internal Integration Token</strong>. Lalu kembali ke database → "..." → Add connections → Pilih integration yang baru dibuat.</p>
+      </div>
+    </div>
+
+    <div class="stage-box">
+      <div class="stage-num">03</div>
+      <div>
+        <h4>Setup Make.com Scenario</h4>
+        <div class="who">// make.com · 30 menit</div>
+        <p>Buat scenario baru di Make.com (free tier 1.000 ops/bulan cukup). Module 1: <strong>Webhooks → Custom webhook</strong>. Copy URL webhook (https://hook.make.com/xxx). Module 2: <strong>Notion → Create Database Item</strong> — map field dari webhook ke property Notion. Module 3 (opsional): <strong>Slack → Send Message</strong>.</p>
+      </div>
+    </div>
+
+    <h2><span class="num">04</span>Modifikasi Form Submit</h2>
+    <p>Ubah handler di unduh-brosur.html dan konsultasi.html agar POST data ke Make.com webhook SEBELUM redirect ke WhatsApp. Lead masuk database otomatis, lalu user lanjut chat.</p>
+
+    <pre data-lang="JavaScript"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Ganti URL ini dengan webhook URL dari Make.com
+const WEBHOOK_URL = 'https://hook.eu1.make.com/your-webhook-id';
+
+async function submitToCRM(data) {
+  // Add UTM tracking
+  const utm = JSON.parse(sessionStorage.getItem('garage_utm') || '{}');
+
+  const payload = {
+    ...data,
+    ...utm,
+    source: utm.utm_source || 'organic',
+    status: 'New',
+    tahap: 'Inquiry',
+    inquiry_date: new Date().toISOString(),
+    user_agent: navigator.userAgent,
+    referrer: document.referrer || 'direct',
+  };
+
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    console.log('[CRM] Lead synced', payload);
+  } catch (err) {
+    // Fail silently — jangan blokir user dari lanjut ke WA
+    console.error('[CRM] Sync failed (continuing)', err);
+  }
+}
+
+// Usage di handleSubmit:
+// await submitToCRM({ nama, hp, email, kota, paket });</code></pre>
+
+    <h2><span class="num">05</span>Notif Slack/WhatsApp Real-Time</h2>
+    <p>Tim sales harus tau lead baru masuk dalam &lt;1 menit, supaya bisa follow-up cepat. Window ideal untuk first response: <strong>15 menit pertama</strong>.</p>
+
+    <h3 style="margin-top: 24px; color: var(--white); font-family: 'Bebas Neue'; font-size: 24px;">Slack Notification (paling reliable)</h3>
+    <p>Setup webhook Slack:</p>
+    <ol style="color: var(--chrome); font-size: 14.5px; line-height: 1.7;">
+      <li>Buat channel #garage-leads di Slack workspace</li>
+      <li>Buka api.slack.com/apps → Create New App → From scratch</li>
+      <li>Incoming Webhooks → Activate → Add New Webhook → Pilih channel</li>
+      <li>Copy webhook URL → tambahkan ke Make.com scenario sebagai module Slack</li>
+    </ol>
+
+    <pre data-lang="JSON (Slack message template di Make.com)"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>{
+  "text": "🚨 Lead Baru — GARAGE Franchise",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚨 Lead Baru: {{nama}}"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        { "type": "mrkdwn", "text": "*Kota:*\n{{kota}}" },
+        { "type": "mrkdwn", "text": "*Paket:*\n{{paket}}" },
+        { "type": "mrkdwn", "text": "*WhatsApp:*\n{{hp}}" },
+        { "type": "mrkdwn", "text": "*Email:*\n{{email}}" },
+        { "type": "mrkdwn", "text": "*Source:*\n{{source}}" },
+        { "type": "mrkdwn", "text": "*Campaign:*\n{{utm_campaign}}" }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": { "type": "plain_text", "text": "Chat di WhatsApp" },
+          "url": "https://wa.me/{{hp_clean}}",
+          "style": "primary"
+        },
+        {
+          "type": "button",
+          "text": { "type": "plain_text", "text": "Buka di Notion" },
+          "url": "{{notion_page_url}}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        { "type": "mrkdwn", "text": "⏰ SLA Response: 15 menit • Inquiry: {{inquiry_date}}" }
+      ]
+    }
+  ]
+}</code></pre>
+
+    <h3 style="margin-top: 32px; color: var(--white); font-family: 'Bebas Neue'; font-size: 24px;">WhatsApp Group Notification</h3>
+    <p>Pakai WhatsApp Business API via Fonnte, Wati, atau Twilio. Atau simple: pakai Make.com → HTTP module ke API WhatsApp gateway lokal.</p>
+
+    <pre data-lang="HTTP Request (Fonnte WA Gateway)"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>POST https://api.fonnte.com/send
+Authorization: YOUR_FONNTE_TOKEN
+
+{
+  "target": "6281xxxxx@g.us",
+  "message": "🚨 *Lead Baru — GARAGE*\n\nNama: {{nama}}\nKota: {{kota}}\nPaket: {{paket}}\nWA: {{hp}}\nEmail: {{email}}\nSource: {{source}}\n\n👉 Follow-up dalam 15 menit!"
+}</code></pre>
+
+    <h2><span class="num">06</span>Lead Status Workflow</h2>
+    <p>Konsisten tagging status untuk semua tim. Update manual di Notion saat ada progress.</p>
+
+    <table class="tbl">
+      <thead>
+        <tr><th>Status</th><th>Definisi</th><th>Next Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="pill">New</span></td><td>Lead baru masuk, belum kontak</td><td>WA dalam 15 menit</td></tr>
+        <tr><td><span class="pill amber">Contacted</span></td><td>Sudah WA, tunggu balasan</td><td>Follow-up dalam 24 jam</td></tr>
+        <tr><td><span class="pill amber">Qualified</span></td><td>Aktif balas, ada budget &amp; intent</td><td>Booking konsultasi 30 menit</td></tr>
+        <tr><td><span class="pill green">Site Visit</span></td><td>Setuju tim survei datang ke lokasi</td><td>Schedule + execute</td></tr>
+        <tr><td><span class="pill green">Closing</span></td><td>SPF disusun, menuju tanda tangan</td><td>Negotiate, sign, terima Termin 1</td></tr>
+        <tr><td><span class="pill">Won</span></td><td>Sudah tanda tangan, bayar Termin 1</td><td>Onboard ke project tim</td></tr>
+        <tr><td><span class="pill red">Lost</span></td><td>Tidak lanjut (no budget, timing, dll)</td><td>Tag reason, nurture via email drip</td></tr>
+      </tbody>
+    </table>
+
+    <h2><span class="num">07</span>Apps Script untuk Google Sheets (Alternative Minimal)</h2>
+    <p>Kalau pilih path minimal (Google Sheets only), pakai Apps Script untuk auto-tambah row dari form submission.</p>
+
+    <pre data-lang="Google Apps Script"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Deploy as Web App, public access, anyone can access
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Leads');
+
+    sheet.appendRow([
+      new Date(),                  // Timestamp
+      data.nama || '',
+      data.hp || '',
+      data.email || '',
+      data.kota || '',
+      data.paket || '',
+      data.source || 'organic',
+      data.utm_campaign || '',
+      'New',                       // Status default
+      'Inquiry',                   // Tahap default
+      data.notes || '',
+    ]);
+
+    // Optional: send email notif
+    MailApp.sendEmail({
+      to: 'franchise@garagecoffee.id',
+      subject: '🚨 Lead Baru: ' + data.nama,
+      htmlBody: `&lt;p&gt;&lt;strong&gt;Nama:&lt;/strong&gt; ${data.nama}&lt;br&gt;
+                 &lt;strong&gt;Kota:&lt;/strong&gt; ${data.kota}&lt;br&gt;
+                 &lt;strong&gt;Paket:&lt;/strong&gt; ${data.paket}&lt;br&gt;
+                 &lt;strong&gt;WA:&lt;/strong&gt; &lt;a href="https://wa.me/${data.hp.replace(/\D/g,'')}"&gt;Chat Sekarang&lt;/a&gt;&lt;/p&gt;`
+    });
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Setup steps:
+// 1. Buat Google Sheet, beri nama tab "Leads", isi header: Timestamp, Nama, WhatsApp, Email, Kota, Paket, Source, Campaign, Status, Tahap, Notes
+// 2. Extensions → Apps Script, paste kode di atas
+// 3. Deploy → Web app → Execute as Me, Anyone has access
+// 4. Copy Web App URL, gunakan sebagai WEBHOOK_URL di form handler</code></pre>
+
+    <h2><span class="num">08</span>Auto-Tag Source dari UTM</h2>
+    <p>Make.com bisa parsing UTM otomatis dan set Source field dengan logic ini:</p>
+
+    <pre data-lang="JavaScript (Make.com Custom Filter)"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>// Logic untuk auto-tag Source di Make.com
+function determineSource(utm_source, referrer) {
+  const map = {
+    'meta':     'Meta Ads',
+    'facebook': 'Meta Ads',
+    'fb':       'Meta Ads',
+    'instagram':'Meta Ads',
+    'ig':       'Meta Ads',
+    'tiktok':   'TikTok Ads',
+    'tt':       'TikTok Ads',
+    'google':   'Google Ads',
+    'gads':     'Google Ads',
+    'youtube':  'YouTube',
+  };
+
+  // Priority 1: explicit UTM
+  if (utm_source && map[utm_source.toLowerCase()]) {
+    return map[utm_source.toLowerCase()];
+  }
+
+  // Priority 2: referrer
+  if (referrer) {
+    if (referrer.includes('google.')) return 'Google Organic';
+    if (referrer.includes('facebook.com') || referrer.includes('instagram.com')) return 'Meta Organic';
+    if (referrer.includes('tiktok.com')) return 'TikTok Organic';
+  }
+
+  return 'Direct';
+}</code></pre>
+
+    <h2><span class="num">09</span>Daily Digest Report</h2>
+    <p>Buat scenario terjadwal di Make.com (run daily 9:00 WIB) untuk kirim ringkasan ke Slack/Email.</p>
+
+    <pre data-lang="Slack Daily Digest Template"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>📊 *GARAGE Daily Digest — {{today}}*
+
+*Lead 24 jam terakhir:* {{new_leads_count}}
+*Lead pending follow-up (&gt;15 menit):* {{pending_count}} ⚠️
+*Booking konsultasi besok:* {{tomorrow_bookings}}
+*Site visit minggu ini:* {{this_week_site_visits}}
+
+*Pipeline Status:*
+• New:        {{new_count}}
+• Contacted:  {{contacted_count}}
+• Qualified:  {{qualified_count}}
+• Site Visit: {{site_visit_count}}
+• Closing:    {{closing_count}}
+
+*Conversion (30 hari):*
+• Lead → Qualified: {{lead_to_qual_pct}}%
+• Qualified → Site Visit: {{qual_to_visit_pct}}%
+• Site Visit → Closing: {{visit_to_close_pct}}%
+
+🎯 Action items: {{action_items}}
+👉 Buka dashboard: {{notion_url}}</code></pre>
+
+    <h2><span class="num">10</span>Checklist Pre-Launch CRM</h2>
+    <ul style="color: var(--white); font-size: 14.5px; line-height: 1.9;">
+      <li>✓ Database Notion sudah di-setup dengan semua properties</li>
+      <li>✓ Notion Integration token sudah diaktifkan</li>
+      <li>✓ Make.com scenario aktif: webhook → Notion → Slack</li>
+      <li>✓ Slack channel #garage-leads dibuat &amp; tim diundang</li>
+      <li>✓ Form di unduh-brosur.html sudah POST ke webhook</li>
+      <li>✓ Form di konsultasi.html sudah POST ke webhook</li>
+      <li>✓ Test submission dari semua halaman dilakukan</li>
+      <li>✓ UTM tracking pass-through verified</li>
+      <li>✓ Daily digest scheduled di Make.com</li>
+      <li>✓ SOP follow-up: SLA 15 menit jam kerja didokumentasikan ke tim</li>
+    </ul>
+
+    <div class="callout" style="margin-top: 48px;">
+      <div class="mono">// NEXT STEP</div>
+      <p>Setelah CRM aktif, lanjut ke <a href="/franchise-site/email-drip.html" style="color: var(--white);">Email Drip Sequence</a> — auto-nurture lead "dingin" dengan 7 email selama 7 hari. Recover ~20% lead yang tidak langsung closing.</p>
+    </div>
+
+  </div>
+</section>
+
+<footer class="page-foot">
+  <div class="inner">
+    <div class="legal-links">
+      <a href="/franchise-site/marketing-hub.html">Marketing Hub</a>
+      <a href="/franchise-site/tracking-setup.html">Tracking Setup</a>
+      <a href="/franchise-site/email-drip.html">Email Drip</a>
+      <a href="/franchise-site/privacy.html">Privasi</a>
+    </div>
+    <div class="row">
+      <span>© 2026 PT GARAGE INDONESIA · INTERNAL DOCUMENT</span>
+      <span style="color: var(--red);">● TIER 3 · CRM INTEGRATION</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function copyCode(btn) {
+    const code = btn.parentElement.querySelector('code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      btn.classList.add('copied');
+      btn.textContent = '✓ Copied';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy';
+      }, 2000);
+    });
+  }
+</script>
+
+</body>
+</html>

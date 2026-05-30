@@ -1,0 +1,137 @@
+{
+  "project": "GARAGE Smart Notification MVP Master Pro",
+  "language": "id-ID",
+  "voice_profile": {
+    "gender": "female",
+    "age": "young adult to adult",
+    "style": "calm, clear, professional, warm, airport announcement style",
+    "accent": "natural Indonesian",
+    "pace": "medium slow",
+    "emotion": "confident, helpful, not dramatic",
+    "avoid": [
+      "terlalu cempreng",
+      "terlalu cepat",
+      "terlalu robotik",
+      "nada iklan",
+      "nada marah"
+    ]
+  },
+  "recommended_audio": {
+    "format": "mp3",
+    "sample_rate_hz": 44100,
+    "normalize_volume": true,
+    "silence_start_ms": 80,
+    "silence_end_ms": 180
+  },
+  "naming_pattern": "garage_notif_{scenario_id}.mp3",
+  "variables": {
+    "customerName": "Nama customer, contoh: Surya",
+    "table": "Nomor/nama meja, contoh: meja 12",
+    "channel": "Sumber order online, contoh: QR meja",
+    "itemName": "Nama bahan/stok, contoh: kopi susu"
+  },
+  "announcements": [
+    {
+      "scenario_id": "order_new",
+      "channel": "kasir",
+      "priority": "normal",
+      "filename": "garage_notif_order_new.mp3",
+      "template": "Pesanan baru atas nama {customerName}, {table}. Sedang diproses kasir.",
+      "example_text": "Pesanan baru atas nama Surya, meja 12. Sedang diproses kasir.",
+      "delivery_note": "Ramah, jelas, seperti pengumuman kasir internal."
+    },
+    {
+      "scenario_id": "order_new_no_table",
+      "channel": "kasir",
+      "priority": "normal",
+      "filename": "garage_notif_order_new_no_table.mp3",
+      "template": "Pesanan baru atas nama {customerName}. Sedang diproses kasir.",
+      "example_text": "Pesanan baru atas nama Surya. Sedang diproses kasir.",
+      "delivery_note": "Dipakai kalau order takeaway/delivery tanpa meja."
+    },
+    {
+      "scenario_id": "online_new",
+      "channel": "kasir",
+      "priority": "normal",
+      "filename": "garage_notif_online_new.mp3",
+      "template": "Pesanan online baru masuk dari {channel}.",
+      "example_text": "Pesanan online baru masuk dari QR meja.",
+      "delivery_note": "Sedikit lebih tegas agar kasir langsung sadar ada order masuk."
+    },
+    {
+      "scenario_id": "kitchen_cooking",
+      "channel": "kitchen",
+      "priority": "normal",
+      "filename": "garage_notif_kitchen_cooking.mp3",
+      "template": "Pesanan {table} sedang dimasak di dapur.",
+      "example_text": "Pesanan meja 12 sedang dimasak di dapur.",
+      "delivery_note": "Tegas, tetap tenang, cocok untuk area dapur."
+    },
+    {
+      "scenario_id": "bar_mixing",
+      "channel": "bar",
+      "priority": "normal",
+      "filename": "garage_notif_bar_mixing.mp3",
+      "template": "Minuman untuk {table} sedang diracik di bar.",
+      "example_text": "Minuman untuk meja 12 sedang diracik di bar.",
+      "delivery_note": "Lebih halus dan modern, tidak terlalu formal."
+    },
+    {
+      "scenario_id": "order_ready",
+      "channel": "kitchen",
+      "priority": "normal",
+      "filename": "garage_notif_order_ready.mp3",
+      "template": "Pesanan {table} telah selesai.",
+      "example_text": "Pesanan meja 12 telah selesai.",
+      "delivery_note": "Singkat, jelas, memberi sinyal siap lanjut ke runner."
+    },
+    {
+      "scenario_id": "order_ready_deliver",
+      "channel": "runner",
+      "priority": "normal",
+      "filename": "garage_notif_order_ready_deliver.mp3",
+      "template": "Pesanan siap diantar ke {table}. Runner menuju {table}.",
+      "example_text": "Pesanan siap diantar ke meja 12. Runner menuju meja 12.",
+      "delivery_note": "Ritme jelas dengan jeda pendek setelah kalimat pertama."
+    },
+    {
+      "scenario_id": "warning_printer",
+      "channel": "warning",
+      "priority": "high",
+      "filename": "garage_notif_warning_printer.mp3",
+      "template": "Perhatian. Printer kasir tidak terhubung.",
+      "example_text": "Perhatian. Printer kasir tidak terhubung.",
+      "delivery_note": "Lebih tegas, tapi jangan panik atau membentak."
+    },
+    {
+      "scenario_id": "warning_lowstock",
+      "channel": "warning",
+      "priority": "high",
+      "filename": "garage_notif_warning_lowstock.mp3",
+      "template": "Perhatian. Stok {itemName} hampir habis.",
+      "example_text": "Perhatian. Stok kopi susu hampir habis.",
+      "delivery_note": "Tegas dan informatif, cocok untuk manager/kasir."
+    },
+    {
+      "scenario_id": "warning_lowstock_generic",
+      "channel": "warning",
+      "priority": "high",
+      "filename": "garage_notif_warning_lowstock_generic.mp3",
+      "template": "Perhatian. Stok produk hampir habis.",
+      "example_text": "Perhatian. Stok produk hampir habis.",
+      "delivery_note": "Fallback kalau nama bahan tidak tersedia."
+    }
+  ],
+  "optional_ding_assets": [
+    {
+      "id": "soft",
+      "filename": "garage_ding_soft.mp3",
+      "description": "Ding pendek, bersih, tidak mengganggu, untuk order normal."
+    },
+    {
+      "id": "alert",
+      "filename": "garage_ding_alert.mp3",
+      "description": "Alert pendek dua pulse, untuk printer error dan stok rendah."
+    }
+  ]
+}

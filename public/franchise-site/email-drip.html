@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Email Drip Sequence · GARAGE Internal</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Cpath d='M16 4 L28 26 L4 26 Z' stroke='%23C0C0C0' stroke-width='2' fill='none'/%3E%3Cpath d='M16 12 L22 24 L14 24 Z' fill='%23CC0000'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/page.css">
+<style>
+  .page-body .container { width: min(1200px, 92vw); }
+
+  /* Timeline */
+  .timeline-wrap {
+    position: relative;
+    margin: 48px 0 56px;
+  }
+  .timeline-line {
+    position: absolute; top: 32px; left: 60px; right: 60px;
+    height: 2px; background: var(--line);
+    z-index: 0;
+  }
+  .timeline-line::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, var(--red), var(--amber), var(--hud));
+    width: 100%;
+  }
+  .timeline {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;
+    position: relative; z-index: 1;
+  }
+  @media (max-width: 880px) { .timeline { grid-template-columns: repeat(4, 1fr); } .timeline-line { display: none; } }
+  @media (max-width: 540px) { .timeline { grid-template-columns: repeat(2, 1fr); } }
+  .tl-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--red); border: 3px solid var(--black);
+    margin: 0 auto 8px;
+    position: relative; z-index: 2;
+  }
+  .tl-cell { text-align: center; }
+  .tl-day {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .18em;
+    color: var(--chrome-dim); text-transform: uppercase;
+    padding: 24px 0 0;
+  }
+  .tl-cell.warm .tl-dot { background: var(--amber); }
+  .tl-cell.cold .tl-dot { background: var(--hud); }
+
+  /* Email cards grid */
+  .email-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0 56px; }
+  @media (max-width: 880px) { .email-grid { grid-template-columns: 1fr; } }
+  .email-card {
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 28px;
+    text-decoration: none;
+    color: var(--white);
+    transition: transform .2s, border-color .2s;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .email-card:hover { transform: translateY(-4px); border-color: var(--red); text-decoration: none; }
+  .email-card::before {
+    content: attr(data-day);
+    position: absolute; top: 0; right: 0;
+    background: var(--red); color: white;
+    padding: 4px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    font-weight: 600;
+  }
+  .email-card.warm::before { background: var(--amber); color: var(--black); }
+  .email-card.cold::before { background: var(--hud); color: var(--black); }
+  .email-card .e-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; color: var(--chrome-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .email-card h3 { font-family: 'Bebas Neue', sans-serif; font-size: 36px; letter-spacing: .03em; line-height: .95; margin-bottom: 8px; }
+  .email-card .subject {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--white);
+    padding: 12px 14px;
+    background: var(--black);
+    border-left: 3px solid var(--red);
+    margin: 12px 0 16px;
+    font-style: italic;
+  }
+  .email-card .preview { color: var(--chrome); font-size: 13.5px; line-height: 1.6; margin-bottom: 16px; flex: 1; }
+  .email-card .meta-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding-top: 14px; border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .14em;
+    color: var(--chrome-dim);
+    text-transform: uppercase;
+  }
+  .email-card .meta-row strong { color: var(--white); }
+  .email-card .open-link {
+    margin-top: 16px;
+    display: inline-flex;
+    align-items: center; gap: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; letter-spacing: .18em;
+    text-transform: uppercase; font-size: 12px;
+    color: var(--red);
+  }
+
+  /* Tools grid */
+  .tools-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line-2);
+    margin: 24px 0 48px;
+  }
+  @media (max-width: 880px) { .tools-grid { grid-template-columns: 1fr; } }
+  .tool { background: var(--black); padding: 24px; }
+  .tool h4 { font-family: 'Bebas Neue'; font-size: 28px; letter-spacing: .03em; margin-bottom: 8px; }
+  .tool .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em;
+    color: var(--red); margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .tool p { color: var(--chrome); font-size: 13.5px; margin: 0 0 12px; line-height: 1.5; }
+  .tool .price {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--hud); letter-spacing: .14em;
+  }
+  .tool .price.paid { color: var(--amber); }
+
+  /* Step list */
+  .step-list { counter-reset: stp; margin: 24px 0; padding: 0; list-style: none; }
+  .step-list li {
+    counter-increment: stp;
+    padding: 16px 0 16px 56px;
+    position: relative;
+    border-bottom: 1px solid var(--line);
+    color: var(--chrome);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .step-list li::before {
+    content: counter(stp, decimal-leading-zero);
+    position: absolute; left: 0; top: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--red); letter-spacing: .15em;
+  }
+  .step-list li strong { color: var(--white); }
+
+  pre {
+    background: #050505; border: 1px solid var(--line-2);
+    padding: 20px 24px; margin: 16px 0 24px;
+    overflow-x: auto; border-left: 3px solid var(--red);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.7; color: var(--chrome);
+  }
+</style>
+</head>
+<body>
+
+<header class="page-nav">
+  <div class="inner">
+    <a class="brand" href="/franchise-site/marketing-hub.html">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <strong>GARAGE</strong>
+        <small>Internal · Email Drip</small>
+      </div>
+    </a>
+    <a class="nav-back" href="/franchise-site/marketing-hub.html">← Kembali ke Hub</a>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow">Internal · Setup Guide · Tier 3</div>
+    <h1>Email Drip<br><span class="red">7 Hari.</span></h1>
+    <p class="sub">Sequence otomatis yang menghangatkan lead dingin. 7 email selama 7 hari. Recover ~20% lead yang tidak langsung close. Cukup setup sekali, jalan selamanya.</p>
+    <div class="meta">
+      <span>// 7 Email<strong>HTML Templates</strong></span>
+      <span>// Tools<strong>Mailerlite / ConvertKit</strong></span>
+      <span>// Setup<strong>2–3 jam</strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="page-body">
+  <div class="container">
+
+    <h2><span class="num">01</span>Mengapa Drip Sequence?</h2>
+    <p>Calon franchisee biasanya butuh <strong>2–8 minggu</strong> untuk decision. Banyak yang "dingin" karena lupa, ragu, atau menunggu timing. Drip sequence menjaga GARAGE top-of-mind dengan content bernilai — bukan spam — selama window krusial pertama.</p>
+
+    <div class="tools-grid">
+      <div class="tool">
+        <div class="tag">// Hari ke-1</div>
+        <h4>Hangat</h4>
+        <p>Email 1 (Welcome) langsung saat opt-in. Sambil cetak rapor positif tentang brand kamu.</p>
+      </div>
+      <div class="tool">
+        <div class="tag">// Hari 2–5</div>
+        <h4>Edukasi</h4>
+        <p>Bangun trust dengan story, case study, dan transparansi finansial. Lead jadi "qualified" via konten.</p>
+      </div>
+      <div class="tool">
+        <div class="tag">// Hari 7</div>
+        <h4>Urgensi</h4>
+        <p>Final email dengan limited slot offer. Conversion rate puncak ada di hari ke-7.</p>
+      </div>
+    </div>
+
+    <h2><span class="num">02</span>Timeline 7 Hari</h2>
+
+    <div class="timeline-wrap">
+      <div class="timeline-line"></div>
+      <div class="timeline">
+        <div class="tl-cell"><div class="tl-dot"></div><div class="tl-day">D 0</div></div>
+        <div class="tl-cell"><div class="tl-dot"></div><div class="tl-day">D 1</div></div>
+        <div class="tl-cell warm"><div class="tl-dot"></div><div class="tl-day">D 2</div></div>
+        <div class="tl-cell warm"><div class="tl-dot"></div><div class="tl-day">D 3</div></div>
+        <div class="tl-cell warm"><div class="tl-dot"></div><div class="tl-day">D 5</div></div>
+        <div class="tl-cell cold"><div class="tl-dot"></div><div class="tl-day">D 6</div></div>
+        <div class="tl-cell cold"><div class="tl-dot"></div><div class="tl-day">D 7</div></div>
+      </div>
+    </div>
+
+    <h2><span class="num">03</span>7 Email Templates</h2>
+    <p>Klik kartu untuk buka template. Setiap email sudah dirancang siap import ke Mailerlite / ConvertKit / Mailchimp — table-based HTML, dark/light fallback, mobile-responsive.</p>
+
+    <div class="email-grid">
+      <a class="email-card" href="email/01-welcome.html" target="_blank" data-day="DAY 0">
+        <div class="e-meta">// Email 01 · Welcome &amp; Brosur Delivery</div>
+        <h3>Welcome to<br><span style="color: var(--red);">GARAGE.</span></h3>
+        <div class="subject">📎 Brosur GARAGE kamu sudah siap (12 hal)</div>
+        <p class="preview">Konfirmasi opt-in + delivery brosur PDF. Set tone brand: industrial, confident, on-point. Foundation email — semua lead pasti baca ini.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 65%</strong></span>
+          <span>CTA: Buka Brosur</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <a class="email-card" href="email/02-founder-story.html" target="_blank" data-day="DAY 1">
+        <div class="e-meta">// Email 02 · Founder Story</div>
+        <h3>Kenapa Saya<br>Bangun <span style="color: var(--red);">GARAGE.</span></h3>
+        <div class="subject">Cerita di balik nama "GARAGE"</div>
+        <p class="preview">Founder personal letter format. Membangun kedekatan emosional. Why behind the brand — bukan jualan, tapi story authentic.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 45%</strong></span>
+          <span>CTA: Reply</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <a class="email-card warm" href="email/03-case-study.html" target="_blank" data-day="DAY 2">
+        <div class="e-meta">// Email 03 · Case Study Owner</div>
+        <h3>Outlet 1 di<br>Bandung. <span style="color: var(--red);">Angkanya.</span></h3>
+        <div class="subject">Apa yang terjadi 180 hari setelah Rian buka outlet</div>
+        <p class="preview">Studi kasus 1 owner real (atau pilot). Foto, angka, struggle, win. Bukti unit economics jalan di dunia nyata.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 40%</strong></span>
+          <span>CTA: Lihat ROI Calculator</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <a class="email-card warm" href="email/04-tech-deep-dive.html" target="_blank" data-day="DAY 3">
+        <div class="e-meta">// Email 04 · GARAGE OS</div>
+        <h3>Yang Kamu<br>Tidak Lihat: <span style="color: var(--red);">Sistem.</span></h3>
+        <div class="subject">Demo: gimana POS GARAGE kerja dalam 30 detik</div>
+        <p class="preview">Showcase teknologi proprietary — POS, KDS, Owner Dashboard. Demo screenshot, fitur unggulan. Tech moat dibedah.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 35%</strong></span>
+          <span>CTA: Lihat Tech</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <a class="email-card warm" href="email/05-faq-objections.html" target="_blank" data-day="DAY 5">
+        <div class="e-meta">// Email 05 · FAQ &amp; Objections</div>
+        <h3>3 Kekhawatiran.<br><span style="color: var(--red);">Dijawab Jujur.</span></h3>
+        <div class="subject">"Tapi modal Rp 250 juta, kalau gagal gimana?" — 3 pertanyaan jujur dari calon franchisee</div>
+        <p class="preview">Address objection terbesar: takut gagal, no F&amp;B experience, lokasi salah. Jawaban transparent, bukan defensif.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 35%</strong></span>
+          <span>CTA: Reply / Booking</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <a class="email-card cold" href="email/06-roi-calculator.html" target="_blank" data-day="DAY 6">
+        <div class="e-meta">// Email 06 · Personal ROI</div>
+        <h3>Hitung Sendiri.<br>Untuk <span style="color: var(--red);">Kotamu.</span></h3>
+        <div class="subject">Berapa cup/hari yang kamu butuh di kotamu?</div>
+        <p class="preview">Call-to-action mengarah ke ROI Calculator. Personalize: tools to evaluate fit. Soft engagement re-activation.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 30%</strong></span>
+          <span>CTA: Buka Calculator</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <a class="email-card cold" href="email/07-final-offer.html" target="_blank" data-day="DAY 7">
+        <div class="e-meta">// Email 07 · Final Slot Offer</div>
+        <h3>Slot Terbatas.<br><span style="color: var(--red);">Q1 2026.</span></h3>
+        <div class="subject">⚠️ Hanya 5 kota tersisa untuk Batch Q1 2026</div>
+        <p class="preview">Urgensi otentik (bukan fake scarcity). Batch limit dan deadline jelas. Last chance untuk lead yang masih nggak respon.</p>
+        <div class="meta-row">
+          <span>Open Rate Target:<strong>&gt; 30%</strong></span>
+          <span>CTA: Booking Konsultasi</span>
+        </div>
+        <div class="open-link">Buka Template →</div>
+      </a>
+
+      <!-- Bonus card showing sequence end -->
+      <div class="email-card" style="background: linear-gradient(135deg, #1a0707, var(--black-2)); border-color: var(--red); cursor: default;">
+        <div class="e-meta">// SEQUENCE END · LONG-TERM NURTURE</div>
+        <h3>Setelah<br>7 Hari?</h3>
+        <p class="preview" style="margin-top: 12px;">Lead yang masih belum closing di-pindah ke <strong style="color: var(--white)">monthly newsletter</strong>. Update GARAGE: outlet baru buka, fitur baru OS, tips industri kopi. Nurture &gt;6 bulan recover banyak deal "delayed".</p>
+        <div class="meta-row">
+          <span>Frequency:<strong>1×/bulan</strong></span>
+          <span>Recover Rate:<strong>~15%</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <h2><span class="num">04</span>Tools yang Direkomendasikan</h2>
+
+    <div class="tools-grid">
+      <div class="tool">
+        <div class="tag">★ RECOMMENDED</div>
+        <h4>Mailerlite</h4>
+        <p>UI intuitif, automation flow drag-and-drop, free tier sangat besar (1.000 subscriber, 12.000 email/bulan). Cocok untuk start.</p>
+        <div class="price">FREE · 1.000 subscriber</div>
+      </div>
+      <div class="tool">
+        <div class="tag">ALTERNATIVE</div>
+        <h4>ConvertKit</h4>
+        <p>Khusus untuk creator/brand premium. Editor email lebih simpel. Visual automation builder mantap.</p>
+        <div class="price">FREE · 1.000 subscriber</div>
+      </div>
+      <div class="tool">
+        <div class="tag">ENTERPRISE</div>
+        <h4>Mailchimp</h4>
+        <p>Yang paling banyak dipakai globally. UI kompleks. Free tier mulai jenuh setelah 500 subscriber.</p>
+        <div class="price paid">FREE 500 sub · $13/m starter</div>
+      </div>
+    </div>
+
+    <h2><span class="num">05</span>Setup Step-by-Step</h2>
+
+    <ol class="step-list">
+      <li><strong>Buat akun di Mailerlite</strong> (rekomendasi). Confirm domain garagecoffee.id (DNS records — TXT &amp; CNAME — disediakan Mailerlite).</li>
+      <li><strong>Buat 2 Group:</strong> <em>Leads Aktif</em> (sequence on) dan <em>Subscribers</em> (newsletter monthly).</li>
+      <li><strong>Import 7 template</strong> dari folder <code style="background: var(--black-2); padding: 2px 6px; color: var(--red);">/email/</code> ke Mailerlite — Editor → "Import HTML". Edit personalisasi (nama field, tanda tangan founder).</li>
+      <li><strong>Setup Automation</strong>:
+        Trigger = "Subscriber joins group: Leads Aktif".
+        Add Step → Email 01 → wait 1 day → Email 02 → wait 1 day → Email 03 → wait 1 day → Email 04 → wait 2 day → Email 05 → wait 1 day → Email 06 → wait 1 day → Email 07.
+      </li>
+      <li><strong>Connect form via Make.com</strong>: setelah form submit (di Step 3 CRM Integration), tambah module Mailerlite → "Add subscriber to group" → Leads Aktif. Subscriber masuk otomatis.</li>
+      <li><strong>Setup unsubscribe link</strong> di footer setiap email (Mailerlite auto-inject — pastikan ada).</li>
+      <li><strong>Test sequence</strong> dengan email dummy dulu sebelum live. Cek: rendering di Gmail, Outlook, Apple Mail.</li>
+      <li><strong>Setup monthly newsletter</strong> terpisah untuk lead yang sudah selesai 7-day sequence.</li>
+    </ol>
+
+    <h2><span class="num">06</span>Subject Line Library</h2>
+    <p>Alternative subject untuk A/B test. Subject line = 50% open rate. Test 2 versi tiap email.</p>
+
+    <table class="tbl">
+      <thead>
+        <tr><th>Email</th><th>Version A (Direct)</th><th>Version B (Curiosity)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>D0 · Welcome</td><td>📎 Brosur GARAGE kamu (12 hal)</td><td>{Nama}, ini yang kamu minta</td></tr>
+        <tr><td>D1 · Story</td><td>Cerita di balik "GARAGE"</td><td>Kenapa saya hentikan startup tech-ku</td></tr>
+        <tr><td>D2 · Case Study</td><td>Outlet Bandung: 180 hari, angkanya</td><td>Rian tidak punya pengalaman F&amp;B. Sekarang...</td></tr>
+        <tr><td>D3 · Tech</td><td>Demo: POS GARAGE 30 detik</td><td>Apa yang membuat franchise ini "tech-first"?</td></tr>
+        <tr><td>D5 · FAQ</td><td>3 kekhawatiran dijawab jujur</td><td>"Kalau gagal gimana?" — pertanyaan yang sering ditanyakan</td></tr>
+        <tr><td>D6 · ROI</td><td>Hitung sendiri untuk kotamu</td><td>{Kota} bisa berapa cup/hari?</td></tr>
+        <tr><td>D7 · Offer</td><td>⚠️ Hanya 5 kota tersisa Q1 2026</td><td>Deadline batch Q1: 31 Maret</td></tr>
+      </tbody>
+    </table>
+
+    <h2><span class="num">07</span>KPI Email Drip</h2>
+    <table class="tbl">
+      <thead><tr><th>Metric</th><th>Target Industri</th><th>Target GARAGE</th></tr></thead>
+      <tbody>
+        <tr><td>Open Rate (avg sequence)</td><td>15–25%</td><td>&gt; 35%</td></tr>
+        <tr><td>Click Rate (avg)</td><td>2–5%</td><td>&gt; 8%</td></tr>
+        <tr><td>Reply Rate (D1 Founder)</td><td>&lt; 1%</td><td>&gt; 3%</td></tr>
+        <tr><td>Booking dari sequence</td><td>3–7%</td><td>&gt; 10%</td></tr>
+        <tr><td>Unsubscribe Rate</td><td>&lt; 1%</td><td>&lt; 0.5%</td></tr>
+        <tr><td>Bounce Rate</td><td>&lt; 2%</td><td>&lt; 1%</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout" style="margin-top: 48px;">
+      <div class="mono">// FINAL TIER 3 COMPLETE</div>
+      <p>Selesai. Sekarang kamu punya: <strong>Tracking</strong> ✓ <strong>CRM</strong> ✓ <strong>Email Drip</strong> ✓ Semua aset siap launch ads dan mulai close franchise. Buka <a href="/franchise-site/marketing-hub.html" style="color: var(--white);">Marketing Hub</a> untuk satu tempat akses.</p>
+    </div>
+
+  </div>
+</section>
+
+<footer class="page-foot">
+  <div class="inner">
+    <div class="legal-links">
+      <a href="/franchise-site/marketing-hub.html">Marketing Hub</a>
+      <a href="/franchise-site/tracking-setup.html">Tracking</a>
+      <a href="/franchise-site/crm-integration.html">CRM</a>
+      <a href="/franchise-site/privacy.html">Privasi</a>
+    </div>
+    <div class="row">
+      <span>© 2026 PT GARAGE INDONESIA · INTERNAL DOCUMENT</span>
+      <span style="color: var(--red);">● TIER 3 · EMAIL DRIP</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

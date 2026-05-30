@@ -1,0 +1,24 @@
+{
+  "crons": [
+    {
+      "path": "/api/ai/jobs/master-report",
+      "schedule": "55 16 * * *"
+    },
+    {
+      "path": "/api/ai/jobs/log-cleanup",
+      "schedule": "15 17 */3 * *"
+    },
+    {
+      "path": "/api/ai/jobs/system-doctor",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/ai/jobs/shift-copilot",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/admin/purge/cron?retentionDays=30",
+      "schedule": "0 3 1 * *"
+    }
+  ]
+}

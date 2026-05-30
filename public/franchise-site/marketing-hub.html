@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GARAGE Marketing Hub · Internal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0A0A0A; --black-2: #131313; --line: #262626; --line-2: #333;
+    --chrome: #C0C0C0; --chrome-dim: #8a8a8a; --white: #f5f5f5;
+    --red: #CC0000; --red-bright: #ff1f1f; --amber: #F59E0B; --hud: #00ff9c;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--black); color: var(--white); font-family: 'Barlow', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
+    opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  h1,h2,h3 { font-family: 'Bebas Neue', sans-serif; font-weight: 400; letter-spacing: .02em; line-height: .9; margin: 0; }
+
+  .container { width: min(1320px, 92vw); margin: 0 auto; }
+
+  /* Top bar */
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 18px 0;
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10,10,10,.85);
+    backdrop-filter: blur(8px);
+  }
+  .head-inner { display: flex; justify-content: space-between; align-items: center; }
+  .brand { display: flex; gap: 14px; align-items: center; text-decoration: none; color: var(--white); }
+  .brand .mark { width: 36px; height: 36px; background: var(--black-2); border: 1px solid var(--line-2); display: grid; place-items: center; }
+  .brand-text strong { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: .12em; display: block; line-height: 1; }
+  .brand-text small { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .22em; color: var(--chrome-dim); text-transform: uppercase; display: block; margin-top: 4px; }
+  .pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--red);
+    padding: 6px 12px; border: 1px solid var(--red);
+  }
+
+  /* Hero */
+  .hero {
+    padding: 80px 0 48px;
+    background: radial-gradient(900px 500px at 70% 0%, rgba(204,0,0,.15), transparent 60%);
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .26em; text-transform: uppercase;
+    color: var(--chrome-dim);
+    margin-bottom: 20px;
+  }
+  .eyebrow::before { content: ""; width: 36px; height: 1px; background: var(--red); }
+  .hero h1 { font-size: clamp(48px, 8vw, 120px); margin-bottom: 16px; }
+  .hero h1 .red { color: var(--red); }
+  .hero p { color: var(--chrome); font-size: 17px; max-width: 700px; }
+
+  /* Grid */
+  .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line-2);
+    margin: 48px 0 80px;
+  }
+  @media (max-width: 880px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stats .s { background: var(--black-2); padding: 24px; }
+  .stats .s .v { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: .9; }
+  .stats .s .v.red { color: var(--red); }
+  .stats .s .v.amber { color: var(--amber); }
+  .stats .s .l { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .22em; color: var(--chrome-dim); text-transform: uppercase; margin-top: 10px; }
+
+  /* Resource cards */
+  .res-section { padding-bottom: 80px; }
+  .sec-head {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .26em; color: var(--red); text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex; gap: 12px; align-items: center;
+  }
+  .sec-head::before { content: ""; width: 24px; height: 1px; background: var(--red); }
+  .sec-title { font-family: 'Bebas Neue', sans-serif; font-size: 56px; letter-spacing: .02em; margin-bottom: 36px; }
+
+  .res-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  @media (max-width: 880px) { .res-grid { grid-template-columns: 1fr; } }
+  .res {
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 36px;
+    text-decoration: none;
+    color: var(--white);
+    position: relative;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: transform .3s, border-color .3s, background .3s;
+    min-height: 280px;
+  }
+  .res::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--red);
+    transform-origin: left;
+    transform: scaleX(0);
+    transition: transform .4s cubic-bezier(.2,.7,.3,1);
+  }
+  .res:hover { transform: translateY(-4px); border-color: var(--chrome-dim); background: #1a1a1a; }
+  .res:hover::before { transform: scaleX(1); }
+
+  .res-meta {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 32px;
+  }
+  .res .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; color: var(--red); text-transform: uppercase;
+  }
+  .res .stage {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .18em; color: var(--chrome-dim); text-transform: uppercase;
+    padding: 4px 10px; border: 1px solid var(--line-2);
+  }
+  .res h3 { font-family: 'Bebas Neue', sans-serif; font-size: 56px; letter-spacing: .02em; margin-bottom: 12px; line-height: .92; }
+  .res p { color: var(--chrome); font-size: 15px; margin: 0 0 24px; line-height: 1.55; flex: 1; }
+  .res .ft {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 20px; border-top: 1px solid var(--line);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: 13px;
+    color: var(--red);
+  }
+  .res .ft .arrow { transition: transform .3s; }
+  .res:hover .ft .arrow { transform: translateX(6px); }
+  .res .specs {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--chrome-dim); letter-spacing: .12em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .res .specs .pill {
+    padding: 4px 10px; border: 1px solid var(--line-2);
+    color: var(--chrome); background: var(--black);
+  }
+
+  /* Roadmap */
+  .roadmap {
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 40px;
+    margin-top: 48px;
+  }
+  .roadmap-title { font-family: 'Bebas Neue'; font-size: 32px; letter-spacing: .03em; margin-bottom: 24px; }
+  .roadmap-list { display: flex; flex-direction: column; gap: 0; }
+  .roadmap-list li {
+    list-style: none;
+    display: grid; grid-template-columns: 36px 1fr;
+    gap: 20px; padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: start;
+  }
+  .roadmap-list li:last-child { border-bottom: none; }
+  .roadmap-list li::before {
+    content: counter(roadmap, decimal-leading-zero);
+    counter-increment: roadmap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--red); letter-spacing: .15em;
+    padding-top: 2px;
+  }
+  .roadmap-list { counter-reset: roadmap; }
+  .roadmap-list li strong { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--white); font-size: 16px; }
+  .roadmap-list li p { color: var(--chrome); font-size: 14px; margin: 4px 0 0; line-height: 1.55; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 32px 0;
+    color: var(--chrome-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .15em;
+  }
+  .ft-inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container head-inner">
+    <a class="brand" href="#top">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <strong>GARAGE</strong>
+        <small>Marketing Hub · Internal</small>
+      </div>
+    </a>
+    <span class="pill">● Internal Use Only</span>
+  </div>
+</header>
+
+<section class="hero" id="top">
+  <div class="container">
+    <div class="eyebrow">Sales &amp; Marketing Toolkit</div>
+    <h1>Semua materi.<br>Satu <span class="red">tempat.</span></h1>
+    <p>Toolkit lengkap tim franchise GARAGE: landing page publik, brosur PDF, pitch deck konsultasi, ROI calculator, dan creative ads untuk Meta/TikTok. Akses, share, atau download sesuai kebutuhan.</p>
+
+    <div class="stats">
+      <div class="s">
+        <div class="v red">7</div>
+        <div class="l">// Aset Marketing</div>
+      </div>
+      <div class="s">
+        <div class="v">2026</div>
+        <div class="l">// Batch Aktif</div>
+      </div>
+      <div class="s">
+        <div class="v amber">15 mnt</div>
+        <div class="l">// SLA Response WA</div>
+      </div>
+      <div class="s">
+        <div class="v">3 paket</div>
+        <div class="l">// Tier Investasi</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PUBLIC RESOURCES -->
+<section class="res-section">
+  <div class="container">
+    <div class="sec-head">// PUBLIC · Untuk Calon Franchisee</div>
+    <h2 class="sec-title">Materi Publik.</h2>
+
+    <div class="res-grid">
+      <a href="/franchise" class="res" target="_blank">
+        <div class="res-meta">
+          <span class="tag">// LANDING PAGE</span>
+          <span class="stage">PUBLISHED</span>
+        </div>
+        <h3>Website<br>Marketing.</h3>
+        <div class="specs">
+          <span class="pill">Responsive</span>
+          <span class="pill">8 Section</span>
+          <span class="pill">Form + WA</span>
+        </div>
+        <p>Landing page utama franchise.garagecoffee.id. Hero, value props, 3 paket, comparison table, technology showcase, finansial, brand story, cara bergabung 5 langkah, FAQ, contact form, WhatsApp floating.</p>
+        <div class="ft">
+          Buka Website
+          <span class="arrow">→</span>
+        </div>
+      </a>
+
+      <a href="/franchise-site/roi-calculator.html" class="res" target="_blank">
+        <div class="res-meta">
+          <span class="tag">// INTERACTIVE TOOL</span>
+          <span class="stage">PUBLISHED</span>
+        </div>
+        <h3>ROI<br>Calculator.</h3>
+        <div class="specs">
+          <span class="pill">Real-time</span>
+          <span class="pill">7 Variables</span>
+          <span class="pill">3 Scenarios</span>
+        </div>
+        <p>Kalkulator interaktif. Calon franchisee bisa input cup/hari, harga, COGS, sewa, staff, ops — lihat proyeksi revenue, EBITDA, BEP secara real-time. Plus bear / base / bull case comparison.</p>
+        <div class="ft">
+          Buka Calculator
+          <span class="arrow">→</span>
+        </div>
+      </a>
+
+      <a href="/franchise-site/brosur.html" class="res" target="_blank">
+        <div class="res-meta">
+          <span class="tag">// PRINT-READY PDF</span>
+          <span class="stage">DOWNLOAD</span>
+        </div>
+        <h3>Brosur<br>Franchise.</h3>
+        <div class="specs">
+          <span class="pill">12 Halaman</span>
+          <span class="pill">A4 Portrait</span>
+          <span class="pill">PDF Export</span>
+        </div>
+        <p>Brosur lengkap 12 halaman: cover, brand story, why GARAGE, 3 paket detail, comparison matrix, technology, unit economics, 5-step onboarding, contact. Klik PRINT untuk save sebagai PDF.</p>
+        <div class="ft">
+          Buka Brosur
+          <span class="arrow">→</span>
+        </div>
+      </a>
+
+      <a href="/franchise-site/instagram-carousel.html" class="res" target="_blank">
+        <div class="res-meta">
+          <span class="tag">// SOCIAL ADS</span>
+          <span class="stage">READY</span>
+        </div>
+        <h3>Instagram<br>Carousel.</h3>
+        <div class="specs">
+          <span class="pill">5 Frame</span>
+          <span class="pill">1080×1080</span>
+          <span class="pill">Meta Ads</span>
+        </div>
+        <p>5 frame siap upload ke Meta Ads Manager: Hook (price tag), Problem (73% tutup), Solution (4 pillars), Numbers (unit economics), CTA (WhatsApp). Cocok untuk Instagram &amp; Facebook Ads.</p>
+        <div class="ft">
+          Buka Carousel
+          <span class="arrow">→</span>
+        </div>
+      </a>
+
+      <a href="/franchise-site/unduh-brosur.html" class="res" target="_blank">
+        <div class="res-meta">
+          <span class="tag">// LEAD MAGNET</span>
+          <span class="stage">CONVERSION</span>
+        </div>
+        <h3>Lead Magnet<br>Page.</h3>
+        <div class="specs">
+          <span class="pill">Email Gate</span>
+          <span class="pill">WA Capture</span>
+          <span class="pill">Pixel-ready</span>
+        </div>
+        <p>Halaman khusus capture lead: nama + WA + email + paket. Brosur dikirim langsung ke WhatsApp. Track conversion via Meta Pixel &amp; GA4 ready.</p>
+        <div class="ft">
+          Buka Lead Magnet
+          <span class="arrow">→</span>
+        </div>
+      </a>
+
+      <a href="/franchise-site/konsultasi.html" class="res" target="_blank">
+        <div class="res-meta">
+          <span class="tag">// BOOKING</span>
+          <span class="stage">CONVERSION</span>
+        </div>
+        <h3>Booking<br>Konsultasi.</h3>
+        <div class="specs">
+          <span class="pill">3-Step Flow</span>
+          <span class="pill">Calendar</span>
+          <span class="pill">Online/Offline</span>
+        </div>
+        <p>Calendly-style booking flow. Pilih tanggal → pilih jam → konfirmasi. Auto-WhatsApp dengan booking ID. Online (Zoom) atau offline (HQ).</p>
+        <div class="ft">
+          Buka Booking
+          <span class="arrow">→</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- INTERNAL RESOURCES -->
+<section class="res-section">
+  <div class="container">
+    <div class="sec-head">// LEGAL · Halaman Wajib Production</div>
+    <h2 class="sec-title">Legal &amp; Compliance.</h2>
+
+    <div class="res-grid" style="grid-template-columns: repeat(4, 1fr);">
+      <a href="/franchise-site/about.html" class="res" target="_blank" style="min-height: 200px;">
+        <div class="res-meta">
+          <span class="tag">// ABOUT</span>
+          <span class="stage">PUBLISHED</span>
+        </div>
+        <h3 style="font-size: 36px;">Tentang Kami</h3>
+        <p style="font-size: 14px;">Profil PT GARAGE INDONESIA, misi, milestone 2024–2035, tim inti, dan informasi badan hukum lengkap.</p>
+        <div class="ft" style="font-size: 12px;">Buka <span class="arrow">→</span></div>
+      </a>
+      <a href="/franchise-site/privacy.html" class="res" target="_blank" style="min-height: 200px;">
+        <div class="res-meta">
+          <span class="tag">// PRIVACY</span>
+          <span class="stage">PUBLISHED</span>
+        </div>
+        <h3 style="font-size: 36px;">Privasi</h3>
+        <p style="font-size: 14px;">10 section UU PDP No. 27/2022 compliant. Data collection, retention, hak pengguna, cookie policy.</p>
+        <div class="ft" style="font-size: 12px;">Buka <span class="arrow">→</span></div>
+      </a>
+      <a href="/franchise-site/terms.html" class="res" target="_blank" style="min-height: 200px;">
+        <div class="res-meta">
+          <span class="tag">// TERMS</span>
+          <span class="stage">PUBLISHED</span>
+        </div>
+        <h3 style="font-size: 36px;">Syarat &amp; Ketentuan</h3>
+        <p style="font-size: 14px;">14 section. Pra-kontrak, pembayaran termin, royalty, refund policy, arbitrase BANI Jakarta.</p>
+        <div class="ft" style="font-size: 12px;">Buka <span class="arrow">→</span></div>
+      </a>
+      <a href="/franchise-site/disclaimer.html" class="res" target="_blank" style="min-height: 200px;">
+        <div class="res-meta">
+          <span class="tag">// DISCLAIMER</span>
+          <span class="stage">PUBLISHED</span>
+        </div>
+        <h3 style="font-size: 36px;">Disclaimer</h3>
+        <p style="font-size: 14px;">Batasan klaim finansial. Base/bear/bull case explained. "Tidak cocok jika..." section.</p>
+        <div class="ft" style="font-size: 12px;">Buka <span class="arrow">→</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- INTERNAL SALES RESOURCES -->
+<section class="res-section">
+  <div class="container">
+    <div class="sec-head">// INTERNAL · Sales Tools</div>
+    <h2 class="sec-title">Materi Sales Team.</h2>
+
+    <div class="res-grid">
+      <a href="/franchise-site/pitch-deck.html" class="res" target="_blank" style="grid-column: 1 / -1;">
+        <div class="res-meta">
+          <span class="tag">// SALES PRESENTATION</span>
+          <span class="stage">INTERNAL</span>
+        </div>
+        <h3>Pitch Deck · 14 Slides.</h3>
+        <div class="specs">
+          <span class="pill">1920×1080</span>
+          <span class="pill">14 Slides</span>
+          <span class="pill">PPT-ready</span>
+          <span class="pill">Print-PDF</span>
+        </div>
+        <p style="max-width: 720px;">Deck konsultasi one-on-one untuk calon franchisee qualified: Cover · Problem · Opportunity · Introducing GARAGE · Why GARAGE · GARAGE OS · Unit Economics · P&amp;L · 3 Packages · Comparison · Cara Bergabung · Vision 2035 · Investment Summary · CTA. Pakai di Zoom, in-person meeting, atau export ke PowerPoint.</p>
+        <div class="ft">
+          Buka Pitch Deck
+          <span class="arrow">→</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 90-DAY ROADMAP -->
+<section class="res-section">
+  <div class="container">
+    <div class="sec-head">// ACTION PLAN</div>
+    <h2 class="sec-title">90 Hari ke Depan.</h2>
+    <p style="color: var(--chrome); font-size: 16px; max-width: 720px;">Roadmap eksekusi marketing 90 hari pertama untuk validasi pesan, scale ads, dan optimize CPL.</p>
+
+    <div class="roadmap" style="margin-top: 32px;">
+      <div class="roadmap-title">Bulan 1 · Setup &amp; Foundation</div>
+      <ul class="roadmap-list">
+        <li><div><strong>Setup Meta Pixel + Google Analytics 4</strong><p>Tracking di landing page, ROI calculator, form submit. Goal: scroll depth, click events, conversion tracking.</p></div></li>
+        <li><div><strong>WhatsApp Business + auto-reply</strong><p>Setup menu chatbot: brosur · simulasi ROI · jadwal konsultasi · bicara dengan tim. SLA balas &lt;15 menit jam kerja.</p></div></li>
+        <li><div><strong>CRM Lead Tracking</strong><p>HubSpot Free / Notion / Airtable. Tag setiap lead: source · paket interest · status · last contact. Wajib dari hari pertama.</p></div></li>
+        <li><div><strong>Produksi 3 video utama</strong><p>Outlet tour 60 detik · founder story 90 detik · testimonial owner 30 detik. Reuse untuk semua channel.</p></div></li>
+      </ul>
+    </div>
+
+    <div class="roadmap" style="margin-top: 24px;">
+      <div class="roadmap-title amber" style="color: var(--amber);">Bulan 2 · Launch Ads</div>
+      <ul class="roadmap-list">
+        <li><div><strong>Meta Ads (IG + FB)</strong><p>Pakai 5-frame carousel di hub ini. Target usia 28–50, interest "investasi UMKM" + "franchise" + "kopi". Budget Rp 50–100rb/hari.</p></div></li>
+        <li><div><strong>TikTok Ads</strong><p>Video pendek "berapa modal franchise GARAGE" / "ROI outlet kopi 12 bulan". CPC lebih murah dari Meta untuk niche ini.</p></div></li>
+        <li><div><strong>Google Ads Search</strong><p>Bid keyword: franchise kopi murah · franchise kopi 250 juta · franchise resmi terdaftar. Intent tinggi, konversi tinggi.</p></div></li>
+        <li><div><strong>Webinar bulanan pertama</strong><p>"Cara Memulai Coffee Shop". Gratis, peserta auto-jadi lead di CRM. Founder host, sesi 60 menit + Q&amp;A.</p></div></li>
+      </ul>
+    </div>
+
+    <div class="roadmap" style="margin-top: 24px;">
+      <div class="roadmap-title" style="color: var(--hud);">Bulan 3 · Optimize &amp; Scale</div>
+      <ul class="roadmap-list">
+        <li><div><strong>Retargeting Pixel</strong><p>Kejar pengunjung landing page yang belum inquiry dengan testimonial owner &amp; video ROI selama 14 hari.</p></div></li>
+        <li><div><strong>SEO Blog launch</strong><p>3 artikel pertama: Panduan Lengkap Buka Coffee Shop 2026 · Perbandingan Franchise Kopi · Cara Hitung BEP Outlet.</p></div></li>
+        <li><div><strong>Sponsor event motor lokal</strong><p>Sejalan dengan brand DNA industrial-automotive. Booth + brosur + voucher tester.</p></div></li>
+        <li><div><strong>Optimasi ads berdasarkan data</strong><p>Kill ad-set CPL &gt; Rp 75rb. Scale yang CPL &lt; Rp 40rb. Test 2 hook variant tiap minggu.</p></div></li>
+      </ul>
+    </div>
+
+    <div style="margin-top: 32px; padding: 24px 28px; background: linear-gradient(135deg, #1a0707, var(--black-2)); border: 1px solid var(--red); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="font-family: 'JetBrains Mono'; font-size: 11px; color: var(--red); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 6px;">// TARGET 90 HARI</div>
+        <div style="font-family: 'Bebas Neue'; font-size: 32px; letter-spacing: .03em;">150–300 lead · 20–40 konsultasi · 5–10 closing</div>
+        <div style="color: var(--chrome); font-size: 14px; margin-top: 6px;">Budget marketing Rp 85–135 jt → ROI 10–25× di paket rata-rata Rp 250jt.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- KPI -->
+<section class="res-section">
+  <div class="container">
+    <div class="sec-head">// KPI MONITORING</div>
+    <h2 class="sec-title">Yang Wajib Diukur.</h2>
+
+    <div class="stats" style="margin-top: 0; grid-template-columns: repeat(4, 1fr);">
+      <div class="s">
+        <div class="l">// Cost Per Lead</div>
+        <div class="v red" style="font-size: 36px; margin-top: 12px;">&lt; Rp 50rb</div>
+        <div style="color: var(--chrome); font-size: 13px; margin-top: 8px;">Target maksimum biaya akuisisi lead.</div>
+      </div>
+      <div class="s">
+        <div class="l">// Lead → Konsultasi</div>
+        <div class="v amber" style="font-size: 36px; margin-top: 12px;">&gt; 30%</div>
+        <div style="color: var(--chrome); font-size: 13px; margin-top: 8px;">Konversi lead ke booking konsultasi.</div>
+      </div>
+      <div class="s">
+        <div class="l">// Konsultasi → Site Visit</div>
+        <div class="v" style="font-size: 36px; margin-top: 12px; color: var(--hud);">&gt; 50%</div>
+        <div style="color: var(--chrome); font-size: 13px; margin-top: 8px;">Indikator seriusness calon franchisee.</div>
+      </div>
+      <div class="s">
+        <div class="l">// Site Visit → Closing</div>
+        <div class="v red" style="font-size: 36px; margin-top: 12px;">&gt; 40%</div>
+        <div style="color: var(--chrome); font-size: 13px; margin-top: 8px;">Closing rate tertinggi di funnel.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container ft-inner">
+    <span>© 2026 GARAGE COFFEE &amp; MOTOR · PT GARAGE INDONESIA</span>
+    <span style="color: var(--red);">● INTERNAL MARKETING HUB</span>
+  </div>
+</footer>
+
+</body>
+</html>

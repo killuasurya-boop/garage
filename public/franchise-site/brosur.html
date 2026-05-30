@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>GARAGE Franchise Brochure 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0A0A0A; --black-2: #131313; --black-3: #1a1a1a;
+    --line: #262626; --line-2: #333;
+    --chrome: #C0C0C0; --chrome-dim: #8a8a8a; --white: #f5f5f5;
+    --red: #CC0000; --amber: #F59E0B; --hud: #00ff9c;
+  }
+  @page { size: A4; margin: 0; }
+  *,*::before,*::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #2a2a2a; }
+  body { font-family: 'Barlow', sans-serif; -webkit-font-smoothing: antialiased; color: var(--white); }
+
+  /* Print toolbar */
+  .toolbar {
+    position: fixed; top: 16px; right: 16px;
+    background: var(--black); color: white;
+    padding: 10px 16px; border: 1px solid var(--line-2);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: .14em; text-transform: uppercase;
+    z-index: 1000; cursor: pointer;
+    text-decoration: none;
+    display: inline-flex; gap: 10px; align-items: center;
+  }
+  .toolbar:hover { background: var(--red); }
+  @media print { .toolbar { display: none; } }
+
+  /* Page */
+  .page {
+    width: 210mm; min-height: 297mm;
+    background: var(--black);
+    margin: 16px auto;
+    color: var(--white);
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  .page:last-child { page-break-after: auto; }
+  @media print {
+    body { background: white; }
+    .page { margin: 0; box-shadow: none; }
+  }
+
+  /* Grain */
+  .page::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  h1,h2,h3,h4 { font-family: 'Bebas Neue', sans-serif; font-weight: 400; letter-spacing: .02em; line-height: .92; margin: 0; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Page header strip */
+  .page-header {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14mm 16mm 8mm;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--chrome-dim);
+    z-index: 2;
+  }
+  .page-header .brand-tiny { display: flex; gap: 8px; align-items: center; }
+  .page-header .brand-tiny strong { font-family: 'Bebas Neue', sans-serif; font-size: 13px; color: var(--white); letter-spacing: .12em; }
+  .page-footer {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 6mm 16mm 10mm;
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--chrome-dim);
+    z-index: 2;
+  }
+  .page-footer .red { color: var(--red); }
+
+  .page-content { padding: 22mm 16mm 18mm; position: relative; z-index: 1; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: .26em; text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 8mm;
+  }
+  .eyebrow::before { content: ""; width: 24px; height: 1px; background: var(--red); }
+
+  /* ============ COVER ============ */
+  .cover {
+    background:
+      radial-gradient(800px 600px at 80% 20%, rgba(204,0,0,.25), transparent 60%),
+      radial-gradient(500px 400px at 10% 80%, rgba(245,158,11,.08), transparent 60%),
+      linear-gradient(180deg, #0a0a0a, #050505);
+  }
+  .cover::before {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 30mm 30mm;
+    mask-image: radial-gradient(ellipse 80% 60% at 60% 50%, #000 30%, transparent 80%);
+  }
+  .cover .page-content { padding: 0; height: 297mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover-top { padding: 16mm 16mm 0; display: flex; justify-content: space-between; align-items: flex-start; }
+  .cover-brand-mark {
+    width: 24mm; height: 24mm;
+    border: 1.5px solid var(--chrome);
+    display: grid; place-items: center;
+    background: var(--black-2);
+  }
+  .cover-brand-mark svg { width: 18mm; height: 18mm; }
+  .cover-meta { text-align: right; }
+  .cover-meta .conf { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .22em; color: var(--red); text-transform: uppercase; }
+  .cover-meta .year { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: .08em; margin-top: 6px; }
+  .cover-mid { padding: 0 16mm; }
+  .cover-mid .doc-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .26em;
+    color: var(--chrome-dim);
+    text-transform: uppercase;
+    margin-bottom: 8mm;
+  }
+  .cover-mid h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 140px;
+    line-height: .85;
+    letter-spacing: -.01em;
+    margin-bottom: 6mm;
+  }
+  .cover-mid h1 .red { color: var(--red); }
+  .cover-mid .subline {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    color: var(--chrome);
+    font-weight: 500;
+    letter-spacing: .02em;
+    max-width: 140mm;
+    line-height: 1.3;
+  }
+  .cover-bot {
+    padding: 0 16mm 16mm;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .cover-tagline {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: .04em;
+    line-height: 1;
+  }
+  .cover-tagline .red { color: var(--red); }
+  .cover-edition {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .22em;
+    color: var(--chrome-dim);
+    text-align: right;
+    line-height: 1.6;
+    text-transform: uppercase;
+  }
+  .cover-edition strong { color: var(--white); display: block; font-size: 14px; margin-bottom: 4px; letter-spacing: .12em; }
+
+  /* ============ COMMON ============ */
+  .hero-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 200px; line-height: .85;
+    color: transparent; -webkit-text-stroke: 1px var(--line-2);
+    position: absolute; top: 12mm; right: 12mm;
+    z-index: 0;
+  }
+  .lead {
+    color: var(--chrome);
+    font-size: 12pt;
+    line-height: 1.6;
+    max-width: 160mm;
+    margin: 0;
+  }
+  .lead strong { color: var(--white); }
+  h2.section-title {
+    font-size: 60pt;
+    line-height: .88;
+    margin-bottom: 8mm;
+  }
+  h2.section-title .red { color: var(--red); }
+
+  /* TOC */
+  .toc-list { margin-top: 14mm; }
+  .toc-row {
+    display: grid; grid-template-columns: 16mm 1fr auto;
+    gap: 6mm; align-items: baseline;
+    padding: 6mm 0;
+    border-bottom: 1px dashed var(--line-2);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 14pt;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .toc-row .n { font-family: 'JetBrains Mono', monospace; font-size: 10pt; color: var(--red); letter-spacing: .15em; }
+  .toc-row .p { color: var(--chrome-dim); font-family: 'JetBrains Mono', monospace; font-size: 10pt; letter-spacing: .15em; }
+
+  /* WHY */
+  .why-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm 8mm; margin-top: 10mm; }
+  .why-card { border: 1px solid var(--line-2); background: var(--black-2); padding: 8mm; }
+  .why-card .ico {
+    width: 12mm; height: 12mm; border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    color: var(--red); margin-bottom: 4mm;
+  }
+  .why-card .ico svg { width: 7mm; height: 7mm; }
+  .why-card h4 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt; margin-bottom: 3mm; letter-spacing: .03em; }
+  .why-card p { color: var(--chrome); font-size: 10pt; line-height: 1.5; margin: 0; }
+
+  /* PAKET PAGE */
+  .paket-hero {
+    display: grid; grid-template-columns: 1fr auto; align-items: end; margin-bottom: 8mm;
+    padding-bottom: 6mm; border-bottom: 1px solid var(--line-2);
+  }
+  .paket-tier { font-family: 'JetBrains Mono', monospace; font-size: 10pt; letter-spacing: .22em; color: var(--chrome-dim); text-transform: uppercase; }
+  .paket-name { font-family: 'Bebas Neue', sans-serif; font-size: 80pt; line-height: .9; margin-top: 2mm; }
+  .paket-name.amber { color: var(--amber); }
+  .paket-name.red { color: var(--red); }
+  .paket-price { text-align: right; }
+  .paket-price .amt { font-family: 'Bebas Neue', sans-serif; font-size: 60pt; line-height: .9; color: var(--red); }
+  .paket-price .amt.amber { color: var(--amber); }
+  .paket-price .unit { font-family: 'JetBrains Mono', monospace; font-size: 9pt; letter-spacing: .15em; color: var(--chrome-dim); text-transform: uppercase; margin-top: 2mm; }
+
+  .paket-meta-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-bottom: 8mm;
+  }
+  .paket-meta-cell { background: var(--black-2); border: 1px solid var(--line); padding: 4mm; }
+  .paket-meta-cell .lbl { font-family: 'JetBrains Mono', monospace; font-size: 8pt; letter-spacing: .2em; text-transform: uppercase; color: var(--chrome-dim); }
+  .paket-meta-cell .val { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14pt; margin-top: 2mm; }
+
+  .paket-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .paket-col h5 { font-family: 'JetBrains Mono', monospace; font-size: 9pt; letter-spacing: .22em; color: var(--red); text-transform: uppercase; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1px solid var(--line-2); }
+  .paket-col ul { list-style: none; padding: 0; margin: 0; }
+  .paket-col li { padding: 2mm 0; font-size: 10pt; color: var(--white); display: flex; gap: 3mm; align-items: flex-start; line-height: 1.4; }
+  .paket-col li::before { content: ""; flex-shrink: 0; width: 3mm; height: 3mm; background: var(--red); margin-top: 1.4mm; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+  .paket-col.muted li { color: var(--chrome-dim); }
+  .paket-col.muted li::before { background: var(--line-2); }
+
+  /* TECH PAGE */
+  .tech-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm; margin-top: 8mm; }
+  .tech-feat { border: 1px solid var(--line-2); background: var(--black-2); padding: 6mm; }
+  .tech-feat .n { font-family: 'JetBrains Mono', monospace; font-size: 9pt; color: var(--red); letter-spacing: .15em; margin-bottom: 3mm; }
+  .tech-feat h4 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13pt; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 2mm; }
+  .tech-feat p { color: var(--chrome); font-size: 9.5pt; line-height: 1.5; margin: 0; }
+
+  /* FINANSIAL PAGE */
+  .fin-big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line-2); margin: 8mm 0; }
+  .fin-cell { background: var(--black); padding: 8mm; }
+  .fin-cell .lbl { font-family: 'JetBrains Mono', monospace; font-size: 8pt; letter-spacing: .22em; color: var(--chrome-dim); text-transform: uppercase; margin-bottom: 4mm; }
+  .fin-cell .val { font-family: 'Bebas Neue', sans-serif; font-size: 56pt; line-height: .85; }
+  .fin-cell .val.red { color: var(--red); }
+  .fin-cell .val.amber { color: var(--amber); }
+  .fin-cell .val .sm { font-size: 18pt; color: var(--chrome-dim); vertical-align: top; margin-left: 1mm; }
+  .fin-cell .desc { font-size: 9pt; color: var(--chrome); margin-top: 4mm; line-height: 1.5; }
+  .fin-cell .desc strong { color: var(--white); }
+
+  .pnl { border: 1px solid var(--line-2); background: var(--black); padding: 8mm; }
+  .pnl h3 { font-size: 22pt; margin-bottom: 1mm; }
+  .pnl-sub { font-family: 'JetBrains Mono', monospace; font-size: 9pt; color: var(--chrome-dim); letter-spacing: .2em; text-transform: uppercase; margin-bottom: 6mm; }
+  .pnl-row { display: grid; grid-template-columns: 1.4fr 2fr 1fr; gap: 4mm; align-items: center; padding: 4mm 0; border-bottom: 1px solid var(--line); }
+  .pnl-row:last-child { border-bottom: none; }
+  .pnl-row .l { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 10pt; text-transform: uppercase; letter-spacing: .08em; color: var(--chrome); }
+  .pnl-row .bar { height: 4mm; background: var(--line); position: relative; overflow: hidden; }
+  .pnl-row .bar::after { content: ""; position: absolute; inset: 0; background: var(--red); width: var(--w, 100%); }
+  .pnl-row .bar.green::after { background: var(--hud); }
+  .pnl-row .bar.amber::after { background: var(--amber); }
+  .pnl-row .v { font-family: 'Bebas Neue', sans-serif; font-size: 18pt; text-align: right; }
+  .pnl-row .v.g { color: var(--hud); }
+  .pnl-row .v.r { color: var(--red); }
+  .pnl-row .v.a { color: var(--amber); }
+
+  /* STEPS PAGE */
+  .steps-vert { display: flex; flex-direction: column; gap: 0; margin-top: 8mm; }
+  .step-v {
+    display: grid; grid-template-columns: 24mm 1fr 28mm;
+    gap: 6mm; padding: 6mm 0;
+    border-bottom: 1px solid var(--line-2);
+    align-items: start;
+  }
+  .step-v:last-child { border-bottom: none; }
+  .step-v .num { font-family: 'Bebas Neue', sans-serif; font-size: 44pt; line-height: 1; color: transparent; -webkit-text-stroke: 1px var(--red); }
+  .step-v h4 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14pt; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 2mm; }
+  .step-v p { font-size: 10pt; color: var(--chrome); margin: 0; line-height: 1.5; }
+  .step-v .time { font-family: 'JetBrains Mono', monospace; font-size: 9pt; color: var(--red); letter-spacing: .15em; text-align: right; text-transform: uppercase; padding-top: 2mm; }
+
+  /* CONTACT PAGE */
+  .contact-page {
+    background:
+      radial-gradient(700px 500px at 70% 30%, rgba(204,0,0,.18), transparent 60%),
+      var(--black);
+  }
+  .contact-cta {
+    margin: 12mm 0; padding: 10mm;
+    background: linear-gradient(135deg, #1a0707, var(--black-2));
+    border: 1px solid var(--red);
+  }
+  .contact-cta h3 { font-size: 36pt; margin-bottom: 4mm; }
+  .contact-cta .red { color: var(--red); }
+  .contact-cta p { color: var(--chrome); font-size: 11pt; max-width: 130mm; margin: 0 0 6mm; }
+  .contact-cta .wa-row {
+    display: flex; gap: 6mm; align-items: center; flex-wrap: wrap;
+    margin-top: 6mm; padding-top: 6mm; border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .contact-cta .wa-row .item { display: flex; flex-direction: column; }
+  .contact-cta .wa-row .l { font-family: 'JetBrains Mono', monospace; font-size: 8pt; letter-spacing: .2em; color: var(--chrome-dim); text-transform: uppercase; }
+  .contact-cta .wa-row .v { font-family: 'Bebas Neue', sans-serif; font-size: 22pt; color: var(--white); letter-spacing: .04em; }
+  .contact-cta .wa-row .v.red { color: var(--red); }
+
+  .contact-final-tag {
+    text-align: center;
+    margin-top: 16mm;
+    padding: 12mm 0;
+    border-top: 1px solid var(--line-2);
+  }
+  .contact-final-tag .label { font-family: 'JetBrains Mono', monospace; font-size: 9pt; letter-spacing: .26em; color: var(--chrome-dim); text-transform: uppercase; margin-bottom: 6mm; }
+  .contact-final-tag h2 { font-family: 'Bebas Neue', sans-serif; font-size: 52pt; line-height: .95; }
+  .contact-final-tag h2 .red { color: var(--red); }
+
+  /* Compare table */
+  table.cmp { width: 100%; border-collapse: collapse; margin-top: 6mm; }
+  table.cmp th, table.cmp td { padding: 3mm 4mm; text-align: left; border-bottom: 1px solid var(--line); font-size: 9pt; vertical-align: middle; }
+  table.cmp thead th { background: var(--black-2); padding: 5mm 4mm; vertical-align: top; text-align: center; border-bottom: 1.5px solid var(--line-2); }
+  table.cmp thead th:first-child { text-align: left; width: 40%; }
+  table.cmp thead th .t { font-family: 'JetBrains Mono', monospace; font-size: 8pt; color: var(--chrome-dim); letter-spacing: .2em; text-transform: uppercase; display: block; }
+  table.cmp thead th .n { font-family: 'Bebas Neue', sans-serif; font-size: 16pt; display: block; margin-top: 1mm; }
+  table.cmp thead th .p { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 10pt; display: block; color: var(--white); }
+  table.cmp tbody td { text-align: center; color: var(--white); }
+  table.cmp tbody td:first-child { text-align: left; color: var(--chrome); }
+  table.cmp td.y { color: var(--hud); font-weight: 700; }
+  table.cmp td.n { color: var(--line-2); }
+  table.cmp tr.grp td { background: var(--black-2); color: var(--red); font-family: 'JetBrains Mono', monospace; font-size: 8pt; letter-spacing: .2em; text-transform: uppercase; padding: 4mm 4mm 2mm; text-align: left; }
+  table.cmp thead th.hi { background: linear-gradient(180deg, #1a0707, var(--black-2)); }
+  table.cmp thead th.hi .p { color: var(--red); }
+  table.cmp .hi { background: rgba(204,0,0,.05); }
+
+</style>
+</head>
+<body>
+
+<a href="#" class="toolbar" onclick="window.print(); return false;">⎙ PRINT / SAVE AS PDF</a>
+
+<!-- ============== PAGE 1 · COVER ============== -->
+<div class="page cover">
+  <div class="page-content">
+    <div class="cover-top">
+      <div class="cover-brand-mark">
+        <svg viewBox="0 0 32 32" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="1.5"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+          <path d="M16 12 L16 24" stroke="#0A0A0A" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <div class="cover-meta">
+        <div class="conf">● Confidential</div>
+        <div class="year">2026 EDITION</div>
+      </div>
+    </div>
+    <div class="cover-mid">
+      <div class="doc-type">— Franchise Investment Brochure —</div>
+      <h1>GARAGE.<br><span class="red">Built</span> to<br>Franchise.</h1>
+      <p class="subline">Sistem operasi industri kedai kopi. Tiga paket investasi, satu standar global — dari Rp 75 juta hingga Rp 450 juta.</p>
+    </div>
+    <div class="cover-bot">
+      <div class="cover-tagline">"Built in the <span class="red">Garage</span>,<br>Brewed for the World."</div>
+      <div class="cover-edition">
+        <strong>Document No.</strong>
+        GRG-FR-2026-001<br>
+        PT GARAGE INDONESIA
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============== PAGE 2 · TOC ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Franchise Brochure</span>
+    <span>02 / 12</span>
+  </div>
+  <div class="page-content">
+    <div class="eyebrow">Daftar Isi</div>
+    <h2 class="section-title">Apa yang akan<br>kamu temukan.</h2>
+    <p class="lead">Dokumen ini berisi semua yang perlu diketahui calon franchisee — dari posisi brand, unit economics, sampai cara bergabung. Baca santai. Kalau ada pertanyaan, langsung WhatsApp tim kami.</p>
+
+    <div class="toc-list">
+      <div class="toc-row"><span class="n">01</span><span>Brand Story &amp; Visi</span><span class="p">P. 03</span></div>
+      <div class="toc-row"><span class="n">02</span><span>Mengapa GARAGE</span><span class="p">P. 04</span></div>
+      <div class="toc-row"><span class="n">03</span><span>Paket 01 · System Only</span><span class="p">P. 05</span></div>
+      <div class="toc-row"><span class="n">04</span><span>Paket 02 · Starter Cafe</span><span class="p">P. 06</span></div>
+      <div class="toc-row"><span class="n">05</span><span>Paket 03 · Full Flagship</span><span class="p">P. 07</span></div>
+      <div class="toc-row"><span class="n">06</span><span>Perbandingan Paket</span><span class="p">P. 08</span></div>
+      <div class="toc-row"><span class="n">07</span><span>GARAGE OS · Teknologi</span><span class="p">P. 09</span></div>
+      <div class="toc-row"><span class="n">08</span><span>Unit Economics &amp; Proyeksi</span><span class="p">P. 10</span></div>
+      <div class="toc-row"><span class="n">09</span><span>Cara Bergabung · 5 Langkah</span><span class="p">P. 11</span></div>
+      <div class="toc-row"><span class="n">10</span><span>Hubungi Tim Franchise</span><span class="p">P. 12</span></div>
+    </div>
+  </div>
+  <div class="page-footer"><span>"Built in the Garage, Brewed for the World."</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 3 · BRAND STORY ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Brand Story</span>
+    <span>03 / 12</span>
+  </div>
+  <div class="hero-num">01</div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 01 · Brand Story</div>
+    <h2 class="section-title">Dimulai dari<br><span class="red">sebuah garasi.</span></h2>
+    <p class="lead" style="max-width: 150mm;">
+      <strong>GARAGE</strong> lahir dari obsesi sederhana: bagaimana kalau industri kopi punya sistem operasi yang seketat workshop motor?
+    </p>
+    <p class="lead" style="max-width: 150mm; margin-top: 5mm;">
+      Pendiri kami menghabiskan tahun-tahun pertama membongkar setiap proses outlet — dari sourcing biji kopi, kalibrasi mesin, sampai cara kasir mencetak struk — dan menulis ulang semuanya sebagai SOP digital yang bisa dijalankan tim manapun, di kota manapun.
+    </p>
+    <p class="lead" style="max-width: 150mm; margin-top: 5mm;">
+      Hari ini, GARAGE bukan sekadar brand kopi. Kami adalah <strong>sistem operasi industri kedai kopi</strong> — dengan visi menjadi standar de-facto di Asia Tenggara pada 2035.
+    </p>
+
+    <div style="margin-top: 14mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line-2);">
+      <div style="background: var(--black); padding: 6mm;">
+        <div style="font-family: 'Bebas Neue'; font-size: 44pt; line-height: 1; color: var(--red);">2024</div>
+        <div style="font-family: 'JetBrains Mono'; font-size: 8pt; letter-spacing: .2em; color: var(--chrome-dim); margin-top: 3mm; text-transform: uppercase;">Founded</div>
+      </div>
+      <div style="background: var(--black); padding: 6mm;">
+        <div style="font-family: 'Bebas Neue'; font-size: 44pt; line-height: 1;">2</div>
+        <div style="font-family: 'JetBrains Mono'; font-size: 8pt; letter-spacing: .2em; color: var(--chrome-dim); margin-top: 3mm; text-transform: uppercase;">Pilot outlets</div>
+      </div>
+      <div style="background: var(--black); padding: 6mm;">
+        <div style="font-family: 'Bebas Neue'; font-size: 44pt; line-height: 1; color: var(--amber);">12</div>
+        <div style="font-family: 'JetBrains Mono'; font-size: 8pt; letter-spacing: .2em; color: var(--chrome-dim); margin-top: 3mm; text-transform: uppercase;">Target Y2</div>
+      </div>
+      <div style="background: var(--black); padding: 6mm;">
+        <div style="font-family: 'Bebas Neue'; font-size: 44pt; line-height: 1;">50<span style="font-size: 22pt;">+</span></div>
+        <div style="font-family: 'JetBrains Mono'; font-size: 8pt; letter-spacing: .2em; color: var(--chrome-dim); margin-top: 3mm; text-transform: uppercase;">Target Y5</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 12mm; padding: 8mm; background: var(--black-2); border-left: 3px solid var(--red);">
+      <div style="font-family: 'JetBrains Mono'; font-size: 9pt; color: var(--red); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 4mm;">// VISI 2035</div>
+      <div style="font-family: 'Bebas Neue'; font-size: 32pt; line-height: 1.05;">Menjadi sistem operasi<br>industri kedai kopi di<br><span style="color: var(--red);">Asia Tenggara</span>.</div>
+    </div>
+  </div>
+  <div class="page-footer"><span>"Built in the Garage, Brewed for the World."</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 4 · WHY ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Why GARAGE</span>
+    <span>04 / 12</span>
+  </div>
+  <div class="hero-num">02</div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 02 · Why GARAGE</div>
+    <h2 class="section-title">Empat hal yang<br>membuat <span class="red">berbeda.</span></h2>
+    <p class="lead">Kami tidak menjual mimpi. Kami menjual sistem yang bisa diukur, di-audit, dan direplikasi — dengan unit economics konsisten di atas rata-rata industri.</p>
+
+    <div class="why-list">
+      <div class="why-card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="16" rx="1" stroke="currentColor" stroke-width="2"/><path d="M4 11h24M10 26h12M16 22v4" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Teknologi Proprietary</h4>
+        <p>POS, QR Menu, KDS, Loyalty App, Owner Dashboard — semua in-house. Bukan SaaS sewaan, tidak ada lisensi pihak ketiga. Update otomatis selamanya.</p>
+      </div>
+      <div class="why-card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><path d="M6 4h16l4 4v20H6z" stroke="currentColor" stroke-width="2"/><path d="M22 4v4h4M10 14h12M10 18h12M10 22h8" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>SOP Digital Teruji</h4>
+        <p>15 modul operasional: rekrutmen, opening, closing, kasir, barista, inventory, customer service, komplain, krisis, KPI. Lengkap. Terstruktur. Bisa dipakai owner tanpa pengalaman F&amp;B.</p>
+      </div>
+      <div class="why-card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><path d="M4 26 L12 18 L18 22 L28 8" stroke="currentColor" stroke-width="2"/><path d="M20 8h8v8" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Gross Margin 67%</h4>
+        <p>Harga jual Rp 35.000 dengan COGS Rp 11.500. Supply chain biji kopi langsung dari farm partner. Marjin sehat dari hari pertama, audit-trail penuh.</p>
+      </div>
+      <div class="why-card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/><circle cx="22" cy="14" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 28c0-5 4-8 8-8s8 3 8 8M18 28c0-3.5 2-6 6-6s6 2 6 6" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Komunitas Owner Aktif</h4>
+        <p>Private group owner GARAGE: sharing harian, sourcing tips, problem-solving. Pendampingan operasional 30 hari + WhatsApp support tim pusat.</p>
+      </div>
+    </div>
+
+    <div style="margin-top: 10mm; padding: 6mm; background: linear-gradient(135deg, #1a0707, var(--black-2)); border: 1px solid var(--red);">
+      <div style="font-family: 'JetBrains Mono'; font-size: 9pt; color: var(--red); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 3mm;">// THE GARAGE EDGE</div>
+      <div style="font-family: 'Barlow Condensed'; font-weight: 700; font-size: 14pt; line-height: 1.4;">Sebagian besar franchise kopi menjual <em>brand</em>. GARAGE menjual <strong style="color: var(--red);">sistem operasi yang menghasilkan profit konsisten</strong> — brand adalah konsekuensi, bukan produk utama.</div>
+    </div>
+  </div>
+  <div class="page-footer"><span>"Built in the Garage, Brewed for the World."</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 5 · PAKET 1 ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · System Only</span>
+    <span>05 / 12</span>
+  </div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 03 · Paket 01</div>
+    <div class="paket-hero">
+      <div>
+        <div class="paket-tier">PAKET 01 · ENTRY</div>
+        <div class="paket-name">System<br>Only</div>
+      </div>
+      <div class="paket-price">
+        <div class="amt">Rp 75jt</div>
+        <div class="unit">One-time · Lisensi GARAGE OS</div>
+      </div>
+    </div>
+    <p class="lead">Untuk pemilik outlet kopi yang <strong>sudah punya lokasi &amp; dekorasi sendiri</strong>, tapi butuh sistem operasi profesional untuk skala.</p>
+
+    <div class="paket-meta-row">
+      <div class="paket-meta-cell"><div class="lbl">Renewal</div><div class="val">Rp 18 jt/thn</div></div>
+      <div class="paket-meta-cell"><div class="lbl">Onboarding</div><div class="val">3 hari on-site</div></div>
+      <div class="paket-meta-cell"><div class="lbl">Support</div><div class="val">3 bulan teknis</div></div>
+    </div>
+
+    <div class="paket-cols">
+      <div class="paket-col">
+        <h5>— Yang Termasuk</h5>
+        <ul>
+          <li>Lisensi GARAGE OS (POS + QR Menu + KDS + Member App)</li>
+          <li>Setup sistem &amp; training kasir + barista</li>
+          <li>15 modul SOP digital lengkap</li>
+          <li>Akses Owner Dashboard real-time</li>
+          <li>WhatsApp invoice automation</li>
+          <li>Loyalty program GARAGE Pit Stop</li>
+          <li>Support teknis 3 bulan pertama</li>
+          <li>Update sistem otomatis selamanya</li>
+          <li>Akses komunitas owner GARAGE</li>
+        </ul>
+      </div>
+      <div class="paket-col muted">
+        <h5>— Tidak Termasuk</h5>
+        <ul>
+          <li>Dekorasi &amp; renovasi outlet</li>
+          <li>Peralatan bar (espresso machine, grinder, dll)</li>
+          <li>Furniture (meja, kursi, counter)</li>
+          <li>Stok bahan baku awal</li>
+          <li>Branded merchandise &amp; signage</li>
+          <li>Seragam staff</li>
+          <li>Royalty</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 12mm; padding: 6mm; background: var(--black-2); border: 1px solid var(--line);">
+      <div style="font-family: 'JetBrains Mono'; font-size: 9pt; color: var(--chrome-dim); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 3mm;">// IDEAL FOR</div>
+      <p style="font-family: 'Barlow'; font-size: 11pt; margin: 0; line-height: 1.5;">Coffee shop owner yang sudah jalan tapi struggle dengan operasi manual, atau ingin scale dari single outlet ke multi-outlet tanpa investasi ulang infrastruktur.</p>
+    </div>
+  </div>
+  <div class="page-footer"><span>Paket 01 · System Only · Rp 75jt</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 6 · PAKET 2 ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Starter Cafe</span>
+    <span>06 / 12</span>
+  </div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 04 · Paket 02 · <span style="color: var(--red);">Most Popular</span></div>
+    <div class="paket-hero">
+      <div>
+        <div class="paket-tier">PAKET 02 · POPULAR</div>
+        <div class="paket-name red">Starter<br>Cafe</div>
+      </div>
+      <div class="paket-price">
+        <div class="amt">Rp 250jt</div>
+        <div class="unit">Full Setup · Turnkey</div>
+      </div>
+    </div>
+    <p class="lead">Outlet baru skala kecil — <strong>25–40 m², 20–30 kursi</strong>. Paket paling populer karena lengkap, terjangkau, dan BEP cepat.</p>
+
+    <div class="paket-meta-row">
+      <div class="paket-meta-cell"><div class="lbl">Target BEP</div><div class="val">12–14 bulan</div></div>
+      <div class="paket-meta-cell"><div class="lbl">Training</div><div class="val">30 hari</div></div>
+      <div class="paket-meta-cell"><div class="lbl">Royalty</div><div class="val">Tanpa royalty</div></div>
+    </div>
+
+    <div class="paket-cols">
+      <div class="paket-col">
+        <h5>— Semua di System Only</h5>
+        <ul>
+          <li>Lisensi GARAGE OS lengkap</li>
+          <li>15 modul SOP digital</li>
+          <li>Owner Dashboard real-time</li>
+          <li>WhatsApp invoice automation</li>
+          <li>Akses komunitas owner</li>
+          <li>Update sistem otomatis</li>
+        </ul>
+      </div>
+      <div class="paket-col">
+        <h5>— Plus Tambahan</h5>
+        <ul>
+          <li>Desain interior konsep GARAGE (industrial-automotive)</li>
+          <li>Material exposed concrete, raw metal, neon signage</li>
+          <li>Espresso machine pro 2-group</li>
+          <li>Grinder commercial</li>
+          <li>Peralatan bar lengkap (blender, kulkas, ice maker)</li>
+          <li>Furniture custom branded (meja, kursi, counter)</li>
+          <li>5 set seragam staff</li>
+          <li>Stok bahan baku awal (1 bulan)</li>
+          <li>Training barista 30 hari (GARAGE certified)</li>
+          <li>Grand opening support &amp; marketing kit</li>
+          <li>Pendampingan operasional 30 hari post-launch</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 8mm; padding: 6mm; background: linear-gradient(135deg, #1a0707, var(--black-2)); border: 1px solid var(--red);">
+      <div style="font-family: 'JetBrains Mono'; font-size: 9pt; color: var(--red); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 3mm;">// IDEAL FOR</div>
+      <p style="font-family: 'Barlow'; font-size: 11pt; margin: 0; line-height: 1.5;">First-time owner yang ingin masuk industri kopi dengan modal terkontrol. Cocok untuk lokasi tier-1/tier-2 kota, mall non-flagship, atau ruko strategis.</p>
+    </div>
+  </div>
+  <div class="page-footer"><span>Paket 02 · Starter Cafe · Rp 250jt · ★ Most Popular</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 7 · PAKET 3 ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Full Flagship</span>
+    <span>07 / 12</span>
+  </div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 05 · Paket 03 · <span style="color: var(--amber);">Premium</span></div>
+    <div class="paket-hero">
+      <div>
+        <div class="paket-tier" style="color: var(--amber);">PAKET 03 · PREMIUM</div>
+        <div class="paket-name amber">Full<br>Flagship</div>
+      </div>
+      <div class="paket-price">
+        <div class="amt amber">Rp 450jt</div>
+        <div class="unit">Premium Flagship Outlet</div>
+      </div>
+    </div>
+    <p class="lead">Outlet premium skala penuh — <strong>60–100 m², 50+ kursi</strong>. Signature GARAGE experience dengan motor display &amp; community zone.</p>
+
+    <div class="paket-meta-row">
+      <div class="paket-meta-cell"><div class="lbl">Target BEP</div><div class="val">11–13 bulan</div></div>
+      <div class="paket-meta-cell"><div class="lbl">EBITDA Steady</div><div class="val">23% gross</div></div>
+      <div class="paket-meta-cell"><div class="lbl">Royalty</div><div class="val">5% gross revenue</div></div>
+    </div>
+
+    <div class="paket-cols">
+      <div class="paket-col">
+        <h5>— Semua di Starter Cafe</h5>
+        <ul>
+          <li>GARAGE OS &amp; Owner Dashboard</li>
+          <li>Desain industrial-automotive</li>
+          <li>15 modul SOP + komunitas</li>
+          <li>Training 30 hari + grand opening</li>
+        </ul>
+        <h5 style="margin-top: 6mm;">— Premium Interior</h5>
+        <ul>
+          <li>Mural, theatrical lighting</li>
+          <li>Branded merchandise corner</li>
+          <li>Motor display / community zone (signature)</li>
+          <li>Sound system premium</li>
+          <li>CCTV + alarm terintegrasi</li>
+        </ul>
+      </div>
+      <div class="paket-col">
+        <h5>— Equipment Premium</h5>
+        <ul>
+          <li>Espresso machine pro 3-group (premium brand)</li>
+          <li>2 grinder (espresso + filter)</li>
+          <li>Cold brew station</li>
+          <li>TV kitchen + customer queue screen</li>
+          <li>QR table system 50 meja</li>
+          <li>Thermal printer kasir &amp; kitchen</li>
+          <li>Tablet kasir + tablet KDS</li>
+        </ul>
+        <h5 style="margin-top: 6mm;">— Pendampingan Lanjut</h5>
+        <ul>
+          <li>Stok bahan baku awal (2 bulan)</li>
+          <li>Training intensif tim lengkap</li>
+          <li>Franchise fee terdaftar resmi</li>
+          <li>Priority support 6 bulan</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 6mm; padding: 6mm; background: var(--black-2); border-left: 3px solid var(--amber);">
+      <div style="font-family: 'JetBrains Mono'; font-size: 9pt; color: var(--amber); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 3mm;">// IDEAL FOR</div>
+      <p style="font-family: 'Barlow'; font-size: 11pt; margin: 0; line-height: 1.5;">Investor serius yang ingin destination outlet — mall flagship, kawasan eksekutif, atau lokasi tier-1 dengan target volume tinggi dan community-driven brand presence.</p>
+    </div>
+  </div>
+  <div class="page-footer"><span>Paket 03 · Full Flagship · Rp 450jt · Premium Tier</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 8 · COMPARISON ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Comparison Matrix</span>
+    <span>08 / 12</span>
+  </div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 06 · Perbandingan</div>
+    <h2 class="section-title">Tiga paket.<br>Satu <span class="red">tampilan.</span></h2>
+
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th><span class="t">FITUR</span></th>
+          <th><span class="t">PAKET 01</span><span class="n">System</span><span class="p">Rp 75jt</span></th>
+          <th class="hi"><span class="t">★ PAKET 02</span><span class="n">Starter</span><span class="p">Rp 250jt</span></th>
+          <th><span class="t">PAKET 03</span><span class="n">Flagship</span><span class="p" style="color: var(--amber);">Rp 450jt</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="grp"><td colspan="4">// TEKNOLOGI</td></tr>
+        <tr><td>Lisensi GARAGE OS</td><td class="y">✓</td><td class="y hi">✓</td><td class="y">✓</td></tr>
+        <tr><td>Owner Dashboard</td><td class="y">✓</td><td class="y hi">✓</td><td class="y">✓</td></tr>
+        <tr><td>Tablet kasir + KDS</td><td class="n">—</td><td class="hi">1 set</td><td>Full</td></tr>
+        <tr><td>QR Table System</td><td>Std</td><td class="hi">20 meja</td><td>50 meja</td></tr>
+
+        <tr class="grp"><td colspan="4">// DESAIN &amp; INTERIOR</td></tr>
+        <tr><td>Desain konsep GARAGE</td><td class="n">—</td><td class="y hi">✓</td><td class="y">Premium</td></tr>
+        <tr><td>Mural + theatrical lighting</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
+        <tr><td>Motor display / community zone</td><td class="n">—</td><td class="n hi">—</td><td class="y">Signature</td></tr>
+        <tr><td>Branded merch corner</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
+
+        <tr class="grp"><td colspan="4">// PERALATAN BAR</td></tr>
+        <tr><td>Espresso machine</td><td class="n">—</td><td class="hi">2-group</td><td>3-group prem.</td></tr>
+        <tr><td>Grinder</td><td class="n">—</td><td class="hi">1 commercial</td><td>2 (esp + filter)</td></tr>
+        <tr><td>Cold brew station</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
+        <tr><td>Sound system + CCTV</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
+
+        <tr class="grp"><td colspan="4">// OPERASIONAL</td></tr>
+        <tr><td>SOP 15 modul digital</td><td class="y">✓</td><td class="y hi">✓</td><td class="y">✓</td></tr>
+        <tr><td>Training tim</td><td>3 hari</td><td class="hi">30 hari</td><td>Intensif</td></tr>
+        <tr><td>Seragam staff</td><td class="n">—</td><td class="hi">5 set</td><td>Full crew</td></tr>
+        <tr><td>Stok bahan baku awal</td><td class="n">—</td><td class="hi">1 bulan</td><td>2 bulan</td></tr>
+        <tr><td>Grand opening support</td><td class="n">—</td><td class="y hi">✓</td><td class="y">✓</td></tr>
+        <tr><td>Pendampingan post-launch</td><td class="n">—</td><td class="hi">30 hari</td><td>Priority 6 bln</td></tr>
+
+        <tr class="grp"><td colspan="4">// FINANSIAL</td></tr>
+        <tr><td>Target BEP</td><td>—</td><td class="hi">12–14 bln</td><td>11–13 bln</td></tr>
+        <tr><td>Royalty</td><td>Tanpa</td><td class="hi">Tanpa</td><td>5% gross</td></tr>
+        <tr><td>Renewal sistem</td><td>Rp 18jt/thn</td><td class="hi">Rp 18jt/thn</td><td>Rp 18jt/thn</td></tr>
+        <tr><td>Franchise terdaftar resmi</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="page-footer"><span>Comparison Matrix · All Packages</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 9 · TECH ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · GARAGE OS</span>
+    <span>09 / 12</span>
+  </div>
+  <div class="hero-num">07</div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 07 · Teknologi</div>
+    <h2 class="section-title">GARAGE OS.<br>Satu sistem,<br><span class="red">seluruh outlet.</span></h2>
+    <p class="lead">Dibangun in-house dari nol. Bukan plugin, bukan SaaS sewaan. Setiap fitur dirancang untuk operasi kedai kopi berskala franchise — dari single outlet hingga 50+ outlet.</p>
+
+    <div class="tech-grid">
+      <div class="tech-feat"><div class="n">F.01</div><h4>QR Menu &amp; Order Flow</h4><p>Customer scan QR meja → pilih menu → kasir validasi → kitchen tampil otomatis. Zero antrian manual.</p></div>
+      <div class="tech-feat"><div class="n">F.02</div><h4>POS Web-Based</h4><p>Jalan di tablet, laptop, atau HP. Tidak perlu install aplikasi. Update real-time tanpa downtime.</p></div>
+      <div class="tech-feat"><div class="n">F.03</div><h4>Kitchen Display System</h4><p>Order langsung muncul di layar dapur dengan timer. Status brewing → ready → served. Audit-trail penuh.</p></div>
+      <div class="tech-feat"><div class="n">F.04</div><h4>Owner Dashboard Real-Time</h4><p>Revenue, stok, karyawan, KPI — semua live. Dari HP. Dari mana saja. Multi-outlet ready.</p></div>
+      <div class="tech-feat"><div class="n">F.05</div><h4>Member Loyalty App</h4><p>GARAGE Pit Stop: tier Mechanic → Engineer → Race Crew. Stamp otomatis, reward terkurasi.</p></div>
+      <div class="tech-feat"><div class="n">F.06</div><h4>Staff Fee Wallet</h4><p>Sistem reward karyawan otomatis. Inventory dengan reorder alert. WhatsApp invoice otomatis ke customer.</p></div>
+    </div>
+
+    <div style="margin-top: 8mm; padding: 6mm; background: var(--black-2); border-left: 3px solid var(--red);">
+      <div style="font-family: 'JetBrains Mono'; font-size: 9pt; color: var(--red); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 3mm;">// THE TECH MOAT</div>
+      <p style="font-family: 'Barlow'; font-size: 11pt; margin: 0; line-height: 1.5;">Karena dibangun in-house, kami bisa <strong>iterasi cepat</strong>, fix bug dalam jam, dan kustomisasi fitur khusus operasi GARAGE — sesuatu yang tidak mungkin dilakukan jika menyewa SaaS generik.</p>
+    </div>
+  </div>
+  <div class="page-footer"><span>GARAGE OS · Proprietary Technology Stack</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 10 · FINANSIAL ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Unit Economics</span>
+    <span>10 / 12</span>
+  </div>
+  <div class="hero-num">08</div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 08 · Finansial</div>
+    <h2 class="section-title">Angka yang<br><span class="red">berbicara sendiri.</span></h2>
+    <p class="lead">Unit economics berdasarkan data outlet pilot. Base case <strong>200 cup/hari</strong>, harga rata-rata <strong>Rp 35.000</strong>, lokasi Tier-1 kota provinsi.</p>
+
+    <div class="fin-big">
+      <div class="fin-cell">
+        <div class="lbl">// GROSS MARGIN / CUP</div>
+        <div class="val red">67<span class="sm">%</span></div>
+        <div class="desc">Harga jual <strong>Rp 35.000</strong> · COGS <strong>Rp 11.500</strong></div>
+      </div>
+      <div class="fin-cell">
+        <div class="lbl">// EBITDA STEADY</div>
+        <div class="val amber">23<span class="sm">%</span></div>
+        <div class="desc">≈ <strong>Rp 62,7 jt/bulan</strong> dari revenue <strong>Rp 270 jt</strong></div>
+      </div>
+      <div class="fin-cell">
+        <div class="lbl">// BREAK-EVEN</div>
+        <div class="val">11–14<span class="sm">bln</span></div>
+        <div class="desc">Tergantung lokasi &amp; paket. <strong>Flagship</strong> cenderung lebih cepat</div>
+      </div>
+    </div>
+
+    <div class="pnl">
+      <h3>Profile Outlet · Steady State</h3>
+      <div class="pnl-sub">// PER BULAN · BASE CASE · 200 CUP/HARI</div>
+      <div class="pnl-row"><span class="l">Revenue</span><span class="bar green" style="--w: 100%;"></span><span class="v g">Rp 270jt</span></div>
+      <div class="pnl-row"><span class="l">COGS (Bahan Baku)</span><span class="bar" style="--w: 33%;"></span><span class="v r">–Rp 89,1jt</span></div>
+      <div class="pnl-row"><span class="l">Gross Profit</span><span class="bar green" style="--w: 67%;"></span><span class="v g">Rp 180,9jt</span></div>
+      <div class="pnl-row"><span class="l">Operasional (Sewa + Staff + Utility)</span><span class="bar amber" style="--w: 44%;"></span><span class="v a">–Rp 118,2jt</span></div>
+      <div class="pnl-row"><span class="l">EBITDA</span><span class="bar amber" style="--w: 23%;"></span><span class="v a">Rp 62,7jt</span></div>
+    </div>
+
+    <p style="font-family: 'JetBrains Mono'; font-size: 8pt; color: var(--chrome-dim); margin-top: 6mm; line-height: 1.6;">
+      * Proyeksi base case. Variabel lokasi, sewa, dan eksekusi operasional dapat memengaruhi hasil aktual. Hitung sendiri dengan ROI Calculator di garagecoffee.id/roi.
+    </p>
+  </div>
+  <div class="page-footer"><span>Unit Economics · Base Case Projection</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 11 · STEPS ============== -->
+<div class="page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · How to Join</span>
+    <span>11 / 12</span>
+  </div>
+  <div class="hero-num">09</div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 09 · Cara Bergabung</div>
+    <h2 class="section-title">Lima langkah.<br>Dari inquiry ke<br><span class="red">grand opening.</span></h2>
+    <p class="lead">Proses terstruktur, transparan, dan tanpa hidden fee. Rata-rata dari inquiry sampai outlet buka: <strong>60–120 hari</strong> tergantung paket.</p>
+
+    <div class="steps-vert">
+      <div class="step-v">
+        <div class="num">01</div>
+        <div><h4>Inquiry &amp; Konsultasi Awal</h4><p>Isi form atau chat WhatsApp. Tim kami balas dalam &lt;15 menit (jam kerja) dengan pitch deck lengkap &amp; brosur paket.</p></div>
+        <div class="time">Hari 1–3</div>
+      </div>
+      <div class="step-v">
+        <div class="num">02</div>
+        <div><h4>Diskusi Mendalam &amp; Studi Kelayakan</h4><p>Meeting (online/offline), review lokasi target, simulasi P&amp;L, rekomendasi paket. Output: proyeksi berdasarkan demografi areamu.</p></div>
+        <div class="time">Hari 4–14</div>
+      </div>
+      <div class="step-v">
+        <div class="num">03</div>
+        <div><h4>Site Visit &amp; Validasi Lokasi</h4><p>Tim survei datang ke lokasi: ukur ruang, validasi traffic, cek permit, finalisasi konsep desain. Output: blueprint outlet kamu.</p></div>
+        <div class="time">Hari 14–21</div>
+      </div>
+      <div class="step-v">
+        <div class="num">04</div>
+        <div><h4>Kontrak &amp; Pembayaran</h4><p>Penandatanganan perjanjian franchise, pembayaran termin pertama, kick-off project. Kamu dapat akses portal owner &amp; jadwal training.</p></div>
+        <div class="time">Hari 21–30</div>
+      </div>
+      <div class="step-v">
+        <div class="num">05</div>
+        <div><h4>Build, Training, &amp; Grand Opening</h4><p>Renovasi, instalasi alat, training tim 30 hari, soft launch, grand opening + pendampingan operasional 30 hari pertama.</p></div>
+        <div class="time">Hari 30–120</div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span>5-Step Onboarding · Inquiry → Grand Opening</span><span class="red">● CONFIDENTIAL</span></div>
+</div>
+
+<!-- ============== PAGE 12 · CONTACT ============== -->
+<div class="page contact-page">
+  <div class="page-header">
+    <span class="brand-tiny"><strong>GARAGE</strong> · Contact</span>
+    <span>12 / 12</span>
+  </div>
+  <div class="page-content">
+    <div class="eyebrow">Chapter 10 · Hubungi Kami</div>
+    <h2 class="section-title">Saatnya buka<br><span class="red">GARAGE</span> di<br>kota kamu.</h2>
+
+    <div class="contact-cta">
+      <h3>Konsultasi <span class="red">gratis</span>,<br>tanpa komitmen.</h3>
+      <p>Tim franchise kami siap kirim pitch deck lengkap, studi kelayakan template, dan jadwal site-visit dalam 1×24 jam setelah kamu hubungi.</p>
+      <div class="wa-row">
+        <div class="item">
+          <span class="l">// WhatsApp</span>
+          <span class="v red">+62 813 9618 6251</span>
+        </div>
+        <div class="item">
+          <span class="l">// Email</span>
+          <span class="v">franchise@garagecoffee.id</span>
+        </div>
+        <div class="item">
+          <span class="l">// Website</span>
+          <span class="v">garagecoffee.id</span>
+        </div>
+      </div>
+      <div class="wa-row">
+        <div class="item">
+          <span class="l">// HQ</span>
+          <span class="v" style="font-size: 14pt;">Jl. Industri Raya No. 24,<br>Jakarta Selatan</span>
+        </div>
+        <div class="item">
+          <span class="l">// Social</span>
+          <span class="v" style="font-size: 14pt;">@garage.id<br>(IG · TikTok · YouTube)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="contact-final-tag">
+      <div class="label">— TAGLINE —</div>
+      <h2>Built in the <span class="red">Garage</span>,<br>Brewed for the World.</h2>
+    </div>
+  </div>
+  <div class="page-footer"><span>© 2026 PT GARAGE INDONESIA · GRG-FR-2026-001</span><span class="red">● THANK YOU</span></div>
+</div>
+
+</body>
+</html>

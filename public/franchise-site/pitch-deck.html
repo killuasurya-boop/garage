@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>GARAGE · Franchise Pitch Deck 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="deck-stage.js"></script>
+<style>
+  :root {
+    --black: #0A0A0A; --black-2: #131313; --black-3: #1a1a1a;
+    --line: #262626; --line-2: #333;
+    --chrome: #C0C0C0; --chrome-dim: #8a8a8a; --white: #f5f5f5;
+    --red: #CC0000; --red-bright: #ff1f1f;
+    --amber: #F59E0B; --hud: #00ff9c;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body { margin: 0; background: #000; font-family: 'Barlow', sans-serif; color: var(--white); -webkit-font-smoothing: antialiased; }
+
+  deck-stage { background: var(--black); }
+  deck-stage section {
+    background: var(--black);
+    padding: 80px 96px;
+    position: relative;
+    overflow: hidden;
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Grain */
+  deck-stage section::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    opacity: .06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  h1,h2,h3,h4 { font-family: 'Bebas Neue', sans-serif; font-weight: 400; letter-spacing: .02em; line-height: .9; margin: 0; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .red { color: var(--red); }
+  .amber { color: var(--amber); }
+
+  /* Slide chrome */
+  .slide-head {
+    position: absolute; top: 48px; left: 96px; right: 96px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; letter-spacing: .26em; text-transform: uppercase;
+    color: var(--chrome-dim);
+    z-index: 5;
+  }
+  .slide-head .brand { display: flex; gap: 16px; align-items: center; }
+  .slide-head .brand strong { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: var(--white); letter-spacing: .12em; }
+  .slide-head .brand .mark { width: 32px; height: 32px; background: var(--black-2); border: 1px solid var(--line-2); display: grid; place-items: center; }
+  .slide-foot {
+    position: absolute; bottom: 48px; left: 96px; right: 96px;
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--chrome-dim);
+    z-index: 5;
+  }
+  .slide-body { position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px; letter-spacing: .3em; text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 32px;
+  }
+  .eyebrow::before { content: ""; width: 48px; height: 1px; background: var(--red); }
+
+  /* ============ COVER ============ */
+  .cover {
+    background:
+      radial-gradient(1200px 800px at 75% 25%, rgba(204,0,0,.25), transparent 60%),
+      radial-gradient(800px 600px at 10% 80%, rgba(245,158,11,.07), transparent 60%),
+      linear-gradient(180deg, #0a0a0a 0%, #050505 100%) !important;
+  }
+  .cover::before {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 100px 100px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 50%, #000 30%, transparent 80%);
+  }
+  .cover .cover-mid h1 {
+    font-size: 280px;
+    line-height: .85;
+    letter-spacing: -.01em;
+    margin-bottom: 24px;
+  }
+  .cover .cover-mid .sub {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 32px; font-weight: 500;
+    color: var(--chrome);
+    max-width: 1100px;
+    line-height: 1.3;
+  }
+  .cover .cover-bot {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-top: auto;
+  }
+  .cover .tagline {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px; letter-spacing: .04em; line-height: 1;
+  }
+  .cover .doc-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; letter-spacing: .22em; color: var(--chrome-dim);
+    text-align: right; line-height: 1.7; text-transform: uppercase;
+  }
+  .cover .doc-id strong { color: var(--white); display: block; font-size: 20px; letter-spacing: .14em; margin-bottom: 6px; }
+
+  /* ============ COMMON LAYOUT ============ */
+  .big-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 400px; line-height: .82;
+    color: transparent; -webkit-text-stroke: 2px var(--line-2);
+    position: absolute; top: 60px; right: 60px;
+    z-index: 0;
+    letter-spacing: -.02em;
+  }
+  .h1 { font-size: 160px; line-height: .88; letter-spacing: -.01em; }
+  .h2 { font-size: 120px; line-height: .9; }
+  .h3 { font-size: 72px; }
+  .h4 { font-size: 48px; }
+  .lead { font-size: 28px; color: var(--chrome); line-height: 1.5; max-width: 1100px; }
+  .lead strong { color: var(--white); }
+
+  /* Cards */
+  .card-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 56px; }
+  .card-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 56px; }
+  .card-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 56px; }
+  .card {
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 40px;
+    position: relative;
+  }
+  .card .ico {
+    width: 64px; height: 64px;
+    border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    color: var(--red); margin-bottom: 28px;
+  }
+  .card .ico svg { width: 32px; height: 32px; }
+  .card h4 { font-family: 'Bebas Neue', sans-serif; font-size: 40px; margin-bottom: 14px; letter-spacing: .03em; }
+  .card p { color: var(--chrome); font-size: 20px; line-height: 1.5; margin: 0; }
+  .card .n { position: absolute; top: 24px; right: 30px; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--chrome-dim); letter-spacing: .2em; }
+
+  /* Number stat */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line-2); margin-top: 56px; }
+  .stat-cell { background: var(--black); padding: 40px; }
+  .stat-cell .l { font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: .2em; color: var(--chrome-dim); text-transform: uppercase; margin-bottom: 18px; }
+  .stat-cell .v { font-family: 'Bebas Neue', sans-serif; font-size: 120px; line-height: .85; }
+  .stat-cell .v .sm { font-size: 40px; color: var(--chrome-dim); margin-left: 6px; vertical-align: top; }
+  .stat-cell .v.red { color: var(--red); }
+  .stat-cell .v.amber { color: var(--amber); }
+  .stat-cell .v.hud { color: var(--hud); }
+  .stat-cell .d { color: var(--chrome); font-size: 18px; margin-top: 14px; }
+
+  /* Paket cards (slide 9) */
+  .paket-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 48px; }
+  .pk {
+    background: linear-gradient(180deg, var(--black-2), var(--black));
+    border: 1px solid var(--line-2);
+    padding: 40px;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .pk::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--chrome); }
+  .pk.feat { border-color: var(--red); background: linear-gradient(180deg, #1a0707, var(--black)); }
+  .pk.feat::before { background: var(--red); }
+  .pk.flag { border-color: rgba(245,158,11,.4); }
+  .pk.flag::before { background: var(--amber); }
+  .pk .tag { font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: .26em; color: var(--chrome-dim); text-transform: uppercase; }
+  .pk .name { font-family: 'Bebas Neue', sans-serif; font-size: 64px; line-height: .9; margin: 8px 0 12px; }
+  .pk .for { color: var(--chrome); font-size: 18px; margin-bottom: 28px; min-height: 56px; }
+  .pk .price { font-family: 'Bebas Neue', sans-serif; font-size: 80px; line-height: .9; padding-bottom: 24px; border-bottom: 1px dashed var(--line-2); }
+  .pk.feat .price { color: var(--red); }
+  .pk.flag .price { color: var(--amber); }
+  .pk .price .unit { font-family: 'Barlow', sans-serif; font-size: 18px; color: var(--chrome-dim); margin-left: 8px; }
+  .pk ul { list-style: none; padding: 0; margin: 28px 0 0; flex: 1; }
+  .pk li { display: flex; gap: 14px; padding: 8px 0; font-size: 18px; line-height: 1.4; align-items: flex-start; }
+  .pk li::before { content: ""; width: 12px; height: 12px; background: var(--red); flex-shrink: 0; margin-top: 8px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+  .pk.flag li::before { background: var(--amber); }
+
+  /* Steps slide */
+  .steps-h { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line-2); margin-top: 56px; }
+  .step-c { background: var(--black); padding: 36px 28px; position: relative; }
+  .step-c::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--red); }
+  .step-c .num { font-family: 'Bebas Neue', sans-serif; font-size: 100px; line-height: .85; color: transparent; -webkit-text-stroke: 1.5px var(--line-2); margin-bottom: 24px; }
+  .step-c .time { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--red); letter-spacing: .22em; text-transform: uppercase; margin-bottom: 14px; }
+  .step-c h4 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 24px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px; line-height: 1.2; }
+  .step-c p { color: var(--chrome); font-size: 16px; margin: 0; line-height: 1.5; }
+
+  /* P&L bars */
+  .pnl-rows { margin-top: 40px; }
+  .pnl-row { display: grid; grid-template-columns: 1.5fr 2fr 1fr; gap: 32px; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--line); }
+  .pnl-row .l { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; font-size: 22px; color: var(--chrome); }
+  .pnl-row .bar { height: 12px; background: var(--line); position: relative; overflow: hidden; }
+  .pnl-row .bar::after { content: ""; position: absolute; inset: 0; background: var(--red); width: var(--w, 100%); }
+  .pnl-row .bar.green::after { background: var(--hud); }
+  .pnl-row .bar.amber::after { background: var(--amber); }
+  .pnl-row .v { font-family: 'Bebas Neue', sans-serif; font-size: 44px; text-align: right; }
+  .pnl-row .v.g { color: var(--hud); }
+  .pnl-row .v.r { color: var(--red); }
+  .pnl-row .v.a { color: var(--amber); }
+
+  /* compare table */
+  .cmp { width: 100%; border-collapse: collapse; margin-top: 32px; font-size: 18px; }
+  .cmp th, .cmp td { padding: 14px 20px; border-bottom: 1px solid var(--line); text-align: left; }
+  .cmp thead th { background: var(--black-2); padding: 24px 20px; vertical-align: top; text-align: center; border-bottom: 2px solid var(--line-2); }
+  .cmp thead th:first-child { text-align: left; width: 36%; }
+  .cmp thead th .t { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--chrome-dim); letter-spacing: .22em; text-transform: uppercase; display: block; }
+  .cmp thead th .n { font-family: 'Bebas Neue', sans-serif; font-size: 36px; display: block; margin-top: 4px; }
+  .cmp thead th .p { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; display: block; }
+  .cmp thead th.hi { background: linear-gradient(180deg, #1a0707, var(--black-2)); }
+  .cmp thead th.hi .p { color: var(--red); }
+  .cmp tbody td { text-align: center; color: var(--white); }
+  .cmp tbody td:first-child { text-align: left; color: var(--chrome); }
+  .cmp td.y { color: var(--hud); font-weight: 700; font-size: 22px; }
+  .cmp td.n { color: var(--line-2); }
+  .cmp .hi { background: rgba(204,0,0,.04); }
+  .cmp tr.grp td { background: var(--black-2); color: var(--red); font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .22em; text-transform: uppercase; padding: 18px 20px 8px; }
+
+  /* problem slide */
+  .problem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; margin-top: 56px; }
+  .problem-list .p-row { display: flex; gap: 24px; padding: 24px 0; border-bottom: 1px solid var(--line); align-items: flex-start; }
+  .problem-list .p-row .x {
+    font-family: 'Bebas Neue', sans-serif;
+    color: var(--red); font-size: 56px; line-height: .8;
+    flex-shrink: 0; width: 80px;
+  }
+  .problem-list .p-row h4 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 24px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; }
+  .problem-list .p-row p { color: var(--chrome); font-size: 18px; margin: 0; line-height: 1.5; }
+  .problem-stat {
+    padding: 56px;
+    background: linear-gradient(135deg, #1a0707, var(--black-2));
+    border: 1px solid var(--red);
+  }
+  .problem-stat .big { font-family: 'Bebas Neue', sans-serif; font-size: 220px; line-height: .85; color: var(--red); }
+  .problem-stat .lbl { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: var(--chrome); letter-spacing: .2em; text-transform: uppercase; margin-top: 24px; line-height: 1.6; }
+  .problem-stat .src { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--chrome-dim); letter-spacing: .15em; margin-top: 16px; }
+
+  /* opportunity slide */
+  .opp-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 48px; }
+  .opp-cell { background: var(--black-2); border: 1px solid var(--line-2); padding: 40px; }
+  .opp-cell .v { font-family: 'Bebas Neue', sans-serif; font-size: 100px; line-height: .9; }
+  .opp-cell .v.red { color: var(--red); }
+  .opp-cell .v.amber { color: var(--amber); }
+  .opp-cell .v.hud { color: var(--hud); }
+  .opp-cell .l { font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .22em; color: var(--chrome-dim); margin-top: 16px; text-transform: uppercase; }
+  .opp-cell .d { color: var(--chrome); font-size: 17px; margin-top: 16px; line-height: 1.5; }
+
+  /* contact slide */
+  .contact-block {
+    margin-top: 56px; padding: 64px;
+    background: linear-gradient(135deg, #1a0707, var(--black-2));
+    border: 1px solid var(--red);
+  }
+  .contact-block h3 { font-size: 80px; margin-bottom: 24px; }
+  .contact-block .info-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px;
+    margin-top: 48px; padding-top: 40px;
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .contact-block .info-row .l { font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .22em; color: var(--chrome-dim); text-transform: uppercase; }
+  .contact-block .info-row .v { font-family: 'Bebas Neue', sans-serif; font-size: 44px; margin-top: 12px; letter-spacing: .03em; line-height: 1; }
+  .contact-block .info-row .v.red { color: var(--red); }
+
+  /* timeline slide */
+  .timeline {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line-2);
+    margin-top: 56px;
+  }
+  .tl-cell { background: var(--black); padding: 40px 24px; }
+  .tl-cell .y { font-family: 'Bebas Neue', sans-serif; font-size: 72px; line-height: .85; }
+  .tl-cell .y.red { color: var(--red); }
+  .tl-cell .y.amber { color: var(--amber); }
+  .tl-cell .stat { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; margin-top: 14px; letter-spacing: .04em; }
+  .tl-cell .d { color: var(--chrome); font-size: 15px; margin-top: 10px; line-height: 1.5; }
+
+  /* tech slide */
+  .tech-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+  .tech-cards .tc { background: var(--black-2); border: 1px solid var(--line-2); padding: 28px; }
+  .tech-cards .tc .n { font-family: 'JetBrains Mono', monospace; color: var(--red); font-size: 13px; letter-spacing: .22em; margin-bottom: 14px; }
+  .tech-cards .tc h4 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 10px; }
+  .tech-cards .tc p { color: var(--chrome); font-size: 16px; margin: 0; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<deck-stage>
+
+<!-- ============ SLIDE 1 · COVER ============ -->
+<section class="cover" data-screen-label="01 Cover">
+  <div class="slide-head">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="20" height="20" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+        </svg>
+      </div>
+      <strong>GARAGE</strong>
+    </div>
+    <span>● CONFIDENTIAL · FY2026</span>
+  </div>
+
+  <div class="slide-body" style="justify-content: space-between; padding-top: 80px;">
+    <div>
+      <div class="eyebrow" style="margin-top: 60px;">Franchise Investment Deck · 2026</div>
+      <div class="cover-mid">
+        <h1>Built<br>to <span class="red">Scale.</span></h1>
+        <p class="sub">Sistem operasi industri kedai kopi. Tiga paket investasi, satu standar global — dari Rp 75 juta hingga Rp 450 juta. EBITDA 23%, BEP 11–14 bulan.</p>
+      </div>
+    </div>
+
+    <div class="cover-bot">
+      <div class="tagline">"Built in the <span class="red">Garage</span>,<br>Brewed for the World."</div>
+      <div class="doc-id">
+        <strong>GRG-PITCH-2026</strong>
+        PT GARAGE INDONESIA<br>
+        FRANCHISE DEPARTMENT
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SLIDE 2 · THE PROBLEM ============ -->
+<section data-screen-label="02 The Problem">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>02 / The Problem</span>
+  </div>
+  <div class="big-num">01</div>
+  <div class="slide-body">
+    <div class="eyebrow">The Problem</div>
+    <h2 class="h2">Kenapa banyak coffee shop<br>tutup dalam <span class="red">2 tahun.</span></h2>
+
+    <div class="problem-grid">
+      <div class="problem-list">
+        <div class="p-row"><span class="x">✕</span><div><h4>Operasi Manual</h4><p>Kasir buku tulis, kitchen pakai memo, stok dihitung sebulan sekali. Mustahil scale.</p></div></div>
+        <div class="p-row"><span class="x">✕</span><div><h4>Margin Tipis</h4><p>Tidak punya leverage supply chain. Margin 30–40% tergerus biaya operasional.</p></div></div>
+        <div class="p-row"><span class="x">✕</span><div><h4>SOP Inkonsisten</h4><p>Rasa berbeda setiap barista. Customer tidak balik. Brand tidak terbentuk.</p></div></div>
+        <div class="p-row"><span class="x">✕</span><div><h4>Owner Burnt Out</h4><p>Tidak ada dashboard. Owner harus standby di outlet tiap hari. Tidak bisa scale ke outlet ke-2.</p></div></div>
+      </div>
+      <div class="problem-stat">
+        <div class="big">73<span style="font-size: 100px;">%</span></div>
+        <div class="lbl">Coffee shop independen<br>tutup dalam <strong style="color: var(--white)">24 bulan</strong> pertama</div>
+        <div class="src">// Sumber: ASOSIASI BARISTA INDONESIA, 2023</div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>The Coffee Shop Mortality Rate</span><span class="red">● 02</span></div>
+</section>
+
+<!-- ============ SLIDE 3 · THE OPPORTUNITY ============ -->
+<section data-screen-label="03 The Opportunity">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>03 / The Opportunity</span>
+  </div>
+  <div class="big-num">02</div>
+  <div class="slide-body">
+    <div class="eyebrow">The Opportunity</div>
+    <h2 class="h2">Industri kopi tumbuh.<br>Tapi <span class="red">sistem operasi</span><br>belum siap.</h2>
+    <p class="lead" style="margin-top: 32px;">Pasar kopi specialty di Indonesia tumbuh dua digit per tahun. Tapi mayoritas outlet jalan dengan tools generik — kasir cash register, Excel inventory, WhatsApp untuk koordinasi.</p>
+
+    <div class="opp-row">
+      <div class="opp-cell">
+        <div class="v red">$3.2B</div>
+        <div class="l">// Market Size 2025</div>
+        <div class="d">Pasar kopi specialty Indonesia, tumbuh <strong style="color: var(--white)">14% CAGR</strong> sampai 2030.</div>
+      </div>
+      <div class="opp-cell">
+        <div class="v amber">300K+</div>
+        <div class="l">// Coffee Shops</div>
+        <div class="d">Outlet kopi independen di Indonesia. <strong style="color: var(--white)">&lt; 5%</strong> punya sistem operasi profesional.</div>
+      </div>
+      <div class="opp-cell">
+        <div class="v hud">67%</div>
+        <div class="l">// Margin Potential</div>
+        <div class="d">Gross margin sehat per cup dengan supply chain &amp; standar barista yang benar.</div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Pasar Besar, Operasional Belum Matang</span><span class="red">● 03</span></div>
+</section>
+
+<!-- ============ SLIDE 4 · INTRODUCING GARAGE ============ -->
+<section data-screen-label="04 Introducing GARAGE">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>04 / Introducing</span>
+  </div>
+  <div class="big-num">03</div>
+  <div class="slide-body" style="justify-content: center;">
+    <div class="eyebrow">Introducing</div>
+    <h2 class="h1">GARAGE.<br>Coffee meets<br><span class="red">operating system.</span></h2>
+    <p class="lead" style="font-size: 32px; margin-top: 48px;">
+      Bukan sekadar franchise kopi. <strong>Sistem operasi lengkap</strong> untuk industri kedai kopi —
+      POS, QR Menu, Kitchen Display, Loyalty App, Owner Dashboard. Semua proprietary. Semua satu sistem.
+    </p>
+    <div style="display: flex; gap: 24px; margin-top: 56px;">
+      <div style="padding: 18px 28px; border: 1px solid var(--line-2); font-family: 'Barlow Condensed'; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: 16px;">▲ Industrial-Automotive Brand</div>
+      <div style="padding: 18px 28px; border: 1px solid var(--red); color: var(--red); font-family: 'Barlow Condensed'; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: 16px;">▲ Proprietary Tech Stack</div>
+      <div style="padding: 18px 28px; border: 1px solid var(--line-2); font-family: 'Barlow Condensed'; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: 16px;">▲ Premium-Affordable Pricing</div>
+      <div style="padding: 18px 28px; border: 1px solid var(--line-2); font-family: 'Barlow Condensed'; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: 16px;">▲ Community-Driven</div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>The Coffee Shop Operating System</span><span class="red">● 04</span></div>
+</section>
+
+<!-- ============ SLIDE 5 · WHY GARAGE ============ -->
+<section data-screen-label="05 Why GARAGE">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>05 / Why GARAGE</span>
+  </div>
+  <div class="big-num">04</div>
+  <div class="slide-body">
+    <div class="eyebrow">Why GARAGE</div>
+    <h2 class="h2">Empat hal yang<br>tidak dimiliki kompetitor.</h2>
+
+    <div class="card-grid-4">
+      <div class="card">
+        <div class="n">01</div>
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="16" rx="1" stroke="currentColor" stroke-width="2"/><path d="M4 11h24M10 26h12M16 22v4" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Teknologi<br>Proprietary</h4>
+        <p>Semua sistem in-house. Bukan SaaS sewaan. Update otomatis selamanya.</p>
+      </div>
+      <div class="card">
+        <div class="n">02</div>
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><path d="M6 4h16l4 4v20H6z" stroke="currentColor" stroke-width="2"/><path d="M22 4v4h4M10 14h12M10 18h12M10 22h8" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>SOP Digital<br>15 Modul</h4>
+        <p>Rekrutmen sampai krisis. Owner non-F&amp;B bisa menjalankan dengan tim baru.</p>
+      </div>
+      <div class="card">
+        <div class="n">03</div>
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><path d="M4 26 L12 18 L18 22 L28 8" stroke="currentColor" stroke-width="2"/><path d="M20 8h8v8" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Gross Margin<br>67% per cup</h4>
+        <p>Harga Rp 35rb, COGS Rp 11,5rb. Supply chain langsung dari farm partner.</p>
+      </div>
+      <div class="card">
+        <div class="n">04</div>
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/><circle cx="22" cy="14" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 28c0-5 4-8 8-8s8 3 8 8M18 28c0-3.5 2-6 6-6s6 2 6 6" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Komunitas<br>Owner Aktif</h4>
+        <p>Private group, sharing harian, pendampingan 30 hari + support WhatsApp.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>The Four Pillars of GARAGE Advantage</span><span class="red">● 05</span></div>
+</section>
+
+<!-- ============ SLIDE 6 · GARAGE OS ============ -->
+<section data-screen-label="06 GARAGE OS">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>06 / GARAGE OS</span>
+  </div>
+  <div class="big-num">05</div>
+  <div class="slide-body">
+    <div class="eyebrow">GARAGE OS</div>
+    <h2 class="h2">Satu sistem,<br><span class="red">seluruh outlet.</span></h2>
+    <p class="lead" style="margin-top: 24px;">Dibangun in-house dari nol. Tidak ada plugin, tidak ada SaaS sewaan. Setiap fitur dirancang untuk operasi kedai kopi berskala franchise.</p>
+
+    <div class="tech-cards">
+      <div class="tc"><div class="n">F.01 / ORDER</div><h4>QR Menu &amp; Order Flow</h4><p>Customer scan → pilih → kasir validasi → kitchen tampil otomatis.</p></div>
+      <div class="tc"><div class="n">F.02 / POS</div><h4>POS Web-Based</h4><p>Jalan di tablet, laptop, HP. No install. Real-time, zero downtime.</p></div>
+      <div class="tc"><div class="n">F.03 / KITCHEN</div><h4>Kitchen Display System</h4><p>Order live di dapur dengan timer. Status: brewing → ready → served.</p></div>
+      <div class="tc"><div class="n">F.04 / DASHBOARD</div><h4>Owner Dashboard</h4><p>Revenue, stok, KPI — live, dari HP. Multi-outlet ready.</p></div>
+      <div class="tc"><div class="n">F.05 / LOYALTY</div><h4>Member App</h4><p>GARAGE Pit Stop: Mechanic → Engineer → Race Crew tier system.</p></div>
+      <div class="tc"><div class="n">F.06 / OPS</div><h4>Inventory + Wallet</h4><p>Reorder alert otomatis. Staff fee wallet. WhatsApp invoice auto.</p></div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Proprietary Technology Stack</span><span class="red">● 06</span></div>
+</section>
+
+<!-- ============ SLIDE 7 · UNIT ECONOMICS ============ -->
+<section data-screen-label="07 Unit Economics">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>07 / Unit Economics</span>
+  </div>
+  <div class="big-num">06</div>
+  <div class="slide-body">
+    <div class="eyebrow">Unit Economics</div>
+    <h2 class="h2">Angka yang<br><span class="red">berbicara sendiri.</span></h2>
+
+    <div class="stat-row">
+      <div class="stat-cell">
+        <div class="l">// Gross Margin / Cup</div>
+        <div class="v red">67<span class="sm">%</span></div>
+        <div class="d">Harga Rp 35.000 · COGS Rp 11.500</div>
+      </div>
+      <div class="stat-cell">
+        <div class="l">// Revenue / Bulan</div>
+        <div class="v">Rp 270<span class="sm">jt</span></div>
+        <div class="d">Base case 200 cup/hari</div>
+      </div>
+      <div class="stat-cell">
+        <div class="l">// EBITDA Steady</div>
+        <div class="v amber">23<span class="sm">%</span></div>
+        <div class="d">≈ Rp 62,7 jt/bulan / outlet</div>
+      </div>
+      <div class="stat-cell">
+        <div class="l">// Break-Even</div>
+        <div class="v hud">11–14<span class="sm">bln</span></div>
+        <div class="d">Tergantung paket &amp; lokasi</div>
+      </div>
+    </div>
+
+    <p style="font-family: 'JetBrains Mono'; font-size: 14px; color: var(--chrome-dim); margin-top: 56px; line-height: 1.6;">
+      * Proyeksi base case · 200 cup/hari · lokasi Tier-1 kota provinsi. Variabel lokasi, sewa, eksekusi memengaruhi hasil aktual.
+    </p>
+  </div>
+  <div class="slide-foot"><span>Steady State Performance · Per Outlet</span><span class="red">● 07</span></div>
+</section>
+
+<!-- ============ SLIDE 8 · P&L ============ -->
+<section data-screen-label="08 P&L Snapshot">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>08 / P&amp;L Snapshot</span>
+  </div>
+  <div class="slide-body">
+    <div class="eyebrow">P&amp;L Snapshot</div>
+    <h2 class="h2">Profile outlet<br>steady state.</h2>
+    <p class="lead" style="margin-top: 16px;">Bulanan · base case 200 cup/hari · Rp 35.000 rata-rata harga jual.</p>
+
+    <div class="pnl-rows">
+      <div class="pnl-row"><span class="l">Revenue</span><span class="bar green" style="--w: 100%;"></span><span class="v g">Rp 270.000.000</span></div>
+      <div class="pnl-row"><span class="l">COGS (Bahan Baku)</span><span class="bar" style="--w: 33%;"></span><span class="v r">– Rp 89.100.000</span></div>
+      <div class="pnl-row"><span class="l">Gross Profit</span><span class="bar green" style="--w: 67%;"></span><span class="v g">Rp 180.900.000</span></div>
+      <div class="pnl-row"><span class="l">Operasional (Sewa + Staff + Utility)</span><span class="bar amber" style="--w: 44%;"></span><span class="v a">– Rp 118.200.000</span></div>
+      <div class="pnl-row"><span class="l" style="color: var(--white); font-weight: 800;">EBITDA</span><span class="bar amber" style="--w: 23%;"></span><span class="v a">Rp 62.700.000</span></div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Monthly P&amp;L · Steady State Base Case</span><span class="red">● 08</span></div>
+</section>
+
+<!-- ============ SLIDE 9 · 3 PACKAGES ============ -->
+<section data-screen-label="09 Three Packages">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>09 / Packages</span>
+  </div>
+  <div class="slide-body">
+    <div class="eyebrow">Investment Packages</div>
+    <h2 class="h2">Tiga paket.<br>Satu <span class="red">standar.</span></h2>
+
+    <div class="paket-grid">
+      <div class="pk">
+        <div class="tag">PAKET 01 · ENTRY</div>
+        <div class="name">System Only</div>
+        <div class="for">Pemilik outlet yang sudah punya lokasi sendiri.</div>
+        <div class="price">Rp 75jt<span class="unit">one-time</span></div>
+        <ul>
+          <li>Lisensi GARAGE OS lengkap</li>
+          <li>15 modul SOP digital</li>
+          <li>Owner Dashboard real-time</li>
+          <li>Training 3 hari on-site</li>
+          <li>Support 3 bulan</li>
+          <li>Renewal Rp 18jt/thn</li>
+        </ul>
+      </div>
+      <div class="pk feat">
+        <div class="tag" style="color: var(--red);">★ PAKET 02 · MOST POPULAR</div>
+        <div class="name">Starter Cafe</div>
+        <div class="for">Outlet baru skala kecil — 25–40 m², 20–30 kursi.</div>
+        <div class="price">Rp 250jt<span class="unit">full setup</span></div>
+        <ul>
+          <li>Semua di System Only</li>
+          <li>Desain industrial-automotive</li>
+          <li>Espresso machine 2-group + grinder</li>
+          <li>Furniture custom branded</li>
+          <li>Stok bahan baku 1 bulan</li>
+          <li>Training 30 hari + grand opening</li>
+          <li>BEP 12–14 bulan · tanpa royalty</li>
+        </ul>
+      </div>
+      <div class="pk flag">
+        <div class="tag" style="color: var(--amber);">PAKET 03 · PREMIUM</div>
+        <div class="name" style="color: var(--amber);">Full Flagship</div>
+        <div class="for">Outlet premium skala penuh — 60–100 m², 50+ kursi.</div>
+        <div class="price">Rp 450jt<span class="unit">flagship</span></div>
+        <ul>
+          <li>Semua di Starter Cafe</li>
+          <li>Desain premium + motor display</li>
+          <li>Espresso 3-group + cold brew station</li>
+          <li>CCTV, sound system, queue screen</li>
+          <li>Stok bahan baku 2 bulan</li>
+          <li>Priority support 6 bulan</li>
+          <li>Royalty 5% gross · franchise resmi</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Three Tiers · One Operating Standard</span><span class="red">● 09</span></div>
+</section>
+
+<!-- ============ SLIDE 10 · COMPARISON ============ -->
+<section data-screen-label="10 Comparison">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>10 / Comparison</span>
+  </div>
+  <div class="slide-body">
+    <div class="eyebrow">Side by Side</div>
+    <h2 class="h2">Semua fitur,<br><span class="red">satu tampilan.</span></h2>
+
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th><span class="t">FITUR</span></th>
+          <th><span class="t">PAKET 01</span><span class="n">System</span><span class="p">Rp 75jt</span></th>
+          <th class="hi"><span class="t">★ PAKET 02</span><span class="n">Starter</span><span class="p">Rp 250jt</span></th>
+          <th><span class="t">PAKET 03</span><span class="n">Flagship</span><span class="p" style="color: var(--amber);">Rp 450jt</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="grp"><td colspan="4">// TEKNOLOGI &amp; SISTEM</td></tr>
+        <tr><td>Lisensi GARAGE OS lengkap</td><td class="y">✓</td><td class="y hi">✓</td><td class="y">✓</td></tr>
+        <tr><td>Tablet kasir + KDS</td><td class="n">—</td><td class="hi">1 set</td><td>Full set</td></tr>
+        <tr><td>QR Table System</td><td>Standar</td><td class="hi">Hingga 20</td><td>50 meja</td></tr>
+
+        <tr class="grp"><td colspan="4">// DESAIN &amp; PERALATAN</td></tr>
+        <tr><td>Desain konsep GARAGE</td><td class="n">—</td><td class="y hi">✓</td><td class="y">Premium</td></tr>
+        <tr><td>Motor display / community zone</td><td class="n">—</td><td class="n hi">—</td><td class="y">Signature</td></tr>
+        <tr><td>Espresso machine</td><td class="n">—</td><td class="hi">2-group pro</td><td>3-group premium</td></tr>
+        <tr><td>Cold brew station</td><td class="n">—</td><td class="n hi">—</td><td class="y">✓</td></tr>
+
+        <tr class="grp"><td colspan="4">// OPERASIONAL &amp; FINANSIAL</td></tr>
+        <tr><td>Training tim</td><td>3 hari</td><td class="hi">30 hari</td><td>Intensif</td></tr>
+        <tr><td>Stok bahan baku awal</td><td class="n">—</td><td class="hi">1 bulan</td><td>2 bulan</td></tr>
+        <tr><td>Target BEP</td><td>—</td><td class="hi">12–14 bulan</td><td>11–13 bulan</td></tr>
+        <tr><td>Royalty</td><td>Tanpa</td><td class="hi">Tanpa</td><td>5% gross</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="slide-foot"><span>Full Feature Comparison Matrix</span><span class="red">● 10</span></div>
+</section>
+
+<!-- ============ SLIDE 11 · CARA BERGABUNG ============ -->
+<section data-screen-label="11 How to Join">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>11 / Onboarding</span>
+  </div>
+  <div class="big-num">11</div>
+  <div class="slide-body">
+    <div class="eyebrow">Cara Bergabung</div>
+    <h2 class="h2">Lima langkah.<br>Dari inquiry ke<br><span class="red">grand opening.</span></h2>
+
+    <div class="steps-h">
+      <div class="step-c">
+        <div class="num">01</div>
+        <div class="time">Hari 1–3</div>
+        <h4>Inquiry &amp; Konsultasi</h4>
+        <p>Chat WhatsApp atau form. Balas &lt;15 menit. Kami kirim pitch deck &amp; brosur.</p>
+      </div>
+      <div class="step-c">
+        <div class="num">02</div>
+        <div class="time">Hari 4–14</div>
+        <h4>Studi Kelayakan</h4>
+        <p>Meeting, review lokasi, simulasi P&amp;L, rekomendasi paket berdasarkan demografi.</p>
+      </div>
+      <div class="step-c">
+        <div class="num">03</div>
+        <div class="time">Hari 14–21</div>
+        <h4>Site Visit</h4>
+        <p>Tim survei ukur ruang, validasi traffic, finalisasi konsep desain. Output: blueprint.</p>
+      </div>
+      <div class="step-c">
+        <div class="num">04</div>
+        <div class="time">Hari 21–30</div>
+        <h4>Kontrak &amp; Payment</h4>
+        <p>Tanda tangan, termin pertama, kick-off project. Akses portal owner.</p>
+      </div>
+      <div class="step-c">
+        <div class="num">05</div>
+        <div class="time">Hari 30–120</div>
+        <h4>Build → Grand Opening</h4>
+        <p>Renovasi, training 30 hari, soft launch, grand opening + pendampingan 30 hari.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>5-Step Franchise Onboarding</span><span class="red">● 11</span></div>
+</section>
+
+<!-- ============ SLIDE 12 · VISION ============ -->
+<section data-screen-label="12 Vision 2035">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>12 / Vision</span>
+  </div>
+  <div class="big-num">12</div>
+  <div class="slide-body">
+    <div class="eyebrow">Track Record &amp; Vision</div>
+    <h2 class="h2">Dari 2 outlet ke<br><span class="red">Asia Tenggara</span> 2035.</h2>
+
+    <div class="timeline">
+      <div class="tl-cell">
+        <div class="y red">2024</div>
+        <div class="stat">2 OUTLET</div>
+        <div class="d">Pilot outlet pertama buka. Validasi unit economics. Sistem POS+KDS v1.0 live.</div>
+      </div>
+      <div class="tl-cell">
+        <div class="y">2026</div>
+        <div class="stat">12 OUTLET</div>
+        <div class="d">Franchise program launch. 3 paket tier. Sistem mature. Komunitas owner aktif.</div>
+      </div>
+      <div class="tl-cell">
+        <div class="y">2028</div>
+        <div class="stat">35 OUTLET</div>
+        <div class="d">National presence di 15+ kota tier-1 &amp; tier-2. Brand recognition kuat.</div>
+      </div>
+      <div class="tl-cell">
+        <div class="y amber">2030</div>
+        <div class="stat">50+ OUTLET</div>
+        <div class="d">Multi-format: flagship, kiosk, drive-thru. Ekspansi internasional dimulai.</div>
+      </div>
+      <div class="tl-cell">
+        <div class="y red">2035</div>
+        <div class="stat">SEA STANDARD</div>
+        <div class="d">Sistem operasi de-facto untuk industri kedai kopi di Asia Tenggara.</div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>The Decade Roadmap · 2024 → 2035</span><span class="red">● 12</span></div>
+</section>
+
+<!-- ============ SLIDE 13 · INVESTMENT SUMMARY ============ -->
+<section data-screen-final data-screen-label="13 Investment Summary">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>13 / Investment Summary</span>
+  </div>
+  <div class="slide-body">
+    <div class="eyebrow">Investment Summary</div>
+    <h2 class="h2">Yang kamu dapat,<br><span class="red">yang kamu kembalikan.</span></h2>
+
+    <div class="card-grid-3">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><path d="M4 26 L12 18 L18 22 L28 8" stroke="currentColor" stroke-width="2"/><path d="M20 8h8v8" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Investasi</h4>
+        <p style="font-size: 24px;"><strong style="color: var(--red); font-family: 'Bebas Neue'; font-size: 60px; display: block; line-height: 1; margin-bottom: 12px;">Rp 75jt – 450jt</strong>Tiga paket sesuai skala bisnis. Termasuk sistem, training, peralatan (Starter/Flagship).</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="2"/><path d="M16 8v8l5 3" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Pengembalian</h4>
+        <p style="font-size: 24px;"><strong style="color: var(--amber); font-family: 'Bebas Neue'; font-size: 60px; display: block; line-height: 1; margin-bottom: 12px;">11–14 bulan</strong>Target BEP di base case 200 cup/hari. EBITDA Rp 62,7jt/bulan steady state.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 32 32" fill="none"><path d="M6 26V12l10-6 10 6v14" stroke="currentColor" stroke-width="2"/><path d="M12 26v-8h8v8" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h4>Lifetime Value</h4>
+        <p style="font-size: 24px;"><strong style="color: var(--hud); font-family: 'Bebas Neue'; font-size: 60px; display: block; line-height: 1; margin-bottom: 12px;">5 tahun+</strong>Kontrak franchise 5 tahun. Setelah BEP: Rp 700jt+ EBITDA kumulatif per outlet.</p>
+      </div>
+    </div>
+
+    <p style="font-family: 'JetBrains Mono'; font-size: 14px; color: var(--chrome-dim); margin-top: 56px; line-height: 1.6;">
+      * Estimasi LTV: EBITDA Rp 62,7jt × 12 bulan × (5 thn − 1 thn BEP) ≈ Rp 3 milyar gross profit per outlet selama kontrak.
+    </p>
+  </div>
+  <div class="slide-foot"><span>The Investment Math · Lifetime View</span><span class="red">● 13</span></div>
+</section>
+
+<!-- ============ SLIDE 14 · CTA ============ -->
+<section data-screen-label="14 Contact">
+  <div class="slide-head">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" width="20" height="20" fill="none"><path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/><path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/></svg></div><strong>GARAGE</strong></div>
+    <span>14 / Contact</span>
+  </div>
+  <div class="slide-body">
+    <div class="eyebrow">Let's Build</div>
+    <h2 class="h1">Saatnya buka<br><span class="red">GARAGE</span> di<br>kota kamu.</h2>
+
+    <div class="contact-block">
+      <h3>Konsultasi <span class="red">gratis</span>, tanpa komitmen.</h3>
+      <p class="lead" style="font-size: 24px; max-width: 1100px;">Kirim WhatsApp atau email — kami balas dalam 15 menit (jam kerja). Pitch deck custom, simulasi P&amp;L, dan jadwal site-visit untuk kota kamu.</p>
+      <div class="info-row">
+        <div><div class="l">// WhatsApp</div><div class="v red">+62 813 9618 6251</div></div>
+        <div><div class="l">// Email</div><div class="v">franchise@garagecoffee.id</div></div>
+        <div><div class="l">// Web</div><div class="v">garagecoffee.id</div></div>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--line-2);">
+      <div class="mono" style="color: var(--chrome-dim); font-size: 14px; letter-spacing: .3em; margin-bottom: 24px;">— THANK YOU —</div>
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 80px; letter-spacing: .04em; line-height: .95;">
+        Built in the <span class="red">Garage</span>, Brewed for the World.
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>© 2026 PT GARAGE INDONESIA · GRG-PITCH-2026</span><span class="red">● 14</span></div>
+</section>
+
+</deck-stage>
+
+</body>
+</html>

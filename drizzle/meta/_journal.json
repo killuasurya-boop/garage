@@ -1,0 +1,335 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1778706935213,
+      "tag": "0000_same_power_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778754062042,
+      "tag": "0001_first_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778758209388,
+      "tag": "0002_rare_hiroim",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778760882486,
+      "tag": "0003_crazy_justice",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778832295040,
+      "tag": "0004_slimy_microbe",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778836571976,
+      "tag": "0005_gigantic_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778839094373,
+      "tag": "0006_perpetual_impossible_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778844011203,
+      "tag": "0007_tired_crystal",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778863339962,
+      "tag": "0008_garage_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778870670643,
+      "tag": "0009_outstanding_overlord",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778882561130,
+      "tag": "0010_motionless_jasper_sitwell",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779094646908,
+      "tag": "0011_unique_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779176967076,
+      "tag": "0012_next_skreet",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779212914615,
+      "tag": "0013_special_red_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779214998063,
+      "tag": "0014_plain_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1779271939549,
+      "tag": "0015_flawless_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779297769980,
+      "tag": "0016_medical_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779299455339,
+      "tag": "0017_first_tiger_shark",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779302400000,
+      "tag": "0018_finance_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779306000000,
+      "tag": "0019_cash_bom_control",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779347304464,
+      "tag": "0020_lovely_moon_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779388800000,
+      "tag": "0021_crm_membership_growth",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779388860000,
+      "tag": "0022_crm_automation_dashboard",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779389000000,
+      "tag": "0023_approvals_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779613200000,
+      "tag": "0024_expense_opname_final_mvp",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779630960000,
+      "tag": "0025_menu_product_archive_mvp",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779636600000,
+      "tag": "0026_menu_variant_hpp_fnb",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779640200000,
+      "tag": "0027_burger_kebab_final_mvp",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779644340692,
+      "tag": "0028_nappy_plazm",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779648565820,
+      "tag": "0029_square_cloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779661782755,
+      "tag": "0030_red_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1779696000000,
+      "tag": "0031_membership_master_pro",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1779704141064,
+      "tag": "0032_premium_card_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1779705162649,
+      "tag": "0033_member_expiration",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1779724796267,
+      "tag": "0034_late_dark_phoenix",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1779758738174,
+      "tag": "0035_complete_robbie_robertson",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1779802655321,
+      "tag": "0036_modern_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1779815297149,
+      "tag": "0037_calm_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1779817779943,
+      "tag": "0038_purple_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1779819275613,
+      "tag": "0039_slimy_nightcrawler",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1779852426692,
+      "tag": "0040_charming_sasquatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1779871264372,
+      "tag": "0041_windy_susan_delgado",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1779872021519,
+      "tag": "0042_flat_microbe",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1779892197339,
+      "tag": "0043_motionless_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1779908191558,
+      "tag": "0044_silly_captain_universe",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1779911867216,
+      "tag": "0045_wonderful_bishop",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1780083048444,
+      "tag": "0046_minor_anita_blake",
+      "breakpoints": true
+    }
+  ]
+}

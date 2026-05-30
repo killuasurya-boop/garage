@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ROI Calculator · GARAGE Franchise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0A0A0A; --black-2: #131313; --black-3: #1a1a1a;
+    --line: #262626; --line-2: #333;
+    --chrome: #C0C0C0; --chrome-dim: #8a8a8a; --white: #f5f5f5;
+    --red: #CC0000; --red-bright: #ff1f1f;
+    --amber: #F59E0B; --hud: #00ff9c;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--black); color: var(--white);
+    font-family: 'Barlow', sans-serif; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; min-height: 100vh;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: .06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  h1,h2,h3 { font-family: 'Bebas Neue', sans-serif; font-weight: 400; letter-spacing: .02em; line-height: .92; margin: 0; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  a { color: inherit; }
+
+  .container { width: min(1320px, 94vw); margin: 0 auto; }
+
+  /* Top bar */
+  .topbar {
+    border-bottom: 1px solid var(--line);
+    padding: 16px 0;
+    background: rgba(10,10,10,.85);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar-inner { display: flex; justify-content: space-between; align-items: center; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--white); }
+  .brand-mark { width: 136px; height: 43px; display: block; background: url("/garage-brand/logo-website.png") center / contain no-repeat; border: 0; }
+  .brand-mark svg { display: none; }
+  .brand-text { display: flex; flex-direction: column; line-height: 1; }
+  .brand-text strong { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: .12em; }
+  .brand-text small { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .22em; color: var(--chrome-dim); margin-top: 4px; text-transform: uppercase; }
+  .top-link {
+    color: var(--chrome); text-decoration: none;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+  }
+  .top-link:hover { color: var(--red); }
+
+  /* Hero */
+  .hero {
+    padding: 64px 0 32px;
+    background: radial-gradient(900px 500px at 70% 0%, rgba(204,0,0,.15), transparent 60%);
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: var(--chrome-dim);
+    margin-bottom: 20px;
+  }
+  .eyebrow::before { content: ""; width: 36px; height: 1px; background: var(--red); }
+  .hero h1 { font-size: clamp(44px, 7vw, 96px); margin-bottom: 16px; }
+  .hero h1 .accent { color: var(--red); }
+  .hero p { color: var(--chrome); font-size: 17px; max-width: 640px; margin: 0; }
+
+  /* Calc grid */
+  .calc {
+    display: grid; grid-template-columns: 1fr 1.2fr; gap: 32px;
+    padding: 48px 0 80px;
+  }
+  @media (max-width: 980px) { .calc { grid-template-columns: 1fr; gap: 24px; } }
+
+  .panel {
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 32px;
+    position: relative;
+  }
+  .panel::before {
+    content: attr(data-label);
+    position: absolute; top: -10px; left: 24px;
+    background: var(--black-2);
+    padding: 2px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; color: var(--red);
+  }
+  .panel h2 { font-size: 32px; margin-bottom: 24px; letter-spacing: .03em; }
+
+  /* Input controls */
+  .field { margin-bottom: 28px; }
+  .field-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
+  .field label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--chrome-dim);
+  }
+  .field .val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px; color: var(--white);
+    letter-spacing: .02em;
+  }
+  .field .val .unit { font-family: 'Barlow', sans-serif; font-size: 13px; color: var(--chrome-dim); margin-left: 4px; }
+
+  /* Range slider */
+  input[type=range] {
+    -webkit-appearance: none; width: 100%;
+    height: 4px; background: var(--line);
+    outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    background: var(--red); border: 2px solid var(--black);
+    border-radius: 50%; cursor: grab;
+    box-shadow: 0 0 0 1px var(--red);
+    transition: transform .15s;
+  }
+  input[type=range]::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.15); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; background: var(--red);
+    border: 2px solid var(--black); border-radius: 50%; cursor: grab;
+  }
+  .range-bounds {
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--chrome-dim); margin-top: 8px; letter-spacing: .12em;
+  }
+
+  /* Paket select (radio buttons) */
+  .paket-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .paket-pick label {
+    display: block; cursor: pointer;
+    padding: 14px 10px;
+    border: 1px solid var(--line-2);
+    background: var(--black);
+    text-align: center;
+    transition: all .2s;
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+  .paket-pick input { display: none; }
+  .paket-pick .p-name { font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .paket-pick .p-price { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--chrome-dim); margin-top: 4px; letter-spacing: .1em; }
+  .paket-pick label:hover { border-color: var(--chrome-dim); }
+  .paket-pick input:checked + .p-content { color: var(--white); }
+  .paket-pick label:has(input:checked) {
+    background: linear-gradient(180deg, #1a0707, var(--black));
+    border-color: var(--red);
+  }
+  .paket-pick label:has(input:checked) .p-price { color: var(--red); }
+
+  /* Output panel */
+  .out-stack { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line-2); }
+  .out-row {
+    background: var(--black);
+    padding: 24px 28px;
+    display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: center;
+  }
+  @media (max-width: 560px) { .out-row { grid-template-columns: 1fr; gap: 6px; } }
+  .out-row .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--chrome-dim);
+  }
+  .out-row .lbl .desc { display: block; font-family: 'Barlow', sans-serif; font-size: 12px; letter-spacing: .04em; text-transform: none; color: var(--chrome); margin-top: 6px; }
+  .out-row .num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 44px; line-height: .9; text-align: right;
+    color: var(--white); letter-spacing: .01em;
+  }
+  .out-row .num .pre { font-family: 'Barlow', sans-serif; font-size: 16px; color: var(--chrome-dim); margin-right: 6px; }
+  .out-row .num .suf { font-family: 'Barlow', sans-serif; font-size: 16px; color: var(--chrome-dim); margin-left: 4px; }
+  .out-row.hi { background: linear-gradient(90deg, #1a0707, var(--black)); }
+  .out-row.hi .num { color: var(--red); }
+  .out-row.amber .num { color: var(--amber); }
+  .out-row.green .num { color: var(--hud); }
+
+  /* CTA */
+  .cta-block { margin-top: 32px; padding: 28px; background: linear-gradient(135deg, #1a0707, var(--black-2)); border: 1px solid var(--red); }
+  .cta-block h3 { font-size: 24px; margin-bottom: 8px; }
+  .cta-block p { color: var(--chrome); font-size: 14px; margin: 0 0 20px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 16px 24px; border: 1px solid var(--red); background: var(--red);
+    color: var(--white); text-decoration: none;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: 13px;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    transition: background .2s, transform .2s;
+  }
+  .btn:hover { background: var(--red-bright); transform: translateY(-2px); }
+  .btn.ghost { background: transparent; border-color: var(--line-2); color: var(--chrome); margin-left: 8px; }
+  .btn.ghost:hover { background: var(--white); color: var(--black); border-color: var(--white); }
+
+  /* Assumptions box */
+  .assumptions {
+    background: var(--black-2);
+    border: 1px solid var(--line);
+    padding: 20px 24px;
+    margin-top: 32px;
+  }
+  .assumptions h4 { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .22em; color: var(--chrome-dim); text-transform: uppercase; margin: 0 0 10px; }
+  .assumptions p { font-size: 12px; color: var(--chrome-dim); margin: 0; line-height: 1.6; font-family: 'JetBrains Mono', monospace; }
+
+  /* Compare panel */
+  .compare-band {
+    border-top: 1px solid var(--line); padding: 56px 0 80px;
+    background: var(--black-2);
+  }
+  .scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+  @media (max-width: 880px) { .scenario-grid { grid-template-columns: 1fr; } }
+  .scenario {
+    background: var(--black); border: 1px solid var(--line-2);
+    padding: 24px;
+  }
+  .scenario .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .scenario.bear .tag { color: var(--amber); }
+  .scenario.base .tag { color: var(--white); }
+  .scenario.bull .tag { color: var(--hud); }
+  .scenario h4 { font-family: 'Bebas Neue', sans-serif; font-size: 28px; margin-bottom: 4px; }
+  .scenario .cups { color: var(--chrome); font-family: 'JetBrains Mono', monospace; font-size: 12px; margin-bottom: 18px; letter-spacing: .1em; }
+  .scenario .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+  .scenario .stat-row:last-child { border-bottom: none; }
+  .scenario .stat-row .v { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; }
+  .scenario.bull { border-color: rgba(0,255,156,.3); }
+  .scenario.base { border-color: var(--red); }
+
+  footer {
+    background: #050505;
+    border-top: 1px solid var(--line);
+    padding: 32px 0;
+    color: var(--chrome-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .15em;
+  }
+  .footer-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/franchise">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <strong>FRANCHISE</strong>
+        <small>ROI Calculator</small>
+      </div>
+    </a>
+    <a class="top-link" href="/franchise">← Kembali ke Website</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="eyebrow">Franchise ROI Simulator · v1.2</div>
+    <h1>Hitung Sendiri.<br><span class="accent">Tanpa Asumsi Manis.</span></h1>
+    <p>Geser variabel di bawah dan lihat proyeksi outlet kamu secara real-time — revenue, gross profit, EBITDA, dan break-even period. Semua angka transparan, bisa diaudit.</p>
+  </div>
+</section>
+
+<div class="container">
+  <div class="calc">
+    <!-- INPUT PANEL -->
+    <div class="panel" data-label="INPUT.PARAMS">
+      <h2>Variabel Outlet Kamu</h2>
+
+      <div class="field">
+        <div class="field-head">
+          <label>Pilih Paket Franchise</label>
+        </div>
+        <div class="paket-pick">
+          <label>
+            <input type="radio" name="paket" value="75" data-name="System Only">
+            <div class="p-content">
+              <div class="p-name">System</div>
+              <div class="p-price">Rp 75jt</div>
+            </div>
+          </label>
+          <label>
+            <input type="radio" name="paket" value="250" checked data-name="Starter Cafe">
+            <div class="p-content">
+              <div class="p-name">Starter</div>
+              <div class="p-price">Rp 250jt</div>
+            </div>
+          </label>
+          <label>
+            <input type="radio" name="paket" value="450" data-name="Flagship">
+            <div class="p-content">
+              <div class="p-name">Flagship</div>
+              <div class="p-price">Rp 450jt</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label>Cup terjual / hari</label>
+          <span class="val"><span id="vCups">200</span><span class="unit">cup</span></span>
+        </div>
+        <input type="range" id="cups" min="50" max="400" step="10" value="200">
+        <div class="range-bounds"><span>50</span><span>400 cup/hari</span></div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label>Harga jual rata-rata / cup</label>
+          <span class="val">Rp <span id="vPrice">35</span><span class="unit">rb</span></span>
+        </div>
+        <input type="range" id="price" min="20" max="60" step="1" value="35">
+        <div class="range-bounds"><span>Rp 20rb</span><span>Rp 60rb</span></div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label>COGS / cup (bahan baku)</label>
+          <span class="val">Rp <span id="vCogs">11.5</span><span class="unit">rb</span></span>
+        </div>
+        <input type="range" id="cogs" min="8" max="20" step="0.5" value="11.5">
+        <div class="range-bounds"><span>Rp 8rb</span><span>Rp 20rb</span></div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label>Sewa lokasi / bulan</label>
+          <span class="val">Rp <span id="vRent">25</span><span class="unit">jt</span></span>
+        </div>
+        <input type="range" id="rent" min="5" max="80" step="1" value="25">
+        <div class="range-bounds"><span>Rp 5jt</span><span>Rp 80jt</span></div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label>Total gaji staff / bulan</label>
+          <span class="val">Rp <span id="vStaff">45</span><span class="unit">jt</span></span>
+        </div>
+        <input type="range" id="staff" min="10" max="120" step="1" value="45">
+        <div class="range-bounds"><span>Rp 10jt</span><span>Rp 120jt</span></div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label>Utility &amp; operasional lain</label>
+          <span class="val">Rp <span id="vOps">18</span><span class="unit">jt</span></span>
+        </div>
+        <input type="range" id="ops" min="5" max="60" step="1" value="18">
+        <div class="range-bounds"><span>Rp 5jt</span><span>Rp 60jt</span></div>
+      </div>
+
+      <div class="assumptions">
+        <h4>// ASSUMPTIONS</h4>
+        <p>30 hari operasi/bulan. Pajak &amp; depresiasi peralatan tidak masuk perhitungan ini (EBITDA). Royalty 5% berlaku khusus paket Flagship.</p>
+      </div>
+    </div>
+
+    <!-- OUTPUT PANEL -->
+    <div>
+      <div class="panel" data-label="OUTPUT.PROJECTION" style="padding: 28px;">
+        <h2 style="margin-bottom: 8px;">Proyeksi Bulanan</h2>
+        <div class="mono" style="color: var(--chrome-dim); font-size: 11px; letter-spacing: .2em; margin-bottom: 24px;">// STEADY STATE · PER OUTLET</div>
+
+        <div class="out-stack">
+          <div class="out-row green">
+            <div class="lbl">Revenue<span class="desc">Total penjualan kotor / bulan</span></div>
+            <div class="num"><span class="pre">Rp</span><span id="oRevenue">210.000.000</span></div>
+          </div>
+          <div class="out-row">
+            <div class="lbl">COGS (Bahan Baku)<span class="desc">Total harga pokok terjual</span></div>
+            <div class="num" style="color: var(--chrome);"><span class="pre">−Rp</span><span id="oCogs">69.000.000</span></div>
+          </div>
+          <div class="out-row">
+            <div class="lbl">Gross Profit<span class="desc">Revenue − COGS</span></div>
+            <div class="num"><span class="pre">Rp</span><span id="oGross">141.000.000</span></div>
+          </div>
+          <div class="out-row">
+            <div class="lbl">Operasional<span class="desc">Sewa + Staff + Utility + Royalty</span></div>
+            <div class="num" style="color: var(--chrome);"><span class="pre">−Rp</span><span id="oOpex">88.000.000</span></div>
+          </div>
+          <div class="out-row hi">
+            <div class="lbl" style="color: var(--white);"><strong style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: .04em; font-weight: 400;">EBITDA / Bulan</strong><span class="desc">Net cashflow steady state</span></div>
+            <div class="num"><span class="pre">Rp</span><span id="oEbitda">53.000.000</span></div>
+          </div>
+          <div class="out-row amber">
+            <div class="lbl">EBITDA Margin</div>
+            <div class="num"><span id="oMargin">25,2</span><span class="suf">%</span></div>
+          </div>
+          <div class="out-row">
+            <div class="lbl">Gross Margin / Cup</div>
+            <div class="num" style="color: var(--hud);"><span id="oGrossMargin">67,1</span><span class="suf">%</span></div>
+          </div>
+          <div class="out-row hi">
+            <div class="lbl" style="color: var(--white);"><strong style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: .04em; font-weight: 400;">Break-Even Period</strong><span class="desc">Bulan untuk balik modal investasi</span></div>
+            <div class="num"><span id="oBep">4,7</span><span class="suf">bulan</span></div>
+          </div>
+        </div>
+
+        <div class="cta-block">
+          <h3>Angka di atas masuk akal untuk kamu?</h3>
+          <p>Tim kami bisa bantu validasi: studi kelayakan lokasi gratis + simulasi P&amp;L custom untuk kotamu.</p>
+          <a href="https://wa.me/6281396186251?text=Halo%20GARAGE%2C%20saya%20baru%20coba%20ROI%20Calculator%20dan%20ingin%20konsultasi%20lebih%20lanjut." target="_blank" class="btn">
+            Konsultasi Gratis
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="2"/></svg>
+          </a>
+          <a href="/franchise#paket" class="btn ghost">Lihat Paket</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENARIO COMPARISON -->
+<section class="compare-band">
+  <div class="container">
+    <div class="eyebrow">Scenario · Sensitivity Analysis</div>
+    <h2 style="font-size: clamp(32px, 5vw, 56px);">Bagaimana kalau cup-per-hari berubah?</h2>
+    <p style="color: var(--chrome); max-width: 560px; margin: 12px 0 0;">Tiga skenario dengan harga &amp; opex sama, hanya volume yang berubah. Klik salah satu untuk apply ke kalkulator.</p>
+
+    <div class="scenario-grid">
+      <div class="scenario bear" data-scenario="120">
+        <div class="tag">BEAR CASE</div>
+        <h4>120 cup/hari</h4>
+        <div class="cups">≈ 3.600 cup/bulan</div>
+        <div class="stat-row"><span>Revenue</span><span class="v" id="sBearRev">Rp 126jt</span></div>
+        <div class="stat-row"><span>EBITDA</span><span class="v" id="sBearEbi">Rp 7jt</span></div>
+        <div class="stat-row"><span>BEP</span><span class="v" id="sBearBep">35 bln</span></div>
+      </div>
+      <div class="scenario base" data-scenario="200">
+        <div class="tag">★ BASE CASE</div>
+        <h4>200 cup/hari</h4>
+        <div class="cups">≈ 6.000 cup/bulan</div>
+        <div class="stat-row"><span>Revenue</span><span class="v" id="sBaseRev">Rp 210jt</span></div>
+        <div class="stat-row"><span>EBITDA</span><span class="v" id="sBaseEbi">Rp 53jt</span></div>
+        <div class="stat-row"><span>BEP</span><span class="v" id="sBaseBep">5 bln</span></div>
+      </div>
+      <div class="scenario bull" data-scenario="280">
+        <div class="tag">BULL CASE</div>
+        <h4>280 cup/hari</h4>
+        <div class="cups">≈ 8.400 cup/bulan</div>
+        <div class="stat-row"><span>Revenue</span><span class="v" id="sBullRev">Rp 294jt</span></div>
+        <div class="stat-row"><span>EBITDA</span><span class="v" id="sBullEbi">Rp 99jt</span></div>
+        <div class="stat-row"><span>BEP</span><span class="v" id="sBullBep">3 bln</span></div>
+      </div>
+    </div>
+
+    <p style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--chrome-dim); margin-top: 32px; line-height: 1.6;">
+      * Skenario di atas memakai default opex Rp 88jt/bulan (Sewa Rp 25jt + Staff Rp 45jt + Ops Rp 18jt) dan harga Rp 35rb/cup, COGS Rp 11,5rb/cup. Klik skenario untuk apply ke kalkulator dan ubah variabel lainnya.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-inner">
+    <span>© 2026 GARAGE COFFEE &amp; MOTOR</span>
+    <span>BUILT IN INDONESIA · BREWED FOR THE WORLD</span>
+  </div>
+</footer>
+
+<script>
+  const f = (n) => Math.round(n).toLocaleString('id-ID');
+  const ids = ['cups','price','cogs','rent','staff','ops'];
+  const inputs = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+
+  function getInvestment() {
+    return parseInt(document.querySelector('input[name="paket"]:checked').value) * 1_000_000;
+  }
+  function isFlagship() {
+    return document.querySelector('input[name="paket"]:checked').dataset.name === 'Flagship';
+  }
+
+  function update() {
+    const cups = +inputs.cups.value;
+    const price = +inputs.price.value * 1000;
+    const cogs = +inputs.cogs.value * 1000;
+    const rent = +inputs.rent.value * 1_000_000;
+    const staff = +inputs.staff.value * 1_000_000;
+    const ops = +inputs.ops.value * 1_000_000;
+
+    document.getElementById('vCups').textContent = cups;
+    document.getElementById('vPrice').textContent = +inputs.price.value;
+    document.getElementById('vCogs').textContent = (+inputs.cogs.value).toString().replace('.', ',');
+    document.getElementById('vRent').textContent = +inputs.rent.value;
+    document.getElementById('vStaff').textContent = +inputs.staff.value;
+    document.getElementById('vOps').textContent = +inputs.ops.value;
+
+    const monthlyCups = cups * 30;
+    const revenue = monthlyCups * price;
+    const cogsTotal = monthlyCups * cogs;
+    const gross = revenue - cogsTotal;
+    const royalty = isFlagship() ? revenue * 0.05 : 0;
+    const opex = rent + staff + ops + royalty;
+    const ebitda = gross - opex;
+    const margin = revenue > 0 ? (ebitda / revenue) * 100 : 0;
+    const grossMargin = price > 0 ? ((price - cogs) / price) * 100 : 0;
+    const investment = getInvestment();
+    const bep = ebitda > 0 ? investment / ebitda : Infinity;
+
+    document.getElementById('oRevenue').textContent = f(revenue);
+    document.getElementById('oCogs').textContent = f(cogsTotal);
+    document.getElementById('oGross').textContent = f(gross);
+    document.getElementById('oOpex').textContent = f(opex);
+    document.getElementById('oEbitda').textContent = f(ebitda);
+    document.getElementById('oMargin').textContent = margin.toFixed(1).replace('.', ',');
+    document.getElementById('oGrossMargin').textContent = grossMargin.toFixed(1).replace('.', ',');
+    document.getElementById('oBep').textContent = isFinite(bep) ? bep.toFixed(1).replace('.', ',') : '∞';
+
+    // Color hint for EBITDA / BEP
+    const ebitRow = document.getElementById('oEbitda').closest('.out-row');
+    const bepRow = document.getElementById('oBep').closest('.out-row');
+    if (ebitda < 0) {
+      ebitRow.style.background = 'linear-gradient(90deg, rgba(204,0,0,.15), var(--black))';
+      document.getElementById('oEbitda').style.color = '#ff4f4f';
+    } else {
+      ebitRow.style.background = '';
+      document.getElementById('oEbitda').style.color = '';
+    }
+
+    updateScenarios(price, cogs, opex - royalty, investment);
+  }
+
+  function updateScenarios(price, cogs, opexNoRoy, investment) {
+    [['Bear', 120], ['Base', 200], ['Bull', 280]].forEach(([k, cd]) => {
+      const monthlyCups = cd * 30;
+      const rev = monthlyCups * price;
+      const royalty = isFlagship() ? rev * 0.05 : 0;
+      const ebitda = (rev - monthlyCups * cogs) - opexNoRoy - royalty;
+      const bep = ebitda > 0 ? investment / ebitda : Infinity;
+      document.getElementById('s' + k + 'Rev').textContent = 'Rp ' + Math.round(rev/1_000_000) + 'jt';
+      document.getElementById('s' + k + 'Ebi').textContent = (ebitda < 0 ? '−Rp ' : 'Rp ') + Math.abs(Math.round(ebitda/1_000_000)) + 'jt';
+      document.getElementById('s' + k + 'Bep').textContent = isFinite(bep) ? bep.toFixed(0) + ' bln' : '∞';
+    });
+  }
+
+  // Bind sliders
+  ids.forEach(id => inputs[id].addEventListener('input', update));
+  document.querySelectorAll('input[name="paket"]').forEach(r => r.addEventListener('change', update));
+
+  // Scenario click
+  document.querySelectorAll('.scenario').forEach(s => {
+    s.addEventListener('click', () => {
+      inputs.cups.value = s.dataset.scenario;
+      update();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+
+  update();
+</script>
+</body>
+</html>

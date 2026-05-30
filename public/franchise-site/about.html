@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tentang Kami · GARAGE Coffee & Motor</title>
+<meta name="description" content="Tentang PT GARAGE INDONESIA — founder, tim, milestone, dan visi menjadi sistem operasi industri kedai kopi di Asia Tenggara pada 2035.">
+<meta name="robots" content="index, follow">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Cpath d='M16 4 L28 26 L4 26 Z' stroke='%23C0C0C0' stroke-width='2' fill='none'/%3E%3Cpath d='M16 12 L22 24 L14 24 Z' fill='%23CC0000'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0A0A0A">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/page.css">
+<style>
+  /* About-specific styles */
+  .page-body .container { width: min(1200px, 92vw); }
+  .page-body h2 { display: block; }
+
+  /* Mission block */
+  .mission {
+    display: grid; grid-template-columns: 1fr 1.2fr; gap: 64px; align-items: center;
+    margin: 24px 0 80px;
+  }
+  @media (max-width: 880px) { .mission { grid-template-columns: 1fr; gap: 32px; } }
+  .mission h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(48px, 5.5vw, 88px);
+    line-height: .9; letter-spacing: .02em;
+    border: none; padding: 0; margin: 0;
+  }
+  .mission h2 .red { color: var(--red); }
+  .mission-text p {
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--chrome);
+    margin: 0 0 18px;
+  }
+  .mission-text p strong { color: var(--white); }
+
+  /* Milestone timeline */
+  .milestones {
+    margin: 64px 0 96px;
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 48px;
+  }
+  @media (max-width: 720px) { .milestones { padding: 28px; } }
+  .milestones-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+    background: var(--line);
+    margin-top: 32px;
+  }
+  @media (max-width: 880px) { .milestones-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .milestones-grid { grid-template-columns: 1fr; } }
+  .ms-cell { background: var(--black-2); padding: 28px 20px; position: relative; }
+  .ms-cell::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--red);
+    transform-origin: left;
+    transform: scaleX(.3);
+  }
+  .ms-cell.done::before { transform: scaleX(1); }
+  .ms-cell.now::before { background: var(--amber); transform: scaleX(1); }
+  .ms-cell .y {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px; line-height: .85;
+    color: var(--chrome-dim);
+  }
+  .ms-cell.done .y { color: var(--white); }
+  .ms-cell.now .y { color: var(--amber); }
+  .ms-cell.future .y { color: var(--red); }
+  .ms-cell .stat {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-size: 17px; letter-spacing: .04em; text-transform: uppercase;
+    margin-top: 12px;
+  }
+  .ms-cell .d { font-size: 13px; color: var(--chrome); margin-top: 8px; line-height: 1.5; }
+
+  /* Team */
+  .team-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line-2);
+    margin: 32px 0 80px;
+  }
+  @media (max-width: 880px) { .team-grid { grid-template-columns: 1fr; } }
+  .team-card {
+    background: var(--black);
+    padding: 36px 32px;
+  }
+  .team-card .avatar {
+    width: 88px; height: 88px;
+    background: linear-gradient(135deg, #1a0707, var(--black-2));
+    border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    margin-bottom: 24px;
+  }
+  .team-card .avatar span {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--red);
+    letter-spacing: .04em;
+  }
+  .team-card .role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .26em; color: var(--red);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .team-card h4 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    letter-spacing: .03em;
+    margin-bottom: 14px;
+  }
+  .team-card p { color: var(--chrome); font-size: 14px; line-height: 1.55; margin: 0 0 18px; }
+  .team-card .meta {
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--chrome-dim);
+    letter-spacing: .14em;
+  }
+  .team-card .meta strong { color: var(--white); margin-left: 8px; }
+
+  /* Values */
+  .values-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line-2);
+    margin: 32px 0 80px;
+  }
+  @media (max-width: 880px) { .values-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .values-grid { grid-template-columns: 1fr; } }
+  .val-card { background: var(--black); padding: 32px 28px; }
+  .val-card .n {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--red); letter-spacing: .22em;
+    margin-bottom: 16px;
+  }
+  .val-card h4 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: .03em;
+    margin-bottom: 12px;
+  }
+  .val-card p { color: var(--chrome); font-size: 14px; margin: 0; line-height: 1.55; }
+
+  /* Legal entity card */
+  .entity-card {
+    background: linear-gradient(135deg, #1a0707, var(--black-2));
+    border: 1px solid var(--red);
+    padding: 48px;
+    margin: 32px 0 64px;
+  }
+  @media (max-width: 720px) { .entity-card { padding: 28px; } }
+  .entity-card h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 44px;
+    letter-spacing: .03em;
+    margin-bottom: 8px;
+  }
+  .entity-card .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .22em; color: var(--red);
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .entity-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
+  }
+  @media (max-width: 720px) { .entity-grid { grid-template-columns: 1fr; } }
+  .entity-cell .l {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--chrome-dim); margin-bottom: 6px;
+  }
+  .entity-cell .v {
+    font-family: 'Barlow', sans-serif;
+    font-size: 16px;
+    color: var(--white);
+    font-weight: 500;
+  }
+
+  /* CTA block */
+  .cta-end {
+    background: var(--black-2);
+    border: 1px solid var(--line-2);
+    padding: 56px 48px;
+    text-align: center;
+    margin: 32px 0;
+  }
+  @media (max-width: 720px) { .cta-end { padding: 32px 24px; } }
+  .cta-end h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(40px, 5vw, 64px);
+    letter-spacing: .03em;
+    margin-bottom: 16px;
+  }
+  .cta-end h3 .red { color: var(--red); }
+  .cta-end p {
+    color: var(--chrome);
+    font-size: 17px;
+    max-width: 560px;
+    margin: 0 auto 32px;
+  }
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 18px 28px;
+    border: 1px solid var(--line-2);
+    background: transparent;
+    color: var(--white);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    font-size: 14px;
+    text-decoration: none;
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+    transition: transform .2s, background .2s;
+  }
+  .btn:hover { transform: translateY(-2px); text-decoration: none; }
+  .btn-primary { background: var(--red); border-color: var(--red); }
+  .btn-primary:hover { background: var(--red-bright); color: white; }
+  .btn-ghost:hover { background: var(--white); color: var(--black); }
+</style>
+</head>
+<body>
+
+<header class="page-nav">
+  <div class="inner">
+    <a class="brand" href="/franchise">
+      <div class="mark">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+          <path d="M16 4 L28 26 L4 26 Z" stroke="#C0C0C0" stroke-width="2"/>
+          <path d="M16 12 L22 24 L14 24 Z" fill="#CC0000"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <strong>GARAGE</strong>
+        <small>Coffee &amp; Motor</small>
+      </div>
+    </a>
+    <a class="nav-back" href="/franchise">← Kembali ke Beranda</a>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow">About · Tentang Kami</div>
+    <h1>Dimulai dari<br><span class="red">sebuah garasi.</span></h1>
+    <p class="sub">PT GARAGE INDONESIA adalah perusahaan di balik brand GARAGE Coffee &amp; Motor — sistem operasi industri kedai kopi yang dibangun di Indonesia, untuk Asia Tenggara.</p>
+    <div class="meta">
+      <span>// Didirikan<strong>2024</strong></span>
+      <span>// HQ<strong>Jakarta Selatan</strong></span>
+      <span>// Pilot Outlets<strong>2 outlet</strong></span>
+      <span>// Target 2030<strong>50+ outlet</strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="page-body">
+  <div class="container">
+
+    <!-- ============== MISSION ============== -->
+    <div class="mission">
+      <div>
+        <div class="mono" style="color: var(--red); font-size: 11px; letter-spacing: .26em; text-transform: uppercase; margin-bottom: 16px;">// Misi</div>
+        <h2>Bikin operasi<br>kedai kopi<br><span class="red">setegas</span><br>workshop motor.</h2>
+      </div>
+      <div class="mission-text">
+        <p>Coffee shop bukan industri yang gampang. <strong>73% outlet independen tutup dalam 24 bulan pertama</strong>. Bukan karena kopinya jelek, tapi karena operasinya manual, marginnya tipis, dan owner-nya burnt out tanpa sistem.</p>
+        <p>GARAGE lahir untuk fix ini. Kami habiskan tahun-tahun pertama membongkar setiap proses outlet — sourcing biji, kalibrasi mesin, training barista, cara kasir mencetak struk — lalu menulis ulang semuanya sebagai <strong>sistem operasi yang bisa dijalankan tim manapun, di kota manapun</strong>.</p>
+        <p>Hari ini, GARAGE bukan sekadar brand kopi. Kami adalah <strong>sistem operasi industri kedai kopi</strong> — dengan visi menjadi standar de-facto di Asia Tenggara pada 2035.</p>
+      </div>
+    </div>
+
+    <!-- ============== MILESTONES ============== -->
+    <div class="milestones">
+      <div class="mono" style="color: var(--red); font-size: 11px; letter-spacing: .26em; text-transform: uppercase;">// Milestone</div>
+      <h2 style="font-size: clamp(40px, 5vw, 72px); border: none; padding: 0; margin: 12px 0 0; display: block;">Jalan menuju 2035.</h2>
+
+      <div class="milestones-grid">
+        <div class="ms-cell done">
+          <div class="y">2024</div>
+          <div class="stat">2 OUTLET</div>
+          <div class="d">Pilot outlet pertama buka. Validasi unit economics. Sistem POS + KDS v1.0 live.</div>
+        </div>
+        <div class="ms-cell now">
+          <div class="y">2026</div>
+          <div class="stat">FRANCHISE LAUNCH</div>
+          <div class="d">3 paket investasi resmi. Brosur, pitch deck, ROI calculator. Target 12 outlet.</div>
+        </div>
+        <div class="ms-cell future">
+          <div class="y">2028</div>
+          <div class="stat">35 OUTLET</div>
+          <div class="d">Presence di 15+ kota tier-1 &amp; tier-2. Brand recognition kuat di Indonesia.</div>
+        </div>
+        <div class="ms-cell future">
+          <div class="y">2030</div>
+          <div class="stat">50+ OUTLET</div>
+          <div class="d">Multi-format: flagship, kiosk, drive-thru. Ekspansi internasional dimulai.</div>
+        </div>
+        <div class="ms-cell future">
+          <div class="y">2035</div>
+          <div class="stat">SEA STANDARD</div>
+          <div class="d">Sistem operasi de-facto untuk industri kedai kopi di Asia Tenggara.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============== VALUES ============== -->
+    <h2 style="display: block;"><span class="num" style="margin-right: 16px;">02</span>Yang kami percaya.</h2>
+    <p style="font-size: 17px;">Empat prinsip yang membentuk cara kami bekerja, membangun produk, dan menjalankan franchise.</p>
+
+    <div class="values-grid">
+      <div class="val-card">
+        <div class="n">// 01</div>
+        <h4>Built in the Garage</h4>
+        <p>Setiap fitur dibangun in-house. Bukan SaaS sewaan. Kami iterasi cepat dan tahu setiap baris kode kami.</p>
+      </div>
+      <div class="val-card">
+        <div class="n">// 02</div>
+        <h4>Numbers Don't Lie</h4>
+        <p>Setiap klaim kami harus bisa dibuktikan dengan data. Tidak ada janji manis tanpa basis.</p>
+      </div>
+      <div class="val-card">
+        <div class="n">// 03</div>
+        <h4>Owner-First</h4>
+        <p>Franchisee adalah partner, bukan customer. Kami sukses kalau owner outlet sukses — bukan sebaliknya.</p>
+      </div>
+      <div class="val-card">
+        <div class="n">// 04</div>
+        <h4>Industrial Standards</h4>
+        <p>Konsistensi rasa, layanan, dan branding di setiap outlet. Disiplin operasional adalah moat kami.</p>
+      </div>
+    </div>
+
+    <!-- ============== TEAM ============== -->
+    <h2 style="display: block;"><span class="num" style="margin-right: 16px;">03</span>Tim inti.</h2>
+    <p style="font-size: 17px;">Founder &amp; key person yang memimpin GARAGE menuju visi 2035. Tim kami terdiri dari praktisi F&amp;B, engineer, dan operator dengan track record di industri kopi dan teknologi.</p>
+
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="avatar"><span>F</span></div>
+        <div class="role">// Founder &amp; CEO</div>
+        <h4>Founder</h4>
+        <p>Membangun GARAGE dari obsesi terhadap operational excellence di industri kopi. Memimpin strategi, brand, dan ekspansi franchise.</p>
+        <div class="meta">
+          <span>FOKUS:<strong>Strategy, Brand, Growth</strong></span>
+          <span>EMAIL:<strong>founder@garagecoffee.id</strong></span>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar"><span>O</span></div>
+        <div class="role">// Head of Operations</div>
+        <h4>Operations Lead</h4>
+        <p>Menulis dan menyempurnakan 15 modul SOP digital. Memimpin training franchisee dan quality assurance outlet.</p>
+        <div class="meta">
+          <span>FOKUS:<strong>SOP, Training, QA</strong></span>
+          <span>EMAIL:<strong>ops@garagecoffee.id</strong></span>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar"><span>T</span></div>
+        <div class="role">// Head of Technology</div>
+        <h4>Tech Lead</h4>
+        <p>Membangun GARAGE OS dari nol: POS, QR Menu, KDS, Loyalty App, Owner Dashboard. Memimpin product &amp; engineering.</p>
+        <div class="meta">
+          <span>FOKUS:<strong>Product, Engineering</strong></span>
+          <span>EMAIL:<strong>tech@garagecoffee.id</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="mono">// CATATAN</div>
+      <p>Profil tim akan diperbarui dengan foto, nama lengkap, dan bio detail setelah brand resmi launch ke publik. Calon franchisee yang masuk tahap konsultasi serius akan mendapat akses ke profil lengkap tim inti.</p>
+    </div>
+
+    <!-- ============== LEGAL ENTITY ============== -->
+    <h2 style="display: block;"><span class="num" style="margin-right: 16px;">04</span>Informasi badan hukum.</h2>
+    <p style="font-size: 17px;">Transparansi entitas hukum di balik brand. Detail lengkap untuk verifikasi calon investor &amp; franchisee.</p>
+
+    <div class="entity-card">
+      <h3>PT GARAGE INDONESIA</h3>
+      <div class="sub">// LEGAL ENTITY · TERDAFTAR DI INDONESIA</div>
+      <div class="entity-grid">
+        <div class="entity-cell">
+          <div class="l">// Nama Perusahaan</div>
+          <div class="v">PT GARAGE INDONESIA</div>
+        </div>
+        <div class="entity-cell">
+          <div class="l">// Bentuk Badan</div>
+          <div class="v">Perseroan Terbatas (PT)</div>
+        </div>
+        <div class="entity-cell">
+          <div class="l">// Tahun Berdiri</div>
+          <div class="v">2024</div>
+        </div>
+        <div class="entity-cell">
+          <div class="l">// Bidang Usaha</div>
+          <div class="v">Kedai Kopi · Waralaba · Software</div>
+        </div>
+        <div class="entity-cell">
+          <div class="l">// Alamat HQ</div>
+          <div class="v">Jl. Industri Raya No. 24<br>Jakarta Selatan, DKI Jakarta</div>
+        </div>
+        <div class="entity-cell">
+          <div class="l">// Kontak Resmi</div>
+          <div class="v"><a href="mailto:legal@garagecoffee.id">legal@garagecoffee.id</a><br><a href="https://wa.me/6281396186251">+62 813 9618 6251</a></div>
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size: 13px; color: var(--chrome-dim); font-family: 'JetBrains Mono', monospace; letter-spacing: .1em; line-height: 1.7;">
+      * Nomor NIB, NPWP, SIUP, dan dokumen registrasi waralaba dapat diverifikasi langsung saat tahap kontrak. Untuk permintaan due diligence pra-investasi, hubungi tim legal kami via email.
+    </p>
+
+    <!-- ============== CTA ============== -->
+    <div class="cta-end">
+      <div class="mono" style="color: var(--red); font-size: 11px; letter-spacing: .26em; text-transform: uppercase; margin-bottom: 16px;">// Ready to Build?</div>
+      <h3>Tertarik gabung<br>perjalanan <span class="red">GARAGE</span>?</h3>
+      <p>Konsultasi gratis, tanpa komitmen. Kami balas WhatsApp dalam 15 menit di jam kerja.</p>
+      <div class="cta-row">
+        <a href="/franchise#paket" class="btn btn-primary">
+          Lihat Paket Franchise
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="2"/></svg>
+        </a>
+        <a href="https://wa.me/6281396186251?text=Halo%20GARAGE%2C%20saya%20ingin%20konsultasi%20franchise" target="_blank" class="btn btn-ghost">Chat WhatsApp</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<footer class="page-foot">
+  <div class="inner">
+    <div class="legal-links">
+      <a href="/franchise">Beranda</a>
+      <a href="/franchise-site/about.html">Tentang Kami</a>
+      <a href="/franchise-site/privacy.html">Privasi</a>
+      <a href="/franchise-site/terms.html">Syarat &amp; Ketentuan</a>
+      <a href="/franchise-site/disclaimer.html">Disclaimer</a>
+    </div>
+    <div class="row">
+      <span>© 2026 PT GARAGE INDONESIA · GRG-ABOUT-2026</span>
+      <span style="color: var(--red);">● BUILT IN INDONESIA</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

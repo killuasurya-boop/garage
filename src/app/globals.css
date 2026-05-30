@@ -1,0 +1,4649 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Space Grotesk", "Space Grotesk Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, SFMono-Regular, monospace;
+  --font-heading: "Anton", Impact, "Arial Narrow", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.7);
+  --radius-3xl: calc(var(--radius) * 2);
+  --radius-4xl: calc(var(--radius) * 2.3);
+}
+
+:root,
+.dark {
+  --garage-bg-0: #100808;
+  --garage-bg-1: #1a1111;
+  --garage-bg-2: #221818;
+  --garage-bg-3: #2e2020;
+  --garage-line: #443434;
+  --garage-line-2: #5a4040;
+  --garage-fg: #f4f4f5;
+  --garage-dim: #d0d0d6;
+  --garage-mute: #9696a1;
+  --garage-silver: #d4d4d8;
+  --garage-red: #c41a1a;
+  --garage-red-bright: #e83030;
+  --garage-red-deep: #7a0f0f;
+  --garage-amber: #e8883a;
+  --garage-panel: #1e1414;
+  --garage-panel-soft: #2a1e1e;
+  --garage-surface: var(--garage-bg-1);
+  --garage-surface-raised: var(--garage-bg-2);
+  --garage-surface-soft: var(--garage-bg-3);
+  --garage-button-bg: var(--garage-red);
+  --garage-button-hover: var(--garage-red-bright);
+  --garage-button-text: #ffffff;
+  --garage-focus-ring: var(--garage-amber);
+  --garage-success: #22c55e;
+  --garage-warning: var(--garage-amber);
+  --garage-danger: var(--garage-red-bright);
+  --garage-shell-bg:
+    radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--garage-red) 38%, transparent), transparent 32rem),
+    radial-gradient(circle at 15% 95%, color-mix(in srgb, var(--garage-red-deep) 28%, transparent), transparent 30rem),
+    radial-gradient(circle at 12% 100%, color-mix(in srgb, var(--garage-amber) 20%, transparent), transparent 28rem),
+    linear-gradient(150deg, var(--garage-bg-0), var(--garage-bg-1) 40%, #1a0d0d 80%, var(--garage-bg-0));
+  --garage-panel-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.026)),
+    color-mix(in srgb, var(--garage-bg-2) 92%, transparent);
+  --garage-card-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    var(--garage-bg-2);
+  --garage-input-bg: color-mix(in srgb, var(--garage-bg-3) 70%, transparent);
+  --garage-badge-bg: color-mix(in srgb, var(--garage-amber) 16%, transparent);
+  --garage-active-bg: color-mix(in srgb, var(--garage-red) 24%, var(--garage-bg-3));
+  --garage-hover-bg: color-mix(in srgb, var(--garage-bg-3) 84%, var(--garage-red) 8%);
+  --garage-shadow-panel:
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    0 18px 52px rgba(0, 0, 0, 0.24);
+  --garage-shadow-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.075),
+    0 16px 44px rgba(0, 0, 0, 0.28);
+  --garage-shadow-button:
+    0 0 0 1px rgba(255, 42, 58, 0.18),
+    0 14px 32px rgba(209, 26, 42, 0.22);
+  --garage-inset-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.026));
+  --garage-chrome-shadow: 0 0 24px rgba(244, 244, 245, 0.12);
+  --garage-glow-primary: 0 0 32px color-mix(in srgb, var(--garage-red) 28%, transparent);
+  --garage-glow-accent: 0 0 28px color-mix(in srgb, var(--garage-amber) 22%, transparent);
+  --garage-font-display: var(--font-anton), Impact, "Arial Narrow", sans-serif;
+  --garage-font-body: var(--font-space-grotesk), "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --garage-font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
+  --garage-heading-weight: 900;
+  --garage-body-weight: 600;
+  --garage-letter-spacing: 0;
+  --garage-display-transform: uppercase;
+  --garage-glass-opacity: 84%;
+
+  --background: var(--garage-bg-0);
+  --foreground: var(--garage-fg);
+  --card: var(--garage-bg-2);
+  --card-foreground: var(--garage-fg);
+  --popover: var(--garage-bg-1);
+  --popover-foreground: var(--garage-fg);
+  --primary: var(--garage-red);
+  --primary-foreground: #ffffff;
+  --secondary: var(--garage-bg-3);
+  --secondary-foreground: var(--garage-fg);
+  --muted: var(--garage-bg-3);
+  --muted-foreground: var(--garage-dim);
+  --accent: var(--garage-amber);
+  --accent-foreground: var(--garage-bg-0);
+  --destructive: var(--garage-red-bright);
+  --border: var(--garage-line);
+  --input: var(--garage-line);
+  --ring: var(--garage-red);
+  --chart-1: var(--garage-red);
+  --chart-2: var(--garage-amber);
+  --chart-3: var(--garage-silver);
+  --chart-4: var(--garage-red-bright);
+  --chart-5: var(--garage-mute);
+  --radius: 0.35rem;
+  --sidebar: var(--garage-bg-1);
+  --sidebar-foreground: var(--garage-fg);
+  --sidebar-primary: var(--garage-red);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--garage-bg-3);
+  --sidebar-accent-foreground: var(--garage-fg);
+  --sidebar-border: var(--garage-line);
+  --sidebar-ring: var(--garage-red);
+}
+
+.garage-theme-bright {
+  --garage-bg-0: #141416;
+  --garage-bg-1: #1c1c22;
+  --garage-bg-2: #24242b;
+  --garage-bg-3: #303038;
+  --garage-line: #4d4d58;
+  --garage-line-2: #6a6a75;
+  --garage-fg: #ffffff;
+  --garage-dim: #e7e7ec;
+  --garage-mute: #b9b9c3;
+  --garage-panel: #2a2a32;
+  --garage-panel-soft: #34343d;
+
+  --background: var(--garage-bg-0);
+  --foreground: var(--garage-fg);
+  --card: var(--garage-bg-2);
+  --card-foreground: var(--garage-fg);
+  --popover: var(--garage-bg-1);
+  --popover-foreground: var(--garage-fg);
+  --secondary: var(--garage-bg-3);
+  --secondary-foreground: var(--garage-fg);
+  --muted: var(--garage-bg-3);
+  --muted-foreground: var(--garage-dim);
+  --border: var(--garage-line);
+  --input: var(--garage-line);
+  --sidebar: var(--garage-bg-1);
+  --sidebar-foreground: var(--garage-fg);
+  --sidebar-accent: var(--garage-bg-3);
+  --sidebar-accent-foreground: var(--garage-fg);
+  --sidebar-border: var(--garage-line);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    background: var(--background);
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100%;
+    overflow-x: hidden;
+    font-feature-settings: "ss01" on, "cv01" on, "cv02" on;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--garage-red) 76%, transparent);
+    color: #ffffff;
+  }
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--garage-bg-1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--garage-line-2), var(--garage-red-deep));
+  border: 2px solid var(--garage-bg-1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--garage-silver), var(--garage-red));
+}
+
+@layer components {
+  .garage-shell {
+    min-height: 100vh;
+    overflow-x: clip;
+    position: relative;
+    background: var(--garage-shell-bg);
+    color: var(--garage-fg);
+    font-family: var(--garage-font-body);
+    font-weight: var(--garage-body-weight);
+  }
+
+  .garage-shell > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .garage-shell.garage-theme-bright {
+    background:
+      radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--garage-red) 22%, transparent), transparent 28rem),
+      radial-gradient(circle at 12% 100%, color-mix(in srgb, var(--garage-amber) 14%, transparent), transparent 26rem),
+      linear-gradient(135deg, var(--garage-bg-0), var(--garage-bg-2) 48%, var(--garage-bg-3));
+  }
+
+  .garage-shell::before {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.68), transparent 78%);
+    pointer-events: none;
+    position: fixed;
+    z-index: 0;
+  }
+
+  .garage-shell::after {
+    background:
+      radial-gradient(circle at center, transparent 0, rgba(0, 0, 0, 0.12) 44%, rgba(0, 0, 0, 0.58) 100%),
+      repeating-radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 4px);
+    content: "";
+    inset: 0;
+    opacity: 0.78;
+    pointer-events: none;
+    position: fixed;
+    z-index: 0;
+  }
+
+  .garage-theme-bright.garage-shell::before {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.038) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.038) 1px, transparent 1px);
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.54), transparent 76%);
+  }
+
+  .garage-theme-bright.garage-shell::after {
+    background:
+      radial-gradient(circle at center, transparent 0, rgba(0, 0, 0, 0.04) 48%, rgba(0, 0, 0, 0.24) 100%),
+      repeating-radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 4px);
+    opacity: 0.48;
+  }
+
+  /* ============================================================
+     POS THEME — MVP MASTER (v2)
+     Designed untuk feel POS profesional (Square/Toast/Linear-grade).
+     Prinsip:
+     - Elevation tier yang halus (bg → panel → soft) bukan gradien ramai
+     - Brand red dipakai HANYA untuk primary CTA & accent, bukan flood
+     - Border subtle, shadow berlapis lembut
+     - Kontras tinggi (WCAG AA+) untuk angka, harga, total
+     - Single low-opacity vignette saja, tidak ada radial multi-blob
+     ============================================================ */
+
+  /* Garage Default — dark professional (asphalt + chrome + red accent) */
+  .garage-shell[data-cashier-theme],
+  [data-cashier-theme-scope="garage-default"] {
+    --cashier-bg: #0a0a0d;
+    --cashier-panel: #14141a;
+    --cashier-panel-soft: #1c1c24;
+    --cashier-text: #fafafa;
+    --cashier-muted: #a1a1aa;
+    --cashier-line: #2a2a32;
+    --cashier-red: #e63946;
+    --cashier-amber: #fbbf24;
+    --cashier-good: #10b981;
+    --cashier-button: #e63946;
+    --cashier-button-text: #ffffff;
+    --cashier-control: #17171d;
+    --cashier-empty: #16161c;
+    --cashier-footer: #101015;
+    --cashier-total: #0f0f14;
+    --cashier-total-accent: rgba(230, 57, 70, 0.10);
+    --cashier-panel-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.024));
+    --cashier-input-bg: rgba(255, 255, 255, 0.06);
+    --cashier-input-focus-tint: rgba(230, 57, 70, 0.20);
+    --cashier-hover-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 2px 4px rgba(0, 0, 0, 0.10),
+      0 10px 28px rgba(0, 0, 0, 0.32);
+    --cashier-card-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 1px 2px rgba(0, 0, 0, 0.32),
+      0 8px 24px rgba(0, 0, 0, 0.36);
+    --cashier-soft-shadow:
+      0 -1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 -8px 24px rgba(0, 0, 0, 0.32);
+    --cashier-overlay-from: rgba(10, 10, 13, 0.98);
+    --cashier-overlay-mid: rgba(10, 10, 13, 0.84);
+    background:
+      radial-gradient(140% 90% at 80% -10%, rgba(230, 57, 70, 0.06), transparent 60%),
+      linear-gradient(180deg, #0c0c10 0%, #0a0a0d 100%) !important;
+    color: var(--cashier-text);
+  }
+
+  /* Garage Clear — neutral light, modern POS (Square / Stripe vibe).
+     Crisp white panels on a soft cool gray canvas. Slate-900 CTA. */
+  .garage-shell[data-cashier-theme="garage-clear"],
+  [data-cashier-theme-scope="garage-clear"] {
+    --cashier-bg: #f4f6fa;
+    --cashier-panel: #ffffff;
+    --cashier-panel-soft: #eef1f5;
+    --cashier-text: #0b1220;
+    --cashier-muted: #5b6776;
+    --cashier-line: #dde3ec;
+    --cashier-red: #d11a2a;
+    --cashier-amber: #f59e0b;
+    --cashier-good: #10b981;
+    --cashier-button: #0f172a;
+    --cashier-button-text: #ffffff;
+    --cashier-control: #ffffff;
+    --cashier-empty: #f5f7fb;
+    --cashier-footer: #ffffff;
+    --cashier-total: #ffffff;
+    --cashier-total-accent: rgba(15, 23, 42, 0.05);
+    --cashier-panel-overlay: none;
+    --cashier-input-bg: #ffffff;
+    --cashier-input-focus-tint: rgba(15, 23, 42, 0.10);
+    --cashier-card-shadow:
+      0 0 0 1px rgba(15, 23, 42, 0.04),
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 6px 16px rgba(15, 23, 42, 0.06);
+    --cashier-hover-shadow:
+      0 0 0 1px rgba(15, 23, 42, 0.10),
+      0 4px 8px rgba(15, 23, 42, 0.07),
+      0 14px 32px rgba(15, 23, 42, 0.10);
+    --cashier-soft-shadow:
+      0 -1px 0 rgba(255, 255, 255, 1) inset,
+      0 -6px 16px rgba(15, 23, 42, 0.05);
+    --cashier-overlay-from: rgba(244, 246, 250, 0.98);
+    --cashier-overlay-mid: rgba(244, 246, 250, 0.82);
+    background:
+      linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%) !important;
+  }
+
+  /* Warm Light — café paper aesthetic (specialty coffee POS).
+     Cream canvas, white panel cards, espresso CTA, amber highlight. */
+  .garage-shell[data-cashier-theme="warm-light"],
+  [data-cashier-theme-scope="warm-light"] {
+    --cashier-bg: #f7f1e6;
+    --cashier-panel: #ffffff;
+    --cashier-panel-soft: #f3ead9;
+    --cashier-text: #261810;
+    --cashier-muted: #7d5a3b;
+    --cashier-line: #e6d3b6;
+    --cashier-red: #b3382a;
+    --cashier-amber: #c08a4a;
+    --cashier-good: #5d8a3a;
+    --cashier-button: #573320;
+    --cashier-button-text: #fdfaf3;
+    --cashier-control: #ffffff;
+    --cashier-empty: #f6efe1;
+    --cashier-footer: #ffffff;
+    --cashier-total: #ffffff;
+    --cashier-total-accent: rgba(192, 138, 74, 0.10);
+    --cashier-panel-overlay: none;
+    --cashier-input-bg: #ffffff;
+    --cashier-input-focus-tint: rgba(87, 51, 32, 0.16);
+    --cashier-card-shadow:
+      0 0 0 1px rgba(87, 51, 32, 0.05),
+      0 1px 2px rgba(87, 51, 32, 0.06),
+      0 6px 16px rgba(87, 51, 32, 0.08);
+    --cashier-hover-shadow:
+      0 0 0 1px rgba(87, 51, 32, 0.12),
+      0 4px 8px rgba(87, 51, 32, 0.09),
+      0 14px 32px rgba(87, 51, 32, 0.13);
+    --cashier-soft-shadow:
+      0 -1px 0 rgba(255, 255, 255, 0.7) inset,
+      0 -6px 16px rgba(87, 51, 32, 0.08);
+    --cashier-overlay-from: rgba(247, 241, 230, 0.98);
+    --cashier-overlay-mid: rgba(247, 241, 230, 0.82);
+    background:
+      linear-gradient(180deg, #f9f3e8 0%, #f1e8d2 100%) !important;
+  }
+
+  /* Focus Blue — calm professional (Linear / iPad-style).
+     Cool gray canvas, crisp white panels, refined blue CTA. */
+  .garage-shell[data-cashier-theme="focus-blue"],
+  [data-cashier-theme-scope="focus-blue"] {
+    --cashier-bg: #eef2f8;
+    --cashier-panel: #ffffff;
+    --cashier-panel-soft: #e3ebf4;
+    --cashier-text: #0b1530;
+    --cashier-muted: #4a5870;
+    --cashier-line: #d1dbe8;
+    --cashier-red: #d11a2a;
+    --cashier-amber: #f59e0b;
+    --cashier-good: #0d9488;
+    --cashier-button: #2563eb;
+    --cashier-button-text: #ffffff;
+    --cashier-control: #ffffff;
+    --cashier-empty: #eff3f9;
+    --cashier-footer: #ffffff;
+    --cashier-total: #ffffff;
+    --cashier-total-accent: rgba(37, 99, 235, 0.08);
+    --cashier-panel-overlay: none;
+    --cashier-input-bg: #ffffff;
+    --cashier-input-focus-tint: rgba(37, 99, 235, 0.16);
+    --cashier-card-shadow:
+      0 0 0 1px rgba(15, 23, 42, 0.04),
+      0 1px 2px rgba(37, 99, 235, 0.05),
+      0 6px 16px rgba(37, 99, 235, 0.08);
+    --cashier-hover-shadow:
+      0 0 0 1px rgba(37, 99, 235, 0.18),
+      0 4px 8px rgba(37, 99, 235, 0.10),
+      0 14px 32px rgba(37, 99, 235, 0.16);
+    --cashier-soft-shadow:
+      0 -1px 0 rgba(255, 255, 255, 1) inset,
+      0 -6px 16px rgba(37, 99, 235, 0.07);
+    --cashier-overlay-from: rgba(238, 242, 248, 0.98);
+    --cashier-overlay-mid: rgba(238, 242, 248, 0.82);
+    background:
+      linear-gradient(180deg, #f1f5fb 0%, #e7eef7 100%) !important;
+  }
+
+  /* When POS uses the default Garage cashier theme inside Garage OS, inherit
+     the active OS preset instead of freezing to the old red/black palette. */
+  .garage-os-shell:not([data-garage-os-surface="light"])[data-cashier-theme="garage-default"],
+  .garage-os-shell:not([data-garage-os-surface="light"])
+    [data-cashier-theme-scope="garage-default"] {
+    --cashier-bg: var(--garage-bg-0);
+    --cashier-panel: var(--garage-bg-2);
+    --cashier-panel-soft: var(--garage-bg-1);
+    --cashier-text: var(--garage-fg);
+    --cashier-muted: var(--garage-mute);
+    --cashier-line: var(--garage-line);
+    --cashier-red: var(--garage-danger);
+    --cashier-amber: var(--garage-warning);
+    --cashier-good: var(--garage-success);
+    --cashier-button: var(--garage-button-bg);
+    --cashier-button-text: var(--garage-button-text);
+    --cashier-control: var(--garage-input-bg);
+    --cashier-empty: color-mix(in srgb, var(--garage-bg-3) 72%, transparent);
+    --cashier-footer: color-mix(in srgb, var(--garage-bg-2) 92%, var(--garage-bg-1));
+    --cashier-total: var(--garage-active-bg);
+    --cashier-total-accent: color-mix(in srgb, var(--garage-button-bg) 12%, transparent);
+    --cashier-panel-overlay: var(--garage-inset-highlight);
+    --cashier-input-bg: var(--garage-input-bg);
+    --cashier-input-focus-tint: color-mix(in srgb, var(--garage-focus-ring) 22%, transparent);
+    --cashier-card-shadow: var(--garage-shadow-raised);
+    --cashier-hover-shadow: var(--garage-shadow-raised);
+    --cashier-soft-shadow: var(--garage-shadow-panel);
+    --cashier-overlay-from: color-mix(in srgb, var(--garage-bg-0) 96%, transparent);
+    --cashier-overlay-mid: color-mix(in srgb, var(--garage-bg-1) 78%, transparent);
+    background: var(--garage-bg-0) !important;
+    color: var(--garage-fg);
+    font-family: var(--garage-font-body);
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"][data-cashier-theme="garage-default"],
+  .garage-os-shell[data-garage-os-surface="light"]
+    [data-cashier-theme-scope="garage-default"],
+  .garage-shell[data-garage-preset][data-cashier-theme="garage-default"]:not(.garage-os-shell),
+  .garage-shell[data-garage-preset]:not(.garage-os-shell)
+    [data-cashier-theme-scope="garage-default"] {
+    --cashier-bg: var(--garage-canvas-bg);
+    --cashier-panel: var(--garage-balanced-card);
+    --cashier-panel-soft: var(--garage-balanced-panel);
+    --cashier-text: var(--garage-canvas-fg);
+    --cashier-muted: color-mix(in srgb, var(--garage-canvas-fg) 58%, #ffffff);
+    --cashier-line: var(--garage-border-soft);
+    --cashier-red: var(--garage-danger);
+    --cashier-amber: var(--garage-warning);
+    --cashier-good: var(--garage-success);
+    --cashier-button: var(--garage-button-bg);
+    --cashier-button-text: var(--garage-button-text);
+    --cashier-control: var(--garage-input-bg);
+    --cashier-empty: color-mix(in srgb, var(--garage-balanced-panel) 72%, #ffffff);
+    --cashier-footer: color-mix(in srgb, var(--garage-balanced-card) 92%, var(--garage-balanced-panel));
+    --cashier-total: var(--garage-active-bg);
+    --cashier-total-accent: color-mix(in srgb, var(--garage-button-bg) 12%, transparent);
+    --cashier-panel-overlay: var(--garage-inset-highlight);
+    --cashier-input-bg: var(--garage-input-bg);
+    --cashier-input-focus-tint: color-mix(in srgb, var(--garage-focus-ring) 22%, transparent);
+    --cashier-card-shadow: var(--garage-shadow-raised);
+    --cashier-hover-shadow: var(--garage-shadow-raised);
+    --cashier-soft-shadow: var(--garage-shadow-panel);
+    --cashier-overlay-from: color-mix(in srgb, var(--garage-canvas-bg) 96%, transparent);
+    --cashier-overlay-mid: color-mix(in srgb, var(--garage-balanced-panel) 78%, transparent);
+    background: var(--garage-canvas-bg) !important;
+    color: var(--garage-canvas-fg);
+    font-family: var(--garage-font-body);
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface {
+    color: var(--cashier-text);
+  }
+
+  /* Remap shadcn semantic tokens for the cashier surface on light themes.
+     This is the single point of truth that makes every shadcn primary
+     button (Bayar, Cek voucher, dialog confirms), every Input border,
+     every ring/focus, follow the active light theme automatically —
+     without hunting every hardcoded Tailwind class in JSX. */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="dialog-content"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) {
+    --primary: var(--cashier-button);
+    --primary-foreground: var(--cashier-button-text);
+    --ring: var(--cashier-button);
+    --destructive: var(--cashier-red);
+    --border: var(--cashier-line);
+    --input: var(--cashier-line);
+    --background: var(--cashier-panel);
+    --foreground: var(--cashier-text);
+    --card: var(--cashier-panel);
+    --card-foreground: var(--cashier-text);
+    --popover: var(--cashier-panel);
+    --popover-foreground: var(--cashier-text);
+    --muted: var(--cashier-panel-soft);
+    --muted-foreground: var(--cashier-muted);
+    --accent: var(--cashier-panel-soft);
+    --accent-foreground: var(--cashier-text);
+    --secondary: var(--cashier-panel-soft);
+    --secondary-foreground: var(--cashier-text);
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .garage-side-panel,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .garage-panel,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .garage-surface,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-bill-panel,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-card,
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"],
+  [data-cashier-theme-scope][data-slot="dialog-content"],
+  [data-cashier-theme-scope][data-slot="sheet-content"] {
+    background: var(--cashier-panel) !important;
+    border-color: var(--cashier-line) !important;
+    color: var(--cashier-text) !important;
+  }
+
+  /* Apply subtle highlight gradient only when theme provides one (dark default).
+     Light themes set --cashier-panel-overlay: none so panels stay crisp white. */
+  .garage-shell[data-cashier-theme="garage-default"] .cashier-pos-surface .garage-side-panel,
+  .garage-shell[data-cashier-theme="garage-default"] .cashier-pos-surface .garage-panel,
+  .garage-shell[data-cashier-theme="garage-default"] .cashier-pos-surface .garage-surface,
+  .garage-shell[data-cashier-theme="garage-default"] .cashier-pos-surface .pos-bill-panel,
+  .garage-shell[data-cashier-theme="garage-default"] .cashier-pos-surface .pos-product-card,
+  .garage-shell[data-cashier-theme="garage-default"] [data-slot="dialog-content"],
+  [data-cashier-theme-scope="garage-default"][data-slot="dialog-content"],
+  [data-cashier-theme-scope="garage-default"][data-slot="sheet-content"] {
+    background:
+      var(--cashier-panel-overlay),
+      var(--cashier-panel) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-card {
+    box-shadow: var(--cashier-card-shadow) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-name,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-price,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-title,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-price,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-bill-value {
+    color: var(--cashier-text) !important;
+    text-shadow: none !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-meta,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-note,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-meta,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-muted-label,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-bill-label {
+    color: var(--cashier-muted) !important;
+    text-shadow: none !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-line,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-empty-state,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-empty {
+    background: var(--cashier-empty) !important;
+    border-color: var(--cashier-line) !important;
+    box-shadow: none !important;
+    color: var(--cashier-text) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-bill-footer {
+    background: var(--cashier-footer) !important;
+    border-color: var(--cashier-line) !important;
+    box-shadow: var(--cashier-soft-shadow) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-voucher-box,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-total-box,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-qty-control {
+    background: var(--cashier-control) !important;
+    border-color: var(--cashier-line) !important;
+    color: var(--cashier-text) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-total-box {
+    background: var(--cashier-total) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-load-more-bar {
+    background:
+      linear-gradient(
+        to top,
+        var(--cashier-overlay-from),
+        var(--cashier-overlay-mid) 58%,
+        transparent
+      ) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-load-more-button,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-split-bill-button {
+    background: var(--cashier-control) !important;
+    border-color: var(--cashier-line) !important;
+    color: var(--cashier-text) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface p,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface span,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface h1,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface h2,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface h3,
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] p,
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] span,
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] h2,
+  [data-cashier-theme-scope] p,
+  [data-cashier-theme-scope] span,
+  [data-cashier-theme-scope] h2 {
+    color: inherit;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .garage-mono,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface [class*="text-[#b8b8bf]"],
+  .garage-shell[data-cashier-theme] .cashier-pos-surface [class*="text-[#d6d6dc]"],
+  .garage-shell[data-cashier-theme] .cashier-pos-surface [class*="text-[#8f8f99]"],
+  .garage-shell[data-cashier-theme] [data-slot="dialog-description"],
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] [class*="text-[#b8b8bf]"],
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] [class*="text-[#d6d6dc]"],
+  [data-cashier-theme-scope] [data-slot="dialog-description"],
+  [data-cashier-theme-scope] [class*="text-[#b8b8bf]"],
+  [data-cashier-theme-scope] [class*="text-[#d6d6dc]"] {
+    color: var(--cashier-muted) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface [data-slot="input"],
+  .garage-shell[data-cashier-theme] .cashier-pos-surface textarea,
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] [data-slot="input"],
+  [data-cashier-theme-scope] [data-slot="input"],
+  [data-cashier-theme-scope] textarea {
+    background: var(--cashier-input-bg) !important;
+    border-color: var(--cashier-line) !important;
+    color: var(--cashier-text) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface [data-slot="button"],
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] [data-slot="button"] {
+    border-color: var(--cashier-line);
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-order-cta,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface button:not([disabled])[class*="bg-[#d11a2a]"] {
+    background: var(--cashier-button) !important;
+    color: var(--cashier-button-text) !important;
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--cashier-button) 24%, transparent) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .garage-chrome {
+    background: linear-gradient(180deg, var(--cashier-text), var(--cashier-muted));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    text-shadow: none;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-theme-preset {
+    background: var(--cashier-panel) !important;
+    border-color: var(--cashier-line) !important;
+    color: var(--cashier-text) !important;
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-theme-preset[aria-pressed="true"] {
+    background: var(--cashier-panel-soft) !important;
+    border-color: var(--cashier-button) !important;
+    box-shadow: 0 0 0 2px var(--cashier-input-focus-tint) !important;
+  }
+
+  /* ============================================================
+     POS POLISH — typography, micro-interaction, focus
+     Berlaku untuk semua tema. Tujuan: rasa "premium POS".
+     ============================================================ */
+
+  /* Tabular numbers untuk semua angka harga & total (alignment rapih) */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-price,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-price,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-bill-value,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-total-box,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-qty-control {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    letter-spacing: -0.005em;
+  }
+
+  /* Heading: ketatkan sedikit, lebih premium */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-name,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-title {
+    letter-spacing: -0.011em;
+  }
+
+  /* Product card hover micro-interaction (subtle elevation lift) */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-card {
+    transition:
+      transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      border-color 160ms ease;
+  }
+
+  @media (hover: hover) {
+    .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-card:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--cashier-hover-shadow) !important;
+      border-color: color-mix(in srgb, var(--cashier-button) 32%, var(--cashier-line)) !important;
+    }
+  }
+
+  /* Active press (mobile/tablet) */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-card:active {
+    transform: translateY(0);
+    transition-duration: 60ms;
+  }
+
+  /* CTA buttons — refined elevation + transition (no harsh boxy feel) */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-order-cta,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface button:not([disabled])[class*="bg-[#d11a2a]"] {
+    transition:
+      transform 90ms ease,
+      box-shadow 160ms ease,
+      filter 160ms ease;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.18) inset,
+      0 1px 2px rgba(0, 0, 0, 0.18),
+      0 6px 16px color-mix(in srgb, var(--cashier-button) 22%, transparent) !important;
+  }
+
+  @media (hover: hover) {
+    .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-order-cta:hover,
+    .garage-shell[data-cashier-theme]
+      .cashier-pos-surface
+      button:not([disabled])[class*="bg-[#d11a2a]"]:hover {
+      filter: brightness(1.06);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.22) inset,
+        0 2px 4px rgba(0, 0, 0, 0.18),
+        0 10px 22px color-mix(in srgb, var(--cashier-button) 32%, transparent) !important;
+    }
+  }
+
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-product-order-cta:active,
+  .garage-shell[data-cashier-theme]
+    .cashier-pos-surface
+    button:not([disabled])[class*="bg-[#d11a2a]"]:active {
+    transform: translateY(1px);
+  }
+
+  /* Focus ring — tematic & accessible (replaces default blue) */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface :focus-visible,
+  .garage-shell[data-cashier-theme] [data-slot="dialog-content"] :focus-visible,
+  [data-cashier-theme-scope] :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--cashier-button) 80%, transparent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Total box: refined "receipt-like" treatment with accent tint.
+     Light themes get a subtle accent wash + dashed perforation border. */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-total-box {
+    background:
+      linear-gradient(180deg, var(--cashier-total-accent), var(--cashier-total-accent)),
+      var(--cashier-total) !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-top-style: dashed !important;
+    border-top-width: 2px !important;
+    border-color: var(--cashier-line) !important;
+    padding-top: 0.75rem;
+  }
+
+  /* Cart line dividers — lebih halus & profesional */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-line {
+    transition: background-color 120ms ease;
+  }
+
+  @media (hover: hover) {
+    .garage-shell[data-cashier-theme] .cashier-pos-surface .pos-cart-line:hover {
+      background: color-mix(
+        in srgb,
+        var(--cashier-empty) 60%,
+        var(--cashier-panel-soft)
+      ) !important;
+    }
+  }
+
+  /* Input refined — focus ring uses per-theme tint for cohesion */
+  .garage-shell[data-cashier-theme] .cashier-pos-surface [data-slot="input"]:focus,
+  .garage-shell[data-cashier-theme] .cashier-pos-surface textarea:focus,
+  [data-cashier-theme-scope] [data-slot="input"]:focus,
+  [data-cashier-theme-scope] textarea:focus {
+    border-color: var(--cashier-button) !important;
+    box-shadow: 0 0 0 3px var(--cashier-input-focus-tint) !important;
+    outline: none;
+  }
+
+  /* ============================================================
+     POS LIGHT THEME — STATUS CHIP & ACCENT OVERRIDES
+     JSX shell (sheet menu, payment dialog, QR ops) hardcodes
+     Tailwind hex chips designed for dark theme — 12–14% tints
+     vanish on white. Remap chip bg/border/text to theme tokens
+     and boost contrast so labels remain readable on every theme.
+     ============================================================ */
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="dialog-content"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) {
+    /* Whitish translucent surfaces (designed for dark bg) → panel-soft */
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-white/[0.055]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-white/[0.045]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-white/[0.06]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-white/[0.07]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-white/[0.055]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-white/[0.045]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="dialog-content"] [class*="bg-white/[0.055]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-white/[0.055]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-white/[0.045]"] {
+    background: var(--cashier-panel-soft) !important;
+  }
+
+  /* Dark structural borders → theme line */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#34343c]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#4a4a54]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#2a2a32]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#34343c]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#4a4a54]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="dialog-content"] [class*="border-[#34343c]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="dialog-content"] [class*="border-[#4a4a54]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#34343c]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#4a4a54]"] {
+    border-color: var(--cashier-line) !important;
+  }
+
+  /* Success / shift-open chips (green tint) → cashier-good filled */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#22c55e]/12"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#22c55e]/16"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#22c55e]/22"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#22c55e]/12"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#22c55e]/16"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#22c55e]/22"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#22c55e]/12"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#22c55e]/16"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#22c55e]/22"] {
+    background: color-mix(in srgb, var(--cashier-good) 14%, var(--cashier-panel)) !important;
+    border-color: color-mix(in srgb, var(--cashier-good) 42%, var(--cashier-line)) !important;
+    color: var(--cashier-good) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#22c55e]/45"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#22c55e]/55"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#22c55e]/45"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#22c55e]/55"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#22c55e]/45"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#22c55e]/55"] {
+    border-color: color-mix(in srgb, var(--cashier-good) 50%, var(--cashier-line)) !important;
+  }
+
+  /* Warning / amber chips → cashier-amber filled */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#f5a742]/12"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#f5a742]/14"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#f5a742]/20"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#f5a742]/12"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#f5a742]/14"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#f5a742]/20"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#f5a742]/12"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#f5a742]/14"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#f5a742]/20"] {
+    background: color-mix(in srgb, var(--cashier-amber) 16%, var(--cashier-panel)) !important;
+    border-color: color-mix(in srgb, var(--cashier-amber) 42%, var(--cashier-line)) !important;
+    color: color-mix(in srgb, var(--cashier-amber) 70%, var(--cashier-text)) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#f5a742]/35"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#f5a742]/45"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#f5a742]/35"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#f5a742]/45"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#f5a742]/35"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#f5a742]/45"] {
+    border-color: color-mix(in srgb, var(--cashier-amber) 50%, var(--cashier-line)) !important;
+  }
+
+  /* Danger / red chips → cashier-red filled */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#d11a2a]/12"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#d11a2a]/14"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#d11a2a]/20"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#d11a2a]/22"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#d11a2a]/28"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#d11a2a]/12"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#d11a2a]/14"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#d11a2a]/20"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#d11a2a]/22"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="bg-[#d11a2a]/28"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#d11a2a]/12"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#d11a2a]/14"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#d11a2a]/20"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#d11a2a]/22"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="bg-[#d11a2a]/28"] {
+    background: color-mix(in srgb, var(--cashier-red) 12%, var(--cashier-panel)) !important;
+    border-color: color-mix(in srgb, var(--cashier-red) 45%, var(--cashier-line)) !important;
+    color: var(--cashier-red) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#d11a2a]/45"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#d11a2a]/55"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="border-[#d11a2a]/70"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#d11a2a]/45"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#d11a2a]/55"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="border-[#d11a2a]/70"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#d11a2a]/45"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#d11a2a]/55"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="border-[#d11a2a]/70"] {
+    border-color: color-mix(in srgb, var(--cashier-red) 55%, var(--cashier-line)) !important;
+  }
+
+  /* Light text designed for dark chip backgrounds → theme text/accent */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="text-[#dcfce7]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="text-[#dcfce7]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#dcfce7]"] {
+    color: var(--cashier-good) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="text-[#ffd08a]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="text-[#ffd08a]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#ffd08a]"] {
+    color: color-mix(in srgb, var(--cashier-amber) 80%, var(--cashier-text)) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="text-[#ffe1e5]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="text-[#ffc2c8]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="text-[#ffe1e5]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="text-[#ffc2c8]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#ffe1e5]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#ffc2c8]"] {
+    color: var(--cashier-red) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="text-[#f4f4f5]"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] [class*="text-[#f4f4f5]"],
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) [class*="text-[#f4f4f5]"] {
+    color: var(--cashier-text) !important;
+  }
+
+  /* White text inside a chip on light bg = invisible — keep readable.
+     Scope only to chip-bearing buttons/badges, not primary CTAs which
+     own --cashier-button-text directly. */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#f5a742]/14"] [class*="text-white"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#22c55e]/12"] [class*="text-white"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#22c55e]/16"] [class*="text-white"],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface [class*="bg-[#d11a2a]/14"] [class*="text-white"] {
+    color: var(--cashier-text) !important;
+  }
+
+  /* Neutral gray status chips (READY, INFO, archived) — designed with
+     white text on translucent gray; on light themes this completely
+     disappears. Target Tailwind's escaped compiled class names directly
+     (attribute selector form gets dropped by the v4 PostCSS pass for
+     these specific patterns). */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .bg-\[\#d4d4d8\]\/12,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .bg-\[\#a1a1aa\]\/12,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .bg-\[\#71717a\]\/12,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] .bg-\[\#d4d4d8\]\/12,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="dialog-content"] .bg-\[\#d4d4d8\]\/12,
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .bg-\[\#d4d4d8\]\/12,
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .bg-\[\#a1a1aa\]\/12 {
+    background-color: color-mix(in srgb, var(--cashier-muted) 10%, var(--cashier-panel)) !important;
+    color: var(--cashier-muted) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .border-\[\#d4d4d8\]\/45,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .border-\[\#a1a1aa\]\/45,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .border-\[\#d4d4d8\]\/35,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) [data-slot="sheet-content"] .border-\[\#d4d4d8\]\/45,
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .border-\[\#d4d4d8\]\/45 {
+    border-color: color-mix(in srgb, var(--cashier-muted) 40%, var(--cashier-line)) !important;
+  }
+
+  /* Force-readable text inside neutral chips that hardcode pure white. */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .bg-\[\#d4d4d8\]\/12.text-\[\#ffffff\],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .bg-\[\#a1a1aa\]\/12.text-\[\#ffffff\],
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .text-\[\#ffffff\].bg-\[\#d4d4d8\]\/12,
+  [data-cashier-theme-scope]:not([data-cashier-theme-scope="garage-default"]) .text-\[\#ffffff\].bg-\[\#d4d4d8\]\/12 {
+    color: var(--cashier-muted) !important;
+  }
+
+  /* Cart empty state & generic muted captions — boost contrast so
+     "Tap menu untuk mulai…" and "Slap tambah" stay readable. */
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .pos-cart-empty,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .pos-empty-state {
+    color: var(--cashier-muted) !important;
+  }
+
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .pos-cart-empty svg,
+  .garage-shell[data-cashier-theme]:not([data-cashier-theme="garage-default"]) .cashier-pos-surface .pos-empty-state svg {
+    color: var(--cashier-muted) !important;
+    opacity: 0.7;
+  }
+
+  .garage-login-shell {
+    overflow-x: clip;
+  }
+
+  .garage-login-shell::before {
+    animation: garage-login-grid-drift 18s linear infinite;
+    background-image:
+      linear-gradient(rgba(255, 42, 58, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245, 167, 66, 0.035) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 86%);
+  }
+
+  .garage-login-shell::after {
+    animation: garage-login-haze 9s ease-in-out infinite;
+    opacity: 0.86;
+  }
+
+  .garage-login-ambient {
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: fixed;
+    z-index: 0;
+  }
+
+  .garage-login-ambient::before,
+  .garage-login-ambient::after {
+    content: "";
+    filter: blur(10px);
+    opacity: 0.52;
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .garage-login-ambient::before {
+    --garage-login-engine-angle: -9deg;
+    animation: garage-login-engine-glow 6s ease-in-out infinite;
+    background:
+      linear-gradient(90deg, transparent, rgba(255, 42, 58, 0.24), rgba(245, 167, 66, 0.16), transparent);
+    height: 24rem;
+    left: -12%;
+    top: 10%;
+    transform: rotate(-9deg);
+    width: 70%;
+  }
+
+  .garage-login-ambient::after {
+    --garage-login-engine-angle: 11deg;
+    animation: garage-login-engine-glow 7.5s ease-in-out 1.2s infinite reverse;
+    background:
+      linear-gradient(90deg, transparent, rgba(245, 167, 66, 0.18), rgba(255, 42, 58, 0.22), transparent);
+    bottom: 4%;
+    height: 18rem;
+    right: -14%;
+    transform: rotate(11deg);
+    width: 66%;
+  }
+
+  .garage-login-grid {
+    position: relative;
+    z-index: 1;
+  }
+
+  .garage-login-neon-rail {
+    background: linear-gradient(90deg, transparent, rgba(255, 42, 58, 0.92), rgba(245, 167, 66, 0.62), transparent);
+    box-shadow:
+      0 0 18px rgba(255, 42, 58, 0.32),
+      0 0 42px rgba(245, 167, 66, 0.18);
+    height: 1px;
+    opacity: 0.7;
+    position: absolute;
+    width: 62vw;
+  }
+
+  .garage-login-neon-rail-top {
+    animation: garage-login-rail-top 7s ease-in-out infinite;
+    left: -24vw;
+    top: 13%;
+    transform: rotate(-8deg);
+  }
+
+  .garage-login-neon-rail-bottom {
+    animation: garage-login-rail-bottom 8s ease-in-out 1s infinite;
+    bottom: 16%;
+    right: -22vw;
+    transform: rotate(-8deg);
+  }
+
+  .garage-login-scanline {
+    animation: garage-login-scan 6s linear infinite;
+    background:
+      linear-gradient(180deg, transparent, rgba(245, 167, 66, 0.16), rgba(255, 42, 58, 0.14), transparent);
+    height: 18vh;
+    inset-inline: 0;
+    opacity: 0.42;
+    position: absolute;
+    top: -22vh;
+  }
+
+  .garage-login-ember {
+    animation: garage-login-ember-rise 5.8s linear infinite;
+    background: radial-gradient(circle, #ffd08a 0 22%, #ff2a3a 42%, transparent 72%);
+    border-radius: 999px;
+    bottom: -24px;
+    box-shadow:
+      0 0 10px rgba(255, 42, 58, 0.42),
+      0 0 18px rgba(245, 167, 66, 0.24);
+    height: 4px;
+    opacity: 0;
+    position: absolute;
+    width: 4px;
+  }
+
+  .garage-login-ember.ember-1 { animation-delay: 0s; left: 6%; }
+  .garage-login-ember.ember-2 { animation-delay: 0.8s; left: 17%; }
+  .garage-login-ember.ember-3 { animation-delay: 1.6s; left: 31%; }
+  .garage-login-ember.ember-4 { animation-delay: 2.4s; left: 46%; }
+  .garage-login-ember.ember-5 { animation-delay: 3.2s; left: 61%; }
+  .garage-login-ember.ember-6 { animation-delay: 4s; left: 73%; }
+  .garage-login-ember.ember-7 { animation-delay: 4.8s; left: 84%; }
+  .garage-login-ember.ember-8 { animation-delay: 5.4s; left: 93%; }
+
+  .garage-login-hero,
+  .garage-login-card {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .garage-login-hero::before,
+  .garage-login-card::after {
+    animation: garage-login-panel-sheen 6.5s ease-in-out infinite;
+    background:
+      linear-gradient(115deg, transparent 0 30%, rgba(255, 255, 255, 0.08) 43%, rgba(255, 42, 58, 0.14) 50%, rgba(245, 167, 66, 0.1) 56%, transparent 70% 100%);
+    content: "";
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    transform: translateX(-115%);
+    z-index: 0;
+  }
+
+  .garage-login-hero::after,
+  .garage-login-card::before {
+    animation: garage-login-border-pulse 4.8s ease-in-out infinite;
+    border: 1px solid rgba(255, 42, 58, 0.24);
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 28px rgba(209, 26, 42, 0.1),
+      0 0 34px rgba(209, 26, 42, 0.16);
+    content: "";
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+  }
+
+  .garage-login-hero > *,
+  .garage-login-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .garage-login-card {
+    animation:
+      garage-rise 420ms cubic-bezier(0.2, 0.9, 0.2, 1) both,
+      garage-login-card-breathe 5.5s ease-in-out 600ms infinite;
+  }
+
+  .garage-login-chip {
+    animation: garage-login-chip-glow 2.8s ease-in-out infinite;
+    box-shadow: 0 0 22px rgba(209, 26, 42, 0.18);
+  }
+
+  .garage-login-stat {
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      filter 180ms ease,
+      transform 180ms ease;
+  }
+
+  .garage-login-stat:hover {
+    border-color: rgba(245, 167, 66, 0.48);
+    box-shadow: 0 0 26px rgba(245, 167, 66, 0.12);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+
+  .garage-logo-wrap.garage-login-logo-crop {
+    max-width: min(100%, 380px);
+  }
+
+  .garage-login-role-card {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .garage-login-role-card::after {
+    background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.11), rgba(245, 167, 66, 0.09), transparent);
+    content: "";
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    transform: translateX(-110%);
+    transition: opacity 160ms ease;
+  }
+
+  .garage-login-role-card:hover {
+    box-shadow:
+      0 0 0 1px rgba(255, 42, 58, 0.08),
+      0 12px 28px rgba(0, 0, 0, 0.2);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+
+  .garage-login-role-card:hover::after,
+  .garage-login-role-card-active::after {
+    animation: garage-login-card-scan 1.4s ease-out both;
+    opacity: 1;
+  }
+
+  .garage-login-role-card-active {
+    animation: garage-login-active-role 2.8s ease-in-out infinite;
+  }
+
+  .garage-login-submit {
+    animation: garage-login-submit-glow 3.2s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px rgba(255, 42, 58, 0.18),
+      0 0 24px rgba(209, 26, 42, 0.18);
+  }
+
+  .garage-login-card [data-slot="input"]:focus-visible {
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.32),
+      0 0 22px rgba(245, 167, 66, 0.14);
+  }
+
+  .garage-panel {
+    background: var(--garage-panel-bg);
+    border: 1px solid var(--garage-line);
+    box-shadow: var(--garage-shadow-panel);
+    overflow: hidden;
+    position: relative;
+    max-width: 100%;
+  }
+
+  .garage-panel::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--garage-red) 72%, transparent),
+      color-mix(in srgb, var(--garage-amber) 42%, transparent),
+      transparent
+    );
+    content: "";
+    height: 1px;
+    inset: 0 0 auto;
+    opacity: 0.62;
+    position: absolute;
+    z-index: 0;
+  }
+
+  .garage-panel > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .garage-theme-bright .garage-panel {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.045)),
+      linear-gradient(145deg, color-mix(in srgb, var(--garage-panel) 98%, transparent), color-mix(in srgb, var(--garage-bg-1) 98%, transparent));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 16px 44px rgba(0, 0, 0, 0.18);
+  }
+
+  .garage-theme-bright .garage-panel::before {
+    opacity: 0.42;
+  }
+
+  .garage-theme-bright .garage-side-panel,
+  .garage-theme-bright header,
+  .garage-theme-bright [data-slot="sheet-content"] {
+    background-color: rgba(30, 30, 36, 0.94) !important;
+  }
+
+  .garage-theme-bright .garage-theme-card,
+  .garage-theme-bright .pos-bill-panel,
+  .garage-theme-bright .pos-product-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.052)),
+      var(--garage-panel) !important;
+  }
+
+  .garage-shell[data-garage-preset] .garage-side-panel,
+  .garage-shell[data-garage-preset] header,
+  .garage-shell[data-garage-preset] [data-slot="sheet-content"],
+  .garage-shell[data-garage-preset] [data-slot="dialog-content"],
+  .garage-shell[data-garage-preset] [data-slot="popover-content"],
+  .garage-shell[data-garage-preset] [data-slot="select-content"] {
+    background-color: color-mix(in srgb, var(--garage-surface) var(--garage-glass-opacity), transparent) !important;
+    border-color: var(--garage-line) !important;
+    color: var(--garage-fg);
+    box-shadow: var(--garage-shadow-raised);
+  }
+
+  .garage-shell[data-garage-preset] main,
+  .garage-shell[data-garage-preset] section,
+  .garage-shell[data-garage-preset] article {
+    color: var(--garage-fg);
+  }
+
+  .garage-shell[data-garage-preset] h1,
+  .garage-shell[data-garage-preset] h2,
+  .garage-shell[data-garage-preset] h3,
+  .garage-shell[data-garage-preset] h4,
+  .garage-shell[data-garage-preset] .garage-display {
+    font-family: var(--garage-font-display);
+    font-weight: var(--garage-heading-weight);
+    letter-spacing: var(--garage-letter-spacing);
+    text-transform: var(--garage-display-transform);
+  }
+
+  .garage-shell[data-garage-preset] [class*="border-[#34343c]"],
+  .garage-shell[data-garage-preset] [class*="border-[#4a4a54]"],
+  .garage-shell[data-garage-preset] [class*="border-[#2a2a32]"],
+  .garage-shell[data-garage-preset] [class*="border-white/"],
+  .garage-shell[data-garage-preset] [class*="border-zinc-"] {
+    border-color: var(--garage-line) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="bg-[#0b0b0e]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#111116]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#17171c]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#17171d]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#1b1b21]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#23232a]"] {
+    background-color: color-mix(in srgb, var(--garage-bg-1) 94%, transparent) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="bg-[#0f0f14]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#18181f]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#202027]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#25252d]"],
+  .garage-shell[data-garage-preset] [class*="bg-[#2b2b34]"],
+  .garage-shell[data-garage-preset] [class*="bg-black/"],
+  .garage-shell[data-garage-preset] [class*="bg-white/["],
+  .garage-shell[data-garage-preset] [class*="bg-white/0"],
+  .garage-shell[data-garage-preset] [class*="bg-zinc-"] {
+    background: var(--garage-card-bg) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="hover:bg-white/"]:hover,
+  .garage-shell[data-garage-preset] [class*="hover:bg-black/"]:hover,
+  .garage-shell[data-garage-preset] [class*="hover:bg-[#202027]"]:hover,
+  .garage-shell[data-garage-preset] [class*="hover:bg-[#25252d]"]:hover {
+    background: var(--garage-hover-bg) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="bg-[#d11a2a]"],
+  .garage-shell[data-garage-preset] [class*="hover:bg-[#d11a2a]"]:hover,
+  .garage-shell[data-garage-preset] [class*="bg-[#ff2a3a]"],
+  .garage-shell[data-garage-preset] [class*="hover:bg-[#ff2a3a]"]:hover {
+    background-color: var(--garage-red) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="bg-[#d11a2a]/"],
+  .garage-shell[data-garage-preset] [class*="hover:bg-[#d11a2a]/"]:hover {
+    background-color: color-mix(in srgb, var(--garage-red) 18%, transparent) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="bg-[#f5a742]"] {
+    background-color: var(--garage-amber) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="bg-[#f5a742]/"] {
+    background-color: color-mix(in srgb, var(--garage-amber) 18%, transparent) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="border-[#d11a2a]"] {
+    border-color: color-mix(in srgb, var(--garage-red) 58%, var(--garage-line)) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="border-[#f5a742]"] {
+    border-color: color-mix(in srgb, var(--garage-amber) 58%, var(--garage-line)) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="text-[#d11a2a]"],
+  .garage-shell[data-garage-preset] [class*="text-[#ff2a3a]"],
+  .garage-shell[data-garage-preset] [class*="text-[#ffc2c8]"],
+  .garage-shell[data-garage-preset] [class*="text-[#ffe1e5]"] {
+    color: color-mix(in srgb, var(--garage-red-bright) 76%, var(--garage-fg)) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="text-[#f5a742]"],
+  .garage-shell[data-garage-preset] [class*="text-[#ffd08a]"],
+  .garage-shell[data-garage-preset] [class*="text-[#ffd79a]"] {
+    color: color-mix(in srgb, var(--garage-amber) 82%, var(--garage-fg)) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="text-white"],
+  .garage-shell[data-garage-preset] [class*="text-[#ffffff]"],
+  .garage-shell[data-garage-preset] [class*="text-[#f4f4f5]"] {
+    color: var(--garage-fg) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="text-[#d4d4d8]"],
+  .garage-shell[data-garage-preset] [class*="text-[#d6d6dc]"],
+  .garage-shell[data-garage-preset] [class*="text-zinc-300"],
+  .garage-shell[data-garage-preset] [class*="text-zinc-400"] {
+    color: var(--garage-dim) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="text-[#b8b8bf]"],
+  .garage-shell[data-garage-preset] [class*="text-[#a1a1aa]"],
+  .garage-shell[data-garage-preset] [class*="text-[#8f8f99]"],
+  .garage-shell[data-garage-preset] [class*="text-zinc-500"],
+  .garage-shell[data-garage-preset] [class*="text-muted-foreground"] {
+    color: var(--garage-mute) !important;
+  }
+
+  .garage-shell[data-garage-preset] .garage-theme-card,
+  .garage-shell[data-garage-preset] .garage-surface,
+  .garage-shell[data-garage-preset] .pos-bill-panel,
+  .garage-shell[data-garage-preset] .pos-product-card,
+  .garage-shell[data-garage-preset] .pos-cart-line,
+  .garage-shell[data-garage-preset] .pos-total-box,
+  .garage-shell[data-garage-preset] .pos-voucher-box,
+  .garage-shell[data-garage-preset] .pos-qty-control {
+    background: var(--garage-card-bg) !important;
+    border-color: var(--garage-line) !important;
+    box-shadow: var(--garage-shadow-raised) !important;
+    color: var(--garage-fg) !important;
+  }
+
+  .garage-shell[data-garage-preset] [class*="shadow-"],
+  .garage-shell[data-garage-preset] [class*="shadow_"],
+  .garage-shell[data-garage-preset] [class*="shadow-["] {
+    box-shadow: var(--garage-shadow-raised) !important;
+  }
+
+  .garage-shell[data-garage-preset] .garage-panel::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--garage-red) 78%, transparent),
+      color-mix(in srgb, var(--garage-amber) 48%, transparent),
+      transparent
+    );
+  }
+
+  .garage-theme-control,
+  .garage-theme-debug,
+  .garage-theme-preset-card,
+  .garage-theme-debug-cell {
+    background: var(--garage-card-bg);
+    border-color: var(--garage-line);
+    color: var(--garage-fg);
+  }
+
+  .garage-theme-control,
+  .garage-theme-debug {
+    box-shadow: var(--garage-shadow-raised);
+  }
+
+  .garage-theme-input {
+    background: var(--garage-input-bg) !important;
+    border-color: var(--garage-line) !important;
+    color: var(--garage-fg);
+  }
+
+  .garage-theme-preset-card:hover {
+    border-color: color-mix(in srgb, var(--garage-amber) 58%, var(--garage-line));
+    background: color-mix(in srgb, var(--garage-bg-3) 76%, transparent);
+  }
+
+  .garage-theme-preset-card.is-active {
+    border-color: var(--garage-amber);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--garage-amber) 15%, transparent), transparent),
+      color-mix(in srgb, var(--garage-bg-3) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.075),
+      0 0 0 1px color-mix(in srgb, var(--garage-amber) 22%, transparent);
+  }
+
+  .garage-theme-status-badge {
+    background: color-mix(in srgb, var(--garage-amber) 16%, transparent) !important;
+    border-color: color-mix(in srgb, var(--garage-amber) 45%, var(--garage-line)) !important;
+    color: color-mix(in srgb, var(--garage-amber) 82%, var(--garage-fg)) !important;
+  }
+
+  .garage-display {
+    font-family: var(--garage-font-display);
+    font-weight: var(--garage-heading-weight);
+    letter-spacing: var(--garage-letter-spacing);
+    line-height: 0.95;
+    text-transform: var(--garage-display-transform);
+  }
+
+  .garage-mono {
+    color: var(--garage-dim);
+    font-family: var(--garage-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+
+  .garage-chrome {
+    background: linear-gradient(
+      180deg,
+      var(--garage-fg) 0%,
+      var(--garage-silver) 38%,
+      color-mix(in srgb, var(--garage-silver) 48%, var(--garage-bg-0)) 58%,
+      var(--garage-fg) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: var(--garage-chrome-shadow);
+  }
+
+  .garage-red-glow {
+    box-shadow:
+      0 0 0 1px rgba(255, 42, 58, 0.28),
+      0 0 34px rgba(209, 26, 42, 0.28);
+  }
+
+  .garage-logo-wrap {
+    max-width: 100%;
+    min-width: 0;
+    position: relative;
+  }
+
+  .garage-logo-frame {
+    align-items: center;
+    aspect-ratio: 1024 / 325;
+    animation: garage-logo-reveal 600ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    clip-path: none;
+    display: flex;
+    justify-content: center;
+    line-height: 0;
+    min-height: 0;
+    overflow: visible;
+    padding: 0;
+    position: relative;
+    transition:
+      filter 180ms ease,
+      transform 180ms ease;
+    width: 100%;
+  }
+
+  .garage-logo-frame::before,
+  .garage-logo-frame::after {
+    content: none;
+    display: none;
+  }
+
+  .garage-logo-frame:hover {
+    box-shadow: none;
+    filter: none;
+    transform: none;
+  }
+
+  .garage-logo-frame:hover::after {
+    animation: none;
+  }
+
+  .garage-logo-image {
+    display: block;
+    filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.38));
+    flex: 1 1 auto;
+    height: 100%;
+    max-width: 100%;
+    min-height: 0;
+    min-width: 0;
+    object-fit: contain;
+    position: relative;
+    transform: none;
+    width: 100%;
+    z-index: 1;
+  }
+
+  .garage-logo-sidebar {
+    max-width: 292px;
+  }
+
+  .garage-logo-compact {
+    max-width: 300px;
+    width: 100%;
+  }
+
+  .garage-logo-loading {
+    max-width: 340px;
+    width: 100%;
+  }
+
+  .garage-surface {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.024)),
+      var(--garage-panel-soft);
+    border: 1px solid var(--garage-line);
+    max-width: 100%;
+  }
+
+  .garage-theme-bright .garage-surface {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.044)),
+      var(--garage-panel-soft);
+  }
+
+  .garage-theme-bright [data-slot="input"],
+  .garage-theme-bright textarea,
+  .garage-theme-bright select {
+    background-color: rgba(255, 255, 255, 0.095) !important;
+  }
+
+  .garage-scroll,
+  .garage-scroll-x {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+  }
+
+  .garage-scroll {
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .garage-scroll-x {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+  }
+
+  .garage-animate-in {
+    animation: garage-rise 420ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  }
+
+  .garage-hover-lift {
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+
+  .garage-hover-lift:hover {
+    border-color: color-mix(in srgb, var(--garage-red) 44%, var(--garage-line-2));
+    box-shadow:
+      0 0 0 1px rgba(255, 42, 58, 0.16),
+      0 16px 36px rgba(0, 0, 0, 0.28);
+    transform: translateY(-1px);
+  }
+
+  .garage-press {
+    transition:
+      filter 140ms ease,
+      transform 140ms ease;
+  }
+
+  .garage-press:active {
+    filter: brightness(1.14);
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .garage-side-panel {
+    scrollbar-gutter: stable;
+  }
+
+  .garage-finance-module {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  @media (max-width: 639px) {
+    .garage-finance-module .garage-panel {
+      overflow: hidden;
+    }
+  }
+
+  .garage-pos-nav-sheet {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  .garage-sidebar-peek {
+    border-left: 0;
+  }
+
+  .garage-sidebar-peek-label {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  .qr-order-notice[data-pulse="true"] {
+    animation: garage-qr-order-notice-pulse 1.35s ease-out both;
+  }
+
+  .pos-bill-panel {
+    opacity: 0;
+    pointer-events: none;
+    translate: 0 calc(100% + 1rem);
+  }
+
+  .pos-bill-panel[data-open="true"] {
+    opacity: 1;
+    pointer-events: auto;
+    translate: 0 0;
+  }
+
+  .pos-bill-footer {
+    bottom: 0;
+    position: sticky;
+    z-index: 3;
+  }
+
+  @media (max-height: 760px) {
+    .pos-bill-panel {
+      gap: 0.35rem;
+    }
+
+    .pos-bill-panel .pos-bill-footer {
+      padding: 0.5rem;
+    }
+
+    .pos-bill-panel .pos-cart-scroll {
+      min-height: 7.5rem;
+    }
+  }
+
+  .pos-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pos-product-card {
+    min-width: 0;
+  }
+
+  .cashier-pos-surface[data-pos-text-size="large"] .pos-product-name {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .cashier-pos-surface[data-pos-text-size="large"] .pos-product-price {
+    font-size: 1.125rem;
+  }
+
+  .cashier-pos-surface[data-pos-text-size="large"] .pos-product-meta,
+  .cashier-pos-surface[data-pos-text-size="large"] .pos-product-note,
+  .cashier-pos-surface[data-pos-text-size="large"] .pos-muted-label,
+  .cashier-pos-surface[data-pos-text-size="large"] .pos-bill-label {
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .cashier-pos-surface[data-pos-card-density="large"] .pos-product-card {
+    min-height: 9.25rem;
+    padding: 0.9rem;
+  }
+
+  .cashier-pos-surface[data-pos-card-density="large"] .pos-product-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .pos-product-card:hover .pos-product-order-cta,
+  .pos-product-card:focus-visible .pos-product-order-cta {
+    animation: garage-pos-order-cta-pulse 820ms ease-out both;
+    background: #ff2a3a;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 0 24px rgba(209, 26, 42, 0.36);
+    transform: translateY(-1px);
+  }
+
+  .pos-product-order-cta {
+    transition:
+      background-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease;
+  }
+
+  .pos-table-indicator {
+    display: inline-flex;
+    width: 0.5rem;
+    height: 0.5rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: #6e6e76;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .pos-table-indicator[data-state="ready"] {
+    animation: garage-pos-table-ready-pulse 2s ease-in-out infinite;
+    background: #22c55e;
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.3),
+      0 0 14px rgba(34, 197, 94, 0.28);
+  }
+
+  .pos-table-indicator[data-state="full"] {
+    animation: garage-pos-table-full-pulse 1.12s ease-in-out infinite;
+    background: #d11a2a;
+    box-shadow:
+      0 0 0 1px rgba(209, 26, 42, 0.34),
+      0 0 16px rgba(209, 26, 42, 0.34);
+  }
+
+  .pos-table-indicator[data-state="unknown"] {
+    background: #6e6e76;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  @media (min-width: 640px) {
+    .pos-product-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cashier-pos-surface[data-pos-card-density="large"] .pos-product-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .pos-bill-panel,
+    .pos-bill-panel[data-open="false"],
+    .pos-bill-panel[data-open="true"] {
+      height: 100%;
+      inset: auto !important;
+      max-height: none;
+      opacity: 1;
+      pointer-events: auto;
+      position: sticky;
+      top: 0;
+      translate: 0 0;
+      width: auto;
+      z-index: 20;
+    }
+
+    .pos-bill-footer {
+      bottom: 0;
+      box-shadow:
+        0 -18px 36px rgba(8, 8, 10, 0.62),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .pos-product-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .cashier-pos-surface[data-pos-card-density="large"] .pos-product-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cashier-pos-surface[data-pos-bill-layout="bottom"] .pos-main-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cashier-pos-surface[data-pos-bill-layout="bottom"] .pos-bill-panel {
+      bottom: 0.5rem;
+      height: auto;
+      max-height: min(42svh, 25rem);
+      position: fixed;
+      top: auto;
+      width: auto;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .pos-product-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .cashier-pos-surface[data-pos-card-density="large"] .pos-product-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .garage-shift-open {
+    animation: garage-shift-open-pulse 2s ease-in-out infinite;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(34, 197, 94, 0.16),
+      0 0 18px rgba(34, 197, 94, 0.12);
+  }
+
+  .garage-shift-closed {
+    animation: garage-shift-closed-pulse 1.05s ease-in-out infinite;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(209, 26, 42, 0.3),
+      0 0 26px rgba(209, 26, 42, 0.22);
+  }
+
+  .garage-kds-column {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.055),
+      0 16px 36px rgba(0, 0, 0, 0.22);
+  }
+
+  .garage-kds-ticket {
+    animation: garage-kds-ticket-in 360ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+
+  .garage-kds-ticket:hover {
+    border-color: color-mix(in srgb, var(--garage-amber) 54%, var(--garage-line-2));
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.13),
+      0 16px 36px rgba(0, 0, 0, 0.24);
+    transform: translateY(-1px);
+  }
+
+  .garage-kds-list-row {
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+
+  .garage-kds-list-row:hover {
+    border-color: color-mix(in srgb, var(--garage-amber) 50%, var(--garage-line-2));
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.11),
+      0 14px 30px rgba(0, 0, 0, 0.22);
+    transform: translateY(-1px);
+  }
+
+  .garage-kds-digital {
+    font-family: var(--font-geist-mono), "SFMono-Regular", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  .garage-kds-action {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 24px rgba(209, 26, 42, 0.18);
+  }
+
+  .garage-kds-live-dot {
+    animation: garage-kds-live 1.5s ease-in-out infinite;
+    box-shadow: 0 0 0 rgba(245, 167, 66, 0.35);
+  }
+
+  .garage-kds-alert {
+    animation: garage-kds-alert 1.1s ease-in-out infinite;
+  }
+
+  .garage-kds-late {
+    animation:
+      garage-kds-ticket-in 360ms cubic-bezier(0.2, 0.9, 0.2, 1) both,
+      garage-kds-late-pulse 1.8s ease-in-out infinite;
+  }
+
+  .garage-kds-list-danger {
+    animation: garage-kds-late-pulse 1.8s ease-in-out infinite;
+  }
+
+  .garage-kds-danger-clock,
+  .garage-kds-danger-icon {
+    animation: garage-kds-danger-pulse 1s ease-in-out infinite;
+  }
+
+  [data-slot="card"] {
+    border-color: var(--garage-line);
+    border-radius: var(--radius-lg);
+    background: var(--garage-card-bg);
+    box-shadow: var(--garage-shadow-raised);
+    color: var(--garage-fg);
+  }
+
+  [data-slot="card-description"] {
+    color: var(--garage-dim);
+  }
+
+  [data-slot="card-title"],
+  [data-slot="dialog-title"],
+  [data-slot="sheet-title"] {
+    font-family: var(--garage-font-display);
+    font-weight: var(--garage-heading-weight);
+    letter-spacing: var(--garage-letter-spacing);
+    text-transform: var(--garage-display-transform);
+  }
+
+  [data-slot="button"] {
+    border-radius: var(--radius);
+    font-family: var(--garage-font-body);
+    font-weight: var(--garage-body-weight);
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      color 180ms ease,
+      transform 140ms ease;
+  }
+
+  [data-slot="button"]:active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="bg-primary"],
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="bg-[#d11a2a]"],
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="bg-[#ff2a3a]"] {
+    background: var(--garage-button-bg) !important;
+    box-shadow: var(--garage-shadow-button);
+    color: var(--garage-button-text) !important;
+  }
+
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="bg-primary"]:hover,
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="hover:bg-[#d11a2a]"]:hover,
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="hover:bg-[#ff2a3a]"]:hover {
+    background: var(--garage-button-hover) !important;
+    box-shadow: var(--garage-shadow-button), var(--garage-glow-primary);
+  }
+
+  .garage-shell[data-garage-preset] [data-slot="button"][class*="border"],
+  .garage-shell[data-garage-preset] button[class*="border"] {
+    border-color: color-mix(in srgb, var(--garage-line) 82%, var(--garage-fg)) !important;
+  }
+
+  .garage-shell[data-garage-preset] [data-slot="button"]:focus-visible,
+  .garage-shell[data-garage-preset] button:focus-visible,
+  .garage-shell[data-garage-preset] a:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 1px var(--garage-focus-ring),
+      0 0 0 4px color-mix(in srgb, var(--garage-focus-ring) 24%, transparent),
+      var(--garage-glow-accent);
+  }
+
+  [data-slot="badge"] {
+    border-radius: 999px;
+    font-family: var(--garage-font-mono);
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .garage-shell[data-garage-preset] [data-slot="badge"] {
+    background: var(--garage-badge-bg);
+    border-color: color-mix(in srgb, var(--garage-focus-ring) 42%, var(--garage-line));
+    color: color-mix(in srgb, var(--garage-focus-ring) 80%, var(--garage-fg));
+  }
+
+  [data-slot="tabs-list"] {
+    background: color-mix(in srgb, var(--garage-surface-soft) 88%, transparent);
+    border: 1px solid var(--garage-line);
+  }
+
+  [data-slot="tabs-trigger"] {
+    color: var(--garage-dim);
+  }
+
+  [data-slot="tabs-trigger"][data-state="active"] {
+    background: var(--garage-active-bg);
+    color: var(--garage-fg);
+    box-shadow: var(--garage-shadow-button);
+  }
+
+  [data-slot="table-head"] {
+    color: var(--garage-dim);
+    font-family: var(--garage-font-mono);
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  [data-slot="table-row"] {
+    border-color: var(--garage-line);
+  }
+
+  [data-slot="table-body"] [data-slot="table-row"]:hover {
+    background: var(--garage-hover-bg);
+  }
+
+  [data-slot="input"],
+  [data-slot="select-trigger"],
+  [data-slot="textarea"] {
+    background: var(--garage-input-bg);
+    border-color: var(--garage-line);
+    color: var(--garage-fg);
+  }
+
+  .garage-shell[data-garage-preset] [data-slot="input"]:focus-visible,
+  .garage-shell[data-garage-preset] [data-slot="select-trigger"]:focus-visible,
+  .garage-shell[data-garage-preset] [data-slot="textarea"]:focus-visible {
+    border-color: var(--garage-focus-ring);
+    box-shadow:
+      0 0 0 1px var(--garage-focus-ring),
+      0 0 0 4px color-mix(in srgb, var(--garage-focus-ring) 18%, transparent);
+  }
+
+  [data-slot="input"]::placeholder,
+  [data-slot="textarea"]::placeholder {
+    color: var(--garage-mute);
+  }
+
+  [data-slot="scroll-area-thumb"] {
+    background: linear-gradient(180deg, var(--garage-line-2), var(--garage-red-deep));
+  }
+
+  /* ============================================================
+     Garage OS — default dark operational shell (selaras .garage-shell).
+     Mode terang hanya untuk preset dengan data-garage-os-surface="light".
+     ============================================================ */
+
+  .garage-os-shell {
+    --garage-canvas-bg: var(--garage-bg-0);
+    --garage-canvas-fg: var(--garage-fg);
+    --garage-balanced-card: var(--garage-bg-2);
+    --garage-balanced-panel: var(--garage-bg-1);
+    --garage-border-soft: var(--garage-line);
+    --garage-topbar-bg: color-mix(in srgb, var(--garage-bg-1) 92%, transparent);
+    --garage-shadow-color: rgba(0, 0, 0, 0.28);
+    --garage-os-border: var(--garage-line);
+    --garage-os-border-strong: color-mix(in srgb, var(--garage-red) 30%, var(--garage-line));
+    --garage-os-surface: var(--garage-bg-1);
+    --garage-os-surface-raised: var(--garage-bg-2);
+    --garage-os-surface-soft: var(--garage-bg-3);
+    --garage-os-shadow-panel: var(--garage-shadow-panel);
+    --garage-os-shadow-card: var(--garage-shadow-raised);
+    --garage-os-shadow-button: var(--garage-shadow-button);
+    --garage-os-row-hover: var(--garage-hover-bg);
+    --garage-os-control-bg: var(--garage-input-bg);
+    --garage-os-critical-bg: color-mix(in srgb, var(--garage-danger) 18%, var(--garage-bg-2));
+    --garage-os-success-bg: color-mix(in srgb, var(--garage-success) 14%, var(--garage-bg-2));
+    --garage-os-warning-bg: color-mix(in srgb, var(--garage-warning) 16%, var(--garage-bg-2));
+    --garage-shadow-panel: var(--garage-os-shadow-panel);
+    --garage-shadow-raised: var(--garage-os-shadow-card);
+    --garage-shadow-button: var(--garage-os-shadow-button);
+    --garage-glow-primary: 0 0 32px color-mix(in srgb, var(--garage-red) 28%, transparent);
+    --garage-glow-accent: 0 0 28px color-mix(in srgb, var(--garage-amber) 22%, transparent);
+    background: var(--garage-shell-bg) !important;
+    color: var(--garage-fg);
+    text-rendering: optimizeLegibility;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] {
+    --garage-os-border: var(--garage-border-soft);
+    --garage-os-border-strong: color-mix(in srgb, var(--garage-button-bg) 30%, var(--garage-border-soft));
+    --garage-os-surface: var(--garage-balanced-panel);
+    --garage-os-surface-raised: var(--garage-balanced-card);
+    --garage-os-surface-soft: color-mix(in srgb, var(--garage-balanced-panel) 72%, var(--garage-canvas-bg));
+    --garage-os-shadow-panel:
+      0 1px 0 rgba(255, 255, 255, 0.92) inset,
+      0 10px 24px var(--garage-shadow-color);
+    --garage-os-shadow-card:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 7px 16px color-mix(in srgb, var(--garage-shadow-color) 78%, transparent);
+    --garage-os-shadow-button:
+      0 1px 0 rgba(255, 255, 255, 0.07) inset,
+      0 6px 14px color-mix(in srgb, var(--garage-button-bg) 13%, transparent);
+    --garage-os-row-hover: color-mix(in srgb, var(--garage-button-bg) 7%, #ffffff);
+    --garage-os-critical-bg: color-mix(in srgb, var(--garage-danger) 12%, #ffffff);
+    --garage-os-success-bg: color-mix(in srgb, var(--garage-success) 10%, #ffffff);
+    --garage-os-warning-bg: color-mix(in srgb, var(--garage-warning) 12%, #ffffff);
+    --garage-glow-primary: 0 0 0 1px color-mix(in srgb, var(--garage-button-bg) 18%, transparent);
+    --garage-glow-accent: 0 0 0 3px color-mix(in srgb, var(--garage-focus-ring) 14%, transparent);
+    background: var(--garage-canvas-bg) !important;
+    color: var(--garage-canvas-fg);
+  }
+
+  .garage-os-shell[data-garage-preset="minimal-clean"] {
+    --garage-os-border: color-mix(in srgb, var(--garage-border-soft) 84%, #ffffff);
+    --garage-os-border-strong: color-mix(in srgb, var(--garage-line) 58%, var(--garage-button-bg));
+    --garage-os-shadow-panel:
+      0 1px 0 rgba(255, 255, 255, 0.82) inset,
+      0 8px 20px rgba(15, 23, 42, 0.07);
+    --garage-os-shadow-card: 0 5px 14px rgba(15, 23, 42, 0.06);
+  }
+
+  .garage-os-shell[data-garage-preset="jellyfish-slate"] {
+    --garage-os-border-strong: color-mix(in srgb, var(--garage-line) 54%, var(--garage-focus-ring));
+    --garage-glow-accent: 0 0 0 3px color-mix(in srgb, var(--garage-focus-ring) 10%, transparent);
+  }
+
+  .garage-os-shell[data-garage-preset="royal-olive-gold"] {
+    --garage-os-row-hover: color-mix(in srgb, var(--garage-button-bg) 10%, var(--garage-bg-2));
+    --garage-glow-accent: 0 0 0 3px color-mix(in srgb, var(--garage-focus-ring) 12%, transparent);
+  }
+
+  .garage-os-shell::before {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.68), transparent 78%);
+    opacity: 1;
+  }
+
+  .garage-os-shell::after {
+    background:
+      radial-gradient(circle at center, transparent 0, rgba(0, 0, 0, 0.12) 44%, rgba(0, 0, 0, 0.58) 100%),
+      repeating-radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 4px);
+    opacity: 0.78;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"]::before {
+    background-image: linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+    background-size: 100% 56px;
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.24), transparent 70%);
+    opacity: 0.2;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"]::after {
+    background: linear-gradient(180deg, transparent 0%, rgba(15, 23, 42, 0.05) 100%);
+    opacity: 0.22;
+  }
+
+  .garage-os-frame {
+    isolation: isolate;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-os-sidebar {
+    background: var(--garage-sidebar-bg) !important;
+    border-color: var(--garage-line) !important;
+    box-shadow: 12px 0 30px color-mix(in srgb, var(--garage-shadow-color) 72%, transparent) !important;
+    color: var(--garage-sidebar-fg) !important;
+    backdrop-filter: none !important;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-os-sidebar {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+      var(--garage-sidebar-bg) !important;
+    border-color: color-mix(in srgb, var(--garage-sidebar-bg) 78%, #ffffff) !important;
+    box-shadow: 12px 0 30px color-mix(in srgb, var(--garage-shadow-color) 72%, transparent) !important;
+    color: var(--garage-sidebar-fg) !important;
+    backdrop-filter: none !important;
+  }
+
+  .garage-os-sidebar *,
+  .garage-os-sidebar [class*="text-[#"],
+  .garage-os-sidebar [class*="text-zinc-"],
+  .garage-os-sidebar [class*="text-white"] {
+    color: inherit;
+  }
+
+  .garage-os-sidebar [data-module-nav-item] {
+    color: color-mix(in srgb, var(--garage-sidebar-fg) 78%, transparent) !important;
+  }
+
+  .garage-os-sidebar [data-module-nav-item]:hover {
+    background: color-mix(in srgb, var(--garage-sidebar-fg) 8%, transparent) !important;
+    border-color: color-mix(in srgb, var(--garage-sidebar-fg) 13%, transparent) !important;
+    color: var(--garage-sidebar-fg) !important;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"])
+    .garage-os-sidebar
+    [data-module-nav-item][aria-current="page"] {
+    background: var(--garage-sidebar-active-bg) !important;
+    border-color: color-mix(in srgb, var(--garage-sidebar-active-bg) 72%, var(--garage-line)) !important;
+    color: var(--garage-sidebar-fg) !important;
+    box-shadow: inset 3px 0 0 var(--garage-chart-secondary) !important;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"]
+    .garage-os-sidebar
+    [data-module-nav-item][aria-current="page"] {
+    background: var(--garage-sidebar-active-bg) !important;
+    border-color: color-mix(in srgb, var(--garage-sidebar-active-bg) 72%, #ffffff) !important;
+    color: var(--garage-sidebar-fg) !important;
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--garage-chart-secondary) 82%, #ffffff) !important;
+  }
+
+  .garage-os-sidebar [data-module-nav-icon] {
+    background: color-mix(in srgb, var(--garage-sidebar-fg) 8%, transparent) !important;
+    color: inherit !important;
+  }
+
+  .garage-os-sidebar .garage-theme-card,
+  .garage-os-sidebar .garage-panel {
+    background: color-mix(in srgb, var(--garage-sidebar-fg) 7%, transparent) !important;
+    border-color: color-mix(in srgb, var(--garage-sidebar-fg) 13%, transparent) !important;
+    box-shadow: none !important;
+    color: var(--garage-sidebar-fg) !important;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-os-toolbar,
+  .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="sheet-content"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="dialog-content"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="popover-content"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="select-content"] {
+    background: color-mix(in srgb, var(--garage-bg-1) 92%, transparent) !important;
+    border-color: var(--garage-line) !important;
+    box-shadow: var(--garage-shadow-panel) !important;
+    color: var(--garage-fg) !important;
+    backdrop-filter: blur(12px) saturate(1.05) !important;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-os-toolbar,
+  .garage-os-shell[data-garage-os-surface="light"] [data-slot="sheet-content"],
+  .garage-os-shell[data-garage-os-surface="light"] [data-slot="dialog-content"],
+  .garage-os-shell[data-garage-os-surface="light"] [data-slot="popover-content"],
+  .garage-os-shell[data-garage-os-surface="light"] [data-slot="select-content"] {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.44)),
+      var(--garage-topbar-bg) !important;
+    border-color: var(--garage-os-border) !important;
+    box-shadow: var(--garage-os-shadow-panel) !important;
+    color: var(--garage-canvas-fg) !important;
+    backdrop-filter: blur(6px) saturate(1.02) !important;
+  }
+
+  .garage-os-sidebar-peek {
+    background: var(--garage-sidebar-bg) !important;
+    color: var(--garage-sidebar-fg) !important;
+    box-shadow: none !important;
+  }
+
+  .garage-os-content {
+    background: transparent;
+    scroll-behavior: auto;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-panel,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-theme-card,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-surface,
+  .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="card"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#0b0b0e]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#111116]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#17171c]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#18181f]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#202027]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#222229]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#23232a]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-[#25252d]"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-black/"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) [class*="bg-white/"],
+  .garage-os-shell:not([data-garage-os-surface="light"]) .pos-product-card,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .pos-bill-panel,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .pos-cart-line,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .pos-total-box,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .pos-voucher-box,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .pos-qty-control {
+    background: var(--garage-card-bg) !important;
+    border-color: var(--garage-line) !important;
+    box-shadow: var(--garage-shadow-raised) !important;
+    color: var(--garage-fg) !important;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-panel,
+  .garage-os-shell[data-garage-os-surface="light"] .garage-theme-card,
+  .garage-os-shell[data-garage-os-surface="light"] .garage-surface,
+  .garage-os-shell[data-garage-os-surface="light"] [data-slot="card"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#0b0b0e]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#111116]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#17171c]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#18181f]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#202027]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#222229]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#23232a]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-[#25252d]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-black/"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="bg-white/"],
+  .garage-os-shell[data-garage-os-surface="light"] .pos-product-card,
+  .garage-os-shell[data-garage-os-surface="light"] .pos-bill-panel,
+  .garage-os-shell[data-garage-os-surface="light"] .pos-cart-line,
+  .garage-os-shell[data-garage-os-surface="light"] .pos-total-box,
+  .garage-os-shell[data-garage-os-surface="light"] .pos-voucher-box,
+  .garage-os-shell[data-garage-os-surface="light"] .pos-qty-control {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.68)),
+      var(--garage-os-surface-raised) !important;
+    border-color: var(--garage-os-border) !important;
+    box-shadow: var(--garage-os-shadow-card) !important;
+    color: var(--garage-canvas-fg) !important;
+  }
+
+  .garage-os-shell .garage-os-sidebar .garage-theme-card,
+  .garage-os-shell .garage-os-sidebar .garage-panel {
+    background: color-mix(in srgb, var(--garage-sidebar-fg) 7%, transparent) !important;
+    border-color: color-mix(in srgb, var(--garage-sidebar-fg) 13%, transparent) !important;
+    box-shadow: none !important;
+    color: var(--garage-sidebar-fg) !important;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-os-toolbar {
+    background: color-mix(in srgb, var(--garage-bg-1) 92%, transparent) !important;
+    color: var(--garage-fg) !important;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-os-toolbar {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.44)),
+      var(--garage-topbar-bg) !important;
+    color: var(--garage-canvas-fg) !important;
+  }
+
+  .garage-os-shell [class*="border-[#34343c]"],
+  .garage-os-shell [class*="border-[#4a4a54]"],
+  .garage-os-shell [class*="border-[#2a2a32]"],
+  .garage-os-shell [class*="border-white/"],
+  .garage-os-shell [class*="border-black/"] {
+    border-color: var(--garage-os-border) !important;
+  }
+
+  .garage-os-sidebar [class*="bg-white/"],
+  .garage-os-sidebar [class*="bg-black/"],
+  .garage-os-sidebar [class*="bg-[#0b0b0e]"],
+  .garage-os-sidebar [class*="bg-[#111116]"],
+  .garage-os-sidebar [class*="bg-[#17171c]"],
+  .garage-os-sidebar [class*="bg-[#222229]"] {
+    background: color-mix(in srgb, var(--garage-sidebar-fg) 7%, transparent) !important;
+  }
+
+  .garage-os-sidebar [class*="border-[#34343c]"],
+  .garage-os-sidebar [class*="border-[#4a4a54]"],
+  .garage-os-sidebar [class*="border-white/"] {
+    border-color: color-mix(in srgb, var(--garage-sidebar-fg) 13%, transparent) !important;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-os-panel,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-os-card {
+    background: var(--garage-card-bg);
+    border: 1px solid var(--garage-line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--garage-shadow-raised);
+    color: var(--garage-fg);
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-os-panel,
+  .garage-os-shell[data-garage-os-surface="light"] .garage-os-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.036), rgba(255, 255, 255, 0.01)),
+      var(--garage-os-surface-raised);
+    border: 1px solid var(--garage-os-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--garage-os-shadow-card);
+    color: var(--garage-canvas-fg);
+  }
+
+  .garage-os-card {
+    padding: 0.875rem;
+  }
+
+  .garage-os-toolbar {
+    min-width: 0;
+  }
+
+  .garage-os-shell .garage-red-glow,
+  .garage-os-shell .garage-theme-debug,
+  .garage-os-shell .garage-theme-control {
+    box-shadow: var(--garage-os-shadow-card) !important;
+  }
+
+  .garage-os-shell .garage-panel::before {
+    opacity: 0.22;
+  }
+
+  .garage-os-shell [data-slot="card-title"],
+  .garage-os-shell [data-slot="dialog-title"],
+  .garage-os-shell [data-slot="sheet-title"],
+  .garage-os-shell h1,
+  .garage-os-shell h2,
+  .garage-os-shell h3 {
+    letter-spacing: 0;
+  }
+
+  .garage-os-shell .garage-display {
+    line-height: 1.02;
+    text-shadow: none;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-chrome {
+    background: linear-gradient(180deg, var(--garage-fg), color-mix(in srgb, var(--garage-fg) 70%, var(--garage-mute)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: 0 0 24px rgba(244, 244, 245, 0.12);
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-chrome {
+    background: linear-gradient(180deg, var(--garage-canvas-fg), color-mix(in srgb, var(--garage-canvas-fg) 70%, var(--garage-mute)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: none;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] [class*="text-white"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="text-[#ffffff]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="text-[#f4f4f5]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="text-[#d4d4d8]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="text-[#d0d0d6]"],
+  .garage-os-shell[data-garage-os-surface="light"] [class*="text-zinc-"] {
+    color: var(--garage-canvas-fg) !important;
+  }
+
+  .garage-os-sidebar [class*="text-white"],
+  .garage-os-sidebar [class*="text-[#ffffff]"],
+  .garage-os-sidebar [class*="text-[#f4f4f5]"],
+  .garage-os-sidebar [class*="text-[#d4d4d8]"],
+  .garage-os-sidebar [class*="text-[#d0d0d6]"],
+  .garage-os-sidebar [class*="text-zinc-"] {
+    color: inherit !important;
+  }
+
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-mono,
+  .garage-os-shell:not([data-garage-os-surface="light"]) .garage-os-muted {
+    color: var(--garage-mute);
+    font-size: 0.68rem;
+    letter-spacing: 0;
+  }
+
+  .garage-os-shell[data-garage-os-surface="light"] .garage-mono,
+  .garage-os-shell[data-garage-os-surface="light"] .garage-os-muted {
+    color: color-mix(in srgb, var(--garage-canvas-fg) 58%, #ffffff);
+    font-size: 0.68rem;
+    letter-spacing: 0;
+  }
+
+  .garage-os-shell p,
+  .garage-os-shell label,
+  .garage-os-shell [data-slot="card-description"],
+  .garage-os-shell [data-slot="dialog-description"],
+  .garage-os-shell [data-slot="sheet-description"] {
+    letter-spacing: 0;
+  }
+
+  .garage-os-shell .garage-animate-in {
+    animation: garage-rise 180ms ease-out both;
+  }
+
+  .garage-os-shell .garage-hover-lift,
+  .garage-os-shell .garage-press,
+  .garage-os-shell [data-slot="button"],
+  .garage-os-shell .pos-product-card,
+  .garage-os-shell .garage-kds-ticket,
+  .garage-os-shell .garage-kds-list-row {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      color 120ms ease,
+      filter 120ms ease,
+      transform 90ms ease;
+  }
+
+  .garage-os-shell .garage-hover-lift:hover,
+  .garage-os-shell .pos-product-card:hover,
+  .garage-os-shell .garage-kds-ticket:hover,
+  .garage-os-shell .garage-kds-list-row:hover {
+    border-color: var(--garage-os-border-strong) !important;
+    box-shadow: var(--garage-os-shadow-card) !important;
+    filter: brightness(1.035);
+    transform: none;
+  }
+
+  .garage-os-shell .garage-press:active,
+  .garage-os-shell [data-slot="button"]:active {
+    filter: brightness(1.05);
+    transform: translateY(1px);
+  }
+
+  .garage-os-shell [data-slot="button"][class*="bg-primary"],
+  .garage-os-shell [data-slot="button"][class*="bg-[#d11a2a]"],
+  .garage-os-shell [data-slot="button"][class*="bg-[#ff2a3a]"],
+  .garage-os-shell [class*="bg-[#d11a2a]"],
+  .garage-os-shell [class*="bg-[#ff2a3a]"],
+  .garage-os-action {
+    background: var(--garage-button-bg) !important;
+    box-shadow: var(--garage-os-shadow-button) !important;
+    color: var(--garage-button-text) !important;
+  }
+
+  .garage-os-shell [data-slot="button"][class*="bg-primary"]:hover,
+  .garage-os-shell [data-slot="button"][class*="hover:bg-[#d11a2a]"]:hover,
+  .garage-os-shell [data-slot="button"][class*="hover:bg-[#ff2a3a]"]:hover,
+  .garage-os-shell [class*="hover:bg-[#d11a2a]"]:hover,
+  .garage-os-shell [class*="hover:bg-[#ff2a3a]"]:hover,
+  .garage-os-action:hover {
+    background: var(--garage-button-hover) !important;
+    box-shadow: var(--garage-os-shadow-button) !important;
+    filter: brightness(1.04);
+  }
+
+  .garage-os-shell [class*="bg-[#f5a742]"],
+  .garage-os-shell [class*="bg-[#ffd08a]"],
+  .garage-os-shell [class*="bg-[#ffd79a]"] {
+    background: var(--garage-chart-secondary) !important;
+    color: #111827 !important;
+  }
+
+  .garage-os-shell [class*="text-[#f5a742]"],
+  .garage-os-shell [class*="text-[#ffd08a]"],
+  .garage-os-shell [class*="text-[#ffd79a]"] {
+    color: color-mix(in srgb, var(--garage-chart-secondary) 78%, var(--garage-canvas-fg)) !important;
+  }
+
+  .garage-os-shell [class*="text-[#d11a2a]"],
+  .garage-os-shell [class*="text-[#ff2a3a]"],
+  .garage-os-shell [class*="text-[#ffc2c8]"],
+  .garage-os-shell [class*="text-[#ffb0b8]"] {
+    color: color-mix(in srgb, var(--garage-button-bg) 82%, var(--garage-canvas-fg)) !important;
+  }
+
+  .garage-os-shell svg [stroke="#d11a2a"],
+  .garage-os-shell svg [stroke="#ff2a3a"],
+  .garage-os-shell svg [stroke="#df2531"],
+  .garage-os-shell svg [stroke="rgb(209, 26, 42)"] {
+    stroke: var(--garage-chart-primary) !important;
+  }
+
+  .garage-os-shell svg [fill="#d11a2a"],
+  .garage-os-shell svg [fill="#ff2a3a"],
+  .garage-os-shell svg [fill="#df2531"],
+  .garage-os-shell svg [fill="rgb(209, 26, 42)"] {
+    fill: var(--garage-chart-primary) !important;
+  }
+
+  .garage-os-shell svg [stroke="#f5a742"],
+  .garage-os-shell svg [stroke="#ffd08a"],
+  .garage-os-shell svg [stroke="#ffb82e"],
+  .garage-os-shell svg [stroke="rgb(245, 167, 66)"] {
+    stroke: var(--garage-chart-secondary) !important;
+  }
+
+  .garage-os-shell svg [fill="#f5a742"],
+  .garage-os-shell svg [fill="#ffd08a"],
+  .garage-os-shell svg [fill="#ffb82e"],
+  .garage-os-shell svg [fill="rgb(245, 167, 66)"] {
+    fill: var(--garage-chart-secondary) !important;
+  }
+
+  .garage-os-shell .recharts-cartesian-grid line,
+  .garage-os-shell .recharts-polar-grid-angle line,
+  .garage-os-shell .recharts-polar-grid-concentric path {
+    stroke: color-mix(in srgb, var(--garage-border-soft) 76%, transparent) !important;
+  }
+
+  .garage-os-shell .recharts-text,
+  .garage-os-shell .recharts-label,
+  .garage-os-shell .recharts-cartesian-axis-tick-value {
+    fill: color-mix(in srgb, var(--garage-canvas-fg) 62%, #ffffff) !important;
+  }
+
+  .garage-os-shell .recharts-default-tooltip {
+    background: var(--garage-balanced-card) !important;
+    border: 1px solid var(--garage-border-soft) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--garage-os-shadow-card) !important;
+    color: var(--garage-canvas-fg) !important;
+  }
+
+  .garage-os-shell .recharts-tooltip-label,
+  .garage-os-shell .recharts-tooltip-item {
+    color: var(--garage-canvas-fg) !important;
+  }
+
+  .garage-os-shell [data-slot="input"],
+  .garage-os-shell [data-slot="select-trigger"],
+  .garage-os-shell [data-slot="textarea"],
+  .garage-os-shell input,
+  .garage-os-shell textarea,
+  .garage-os-shell select {
+    background: var(--garage-os-control-bg) !important;
+    border-color: var(--garage-os-border) !important;
+    box-shadow: none !important;
+  }
+
+  .garage-os-shell [data-slot="input"]:hover,
+  .garage-os-shell [data-slot="select-trigger"]:hover,
+  .garage-os-shell [data-slot="textarea"]:hover,
+  .garage-os-shell input:hover,
+  .garage-os-shell textarea:hover,
+  .garage-os-shell select:hover {
+    border-color: var(--garage-os-border-strong) !important;
+  }
+
+  .garage-os-shell [data-slot="badge"] {
+    background: var(--garage-accent-soft) !important;
+    border-color: color-mix(in srgb, var(--garage-focus-ring) 26%, var(--garage-border-soft)) !important;
+    box-shadow: none !important;
+    color: color-mix(in srgb, var(--garage-button-bg) 72%, var(--garage-canvas-fg)) !important;
+  }
+
+  .garage-os-shell [data-slot="tabs-list"],
+  .garage-os-list {
+    background: color-mix(in srgb, var(--garage-balanced-panel) 78%, #ffffff) !important;
+    border-color: var(--garage-os-border) !important;
+    box-shadow: none !important;
+  }
+
+  .garage-os-shell table,
+  .garage-os-shell [data-slot="table"] {
+    border-color: var(--garage-os-border);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .garage-os-shell [data-slot="table-header"],
+  .garage-os-shell thead {
+    background: color-mix(in srgb, var(--garage-balanced-panel) 82%, #ffffff);
+  }
+
+  .garage-os-shell [data-slot="table-head"],
+  .garage-os-shell th {
+    color: var(--garage-mute);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .garage-os-shell [data-slot="table-row"],
+  .garage-os-shell tr {
+    border-color: var(--garage-os-border) !important;
+  }
+
+  .garage-os-shell [data-slot="table-body"] [data-slot="table-row"]:hover,
+  .garage-os-shell tbody tr:hover {
+    background: var(--garage-os-row-hover) !important;
+  }
+
+  .garage-os-shell [class*="bg-[#22c55e]/"],
+  .garage-os-shell [class*="bg-green-"] {
+    background: var(--garage-os-success-bg) !important;
+  }
+
+  .garage-os-shell [class*="border-[#22c55e]"],
+  .garage-os-shell [class*="border-green-"] {
+    border-color: color-mix(in srgb, var(--garage-success) 34%, var(--garage-border-soft)) !important;
+  }
+
+  .garage-os-shell [class*="text-green-"],
+  .garage-os-shell [class*="text-[#22c55e]"] {
+    color: color-mix(in srgb, var(--garage-success) 78%, var(--garage-canvas-fg)) !important;
+  }
+
+  .garage-os-shell [class*="bg-[#f5a742]/"],
+  .garage-os-shell [class*="bg-yellow-"],
+  .garage-os-shell [class*="bg-amber-"] {
+    background: var(--garage-os-warning-bg) !important;
+  }
+
+  .garage-os-shell [class*="border-[#f5a742]"],
+  .garage-os-shell [class*="border-yellow-"],
+  .garage-os-shell [class*="border-amber-"] {
+    border-color: color-mix(in srgb, var(--garage-warning) 36%, var(--garage-border-soft)) !important;
+  }
+
+  .garage-os-shell [class*="text-yellow-"],
+  .garage-os-shell [class*="text-amber-"],
+  .garage-os-shell [class*="text-[#f5a742]"] {
+    color: color-mix(in srgb, var(--garage-warning) 76%, var(--garage-canvas-fg)) !important;
+  }
+
+  .garage-os-shell [class*="bg-[#d11a2a]/"],
+  .garage-os-shell [class*="bg-red-"] {
+    background: var(--garage-os-critical-bg) !important;
+  }
+
+  .garage-os-shell [class*="border-[#d11a2a]"],
+  .garage-os-shell [class*="border-[#ff2a3a]"],
+  .garage-os-shell [class*="border-red-"] {
+    border-color: color-mix(in srgb, var(--garage-danger) 34%, var(--garage-border-soft)) !important;
+  }
+
+  .garage-os-shell [class*="text-red-"],
+  .garage-os-shell [class*="text-[#d11a2a]"],
+  .garage-os-shell [class*="text-[#ff2a3a]"] {
+    color: color-mix(in srgb, var(--garage-danger) 78%, var(--garage-canvas-fg)) !important;
+  }
+
+  .garage-os-shell [data-slot="tabs-trigger"][data-state="active"] {
+    background: color-mix(in srgb, var(--garage-button-bg) 14%, #ffffff) !important;
+    box-shadow: none !important;
+  }
+
+  .garage-os-shell .pos-product-card:hover .pos-product-order-cta,
+  .garage-os-shell .pos-product-card:focus-visible .pos-product-order-cta {
+    animation: none;
+    box-shadow: var(--garage-os-shadow-button) !important;
+    transform: none;
+  }
+
+  .garage-os-shell .pos-product-grid {
+    gap: 0.5rem;
+  }
+
+  .garage-os-shell .pos-product-card {
+    contain: layout paint style;
+    min-height: 6.75rem;
+  }
+
+  .garage-os-shell .pos-product-name,
+  .garage-os-shell .pos-cart-title,
+  .garage-os-shell .pos-bill-value {
+    letter-spacing: 0;
+  }
+
+  .garage-os-shell .pos-bill-footer {
+    box-shadow:
+      0 -1px 0 var(--garage-os-border),
+      0 -10px 22px color-mix(in srgb, var(--garage-shadow-color) 72%, transparent) !important;
+  }
+
+  .garage-os-shell .garage-theme-preset-card {
+    box-shadow: none !important;
+  }
+
+  .garage-os-shell .garage-theme-preset-card.is-active {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--garage-focus-ring) 35%, transparent),
+      var(--garage-os-shadow-card) !important;
+  }
+
+  .garage-os-shell [class*="shadow-[0_18px_60px"],
+  .garage-os-shell [class*="shadow-[18px_0_50px"],
+  .garage-os-shell [class*="shadow-[0_24px_90px"],
+  .garage-os-shell [class*="shadow-2xl"] {
+    box-shadow: var(--garage-os-shadow-panel) !important;
+  }
+
+  .garage-os-shell .garage-shift-open,
+  .garage-os-shell .garage-kds-live-dot,
+  .garage-os-shell .garage-login-submit {
+    animation: none;
+  }
+
+  .garage-os-shell .garage-shift-closed,
+  .garage-os-shell .garage-kds-alert,
+  .garage-os-shell .garage-kds-late,
+  .garage-os-shell .garage-kds-list-danger,
+  .garage-os-shell .garage-kds-danger-clock,
+  .garage-os-shell .garage-kds-danger-icon {
+    animation-duration: 1.8s;
+  }
+
+  .garage-os-shell .pos-table-indicator[data-state="ready"],
+  .garage-os-shell .pos-table-indicator[data-state="full"] {
+    animation: none;
+    box-shadow: 0 0 0 1px currentColor;
+  }
+
+  .garage-os-shell [class*="backdrop-blur-xl"] {
+    backdrop-filter: blur(8px) saturate(1.04) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .garage-os-shell *,
+    .garage-os-shell *::before,
+    .garage-os-shell *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}
+
+@keyframes garage-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes garage-kds-ticket-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes garage-kds-live {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 167, 66, 0.36);
+    opacity: 1;
+  }
+
+  50% {
+    box-shadow: 0 0 0 7px rgba(245, 167, 66, 0);
+    opacity: 0.68;
+  }
+}
+
+@keyframes garage-kds-alert {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.24);
+  }
+}
+
+@keyframes garage-kds-late-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(209, 26, 42, 0.18);
+  }
+
+  50% {
+    box-shadow: 0 0 0 2px rgba(209, 26, 42, 0.34), 0 18px 42px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@keyframes garage-qr-order-notice-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(245, 167, 66, 0.16),
+      0 0 0 rgba(245, 167, 66, 0);
+  }
+
+  42% {
+    filter: brightness(1.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.11),
+      0 0 0 3px rgba(245, 167, 66, 0.24),
+      0 0 28px rgba(245, 167, 66, 0.2);
+  }
+}
+
+@keyframes garage-shift-open-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(34, 197, 94, 0.16),
+      0 0 16px rgba(34, 197, 94, 0.12);
+  }
+
+  50% {
+    filter: brightness(1.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 0 0 2px rgba(34, 197, 94, 0.26),
+      0 0 26px rgba(34, 197, 94, 0.2);
+  }
+}
+
+@keyframes garage-shift-closed-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(209, 26, 42, 0.3),
+      0 0 24px rgba(209, 26, 42, 0.22);
+  }
+
+  50% {
+    filter: brightness(1.32);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 0 0 4px rgba(209, 26, 42, 0.34),
+      0 0 38px rgba(209, 26, 42, 0.34);
+  }
+}
+
+@keyframes garage-kds-danger-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    text-shadow: 0 0 0 rgba(255, 77, 93, 0);
+    transform: scale(1);
+  }
+
+  50% {
+    filter: brightness(1.32);
+    text-shadow: 0 0 16px rgba(255, 77, 93, 0.52);
+    transform: scale(1.025);
+  }
+}
+
+@keyframes garage-logo-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes garage-logo-ember {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.055),
+      inset 0 -22px 34px rgba(0, 0, 0, 0.18),
+      0 18px 42px rgba(0, 0, 0, 0.28),
+      0 0 28px rgba(209, 26, 42, 0.12),
+      0 0 36px rgba(245, 167, 66, 0.07);
+    filter: saturate(1) brightness(1);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -18px 32px rgba(0, 0, 0, 0.15),
+      0 20px 46px rgba(0, 0, 0, 0.3),
+      0 0 38px rgba(209, 26, 42, 0.18),
+      0 0 54px rgba(245, 167, 66, 0.13);
+    filter: saturate(1.06) brightness(1.03);
+  }
+}
+
+@keyframes garage-logo-sheen {
+  0% {
+    opacity: 0;
+    transform: translateX(-135%);
+  }
+
+  28% {
+    opacity: 0.28;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(135%);
+  }
+}
+
+@keyframes garage-logo-ignition {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: translateY(10%) scaleX(0.94);
+  }
+
+  42% {
+    opacity: 0.46;
+    transform: translateY(2%) scaleX(1.04);
+  }
+
+  64% {
+    opacity: 0.34;
+    transform: translateY(6%) scaleX(0.98);
+  }
+}
+
+@keyframes garage-login-grid-drift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 46px 46px, -46px 46px;
+  }
+}
+
+@keyframes garage-login-haze {
+  0%,
+  100% {
+    filter: brightness(1) saturate(1);
+  }
+
+  50% {
+    filter: brightness(1.08) saturate(1.12);
+  }
+}
+
+@keyframes garage-login-engine-glow {
+  0%,
+  100% {
+    opacity: 0.34;
+    transform: translate3d(0, 0, 0) rotate(var(--garage-login-engine-angle));
+  }
+
+  50% {
+    opacity: 0.64;
+    transform: translate3d(8%, 3%, 0) rotate(var(--garage-login-engine-angle));
+  }
+}
+
+@keyframes garage-login-rail-top {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: translate3d(-8vw, 0, 0) rotate(-8deg);
+  }
+
+  46% {
+    opacity: 0.9;
+    transform: translate3d(58vw, 3vh, 0) rotate(-8deg);
+  }
+}
+
+@keyframes garage-login-rail-bottom {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: translate3d(8vw, 0, 0) rotate(-8deg);
+  }
+
+  52% {
+    opacity: 0.82;
+    transform: translate3d(-58vw, -4vh, 0) rotate(-8deg);
+  }
+}
+
+@keyframes garage-login-scan {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+
+  15% {
+    opacity: 0.38;
+  }
+
+  70% {
+    opacity: 0.22;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(132vh);
+  }
+}
+
+@keyframes garage-login-ember-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.7);
+  }
+
+  14% {
+    opacity: 0.72;
+  }
+
+  68% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(22px, -92vh, 0) scale(1.25);
+  }
+}
+
+@keyframes garage-login-panel-sheen {
+  0%,
+  58% {
+    opacity: 0;
+    transform: translateX(-115%);
+  }
+
+  70% {
+    opacity: 0.82;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(115%);
+  }
+}
+
+@keyframes garage-login-border-pulse {
+  0%,
+  100% {
+    opacity: 0.48;
+    box-shadow:
+      inset 0 0 24px rgba(209, 26, 42, 0.08),
+      0 0 22px rgba(209, 26, 42, 0.12);
+  }
+
+  50% {
+    opacity: 0.88;
+    box-shadow:
+      inset 0 0 34px rgba(209, 26, 42, 0.13),
+      0 0 40px rgba(245, 167, 66, 0.16);
+  }
+}
+
+@keyframes garage-login-card-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.065),
+      0 18px 52px rgba(0, 0, 0, 0.24),
+      0 0 30px rgba(209, 26, 42, 0.08);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.085),
+      0 22px 64px rgba(0, 0, 0, 0.3),
+      0 0 44px rgba(245, 167, 66, 0.13);
+  }
+}
+
+@keyframes garage-login-chip-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 18px rgba(209, 26, 42, 0.16);
+  }
+
+  50% {
+    filter: brightness(1.18);
+    box-shadow: 0 0 30px rgba(245, 167, 66, 0.2);
+  }
+}
+
+@keyframes garage-login-card-scan {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes garage-login-active-role {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow:
+      0 0 0 1px rgba(255, 42, 58, 0.28),
+      0 0 28px rgba(209, 26, 42, 0.24);
+  }
+
+  50% {
+    filter: brightness(1.16);
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.24),
+      0 0 42px rgba(245, 167, 66, 0.2);
+  }
+}
+
+@keyframes garage-login-submit-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow:
+      0 0 0 1px rgba(255, 42, 58, 0.18),
+      0 0 24px rgba(209, 26, 42, 0.18);
+  }
+
+  50% {
+    filter: brightness(1.14);
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.24),
+      0 0 34px rgba(245, 167, 66, 0.2);
+  }
+}
+
+@keyframes garage-pos-order-cta-pulse {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  45% {
+    transform: translateY(-1px) scale(1.04);
+  }
+
+  100% {
+    transform: translateY(-1px) scale(1);
+  }
+}
+
+@keyframes garage-pos-table-ready-pulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.24),
+      0 0 10px rgba(34, 197, 94, 0.18);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+    box-shadow:
+      0 0 0 3px rgba(34, 197, 94, 0.18),
+      0 0 18px rgba(34, 197, 94, 0.34);
+  }
+}
+
+@keyframes garage-pos-table-full-pulse {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(209, 26, 42, 0.28),
+      0 0 12px rgba(209, 26, 42, 0.22);
+  }
+
+  48% {
+    opacity: 1;
+    transform: scale(1.2);
+    box-shadow:
+      0 0 0 4px rgba(209, 26, 42, 0.22),
+      0 0 22px rgba(209, 26, 42, 0.42);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .garage-login-shell::before,
+  .garage-login-shell::after,
+  .garage-login-ambient::before,
+  .garage-login-ambient::after,
+  .garage-login-neon-rail,
+  .garage-login-scanline,
+  .garage-login-ember,
+  .garage-login-hero::before,
+  .garage-login-hero::after,
+  .garage-login-card,
+  .garage-login-card::before,
+  .garage-login-card::after,
+  .garage-login-chip,
+  .garage-login-role-card-active,
+  .garage-login-role-card:hover::after,
+  .garage-login-role-card-active::after,
+  .garage-login-submit,
+  .garage-logo-frame,
+  .garage-logo-frame::before,
+  .garage-logo-frame::after,
+  .garage-logo-frame:hover::after,
+  .garage-shift-open,
+  .garage-shift-closed,
+  .garage-kds-ticket,
+  .garage-kds-list-danger,
+  .garage-kds-danger-clock,
+  .garage-kds-danger-icon,
+  .garage-kds-late,
+  .garage-kds-alert,
+  .garage-kds-live-dot,
+  .qr-order-notice,
+  .pos-table-indicator,
+  .pos-product-card:hover .pos-product-order-cta,
+  .pos-product-card:focus-visible .pos-product-order-cta {
+    animation: none !important;
+  }
+
+  .garage-logo-frame,
+  .garage-login-role-card,
+  .garage-login-stat,
+  .garage-kds-ticket,
+  .garage-kds-list-row,
+  .pos-product-order-cta {
+    transition: none;
+  }
+
+  .garage-logo-frame:hover,
+  .garage-login-role-card:hover,
+  .garage-login-stat:hover,
+  .garage-kds-ticket:hover,
+  .garage-kds-list-row:hover,
+  .pos-product-card:hover .pos-product-order-cta {
+    transform: none;
+  }
+}
+
+.garage-print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 2mm;
+    size: 58mm auto;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .garage-print-root,
+  .garage-print-root * {
+    visibility: visible !important;
+  }
+
+  .garage-print-root {
+    color: #000000 !important;
+    display: block !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    inset: 0 auto auto 0;
+    line-height: 1.25;
+    position: absolute;
+    width: 100%;
+  }
+
+  .garage-print-thermal,
+  .garage-print-invoice {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 auto;
+  }
+
+  .garage-print-thermal {
+    font-size: 9.5px;
+    width: 54mm;
+  }
+
+  .garage-print-invoice {
+    border: 1px solid #111111;
+    font-size: 12px;
+    min-height: 270mm;
+    padding: 12mm;
+    width: 190mm;
+  }
+
+  .garage-print-header {
+    border-bottom: 1px dashed #000000;
+    padding-bottom: 5px;
+    text-align: center;
+  }
+
+  .garage-print-brand {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0;
+    margin: 0;
+  }
+
+  .garage-print-meta,
+  .garage-print-lines,
+  .garage-print-totals,
+  .garage-print-footer {
+    border-bottom: 1px dashed #000000;
+    padding: 5px 0;
+  }
+
+  .garage-print-meta div,
+  .garage-print-total-row,
+  .garage-print-line {
+    display: flex;
+    gap: 5px;
+    justify-content: space-between;
+  }
+
+  .garage-print-meta span,
+  .garage-print-line span {
+    color: #333333 !important;
+  }
+
+  .garage-print-line {
+    align-items: flex-start;
+    padding: 3px 0;
+  }
+
+  .garage-print-line div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .garage-print-line strong:last-child,
+  .garage-print-total-row strong {
+    flex-shrink: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .garage-print-total-row {
+    padding: 2px 0;
+  }
+
+  .garage-print-total-row.strong {
+    border-top: 1px solid #000000;
+    font-size: 1.15em;
+    margin-top: 4px;
+    padding-top: 6px;
+  }
+
+  .garage-print-footer {
+    border-bottom: 0;
+    text-align: center;
+  }
+
+  .garage-print-footer p {
+    margin: 2px 0;
+  }
+
+/* ─── Invoice Print Styles ─── */
+  .garage-print-invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #f5a742;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    gap: 20px;
+  }
+
+  .garage-print-invoice-brand {
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  .garage-print-invoice-brand-name {
+    font-size: 28px;
+    font-weight: 900;
+    margin: 0;
+  }
+
+  .garage-print-invoice-brand-sub {
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .garage-print-invoice-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 20px;
+    text-align: left;
+  }
+
+  .garage-print-invoice-meta div {
+    display: flex;
+    gap: 8px;
+  }
+
+  .garage-print-invoice-meta span {
+    color: #555;
+    min-width: 80px;
+  }
+
+  .garage-print-invoice-outlet {
+    margin-bottom: 10px;
+  }
+
+  .garage-print-invoice-outlet p {
+    margin: 2px 0;
+  }
+
+  .garage-print-invoice-customer {
+    margin-bottom: 10px;
+    padding: 8px;
+    background: #f9f9f9;
+  }
+
+  .garage-print-invoice-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #888;
+    margin: 0 0 4px 0;
+  }
+
+  .garage-print-invoice-customer p {
+    margin: 2px 0;
+  }
+
+  .garage-print-invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+  }
+
+  .garage-print-invoice-table thead tr {
+    border-bottom: 1px solid #222;
+  }
+
+  .garage-print-invoice-table th {
+    font-size: 10px;
+    text-align: left;
+    padding: 4px 6px;
+    color: #555;
+    text-transform: uppercase;
+  }
+
+  .garage-print-invoice-table th:nth-child(n+3) {
+    text-align: right;
+  }
+
+  .garage-print-invoice-table tbody tr {
+    border-bottom: 1px dashed #ddd;
+  }
+
+  .garage-print-invoice-table td {
+    padding: 5px 6px;
+    vertical-align: top;
+  }
+
+  .garage-print-invoice-table td:nth-child(n+3) {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .garage-print-invoice-totals {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .garage-print-invoice-total-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+  }
+
+  .garage-print-invoice-total-row.discount span:last-child {
+    color: #16a34a;
+  }
+
+  .garage-print-invoice-grand-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.2em;
+    font-weight: 900;
+    border-top: 2px solid #222;
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+
+  .garage-print-invoice-reward {
+    background: #fef9e7;
+    padding: 8px;
+    margin-bottom: 12px;
+  }
+
+  .garage-print-invoice-reward p {
+    margin: 2px 0;
+  }
+
+  .garage-print-invoice-footer {
+    border-top: 1px dashed #aaa;
+    padding-top: 8px;
+    text-align: center;
+  }
+
+  .garage-print-invoice-footer p {
+    margin: 3px 0;
+    font-size: 11px;
+  }
+}
+
+/* ─── Print Preview Modal ─── */
+.print-preview-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+}
+
+/* ============================================================
+   PREMIUM MEMBERSHIP CARD — v2 REDESIGN
+   Ultra-premium 3D card with holographic foil, animated borders,
+   frosted glass chip, dynamic tilt, and tier-specific aurora.
+   Used in member dashboard, admin panel, landing showcase, PDF.
+   ============================================================ */
+
+/* ── ROOT CONTAINER ── */
+
+.gmc {
+  --gmc-rot-x: 0deg;
+  --gmc-rot-y: 0deg;
+  --gmc-shine-x: 60%;
+  --gmc-shine-y: 30%;
+  --gmc-glow: rgba(255, 255, 255, 0.35);
+  --gmc-glow-rgb: 255, 255, 255;
+  --gmc-holo: rgba(255, 255, 255, 0.10);
+  aspect-ratio: 1.586 / 1;
+  display: block;
+  perspective: 1600px;
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  isolation: isolate;
+}
+
+/* ── 3D SHELL ── */
+
+.gmc__shell {
+  border-radius: 20px;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 560ms cubic-bezier(0.22, 0.68, 0.32, 1);
+  width: 100%;
+}
+
+.gmc--interactive .gmc__shell {
+  transform: rotateX(var(--gmc-rot-x)) rotateY(var(--gmc-rot-y));
+}
+
+.gmc.is-flipped .gmc__shell {
+  transform: rotateX(var(--gmc-rot-x))
+    rotateY(calc(180deg + var(--gmc-rot-y)));
+}
+
+.gmc--flippable {
+  cursor: pointer;
+}
+
+/* ── CARD SIDES ── */
+
+.gmc__side {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: inherit;
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.gmc__side--back {
+  transform: rotateY(180deg);
+}
+
+/* ── CARD FACE ── */
+
+.gmc__face {
+  --face-surface: linear-gradient(145deg, #1a1c22, #16181e);
+  --face-pattern: none;
+  --face-glow-rgb: 255, 255, 255;
+  --face-border-from: rgba(255, 255, 255, 0.25);
+  --face-border-via: rgba(255, 255, 255, 0.05);
+  --face-border-to: rgba(255, 255, 255, 0.20);
+  background: var(--face-pattern), var(--face-surface);
+  border-radius: inherit;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+/* Animated gradient border */
+.gmc__face::before {
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  padding: 1.5px;
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    var(--face-border-from) 0%,
+    var(--face-border-via) 35%,
+    var(--face-border-to) 70%,
+    var(--face-border-via) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Glow shadow */
+.gmc__face::after {
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/* ── HOLOGRAPHIC RAINBOW FOIL ── */
+
+.gmc__holo-foil {
+  background:
+    radial-gradient(
+      ellipse at var(--gmc-shine-x) var(--gmc-shine-y),
+      var(--gmc-holo) 0%,
+      transparent 50%
+    ),
+    conic-gradient(
+      from 180deg at 50% 50%,
+      rgba(255, 100, 100, 0.04) 0deg,
+      rgba(255, 200, 60, 0.05) 60deg,
+      rgba(60, 255, 120, 0.04) 120deg,
+      rgba(60, 160, 255, 0.05) 180deg,
+      rgba(180, 80, 255, 0.04) 240deg,
+      rgba(255, 80, 160, 0.05) 300deg,
+      rgba(255, 100, 100, 0.04) 360deg
+    );
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+  transition: opacity 400ms ease;
+  animation: gmc-holo-drift 12s ease-in-out infinite alternate;
+}
+
+.gmc--interactive:hover .gmc__holo-foil {
+  opacity: 0.85;
+}
+
+/* ── NOISE / GRAIN TEXTURE ── */
+
+.gmc__grain {
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 3px 3px;
+  inset: 0;
+  mix-blend-mode: overlay;
+  opacity: 0.45;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+/* ── ANIMATED SHINE SWEEP ── */
+
+.gmc__shine {
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.06) 55%,
+    transparent 70%
+  );
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 4;
+  transition: opacity 300ms ease;
+  transform: translateX(-100%);
+}
+
+.gmc--interactive:hover .gmc__shine {
+  opacity: 1;
+  animation: gmc-shine-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ── CONTENT LAYER ── */
+
+.gmc__content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px 22px;
+  position: relative;
+  width: 100%;
+  z-index: 10;
+}
+
+.gmc__content--back {
+  padding: 0;
+}
+
+/* ── HEADER: Brand + Tier ── */
+
+.gmc__header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gmc__brand {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.gmc__brand-logo {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: grid;
+  height: 34px;
+  justify-content: center;
+  padding: 4px;
+  width: 34px;
+}
+
+.gmc__brand-name {
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  line-height: 1;
+}
+
+.gmc__brand-sub {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  margin-top: 3px;
+}
+
+.gmc__tier-block {
+  text-align: right;
+}
+
+.gmc__tier-eyebrow {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.gmc__tier-name {
+  font-family: var(--font-anton), "Anton", Impact, sans-serif;
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  margin-top: 3px;
+}
+
+.gmc__tier-icon {
+  display: inline-block;
+  font-size: 0.65em;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.gmc__tier-badge {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  margin-top: 3px;
+}
+
+/* ── MIDDLE: Chip + QR ── */
+
+.gmc__middle {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.gmc__chip-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+/* EMV Chip — frosted glass effect */
+.gmc__chip {
+  background: var(--chip-gradient);
+  border: 1px solid var(--chip-border);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  height: 34px;
+  overflow: hidden;
+  position: relative;
+  width: 46px;
+}
+
+.gmc__chip-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  left: 6px;
+  position: absolute;
+  right: 6px;
+  top: 6px;
+}
+
+.gmc__chip-lines span {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 1px;
+  display: block;
+  height: 1.5px;
+}
+
+.gmc__chip-lines span:nth-child(2) {
+  opacity: 0.7;
+  width: 80%;
+}
+
+.gmc__chip-lines span:nth-child(3) {
+  opacity: 0.5;
+  width: 60%;
+}
+
+.gmc__chip-center {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+  height: 8px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+}
+
+.gmc__contactless {
+  opacity: 0.5;
+}
+
+/* QR Code */
+.gmc__qr {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.30);
+  height: 48px;
+  overflow: hidden;
+  padding: 3px;
+  transition: transform 280ms ease;
+  width: 48px;
+}
+
+.gmc__qr--placeholder {
+  align-items: center;
+  display: grid;
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 7px;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 0.2em;
+}
+
+.gmc--interactive:hover .gmc__qr {
+  transform: translateZ(24px) scale(1.05);
+}
+
+/* ── BOTTOM: Number + Info ── */
+
+.gmc__bottom {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.gmc__number {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: clamp(14px, 2.5vw, 18px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.20em;
+}
+
+.gmc__info-row {
+  align-items: flex-end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.4fr 0.9fr;
+  margin-top: 10px;
+}
+
+.gmc__info-label {
+  display: block;
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.30em;
+  text-transform: uppercase;
+}
+
+.gmc__info-value {
+  display: block;
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
+.gmc__info-value--name {
+  font-size: clamp(13px, 2.2vw, 16px);
+  letter-spacing: 0.10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gmc__info-col--valid {
+  text-align: right;
+}
+
+/* ── BACK FACE ELEMENTS ── */
+
+/* Magnetic stripe */
+.gmc__magstripe {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.78) 100%
+  );
+  height: 38px;
+  margin-top: 24px;
+  width: 100%;
+}
+
+/* Signature strip */
+.gmc__sig-strip {
+  align-items: stretch;
+  display: flex;
+  gap: 8px;
+  margin: 14px 20px 0;
+}
+
+.gmc__sig-strip-inner {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  flex: 1;
+  min-height: 28px;
+  padding: 6px 10px;
+}
+
+.gmc__sig-label {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 6px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.gmc__cvv-box {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  padding: 4px 10px;
+}
+
+.gmc__cvv-label {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+
+.gmc__cvv-dots {
+  font-size: 11px;
+  letter-spacing: 3px;
+}
+
+/* Back info section */
+.gmc__back-info {
+  flex: 1;
+  padding: 12px 20px 0;
+}
+
+.gmc__back-info-row {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gmc__back-protocol {
+  display: block;
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  margin-top: 4px;
+}
+
+.gmc__back-tier-chip {
+  border: 1px solid;
+  border-radius: 4px;
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.gmc__back-details {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto;
+  margin-top: 12px;
+}
+
+.gmc__back-detail-value {
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 3px;
+  overflow: hidden;
+}
+
+.gmc__back-phone {
+  display: block;
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+
+/* Barcode */
+.gmc__barcode {
+  align-items: stretch;
+  display: flex;
+  gap: 1.5px;
+  height: 32px;
+  margin-top: 12px;
+}
+
+.gmc__barcode span {
+  border-radius: 0.5px;
+  display: block;
+  height: 100%;
+}
+
+/* Back footer */
+.gmc__back-footer {
+  align-items: center;
+  border-top: 1px solid;
+  display: flex;
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 7.5px;
+  justify-content: space-between;
+  letter-spacing: 0.22em;
+  margin: auto 20px 0;
+  padding: 10px 0 16px;
+}
+
+.gmc__back-footer-code {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── TIER GLOW AURA ── */
+
+.gmc::after {
+  border-radius: 28px;
+  content: "";
+  inset: -12px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 420ms ease;
+  z-index: -1;
+}
+
+.gmc--silver::after {
+  background: radial-gradient(
+    60% 60% at 50% 50%,
+    rgba(210, 218, 235, 0.40),
+    transparent 70%
+  );
+}
+
+.gmc--gold::after {
+  background: radial-gradient(
+    60% 60% at 50% 50%,
+    rgba(255, 200, 60, 0.50),
+    transparent 70%
+  );
+}
+
+.gmc--platinum::after {
+  background: radial-gradient(
+    60% 60% at 50% 50%,
+    rgba(80, 180, 255, 0.48),
+    transparent 70%
+  );
+}
+
+.gmc--ultra::after {
+  background: radial-gradient(
+    60% 60% at 50% 50%,
+    rgba(150, 80, 255, 0.55),
+    transparent 70%
+  );
+}
+
+.gmc--interactive:hover::after {
+  opacity: 1;
+}
+
+/* ── TIER-SPECIFIC FACE ACCENTS ── */
+
+/* Silver: subtle brushed-metal inner glow */
+.gmc--silver .gmc__face::after {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* Gold: warm inner glow */
+.gmc--gold .gmc__face::after {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 100, 0.20),
+    inset 0 0 0 1px rgba(255, 200, 60, 0.10),
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(220, 170, 50, 0.12);
+}
+
+/* Platinum: icy inner glow */
+.gmc--platinum .gmc__face::after {
+  box-shadow:
+    inset 0 1px 0 rgba(130, 200, 255, 0.18),
+    inset 0 0 0 1px rgba(80, 170, 240, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(80, 170, 240, 0.12);
+}
+
+/* Ultra: cosmic glow */
+.gmc--ultra .gmc__face::after {
+  box-shadow:
+    inset 0 1px 0 rgba(180, 120, 255, 0.18),
+    inset 0 0 0 1px rgba(150, 80, 255, 0.10),
+    0 8px 32px rgba(0, 0, 0, 0.50),
+    0 0 30px rgba(150, 80, 255, 0.15);
+}
+
+/* ── ANIMATIONS ── */
+
+@keyframes gmc-holo-drift {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(30deg);
+  }
+  100% {
+    filter: hue-rotate(-15deg);
+  }
+}
+
+@keyframes gmc-shine-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ── CAROUSEL (LANDING PAGE SHOWCASE) ── */
+
+.garage-membership-carousel {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+@media (min-width: 900px) {
+  .garage-membership-carousel {
+    align-items: end;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .garage-membership-carousel .gmc {
+    transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .garage-membership-carousel .gmc:nth-child(1) {
+    transform: translateY(8px) rotate(-3deg);
+  }
+
+  .garage-membership-carousel .gmc:nth-child(2) {
+    transform: translateY(-4px) rotate(-1deg);
+  }
+
+  .garage-membership-carousel .gmc:nth-child(3) {
+    transform: translateY(-4px) rotate(1deg);
+  }
+
+  .garage-membership-carousel .gmc:nth-child(4) {
+    transform: translateY(8px) rotate(3deg);
+  }
+
+  .garage-membership-carousel .gmc:hover {
+    transform: translateY(-14px) rotate(0deg) scale(1.05);
+    z-index: 3;
+  }
+}
+
+/* ── RESPONSIVE SCALING ── */
+
+@media (max-width: 480px) {
+  .gmc__content {
+    padding: 16px 18px;
+  }
+
+  .gmc__brand-logo {
+    height: 28px;
+    width: 28px;
+  }
+
+  .gmc__chip {
+    height: 28px;
+    width: 38px;
+  }
+
+  .gmc__qr {
+    height: 40px;
+    width: 40px;
+  }
+
+  .gmc__sig-strip {
+    margin: 10px 16px 0;
+  }
+
+  .gmc__back-info {
+    padding: 10px 16px 0;
+  }
+
+  .gmc__back-footer {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+}
+
+/* ── REDUCED MOTION ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .gmc__holo-foil,
+  .gmc__shine {
+    animation: none !important;
+  }
+
+  .gmc__shell {
+    transition: none;
+  }
+
+  .gmc::after {
+    transition: none;
+  }
+}
+
+/* ── BACKWARD COMPAT: old class aliases ── */
+/* Keep old .garage-membership-card classes working for any
+   components that haven't been updated yet */
+
+.garage-membership-card { /* alias → gmc */ }
+.garage-membership-card__shell { /* alias → gmc__shell */ }
+.garage-membership-card__face { /* alias → gmc__face */ }
+
+
+.garage-toast-stack {
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 28px));
+  pointer-events: none;
+  position: fixed;
+  right: 18px;
+  z-index: 70;
+}
+
+.garage-toast {
+  align-items: flex-start;
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 12px 28px rgba(0, 0, 0, 0.42);
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px 12px 12px;
+  pointer-events: auto;
+  animation: garage-toast-in 220ms cubic-bezier(0.22, 0.74, 0.32, 1);
+}
+
+.garage-toast__icon {
+  align-items: center;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 22px;
+  justify-content: center;
+  margin-top: 1px;
+  width: 22px;
+}
+
+.garage-toast__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.garage-toast__title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.garage-toast__detail {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 2px;
+  opacity: 0.78;
+}
+
+.garage-toast__close {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 22px;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 120ms ease, background-color 120ms ease;
+  width: 22px;
+}
+
+.garage-toast__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 1;
+}
+
+@keyframes garage-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes garage-fab-mention-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 30px rgba(209, 26, 42, 0.45),
+      0 0 0 0 rgba(255, 208, 138, 0.6);
+  }
+
+  50% {
+    transform: scale(1.07);
+    box-shadow:
+      0 14px 36px rgba(209, 26, 42, 0.55),
+      0 0 0 10px rgba(255, 208, 138, 0);
+  }
+}
+
+.garage-fab-mention {
+  animation: garage-fab-mention-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

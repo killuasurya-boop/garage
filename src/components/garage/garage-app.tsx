@@ -969,11 +969,6 @@ function todayInputParts() {
   return { year, month, day };
 }
 
-function todayDateKey() {
-  const { year, month, day } = todayInputParts();
-  return `${year}-${month}-${day}`;
-}
-
 function defaultAgentReportDate(period: AiAgentReportPeriod) {
   const { year, month, day } = todayInputParts();
 
@@ -14100,7 +14095,6 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
     [effectiveSelectedRoleAgentRole],
   );
   const selectedAutopilotMeta = autopilotModeMeta[autopilotMode];
-  const selectedVoiceMeta = voiceModeMeta[voiceMode];
   const selectedProvider =
     providers.find((provider) => provider.provider === selectedProviderId) ??
     providers[0] ??
@@ -14544,8 +14538,6 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
   }, [
     canUseOwnerFreeChat,
     chatMode,
-    selectedRoleAgent.label,
-    speakGarage,
     voiceMode,
   ]);
 
@@ -15726,39 +15718,6 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       "Guardrail: aksi kritis hanya berupa draft/approval, bukan eksekusi langsung.",
       `Perintah: ${message}`,
     ].join("\n");
-  }
-
-  function applyRoleAgentPrompt() {
-    const nextPrompt = buildRoleAgentPrompt();
-    if (canUseOwnerFreeChat) {
-      setOwnerChatTool(selectedRoleAgent.tool);
-    }
-
-    if (canUseOwnerFreeChat && chatMode === "owner_free_chat") {
-      setOwnerChatInput(nextPrompt);
-    } else {
-      setPrompt(nextPrompt);
-    }
-
-    appendLog(
-      "Role Agent disiapkan",
-      `${selectedRoleAgent.label} / ${selectedAutopilotMeta.label}`,
-      "ready",
-    );
-  }
-
-  function runRoleAgentPrompt() {
-    const nextPrompt = buildRoleAgentPrompt();
-    if (canUseOwnerFreeChat) {
-      setOwnerChatTool(selectedRoleAgent.tool);
-    }
-
-    if (canUseOwnerFreeChat && chatMode === "owner_free_chat") {
-      void sendOwnerFreeChat(nextPrompt);
-      return;
-    }
-
-    void askAgent(nextPrompt, "operational");
   }
 
   function activateStaffMonitorRole(item: StaffMonitorItem) {

@@ -18,6 +18,7 @@ import {
   ReceiptText,
   ArrowRightLeft,
   History,
+  Settings,
   Sparkles,
   Sparkle,
   Timer,
@@ -201,6 +202,10 @@ export function WaiterView({ me }: Props) {
   const [actingBillTable, setActingBillTable] = useState<string | null>(null);
   const [actingSeatTable, setActingSeatTable] = useState<string | null>(null);
   const [detailTable, setDetailTable] = useState<string | null>(null);
+  const [tableFilter, setTableFilter] = useState<
+    "all" | "unpaid" | "paid" | "mixed" | "needs_clean" | "ready"
+  >("all");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Lazy initial state - baca localStorage 1x saat mount, tanpa effect.
   const [prefs, setPrefs] = useState<WaiterNotifyPrefs>(() => loadNotifyPrefs());
   const [recentlyCleaned, setRecentlyCleaned] = useState<Set<string>>(new Set());
@@ -424,6 +429,55 @@ export function WaiterView({ me }: Props) {
     () => tables.filter((t) => t.status === "awaiting_payment").length,
     [tables],
   );
+  // Bucket tiap meja ke salah satu kategori filter. Tujuannya: walau kartu
+  // meja tampil "merah" (NEEDS CLEAR) karena perlu bussing, kalau masih ada
+  // open bill belum dibayar maka tetap masuk bucket "unpaid" — staff bisa
+  // cari yang belum bayar tanpa harus tebak dari warna kartu saja.
+  const tableBuckets = useMemo(() => {
+    const buckets = {
+      all: tables.length,
+      unpaid: 0,
+      paid: 0,
+      mixed: 0,
+      needs_clean: 0,
+      ready: 0,
+    };
+    for (const t of tables) {
+      const open = t.openBillCount ?? 0;
+      const paid = t.paidBillCount ?? 0;
+      const needsClean = t.needsCleaning || t.status === "needs_cleaning";
+      if (open > 0 && paid > 0) buckets.mixed += 1;
+      if (open > 0) buckets.unpaid += 1;
+      if (open === 0 && paid > 0) buckets.paid += 1;
+      if (needsClean) buckets.needs_clean += 1;
+      if (t.status === "empty" && !needsClean) buckets.ready += 1;
+    }
+    return buckets;
+  }, [tables]);
+
+  const filteredTables = useMemo(() => {
+    if (tableFilter === "all") return tables;
+    return tables.filter((t) => {
+      const open = t.openBillCount ?? 0;
+      const paid = t.paidBillCount ?? 0;
+      const needsClean = t.needsCleaning || t.status === "needs_cleaning";
+      switch (tableFilter) {
+        case "unpaid":
+          return open > 0;
+        case "paid":
+          return open === 0 && paid > 0;
+        case "mixed":
+          return open > 0 && paid > 0;
+        case "needs_clean":
+          return needsClean;
+        case "ready":
+          return t.status === "empty" && !needsClean;
+        default:
+          return true;
+      }
+    });
+  }, [tables, tableFilter]);
+
   // Meja dengan bill open paling lama — untuk peringatan urgensi di header.
   const stalest = useMemo(() => {
     let best: TableLiveRow | null = null;
@@ -464,7 +518,9 @@ export function WaiterView({ me }: Props) {
   );
 
   return (
-    <div className="space-y-4">
+    // pb-24 = ruang aman 96px di bawah agar ChatFab/toast tidak menutupi
+    // baris kartu meja terakhir saat user scroll sampai bawah.
+    <div className="space-y-4 pb-24">
       {/* Header sticky tipis */}
       <div className="sticky top-0 z-20 -mx-3 border-b border-white/8 bg-[#0b0b0c]/85 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-[#0b0b0c]/70 sm:-mx-4 sm:px-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -485,16 +541,19 @@ export function WaiterView({ me }: Props) {
             </div>
           </div>
 
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* Stats — versi mobile cuma ready & bill kasir bila ada; versi sm+ tampil lengkap */}
             <span className="inline-flex items-center gap-1 rounded-full bg-[#22c55e]/15 px-2.5 py-1 text-[11px] font-semibold text-[#bbf7d0] ring-1 ring-[#22c55e]/35">
-              <Sparkles size={12} /> {ready.length} Siap Antar
+              <Sparkles size={12} /> {ready.length}
+              <span className="hidden sm:inline">&nbsp;Siap Antar</span>
             </span>
             <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-medium text-white/75 ring-1 ring-white/15">
               {readyTables} meja kosong
             </span>
             {billRequests > 0 ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-[#fbbf24]/15 px-2.5 py-1 text-[11px] font-semibold text-[#fde68a] ring-1 ring-[#fbbf24]/35">
-                <ReceiptText size={12} /> {billRequests} bill kasir
+                <ReceiptText size={12} /> {billRequests}
+                <span className="hidden sm:inline">&nbsp;bill kasir</span>
               </span>
             ) : null}
             {stalest && stalest.timerMinutes >= 15 ? (
@@ -508,13 +567,15 @@ export function WaiterView({ me }: Props) {
                     : "bg-[#e8883a]/15 text-[#ffd08a] ring-[#e8883a]/35"
                 }`}
               >
-                <Timer size={12} /> Meja {stalest.tableNumber} · {stalest.timerMinutes}m
+                <Timer size={12} /> M{stalest.tableNumber}·{stalest.timerMinutes}m
               </button>
             ) : null}
+
+            {/* Toggle bar lengkap hanya di sm+; mobile pakai 1 tombol Settings */}
             <button
               type="button"
               onClick={handleEnableSound}
-              className={`grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
+              className={`hidden sm:grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
                 prefs.sound
                   ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
                   : "bg-white/[0.04] text-white/55 ring-white/12"
@@ -527,7 +588,7 @@ export function WaiterView({ me }: Props) {
             <button
               type="button"
               onClick={handleEnableVibe}
-              className={`grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
+              className={`hidden sm:grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
                 prefs.vibrate
                   ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
                   : "bg-white/[0.04] text-white/55 ring-white/12"
@@ -550,6 +611,22 @@ export function WaiterView({ me }: Props) {
             >
               <BellRing size={16} />
             </button>
+
+            {/* Mobile-only: 1 tombol untuk buka settings drawer */}
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className={`grid h-9 w-9 place-items-center rounded-md ring-1 transition sm:hidden ${
+                prefs.sound || prefs.vibrate || prefs.browserNotif
+                  ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
+                  : "bg-white/[0.04] text-white/55 ring-white/12"
+              }`}
+              aria-label="Pengaturan notifikasi"
+              title="Sound · Getar · Notifikasi"
+            >
+              <Settings size={16} />
+            </button>
+
             <button
               type="button"
               onClick={() => void loadAll(false)}
@@ -691,14 +768,85 @@ export function WaiterView({ me }: Props) {
             </p>
           </div>
 
+          {/* Filter chips: bantu staff cek cepat siapa yang sudah/belum
+              bayar — terutama untuk meja MIXED & NEEDS CLEAR yang masih
+              punya open bill. Mobile: horizontal scroll 1 baris. */}
+          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[
+              { key: "all" as const, label: "Semua", count: tableBuckets.all, tone: "neutral" },
+              {
+                key: "unpaid" as const,
+                label: "Belum Bayar",
+                count: tableBuckets.unpaid,
+                tone: "amber",
+              },
+              {
+                key: "mixed" as const,
+                label: "Mixed",
+                count: tableBuckets.mixed,
+                tone: "red",
+              },
+              {
+                key: "paid" as const,
+                label: "Sudah Bayar",
+                count: tableBuckets.paid,
+                tone: "chrome",
+              },
+              {
+                key: "needs_clean" as const,
+                label: "Perlu Bersih",
+                count: tableBuckets.needs_clean,
+                tone: "red",
+              },
+              {
+                key: "ready" as const,
+                label: "Ready",
+                count: tableBuckets.ready,
+                tone: "neutral",
+              },
+            ].map((chip) => {
+              const active = tableFilter === chip.key;
+              const toneCls = active
+                ? chip.tone === "amber"
+                  ? "bg-[#e8883a]/20 text-[#ffd08a] ring-[#e8883a]/55"
+                  : chip.tone === "red"
+                    ? "bg-[#d11a2a]/20 text-[#ffd6da] ring-[#d11a2a]/55"
+                    : chip.tone === "chrome"
+                      ? "bg-[#cbd5e1]/15 text-[#e2e8f0] ring-[#cbd5e1]/45"
+                      : "bg-white/[0.12] text-white ring-white/30"
+                : "bg-white/[0.04] text-white/70 ring-white/12 hover:bg-white/[0.08]";
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => setTableFilter(chip.key)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ring-1 transition active:scale-[0.97] ${toneCls}`}
+                  aria-pressed={active}
+                >
+                  {chip.label}
+                  <span className="rounded-full bg-black/40 px-1.5 py-0.5 font-mono text-[10px] text-white/85">
+                    {chip.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {tablesNeedingCleaning.length > 0 ? (
             <div className="rounded-lg border border-[#d11a2a]/35 bg-[#d11a2a]/8 px-3 py-2 text-[12px] text-[#ffd6da]">
               Prioritaskan bersihkan {tablesNeedingCleaning.length} meja agar tamu baru bisa duduk.
             </div>
           ) : null}
 
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5">
-            {tables.map((row) => {
+          {filteredTables.length === 0 ? (
+            <EmptyState
+              title={`Tidak ada meja di kategori "${tableFilter}"`}
+              body="Coba pilih filter lain atau tap Semua."
+            />
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5">
+            {filteredTables.map((row) => {
               const tone = tableTone(row);
               const stripe = waitStripe(row);
               const needs = row.needsCleaning || row.status === "needs_cleaning";
@@ -720,7 +868,7 @@ export function WaiterView({ me }: Props) {
               return (
                 <div
                   key={row.tableNumber}
-                  className={`group relative flex flex-col overflow-hidden rounded-xl ${tone.bg} ring-1 ${tone.ring} p-2 pl-2.5 transition ${stripe} ${
+                  className={`group relative flex min-h-[128px] sm:min-h-[116px] flex-col overflow-hidden rounded-xl ${tone.bg} ring-1 ${tone.ring} p-2 pl-2.5 transition ${stripe} ${
                     glow ? "motion-safe:animate-[waiterGlow_1300ms_ease-out]" : ""
                   }`}
                 >
@@ -731,18 +879,18 @@ export function WaiterView({ me }: Props) {
                     title="Lihat detail bill meja ini"
                   >
                     <div className="flex items-baseline justify-between">
-                      <span className="text-[10px] uppercase tracking-wider text-white/55">
+                      <span className="text-[11px] sm:text-[10px] uppercase tracking-wider text-white/55">
                         Meja
                       </span>
-                      <span className={`text-[9px] font-semibold uppercase ${tone.labelColor}`}>
+                      <span className={`text-[10px] sm:text-[9px] font-semibold uppercase ${tone.labelColor}`}>
                         {tone.label}
                       </span>
                     </div>
-                    <span className="block text-2xl font-black leading-none text-white">
+                    <span className="block text-3xl sm:text-2xl font-black leading-none text-white">
                       {row.tableNumber}
                     </span>
                   </button>
-                  <div className="mt-1 min-h-[28px] text-[10px] leading-tight text-white/65">
+                  <div className="mt-1 flex-1 min-h-[28px] text-[11px] sm:text-[10px] leading-tight text-white/65">
                     {row.orderNo ? (
                       <span className="block truncate">#{row.orderNo}</span>
                     ) : isReady ? (
@@ -751,12 +899,12 @@ export function WaiterView({ me }: Props) {
                       <span className="block text-white/45">-</span>
                     )}
                     {totalBills > 1 || isMixed ? (
-                      <span className="block text-[9px] text-[#fde68a]">
+                      <span className="block text-[10px] sm:text-[9px] text-[#fde68a]">
                         {totalBills} bill{openBills > 0 ? ` · ${openBills} open` : ""}
                       </span>
                     ) : null}
                     {row.timerMinutes > 0 ? (
-                      <span className="block text-[9px] text-white/45">
+                      <span className="block text-[10px] sm:text-[9px] text-white/45">
                         {row.timerMinutes}m
                       </span>
                     ) : null}
@@ -769,7 +917,7 @@ export function WaiterView({ me }: Props) {
                         onClick={() => void handleClean(row)}
                         disabled={actingTable === row.tableNumber}
                         title="Tamu pergi — bersihkan meja untuk tamu berikutnya"
-                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -783,7 +931,7 @@ export function WaiterView({ me }: Props) {
                         onClick={() => void handleSeatNew(row)}
                         disabled={actingSeatTable === row.tableNumber}
                         title="Teman gabung — buka order baru tanpa menutup history bill lunas"
-                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingSeatTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -798,7 +946,7 @@ export function WaiterView({ me }: Props) {
                       type="button"
                       onClick={() => void handleClean(row)}
                       disabled={actingTable === row.tableNumber}
-                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                      className="mt-1 inline-flex h-11 sm:h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[12px] sm:text-[11px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
                     >
                       {actingTable === row.tableNumber ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -814,7 +962,7 @@ export function WaiterView({ me }: Props) {
                         onClick={() => void handleClean(row)}
                         disabled={actingTable === row.tableNumber}
                         title="Tamu pergi — bersihkan meja"
-                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -828,7 +976,7 @@ export function WaiterView({ me }: Props) {
                         onClick={() => void handleSeatNew(row)}
                         disabled={actingSeatTable === row.tableNumber}
                         title="Teman gabung — buka order baru, history lunas dipertahankan"
-                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingSeatTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -843,7 +991,7 @@ export function WaiterView({ me }: Props) {
                       type="button"
                       onClick={() => void handleRequestBill(row)}
                       disabled={actingBillTable === row.tableNumber}
-                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#fbbf24] text-[10px] font-bold uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
+                      className="mt-1 inline-flex h-11 sm:h-9 w-full items-center justify-center gap-1 rounded-md bg-[#fbbf24] text-[12px] sm:text-[10px] font-bold uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
                     >
                       {actingBillTable === row.tableNumber ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -853,12 +1001,12 @@ export function WaiterView({ me }: Props) {
                       Bill
                     </button>
                   ) : billAlreadyRequested ? (
-                    <div className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 text-[10px] font-semibold uppercase tracking-wide text-[#fde68a]">
+                    <div className="mt-1 inline-flex h-11 sm:h-9 w-full items-center justify-center gap-1 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 text-[12px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#fde68a]">
                       <ReceiptText size={12} />
                       Kasir
                     </div>
                   ) : (
-                    <div className="mt-1 h-9" aria-hidden />
+                    <div className="mt-1 h-11 sm:h-9" aria-hidden />
                   )}
                 </div>
               );
@@ -866,6 +1014,16 @@ export function WaiterView({ me }: Props) {
           </div>
         </section>
       </div>
+
+      {settingsOpen ? (
+        <SettingsDrawer
+          prefs={prefs}
+          onToggleSound={handleEnableSound}
+          onToggleVibe={handleEnableVibe}
+          onToggleNotif={handleEnableNotif}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
 
       {detailRow ? (
         <TableDetailDrawer
@@ -912,6 +1070,134 @@ function EmptyState({ title, body }: { title: string; body: string }) {
     <div className="rounded-xl border border-dashed border-white/12 bg-white/[0.02] px-4 py-8 text-center">
       <p className="text-sm font-semibold text-white/80">{title}</p>
       <p className="mt-1 text-[12px] text-white/55">{body}</p>
+    </div>
+  );
+}
+
+function SettingsDrawer({
+  prefs,
+  onToggleSound,
+  onToggleVibe,
+  onToggleNotif,
+  onClose,
+}: {
+  prefs: WaiterNotifyPrefs;
+  onToggleSound: () => void | Promise<void>;
+  onToggleVibe: () => void;
+  onToggleNotif: () => void | Promise<void>;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  type Row = {
+    label: string;
+    desc: string;
+    icon: typeof Volume2;
+    activeIcon: typeof Volume2;
+    on: boolean;
+    onClick: () => void | Promise<void>;
+  };
+  const rows: Row[] = [
+    {
+      label: "Suara Notifikasi",
+      desc: "Bunyi saat order siap antar.",
+      icon: VolumeX,
+      activeIcon: Volume2,
+      on: prefs.sound,
+      onClick: onToggleSound,
+    },
+    {
+      label: "Getar",
+      desc: "Getar HP saat order siap (jika didukung).",
+      icon: VibrateOff,
+      activeIcon: Vibrate,
+      on: prefs.vibrate,
+      onClick: onToggleVibe,
+    },
+    {
+      label: "Notifikasi Browser",
+      desc: "Tampil bahkan saat tab background.",
+      icon: BellRing,
+      activeIcon: BellRing,
+      on: prefs.browserNotif,
+      onClick: onToggleNotif,
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pengaturan notifikasi"
+    >
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-t-2xl border border-white/10 bg-[#0e0e10] shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)] sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden />
+        <header className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-white/55">Pengaturan</p>
+            <p className="text-lg font-bold text-white">Notifikasi</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-11 w-11 place-items-center rounded-md bg-white/[0.05] text-white/75 ring-1 ring-white/12 transition active:scale-[0.97]"
+            aria-label="Tutup"
+          >
+            <X size={18} />
+          </button>
+        </header>
+        <ul className="divide-y divide-white/6">
+          {rows.map((row) => {
+            const Icon = row.on ? row.activeIcon : row.icon;
+            return (
+              <li key={row.label}>
+                <button
+                  type="button"
+                  onClick={() => void row.onClick()}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.04]"
+                >
+                  <span
+                    className={`grid h-11 w-11 place-items-center rounded-lg ring-1 ${
+                      row.on
+                        ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
+                        : "bg-white/[0.04] text-white/55 ring-white/12"
+                    }`}
+                  >
+                    <Icon size={18} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-white">{row.label}</p>
+                    <p className="text-[11px] text-white/55">{row.desc}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${
+                      row.on
+                        ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
+                        : "bg-white/[0.04] text-white/55 ring-white/12"
+                    }`}
+                  >
+                    {row.on ? "ON" : "OFF"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="px-4 py-3 text-[10px] text-white/45">
+          Pengaturan tersimpan di perangkat ini.
+        </div>
+      </div>
     </div>
   );
 }
@@ -1083,10 +1369,12 @@ function TableDetailDrawer({
       aria-label={`Detail meja ${row.tableLabel}`}
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-t-2xl border border-white/10 bg-[#0e0e10] shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)] sm:rounded-2xl"
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0e0e10] shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)] sm:max-h-[85vh] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-white/8 bg-gradient-to-br from-[#1a1a1d] to-[#0e0e10] px-4 py-3">
+        {/* Handle bar — visual cue swipe-down di mobile */}
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden />
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/8 bg-gradient-to-br from-[#1a1a1d] to-[#0e0e10] px-4 py-3">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-white/55">Detail Sesi</p>
             <p className="text-lg font-bold text-white">{row.tableLabel}</p>
@@ -1094,12 +1382,14 @@ function TableDetailDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-md bg-white/[0.05] text-white/75 ring-1 ring-white/12 transition hover:bg-white/[0.1]"
+            className="grid h-11 w-11 place-items-center rounded-md bg-white/[0.05] text-white/75 ring-1 ring-white/12 transition active:scale-[0.97]"
             aria-label="Tutup detail"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </header>
+
+        <div className="flex-1 overflow-y-auto">
 
         <div className="grid grid-cols-2 gap-2 px-4 py-3">
           <div className="rounded-lg bg-[#cbd5e1]/8 px-3 py-2 ring-1 ring-[#cbd5e1]/25">
@@ -1193,7 +1483,7 @@ function TableDetailDrawer({
           </div>
         ) : null}
 
-        <div className="max-h-[55vh] overflow-y-auto px-4 pb-4">
+        <div className="px-4 pb-4">
           <p className="mb-2 text-[10px] uppercase tracking-wider text-white/55">
             Bill Sesi Ini
           </p>
@@ -1276,6 +1566,7 @@ function TableDetailDrawer({
               })}
             </ul>
           ) : null}
+        </div>
         </div>
       </div>
     </div>

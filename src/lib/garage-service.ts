@@ -5857,6 +5857,24 @@ export async function getTableLiveData() {
   const orderById = new Map(latestOrders.map((order) => [order.id, order]));
   const now = new Date();
 
+  // Group ALL today's orders per table (untuk hitung multi-bill dalam sesi).
+  const ordersByTable = new Map<string, typeof latestOrders>();
+  for (const order of latestOrders) {
+    const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
+    if (!tableNumber) continue;
+    const list = ordersByTable.get(tableNumber) ?? [];
+    list.push(order);
+    ordersByTable.set(tableNumber, list);
+  }
+
+  const OPEN_BILL_STATUSES = new Set([
+    "pending",
+    "pending_cashier",
+    "accepted",
+    "awaiting_payment",
+    "ready",
+  ]);
+
   return tableNumbers.map((tableNumber) => {
     const session = sessionByTable.get(tableNumber);
     const sessionCleared =
@@ -5864,17 +5882,52 @@ export async function getTableLiveData() {
     const sessionOrder = session?.currentOrderId
       ? orderById.get(session.currentOrderId)
       : undefined;
+
+    // Bill window sesi: hanya order yang dibuat setelah cleanedAt terakhir
+    // (atau seluruh hari ini kalau belum pernah di-clean). Sesi yang sudah
+    // benar-benar di-clean (sessionCleared) → window kosong.
+    const windowStart = session?.cleanedAt ?? start;
+    const allOrdersToday = ordersByTable.get(tableNumber) ?? [];
+    const sessionBills = sessionCleared
+      ? []
+      : allOrdersToday.filter(
+          (o) =>
+            o.createdAt >= windowStart &&
+            o.status !== "rejected" &&
+            o.status !== "cancelled",
+        );
+    const paidBillCount = sessionBills.filter((o) => o.status === "paid").length;
+    const openBillCount = sessionBills.filter((o) => OPEN_BILL_STATUSES.has(o.status)).length;
+    const isMixed = paidBillCount > 0 && openBillCount > 0;
+
+    // Pilih "active" order: prioritaskan yang belum lunas (paling baru),
+    // fallback ke yang paling baru terakhir, fallback ke sessionOrder/latest.
+    const newestOpen = sessionBills.find((o) => OPEN_BILL_STATUSES.has(o.status));
     const order = sessionCleared
       ? undefined
-      : sessionOrder ?? latestByTable.get(tableNumber);
+      : newestOpen ?? sessionOrder ?? sessionBills[0] ?? latestByTable.get(tableNumber);
     const ticketStatus = kitchenStatusForTickets(order ? ticketsByOrder.get(order.id) ?? [] : []);
     const needsCleaning =
       Boolean(session?.needsCleaning) || session?.status === "needs_cleaning";
-    const status =
-      !order && session?.status && session.status !== "empty"
-        ? session.status
-        : tableStatusFromOrder(order, ticketStatus, needsCleaning);
+
+    let status: string;
+    if (isMixed) {
+      status = "mixed";
+    } else if (!order && session?.status && session.status !== "empty") {
+      status = session.status;
+    } else {
+      status = tableStatusFromOrder(order, ticketStatus, needsCleaning);
+    }
+
     const lastStatusAt = session?.lastStatusAt ?? order?.updatedAt ?? order?.createdAt ?? null;
+
+    const bills = sessionBills.map((o) => ({
+      id: o.id,
+      orderNo: o.orderNo,
+      status: o.status,
+      total: o.total,
+      createdAt: o.createdAt.toISOString(),
+    }));
 
     return {
       tableNumber,
@@ -5889,8 +5942,43 @@ export async function getTableLiveData() {
       kitchenStatus: ticketStatus,
       needsCleaning,
       lastStatusAt: lastStatusAt?.toISOString() ?? null,
+      bills,
+      paidBillCount,
+      openBillCount,
     };
   });
+}
+
+// Semua order di meja ini hari ini (lintas sesi/clean). Dipakai untuk
+// drawer "Riwayat Hari Ini" & handover shift.
+export async function getTableHistoryToday(tableNumber: string) {
+  const db = getDb();
+  const { start, end } = getJakartaTodayRange();
+  const label = tableLabelForNumber(tableNumber);
+  const rows = await db
+    .select()
+    .from(orders)
+    .where(
+      and(
+        eq(orders.tableLabel, label),
+        gte(orders.createdAt, start),
+        lt(orders.createdAt, end),
+      ),
+    )
+    .orderBy(desc(orders.createdAt));
+
+  return {
+    tableNumber,
+    tableLabel: label,
+    bills: rows.map((o) => ({
+      id: o.id,
+      orderNo: o.orderNo,
+      status: o.status,
+      total: o.total,
+      customerName: o.customerName,
+      createdAt: o.createdAt.toISOString(),
+    })),
+  };
 }
 
 export async function getPublicTableLiveData() {
@@ -5922,31 +6010,46 @@ export async function getPublicTableLiveData() {
 
 export async function updateTableStatus(
   table: string,
-  input: { status: string; currentOrderId?: string | null; needsCleaning?: boolean },
+  input: {
+    status: string;
+    currentOrderId?: string | null;
+    needsCleaning?: boolean;
+    // Kalau true: jangan reset cleanedAt walau status=="empty". Dipakai oleh
+    // skenario "Tamu Baru" (teman gabung setelah lunas) supaya bill window
+    // sesi tetap mencakup bill yang sudah lunas — sehingga aggregate bisa
+    // mendeteksi MIXED saat order baru masuk.
+    preserveCleanedAt?: boolean;
+  },
   garage: GarageSession,
 ) {
   const db = getDb();
   const tableNumber = normalizeTableNumber(table);
   const now = new Date();
   const status = input.status.trim();
-  const values = {
+  const insertValues = {
     outletId: garage.profile.outlet.id,
     tableNumber,
     tableLabel: tableLabelForNumber(tableNumber),
     status,
     currentOrderId: status === "empty" ? null : input.currentOrderId ?? null,
     needsCleaning: status === "needs_cleaning" ? true : Boolean(input.needsCleaning),
-    cleanedAt: status === "empty" ? now : null,
+    cleanedAt: status === "empty" && !input.preserveCleanedAt ? now : null,
     lastStatusAt: now,
     updatedAt: now,
   };
+  // Untuk update path, hilangkan cleanedAt dari set bila preserveCleanedAt
+  // agar nilai existing tidak di-overwrite jadi null.
+  const updateSet: Record<string, unknown> = { ...insertValues };
+  if (input.preserveCleanedAt) {
+    delete updateSet.cleanedAt;
+  }
 
   const [row] = await db
     .insert(tableSessions)
-    .values(values)
+    .values(insertValues)
     .onConflictDoUpdate({
       target: [tableSessions.outletId, tableSessions.tableNumber],
-      set: values,
+      set: updateSet,
     })
     .returning();
 
@@ -5969,6 +6072,114 @@ export async function updateTableStatus(
     currentOrderId: row.currentOrderId,
     needsCleaning: row.needsCleaning,
     lastStatusAt: row.lastStatusAt.toISOString(),
+  };
+}
+
+// Pindahkan bill aktif dari meja sumber ke meja tujuan. Update label di
+// orders + reset sesi sumber (cleanedAt diset agar bill window di sumber
+// tertutup) + isi sesi tujuan dengan order tsb. Throws kalau tujuan
+// punya open bill aktif.
+export async function moveTable(
+  from: string,
+  to: string,
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const fromNumber = normalizeTableNumber(from);
+  const toNumber = normalizeTableNumber(to);
+  if (fromNumber === toNumber) {
+    throw new Error("Meja sumber dan tujuan sama.");
+  }
+  const now = new Date();
+
+  const live = await getTableLiveData();
+  const fromRow = live.find((r) => r.tableNumber === fromNumber);
+  const toRow = live.find((r) => r.tableNumber === toNumber);
+  if (!fromRow || !fromRow.currentOrderId) {
+    throw new Error("Meja sumber tidak punya bill aktif.");
+  }
+  if (toRow && (toRow.openBillCount ?? 0) > 0) {
+    throw new Error("Meja tujuan masih punya bill aktif. Selesaikan dulu.");
+  }
+  if (toRow?.needsCleaning) {
+    throw new Error("Meja tujuan perlu dibersihkan dulu.");
+  }
+
+  const orderId = fromRow.currentOrderId;
+  const toLabel = tableLabelForNumber(toNumber);
+  const fromLabel = tableLabelForNumber(fromNumber);
+
+  await db
+    .update(orders)
+    .set({ tableLabel: toLabel, updatedAt: now })
+    .where(eq(orders.id, orderId));
+
+  // Reset sesi sumber: status empty + cleanedAt=now (sesi sumber selesai).
+  await db
+    .insert(tableSessions)
+    .values({
+      outletId: garage.profile.outlet.id,
+      tableNumber: fromNumber,
+      tableLabel: fromLabel,
+      status: "empty",
+      currentOrderId: null,
+      needsCleaning: false,
+      cleanedAt: now,
+      lastStatusAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [tableSessions.outletId, tableSessions.tableNumber],
+      set: {
+        status: "empty",
+        currentOrderId: null,
+        needsCleaning: false,
+        cleanedAt: now,
+        lastStatusAt: now,
+        updatedAt: now,
+      },
+    });
+
+  // Set sesi tujuan dengan status sesuai order.
+  const targetStatus = fromRow.status === "paid" ? "paid" : fromRow.status;
+  await db
+    .insert(tableSessions)
+    .values({
+      outletId: garage.profile.outlet.id,
+      tableNumber: toNumber,
+      tableLabel: toLabel,
+      status: targetStatus,
+      currentOrderId: orderId,
+      needsCleaning: false,
+      lastStatusAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [tableSessions.outletId, tableSessions.tableNumber],
+      set: {
+        tableLabel: toLabel,
+        status: targetStatus,
+        currentOrderId: orderId,
+        needsCleaning: false,
+        lastStatusAt: now,
+        updatedAt: now,
+      },
+    });
+
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: `Move ${fromLabel} → ${toLabel}`,
+    object: fromRow.orderNo ?? orderId,
+    device: garage.profile.deviceLabel,
+    status: targetStatus,
+    metadata: { orderId, from: fromNumber, to: toNumber },
+  });
+
+  return {
+    from: fromNumber,
+    to: toNumber,
+    orderId,
+    orderNo: fromRow.orderNo,
   };
 }
 
@@ -7702,6 +7913,10 @@ export async function updateCustomerOrderStatus(
     });
 
     const tableNumber = normalizeTableNumber(order.tableLabel);
+    // needsCleaning sengaja TIDAK di-auto-set walau payment paid: chip "PAID"
+    // (chrome) seharusnya tampil dulu, supaya waiter dapat memilih "Bersih"
+    // (tamu pergi) atau "Tamu+" (teman gabung — buka bill kedua). Mark
+    // needs_cleaning hanya saat waiter eksplisit memilih clear path.
     await tx
       .insert(tableSessions)
       .values({
@@ -7710,7 +7925,7 @@ export async function updateCustomerOrderStatus(
         tableLabel: tableLabelForNumber(tableNumber),
         status: updated.status === "paid" ? "paid" : "accepted",
         currentOrderId: order.id,
-        needsCleaning: updated.status === "paid",
+        needsCleaning: false,
         lastStatusAt: now,
         updatedAt: now,
       })
@@ -7720,7 +7935,7 @@ export async function updateCustomerOrderStatus(
           tableLabel: tableLabelForNumber(tableNumber),
           status: updated.status === "paid" ? "paid" : "accepted",
           currentOrderId: order.id,
-          needsCleaning: updated.status === "paid",
+          needsCleaning: false,
           lastStatusAt: now,
           updatedAt: now,
         },

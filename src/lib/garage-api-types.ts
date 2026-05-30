@@ -519,6 +519,24 @@ export type PublicOrderStatus = {
   updatedAt: string;
 };
 
+export type TableLiveBill = {
+  id: string;
+  orderNo: string;
+  status: string;
+  total: number;
+  createdAt: string;
+};
+
+export type TableHistoryBill = TableLiveBill & {
+  customerName: string | null;
+};
+
+export type TableHistoryResponse = {
+  tableNumber: string;
+  tableLabel: string;
+  bills: TableHistoryBill[];
+};
+
 export type TableLiveRow = {
   tableNumber: string;
   tableLabel: string;
@@ -529,6 +547,7 @@ export type TableLiveRow = {
     | "accepted"
     | "paid"
     | "ready"
+    | "mixed"
     | "needs_cleaning"
     | "rejected"
     | string;
@@ -541,6 +560,9 @@ export type TableLiveRow = {
   kitchenStatus: string | null;
   needsCleaning: boolean;
   lastStatusAt: string | null;
+  bills?: TableLiveBill[];
+  paidBillCount?: number;
+  openBillCount?: number;
 };
 
 export type PublicTableLiveRow = {

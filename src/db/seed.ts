@@ -302,7 +302,7 @@ async function seedMenu() {
   `);
 }
 
-async function seedInventory() {
+async function seedInventory(seedDemo: boolean) {
   const db = getDb();
   const unitCostByName = new Map<string, number>([
     ["Kopi bubuk (espresso)", 120000],
@@ -331,22 +331,30 @@ async function seedInventory() {
 
   for (const item of inventoryItems) {
     const unitCost = unitCostByName.get(item.name) ?? 0;
+    // Mode normal: katalog di-seed dengan stok awal 0 (diisi via opname nyata).
+    // Status dihitung nyata dari onHand vs min; demo low/watch/safe dibuang.
+    const normalStatus = item.min > 0 ? "low" : "safe";
     await db
       .insert(inventoryItemsTable)
-      .values({ ...item, unitCost })
+      .values({
+        ...item,
+        unitCost,
+        onHand: 0,
+        status: normalStatus,
+        movement: "",
+      })
       .onConflictDoUpdate({
         target: inventoryItemsTable.sku,
         set: {
+          // Hanya update field katalog; stok nyata (onHand/status/movement)
+          // TIDAK ditimpa supaya re-seed aman setelah opname.
           name: item.name,
           alternativeName: item.alternativeName,
           category: item.category,
           unit: item.unit,
           packageSize: item.packageSize,
           unitCost,
-          onHand: item.onHand,
           min: item.min,
-          status: item.status,
-          movement: item.movement,
           updatedAt: new Date(),
         },
       });
@@ -481,15 +489,17 @@ async function seedInventory() {
       });
   }
 
-  const [movementCount] = await db.select({ total: count() }).from(stockMovementsTable);
-  if (!movementCount.total) {
-    await db.insert(stockMovementsTable).values(
-      stockMovements.map((movement) => ({
-        type: "seed",
-        note: movement,
-        actor: "Seed",
-      })),
-    );
+  if (seedDemo) {
+    const [movementCount] = await db.select({ total: count() }).from(stockMovementsTable);
+    if (!movementCount.total) {
+      await db.insert(stockMovementsTable).values(
+        stockMovements.map((movement) => ({
+          type: "seed",
+          note: movement,
+          actor: "Seed",
+        })),
+      );
+    }
   }
 }
 
@@ -515,10 +525,9 @@ async function seedCustomers() {
   }
 }
 
-async function seedMemberLoyalty() {
+// Struktural: POS terminal selalu di-seed (bukan data demo).
+async function seedPosTerminal() {
   const db = getDb();
-  await ensureGarageMemberLoyaltySeed(seedMemberPassword);
-
   await db
     .insert(posTerminals)
     .values({
@@ -536,6 +545,11 @@ async function seedMemberLoyalty() {
         updatedAt: new Date(),
       },
     });
+}
+
+// Demo: akun member loyalty contoh (hanya saat GARAGE_SEED_DEMO=true).
+async function seedMemberLoyalty() {
+  await ensureGarageMemberLoyaltySeed(seedMemberPassword);
 }
 
 async function seedKitchen() {
@@ -1056,19 +1070,30 @@ async function main() {
     throw new Error(`Unknown seed role: ${unknownRole.role}`);
   }
 
+  // Demo data (customer, kitchen, finance, approval, audit, marketing, member
+  // loyalty contoh) hanya di-seed saat GARAGE_SEED_DEMO=true. Default produksi:
+  // hanya data struktural (staff, outlet, menu, katalog bahan baku, resep, POS).
+  const seedDemo = process.env.GARAGE_SEED_DEMO?.trim().toLowerCase() === "true";
+
+  // --- Struktural (selalu) ---
   const outlet = await seedOutletAndStaff();
   await seedMenu();
-  await seedInventory();
-  await seedCustomers();
-  await seedMemberLoyalty();
-  await seedKitchen();
-  await seedFinance(outlet.id);
-  await seedApprovalsAndAudit();
-  await seedMarketing();
+  await seedInventory(seedDemo);
+  await seedPosTerminal();
   await seedSiteAssets();
 
+  // --- Demo (opsional) ---
+  if (seedDemo) {
+    await seedCustomers();
+    await seedMemberLoyalty();
+    await seedKitchen();
+    await seedFinance(outlet.id);
+    await seedApprovalsAndAudit();
+    await seedMarketing();
+  }
+
   const seededEmails = staffSeed.map((staff) => staff.email).join(", ");
-  console.log("Garage seed completed.");
+  console.log(`Garage seed completed (mode: ${seedDemo ? "DEMO" : "PRODUCTION/struktural"}).`);
   console.log(`Seed users: ${seededEmails}`);
   console.log(`Seed password: ${seedPassword}`);
   console.log(`Seed member password: ${seedMemberPassword}`);

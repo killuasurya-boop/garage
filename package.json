@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "dev:lan": "next dev --hostname 0.0.0.0 --port 3001",
+    "dev:https": "next dev --experimental-https --experimental-https-key ./certs/key.pem --experimental-https-cert ./certs/cert.pem --hostname 0.0.0.0 --port 3001",
     "pos:kiosk": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-pos-kiosk.ps1",
     "print:server": "node scripts/thermal-print-server.js",
     "print:start": "node scripts/thermal-print-server.js",

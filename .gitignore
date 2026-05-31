@@ -32,6 +32,9 @@
 # runtime user uploads (selfie absensi, chat, dll) — bukan source
 /public/uploads/
 
+# sertifikat dev HTTPS lokal (jangan commit kunci privat)
+/certs/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

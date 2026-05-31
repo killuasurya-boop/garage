@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapPin, Plus, Trash2, Shield, Compass, Navigation } from "lucide-react";
+import { MapPin, Plus, Trash2, Compass, Navigation, Crosshair, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,6 +28,29 @@ export function TeamLocationsManager() {
   const [radius, setRadius] = useState("100");
   const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  function useMyLocation() {
+    setGeoError(null);
+    if (!navigator.geolocation) {
+      setGeoError("Peramban tidak mendukung GPS.");
+      return;
+    }
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        setGeoLoading(false);
+      },
+      () => {
+        setGeoError("Izin lokasi ditolak / GPS tidak tersedia. Pastikan akses via HTTPS.");
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  }
 
   async function fetchLocations() {
     try {
@@ -122,6 +145,26 @@ export function TeamLocationsManager() {
         </Button>
       </div>
 
+      {/* Status geofence presensi: aktif vs tidak dibatasi lokasi */}
+      {!loading && (
+        locations.some((l) => l.type === "presensi") ? (
+          <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Geofence presensi <b>aktif</b> — absensi hanya diterima dalam radius titik presensi yang terdaftar.
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Belum ada titik <b>presensi</b> — absensi saat ini <b>tidak dibatasi lokasi</b> (bisa dari mana saja).
+              Tambah lokasi presensi (berdiri di outlet, lalu tap &quot;Pakai Lokasi Saya&quot;) untuk mengaktifkan geofence.
+            </span>
+          </div>
+        )
+      )}
+
       {showAddForm && (
         <form onSubmit={handleSubmit} className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 space-y-4 backdrop-blur-md">
           <h4 className="text-sm font-semibold text-zinc-200">Tambah Koordinat Lokasi Baru</h4>
@@ -150,6 +193,27 @@ export function TeamLocationsManager() {
               </select>
             </div>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              onClick={useMyLocation}
+              disabled={geoLoading}
+              variant="outline"
+              className="gap-2 border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+            >
+              {geoLoading ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+              {geoLoading ? "Mengambil GPS…" : "Pakai Lokasi Saya Sekarang"}
+            </Button>
+            <span className="text-[11px] text-zinc-500">
+              Berdiri di titik presensi outlet lalu tap ini untuk mengisi koordinat otomatis.
+            </span>
+          </div>
+          {geoError && (
+            <p className="flex items-center gap-1.5 text-xs text-red-400">
+              <AlertTriangle className="size-3.5" /> {geoError}
+            </p>
+          )}
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">

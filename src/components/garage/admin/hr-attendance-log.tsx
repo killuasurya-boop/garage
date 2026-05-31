@@ -29,6 +29,7 @@ type AttendanceLog = {
   latitude?: number | null;
   longitude?: number | null;
   distanceMeters?: number | null;
+  photoUrl?: string | null;
 };
 
 function statusBadge(status?: string | null) {
@@ -146,19 +147,20 @@ export function HrAttendanceLog() {
                   <TableHead className="font-bold">Aksi</TableHead>
                   <TableHead className="font-bold">Status</TableHead>
                   <TableHead className="font-bold">Lokasi</TableHead>
+                  <TableHead className="font-bold">Foto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                       <RefreshCw className="size-5 animate-spin mx-auto mb-2 opacity-50" />
                       Memuat data...
                     </TableCell>
                   </TableRow>
                 ) : todayLogs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                       Belum ada absensi tercatat hari ini.
                     </TableCell>
                   </TableRow>
@@ -202,6 +204,20 @@ export function HrAttendanceLog() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {log.photoUrl ? (
+                          <a href={log.photoUrl} target="_blank" rel="noopener noreferrer" title="Lihat selfie">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={log.photoUrl}
+                              alt={`Selfie ${log.name}`}
+                              className="size-9 rounded-md object-cover ring-1 ring-border transition hover:ring-2 hover:ring-primary"
+                            />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -222,9 +238,21 @@ export function HrAttendanceLog() {
             ) : (
               todayLogs.map((log) => (
                 <div key={log.id} className="p-4 bg-card flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-bold text-foreground text-sm truncate">{log.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{log.role}</div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    {log.photoUrl ? (
+                      <a href={log.photoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={log.photoUrl}
+                          alt={`Selfie ${log.name}`}
+                          className="size-10 rounded-full object-cover ring-1 ring-border"
+                        />
+                      </a>
+                    ) : null}
+                    <div className="min-w-0">
+                      <div className="font-bold text-foreground text-sm truncate">{log.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{log.role}</div>
+                    </div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-mono text-sm text-foreground">{formatTime(log.timestamp)}</div>

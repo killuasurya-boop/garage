@@ -8,7 +8,6 @@ import {
   shiftSchedules,
   user,
 } from "@/db/schema";
-import { requireGarageSession } from "@/lib/server-auth";
 import {
   hashPin,
   jakartaDayRange,
@@ -23,17 +22,17 @@ const checkSchema = z.object({
   pinCode: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4-8 digit angka"),
 });
 
+function clientIp(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  return req.headers.get("x-real-ip") ?? "kiosk";
+}
+
 // Cek status absensi staff (IN/OUT terakhir + jadwal shift hari ini) TANPA
-// mencatat punch. Dipakai terminal untuk tampilkan status & smart-disable
-// tombol sebelum staff menekan Clock In/Out.
+// mencatat punch. Kiosk publik di-auth oleh PIN (lihat catatan di POST punch).
 export async function POST(req: Request) {
   try {
-    const session = await requireGarageSession();
-    if (session.response || !session.data) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const rateKey = `attendance-check:${session.data.user.id}`;
+    const rateKey = `attendance-check:${clientIp(req)}`;
     const limit = checkRateLimit(rateKey);
     if (!limit.allowed) {
       return NextResponse.json(

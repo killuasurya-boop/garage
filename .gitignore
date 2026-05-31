@@ -29,6 +29,9 @@
 /.tmp/
 /.codex-screenshots/
 
+# runtime user uploads (selfie absensi, chat, dll) — bukan source
+/public/uploads/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

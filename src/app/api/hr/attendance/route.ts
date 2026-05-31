@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { eq, and, gte, lt, desc } from "drizzle-orm";
 import { z } from "zod";
@@ -9,7 +12,6 @@ import {
   shiftSchedules,
   user,
 } from "@/db/schema";
-import { requireGarageSession } from "@/lib/server-auth";
 import {
   hashPin,
   pinHashEquals,
@@ -30,17 +32,38 @@ const attendanceSchema = z.object({
   action: z.enum(["in", "out"]),
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),
+  // Selfie wajah opsional (dataURL image/jpeg|png base64). Anti titip-absen.
+  selfie: z.string().max(3_500_000).optional(),
 });
 
+function clientIp(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  return req.headers.get("x-real-ip") ?? "kiosk";
+}
+
+// Simpan selfie dataURL ke public/uploads/attendance. Return path publik atau null.
+async function saveSelfie(dataUrl: string | undefined): Promise<string | null> {
+  if (!dataUrl) return null;
+  const m = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/.exec(dataUrl);
+  if (!m) return null;
+  const ext = m[1] === "jpeg" ? "jpg" : m[1];
+  const buffer = Buffer.from(m[2], "base64");
+  if (buffer.length > 3_000_000) return null; // guard ~3MB
+  const dir = path.join(process.cwd(), "public", "uploads", "attendance");
+  await mkdir(dir, { recursive: true });
+  const filename = `${jakartaDateKey()}-${randomUUID()}.${ext}`;
+  await writeFile(path.join(dir, filename), buffer);
+  return `/uploads/attendance/${filename}`;
+}
+
+// Terminal absensi adalah KIOSK PUBLIK: di-auth oleh PIN staff itu sendiri
+// (bukan sesi login operator). Keamanan = hash PIN + rate-limit IP + geofence
+// + double-punch. Inilah perbaikan "PIN 401": sebelumnya menuntut sesi login.
 export async function POST(req: Request) {
   try {
-    const session = await requireGarageSession();
-    if (session.response || !session.data) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Rate-limit per operator/terminal untuk cegah brute-force PIN.
-    const rateKey = `attendance:${session.data.user.id}`;
+    // Rate-limit per IP terminal untuk cegah brute-force PIN.
+    const rateKey = `attendance:${clientIp(req)}`;
     const limit = checkRateLimit(rateKey);
     if (!limit.allowed) {
       return NextResponse.json(
@@ -61,7 +84,7 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const { pinCode, action, latitude, longitude } = parsed.data;
+    const { pinCode, action, latitude, longitude, selfie } = parsed.data;
 
     const db = await getDb();
     const pinHashValue = hashPin(pinCode);
@@ -211,6 +234,14 @@ export async function POST(req: Request) {
         })
       : "normal";
 
+    // Simpan selfie (best-effort; kegagalan tulis tidak membatalkan punch).
+    let photoUrl: string | null = null;
+    try {
+      photoUrl = await saveSelfie(selfie);
+    } catch (e) {
+      console.error("Gagal simpan selfie absensi:", e);
+    }
+
     await db.insert(employeeAttendances).values({
       staffId: resolved.id,
       outletId: resolved.outletId,
@@ -221,6 +252,7 @@ export async function POST(req: Request) {
       distanceMeters,
       status,
       scheduleId: todaySchedule?.id ?? null,
+      photoUrl,
     });
 
     return NextResponse.json({
@@ -230,6 +262,7 @@ export async function POST(req: Request) {
       status,
       statusLabel: attendanceStatusLabel(status),
       distanceMeters: distanceMeters != null ? Math.round(distanceMeters) : null,
+      photoUrl,
     });
   } catch (error) {
     console.error("Attendance error:", error);

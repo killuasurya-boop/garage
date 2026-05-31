@@ -28,6 +28,7 @@ export async function GET(req: Request) {
         latitude: employeeAttendances.latitude,
         longitude: employeeAttendances.longitude,
         distanceMeters: employeeAttendances.distanceMeters,
+        photoUrl: employeeAttendances.photoUrl,
         role: staffProfiles.role,
         name: user.name,
       })

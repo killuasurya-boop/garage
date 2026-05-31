@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Clock, CheckCircle2, UserCircle2, LogIn, LogOut, AlertTriangle, Search } from "lucide-react";
+import { Clock, CheckCircle2, UserCircle2, LogIn, LogOut, AlertTriangle, Search, Camera, CameraOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -29,10 +29,69 @@ export function EmployeeClockPanel() {
   const [checking, setChecking] = useState(false);
   const checkAbort = useRef<AbortController | null>(null);
 
+  // --- Kamera selfie (anti titip-absen) ---
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [camReady, setCamReady] = useState(false);
+  const [camError, setCamError] = useState<string | null>(null);
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Nyalakan kamera depan saat mount; matikan saat unmount.
+  useEffect(() => {
+    let cancelled = false;
+    async function startCam() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCamError("Kamera tidak didukung peramban ini.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 480 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCamReady(true);
+        setCamError(null);
+      } catch {
+        setCamError("Izin kamera ditolak. Aktifkan kamera untuk selfie absensi.");
+        setCamReady(false);
+      }
+    }
+    void startCam();
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  // Ambil 1 frame dari video -> dataURL JPEG (mirror agar natural seperti cermin).
+  const captureSelfie = useCallback((): string | null => {
+    const video = videoRef.current;
+    if (!video || !camReady || video.videoWidth === 0) return null;
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = 480;
+    canvas.height = 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const sx = (video.videoWidth - size) / 2;
+    const sy = (video.videoHeight - size) / 2;
+    ctx.drawImage(video, sx, sy, size, size, 0, 0, 480, 480);
+    return canvas.toDataURL("image/jpeg", 0.72);
+  }, [camReady]);
 
   const getPosition = useCallback(async (): Promise<{ latitude: number; longitude: number }> => {
     if (!navigator.geolocation) {
@@ -101,11 +160,13 @@ export function EmployeeClockPanel() {
       return;
     }
 
+    const selfie = captureSelfie();
+
     try {
       const res = await fetch("/api/hr/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinCode: pin, action, ...coords }),
+        body: JSON.stringify({ pinCode: pin, action, ...coords, selfie: selfie ?? undefined }),
       });
       const data = await res.json();
 
@@ -159,6 +220,35 @@ export function EmployeeClockPanel() {
           <div className="text-sm text-zinc-500">
             {time.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </div>
+        </div>
+
+        {/* Kamera selfie — wajah direkam saat Clock In/Out (anti titip-absen) */}
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="relative h-36 w-36 overflow-hidden rounded-full border-2 border-zinc-700 bg-zinc-950 ring-2 ring-[#f5a742]/20">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="h-full w-full scale-x-[-1] object-cover"
+            />
+            {!camReady && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
+                <CameraOff className="h-6 w-6 text-zinc-600" />
+                <span className="px-2 text-[10px] leading-tight text-zinc-500">
+                  {camError ? "Kamera tidak aktif" : "Menyalakan kamera…"}
+                </span>
+              </div>
+            )}
+          </div>
+          <p
+            className={`flex items-center gap-1 text-[11px] ${
+              camReady ? "text-emerald-400" : "text-amber-400/80"
+            }`}
+          >
+            <Camera className="h-3 w-3" />
+            {camReady ? "Wajah terdeteksi — siap absen" : camError ?? "Menyiapkan kamera…"}
+          </p>
         </div>
 
         <div className="space-y-3">

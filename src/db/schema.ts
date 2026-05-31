@@ -1957,6 +1957,8 @@ export const employeeAttendances = pgTable(
     // Jadwal yang dipakai sebagai acuan (bila ada) + catatan tambahan.
     scheduleId: uuid("schedule_id").references(() => shiftSchedules.id, { onDelete: "set null" }),
     note: text("note"),
+    // Selfie wajah saat punch (anti titip-absen). Path publik di /uploads/attendance.
+    photoUrl: text("photo_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

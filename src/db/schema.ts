@@ -258,6 +258,9 @@ export const staffProfiles = pgTable(
     suspendedReason: text("suspended_reason"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     pinCode: text("pin_code"),
+    // HMAC-SHA256 dari PIN (deterministik, bisa di-lookup). pinCode lama
+    // dipertahankan untuk lazy-migration; verifikasi pakai pinHash bila ada.
+    pinHash: text("pin_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1945,6 +1948,15 @@ export const employeeAttendances = pgTable(
     outletId: uuid("outlet_id").notNull().references(() => outlets.id, { onDelete: "cascade" }),
     action: text("action").notNull(), // 'in' or 'out'
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
+    // Bukti lokasi punch + jarak ke titik presensi (meter) saat dicatat.
+    latitude: real("latitude"),
+    longitude: real("longitude"),
+    distanceMeters: real("distance_meters"),
+    // Status kepatuhan vs jadwal shift: 'normal' | 'on_time' | 'late' | 'early_leave'.
+    status: text("status").notNull().default("normal"),
+    // Jadwal yang dipakai sebagai acuan (bila ada) + catatan tambahan.
+    scheduleId: uuid("schedule_id").references(() => shiftSchedules.id, { onDelete: "set null" }),
+    note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

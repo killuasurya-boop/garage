@@ -30,7 +30,15 @@ type StaffPayroll = {
   role: string;
   outletId: string;
   kpiScore: number;
-  
+
+  // Statistik absensi periode (dari /api/hr/team/payroll)
+  presentDays?: number;
+  workedMinutes?: number;
+  workedHoursLabel?: string;
+  lateCount?: number;
+  earlyLeaveCount?: number;
+  unpairedCount?: number;
+
   // Master Configs
   masterBaseSalary: number;
   masterAllowance: number;
@@ -448,6 +456,27 @@ export function TeamPayrollManager() {
                           )}
                         </h4>
                         <p className="text-xs text-[#a1a1aa] mt-0.5">{p.role} • KPI Bulan Ini: <span className="font-semibold text-[#f5a742]">{p.kpiScore}</span></p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                          <span className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-1.5 py-0.5 text-zinc-300 ring-1 ring-white/10">
+                            Hadir: <span className="font-semibold text-zinc-100">{p.presentDays ?? 0} hari</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-1.5 py-0.5 text-zinc-300 ring-1 ring-white/10">
+                            Jam: <span className="font-semibold text-zinc-100">{p.workedHoursLabel ?? "0j 0m"}</span>
+                          </span>
+                          {(p.lateCount ?? 0) > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-semibold text-amber-400 ring-1 ring-amber-500/30">
+                              Telat {p.lateCount}×
+                            </span>
+                          )}
+                          {(p.unpairedCount ?? 0) > 0 && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.5 font-semibold text-rose-400 ring-1 ring-rose-500/30"
+                              title="Punch In tanpa pasangan Out — perlu verifikasi"
+                            >
+                              {p.unpairedCount} tidak lengkap
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-right">

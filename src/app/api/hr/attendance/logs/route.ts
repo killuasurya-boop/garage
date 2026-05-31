@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { employeeAttendances, staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, gte, lt, desc } from "drizzle-orm";
+import { jakartaDayRange } from "@/lib/attendance";
+
+export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   try {
@@ -10,40 +13,63 @@ export async function GET(req: Request) {
     if (session.response) return session.response;
 
     const db = await getDb();
+    const { searchParams } = new URL(req.url);
 
-    // In a real app we would join employeeAttendances with staffProfiles and user
-    // However, for simplicity without complex join definitions, we'll fetch them separately
-    // or use a drizzle query if relations are defined. 
-    // Wait, Drizzle allows simple joins using query builder. Let's use standard select join.
-    const logs = await db
+    // Default: hari ini (WIB). Bisa override dengan ?scope=all untuk 100 terbaru.
+    const scope = searchParams.get("scope");
+    const { start, end } = jakartaDayRange();
+
+    const baseQuery = db
       .select({
         id: employeeAttendances.id,
         action: employeeAttendances.action,
         timestamp: employeeAttendances.timestamp,
+        status: employeeAttendances.status,
+        latitude: employeeAttendances.latitude,
+        longitude: employeeAttendances.longitude,
+        distanceMeters: employeeAttendances.distanceMeters,
         role: staffProfiles.role,
-        userId: staffProfiles.userId,
+        name: user.name,
       })
       .from(employeeAttendances)
       .leftJoin(staffProfiles, eq(employeeAttendances.staffId, staffProfiles.id))
-      .orderBy(desc(employeeAttendances.timestamp))
-      .limit(100);
+      .leftJoin(user, eq(staffProfiles.userId, user.id))
+      .orderBy(desc(employeeAttendances.timestamp));
 
-    // Fetch user names manually since we don't know if foreign keys are configured for query builder
-    const userIds = Array.from(new Set(logs.map(l => l.userId).filter(Boolean))) as string[];
-    let usersData: Array<{ id: string; name: string }> = [];
-    if (userIds.length > 0) {
-      usersData = await db
-        .select({ id: user.id, name: user.name })
-        .from(user);
-    }
-    const userMap = new Map(usersData.map(u => [u.id, u.name]));
+    const logs =
+      scope === "all"
+        ? await baseQuery.limit(200)
+        : await db
+            .select({
+              id: employeeAttendances.id,
+              action: employeeAttendances.action,
+              timestamp: employeeAttendances.timestamp,
+              status: employeeAttendances.status,
+              latitude: employeeAttendances.latitude,
+              longitude: employeeAttendances.longitude,
+              distanceMeters: employeeAttendances.distanceMeters,
+              role: staffProfiles.role,
+              name: user.name,
+            })
+            .from(employeeAttendances)
+            .leftJoin(staffProfiles, eq(employeeAttendances.staffId, staffProfiles.id))
+            .leftJoin(user, eq(staffProfiles.userId, user.id))
+            .where(
+              and(
+                gte(employeeAttendances.timestamp, start),
+                lt(employeeAttendances.timestamp, end),
+              ),
+            )
+            .orderBy(desc(employeeAttendances.timestamp))
+            .limit(200);
 
-    const enrichedLogs = logs.map(log => ({
+    const enriched = logs.map((log) => ({
       ...log,
-      name: log.userId ? userMap.get(log.userId) || "Unknown Staff" : "Unknown Staff",
+      name: log.name ?? "Staf tidak dikenal",
+      role: log.role ?? "—",
     }));
 
-    return NextResponse.json({ logs: enrichedLogs });
+    return NextResponse.json({ logs: enriched });
   } catch (error) {
     console.error("Failed to fetch attendance logs:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

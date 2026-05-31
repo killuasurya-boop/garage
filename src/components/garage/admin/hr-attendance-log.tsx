@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Clock, RefreshCw, LogIn, LogOut } from "lucide-react";
+import { Clock, RefreshCw, LogIn, LogOut, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type AttendanceLog = {
@@ -25,7 +25,36 @@ type AttendanceLog = {
   timestamp: string;
   name: string;
   role: string;
+  status?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  distanceMeters?: number | null;
 };
+
+function statusBadge(status?: string | null) {
+  if (status === "late") {
+    return (
+      <Badge variant="outline" className="gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+        Telat
+      </Badge>
+    );
+  }
+  if (status === "early_leave") {
+    return (
+      <Badge variant="outline" className="gap-1 bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30">
+        Pulang Cepat
+      </Badge>
+    );
+  }
+  if (status === "on_time") {
+    return (
+      <Badge variant="outline" className="gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+        Tepat
+      </Badge>
+    );
+  }
+  return null;
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("id-ID", {
@@ -68,8 +97,8 @@ export function HrAttendanceLog() {
     fetchLogs();
   }, [fetchLogs]);
 
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const todayLogs = logs.filter((l) => l.timestamp.slice(0, 10) === todayKey);
+  // Server sudah memfilter ke "hari ini" zona WIB; tampilkan apa adanya.
+  const todayLogs = logs;
 
   return (
     <div className="space-y-6">
@@ -115,19 +144,21 @@ export function HrAttendanceLog() {
                   <TableHead className="font-bold">Nama Staf</TableHead>
                   <TableHead className="font-bold">Peran</TableHead>
                   <TableHead className="font-bold">Aksi</TableHead>
+                  <TableHead className="font-bold">Status</TableHead>
+                  <TableHead className="font-bold">Lokasi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                       <RefreshCw className="size-5 animate-spin mx-auto mb-2 opacity-50" />
                       Memuat data...
                     </TableCell>
                   </TableRow>
                 ) : todayLogs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                       Belum ada absensi tercatat hari ini.
                     </TableCell>
                   </TableRow>
@@ -152,6 +183,23 @@ export function HrAttendanceLog() {
                           >
                             <LogOut className="size-3" /> Clock Out
                           </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{statusBadge(log.status) ?? <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                      <TableCell>
+                        {log.latitude != null && log.longitude != null ? (
+                          <a
+                            href={`https://www.google.com/maps?q=${log.latitude},${log.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            title={log.distanceMeters != null ? `±${Math.round(log.distanceMeters)}m dari titik presensi` : "Lihat di peta"}
+                          >
+                            <MapPin className="size-3" />
+                            {log.distanceMeters != null ? `${Math.round(log.distanceMeters)}m` : "Peta"}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -180,21 +228,24 @@ export function HrAttendanceLog() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-mono text-sm text-foreground">{formatTime(log.timestamp)}</div>
-                    {log.action === "in" ? (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-500/30"
-                      >
-                        <LogIn className="size-3" /> In
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 gap-1 bg-blue-500/10 text-blue-600 dark:text-blue-500 border-blue-500/30"
-                      >
-                        <LogOut className="size-3" /> Out
-                      </Badge>
-                    )}
+                    <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
+                      {log.action === "in" ? (
+                        <Badge
+                          variant="outline"
+                          className="gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-emerald-500/30"
+                        >
+                          <LogIn className="size-3" /> In
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="gap-1 bg-blue-500/10 text-blue-600 dark:text-blue-500 border-blue-500/30"
+                        >
+                          <LogOut className="size-3" /> Out
+                        </Badge>
+                      )}
+                      {statusBadge(log.status)}
+                    </div>
                   </div>
                 </div>
               ))

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { staffSalaries, staffPayrolls, staffProfiles, user, kpiEvaluations, employeeAttendances, staffAdvances } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
+import { computeWorkedStats, formatWorkedHours } from "@/lib/attendance";
 
 export async function GET(req: Request) {
   try {
@@ -66,6 +67,40 @@ export async function GET(req: Request) {
       advanceMap.set(adv.staffId, current + adv.amount);
     });
 
+    // 6. Absensi sepanjang periode -> jam kerja, hari hadir, jumlah telat.
+    // period = "YYYY-MM"; rentang [bulan, bulan+1).
+    const [yearText, monthText] = period.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText); // 1-12
+    const attendanceStatsMap = new Map<string, ReturnType<typeof computeWorkedStats>>();
+    if (Number.isFinite(year) && Number.isFinite(month)) {
+      const periodStart = new Date(Date.UTC(year, month - 1, 1) - 7 * 60 * 60 * 1000);
+      const periodEnd = new Date(Date.UTC(year, month, 1) - 7 * 60 * 60 * 1000);
+      const punches = await db
+        .select({
+          staffId: employeeAttendances.staffId,
+          action: employeeAttendances.action,
+          timestamp: employeeAttendances.timestamp,
+          status: employeeAttendances.status,
+        })
+        .from(employeeAttendances)
+        .where(
+          and(
+            gte(employeeAttendances.timestamp, periodStart),
+            lt(employeeAttendances.timestamp, periodEnd),
+          ),
+        );
+      const byStaff = new Map<string, typeof punches>();
+      for (const p of punches) {
+        const list = byStaff.get(p.staffId) ?? [];
+        list.push(p);
+        byStaff.set(p.staffId, list);
+      }
+      for (const [staffId, list] of byStaff) {
+        attendanceStatsMap.set(staffId, computeWorkedStats(list));
+      }
+    }
+
     // Enrich the staff list with payroll calculation data
     const payrollList = staffList.map((st) => {
       const masterSal = salaryMap.get(st.id);
@@ -88,7 +123,9 @@ export async function GET(req: Request) {
       else if (kpiScore >= 80) autoBonus = 100000;
 
       // Auto Deduction calculation (includes approved cash advances!)
-      const autoDeduction = advanceMap.get(st.id) || 0; 
+      const autoDeduction = advanceMap.get(st.id) || 0;
+
+      const att = attendanceStatsMap.get(st.id);
 
       return {
         staffId: st.id,
@@ -96,6 +133,14 @@ export async function GET(req: Request) {
         role: st.role,
         outletId: st.outletId,
         kpiScore,
+
+        // Statistik absensi periode (display & verifikasi payroll)
+        presentDays: att?.presentDays ?? 0,
+        workedMinutes: att?.workedMinutes ?? 0,
+        workedHoursLabel: att ? formatWorkedHours(att.workedMinutes) : "0j 0m",
+        lateCount: att?.lateCount ?? 0,
+        earlyLeaveCount: att?.earlyLeaveCount ?? 0,
+        unpairedCount: att?.unpairedCount ?? 0,
         
         // Master Configs
         masterBaseSalary: masterSal?.baseSalary ?? 0,

@@ -1,0 +1,141 @@
+import { NextResponse } from "next/server";
+import { eq, and, gte, lt, desc } from "drizzle-orm";
+import { z } from "zod";
+import { getDb } from "@/db";
+import {
+  staffProfiles,
+  employeeAttendances,
+  shiftSchedules,
+  user,
+} from "@/db/schema";
+import { requireGarageSession } from "@/lib/server-auth";
+import {
+  hashPin,
+  jakartaDayRange,
+  jakartaDateKey,
+  checkRateLimit,
+  recordFailedAttempt,
+} from "@/lib/attendance";
+
+export const runtime = "nodejs";
+
+const checkSchema = z.object({
+  pinCode: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4-8 digit angka"),
+});
+
+// Cek status absensi staff (IN/OUT terakhir + jadwal shift hari ini) TANPA
+// mencatat punch. Dipakai terminal untuk tampilkan status & smart-disable
+// tombol sebelum staff menekan Clock In/Out.
+export async function POST(req: Request) {
+  try {
+    const session = await requireGarageSession();
+    if (session.response || !session.data) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateKey = `attendance-check:${session.data.user.id}`;
+    const limit = checkRateLimit(rateKey);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: `Terlalu banyak percobaan. Coba lagi dalam ${limit.retryAfterSec}s.` },
+        { status: 429 },
+      );
+    }
+
+    const parsed = checkSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "PIN tidak valid" }, { status: 400 });
+    }
+
+    const db = await getDb();
+    const pinHashValue = hashPin(parsed.data.pinCode);
+
+    const staff = await db
+      .select({
+        id: staffProfiles.id,
+        status: staffProfiles.status,
+        name: user.name,
+        role: staffProfiles.role,
+      })
+      .from(staffProfiles)
+      .innerJoin(user, eq(staffProfiles.userId, user.id))
+      .where(eq(staffProfiles.pinHash, pinHashValue))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    let resolved = staff;
+    if (!resolved) {
+      resolved = await db
+        .select({
+          id: staffProfiles.id,
+          status: staffProfiles.status,
+          name: user.name,
+          role: staffProfiles.role,
+        })
+        .from(staffProfiles)
+        .innerJoin(user, eq(staffProfiles.userId, user.id))
+        .where(eq(staffProfiles.pinCode, parsed.data.pinCode))
+        .limit(1)
+        .then((rows) => rows[0]);
+    }
+
+    if (!resolved) {
+      recordFailedAttempt(rateKey);
+      return NextResponse.json({ error: "PIN tidak ditemukan" }, { status: 404 });
+    }
+    if (resolved.status !== "active") {
+      return NextResponse.json({ error: "Akun karyawan tidak aktif" }, { status: 403 });
+    }
+
+    const { start, end } = jakartaDayRange();
+    const last = await db
+      .select({ action: employeeAttendances.action, timestamp: employeeAttendances.timestamp })
+      .from(employeeAttendances)
+      .where(
+        and(
+          eq(employeeAttendances.staffId, resolved.id),
+          gte(employeeAttendances.timestamp, start),
+          lt(employeeAttendances.timestamp, end),
+        ),
+      )
+      .orderBy(desc(employeeAttendances.timestamp))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    const schedule = await db
+      .select({
+        shiftType: shiftSchedules.shiftType,
+        startTime: shiftSchedules.startTime,
+        endTime: shiftSchedules.endTime,
+      })
+      .from(shiftSchedules)
+      .where(
+        and(
+          eq(shiftSchedules.staffId, resolved.id),
+          eq(shiftSchedules.date, jakartaDateKey()),
+        ),
+      )
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    const currentState: "in" | "out" = last?.action === "in" ? "in" : "out";
+
+    return NextResponse.json({
+      staffName: resolved.name,
+      role: resolved.role,
+      currentState,
+      lastPunchAt: last?.timestamp?.toISOString() ?? null,
+      lastAction: last?.action ?? null,
+      schedule: schedule
+        ? {
+            shiftType: schedule.shiftType,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Attendance check error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

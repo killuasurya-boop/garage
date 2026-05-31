@@ -1,37 +1,54 @@
 import { NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lt, desc } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { staffProfiles, employeeAttendances, operationLocations, user } from "@/db/schema";
+import {
+  staffProfiles,
+  employeeAttendances,
+  operationLocations,
+  shiftSchedules,
+  user,
+} from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
+import {
+  hashPin,
+  pinHashEquals,
+  haversineMeters,
+  jakartaDayRange,
+  jakartaDateKey,
+  evaluatePunchStatus,
+  attendanceStatusLabel,
+  checkRateLimit,
+  recordFailedAttempt,
+  resetRateLimit,
+} from "@/lib/attendance";
+
+export const runtime = "nodejs";
 
 const attendanceSchema = z.object({
-  pinCode: z.string().trim().min(4).max(12),
+  pinCode: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4-8 digit angka"),
   action: z.enum(["in", "out"]),
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),
 });
 
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; // Radius bumi dalam meter
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c; // Jarak dalam meter
-}
-
 export async function POST(req: Request) {
   try {
     const session = await requireGarageSession();
-    if (session.response) {
+    if (session.response || !session.data) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate-limit per operator/terminal untuk cegah brute-force PIN.
+    const rateKey = `attendance:${session.data.user.id}`;
+    const limit = checkRateLimit(rateKey);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        {
+          error: `Terlalu banyak percobaan PIN salah. Coba lagi dalam ${limit.retryAfterSec}s.`,
+        },
+        { status: 429 },
+      );
     }
 
     const parsed = attendanceSchema.safeParse(await req.json());
@@ -39,7 +56,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Absensi memerlukan PIN yang valid dan koordinat GPS. Pastikan izin lokasi peramban diaktifkan.",
+            "Absensi memerlukan PIN 4-8 digit dan koordinat GPS. Pastikan izin lokasi peramban diaktifkan.",
         },
         { status: 400 },
       );
@@ -47,73 +64,172 @@ export async function POST(req: Request) {
     const { pinCode, action, latitude, longitude } = parsed.data;
 
     const db = await getDb();
+    const pinHashValue = hashPin(pinCode);
 
-    // Verify the PIN
+    // Cari staff: prioritaskan pinHash; fallback pinCode plaintext (lazy migrasi).
     const staff = await db
       .select({
         id: staffProfiles.id,
         outletId: staffProfiles.outletId,
         status: staffProfiles.status,
+        pinCode: staffProfiles.pinCode,
+        pinHash: staffProfiles.pinHash,
         name: user.name,
       })
       .from(staffProfiles)
       .innerJoin(user, eq(staffProfiles.userId, user.id))
-      .where(eq(staffProfiles.pinCode, pinCode))
+      .where(eq(staffProfiles.pinHash, pinHashValue))
       .limit(1)
       .then((rows) => rows[0]);
 
-    if (!staff) {
-      return NextResponse.json({ error: "PIN tidak ditemukan" }, { status: 404 });
+    let resolved: typeof staff | undefined = staff;
+    if (!resolved) {
+      // Fallback: cocokkan plaintext lama, lalu upgrade ke hash.
+      const legacy = await db
+        .select({
+          id: staffProfiles.id,
+          outletId: staffProfiles.outletId,
+          status: staffProfiles.status,
+          pinCode: staffProfiles.pinCode,
+          pinHash: staffProfiles.pinHash,
+          name: user.name,
+        })
+        .from(staffProfiles)
+        .innerJoin(user, eq(staffProfiles.userId, user.id))
+        .where(eq(staffProfiles.pinCode, pinCode))
+        .limit(1)
+        .then((rows) => rows[0]);
+      if (legacy) {
+        await db
+          .update(staffProfiles)
+          .set({ pinHash: pinHashValue, pinCode: null })
+          .where(eq(staffProfiles.id, legacy.id));
+        resolved = legacy;
+      }
+    } else if (resolved.pinHash && !pinHashEquals(resolved.pinHash, pinHashValue)) {
+      // Index lookup sudah eq, ini guard tambahan (timing-safe).
+      resolved = undefined;
     }
 
-    if (staff.status !== "active") {
+    if (!resolved) {
+      recordFailedAttempt(rateKey);
+      return NextResponse.json({ error: "PIN tidak ditemukan" }, { status: 404 });
+    }
+    resetRateLimit(rateKey);
+
+    if (resolved.status !== "active") {
       return NextResponse.json({ error: "Akun karyawan tidak aktif" }, { status: 403 });
     }
 
-    // Geofencing Check
+    // --- Geofence ---
     const activeGeofence = await db
       .select()
       .from(operationLocations)
       .where(
         and(
-          eq(operationLocations.outletId, staff.outletId),
-          eq(operationLocations.type, "presensi")
-        )
+          eq(operationLocations.outletId, resolved.outletId),
+          eq(operationLocations.type, "presensi"),
+        ),
       )
       .limit(1)
       .then((rows) => rows[0]);
 
+    let distanceMeters: number | null = null;
     if (activeGeofence) {
-      const distance = calculateDistance(
+      distanceMeters = haversineMeters(
         latitude,
         longitude,
         activeGeofence.latitude,
         activeGeofence.longitude,
       );
-
-      if (distance > activeGeofence.radius) {
+      if (distanceMeters > activeGeofence.radius) {
         return NextResponse.json(
           {
-            error: `Absensi gagal. Anda berada di luar radius outlet. Jarak Anda: ${Math.round(
-              distance,
-            )}m, Radius Maksimal: ${activeGeofence.radius}m.`,
+            error: `Absensi gagal. Anda di luar radius outlet. Jarak: ${Math.round(
+              distanceMeters,
+            )}m, maksimal: ${activeGeofence.radius}m.`,
           },
           { status: 400 },
         );
       }
     }
 
-    // Insert attendance record
+    // --- Double-punch protection ---
+    const { start, end } = jakartaDayRange();
+    const lastToday = await db
+      .select({ action: employeeAttendances.action, timestamp: employeeAttendances.timestamp })
+      .from(employeeAttendances)
+      .where(
+        and(
+          eq(employeeAttendances.staffId, resolved.id),
+          gte(employeeAttendances.timestamp, start),
+          lt(employeeAttendances.timestamp, end),
+        ),
+      )
+      .orderBy(desc(employeeAttendances.timestamp))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (action === "in" && lastToday?.action === "in") {
+      return NextResponse.json(
+        { error: "Anda sudah Clock In dan belum Clock Out. Tidak bisa Clock In dua kali." },
+        { status: 409 },
+      );
+    }
+    if (action === "out" && (!lastToday || lastToday.action === "out")) {
+      return NextResponse.json(
+        { error: "Belum ada Clock In aktif hari ini. Clock In dulu sebelum Clock Out." },
+        { status: 409 },
+      );
+    }
+
+    // --- Shift compliance ---
+    const punchAt = new Date();
+    const todaySchedule = await db
+      .select({
+        id: shiftSchedules.id,
+        startTime: shiftSchedules.startTime,
+        endTime: shiftSchedules.endTime,
+        shiftType: shiftSchedules.shiftType,
+      })
+      .from(shiftSchedules)
+      .where(
+        and(
+          eq(shiftSchedules.staffId, resolved.id),
+          eq(shiftSchedules.date, jakartaDateKey(punchAt)),
+        ),
+      )
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    const status = todaySchedule
+      ? evaluatePunchStatus({
+          action,
+          punchAt,
+          startTime: todaySchedule.startTime,
+          endTime: todaySchedule.endTime,
+        })
+      : "normal";
+
     await db.insert(employeeAttendances).values({
-      staffId: staff.id,
-      outletId: staff.outletId,
-      action: action,
+      staffId: resolved.id,
+      outletId: resolved.outletId,
+      action,
+      timestamp: punchAt,
+      latitude,
+      longitude,
+      distanceMeters,
+      status,
+      scheduleId: todaySchedule?.id ?? null,
     });
 
     return NextResponse.json({
       success: true,
-      staffName: staff.name,
+      staffName: resolved.name,
       action,
+      status,
+      statusLabel: attendanceStatusLabel(status),
+      distanceMeters: distanceMeters != null ? Math.round(distanceMeters) : null,
     });
   } catch (error) {
     console.error("Attendance error:", error);

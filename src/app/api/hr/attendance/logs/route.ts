@@ -19,7 +19,9 @@ export async function GET(req: Request) {
     const scope = searchParams.get("scope");
     const { start, end } = jakartaDayRange();
 
-    const baseQuery = db
+    // Satu daftar kolom (termasuk photoUrl). where hanya dibatasi "hari ini"
+    // kecuali scope=all — disusun kondisional agar kolom tak pernah drift.
+    const logs = await db
       .select({
         id: employeeAttendances.id,
         action: employeeAttendances.action,
@@ -35,34 +37,16 @@ export async function GET(req: Request) {
       .from(employeeAttendances)
       .leftJoin(staffProfiles, eq(employeeAttendances.staffId, staffProfiles.id))
       .leftJoin(user, eq(staffProfiles.userId, user.id))
-      .orderBy(desc(employeeAttendances.timestamp));
-
-    const logs =
-      scope === "all"
-        ? await baseQuery.limit(200)
-        : await db
-            .select({
-              id: employeeAttendances.id,
-              action: employeeAttendances.action,
-              timestamp: employeeAttendances.timestamp,
-              status: employeeAttendances.status,
-              latitude: employeeAttendances.latitude,
-              longitude: employeeAttendances.longitude,
-              distanceMeters: employeeAttendances.distanceMeters,
-              role: staffProfiles.role,
-              name: user.name,
-            })
-            .from(employeeAttendances)
-            .leftJoin(staffProfiles, eq(employeeAttendances.staffId, staffProfiles.id))
-            .leftJoin(user, eq(staffProfiles.userId, user.id))
-            .where(
-              and(
-                gte(employeeAttendances.timestamp, start),
-                lt(employeeAttendances.timestamp, end),
-              ),
-            )
-            .orderBy(desc(employeeAttendances.timestamp))
-            .limit(200);
+      .where(
+        scope === "all"
+          ? undefined
+          : and(
+              gte(employeeAttendances.timestamp, start),
+              lt(employeeAttendances.timestamp, end),
+            ),
+      )
+      .orderBy(desc(employeeAttendances.timestamp))
+      .limit(200);
 
     const enriched = logs.map((log) => ({
       ...log,

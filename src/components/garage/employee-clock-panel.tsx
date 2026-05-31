@@ -28,6 +28,8 @@ export function EmployeeClockPanel() {
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
   const checkAbort = useRef<AbortController | null>(null);
+  // Selfie terakhir yang berhasil direkam — ditampilkan sbg konfirmasi sukses.
+  const [lastSelfie, setLastSelfie] = useState<string | null>(null);
 
   // --- Kamera selfie (anti titip-absen) ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -162,6 +164,15 @@ export function EmployeeClockPanel() {
 
     const selfie = captureSelfie();
 
+    // Wajibkan wajah saat kamera SEHARUSNYA aktif. Bila kamera memang tak
+    // tersedia (camError), punch tetap lanjut agar operasional tak terblokir.
+    if (camReady && !selfie) {
+      setStatus("error");
+      setMessage("Wajah tidak terekam. Pastikan wajah terlihat di kamera, lalu coba lagi.");
+      setTimeout(() => setStatus("idle"), 5000);
+      return;
+    }
+
     try {
       const res = await fetch("/api/hr/attendance", {
         method: "POST",
@@ -186,6 +197,7 @@ export function EmployeeClockPanel() {
           action === "in" ? "In" : "Out"
         } pukul ${time.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}${lateNote}.`,
       );
+      setLastSelfie(selfie ?? null);
       setPin("");
       setCheck(null);
     } catch (err) {
@@ -264,6 +276,7 @@ export function EmployeeClockPanel() {
                 onChange={(e) => {
                   setPin(e.target.value.replace(/[^0-9]/g, ""));
                   setCheck(null); // status basi saat PIN diubah
+                  setLastSelfie(null);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void handleCheck();
@@ -355,8 +368,26 @@ export function EmployeeClockPanel() {
 
         {status === "success" && (
           <div className="rounded-md bg-emerald-950/40 border border-emerald-800 p-3 flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
-            <p className="text-sm text-emerald-200">{message}</p>
+            {lastSelfie ? (
+              <span className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={lastSelfie}
+                  alt="Selfie absensi"
+                  className="h-12 w-12 rounded-full object-cover ring-2 ring-emerald-500/50"
+                />
+              </span>
+            ) : (
+              <CheckCircle2 className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm text-emerald-200">{message}</p>
+              {lastSelfie && (
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                  <CheckCircle2 className="h-3 w-3" /> Foto wajah terekam
+                </p>
+              )}
+            </div>
           </div>
         )}
 

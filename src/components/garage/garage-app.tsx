@@ -7615,6 +7615,34 @@ function PosView({
             onClick={() => setBillOpen(false)}
           />
         )}
+        {/* Sticky checkout bar mobile: akses keranjang + TOTAL selalu terlihat
+            saat menelusuri menu (bill panel tertutup slide keluar layar). */}
+        {!billOpen && cartItemCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => setBillOpen(true)}
+            aria-label={`Buka keranjang, ${cartItemCount} item, total ${currency.format(totalDue)}`}
+            className="garage-press fixed inset-x-2 bottom-2 z-30 flex items-center gap-3 rounded-xl border border-[#f5a742]/45 bg-[#15151b]/95 px-3 py-2.5 text-left shadow-[0_14px_40px_rgba(0,0,0,0.45)] backdrop-blur md:hidden"
+          >
+            <span className="relative grid size-10 shrink-0 place-items-center rounded-lg bg-[#f5a742]/15 text-[#ffd08a] ring-1 ring-[#f5a742]/35">
+              <ShoppingCart className="size-5" />
+              <span className="garage-mono absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full border border-[#15151b] bg-[#d11a2a] px-1 text-center text-[10px] font-bold leading-4 text-white">
+                {cartItemCount}
+              </span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] uppercase tracking-wider text-[#b8b8bf]">
+                Total Tagihan
+              </span>
+              <span className="garage-mono block truncate text-lg font-bold leading-tight text-white">
+                {currency.format(totalDue)}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-lg bg-[#f5a742] px-3 py-2 text-sm font-bold uppercase tracking-wide text-black">
+              Bayar
+            </span>
+          </button>
+        ) : null}
         <Sheet open={qrOperationsOpen} onOpenChange={setQrOperationsOpen}>
           <SheetContent
             side="right"
@@ -9409,7 +9437,7 @@ function PosView({
               </div>
             </div>
 
-            <div className="garage-scroll min-h-[260px] flex-1 overflow-y-auto pr-1 md:min-h-0 md:max-h-none">
+            <div className="garage-scroll min-h-[260px] flex-1 overflow-y-auto pb-20 pr-1 md:min-h-0 md:max-h-none md:pb-1">
               <div className="pos-product-grid grid gap-2">
                 {filteredMenu.length ? visibleProducts.map((item) => {
                   const baseVariant = item.variants[0];

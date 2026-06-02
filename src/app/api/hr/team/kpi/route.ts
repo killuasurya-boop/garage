@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { kpiEvaluations, employeeAttendances, sopLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
-import { and, eq, lte, gte } from "drizzle-orm";
+import { and, eq, lt, lte, gte } from "drizzle-orm";
 
 export async function GET(req: Request) {
   try {
@@ -12,8 +12,15 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period"); // YYYY-MM
 
-    if (!period) {
-      return NextResponse.json({ error: "period is required" }, { status: 400 });
+    // Validasi format period YYYY-MM (cegah bulan/tahun ngawur).
+    const match = /^(\d{4})-(\d{2})$/.exec(period ?? "");
+    if (!period || !match) {
+      return NextResponse.json({ error: "period wajib format YYYY-MM" }, { status: 400 });
+    }
+    const year = Number(match[1]);
+    const monthNum = Number(match[2]); // 1-12
+    if (monthNum < 1 || monthNum > 12) {
+      return NextResponse.json({ error: "bulan period tidak valid" }, { status: 400 });
     }
 
     const db = await getDb();
@@ -24,23 +31,27 @@ export async function GET(req: Request) {
       .from(kpiEvaluations)
       .where(eq(kpiEvaluations.period, period));
 
-    // 2. We can compute real metrics for each active staff in this period!
-    // Start of month: YYYY-MM-01, End of month: YYYY-MM-31
+    // 2. Rentang tanggal yang BENAR per panjang bulan (bukan hardcode -31 yang
+    //    bikin Juni/Feb error). lastDay = hari ke-0 bulan berikutnya.
+    const lastDay = new Date(year, monthNum, 0).getDate(); // 28/29/30/31
     const startDate = `${period}-01`;
-    const endDate = `${period}-31`;
+    const endDate = `${period}-${String(lastDay).padStart(2, "0")}`;
+    const startTs = new Date(`${startDate}T00:00:00.000Z`);
+    const endExclusiveTs = new Date(Date.UTC(year, monthNum, 1)); // awal bulan berikutnya
 
-    // Fetch all attendance logs in this period
+    // Fetch all attendance logs in this period (timestamp: pakai batas eksklusif
+    // awal bulan berikutnya agar punch sepanjang hari terakhir tetap terhitung)
     const attendanceLogs = await db
       .select()
       .from(employeeAttendances)
       .where(
         and(
-          gte(employeeAttendances.timestamp, new Date(startDate)),
-          lte(employeeAttendances.timestamp, new Date(endDate))
+          gte(employeeAttendances.timestamp, startTs),
+          lt(employeeAttendances.timestamp, endExclusiveTs)
         )
       );
 
-    // Fetch all SOP logs in this period
+    // Fetch all SOP logs in this period (kolom date: inklusif hari terakhir)
     const sLogs = await db
       .select()
       .from(sopLogs)

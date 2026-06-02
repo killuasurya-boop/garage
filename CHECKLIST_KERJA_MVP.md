@@ -92,10 +92,12 @@
 - [x] ✅ Point earn otomatis di POS — **VERIFIED** (Member Uji MVP dapat 11 poin dari 1 order)
 - [ ] ⬜ Redeem reward + voucher di POS (voucher validate ada; redeem di POS perlu diuji)
 
-### C.5 HR / Tim
-- [ ] ⬜ Attendance geofence + selfie (radius per outlet)
-- [ ] ⬜ Shift scheduler conflict detection
-- [ ] ⬜ Payroll (gaji + komisi − kasbon → payout)
+### C.5 HR / Tim — sebagian besar ✅ VERIFIED
+- [x] ✅ Directory/staff, leaderboard, locations — endpoint 200 data nyata
+- [x] ✅ Payroll & advances (period) — 200
+- [x] ✅ KPI dashboard — **BUG DIPERBAIKI** (endDate `-31` bikin Juni/Feb 500; kini hitung akhir-bulan benar + validasi period) → Juni/Feb/Des 200
+- [ ] 🟡 Attendance geofence + selfie (endpoint POST kiosk ada; perlu uji punch + radius)
+- [ ] 🟡 Shift scheduler conflict detection (komponen ada; perlu verifikasi)
 
 ### C.6 GARAGE AI
 - [ ] 🟡 Pemisahan recommend vs execute (schema `aiActionDrafts` + approval ada)

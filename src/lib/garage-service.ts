@@ -6207,7 +6207,12 @@ export async function moveTable(
 
 export async function getPublicCustomerOrderStatus(id: string) {
   const db = getDb();
-  const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+  const safeId = id.trim();
+  const [order] = await db
+    .select()
+    .from(orders)
+    .where(or(eq(orders.id, safeId), eq(orders.orderNo, safeId)))
+    .limit(1);
   if (!order || !customerOrderSources.includes(order.orderSource)) {
     return null;
   }
@@ -11177,6 +11182,27 @@ export async function closeCashSession(
         resetTableMode: effectiveResetTableMode,
       },
     });
+
+    // Risk gate (Section 19): selisih kas critical wajib masuk Approval board
+    // untuk oversight owner — terlepas dari sign-off manager inline saat tutup.
+    if (discrepancyStatus === "critical") {
+      const idr = new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      });
+      await tx.insert(approvals).values({
+        id: `APP-CASH-${randomUUID()}`,
+        type: "Selisih kas closing",
+        requester: actor,
+        requesterPhone: null,
+        amount: idr.format(Math.abs(discrepancy)),
+        reason: `Selisih kas critical tutup shift ${current.code}: expected ${idr.format(current.expectedCash)}, actual ${idr.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${input.managerSignOff ? " · sudah sign-off manager" : ""}`,
+        risk: "high",
+        age: "baru saja",
+        status: "pending",
+      });
+    }
 
     if (effectiveResetTableMode !== "none") {
       await tx.insert(auditLogs).values({

@@ -15,6 +15,10 @@ export async function requireModulePageAccess(moduleId: ModuleId) {
   }
 
   const role = session.data.profile.role;
+  if (session.data.profile.passwordResetRequired) {
+    redirect("/account/password?required=1");
+  }
+
   if (!canAccessModule(role, moduleId)) {
     redirect(`/os?module=${firstModuleForRole(role)}`);
   }

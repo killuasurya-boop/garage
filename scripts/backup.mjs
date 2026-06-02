@@ -18,12 +18,15 @@
 //   pg_restore --dbname="$DATABASE_URL" --clean --if-exists --no-owner backup.dump
 
 import { spawn } from "node:child_process";
-import { mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { copyFile, mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
+import pg from "pg";
 
 const BACKUP_DIR = process.env.GARAGE_BACKUP_DIR ?? "./backups";
 const RETAIN_DAYS = Number(process.env.GARAGE_BACKUP_RETAIN_DAYS ?? 14);
 const DATABASE_URL = process.env.DATABASE_URL;
+const GARAGE_DB_DRIVER = process.env.GARAGE_DB_DRIVER?.trim().toLowerCase();
 
 if (!DATABASE_URL) {
   console.error("[backup] DATABASE_URL belum di-set. Aborting.");
@@ -59,13 +62,141 @@ async function runPgDump(outputPath) {
   });
 }
 
+function quoteIdent(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function sqlLiteral(value) {
+  if (value === null || value === undefined) return "NULL";
+  if (value instanceof Date) return `'${value.toISOString().replace(/'/g, "''")}'`;
+  if (Buffer.isBuffer(value)) return `'\\x${value.toString("hex")}'`;
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "NULL";
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (typeof value === "object") return `'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`;
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+async function runSqlFallbackBackup(outputPath) {
+  const client = new pg.Client({
+    connectionString: DATABASE_URL,
+    ssl: DATABASE_URL.includes("sslmode=") || DATABASE_URL.includes("neon.tech")
+      ? { rejectUnauthorized: false }
+      : undefined,
+  });
+
+  await client.connect();
+  try {
+    const tableResult = await client.query(`
+      SELECT table_schema, table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `);
+
+    const chunks = [
+      "-- GARAGE fallback SQL backup",
+      `-- Generated: ${new Date().toISOString()}`,
+      "-- Restore with: psql \"$DATABASE_URL\" < this-file.sql",
+      "BEGIN;",
+      "SET session_replication_role = replica;",
+      "",
+    ];
+
+    for (const table of tableResult.rows) {
+      const qualified = `${quoteIdent(table.table_schema)}.${quoteIdent(table.table_name)}`;
+      const columnsResult = await client.query(
+        `
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = $1 AND table_name = $2
+          ORDER BY ordinal_position
+        `,
+        [table.table_schema, table.table_name],
+      );
+      const columns = columnsResult.rows.map((row) => row.column_name);
+      if (!columns.length) continue;
+
+      const rows = await client.query(`SELECT * FROM ${qualified}`);
+      chunks.push(`-- ${qualified}: ${rows.rowCount} row(s)`);
+      chunks.push(`TRUNCATE TABLE ${qualified} RESTART IDENTITY CASCADE;`);
+      for (const row of rows.rows) {
+        const columnSql = columns.map(quoteIdent).join(", ");
+        const valueSql = columns.map((column) => sqlLiteral(row[column])).join(", ");
+        chunks.push(`INSERT INTO ${qualified} (${columnSql}) VALUES (${valueSql});`);
+      }
+      chunks.push("");
+    }
+
+    chunks.push("SET session_replication_role = DEFAULT;");
+    chunks.push("COMMIT;");
+    chunks.push("");
+    await writeFile(outputPath, chunks.join("\n"), "utf8");
+  } finally {
+    await client.end();
+  }
+}
+
+async function runPgliteSqlBackup(outputPath) {
+  const client = new PGlite(resolve(".garage-db"));
+  await client.waitReady;
+  try {
+    const tableResult = await client.query(`
+      SELECT table_schema, table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `);
+
+    const chunks = [
+      "-- GARAGE PGlite SQL backup",
+      `-- Generated: ${new Date().toISOString()}`,
+      "-- Restore into PostgreSQL/PGlite with psql-compatible tooling.",
+      "BEGIN;",
+      "",
+    ];
+
+    for (const table of tableResult.rows) {
+      const qualified = `${quoteIdent(table.table_schema)}.${quoteIdent(table.table_name)}`;
+      const columnsResult = await client.query(
+        `
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = $1 AND table_name = $2
+          ORDER BY ordinal_position
+        `,
+        [table.table_schema, table.table_name],
+      );
+      const columns = columnsResult.rows.map((row) => row.column_name);
+      if (!columns.length) continue;
+
+      const rows = await client.query(`SELECT * FROM ${qualified}`);
+      chunks.push(`-- ${qualified}: ${rows.rows.length} row(s)`);
+      chunks.push(`TRUNCATE TABLE ${qualified} RESTART IDENTITY CASCADE;`);
+      for (const row of rows.rows) {
+        const columnSql = columns.map(quoteIdent).join(", ");
+        const valueSql = columns.map((column) => sqlLiteral(row[column])).join(", ");
+        chunks.push(`INSERT INTO ${qualified} (${columnSql}) VALUES (${valueSql});`);
+      }
+      chunks.push("");
+    }
+
+    chunks.push("COMMIT;");
+    chunks.push("");
+    await writeFile(outputPath, chunks.join("\n"), "utf8");
+  } finally {
+    await client.close();
+  }
+}
+
 async function cleanupOld(dir) {
   const cutoff = Date.now() - RETAIN_DAYS * 24 * 60 * 60 * 1000;
   let deleted = 0;
   try {
     const files = await readdir(dir);
     for (const file of files) {
-      if (!file.endsWith(".dump")) continue;
+      if (!/\.(dump|sql|backup)$/i.test(file)) continue;
       const fullPath = join(dir, file);
       const stats = await stat(fullPath);
       if (stats.mtimeMs < cutoff) {
@@ -109,6 +240,19 @@ async function uploadToS3(filePath) {
   });
 }
 
+async function copyToOffsite(filePath) {
+  const offsiteDir = process.env.GARAGE_BACKUP_OFFSITE_DIR?.trim();
+  if (!offsiteDir) return null;
+
+  const destinationDir = resolve(offsiteDir);
+  await mkdir(destinationDir, { recursive: true });
+  const fileName = filePath.split(/[\\/]/).pop();
+  const destination = join(destinationDir, fileName);
+  await copyFile(filePath, destination);
+  console.log(`[backup] Offsite copy → ${destination}`);
+  return destination;
+}
+
 async function main() {
   const startedAt = Date.now();
   const dir = resolve(BACKUP_DIR);
@@ -119,11 +263,65 @@ async function main() {
 
   console.log(`[backup] Starting → ${fullPath}`);
 
+  if (GARAGE_DB_DRIVER === "pglite" || GARAGE_DB_DRIVER === "local" || !DATABASE_URL) {
+    const fallbackPath = fullPath.replace(/\.dump$/i, ".sql");
+    await runPgliteSqlBackup(fallbackPath);
+    const fallbackStats = await stat(fallbackPath);
+    console.log(`[backup] OK — ${(fallbackStats.size / 1024 / 1024).toFixed(2)} MB PGlite SQL`);
+    const offsiteCopy = await copyToOffsite(fallbackPath);
+    const deleted = await cleanupOld(dir);
+    console.log(
+      JSON.stringify({
+        ok: true,
+        file: fallbackPath,
+        sizeBytes: fallbackStats.size,
+        s3Key: null,
+        offsiteCopy,
+        retainDays: RETAIN_DAYS,
+        pruned: deleted,
+        fallback: "pglite-sql",
+        durationMs: Date.now() - startedAt,
+      }),
+    );
+    return;
+  }
+
   try {
     await runPgDump(fullPath);
   } catch (err) {
-    console.error(`[backup] FAILED: ${err.message}`);
-    process.exit(2);
+    if (!String(err.message).includes("pg_dump tidak ketemu")) {
+      console.error(`[backup] FAILED: ${err.message}`);
+      process.exit(2);
+    }
+
+    const fallbackPath = fullPath.replace(/\.dump$/i, ".sql");
+    console.warn(`[backup] pg_dump tidak tersedia, fallback ke SQL backup: ${fallbackPath}`);
+    try {
+      await runSqlFallbackBackup(fallbackPath);
+    } catch (fallbackErr) {
+      console.error(`[backup] FALLBACK FAILED: ${fallbackErr.message}`);
+      process.exit(2);
+    }
+
+    const fallbackStats = await stat(fallbackPath);
+    console.log(`[backup] OK â€” ${(fallbackStats.size / 1024 / 1024).toFixed(2)} MB fallback SQL`);
+    const s3Key = await uploadToS3(fallbackPath);
+    const offsiteCopy = await copyToOffsite(fallbackPath);
+    const deleted = await cleanupOld(dir);
+    console.log(
+      JSON.stringify({
+        ok: true,
+        file: fallbackPath,
+        sizeBytes: fallbackStats.size,
+        s3Key,
+        offsiteCopy,
+        retainDays: RETAIN_DAYS,
+        pruned: deleted,
+        fallback: "sql",
+        durationMs: Date.now() - startedAt,
+      }),
+    );
+    return;
   }
 
   const stats = await stat(fullPath);
@@ -131,6 +329,7 @@ async function main() {
   console.log(`[backup] OK — ${sizeMb} MB in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
 
   const s3Key = await uploadToS3(fullPath);
+  const offsiteCopy = await copyToOffsite(fullPath);
 
   const deleted = await cleanupOld(dir);
   if (deleted > 0) {
@@ -143,6 +342,7 @@ async function main() {
       file: fullPath,
       sizeBytes: stats.size,
       s3Key,
+      offsiteCopy,
       retainDays: RETAIN_DAYS,
       pruned: deleted,
       durationMs: Date.now() - startedAt,

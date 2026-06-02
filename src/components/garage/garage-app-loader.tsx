@@ -11,6 +11,8 @@ type GarageAppProps = {
 type GarageLoginProps = {
   returnTo?: string;
   variant?: "os" | "pos";
+  initialEmail?: string;
+  includeOwnerPreset?: boolean;
 };
 
 function GarageShellFallback({ title }: { title: string }) {

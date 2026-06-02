@@ -26,8 +26,10 @@
 
 # local database & scratch
 /.garage-db/
+/.garage-db.*/
 /.tmp/
 /.codex-screenshots/
+/backups/
 
 # runtime user uploads (selfie absensi, chat, dll) — bukan source
 /public/uploads/

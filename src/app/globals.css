@@ -2351,11 +2351,12 @@ body {
   .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="dialog-content"],
   .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="popover-content"],
   .garage-os-shell:not([data-garage-os-surface="light"]) [data-slot="select-content"] {
-    background: color-mix(in srgb, var(--garage-bg-1) 92%, transparent) !important;
+    background: var(--garage-bg-1) !important;
     border-color: var(--garage-line) !important;
     box-shadow: var(--garage-shadow-panel) !important;
     color: var(--garage-fg) !important;
-    backdrop-filter: blur(12px) saturate(1.05) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 
   .garage-os-shell[data-garage-os-surface="light"] .garage-os-toolbar,
@@ -2363,13 +2364,12 @@ body {
   .garage-os-shell[data-garage-os-surface="light"] [data-slot="dialog-content"],
   .garage-os-shell[data-garage-os-surface="light"] [data-slot="popover-content"],
   .garage-os-shell[data-garage-os-surface="light"] [data-slot="select-content"] {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.44)),
-      var(--garage-topbar-bg) !important;
+    background: var(--garage-topbar-bg) !important;
     border-color: var(--garage-os-border) !important;
     box-shadow: var(--garage-os-shadow-panel) !important;
     color: var(--garage-canvas-fg) !important;
-    backdrop-filter: blur(6px) saturate(1.02) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 
   .garage-os-sidebar-peek {
@@ -2900,8 +2900,9 @@ body {
     box-shadow: 0 0 0 1px currentColor;
   }
 
-  .garage-os-shell [class*="backdrop-blur-xl"] {
-    backdrop-filter: blur(8px) saturate(1.04) !important;
+  .garage-os-shell [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -3719,7 +3720,7 @@ body {
   inset: 0;
   z-index: 9999;
   background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
 }
 
 /* ============================================================
@@ -4543,7 +4544,7 @@ body {
 
 .garage-toast {
   align-items: flex-start;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
   border-radius: 8px;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.08) inset,

@@ -35,7 +35,11 @@ export async function POST(request: Request) {
   const result = await bulkAction(parsed.data, {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
+    actorRole: session.data.profile.role,
     deviceLabel: session.data.profile.deviceLabel,
   });
+  if ("error" in result && result.error) {
+    return fail(400, "BULK_ACTION_FAILED", result.error);
+  }
   return ok(result);
 }

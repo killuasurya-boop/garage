@@ -5,6 +5,7 @@ import {
   Activity,
   Eye,
   EyeOff,
+  Fingerprint,
   KeyRound,
   Loader2,
   LogOut,
@@ -65,6 +66,28 @@ const ROLES: Role[] = [
   "Delivery Admin",
 ];
 
+const roleRank: Record<Role, number> = {
+  "Owner / CEO": 100,
+  Admin: 90,
+  "Manager Operasional": 70,
+  "Finance / CFO": 60,
+  "Supervisor Shift": 50,
+  Kasir: 30,
+  Barista: 30,
+  Koki: 30,
+  "Asisten Koki": 20,
+  "Waiter 1": 20,
+  "Waiter 2": 20,
+  "Kitchen / Barista": 30,
+  Gudang: 30,
+  "Delivery Admin": 20,
+};
+
+function manageableRoles(currentUserRole: Role) {
+  if (currentUserRole === "Owner / CEO") return ROLES;
+  return ROLES.filter((role) => roleRank[role] < roleRank[currentUserRole]);
+}
+
 type OutletOption = { id: string; code: string; name: string };
 
 type Props = {
@@ -72,6 +95,7 @@ type Props = {
   initialTotal: number;
   outlets: OutletOption[];
   currentUserId: string;
+  currentUserRole: Role;
 };
 
 type CreateForm = {
@@ -82,6 +106,9 @@ type CreateForm = {
   outletId: string;
   shiftLabel: string;
   deviceLabel: string;
+  division: string;
+  position: string;
+  requirePasswordChange: boolean;
 };
 
 type SessionRow = {
@@ -112,12 +139,14 @@ export function UserManagement({
   initialTotal,
   outlets,
   currentUserId,
+  currentUserRole,
 }: Props) {
   const [rows, setRows] = useState<AdminUserRow[]>(initialRows);
   const [total, setTotal] = useState(initialTotal);
   const [query, setQuery] = useState("");
   const [filterRole, setFilterRole] = useState<Role | "all">("all");
   const [filterStatus, setFilterStatus] = useState<AdminUserStatus | "all">("all");
+  const [filterOutlet, setFilterOutlet] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -134,14 +163,16 @@ export function UserManagement({
     return { active, suspended, online };
   }, [rows]);
 
-  function refresh(extra?: Partial<{ q: string; role: string; status: string }>) {
+  function refresh(extra?: Partial<{ q: string; role: string; status: string; outletId: string }>) {
     const params = new URLSearchParams();
     const q = extra?.q ?? query;
     const role = extra?.role ?? (filterRole === "all" ? "" : filterRole);
     const status = extra?.status ?? (filterStatus === "all" ? "" : filterStatus);
+    const outletId = extra?.outletId ?? (filterOutlet === "all" ? "" : filterOutlet);
     if (q) params.set("q", q);
     if (role) params.set("role", role);
     if (status) params.set("status", status);
+    if (outletId) params.set("outletId", outletId);
     params.set("limit", "100");
 
     startTransition(async () => {
@@ -178,11 +209,19 @@ export function UserManagement({
   async function runBulk(action: "suspend" | "activate" | "delete" | "force_logout") {
     if (!selected.size) return;
     if (action === "delete" && !confirm(`Hapus ${selected.size} user permanen?`)) return;
+    let reason: string | undefined;
+    if (action === "suspend") {
+      reason = window.prompt("Alasan suspend wajib diisi:")?.trim();
+      if (!reason) {
+        setError("Alasan suspend wajib diisi.");
+        return;
+      }
+    }
     startTransition(async () => {
       const res = await fetch("/api/admin/users/bulk", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userIds: Array.from(selected), action }),
+        body: JSON.stringify({ userIds: Array.from(selected), action, reason }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -304,6 +343,25 @@ export function UserManagement({
                   <SelectItem value="suspended">Suspended</SelectItem>
                 </SelectContent>
               </Select>
+              <Select
+                value={filterOutlet}
+                onValueChange={(value) => {
+                  setFilterOutlet(value);
+                  refresh({ outletId: value === "all" ? "" : value });
+                }}
+              >
+                <SelectTrigger className="w-52 border-zinc-700 bg-zinc-950 text-zinc-100">
+                  <SelectValue placeholder="Semua outlet" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua outlet</SelectItem>
+                  {outlets.map((outlet) => (
+                    <SelectItem key={outlet.id} value={outlet.id}>
+                      {outlet.code} - {outlet.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <Button
               onClick={() => setCreateOpen(true)}
@@ -406,6 +464,11 @@ export function UserManagement({
                                 ) : null}
                               </div>
                               <div className="text-xs text-zinc-500">{row.email}</div>
+                              {row.division || row.position ? (
+                                <div className="text-[11px] text-zinc-500">
+                                  {[row.division, row.position].filter(Boolean).join(" - ")}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </TableCell>
@@ -418,6 +481,19 @@ export function UserManagement({
                           </Badge>
                           <div className="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">
                             {row.permissionCount} permission
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {row.passwordResetRequired ? (
+                              <Badge className="border-amber-800 bg-amber-950/60 text-[10px] text-amber-300">
+                                Wajib ganti password
+                              </Badge>
+                            ) : null}
+                            <Badge
+                              variant="outline"
+                              className="border-zinc-700 bg-zinc-950 text-[10px] text-zinc-400"
+                            >
+                              PIN {row.pinConfigured ? "aktif" : "belum"}
+                            </Badge>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -490,6 +566,7 @@ export function UserManagement({
         open={createOpen}
         onOpenChange={setCreateOpen}
         outlets={outlets}
+        currentUserRole={currentUserRole}
         onCreated={() => {
           setCreateOpen(false);
           refresh();
@@ -500,6 +577,7 @@ export function UserManagement({
         <EditUserDialog
           row={editTarget}
           outlets={outlets}
+          currentUserRole={currentUserRole}
           onClose={() => setEditTarget(null)}
           onSaved={() => {
             setEditTarget(null);
@@ -512,7 +590,10 @@ export function UserManagement({
         <ResetPasswordDialog
           row={resetTarget}
           onClose={() => setResetTarget(null)}
-          onDone={() => setResetTarget(null)}
+          onDone={() => {
+            setResetTarget(null);
+            refresh();
+          }}
         />
       ) : null}
 
@@ -533,13 +614,16 @@ function CreateUserDialog({
   open,
   onOpenChange,
   outlets,
+  currentUserRole,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   outlets: OutletOption[];
+  currentUserRole: Role;
   onCreated: () => void;
 }) {
+  const roleOptions = manageableRoles(currentUserRole);
   const [form, setForm] = useState<CreateForm>({
     email: "",
     name: "",
@@ -548,6 +632,9 @@ function CreateUserDialog({
     outletId: outlets[0]?.id ?? "",
     shiftLabel: "Shift aktif",
     deviceLabel: "POS-01",
+    division: "",
+    position: "",
+    requirePasswordChange: true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -627,7 +714,7 @@ function CreateUserDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((role) => (
+                  {roleOptions.map((role) => (
                     <SelectItem key={role} value={role}>
                       {role}
                     </SelectItem>
@@ -654,6 +741,24 @@ function CreateUserDialog({
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <Field label="Divisi">
+              <Input
+                value={form.division}
+                onChange={(event) => setForm({ ...form, division: event.target.value })}
+                placeholder="Service, Kitchen, Finance"
+                className="border-zinc-700 bg-zinc-900"
+              />
+            </Field>
+            <Field label="Posisi">
+              <Input
+                value={form.position}
+                onChange={(event) => setForm({ ...form, position: event.target.value })}
+                placeholder="Kasir senior, Waiter"
+                className="border-zinc-700 bg-zinc-900"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Shift label">
               <Input
                 value={form.shiftLabel}
@@ -669,6 +774,17 @@ function CreateUserDialog({
               />
             </Field>
           </div>
+          <label className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-300">
+            <input
+              type="checkbox"
+              checked={form.requirePasswordChange}
+              onChange={(event) =>
+                setForm({ ...form, requirePasswordChange: event.target.checked })
+              }
+              className="h-4 w-4 accent-red-500"
+            />
+            Wajib ganti password saat login pertama
+          </label>
           <div className="rounded-md border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-400">
             <div className="mb-1 text-zinc-300">Preview permission untuk role ini:</div>
             <div className="flex flex-wrap gap-1">
@@ -706,22 +822,30 @@ function CreateUserDialog({
 function EditUserDialog({
   row,
   outlets,
+  currentUserRole,
   onClose,
   onSaved,
 }: {
   row: AdminUserRow;
   outlets: OutletOption[];
+  currentUserRole: Role;
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const roleOptions = manageableRoles(currentUserRole);
   const [form, setForm] = useState({
     name: row.name,
     role: row.role,
     outletId: row.outletId,
     shiftLabel: row.shiftLabel,
     deviceLabel: row.deviceLabel,
+    division: row.division ?? "",
+    position: row.position ?? "",
     status: row.status,
+    suspendedReason: row.suspendedReason ?? "",
+    passwordResetRequired: row.passwordResetRequired,
     newPassword: "",
+    pinCode: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -733,7 +857,15 @@ function EditUserDialog({
     const payload = {
       ...form,
       newPassword: form.newPassword.trim() ? form.newPassword : null,
+      pinCode: undefined,
+      suspendedReason:
+        form.status === "suspended" ? form.suspendedReason.trim() || null : null,
     };
+    if (form.status === "suspended" && !form.suspendedReason.trim()) {
+      setSubmitting(false);
+      setError("Alasan suspend wajib diisi.");
+      return;
+    }
     const res = await fetch(`/api/admin/users/${row.userId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -751,7 +883,29 @@ function EditUserDialog({
   async function handleDelete() {
     if (!confirm(`Hapus ${row.name} permanen?`)) return;
     const res = await fetch(`/api/admin/users/${row.userId}`, { method: "DELETE" });
-    if (res.ok) onSaved();
+    if (res.ok) {
+      onSaved();
+      return;
+    }
+    const json = await res.json();
+    setError(json?.error?.message ?? "Gagal menghapus user.");
+  }
+
+  async function savePin(pinCode: string | null) {
+    setSubmitting(true);
+    setError(null);
+    const res = await fetch(`/api/admin/users/${row.userId}/pin`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pinCode }),
+    });
+    const json = await res.json();
+    setSubmitting(false);
+    if (!res.ok) {
+      setError(json?.error?.message ?? "Gagal menyimpan PIN.");
+      return;
+    }
+    onSaved();
   }
 
   return (
@@ -780,7 +934,7 @@ function EditUserDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((role) => (
+                  {(roleOptions.includes(row.role) ? roleOptions : [row.role, ...roleOptions]).map((role) => (
                     <SelectItem key={role} value={role}>
                       {role}
                     </SelectItem>
@@ -804,6 +958,22 @@ function EditUserDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Divisi">
+              <Input
+                value={form.division}
+                onChange={(event) => setForm({ ...form, division: event.target.value })}
+                className="border-zinc-700 bg-zinc-900"
+              />
+            </Field>
+            <Field label="Posisi">
+              <Input
+                value={form.position}
+                onChange={(event) => setForm({ ...form, position: event.target.value })}
+                className="border-zinc-700 bg-zinc-900"
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -837,6 +1007,60 @@ function EditUserDialog({
                 <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
+          </Field>
+          {form.status === "suspended" ? (
+            <Field label="Alasan suspend">
+              <Input
+                value={form.suspendedReason}
+                onChange={(event) =>
+                  setForm({ ...form, suspendedReason: event.target.value })
+                }
+                placeholder="Resign, cuti, pelanggaran SOP"
+                className="border-zinc-700 bg-zinc-900"
+              />
+            </Field>
+          ) : null}
+          <label className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-300">
+            <input
+              type="checkbox"
+              checked={form.passwordResetRequired}
+              onChange={(event) =>
+                setForm({ ...form, passwordResetRequired: event.target.checked })
+              }
+              className="h-4 w-4 accent-red-500"
+            />
+            Wajib ganti password berikutnya
+          </label>
+          <Field label={`PIN absensi/POS (${row.pinConfigured ? "aktif" : "belum ada"})`}>
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+              <Input
+                value={form.pinCode}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    pinCode: event.target.value.replace(/[^0-9]/g, "").slice(0, 8),
+                  })
+                }
+                placeholder="4-8 digit"
+                className="border-zinc-700 bg-zinc-900"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting || form.pinCode.length < 4}
+                onClick={() => savePin(form.pinCode)}
+              >
+                <Fingerprint className="mr-2 h-4 w-4" /> Set
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting || !row.pinConfigured}
+                onClick={() => savePin(null)}
+              >
+                Hapus
+              </Button>
+            </div>
           </Field>
           <Field label="Ganti Password Baru (Opsional)">
             <div className="relative">

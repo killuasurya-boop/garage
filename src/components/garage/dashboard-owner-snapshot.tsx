@@ -19,6 +19,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
+import { AttendanceTodayWidget } from "@/components/garage/attendance-today-widget";
 import type { ModuleId, Role } from "@/lib/garage-data";
 
 // ─── Aggregate snapshot — reuse semua endpoint existing, no new API ───
@@ -422,6 +423,13 @@ export function DashboardOwnerSnapshot({
           }
         />
       </div>
+
+      {/* Attendance hari ini — tombol cepat ke terminal kiosk */}
+      <AttendanceTodayWidget
+        onOpenAdminLog={
+          onNavigateModule ? () => onNavigateModule("team-management") : undefined
+        }
+      />
 
       {/* Payment breakdown + Stock alerts */}
       <div className="grid gap-2 sm:grid-cols-2">

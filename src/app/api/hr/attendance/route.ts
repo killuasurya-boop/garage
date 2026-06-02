@@ -24,17 +24,23 @@ import {
   recordFailedAttempt,
   resetRateLimit,
 } from "@/lib/attendance";
+import { getAppSettings } from "@/lib/garage-service";
 
 export const runtime = "nodejs";
 
 const attendanceSchema = z.object({
   pinCode: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4-8 digit angka"),
   action: z.enum(["in", "out"]),
-  latitude: z.number().finite().min(-90).max(90),
-  longitude: z.number().finite().min(-180).max(180),
+  latitude: z.number().finite().min(-90).max(90).optional(),
+  longitude: z.number().finite().min(-180).max(180).optional(),
   // Selfie wajah opsional (dataURL image/jpeg|png base64). Anti titip-absen.
   selfie: z.string().max(3_500_000).optional(),
 });
+
+function clampMinutes(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(120, Math.round(value)));
+}
 
 function clientIp(req: Request): string {
   const xff = req.headers.get("x-forwarded-for");
@@ -144,6 +150,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Akun karyawan tidak aktif" }, { status: 403 });
     }
 
+    const settings = await getAppSettings(resolved.outletId);
+    if (!settings.attendanceEnabled) {
+      return NextResponse.json(
+        { error: "Absensi sedang dinonaktifkan oleh admin." },
+        { status: 403 },
+      );
+    }
+
+    const gpsRequired =
+      settings.attendanceTerminalMode !== "pin_only" && settings.attendanceRequireGps;
+    const selfieRequired =
+      settings.attendanceTerminalMode === "pin_gps_selfie" ||
+      settings.attendanceRequireSelfie;
+
+    if (gpsRequired && (latitude == null || longitude == null)) {
+      return NextResponse.json(
+        { error: "Absensi membutuhkan GPS. Aktifkan izin lokasi lalu coba lagi." },
+        { status: 400 },
+      );
+    }
+
+    if (selfieRequired && !selfie) {
+      return NextResponse.json(
+        { error: "Absensi membutuhkan selfie wajah. Aktifkan kamera lalu coba lagi." },
+        { status: 400 },
+      );
+    }
+
     // --- Geofence ---
     const activeGeofence = await db
       .select()
@@ -158,14 +192,23 @@ export async function POST(req: Request) {
       .then((rows) => rows[0]);
 
     let distanceMeters: number | null = null;
-    if (activeGeofence) {
+    if (gpsRequired && settings.attendanceRequireActiveGeofence && !activeGeofence) {
+      return NextResponse.json(
+        {
+          error:
+            "Lokasi presensi outlet belum diset. Hubungi supervisor/admin sebelum absen.",
+        },
+        { status: 400 },
+      );
+    }
+    if (activeGeofence && latitude != null && longitude != null) {
       distanceMeters = haversineMeters(
         latitude,
         longitude,
         activeGeofence.latitude,
         activeGeofence.longitude,
       );
-      if (distanceMeters > activeGeofence.radius) {
+      if (gpsRequired && distanceMeters > activeGeofence.radius) {
         return NextResponse.json(
           {
             error: `Absensi gagal. Anda di luar radius outlet. Jarak: ${Math.round(
@@ -193,13 +236,17 @@ export async function POST(req: Request) {
       .limit(1)
       .then((rows) => rows[0]);
 
-    if (action === "in" && lastToday?.action === "in") {
+    if (settings.attendanceBlockDoublePunch && action === "in" && lastToday?.action === "in") {
       return NextResponse.json(
         { error: "Anda sudah Clock In dan belum Clock Out. Tidak bisa Clock In dua kali." },
         { status: 409 },
       );
     }
-    if (action === "out" && (!lastToday || lastToday.action === "out")) {
+    if (
+      settings.attendanceBlockDoublePunch &&
+      action === "out" &&
+      (!lastToday || lastToday.action === "out")
+    ) {
       return NextResponse.json(
         { error: "Belum ada Clock In aktif hari ini. Clock In dulu sebelum Clock Out." },
         { status: 409 },
@@ -231,6 +278,8 @@ export async function POST(req: Request) {
           punchAt,
           startTime: todaySchedule.startTime,
           endTime: todaySchedule.endTime,
+          lateGraceMinutes: clampMinutes(settings.attendanceLateGraceMinutes, 10),
+          earlyLeaveGraceMinutes: clampMinutes(settings.attendanceEarlyLeaveGraceMinutes, 10),
         })
       : "normal";
 
@@ -241,14 +290,20 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("Gagal simpan selfie absensi:", e);
     }
+    if (selfieRequired && !photoUrl) {
+      return NextResponse.json(
+        { error: "Selfie absensi tidak valid atau gagal disimpan. Coba ambil ulang foto." },
+        { status: 400 },
+      );
+    }
 
     await db.insert(employeeAttendances).values({
       staffId: resolved.id,
       outletId: resolved.outletId,
       action,
       timestamp: punchAt,
-      latitude,
-      longitude,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
       distanceMeters,
       status,
       scheduleId: todaySchedule?.id ?? null,

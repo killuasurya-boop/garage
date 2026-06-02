@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 
-import { getDb } from "@/db";
+import { ensureDatabaseReady, getDb } from "@/db";
 import { outlets, staffProfiles } from "@/db/schema";
 import { fail } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/garage-data";
 import { canUseApi, type Permission } from "@/lib/role-access";
+import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
 
 export const ACTIVE_OUTLET_COOKIE = "garage_active_outlet";
 
@@ -30,6 +31,7 @@ export type GarageSession = {
     role: Role;
     shiftLabel: string;
     deviceLabel: string;
+    passwordResetRequired: boolean;
     outlet: {
       id: string;
       code: string;
@@ -40,6 +42,8 @@ export type GarageSession = {
 };
 
 export async function requireGarageSession(allowedRoles?: Role[]) {
+  await ensureDatabaseReady();
+
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -52,6 +56,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
   }
 
   const db = getDb();
+  await ensureStaffProfileAccessColumns(db);
   const [row] = await db
     .select({
       profileId: staffProfiles.id,
@@ -60,6 +65,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
       deviceLabel: staffProfiles.deviceLabel,
       status: staffProfiles.status,
       lastLoginAt: staffProfiles.lastLoginAt,
+      passwordResetRequired: staffProfiles.passwordResetRequired,
       outletId: outlets.id,
       outletCode: outlets.code,
       outletName: outlets.name,
@@ -152,6 +158,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
         role: row.role as Role,
         shiftLabel: row.shiftLabel,
         deviceLabel: row.deviceLabel,
+        passwordResetRequired: row.passwordResetRequired,
         outlet: activeOutlet,
       },
     } satisfies GarageSession,

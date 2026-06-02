@@ -34,6 +34,9 @@ const createSchema = z.object({
   outletId: z.string().uuid("Outlet ID harus UUID"),
   shiftLabel: z.string().optional(),
   deviceLabel: z.string().optional(),
+  division: z.string().optional(),
+  position: z.string().optional(),
+  requirePasswordChange: z.boolean().optional(),
 });
 
 export async function GET(request: Request) {
@@ -78,6 +81,7 @@ export async function POST(request: Request) {
   const result = await createAdminUser(parsed.data, {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
+    actorRole: session.data.profile.role,
     deviceLabel: session.data.profile.deviceLabel,
   });
   if ("error" in result) {

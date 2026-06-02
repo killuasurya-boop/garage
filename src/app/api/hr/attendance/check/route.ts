@@ -15,6 +15,7 @@ import {
   checkRateLimit,
   recordFailedAttempt,
 } from "@/lib/attendance";
+import { getAppSettings } from "@/lib/garage-service";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
     const staff = await db
       .select({
         id: staffProfiles.id,
+        outletId: staffProfiles.outletId,
         status: staffProfiles.status,
         name: user.name,
         role: staffProfiles.role,
@@ -67,6 +69,7 @@ export async function POST(req: Request) {
       resolved = await db
         .select({
           id: staffProfiles.id,
+          outletId: staffProfiles.outletId,
           status: staffProfiles.status,
           name: user.name,
           role: staffProfiles.role,
@@ -118,6 +121,7 @@ export async function POST(req: Request) {
       .then((rows) => rows[0]);
 
     const currentState: "in" | "out" = last?.action === "in" ? "in" : "out";
+    const settings = await getAppSettings(resolved.outletId);
 
     return NextResponse.json({
       staffName: resolved.name,
@@ -132,6 +136,16 @@ export async function POST(req: Request) {
             endTime: schedule.endTime,
           }
         : null,
+      attendancePolicy: {
+        enabled: settings.attendanceEnabled,
+        terminalMode: settings.attendanceTerminalMode,
+        gpsRequired:
+          settings.attendanceTerminalMode !== "pin_only" && settings.attendanceRequireGps,
+        selfieRequired:
+          settings.attendanceTerminalMode === "pin_gps_selfie" ||
+          settings.attendanceRequireSelfie,
+        blockDoublePunch: settings.attendanceBlockDoublePunch,
+      },
     });
   } catch (error) {
     console.error("Attendance check error:", error);

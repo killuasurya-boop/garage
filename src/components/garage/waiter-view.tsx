@@ -127,6 +127,8 @@ function tableTone(row: TableLiveRow) {
       bg: "bg-[#ef4444]/12",
       label: "PERLU BERSIH",
       labelColor: "text-[#ffe1e5]",
+      dotBg: "bg-[#ef4444]",
+      dotRing: "ring-[#ef4444]/40",
     };
   }
   if (isPaidOnly(row)) {
@@ -135,6 +137,8 @@ function tableTone(row: TableLiveRow) {
       bg: "bg-[#22c55e]/12",
       label: "LUNAS",
       labelColor: "text-[#bbf7d0]",
+      dotBg: "bg-[#22c55e]",
+      dotRing: "ring-[#22c55e]/40",
     };
   }
   if (row.status === "empty") {
@@ -144,6 +148,8 @@ function tableTone(row: TableLiveRow) {
       bg: "bg-[#11100b]",
       label: "READY",
       labelColor: "text-[#d0c5af]",
+      dotBg: "bg-[#d0c5af]/70",
+      dotRing: "ring-white/15",
     };
   }
   if (row.status === "mixed") {
@@ -153,6 +159,8 @@ function tableTone(row: TableLiveRow) {
       bg: "bg-gradient-to-br from-[#a855f7]/12 to-[#ef4444]/10",
       label: "MIXED",
       labelColor: "text-[#e9d5ff]",
+      dotBg: "bg-[#a855f7]",
+      dotRing: "ring-[#a855f7]/40",
     };
   }
   if (
@@ -165,6 +173,8 @@ function tableTone(row: TableLiveRow) {
       bg: "bg-[#e8883a]/12",
       label: "BELUM BAYAR",
       labelColor: "text-[#ffd08a]",
+      dotBg: "bg-[#e8883a]",
+      dotRing: "ring-[#e8883a]/40",
     };
   }
   if (row.status === "awaiting_payment") {
@@ -173,6 +183,8 @@ function tableTone(row: TableLiveRow) {
       bg: "bg-[#fbbf24]/14",
       label: "TAGIHAN",
       labelColor: "text-[#fde68a]",
+      dotBg: "bg-[#fbbf24]",
+      dotRing: "ring-[#fbbf24]/40",
     };
   }
   return {
@@ -180,6 +192,8 @@ function tableTone(row: TableLiveRow) {
     bg: "bg-white/[0.04]",
     label: row.status.replace(/_/g, " ").toUpperCase(),
     labelColor: "text-white/70",
+    dotBg: "bg-white/40",
+    dotRing: "ring-white/15",
   };
 }
 
@@ -593,8 +607,8 @@ export function WaiterView({ me }: Props) {
   );
 
   return (
-    <div className="min-h-screen space-y-4 bg-[#080704] pb-24 text-white">
-      <div className="sticky top-0 z-20 -mx-3 border-b border-[#d4af37]/15 bg-[#080704]/92 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-[#080704]/78 sm:-mx-4 sm:px-4">
+    <div className="min-h-screen space-y-5 bg-[#080704] px-1 pb-28 pt-2 text-white sm:px-0">
+      <div className="sticky top-2 z-20 rounded-lg border border-[#d4af37]/15 bg-[#080704]/92 px-3.5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-[#080704]/78 sm:px-4">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#d4af37]/14 text-[#f2ca50] ring-1 ring-[#d4af37]/35">
             <BellRing size={18} />
@@ -725,7 +739,7 @@ export function WaiterView({ me }: Props) {
         ) : null}
       </div>
 
-      <section className="grid grid-cols-4 gap-2">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Meja aktif", value: activeTables, cls: "text-[#f2ca50]" },
           { label: "Panggilan", value: urgentTables.length, cls: "text-[#ffb4ab]" },
@@ -734,7 +748,7 @@ export function WaiterView({ me }: Props) {
         ].map((item) => (
           <div
             key={item.label}
-            className="rounded-lg bg-[#15120c] px-2.5 py-2 ring-1 ring-[#d4af37]/12"
+            className="rounded-lg bg-[#15120c] px-3 py-3 ring-1 ring-[#d4af37]/12"
           >
             <p className={`font-mono text-xl font-black leading-none ${item.cls}`}>
               {item.value}
@@ -746,7 +760,7 @@ export function WaiterView({ me }: Props) {
         ))}
       </section>
 
-      <section className="grid grid-cols-5 gap-1.5 rounded-xl border border-[#d4af37]/12 bg-[#0b0906] p-1.5">
+      <section className="grid grid-cols-5 gap-2 rounded-xl border border-[#d4af37]/12 bg-[#0b0906] p-2">
         {[
           { key: "tables" as const, label: "Meja", icon: <CircleDot size={16} />, count: tables.length },
           { key: "orders" as const, label: "Order", icon: <ChefHat size={16} />, count: upcoming.length },
@@ -761,7 +775,7 @@ export function WaiterView({ me }: Props) {
               setActiveBoard(item.key);
               if (item.key === "more") setSettingsOpen(true);
             }}
-            className={`flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-bold transition active:scale-[0.97] ${
+            className={`flex h-14 min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-bold transition active:scale-[0.97] ${
               activeBoard === item.key
                 ? "bg-[#d4af37] text-[#241a00]"
                 : "text-[#d0c5af]/68 hover:bg-white/[0.05]"
@@ -781,7 +795,7 @@ export function WaiterView({ me }: Props) {
         ))}
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.8fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.8fr)]">
         {activeBoard === "tables" ? (
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
@@ -796,7 +810,7 @@ export function WaiterView({ me }: Props) {
           {/* Filter chips: bantu staff cek cepat siapa yang sudah/belum
               bayar, terutama untuk meja MIXED & PERLU BERSIH yang masih
               punya open bill. Mobile: horizontal scroll 1 baris. */}
-          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { key: "all" as const, label: "Semua", count: tableBuckets.all, tone: "neutral" },
               {
@@ -870,7 +884,7 @@ export function WaiterView({ me }: Props) {
             />
           ) : null}
 
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5">
             {filteredTables.map((row) => {
               const tone = tableTone(row);
               const stripe = waitStripe(row);
@@ -892,7 +906,7 @@ export function WaiterView({ me }: Props) {
               return (
                 <div
                   key={row.tableNumber}
-                  className={`group relative flex min-h-[142px] flex-col overflow-hidden rounded-lg border border-white/5 ${tone.bg} ring-1 ${tone.ring} p-2.5 transition ${stripe} ${
+                  className={`group relative flex min-h-[112px] sm:min-h-[128px] md:min-h-[142px] flex-col overflow-hidden rounded-lg border border-white/5 ${tone.bg} ring-1 ${tone.ring} p-2 sm:p-2.5 transition ${stripe} ${
                     glow ? "motion-safe:animate-[waiterGlow_1300ms_ease-out]" : ""
                   }`}
                 >
@@ -902,24 +916,24 @@ export function WaiterView({ me }: Props) {
                     className="text-left transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                     title="Lihat detail bill meja ini"
                   >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-[10px] uppercase tracking-[0.16em] text-[#d0c5af]/55">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.14em] text-[#d0c5af]/55">
                         Meja
                       </span>
-                      <span className={`shrink-0 rounded-sm bg-black/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${tone.labelColor}`}>
-                        {tone.label}
-                      </span>
+                      <span
+                        aria-label={tone.label}
+                        title={tone.label}
+                        className={`h-2 w-2 shrink-0 rounded-full ${tone.dotBg} ring-1 ${tone.dotRing}`}
+                      />
                     </div>
-                    <span className="mt-1 block font-mono text-4xl font-black leading-none text-white">
+                    <span className="mt-0.5 block font-mono text-[28px] sm:text-3xl md:text-4xl font-black leading-none text-white">
                       {row.tableNumber}
                     </span>
                   </button>
-                  <div className="mt-1 min-h-[40px] flex-1 text-[11px] leading-tight text-white/65">
+                  <div className="mt-1 min-h-[28px] sm:min-h-[40px] flex-1 text-[10px] sm:text-[11px] leading-tight text-white/65">
                     {row.orderNo ? (
                       <span className="block truncate">#{row.orderNo}</span>
-                    ) : isReady ? (
-                      <span className="block text-[#86efac]">Siap pakai</span>
-                    ) : (
+                    ) : isReady ? null : (
                       <span className="block text-white/45">-</span>
                     )}
                     {totalBills > 1 || isMixed ? (
@@ -946,28 +960,28 @@ export function WaiterView({ me }: Props) {
                         onClick={() => void handleClean(row)}
                         disabled={actingTable === row.tableNumber}
                         title="Tamu pergi - bersihkan meja untuk tamu berikutnya"
-                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
                         ) : (
                           <CheckCircle2 size={12} />
                         )}
-                        Bersih
+                        <span className="hidden sm:inline">Bersih</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleSeatNew(row)}
                         disabled={actingSeatTable === row.tableNumber}
                         title="Teman gabung - buka order baru tanpa menutup history bill lunas"
-                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingSeatTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
                         ) : (
                           <UserPlus size={12} />
                         )}
-                        Tamu+
+                        <span className="hidden sm:inline">Tamu+</span>
                       </button>
                     </div>
                   ) : needs ? (
@@ -975,14 +989,15 @@ export function WaiterView({ me }: Props) {
                       type="button"
                       onClick={() => void handleClean(row)}
                       disabled={actingTable === row.tableNumber}
-                      className="mt-1 inline-flex h-11 sm:h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[12px] sm:text-[11px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                      title="Bersihkan meja"
+                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[11px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
                     >
                       {actingTable === row.tableNumber ? (
                         <Loader2 size={12} className="animate-spin" />
                       ) : (
                         <CheckCircle2 size={12} />
                       )}
-                      Bersih
+                      <span className="hidden sm:inline">Bersih</span>
                     </button>
                   ) : isPaid && canSeatNext ? (
                     <div className="mt-1 grid grid-cols-2 gap-1">
@@ -991,28 +1006,28 @@ export function WaiterView({ me }: Props) {
                         onClick={() => void handleClean(row)}
                         disabled={actingTable === row.tableNumber}
                         title="Tamu pergi - bersihkan meja"
-                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
                         ) : (
                           <CheckCircle2 size={12} />
                         )}
-                        Bersih
+                        <span className="hidden sm:inline">Bersih</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleSeatNew(row)}
                         disabled={actingSeatTable === row.tableNumber}
                         title="Teman gabung - buka order baru, history lunas dipertahankan"
-                        className="inline-flex h-11 sm:h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
+                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingSeatTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
                         ) : (
                           <UserPlus size={12} />
                         )}
-                        Tamu+
+                        <span className="hidden sm:inline">Tamu+</span>
                       </button>
                     </div>
                   ) : canRequestBill ? (
@@ -1020,22 +1035,26 @@ export function WaiterView({ me }: Props) {
                       type="button"
                       onClick={() => void handleRequestBill(row)}
                       disabled={actingBillTable === row.tableNumber}
-                      className="mt-1 inline-flex h-11 sm:h-9 w-full items-center justify-center gap-1 rounded-md bg-[#fbbf24] text-[12px] sm:text-[10px] font-bold uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
+                      title="Minta bill"
+                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#fbbf24] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
                     >
                       {actingBillTable === row.tableNumber ? (
                         <Loader2 size={12} className="animate-spin" />
                       ) : (
                         <ReceiptText size={12} />
                       )}
-                      Bill
+                      <span className="hidden sm:inline">Bill</span>
                     </button>
                   ) : billAlreadyRequested ? (
-                    <div className="mt-1 inline-flex h-11 sm:h-9 w-full items-center justify-center gap-1 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 text-[12px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#fde68a]">
+                    <div
+                      title="Menunggu kasir"
+                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 text-[11px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#fde68a]"
+                    >
                       <ReceiptText size={12} />
-                      Kasir
+                      <span className="hidden sm:inline">Kasir</span>
                     </div>
                   ) : (
-                    <div className="mt-1 h-11 sm:h-9" aria-hidden />
+                    <div className="mt-1 h-9" aria-hidden />
                   )}
                 </div>
               );

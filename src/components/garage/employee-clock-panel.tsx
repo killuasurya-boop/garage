@@ -13,6 +13,13 @@ type CheckResult = {
   lastPunchAt: string | null;
   lastAction: "in" | "out" | null;
   schedule: { shiftType: string; startTime: string | null; endTime: string | null } | null;
+  attendancePolicy: {
+    enabled: boolean;
+    terminalMode: "pin_only" | "pin_gps" | "pin_gps_selfie";
+    gpsRequired: boolean;
+    selfieRequired: boolean;
+    blockDoublePunch: boolean;
+  };
 };
 
 function formatTime(iso: string | null) {
@@ -110,6 +117,18 @@ export function EmployeeClockPanel() {
     return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
   }, []);
 
+  const fetchCheck = useCallback(async (signal?: AbortSignal): Promise<CheckResult> => {
+    const res = await fetch("/api/hr/attendance/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinCode: pin }),
+      signal,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Gagal cek status");
+    return data as CheckResult;
+  }, [pin]);
+
   const handleCheck = useCallback(async () => {
     if (pin.length < 4) {
       setStatus("error");
@@ -124,15 +143,7 @@ export function EmployeeClockPanel() {
     setStatus("idle");
     setMessage("");
     try {
-      const res = await fetch("/api/hr/attendance/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinCode: pin }),
-        signal: ctrl.signal,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gagal cek status");
-      setCheck(data as CheckResult);
+      setCheck(await fetchCheck(ctrl.signal));
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       setStatus("error");
@@ -141,7 +152,7 @@ export function EmployeeClockPanel() {
     } finally {
       setChecking(false);
     }
-  }, [pin]);
+  }, [fetchCheck, pin]);
 
   const handleClockInOut = async (action: "in" | "out") => {
     if (pin.length < 4) {
@@ -152,9 +163,29 @@ export function EmployeeClockPanel() {
 
     setStatus("loading");
 
-    let coords: { latitude: number; longitude: number };
+    let activeCheck = check;
     try {
-      coords = await getPosition();
+      if (!activeCheck) {
+        activeCheck = await fetchCheck();
+        setCheck(activeCheck);
+      }
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Gagal cek status absensi.");
+      setTimeout(() => setStatus("idle"), 5000);
+      return;
+    }
+
+    if (!activeCheck.attendancePolicy.enabled) {
+      setStatus("error");
+      setMessage("Absensi sedang dinonaktifkan oleh admin.");
+      setTimeout(() => setStatus("idle"), 5000);
+      return;
+    }
+
+    let coords: { latitude: number; longitude: number } | null = null;
+    try {
+      coords = activeCheck.attendancePolicy.gpsRequired ? await getPosition() : null;
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "GPS tidak tersedia.");
@@ -164,9 +195,7 @@ export function EmployeeClockPanel() {
 
     const selfie = captureSelfie();
 
-    // Wajibkan wajah saat kamera SEHARUSNYA aktif. Bila kamera memang tak
-    // tersedia (camError), punch tetap lanjut agar operasional tak terblokir.
-    if (camReady && !selfie) {
+    if (activeCheck.attendancePolicy.selfieRequired && !selfie) {
       setStatus("error");
       setMessage("Wajah tidak terekam. Pastikan wajah terlihat di kamera, lalu coba lagi.");
       setTimeout(() => setStatus("idle"), 5000);
@@ -177,7 +206,12 @@ export function EmployeeClockPanel() {
       const res = await fetch("/api/hr/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinCode: pin, action, ...coords, selfie: selfie ?? undefined }),
+        body: JSON.stringify({
+          pinCode: pin,
+          action,
+          ...(coords ?? {}),
+          selfie: selfie ?? undefined,
+        }),
       });
       const data = await res.json();
 
@@ -210,8 +244,11 @@ export function EmployeeClockPanel() {
 
   const isIn = check?.currentState === "in";
   // Smart-disable: kalau sudah IN, tombol IN nonaktif; sebaliknya untuk OUT.
-  const disableIn = status === "loading" || pin.length < 4 || (check ? isIn : false);
-  const disableOut = status === "loading" || pin.length < 4 || (check ? !isIn : false);
+  const enforceDoublePunchUi = check?.attendancePolicy.blockDoublePunch ?? true;
+  const disableIn =
+    status === "loading" || pin.length < 4 || (check && enforceDoublePunchUi ? isIn : false);
+  const disableOut =
+    status === "loading" || pin.length < 4 || (check && enforceDoublePunchUi ? !isIn : false);
 
   return (
     <Card className="border-zinc-800 bg-[#111116] w-full max-w-md mx-auto">
@@ -359,9 +396,11 @@ export function EmployeeClockPanel() {
           </div>
           {check && (
             <p className="text-center text-[11px] text-zinc-500">
-              {isIn
-                ? "Anda sedang bekerja — hanya Clock Out yang aktif."
-                : "Anda belum Clock In — hanya Clock In yang aktif."}
+              {check.attendancePolicy.blockDoublePunch
+                ? isIn
+                  ? "Anda sedang bekerja - hanya Clock Out yang aktif."
+                  : "Anda belum Clock In - hanya Clock In yang aktif."
+                : "Double punch sedang diizinkan oleh admin."}
             </p>
           )}
         </div>

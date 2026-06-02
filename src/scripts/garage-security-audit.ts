@@ -80,6 +80,7 @@ const posApiKey =
 const marker = `QA_SEC_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`;
 const cleanupOrders = process.env.SECURITY_AUDIT_CLEANUP !== "0";
 const strictExit = process.env.SECURITY_AUDIT_STRICT === "1";
+const requestTimeoutMs = Number(process.env.SECURITY_AUDIT_REQUEST_TIMEOUT_MS ?? 15_000);
 
 const roleEmails = {
   owner: process.env.SECURITY_AUDIT_OWNER_EMAIL ?? "owner@garage.local",
@@ -175,6 +176,8 @@ async function request<T = JsonValue>(
 ): Promise<AuditResponse<T>> {
   const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${baseUrl}${pathOrUrl}`;
   const headers = new Headers(options.headers);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
   if (!headers.has("Origin")) headers.set("Origin", baseUrl);
   if (!headers.has("Referer")) headers.set("Referer", `${baseUrl}/security-audit`);
@@ -183,24 +186,42 @@ async function request<T = JsonValue>(
   const cookieHeader = jar?.header();
   if (cookieHeader) headers.set("Cookie", cookieHeader);
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
-  });
-  jar?.store(response.headers);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
+      signal: controller.signal,
+    });
+    jar?.store(response.headers);
 
-  const text = await response.text();
-  let json: T | null = null;
-  if (text) {
-    try {
-      json = JSON.parse(text) as T;
-    } catch {
-      json = null;
+    const text = await response.text();
+    let json: T | null = null;
+    if (text) {
+      try {
+        json = JSON.parse(text) as T;
+      } catch {
+        json = null;
+      }
     }
-  }
 
-  return { response, json, text };
+    return { response, json, text };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    const detail = isAbort
+      ? `Request timeout after ${requestTimeoutMs}ms: ${url}`
+      : error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : "fetch failed";
+
+    return {
+      response: new Response(null, { status: isAbort ? 504 : 503 }),
+      json: null,
+      text: detail,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function expectStatus(
@@ -1001,7 +1022,7 @@ async function runLanChecks(results: AuditResult[]) {
   expectStatus(results, "Local health", localHealth, 200, "high", "Server lokal harus reachable sebelum audit aktif.");
 
   const lanHealth = await request(`${lanBaseUrl}/api/health`).catch((error) => ({
-    response: new Response(null, { status: 0 }),
+    response: new Response(null, { status: 503 }),
     json: null,
     text: error instanceof Error ? error.message : "LAN health failed",
   }));

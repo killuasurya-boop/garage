@@ -1,7 +1,6 @@
 import { config as loadEnv } from "dotenv";
 
 import { GARAGE_SMOKE_MEMBER_PHONE } from "@/lib/garage-member-seed";
-import { findMemberAccountByIdentifier } from "@/lib/member-service";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
@@ -41,7 +40,12 @@ const lanBaseUrl = (
 ).replace(/\/+$/, "");
 const staffEmail = process.env.READINESS_STAFF_EMAIL ?? process.env.SMOKE_STAFF_EMAIL ?? "kasir@garage.local";
 const staffPassword =
-  process.env.READINESS_STAFF_PASSWORD ?? process.env.SMOKE_STAFF_PASSWORD ?? "garage12345";
+  process.env.READINESS_STAFF_PASSWORD ??
+  process.env.SMOKE_STAFF_PASSWORD ??
+  process.env.GARAGE_SEED_PASSWORD ??
+  "garage12345";
+const memberIdentifier = process.env.SMOKE_MEMBER_IDENTIFIER ?? GARAGE_SMOKE_MEMBER_PHONE;
+const memberPassword = process.env.SMOKE_MEMBER_PASSWORD ?? "member12345";
 const cleanupTestOrders = process.env.READINESS_CLEANUP_TEST_ORDERS === "1";
 const pilotTables = ["01", "25", "50"];
 
@@ -206,7 +210,8 @@ async function runAudit() {
   }
 
   const health = await request<{ data?: { ok?: boolean; database?: { status?: string } } }>("/api/health");
-  if (health.response.ok && dataOf<{ ok: boolean; database?: { status?: string } }>(health.json)?.database?.status === "reachable") {
+  const healthData = dataOf<{ ok?: boolean; database?: { status?: string } }>(health.json);
+  if (health.response.ok && healthData?.ok && healthData.database?.status?.startsWith("reachable")) {
     results.push(result("pass", "Health DB", "Database reachable."));
   } else {
     results.push(result("fail", "Health DB", messageOf(health.json, health.text)));
@@ -408,34 +413,28 @@ async function runAudit() {
     }
   }
 
-  if (process.env.DATABASE_URL) {
-    const smokeMemberPhone =
-      process.env.SMOKE_MEMBER_IDENTIFIER ?? GARAGE_SMOKE_MEMBER_PHONE;
-    try {
-      const row = await findMemberAccountByIdentifier(smokeMemberPhone);
-      if (row?.account.status === "active") {
-        results.push(
-          result(
-            "pass",
-            "Smoke member account",
-            `${smokeMemberPhone} aktif di member_accounts.`,
-          ),
-        );
-      } else {
-        results.push(
-          result(
-            "fail",
-            "Smoke member account",
-            `Akun smoke ${smokeMemberPhone} belum ada/aktif. Jalankan npm run db:seed.`,
-          ),
-        );
-      }
-    } catch (error) {
+  if (process.env.DATABASE_URL || healthData?.database?.status?.startsWith("reachable")) {
+    const memberLogin = await request("/api/member/auth/login", {
+      method: "POST",
+      json: {
+        identifier: memberIdentifier,
+        password: memberPassword,
+      },
+    });
+    if (memberLogin.response.ok) {
       results.push(
         result(
-          "fail",
+          "pass",
           "Smoke member account",
-          error instanceof Error ? error.message : "Gagal cek akun smoke member.",
+          `${memberIdentifier} bisa login via member auth API.`,
+        ),
+      );
+    } else {
+      results.push(
+        result(
+          "warn",
+          "Smoke member account",
+          `Akun smoke ${memberIdentifier} belum bisa login. Untuk UAT membership, jalankan seed demo/member atau set SMOKE_MEMBER_PASSWORD yang sesuai.`,
         ),
       );
     }

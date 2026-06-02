@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { GarageToastProvider } from "@/components/garage/garage-toast";
 import { GarageThemeProvider } from "@/components/garage/theme/garage-theme-provider";
 import { AutoLogoutWatcher } from "@/components/garage/admin/auto-logout-watcher";
+import { ClientErrorReporter } from "@/components/garage/client-error-reporter";
 import "./globals.css";
 import "@/components/garage-website/garage-website.css";
 
@@ -70,6 +71,7 @@ export default function RootLayout({
           <TooltipProvider delayDuration={250}>
             <GarageToastProvider>
               <AutoLogoutWatcher />
+              <ClientErrorReporter />
               {children}
             </GarageToastProvider>
           </TooltipProvider>

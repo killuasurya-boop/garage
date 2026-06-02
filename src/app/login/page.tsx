@@ -11,7 +11,8 @@ type LoginPageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-const allowedReturnTargets = new Set(["/os", "/dashboard", "/pos"]);
+const allowedReturnTargets = new Set(["/os", "/dashboard", "/pos", "/control"]);
+const allowedReturnPrefixes = ["/control/"];
 
 function safeReturnTo(value: string | string[] | undefined) {
   const target = Array.isArray(value) ? value[0] : value;
@@ -20,12 +21,23 @@ function safeReturnTo(value: string | string[] | undefined) {
   }
 
   const path = target.split("?")[0];
-  return allowedReturnTargets.has(path) ? target : "/os";
+  if (allowedReturnTargets.has(path)) return target;
+  if (allowedReturnPrefixes.some((p) => path.startsWith(p))) return target;
+  return "/os";
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const returnTo = safeReturnTo(params.next);
+  const returnPath = returnTo.split("?")[0];
+  const isOwnerControlLogin = returnPath === "/control" || returnPath.startsWith("/control/");
 
-  return <LazyGaragePosLogin returnTo={returnTo} variant="os" />;
+  return (
+    <LazyGaragePosLogin
+      returnTo={returnTo}
+      variant="os"
+      includeOwnerPreset={isOwnerControlLogin}
+      initialEmail={isOwnerControlLogin ? "owner@garage.local" : undefined}
+    />
+  );
 }

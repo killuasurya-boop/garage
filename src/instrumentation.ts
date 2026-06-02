@@ -4,5 +4,12 @@ export async function register() {
   }
 
   const { ensureDatabaseReady } = await import("@/db");
-  await ensureDatabaseReady();
+  try {
+    await ensureDatabaseReady();
+  } catch (error) {
+    console.warn(
+      "[garage-db] Startup DB warmup skipped:",
+      error instanceof Error ? error.message : error,
+    );
+  }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -16,7 +17,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Clock, RefreshCw, LogIn, LogOut, MapPin } from "lucide-react";
+import {
+  Clock,
+  RefreshCw,
+  LogIn,
+  LogOut,
+  MapPin,
+  ExternalLink,
+  UserCheck,
+  AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type AttendanceLog = {
@@ -101,6 +111,29 @@ export function HrAttendanceLog() {
   // Server sudah memfilter ke "hari ini" zona WIB; tampilkan apa adanya.
   const todayLogs = logs;
 
+  // Ringkasan: unique staff, sedang IN, telat — derived dari logs.
+  const summary = useMemo(() => {
+    const lastByName = new Map<string, AttendanceLog>();
+    let lateCount = 0;
+    for (const log of logs) {
+      if (log.action === "in" && log.status === "late") lateCount += 1;
+      const prev = lastByName.get(log.name);
+      if (!prev || new Date(log.timestamp) > new Date(prev.timestamp)) {
+        lastByName.set(log.name, log);
+      }
+    }
+    let currentlyIn = 0;
+    for (const last of lastByName.values()) {
+      if (last.action === "in") currentlyIn += 1;
+    }
+    return {
+      totalPunch: logs.length,
+      present: lastByName.size,
+      currentlyIn,
+      late: lateCount,
+    };
+  }, [logs]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -113,15 +146,55 @@ export function HrAttendanceLog() {
             Catatan Clock In / Clock Out dari terminal absensi (PIN + GPS).
           </p>
         </div>
-        <Button
-          onClick={fetchLogs}
-          disabled={loading}
-          variant="outline"
-          className="gap-2 shadow-sm bg-card"
-        >
-          <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-          Segarkan
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/attendance"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/20"
+          >
+            <Clock className="size-4" />
+            Buka Terminal Kiosk
+            <ExternalLink className="size-3 opacity-70" />
+          </Link>
+          <Button
+            onClick={fetchLogs}
+            disabled={loading}
+            variant="outline"
+            className="gap-2 shadow-sm bg-card"
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            Segarkan
+          </Button>
+        </div>
+      </div>
+
+      {/* Ringkasan hari ini */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <SummaryStat
+          icon={<UserCheck className="size-4" />}
+          label="Staf Hadir"
+          value={summary.present}
+          hint="punya minimal 1 punch"
+        />
+        <SummaryStat
+          icon={<LogIn className="size-4" />}
+          label="Sedang IN"
+          value={summary.currentlyIn}
+          tone="good"
+        />
+        <SummaryStat
+          icon={<AlertTriangle className="size-4" />}
+          label="Telat"
+          value={summary.late}
+          tone={summary.late > 0 ? "warn" : "muted"}
+        />
+        <SummaryStat
+          icon={<Clock className="size-4" />}
+          label="Total Punch"
+          value={summary.totalPunch}
+          hint="in + out"
+        />
       </div>
 
       {error && (
@@ -281,6 +354,41 @@ export function HrAttendanceLog() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SummaryStat({
+  icon,
+  label,
+  value,
+  hint,
+  tone = "muted",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  hint?: string;
+  tone?: "good" | "warn" | "muted";
+}) {
+  const toneCls = {
+    good: "border-emerald-500/30 bg-emerald-500/10",
+    warn: "border-amber-500/30 bg-amber-500/10",
+    muted: "border-border bg-card",
+  }[tone];
+  const valueCls = {
+    good: "text-emerald-600 dark:text-emerald-400",
+    warn: "text-amber-600 dark:text-amber-400",
+    muted: "text-foreground",
+  }[tone];
+  return (
+    <div className={`rounded-lg border p-3 shadow-sm ${toneCls}`}>
+      <div className="flex items-center gap-1.5 text-muted-foreground text-xs uppercase tracking-wide">
+        {icon}
+        <span className="font-semibold">{label}</span>
+      </div>
+      <p className={`mt-1 text-2xl font-bold ${valueCls}`}>{value}</p>
+      {hint && <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p>}
     </div>
   );
 }

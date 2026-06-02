@@ -260,6 +260,9 @@ for (const role of Object.keys(roleModules) as Role[]) {
   if (!roleModules[role].includes("chat")) {
     roleModules[role].push("chat");
   }
+  if (!roleModules[role].includes("training")) {
+    roleModules[role].push("training");
+  }
 }
 
 // Smart Notification Center — semua role yang punya station kerja real-time

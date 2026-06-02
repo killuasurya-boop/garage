@@ -69,11 +69,31 @@ check(
   "Clock In 08:15 -> late",
   evaluatePunchStatus({ action: "in", punchAt: inLate, startTime: "08:00", endTime: "16:00" }) === "late",
 );
+check(
+  "Clock In 08:15 dengan grace 20m -> on_time",
+  evaluatePunchStatus({
+    action: "in",
+    punchAt: inLate,
+    startTime: "08:00",
+    endTime: "16:00",
+    lateGraceMinutes: 20,
+  }) === "on_time",
+);
 // out 15:40 WIB = 08:40Z, end 16:00 grace 10m -> sebelum 15:50 -> early_leave
 const outEarly = new Date("2026-05-31T08:40:00Z");
 check(
   "Clock Out 15:40 -> early_leave",
   evaluatePunchStatus({ action: "out", punchAt: outEarly, startTime: "08:00", endTime: "16:00" }) === "early_leave",
+);
+check(
+  "Clock Out 15:40 dengan grace 30m -> on_time",
+  evaluatePunchStatus({
+    action: "out",
+    punchAt: outEarly,
+    startTime: "08:00",
+    endTime: "16:00",
+    earlyLeaveGraceMinutes: 30,
+  }) === "on_time",
 );
 // out 16:00 WIB = 09:00Z -> on_time
 const outOk = new Date("2026-05-31T09:00:00Z");

@@ -1,4 +1,4 @@
-import { config } from "dotenv";
+﻿import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
 config({ path: ".env.local", quiet: true });
@@ -10,6 +10,6 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: "./.garage-db",
+    url: "D:/GARAGEFIX/pglite-data",
   },
 });

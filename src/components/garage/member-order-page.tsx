@@ -520,6 +520,14 @@ export function MemberOrderPage({
         : guestPhoneMissing
           ? "Lengkapi nomor WhatsApp."
           : "";
+  const channelLabel =
+    qrContext.orderType === "takeaway"
+      ? "Takeaway"
+      : qrContext.orderType === "delivery"
+        ? "Delivery"
+        : "Dine-in";
+  const etaLabel =
+    qrContext.orderType === "takeaway" ? "Siap ambil 15-20 menit" : "Dikirim ke kasir";
 
   function add(itemId: string, variantId: string, delta: number) {
     const item = menuItems.find((entry) => entry.id === itemId);
@@ -930,14 +938,14 @@ export function MemberOrderPage({
 
   return (
     <main
-      className={`garage-shell min-h-screen overflow-x-hidden text-white ${
+      className={`garage-shell min-h-screen overflow-x-hidden bg-[#0d0d0d] text-white ${
         cartLines.length
-          ? "pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pb-36"
+          ? "pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pb-36 lg:pb-8"
           : "pb-6 lg:pb-8"
       }`}
     >
-      <section className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-7 sm:py-6 lg:px-10">
-        <header className="flex items-center justify-between gap-3">
+      <section className="mx-auto w-full max-w-7xl px-5 py-5 sm:px-7 sm:py-7 lg:px-10">
+        <header className="flex items-center justify-between gap-4">
           <Link
             href="/"
             className="block w-[min(180px,46vw)] sm:w-[220px]"
@@ -954,12 +962,12 @@ export function MemberOrderPage({
             />
           </Link>
           <div className="flex min-w-0 items-center gap-2">
-            <div className="garage-mono flex size-12 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/60 bg-[#d11a2a]/22 text-lg font-black text-white">
+            <div className="garage-mono flex size-12 shrink-0 items-center justify-center rounded-md border border-[#d4af37]/55 bg-[#d4af37]/14 text-lg font-black text-[#ffe7a4]">
               {compactTableNumber(qrContext.tableLabel)}
             </div>
             <div className="hidden min-w-0 sm:block">
-              <p className="garage-mono text-[10px] text-[#b8b8bf]">Lokasi order</p>
-              <p className="truncate text-sm font-semibold text-white">{qrContext.tableLabel}</p>
+              <p className="garage-mono text-[10px] text-[#b8b8bf]">{channelLabel}</p>
+              <p className="truncate text-sm font-semibold text-white">{etaLabel}</p>
             </div>
             <Link
               href={loginHref}
@@ -973,28 +981,44 @@ export function MemberOrderPage({
           </div>
         </header>
 
-        <section className="mt-5">
+        <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
-            <div className="rounded-md border border-[#34343c] bg-[#111116]/84 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="rounded-lg border border-[#4d4635] bg-[#15130f] p-5 sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 border border-[#f5a742]/35 bg-[#f5a742]/10 px-3 py-1 text-xs font-semibold uppercase text-[#ffd79a]">
+                  <div className="inline-flex items-center gap-2 rounded-sm border border-[#d4af37]/35 bg-[#d4af37]/10 px-3 py-1 text-xs font-black uppercase text-[#ffe7a4]">
                     <QrCode size={14} />
-                    {qrContext.tableLabel}
+                    {channelLabel} - {qrContext.campaign ?? "landing menu"}
                   </div>
-                  <h1 className="garage-display mt-3 text-[clamp(38px,10vw,76px)] leading-none">
-                    Pilih Menu
+                  <h1 className="garage-display mt-3 text-[clamp(30px,7vw,54px)] leading-none">
+                    Digital Menu GARAGE
                   </h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-[#d0c5af]">
+                    Pilih menu, cek estimasi total, lalu kirim order ke kasir untuk validasi.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#4d4635] bg-[#201f1f] px-3 py-1 text-[11px] font-semibold text-white">
+                      <span className="size-2 animate-pulse rounded-full bg-[#f2ca50]" aria-hidden />
+                      Buka sekarang
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#4d4635] bg-[#201f1f] px-3 py-1 text-[11px] font-semibold text-white">
+                      <Clock size={12} className="text-[#f2ca50]" />
+                      {qrContext.orderType === "takeaway" ? "Estimasi siap 8-12 mnt" : etaLabel}
+                    </span>
+                    <span className="garage-mono rounded-full border border-[#4d4635] bg-[#201f1f] px-3 py-1 text-[10px] uppercase text-[#d0c5af]">
+                      QRIS · Cash · Transfer
+                    </span>
+                  </div>
                 </div>
                 {cartLines.length ? (
-                  <div className="grid grid-cols-2 gap-2 sm:w-[220px]">
-                    <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+                  <div className="grid grid-cols-2 gap-2 sm:w-[260px]">
+                    <div className="rounded-md border border-[#4d4635] bg-[#201f1f] p-3">
                       <p className="garage-mono text-[10px] text-[#8f8f98]">ITEM</p>
                       <p className="mt-1 text-xl font-black text-white">{itemCount}</p>
                     </div>
-                    <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+                    <div className="rounded-md border border-[#4d4635] bg-[#201f1f] p-3">
                       <p className="garage-mono text-[10px] text-[#8f8f98]">TOTAL</p>
-                      <p className="mt-1 truncate text-sm font-black text-white">
+                      <p className="mt-1 truncate text-sm font-black text-[#f2ca50]">
                         {rupiah.format(total)}
                       </p>
                     </div>
@@ -1003,13 +1027,13 @@ export function MemberOrderPage({
               </div>
             </div>
 
-            <div className="sticky top-0 z-20 -mx-4 mt-4 border-y border-[#34343c] bg-[#09090b]/96 px-4 py-3 backdrop-blur-xl sm:-mx-7 sm:px-7 lg:top-0 lg:mx-0 lg:rounded-md lg:border lg:px-3">
+            <div className="sticky top-2 z-20 mt-5 rounded-lg border border-[#34343c] bg-[#0d0d0d]/96 px-3.5 py-3.5 backdrop-blur-xl sm:px-4 lg:top-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8d8d96]" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="h-12 w-full rounded-md border border-[#34343c] bg-white/[0.055] pl-10 pr-10 text-white outline-none transition placeholder:text-[#777782] focus:border-[#f5a742]"
+                  className="h-12 w-full rounded-md border border-[#404040] bg-[#121212] pl-10 pr-10 text-white outline-none transition placeholder:text-[#777782] focus:border-[#d4af37]"
                   placeholder="Cari nasi, kopi, snack..."
                 />
                 {query ? (
@@ -1023,32 +1047,53 @@ export function MemberOrderPage({
                   </button>
                 ) : null}
               </div>
-              <div className="garage-scroll-x mt-3 flex gap-2 pb-1">
+              <div className="garage-scroll-x mt-3.5 flex items-center gap-2.5 pb-1">
                 {categories.map((item) => (
                   <button
                     key={item}
                     type="button"
-                    className={`garage-press h-10 shrink-0 rounded-md border px-4 text-sm font-semibold transition ${
+                    className={`garage-press h-11 shrink-0 rounded-md border px-4 text-sm font-semibold transition ${
                       category === item
-                        ? "border-[#d11a2a] bg-[#d11a2a] text-white"
-                        : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
+                        ? "border-[#d4af37] bg-[#d4af37] text-[#241a00]"
+                        : "border-[#404040] bg-[#201f1f] text-[#d6d6dc]"
                     }`}
                     onClick={() => setCategory(item)}
                   >
                     {item}
                   </button>
                 ))}
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#d20419]/55 bg-[#d20419]/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-[#ffb4ac]">
+                  <TicketPercent size={12} />
+                  Promo
+                </span>
               </div>
             </div>
 
+            {!voucherResult?.valid && qrContext.campaign === "landing_menu" ? (
+              <div className="mt-5 flex items-center justify-between gap-3 rounded-md border border-[#4d4635] border-l-4 border-l-[#f2ca50] bg-[#15130f] p-4 sm:p-5">
+                <div className="min-w-0">
+                  <p className="garage-mono text-[10px] font-black uppercase tracking-widest text-[#f2ca50]">
+                    Limited Offer
+                  </p>
+                  <h3 className="mt-1 truncate text-base font-black text-white sm:text-lg">
+                    Welcome QR — diskon Rp 5.000
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[#d0c5af]">
+                    Otomatis terpakai di cart untuk transaksi pertama.
+                  </p>
+                </div>
+                <TicketPercent className="size-6 shrink-0 text-[#f2ca50]" />
+              </div>
+            ) : null}
+
             {message && !checkoutOpen ? (
-              <div className="mt-4 rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3 text-sm leading-6 text-[#ffd7da]">
+              <div className="mt-5 rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-4 text-sm leading-6 text-[#ffd7da]">
                 {message}
               </div>
             ) : null}
 
             {lastOrder ? (
-              <div className="mt-4 rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 p-4">
+              <div className="mt-5 rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 p-4 sm:p-5">
                 {(() => {
                   const invoicePdfUrl = customerInvoicePdfUrl(orderStatus, lastOrder);
                   const invoiceWebUrl = customerInvoiceWebUrl(orderStatus, lastOrder);
@@ -1129,7 +1174,7 @@ export function MemberOrderPage({
               </div>
             ) : null}
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {loading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <div key={index} className="garage-panel min-h-44 animate-pulse rounded-md p-4">
@@ -1143,14 +1188,37 @@ export function MemberOrderPage({
                 filteredMenu.map((item) => (
                   <article
                     key={item.id}
-                    className={`garage-panel flex min-h-[188px] min-w-0 flex-col rounded-md p-4 ${
+                    className={`relative flex min-h-[224px] min-w-0 flex-col overflow-hidden rounded-lg border border-[#404040] bg-[#201f1f] p-4 transition hover:border-[#d4af37]/45 hover:bg-[#2a2a2a] sm:p-5 ${
                       item.stock === "sold_out" ? "opacity-70" : ""
                     }`}
                   >
+                    {item.stock === "sold_out" ? (
+                      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#0d0d0d]/55 backdrop-grayscale">
+                        <span className="rotate-[-12deg] border-2 border-[#ffb4ac] px-4 py-1 text-base font-black uppercase tracking-widest text-[#ffb4ac]">
+                          Habis
+                        </span>
+                      </div>
+                    ) : null}
+                    {item.imageUrl ? (
+                      <div className="relative mb-3 aspect-square overflow-hidden rounded-md border border-[#404040] bg-[#121212] sm:aspect-[16/10]">
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.name}
+                          fill
+                          sizes="(max-width: 768px) 50vw, (max-width: 1280px) 45vw, 28vw"
+                          className="object-cover"
+                        />
+                        <span className="garage-mono absolute left-2 top-2 rounded bg-[#0d0d0d]/85 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#f2ca50] backdrop-blur">
+                          {item.category}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="garage-mono text-[10px] text-[#b8b8bf]">{item.category}</p>
-                        <h2 className="mt-2 line-clamp-2 min-h-[48px] text-xl font-black leading-tight text-white">
+                        <p className="garage-mono text-[10px] uppercase text-[#d0c5af]/75">
+                          {item.category} - {item.section}
+                        </p>
+                        <h2 className="mt-2 line-clamp-2 min-h-[44px] text-lg font-black leading-tight text-white">
                           {item.name}
                         </h2>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#d0d0d6]">
@@ -1162,17 +1230,19 @@ export function MemberOrderPage({
                         </div>
                       </div>
                       <span
-                        className={`garage-mono shrink-0 rounded-md border px-2 py-1 text-[10px] ${
+                        className={`garage-mono shrink-0 rounded-sm border px-2 py-1 text-[10px] ${
                           item.stock === "sold_out"
                             ? "border-[#d11a2a]/55 bg-[#d11a2a]/18 text-[#ffc2c8]"
-                            : "border-[#f5a742]/35 bg-[#f5a742]/10 text-[#ffd79a]"
+                            : item.stock === "limited"
+                              ? "border-[#f2ca50]/45 bg-[#f2ca50]/10 text-[#ffe7a4]"
+                              : "border-[#79e2b9]/35 bg-[#79e2b9]/10 text-[#8df7cc]"
                         }`}
                       >
                         {item.stock === "sold_out" ? "HABIS" : item.stock}
                       </span>
                     </div>
 
-                    <div className="mt-4 space-y-2">
+                    <div className="mt-5 space-y-3">
                       {item.variants.map((variant) => {
                         const key = cartKey(item.id, variant.id);
                         const qty = cart[key] ?? 0;
@@ -1180,13 +1250,13 @@ export function MemberOrderPage({
                         return (
                           <div
                             key={variant.id}
-                            className="flex items-center justify-between gap-3 rounded-md border border-[#34343c] bg-white/[0.04] p-2"
+                            className="flex items-center justify-between gap-3 rounded-md border border-[#404040] bg-[#121212] p-3"
                           >
                             <div className="min-w-0">
                               <p className="line-clamp-1 text-sm font-semibold text-white">
                                 {variant.label}
                               </p>
-                              <p className="text-sm font-black text-[#f5a742]">
+                              <p className="text-sm font-black text-[#f2ca50]">
                                 {rupiah.format(variant.price)}
                               </p>
                             </div>
@@ -1213,35 +1283,94 @@ export function MemberOrderPage({
             </div>
           </div>
 
+          <aside className="hidden lg:block">
+            <div className="sticky top-5 rounded-lg border border-[#4d4635] bg-[#15130f] p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="garage-mono text-[10px] uppercase text-[#d0c5af]/75">
+                    Order summary
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-white">{channelLabel}</h2>
+                  <p className="mt-1 text-sm text-[#d0c5af]">{etaLabel}</p>
+                </div>
+                <div className="garage-mono flex size-12 shrink-0 items-center justify-center rounded-md border border-[#d4af37]/45 bg-[#d4af37]/12 text-base font-black text-[#ffe7a4]">
+                  {compactTableNumber(qrContext.tableLabel)}
+                </div>
+              </div>
+
+              <div className="mt-4 max-h-[34vh] overflow-y-auto pr-1">
+                <CartList lines={cartLines} />
+              </div>
+
+              <div className="mt-4 space-y-1.5 rounded-md border border-[#404040] bg-[#121212] p-3 text-sm">
+                <BillLine label="Item" value={`${itemCount}`} />
+                <BillLine label="Subtotal" value={rupiah.format(subtotal)} />
+                <BillLine label="Service" value={rupiah.format(service)} />
+                {discount > 0 ? (
+                  <BillLine label={discountLabel} value={`- ${rupiah.format(discount)}`} />
+                ) : null}
+                {voucherDiscount > 0 ? (
+                  <BillLine label="Voucher tambahan" value={`- ${rupiah.format(voucherDiscount)}`} />
+                ) : null}
+                <div className="mt-3 flex items-center justify-between border-t border-[#404040] pt-3">
+                  <span className="text-sm font-semibold text-[#d0c5af]">Total estimasi</span>
+                  <strong className="text-xl font-black text-[#f2ca50]">
+                    {rupiah.format(total)}
+                  </strong>
+                </div>
+              </div>
+
+              <button
+                className="garage-press mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#d4af37] px-4 text-sm font-black uppercase tracking-[0.06em] text-[#241a00] transition hover:bg-[#f2ca50] disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={openCheckout}
+                disabled={!cartLines.length}
+              >
+                <ShoppingCart className="size-4" />
+                Checkout
+              </button>
+              {!cartLines.length ? (
+                <p className="mt-3 text-center text-xs leading-5 text-[#d0c5af]">
+                  Pilih menu untuk melihat total dan lanjut checkout.
+                </p>
+              ) : null}
+            </div>
+          </aside>
+
         </section>
       </section>
 
       {cartLines.length ? (
         <div
-          className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 lg:px-8"
+          className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 lg:hidden"
         >
-          <div className="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)_minmax(124px,34%)] items-center gap-3 rounded-2xl border border-[#34343c] bg-[#0b0b0e]/96 p-3 shadow-[0_-18px_54px_rgba(0,0,0,0.52)] backdrop-blur-xl sm:grid-cols-[minmax(0,1fr)_190px] sm:p-4">
-            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-              <div className="garage-mono flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#d11a2a]/55 bg-[#d11a2a]/20 text-base font-black text-white">
-                {compactTableNumber(qrContext.tableLabel)}
+          <button
+            type="button"
+            onClick={openCheckout}
+            className="garage-press flex w-full max-w-md items-center justify-between gap-3 rounded-full bg-[#f2ca50] px-5 py-3.5 text-[#241a00] shadow-[0_18px_44px_rgba(0,0,0,0.55)] transition hover:bg-[#ffd97a] active:scale-[0.97]"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative">
+                <ShoppingCart className="size-6" />
+                <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full border border-[#f2ca50] bg-[#241a00] text-[10px] font-black text-[#f2ca50]">
+                  {itemCount}
+                </span>
               </div>
-              <div className="min-w-0">
-                <p className="garage-mono truncate text-[10px] text-[#b8b8bf]">
-                  {qrContext.tableLabel} - {itemCount} item
-                </p>
-                <p className="truncate text-lg font-black text-white sm:text-xl">
+              <div className="flex min-w-0 flex-col items-start leading-none">
+                <span className="garage-mono text-[10px] font-bold uppercase opacity-80">
+                  Subtotal
+                </span>
+                <span className="mt-1 truncate text-base font-black">
                   {rupiah.format(total)}
-                </p>
+                </span>
               </div>
             </div>
-            <button
-              className="garage-press flex h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#d11a2a] px-3 text-sm font-black uppercase tracking-[0.06em] text-white transition hover:bg-[#ff2a3a] sm:px-4"
-              onClick={openCheckout}
-            >
-              <ShoppingCart className="size-4" />
-              Checkout
-            </button>
-          </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wide">
+                Lihat Pesanan
+              </span>
+              <ChevronUp className="size-5" />
+            </div>
+          </button>
         </div>
       ) : null}
 

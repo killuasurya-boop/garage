@@ -28,6 +28,7 @@ export async function POST(request: Request, context: RouteContext) {
   const result = await resetUserPassword(id, parsed.data.newPassword, {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
+    actorRole: session.data.profile.role,
     deviceLabel: session.data.profile.deviceLabel,
   });
   if ("error" in result) {

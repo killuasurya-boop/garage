@@ -77,6 +77,15 @@ export type AppSettings = {
   securityFailedLoginLockoutCount: number;
   securityLockoutDurationMinutes: number;
   securityRequire2faForOwner: boolean;
+  // Attendance control
+  attendanceEnabled: boolean;
+  attendanceTerminalMode: "pin_only" | "pin_gps" | "pin_gps_selfie";
+  attendanceLateGraceMinutes: number;
+  attendanceEarlyLeaveGraceMinutes: number;
+  attendanceRequireGps: boolean;
+  attendanceRequireSelfie: boolean;
+  attendanceBlockDoublePunch: boolean;
+  attendanceRequireActiveGeofence: boolean;
   // Shift extra
   shiftOpeningCashDefault: number;
   shiftRequireManagerSignoff: boolean;
@@ -158,6 +167,15 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   securityFailedLoginLockoutCount: 5,
   securityLockoutDurationMinutes: 15,
   securityRequire2faForOwner: false,
+  // Attendance control
+  attendanceEnabled: true,
+  attendanceTerminalMode: "pin_gps",
+  attendanceLateGraceMinutes: 10,
+  attendanceEarlyLeaveGraceMinutes: 10,
+  attendanceRequireGps: true,
+  attendanceRequireSelfie: false,
+  attendanceBlockDoublePunch: true,
+  attendanceRequireActiveGeofence: false,
   // Shift extra
   shiftOpeningCashDefault: 500_000,
   shiftRequireManagerSignoff: true,

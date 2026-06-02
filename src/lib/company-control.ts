@@ -163,6 +163,11 @@ export type CompanyControlDto = {
     };
     approvals: Approval[];
     auditLogs: AuditLog[];
+    staffPerformance: {
+      trainingCompliance: number;
+      sopCompliance: number;
+      attendanceCompliance: number;
+    };
   };
   metrics: Array<{ label: string; value: string; detail: string }>;
   documents: CompanyDocumentDto[];
@@ -1076,6 +1081,29 @@ export async function getCompanyControlData(garage: GarageSession): Promise<Comp
     getAuditData(),
   ]);
 
+  // Fetch staff performance data
+  const db = getDb();
+  
+  // Hitung SOP Compliance hari ini
+  const today = new Date().toISOString().split("T")[0];
+  const allStaffCountResult = await db.execute(sql`SELECT count(*) FROM staff_profiles`);
+  const allStaffCount = Number(allStaffCountResult.rows[0].count) || 1;
+  const sopLogsToday = await db.execute(sql`SELECT count(distinct staff_id) FROM sop_logs WHERE date = ${today} AND status = 'done'`);
+  const sopCompliance = Math.round((Number(sopLogsToday.rows[0].count) / allStaffCount) * 100);
+
+  // Hitung Training Compliance 
+  const totalCoursesResult = await db.execute(sql`SELECT count(*) FROM training_courses WHERE status = 'active'`);
+  const totalCourses = Number(totalCoursesResult.rows[0].count) || 1;
+  const totalExpectedCompletions = totalCourses * allStaffCount;
+  const completedProgressResult = await db.execute(sql`SELECT count(*) FROM training_progress WHERE status = 'completed'`);
+  const completedProgress = Number(completedProgressResult.rows[0].count) || 0;
+  const trainingCompliance = Math.round((completedProgress / totalExpectedCompletions) * 100);
+
+  // Hitung Attendance Compliance (Clock In hari ini)
+  const presentStaffTodayResult = await db.execute(sql`SELECT count(distinct staff_id) FROM employee_attendances WHERE timestamp >= ${today + "T00:00:00Z"} AND action = 'in'`);
+  const presentStaffToday = Number(presentStaffTodayResult.rows[0].count) || 0;
+  const attendanceCompliance = Math.round((presentStaffToday / allStaffCount) * 100);
+
   const completedTraining = training.filter((course) => course.progressStatus === "completed").length;
   const latestDocuments = documents.filter((document) => document.latestVersion).length;
   const totalCaptured = finance.paymentBreakdown.reduce((sum, item) => sum + item.amount, 0);
@@ -1098,6 +1126,11 @@ export async function getCompanyControlData(garage: GarageSession): Promise<Comp
       },
       approvals: approvals.slice(0, 8),
       auditLogs: auditLogs.rows.slice(0, 8),
+      staffPerformance: {
+        trainingCompliance: Math.min(trainingCompliance, 100),
+        sopCompliance: Math.min(sopCompliance, 100),
+        attendanceCompliance: Math.min(attendanceCompliance, 100)
+      }
     },
     metrics: [
       { label: "Dokumen aktif", value: String(documents.length), detail: `${latestDocuments} file tersedia` },

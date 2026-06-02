@@ -31,8 +31,11 @@ const patchSchema = z.object({
   outletId: z.string().uuid().optional(),
   shiftLabel: z.string().optional(),
   deviceLabel: z.string().optional(),
+  division: z.string().nullable().optional(),
+  position: z.string().nullable().optional(),
   status: z.enum(["active", "suspended"]).optional(),
   suspendedReason: z.string().nullable().optional(),
+  passwordResetRequired: z.boolean().optional(),
   newPassword: z.string().min(8, "Password minimal 8 karakter").optional().nullable(),
 });
 
@@ -57,6 +60,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const actorConfig = {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
+    actorRole: session.data.profile.role,
     deviceLabel: session.data.profile.deviceLabel,
   };
 
@@ -67,7 +71,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  const result = await updateAdminUser(id, parsed.data, actorConfig);
+  const patch = parsed.data.newPassword
+    ? { ...parsed.data, passwordResetRequired: true }
+    : parsed.data;
+  const result = await updateAdminUser(id, patch, actorConfig);
   if ("error" in result) {
     return fail(400, "UPDATE_USER_FAILED", result.error);
   }
@@ -87,10 +94,19 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return fail(400, "CANNOT_DELETE_SELF", "Tidak bisa menghapus akun sendiri.");
   }
 
-  await deleteAdminUser(id, {
-    actorUserId: session.data.user.id,
-    actorName: session.data.user.name,
-    deviceLabel: session.data.profile.deviceLabel,
-  });
+  try {
+    await deleteAdminUser(id, {
+      actorUserId: session.data.user.id,
+      actorName: session.data.user.name,
+      actorRole: session.data.profile.role,
+      deviceLabel: session.data.profile.deviceLabel,
+    });
+  } catch (error) {
+    return fail(
+      400,
+      "DELETE_USER_FAILED",
+      error instanceof Error ? error.message : "Gagal menghapus user.",
+    );
+  }
   return ok({ deleted: true });
 }

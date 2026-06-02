@@ -1,0 +1,687 @@
+.shell {
+  position: relative;
+  min-height: calc(100vh - 88px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--garage-line) 78%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--garage-bg-1) 96%, black), var(--garage-bg-2) 48%, var(--garage-bg-1)),
+    var(--garage-bg-1);
+  color: #f4f4f5;
+  padding: clamp(16px, 2.4vw, 28px);
+  isolation: isolate;
+}
+
+.signalLayer,
+.noiseLayer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.signalLayer {
+  z-index: -3;
+  background:
+    linear-gradient(112deg, transparent 0 14%, color-mix(in srgb, var(--garage-red) 12%, transparent) 32%, transparent 52%),
+    linear-gradient(74deg, transparent 0 18%, color-mix(in srgb, var(--garage-amber) 10%, transparent) 45%, transparent 66%),
+    linear-gradient(180deg, color-mix(in srgb, var(--garage-silver) 5%, transparent), transparent 42%);
+  background-size: 100% 100%;
+  opacity: 0.7;
+  /* signalSweep dimatikan — animasi loop dihapus per request */
+}
+
+.noiseLayer {
+  z-index: -2;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 54px 54px, 54px 54px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.86), transparent 94%);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr);
+  gap: clamp(16px, 2vw, 24px);
+  align-items: stretch;
+}
+
+.heroCopy,
+.enginePanel,
+.metricTile,
+.chartPanel,
+.sidePanel,
+.moduleCard,
+.structurePanel,
+.activityPanel,
+.modelPanel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--garage-line) 78%, transparent);
+  border-radius: 8px;
+  background: var(--garage-bg-2);
+  box-shadow: var(--garage-shadow-panel);
+}
+
+/* Efek shimmer/glass sweep dihapus per request — kartu menjadi flat solid. */
+
+.heroCopy {
+  padding: clamp(20px, 3vw, 28px);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--garage-red) 46%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--garage-red) 14%, transparent);
+  color: #ffc5c5;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+
+.heroCopy h1 {
+  max-width: 760px;
+  margin: 14px 0 0;
+  color: #ffffff;
+  font-family: var(--garage-font-display);
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.heroCopy p {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: rgba(244, 244, 245, 0.72);
+  font-size: clamp(13px, 1.25vw, 16px);
+  line-height: 1.55;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.primaryButton,
+.secondaryButton,
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+  transform: translate3d(0, 0, 0);
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.primaryButton {
+  border: 1px solid color-mix(in srgb, var(--garage-red-bright) 64%, transparent);
+  background: linear-gradient(135deg, var(--garage-red-bright), color-mix(in srgb, var(--garage-red) 70%, black));
+  color: #ffffff;
+  padding: 0 16px;
+}
+
+.secondaryButton {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f4f5;
+  padding: 0 16px;
+}
+
+.primaryButton:hover,
+.secondaryButton:hover,
+.iconButton:hover {
+  transform: translate3d(0, -2px, 0);
+}
+
+.enginePanel {
+  display: flex;
+  min-height: 238px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+}
+
+.engineHeader,
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.engineHeader span,
+.panelHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(212, 212, 216, 0.72);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.engineHeader strong {
+  border: 1px solid color-mix(in srgb, var(--garage-success) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--garage-success) 12%, transparent);
+  color: #a8f0c4;
+  font-size: 12px;
+  padding: 5px 9px;
+}
+
+.engineStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.engineStats span {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(244, 244, 245, 0.76);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 9px;
+  text-align: center;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.metricTile {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  padding: 16px;
+  transition: transform 190ms ease, border-color 190ms ease;
+}
+
+.metricTile:hover {
+  border-color: color-mix(in srgb, var(--tone) 58%, transparent);
+  transform: translate3d(0, -3px, 0);
+}
+
+.metricIcon,
+.moduleIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--tone, var(--garage-red-bright)) 42%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tone, var(--garage-red-bright)) 14%, transparent);
+  color: var(--tone, var(--garage-red-bright));
+}
+
+.metricIcon {
+  width: 42px;
+  height: 42px;
+}
+
+.metricCopy {
+  min-width: 0;
+}
+
+.metricCopy p,
+.moduleCard p,
+.loadCopy p,
+.modelRow p {
+  margin: 0;
+  color: rgba(212, 212, 216, 0.68);
+  font-size: 12px;
+}
+
+.metricCopy strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-family: var(--garage-font-display);
+  font-size: clamp(20px, 2.1vw, 28px);
+  line-height: 1.05;
+}
+
+.metricCopy span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  color: var(--tone, var(--garage-red-bright));
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 0.8fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.chartPanel,
+.sidePanel,
+.structurePanel,
+.activityPanel,
+.modelPanel {
+  padding: 18px;
+}
+
+.panelHeader h2 {
+  margin: 3px 0 0;
+  color: #ffffff;
+  font-family: var(--garage-font-display);
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.05;
+}
+
+.iconButton {
+  width: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.07);
+  color: #f4f4f5;
+}
+
+.liveSvg {
+  display: block;
+  width: 100%;
+  min-height: 210px;
+  margin-top: 14px;
+  overflow: visible;
+}
+
+.gridLines line {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+
+.linePulse {
+  opacity: 0.55;
+  /* lineTravel dimatikan — garis tidak lagi berjalan terus. */
+}
+
+.chartFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chartFooter span {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 244, 245, 0.72);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.barStream {
+  display: flex;
+  align-items: end;
+  gap: 7px;
+  height: 210px;
+  margin-top: 18px;
+}
+
+.barStream span {
+  flex: 1;
+  min-width: 7px;
+  border-radius: 8px 8px 4px 4px;
+  background: linear-gradient(180deg, var(--tone), color-mix(in srgb, var(--tone) 22%, transparent));
+  opacity: 0.84;
+  transition: height 140ms linear;
+}
+
+.loadCopy {
+  margin-top: 14px;
+}
+
+.loadCopy strong {
+  display: block;
+  color: #ffffff;
+  font-family: var(--garage-font-display);
+  font-size: 27px;
+  line-height: 1;
+}
+
+.moduleGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.moduleCard {
+  grid-column: span 3;
+  min-height: 210px;
+  padding: 16px;
+  transition: transform 190ms ease, border-color 190ms ease;
+}
+
+.moduleCard:nth-child(7) {
+  grid-column: span 6;
+}
+
+.moduleCard:hover {
+  border-color: color-mix(in srgb, var(--tone) 54%, transparent);
+  transform: translate3d(0, -3px, 0);
+}
+
+.moduleTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.moduleIcon {
+  width: 36px;
+  height: 36px;
+}
+
+.moduleStatus {
+  border: 1px solid color-mix(in srgb, var(--tone) 34%, transparent);
+  border-radius: 999px;
+  color: var(--tone);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px 8px;
+}
+
+.moduleCard h3 {
+  margin: 14px 0 4px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.moduleValue {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 14px;
+  color: #ffffff;
+  font-family: var(--garage-font-display);
+  font-size: clamp(27px, 3vw, 42px);
+  line-height: 1;
+}
+
+.moduleValue span {
+  color: var(--tone);
+  font-family: var(--garage-font-body);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.miniSvg {
+  display: block;
+  width: 100%;
+  height: 58px;
+  margin-top: 14px;
+}
+
+.bottomGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.2fr) minmax(300px, 0.95fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.structureList,
+.activityTable,
+.modelList {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.structureRow,
+.activityRow,
+.modelRow {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.structureRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px 12px;
+  padding: 11px;
+}
+
+.structureRow span {
+  grid-row: span 2;
+  color: var(--tone);
+  font-family: var(--garage-font-display);
+  font-size: 18px;
+}
+
+.structureRow strong,
+.activityRow strong,
+.modelRow strong {
+  min-width: 0;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.structureRow em {
+  color: rgba(212, 212, 216, 0.64);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.activityRow {
+  display: grid;
+  grid-template-columns: 44px 92px minmax(0, 1fr) 70px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.activityRow[data-tone="safe"] {
+  --row-tone: var(--garage-success);
+}
+
+.activityRow[data-tone="watch"] {
+  --row-tone: var(--garage-amber);
+}
+
+.activityRow[data-tone="risk"] {
+  --row-tone: var(--garage-red-bright);
+}
+
+.activityRow span,
+.activityRow em {
+  color: var(--row-tone);
+  font-family: var(--garage-font-mono);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.activityRow p {
+  min-width: 0;
+  margin: 0;
+  color: rgba(244, 244, 245, 0.72);
+  font-size: 12px;
+}
+
+.modelRow {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.radialWrap {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  flex: 0 0 auto;
+}
+
+.radialSvg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  /* radialSpin dimatikan — gauge tidak berputar terus. */
+}
+
+.radialTrack,
+.radialValue {
+  fill: none;
+  stroke-width: 10;
+}
+
+.radialTrack {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.radialValue {
+  stroke: var(--tone);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 160ms linear;
+}
+
+.radialText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.radialText strong {
+  color: #ffffff;
+  font-family: var(--garage-font-display);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.radialText span {
+  max-width: 74px;
+  margin-top: 4px;
+  color: rgba(212, 212, 216, 0.68);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+/* Keyframes loop dihapus — semua animasi loop di Pusat Kontrol dimatikan. */
+
+@media (max-width: 1180px) {
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .moduleGrid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .moduleCard,
+  .moduleCard:nth-child(7) {
+    grid-column: span 3;
+  }
+
+  .bottomGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modelPanel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .mainGrid,
+  .bottomGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .enginePanel {
+    min-height: auto;
+  }
+
+  .activityRow {
+    grid-template-columns: 44px minmax(0, 1fr) 64px;
+  }
+
+  .activityRow p {
+    grid-column: 2 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    min-height: 100vh;
+    border-radius: 0;
+    margin: -16px;
+    padding: 14px;
+  }
+
+  .heroCopy h1 {
+    font-size: 36px;
+  }
+
+  .metricGrid,
+  .moduleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .moduleCard,
+  .moduleCard:nth-child(7) {
+    grid-column: auto;
+  }
+
+  .engineStats {
+    grid-template-columns: 1fr;
+  }
+
+  .modelRow {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .radialWrap {
+    width: 88px;
+    height: 88px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signalLayer,
+  .linePulse,
+  .radialSvg {
+    animation: none;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .iconButton,
+  .metricTile,
+  .moduleCard,
+  .barStream span {
+    transition: none;
+  }
+}

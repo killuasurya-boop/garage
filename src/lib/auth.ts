@@ -40,10 +40,12 @@ function localDevOrigins(baseUrl: string) {
     // Keep the Garage dev default when BETTER_AUTH_URL is malformed.
   }
 
+  const schemes = new Set(["http", "https"]);
+
   return Object.values(networkInterfaces())
     .flatMap((entries) => entries ?? [])
     .filter((entry) => entry.family === "IPv4" && !entry.internal)
-    .map((entry) => `http://${entry.address}:${port}`);
+    .flatMap((entry) => Array.from(schemes, (scheme) => `${scheme}://${entry.address}:${port}`));
 }
 
 function trustedOrigins() {

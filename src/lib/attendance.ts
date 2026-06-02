@@ -109,16 +109,20 @@ export function evaluatePunchStatus(args: {
   punchAt: Date;
   startTime: string | null;
   endTime: string | null;
+  lateGraceMinutes?: number;
+  earlyLeaveGraceMinutes?: number;
 }): AttendanceStatus {
   const punchMin = jakartaMinutesOfDay(args.punchAt);
   if (args.action === "in") {
     const startMin = parseClockMinutes(args.startTime);
     if (startMin == null) return "normal";
-    return punchMin > startMin + LATE_GRACE_MINUTES ? "late" : "on_time";
+    const grace = args.lateGraceMinutes ?? LATE_GRACE_MINUTES;
+    return punchMin > startMin + grace ? "late" : "on_time";
   }
   const endMin = parseClockMinutes(args.endTime);
   if (endMin == null) return "normal";
-  return punchMin < endMin - EARLY_LEAVE_GRACE_MINUTES ? "early_leave" : "on_time";
+  const grace = args.earlyLeaveGraceMinutes ?? EARLY_LEAVE_GRACE_MINUTES;
+  return punchMin < endMin - grace ? "early_leave" : "on_time";
 }
 
 export function attendanceStatusLabel(status: string): string {

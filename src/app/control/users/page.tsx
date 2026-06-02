@@ -40,6 +40,7 @@ export default async function AdminUsersPage() {
           name: outlet.name,
         }))}
         currentUserId={session.data.user.id}
+        currentUserRole={session.data.profile.role}
       />
     </AdminShell>
   );

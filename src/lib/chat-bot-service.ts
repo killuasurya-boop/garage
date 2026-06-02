@@ -13,9 +13,12 @@ import { chatBus } from "@/lib/chat-events";
 import type { Role } from "@/lib/garage-data";
 import {
   getDailyAnomalies,
+  getKitchenData,
   getSmartReorderSuggestions,
   getSuspiciousActivity,
 } from "@/lib/garage-service";
+
+import { sendChatMessage } from "@/lib/chat-service";
 
 export const BOT_USER_ID = "garage-bot-system";
 export const BOT_NAME = "GarageBot";
@@ -169,12 +172,17 @@ export type SweepReport = {
   errors: Array<{ topic: string; message: string }>;
 };
 
-const TARGETS: Array<{ role: Role; topics: Array<"reorder" | "anomaly" | "suspicious"> }> = [
-  { role: "Owner / CEO", topics: ["reorder", "anomaly", "suspicious"] },
-  { role: "Admin", topics: ["reorder", "anomaly", "suspicious"] },
+const TARGETS: Array<{
+  role: Role;
+  topics: Array<"reorder" | "anomaly" | "suspicious" | "kitchen">;
+}> = [
+  { role: "Owner / CEO", topics: ["reorder", "anomaly", "suspicious", "kitchen"] },
+  { role: "Admin", topics: ["reorder", "anomaly", "suspicious", "kitchen"] },
   { role: "Gudang", topics: ["reorder"] },
   { role: "Finance / CFO", topics: ["anomaly", "suspicious"] },
-  { role: "Manager Operasional", topics: ["anomaly", "suspicious"] },
+  { role: "Manager Operasional", topics: ["anomaly", "suspicious", "kitchen"] },
+  { role: "Koki", topics: ["kitchen"] },
+  { role: "Kitchen / Barista", topics: ["kitchen"] },
 ];
 
 function rupiah(n: number) {
@@ -243,6 +251,27 @@ async function buildSuspiciousMessage(): Promise<string | null> {
   return lines.join("\n");
 }
 
+async function buildKitchenSlaMessage(): Promise<string | null> {
+  const data = await getKitchenData();
+  const activeTickets = data.filter((t) => ["queue", "cooking"].includes(t.status));
+  const lateTickets = activeTickets.filter((t) => t.elapsed > t.targetMinutes);
+  if (lateTickets.length === 0) return null;
+
+  const lines: string[] = ["⏳ *Kitchen SLA Alert*"];
+  lines.push("", `🔴 ${lateTickets.length} pesanan terlambat!`);
+  for (const t of lateTickets.slice(0, 5)) {
+    const over = t.elapsed - t.targetMinutes;
+    lines.push(
+      `• ${t.id} (${t.station}) — meja ${t.table} · telat ${over}mnt (target ${t.targetMinutes}mnt)`,
+    );
+  }
+  if (lateTickets.length > 5) {
+    lines.push(`  ... dan ${lateTickets.length - 5} tiket lainnya.`);
+  }
+  lines.push("", "Mohon segera koordinasikan dan percepat penyajian.");
+  return lines.join("\n");
+}
+
 export async function runSmartAlertSweep(): Promise<SweepReport> {
   const startedAt = new Date().toISOString();
   const report: SweepReport = {
@@ -256,7 +285,9 @@ export async function runSmartAlertSweep(): Promise<SweepReport> {
   await ensureBotUser();
 
   // Build per-topic bodies sekali, lalu kirim ke channel-channel target
-  const bodies: Partial<Record<"reorder" | "anomaly" | "suspicious", string | null>> = {};
+  const bodies: Partial<
+    Record<"reorder" | "anomaly" | "suspicious" | "kitchen", string | null>
+  > = {};
   try {
     bodies.reorder = await buildReorderMessage();
   } catch (err) {
@@ -279,6 +310,14 @@ export async function runSmartAlertSweep(): Promise<SweepReport> {
     report.errors.push({
       topic: "suspicious",
       message: err instanceof Error ? err.message : "Gagal compose suspicious.",
+    });
+  }
+  try {
+    bodies.kitchen = await buildKitchenSlaMessage();
+  } catch (err) {
+    report.errors.push({
+      topic: "kitchen",
+      message: err instanceof Error ? err.message : "Gagal compose kitchen.",
     });
   }
 
@@ -310,4 +349,34 @@ export async function runSmartAlertSweep(): Promise<SweepReport> {
 
   report.finishedAt = new Date().toISOString();
   return report;
+}
+
+export async function askBot(channelId: string, question: string): Promise<void> {
+  await ensureBotUser();
+  const q = question.toLowerCase();
+  
+  // Tambahkan sedikit delay untuk mensimulasikan AI sedang mengetik
+  await new Promise((r) => setTimeout(r, 800));
+
+  let answer =
+    "Maaf, saya tidak mengerti maksud Anda. Ketik `!tanya [kata kunci]` untuk mencari panduan dari SOP. Contoh: `!tanya refund` atau `!tanya stok`.";
+
+  if (q.includes("refund") || q.includes("batal") || q.includes("void")) {
+    answer =
+      "**SOP Batal/Void**:\nHanya Kasir dengan otorisasi Manajer yang dapat melakukan Void.\n1. Masuk ke modul Order > Riwayat.\n2. Pilih struk yang ingin dibatalkan.\n3. Tekan 'Void' dan pastikan alasan diisi dengan jelas.\n\nJika ini masalah selisih kas, pastikan Anda juga menulis catatan saat *Tutup Kasir*.";
+  } else if (q.includes("split bill") || q.includes("pisah tagihan")) {
+    answer =
+      "**SOP Split Bill**:\n1. Di layar POS, pilih opsi 'Split Bill' saat Checkout.\n2. Pilih item yang ingin dibayar pada struk pertama.\n3. Proses pembayaran pertama, dan sisa item otomatis akan masuk ke struk (bill) kedua.\n\nPastikan Anda menanyakan kepada pelanggan apakah pembagian berdasar *Item* atau *Persentase*.";
+  } else if (q.includes("absen") || q.includes("clock in")) {
+    answer =
+      "**SOP Absensi**:\nGunakan PIN 6-digit Anda pada layar 'Absensi' di halaman awal POS sebelum mulai bekerja. Jangan lupa *Clock Out* di akhir shift. Jika lupa, sistem otomatis menandai Anda selesai pada akhir jam operasional dengan status 'Lupa Clock Out'.";
+  } else if (q.includes("stok") || q.includes("habis")) {
+    answer =
+      "**SOP Stok Menipis**:\nJika indikator stok berwarna merah/amber di POS:\n1. Segera lapor ke Manajer Gudang.\n2. Jika ada barang tumpah atau rusak, gunakan fitur 'Penyesuaian Stok' (Stock Opname).\nBot internal (saya) juga otomatis mengirim peringatan ke chat grup jika stok di bawah batas aman.";
+  } else if (q.includes("meja") || q.includes("pindah")) {
+    answer =
+      "**SOP Memindahkan Meja**:\n1. Buka modul Peta Meja.\n2. Ketuk meja pelanggan yang aktif dan pilih 'Pindah Meja'.\n3. Ketuk meja hijau (kosong) sebagai tujuan.\nSemua tagihan pesanan akan dipindahkan secara otomatis.";
+  }
+
+  await sendChatMessage(channelId, BOT_USER_ID, { body: answer });
 }

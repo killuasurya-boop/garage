@@ -35,6 +35,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   await forceLogoutUser(id, sessionId, {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
+    actorRole: session.data.profile.role,
     deviceLabel: session.data.profile.deviceLabel,
   });
   return ok({ loggedOut: true });

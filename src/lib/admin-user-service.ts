@@ -10,14 +10,48 @@ import {
   user,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { hashPin } from "@/lib/attendance";
 import type { Role } from "@/lib/garage-data";
 import { permissionsForRole } from "@/lib/role-access";
+import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
 
 export type AdminAuditContext = {
   actorUserId: string;
   actorName: string;
+  actorRole?: Role;
   deviceLabel?: string;
 };
+
+const protectedRoleRank: Record<Role, number> = {
+  "Owner / CEO": 100,
+  Admin: 90,
+  "Manager Operasional": 70,
+  "Finance / CFO": 60,
+  "Supervisor Shift": 50,
+  Kasir: 30,
+  Barista: 30,
+  Koki: 30,
+  "Asisten Koki": 20,
+  "Waiter 1": 20,
+  "Waiter 2": 20,
+  "Kitchen / Barista": 30,
+  Gudang: 30,
+  "Delivery Admin": 20,
+};
+
+function canManageRole(actorRole: Role | undefined, targetRole: Role) {
+  if (!actorRole) return true;
+  if (actorRole === "Owner / CEO") return true;
+  return protectedRoleRank[targetRole] < protectedRoleRank[actorRole];
+}
+
+async function countOwners() {
+  const [row] = await getDb()
+    .select({ c: sql<number>`count(*)::int` })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.role, "Owner / CEO"));
+  return Number(row?.c ?? 0);
+}
 
 async function writeAdminAudit(
   context: AdminAuditContext | undefined,
@@ -58,6 +92,10 @@ export type AdminUserRow = {
   suspendedAt: string | null;
   suspendedReason: string | null;
   lastLoginAt: string | null;
+  passwordResetRequired: boolean;
+  division: string | null;
+  position: string | null;
+  pinConfigured: boolean;
   outletId: string;
   outletCode: string;
   outletName: string;
@@ -79,6 +117,7 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
   total: number;
 }> {
   const db = getDb();
+  await ensureStaffProfileAccessColumns(db);
   const limit = Math.min(filters.limit ?? 50, 200);
   const offset = filters.offset ?? 0;
 
@@ -111,6 +150,11 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
       suspendedAt: staffProfiles.suspendedAt,
       suspendedReason: staffProfiles.suspendedReason,
       lastLoginAt: staffProfiles.lastLoginAt,
+      passwordResetRequired: staffProfiles.passwordResetRequired,
+      division: staffProfiles.division,
+      position: staffProfiles.position,
+      pinHash: staffProfiles.pinHash,
+      pinCode: staffProfiles.pinCode,
       outletId: outlets.id,
       outletCode: outlets.code,
       outletName: outlets.name,
@@ -161,6 +205,10 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
     suspendedAt: row.suspendedAt ? row.suspendedAt.toISOString() : null,
     suspendedReason: row.suspendedReason,
     lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
+    passwordResetRequired: row.passwordResetRequired,
+    division: row.division,
+    position: row.position,
+    pinConfigured: Boolean(row.pinHash || row.pinCode),
     outletId: row.outletId,
     outletCode: row.outletCode,
     outletName: row.outletName,
@@ -180,10 +228,17 @@ export async function createAdminUser(
     outletId: string;
     shiftLabel?: string;
     deviceLabel?: string;
+    division?: string;
+    position?: string;
+    requirePasswordChange?: boolean;
   },
   audit?: AdminAuditContext,
 ): Promise<{ userId: string } | { error: string }> {
   const db = getDb();
+  if (!canManageRole(audit?.actorRole, input.role)) {
+    return { error: "Role anda tidak boleh membuat user dengan level akses ini." };
+  }
+
   const existing = await db
     .select({ id: user.id })
     .from(user)
@@ -226,6 +281,9 @@ export async function createAdminUser(
       role: input.role,
       shiftLabel: input.shiftLabel ?? "Shift aktif",
       deviceLabel: input.deviceLabel ?? "POS-01",
+      division: input.division || null,
+      position: input.position || null,
+      passwordResetRequired: input.requirePasswordChange ?? true,
     });
     await writeAdminAudit(audit, "user.create", input.email, {
       role: input.role,
@@ -240,6 +298,9 @@ export async function createAdminUser(
     role: input.role,
     shiftLabel: input.shiftLabel ?? "Shift aktif",
     deviceLabel: input.deviceLabel ?? "POS-01",
+    division: input.division || null,
+    position: input.position || null,
+    passwordResetRequired: input.requirePasswordChange ?? true,
   });
   await writeAdminAudit(audit, "user.create", input.email, {
     role: input.role,
@@ -256,12 +317,45 @@ export async function updateAdminUser(
     outletId?: string;
     shiftLabel?: string;
     deviceLabel?: string;
+    division?: string | null;
+    position?: string | null;
     status?: AdminUserStatus;
     suspendedReason?: string | null;
+    passwordResetRequired?: boolean;
   },
   audit?: AdminAuditContext,
 ): Promise<{ ok: true } | { error: string }> {
   const db = getDb();
+  const [currentProfile] = await db
+    .select({ role: staffProfiles.role })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1);
+  if (!currentProfile) {
+    return { error: "Staff profile tidak ditemukan." };
+  }
+  const currentRole = currentProfile.role as Role;
+  if (!canManageRole(audit?.actorRole, currentRole)) {
+    return { error: "Role anda tidak boleh mengubah user ini." };
+  }
+  if (patch.role && !canManageRole(audit?.actorRole, patch.role)) {
+    return { error: "Role anda tidak boleh memberikan level akses ini." };
+  }
+  if (
+    currentRole === "Owner / CEO" &&
+    patch.role &&
+    patch.role !== "Owner / CEO" &&
+    (await countOwners()) <= 1
+  ) {
+    return { error: "Tidak bisa mengubah Owner terakhir." };
+  }
+  if (
+    currentRole === "Owner / CEO" &&
+    patch.status === "suspended" &&
+    (await countOwners()) <= 1
+  ) {
+    return { error: "Tidak bisa suspend Owner terakhir." };
+  }
 
   if (patch.name !== undefined) {
     await db
@@ -275,6 +369,11 @@ export async function updateAdminUser(
   if (patch.outletId !== undefined) profileUpdate.outletId = patch.outletId;
   if (patch.shiftLabel !== undefined) profileUpdate.shiftLabel = patch.shiftLabel;
   if (patch.deviceLabel !== undefined) profileUpdate.deviceLabel = patch.deviceLabel;
+  if (patch.division !== undefined) profileUpdate.division = patch.division || null;
+  if (patch.position !== undefined) profileUpdate.position = patch.position || null;
+  if (patch.passwordResetRequired !== undefined) {
+    profileUpdate.passwordResetRequired = patch.passwordResetRequired;
+  }
   if (patch.status !== undefined) {
     profileUpdate.status = patch.status;
     profileUpdate.suspendedAt = patch.status === "suspended" ? new Date() : null;
@@ -312,6 +411,23 @@ export async function deleteAdminUser(
   audit?: AdminAuditContext,
 ): Promise<void> {
   const db = getDb();
+  const [currentProfile] = await db
+    .select({ role: staffProfiles.role })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1);
+  if (
+    currentProfile?.role &&
+    !canManageRole(audit?.actorRole, currentProfile.role as Role)
+  ) {
+    throw new Error("Role anda tidak boleh menghapus user ini.");
+  }
+  if (
+    currentProfile?.role === "Owner / CEO" &&
+    (await countOwners()) <= 1
+  ) {
+    throw new Error("Tidak bisa menghapus Owner terakhir.");
+  }
   await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
   // cascade: staffProfiles + account dihapus via FK onDelete cascade dari user
   await db.delete(user).where(eq(user.id, userId));
@@ -363,6 +479,14 @@ export async function resetUserPassword(
   audit?: AdminAuditContext,
 ): Promise<{ ok: true } | { error: string }> {
   const db = getDb();
+  const [targetProfile] = await db
+    .select({ role: staffProfiles.role })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1);
+  if (targetProfile?.role && !canManageRole(audit?.actorRole, targetProfile.role as Role)) {
+    return { error: "Role anda tidak boleh reset password user ini." };
+  }
   const [credential] = await db
     .select({ id: account.id })
     .from(account)
@@ -383,9 +507,43 @@ export async function resetUserPassword(
 
   // Invalidate semua session — user harus login ulang dengan password baru.
   await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
+  await db
+    .update(staffProfiles)
+    .set({ passwordResetRequired: true, updatedAt: new Date() })
+    .where(eq(staffProfiles.userId, userId));
 
   await writeAdminAudit(audit, "user.reset_password", userId);
 
+  return { ok: true };
+}
+
+export async function setStaffPin(
+  userId: string,
+  pinCode: string | null,
+  audit?: AdminAuditContext,
+): Promise<{ ok: true } | { error: string }> {
+  const db = getDb();
+  const [target] = await db
+    .select({ userId: staffProfiles.userId, role: staffProfiles.role })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1);
+  if (!target) {
+    return { error: "Staff profile tidak ditemukan." };
+  }
+  if (!canManageRole(audit?.actorRole, target.role as Role)) {
+    return { error: "Role anda tidak boleh mengubah PIN user ini." };
+  }
+
+  await db
+    .update(staffProfiles)
+    .set({
+      pinHash: pinCode ? hashPin(pinCode) : null,
+      pinCode: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(staffProfiles.userId, userId));
+  await writeAdminAudit(audit, pinCode ? "user.set_pin" : "user.clear_pin", userId);
   return { ok: true };
 }
 
@@ -399,6 +557,23 @@ export async function bulkAction(
 ) {
   if (!input.userIds.length) return { affected: 0 };
   const db = getDb();
+  const targetProfiles = await db
+    .select({ userId: staffProfiles.userId, role: staffProfiles.role })
+    .from(staffProfiles)
+    .where(inArray(staffProfiles.userId, input.userIds));
+  for (const target of targetProfiles) {
+    if (!canManageRole(audit?.actorRole, target.role as Role)) {
+      return { affected: 0, error: "Role anda tidak boleh melakukan bulk action ke salah satu user." };
+    }
+  }
+  const ownerTargets = targetProfiles.filter((target) => target.role === "Owner / CEO").length;
+  if (
+    ownerTargets > 0 &&
+    ["delete", "suspend"].includes(input.action) &&
+    (await countOwners()) - ownerTargets <= 0
+  ) {
+    return { affected: 0, error: "Tidak bisa bulk action terhadap Owner terakhir." };
+  }
 
   if (input.action === "delete") {
     await db.delete(sessionTable).where(inArray(sessionTable.userId, input.userIds));

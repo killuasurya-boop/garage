@@ -7,7 +7,7 @@ import {
   getExecutiveTtsStatus,
   synthesizeExecutiveSpeech,
 } from "@/lib/executive-tts";
-import { getElevenLabsTtsConfig, isElevenLabsTtsEnabled } from "@/lib/elevenlabs-tts";
+import { isElevenLabsTtsEnabled } from "@/lib/elevenlabs-tts";
 
 const VOICES_URL = "https://api.elevenlabs.io/v1/voices";
 

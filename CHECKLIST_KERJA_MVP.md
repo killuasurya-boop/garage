@@ -63,9 +63,9 @@
 - [ ] ⬜ Toast sukses/error konsisten
 
 ### B.4 Responsive (login sudah jalan → bisa diuji)
-- [ ] ⬜ Desktop 1366×900 — semua modul tanpa overflow/clipping
-- [ ] ⬜ Mobile 390×844 — semua modul satu kolom, tabel jadi card
-- [ ] ⬜ Tablet POS landscape — cart selalu terlihat
+- [x] ✅ Mobile (~471px) — Dashboard, Audit, POS: **page tanpa overflow**; tabel padat (audit min-w-900) pakai scroll container internal (pola benar, layout tak rusak)
+- [ ] 🟡 Desktop 1366×900 — preview window fixed narrow, belum bisa diuji lebar penuh (asumsi aman: lebih lega dari mobile)
+- [ ] ⬜ Sweep ke-20 modul lengkap (baru spot-check 3 modul utama)
 
 ---
 

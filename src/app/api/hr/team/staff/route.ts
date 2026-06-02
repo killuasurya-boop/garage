@@ -36,7 +36,7 @@ const patchStaffSchema = z.object({
   role: z.enum(ROLE_VALUES).optional(),
 });
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;

@@ -3,10 +3,10 @@ import {
   BadgeCheck,
   BarChart3,
   BellRing,
+  BookOpen,
   Boxes,
   ChefHat,
   ClipboardCheck,
-  Clock,
   CreditCard,
   Gauge,
   History,
@@ -60,7 +60,8 @@ export type ModuleId =
   | "chat"
   | "smart-notif"
   | "team-management"
-  | "settings";
+  | "settings"
+  | "training";
 
 export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
 
@@ -201,6 +202,12 @@ export const modules = [
     label: "Manajemen Tim",
     description: "HR, SOP & Shift",
     icon: Users,
+  },
+  {
+    id: "training",
+    label: "Buku Pintar",
+    description: "Tutorial & SOP Karyawan",
+    icon: BookOpen,
   },
 ] satisfies Array<{
   id: ModuleId;

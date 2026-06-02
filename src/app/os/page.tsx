@@ -9,6 +9,9 @@ export const metadata: Metadata = {
     "Operational OS for Garage Coffee & Motor with POS, inventory, finance, and audit backend.",
 };
 
+// Akses session/DB saat render → opt-out static generation (build tanpa DB live).
+export const dynamic = "force-dynamic";
+
 export default async function GarageOsPage({
   searchParams,
 }: {

@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   description: "Riwayat shift kasir, ringkasan penjualan, dan laporan PDF.",
 };
 
+// Akses session/DB saat render → opt-out static generation (build tanpa DB live).
+export const dynamic = "force-dynamic";
+
 export default async function ShiftPage() {
   const session = await requireGarageSession([
     "Owner / CEO",

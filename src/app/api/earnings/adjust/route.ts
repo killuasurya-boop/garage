@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { createOwnerAdjustment } from "@/lib/garage-earnings";
+import { rateLimit } from "@/lib/rate-limit";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -15,6 +16,9 @@ const adjustSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, "earnings-adjust", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const session = await requireGarageSession(["Owner / CEO"]);
   if (session.response) {
     return session.response;

@@ -14,7 +14,23 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     ".tmp/**",
     "public/franchise-site/**",
+    "*.js",
   ]),
+  // Konvensi Garage: prefix "_" menandai argumen/var/caught-error yang sengaja
+  // tidak dipakai (mis. handler dengan signature tetap). Jangan dianggap warning.
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

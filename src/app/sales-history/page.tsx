@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   description: "Cari order lama, cetak struk ulang, dan kirim invoice PDF.",
 };
 
+// Akses session/DB saat render → opt-out static generation (build tanpa DB live).
+export const dynamic = "force-dynamic";
+
 export default async function SalesHistoryPage() {
   const session = await requireGarageSession([
     "Owner / CEO",

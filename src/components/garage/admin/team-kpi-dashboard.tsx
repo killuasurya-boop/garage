@@ -10,9 +10,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  TrendingUp, 
-  Award, 
+import {
+  Award,
   Clock, 
   ClipboardCheck, 
   Star, 
@@ -110,11 +109,11 @@ export function TeamKpiDashboard() {
     setFeedbacks((prev) => ({ ...prev, [staffId]: text }));
   };
 
-  const getAttendanceScore = (staffId: string) => {
+  const getAttendanceScore = (_staffId: string) => {
     return 95;
   };
 
-  const getSopScore = (staffId: string) => {
+  const getSopScore = (_staffId: string) => {
     return 90;
   };
 

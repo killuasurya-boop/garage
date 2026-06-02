@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { kpiEvaluations, employeeAttendances, sopLogs, staffProfiles } from "@/db/schema";
+import { kpiEvaluations, employeeAttendances, sopLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq, lte, gte } from "drizzle-orm";
 

@@ -1,5 +1,5 @@
-import { ok } from "@/lib/api-response";
 import { getKitchenData } from "@/lib/garage-service";
+import { okWithEtag } from "@/lib/http-etag";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -11,11 +11,10 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  return ok(
-    await getKitchenData({
-      status: url.searchParams.get("status") ?? undefined,
-      station: url.searchParams.get("station") ?? undefined,
-      viewerRole: session.data.profile.role,
-    }),
-  );
+  const data = await getKitchenData({
+    status: url.searchParams.get("status") ?? undefined,
+    station: url.searchParams.get("station") ?? undefined,
+    viewerRole: session.data.profile.role,
+  });
+  return okWithEtag(request, data);
 }

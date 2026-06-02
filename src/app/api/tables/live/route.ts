@@ -1,14 +1,15 @@
-import { ok } from "@/lib/api-response";
 import { getTableLiveData } from "@/lib/garage-service";
+import { okWithEtag } from "@/lib/http-etag";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await requirePermission("tables:read");
   if (session.response) {
     return session.response;
   }
 
-  return ok(await getTableLiveData());
+  const data = await getTableLiveData();
+  return okWithEtag(request, data);
 }

@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   description: "Pintu masuk sistem POS Garage Coffee & Motor.",
 };
 
+// Akses session/DB saat render → opt-out static generation (build tanpa DB live).
+export const dynamic = "force-dynamic";
+
 export default async function PosPage() {
   await requireModulePageAccess("pos");
 

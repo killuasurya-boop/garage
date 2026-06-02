@@ -1,6 +1,4 @@
-import path from "node:path";
-
-import { PGlite } from "@electric-sql/pglite";
+﻿import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -19,8 +17,6 @@ type GarageDbGlobal = {
 };
 
 const globalForDb = globalThis as typeof globalThis & GarageDbGlobal;
-
-const PGliteDataDir = path.join(process.cwd(), ".garage-db");
 
 function databaseUrl() {
   const value = process.env.DATABASE_URL?.trim();
@@ -92,7 +88,7 @@ function bootPglite() {
   if (!globalForDb.garagePgliteBoot) {
     globalForDb.garagePgliteBoot = (async () => {
       if (!globalForDb.garagePglite) {
-        const client = new PGlite(PGliteDataDir);
+        const client = new PGlite(process.env.PGLITE_DATA_DIR ?? "D:/GARAGEFIX/pglite-data");
         await client.waitReady;
         globalForDb.garagePglite = client;
       }
@@ -150,7 +146,7 @@ export async function ensureDatabaseReady() {
     }
 
     console.warn(
-      "[garage-db] PostgreSQL tidak bisa dihubungi di development — memakai PGlite lokal:",
+      "[garage-db] PostgreSQL tidak bisa dihubungi di development â€” memakai PGlite lokal:",
       error instanceof Error ? error.message : error,
     );
     await bootPglite();
@@ -188,3 +184,4 @@ export function getPgPool(): PGlite | pg.Pool {
 }
 
 export { schema };
+

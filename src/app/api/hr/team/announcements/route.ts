@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { announcements, user } from "@/db/schema";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
-import { desc, eq, or } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export async function GET() {
   try {

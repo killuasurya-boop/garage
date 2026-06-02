@@ -2,9 +2,13 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { createOrder, getOrderData } from "@/lib/garage-service";
+import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
+import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
+
+type CreateOrderResult = Awaited<ReturnType<typeof createOrder>>;
 
 const orderSchema = z.object({
   orderType: z.enum(["dine-in", "takeaway", "delivery"]),
@@ -63,6 +67,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, "orders-create", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const session = await requirePermission("orders:manage");
   if (session.response) {
     return session.response;
@@ -73,9 +80,24 @@ export async function POST(request: Request) {
     return body.error;
   }
 
+  const idempotencyKey = readIdempotencyKey(request);
+  const cache = idempotencyKey
+    ? checkIdempotency<CreateOrderResult>(`orders-create:${session.data.user.id}`, idempotencyKey)
+    : null;
+
+  if (cache?.kind === "hit") {
+    return ok(cache.result, { status: 200 });
+  }
+  if (cache?.kind === "pending") {
+    return fail(409, "ORDER_IN_PROGRESS", "Order dengan key yang sama masih diproses.");
+  }
+
   try {
-    return ok(await createOrder(body.data, session.data), { status: 201 });
+    const result = await createOrder(body.data, session.data);
+    if (cache?.kind === "miss") cache.commit(result);
+    return ok(result, { status: 201 });
   } catch (error) {
+    if (cache?.kind === "miss") cache.abandon();
     return fail(
       400,
       "ORDER_CREATE_FAILED",

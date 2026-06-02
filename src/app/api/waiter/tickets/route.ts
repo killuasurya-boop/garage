@@ -1,5 +1,5 @@
-import { ok } from "@/lib/api-response";
 import { getKitchenData } from "@/lib/garage-service";
+import { okWithEtag } from "@/lib/http-etag";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 // Waiter butuh lihat ticket lintas station (Bar + Food) tanpa filter role,
 // supaya satu waiter bisa antar item dari kedua station. Permission
 // "orders:read" sudah dimiliki Waiter 1/2 (lihat role-access.ts).
-export async function GET() {
+export async function GET(request: Request) {
   const session = await requirePermission("orders:read");
   if (session.response) {
     return session.response;
@@ -20,5 +20,5 @@ export async function GET() {
   const relevant = tickets.filter(
     (t) => t.status === "queue" || t.status === "cooking" || t.status === "ready",
   );
-  return ok(relevant);
+  return okWithEtag(request, relevant);
 }

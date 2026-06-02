@@ -4,7 +4,7 @@ import { operationGlossary } from "@/db/schema";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const session = await requireGarageSession();
     if (session.response) {

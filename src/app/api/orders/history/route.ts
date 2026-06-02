@@ -1,5 +1,5 @@
-import { ok } from "@/lib/api-response";
 import { listInvoicesForFinance } from "@/lib/garage-service";
+import { okWithEtag } from "@/lib/http-etag";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -26,5 +26,5 @@ export async function GET(request: Request) {
     limit: parseIntParam(params.get("limit"), 50),
     offset: parseIntParam(params.get("offset"), 0),
   });
-  return ok(result);
+  return okWithEtag(request, result);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DollarSign, Plus, Check, X, ShieldAlert, FileText, Calendar } from "lucide-react";
+import { DollarSign, Plus, Check, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

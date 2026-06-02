@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fail, ok, readJson } from "@/lib/api-response";
+import { ok, readJson } from "@/lib/api-response";
 import type { Role } from "@/lib/garage-data";
 import { createAuditLog } from "@/lib/garage-service";
 import {

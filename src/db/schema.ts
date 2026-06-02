@@ -257,6 +257,7 @@ export const staffProfiles = pgTable(
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendedReason: text("suspended_reason"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    passwordResetRequired: boolean("password_reset_required").notNull().default(false),
     pinCode: text("pin_code"),
     // HMAC-SHA256 dari PIN (deterministik, bisa di-lookup). pinCode lama
     // dipertahankan untuk lazy-migration; verifikasi pakai pinHash bila ada.
@@ -509,6 +510,8 @@ export const orders = pgTable(
     sourceIdx: index("orders_order_source_idx").on(table.orderSource),
     customerPhoneIdx: index("orders_customer_phone_idx").on(table.customerPhone),
     invoiceTrackingTokenIdx: uniqueIndex("orders_invoice_tracking_token_idx").on(table.invoiceTrackingToken),
+    outletCreatedIdx: index("orders_outlet_created_idx").on(table.outletId, table.createdAt),
+    statusCreatedIdx: index("orders_status_created_idx").on(table.status, table.createdAt),
   }),
 );
 
@@ -591,6 +594,7 @@ export const kitchenTickets = pgTable(
     stationIdx: index("kitchen_tickets_station_idx").on(table.station),
     readyAtIdx: index("kitchen_tickets_ready_at_idx").on(table.readyAt),
     priorityIdx: index("kitchen_tickets_priority_idx").on(table.priority),
+    statusCreatedIdx: index("kitchen_tickets_status_created_idx").on(table.status, table.createdAt),
   }),
 );
 
@@ -1631,6 +1635,8 @@ export const auditLogs = pgTable(
   },
   (table) => ({
     createdIdx: index("audit_logs_created_at_idx").on(table.createdAt),
+    actorIdx: index("audit_logs_actor_idx").on(table.actor),
+    actionIdx: index("audit_logs_action_idx").on(table.action),
   }),
 );
 
@@ -1965,6 +1971,7 @@ export const employeeAttendances = pgTable(
     staffIdx: index("employee_attendances_staff_idx").on(table.staffId),
     outletIdx: index("employee_attendances_outlet_idx").on(table.outletId),
     timeIdx: index("employee_attendances_time_idx").on(table.timestamp),
+    staffTimeIdx: index("employee_attendances_staff_time_idx").on(table.staffId, table.timestamp),
   })
 );
 
@@ -2171,3 +2178,35 @@ export const operationGlossary = pgTable(
     categoryIdx: index("operation_glossary_category_idx").on(table.category),
   })
 );
+
+// Compliance tracker — pajak, BPJS, izin usaha, sertifikat halal/training, dll.
+// Owner perlu tahu apa yang akan kadaluarsa supaya tidak kena denda atau
+// terhenti operasi. category bebas-text supaya outlet baru bisa menambah
+// kategori sendiri tanpa migrasi.
+export const complianceItems = pgTable(
+  "compliance_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "cascade" }),
+    category: text("category").notNull(), // 'Pajak' | 'BPJS' | 'Izin' | 'Sertifikat' | 'Training' | dst
+    name: text("name").notNull(), // contoh: 'SPT Tahunan PPh Badan'
+    issuer: text("issuer"), // contoh: 'DJP', 'BPJS Kesehatan'
+    refNumber: text("ref_number"), // nomor referensi/SK/NPWP/SIUP
+    issuedAt: date("issued_at"),
+    expiresAt: date("expires_at"), // null = tidak ada kadaluarsa (mis. NPWP)
+    reminderDays: integer("reminder_days").notNull().default(30),
+    status: text("status").notNull().default("active"), // active | grace | expired | archived
+    attachmentUrl: text("attachment_url"),
+    notes: text("notes"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletIdx: index("compliance_items_outlet_idx").on(table.outletId),
+    categoryIdx: index("compliance_items_category_idx").on(table.category),
+    expiresIdx: index("compliance_items_expires_idx").on(table.expiresAt),
+    statusIdx: index("compliance_items_status_idx").on(table.status),
+  }),
+);
+

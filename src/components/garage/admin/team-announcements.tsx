@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, Plus, Bell, Send, User, Calendar, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Bell, Send, User, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

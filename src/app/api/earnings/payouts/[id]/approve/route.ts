@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { approvePayout } from "@/lib/garage-earnings";
+import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -14,6 +15,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const limited = rateLimit(request, "payout-approve", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const session = await requirePermission("earnings:manage");
   if (session.response) {
     return session.response;

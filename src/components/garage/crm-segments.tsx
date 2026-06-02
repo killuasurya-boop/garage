@@ -643,7 +643,6 @@ export function CrmCustomSegments() {
       setSegName("");
       setRules([{ field: "tier", op: "equals", value: "Gold" }]);
       setPreviewCount(null);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reload list after save
       void loadSegments();
       void window;
     } catch (err) {

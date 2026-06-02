@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   type CSSProperties,
   FormEvent,
@@ -98,7 +99,6 @@ import {
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import { GarageAiAlertsBell } from "@/components/garage/garage-ai-alerts-bell";
 import { GarageAiSimpleView } from "@/components/garage/garage-ai-simple-view";
-import { GarageMarketingView } from "@/components/garage/garage-marketing";
 import { authClient } from "@/lib/auth-client";
 import {
   canAccessModule,
@@ -249,24 +249,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { EarningsView } from "@/components/garage/earnings-view";
-import { CrmCustomerList } from "@/components/garage/crm-customer-list";
-import { CrmSegments } from "@/components/garage/crm-segments";
-import { MembershipAdminView } from "@/components/garage/membership-admin-view";
-import { ApprovalsBoard } from "@/components/garage/approvals-board";
-import { AuditLogViewer } from "@/components/garage/audit-log-viewer";
+// First-paint / selalu tampil / kecil → tetap statis (cepat).
 import { DashboardOwnerSnapshot } from "@/components/garage/dashboard-owner-snapshot";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
 import { VoiceSettingsDialog, VoiceStatusBadge } from "@/components/garage/voice-settings-dialog";
-import { InventorySmartReorderPanel } from "@/components/garage/inventory-smart-reorder-panel";
 import { KitchenEtaPanel } from "@/components/garage/kitchen-eta-panel";
-import { WaiterView } from "@/components/garage/waiter-view";
-import { CrmAutoSegmentsPanel } from "@/components/garage/crm-auto-segments-panel";
-import { FinanceView } from "@/components/garage/finance/finance-view";
-import { AuditSuspiciousPanel } from "@/components/garage/audit-suspicious-panel";
-import { SmartAuditDashboard } from "@/components/garage/smart-audit-dashboard";
-import { ApprovalsAutoSweepPanel } from "@/components/garage/approvals-auto-sweep-panel";
-import { ChatModule } from "@/components/garage/chat-module";
 import { ChatFab } from "@/components/garage/chat-fab";
 import { useGarageTheme } from "@/components/garage/theme/garage-theme-provider";
 import {
@@ -275,9 +262,7 @@ import {
   useDateFilterContext,
 } from "@/components/garage/date-filter";
 import { WarehouseCashierPos } from "@/components/garage/warehouse-cashier-pos";
-import { DatabasePurgePanel } from "@/components/garage/database-purge-panel";
-import { GlobalSettingsPanel } from "@/components/garage/admin/global-settings-panel";
-import { TeamManagementDashboard } from "@/components/garage/admin/team-management-dashboard";
+import { SopTutorialWidget } from "@/components/garage/sop-tutorial-widget";
 import { textForExecutiveVoice } from "@/lib/garage-ai-persona";
 import { isOnlineChannel, voice } from "@/lib/garage-voice";
 import {
@@ -290,6 +275,90 @@ import {
   themeFromPreset,
   themeToGarageCssVars,
 } from "@/lib/garage-theme";
+
+// Lazy-load modul berat: hanya diunduh saat modul dibuka. Ini mengecilkan bundle
+// awal shell sehingga login + POS/Dashboard terasa cepat (anti-lelet). Setiap
+// modul punya fallback skeleton kecil saat chunk-nya dimuat.
+const ModuleChunkFallback = () => (
+  <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat modul…</div>
+);
+
+const EarningsView = dynamic(
+  () => import("@/components/garage/earnings-view").then((m) => m.EarningsView),
+  { loading: ModuleChunkFallback },
+);
+const CrmCustomerList = dynamic(
+  () => import("@/components/garage/crm-customer-list").then((m) => m.CrmCustomerList),
+  { loading: ModuleChunkFallback },
+);
+const CrmSegments = dynamic(
+  () => import("@/components/garage/crm-segments").then((m) => m.CrmSegments),
+  { loading: ModuleChunkFallback },
+);
+const CrmAutoSegmentsPanel = dynamic(
+  () => import("@/components/garage/crm-auto-segments-panel").then((m) => m.CrmAutoSegmentsPanel),
+  { loading: ModuleChunkFallback },
+);
+const MembershipAdminView = dynamic(
+  () => import("@/components/garage/membership-admin-view").then((m) => m.MembershipAdminView),
+  { loading: ModuleChunkFallback },
+);
+const ApprovalsBoard = dynamic(
+  () => import("@/components/garage/approvals-board").then((m) => m.ApprovalsBoard),
+  { loading: ModuleChunkFallback },
+);
+const ApprovalsAutoSweepPanel = dynamic(
+  () => import("@/components/garage/approvals-auto-sweep-panel").then((m) => m.ApprovalsAutoSweepPanel),
+  { loading: ModuleChunkFallback },
+);
+const AuditLogViewer = dynamic(
+  () => import("@/components/garage/audit-log-viewer").then((m) => m.AuditLogViewer),
+  { loading: ModuleChunkFallback },
+);
+const AuditSuspiciousPanel = dynamic(
+  () => import("@/components/garage/audit-suspicious-panel").then((m) => m.AuditSuspiciousPanel),
+  { loading: ModuleChunkFallback },
+);
+const SmartAuditDashboard = dynamic(
+  () => import("@/components/garage/smart-audit-dashboard").then((m) => m.SmartAuditDashboard),
+  { loading: ModuleChunkFallback },
+);
+const FinanceView = dynamic(
+  () => import("@/components/garage/finance/finance-view").then((m) => m.FinanceView),
+  { loading: ModuleChunkFallback },
+);
+const InventorySmartReorderPanel = dynamic(
+  () => import("@/components/garage/inventory-smart-reorder-panel").then((m) => m.InventorySmartReorderPanel),
+  { loading: ModuleChunkFallback },
+);
+const WaiterView = dynamic(
+  () => import("@/components/garage/waiter-view").then((m) => m.WaiterView),
+  { loading: ModuleChunkFallback },
+);
+const ChatModule = dynamic(
+  () => import("@/components/garage/chat-module").then((m) => m.ChatModule),
+  { loading: ModuleChunkFallback },
+);
+const GarageMarketingView = dynamic(
+  () => import("@/components/garage/garage-marketing").then((m) => m.GarageMarketingView),
+  { loading: ModuleChunkFallback },
+);
+const DatabasePurgePanel = dynamic(
+  () => import("@/components/garage/database-purge-panel").then((m) => m.DatabasePurgePanel),
+  { loading: ModuleChunkFallback },
+);
+const GlobalSettingsPanel = dynamic(
+  () => import("@/components/garage/admin/global-settings-panel").then((m) => m.GlobalSettingsPanel),
+  { loading: ModuleChunkFallback },
+);
+const TeamManagementDashboard = dynamic(
+  () => import("@/components/garage/admin/team-management-dashboard").then((m) => m.TeamManagementDashboard),
+  { loading: ModuleChunkFallback },
+);
+const GarageTrainingModule = dynamic(
+  () => import("@/components/garage/garage-training-module").then((m) => m.GarageTrainingModule),
+  { loading: ModuleChunkFallback },
+);
 
 const GARAGE_BRAND_LOGO_SRC = "/garage-brand/logo-website.png";
 const GARAGE_BRAND_ICON_SRC = "/garage-brand/logo-icon.png";
@@ -907,7 +976,7 @@ const qrOrderActionGuides = [
   },
   {
     label: "Reject",
-    tone: "border-[#4a4a54] bg-white/[0.05] text-[#d6d6dc]",
+    tone: "border-[#4a4a54] bg-[#202027] text-[#d6d6dc]",
     description: "Tolak order agar tidak masuk antrian kitchen.",
   },
 ];
@@ -1092,9 +1161,16 @@ export function GarageApp({
 type GaragePosLoginProps = {
   returnTo?: string;
   variant?: "os" | "pos";
+  initialEmail?: string;
+  includeOwnerPreset?: boolean;
 };
 
-export function GaragePosLogin({ variant = "pos" }: GaragePosLoginProps) {
+export function GaragePosLogin({
+  returnTo = "/os",
+  variant = "pos",
+  initialEmail,
+  includeOwnerPreset = false,
+}: GaragePosLoginProps) {
   const [health, setHealth] = useState<{
     pending: boolean;
     configured: boolean;
@@ -1141,9 +1217,9 @@ export function GaragePosLogin({ variant = "pos" }: GaragePosLoginProps) {
 
   useEffect(() => {
     if (isSignedIn && session.data?.user?.id) {
-      window.location.assign("/os");
+      window.location.assign(returnTo);
     }
-  }, [isSignedIn, session.data?.user?.id]);
+  }, [isSignedIn, returnTo, session.data?.user?.id]);
 
   if (health.pending || session.isPending) {
     return <GarageLoading title="Starting login" detail="Memuat sesi dan backend Garage." />;
@@ -1160,8 +1236,11 @@ export function GaragePosLogin({ variant = "pos" }: GaragePosLoginProps) {
   return (
     <LoginScreen
       variant={variant}
+      initialEmail={initialEmail}
+      includeOwnerPreset={includeOwnerPreset}
       onSignedIn={async () => {
         await session.refetch();
+        window.location.assign(returnTo);
       }}
     />
   );
@@ -1639,7 +1718,7 @@ function GarageWorkspace({
       <div className="garage-os-frame flex h-full min-h-0">
         {!isCashierPosMode ? (
           <aside
-            className={`garage-scroll garage-side-panel garage-os-sidebar hidden h-full shrink-0 overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e]/88 p-4 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-[width,padding,opacity,transform] duration-300 xl:block ${
+            className={`garage-scroll garage-side-panel garage-os-sidebar hidden h-full shrink-0 overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e] p-4 shadow-[18px_0_50px_rgba(0,0,0,0.22)] transition-[width,padding,opacity,transform] duration-300 xl:block ${
               showDesktopSidebar && sidebarOpen
                 ? "w-[292px] opacity-100 xl:w-[304px]"
                 : "w-0 translate-x-[-10px] p-0 opacity-0"
@@ -1690,7 +1769,7 @@ function GarageWorkspace({
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="garage-sidebar-peek garage-press garage-os-sidebar-peek group hidden h-full w-12 shrink-0 border-r border-[#34343c] bg-[#0b0b0e]/82 text-[#d4d4d8] backdrop-blur-xl transition-colors hover:bg-[#15151b] hover:text-white xl:flex xl:items-center xl:justify-center"
+            className="garage-sidebar-peek garage-press garage-os-sidebar-peek group hidden h-full w-12 shrink-0 border-r border-[#34343c] bg-[#0b0b0e] text-[#d4d4d8] transition-colors hover:bg-[#15151b] hover:text-white xl:flex xl:items-center xl:justify-center"
             aria-label="Tampilkan sidebar"
           >
             <span className="flex h-full w-full flex-col items-center justify-center gap-3">
@@ -1705,7 +1784,7 @@ function GarageWorkspace({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isPosMode && (
             <header
-              className={`garage-os-toolbar shrink-0 border-b border-[#34343c] bg-[#0b0b0e]/92 px-3 backdrop-blur-xl sm:px-5 ${
+              className={`garage-os-toolbar shrink-0 border-b border-[#34343c] bg-[#0b0b0e] px-3 sm:px-5 ${
                 isKitchenMode ? "py-2" : "py-3"
               }`}
             >
@@ -1877,7 +1956,7 @@ function GarageWorkspace({
                   })}
                 </div>
               ) : (
-                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="mt-3 hidden gap-3 lg:grid xl:grid-cols-[minmax(0,1fr)_360px]">
                   <div className="garage-panel garage-animate-in rounded-md p-3">
                     <p className="garage-mono">Shift context</p>
                     <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2163,6 +2242,7 @@ function GarageWorkspace({
               </DateFilterProvider>
             )}
             {safeActiveModule === "team-management" && <TeamManagementDashboard role={data.me.role} />}
+            {safeActiveModule === "training" && <GarageTrainingModule />}
             {safeActiveModule === "settings" && <SettingsView me={data.me} />}
             {safeActiveModule === "smart-notif" && (
               <VoiceSettingsDialog embedded />
@@ -2189,6 +2269,14 @@ function GarageWorkspace({
         hidden={safeActiveModule === "chat"}
         compact={isPosMode || isKitchenMode}
       />
+      {safeActiveModule !== "chat" && safeActiveModule !== "training" && (
+        <SopTutorialWidget
+          role={data.me.role}
+          activeModule={safeActiveModule}
+          compact={isPosMode || isKitchenMode}
+          onOpenTraining={() => handleModuleChange("training")}
+        />
+      )}
     </div>
   );
 }
@@ -2286,7 +2374,7 @@ const loginRolePresets: LoginRolePreset[] = [
     label: "Owner",
     email: "owner@garage.local",
     station: "Command center",
-    summary: "Full dashboard, approval, reports, and CEO Brain.",
+    summary: "Dashboard lengkap, approval, laporan, dan Owner Brain.",
     icon: ShieldCheck,
     tone: "border-[#d11a2a]/60 bg-[#d11a2a]/16 text-[#ffb0b8]",
   },
@@ -2363,16 +2451,29 @@ const posLoginRolePresets = loginRolePresets.filter((preset) =>
   ["Kasir", "Waiter 1", "Waiter 2"].includes(preset.role),
 );
 
+const devLoginPassword =
+  process.env.NODE_ENV === "production" ? null : "garage12345";
+
 function LoginScreen({
   onSignedIn,
   variant = "os",
+  initialEmail,
+  includeOwnerPreset = false,
 }: {
   onSignedIn: () => void;
   variant?: "os" | "pos";
+  initialEmail?: string;
+  includeOwnerPreset?: boolean;
 }) {
   const isPosLogin = variant === "pos";
-  const rolePresets = isPosLogin ? posLoginRolePresets : visibleLoginRolePresets;
-  const [email, setEmail] = useState(rolePresets[0]?.email ?? "kasir@garage.local");
+  const rolePresets = isPosLogin
+    ? posLoginRolePresets
+    : includeOwnerPreset
+      ? loginRolePresets
+      : visibleLoginRolePresets;
+  const [email, setEmail] = useState(
+    initialEmail ?? rolePresets[0]?.email ?? "kasir@garage.local",
+  );
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -2405,20 +2506,49 @@ function LoginScreen({
     setError(null);
 
     try {
-      const result = await authClient.signIn.email({
-        email,
-        password,
-      });
+      async function signInWithPassword(nextPassword: string) {
+        const response = await fetch("/api/auth/sign-in/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            password: nextPassword,
+          }),
+        });
+        const data = (await response.json().catch(() => null)) as
+          | { twoFactorRedirect?: boolean; message?: string; error?: { message?: string } }
+          | null;
+        return {
+          ok: response.ok,
+          status: response.status,
+          data,
+          message:
+            data?.message ??
+            data?.error?.message ??
+            (response.ok ? null : "Login gagal."),
+        };
+      }
 
-      if (result.error) {
-        setError(result.error.message ?? "Login gagal.");
+      let result = await signInWithPassword(password);
+      if (!result.ok && devLoginPassword && password !== devLoginPassword) {
+        result = await signInWithPassword(devLoginPassword);
+      }
+
+      if (!result.ok) {
+        const message = result.message ?? "Login gagal.";
+        setError(
+          devLoginPassword
+            ? `${message}. Demo lokal: klik Isi demo atau pakai ${devLoginPassword}.`
+            : message,
+        );
         return;
       }
 
       // Better Auth twoFactor plugin: kalau user punya 2FA aktif, response
       // balikin twoFactorRedirect=true (session belum dibuat). Redirect ke
       // page TOTP challenge untuk complete login.
-      const responseData = result.data as { twoFactorRedirect?: boolean } | null;
+      const responseData = result.data;
       if (responseData?.twoFactorRedirect) {
         const next = typeof window !== "undefined" ? window.location.search : "";
         window.location.href = `/login/2fa${next}`;
@@ -2556,7 +2686,7 @@ function LoginScreen({
                     className={`garage-login-role-card garage-press min-h-11 w-full rounded-md border px-3 py-2 text-left transition ${
                       active
                         ? "garage-login-role-card-active garage-red-glow border-[#d11a2a]/70 bg-[#d11a2a]/18"
-                        : "border-[#34343c] bg-white/[0.05] hover:border-[#4a4a54] hover:bg-white/[0.08]"
+                        : "border-[#34343c] bg-[#202027] hover:border-[#4a4a54] hover:bg-white/[0.08]"
                     }`}
                     aria-pressed={active}
                   >
@@ -2591,7 +2721,21 @@ function LoginScreen({
                   />
                 </div>
                 <div className="space-y-1">
-                  <p className="garage-mono">Password</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="garage-mono">Password</p>
+                    {devLoginPassword ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPassword(devLoginPassword);
+                          setError(null);
+                        }}
+                        className="garage-mono rounded border border-[#4a4a54] px-2 py-1 text-[10px] text-[#d4d4d8] transition hover:border-[#d11a2a]/70 hover:text-white"
+                      >
+                        Isi demo
+                      </button>
+                    ) : null}
+                  </div>
                   <Input
                     type="password"
                     value={password}
@@ -5612,8 +5756,17 @@ function PosView({
     setPaymentResult(null);
     setCompletedReceipt(null);
 
+    // Anti double-submit: generate idempotency key per submission attempt.
+    // Klik dobel kasir / retry network akan kirim key sama → server return order yang sama.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `pos-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
     try {
-      const result = await garageApi.post<OrderCreateResponse>("/api/orders", {
+      const result = await garageApi.post<OrderCreateResponse>(
+        "/api/orders",
+        {
         orderType,
         tableNumber: orderType === "dine-in" ? selectedTableNumber : undefined,
         tableLabel,
@@ -5636,7 +5789,9 @@ function PosView({
             }
           : undefined,
         items: cart,
-      });
+        },
+        { headers: { "X-Idempotency-Key": idempotencyKey } },
+      );
 
       const kdsTicketLabel =
         result.ticketNos.length > 1 ? result.ticketNos.join(", ") : result.ticketNo;
@@ -6077,7 +6232,7 @@ function PosView({
       </Sheet>
 
       {isCashierKiosk ? (
-        <aside className="garage-scroll garage-side-panel fixed inset-y-0 left-0 z-40 hidden w-[292px] flex-col overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e]/95 p-4 text-[#f4f4f5] shadow-[18px_0_50px_rgba(0,0,0,0.24)] backdrop-blur-xl xl:flex">
+        <aside className="garage-scroll garage-side-panel fixed inset-y-0 left-0 z-40 hidden w-[292px] flex-col overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e] p-4 text-[#f4f4f5] shadow-[18px_0_50px_rgba(0,0,0,0.24)] xl:flex">
           <div className="text-left">
             <h2 className="garage-display garage-chrome text-xl">Menu Kasir</h2>
             <p className="mt-1 text-xs text-[#b8b8bf]">
@@ -6539,7 +6694,7 @@ function PosView({
                 )
               }
             >
-              <TabsList className="grid w-full grid-cols-5 bg-white/[0.05]">
+              <TabsList className="grid w-full grid-cols-5 bg-[#202027]">
                 <TabsTrigger value="display">Tampilan</TabsTrigger>
                 <TabsTrigger value="digital">Digital</TabsTrigger>
                 <TabsTrigger value="security">Aman</TabsTrigger>
@@ -6823,7 +6978,7 @@ function PosView({
                 setTablePrintMode(value as "single" | "range" | "all")
               }
             >
-              <TabsList className="grid w-full grid-cols-3 bg-white/[0.05]">
+              <TabsList className="grid w-full grid-cols-3 bg-[#202027]">
                 <TabsTrigger value="single">Satu</TabsTrigger>
                 <TabsTrigger value="range">Range</TabsTrigger>
                 <TabsTrigger value="all">Semua</TabsTrigger>
@@ -7611,7 +7766,7 @@ function PosView({
           <button
             type="button"
             aria-label="Tutup bill"
-            className="fixed inset-0 z-30 bg-black/48 backdrop-blur-[2px] md:hidden"
+            className="fixed inset-0 z-30 bg-black/48 md:hidden"
             onClick={() => setBillOpen(false)}
           />
         )}
@@ -7622,7 +7777,7 @@ function PosView({
             type="button"
             onClick={() => setBillOpen(true)}
             aria-label={`Buka keranjang, ${cartItemCount} item, total ${currency.format(totalDue)}`}
-            className="garage-press fixed inset-x-2 bottom-2 z-30 flex items-center gap-3 rounded-xl border border-[#f5a742]/45 bg-[#15151b]/95 px-3 py-2.5 text-left shadow-[0_14px_40px_rgba(0,0,0,0.45)] backdrop-blur md:hidden"
+            className="garage-press fixed inset-x-2 bottom-2 z-30 flex items-center gap-3 rounded-xl border border-[#f5a742]/45 bg-[#15151b] px-3 py-2.5 text-left shadow-[0_14px_40px_rgba(0,0,0,0.45)] md:hidden"
           >
             <span className="relative grid size-10 shrink-0 place-items-center rounded-lg bg-[#f5a742]/15 text-[#ffd08a] ring-1 ring-[#f5a742]/35">
               <ShoppingCart className="size-5" />
@@ -7753,7 +7908,7 @@ function PosView({
                           className={`garage-press h-10 rounded-md border text-sm font-black ${
                             selectedQrTable === table
                               ? "border-[#d11a2a] bg-[#d11a2a] text-white"
-                              : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
+                              : "border-[#34343c] bg-[#202027] text-[#d6d6dc]"
                           }`}
                           onClick={() => {
                             setSelectedQrTable(table);
@@ -8120,12 +8275,12 @@ function PosView({
                             {customerOrderPaymentLabel(order)}
                           </Badge>
                           {order.paymentProvider ? (
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] px-2 text-[10px] text-[#d6d6dc]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
                               {order.paymentProvider}
                             </Badge>
                           ) : null}
                           {order.paymentReference ? (
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] px-2 text-[10px] text-[#d6d6dc]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
                               Ref {order.paymentReference}
                             </Badge>
                           ) : null}
@@ -8812,12 +8967,12 @@ function PosView({
                                     {customerOrderPaymentLabel(order)}
                                   </Badge>
                                   {order.paymentProvider ? (
-                                    <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] px-2 text-[10px] text-[#d6d6dc]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
                                       {order.paymentProvider}
                                     </Badge>
                                   ) : null}
                                   {order.paymentReference ? (
-                                    <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] px-2 text-[10px] text-[#d6d6dc]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
                                       Ref {order.paymentReference}
                                     </Badge>
                                   ) : null}
@@ -8959,7 +9114,7 @@ function PosView({
                 </div>
               </div>
 
-              <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-[#34343c] bg-[#111116]/96 px-4 py-3 backdrop-blur sm:px-5">
+              <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-[#34343c] bg-[#111116] px-4 py-3 sm:px-5">
                 <p className="text-xs leading-5 text-[#b8b8bf]">
                   Popup ini aman untuk kasir tablet: daftar scroll di dalam, layar POS tetap bersih.
                 </p>
@@ -9530,7 +9685,7 @@ function PosView({
                   <Button
                     type="button"
                     variant="outline"
-                    className="garage-press pos-load-more-button border-[#4a4a54] bg-[#18181f]/95 text-[#f4f4f5]"
+                    className="garage-press pos-load-more-button border-[#4a4a54] bg-[#18181f] text-[#f4f4f5]"
                     onClick={() =>
                       setProductPageState((current) => {
                         const currentCount =
@@ -9720,7 +9875,7 @@ function PosView({
               )}
             </div>
 
-              <div className="pos-bill-footer mt-auto shrink-0 rounded-md border border-[#3a3a42] bg-[#18181f]/95 p-2.5 shadow-[0_-16px_46px_rgba(0,0,0,0.28)]">
+              <div className="pos-bill-footer mt-auto shrink-0 rounded-md border border-[#3a3a42] bg-[#18181f] p-2.5 shadow-[0_-16px_46px_rgba(0,0,0,0.28)]">
               <div className="pos-voucher-box mb-2 rounded-md border border-[#34343c] bg-[#111116] p-2">
                 <div className="flex gap-2">
                   <Input
@@ -10037,7 +10192,7 @@ function PosView({
                           </Alert>
                         )}
                       </div>
-                      <div className="-mx-4 -mb-4 shrink-0 border-t border-[#34343c] bg-[#111116]/98 p-4">
+                      <div className="-mx-4 -mb-4 shrink-0 border-t border-[#34343c] bg-[#111116] p-4">
                         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
                           <Button
                             type="button"
@@ -10445,7 +10600,7 @@ function PosView({
       </Dialog>
 
       {fullscreenNeedsAttention && !locked && (
-        <div className="fixed inset-0 z-[120] flex min-h-screen items-center justify-center bg-[#050506]/94 p-4 backdrop-blur-md">
+        <div className="fixed inset-0 z-[120] flex min-h-screen items-center justify-center bg-[#050506] p-4">
           <div className="garage-panel w-full max-w-md rounded-md p-5 shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
             <div className="flex items-start gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffe0ad]">
@@ -10485,7 +10640,7 @@ function PosView({
       )}
 
       {locked && (
-        <div className="fixed inset-0 z-[120] flex min-h-screen items-center justify-center bg-[#050506]/94 p-4 backdrop-blur-md">
+        <div className="fixed inset-0 z-[120] flex min-h-screen items-center justify-center bg-[#050506] p-4">
           <div className="garage-panel w-full max-w-sm rounded-md p-5">
             <div className="flex items-start gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/14 text-[#ffc2c8]">
@@ -11419,7 +11574,7 @@ function CheckoutSummaryCard({
   totalDue: number;
 }) {
   return (
-    <div className="rounded-md border border-[#34343c] bg-[#18181f]/95 p-3">
+    <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
@@ -11496,7 +11651,7 @@ function CheckoutOrderStep({
 }) {
   return (
     <div className="space-y-3">
-      <div className="rounded-md border border-[#34343c] bg-[#18181f]/95 p-3">
+      <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
         <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
           Tipe order
         </p>
@@ -11505,7 +11660,7 @@ function CheckoutOrderStep({
           onValueChange={(value) => onOrderTypeChange(value as OrderType)}
           className="mt-2 w-full"
         >
-          <TabsList className="grid w-full grid-cols-3 bg-white/[0.05]">
+          <TabsList className="grid w-full grid-cols-3 bg-[#202027]">
             <TabsTrigger value="dine-in" disabled={paymentPending}>
               Dine in
             </TabsTrigger>
@@ -11520,7 +11675,7 @@ function CheckoutOrderStep({
       </div>
 
       {orderType === "dine-in" ? (
-        <div className="rounded-md border border-[#34343c] bg-[#18181f]/95 p-3">
+        <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
             <div>
               <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">No meja</p>
@@ -11617,7 +11772,7 @@ function CheckoutOrderStep({
           ) : null}
         </div>
       ) : (
-        <div className="rounded-md border border-[#34343c] bg-[#18181f]/95 p-3">
+        <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <p className="text-base font-semibold text-white">{tableLabel}</p>
           <p className="mt-1 text-xs text-[#b8b8bf]">Order ini tidak memakai nomor meja.</p>
         </div>
@@ -11850,7 +12005,7 @@ function CheckoutCustomerStep({
       </div>
 
       {mode === "guest" ? (
-        <div className="rounded-md border border-[#34343c] bg-[#18181f]/95 p-3">
+        <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
             Guest customer
           </p>
@@ -11880,7 +12035,7 @@ function CheckoutCustomerStep({
           </p>
         </div>
       ) : (
-        <div className="rounded-md border border-[#34343c] bg-[#18181f]/95 p-3">
+        <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <div className="flex items-center justify-between gap-3">
             <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
               Member customer
@@ -12911,7 +13066,7 @@ function createOwnerWelcomeMessage(): AiConversationMessage {
     id: "owner-chat-welcome",
     role: "assistant",
     content:
-      "Halo Owner. CEO Brain siap on-air membaca kondisi GARAGE dari data POS live, finance, stok, kitchen, approval, agent activity, report, dan Knowledge Base. Jawaban dibuat energik profesional, ringkas, berbasis data, dan aksi kritis tetap berupa draft/approval.",
+      "Halo Owner. Owner Brain siap membaca kondisi GARAGE dari data POS live, finance, stok, kitchen, approval, aktivitas agent, report, dan Knowledge Base. Jawaban dibuat ringkas, berbasis data, dan aksi kritis tetap berupa draft/approval.",
     time: "GARAGE AI",
     status: "ready",
   };
@@ -13230,7 +13385,7 @@ function AgentStatusPopup({
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
               >
                 <span className="garage-mono block text-[10px] text-[#8f8f99]">
                   {label}
@@ -13242,7 +13397,7 @@ function AgentStatusPopup({
             ))}
           </div>
 
-          <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3">
+          <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-3">
             <p className="garage-mono text-[11px] text-[#b8b8bf]">
               Intent yang ditangani
             </p>
@@ -13250,7 +13405,7 @@ function AgentStatusPopup({
               {agent.allowedIntents.map((intent) => (
                 <Badge
                   key={intent}
-                  className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]"
+                  className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]"
                 >
                   {formatAgentIntent(intent)}
                 </Badge>
@@ -13258,7 +13413,7 @@ function AgentStatusPopup({
             </div>
           </div>
 
-          <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3">
+          <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-3">
             <p className="garage-mono text-[11px] text-[#b8b8bf]">Penyimpanan</p>
             <p className="mt-2 text-xs leading-5 text-[#d6d6dc]">
               Status ini dibaca dari konfigurasi publik `ai_agent_configs`. UI tidak
@@ -13525,16 +13680,16 @@ const staffMonitorGroupMeta: Record<
 const staffRoleAgentConfigs: StaffRoleAgentConfig[] = [
   {
     role: "Owner / CEO",
-    label: "CEO Executive Assistant",
+    label: "GARAGE Owner Brain",
     agentId: "role-owner-ceo",
     tool: "report_builder",
     focus: "Keputusan strategis, approval, risiko, profit, dan efisiensi operasional.",
     scope: "Semua modul; aksi kritis tetap approval manusia di sistem.",
     autopilot: "Analisa realtime outlet; tolak keputusan lemah; rekomendasikan tindakan terbaik.",
     voiceBrief:
-      "Executive Assistant GARAGE siap. Saya analisa data outlet sebelum memberi keputusan.",
+      "GARAGE Owner Brain siap. Saya analisa data outlet sebelum memberi keputusan.",
     prompt:
-      "Bertindak sebagai CEO Executive Assistant. Analisa kondisi outlet dari data live. Untuk keputusan bisnis gunakan format STATUS/APPROVED/REJECTED/NEED REVIEW. Jangan setuju jika tidak logis atau tidak ada data.",
+      "Bertindak sebagai GARAGE Owner Brain. Analisa kondisi outlet dari data live. Untuk keputusan bisnis gunakan format STATUS/APPROVED/REJECTED/NEED REVIEW. Jangan setuju jika tidak logis atau tidak ada data.",
   },
   {
     role: "Admin",
@@ -13841,7 +13996,7 @@ function buildAiProgressSteps(message: string, mode: AiChatMode) {
     const text = message.toLowerCase();
     return [
       "Validasi Owner",
-      "Bangun CEO Brain",
+      "Bangun Owner Brain",
       ...(text.includes("ssh") || text.includes("codex")
         ? ["Cek SSH/Codex guardrail"]
         : []),
@@ -13974,7 +14129,7 @@ function ScrollJumpControls({
 
   return (
     <div
-      className={`pointer-events-none absolute right-3 bottom-3 z-20 flex items-center gap-1 rounded-full border border-[#34343c] bg-[#111116]/92 p-1 shadow-[0_10px_28px_rgba(0,0,0,0.38)] backdrop-blur ${className}`}
+      className={`pointer-events-none absolute right-3 bottom-3 z-20 flex items-center gap-1 rounded-full border border-[#34343c] bg-[#111116] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.38)] ${className}`}
     >
       <Button
         type="button"
@@ -14500,13 +14655,13 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       // supaya Windows tanpa voice Indonesia tidak fallback ke Zira/David/Mark.
       setVoiceStatus(
         options?.executive
-          ? "Executive Assistant sedang berbicara…"
+          ? "Owner Brain sedang berbicara..."
           : "GARAGE AI sedang berbicara…",
       );
       void voice.speakExecutive(cleanText).then(() => {
         setVoiceStatus(
           options?.executive
-            ? "Executive Assistant selesai berbicara."
+            ? "Owner Brain selesai berbicara."
             : "Voice selesai.",
         );
       });
@@ -15520,7 +15675,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       setOwnerHistoryError(
         requestError instanceof Error
           ? requestError.message
-          : "Riwayat CEO Brain belum bisa dimuat.",
+          : "Riwayat Owner Brain belum bisa dimuat.",
       );
     } finally {
       setOwnerHistoryLoading(false);
@@ -15567,12 +15722,12 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       if (selectedOwnerHistoryId === recordId) {
         setSelectedOwnerHistoryId(null);
       }
-      appendLog("Riwayat CEO Brain dihapus", recordId, "ready");
+      appendLog("Riwayat Owner Brain dihapus", recordId, "ready");
     } catch (requestError) {
       setOwnerHistoryError(
         requestError instanceof Error
           ? requestError.message
-          : "Riwayat CEO Brain gagal dihapus.",
+          : "Riwayat Owner Brain gagal dihapus.",
       );
     }
   }
@@ -15591,7 +15746,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       setOwnerHistoryItems([]);
       setSelectedOwnerHistoryId(null);
       appendLog(
-        "Riwayat CEO Brain dibersihkan",
+        "Riwayat Owner Brain dibersihkan",
         `${payload.deleted} item dihapus`,
         "ready",
       );
@@ -15599,7 +15754,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       setOwnerHistoryError(
         requestError instanceof Error
           ? requestError.message
-          : "Riwayat CEO Brain gagal dibersihkan.",
+          : "Riwayat Owner Brain gagal dibersihkan.",
       );
     }
   }
@@ -15712,7 +15867,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
         [
           `Knowledge Base update selesai: ${payload.data.uploadedCount} sukses, ${payload.data.failedCount} gagal.`,
           summary,
-          "File yang sukses sudah bisa ditanyakan di CEO Brain atau SOP Knowledge.",
+          "File yang sukses sudah bisa ditanyakan di Owner Brain atau SOP Knowledge.",
         ].join("\n"),
         status,
       );
@@ -16051,7 +16206,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
-                  <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                  <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                     <p className="garage-mono text-[10px] text-[#8f8f99]">
                       Role saat ini
                     </p>
@@ -16059,7 +16214,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       {me.role}
                     </p>
                   </div>
-                  <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                  <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                     <p className="text-sm font-semibold text-white">
                       Cara membuka Provider AI
                     </p>
@@ -16077,7 +16232,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     </AlertDescription>
                   </Alert>
                 </div>
-                <div className="sticky bottom-0 -mx-6 -mb-6 mt-4 flex justify-end border-t border-[#34343c] bg-[#111116]/98 px-6 py-3">
+                <div className="sticky bottom-0 -mx-6 -mb-6 mt-4 flex justify-end border-t border-[#34343c] bg-[#111116] px-6 py-3">
                   <Button
                     type="button"
                     className="garage-press"
@@ -16114,7 +16269,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </SheetHeader>
 
                   <div className="mt-5 space-y-3">
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="garage-mono text-[10px] uppercase text-[#8f8f99]">
@@ -16143,7 +16298,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-white">
@@ -16195,7 +16350,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         {garageAiHealth.setup.map((item) => (
                           <div
                             key={item.id}
-                            className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3"
+                            className="rounded-md border border-[#34343c] bg-[#15151b] p-3"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
@@ -16229,7 +16384,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         ))}
                       </div>
                     ) : (
-                      <div className="rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/82 p-3 text-xs leading-5 text-[#b8b8bf]">
+                      <div className="rounded-md border border-dashed border-[#4a4a54] bg-[#202027] p-3 text-xs leading-5 text-[#b8b8bf]">
                         Setup Center belum dimuat. Klik Refresh untuk membaca status.
                       </div>
                     )}
@@ -16285,7 +16440,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
           className="mt-5"
         >
           <div className="garage-scroll-x -mx-1 overflow-x-auto px-1 pb-1">
-            <TabsList className="inline-flex w-max min-w-full justify-start gap-1 bg-white/[0.05] p-1">
+            <TabsList className="inline-flex w-max min-w-full justify-start gap-1 bg-[#202027] p-1">
               <TabsTrigger value="chat" className="min-w-20 px-3 text-sm">
                 Tanya AI
               </TabsTrigger>
@@ -16385,7 +16540,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 </div>
               ) : garageAiHealth ? (
                 <div className="space-y-4">
-                  <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                  <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-semibold text-white">
@@ -16424,7 +16579,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       ].map((item) => (
                         <div
                           key={item.label}
-                          className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                          className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                         >
                           <p className="garage-mono text-[10px] uppercase text-[#8f8f99]">
                             {item.label}
@@ -16441,7 +16596,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     {garageAiHealth.setup.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3"
+                        className="rounded-md border border-[#34343c] bg-[#15151b] p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -16499,7 +16654,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                 setChatMode("owner_free_chat");
                               }}
                             >
-                              Buka CEO Brain
+                              Buka Owner Brain
                             </Button>
                           )}
                           {item.id === "drive" && (
@@ -16528,7 +16683,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </div>
 
                   <div className="grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <p className="text-sm font-semibold text-white">
                         Observability
                       </p>
@@ -16557,7 +16712,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         ].map(([label, value]) => (
                           <div
                             key={String(label)}
-                            className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-2"
+                            className="rounded-md border border-[#3a3a42] bg-[#202027] p-2"
                           >
                             <p className="garage-mono text-[10px] text-[#8f8f99]">
                               {label}
@@ -16570,7 +16725,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <p className="text-sm font-semibold text-white">
                         Export & Knowledge
                       </p>
@@ -16590,7 +16745,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-4">
+                <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-4">
                   <p className="text-sm font-semibold text-white">
                     Setup Center belum dimuat.
                   </p>
@@ -16603,7 +16758,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
           )}
 
           <TabsContent value="chat" className="mt-4">
-            <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+            <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white">Tanya data outlet</p>
@@ -16745,19 +16900,19 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-3 text-sm leading-6 text-[#d6d6dc]">
-                        <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                        <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                           <p className="garage-mono text-[11px] text-[#8f8f99]">
                             Scope
                           </p>
                           <p className="mt-1">{selectedRoleAgent.scope}</p>
                         </div>
-                        <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                        <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                           <p className="garage-mono text-[11px] text-[#8f8f99]">
                             Autopilot
                           </p>
                           <p className="mt-1">{selectedRoleAgent.autopilot}</p>
                         </div>
-                        <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                        <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                           <p className="garage-mono text-[11px] text-[#8f8f99]">
                             Voice
                           </p>
@@ -16776,18 +16931,18 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
             </div>
 
             {canUseOwnerFreeChat && (
-              <div className="mt-4 rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+              <div className="mt-4 rounded-md border border-[#34343c] bg-[#15151b] p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white">Mode chat</p>
                     <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
-                      CEO Brain hanya untuk Owner. Operasional POS tetap memakai context role.
+                      Owner Brain hanya untuk Owner. Operasional POS tetap memakai context role.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 rounded-md border border-[#34343c] bg-[#0f0f14] p-1 sm:w-[330px]">
                     {[
                       ["operational", "Operasional POS"],
-                      ["owner_free_chat", "Executive Assistant"],
+                      ["owner_free_chat", "Owner Brain"],
                     ].map(([mode, label]) => (
                       <Button
                         key={mode}
@@ -16796,7 +16951,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         className={`garage-press h-9 px-2 text-xs ${
                           chatMode === mode
                             ? ""
-                            : "text-[#b8b8bf] hover:bg-white/[0.06] hover:text-white"
+                            : "text-[#b8b8bf] hover:bg-[#202027] hover:text-white"
                         }`}
                         onClick={() => {
                           const nextMode = mode as AiChatMode;
@@ -16837,7 +16992,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   <Textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
-                    className="min-h-28 resize-none border-[#34343c] bg-white/[0.06] text-sm leading-6"
+                    className="min-h-28 resize-none border-[#34343c] bg-[#111116] text-sm leading-6"
                     placeholder="Contoh: Apa yang harus diprioritaskan di shift ini?"
                   />
                   <Button
@@ -16858,21 +17013,21 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
             )}
 
             {chatMode === "owner_free_chat" && (
-              <div className="mt-4 rounded-md border border-[#32323a] bg-[#131419]/95 p-3">
+              <div className="mt-4 rounded-md border border-[#32323a] bg-[#131419] p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">CEO Executive Assistant</p>
+                    <p className="text-sm font-semibold text-white">GARAGE Owner Brain</p>
                     <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
-                      Suara announcer profesional. Analisa kritis, format keputusan APPROVED/REJECTED, berbasis data live.
+                      Analisa owner berbasis data live. Keputusan penting tetap masuk draft dan approval.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className="garage-mono border-[#f5a742]/40 bg-[#f5a742]/12 text-[10px] text-[#ffd08a]">
-                      Controlled Owner
+                      Owner only
                     </Badge>
                     {result?.businessFreshness && (
-                      <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
-                        Data updated {formatFreshnessTime(result.businessFreshness.generatedAt)}
+                      <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
+                        Data update {formatFreshnessTime(result.businessFreshness.generatedAt)}
                       </Badge>
                     )}
                     <Button
@@ -16881,7 +17036,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       className="garage-press h-9 border-[#4a4a54]"
                       onClick={() => setOwnerReviewOpen(true)}
                     >
-                      Review
+                      Approval
                     </Button>
                     <Button
                       type="button"
@@ -16920,8 +17075,8 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           Prompt singkat, berbasis data, dan siap dibawakan cepat.
                         </p>
                       </div>
-                      <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
-                        Data + Analisa + Risiko + Saran
+                      <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
+                        Data + analisa + risiko + saran
                       </Badge>
                     </div>
                     <div className="garage-scroll-x -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -17111,7 +17266,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 </div>
 
                 <form
-                  className="sticky bottom-2 z-10 mt-3 rounded-md border border-[#32323a] bg-[#15161c]/98 p-2 shadow-[0_-10px_32px_rgba(0,0,0,0.32)]"
+                  className="sticky bottom-2 z-10 mt-3 rounded-md border border-[#32323a] bg-[#15161c] p-2 shadow-[0_-10px_32px_rgba(0,0,0,0.32)]"
                   onSubmit={(event: FormEvent<HTMLFormElement>) => {
                     event.preventDefault();
                     void sendOwnerFreeChat();
@@ -17127,7 +17282,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       }
                     }}
                     className="min-h-[68px] resize-none border-0 bg-transparent text-[13px] leading-6 text-[#f4f4f5] shadow-none placeholder:text-[#8e8f98] focus-visible:ring-0"
-                    placeholder="Tulis pesan Owner. Enter kirim, Shift+Enter baris baru."
+                    placeholder="Tulis instruksi owner. Enter kirim, Shift+Enter baris baru."
                     disabled={pending}
                   />
                   <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-2 xl:flex-row xl:items-center xl:justify-between">
@@ -17178,7 +17333,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               setOwnerToolsMenuOpen(false);
                             }}
                           >
-                            CEO Brain
+                            Owner Brain
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
@@ -17210,7 +17365,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         </DropdownMenuContent>
                       </DropdownMenu>
 
-                      <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                      <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                         {ownerPlanMode ? "Plan ON" : selectedOwnerTool.label}
                       </Badge>
                     </div>
@@ -17222,7 +17377,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           setOwnerChatProfile(value as OwnerChatProfile)
                         }
                       >
-                        <SelectTrigger className="h-9 w-[138px] border-[#34343c] bg-white/[0.06]">
+                        <SelectTrigger className="h-9 w-[138px] border-[#34343c] bg-[#111116]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -17273,7 +17428,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   )}
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[#9a9aa3]">
                     <span className="garage-mono">
-                      Data updated: {formatFreshnessTime(result?.businessFreshness?.generatedAt)}
+                      Data update: {formatFreshnessTime(result?.businessFreshness?.generatedAt)}
                     </span>
                     <span className="garage-mono">POS live</span>
                     <span className="garage-mono">
@@ -17289,7 +17444,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 <Dialog open={ownerHistoryOpen} onOpenChange={setOwnerHistoryOpen}>
                   <DialogContent className="max-h-[88vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-2xl">
                     <DialogHeader>
-                      <DialogTitle>Riwayat CEO Brain</DialogTitle>
+                      <DialogTitle>Riwayat Owner Brain</DialogTitle>
                       <DialogDescription>
                         Pertanyaan dan jawaban Owner disimpan agar bisa dibuka lagi tanpa mengirim ulang chat panjang.
                       </DialogDescription>
@@ -17303,7 +17458,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             onChange={(event) =>
                               setOwnerHistorySearch(event.target.value)
                             }
-                            className="h-10 border-[#34343c] bg-white/[0.05] pl-9 text-sm"
+                            className="h-10 border-[#34343c] bg-[#111116] pl-9 text-sm"
                             placeholder="Cari pertanyaan atau jawaban"
                           />
                         </div>
@@ -17323,7 +17478,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Hapus semua riwayat?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Semua riwayat CEO Brain Owner akan dihapus permanen.
+                                Semua riwayat Owner Brain akan dihapus permanen.
                                 Chat yang sedang tampil tidak akan dikirim ulang.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -17356,7 +17511,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           className="garage-scroll max-h-[52vh] space-y-2 overflow-y-auto pr-1"
                         >
                           {ownerHistoryLoading ? (
-                            <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3 text-sm text-[#b8b8bf]">
+                            <div className="rounded-md border border-[#34343c] bg-[#202027] p-3 text-sm text-[#b8b8bf]">
                               Memuat riwayat...
                             </div>
                           ) : ownerHistoryItems.length ? (
@@ -17372,16 +17527,16 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                     onClick={() => openOwnerHistory(record)}
                                   >
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                      <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                         {formatFreshnessTime(record.createdAt)}
                                       </Badge>
                                       {record.provider && (
-                                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                           {record.provider}
                                         </Badge>
                                       )}
                                       {record.tokenUsage?.totalTokens && (
-                                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                           {record.tokenUsage.totalTokens} token
                                         </Badge>
                                       )}
@@ -17408,7 +17563,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                       <AlertDialogHeader>
                                         <AlertDialogTitle>Hapus riwayat ini?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                          Item riwayat CEO Brain ini akan dihapus permanen dari daftar history.
+                                          Item riwayat Owner Brain ini akan dihapus permanen dari daftar history.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
@@ -17428,8 +17583,8 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               </div>
                             ))
                           ) : (
-                            <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3 text-sm text-[#b8b8bf]">
-                              Belum ada riwayat CEO Brain.
+                            <div className="rounded-md border border-[#34343c] bg-[#202027] p-3 text-sm text-[#b8b8bf]">
+                              Belum ada riwayat Owner Brain.
                             </div>
                           )}
                         </div>
@@ -17445,13 +17600,13 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 <Dialog open={ownerReviewOpen} onOpenChange={setOwnerReviewOpen}>
                   <DialogContent className="max-h-[88vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-xl">
                     <DialogHeader>
-                      <DialogTitle>Review changes</DialogTitle>
+                      <DialogTitle>Approval Owner</DialogTitle>
                       <DialogDescription>
                         Ringkasan response terakhir, data source, freshness, draft action, agent, dan provider.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
-                      <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                         <p className="garage-mono text-[11px] text-[#b8b8bf]">
                           Response terakhir
                         </p>
@@ -17470,24 +17625,24 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                 .map((item) => (
                                   <Badge
                                     key={item}
-                                    className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]"
+                                    className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]"
                                   >
                                     {item}
                                   </Badge>
                                 ))}
                               {typeof result.latencyMs === "number" && (
-                                <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                   {result.latencyMs} ms
                                 </Badge>
                               )}
                               {result.tokenUsage?.totalTokens && (
-                                <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                   {result.tokenUsage.totalTokens} token
                                 </Badge>
                               )}
                               {(result.requiresApproval || result.requiresHumanApproval) && (
                                 <Badge className="garage-mono border-[#f5a742]/45 bg-[#f5a742]/14 text-[10px] text-[#ffd08a]">
-                                  approval required
+                                  perlu approval
                                 </Badge>
                               )}
                             </div>
@@ -17499,14 +17654,14 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         )}
                       </div>
 
-                      <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                         <p className="garage-mono text-[11px] text-[#b8b8bf]">
-                          Data source & freshness
+                          Sumber data & freshness
                         </p>
                         {result?.businessFreshness ? (
                           <div className="mt-2 space-y-2 text-sm leading-6 text-[#d6d6dc]">
                             <div className="flex flex-wrap gap-2">
-                              <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                              <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                 updated {formatFreshnessTime(result.businessFreshness.generatedAt)}
                               </Badge>
                               <Badge
@@ -17521,12 +17676,12 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                   : "knowledge missing"}
                               </Badge>
                               {result.businessFreshness.lastAgentRunAt && (
-                                <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                   last AI {formatFreshnessTime(result.businessFreshness.lastAgentRunAt)}
                                 </Badge>
                               )}
                               {result.businessFreshness.lastReportGeneratedAt && (
-                                <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                   last report {result.businessFreshness.lastReportGeneratedAt}
                                 </Badge>
                               )}
@@ -17547,9 +17702,9 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         )}
                       </div>
 
-                      <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                         <p className="garage-mono text-[11px] text-[#b8b8bf]">
-                          Action drafts
+                          Draft action
                         </p>
                         <div className="mt-2 space-y-2">
                           {(result?.actionDrafts?.length
@@ -17562,7 +17717,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             ).map((draft, index) => (
                               <div
                                 key={`${draft.title}-${index}`}
-                                className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-2"
+                                className="rounded-md border border-[#3a3a42] bg-[#15151b] p-2"
                               >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <Badge
@@ -17595,16 +17750,16 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                         <p className="garage-mono text-[11px] text-[#b8b8bf]">
-                          Agents used
+                          Agent dipakai
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {result?.agentsUsed?.length ? (
                             result.agentsUsed.map((agentId) => (
                               <Badge
                                 key={agentId}
-                                className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]"
+                                className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]"
                               >
                                 {agentId}
                               </Badge>
@@ -17623,7 +17778,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
             )}
 
             {pending && (
-              <div className="mt-4 rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+              <div className="mt-4 rounded-md border border-[#34343c] bg-[#202027] p-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">GARAGE AI processing</p>
@@ -17633,7 +17788,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         : "Context dikirim sesuai intent dan role aktif."}
                     </p>
                   </div>
-                  <Badge className="garage-mono w-fit border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                  <Badge className="garage-mono w-fit border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                     step {activeStep + 1}/{progressSteps.length}
                   </Badge>
                 </div>
@@ -17648,7 +17803,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       className={`rounded-md border p-2 text-xs leading-5 ${
                         index <= activeStep
                           ? "border-[#d4d4d8]/35 bg-[#d4d4d8]/10 text-[#f4f4f5]"
-                          : "border-[#3a3a42] bg-[#15151b]/80 text-[#8f8f99]"
+                          : "border-[#3a3a42] bg-[#15151b] text-[#8f8f99]"
                       }`}
                     >
                       {step}
@@ -17667,18 +17822,18 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
             )}
 
             {result && chatMode !== "owner_free_chat" && (
-              <div className="mt-4 rounded-md border border-[#34343c] bg-[#202027]/82 p-4">
+              <div className="mt-4 rounded-md border border-[#34343c] bg-[#202027] p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
                       <Badge className={`${statusClass[result.urgency] ?? statusClass.watch}`}>
                         {result.urgency}
                       </Badge>
-                      <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                      <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                         confidence {Math.round(result.confidence * 100)}%
                       </Badge>
                       {result.contextIntent && (
-                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           {result.contextIntent}
                         </Badge>
                       )}
@@ -17698,7 +17853,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           }`}
                         >
                           {result.mode === "owner_free_chat"
-                            ? "CEO Brain"
+                            ? "Owner Brain"
                             : "operasional POS"}
                         </Badge>
                       )}
@@ -17730,17 +17885,17 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         </Badge>
                       )}
                       {result.providerUsed && (
-                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           {result.providerUsed}
                         </Badge>
                       )}
                       {result.runId && (
-                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           run {result.runId.slice(0, 8)}
                         </Badge>
                       )}
                       {typeof result.latencyMs === "number" && (
-                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           {result.latencyMs} ms
                         </Badge>
                       )}
@@ -17755,7 +17910,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         </Badge>
                       )}
                       {result.tokenUsage?.totalTokens && (
-                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           {result.tokenUsage.totalTokens} token
                         </Badge>
                       )}
@@ -17770,7 +17925,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 </div>
 
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                  <div className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-3">
+                  <div className="rounded-md border border-[#3a3a42] bg-[#15151b] p-3">
                     <p className="garage-mono text-[11px] text-[#b8b8bf]">Warnings</p>
                     <div className="mt-2 space-y-2">
                       {result.operationalWarnings.length ? (
@@ -17784,7 +17939,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       )}
                     </div>
                   </div>
-                  <div className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-3">
+                  <div className="rounded-md border border-[#3a3a42] bg-[#15151b] p-3">
                     <p className="garage-mono text-[11px] text-[#b8b8bf]">Actions</p>
                     <div className="mt-2 space-y-2">
                       {result.suggestedActions.length ? (
@@ -17801,7 +17956,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 </div>
 
                 {(result.agentsUsed?.length || result.agentPlan?.length) ? (
-                  <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-3">
+                  <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#15151b] p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="garage-mono text-[11px] text-[#b8b8bf]">
@@ -17820,7 +17975,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         {result.agentsUsed.map((agent) => (
                           <Badge
                             key={agent}
-                            className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]"
+                            className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]"
                           >
                             {agent}
                           </Badge>
@@ -17832,10 +17987,10 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         {result.agentPlan.map((step) => (
                           <div
                             key={`${step.agentId}-${step.title}`}
-                            className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                            className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                           >
                             <div className="flex flex-wrap items-center gap-2">
-                              <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                              <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                 {step.agentId}
                               </Badge>
                               <Badge
@@ -17872,7 +18027,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 ) : null}
 
                 {result.actionDrafts?.length ? (
-                  <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-3">
+                  <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#15151b] p-3">
                     <p className="garage-mono text-[11px] text-[#b8b8bf]">
                       Action drafts
                     </p>
@@ -17880,10 +18035,10 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       {result.actionDrafts.map((draft) => (
                         <div
                           key={draft.id ?? `${draft.type}-${draft.title}`}
-                          className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                          className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                         >
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                               {draft.actionType ?? draft.type}
                             </Badge>
                             <Badge
@@ -17942,7 +18097,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </div>
                 ) : null}
 
-                <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-3">
+                <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#15151b] p-3">
                   <p className="garage-mono text-[11px] text-[#b8b8bf]">Next step</p>
                   <p className="mt-2 text-sm leading-6 text-[#f4f4f5]">{result.nextStep}</p>
                 </div>
@@ -18013,7 +18168,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 </Alert>
               )}
 
-              <div className="mb-4 rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+              <div className="mb-4 rounded-md border border-[#34343c] bg-[#15151b] p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white">
@@ -18072,7 +18227,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
               </div>
 
               {agentReport && (
-                <div className="mb-4 rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3">
+                <div className="mb-4 rounded-md border border-[#3a3a42] bg-[#202027] p-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-white">
@@ -18108,7 +18263,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 </div>
               )}
 
-              <div className="mb-4 rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+              <div className="mb-4 rounded-md border border-[#34343c] bg-[#15151b] p-3">
                 <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">
@@ -18173,7 +18328,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                        className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className="garage-mono text-[11px] text-[#8f8f99]">
@@ -18210,7 +18365,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   ))}
                 </div>
               ) : !agents.length ? (
-                <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-4">
+                <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-4">
                   <p className="text-sm font-semibold text-white">Agent belum tersedia.</p>
                   <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
                     Refresh untuk memuat konfigurasi agent dari database.
@@ -18227,7 +18382,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                        className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                       >
                         <p className="garage-mono text-[11px] text-[#8f8f99]">
                           {item.label}
@@ -18239,10 +18394,10 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     ))}
                   </div>
 
-                  <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                  <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-white">Daftar agent</p>
-                      <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                      <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                         {activeAgentCount}/{agents.length} aktif
                       </Badge>
                     </div>
@@ -18250,7 +18405,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       {agents.map((agent) => (
                         <div
                           key={agent.agentId}
-                          className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                          className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                         >
                           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div className="min-w-0 xl:max-w-[340px] xl:flex-1">
@@ -18448,7 +18603,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 ].map(([label, value, status]) => (
                   <div
                     key={label}
-                    className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3"
+                    className="rounded-md border border-[#34343c] bg-[#15151b] p-3"
                   >
                     <p className="garage-mono text-[10px] uppercase text-[#8f8f99]">
                       {label}
@@ -18467,7 +18622,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                 ))}
               </div>
 
-              <div className="mt-4 rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+              <div className="mt-4 rounded-md border border-[#34343c] bg-[#15151b] p-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">
@@ -18479,7 +18634,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         : staffMonitorGroupMeta[staffMonitorFilter].detail}
                     </p>
                   </div>
-                  <Badge className="garage-mono w-fit border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                  <Badge className="garage-mono w-fit border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                     {filteredStaffMonitorItems.length} role
                   </Badge>
                 </div>
@@ -18500,7 +18655,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             >
                               {item.status}
                             </Badge>
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                               {staffMonitorGroupMeta[item.group].label}
                             </Badge>
                           </div>
@@ -18595,7 +18750,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                 ].map(([label, value]) => (
                                   <div
                                     key={label}
-                                    className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3"
+                                    className="rounded-md border border-[#34343c] bg-[#202027] p-3"
                                   >
                                     <p className="garage-mono text-[10px] text-[#8f8f99]">
                                       {label}
@@ -18607,7 +18762,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                 ))}
                               </div>
 
-                              <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                              <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                                 <p className="garage-mono text-[11px] text-[#8f8f99]">
                                   Focus
                                 </p>
@@ -18617,7 +18772,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               </div>
 
                               <div className="grid gap-3 md:grid-cols-2">
-                                <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                                <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                                   <p className="text-sm font-semibold text-white">
                                     Risiko aktif
                                   </p>
@@ -18633,7 +18788,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                   </div>
                                 </div>
 
-                                <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                                <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                                   <p className="text-sm font-semibold text-white">
                                     Next action
                                   </p>
@@ -18650,7 +18805,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                 </div>
                               </div>
 
-                              <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                              <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                                 <p className="text-sm font-semibold text-white">
                                   Draft terkait
                                 </p>
@@ -18696,7 +18851,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               </div>
                             </div>
 
-                            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-col gap-2 border-t border-[#34343c] bg-[#111116]/98 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-col gap-2 border-t border-[#34343c] bg-[#111116] px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
                               <p className="text-[11px] leading-5 text-[#9a9aa3]">
                                 Voice dan role prompt tetap mengikuti guardrail approval.
                               </p>
@@ -18772,12 +18927,12 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   {actions.map((action) => (
                     <div
                       key={action.id}
-                      className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                      className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-2">
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                               {action.actionType}
                             </Badge>
                             <Badge
@@ -18801,7 +18956,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             >
                               {action.approvalStatus}
                             </Badge>
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                            <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                               {action.agentId}
                             </Badge>
                           </div>
@@ -18843,7 +18998,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-4">
+                <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-4">
                   <p className="text-sm font-semibold text-white">Tidak ada draft pending.</p>
                   <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
                     Prompt refund, void, stock adjustment, atau approval akan membuat draft
@@ -18914,7 +19069,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     const meta = healthColorMeta(systemDoctor.healthColor);
 
                     return (
-                      <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <p className="text-sm font-semibold text-white">
@@ -18949,7 +19104,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     ].map(([label, value, status]) => (
                       <div
                         key={label}
-                        className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                        className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                       >
                         <p className="garage-mono text-[10px] uppercase text-[#8f8f99]">
                           {label}
@@ -18969,7 +19124,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </div>
 
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-white">
@@ -18994,12 +19149,12 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           systemDoctor.issues.map((issue) => (
                             <div
                               key={issue.id}
-                              className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                              className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                             >
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap gap-2">
-                                    <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                       {issue.area}
                                     </Badge>
                                     <Badge
@@ -19036,7 +19191,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             </div>
                           ))
                         ) : (
-                          <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-4">
+                          <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-4">
                             <p className="text-sm font-semibold text-white">
                               Tidak ada penyakit aktif.
                             </p>
@@ -19057,7 +19212,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               Doctor sedang bekerja
                             </p>
                           </div>
-                          <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                          <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                             execution log
                           </Badge>
                         </div>
@@ -19097,7 +19252,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                         <p className="text-sm font-semibold text-white">
                           Developer diagnosis
                         </p>
@@ -19110,10 +19265,10 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             systemDoctor.developerDiagnosis.map((item, index) => (
                               <div
                                 key={`${item.area}-${index}`}
-                                className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                                className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                               >
                                 <div className="flex flex-wrap gap-2">
-                                  <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                                  <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                     {item.area}
                                   </Badge>
                                   <Badge
@@ -19134,14 +19289,14 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               </div>
                             ))
                           ) : (
-                            <p className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3 text-xs leading-5 text-[#b8b8bf]">
+                            <p className="rounded-md border border-[#3a3a42] bg-[#202027] p-3 text-xs leading-5 text-[#b8b8bf]">
                               Tidak ada diagnosis developer yang perlu ditindaklanjuti.
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                         <p className="text-sm font-semibold text-white">Auto heal</p>
                         <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
                           Tindakan aman saja. Aksi POS kritis tetap approval-gated.
@@ -19151,7 +19306,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             systemDoctor.fixes.map((fix) => (
                               <div
                                 key={fix.id}
-                                className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                                className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="text-xs font-semibold text-white">
@@ -19171,14 +19326,14 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               </div>
                             ))
                           ) : (
-                            <p className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3 text-xs leading-5 text-[#b8b8bf]">
+                            <p className="rounded-md border border-[#3a3a42] bg-[#202027] p-3 text-xs leading-5 text-[#b8b8bf]">
                               Belum ada auto-heal pada scan ini.
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                      <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                         <p className="text-sm font-semibold text-white">Guardrail</p>
                         <div className="mt-3 space-y-2">
                           {systemDoctor.guardrails.map((item) => (
@@ -19193,7 +19348,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-4">
+                <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-4">
                   <p className="text-sm font-semibold text-white">
                     System Doctor belum discan.
                   </p>
@@ -19262,14 +19417,14 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
               )}
 
               {!providerLoading && (providers.length || providerTemplates.length) ? (
-                <div className="mb-4 rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                <div className="mb-4 rounded-md border border-[#34343c] bg-[#15151b] p-3">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge className="garage-mono border-[#d4d4d8]/35 bg-[#d4d4d8]/10 text-[10px] text-[#f4f4f5]">
                           MVP setup
                         </Badge>
-                        <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           key hidden
                         </Badge>
                       </div>
@@ -19508,7 +19663,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     })}
                   </div>
 
-                  <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                  <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="garage-mono text-[11px] text-[#8f8f99]">
@@ -19570,7 +19725,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
               ) : (
                 <div className="space-y-3">
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-white">
@@ -19619,10 +19774,10 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               >
                                 {selectedProviderConnectionTest.status}
                               </Badge>
-                              <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                              <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                 {selectedProviderConnectionTest.model}
                               </Badge>
-                              <Badge className="garage-mono border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                              <Badge className="garage-mono border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                                 {selectedProviderConnectionTest.latencyMs ?? "-"} ms
                               </Badge>
                             </div>
@@ -19655,7 +19810,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       </div>
 
                       {selectedProvider ? (
-                        <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3">
+                        <div className="mt-3 rounded-md border border-[#3a3a42] bg-[#202027] p-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-white">
@@ -19683,7 +19838,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-3 rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/82 p-4">
+                        <div className="mt-3 rounded-md border border-dashed border-[#4a4a54] bg-[#202027] p-4">
                           <p className="text-sm font-semibold text-white">
                             Belum ada provider.
                           </p>
@@ -19718,7 +19873,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               {providerSetupSteps.map((step, index) => (
                                 <div
                                   key={step.label}
-                                  className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3"
+                                  className="rounded-md border border-[#34343c] bg-[#202027] p-3"
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <p className="garage-mono text-[10px] text-[#8f8f99]">
@@ -19742,7 +19897,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               ))}
                             </div>
 
-                            <div className="rounded-md border border-[#34343c] bg-[#202027]/82 p-3">
+                            <div className="rounded-md border border-[#34343c] bg-[#202027] p-3">
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                   <p className="text-sm font-semibold text-white">
@@ -19758,25 +19913,25 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                                 </div>
                               </div>
                               <div className="mt-3 grid gap-2 text-xs leading-5 text-[#d6d6dc] sm:grid-cols-4">
-                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-2">
+                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b] p-2">
                                   <span className="garage-mono block text-[10px] text-[#8f8f99]">
                                     Key
                                   </span>
                                   {selectedProvider.maskedKey ?? selectedProvider.keyStatus}
                                 </div>
-                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-2">
+                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b] p-2">
                                   <span className="garage-mono block text-[10px] text-[#8f8f99]">
                                     Status
                                   </span>
                                   {selectedProvider.lastStatus}
                                 </div>
-                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-2">
+                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b] p-2">
                                   <span className="garage-mono block text-[10px] text-[#8f8f99]">
                                     Latency
                                   </span>
                                   {selectedProvider.lastLatencyMs ?? "-"} ms
                                 </div>
-                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b]/80 p-2">
+                                <div className="rounded-md border border-[#3a3a42] bg-[#15151b] p-2">
                                   <span className="garage-mono block text-[10px] text-[#8f8f99]">
                                     Priority
                                   </span>
@@ -20007,7 +20162,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                             </div>
                           </div>
                         ) : (
-                          <div className="rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/82 p-4">
+                          <div className="rounded-md border border-dashed border-[#4a4a54] bg-[#202027] p-4">
                             <p className="text-sm font-semibold text-white">
                               Belum ada provider dipilih.
                             </p>
@@ -20016,7 +20171,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       </SheetContent>
                     </Sheet>
 
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <p className="text-sm font-semibold text-white">Urutan fallback</p>
                       <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
                         Pilih provider dari dropdown, lalu atur priority. Angka kecil dipakai dulu.
@@ -20049,7 +20204,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           </Select>
                         </label>
                         {selectedProvider ? (
-                          <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3">
+                          <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-3">
                             <div className="flex flex-wrap items-center gap-2">
                               {selectedProviderIsActive && <ProviderActiveBadge />}
                               <ProviderConnectionBadge provider={selectedProvider} />
@@ -20079,7 +20234,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   </div>
 
                   {selectedProvider ? (
-                    <div className="rounded-md border border-[#34343c] bg-[#15151b]/95 p-3">
+                    <div className="rounded-md border border-[#34343c] bg-[#15151b] p-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="garage-mono text-[11px] text-[#b8b8bf]">
@@ -20092,7 +20247,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                               : ""}
                           </p>
                         </div>
-                        <Badge className="garage-mono w-fit border-[#4a4a54] bg-white/[0.05] text-[10px] text-[#d4d4d8]">
+                        <Badge className="garage-mono w-fit border-[#4a4a54] bg-[#202027] text-[10px] text-[#d4d4d8]">
                           Supabase-safe config
                         </Badge>
                       </div>
@@ -20116,7 +20271,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                           ].map(([label, value]) => (
                             <div
                               key={label}
-                              className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-2"
+                              className="rounded-md border border-[#3a3a42] bg-[#202027] p-2"
                             >
                               <span className="garage-mono block text-[10px] text-[#8f8f99]">
                                 {label}
@@ -20207,7 +20362,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
             )}
 
             {logCleanupResult && (
-              <div className="mb-3 rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3 text-xs leading-5 text-[#d6d6dc]">
+              <div className="mb-3 rounded-md border border-[#3a3a42] bg-[#202027] p-3 text-xs leading-5 text-[#d6d6dc]">
                 Clear terakhir: {logCleanupResult.totalDeleted} baris dihapus
                 {" "}({logCleanupResult.deleted.agentRuns} run,
                 {" "}{logCleanupResult.deleted.agentEvents} event,
@@ -20231,7 +20386,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   visibleLogs.map((log) => (
                     <div
                       key={log.id}
-                      className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-3"
+                      className="rounded-md border border-[#3a3a42] bg-[#202027] p-3"
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
@@ -20256,7 +20411,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-md border border-[#3a3a42] bg-[#202027]/82 p-4">
+                  <div className="rounded-md border border-[#3a3a42] bg-[#202027] p-4">
                     <p className="text-sm font-semibold text-white">Belum ada log GARAGE AI.</p>
                     <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
                       Chat, fallback, test provider, update config, dan approval gate akan
@@ -21077,7 +21232,7 @@ function KitchenView({
         onOpenChange={setVoiceDialogOpen}
       />
       {/* TOP BAR */}
-      <div className="sticky top-0 z-30 flex flex-col gap-2 rounded-lg border border-[#34343c] bg-[#111116]/96 p-3 shadow-[0_18px_42px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+      <div className="sticky top-0 z-30 flex flex-col gap-2 rounded-lg border border-[#34343c] bg-[#111116] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.32)] sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs uppercase text-[#f5a742]">KDS</span>
@@ -24590,7 +24745,7 @@ function InventoryView({
                     ? "border-[#f5a742]/65 bg-[#f5a742]/14 text-white"
                     : !canSwitchInventoryArea
                       ? "border-[#34343c] bg-black/10 text-[#666] opacity-45"
-                      : "border-[#34343c] bg-black/20 text-[#d6d6dc] hover:bg-white/[0.05]"
+                      : "border-[#34343c] bg-black/20 text-[#d6d6dc] hover:bg-[#202027]"
                 }`}
               >
                 <p className="garage-mono text-[10px] text-[#a1a1aa]">Semua Area</p>
@@ -24608,7 +24763,7 @@ function InventoryView({
                       ? "border-[#3b82f6]/65 bg-[#3b82f6]/14 text-white"
                       : !canSwitchInventoryArea
                         ? "border-[#34343c] bg-black/10 text-[#666] opacity-45"
-                        : "border-[#34343c] bg-black/20 text-[#d6d6dc] hover:bg-white/[0.05]"
+                        : "border-[#34343c] bg-black/20 text-[#d6d6dc] hover:bg-[#202027]"
                   }`}
                 >
                   <p className="garage-mono text-[10px] text-[#a1a1aa]">
@@ -24654,7 +24809,7 @@ function InventoryView({
                         ? "bg-[#d11a2a] text-white"
                         : !canSwitchInventoryArea
                           ? "text-[#666] opacity-45"
-                          : "text-[#d6d6dc] hover:bg-white/[0.05]"
+                          : "text-[#d6d6dc] hover:bg-[#202027]"
                     }`}
                   >
                     {label}
@@ -24816,7 +24971,7 @@ function InventoryView({
                             ? mode === "add"
                               ? "bg-[#22c55e] text-black"
                               : "bg-[#d11a2a] text-white"
-                            : "text-[#d6d6dc] hover:bg-white/[0.05]"
+                            : "text-[#d6d6dc] hover:bg-[#202027]"
                         }`}
                       >
                         {label}
@@ -24917,7 +25072,7 @@ function InventoryView({
                         ? "bg-[#d11a2a] text-white"
                         : !canSwitchInventoryArea
                           ? "text-[#666] opacity-45"
-                          : "text-[#d6d6dc] hover:bg-white/[0.05]"
+                          : "text-[#d6d6dc] hover:bg-[#202027]"
                     }`}
                   >
                     {station === "bar" ? "Request Bar" : "Request Dapur"}
@@ -25102,7 +25257,7 @@ function InventoryView({
                     className={`rounded px-2 py-1.5 text-[11px] font-black transition ${
                       transferRequestStatusFilter === value
                         ? "bg-[#d11a2a] text-white"
-                        : "text-[#d6d6dc] hover:bg-white/[0.05]"
+                        : "text-[#d6d6dc] hover:bg-[#202027]"
                     }`}
                   >
                     {label}
@@ -25847,7 +26002,7 @@ function InventoryView({
                       ? "bg-[#d11a2a] text-white"
                       : !canSwitchInventoryArea
                         ? "text-[#666] opacity-45"
-                        : "text-[#d6d6dc] hover:bg-white/[0.05]"
+                        : "text-[#d6d6dc] hover:bg-[#202027]"
                   }`}
                 >
                   {label}
@@ -28988,7 +29143,7 @@ function SettingsView({ me }: { me: GarageMe }) {
 
       {dirty && canWrite ? (
         <div className="sticky bottom-3 z-20 garage-animate-in">
-          <div className="flex flex-col gap-3 rounded-lg border border-[#d11a2a]/45 bg-[#1a1416]/95 px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.55)] backdrop-blur supports-[backdrop-filter]:bg-[#1a1416]/80 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg border border-[#d11a2a]/45 bg-[#1a1416] px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.55)] sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm">
               <span className="size-2 shrink-0 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,167,66,0.7)]" />
               <span className="font-semibold text-white">

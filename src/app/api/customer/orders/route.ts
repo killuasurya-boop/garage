@@ -5,11 +5,14 @@ import {
   createCustomerOrder,
   getCustomerOrderData,
 } from "@/lib/garage-service";
+import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { requireMemberAuth } from "@/lib/member-auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
+
+type CustomerOrderResult = Awaited<ReturnType<typeof createCustomerOrder>>;
 
 const itemSchema = z.object({
   itemId: z.string().trim().min(1),
@@ -68,15 +71,24 @@ export async function POST(request: Request) {
     return fail(400, "GUEST_REQUIRED", "Nama dan nomor WhatsApp guest wajib diisi.");
   }
 
+  // Anti double-tap QR ordering: klien kirim X-Idempotency-Key per submission.
+  const key = readIdempotencyKey(request);
+  const idemNamespace = `customer-order:${memberCustomerId ?? body.data.guestPhone ?? "guest"}`;
+  const cache = key ? checkIdempotency<CustomerOrderResult>(idemNamespace, key) : null;
+  if (cache?.kind === "hit") return ok(cache.result, { status: 200 });
+  if (cache?.kind === "pending") {
+    return fail(409, "CUSTOMER_ORDER_IN_PROGRESS", "Order kamu masih diproses.");
+  }
+
   try {
-    return ok(
-      await createCustomerOrder({
-        ...body.data,
-        memberCustomerId,
-      }),
-      { status: 201 },
-    );
+    const result = await createCustomerOrder({
+      ...body.data,
+      memberCustomerId,
+    });
+    if (cache?.kind === "miss") cache.commit(result);
+    return ok(result, { status: 201 });
   } catch (error) {
+    if (cache?.kind === "miss") cache.abandon();
     return fail(
       400,
       "CUSTOMER_ORDER_CREATE_FAILED",

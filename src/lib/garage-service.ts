@@ -3769,7 +3769,17 @@ export async function getFinanceBrief() {
   };
 }
 
-export async function getCustomerData(params?: { q?: string; tier?: string }) {
+export async function getCustomerData(params?: {
+  q?: string;
+  tier?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  // Bounded query: cegah payload tak terbatas saat tabel customer membesar
+  // (dipakai bootstrap + AI context). Default 200, maksimum 500 per request.
+  const limit = Math.max(1, Math.min(500, params?.limit ?? 200));
+  const offset = Math.max(0, params?.offset ?? 0);
+
   const filters = [];
   if (params?.tier && params.tier !== "all") {
     filters.push(eq(customers.tier, params.tier));
@@ -3792,7 +3802,9 @@ export async function getCustomerData(params?: { q?: string; tier?: string }) {
     .from(customers)
     .leftJoin(memberAccounts, eq(memberAccounts.customerId, customers.id))
     .where(filters.length ? and(...filters) : undefined)
-    .orderBy(desc(customers.visits), customers.name);
+    .orderBy(desc(customers.visits), customers.name)
+    .limit(limit)
+    .offset(offset);
 
   return rows.map((row) => ({
     ...row.customer,

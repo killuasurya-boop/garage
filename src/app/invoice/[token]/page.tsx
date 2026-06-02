@@ -524,6 +524,55 @@ export default async function InvoiceTrackingPage({
             </div>
           </div>
 
+          {/* QRIS pay panel — hanya tampil saat BELUM lunas. Web-only (hidden di print). */}
+          {(() => {
+            const paid =
+              (invoice.payment.status ?? invoice.invoiceStatus ?? "")
+                .toString()
+                .toLowerCase() === "paid";
+            if (paid) return null;
+            const fullScreenHref =
+              `/display/payment?amount=${encodeURIComponent(String(invoice.total))}` +
+              `&order=${encodeURIComponent(invoice.orderNo ?? "")}`;
+            return (
+              <div className="invoice-qris-panel mt-4 rounded-md border border-[#f5a742]/40 bg-gradient-to-r from-[#1a1014] to-[#161616] p-4 print:hidden">
+                <div className="flex items-start gap-4 sm:items-center">
+                  <div className="hidden h-24 w-24 shrink-0 overflow-hidden rounded-md border border-[#34343c] bg-white p-1 sm:block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/payments/qris-garage.png"
+                      alt="QRIS Garage"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="size-4 text-[#f5a742]" />
+                      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#ffd79a]">
+                        Bayar via QRIS
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      Scan QRIS untuk bayar Rp{rupiah.format(invoice.total).replace(/^Rp\s?/, "")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#b8b8bf]">
+                      GoPay · DANA · OVO · ShopeePay · LinkAja · BCA Mobile · semua e-wallet QRIS
+                    </p>
+                  </div>
+                  <a
+                    href={fullScreenHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex shrink-0 items-center gap-2 rounded-md border border-[#f5a742]/60 bg-[#f5a742]/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#ffd79a] transition hover:bg-[#f5a742]/20"
+                  >
+                    <QrCode className="size-4" />
+                    Layar QRIS
+                  </a>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Live Tracking (web only — print hides) */}
           <div className="invoice-timeline mt-4">
             {liveStatus ? (

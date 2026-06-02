@@ -10155,6 +10155,7 @@ function PosView({
                                 onImageReadyChange={setQrisImageReady}
                                 paymentReference={paymentReference}
                                 onPaymentReferenceChange={setPaymentReference}
+                                totalDue={totalDue}
                               />
                             ) : null}
                             {selectedPaymentMethod === "Bank Transfer" ? (
@@ -12386,18 +12387,40 @@ function QrisPaymentPanel({
   paymentReference,
   onImageReadyChange,
   onPaymentReferenceChange,
+  totalDue,
 }: {
   imagePath: string;
   imageReady: boolean;
   paymentReference: string;
   onImageReadyChange: (ready: boolean) => void;
   onPaymentReferenceChange: (value: string) => void;
+  totalDue?: number;
 }) {
+  // Buka layar QRIS customer-facing di window/tab kedua (untuk monitor pelanggan).
+  // window.open dari handler klik = tidak diblokir popup-blocker (gesture user).
+  const openCustomerDisplay = () => {
+    const params = new URLSearchParams();
+    if (totalDue && totalDue > 0) params.set("amount", String(totalDue));
+    const url = `/display/payment${params.toString() ? `?${params.toString()}` : ""}`;
+    window.open(url, "garage-qris-display", "noopener,noreferrer");
+  };
   return (
     <div className="garage-surface rounded-md p-3">
-      <div className="flex items-center gap-2">
-        <QrCode className="size-4 text-[#f5a742]" />
-        <p className="garage-mono">QRIS GARAGE</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <QrCode className="size-4 text-[#f5a742]" />
+          <p className="garage-mono">QRIS GARAGE</p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openCustomerDisplay}
+          className="h-7 gap-1 border-[#f5a742]/55 bg-[#f5a742]/10 px-2 text-[10px] font-bold uppercase tracking-wider text-[#ffd79a] hover:bg-[#f5a742]/20"
+        >
+          <QrCode className="size-3" />
+          Layar Customer
+        </Button>
       </div>
       {imageReady ? (
         <div className="mt-3 flex flex-col items-center rounded-md border border-[#4a4a54] bg-white p-3 text-[#111116]">

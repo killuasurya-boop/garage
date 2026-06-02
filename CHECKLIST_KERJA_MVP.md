@@ -92,12 +92,18 @@
 - [x] ✅ Point earn otomatis di POS — **VERIFIED** (Member Uji MVP dapat 11 poin dari 1 order)
 - [ ] ⬜ Redeem reward + voucher di POS (voucher validate ada; redeem di POS perlu diuji)
 
-### C.1b Layar QRIS customer-facing — ✅ BARU
-- [x] ✅ Route `/display/payment` + komponen `QrisPaymentDisplay` (desain sinematik Garage)
-  - QRIS statis dari `/payments/qris-garage.png` (sumber tunggal, sama dgn POS)
+### C.1b Layar QRIS customer-facing — ✅ BARU (3 surface terpasang)
+- [x] ✅ **Surface #1** — Route `/display/payment` + komponen `QrisPaymentDisplay` (desain sinematik Garage)
+  - QRIS statis dari `/payments/qris-garage.png` (sumber tunggal)
   - Tampil nominal + nomor order dari query: `?amount=30000&order=POS-xxxx`
-  - Chip platform (GoPay/DANA/OVO/ShopeePay/BCA dll), scanlines, QR glow + scanline, responsive, hormati reduced-motion
-  - Untuk monitor/tablet kedua menghadap pelanggan. VERIFIED render HTTP 200, build hijau.
+  - Chip platform, scanlines, QR glow + scanline, responsive, hormati reduced-motion
+- [x] ✅ **Surface #1 (POS integration)** — Tombol "Layar Customer" di `QrisPaymentPanel` kasir
+  - `window.open('/display/payment?amount=...')` saat kasir klik (popup-blocker safe)
+  - `totalDue` otomatis di-lempar ke layar customer
+- [x] ✅ **Surface #3** — Panel QRIS di halaman invoice (`/invoice/[token]`)
+  - Tampil HANYA saat invoice belum lunas (auto-hide kalau paid)
+  - Thumbnail QR + tombol "Layar QRIS" full-screen
+  - Hidden di print (web-only)
 
 ### C.5 HR / Tim — sebagian besar ✅ VERIFIED
 - [x] ✅ Directory/staff, leaderboard, locations — endpoint 200 data nyata

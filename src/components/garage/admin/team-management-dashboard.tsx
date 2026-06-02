@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import type { LucideIcon } from "lucide-react";
 import {
   Clock,
@@ -20,19 +21,61 @@ import {
 
 import type { Role } from "@/lib/garage-data";
 import { canUseApi } from "@/lib/role-access";
+// Overview = tab default → statis biar buka modul Team instan.
 import { TeamHrOverview } from "./team-hr-overview";
-import { HrAttendanceLog } from "./hr-attendance-log";
-import { TeamShiftScheduler } from "./team-shift-scheduler";
-import { TeamShiftHandover } from "./team-shift-handover";
-import { TeamSopManager } from "./team-sop-manager";
-import { TeamKpiDashboard } from "./team-kpi-dashboard";
-import { TeamPayrollManager } from "./team-payroll-manager";
-import { TeamAnnouncements } from "./team-announcements";
-import { TeamTasksManager } from "./team-tasks-manager";
-import { TeamDirectoryManager } from "./team-directory-manager";
-import { TeamAdvancesManager } from "./team-advances-manager";
-import { TeamLocationsManager } from "./team-locations-manager";
-import { TeamGlossaryManager } from "./team-glossary-manager";
+
+// Sub-panel lain lazy: tiap tab cuma diunduh saat diklik (bundle Team kecil).
+const TeamPanelFallback = () => (
+  <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat panel…</div>
+);
+const HrAttendanceLog = dynamic(
+  () => import("./hr-attendance-log").then((m) => m.HrAttendanceLog),
+  { loading: TeamPanelFallback },
+);
+const TeamShiftScheduler = dynamic(
+  () => import("./team-shift-scheduler").then((m) => m.TeamShiftScheduler),
+  { loading: TeamPanelFallback },
+);
+const TeamShiftHandover = dynamic(
+  () => import("./team-shift-handover").then((m) => m.TeamShiftHandover),
+  { loading: TeamPanelFallback },
+);
+const TeamSopManager = dynamic(
+  () => import("./team-sop-manager").then((m) => m.TeamSopManager),
+  { loading: TeamPanelFallback },
+);
+const TeamKpiDashboard = dynamic(
+  () => import("./team-kpi-dashboard").then((m) => m.TeamKpiDashboard),
+  { loading: TeamPanelFallback },
+);
+const TeamPayrollManager = dynamic(
+  () => import("./team-payroll-manager").then((m) => m.TeamPayrollManager),
+  { loading: TeamPanelFallback },
+);
+const TeamAnnouncements = dynamic(
+  () => import("./team-announcements").then((m) => m.TeamAnnouncements),
+  { loading: TeamPanelFallback },
+);
+const TeamTasksManager = dynamic(
+  () => import("./team-tasks-manager").then((m) => m.TeamTasksManager),
+  { loading: TeamPanelFallback },
+);
+const TeamDirectoryManager = dynamic(
+  () => import("./team-directory-manager").then((m) => m.TeamDirectoryManager),
+  { loading: TeamPanelFallback },
+);
+const TeamAdvancesManager = dynamic(
+  () => import("./team-advances-manager").then((m) => m.TeamAdvancesManager),
+  { loading: TeamPanelFallback },
+);
+const TeamLocationsManager = dynamic(
+  () => import("./team-locations-manager").then((m) => m.TeamLocationsManager),
+  { loading: TeamPanelFallback },
+);
+const TeamGlossaryManager = dynamic(
+  () => import("./team-glossary-manager").then((m) => m.TeamGlossaryManager),
+  { loading: TeamPanelFallback },
+);
 
 type NavItemProps = {
   value: string;

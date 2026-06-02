@@ -35,6 +35,7 @@ Important files:
 - `src/lib/garage-service.ts` - server-side data/query/mutation layer
 - `src/app/globals.css` - Garage theme tokens and global UI styling
 - `src/app/layout.tsx` - app metadata and font setup
+- `design-system/MASTER.md` - design tokens, anti-patterns, per-module UI/UX checklist (source of truth for UI work; check before editing components)
 
 ## Design Direction
 

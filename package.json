@@ -30,7 +30,10 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset-demo": "tsx src/db/reset-demo.ts",
     "db:repair-mvp": "tsx src/scripts/garage-db-repair-mvp.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "design:gen": "python \".claude/skills/ui-ux-pro-max/scripts/search.py\" --design-system --persist -p \"Garage OS\"",
+    "design:gen:page": "python \".claude/skills/ui-ux-pro-max/scripts/search.py\" --design-system --persist -p \"Garage OS\" --page",
+    "design:search": "python \".claude/skills/ui-ux-pro-max/scripts/search.py\""
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.11",

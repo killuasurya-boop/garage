@@ -63,3 +63,9 @@ next-env.d.ts
 
 # generated voice MP3 (regenerate with npm run voice:generate-mp3)
 /exports/voice-mp3/*.mp3
+
+# python bytecode cache (ui-ux-pro-max skill)
+.claude/skills/**/__pycache__/
+
+# cloned skill source (not needed — uipro-cli installed it to .claude/skills/)
+/ui-ux-pro-max-skill/

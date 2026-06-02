@@ -88,7 +88,10 @@ function bootPglite() {
   if (!globalForDb.garagePgliteBoot) {
     globalForDb.garagePgliteBoot = (async () => {
       if (!globalForDb.garagePglite) {
-        const client = new PGlite(process.env.PGLITE_DATA_DIR ?? "D:/GARAGEFIX/pglite-data");
+        // Default disamakan dengan PGLITE_DATA_DIR di .env.local: satu sumber DB
+        // tunggal yang sehat. Kalau env gagal termuat pun, app tetap pakai dir
+        // yang sama (bukan bikin dir kosong baru yang bikin "backend belum dikonfigurasi").
+        const client = new PGlite(process.env.PGLITE_DATA_DIR ?? "D:/GARAGEFIX/pglite-data-running");
         await client.waitReady;
         globalForDb.garagePglite = client;
       }

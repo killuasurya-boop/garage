@@ -7,7 +7,11 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "D:/GARAGEFIX/G A R A G E",
       "port": 3001,
-      "autoPort": false
+      "autoPort": false,
+      "env": {
+        "GARAGE_DB_DRIVER": "pglite",
+        "PGLITE_DATA_DIR": "D:/GARAGEFIX/pglite-data-running"
+      }
     }
   ]
 }

@@ -78,19 +78,19 @@
 - [ ] ⬜ Quick reorder dari history member
 
 ### C.2 Inventory
-- [ ] ⬜ Smart reorder (prediksi habis 7-hari + rekomendasi qty)
-- [ ] ⬜ Opname workflow draft → submit → approval → apply
-- [ ] ⬜ Transfer antar-outlet (request → approve → issue)
+- [x] ✅ Smart reorder (prediksi habis + rekomendasi qty) — **VERIFIED**: 100 saran, prediksi nyata dari stock_movements (top: Telur ayam habis 0 hari → reorder 73, critical)
+- [ ] 🟡 Opname workflow draft → submit → approval → apply (endpoint ada 200 + apply sudah di-hardening; perlu verifikasi alur penuh)
+- [ ] 🟡 Transfer antar-outlet (endpoint `/api/inventory/transfers` ada 200; perlu verifikasi request→approve→issue)
 
 ### C.3 Finance
-- [ ] ⬜ Rollup multi-outlet (outletId=all untuk Owner)
-- [ ] ⬜ CFO brief otomatis harian
-- [ ] ⬜ Anomaly panel (void/refund tinggi, selisih closing berulang)
+- [ ] 🟡 Rollup multi-outlet (perlu cek param outletId=all)
+- [ ] 🟡 CFO brief otomatis (komponen + data ada)
+- [ ] 🟡 Anomaly panel + forecast (endpoint `/api/finance/forecast` ada 200)
 
 ### C.4 CRM & Membership
-- [ ] ⬜ Auto-segment berkala (baru/loyal/dormant/high-value)
-- [ ] ⬜ Point earn otomatis di POS (anti double-earn)
-- [ ] ⬜ Redeem reward + voucher di POS
+- [ ] 🟡 Auto-segment (endpoint `/api/crm/segments-auto` ada 200; perlu verifikasi hasil segmentasi)
+- [x] ✅ Point earn otomatis di POS — **VERIFIED** (Member Uji MVP dapat 11 poin dari 1 order)
+- [ ] ⬜ Redeem reward + voucher di POS (voucher validate ada; redeem di POS perlu diuji)
 
 ### C.5 HR / Tim
 - [ ] ⬜ Attendance geofence + selfie (radius per outlet)
@@ -98,8 +98,12 @@
 - [ ] ⬜ Payroll (gaji + komisi − kasbon → payout)
 
 ### C.6 GARAGE AI
-- [ ] ⬜ Pemisahan recommend vs execute (eksekusi → approval + audit)
-- [ ] ⬜ Daily brief owner otomatis
+- [ ] 🟡 Pemisahan recommend vs execute (schema `aiActionDrafts` + approval ada)
+- [ ] 🟡 Daily brief owner (endpoint `/api/owner/daily-brief` ada 200)
+
+> **CATATAN PENTING (temuan verifikasi):** Mayoritas backend Tahap 2 TERNYATA SUDAH ADA
+> (semua endpoint balas 200). Yang benar-benar masih GAP (belum ada):
+> **C.1 POS split payment** & **C.1 offline queue** — sisanya tinggal verifikasi alur/UI, bukan bangun dari nol.
 
 ---
 

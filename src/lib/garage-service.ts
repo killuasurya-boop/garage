@@ -1764,7 +1764,11 @@ export async function getKitchenData(params?: {
     .select()
     .from(kitchenTickets)
     .where(filters.length ? and(...filters) : undefined)
-    .orderBy(desc(kitchenTickets.createdAt));
+    .orderBy(desc(kitchenTickets.createdAt))
+    // Bounded: endpoint ini di-poll KDS/waiter terus-menerus. Tiket aktif selalu
+    // yang terbaru, jadi 500 terbaru pasti mencakup seluruh queue aktif tanpa
+    // menarik histori tiket lama yang membengkak seiring waktu.
+    .limit(500);
 
   // Compute addonSequence per ticket — kitchen perlu tahu ini order ke-berapa
   // di session meja yang sama. Order pertama → seq=1 (no badge). Order kedua

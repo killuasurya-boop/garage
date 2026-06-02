@@ -84,11 +84,11 @@
 
 ### C.3 Finance
 - [ ] 🟡 Rollup multi-outlet (perlu cek param outletId=all)
-- [ ] 🟡 CFO brief otomatis (komponen + data ada)
-- [ ] 🟡 Anomaly panel + forecast (endpoint `/api/finance/forecast` ada 200)
+- [x] ✅ Forecast/tren — **VERIFIED** (`/api/finance/forecast`: today, avg7, avg30, dailyNet7/30)
+- [x] ✅ Daily brief / CFO ringkas — **VERIFIED** (`/api/owner/daily-brief`: headline, revenueToday, finance, attendance, inventory)
 
 ### C.4 CRM & Membership
-- [ ] 🟡 Auto-segment (endpoint `/api/crm/segments-auto` ada 200; perlu verifikasi hasil segmentasi)
+- [x] ✅ Auto-segment — **VERIFIED** (`/api/crm/segments-auto`: breakdown segmen + rows customer)
 - [x] ✅ Point earn otomatis di POS — **VERIFIED** (Member Uji MVP dapat 11 poin dari 1 order)
 - [ ] ⬜ Redeem reward + voucher di POS (voucher validate ada; redeem di POS perlu diuji)
 
@@ -99,11 +99,17 @@
 
 ### C.6 GARAGE AI
 - [ ] 🟡 Pemisahan recommend vs execute (schema `aiActionDrafts` + approval ada)
-- [ ] 🟡 Daily brief owner (endpoint `/api/owner/daily-brief` ada 200)
+- [x] ✅ Daily brief owner — **VERIFIED** (`/api/owner/daily-brief` data nyata terstruktur)
 
 > **CATATAN PENTING (temuan verifikasi):** Mayoritas backend Tahap 2 TERNYATA SUDAH ADA
-> (semua endpoint balas 200). Yang benar-benar masih GAP (belum ada):
-> **C.1 POS split payment** & **C.1 offline queue** — sisanya tinggal verifikasi alur/UI, bukan bangun dari nol.
+> & mengembalikan data NYATA (bukan stub): smart-reorder, auto-segment, forecast,
+> daily-brief, inventory-intel — semua VERIFIED ✅.
+> Yang benar-benar masih GAP / butuh dikerjakan:
+> - **C.1 POS split payment** (genuine new build)
+> - **C.1 offline queue** (genuine new build)
+> - **C.4 redeem reward/voucher di POS** (perlu uji/lengkapi)
+> - **C.5 HR** (geofence/selfie/payroll — perlu verifikasi)
+> - Beberapa 🟡 sisa tinggal verifikasi alur, bukan bangun dari nol.
 
 ---
 

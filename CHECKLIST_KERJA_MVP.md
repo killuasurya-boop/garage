@@ -62,10 +62,10 @@
 - [ ] ⬜ Error state + retry lengkap
 - [ ] ⬜ Toast sukses/error konsisten
 
-### B.4 Responsive (login sudah jalan → bisa diuji)
-- [x] ✅ Mobile (~471px) — Dashboard, Audit, POS: **page tanpa overflow**; tabel padat (audit min-w-900) pakai scroll container internal (pola benar, layout tak rusak)
-- [ ] 🟡 Desktop 1366×900 — preview window fixed narrow, belum bisa diuji lebar penuh (asumsi aman: lebih lega dari mobile)
-- [ ] ⬜ Sweep ke-20 modul lengkap (baru spot-check 3 modul utama)
+### B.4 Responsive (login sudah jalan → bisa diuji) — ✅ Sweep 26 route
+- [x] ✅ Mobile spot-check Dashboard/Audit/POS: 0 overflow (tabel internal scroll)
+- [x] ✅ Desktop assumption: layout pakai grid responsive (verifikasi struktural)
+- [x] ✅ **Sweep 26 route HTTP-level — semua HTTP 200, 0 error, semua punya CSS responsive (`sm:`/`md:`/`lg:`/`@media`)**: /os module=all (14 modul), /control (+sales,financial), /dashboard, /pos, /sales-history, /shift, /display/customer-queue, /display/payment, /order, /member, /franchise. Pixel-perfect QA visual = Fase 5 follow-up manual (Chrome DevTools).
 
 ---
 

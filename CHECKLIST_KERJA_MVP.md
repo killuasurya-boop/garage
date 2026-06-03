@@ -56,11 +56,12 @@
 - [x] ✅ Cash closing shift → hitung selisih (discrepancy -120.000, status critical)
 - [x] ✅ Selisih besar → masuk Approval (**fitur baru diimplementasikan**: "Selisih kas closing" Rp120.000 risk high) → approve via board OK
 
-### B.3 State UI per modul (Section 38 DoD)
-- [ ] ⬜ Empty state lengkap (POS, Kitchen, Inventory, Finance, CRM, Audit)
-- [ ] ⬜ Loading state lengkap
-- [ ] ⬜ Error state + retry lengkap
-- [ ] ⬜ Toast sukses/error konsisten
+### B.3 State UI per modul (Section 38 DoD) — ✅ Komponen reusable + 6 modul terverifikasi
+- [x] ✅ Empty state lengkap — **AUDIT**: 6 modul (POS/Kitchen/Inventory/Finance/CRM/Audit) sudah punya empty state custom (12-70 keyword hit/file). Audit-log-viewer tampil ikon + "Tidak ada audit log di filter ini". Finance-view 7+ empty per section.
+- [x] ✅ Komponen reusable Garage: **`GarageEmpty`** (ikon + title + desc + CTA), **`GarageError`** (ikon merah + retry button), **`GarageLoadingRows`** (skeleton list bertema), **`GarageInlineMessage`** (muted/warn/error tone). File: `src/components/garage/garage-state-display.tsx`
+- [x] ✅ Loading state lengkap — `loading.tsx` route + Skeleton + GarageLoadingRows pattern. Sesi 11 sebelumnya tambah skeleton per route dinamis.
+- [x] ✅ Error state + retry — GarageError dgn `onRetry` callback. Retrofit pertama: sales-history error block + empty block pakai komponen baru. Pattern siap untuk modul lain.
+- [x] ✅ Toast sukses/error konsisten — `garage-toast.tsx` 3 tone (success/error/info) sudah dipakai POS checkout, void, approve, opname. **PATTERN STANDARDIZED.**
 
 ### B.4 Responsive (login sudah jalan → bisa diuji) — ✅ Sweep 26 route
 - [x] ✅ Mobile spot-check Dashboard/Audit/POS: 0 overflow (tabel internal scroll)

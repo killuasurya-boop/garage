@@ -10,6 +10,7 @@ import {
   FileText,
   Loader2,
   Printer,
+  Receipt,
   RefreshCw,
   Search,
   X,
@@ -28,6 +29,11 @@ import {
 } from "@/components/ui/select";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import { CashierRulesPanel } from "@/components/garage/cashier-rules-panel";
+import {
+  GarageEmpty,
+  GarageError,
+  GarageLoadingRows,
+} from "@/components/garage/garage-state-display";
 
 const fmtRp = (n: number | null | undefined) =>
   n == null ? "—" : `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(n))}`;
@@ -298,9 +304,11 @@ export function SalesHistoryView() {
       </Card>
 
       {error && (
-        <Card className="border-rose-600/40 bg-rose-950/20">
-          <CardContent className="p-4 text-sm text-rose-200">{error}</CardContent>
-        </Card>
+        <GarageError
+          title="Gagal memuat sales history"
+          message={error}
+          onRetry={load}
+        />
       )}
 
       {/* Results */}
@@ -315,9 +323,17 @@ export function SalesHistoryView() {
             )}
           </div>
 
-          {rows.length === 0 ? (
-            <div className="py-12 text-center text-sm text-zinc-500">
-              {loading ? "Memuat…" : "Tidak ada order pada filter ini."}
+          {loading && rows.length === 0 ? (
+            <div className="p-4">
+              <GarageLoadingRows count={5} showHeader={false} />
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-4">
+              <GarageEmpty
+                icon={Receipt}
+                title="Tidak ada order pada filter ini"
+                description="Ubah rentang tanggal, status, atau metode pembayaran untuk lihat hasil lain."
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">

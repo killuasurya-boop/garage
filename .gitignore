@@ -69,3 +69,6 @@ next-env.d.ts
 
 # cloned skill source (not needed — uipro-cli installed it to .claude/skills/)
 /ui-ux-pro-max-skill/
+
+# Local DB snapshot backups (jangan masuk repo)
+backups/pglite-snapshot-*/

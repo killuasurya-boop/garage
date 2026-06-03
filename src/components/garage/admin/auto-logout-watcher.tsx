@@ -35,7 +35,7 @@ export function AutoLogoutWatcher() {
 
   // Skip di public path
   const isPublic = pathname
-    ? PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+    ? pathname === "/" || PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
     : true;
 
   useEffect(() => {

@@ -113,6 +113,17 @@ function hasOpenBill(row: TableLiveRow) {
   );
 }
 
+function hasAwaitingPaymentBill(row: TableLiveRow) {
+  return (
+    row.status === "awaiting_payment" ||
+    (row.bills ?? []).some((bill) => bill.status === "awaiting_payment")
+  );
+}
+
+function isWaiterOperator(role: GarageMe["role"]) {
+  return role === "Waiter 1" || role === "Waiter 2";
+}
+
 function isPaidOnly(row: TableLiveRow) {
   return (
     (row.openBillCount ?? 0) === 0 &&
@@ -228,6 +239,7 @@ export function WaiterView({ me }: Props) {
   const toast = useGarageToast();
   const [tickets, setTickets] = useState<KitchenOrder[]>([]);
   const [tables, setTables] = useState<TableLiveRow[]>([]);
+  const canRequestBillRole = isWaiterOperator(me.role);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -467,7 +479,7 @@ export function WaiterView({ me }: Props) {
     [tables],
   );
   const billRequests = useMemo(
-    () => tables.filter((t) => t.status === "awaiting_payment").length,
+    () => tables.filter((t) => hasAwaitingPaymentBill(t)).length,
     [tables],
   );
   const activeTables = useMemo(
@@ -549,12 +561,12 @@ export function WaiterView({ me }: Props) {
           (t) =>
             t.needsCleaning ||
             t.status === "needs_cleaning" ||
-            t.status === "awaiting_payment" ||
+            hasAwaitingPaymentBill(t) ||
             t.timerMinutes >= 15,
         )
         .sort((a, b) => {
           const score = (row: TableLiveRow) =>
-            (row.status === "awaiting_payment" ? 40 : 0) +
+            (hasAwaitingPaymentBill(row) ? 40 : 0) +
             (row.needsCleaning || row.status === "needs_cleaning" ? 30 : 0) +
             row.timerMinutes;
           return score(b) - score(a);
@@ -569,7 +581,7 @@ export function WaiterView({ me }: Props) {
         .filter((t) => hasOpenBill(t) || isPaidOnly(t) || t.status === "mixed")
         .sort((a, b) => {
           const score = (row: TableLiveRow) =>
-            (row.status === "awaiting_payment" ? 40 : 0) +
+            (hasAwaitingPaymentBill(row) ? 40 : 0) +
             (hasOpenBill(row) ? 20 : 0) +
             (row.status === "mixed" ? 10 : 0) +
             row.timerMinutes;
@@ -895,10 +907,12 @@ export function WaiterView({ me }: Props) {
               // Tombol "Tamu Baru" relevan saat ada minimal 1 bill lunas dan
               // tidak ada open bill aktif (PAID atau NEEDS CLEAR pasca-payment).
               const canSeatNext = isPaidOnly(row);
+              const billAlreadyRequested = hasAwaitingPaymentBill(row);
               const canRequestBill =
+                canRequestBillRole &&
                 Boolean(row.currentOrderId) &&
-                (row.status === "accepted" || row.status === "ready" || row.status === "mixed");
-              const billAlreadyRequested = row.status === "awaiting_payment";
+                (row.status === "accepted" || row.status === "ready" || row.status === "mixed") &&
+                !billAlreadyRequested;
               const paidBills = row.paidBillCount ?? 0;
               const openBills = row.openBillCount ?? 0;
               const totalBills = paidBills + openBills;
@@ -1398,6 +1412,7 @@ export function WaiterView({ me }: Props) {
           actingBillTable={actingBillTable}
           actingCleanTable={actingTable}
           actingSeatTable={actingSeatTable}
+          canRequestBillRole={canRequestBillRole}
           onClose={() => setDetailTable(null)}
           onClean={(row) => void handleClean(row)}
           onRequestBill={(row) => void handleRequestBill(row)}
@@ -1621,6 +1636,7 @@ function TableDetailDrawer({
   actingBillTable,
   actingCleanTable,
   actingSeatTable,
+  canRequestBillRole,
   onClose,
   onClean,
   onMoved,
@@ -1633,6 +1649,7 @@ function TableDetailDrawer({
   actingBillTable: string | null;
   actingCleanTable: string | null;
   actingSeatTable: string | null;
+  canRequestBillRole: boolean;
   onClose: () => void;
   onClean: (row: TableLiveRow) => void;
   onMoved: () => void;
@@ -1655,10 +1672,12 @@ function TableDetailDrawer({
   const [moving, setMoving] = useState(false);
 
   const canMove = Boolean(row.currentOrderId) && (row.openBillCount ?? 0) > 0;
+  const billAlreadyRequested = hasAwaitingPaymentBill(row);
   const canRequestBill =
+    canRequestBillRole &&
     Boolean(row.currentOrderId) &&
-    (row.status === "accepted" || row.status === "ready" || row.status === "mixed");
-  const billAlreadyRequested = row.status === "awaiting_payment";
+    (row.status === "accepted" || row.status === "ready" || row.status === "mixed") &&
+    !billAlreadyRequested;
   const canSeatNext = isPaidOnly(row);
   const canClean =
     row.needsCleaning ||
@@ -1670,9 +1689,11 @@ function TableDetailDrawer({
       allTables.filter(
         (t) =>
           t.tableNumber !== row.tableNumber &&
+          t.status === "empty" &&
+          !t.currentOrderId &&
           (t.openBillCount ?? 0) === 0 &&
-          !t.needsCleaning &&
-          t.status !== "needs_cleaning",
+          (t.paidBillCount ?? 0) === 0 &&
+          !t.needsCleaning,
       ),
     [allTables, row.tableNumber],
   );

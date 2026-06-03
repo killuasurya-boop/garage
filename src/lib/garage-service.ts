@@ -6134,6 +6134,14 @@ export async function moveTable(
   if (toRow && (toRow.openBillCount ?? 0) > 0) {
     throw new Error("Meja tujuan masih punya bill aktif. Selesaikan dulu.");
   }
+  if (
+    toRow &&
+    (toRow.status !== "empty" ||
+      Boolean(toRow.currentOrderId) ||
+      (toRow.paidBillCount ?? 0) > 0)
+  ) {
+    throw new Error("Meja tujuan belum kosong. Bersihkan atau tutup sesi meja tujuan dulu.");
+  }
   if (toRow?.needsCleaning) {
     throw new Error("Meja tujuan perlu dibersihkan dulu.");
   }

@@ -15,14 +15,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  PremiumMembershipCard,
-  PREMIUM_TIER_OPTIONS,
-} from "@/components/garage/premium-membership-card";
-
-const WHATSAPP_PHONE = "6281396186251";
-const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}`;
-const MAPS_URL = "https://www.google.com/maps/search/?api=1&query=Garage%20Coffee%20%26%20Motor";
+const WHATSAPP_PHONE = "6285188983600";
+const BUSINESS_EMAIL = "garagetebingtinggi@gmail.com";
+const BUSINESS_ADDRESS = "Jl. Mayjen Sutoyo, Rambung, Kec. Tebing Tinggi Kota, Kota Tebing Tinggi, Sumatera Utara 20631";
+const WHATSAPP_DEFAULT_MESSAGE = "Halo GARAGE, saya lihat status meja di website. Saya mau reservasi/order.";
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_DEFAULT_MESSAGE)}`;
+const MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS_ADDRESS)}`;
 const DIGITAL_MENU_URL = {
   pathname: "/order",
   query: { source: "qr_takeaway", campaign: "landing_menu" },
@@ -53,13 +51,14 @@ const digitalMenuItemUrl = (itemName) => ({
 const reservationWhatsAppUrl = (tableLabel) => {
   const message = tableLabel
     ? `Halo GARAGE, saya mau reservasi ${tableLabel}. Mohon info ketersediaan jamnya.`
-    : "Halo GARAGE, saya mau reservasi meja. Mohon info ketersediaan meja.";
+    : WHATSAPP_DEFAULT_MESSAGE;
   return `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 };
 const requestTablePanelOpen = () => {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(TABLE_PANEL_OPEN_EVENT));
 };
+const TRACKING_SECTION_ID = "tracking-order";
 
 const TABLE_STATUS_COPY = {
   empty: { label: "Kosong", tone: "ready" },
@@ -81,6 +80,39 @@ async function getPublicTableRows() {
   return json.data ?? [];
 }
 
+async function getPublicLiveVisit() {
+  const response = await fetch("/api/site/live-visit", {
+    cache: "no-store",
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json?.error?.message ?? "Status live sedang disinkronkan.");
+  }
+  return json.data ?? { tables: [], orderPulse: { active: 0, queue: 0, cooking: 0, ready: 0 } };
+}
+
+async function getPublicLiveTracking() {
+  const response = await fetch("/api/site/live-tracking", {
+    cache: "no-store",
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json?.error?.message ?? "Live tracking sedang disinkronkan.");
+  }
+  return json.data;
+}
+
+async function getPublicTrackingStatus(trackingId) {
+  const response = await fetch(`/api/customer/orders/${encodeURIComponent(trackingId)}/public-status`, {
+    cache: "no-store",
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json?.error?.message ?? "Status order tidak ditemukan.");
+  }
+  return json.data;
+}
+
 function tableStatusCopy(row) {
   if (row.needsCleaning) return TABLE_STATUS_COPY.needs_cleaning;
   return TABLE_STATUS_COPY[row.status] ?? TABLE_STATUS_COPY.unavailable;
@@ -98,6 +130,101 @@ function formatTableTimestamp(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Update live";
   return `Update ${date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function liveVisitRecommendation(totalTables, availableTables, activeOrders) {
+  if (!totalTables) {
+    return {
+      mood: "Sinkron live",
+      eta: "Cek langsung",
+      advice: "Status live sedang disinkronkan. Untuk reservasi cepat, hubungi WhatsApp.",
+      tone: "sync",
+    };
+  }
+
+  const busyTables = totalTables - availableTables;
+  const occupancy = busyTables / totalTables;
+  const etaBase = Math.max(6, Math.min(24, Math.round(activeOrders * 1.6 + busyTables * 1.2)));
+
+  if (availableTables <= 0 || occupancy >= 0.92) {
+    return {
+      mood: "Full",
+      eta: `${Math.max(etaBase, 18)}+ menit`,
+      advice: "Meja sedang padat. Reservasi via WhatsApp lebih aman sebelum datang.",
+      tone: "full",
+    };
+  }
+  if (occupancy >= 0.68 || activeOrders >= 12) {
+    return {
+      mood: "Padat",
+      eta: `${Math.max(etaBase, 14)} menit`,
+      advice: "Takeaway lebih cepat. Untuk rombongan, reservasi dulu.",
+      tone: "busy",
+    };
+  }
+  if (occupancy >= 0.36 || activeOrders >= 5) {
+    return {
+      mood: "Ramai santai",
+      eta: `${Math.max(etaBase, 9)} menit`,
+      advice: "Masih aman datang sekarang. Pilih meja kosong atau order dulu.",
+      tone: "normal",
+    };
+  }
+  return {
+    mood: "Sepi nyaman",
+    eta: "6-8 menit",
+    advice: "Aman datang sekarang. Pilih meja dan lanjut order digital.",
+    tone: "calm",
+  };
+}
+
+function liveOrderEta(orderPulse, recommendation) {
+  const active = Number(orderPulse?.active ?? 0);
+  const queue = Number(orderPulse?.queue ?? 0);
+  const cooking = Number(orderPulse?.cooking ?? 0);
+  const ready = Number(orderPulse?.ready ?? 0);
+  const takeawayMinutes = Math.max(8, Math.min(34, 8 + queue * 3 + cooking * 2));
+  const drinkMinutes = Math.max(5, Math.min(18, 5 + queue * 2 + Math.ceil(cooking * 0.8)));
+  const foodMinutes = Math.max(12, Math.min(38, 12 + queue * 3 + cooking * 2));
+  const pickupTone = ready > 0 ? "ready" : active >= 12 ? "busy" : active > 0 ? "normal" : "calm";
+
+  return {
+    takeaway: active ? `${takeawayMinutes}-${takeawayMinutes + 6} menit` : "8-12 menit",
+    drinks: active ? `${drinkMinutes}-${drinkMinutes + 4} menit` : "5-8 menit",
+    food: active ? `${foodMinutes}-${foodMinutes + 8} menit` : "12-18 menit",
+    pickupTone,
+    recommendation:
+      ready > 0
+        ? "Ada order siap pickup. Datang sesuai notifikasi tracking."
+        : recommendation?.tone === "full" || active >= 12
+          ? "Takeaway lebih aman. Reservasi dulu untuk dine-in."
+          : active >= 5
+            ? "Order digital dulu agar antrean lebih singkat."
+            : "Aman order sekarang. Estimasi masih ringan.",
+  };
+}
+
+function eventSeatInfo(event, index) {
+  const capacity = Number(String(event?.capacity ?? "").match(/\d+/)?.[0] ?? 0);
+  const reserved = capacity ? Math.min(capacity - 1, Math.round(capacity * (0.34 + index * 0.11))) : 0;
+  const available = Math.max(0, capacity - reserved);
+  const tone = available <= 3 ? "full" : available <= Math.ceil(capacity * 0.35) ? "busy" : "ready";
+  return { capacity, reserved, available, tone };
+}
+
+function publicOrderStageLabel(status) {
+  const labels = {
+    waiting_cashier: "Menunggu validasi kasir",
+    pending_cashier: "Menunggu validasi kasir",
+    awaiting_payment: "Menunggu pembayaran",
+    queue: "Masuk antrean",
+    cooking: "Sedang diproses",
+    ready: "Siap diambil/diantar",
+    delivered: "Selesai",
+    paid: "Lunas",
+    rejected: "Order ditolak",
+  };
+  return labels[status] ?? String(status || "Update live").replace(/_/g, " ");
 }
 // Source: garage-website/project/primitives.jsx
 
@@ -612,7 +739,7 @@ function Loader({ onDone }) {
   }, [onDone]);
   return (
     <div
-      data-garage-loader
+      data-garage-disabled-splash
       style={{
         position: "fixed", inset: 0, zIndex: 100,
         background: "radial-gradient(ellipse at center, #0c0c10 0%, #050507 80%)",
@@ -640,7 +767,7 @@ function Loader({ onDone }) {
 
         <div style={{ marginTop: 56, width: "min(420px, 80vw)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }} className="mono">
-            <span>MEMUAT</span>
+            <span>DISABLED</span>
             <span style={{ color: "var(--fg)" }}>{String(pct).padStart(3, "0")} / 100</span>
           </div>
           <div style={{ height: 2, background: "var(--bg-3)", overflow: "hidden" }}>
@@ -685,12 +812,10 @@ function Nav() {
   const y = useScrollY();
   const condensed = y > 80;
   const items = [
-  ["Tentang", "#about"],
+  ["Live", "#live-status"],
   ["Menu", "#menu", true],
-  ["Suasana", "#atmosphere"],
-  ["Pengalaman", "#experience"],
+  ["Tracking", "#live-tracking-system"],
   ["Event", "#events"],
-  ["Franchise", "/franchise"],
   ["Lokasi", "#location"]];
 
   const [mobOpen, setMobOpen] = useState(false);
@@ -753,33 +878,38 @@ function Nav() {
   return (
     <>
       <nav
+        className="site-nav"
         style={{
-          position: "fixed", top: condensed ? 50 : 60, left: "50%",
+          position: "fixed", top: condensed ? 46 : 52, left: "50%",
           transform: "translateX(-50%)",
           zIndex: 50,
           transition: "all 0.5s var(--ease-out)",
-          width: condensed ? "min(960px, calc(100vw - 32px))" : "calc(100vw - 32px)",
-          maxWidth: 1400
+          width: condensed ? "min(980px, calc(100vw - 32px))" : "min(1180px, calc(100vw - 32px))",
+          maxWidth: 1180
         }}>
         
         <div
+          className="site-nav-inner"
           style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: condensed ? "12px 18px" : "16px 24px",
-            background: condensed ? "rgba(15,15,18,0.78)" : "rgba(15,15,18,0.35)",
+            gap: 18,
+            padding: condensed ? "10px 14px" : "12px 16px",
+            background: condensed
+              ? "linear-gradient(90deg, rgba(10,10,13,0.9), rgba(24,13,15,0.86), rgba(10,10,13,0.9))"
+              : "linear-gradient(90deg, rgba(10,10,13,0.74), rgba(28,13,16,0.68), rgba(10,10,13,0.74))",
             backdropFilter: "blur(16px) saturate(140%)",
             WebkitBackdropFilter: "blur(16px) saturate(140%)",
             border: "1px solid var(--line)",
             transition: "all 0.5s var(--ease-out)"
           }}>
           
-          <a href="#top" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <LogoImage variant="wordmark" height={condensed ? 28 : 34} />
-            <span style={{ width: 1, height: 18, background: "var(--line-2)" }} />
-            <span className="mono" style={{ fontSize: 9 }}>EST. 2026</span>
+          <a className="site-nav-brand" href="#top" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <LogoImage variant="wordmark" height={condensed ? 24 : 28} />
+            <span className="brand-divider" style={{ width: 1, height: 18, background: "var(--line-2)" }} />
+            <span className="mono brand-year" style={{ fontSize: 9 }}>EST. 2026</span>
           </a>
 
-          <ul style={{ display: "flex", gap: 28, listStyle: "none" }} className="nav-desktop">
+          <ul style={{ display: "flex", gap: 20, listStyle: "none" }} className="nav-desktop">
             {items.map(([label, href, hasMega]) =>
             <li
               key={href}
@@ -793,14 +923,20 @@ function Nav() {
                   </Link>
                 ) : (
                   <a href={href} className="navlink">
-                    <span>{label}{hasMega && <span style={{ marginLeft: 6, opacity: 0.6 }}>▾</span>}</span>
+                    <span>{label}{hasMega && <span style={{ marginLeft: 6, opacity: 0.6 }}>v</span>}</span>
                   </a>
                 )}
               </li>
             )}
           </ul>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="site-nav-status" aria-label="Garage outlet status">
+            <span />
+            <strong>OPEN</strong>
+            <em>07-23</em>
+          </div>
+
+          <div className="site-nav-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div
               className="login-dropdown"
               onMouseEnter={openLogin}
@@ -812,9 +948,9 @@ function Nav() {
                 aria-expanded={loginOpen}
                 onClick={() => setLoginOpen((open) => !open)}
                 className="btn btn-primary"
-                style={{ padding: "10px 16px", fontSize: 10 }}
+                style={{ padding: "9px 12px", fontSize: 10 }}
               >
-                <span>Login</span><span style={{ marginLeft: 2, opacity: 0.72 }}>▾</span>
+                <span>Login</span><span style={{ marginLeft: 2, opacity: 0.72 }}>v</span>
               </button>
               <div className="login-menu" data-open={loginOpen ? "true" : "false"} role="menu">
                 {LOGIN_OPTIONS.map((item) => (
@@ -837,11 +973,18 @@ function Nav() {
             <button
               type="button"
               className="btn"
-              style={{ padding: "10px 16px", fontSize: 10 }}
+              style={{ padding: "9px 12px", fontSize: 10 }}
               onClick={openTablePanel}
             >
               <span>Cek Meja</span><ArrowRight size={12} />
             </button>
+            <Link
+              href={DIGITAL_MENU_URL}
+              className="btn btn-primary"
+              style={{ padding: "9px 14px", fontSize: 10 }}
+            >
+              <span>Order</span><ArrowRight size={12} />
+            </Link>
             <button
               className="mob-toggle"
               onClick={() => setMobOpen(true)}
@@ -872,7 +1015,7 @@ function Nav() {
           
           <div style={{ padding: "32px 28px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
-              <span className="mono" style={{ color: "var(--red)" }}>● MENU GARAGE — 90+ ITEM</span>
+              <span className="mono" style={{ color: "var(--red)" }}>MENU GARAGE - 90+ ITEM</span>
               <span className="mono">PILIH KATEGORI</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }} className="mega-grid">
@@ -909,9 +1052,9 @@ function Nav() {
               borderTop: "1px solid var(--line)",
               display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12
             }}>
-              <span className="mono" style={{ color: "var(--amber)" }}>✦ PROMO MEI: BELI 2 KOPI GRATIS CEMILAN</span>
+              <span className="mono" style={{ color: "var(--amber)" }}>LIVE GARAGE: CEK MEJA KOSONG SEBELUM DATANG</span>
               <a href="#menu" onClick={() => setMegaOpen(false)} className="navlink" style={{ color: "var(--red)" }}>
-                LIHAT MENU LENGKAP →
+                LIHAT MENU LENGKAP -&gt;
               </a>
             </div>
           </div>
@@ -952,7 +1095,7 @@ function Nav() {
           </button>
         </div>
         <div className="mono mob-drawer-kicker" style={{ color: "var(--red)", marginBottom: 10 }}>
-          ● Navigasi Garage
+          Navigasi Garage
         </div>
         <ul className="mob-nav-list" style={{ listStyle: "none", display: "grid", gap: 8 }}>
           {items.map(([label, href], i) =>
@@ -1050,6 +1193,29 @@ function Nav() {
             <span>Cek Meja</span>
             <ArrowRight size={14} />
           </button>
+          <Link
+            href={DIGITAL_MENU_URL}
+            className="mob-reserve-link"
+            onClick={() => setMobOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              minHeight: 50,
+              marginTop: 8,
+              padding: "12px 14px",
+              border: "1px solid var(--line-2)",
+              background: "rgba(255,255,255,0.06)",
+              color: "#fff",
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase"
+            }}>
+            <span>Order / Reservasi</span>
+            <ArrowRight size={14} />
+          </Link>
         </div>
       </div>
 
@@ -1184,13 +1350,19 @@ function Nav() {
       <style>{`
         .navlink {
           position: relative;
+          display: inline-flex;
+          align-items: center;
           font-family: var(--font-mono);
-          font-size: 11px;
-          letter-spacing: 0.18em;
+          font-size: 10px;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
           color: var(--fg-dim);
           padding: 8px 0;
+          white-space: nowrap;
           transition: color 0.3s var(--ease-out);
+        }
+        .navlink span {
+          white-space: nowrap;
         }
         .navlink::after {
           content: ""; position: absolute; bottom: 0; left: 0;
@@ -1199,6 +1371,116 @@ function Nav() {
         }
         .navlink:hover { color: var(--fg); }
         .navlink:hover::after { width: 100%; }
+        .site-nav-inner {
+          position: relative;
+          min-height: 58px;
+          overflow: visible;
+          box-shadow:
+            0 22px 70px rgba(0,0,0,0.42),
+            inset 0 1px 0 rgba(255,255,255,0.07);
+        }
+        .site-nav-inner::before {
+          content: "";
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          top: -1px;
+          height: 2px;
+          background: linear-gradient(90deg, transparent, rgba(209,26,42,0.95), rgba(245,167,66,0.78), transparent);
+          pointer-events: none;
+        }
+        .site-nav-inner::after {
+          content: "";
+          position: absolute;
+          left: 18%;
+          right: 18%;
+          bottom: -16px;
+          height: 18px;
+          background: radial-gradient(ellipse at center, rgba(209,26,42,0.28), transparent 68%);
+          filter: blur(8px);
+          pointer-events: none;
+        }
+        .site-nav-brand {
+          position: relative;
+          z-index: 1;
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 6px 8px;
+          border: 1px solid rgba(255,255,255,0.04);
+          background: rgba(255,255,255,0.025);
+          transition: border-color 0.24s var(--ease-out), background 0.24s var(--ease-out);
+        }
+        .site-nav-brand:hover {
+          border-color: rgba(209,26,42,0.36);
+          background: rgba(209,26,42,0.07);
+        }
+        .nav-desktop {
+          position: relative;
+          z-index: 1;
+          flex: 1 1 auto;
+          min-width: 0;
+          justify-content: center;
+        }
+        .site-nav-status {
+          position: relative;
+          z-index: 1;
+          display: inline-flex;
+          min-height: 34px;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid rgba(13,184,108,0.28);
+          background: rgba(13,184,108,0.08);
+          padding: 0 10px;
+          color: #c7ffdf;
+          font-family: var(--font-mono);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        .site-nav-status span {
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: #0db86c;
+          box-shadow: 0 0 0 4px rgba(13,184,108,0.16), 0 0 18px rgba(13,184,108,0.44);
+        }
+        .site-nav-status em {
+          color: rgba(199,255,223,0.66);
+          font-style: normal;
+        }
+        .site-nav-actions {
+          position: relative;
+          z-index: 1;
+          flex: 0 0 auto;
+          min-width: 0;
+        }
+        .site-nav-actions .btn,
+        .site-nav-actions button,
+        .site-nav-actions a {
+          min-height: 40px;
+          white-space: nowrap;
+        }
+        .site-nav-actions svg {
+          flex-shrink: 0;
+        }
+        .site-nav-actions > a.btn-primary {
+          border-color: rgba(255,255,255,0.1);
+          box-shadow:
+            0 14px 36px rgba(209,26,42,0.28),
+            inset 0 1px 0 rgba(255,255,255,0.16);
+        }
+        .site-nav-actions > button.btn,
+        .login-dropdown > button {
+          background: rgba(0,0,0,0.18);
+          border-color: rgba(255,255,255,0.08);
+        }
+        .site-nav-actions > button.btn:hover,
+        .login-dropdown > button:hover {
+          border-color: rgba(245,167,66,0.34);
+          background: rgba(245,167,66,0.08);
+        }
         .mega-cat:hover { background: rgba(209,26,42,0.06); }
         .login-dropdown {
           position: relative;
@@ -1518,11 +1800,37 @@ function Nav() {
             animation: none !important;
           }
         }
-        @media (max-width: 1000px) {
+        @media (max-width: 1240px) {
+          .site-nav-inner {
+            gap: 14px !important;
+          }
+          .nav-desktop {
+            gap: 16px !important;
+          }
+          .brand-year {
+            display: none !important;
+          }
+          .site-nav-status {
+            display: none !important;
+          }
+        }
+        @media (max-width: 1120px) {
           .nav-desktop { display: none !important; }
           .login-dropdown { display: none !important; }
+          .site-nav-actions > .btn,
+          .site-nav-actions > a.btn {
+            display: none !important;
+          }
           .mob-toggle { display: inline-flex !important; }
           .mob-drawer { display: flex !important; }
+          .site-nav {
+            width: calc(100vw - 24px) !important;
+            top: 50px !important;
+          }
+          .site-nav-inner {
+            min-height: 58px;
+            padding: 11px 12px !important;
+          }
         }
         @media (max-width: 700px) {
           .mega-grid { grid-template-columns: 1fr !important; }
@@ -1597,6 +1905,9 @@ function Hero({ landingHero }) {
         <div className="hero-bg">
           <div className="hero-grid" />
           <div className="light-sweep" />
+          <div className="garage-headlight" />
+          <div className="garage-redline" />
+          <div className="garage-engine-glow" />
           <div style={{ position: "absolute", inset: 0 }}>
             {particles.map((p, i) =>
             <span
@@ -1626,47 +1937,33 @@ function Hero({ landingHero }) {
         <div className="shell hero-image-shell" style={{ position: "relative", zIndex: 3, paddingTop: 150, paddingBottom: 58 }}>
           <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 42 }}>
             <Reveal as="div" className="mono" delay={900}>
-              ● BUKA — MENYAJIKAN SEKARANG / EST. 2024
+              BUKA SEKARANG / EST. 2024
             </Reveal>
             <Reveal as="div" className="mono" delay={1000} style={{ textAlign: "right" }}>
-              JL. MAYJEN SUTOYO, RAMBUNG, / BUKA 07—23
+              JL. MAYJEN SUTOYO, RAMBUNG / BUKA 07-23
             </Reveal>
           </div>
 
           <div className="hero-image-layout">
             <Reveal delay={240} className="hero-image-copy">
-              <LogoImage
-                variant="wordmark"
-                width="min(420px, 82vw)"
-                shimmer={false}
-                sizes="(max-width: 768px) 82vw, 420px"
-              />
+              <div className="hero-kicker mono">GARAGE COFFEE & MOTOR</div>
+              <div className="garage-steam-wrap" aria-hidden>
+                <span className="garage-steam garage-steam-1" />
+                <span className="garage-steam garage-steam-2" />
+                <span className="garage-steam garage-steam-3" />
+              </div>
               <h1 className="display hero-image-title" aria-label="Lebih dari sekedar kopi.">
-                LEBIH DARI SEKEDAR KOPI.
+                <span className="hero-title-line hero-title-top">LEBIH DARI</span>
+                <span className="hero-title-line hero-title-bottom">
+                  <span>SEKED</span><span className="hero-title-red">A</span><span>R KOPI.</span>
+                </span>
               </h1>
               <p className="hero-image-lead">
-                Kopi premium dengan jiwa otomotif. Sebuah bengkel rasa untuk mereka yang masih bertahan duduk lama setelah seruputan terakhir.
+                Ngopi, makan, dan nongkrong di GARAGE sekarang lebih gampang. Cek tempat sebelum datang, pesan dari website, lalu ambil atau duduk santai.
               </p>
               <div className="hero-image-actions">
                 <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Jelajahi Menu</span><ArrowRight /></Link>
                 <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Reservasi Meja</span><ArrowRight /></button>
-              </div>
-            </Reveal>
-
-            <Reveal delay={420} className="hero-image-media-wrap">
-              <div className="hero-image-media">
-                <Image
-                  src={landingHero.publicUrl}
-                  alt={landingHero.alt || "Hero Garage Coffee & Motor"}
-                  fill
-                  sizes="(max-width: 768px) 92vw, 900px"
-                  quality={75}
-                  style={{ objectFit: "cover", objectPosition: "center" }}
-                />
-                <div className="hero-image-sheen" aria-hidden />
-              </div>
-              <div className="hero-image-meta mono">
-                WEBP {Math.max(1, Math.round((landingHero.sizeBytes || 0) / 1024))} KB / LOCAL ASSET
               </div>
             </Reveal>
           </div>
@@ -1700,24 +1997,180 @@ function Hero({ landingHero }) {
             90%  { opacity: var(--op, 1); }
             100% { transform: translateY(-110vh) translateX(20px); opacity: 0; }
           }
+          .garage-headlight,
+          .garage-redline,
+          .garage-engine-glow {
+            position: absolute;
+            pointer-events: none;
+          }
+          .garage-headlight {
+            top: 10%;
+            left: -32%;
+            width: 58vw;
+            height: 32vh;
+            background: linear-gradient(92deg, transparent 0%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.22) 50%, rgba(209,26,42,0.16) 58%, transparent 78%);
+            filter: blur(18px);
+            transform: skewX(-18deg);
+            mix-blend-mode: screen;
+            animation: garageHeadlightSweep 7.5s cubic-bezier(0.65, 0, 0.25, 1) infinite;
+          }
+          .garage-redline {
+            left: 0;
+            right: 0;
+            bottom: 18%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(209,26,42,0.12), rgba(255,70,82,0.88), rgba(245,167,66,0.42), transparent);
+            box-shadow: 0 0 28px rgba(209,26,42,0.42);
+            animation: garageRedlinePulse 2.8s ease-in-out infinite;
+          }
+          .garage-engine-glow {
+            width: min(720px, 78vw);
+            height: min(720px, 78vw);
+            left: 50%;
+            bottom: -34%;
+            transform: translateX(-50%);
+            border-radius: 50%;
+            background: radial-gradient(circle at 50% 50%, rgba(209,26,42,0.22), transparent 48%), radial-gradient(circle at 50% 50%, rgba(245,167,66,0.12), transparent 68%);
+            filter: blur(28px);
+            animation: garageEngineIdle 4.8s ease-in-out infinite;
+          }
+          .garage-steam-wrap {
+            position: relative;
+            width: min(220px, 48vw);
+            height: 42px;
+            margin: 0 auto -4px;
+            pointer-events: none;
+          }
+          .garage-steam {
+            position: absolute;
+            bottom: 0;
+            width: 2px;
+            height: 34px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.42), rgba(255,255,255,0));
+            filter: blur(1px);
+            opacity: 0;
+          }
+          .garage-steam-1 { left: 34%; animation: garageSteamRise 4.6s ease-in-out infinite; }
+          .garage-steam-2 { left: 50%; animation: garageSteamRise 5.2s ease-in-out 0.8s infinite; }
+          .garage-steam-3 { left: 66%; animation: garageSteamRise 4.9s ease-in-out 1.5s infinite; }
+          .hero-title-line {
+            animation: garageChromeBreathe 5.8s ease-in-out infinite;
+          }
+          .hero-title-red {
+            animation: garageRedA 2.6s ease-in-out infinite;
+          }
+          .btn-primary {
+            position: relative;
+            overflow: hidden;
+          }
+          .btn-primary::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.24) 50%, transparent 70%);
+            transform: translateX(-120%);
+            animation: garageButtonIgnition 4.8s ease-in-out infinite;
+            pointer-events: none;
+          }
+          @keyframes garageHeadlightSweep {
+            0%, 38% { transform: translateX(0) skewX(-18deg); opacity: 0; }
+            48% { opacity: 0.85; }
+            72% { opacity: 0.16; }
+            100% { transform: translateX(190vw) skewX(-18deg); opacity: 0; }
+          }
+          @keyframes garageRedlinePulse {
+            0%, 100% { opacity: 0.28; transform: scaleX(0.72); }
+            45% { opacity: 0.9; transform: scaleX(1); }
+            70% { opacity: 0.42; transform: scaleX(0.9); }
+          }
+          @keyframes garageEngineIdle {
+            0%, 100% { opacity: 0.36; transform: translateX(-50%) scale(0.96); }
+            50% { opacity: 0.72; transform: translateX(-50%) scale(1.05); }
+          }
+          @keyframes garageSteamRise {
+            0% { opacity: 0; transform: translateY(14px) translateX(0) scaleY(0.72); }
+            24% { opacity: 0.5; }
+            78% { opacity: 0.18; }
+            100% { opacity: 0; transform: translateY(-30px) translateX(18px) scaleY(1.3); }
+          }
+          @keyframes garageChromeBreathe {
+            0%, 100% { filter: drop-shadow(0 20px 38px rgba(0,0,0,0.5)); }
+            50% { filter: drop-shadow(0 24px 48px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(255,255,255,0.1)); }
+          }
+          @keyframes garageRedA {
+            0%, 100% { filter: drop-shadow(0 0 12px rgba(209,26,42,0.38)); }
+            50% { filter: drop-shadow(0 0 28px rgba(209,26,42,0.76)); }
+          }
+          @keyframes garageButtonIgnition {
+            0%, 62% { transform: translateX(-120%); opacity: 0; }
+            74% { opacity: 1; }
+            100% { transform: translateX(120%); opacity: 0; }
+          }
           .hero-image-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 0.84fr) minmax(460px, 1.16fr);
-            align-items: center;
-            gap: clamp(28px, 5vw, 76px);
+            display: block;
+            max-width: 1120px;
+            margin: 0 auto;
+            text-align: center;
+          }
+          .hero-kicker {
+            width: fit-content;
+            margin: 0 auto;
+            border-left: 3px solid var(--red);
+            padding: 8px 12px 8px 14px;
+            color: var(--amber);
+            background: rgba(209,26,42,0.08);
+            letter-spacing: 0.18em;
           }
           .hero-image-title {
-            margin: 34px 0 0;
-            max-width: 760px;
-            color: var(--fg);
+            display: grid;
+            gap: clamp(8px, 1.2vw, 18px);
+            justify-items: center;
+            margin: 22px auto 0;
+            max-width: min(1240px, calc(100vw - 56px));
             font-family: var(--font-display);
-            font-size: clamp(64px, 8vw, 136px);
-            line-height: 0.84;
-            letter-spacing: 0.02em;
+            line-height: 0.92;
+            letter-spacing: 0;
+            text-wrap: balance;
+          }
+          .hero-title-line {
+            display: block;
+            width: fit-content;
+            max-width: 100%;
+            background:
+              linear-gradient(180deg, #ffffff 0%, #d8d8dc 21%, #878890 50%, #cdced4 75%, #f5f5f6 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter:
+              drop-shadow(0 24px 44px rgba(0,0,0,0.48))
+              drop-shadow(0 1px 0 rgba(255,255,255,0.18));
+            white-space: nowrap;
+          }
+          .hero-title-top {
+            font-size: clamp(58px, 7.6vw, 128px);
+            letter-spacing: 0.08em;
+            transform: translateX(0.045em);
+          }
+          .hero-title-bottom {
+            margin-top: 0;
+            font-size: clamp(82px, 11.4vw, 184px);
+            letter-spacing: 0.006em;
+          }
+          .hero-title-red {
+            display: inline-block;
+            margin-inline: -0.015em;
+            background: linear-gradient(180deg, #ff4859 0%, #d7192b 48%, #7a0c17 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter: drop-shadow(0 0 18px rgba(209,26,42,0.42));
           }
           .hero-image-lead {
             margin-top: 28px;
-            max-width: 520px;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 680px;
             color: var(--fg-dim);
             font-size: 18px;
             line-height: 1.6;
@@ -1725,69 +2178,50 @@ function Hero({ landingHero }) {
           .hero-image-actions {
             display: flex;
             flex-wrap: wrap;
+            justify-content: center;
             gap: 12px;
             margin-top: 34px;
-          }
-          .hero-image-media-wrap {
-            min-width: 0;
-          }
-          .hero-image-media {
-            position: relative;
-            width: min(900px, 100%);
-            min-height: 360px;
-            height: clamp(420px, 54vw, 680px);
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 18px;
-            background: #0b0b0d;
-            box-shadow: 0 34px 90px rgba(0,0,0,0.46);
-          }
-          .hero-image-media::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), inset 0 -120px 160px rgba(0,0,0,0.16);
-            pointer-events: none;
-          }
-          .hero-image-sheen {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(110deg, rgba(255,255,255,0.12), transparent 28%, transparent 70%, rgba(209,26,42,0.08));
-            pointer-events: none;
-          }
-          .hero-image-meta {
-            margin-top: 14px;
-            color: var(--fg-mute);
-            text-align: right;
           }
           .hero-image-stats {
             display: flex;
             flex-wrap: wrap;
+            justify-content: center;
+            text-align: center;
             gap: 32px;
             margin-top: 42px;
           }
           @media (max-width: 980px) {
             .hero-image-shell { padding-top: 126px !important; }
-            .hero-image-layout { grid-template-columns: 1fr; }
-            .hero-image-title { font-size: clamp(48px, 12vw, 92px); }
+            .hero-meta-row { gap: 18px; align-items: flex-start !important; }
+            .hero-image-title { max-width: min(100%, calc(100vw - 40px)); gap: clamp(7px, 1.4vw, 14px); line-height: 0.94; }
+            .hero-title-top { font-size: clamp(42px, 9.7vw, 76px); letter-spacing: 0.06em; }
+            .hero-title-bottom { margin-top: 0; font-size: clamp(56px, 13vw, 100px); letter-spacing: 0.004em; }
             .hero-image-lead { max-width: 100%; }
             .hero-image-actions { align-items: stretch; }
             .hero-image-actions .btn { flex: 1 1 220px; justify-content: center; }
-            .hero-image-media {
-              width: 100%;
-              min-height: 300px;
-              height: clamp(320px, 76vw, 560px);
-              border-radius: 14px;
-            }
-            .hero-image-meta { text-align: left; }
           }
           @media (max-width: 560px) {
             .hero-image-shell { padding-top: 112px !important; }
-            .hero-image-title { font-size: clamp(40px, 15vw, 64px); }
+            .hero-meta-row { display: none !important; }
+            .hero-kicker { font-size: 10px; max-width: 100%; }
+            .hero-image-title { margin-top: 18px; gap: 6px; line-height: 0.96; }
+            .hero-title-top { font-size: clamp(30px, 9.7vw, 40px); letter-spacing: 0.045em; }
+            .hero-title-bottom { margin-top: 0; font-size: clamp(38px, 12.4vw, 50px); letter-spacing: 0; }
             .hero-image-lead { font-size: 16px; }
             .hero-image-actions { flex-direction: column; }
-            .hero-image-media { min-height: 260px; height: 92vw; }
+            .hero-image-actions .btn { width: 100%; flex: 0 0 auto; min-height: 54px; }
             .hero-image-stats { gap: 22px; justify-content: center; text-align: center; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .garage-headlight,
+            .garage-redline,
+            .garage-engine-glow,
+            .garage-steam,
+            .hero-title-line,
+            .hero-title-red,
+            .btn-primary::after {
+              animation: none !important;
+            }
           }
         `}</style>
       </section>
@@ -1796,9 +2230,12 @@ function Hero({ landingHero }) {
 
   return (
     <section id="top" style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
-      <div className="hero-bg">
+        <div className="hero-bg">
         <div className="hero-grid" />
         <div className="light-sweep" />
+        <div className="garage-headlight" />
+        <div className="garage-redline" />
+        <div className="garage-engine-glow" />
         {/* particles */}
         <div style={{ position: "absolute", inset: 0 }}>
           {particles.map((p, i) =>
@@ -1851,6 +2288,11 @@ function Hero({ landingHero }) {
 
         {/* main lockup */}
         <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div className="garage-steam-wrap" aria-hidden>
+            <span className="garage-steam garage-steam-1" />
+            <span className="garage-steam garage-steam-2" />
+            <span className="garage-steam garage-steam-3" />
+          </div>
           <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Lebih dari sekedar kopi."
           style={{ marginBottom: 8 }}>
             <span className="chrome hero-title-kicker" style={{
@@ -1949,9 +2391,127 @@ function Hero({ landingHero }) {
           90%  { opacity: var(--op, 1); }
           100% { transform: translateY(-110vh) translateX(20px); opacity: 0; }
         }
+        .garage-headlight,
+        .garage-redline,
+        .garage-engine-glow {
+          position: absolute;
+          pointer-events: none;
+        }
+        .garage-headlight {
+          top: 10%;
+          left: -32%;
+          width: 58vw;
+          height: 32vh;
+          background: linear-gradient(92deg, transparent 0%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.22) 50%, rgba(209,26,42,0.16) 58%, transparent 78%);
+          filter: blur(18px);
+          transform: skewX(-18deg);
+          mix-blend-mode: screen;
+          animation: garageHeadlightSweep 7.5s cubic-bezier(0.65, 0, 0.25, 1) infinite;
+        }
+        .garage-redline {
+          left: 0;
+          right: 0;
+          bottom: 18%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(209,26,42,0.12), rgba(255,70,82,0.88), rgba(245,167,66,0.42), transparent);
+          box-shadow: 0 0 28px rgba(209,26,42,0.42);
+          transform-origin: center;
+          animation: garageRedlinePulse 2.8s ease-in-out infinite;
+        }
+        .garage-engine-glow {
+          width: min(720px, 78vw);
+          height: min(720px, 78vw);
+          left: 50%;
+          bottom: -34%;
+          transform: translateX(-50%);
+          border-radius: 50%;
+          background:
+            radial-gradient(circle at 50% 50%, rgba(209,26,42,0.22), transparent 48%),
+            radial-gradient(circle at 50% 50%, rgba(245,167,66,0.12), transparent 68%);
+          filter: blur(28px);
+          animation: garageEngineIdle 4.8s ease-in-out infinite;
+        }
+        .garage-steam-wrap {
+          position: relative;
+          width: min(220px, 48vw);
+          height: 42px;
+          margin: 0 auto -4px;
+          pointer-events: none;
+        }
+        .garage-steam {
+          position: absolute;
+          bottom: 0;
+          width: 2px;
+          height: 34px;
+          border-radius: 999px;
+          background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.42), rgba(255,255,255,0));
+          filter: blur(1px);
+          opacity: 0;
+        }
+        .garage-steam-1 { left: 34%; animation: garageSteamRise 4.6s ease-in-out infinite; }
+        .garage-steam-2 { left: 50%; animation: garageSteamRise 5.2s ease-in-out 0.8s infinite; }
+        .garage-steam-3 { left: 66%; animation: garageSteamRise 4.9s ease-in-out 1.5s infinite; }
+        .hero-title .chrome,
+        .hero-title-kicker,
+        .hero-title-main .chrome,
+        .hero-title-line {
+          background-size: 100% 160%, 240% 100%;
+          animation: garageChromeBreathe 5.8s ease-in-out infinite;
+        }
+        .red-a,
+        .hero-title-red {
+          animation: garageRedA 2.6s ease-in-out infinite;
+        }
+        .btn-primary {
+          position: relative;
+          overflow: hidden;
+        }
+        .btn-primary::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.24) 50%, transparent 70%);
+          transform: translateX(-120%);
+          animation: garageButtonIgnition 4.8s ease-in-out infinite;
+          pointer-events: none;
+        }
         @keyframes scrollLine {
           0%, 100% { transform: scaleY(0.2); transform-origin: top; }
           50%      { transform: scaleY(1); transform-origin: top; }
+        }
+        @keyframes garageHeadlightSweep {
+          0%, 38% { transform: translateX(0) skewX(-18deg); opacity: 0; }
+          48% { opacity: 0.85; }
+          72% { opacity: 0.16; }
+          100% { transform: translateX(190vw) skewX(-18deg); opacity: 0; }
+        }
+        @keyframes garageRedlinePulse {
+          0%, 100% { opacity: 0.28; transform: scaleX(0.72); }
+          45% { opacity: 0.9; transform: scaleX(1); }
+          70% { opacity: 0.42; transform: scaleX(0.9); }
+        }
+        @keyframes garageEngineIdle {
+          0%, 100% { opacity: 0.36; transform: translateX(-50%) scale(0.96); }
+          50% { opacity: 0.72; transform: translateX(-50%) scale(1.05); }
+        }
+        @keyframes garageSteamRise {
+          0% { opacity: 0; transform: translateY(14px) translateX(0) scaleY(0.72); }
+          24% { opacity: 0.5; }
+          78% { opacity: 0.18; }
+          100% { opacity: 0; transform: translateY(-30px) translateX(18px) scaleY(1.3); }
+        }
+        @keyframes garageChromeBreathe {
+          0%, 100% { filter: drop-shadow(0 20px 38px rgba(0,0,0,0.5)); }
+          50% { filter: drop-shadow(0 24px 48px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(255,255,255,0.1)); }
+        }
+        @keyframes garageRedA {
+          0%, 100% { filter: drop-shadow(0 0 12px rgba(209,26,42,0.38)); }
+          50% { filter: drop-shadow(0 0 28px rgba(209,26,42,0.76)); }
+        }
+        @keyframes garageButtonIgnition {
+          0%, 62% { transform: translateX(-120%); opacity: 0; }
+          74% { opacity: 1; }
+          100% { transform: translateX(120%); opacity: 0; }
         }
         @media (max-width: 900px) {
           .hero-meta-row { display: none !important; }
@@ -1960,6 +2520,27 @@ function Hero({ landingHero }) {
           .hero-bottom-right { text-align: center !important; }
           .hero-bottom-right .eyebrow { justify-content: center !important; }
           .hero-bottom-right > div:last-child { justify-content: center !important; }
+        }
+        @media (max-width: 560px) {
+          .garage-headlight { width: 78vw; height: 24vh; filter: blur(22px); }
+          .garage-redline { bottom: 24%; }
+          .garage-steam-wrap { height: 28px; margin-bottom: 0; }
+          .garage-steam { height: 24px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .garage-headlight,
+          .garage-redline,
+          .garage-engine-glow,
+          .garage-steam,
+          .hero-title .chrome,
+          .hero-title-kicker,
+          .hero-title-main .chrome,
+          .hero-title-line,
+          .red-a,
+          .hero-title-red,
+          .btn-primary::after {
+            animation: none !important;
+          }
         }
       `}</style>
     </section>);
@@ -1975,18 +2556,1073 @@ function Stat({ n, l }) {
 
 }
 
+// ---------------- LIVE VISIT BOARD ----------------
+function LiveVisitBoard() {
+  const [rows, setRows] = useState([]);
+  const [orderPulse, setOrderPulse] = useState({ active: 0, queue: 0, cooking: 0, ready: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [trackingId, setTrackingId] = useState("");
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingError, setTrackingError] = useState("");
+  const [trackingResult, setTrackingResult] = useState(null);
+
+  const refreshLiveBoard = useCallback(async (options = {}) => {
+    if (!options.silent) setLoading(true);
+    setError("");
+    try {
+      const liveVisit = await getPublicLiveVisit();
+      setRows(liveVisit.tables ?? []);
+      setOrderPulse(liveVisit.orderPulse ?? { active: 0, queue: 0, cooking: 0, ready: 0 });
+      setUpdatedAt(new Date());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Status live sedang disinkronkan.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshLiveBoard();
+    const timer = window.setInterval(() => void refreshLiveBoard({ silent: true }), 10_000);
+    return () => window.clearInterval(timer);
+  }, [refreshLiveBoard]);
+
+  const availableTables = rows.filter((row) => row.available).length;
+  const busyTables = rows.length ? rows.length - availableTables : 0;
+  const cleaningTables = rows.filter((row) => row.needsCleaning || row.status === "needs_cleaning").length;
+  const activeOrders = orderPulse.active ?? 0;
+  const cookingOrders = orderPulse.cooking ?? 0;
+  const readyOrders = orderPulse.ready ?? 0;
+  const queuedOrders = orderPulse.queue ?? 0;
+  const recommendation = liveVisitRecommendation(rows.length, availableTables, activeOrders);
+  const syncLabel = updatedAt
+    ? updatedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+    : loading
+      ? "Memuat"
+      : "Belum sinkron";
+
+  const handleTrackingSubmit = async (event) => {
+    event.preventDefault();
+    const cleanId = trackingId.trim();
+    setTrackingError("");
+    setTrackingResult(null);
+    if (!cleanId) {
+      setTrackingError("Masukkan nomor tracking/order dari struk atau link order.");
+      return;
+    }
+
+    setTrackingLoading(true);
+    try {
+      const status = await getPublicTrackingStatus(cleanId);
+      setTrackingResult(status);
+    } catch (caught) {
+      setTrackingError(caught instanceof Error ? caught.message : "Status order tidak ditemukan.");
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
+  return (
+    <section id="live-status" className="section-pad live-visit" style={{ borderTop: "1px solid var(--line)", background: "var(--bg-1)" }}>
+      <div className="shell">
+        <div className="live-visit-head">
+          <div>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>01 / Sebelum datang</Reveal>
+            <Reveal mask as="h2" delay={100} className="display live-visit-title" aria-label="Cek suasana Garage.">
+              <span style={{ display: "block" }}>Cek suasana</span>
+              <span style={{ display: "block", color: "var(--red)" }}>Garage.</span>
+            </Reveal>
+          </div>
+          <Reveal delay={260} className="live-visit-copy">
+            <p>
+              Lihat gambaran kursi, suasana, estimasi tunggu, dan status pesanan sebelum kamu berangkat ke GARAGE.
+            </p>
+            <div className="live-visit-actions">
+              <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Order Sekarang</span><ArrowRight /></Link>
+              <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Pilih Meja</span><ArrowRight /></button>
+            </div>
+          </Reveal>
+        </div>
+
+        <div className="live-visit-grid">
+          <Reveal delay={120} className="live-command-card">
+            <div className="live-card-top">
+              <span className="mono" style={{ color: "var(--red)" }}>GARAGE HARI INI</span>
+              <span className="live-sync">{syncLabel}</span>
+            </div>
+            <div className="live-main-status">
+              <span className="live-dot" data-tone={recommendation.tone} />
+              <div>
+                <p className="live-status-label">Buka sekarang</p>
+                <strong>{recommendation.mood}</strong>
+              </div>
+            </div>
+            <p className="live-advice">{error ? "Status live sedang disinkronkan. Untuk reservasi cepat, hubungi WhatsApp." : recommendation.advice}</p>
+            {error ? <div className="live-alert">{error}</div> : null}
+            <div className="live-metrics">
+              <div>
+                <span>Meja kosong</span>
+                <strong>{rows.length ? `${availableTables}/${rows.length}` : "-"}</strong>
+              </div>
+              <div>
+                <span>Terisi</span>
+                <strong>{rows.length ? busyTables : "-"}</strong>
+              </div>
+              <div>
+                <span>Order aktif</span>
+                <strong>{activeOrders}</strong>
+              </div>
+              <div>
+                <span>Estimasi</span>
+                <strong>{recommendation.eta}</strong>
+              </div>
+            </div>
+            <div className="order-pulse">
+              <span>{queuedOrders} menunggu</span>
+              <span>{cookingOrders} disiapkan</span>
+              <span>{readyOrders} siap</span>
+            </div>
+          </Reveal>
+
+          <Reveal delay={240} className="live-table-card">
+            <div className="live-card-top">
+              <span className="mono" style={{ color: "var(--fg)" }}>KURSI & MEJA</span>
+              <button type="button" onClick={requestTablePanelOpen}>Buka detail</button>
+            </div>
+            <div className="live-mini-table-grid" aria-label="Status meja publik">
+              {loading && !rows.length
+                ? Array.from({ length: 18 }).map((_, index) => <span key={index} className="live-mini-table skeleton" />)
+                : rows.slice(0, 24).map((row) => {
+                    const availability = tableAvailabilityState(row);
+                    return (
+                      <button
+                        key={row.tableNumber}
+                        type="button"
+                        className="live-mini-table"
+                        data-state={availability}
+                        title={`${row.tableLabel} - ${tableStatusCopy(row).label}`}
+                        onClick={row.available ? requestTablePanelOpen : undefined}
+                      >
+                        {row.tableNumber}
+                      </button>
+                    );
+                  })}
+            </div>
+            <div className="live-legend">
+              <span><i data-state="ready" /> Kosong</span>
+              <span><i data-state="full" /> Terisi</span>
+              <span><i data-state="unknown" /> Sync</span>
+              {cleaningTables ? <span><i data-state="full" /> {cleaningTables} cleaning</span> : null}
+            </div>
+          </Reveal>
+
+          <Reveal delay={360} className="live-tracking-card" id={TRACKING_SECTION_ID}>
+            <div className="live-card-top">
+              <span className="mono" style={{ color: "var(--fg)" }}>CEK PESANAN</span>
+              <span className="live-sync">Dari struk</span>
+            </div>
+            <form onSubmit={handleTrackingSubmit} className="tracking-form">
+              <input
+                value={trackingId}
+                onChange={(event) => setTrackingId(event.target.value)}
+                placeholder="Masukkan ID / nomor order"
+                aria-label="Masukkan ID atau nomor order"
+              />
+              <button type="submit" disabled={trackingLoading}>
+                {trackingLoading ? "Cek..." : "Cek Status"}
+              </button>
+            </form>
+            {trackingResult ? (
+              <div className="tracking-result">
+                <span className="mono">Order {trackingResult.orderNo ?? trackingResult.id}</span>
+                <strong>{publicOrderStageLabel(trackingResult.kitchenStatus ?? trackingResult.orderStatus)}</strong>
+                <p>{trackingResult.message ?? "Status order sedang diperbarui."}</p>
+                <div>
+                  <span>{trackingResult.estimatedMinutes ? `Estimasi ${trackingResult.estimatedMinutes} menit` : "Estimasi mengikuti antrean"}</span>
+                  <span>{trackingResult.updatedAt ? formatTableTimestamp(trackingResult.updatedAt) : "Update live"}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="tracking-empty">
+                <strong>Belum punya order?</strong>
+                <p>Pesan dari menu digital, simpan nomor order, lalu cek progresnya kapan saja.</p>
+                <Link href={DIGITAL_MENU_URL}>Order Sekarang</Link>
+              </div>
+            )}
+            {trackingError ? <div className="live-alert">{trackingError}</div> : null}
+          </Reveal>
+        </div>
+      </div>
+
+      <style>{`
+        .live-visit-head {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+          gap: 48px;
+          align-items: end;
+          margin-bottom: 36px;
+        }
+        .live-visit-title {
+          font-size: clamp(46px, 8vw, 132px);
+        }
+        .live-visit-copy p {
+          color: var(--fg-dim);
+          font-size: 15px;
+          line-height: 1.7;
+        }
+        .live-visit-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 20px;
+        }
+        .live-visit-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.85fr);
+          gap: 16px;
+          align-items: stretch;
+        }
+        .live-command-card,
+        .live-table-card,
+        .live-tracking-card {
+          position: relative;
+          min-width: 0;
+          overflow: hidden;
+          border: 1px solid var(--line);
+          background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+          padding: 22px;
+        }
+        .live-command-card::before,
+        .live-table-card::before,
+        .live-tracking-card::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 34%;
+          left: -42%;
+          background: linear-gradient(90deg, transparent, rgba(209,26,42,0.12), rgba(255,255,255,0.08), transparent);
+          transform: skewX(-18deg);
+          animation: garagePanelScan 6.4s ease-in-out infinite;
+          pointer-events: none;
+        }
+        .live-table-card::before { animation-delay: 1.2s; }
+        .live-tracking-card::before { animation-delay: 2.2s; }
+        .live-command-card {
+          grid-row: span 2;
+        }
+        .live-card-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        .live-sync,
+        .live-card-top button {
+          border: 1px solid var(--line);
+          background: rgba(255,255,255,0.045);
+          padding: 6px 9px;
+          color: var(--fg-dim);
+          font-family: var(--font-mono);
+          font-size: 9px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .live-card-top button {
+          color: var(--fg);
+          transition: border-color 0.2s var(--ease-out), color 0.2s var(--ease-out);
+        }
+        .live-card-top button:hover {
+          border-color: var(--red);
+          color: #fff;
+        }
+        .live-main-status {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          margin-bottom: 18px;
+        }
+        .live-dot {
+          width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          background: #0db86c;
+          box-shadow: 0 0 0 8px rgba(13,184,108,0.12), 0 0 32px rgba(13,184,108,0.36);
+          animation: garageLiveDot 2.2s ease-in-out infinite;
+        }
+        .live-dot[data-tone="busy"],
+        .live-dot[data-tone="normal"] {
+          background: var(--amber);
+          box-shadow: 0 0 0 8px rgba(245,167,66,0.12), 0 0 32px rgba(245,167,66,0.28);
+        }
+        .live-dot[data-tone="full"] {
+          background: var(--red);
+          box-shadow: 0 0 0 8px rgba(209,26,42,0.14), 0 0 32px rgba(209,26,42,0.34);
+        }
+        .live-dot[data-tone="sync"] {
+          background: #8f8f98;
+          box-shadow: 0 0 0 8px rgba(143,143,152,0.12);
+        }
+        .live-status-label {
+          color: var(--fg-mute);
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .live-main-status strong {
+          display: block;
+          margin-top: 4px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(44px, 5vw, 72px);
+          line-height: 0.9;
+          text-transform: uppercase;
+        }
+        .live-advice {
+          max-width: 640px;
+          color: var(--fg-dim);
+          font-size: 16px;
+          line-height: 1.65;
+        }
+        .live-alert {
+          margin-top: 14px;
+          border: 1px solid rgba(209,26,42,0.42);
+          background: rgba(209,26,42,0.12);
+          padding: 12px;
+          color: #ffd7da;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+        .live-metrics {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-top: 26px;
+        }
+        .live-metrics div {
+          min-width: 0;
+          border: 1px solid var(--line);
+          background: rgba(0,0,0,0.18);
+          padding: 13px;
+        }
+        .live-metrics span,
+        .order-pulse span {
+          display: block;
+          color: var(--fg-mute);
+          font-family: var(--font-mono);
+          font-size: 9px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .live-metrics strong {
+          display: block;
+          margin-top: 8px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: 30px;
+          line-height: 1;
+        }
+        .order-pulse {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 16px;
+        }
+        .order-pulse span {
+          border: 1px solid rgba(245,167,66,0.26);
+          background: rgba(245,167,66,0.08);
+          padding: 7px 9px;
+          color: #ffd08a;
+        }
+        .live-mini-table-grid {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 7px;
+        }
+        .live-mini-table {
+          min-height: 42px;
+          border: 1px solid rgba(143,143,152,0.34);
+          background: rgba(255,255,255,0.04);
+          color: var(--fg-dim);
+          font-family: var(--font-display);
+          font-size: 18px;
+          line-height: 1;
+          transition: transform 0.2s var(--ease-out), border-color 0.2s var(--ease-out), background 0.2s var(--ease-out);
+        }
+        .live-mini-table[data-state="ready"] {
+          border-color: rgba(13,184,108,0.52);
+          background: rgba(13,184,108,0.11);
+          color: #dfffee;
+        }
+        .live-mini-table[data-state="full"] {
+          border-color: rgba(209,26,42,0.48);
+          background: rgba(209,26,42,0.11);
+          color: #ffc2c8;
+        }
+        .live-mini-table:hover {
+          transform: translateY(-1px);
+          border-color: rgba(255,255,255,0.42);
+        }
+        .live-mini-table.skeleton {
+          display: block;
+          background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.09), rgba(255,255,255,0.04));
+          background-size: 220% 100%;
+          animation: garageTableSkeleton 1.2s linear infinite;
+        }
+        .live-legend {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 14px;
+          color: var(--fg-mute);
+          font-size: 12px;
+        }
+        .live-legend span {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .live-legend i {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #8f8f98;
+        }
+        .live-legend i[data-state="ready"] { background: #0db86c; }
+        .live-legend i[data-state="full"] { background: var(--red); }
+        .tracking-form {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 128px;
+          gap: 8px;
+        }
+        .tracking-form input {
+          min-width: 0;
+          min-height: 46px;
+          border: 1px solid var(--line);
+          background: rgba(0,0,0,0.24);
+          padding: 0 13px;
+          color: var(--fg);
+          outline: none;
+        }
+        .tracking-form input:focus {
+          border-color: rgba(245,167,66,0.58);
+        }
+        .tracking-form button,
+        .tracking-empty a {
+          min-height: 46px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--red);
+          background: var(--red);
+          color: #fff;
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .tracking-form button:disabled {
+          cursor: wait;
+          opacity: 0.7;
+        }
+        .tracking-result,
+        .tracking-empty {
+          margin-top: 14px;
+          border: 1px solid var(--line);
+          background: rgba(0,0,0,0.18);
+          padding: 14px;
+        }
+        .tracking-result strong {
+          display: block;
+          margin-top: 8px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: 24px;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .tracking-result p,
+        .tracking-empty p {
+          margin-top: 8px;
+          color: var(--fg-dim);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+        .tracking-result div {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .tracking-result div span {
+          border: 1px solid var(--line);
+          padding: 5px 7px;
+          color: var(--fg-mute);
+          font-size: 11px;
+        }
+        .tracking-empty a {
+          width: fit-content;
+          margin-top: 12px;
+          padding: 0 14px;
+          background: rgba(255,255,255,0.06);
+          border-color: var(--line-2);
+        }
+        @keyframes garagePanelScan {
+          0%, 55% { left: -42%; opacity: 0; }
+          68% { opacity: 1; }
+          100% { left: 118%; opacity: 0; }
+        }
+        @keyframes garageLiveDot {
+          0%, 100% { transform: scale(0.92); }
+          50% { transform: scale(1.12); }
+        }
+        @media (max-width: 980px) {
+          .live-visit-head,
+          .live-visit-grid {
+            grid-template-columns: 1fr;
+          }
+          .live-command-card {
+            grid-row: auto;
+          }
+        }
+        @media (max-width: 640px) {
+          .live-command-card,
+          .live-table-card,
+          .live-tracking-card {
+            padding: 16px;
+          }
+          .live-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .live-mini-table-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+          .tracking-form {
+            grid-template-columns: 1fr;
+          }
+          .live-visit-actions .btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .live-command-card::before,
+          .live-table-card::before,
+          .live-tracking-card::before,
+          .live-dot {
+            animation: none !important;
+          }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+function LiveTrackingSystem() {
+  const [trackingData, setTrackingData] = useState(null);
+  const [status, setStatus] = useState("sync");
+  const [updatedAt, setUpdatedAt] = useState(null);
+
+  const refreshTrackingSystem = useCallback(async () => {
+    try {
+      const liveTracking = await getPublicLiveTracking();
+      setTrackingData(liveTracking);
+      setUpdatedAt(liveTracking?.generatedAt ? new Date(liveTracking.generatedAt) : new Date());
+      setStatus("live");
+    } catch {
+      setStatus("fallback");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshTrackingSystem();
+    const timer = window.setInterval(() => void refreshTrackingSystem(), 12_000);
+    return () => window.clearInterval(timer);
+  }, [refreshTrackingSystem]);
+
+  const orderPulse = trackingData?.orderPulse ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "8-12 menit", overdue: 0 };
+  const barPulse = trackingData?.stationPulse?.bar ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "5-8 menit", status: "Minuman siap dipesan", unit: "minuman" };
+  const kitchenPulse = trackingData?.stationPulse?.kitchen ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "12-18 menit", status: "Dapur siap memasak", unit: "makanan" };
+  const takeawayPulse = trackingData?.takeaway ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "8-12 menit", recommendation: "Pesan sekarang, ambil saat sudah siap." };
+  const eventList = trackingData?.events?.length ? trackingData.events : EVENTS.map((event, index) => {
+    const seats = eventSeatInfo(event, index);
+    return {
+      title: event.title,
+      date: event.date,
+      time: event.time,
+      tag: event.tag,
+      capacity: seats.capacity,
+      available: seats.available,
+      reserved: seats.reserved,
+      tone: seats.tone,
+    };
+  });
+  const activeOrders = Number(orderPulse.active ?? 0);
+  const queuedOrders = Number(orderPulse.queue ?? 0);
+  const cookingOrders = Number(orderPulse.cooking ?? 0);
+  const readyOrders = Number(orderPulse.ready ?? 0);
+  const nextEvent = eventList[0];
+  const syncLabel = status === "live" && updatedAt
+    ? `Update ${updatedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
+    : status === "fallback"
+      ? "Fallback WA"
+      : "Sinkron";
+
+  const liveCards = [
+    {
+      label: "Pesanan Hari Ini",
+      value: `${activeOrders}`,
+      unit: "sedang berjalan",
+      tone: activeOrders >= 12 ? "busy" : activeOrders > 0 ? "normal" : "ready",
+      copy: `${queuedOrders} menunggu, ${cookingOrders} disiapkan, ${readyOrders} siap diambil. Estimasi ${orderPulse.eta ?? "8-12 menit"}.`,
+    },
+    {
+      label: "Estimasi Makanan",
+      value: kitchenPulse.eta ?? "12-18 menit",
+      unit: kitchenPulse.unit ?? "makanan",
+      tone: kitchenPulse.active >= 6 ? "busy" : kitchenPulse.active > 0 ? "normal" : "ready",
+      copy: `${kitchenPulse.queue ?? 0} menunggu, ${kitchenPulse.cooking ?? 0} sedang dimasak. ${kitchenPulse.status ?? "Dapur siap memasak"}.`,
+    },
+    {
+      label: "Estimasi Minuman",
+      value: barPulse.eta ?? "5-8 menit",
+      unit: barPulse.unit ?? "minuman",
+      tone: barPulse.active >= 6 ? "busy" : barPulse.active > 0 ? "normal" : "ready",
+      copy: `${barPulse.queue ?? 0} menunggu, ${barPulse.cooking ?? 0} sedang dibuat. ${barPulse.status ?? "Minuman siap dipesan"}.`,
+    },
+    {
+      label: "Ambil Sendiri",
+      value: takeawayPulse.eta ?? "8-12 menit",
+      unit: "pickup",
+      tone: takeawayPulse.ready > 0 ? "ready" : takeawayPulse.active >= 8 ? "busy" : takeawayPulse.active > 0 ? "normal" : "ready",
+      copy: takeawayPulse.recommendation ?? "Pesan sekarang, ambil saat sudah siap.",
+    },
+  ];
+
+  return (
+    <section id="live-tracking-system" className="live-system" aria-label="Estimasi pesanan GARAGE">
+      <div className="shell">
+        <div className="live-system-shell">
+          <Reveal className="live-system-head">
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 16 }}>02 / Pesan lebih tenang</div>
+              <h2 className="display live-system-title">
+                Tahu estimasi<br /><span>sebelum pesan.</span>
+              </h2>
+            </div>
+            <div className="live-system-brief">
+              <span className="mono">{syncLabel}</span>
+              <p>
+                Mau dine-in atau takeaway, kamu bisa lihat gambaran waktu tunggu sebelum pesan. Lebih jelas, lebih santai,
+                dan tidak perlu bolak-balik tanya lewat chat.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="live-system-grid">
+            {liveCards.map((card, index) => (
+              <Reveal key={card.label} delay={index * 90} className="live-system-card" style={{ "--track-delay": `${index * 120}ms` }}>
+                <div className="live-system-card-top">
+                  <span className="mono">{card.label}</span>
+                  <i data-tone={card.tone} />
+                </div>
+                <strong>{card.value}</strong>
+                <span>{card.unit}</span>
+                <p>{card.copy}</p>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={420} className="live-system-bottom">
+            <div className="live-stepper" aria-label="Alur pesanan GARAGE">
+              {[
+                ["01", "Pesan menu"],
+                ["02", "Kami siapkan"],
+                ["03", "Siap diambil"],
+                ["04", "Selesai"],
+              ].map((step, index) => (
+                <div key={step[0]} className={index <= Math.min(3, activeOrders ? 2 : 1) ? "is-active" : ""}>
+                  <span>{step[0]}</span>
+                  <strong>{step[1]}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="event-live-capacity">
+              <div>
+                <span className="mono">Slot event</span>
+                <h3>{nextEvent?.title ?? "Event GARAGE"}</h3>
+                <p>{nextEvent?.available ?? "-"}/{nextEvent?.capacity ?? "-"} slot tersedia. Simpan tempatmu lebih cepat lewat WhatsApp.</p>
+              </div>
+              <a
+                href={`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(`Halo GARAGE, saya mau RSVP event ${nextEvent?.title ?? "GARAGE"}.`)}`}
+                className="btn btn-primary"
+              >
+                <span>RSVP Event</span><ArrowRight />
+              </a>
+            </div>
+          </Reveal>
+        </div>
+      </div>
+
+      <style>{`
+        .live-system {
+          position: relative;
+          overflow: hidden;
+          border-top: 1px solid var(--line);
+          background:
+            radial-gradient(circle at 18% 12%, rgba(209,26,42,0.16), transparent 32%),
+            radial-gradient(circle at 82% 62%, rgba(245,167,66,0.1), transparent 30%),
+            var(--bg-0);
+          padding: clamp(36px, 6vw, 86px) 0;
+        }
+        .live-system::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+          background-size: 56px 56px;
+          mask-image: linear-gradient(180deg, transparent, #000 18%, #000 78%, transparent);
+          animation: garageLiveGridDrift 18s linear infinite;
+        }
+        .live-system-shell {
+          position: relative;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(9,9,11,0.74);
+          backdrop-filter: blur(10px);
+          padding: clamp(18px, 3vw, 34px);
+        }
+        .live-system-head {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+          gap: 32px;
+          align-items: end;
+          margin-bottom: 24px;
+        }
+        .live-system-title {
+          font-size: clamp(42px, 6.4vw, 94px);
+          line-height: 0.9;
+        }
+        .live-system-title span {
+          color: var(--red);
+        }
+        .live-system-brief {
+          border-left: 2px solid rgba(209,26,42,0.7);
+          padding-left: 18px;
+        }
+        .live-system-brief p {
+          margin-top: 12px;
+          color: var(--fg-dim);
+          font-size: 14px;
+          line-height: 1.65;
+        }
+        .live-system-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 12px;
+        }
+        .live-system-card {
+          position: relative;
+          min-width: 0;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: linear-gradient(160deg, rgba(255,255,255,0.058), rgba(255,255,255,0.018));
+          padding: 18px;
+          isolation: isolate;
+        }
+        .live-system-card::after {
+          content: "";
+          position: absolute;
+          inset: -40% -60%;
+          z-index: -1;
+          background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,0.08) 50%, transparent 62%);
+          transform: translateX(-55%);
+          animation: garageLiveSweep 5.8s var(--ease-out) infinite;
+          animation-delay: var(--track-delay);
+        }
+        .live-system-card-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .live-system-card-top i {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: #0db86c;
+          box-shadow: 0 0 0 6px rgba(13,184,108,0.12), 0 0 22px rgba(13,184,108,0.28);
+        }
+        .live-system-card-top i[data-tone="busy"] {
+          background: var(--amber);
+          box-shadow: 0 0 0 6px rgba(245,167,66,0.12), 0 0 22px rgba(245,167,66,0.28);
+        }
+        .live-system-card-top i[data-tone="normal"] {
+          background: #60b4e8;
+          box-shadow: 0 0 0 6px rgba(96,180,232,0.12), 0 0 22px rgba(96,180,232,0.28);
+        }
+        .live-system-card strong {
+          display: block;
+          margin-top: 26px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(30px, 4vw, 52px);
+          line-height: 0.92;
+          text-transform: uppercase;
+          overflow-wrap: anywhere;
+        }
+        .live-system-card > span {
+          display: block;
+          margin-top: 6px;
+          color: var(--red);
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+        .live-system-card p {
+          margin-top: 18px;
+          color: var(--fg-dim);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+        .live-system-bottom {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+          gap: 12px;
+          margin-top: 12px;
+        }
+        .live-stepper,
+        .event-live-capacity {
+          min-width: 0;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(0,0,0,0.2);
+          padding: 18px;
+        }
+        .live-stepper {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .live-stepper div {
+          position: relative;
+          min-width: 0;
+          border: 1px solid rgba(255,255,255,0.09);
+          padding: 14px;
+          color: var(--fg-mute);
+        }
+        .live-stepper div.is-active {
+          border-color: rgba(209,26,42,0.48);
+          background: rgba(209,26,42,0.08);
+          color: var(--fg);
+        }
+        .live-stepper span,
+        .event-live-capacity .mono {
+          color: var(--red);
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+        .live-stepper strong {
+          display: block;
+          margin-top: 10px;
+          font-family: var(--font-display);
+          font-size: 24px;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .event-live-capacity {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .event-live-capacity h3 {
+          margin-top: 10px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(26px, 3vw, 38px);
+          line-height: 0.95;
+          text-transform: uppercase;
+        }
+        .event-live-capacity p {
+          margin-top: 10px;
+          color: var(--fg-dim);
+          font-size: 13px;
+          line-height: 1.5;
+        }
+        @keyframes garageLiveGridDrift {
+          from { background-position: 0 0, 0 0; }
+          to { background-position: 56px 56px, 56px 56px; }
+        }
+        @keyframes garageLiveSweep {
+          0%, 58% { transform: translateX(-55%); opacity: 0; }
+          72% { opacity: 1; }
+          100% { transform: translateX(55%); opacity: 0; }
+        }
+        @media (max-width: 1080px) {
+          .live-system-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .live-system-head,
+          .live-system-bottom {
+            grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 640px) {
+          .live-system-shell {
+            padding: 16px;
+          }
+          .live-system-grid,
+          .live-stepper {
+            grid-template-columns: 1fr;
+          }
+          .event-live-capacity {
+            align-items: stretch;
+            flex-direction: column;
+          }
+          .event-live-capacity .btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .live-system::before,
+          .live-system-card::after {
+            animation: none;
+          }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+function S3MvpStrip() {
+  const items = [
+    {
+      label: "Status",
+      title: "Cek suasana dulu",
+      body: "Lihat kursi kosong, suasana, dan estimasi tunggu sebelum kamu berangkat.",
+    },
+    {
+      label: "Serve",
+      title: "Pesan tanpa ribet",
+      body: "Pilih menu dari website, pesan takeaway, atau reservasi meja lewat WhatsApp.",
+    },
+    {
+      label: "Stay",
+      title: "Balik lagi lebih seru",
+      body: "Ikut event, kumpul komunitas, dan nikmati benefit member setiap kali datang.",
+    },
+  ];
+
+  return (
+    <section className="s3-strip" aria-label="GARAGE MVP S3">
+      <div className="shell">
+        <Reveal className="s3-strip-grid">
+          {items.map((item, index) => (
+            <div key={item.label} className="s3-strip-card">
+              <span className="mono">S{index + 1} / {item.label}</span>
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+            </div>
+          ))}
+        </Reveal>
+      </div>
+      <style>{`
+        .s3-strip {
+          border-top: 1px solid var(--line);
+          border-bottom: 1px solid var(--line);
+          background:
+            linear-gradient(90deg, rgba(209,26,42,0.08), transparent 26%, rgba(245,167,66,0.045), transparent 78%),
+            var(--bg-0);
+          padding: 28px 0;
+        }
+        .s3-strip-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+        .s3-strip-card {
+          min-width: 0;
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.09);
+          background: rgba(255,255,255,0.025);
+          padding: 18px;
+          transition: transform 0.24s var(--ease-out), border-color 0.24s var(--ease-out), background 0.24s var(--ease-out);
+        }
+        .s3-strip-card::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: -20%;
+          bottom: -20%;
+          width: 2px;
+          background: linear-gradient(180deg, transparent, var(--red), transparent);
+          opacity: 0.55;
+          animation: garageEdgeSignal 3.8s ease-in-out infinite;
+        }
+        .s3-strip-card:nth-child(2)::before { animation-delay: 0.7s; }
+        .s3-strip-card:nth-child(3)::before { animation-delay: 1.4s; }
+        .s3-strip-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(209,26,42,0.38);
+          background: rgba(209,26,42,0.055);
+        }
+        .s3-strip-card h3 {
+          margin-top: 10px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(24px, 2.6vw, 36px);
+          line-height: 0.96;
+          text-transform: uppercase;
+        }
+        .s3-strip-card p {
+          margin-top: 12px;
+          color: var(--fg-dim);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+        @keyframes garageEdgeSignal {
+          0%, 100% { opacity: 0.2; transform: translateY(-12%); }
+          50% { opacity: 0.9; transform: translateY(12%); }
+        }
+        @media (max-width: 760px) {
+          .s3-strip-grid { grid-template-columns: 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .s3-strip-card::before { animation: none !important; }
+        }
+      `}</style>
+    </section>
+  );
+}
+
 // ---------------- PROMO BAR ----------------
 function PromoBar() {
   const [closed, setClosed] = useState(false);
   if (closed) return null;
   const promoMessages = [
-    "BELI 2 KOPI GRATIS CEMILAN — BERLAKU SAMPAI 31/05",
-    "CAFE RACER NIGHT — JUM 16 MEI · RSVP DI INSTAGRAM",
-    "MEMBER GARAGE CARD — DISKON 15% SETIAP HARI",
+    "LIVE GARAGE - BUKA SEKARANG",
+    "CEK MEJA KOSONG SEBELUM DATANG",
+    "ORDER DIGITAL / TAKEAWAY TERSEDIA",
+    "TRACKING ORDER AKTIF",
+    "RESERVASI CEPAT VIA WHATSAPP",
   ];
   return (
     <div className="promo-bar">
-      <span className="promo-bar__label">✦ PROMO MEI</span>
+      <span className="promo-bar__label">LIVE OUTLET</span>
       <div className="promo-bar__viewport">
         <div className="promo-bar__track">
           {[0, 1].map((group) => (
@@ -1994,7 +3630,7 @@ function PromoBar() {
               {promoMessages.map((message) => (
                 <React.Fragment key={`${group}-${message}`}>
                   <span>{message}</span>
-                  <span className="promo-bar__star">✶</span>
+                  <span className="promo-bar__star">|</span>
                 </React.Fragment>
               ))}
             </div>
@@ -2038,6 +3674,11 @@ function PromoBar() {
           text-transform: uppercase;
           white-space: nowrap;
         }
+        .promo-bar__label {
+          padding: 5px 9px;
+          border: 1px solid rgba(255,255,255,0.24);
+          background: rgba(0,0,0,0.12);
+        }
         .promo-bar__viewport {
           flex: 1 1 auto;
           min-width: 0;
@@ -2080,15 +3721,34 @@ function PromoBar() {
           .promo-bar {
             gap: 10px;
             padding-inline: 10px;
+            min-height: 38px;
           }
           .promo-bar__label,
           .promo-bar__group span {
             font-size: 10px;
             letter-spacing: 0.1em;
           }
+          .promo-bar__label {
+            max-width: 108px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
           .promo-bar__group {
             gap: 22px;
             padding-right: 22px;
+          }
+        }
+        @media (max-width: 380px) {
+          .promo-bar {
+            padding-inline: 8px;
+          }
+          .promo-bar__label {
+            max-width: 92px;
+            padding-inline: 7px;
+          }
+          .promo-bar__close {
+            width: 20px;
+            height: 20px;
           }
         }
       `}</style>
@@ -2255,7 +3915,7 @@ const MENU = {
   },
 
   "Burger & Kebab": {
-    eyebrow: "Tangan terbaik di Kemang",
+    eyebrow: "Tangan terbaik di Tebing Tinggi",
     summary: "30+ kombinasi mulai Rp 8K. Burger telur, crispy, kebab, sampai paket spesial komplit.",
     groups: [
       {
@@ -2337,10 +3997,325 @@ const MENU = {
 };
 
 // ---------------- MENU SECTION ----------------
+function menuSpotlightItems(data) {
+  const allItems = data.groups.flatMap((group) =>
+    group.items.map((item) => ({
+      ...item,
+      groupLabel: group.sub ?? data.eyebrow,
+    }))
+  );
+  const priority = ["Signature", "Terlaris", "Rekomendasi", "Manual Brew", "Komplit", "Baru", "Klasik", "Lokal"];
+  const picked = [];
+  for (const label of priority) {
+    const found = allItems.find((item) => item.badge === label && !picked.some((pickedItem) => pickedItem.name === item.name));
+    if (found) picked.push(found);
+    if (picked.length >= 4) break;
+  }
+  for (const item of allItems) {
+    if (picked.length >= 4) break;
+    if (!picked.some((pickedItem) => pickedItem.name === item.name)) picked.push(item);
+  }
+  return picked;
+}
+
+function menuDisplayPrice(item) {
+  const firstAvailable = item.prices.find((price) => price && price !== "—" && price !== "â€”");
+  return firstAvailable ? `Rp ${firstAvailable}K` : "Cek menu";
+}
+
 function Menu() {
   const cats = Object.keys(MENU);
   const [cat, setCat] = useState(cats[0]);
   const data = MENU[cat];
+  const spotlightItems = menuSpotlightItems(data);
+  const totalItems = data.groups.reduce((sum, group) => sum + group.items.length, 0);
+
+  return (
+    <section id="menu" className="section-pad" style={{
+      borderTop: "1px solid var(--line)",
+      background: "linear-gradient(180deg, var(--bg-0), var(--bg-1))",
+    }}>
+      <div className="shell">
+        <div className="menu-compact-head">
+          <div>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>02 / Menu</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Menu pilihan." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
+              <span style={{ display: "block" }}>Menu</span>
+              <span style={{ display: "block", color: "var(--red)" }}>pilihan.</span>
+            </Reveal>
+          </div>
+          <Reveal delay={360} className="menu-compact-copy">
+            <p>
+              Lagi lapar, butuh kopi, atau mau takeaway? Pilih favorit GARAGE di sini, lalu buka menu digital untuk order lengkap.
+            </p>
+            <div className="menu-compact-stats">
+              <MenuStat n="4" l="Pilihan cepat" />
+              <MenuStat n="8K" l="Mulai dari" />
+              <MenuStat n="07-23" l="Tersedia" />
+            </div>
+          </Reveal>
+        </div>
+
+        <div className="menu-tabs">
+          {cats.map((category, index) => {
+            const active = cat === category;
+            return (
+              <button key={category} onClick={() => setCat(category)} className={`menu-tab ${active ? "active" : ""}`}>
+                <div className="mono" style={{ marginBottom: 8, color: active ? "var(--red)" : "var(--fg-mute)" }}>
+                  0{index + 1} / Kategori
+                </div>
+                <div className="menu-tab-name">{category}</div>
+                <span className="menu-tab-underline" />
+              </button>
+            );
+          })}
+        </div>
+
+        <div key={`${cat}-compact`} className="menu-compact-intro">
+          <div>
+            <div className="mono" style={{ color: "var(--red)", marginBottom: 8 }}>{data.eyebrow}</div>
+            <h3>{data.summary}</h3>
+          </div>
+          <div className="menu-category-side">
+            <span className="mono">{spotlightItems.length} pilihan ditampilkan</span>
+            <span className="mono">{totalItems} item di menu digital</span>
+          </div>
+        </div>
+
+        <div className="menu-spotlight-grid">
+          {spotlightItems.map((item, index) => (
+            <Reveal key={item.name} delay={index * 70} className="menu-spotlight-card">
+              <div className="menu-card-top">
+                <span className="mono">{String(index + 1).padStart(2, "0")} / {item.groupLabel}</span>
+                {item.badge ? <span className="tag red">{item.badge}</span> : <span className="tag amber">Pilihan</span>}
+              </div>
+              <h4>{item.name}</h4>
+              <div className="menu-card-bottom">
+                <strong>{menuDisplayPrice(item)}</strong>
+                <Link className="menu-card-order" href={digitalMenuItemUrl(item.name)} aria-label={`Pesan ${item.name}`}>
+                  <span>Pesan</span>
+                  <ArrowRight size={12} />
+                </Link>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal as="div" className="menu-compact-cta">
+          <div>
+            <div className="mono" style={{ marginBottom: 8, color: "var(--red)" }}>ORDER LANGSUNG</div>
+            <h3>Pesan dari website, tinggal tunggu panggilan.</h3>
+          </div>
+          <div className="menu-compact-actions">
+            <Link className="btn btn-primary" href={DIGITAL_MENU_URL}><span>Lihat Menu Digital</span><ArrowRight /></Link>
+            <Link className="btn" href={DIGITAL_MENU_URL}><span>Order Sekarang</span><ArrowRight /></Link>
+            <a className="btn" href={WHATSAPP_URL}><span>Reservasi via WhatsApp</span><ArrowRight /></a>
+          </div>
+        </Reveal>
+      </div>
+
+      <style>{`
+        .menu-compact-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: end;
+          gap: 24px;
+          flex-wrap: wrap;
+          margin-bottom: 56px;
+        }
+        .menu-compact-copy {
+          max-width: 390px;
+        }
+        .menu-compact-copy p {
+          color: var(--fg-dim);
+          font-size: 15px;
+          line-height: 1.65;
+        }
+        .menu-compact-stats {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 18px;
+          margin-top: 18px;
+        }
+        .menu-tabs {
+          display: flex;
+          gap: 0;
+          border-top: 1px solid var(--line);
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .menu-tabs::-webkit-scrollbar { display: none; }
+        .menu-tab {
+          position: relative;
+          flex: 1 1 0;
+          min-width: 160px;
+          border-right: 1px solid var(--line);
+          padding: 22px 24px;
+          text-align: left;
+          background: transparent;
+          cursor: pointer;
+          transition: background 0.4s var(--ease-out);
+        }
+        .menu-tab:last-child { border-right: 0; }
+        .menu-tab.active { background: rgba(209,26,42,0.08); }
+        .menu-tab-name {
+          color: var(--fg-dim);
+          font-family: var(--font-display);
+          font-size: 20px;
+          letter-spacing: 0.02em;
+          line-height: 1;
+          text-transform: uppercase;
+          transition: color 0.4s var(--ease-out);
+        }
+        .menu-tab.active .menu-tab-name,
+        .menu-tab:hover .menu-tab-name {
+          color: var(--fg);
+        }
+        .menu-tab-underline {
+          position: absolute;
+          left: 0;
+          bottom: -1px;
+          width: 0;
+          height: 2px;
+          background: var(--red);
+          transition: width 0.5s var(--ease-out);
+        }
+        .menu-tab.active .menu-tab-underline { width: 100%; }
+        .menu-compact-intro {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+          gap: 40px;
+          align-items: end;
+          border-bottom: 1px solid var(--line);
+          padding: 32px 0;
+        }
+        .menu-compact-intro h3 {
+          max-width: 620px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(28px, 3vw, 40px);
+          letter-spacing: 0.02em;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .menu-category-side {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 8px;
+        }
+        .menu-spotlight-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+          padding-top: 28px;
+        }
+        .menu-spotlight-card {
+          min-width: 0;
+          border: 1px solid var(--line);
+          background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+          padding: 18px;
+          transition: transform 0.28s var(--ease-out), border-color 0.28s var(--ease-out), background 0.28s var(--ease-out);
+        }
+        .menu-spotlight-card:hover {
+          transform: translateY(-3px);
+          border-color: rgba(209,26,42,0.42);
+          background: linear-gradient(180deg, rgba(209,26,42,0.08), rgba(255,255,255,0.025));
+        }
+        .menu-card-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          min-height: 28px;
+        }
+        .menu-spotlight-card h4 {
+          min-height: 72px;
+          margin-top: 20px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(25px, 2.15vw, 34px);
+          letter-spacing: 0.01em;
+          line-height: 0.95;
+          text-transform: uppercase;
+        }
+        .menu-card-bottom {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-top: 24px;
+        }
+        .menu-card-bottom strong {
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: 30px;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .menu-card-order {
+          min-height: 38px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          border: 1px solid var(--line-2);
+          padding: 0 10px;
+          color: var(--fg-dim);
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          transition: color 0.25s var(--ease-out), border-color 0.25s var(--ease-out), background 0.25s var(--ease-out);
+        }
+        .menu-card-order:hover {
+          border-color: var(--red);
+          background: var(--red);
+          color: #fff;
+        }
+        .menu-compact-cta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          flex-wrap: wrap;
+          margin-top: 56px;
+          border: 1px solid var(--line);
+          background: linear-gradient(135deg, rgba(209,26,42,0.08), transparent);
+          padding: 32px 36px;
+        }
+        .menu-compact-cta h3 {
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: 28px;
+          letter-spacing: 0.02em;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .menu-compact-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        @media (min-width: 701px) and (max-width: 1100px) {
+          .menu-spotlight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 700px) {
+          .menu-compact-intro { grid-template-columns: 1fr; gap: 16px; }
+          .menu-category-side { align-items: flex-start; }
+          .menu-spotlight-grid { grid-template-columns: 1fr; }
+          .menu-spotlight-card h4 { min-height: 0; }
+          .menu-card-bottom { align-items: stretch; }
+          .menu-card-order { min-height: 46px; }
+          .menu-compact-cta { padding: 22px; }
+          .menu-compact-actions,
+          .menu-compact-actions .btn { width: 100%; justify-content: center; }
+        }
+      `}</style>
+    </section>
+  );
+
   const headerCols = data.pricingHeader || (data.groups[0]?.pricingHeader);
 
   return (
@@ -2791,7 +4766,7 @@ function About() {
               letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}>
-              EST. 2024 ◢ JAKARTA
+              EST. 2024 ◢ TEBING TINGGI
             </Reveal>
           </div>
         </div>
@@ -3083,19 +5058,18 @@ function Events() {
       <div className="shell">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, marginBottom: 64, alignItems: "end" }} className="events-head">
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>05 / Komunitas</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Garasi yang tidak pernah tutup." style={{ fontSize: "clamp(48px, 7vw, 116px)" }}>
-              <span style={{ display: "block" }}>Garasi yang</span>
-              <span style={{ display: "block" }}>tidak pernah <span style={{ color: "var(--red)" }}>tutup.</span></span>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>06 / Event</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Event minggu ini." style={{ fontSize: "clamp(48px, 7vw, 116px)" }}>
+              <span style={{ display: "block" }}>Event</span>
+              <span style={{ display: "block" }}>minggu <span style={{ color: "var(--red)" }}>ini.</span></span>
             </Reveal>
           </div>
           <Reveal delay={400}>
             <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)", maxWidth: 480 }}>
-              Kopdar motor, live set, workshop manual brew, dan supper club kreatif. Kalender berjalan sepanjang tahun —
-              daftar mailing list dan kami akan kasih kabar duluan.
+              Kopdar motor, live set, workshop manual brew, dan komunitas GARAGE. Cek kapasitas, lalu RSVP langsung via WhatsApp.
             </p>
-            <a href="#location" className="btn" style={{ marginTop: 28 }}>
-              <span>Daftar Sekarang</span><ArrowRight />
+            <a href={WHATSAPP_URL} className="btn" style={{ marginTop: 28 }}>
+              <span>RSVP WhatsApp</span><ArrowRight />
             </a>
           </Reveal>
         </div>
@@ -3116,142 +5090,280 @@ function Events() {
 }
 
 function MembershipMasterPro() {
-  const tierShowcase = [
+  const memberTiers = [
     {
-      tier: "Silver",
-      memberId: "GRG-SLV-2024-0001",
-      name: "GARAGE ROOKIE",
-      since: "2024-01-15",
+      name: "Starter",
+      meta: "Daftar gratis",
+      badge: "Basic",
+      benefits: ["Riwayat order tersimpan", "Info promo basic", "Akses login member", "Lebih cepat repeat order"],
     },
     {
-      tier: "Gold",
-      memberId: "GRG-GLD-2024-0042",
-      name: "REGULAR ELITE",
-      since: "2023-08-22",
+      name: "Rider",
+      meta: "Pelanggan aktif",
+      badge: "Popular",
+      benefits: ["Poin transaksi", "Diskon menu pilihan", "Prioritas info event", "Benefit reservasi tertentu"],
     },
     {
-      tier: "Platinum",
-      memberId: "GRG-PLT-2023-0118",
-      name: "PRESTIGE CLUB",
-      since: "2022-11-08",
-    },
-    {
-      tier: "Ultra",
-      memberId: "GRG-OMEGA-2021-0007",
-      name: "OWNER CIRCLE",
-      since: "2021-05-30",
+      name: "Garage Pro",
+      meta: "Member loyal",
+      badge: "Best",
+      benefits: ["Prioritas reservasi", "Birthday treat", "Promo eksklusif", "Akses komunitas/event"],
     },
   ];
 
   return (
-    <section id="membership" className="section-pad" style={{ borderTop: "1px solid var(--line)", background: "var(--bg-0)" }}>
+    <section id="membership" className="section-pad" style={{
+      borderTop: "1px solid var(--line)",
+      background: "linear-gradient(180deg, var(--bg-0), #0b0809)",
+    }}>
       <div className="shell">
-        <div style={{ display: "grid", gridTemplateColumns: "0.9fr 1.1fr", gap: 48, alignItems: "center" }} className="membership-master">
+        <div className="membership-master">
           <Reveal>
             <div>
               <div className="eyebrow" style={{ marginBottom: 20 }}>05 / Membership Master Pro</div>
               <h2 className="display" style={{ fontSize: "clamp(48px, 7vw, 104px)", lineHeight: 0.88 }}>
-                Premium<br /><span style={{ color: "var(--red)" }}>Member Card</span>
+                Member<br /><span style={{ color: "var(--red)" }}>Garage.</span>
               </h2>
               <p style={{ marginTop: 24, maxWidth: 500, color: "var(--fg-dim)", lineHeight: 1.7 }}>
-                Empat tier kartu dengan hologram aktif, QR access, dan benefit yang naik tiap level. Hover kartu untuk lihat motion 3D &mdash; tap untuk flip ke sisi belakang.
+                Jadi bagian dari GARAGE. Dapatkan info promo lebih cepat, akses event, dan benefit untuk kunjungan berikutnya.
               </p>
-              <div style={{ display: "flex", gap: 12, marginTop: 28, flexWrap: "wrap" }}>
-                <Link href={MEMBER_LOGIN_URL} className="btn primary">
+              <div className="membership-actions">
+                <Link href={`${MEMBER_LOGIN_URL}?mode=register`} className="btn btn-primary">
                   <span>Daftar Member</span><ArrowRight />
                 </Link>
-                <Link href="#membership-benefits" className="btn ghost" style={{ borderColor: "rgba(255,255,255,0.18)" }}>
-                  <span>Lihat benefit</span>
+                <Link href={MEMBER_LOGIN_URL} className="btn">
+                  <span>Login Member</span><ArrowRight />
                 </Link>
+                <a href={WHATSAPP_URL} className="btn"><span>Tanya via WhatsApp</span><ArrowRight /></a>
               </div>
             </div>
           </Reveal>
-          <Reveal delay={160}>
-            <div className="garage-membership-carousel membership-showcase">
-              {tierShowcase.map((entry) => (
-                <PremiumMembershipCard
-                  key={entry.tier}
-                  data={{
-                    name: entry.name,
-                    memberId: entry.memberId,
-                    phone: "+62 813 9618 6251",
-                    address: "Jl. Sembada, Medan",
-                    tier: entry.tier,
-                    membershipSince: entry.since,
-                  }}
-                  flippable
-                />
-              ))}
+          <Reveal delay={160} className="membership-live-panel">
+            <div className="mono" style={{ color: "var(--red)" }}>Cara jadi member</div>
+            <div className="membership-flow">
+              <div><span>01</span><strong>Daftar</strong><p>Buat akun member dari website.</p></div>
+              <div><span>02</span><strong>Datang</strong><p>Pesan menu favoritmu seperti biasa.</p></div>
+              <div><span>03</span><strong>Nikmati</strong><p>Dapatkan info promo, event, dan benefit lebih dulu.</p></div>
             </div>
           </Reveal>
         </div>
 
-        <div id="membership-benefits" style={{ marginTop: 72 }}>
-          <div className="eyebrow" style={{ marginBottom: 18 }}>Tier comparison</div>
-          <div className="membership-comparison">
-            {PREMIUM_TIER_OPTIONS.map((option) => (
-              <div key={option.tier} className={`membership-comparison-card membership-comparison-card--${option.tier.toLowerCase()}`}>
-                <div className="mono" style={{ color: "var(--fg-mute)", letterSpacing: "0.28em", fontSize: 10 }}>
-                  {option.tagline}
-                </div>
-                <div style={{ marginTop: 14, fontFamily: "var(--font-display)", fontSize: 34, lineHeight: 1, color: "var(--fg)" }}>
-                  {option.label}
-                </div>
-                <p style={{ marginTop: 14, color: "var(--fg-dim)", fontSize: 13, lineHeight: 1.6 }}>
-                  {option.perks}
-                </p>
-                <Link href={MEMBER_LOGIN_URL} className="mono" style={{ marginTop: 22, display: "inline-flex", alignItems: "center", gap: 8, color: "var(--fg)", letterSpacing: "0.22em", fontSize: 11, textTransform: "uppercase" }}>
-                  Apply <ArrowRight size={11} />
-                </Link>
+        <div id="membership-benefits" className="membership-tier-grid">
+          {memberTiers.map((tier, index) => (
+            <Reveal key={tier.name} delay={index * 90} className={`membership-tier-card membership-tier-card--${index}`}>
+              <div className="membership-tier-top">
+                <span className="mono">{tier.meta}</span>
+                <span className="membership-tier-badge">{tier.badge}</span>
               </div>
-            ))}
-          </div>
+              <h3>{tier.name}</h3>
+              <ul>
+                {tier.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}
+              </ul>
+              <Link href={`${MEMBER_LOGIN_URL}?mode=register`} className="membership-tier-link">
+                Daftar tier <ArrowRight size={12} />
+              </Link>
+            </Reveal>
+          ))}
         </div>
+
+        <Reveal className="membership-bottom-cta">
+          <div>
+            <div className="mono" style={{ color: "var(--red)", marginBottom: 8 }}>Untuk pelanggan tetap</div>
+            <h3>Datang sekali boleh. Balik lagi lebih enak.</h3>
+            <p style={{ marginTop: 12, maxWidth: 620, color: "var(--fg-dim)", fontSize: 13, lineHeight: 1.55 }}>
+              Benefit mengikuti promo aktif outlet. Member mendapat info lebih cepat, akses event lebih mudah, dan pengalaman pesan yang lebih praktis.
+            </p>
+          </div>
+          <div className="membership-bottom-actions">
+            <Link href={`${MEMBER_LOGIN_URL}?mode=register`} className="btn btn-primary">
+              <span>Daftar Member</span><ArrowRight />
+            </Link>
+            <Link href={DIGITAL_MENU_URL} className="btn">
+              <span>Order Dulu</span><ArrowRight />
+            </Link>
+          </div>
+        </Reveal>
       </div>
       <style>{`
-        @media (max-width: 900px) {
-          .membership-master { grid-template-columns: 1fr !important; }
-        }
-        .membership-showcase {
-          padding-top: 28px;
-        }
-        .membership-comparison {
+        .membership-master {
           display: grid;
+          grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+          gap: 48px;
+          align-items: center;
+        }
+        .membership-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 28px;
+        }
+        .membership-live-panel {
+          border: 1px solid var(--line);
+          background:
+            radial-gradient(circle at 18% 18%, rgba(209,26,42,0.18), transparent 34%),
+            linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+          padding: clamp(22px, 3vw, 36px);
+        }
+        .membership-flow {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 24px;
+        }
+        .membership-flow div {
+          min-width: 0;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(0,0,0,0.18);
+          padding: 18px;
+        }
+        .membership-flow span {
+          color: var(--red);
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.18em;
+        }
+        .membership-flow strong {
+          display: block;
+          margin-top: 12px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: 28px;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .membership-flow p {
+          margin-top: 12px;
+          color: var(--fg-dim);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+        .membership-tier-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 14px;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          margin-top: 56px;
         }
-        .membership-comparison-card {
-          background: linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012));
-          border: 1px solid rgba(255,255,255,0.10);
-          padding: 22px;
+        .membership-tier-card {
           position: relative;
+          min-width: 0;
           overflow: hidden;
-          transition: transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 360ms ease;
+          border: 1px solid var(--line);
+          background: linear-gradient(160deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));
+          padding: 24px;
+          transition: transform 0.32s var(--ease-out), border-color 0.32s var(--ease-out), background 0.32s var(--ease-out);
         }
-        .membership-comparison-card::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(180deg, transparent 60%, rgba(255,255,255,0.04));
-          pointer-events: none;
-        }
-        .membership-comparison-card:hover {
+        .membership-tier-card:hover {
           transform: translateY(-4px);
+          border-color: rgba(209,26,42,0.48);
+          background: linear-gradient(160deg, rgba(209,26,42,0.09), rgba(255,255,255,0.024));
         }
-        .membership-comparison-card--silver { border-color: rgba(200, 210, 230, 0.32); }
-        .membership-comparison-card--silver:hover { border-color: rgba(200, 210, 230, 0.7); }
-        .membership-comparison-card--gold { border-color: rgba(245, 197, 66, 0.45); }
-        .membership-comparison-card--gold:hover { border-color: rgba(245, 197, 66, 0.85); }
-        .membership-comparison-card--platinum { border-color: rgba(96, 180, 232, 0.42); }
-        .membership-comparison-card--platinum:hover { border-color: rgba(96, 180, 232, 0.82); }
-        .membership-comparison-card--ultra { border-color: rgba(140, 92, 240, 0.5); }
-        .membership-comparison-card--ultra:hover { border-color: rgba(140, 92, 240, 0.9); }
+        .membership-tier-card--1 {
+          border-color: rgba(245,167,66,0.32);
+        }
+        .membership-tier-card--2 {
+          border-color: rgba(96,180,232,0.32);
+        }
+        .membership-tier-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .membership-tier-badge {
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(255,255,255,0.06);
+          padding: 6px 8px;
+          color: var(--fg);
+          font-family: var(--font-mono);
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .membership-tier-card h3 {
+          margin-top: 24px;
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(36px, 4.4vw, 62px);
+          line-height: 0.92;
+          text-transform: uppercase;
+        }
+        .membership-tier-card ul {
+          display: grid;
+          gap: 10px;
+          margin-top: 22px;
+          list-style: none;
+        }
+        .membership-tier-card li {
+          border-top: 1px solid rgba(255,255,255,0.08);
+          padding-top: 10px;
+          color: var(--fg-dim);
+          font-size: 14px;
+          line-height: 1.45;
+        }
+        .membership-tier-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 24px;
+          color: var(--fg);
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+        .membership-bottom-cta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          flex-wrap: wrap;
+          margin-top: 48px;
+          border: 1px solid var(--line);
+          background: linear-gradient(135deg, rgba(209,26,42,0.08), transparent);
+          padding: 28px 32px;
+        }
+        .membership-bottom-cta h3 {
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(28px, 3.5vw, 44px);
+          line-height: 0.95;
+          text-transform: uppercase;
+        }
+        .membership-bottom-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        @media (max-width: 980px) {
+          .membership-master,
+          .membership-tier-grid {
+            grid-template-columns: 1fr;
+          }
+          .membership-flow {
+            grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 560px) {
+          .membership-actions .btn,
+          .membership-bottom-actions,
+          .membership-bottom-actions .btn {
+            width: 100%;
+            justify-content: center;
+          }
+          .membership-bottom-cta,
+          .membership-tier-card,
+          .membership-live-panel {
+            padding: 20px;
+          }
+        }
       `}</style>
     </section>
   );
 }
 
 function EventRow({ e, i, hover, setHover }) {
+  const rsvpUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(`Halo GARAGE, saya mau RSVP event ${e.title} (${e.date} ${e.time}).`)}`;
+  const seats = eventSeatInfo(e, i);
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -3294,16 +5406,34 @@ function EventRow({ e, i, hover, setHover }) {
         {e.desc}
       </p>
       <div style={{ textAlign: "right" }} className="event-cap">
-        <div className="mono" style={{ marginBottom: 6 }}>{e.capacity}</div>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: hover ? "var(--red)" : "var(--fg-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
-          RSVP <ArrowRight size={11} />
+        <div className="mono" style={{ marginBottom: 6 }}>{seats.available}/{seats.capacity || "-"} SLOT</div>
+        <div className="event-seat-meter" data-tone={seats.tone} aria-label={`Slot event tersedia ${seats.available} dari ${seats.capacity || 0}`}>
+          <span style={{ width: seats.capacity ? `${Math.max(4, Math.round((seats.available / seats.capacity) * 100))}%` : "0%" }} />
         </div>
+        <a href={rsvpUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, color: hover ? "var(--red)" : "var(--fg-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+          RSVP <ArrowRight size={11} />
+        </a>
       </div>
       <style>{`
+        .event-seat-meter {
+          width: 92px;
+          height: 4px;
+          margin: 0 0 10px auto;
+          overflow: hidden;
+          background: rgba(255,255,255,0.1);
+        }
+        .event-seat-meter span {
+          display: block;
+          height: 100%;
+          background: #0db86c;
+        }
+        .event-seat-meter[data-tone="busy"] span { background: var(--amber); }
+        .event-seat-meter[data-tone="full"] span { background: var(--red); }
         @media (max-width: 900px) {
           .event-row { grid-template-columns: 100px 1fr !important; gap: 16px !important; }
           .event-row .event-desc, .event-row .event-cap { grid-column: 2 / -1 !important; }
           .event-row .event-cap { text-align: left !important; }
+          .event-seat-meter { margin-left: 0 !important; }
         }
       `}</style>
     </div>);
@@ -3423,7 +5553,7 @@ function Location() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid var(--line)" }} className="loc-grid">
           {/* left — info */}
           <div style={{ padding: 56 }}>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>07 / Temukan kami</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>08 / Temukan kami</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Mampir saja. Kami menunggu." style={{ fontSize: "clamp(40px, 5vw, 76px)" }}>
               <span style={{ display: "block" }}>Mampir saja.</span>
               <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
@@ -3437,7 +5567,7 @@ function Location() {
                 <InfoBlock label="Jam Buka" mainline="07:00 — 23:00" sub="Buka hari Selasa - Minggu · Dapur tutup 22:30" />
               </Reveal>
               <Reveal delay={600}>
-                <InfoBlock label="Kontak" mainline="+62 813 9618 6251" sub="hello@garagecoffee.id" />
+                <InfoBlock label="Kontak" mainline="+62 851 8898 3600" sub={BUSINESS_EMAIL} />
               </Reveal>
               <Reveal delay={700}>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
@@ -3513,6 +5643,66 @@ function Location() {
 
 }
 
+function LocalSeoBlock() {
+  return (
+    <section id="local-seo" className="local-seo-band">
+      <div className="shell">
+        <Reveal className="local-seo-grid">
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 18 }}>07 / Local SEO</div>
+            <h2>GARAGE Coffee & Motor Tebing Tinggi</h2>
+            <p>
+              Cafe dan coffee shop di Tebing Tinggi untuk ngopi, makan, nongkrong, pesan takeaway, reservasi WhatsApp, ikut event komunitas, dan jadi member GARAGE.
+            </p>
+          </div>
+          <div className="local-seo-list">
+            <InfoBlock label="Alamat" mainline="Jl. Mayjen Sutoyo, Rambung" sub="Kec. Tebing Tinggi Kota, Kota Tebing Tinggi, Sumatera Utara 20631" />
+            <InfoBlock label="Reservasi" mainline="+62 851 8898 3600" sub="WhatsApp bisnis GARAGE" />
+            <InfoBlock label="Akses cepat" mainline="Menu digital & reservasi" sub="Pesan takeaway, cek tempat, dan ikuti progres order" />
+          </div>
+        </Reveal>
+      </div>
+      <style>{`
+        .local-seo-band {
+          border-top: 1px solid var(--line);
+          background: linear-gradient(180deg, var(--bg-0), var(--bg-1));
+          padding: 72px 0;
+        }
+        .local-seo-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+          gap: 48px;
+          align-items: start;
+        }
+        .local-seo-grid h2 {
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(40px, 6vw, 86px);
+          line-height: 0.9;
+          text-transform: uppercase;
+        }
+        .local-seo-grid p {
+          margin-top: 22px;
+          max-width: 620px;
+          color: var(--fg-dim);
+          font-size: 16px;
+          line-height: 1.7;
+        }
+        .local-seo-list {
+          display: grid;
+          gap: 18px;
+          border: 1px solid var(--line);
+          background: rgba(255,255,255,0.025);
+          padding: 24px;
+        }
+        @media (max-width: 860px) {
+          .local-seo-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
+    </section>
+  );
+}
+
 function InfoBlock({ label, mainline, sub }) {
   return (
     <div>
@@ -3537,7 +5727,7 @@ function FinalCTA() {
       <div className="hero-grid" style={{ opacity: 0.4 }} />
       <div className="shell" style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
         <Reveal as="div" className="mono" style={{ marginBottom: 32, color: "var(--red)" }}>
-          ● SAATNYA BERGERAK
+          LIVE GARAGE / TEBING TINGGI
         </Reveal>
         <Reveal mask as="h2" className="display" aria-label="Datang ke Garage." style={{ fontSize: "clamp(72px, 16vw, 260px)", marginBottom: 0 }}>
           <span style={{
@@ -3563,19 +5753,19 @@ function FinalCTA() {
           marginTop: 32, maxWidth: 540, marginInline: "auto",
           fontSize: 17, lineHeight: 1.6, color: "var(--fg-dim)"
         }}>
-          Kopi siap tuang. Meja sudah hangat. CB350 sudah dipoles. Pintu kami tutup pukul 23:00 —
-          tapi satu kursi kami sisakan untukmu.
+          Cek tempat, pilih menu, pesan takeaway, atau reservasi via WhatsApp sebelum datang.
+          GARAGE bukan cuma tempat ngopi. Ini tempat pulang untuk obrolan panjang.
         </Reveal>
 
         <Reveal delay={600} as="div" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 40 }}>
-          <a href={MAPS_URL} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ padding: "22px 36px" }}><span>Kunjungi Sekarang</span><ArrowRight /></a>
-          <a href={WHATSAPP_URL} className="btn" style={{ padding: "22px 36px" }}><span>Order via WhatsApp</span><ArrowRight /></a>
-          <button type="button" onClick={requestTablePanelOpen} className="btn" style={{ padding: "22px 36px" }}><span>Reservasi Meja</span><ArrowRight /></button>
+          <button type="button" onClick={requestTablePanelOpen} className="btn btn-primary" style={{ padding: "22px 36px" }}><span>Cek Meja</span><ArrowRight /></button>
+          <Link href={DIGITAL_MENU_URL} className="btn" style={{ padding: "22px 36px" }}><span>Order Sekarang</span><ArrowRight /></Link>
+          <a href={WHATSAPP_URL} className="btn" style={{ padding: "22px 36px" }}><span>Reservasi WhatsApp</span><ArrowRight /></a>
         </Reveal>
 
         {/* horizontal text */}
         <div style={{ marginTop: 100, opacity: 0.4 }}>
-          <div className="mono">JL. INDUSTRI 24 · KEMANG · JAKARTA · 07—23 SETIAP HARI</div>
+          <div className="mono">JL. MAYJEN SUTOYO / TEBING TINGGI / 07-23 SETIAP HARI</div>
         </div>
       </div>
     </section>);
@@ -3587,15 +5777,15 @@ function Footer() {
   const cols = [
   {
     h: "Jelajahi",
-    links: [["Tentang", "#about"], ["Menu", "#menu"], ["Suasana", "#atmosphere"], ["Pengalaman", "#experience"], ["Event", "#events"]]
+    links: [["Live Status", "#live-status"], ["Live Tracking", "#live-tracking-system"], ["Menu", "#menu"], ["Cek Nomor Order", `#${TRACKING_SECTION_ID}`], ["Event", "#events"]]
   },
   {
     h: "Kunjungi",
-    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["WhatsApp", "#"], ["Reservasi", "#location"], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
+    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["WhatsApp", WHATSAPP_URL], ["Reservasi", WHATSAPP_URL], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
   },
   {
-    h: "Ikuti",
-    links: [["Instagram", "#"], ["TikTok", "#"], ["Spotify", "#"], ["YouTube", "#"]]
+    h: "Kontak",
+    links: [[BUSINESS_EMAIL, `mailto:${BUSINESS_EMAIL}`], ["Order Digital", "/order"], ["Cek Meja", "#live-status"], ["Maps", MAPS_URL]]
   }];
 
   return (
@@ -3607,6 +5797,9 @@ function Footer() {
             <div className="mono" style={{ marginTop: 8 }}>COFFEE & MOTOR · EST. 2026</div>
             <p style={{ marginTop: 28, color: "var(--fg-dim)", maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
               Kopi premium dengan jiwa otomotif. Buka tujuh hari seminggu, sampai larut malam.
+            </p>
+            <p style={{ marginTop: 16, color: "var(--fg-dim)", maxWidth: 420, fontSize: 13, lineHeight: 1.55 }}>
+              {BUSINESS_ADDRESS}
             </p>
             <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 8, height: 8, background: "#0db86c", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(13,184,108,0.2)" }} />
@@ -3688,32 +5881,52 @@ function GarageWebsiteRoot({
 }: {
   landingHero?: SiteAsset | null;
 }) {
-  const [loaded, setLoaded] = useState(false);
-  const handleLoaderDone = useCallback(() => setLoaded(true), []);
-
-  useEffect(() => {
-    document.body.style.overflow = loaded ? "" : "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [loaded]);
+  const localBusinessJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CafeOrCoffeeShop",
+    name: "GARAGE Coffee & Motor",
+    description:
+      "GARAGE Coffee & Motor Tebing Tinggi. Cafe, coffee shop, tempat nongkrong, menu digital, takeaway, reservasi WhatsApp, membership, dan event komunitas.",
+    telephone: `+${WHATSAPP_PHONE}`,
+    email: BUSINESS_EMAIL,
+    priceRange: "Rp 8K - Rp 100K",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Jl. Mayjen Sutoyo, Rambung",
+      addressLocality: "Tebing Tinggi Kota",
+      addressRegion: "Sumatera Utara",
+      postalCode: "20631",
+      addressCountry: "ID",
+    },
+    openingHoursSpecification: [{
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      opens: "07:00",
+      closes: "23:00",
+    }],
+    servesCuisine: ["Coffee", "Indonesian", "Burger", "Kebab"],
+    areaServed: "Tebing Tinggi",
+  };
 
   return (
     <main id="top" className="garage-website">
-      {!loaded && <Loader onDone={handleLoaderDone} />}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+      />
       <CursorGlow />
       <div className="bg-grain" />
       <div className="bg-vignette" />
       <PromoBar />
       <Nav />
       <Hero landingHero={landingHero} />
-      <About />
+      <LiveVisitBoard />
+      <LiveTrackingSystem />
+      <S3MvpStrip />
       <Menu />
-      <Atmosphere landingHero={landingHero} />
-      <Experience />
       <MembershipMasterPro />
       <Events />
-      <Testimonials />
+      <LocalSeoBlock />
       <Location />
       <FinalCTA />
       <Footer />

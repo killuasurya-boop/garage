@@ -127,10 +127,16 @@ Kalau ada blocker post-deploy:
 
 ## Sign-Off
 
-| Role | Nama | Tanggal | Status |
-|---|---|---|---|
-| Tech Lead | | | ☐ |
-| Owner / Sponsor | | | ☐ |
-| Operations Lead | | | ☐ |
+| Role | Nama | Tanggal | Status | Catatan |
+|---|---|---|---|---|
+| AI Agent (Tech automation) | Claude Opus 4.8 | 2026-06-03 | ✅ | Code lint+build hijau, 17 sesi hardening + 7 fase plan tuntas, 47 ✅ checklist |
+| Tech Lead | | | ☐ | Review code + arch decisions |
+| Owner / Sponsor | | | ☐ | Approve go-live + business risk |
+| Operations Lead | | | ☐ | Confirm staff training done + outlet ready |
 
-> Setelah semua sign-off + smoke test pass → **GO LIVE** 🚀
+> Setelah semua sign-off manusia + smoke test pass → **GO LIVE** 🚀
+
+### Cara isi sign-off (manual)
+1. Edit file ini, ganti nama + tanggal + ☐ → ✅
+2. Commit + push: `git add docs/DEPLOYMENT_CHECKLIST.md && git commit -m "deploy: sign-off <role>"`
+3. Setelah 3 sign-off manusia tercatat + smoke test → eksekusi deploy

@@ -1,15 +1,21 @@
 "use client";
 
 // Layar QRIS customer-facing sinematik untuk monitor/tablet kedua di meja kasir,
-// halaman invoice (saat belum lunas), dan window POS popup. Desain match mock
-// HTML Garage: dark asphalt, aksen merah, scanlines, floating particles, clock
-// live, QR frame dengan glow ring + scanline + corner accents.
+// halaman invoice (saat belum lunas), dan window POS popup.
+//
+// PORT 1:1 dari mock HTML `garage_pos_display.html`:
+//   - Canvas background dengan diagonal+horizontal grid + moving radial spotlight
+//   - JS particles dinamis (spawn tiap 600ms, naik dgn drift, drag-fade)
+//   - QR frame dgn ringPulse subtle (scale 1.02), framePulse, scanLine fade,
+//     corner accents
+//   - Layout 2-kolom dengan pemisah vertikal glow
+//   - Bottombar dengan dot blink "Live"
 //
 // Sumber QRIS tunggal: /payments/qris-garage.png (sama dengan POS).
 // Tidak menyentuh path uang createOrder — pure presentational.
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type QrisPaymentDisplayProps = {
   /** Nominal yang harus dibayar (rupiah). Opsional. */
@@ -37,14 +43,6 @@ const PAYMENT_PLATFORMS = [
   "SeaBank",
 ];
 
-// Welcome rotasi yang muncul dengan crossfade. Tetap berorientasi pelanggan.
-const WELCOME_MESSAGES = [
-  "Terima Kasih!",
-  "Selamat Datang",
-  "Selamat Menikmati",
-  "Pelayanan Cepat",
-];
-
 function formatIdr(value: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -57,94 +55,164 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
+function prefersReducedMotion() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export function QrisPaymentDisplay({
   amount,
   orderNo,
-  merchantName = "GARAGE COFFEE & MOTOR",
+  merchantName = "GARAGE MINUMAN",
   nmid = "ID1026525964734",
   cashierCode = "A01",
   qrisSrc = "/payments/qris-garage.png",
 }: QrisPaymentDisplayProps) {
   const hasAmount = typeof amount === "number" && Number.isFinite(amount) && amount > 0;
 
-  // Clock live (HH:MM:SS + tanggal). Hindari hydration mismatch: server render
-  // placeholder ("--:--"), client tick pertama jadi waktu sekarang. Tidak ada
-  // setState dalam body effect — cuma subscribe ke timer.
+  // Clock live — anti hydration mismatch.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     const tick = () => setNow(new Date());
-    tick(); // tick pertama via callback (legal: panggilan fn dlm effect, bukan setState langsung)
+    tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
-  const mounted = now !== null;
-
-  // Welcome rotasi setiap 4s (paused saat reduced-motion karena re-render minor).
-  const [welcomeIdx, setWelcomeIdx] = useState(0);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) return;
-    const id = setInterval(
-      () => setWelcomeIdx((i) => (i + 1) % WELCOME_MESSAGES.length),
-      4000,
-    );
-    return () => clearInterval(id);
-  }, []);
-
-  const clockText =
-    mounted && now
-      ? `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
-      : "--:--:--";
-  const clockDate =
-    mounted && now
-      ? now.toLocaleDateString("id-ID", {
+  const clockText = now
+    ? `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
+    : "--:--:--";
+  const clockDate = now
+    ? now
+        .toLocaleDateString("id-ID", {
           weekday: "long",
           day: "numeric",
           month: "long",
           year: "numeric",
         })
-      : "---";
+        .toUpperCase()
+    : "---";
 
-  // Floating particles: 14 div ringan dgn delay/posisi acak — di-memo agar SSR=client.
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 14 }, (_, i) => ({
-        left: ((i * 37) % 100) + (i % 3) * 1.5,
-        size: 2 + (i % 4),
-        delay: (i * 0.55) % 7,
-        duration: 9 + ((i * 3) % 8),
-      })),
-    [],
-  );
+  // ─── Canvas background (diagonal+horizontal grid + moving spotlight) ───
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const canvas = bgCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let raf = 0;
+    let t = 0;
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const spacing = 60;
+
+      // Diagonal grid
+      ctx.strokeStyle = "rgba(192,57,43,0.06)";
+      ctx.lineWidth = 1;
+      for (let x = -canvas.height; x < canvas.width + canvas.height; x += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + canvas.height, canvas.height);
+        ctx.stroke();
+      }
+      // Horizontal grid
+      ctx.strokeStyle = "rgba(255,255,255,0.02)";
+      for (let y = 0; y < canvas.height; y += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      // Moving radial spotlight
+      const gx = canvas.width * 0.75;
+      const gy = canvas.height * 0.5 + Math.sin(t * 0.01) * 80;
+      const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, 400);
+      grad.addColorStop(0, "rgba(192,57,43,0.08)");
+      grad.addColorStop(1, "transparent");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      t++;
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  // ─── Particles JS (spawn tiap 600ms, naik dgn drift, fade out) ───
+  const particleHostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const host = particleHostRef.current;
+    if (!host) return;
+    const rafs = new Set<number>();
+    let intervalId: number | null = null;
+
+    const spawn = () => {
+      const p = document.createElement("div");
+      p.className = "qris-particle";
+      const startX = Math.random() * window.innerWidth;
+      const startY = window.innerHeight - 60;
+      const size = Math.random() * 3 + 1;
+      const duration = Math.random() * 4 + 3; // 3-7s
+      const drift = (Math.random() - 0.5) * 80;
+      p.style.left = startX + "px";
+      p.style.bottom = "50px";
+      p.style.width = p.style.height = size + "px";
+      host.appendChild(p);
+
+      let progress = 0;
+      const step = () => {
+        progress += 0.008 / duration;
+        if (progress >= 1) {
+          p.remove();
+          return;
+        }
+        const currentX = startX + drift * progress;
+        const currentY = startY - (window.innerHeight + 100) * progress;
+        const opacity = progress < 0.1 ? progress * 10 : 1 - progress;
+        p.style.transform = `translate(${currentX - startX}px, ${currentY - startY}px)`;
+        p.style.opacity = String(opacity * 0.6);
+        const id = requestAnimationFrame(step);
+        rafs.add(id);
+      };
+      const id0 = requestAnimationFrame(step);
+      rafs.add(id0);
+    };
+
+    intervalId = window.setInterval(spawn, 600);
+    return () => {
+      if (intervalId !== null) clearInterval(intervalId);
+      rafs.forEach((id) => cancelAnimationFrame(id));
+      host.innerHTML = "";
+    };
+  }, []);
 
   return (
     <main className="qris-screen" role="region" aria-label="Layar pembayaran QRIS Garage">
       <style>{qrisStyles}</style>
 
-      {/* Top bar pulse */}
-      <div className="qris-topbar" aria-hidden />
-      {/* Overlay scanlines */}
+      {/* Canvas background — diagonal grid + spotlight */}
+      <canvas ref={bgCanvasRef} className="qris-bg" aria-hidden />
+      {/* Scanlines overlay */}
       <div className="qris-scanlines" aria-hidden />
-      {/* Vignette gelap di tepi layar */}
-      <div className="qris-vignette" aria-hidden />
+      {/* Floating particles host (JS-driven) */}
+      <div ref={particleHostRef} className="qris-particles" aria-hidden />
 
-      {/* Floating particles */}
-      <div className="qris-particles" aria-hidden>
-        {particles.map((p, i) => (
-          <span
-            key={i}
-            className="qris-particle"
-            style={{
-              left: `${p.left}%`,
-              width: `${p.size}px`,
-              height: `${p.size}px`,
-              animationDelay: `${p.delay}s`,
-              animationDuration: `${p.duration}s`,
-            }}
-          />
-        ))}
-      </div>
+      {/* Top bar */}
+      <div className="qris-topbar" aria-hidden />
 
       <div className="qris-screen-grid">
         {/* ── KIRI ── */}
@@ -167,22 +235,22 @@ export function QrisPaymentDisplay({
           </div>
 
           {hasAmount ? (
-            <div className="qris-amount-box">
+            <div className="qris-welcome-wrap">
               <div className="qris-welcome-line" />
-              <div className="qris-amount-label">Total Pembayaran</div>
-              <div className="qris-amount-value">{formatIdr(amount as number)}</div>
-              {orderNo ? (
-                <div className="qris-amount-order">
-                  Order <strong>{orderNo}</strong>
-                </div>
-              ) : null}
+              <div className="qris-welcome-text">
+                Total Pembayaran
+                <strong>{formatIdr(amount as number)}</strong>
+                {orderNo ? (
+                  <span className="qris-amount-order">Order {orderNo}</span>
+                ) : null}
+              </div>
             </div>
           ) : (
             <div className="qris-welcome-wrap">
               <div className="qris-welcome-line" />
               <div className="qris-welcome-text">
                 Pesanan Diproses
-                <strong key={welcomeIdx}>{WELCOME_MESSAGES[welcomeIdx]}</strong>
+                <strong>Terima Kasih!</strong>
               </div>
             </div>
           )}
@@ -215,12 +283,11 @@ export function QrisPaymentDisplay({
                 <Image
                   src={qrisSrc}
                   alt="QRIS Garage Coffee & Motor"
-                  width={420}
-                  height={420}
+                  width={260}
+                  height={260}
                   priority
                   className="qris-img"
                 />
-                <div className="qris-scanline" aria-hidden />
               </div>
             </div>
           </div>
@@ -250,7 +317,7 @@ export function QrisPaymentDisplay({
         <div className="qris-bottom-left">QRIS · Pembayaran Nasional · GPN</div>
         <div className="qris-bottom-center">
           <span className="qris-live-dot" aria-hidden />
-          <span>Live · Real-time Settlement</span>
+          <span className="qris-live-text">Live · Real-time Settlement</span>
         </div>
         <div className="qris-bottom-right">Bank Indonesia · ASPI</div>
       </div>
@@ -266,15 +333,35 @@ const qrisStyles = `
 .qris-screen{
   position:fixed; inset:0; overflow:hidden; color:#F0F0F0;
   font-family:'Rajdhani',ui-sans-serif,system-ui,sans-serif;
-  background:
-    radial-gradient(1200px 600px at 18% -10%, #1a1a1f 0%, transparent 60%),
-    radial-gradient(900px 500px at 110% 110%, #1c1113 0%, transparent 55%),
-    #080808;
+  background:#080808;
+}
+
+/* Canvas background (diagonal grid + spotlight) */
+.qris-bg{position:fixed; inset:0; z-index:0; opacity:.6; pointer-events:none;}
+
+/* Scanlines overlay */
+.qris-scanlines{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,.08) 3px, rgba(0,0,0,.08) 4px);
+}
+
+/* Particles host — div spawn dinamis */
+.qris-particles{position:fixed; inset:0; z-index:1; pointer-events:none;}
+.qris-particle{
+  position:fixed; width:2px; height:2px; background:#C0392B;
+  border-radius:50%; pointer-events:none; opacity:0;
+  box-shadow:0 0 4px rgba(192,57,43,.8);
+}
+
+/* Layout grid */
+.qris-screen-grid{
+  position:relative; z-index:2; width:100vw; height:100vh;
+  display:grid; grid-template-rows:auto 1fr auto; grid-template-columns:1fr 1fr; gap:0;
 }
 
 /* Top bar */
 .qris-topbar{
-  position:absolute; left:0; right:0; top:0; height:5px; z-index:6;
+  position:absolute; left:0; right:0; top:0; height:5px; z-index:4;
   background:linear-gradient(90deg, transparent 0%, #C0392B 20%, #E74C3C 50%, #C0392B 80%, transparent 100%);
   animation:qrisBarPulse 3s ease-in-out infinite;
 }
@@ -283,43 +370,11 @@ const qrisStyles = `
   50%{opacity:1; box-shadow:0 0 20px #E74C3C}
 }
 
-/* Scanlines + vignette */
-.qris-scanlines{
-  position:absolute; inset:0; z-index:3; pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.08) 3px,rgba(0,0,0,.08) 4px);
-}
-.qris-vignette{
-  position:absolute; inset:0; z-index:2; pointer-events:none;
-  box-shadow:inset 0 0 220px 60px rgba(0,0,0,.7);
-}
-
-/* Floating particles */
-.qris-particles{position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none;}
-.qris-particle{
-  position:absolute; bottom:-10px; border-radius:50%;
-  background:radial-gradient(circle, rgba(231,76,60,.55), transparent 70%);
-  filter:blur(.5px);
-  animation:qrisParticle linear infinite;
-}
-@keyframes qrisParticle{
-  0%{transform:translateY(0) translateX(0); opacity:0}
-  10%{opacity:.7}
-  90%{opacity:.5}
-  100%{transform:translateY(-110vh) translateX(20px); opacity:0}
-}
-
-/* Layout: 2 kolom + bottombar */
-.qris-screen-grid{
-  position:relative; z-index:5; height:100%;
-  display:grid; grid-template-columns:1fr 1fr;
-  padding-top:5px; padding-bottom:44px; /* sisakan ruang topbar + bottombar */
-}
-
-/* ── KIRI ── */
+/* ── LEFT PANEL ── */
 .qris-left{
-  position:relative; padding:5vh 4vw 5vh 6vw;
-  display:flex; flex-direction:column; justify-content:center; gap:clamp(16px,3vh,32px);
-  border-right:1px solid rgba(192,57,43,.2);
+  position:relative; display:flex; flex-direction:column;
+  justify-content:center; align-items:flex-start;
+  padding:5vh 4vw 5vh 6vw; border-right:1px solid rgba(192,57,43,.2);
 }
 .qris-left::before{
   content:''; position:absolute; right:0; top:15%; bottom:15%; width:1px;
@@ -331,7 +386,10 @@ const qrisStyles = `
   50%{opacity:1; box-shadow:0 0 12px #C0392B}
 }
 
-.qris-logo-area{display:flex; align-items:center; gap:16px; animation:qrisFadeSlideUp .8s ease both;}
+.qris-logo-area{
+  display:flex; align-items:center; gap:16px; margin-bottom:5vh;
+  animation:qrisFadeSlideUp .8s ease both;
+}
 .qris-logo-img{
   width:72px; height:72px; border-radius:12px; border:2px solid #C0392B;
   display:grid; place-items:center;
@@ -345,98 +403,90 @@ const qrisStyles = `
   letter-spacing:8px; color:#F0F0F0; line-height:1;
 }
 .qris-brand-sub{
-  font-size:clamp(11px,1.2vw,14px); letter-spacing:5px; color:#9A9A9A;
-  text-transform:uppercase; margin-top:2px; font-weight:500;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(11px,1.2vw,14px);
+  letter-spacing:5px; color:#9A9A9A; text-transform:uppercase; margin-top:2px;
 }
 
-.qris-clock-wrap{animation:qrisFadeSlideUp .8s .2s ease both;}
+.qris-clock-wrap{margin-bottom:3vh; animation:qrisFadeSlideUp .8s .2s ease both;}
 .qris-clock{
   font-family:'Orbitron',sans-serif; font-size:clamp(28px,4vw,52px);
   font-weight:900; color:#F0F0F0; letter-spacing:4px; line-height:1;
 }
 .qris-clock-date{
-  font-size:clamp(12px,1.2vw,16px); color:#9A9A9A; letter-spacing:3px;
-  text-transform:uppercase; margin-top:4px;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(12px,1.2vw,16px);
+  color:#9A9A9A; letter-spacing:3px; text-transform:uppercase; margin-top:4px;
 }
 
-.qris-welcome-wrap, .qris-amount-box{animation:qrisFadeSlideUp .8s .4s ease both;}
+.qris-welcome-wrap{margin-bottom:4vh; animation:qrisFadeSlideUp .8s .4s ease both;}
 .qris-welcome-line{width:50px; height:3px; background:#C0392B; margin-bottom:10px; border-radius:2px;}
 .qris-welcome-text{
-  font-size:clamp(14px,1.8vw,22px); font-weight:600; color:#9A9A9A;
-  letter-spacing:2px; line-height:1.5; text-transform:uppercase;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(14px,1.8vw,22px);
+  font-weight:600; color:#9A9A9A; letter-spacing:2px; line-height:1.5;
+  text-transform:uppercase;
 }
 .qris-welcome-text strong{
-  display:block; color:#F0F0F0; font-family:'Bebas Neue',sans-serif;
-  font-size:clamp(20px,2.8vw,36px); letter-spacing:4px; margin-top:4px;
-  animation:qrisFadeSlideUp .6s ease both;
-}
-
-.qris-amount-box{
-  border:1px solid rgba(192,57,43,.45); border-radius:12px;
-  padding:clamp(14px,2vw,20px); max-width:560px;
-  background:linear-gradient(180deg, rgba(231,76,60,.10), rgba(255,255,255,.02));
-  position:relative; overflow:hidden;
-}
-.qris-amount-box::after{
-  content:''; position:absolute; top:0; left:-100%; width:80%; height:100%;
-  background:linear-gradient(90deg, transparent, rgba(231,76,60,.12), transparent);
-  animation:qrisShimmer 4s linear infinite;
-}
-.qris-amount-label{
-  font-size:clamp(11px,1.1vw,14px); letter-spacing:.22em; color:#9A9A9A;
-  text-transform:uppercase; margin-top:2px;
-}
-.qris-amount-value{
-  font-family:'Orbitron',sans-serif; font-weight:900;
-  font-size:clamp(34px,5vw,64px); color:#FFF; line-height:1; margin-top:6px;
-  text-shadow:0 0 24px rgba(231,76,60,.45);
+  color:#F0F0F0; display:block; font-size:clamp(20px,2.8vw,36px);
+  font-family:'Bebas Neue',sans-serif; letter-spacing:4px; margin-top:4px;
 }
 .qris-amount-order{
-  font-size:clamp(12px,1.2vw,15px); color:#9A9A9A; letter-spacing:.08em; margin-top:8px;
+  display:block; margin-top:8px; color:#9A9A9A;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(11px,1vw,14px);
+  letter-spacing:3px; font-weight:500;
 }
-.qris-amount-order strong{color:#E74C3C; font-weight:700;}
 
 .qris-platforms-wrap{animation:qrisFadeSlideUp .8s .6s ease both;}
 .qris-platforms-label{
   font-family:'Orbitron',sans-serif; font-size:9px; font-weight:700;
-  letter-spacing:3px; color:#666; text-transform:uppercase; margin-bottom:10px;
+  letter-spacing:3px; color:#444; text-transform:uppercase; margin-bottom:10px;
 }
-.qris-platforms-grid{display:flex; flex-wrap:wrap; gap:8px; max-width:560px;}
+.qris-platforms-grid{display:flex; flex-wrap:wrap; gap:8px;}
 .qris-pay-chip{
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:6px;
-  padding:5px 12px; font-size:clamp(10px,1vw,13px); font-weight:700; color:#9A9A9A;
-  letter-spacing:1px; transition:all .3s;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  border-radius:6px; padding:5px 12px;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(10px,1vw,13px);
+  font-weight:700; color:#9A9A9A; letter-spacing:1px; transition:all .3s;
 }
 .qris-pay-chip:hover{
-  background:rgba(192,57,43,.18); border-color:rgba(192,57,43,.5); color:#FFF;
+  background:rgba(192,57,43,.15); border-color:rgba(192,57,43,.4); color:#F0F0F0;
 }
 
-/* ── KANAN ── */
+/* ── RIGHT PANEL ── */
 .qris-right{
-  position:relative; padding:4vh 5vw;
   display:flex; flex-direction:column; justify-content:center; align-items:center;
-  gap:clamp(10px,2vh,22px);
+  padding:4vh 5vw; position:relative; gap:2.5vh;
 }
 
-.qris-scan-instruction{display:flex; flex-direction:column; align-items:center; gap:6px; animation:qrisFadeSlideUp .8s .3s ease both;}
+.qris-scan-instruction{
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  animation:qrisFadeSlideUp .8s .3s ease both;
+}
 .qris-scan-title{
   font-family:'Orbitron',sans-serif; font-size:clamp(14px,1.8vw,22px);
   font-weight:900; letter-spacing:5px; color:#E74C3C; text-transform:uppercase;
 }
 .qris-scan-subtitle{
-  font-size:clamp(11px,1.2vw,15px); font-weight:500; letter-spacing:3px;
-  color:#9A9A9A; text-transform:uppercase; opacity:.75;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(11px,1.2vw,15px);
+  font-weight:500; letter-spacing:3px; color:#9A9A9A; text-transform:uppercase; opacity:.7;
 }
 
-.qris-container{position:relative; display:flex; align-items:center; justify-content:center; padding:18px; animation:qrisFadeSlideUp .8s .5s ease both;}
+.qris-container{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  animation:qrisFadeSlideUp .8s .5s ease both;
+}
 .qris-glow-ring{
   position:absolute; inset:0; margin:auto;
   width:calc(100% + 40px); height:calc(100% + 40px);
   border-radius:20px; border:1px solid rgba(192,57,43,.2);
   animation:qrisRingPulse 2.5s ease-in-out infinite;
 }
-.qris-glow-ring:nth-child(2){width:calc(100% + 70px); height:calc(100% + 70px); border-radius:24px; animation-delay:.5s;}
-.qris-glow-ring:nth-child(3){width:calc(100% + 100px); height:calc(100% + 100px); border-radius:28px; animation-delay:1s;}
+.qris-glow-ring:nth-child(2){
+  width:calc(100% + 70px); height:calc(100% + 70px); border-radius:24px;
+  animation:qrisRingPulse 2.5s .5s ease-in-out infinite;
+}
+.qris-glow-ring:nth-child(3){
+  width:calc(100% + 100px); height:calc(100% + 100px); border-radius:28px;
+  animation:qrisRingPulse 2.5s 1s ease-in-out infinite;
+}
 @keyframes qrisRingPulse{
   0%,100%{opacity:.2; transform:scale(1)}
   50%{opacity:.7; transform:scale(1.02); box-shadow:0 0 20px rgba(192,57,43,.3)}
@@ -462,83 +512,122 @@ const qrisStyles = `
 .qris-frame::before{top:-3px; left:-3px; border-width:3px 0 0 3px; border-radius:6px 0 0 0;}
 .qris-frame::after{bottom:-3px; right:-3px; border-width:0 3px 3px 0; border-radius:0 0 6px 0;}
 
-.qris-inner{position:relative; overflow:hidden; border-radius:12px; background:#FFF; padding:clamp(10px,1.2vw,16px);}
-.qris-img{display:block; width:clamp(260px,28vw,400px); height:auto;}
-.qris-scanline{
-  position:absolute; left:0; right:0; height:3px;
-  background:linear-gradient(90deg, transparent, rgba(231,76,60,.95), transparent);
-  box-shadow:0 0 12px rgba(231,76,60,.8);
+.qris-inner{
+  background:#FFFFFF; border-radius:13px;
+  padding:clamp(10px,1.5vw,18px);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; overflow:hidden;
+}
+/* Scan-line (top 10% → 90% dengan opacity fade in/out) */
+.qris-inner::after{
+  content:''; position:absolute; left:0; right:0; height:3px;
+  background:linear-gradient(90deg, transparent, rgba(192,57,43,.8), transparent);
   animation:qrisScanLine 2.5s ease-in-out infinite;
+  border-radius:2px;
 }
-@keyframes qrisScanLine{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}
+@keyframes qrisScanLine{
+  0%{top:10%; opacity:0}
+  10%{opacity:1}
+  90%{opacity:1}
+  100%{top:90%; opacity:0}
+}
+.qris-img{
+  width:clamp(160px,22vw,260px); height:clamp(160px,22vw,260px);
+  object-fit:contain; display:block; image-rendering:crisp-edges;
+}
 
-.qris-merchant-badge{display:flex; flex-direction:column; align-items:center; gap:8px; animation:qrisFadeSlideUp .8s .7s ease both;}
+.qris-merchant-badge{
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  animation:qrisFadeSlideUp .8s .7s ease both;
+}
 .qris-merchant-name{
-  font-family:'Bebas Neue',sans-serif; font-size:clamp(18px,2.2vw,28px);
-  letter-spacing:6px; color:#F0F0F0;
+  font-family:'Bebas Neue',sans-serif; font-size:clamp(20px,2.5vw,30px);
+  letter-spacing:6px; color:#F0F0F0; line-height:1;
 }
-.qris-merchant-meta{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+.qris-merchant-meta{display:flex; gap:10px;}
 .qris-meta-pill{
-  display:inline-flex; align-items:center; gap:6px;
-  background:rgba(255,255,255,.04); border:1px solid #34343c;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
   padding:4px 12px; border-radius:999px;
-  font-size:clamp(10px,1vw,12px); letter-spacing:1.5px; color:#9A9A9A; text-transform:uppercase;
+  font-family:'Rajdhani',sans-serif; font-size:clamp(10px,.9vw,11px);
+  color:#9A9A9A; letter-spacing:1px;
 }
-.qris-meta-pill span{color:#F0F0F0; font-weight:700; letter-spacing:1px;}
+.qris-meta-pill span{color:#E74C3C; font-weight:700;}
 
-.qris-arrow-wrap{display:inline-flex; align-items:center; gap:10px; animation:qrisArrowBounce 1.5s ease-in-out infinite;}
-.qris-arrow-icon{color:#E74C3C; font-size:clamp(14px,1.5vw,20px); font-weight:900;}
+.qris-arrow-wrap{
+  display:flex; align-items:center; gap:10px;
+  animation:qrisArrowBounce 1.5s ease-in-out infinite;
+}
 .qris-arrow-text{
-  font-size:clamp(11px,1.2vw,14px); font-weight:600; letter-spacing:3px;
-  color:#9A9A9A; text-transform:uppercase;
+  font-family:'Orbitron',sans-serif; font-size:clamp(10px,1vw,13px);
+  font-weight:700; letter-spacing:3px; color:#C0392B; text-transform:uppercase;
+}
+.qris-arrow-icon{
+  font-size:22px; color:#E74C3C; filter:drop-shadow(0 0 6px #C0392B);
 }
 @keyframes qrisArrowBounce{
   0%,100%{transform:translateY(0)}
   50%{transform:translateY(-6px)}
 }
 
-/* Bottombar */
+/* ── BOTTOM BAR ── */
 .qris-bottombar{
-  position:absolute; left:0; right:0; bottom:0; z-index:6; height:36px;
+  grid-column:1 / -1; height:36px; padding:0 4vw;
   background:linear-gradient(180deg, transparent, rgba(0,0,0,.6));
   border-top:1px solid rgba(192,57,43,.2);
   display:flex; align-items:center; justify-content:space-between;
-  padding:0 clamp(16px,3vw,32px);
-  font-size:clamp(9px,.9vw,12px); letter-spacing:2px; color:#666; text-transform:uppercase;
+  position:relative; overflow:hidden;
 }
-.qris-bottom-center{display:inline-flex; align-items:center; gap:8px; color:#9A9A9A;}
+.qris-bottombar::before{
+  content:''; position:absolute; top:0; left:-100%; width:50%; height:100%;
+  background:linear-gradient(90deg, transparent, rgba(192,57,43,.1), transparent);
+  animation:qrisShimmer 4s linear infinite;
+}
+@keyframes qrisShimmer{
+  0%{transform:translateX(-100%)}
+  100%{transform:translateX(100%)}
+}
+.qris-bottom-left{
+  font-family:'Orbitron',sans-serif; font-size:clamp(8px,.8vw,10px);
+  font-weight:600; letter-spacing:3px; color:#444; text-transform:uppercase;
+}
+.qris-bottom-center{display:flex; align-items:center; gap:10px;}
 .qris-live-dot{
   width:8px; height:8px; border-radius:50%; background:#E74C3C;
-  box-shadow:0 0 8px #E74C3C; animation:qrisDotBlink 1.5s ease-in-out infinite;
+  animation:qrisDotBlink 1.5s ease-in-out infinite;
+  box-shadow:0 0 8px #E74C3C;
 }
 @keyframes qrisDotBlink{
-  0%,100%{opacity:1; transform:scale(1)}
-  50%{opacity:.3; transform:scale(.7)}
+  0%,100%{opacity:1}
+  50%{opacity:.2}
+}
+.qris-live-text{
+  font-family:'Orbitron',sans-serif; font-size:clamp(9px,.9vw,11px);
+  font-weight:700; letter-spacing:2px; color:#E74C3C; text-transform:uppercase;
+}
+.qris-bottom-right{
+  font-family:'Rajdhani',sans-serif; font-size:clamp(8px,.8vw,10px);
+  font-weight:600; letter-spacing:2px; color:#444; text-transform:uppercase;
 }
 
 @keyframes qrisFadeSlideUp{
-  from{opacity:0; transform:translateY(24px)}
+  from{opacity:0; transform:translateY(20px)}
   to{opacity:1; transform:translateY(0)}
 }
-@keyframes qrisShimmer{
-  0%{left:-100%}
-  100%{left:200%}
-}
 
-/* Responsive: stack jadi 1 kolom di lebar sempit */
+/* Responsif: stack jadi 1 kolom di lebar sempit */
 @media (max-width:900px){
-  .qris-screen-grid{grid-template-columns:1fr; grid-template-rows:auto 1fr; overflow-y:auto;}
+  .qris-screen-grid{grid-template-columns:1fr; grid-template-rows:auto auto auto auto; overflow-y:auto;}
   .qris-left{order:2; padding:24px; border-right:none; border-top:1px solid rgba(192,57,43,.2); align-items:center; text-align:center;}
   .qris-left::before{display:none;}
   .qris-platforms-grid{justify-content:center;}
   .qris-right{order:1; padding:24px;}
-  .qris-bottombar{position:static; height:auto; padding:10px 16px; flex-direction:column; gap:4px; text-align:center;}
+  .qris-bottombar{order:3; flex-direction:column; gap:4px; height:auto; padding:10px 16px; text-align:center;}
 }
 
 @media (prefers-reduced-motion:reduce){
   .qris-topbar, .qris-particle, .qris-live-dot, .qris-glow-ring,
-  .qris-scanline, .qris-frame, .qris-arrow-wrap, .qris-amount-box::after,
-  .qris-left::before{
+  .qris-frame, .qris-arrow-wrap, .qris-bottombar::before,
+  .qris-inner::after, .qris-left::before{
     animation:none !important;
   }
   .qris-glow-ring{opacity:.35;}

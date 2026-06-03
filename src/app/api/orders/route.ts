@@ -39,6 +39,20 @@ const orderSchema = z.object({
       reason: z.string().trim().min(3).max(200),
     })
     .optional(),
+  // Split payment opsional. Validasi sum = total + ≥ 2 split dilakukan di service
+  // (karena route belum tahu total order). Backward compat: tanpa field → jalur lama.
+  splits: z
+    .array(
+      z.object({
+        method: z.string().trim().min(1).max(40),
+        amount: z.number().int().positive(),
+        provider: z.string().trim().max(60).optional(),
+        reference: z.string().trim().max(80).optional(),
+      }),
+    )
+    .min(2, "Split payment butuh minimal 2 metode")
+    .max(6, "Maksimal 6 split per order")
+    .optional(),
   items: z
     .array(
       z.object({

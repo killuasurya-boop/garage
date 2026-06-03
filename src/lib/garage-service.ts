@@ -116,6 +116,17 @@ type OrderInput = {
     amount: number;
     reason: string;
   };
+  /**
+   * Split payment (opsional). Kalau diisi, total harus = order.total dan ≥ 2 split.
+   * Backward compatible: tanpa splits → jalur lama (single payment).
+   * Contoh: [{ method: "Cash", amount: 20000 }, { method: "QRIS", amount: 10000, reference: "tx-abc" }]
+   */
+  splits?: Array<{
+    method: string;
+    amount: number;
+    provider?: string;
+    reference?: string;
+  }>;
   items: Array<{
     itemId: string;
     variantId: string;
@@ -6208,10 +6219,11 @@ export async function moveTable(
 export async function getPublicCustomerOrderStatus(id: string) {
   const db = getDb();
   const safeId = id.trim();
+  const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(safeId);
   const [order] = await db
     .select()
     .from(orders)
-    .where(or(eq(orders.id, safeId), eq(orders.orderNo, safeId)))
+    .where(looksLikeUuid ? or(eq(orders.id, safeId), eq(orders.orderNo, safeId)) : eq(orders.orderNo, safeId))
     .limit(1);
   if (!order || !customerOrderSources.includes(order.orderSource)) {
     return null;
@@ -6623,6 +6635,190 @@ export async function getDisplayCustomerQueue() {
     ...row,
     createdAt: row.createdAt.toISOString(),
   }));
+}
+
+const publicLiveTrackingEvents = [
+  { date: "16 MEI", time: "19:00", title: "Cafe Racer Night", tag: "Kopdar Motor", capacity: 60 },
+  { date: "24 MEI", time: "20:00", title: "Slow Bar Live Set", tag: "Live Musik", capacity: 40 },
+  { date: "04 JUN", time: "18:30", title: "Workshop Manual Brew", tag: "Workshop", capacity: 12 },
+  { date: "13 JUN", time: "19:00", title: "Creative Supper Club", tag: "Komunitas", capacity: 30 },
+];
+
+function publicEtaRange(baseMinutes: number, activeCount: number) {
+  const start = Math.max(5, Math.min(45, Math.round(baseMinutes)));
+  const end = Math.max(start + 3, Math.min(60, start + 4 + Math.ceil(activeCount * 0.7)));
+  return `${start}-${end} menit`;
+}
+
+function publicTicketPulse(rows: Array<{
+  status: string;
+  elapsed: number;
+  targetMinutes: number;
+}>, idleEta = "8-12 menit") {
+  const queue = rows.filter((row) => row.status === "queue").length;
+  const cooking = rows.filter((row) => row.status === "cooking").length;
+  const ready = rows.filter((row) => row.status === "ready").length;
+  const active = queue + cooking + ready;
+  const overdue = rows.filter((row) => row.status !== "ready" && Number(row.elapsed) > Number(row.targetMinutes)).length;
+  if (!active) {
+    return {
+      active,
+      queue,
+      cooking,
+      ready,
+      overdue,
+      eta: idleEta,
+    };
+  }
+  const weightedBase =
+    rows.length > 0
+      ? rows.reduce((sum, row) => sum + Number(row.targetMinutes || 10), 0) / rows.length
+      : 10;
+  const etaBase = weightedBase + queue * 2.4 + cooking * 1.2 + overdue * 2;
+
+  return {
+    active,
+    queue,
+    cooking,
+    ready,
+    overdue,
+    eta: publicEtaRange(etaBase, active),
+  };
+}
+
+function publicVisitMood(totalTables: number, availableTables: number, activeOrders: number) {
+  if (!totalTables) {
+    return {
+      label: "Sinkron live",
+      tone: "sync",
+      recommendation: "Status live sedang disinkronkan. Reservasi WhatsApp tetap tersedia.",
+    };
+  }
+  const occupancy = (totalTables - availableTables) / totalTables;
+  if (availableTables <= 0 || occupancy >= 0.92) {
+    return {
+      label: "Full",
+      tone: "full",
+      recommendation: "Reservasi dulu. Takeaway lebih aman untuk saat ini.",
+    };
+  }
+  if (occupancy >= 0.68 || activeOrders >= 12) {
+    return {
+      label: "Padat",
+      tone: "busy",
+      recommendation: "Order digital dulu atau pilih takeaway agar tidak menunggu lama.",
+    };
+  }
+  if (occupancy >= 0.36 || activeOrders >= 5) {
+    return {
+      label: "Ramai santai",
+      tone: "normal",
+      recommendation: "Masih aman datang. Pilih meja kosong sebelum berangkat.",
+    };
+  }
+  return {
+    label: "Sepi nyaman",
+    tone: "calm",
+    recommendation: "Aman datang sekarang. Order digital bisa disiapkan lebih awal.",
+  };
+}
+
+function publicEventCapacity(event: { capacity: number }, index: number) {
+  const reserved = Math.min(event.capacity - 1, Math.round(event.capacity * (0.34 + index * 0.11)));
+  const available = Math.max(0, event.capacity - reserved);
+  const tone = available <= 3 ? "full" : available <= Math.ceil(event.capacity * 0.35) ? "busy" : "ready";
+  return { reserved, available, tone };
+}
+
+export async function getPublicLiveTrackingData() {
+  const db = getDb();
+  const [tables, ticketRows] = await Promise.all([
+    getPublicTableLiveData(),
+    db
+      .select({
+        station: kitchenTickets.station,
+        status: kitchenTickets.status,
+        targetGroup: kitchenTickets.targetGroup,
+        elapsed: kitchenTickets.elapsed,
+        targetMinutes: kitchenTickets.targetMinutes,
+        channel: kitchenTickets.channel,
+        createdAt: kitchenTickets.createdAt,
+      })
+      .from(kitchenTickets)
+      .where(inArray(kitchenTickets.status, ["queue", "cooking", "ready"]))
+      .orderBy(desc(kitchenTickets.createdAt))
+      .limit(200),
+  ]);
+
+  const barTickets = ticketRows.filter((ticket) => {
+    const station = ticket.station.toLowerCase();
+    return ticket.targetGroup === "drink" || station.includes("bar");
+  });
+  const kitchenTicketRows = ticketRows.filter((ticket) => {
+    const station = ticket.station.toLowerCase();
+    return ticket.targetGroup === "food" || station.includes("food") || station.includes("dapur");
+  });
+  const takeawayTickets = ticketRows.filter((ticket) => {
+    const channel = ticket.channel.toLowerCase();
+    return channel.includes("take") || channel.includes("delivery");
+  });
+
+  const orderPulse = publicTicketPulse(ticketRows, "8-12 menit");
+  const barPulse = publicTicketPulse(barTickets, "5-8 menit");
+  const kitchenPulse = publicTicketPulse(kitchenTicketRows, "12-18 menit");
+  const takeawayPulse = publicTicketPulse(takeawayTickets.length ? takeawayTickets : ticketRows, "8-12 menit");
+  const availableTables = tables.filter((table) => table.available).length;
+  const visitMood = publicVisitMood(tables.length, availableTables, orderPulse.active);
+  const events = publicLiveTrackingEvents.map((event, index) => {
+    const capacity = publicEventCapacity(event, index);
+    return {
+      ...event,
+      reserved: capacity.reserved,
+      available: capacity.available,
+      tone: capacity.tone,
+    };
+  });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    privacy: {
+      publicOnly: true,
+      note: "Data pelanggan, nilai transaksi, dan detail pesanan tidak dikirim ke response publik.",
+    },
+    orderPulse,
+    stationPulse: {
+      bar: {
+        ...barPulse,
+        label: "Estimasi Minuman",
+        unit: "minuman",
+        status: barPulse.active ? "Minuman sedang disiapkan" : "Minuman siap dipesan",
+      },
+      kitchen: {
+        ...kitchenPulse,
+        label: "Estimasi Makanan",
+        unit: "makanan",
+        status: kitchenPulse.active ? "Makanan sedang disiapkan" : "Dapur siap memasak",
+      },
+    },
+    takeaway: {
+      ...takeawayPulse,
+      label: "Takeaway ETA",
+      recommendation:
+        takeawayPulse.ready > 0
+          ? "Ada pesanan yang sudah siap diambil. Cek nomor order sebelum datang."
+          : orderPulse.active >= 12
+            ? "Takeaway bisa jadi pilihan lebih praktis saat tempat sedang ramai."
+            : "Pesan sekarang, ambil saat sudah siap.",
+    },
+    visit: {
+      totalTables: tables.length,
+      availableTables,
+      mood: visitMood.label,
+      tone: visitMood.tone,
+      recommendation: visitMood.recommendation,
+    },
+    events,
+  };
 }
 
 function printJobResponse(row: typeof printJobs.$inferSelect) {
@@ -8290,6 +8486,30 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     paymentMetadata.change = Math.max(0, input.cashReceived - total);
   }
 
+  // ── SPLIT PAYMENT VALIDATION ──
+  // Validasi di sini agar fail-fast SEBELUM transaksi DB. Backward compat:
+  // kalau `splits` undefined/empty → jalur lama (single payment).
+  const splits = input.splits && input.splits.length > 0 ? input.splits : null;
+  if (splits) {
+    if (splits.length < 2) {
+      throw new Error("Split payment butuh minimal 2 metode. Pakai paymentMethod tunggal kalau cuma 1.");
+    }
+    for (const s of splits) {
+      if (!s.method || typeof s.method !== "string" || !s.method.trim()) {
+        throw new Error("Setiap split wajib punya method (mis. Cash / QRIS).");
+      }
+      if (!Number.isFinite(s.amount) || !Number.isInteger(s.amount) || s.amount <= 0) {
+        throw new Error(`Split amount harus bilangan bulat positif (got: ${s.amount}).`);
+      }
+    }
+    const splitSum = splits.reduce((acc, s) => acc + s.amount, 0);
+    if (splitSum !== total) {
+      throw new Error(
+        `Total split (${splitSum}) tidak sama dengan total order (${total}). Selisih: ${splitSum - total}.`,
+      );
+    }
+  }
+
   let memberCustomer: typeof customers.$inferSelect | null = null;
   let memberAccount: typeof memberAccounts.$inferSelect | null = null;
   const memberPhone = input.memberPhone?.trim()
@@ -8365,22 +8585,58 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       )
       .returning();
 
-    const [payment] = await tx
-      .insert(payments)
-      .values({
-        orderId: order.id,
-        cashSessionId: openCashSession.id,
-        method: paymentMethod,
-        amount: total,
-        metadata: paymentMetadata,
-      })
-      .returning();
+    // ── INSERT PAYMENTS ──
+    // Backward compat: kalau tidak split → 1 row method=paymentMethod amount=total.
+    // Kalau split → N rows, satu per metode. Metadata tiap row punya kind=split + index/total.
+    let payment: typeof payments.$inferSelect;
+    let cashContribution = 0; // jumlah cash yang masuk kas (untuk update expectedCash)
+    if (splits) {
+      const insertedSplits = await tx
+        .insert(payments)
+        .values(
+          splits.map((s, idx) => {
+            const isCash = normalizePaymentMethod(s.method) === "cash";
+            if (isCash) cashContribution += s.amount;
+            return {
+              orderId: order.id,
+              cashSessionId: openCashSession.id,
+              method: s.method,
+              amount: s.amount,
+              metadata: {
+                ...paymentMetadata,
+                kind: "split" as const,
+                splitIndex: idx + 1,
+                splitTotal: splits.length,
+                provider: s.provider ?? paymentMetadata.provider ?? null,
+                reference: s.reference?.trim() || null,
+              },
+            };
+          }),
+        )
+        .returning();
+      payment = insertedSplits[0];
+    } else {
+      const inserted = await tx
+        .insert(payments)
+        .values({
+          orderId: order.id,
+          cashSessionId: openCashSession.id,
+          method: paymentMethod,
+          amount: total,
+          metadata: paymentMetadata,
+        })
+        .returning();
+      payment = inserted[0];
+      if (normalizePaymentMethod(paymentMethod) === "cash") {
+        cashContribution = total;
+      }
+    }
 
-    if (normalizePaymentMethod(paymentMethod) === "cash") {
+    if (cashContribution > 0) {
       await tx
         .update(cashSessions)
         .set({
-          expectedCash: sql`${cashSessions.expectedCash} + ${total}`,
+          expectedCash: sql`${cashSessions.expectedCash} + ${cashContribution}`,
         })
         .where(
           and(

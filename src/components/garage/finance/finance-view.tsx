@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BarChart3,
   Check,
+  ChefHat,
   Clock,
   Coffee,
   CreditCard,
@@ -16,9 +17,11 @@ import {
   ReceiptText,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Square,
   Wallet,
 } from "lucide-react";
+import { GarageEmpty } from "@/components/garage/garage-state-display";
 import { currency, type ModuleId, type Role } from "@/lib/garage-data";
 import type { CashSession, ClosingChecklistItem, PaymentBreakdown } from "@/lib/garage-api-types";
 import type { FinanceOverview } from "@/lib/finance-types";
@@ -1074,7 +1077,12 @@ export function FinanceView({
           </CardHeader>
           <CardContent className="space-y-3">
             {liveBreakdown.length === 0 ? (
-              <p className="text-sm text-[#888]">Belum ada pembayaran tercatat.</p>
+              <GarageEmpty
+                icon={CreditCard}
+                title="Belum ada pembayaran"
+                description="Pembayaran POS hari ini akan muncul di sini begitu kasir memproses transaksi."
+                compact
+              />
             ) : (
               liveBreakdown.map((item) => (
                 <div key={item.method} className="garage-surface space-y-2 rounded-md p-3">
@@ -1109,7 +1117,12 @@ export function FinanceView({
           </CardHeader>
           <CardContent>
             {!overview || overview.paymentSettlement.length === 0 ? (
-              <p className="text-sm text-[#888]">Belum ada settlement payment hari ini.</p>
+              <GarageEmpty
+                icon={Landmark}
+                title="Belum ada settlement"
+                description="Settlement payment provider (QRIS, e-wallet) akan tampil di sini setelah cair."
+                compact
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -1351,7 +1364,12 @@ export function FinanceView({
           </CardHeader>
           <CardContent className="space-y-2">
             {(overview?.alerts ?? []).length === 0 ? (
-              <p className="text-sm text-[#888]">Belum ada alert finance aktif.</p>
+              <GarageEmpty
+                icon={ShieldCheck}
+                title="Tidak ada alert finance"
+                description="Semua metrik finance dalam batas aman. Anomaly detector tetap memantau."
+                compact
+              />
             ) : (
               overview?.alerts.map((alert) => (
                 <div key={`${alert.type}-${alert.message}`} className="garage-surface rounded-md p-3">
@@ -1572,9 +1590,12 @@ export function FinanceView({
                 Memuat daftar pengeluaran...
               </p>
             ) : expenseList.length === 0 ? (
-              <p className="py-8 text-center text-xs text-[#8f8f99]">
-                Belum ada pengeluaran di kategori ini.
-              </p>
+              <GarageEmpty
+                icon={Wallet}
+                title="Belum ada pengeluaran"
+                description="Catat pengeluaran kategori ini untuk muncul di sini."
+                compact
+              />
             ) : (
               <Table className="min-w-[680px]">
                 <TableHeader className="sticky top-0 z-10 bg-[#1b1b21]">
@@ -1725,9 +1746,12 @@ export function FinanceView({
                 Menghitung margin...
               </p>
             ) : marginRows.length === 0 ? (
-              <p className="py-8 text-center text-xs text-[#8f8f99]">
-                Belum ada recipe untuk dihitung margin-nya. Tambah recipe dulu.
-              </p>
+              <GarageEmpty
+                icon={ChefHat}
+                title="Belum ada recipe"
+                description="Tambah recipe (BOM) di menu engineering supaya margin per item bisa dihitung."
+                compact
+              />
             ) : (
               <Table className="min-w-[680px]">
                 <TableHeader className="sticky top-0 z-10 bg-[#1b1b21]">

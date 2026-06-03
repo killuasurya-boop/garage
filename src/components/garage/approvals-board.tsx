@@ -18,6 +18,7 @@ import {
 
 import type { ModuleId, Role } from "@/lib/garage-data";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
+import { GarageEmpty } from "@/components/garage/garage-state-display";
 import { useDateFilterContext } from "@/components/garage/date-filter";
 
 import { Button } from "@/components/ui/button";
@@ -660,10 +661,11 @@ export function ApprovalsBoard({
           Memuat approvals…
         </div>
       ) : filteredRows.length === 0 ? (
-        <div className="rounded-lg border border-[#34343c] bg-[#111116] py-12 text-center text-sm text-[#8f8f99]">
-          <ShieldCheck className="mx-auto mb-2 size-6 text-[#4a4a54]" />
-          Tidak ada approval di filter ini.
-        </div>
+        <GarageEmpty
+          icon={ShieldCheck}
+          title="Tidak ada approval"
+          description="Ubah filter status atau periode untuk lihat approval yang lain. Semua approval kritis langsung muncul di sini."
+        />
       ) : groupedRows ? (
         <div className="space-y-3">
           {groupedRows.map(([type, list]) => (

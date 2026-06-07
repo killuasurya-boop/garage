@@ -10,6 +10,6 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: "D:/GARAGEFIX/pglite-data",
+    url: process.env.PGLITE_DATA_DIR ?? "D:/GARAGEFIX/pglite-data-lan-20260605",
   },
 });

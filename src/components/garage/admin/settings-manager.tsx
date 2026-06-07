@@ -162,42 +162,51 @@ export function SettingsManager({
     const updates: Record<string, SettingValue> = {};
     for (const key of dirty) updates[key] = values[key];
 
-    const res = await fetch("/api/admin/settings", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ outletId: activeOutletId, updates }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (!res.ok) {
-      setError(json?.error?.message ?? "Gagal menyimpan setting.");
-      return;
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ outletId: activeOutletId, updates }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error?.message ?? "Gagal menyimpan setting.");
+        return;
+      }
+      const scopeLabel = activeOutletId
+        ? `outlet ${outlets.find((o) => o.id === activeOutletId)?.code ?? ""}`
+        : "global";
+      setSuccess(`${json.data.saved} setting tersimpan ke ${scopeLabel}.`);
+      const themePreset = updates.garageOsThemePreset;
+      if (typeof themePreset === "string" && isThemePresetId(themePreset)) {
+        setPreset(themePreset);
+      }
+      setDirty(new Set());
+      // Re-fetch untuk update overrideKeys
+      void reloadScope(activeOutletId);
+    } catch {
+      setError("Gagal terhubung ke server. Cek koneksi lalu coba lagi.");
+    } finally {
+      setSaving(false);
     }
-    const scopeLabel = activeOutletId
-      ? `outlet ${outlets.find((o) => o.id === activeOutletId)?.code ?? ""}`
-      : "global";
-    setSuccess(`${json.data.saved} setting tersimpan ke ${scopeLabel}.`);
-    const themePreset = updates.garageOsThemePreset;
-    if (typeof themePreset === "string" && isThemePresetId(themePreset)) {
-      setPreset(themePreset);
-    }
-    setDirty(new Set());
-    // Re-fetch untuk update overrideKeys
-    void reloadScope(activeOutletId);
   }
 
   async function reloadScope(outletId: string | null) {
     const params = new URLSearchParams();
     if (outletId) params.set("outletId", outletId);
-    const res = await fetch(`/api/admin/settings?${params.toString()}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return;
-    const json = await res.json();
-    setValues(json.data.settings);
-    setGlobalValues(json.data.globalSettings);
-    setOverrideKeys(new Set(json.data.overrideKeys));
-    setDirty(new Set());
+    try {
+      const res = await fetch(`/api/admin/settings?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      setValues(json.data.settings);
+      setGlobalValues(json.data.globalSettings);
+      setOverrideKeys(new Set(json.data.overrideKeys));
+      setDirty(new Set());
+    } catch {
+      setError("Gagal memuat setting. Cek koneksi lalu coba lagi.");
+    }
   }
 
   async function switchOutlet(outletId: string | null) {
@@ -213,17 +222,21 @@ export function SettingsManager({
     if (!confirm(`Hapus override outlet untuk "${key}"? Akan kembali ke nilai global.`)) {
       return;
     }
-    const res = await fetch("/api/admin/settings", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ outletId: activeOutletId, keys: [key] }),
-    });
-    if (!res.ok) {
-      const json = await res.json();
-      setError(json?.error?.message ?? "Gagal hapus override.");
-      return;
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ outletId: activeOutletId, keys: [key] }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json?.error?.message ?? "Gagal hapus override.");
+        return;
+      }
+      await reloadScope(activeOutletId);
+    } catch {
+      setError("Gagal terhubung ke server. Cek koneksi lalu coba lagi.");
     }
-    await reloadScope(activeOutletId);
   }
 
   function resetAll() {

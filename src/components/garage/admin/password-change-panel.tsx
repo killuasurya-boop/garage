@@ -22,18 +22,24 @@ export function PasswordChangePanel({ required }: { required: boolean }) {
       return;
     }
     setSubmitting(true);
-    const res = await fetch("/api/account/password", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
-    const json = await res.json();
-    setSubmitting(false);
-    if (!res.ok) {
-      setError(json?.error?.message ?? "Gagal mengganti password.");
-      return;
+    try {
+      const res = await fetch("/api/account/password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error?.message ?? "Gagal mengganti password.");
+        return;
+      }
+      window.location.replace("/os");
+    } catch {
+      // Kegagalan transport (jaringan mati / respons non-JSON) — kasih feedback.
+      setError("Gagal terhubung ke server. Cek koneksi lalu coba lagi.");
+    } finally {
+      setSubmitting(false);
     }
-    window.location.replace("/os");
   }
 
   return (

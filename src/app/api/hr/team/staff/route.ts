@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 const ROLE_VALUES = [
   "Owner / CEO",
@@ -65,7 +66,7 @@ export async function GET() {
     return NextResponse.json({ staff: staffList });
   } catch (error) {
     console.error("Failed to fetch staff list:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -76,10 +77,7 @@ export async function PATCH(req: Request) {
 
     const parsed = patchStaffSchema.safeParse(await req.json());
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Payload tidak valid", details: parsed.error.flatten().fieldErrors },
-        { status: 400 },
-      );
+      return fail(400, "VALIDATION_ERROR", parsed.error.issues.map((i) => i.message).join("; ") || "Payload tidak valid");
     }
     const { id, division, position, pinCode, status, shiftLabel, role } = parsed.data;
 
@@ -105,6 +103,6 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to update staff profile:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { sopChecklists, sopLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
     const date = searchParams.get("date"); // YYYY-MM-DD
 
     if (!date) {
-      return NextResponse.json({ error: "date is required" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "date is required");
     }
 
     const db = await getDb();
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ checklists, logs });
   } catch (error) {
     console.error("Failed to fetch SOP data:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       const { template } = body; // { id?, title, description, roleTarget, shiftTarget, outletId, status }
       
       if (!template.title || !template.roleTarget || !template.shiftTarget || !template.outletId) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "Missing required fields");
       }
 
       if (template.id) {
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
       const { log } = body; // { checklistId, staffId, date, status, notes }
 
       if (!log.checklistId || !log.staffId || !log.date || !log.status) {
-        return NextResponse.json({ error: "Missing required fields for logging" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "Missing required fields for logging");
       }
 
       // Check if a log entry already exists
@@ -125,9 +126,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return fail(400, "INVALID_ACTION", "Invalid action");
   } catch (error) {
     console.error("Failed to manage SOP:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

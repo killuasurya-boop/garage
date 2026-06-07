@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db";
 import { trainingProgress } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
+import { fail } from "@/lib/api-response";
 
 export async function POST(
   request: Request,
@@ -41,6 +42,6 @@ export async function POST(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Training Complete API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal Server Error");
   }
 }

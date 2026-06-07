@@ -125,7 +125,7 @@ export function EmployeeClockPanel() {
       signal,
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Gagal cek status");
+    if (!res.ok) throw new Error(data?.error?.message ?? (typeof data?.error === "string" ? data.error : "Gagal cek status"));
     return data as CheckResult;
   }, [pin]);
 
@@ -216,7 +216,7 @@ export function EmployeeClockPanel() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Gagal mencatat absensi");
+        throw new Error(data?.error?.message ?? (typeof data?.error === "string" ? data.error : "Gagal mencatat absensi"));
       }
 
       const lateNote =

@@ -10,6 +10,7 @@ import {
   staffProfiles
 } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
+import { fail } from "@/lib/api-response";
 
 export async function GET() {
   try {
@@ -112,6 +113,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Training API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal Server Error");
   }
 }

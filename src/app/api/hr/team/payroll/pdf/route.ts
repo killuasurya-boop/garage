@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { staffPayrolls, staffProfiles, user, outlets } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq } from "drizzle-orm";
 import { generatePayrollSlipPdf } from "@/lib/garage-payroll-pdf";
+import { fail } from "@/lib/api-response";
 
 export async function GET(req: Request) {
   try {
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     const period = searchParams.get("period");
 
     if (!staffId || !period) {
-      return NextResponse.json({ error: "Missing staffId or period" }, { status: 400 });
+      return fail(400, "MISSING_PARAMS", "Missing staffId or period");
     }
 
     const db = await getDb();
@@ -53,10 +53,7 @@ export async function GET(req: Request) {
       .limit(1);
 
     if (!payroll) {
-      return NextResponse.json(
-        { error: "Slip gaji tidak ditemukan. Simpan gaji karyawan ke draf terlebih dahulu." },
-        { status: 404 }
-      );
+      return fail(404, "PAYROLL_NOT_FOUND", "Slip gaji tidak ditemukan. Simpan gaji karyawan ke draf terlebih dahulu.");
     }
 
     const pdfBuffer = await generatePayrollSlipPdf({
@@ -86,6 +83,6 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error("Failed to generate payroll PDF:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

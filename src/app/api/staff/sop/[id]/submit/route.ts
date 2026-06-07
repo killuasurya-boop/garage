@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sopLogs, staffProfiles } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
+import { fail } from "@/lib/api-response";
 
 export async function POST(
   request: Request,
@@ -22,7 +23,7 @@ export async function POST(
       .limit(1);
 
     if (!staffProfile) {
-      return NextResponse.json({ error: "Staff profile not found" }, { status: 400 });
+      return fail(400, "STAFF_PROFILE_NOT_FOUND", "Staff profile not found");
     }
 
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -52,6 +53,6 @@ export async function POST(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("SOP Submit API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal Server Error");
   }
 }

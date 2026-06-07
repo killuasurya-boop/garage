@@ -108,7 +108,7 @@ export function TeamShiftHandover() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Gagal menyimpan operan");
+        throw new Error(data?.error?.message ?? (typeof data?.error === "string" ? data.error : "Gagal menyimpan operan"));
       }
       setShowNewForm(false);
       setCashInput("");
@@ -138,7 +138,7 @@ export function TeamShiftHandover() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Gagal memproses operan");
+        throw new Error(data?.error?.message ?? (typeof data?.error === "string" ? data.error : "Gagal memproses operan"));
       }
       fetchLogs();
     } catch (err) {

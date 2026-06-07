@@ -3,12 +3,13 @@ import { getDb } from "@/db";
 import { announcements, user } from "@/db/schema";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 import { desc, eq } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 export async function GET() {
   try {
     const session = await requireGarageSession();
     if (session.response) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return fail(401, "UNAUTHORIZED", "Unauthorized");
     }
 
     const db = await getDb();
@@ -35,7 +36,7 @@ export async function GET() {
     return NextResponse.json({ announcements: list });
   } catch (error) {
     console.error("Failed to fetch announcements:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
     const { title, content, targetRole, outletId } = body;
 
     if (!title || !content) {
-      return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "Title and content are required");
     }
 
     const db = await getDb();
@@ -65,6 +66,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to create announcement:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

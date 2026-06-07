@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { staffAdvances, staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
     const period = searchParams.get("period"); // YYYY-MM
 
     if (!period) {
-      return NextResponse.json({ error: "period is required" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "period is required");
     }
 
     const db = await getDb();
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ advances: list });
   } catch (error) {
     console.error("Failed to fetch cash advances:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
       const { staffId, period, amount, reason } = body;
 
       if (!staffId || !period || !amount) {
-        return NextResponse.json({ error: "Missing required fields for request" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "Missing required fields for request");
       }
 
       await db.insert(staffAdvances).values({
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
       const { id } = body;
 
       if (!id) {
-        return NextResponse.json({ error: "id is required for approval" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "id is required for approval");
       }
 
       await db
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       const { id } = body;
 
       if (!id) {
-        return NextResponse.json({ error: "id is required for rejection" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "id is required for rejection");
       }
 
       await db
@@ -110,9 +111,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return fail(400, "INVALID_ACTION", "Invalid action");
   } catch (error) {
     console.error("Failed to manage cash advances:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

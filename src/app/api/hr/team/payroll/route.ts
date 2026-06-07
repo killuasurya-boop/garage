@@ -4,6 +4,7 @@ import { staffSalaries, staffPayrolls, staffProfiles, user, kpiEvaluations, empl
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq, gte, lt } from "drizzle-orm";
 import { computeWorkedStats, formatWorkedHours } from "@/lib/attendance";
+import { fail } from "@/lib/api-response";
 
 export async function GET(req: Request) {
   try {
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
     const period = searchParams.get("period"); // YYYY-MM
 
     if (!period) {
-      return NextResponse.json({ error: "period is required" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "period is required");
     }
 
     const db = await getDb();
@@ -166,7 +167,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ payrolls: payrollList });
   } catch (error) {
     console.error("Failed to fetch payroll data:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -184,7 +185,7 @@ export async function POST(req: Request) {
       const { staffId, baseSalary, allowance } = body;
 
       if (!staffId || baseSalary === undefined || allowance === undefined) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "Missing required fields");
       }
 
       // Check if master salary already exists
@@ -218,7 +219,7 @@ export async function POST(req: Request) {
       const { staffId, period, baseSalary, allowance, bonus, deduction, notes } = body;
 
       if (!staffId || !period || baseSalary === undefined || allowance === undefined || bonus === undefined || deduction === undefined) {
-        return NextResponse.json({ error: "Missing required fields for payroll record" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "Missing required fields for payroll record");
       }
 
       const intBase = parseInt(baseSalary);
@@ -273,7 +274,7 @@ export async function POST(req: Request) {
       const { staffId, period } = body;
 
       if (!staffId || !period) {
-        return NextResponse.json({ error: "Missing required fields for paying salary" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "Missing required fields for paying salary");
       }
 
       // Check if monthly record exists
@@ -325,9 +326,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return fail(400, "INVALID_ACTION", "Invalid action");
   } catch (error) {
     console.error("Failed to manage payroll:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

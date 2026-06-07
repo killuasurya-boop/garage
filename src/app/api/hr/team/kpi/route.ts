@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { kpiEvaluations, employeeAttendances, sopLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq, lt, lte, gte } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 export async function GET(req: Request) {
   try {
@@ -15,12 +16,12 @@ export async function GET(req: Request) {
     // Validasi format period YYYY-MM (cegah bulan/tahun ngawur).
     const match = /^(\d{4})-(\d{2})$/.exec(period ?? "");
     if (!period || !match) {
-      return NextResponse.json({ error: "period wajib format YYYY-MM" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "period wajib format YYYY-MM");
     }
     const year = Number(match[1]);
     const monthNum = Number(match[2]); // 1-12
     if (monthNum < 1 || monthNum > 12) {
-      return NextResponse.json({ error: "bulan period tidak valid" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "bulan period tidak valid");
     }
 
     const db = await getDb();
@@ -73,7 +74,7 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error("Failed to fetch KPI data:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
     const { staffId, period, score, feedback } = body; // { staffId, period, score, feedback }
 
     if (!staffId || !period || score === undefined) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "Missing required fields");
     }
 
     const db = await getDb();
@@ -129,6 +130,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to save KPI evaluation:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

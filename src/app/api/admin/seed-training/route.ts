@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db";
+import { fail } from "@/lib/api-response";
 import {
   trainingCourses,
   trainingLessons,
   sopChecklists,
   outlets
 } from "@/db/schema";
+import { requireGarageSession } from "@/lib/server-auth";
 
 export async function GET() {
+  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  if (session.response) {
+    return session.response;
+  }
+
   try {
     const db = getDb();
     
     const [outlet] = await db.select().from(outlets).limit(1);
     if (!outlet) {
-      return NextResponse.json({ error: "No outlet found" }, { status: 400 });
+      return fail(400, "NO_OUTLET", "No outlet found");
     }
 
     // 1. Onboarding Umum
@@ -144,6 +151,6 @@ export async function GET() {
 
     return NextResponse.json({ success: true, message: "Data training dan SOP berhasil di-seed" });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", String(error));
   }
 }

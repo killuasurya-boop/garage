@@ -4,6 +4,7 @@ import { employeeAttendances, staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { eq, and, gte, lt, desc } from "drizzle-orm";
 import { jakartaDayRange } from "@/lib/attendance";
+import { fail } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ logs: enriched });
   } catch (error) {
     console.error("Failed to fetch attendance logs:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

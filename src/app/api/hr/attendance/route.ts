@@ -25,6 +25,7 @@ import {
   resetRateLimit,
 } from "@/lib/attendance";
 import { getAppSettings } from "@/lib/garage-service";
+import { fail } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
@@ -72,23 +73,12 @@ export async function POST(req: Request) {
     const rateKey = `attendance:${clientIp(req)}`;
     const limit = checkRateLimit(rateKey);
     if (!limit.allowed) {
-      return NextResponse.json(
-        {
-          error: `Terlalu banyak percobaan PIN salah. Coba lagi dalam ${limit.retryAfterSec}s.`,
-        },
-        { status: 429 },
-      );
+      return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan PIN salah. Coba lagi dalam ${limit.retryAfterSec}s.`);
     }
 
     const parsed = attendanceSchema.safeParse(await req.json());
     if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error:
-            "Absensi memerlukan PIN 4-8 digit dan koordinat GPS. Pastikan izin lokasi peramban diaktifkan.",
-        },
-        { status: 400 },
-      );
+      return fail(400, "VALIDATION_ERROR", "Absensi memerlukan PIN 4-8 digit dan koordinat GPS. Pastikan izin lokasi peramban diaktifkan.");
     }
     const { pinCode, action, latitude, longitude, selfie } = parsed.data;
 
@@ -142,20 +132,17 @@ export async function POST(req: Request) {
 
     if (!resolved) {
       recordFailedAttempt(rateKey);
-      return NextResponse.json({ error: "PIN tidak ditemukan" }, { status: 404 });
+      return fail(404, "PIN_NOT_FOUND", "PIN tidak ditemukan");
     }
     resetRateLimit(rateKey);
 
     if (resolved.status !== "active") {
-      return NextResponse.json({ error: "Akun karyawan tidak aktif" }, { status: 403 });
+      return fail(403, "ACCOUNT_INACTIVE", "Akun karyawan tidak aktif");
     }
 
     const settings = await getAppSettings(resolved.outletId);
     if (!settings.attendanceEnabled) {
-      return NextResponse.json(
-        { error: "Absensi sedang dinonaktifkan oleh admin." },
-        { status: 403 },
-      );
+      return fail(403, "ATTENDANCE_DISABLED", "Absensi sedang dinonaktifkan oleh admin.");
     }
 
     const gpsRequired =
@@ -165,17 +152,11 @@ export async function POST(req: Request) {
       settings.attendanceRequireSelfie;
 
     if (gpsRequired && (latitude == null || longitude == null)) {
-      return NextResponse.json(
-        { error: "Absensi membutuhkan GPS. Aktifkan izin lokasi lalu coba lagi." },
-        { status: 400 },
-      );
+      return fail(400, "GPS_REQUIRED", "Absensi membutuhkan GPS. Aktifkan izin lokasi lalu coba lagi.");
     }
 
     if (selfieRequired && !selfie) {
-      return NextResponse.json(
-        { error: "Absensi membutuhkan selfie wajah. Aktifkan kamera lalu coba lagi." },
-        { status: 400 },
-      );
+      return fail(400, "SELFIE_REQUIRED", "Absensi membutuhkan selfie wajah. Aktifkan kamera lalu coba lagi.");
     }
 
     // --- Geofence ---
@@ -193,13 +174,7 @@ export async function POST(req: Request) {
 
     let distanceMeters: number | null = null;
     if (gpsRequired && settings.attendanceRequireActiveGeofence && !activeGeofence) {
-      return NextResponse.json(
-        {
-          error:
-            "Lokasi presensi outlet belum diset. Hubungi supervisor/admin sebelum absen.",
-        },
-        { status: 400 },
-      );
+      return fail(400, "GEOFENCE_NOT_SET", "Lokasi presensi outlet belum diset. Hubungi supervisor/admin sebelum absen.");
     }
     if (activeGeofence && latitude != null && longitude != null) {
       distanceMeters = haversineMeters(
@@ -209,14 +184,7 @@ export async function POST(req: Request) {
         activeGeofence.longitude,
       );
       if (gpsRequired && distanceMeters > activeGeofence.radius) {
-        return NextResponse.json(
-          {
-            error: `Absensi gagal. Anda di luar radius outlet. Jarak: ${Math.round(
-              distanceMeters,
-            )}m, maksimal: ${activeGeofence.radius}m.`,
-          },
-          { status: 400 },
-        );
+        return fail(400, "OUT_OF_GEOFENCE", `Absensi gagal. Anda di luar radius outlet. Jarak: ${Math.round(distanceMeters)}m, maksimal: ${activeGeofence.radius}m.`);
       }
     }
 
@@ -237,20 +205,14 @@ export async function POST(req: Request) {
       .then((rows) => rows[0]);
 
     if (settings.attendanceBlockDoublePunch && action === "in" && lastToday?.action === "in") {
-      return NextResponse.json(
-        { error: "Anda sudah Clock In dan belum Clock Out. Tidak bisa Clock In dua kali." },
-        { status: 409 },
-      );
+      return fail(409, "DOUBLE_CLOCK_IN", "Anda sudah Clock In dan belum Clock Out. Tidak bisa Clock In dua kali.");
     }
     if (
       settings.attendanceBlockDoublePunch &&
       action === "out" &&
       (!lastToday || lastToday.action === "out")
     ) {
-      return NextResponse.json(
-        { error: "Belum ada Clock In aktif hari ini. Clock In dulu sebelum Clock Out." },
-        { status: 409 },
-      );
+      return fail(409, "NO_ACTIVE_CLOCK_IN", "Belum ada Clock In aktif hari ini. Clock In dulu sebelum Clock Out.");
     }
 
     // --- Shift compliance ---
@@ -291,10 +253,7 @@ export async function POST(req: Request) {
       console.error("Gagal simpan selfie absensi:", e);
     }
     if (selfieRequired && !photoUrl) {
-      return NextResponse.json(
-        { error: "Selfie absensi tidak valid atau gagal disimpan. Coba ambil ulang foto." },
-        { status: 400 },
-      );
+      return fail(400, "SELFIE_INVALID", "Selfie absensi tidak valid atau gagal disimpan. Coba ambil ulang foto.");
     }
 
     await db.insert(employeeAttendances).values({
@@ -321,6 +280,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Attendance error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

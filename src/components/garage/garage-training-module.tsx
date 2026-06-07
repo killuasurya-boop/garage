@@ -65,7 +65,7 @@ export function GarageTrainingModule() {
   const parseResponse = async (res: Response) => {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new GarageApiError(err.error || "Gagal memuat data", { status: res.status });
+      throw new GarageApiError(err?.error?.message ?? (typeof err?.error === "string" ? err.error : "Gagal memuat data"), { status: res.status });
     }
     return res.json();
   };

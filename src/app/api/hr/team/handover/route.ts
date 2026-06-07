@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { staffShiftHandovers, staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
+import { fail } from "@/lib/api-response";
 
 const SHIFT_VALUES = ["pagi", "sore", "malam"] as const;
 
@@ -94,7 +95,7 @@ export async function GET() {
     return NextResponse.json({ handovers: enriched });
   } catch (error) {
     console.error("Failed to fetch shift handovers:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -105,10 +106,7 @@ export async function POST(req: Request) {
 
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Payload tidak valid", details: parsed.error.flatten() },
-        { status: 400 },
-      );
+      return fail(400, "VALIDATION_ERROR", parsed.error.issues.map((i) => i.message).join("; ") || "Payload tidak valid");
     }
 
     const db = await getDb();
@@ -158,6 +156,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to manage shift handover:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

@@ -3,12 +3,13 @@ import { getDb } from "@/db";
 import { operationGlossary } from "@/db/schema";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 export async function GET() {
   try {
     const session = await requireGarageSession();
     if (session.response) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return fail(401, "UNAUTHORIZED", "Unauthorized");
     }
 
     const db = await getDb();
@@ -17,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ glossary: list });
   } catch (error) {
     console.error("Failed to fetch glossary:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
 
     if (action === "delete") {
       if (!id) {
-        return NextResponse.json({ error: "id is required for deletion" }, { status: 400 });
+        return fail(400, "VALIDATION_ERROR", "id is required for deletion");
       }
       await db.delete(operationGlossary).where(eq(operationGlossary.id, id));
       return NextResponse.json({ success: true });
@@ -61,6 +62,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to manage glossary:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

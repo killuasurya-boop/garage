@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { shiftSchedules } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq, gte, lte } from "drizzle-orm";
+import { fail } from "@/lib/api-response";
 
 export async function GET(req: Request) {
   try {
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
     const endDate = searchParams.get("endDate");
 
     if (!startDate || !endDate) {
-      return NextResponse.json({ error: "startDate and endDate are required" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "startDate and endDate are required");
     }
 
     const db = await getDb();
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ schedules });
   } catch (error) {
     console.error("Failed to fetch shift schedules:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     const { shifts } = body; // Array of { id?, staffId, outletId, date, shiftType, startTime?, endTime?, notes? }
 
     if (!Array.isArray(shifts)) {
-      return NextResponse.json({ error: "shifts must be an array" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "shifts must be an array");
     }
 
     const db = await getDb();
@@ -95,6 +96,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to save shift schedules:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

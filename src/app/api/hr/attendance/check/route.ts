@@ -16,6 +16,7 @@ import {
   recordFailedAttempt,
 } from "@/lib/attendance";
 import { getAppSettings } from "@/lib/garage-service";
+import { fail } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
@@ -36,15 +37,12 @@ export async function POST(req: Request) {
     const rateKey = `attendance-check:${clientIp(req)}`;
     const limit = checkRateLimit(rateKey);
     if (!limit.allowed) {
-      return NextResponse.json(
-        { error: `Terlalu banyak percobaan. Coba lagi dalam ${limit.retryAfterSec}s.` },
-        { status: 429 },
-      );
+      return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan. Coba lagi dalam ${limit.retryAfterSec}s.`);
     }
 
     const parsed = checkSchema.safeParse(await req.json());
     if (!parsed.success) {
-      return NextResponse.json({ error: "PIN tidak valid" }, { status: 400 });
+      return fail(400, "VALIDATION_ERROR", "PIN tidak valid");
     }
 
     const db = await getDb();
@@ -83,10 +81,10 @@ export async function POST(req: Request) {
 
     if (!resolved) {
       recordFailedAttempt(rateKey);
-      return NextResponse.json({ error: "PIN tidak ditemukan" }, { status: 404 });
+      return fail(404, "PIN_NOT_FOUND", "PIN tidak ditemukan");
     }
     if (resolved.status !== "active") {
-      return NextResponse.json({ error: "Akun karyawan tidak aktif" }, { status: 403 });
+      return fail(403, "ACCOUNT_INACTIVE", "Akun karyawan tidak aktif");
     }
 
     const { start, end } = jakartaDayRange();
@@ -149,6 +147,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Attendance check error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return fail(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

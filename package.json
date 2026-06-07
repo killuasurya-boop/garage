@@ -31,6 +31,10 @@
     "db:reset-demo": "tsx src/db/reset-demo.ts",
     "db:repair-mvp": "tsx src/scripts/garage-db-repair-mvp.ts",
     "db:studio": "drizzle-kit studio",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:pos": "vitest run src/lib/garage-data.test.ts",
     "design:gen": "python \".claude/skills/ui-ux-pro-max/scripts/search.py\" --design-system --persist -p \"Garage OS\"",
     "design:gen:page": "python \".claude/skills/ui-ux-pro-max/scripts/search.py\" --design-system --persist -p \"Garage OS\" --page",
     "design:search": "python \".claude/skills/ui-ux-pro-max/scripts/search.py\""
@@ -70,7 +74,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.42",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -79,6 +83,7 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   }
 }

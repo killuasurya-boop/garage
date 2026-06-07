@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     ".tmp/**",
     "public/franchise-site/**",
     "*.js",
+    "garage-profitmax/**",
+    "garage-profitmax-ui/**",
+    "outputs/**",
   ]),
   // Konvensi Garage: prefix "_" menandai argumen/var/caught-error yang sengaja
   // tidak dipakai (mis. handler dengan signature tetap). Jangan dianggap warning.

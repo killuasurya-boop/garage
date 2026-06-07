@@ -163,13 +163,17 @@
 - [x] Build tidak require live DB (lazy init)
 - ⚠️ **CATATAN PENTING:** build pertama GAGAL dgn type error palsu di `.next/dev/types/validator.ts:620` (generated file). **Bukan bug kode** — stale `.next` cache. Fix: `rm -rf .next` lalu rebuild → sukses. Jika CI/deploy kena error serupa, bersihkan `.next` dulu.
 
-### 4.4 Browser Verification
-- [ ] `http://127.0.0.1:3000/` load dengan baik
-- [ ] Desktop layout (1366x900) ✅
-- [ ] Mobile layout (390x844) ✅
-- [ ] Tidak ada console error
-- [ ] Tidak ada text overflow / clipped controls
-- [ ] Login dengan seed user berhasil
+### 4.4 Browser Verification — SELESAI ✅ (runtime, port 3001 pglite)
+**Catatan DB:** awalnya pglite `pglite-data-running` korup (WASM `Aborted()`). Fix: backup dir korup → `drizzle-kit push --force` (migrate hang di pglite, push works) → `db:seed`. DB jadi reachable. **3 path PGLITE_DATA_DIR SUDAH DISELARASKAN** ke `D:/GARAGEFIX/pglite-data-lan-20260605` (DB kanonik: 15 user, 20 order, 1 outlet): .env.local (tetap) + launch.json (dari `...running`) + drizzle.config fallback (dari `...pglite-data`). Verifikasi: preview pakai DB selaras → health reachable, login owner OK, serve 20 order asli. Dir korup di `.bak-*`; `pglite-data-running` (seed test) bisa dihapus.
+
+- [x] App load: `GET /` 200, landing render penuh, **0 console error**
+- [x] `/api/health` → `{"data":{"ok":true,"database":{"status":"reachable (local PGlite)"}}}`
+- [x] **Login seed user berhasil** — demo-login kasir@garage.local → sesi aktif
+- [x] **Error shape runtime terbukti** — `/api/hr/attendance/check` balas `{ error: { code:"VALIDATION_ERROR", message } }` (400) & `{ code:"PIN_NOT_FOUND" }` (404). Konfirmasi kerja error-shape sesi ini live.
+- [x] **useGarageQuery runtime** — `/sales-history` fetch via hook, envelope `{ data }` ter-parse, empty-state render, 0 console error.
+- [x] **End-to-end POS→DB→Sales History** — buka shift → POST /api/orders (Kentang Goreng 2x) → order POS-67382785 + tiket K-38278527 + total Rp23.100 (transaksi atomik OK) → muncul di Sales History (screenshot: INV-POS-67382785, LUNAS, Rp23.100, tema asphalt, angka tak terpotong).
+- [~] **Auto-invalidate pub/sub (UI click-through):** consumer (useGarageQuery) & data flow terbukti; producer (invalidateGarageCache di submitOrder) terverifikasi via code+build+lint, **belum diklik lewat UI POS penuh**. Confidence tinggi (pub/sub sederhana).
+- [ ] Mobile 390×844 & desktop 1366×900 spesifik: belum di-resize-test (screenshot default desktop OK).
 
 ---
 

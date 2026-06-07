@@ -26,6 +26,7 @@ import { currency, type ModuleId, type Role } from "@/lib/garage-data";
 import type { CashSession, ClosingChecklistItem, PaymentBreakdown } from "@/lib/garage-api-types";
 import type { FinanceOverview } from "@/lib/finance-types";
 import { garageApi } from "@/lib/api-client";
+import { GARAGE_TAGS, subscribeGarageCache } from "@/lib/garage-cache";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -417,6 +418,16 @@ export function FinanceView({
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
+
+  // Cross-module refresh: saat tag `finance` di-invalidate (mis. order baru /
+  // void di POS), refetch overview otomatis tanpa reload manual.
+  useEffect(
+    () =>
+      subscribeGarageCache(GARAGE_TAGS.finance, () => {
+        void loadOverview();
+      }),
+    [loadOverview],
+  );
 
   async function downloadExport() {
     setExporting(true);

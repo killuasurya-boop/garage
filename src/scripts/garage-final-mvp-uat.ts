@@ -5,6 +5,7 @@
 import { config as loadEnv } from "dotenv";
 
 import { GARAGE_SMOKE_MEMBER_PHONE } from "@/lib/garage-member-seed";
+import { writeFinalMvpUatEvidence } from "@/lib/garage-operational-evidence";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
@@ -22,6 +23,15 @@ const managerEmail = process.env.UAT_MANAGER_EMAIL ?? "manager@garage.local";
 const gudangEmail = process.env.UAT_GUDANG_EMAIL ?? "gudang@garage.local";
 const sharedPassword = process.env.UAT_PASSWORD ?? kasirPassword;
 const memberPhone = process.env.SMOKE_MEMBER_IDENTIFIER ?? GARAGE_SMOKE_MEMBER_PHONE;
+const roleLoginIps = new Map<string, string>();
+
+function loginIpFor(email: string) {
+  const existing = roleLoginIps.get(email);
+  if (existing) return existing;
+  const next = `10.88.0.${roleLoginIps.size + 10}`;
+  roleLoginIps.set(email, next);
+  return next;
+}
 
 class CookieJar {
   private readonly cookies = new Map<string, string>();
@@ -47,6 +57,8 @@ class CookieJar {
     }
   }
 }
+
+const staffJars = new Map<string, CookieJar>();
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -74,11 +86,19 @@ async function request<T = unknown>(
   if (options.json !== undefined) headers.set("Content-Type", "application/json");
   const cookie = jar?.header();
   if (cookie) headers.set("Cookie", cookie);
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers,
-    body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
-  });
+  const signal = options.signal ?? AbortSignal.timeout(30_000);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+      signal,
+      body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
+    });
+  } catch (error) {
+    const method = options.method ?? "GET";
+    throw new Error(`${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
   jar?.store(response.headers);
   const text = await response.text();
   let json: T | null = null;
@@ -95,7 +115,14 @@ async function request<T = unknown>(
 async function loginEmail(jar: CookieJar, email: string) {
   const result = await request(
     "/api/auth/sign-in/email",
-    { method: "POST", json: { email, password: sharedPassword, callbackURL: "/os" } },
+    {
+      method: "POST",
+      headers: {
+        "x-real-ip": loginIpFor(email),
+        "x-forwarded-for": loginIpFor(email),
+      },
+      json: { email, password: sharedPassword, callbackURL: "/os" },
+    },
     jar,
   );
   if (!result.response.ok) {
@@ -103,10 +130,19 @@ async function loginEmail(jar: CookieJar, email: string) {
   }
 }
 
-async function uatCashierShift(): Promise<UatResult> {
+async function staffJar(email: string) {
+  const existing = staffJars.get(email);
+  if (existing) return existing;
+
   const jar = new CookieJar();
+  await loginEmail(jar, email);
+  staffJars.set(email, jar);
+  return jar;
+}
+
+async function uatCashierShift(): Promise<UatResult> {
   try {
-    await loginEmail(jar, kasirEmail);
+    const jar = await staffJar(kasirEmail);
     const active = await request("/api/finance/cash-sessions/me/active", {}, jar);
     if (!active.response.ok) {
       return { id: "cashier-shift", label: "Kasir shift", pass: false, detail: "Active session endpoint gagal." };
@@ -158,9 +194,8 @@ async function uatCashierShift(): Promise<UatResult> {
 }
 
 async function uatFinanceExpense(): Promise<UatResult> {
-  const jar = new CookieJar();
   try {
-    await loginEmail(jar, financeEmail);
+    const jar = await staffJar(financeEmail);
     const small = await request(
       "/api/finance/expenses",
       {
@@ -202,8 +237,7 @@ async function uatFinanceExpense(): Promise<UatResult> {
         detail: `Expense besar status=${largeRow.status}, expected pending_approval.`,
       };
     }
-    const managerJar = new CookieJar();
-    await loginEmail(managerJar, managerEmail);
+    const managerJar = await staffJar(managerEmail);
     const approved = await request(
       `/api/finance/expenses/${largeRow.id}/approve`,
       { method: "PATCH", json: {} },
@@ -241,9 +275,8 @@ async function uatFinanceExpense(): Promise<UatResult> {
 }
 
 async function uatInventoryOpname(): Promise<UatResult> {
-  const jar = new CookieJar();
   try {
-    await loginEmail(jar, gudangEmail);
+    const jar = await staffJar(gudangEmail);
     const inventory = await request("/api/inventory", {}, jar);
     if (!inventory.response.ok) {
       return { id: "inventory-opname", label: "Stok opname", pass: false, detail: "List inventory gagal." };
@@ -279,8 +312,7 @@ async function uatInventoryOpname(): Promise<UatResult> {
     if (!sessionId) {
       return { id: "inventory-opname", label: "Stok opname", pass: false, detail: "Response opname tanpa session id." };
     }
-    const managerJar = new CookieJar();
-    await loginEmail(managerJar, managerEmail);
+    const managerJar = await staffJar(managerEmail);
     const approved = await request(`/api/inventory/opname/${sessionId}/approve`, { method: "PATCH" }, managerJar);
     if (!approved.response.ok) {
       return {
@@ -317,9 +349,8 @@ async function uatInventoryOpname(): Promise<UatResult> {
 }
 
 async function uatQrOrder(): Promise<UatResult> {
-  const jar = new CookieJar();
   try {
-    await loginEmail(jar, kasirEmail);
+    const jar = await staffJar(kasirEmail);
     const menu = await request("/api/customer/menu");
     if (!menu.response.ok) {
       return { id: "qr-order", label: "QR order", pass: false, detail: "Menu API gagal." };
@@ -420,8 +451,7 @@ async function uatMemberLock(): Promise<UatResult> {
       return { id: "member-lock", label: "Member lock", pass: false, detail: "Order dengan HP member gagal." };
     }
     const orderData = dataOf<{ order: { customerName?: string; id: string } }>(order.json);
-    const kasirJar = new CookieJar();
-    await loginEmail(kasirJar, kasirEmail);
+    const kasirJar = await staffJar(kasirEmail);
     await request(
       `/api/customer/orders/${orderData.order.id}/status`,
       { method: "PATCH", json: { action: "reject", reason: "UAT cleanup member lock" } },
@@ -449,20 +479,46 @@ async function uatMemberLock(): Promise<UatResult> {
 
 async function main() {
   console.log(`GARAGE Final MVP UAT (API) → ${baseUrl}\n`);
-  const results = await Promise.all([
-    uatCashierShift(),
-    uatFinanceExpense(),
-    uatInventoryOpname(),
-    uatQrOrder(),
-    uatMemberLock(),
-  ]);
+  const requested = new Set(
+    (process.env.UAT_ONLY ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+  const checks: Array<{ id: string; run: () => Promise<UatResult> }> = [
+    { id: "cashier-shift", run: uatCashierShift },
+    { id: "finance-expense", run: uatFinanceExpense },
+    { id: "inventory-opname", run: uatInventoryOpname },
+    { id: "qr-order", run: uatQrOrder },
+    { id: "member-lock", run: uatMemberLock },
+  ];
+  const results: UatResult[] = [];
+  for (const check of checks) {
+    if (requested.size && !requested.has(check.id)) continue;
+    results.push(await check.run());
+  }
   let passCount = 0;
   for (const row of results) {
     const prefix = row.pass ? "PASS" : "FAIL";
     console.log(`${prefix} [${row.id}] ${row.label}: ${row.detail}`);
     if (row.pass) passCount += 1;
   }
+  if (!requested.size) {
+    await writeFinalMvpUatEvidence({
+      kind: "final-mvp-uat",
+      generatedAt: new Date().toISOString(),
+      baseUrl,
+      passCount,
+      total: results.length,
+      results,
+    });
+  }
   console.log(`\nAPI UAT: ${passCount}/${results.length} passed`);
+  if (requested.size) {
+    console.log("API UAT REPORT: skipped for UAT_ONLY run");
+  } else {
+    console.log("API UAT REPORT: .garage/readiness/latest-final-mvp-uat.json");
+  }
   console.log("Item 6 (fee karyawan): verifikasi otomatis sistem — cek Finance fee liability setelah transaksi POS.");
   console.log("UI manual: centang panel UAT di Finance setelah verifikasi tablet/desktop/HP.");
   if (passCount < results.length) {

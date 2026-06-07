@@ -3005,7 +3005,7 @@ export async function getFinanceOverview() {
       unit: inventoryItems.unit,
     })
     .from(inventoryItems)
-    .where(or(eq(inventoryItems.status, "low"), eq(inventoryItems.status, "critical")))
+    .where(eq(inventoryItems.status, "low"))
     .orderBy(inventoryItems.onHand)
     .limit(3);
 
@@ -6024,11 +6024,9 @@ export async function getPublicTableLiveData() {
       ? "needs_cleaning"
       : available
         ? "empty"
-        : row.status === "pending"
-          ? "pending"
-          : ["accepted", "awaiting_payment", "paid", "ready"].includes(row.status)
-            ? "occupied"
-            : "unavailable";
+        : ["pending", "accepted", "awaiting_payment", "paid", "ready", "mixed"].includes(row.status)
+          ? "occupied"
+          : "unavailable";
 
     return {
       tableNumber: row.tableNumber,
@@ -7564,17 +7562,6 @@ export async function updateCustomerOrderStatus(
         .where(eq(orders.id, order.id))
         .returning();
 
-      // Defensive: reverse any accrued staff fee linked to this order.
-      const reverseOrderPayload = {
-        orderId: order.id,
-        reason: input.reason?.trim() || "Order rejected",
-      };
-      try {
-        await reverseEarningsForOrder(reverseOrderPayload);
-      } catch (error) {
-        await enqueueFailedEarning("reverse_order", reverseOrderPayload, error);
-      }
-
       await tx.insert(auditLogs).values({
         time: nowTimeLabel(),
         actor,
@@ -8286,6 +8273,18 @@ export async function updateCustomerOrderStatus(
       await recordOrderPaidEarnings(orderPaidPayload);
     } catch (error) {
       await enqueueFailedEarning("order_paid", orderPaidPayload, error);
+    }
+  }
+
+  if (result && input.action === "reject") {
+    const reverseOrderPayload = {
+      orderId: result.order.id,
+      reason: input.reason?.trim() || "Order rejected",
+    };
+    try {
+      await reverseEarningsForOrder(reverseOrderPayload);
+    } catch (error) {
+      await enqueueFailedEarning("reverse_order", reverseOrderPayload, error);
     }
   }
 
@@ -9154,11 +9153,30 @@ export async function updateKitchenStatus(
     update.deliveredByName = actorName;
   }
 
+  // Optimistic lock: hanya update kalau status DB masih sama dgn yg kita baca.
+  // Mencegah race 2 koki tap "Ready" bersamaan → double-credit staff fee.
   const [ticket] = await db
     .update(kitchenTickets)
     .set(update)
-    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .where(
+      and(
+        eq(kitchenTickets.ticketNo, ticketNo),
+        eq(kitchenTickets.status, current.status),
+      ),
+    )
     .returning();
+
+  // Kalau ticket tidak ke-update (rows=0), berarti agent lain sudah duluan
+  // ubah status. Treat as success idempotent — return state terbaru tanpa
+  // credit fee/audit ulang.
+  if (!ticket) {
+    const [latest] = await db
+      .select()
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.ticketNo, ticketNo))
+      .limit(1);
+    return latest ?? null;
+  }
 
   // Credit staff fee when the ticket transitions cooking/queue → ready.
   if (status === "ready" && current.status !== "ready") {

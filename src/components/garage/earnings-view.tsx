@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { garageApi } from "@/lib/api-client";
+import { GARAGE_TAGS, subscribeGarageCache } from "@/lib/garage-cache";
 import type { Role } from "@/lib/garage-data";
 import { canUseApi } from "@/lib/role-access";
 import { useDateFilterContext } from "@/components/garage/date-filter";
@@ -271,6 +272,15 @@ export function EarningsView({ role }: { role: Role }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
     void load();
   }, [load]);
+
+  // Cross-module refresh: order/void di POS invalidate tag `finance` → refetch.
+  useEffect(
+    () =>
+      subscribeGarageCache(GARAGE_TAGS.finance, () => {
+        void load();
+      }),
+    [load],
+  );
 
   async function approvePayout(id: string) {
     setActionPending(id + ":approve");

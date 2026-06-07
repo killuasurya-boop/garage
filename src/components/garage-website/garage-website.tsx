@@ -64,8 +64,13 @@ const TABLE_STATUS_COPY = {
   empty: { label: "Kosong", tone: "ready" },
   pending: { label: "Terisi", tone: "full" },
   occupied: { label: "Terisi", tone: "full" },
+  accepted: { label: "Terisi", tone: "full" },
+  awaiting_payment: { label: "Menunggu Bayar", tone: "full" },
+  paid: { label: "Lunas", tone: "full" },
+  ready: { label: "Siap Disajikan", tone: "full" },
+  mixed: { label: "Terisi", tone: "full" },
   needs_cleaning: { label: "Perlu dibersihkan", tone: "full" },
-  unavailable: { label: "Sync", tone: "unknown" },
+  unavailable: { label: "Tidak Aktif", tone: "unknown" },
 };
 
 async function getPublicTableRows() {
@@ -114,14 +119,28 @@ async function getPublicTrackingStatus(trackingId) {
 }
 
 function tableStatusCopy(row) {
-  if (row.needsCleaning) return TABLE_STATUS_COPY.needs_cleaning;
+  if (row.needsCleaning || row.status === "needs_cleaning") return TABLE_STATUS_COPY.needs_cleaning;
   return TABLE_STATUS_COPY[row.status] ?? TABLE_STATUS_COPY.unavailable;
 }
 
 function tableAvailabilityState(row) {
   if (!row) return "unknown";
-  if (row.available && !row.needsCleaning) return "ready";
-  if (row.needsCleaning || row.status === "needs_cleaning" || !row.available) return "full";
+  // Jika data belum datang sama sekali (row.status undefined dan available juga undefined)
+  if (row.status === undefined && row.available === undefined) return "unknown";
+  // Meja benar-benar tidak aktif / tidak ada data (status="unavailable" dari API)
+  if (row.status === "unavailable") return "unknown";
+  // Jika needsCleaning, tampilkan sebagai full (sedang proses cleaning)
+  if (row.needsCleaning) return "full";
+  // Meja tersedia dan status valid
+  if (row.available && row.status !== undefined) return "ready";
+  // Meja terisi secara eksplisit
+  if (row.status === "occupied" || row.status === "pending") return "full";
+  // Meja perlu dibersihkan (eksplicit dari API)
+  if (row.status === "needs_cleaning") return "full";
+  // Meja tersedia tapi status tidak diketahui (sync berjalan, data belum lengkap)
+  if (row.available && !row.status) return "unknown";
+  // Meja tidak tersedia (available = false) dan belum masuk kondisi di atas
+  if (!row.available) return "full";
   return "unknown";
 }
 
@@ -347,6 +366,8 @@ function LogoImage({ variant = "wordmark", height, width, shimmer = false, sizes
         fill
         sizes={imageSizes}
         preload={preload}
+        loading={preload ? "eager" : undefined}
+        fetchPriority={preload ? "high" : undefined}
         style={{
           zIndex: 1,
           objectFit: "contain",
@@ -904,7 +925,7 @@ function Nav() {
           }}>
           
           <a className="site-nav-brand" href="#top" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LogoImage variant="wordmark" height={condensed ? 24 : 28} />
+            <LogoImage variant="wordmark" height={condensed ? 24 : 28} preload />
             <span className="brand-divider" style={{ width: 1, height: 18, background: "var(--line-2)" }} />
             <span className="mono brand-year" style={{ fontSize: 9 }}>EST. 2026</span>
           </a>
@@ -1077,7 +1098,7 @@ function Nav() {
         }}>
         
         <div className="mob-drawer-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <LogoImage variant="wordmark" height={30} />
+          <LogoImage variant="wordmark" height={30} preload />
           <button
             className="mob-close"
             onClick={() => setMobOpen(false)}
@@ -1670,6 +1691,7 @@ function Nav() {
         .garage-table-indicator[data-state="unknown"] {
           background: #72727c;
           box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+          animation: garageTableUnknownBlink 1.5s ease-in-out infinite;
         }
         .garage-table-card[data-available="true"] {
           cursor: pointer;
@@ -1697,9 +1719,13 @@ function Nav() {
           border-color: rgba(209,26,42,0.46);
           color: #ffb8bf;
         }
+        .garage-table-card[data-availability="unknown"] {
+          border-color: rgba(150,150,161,0.28);
+          background: rgba(114,114,124,0.06);
+        }
         .garage-table-card[data-availability="unknown"] .garage-table-state {
           border-color: rgba(150,150,161,0.42);
-          color: #d4d4d8;
+          color: #a1a1aa;
         }
         .garage-table-card:disabled {
           cursor: not-allowed;
@@ -1793,6 +1819,16 @@ function Nav() {
             box-shadow:
               0 0 0 4px rgba(209,26,42,0.22),
               0 0 24px rgba(209,26,42,0.46);
+          }
+        }
+        @keyframes garageTableUnknownBlink {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.35;
+            transform: scale(0.95);
           }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -2282,6 +2318,7 @@ function Hero({ landingHero }) {
               variant="wordmark"
               width="min(640px, 78vw)"
               shimmer={false}
+              preload
             />
           </div>
         </div>
@@ -2713,7 +2750,7 @@ function LiveVisitBoard() {
             <div className="live-legend">
               <span><i data-state="ready" /> Kosong</span>
               <span><i data-state="full" /> Terisi</span>
-              <span><i data-state="unknown" /> Sync</span>
+              <span><i data-state="unknown" /> Tidak Aktif</span>
               {cleaningTables ? <span><i data-state="full" /> {cleaningTables} cleaning</span> : null}
             </div>
           </Reveal>
@@ -2966,6 +3003,11 @@ function LiveVisitBoard() {
           background: rgba(209,26,42,0.11);
           color: #ffc2c8;
         }
+        .live-mini-table[data-state="unknown"] {
+          border-color: rgba(143,143,152,0.34);
+          background: rgba(114,114,124,0.08);
+          color: #8a8a90;
+        }
         .live-mini-table:hover {
           transform: translateY(-1px);
           border-color: rgba(255,255,255,0.42);
@@ -2997,6 +3039,14 @@ function LiveVisitBoard() {
         }
         .live-legend i[data-state="ready"] { background: #0db86c; }
         .live-legend i[data-state="full"] { background: var(--red); }
+        .live-legend i[data-state="unknown"] {
+          background: #8f8f98;
+          animation: garageLegendUnknownPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes garageLegendUnknownPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.35; }
+        }
         .tracking-form {
           display: grid;
           grid-template-columns: minmax(0, 1fr) 128px;
@@ -5578,53 +5628,18 @@ function Location() {
             </div>
           </div>
 
-          {/* right — map placeholder */}
+          {/* right — Google Maps embed */}
           <div style={{ position: "relative", minHeight: 520, borderLeft: "1px solid var(--line)" }} className="loc-map">
-            <div className="img-slot dark" style={{ position: "absolute", inset: 0, height: "100%", border: 0 }}>
-              <div style={{ position: "absolute", inset: 0 }}>
-                <svg viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%", opacity: 0.25 }}>
-                  <defs>
-                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                      <path d="M40 0H0V40" fill="none" stroke="#3a3a42" strokeWidth="0.5" />
-                    </pattern>
-                  </defs>
-                  <rect width="600" height="600" fill="url(#grid)" />
-                  {/* fake roads */}
-                  <path d="M0 280 L600 320" stroke="#3a3a42" strokeWidth="6" />
-                  <path d="M0 290 L600 330" stroke="#5a5a62" strokeWidth="1" strokeDasharray="6 8" />
-                  <path d="M280 0 L320 600" stroke="#3a3a42" strokeWidth="6" />
-                  <path d="M290 0 L330 600" stroke="#5a5a62" strokeWidth="1" strokeDasharray="6 8" />
-                  <path d="M100 100 L500 500" stroke="#2a2a30" strokeWidth="3" />
-                  <path d="M400 80 L420 540" stroke="#2a2a30" strokeWidth="3" />
-                </svg>
-              </div>
-              {/* pin */}
-              <div style={{
-                position: "absolute", top: "48%", left: "52%",
-                transform: "translate(-50%, -100%)",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 8
-              }}>
-                <div style={{
-                  padding: "10px 14px",
-                  background: "var(--red)",
-                  color: "#fff",
-                  fontFamily: "var(--font-display)", fontSize: 18,
-                  letterSpacing: "0.04em", textTransform: "uppercase",
-                  boxShadow: "0 14px 40px rgba(209,26,42,0.4)",
-                  whiteSpace: "nowrap"
-                }}>
-                  GARAGE COFFEE
-                </div>
-                <div style={{ width: 2, height: 30, background: "var(--red)" }} />
-                <div style={{
-                  width: 14, height: 14, borderRadius: "50%",
-                  background: "var(--red)",
-                  boxShadow: "0 0 0 6px rgba(209,26,42,0.2), 0 0 0 14px rgba(209,26,42,0.1)",
-                  animation: "pinPulse 2s ease-in-out infinite"
-                }} />
-              </div>
-              <span className="img-label" style={{ position: "absolute", bottom: 16, right: 16 }}>Slot peta — embed di sini</span>
-            </div>
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3982.123456789!2d98.876543!3d3.612345!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMxCU2Ny41ODc0OTk4OTA1NywzLjEyMzQ1NjY5NjE1MDQzIlc.KpABCD"
+              width="100%"
+              height="100%"
+              style={{ border: 0, position: "absolute", inset: 0, filter: "grayscale(80%) contrast(1.2) invert(92%) hue-rotate(180deg)" }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="GARAGE Coffee & Motor Location"
+            />
           </div>
         </div>
       </div>
@@ -5924,6 +5939,9 @@ function GarageWebsiteRoot({
       <LiveTrackingSystem />
       <S3MvpStrip />
       <Menu />
+      <About />
+      <Atmosphere landingHero={landingHero} />
+      <Experience />
       <MembershipMasterPro />
       <Events />
       <LocalSeoBlock />

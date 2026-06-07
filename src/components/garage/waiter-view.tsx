@@ -12,18 +12,13 @@ import {
   CheckCircle2,
   ChefHat,
   CircleDot,
-  Coffee,
   Loader2,
   RefreshCw,
   ReceiptText,
-  ArrowRightLeft,
-  History,
   Settings,
   Sparkles,
-  Sparkle,
   Timer,
   UserPlus,
-  X,
   Volume2,
   VolumeX,
   Vibrate,
@@ -34,7 +29,6 @@ import type {
   ApiEnvelope,
   GarageMe,
   KitchenOrder,
-  TableHistoryResponse,
   TableLiveRow,
 } from "@/lib/garage-api-types";
 import {
@@ -46,14 +40,34 @@ import {
   type WaiterNotifyPrefs,
 } from "@/lib/waiter-notify";
 import { useGarageToast } from "@/components/garage/garage-toast";
+import {
+  EmptyState,
+  POLL_MS,
+  formatRupiah,
+  hasAwaitingPaymentBill,
+  hasOpenBill,
+  isPaidOnly,
+  isWaiterOperator,
+  statusBadge,
+  stationIcon,
+  stationTone,
+  tableTone,
+  waitStripe,
+  type WaiterBoardTab,
+} from "./waiter-view-helpers";
+import { SettingsDrawer } from "./waiter-view-settings-drawer";
+import { TableDetailDrawer } from "./waiter-view-table-detail-drawer";
+import { WaiterOfflineBanner } from "./waiter-offline-banner";
+import { enqueueAction } from "@/lib/waiter-offline-queue";
+import {
+  startSyncWorker,
+  stopSyncWorker,
+  triggerSyncNow,
+} from "@/lib/waiter-offline-sync";
 
 type Props = {
   me: GarageMe;
 };
-
-type WaiterBoardTab = "tables" | "orders" | "ready" | "bills" | "more";
-
-const POLL_MS = 6000;
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -70,170 +84,6 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return payload.data as T;
 }
 
-function stationTone(station: string): string {
-  if (station?.toLowerCase().includes("bar")) return "text-[#fbbf24]";
-  return "text-[#a7f3d0]";
-}
-
-function stationIcon(station: string) {
-  if (station?.toLowerCase().includes("bar")) return <Coffee size={14} />;
-  return <ChefHat size={14} />;
-}
-
-function statusBadge(status: string) {
-  if (status === "ready") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[#22c55e]/18 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbf7d0] ring-1 ring-[#22c55e]/40">
-        <Sparkle size={10} /> Siap Antar
-      </span>
-    );
-  }
-  if (status === "cooking") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[#e8883a]/16 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#ffd08a] ring-1 ring-[#e8883a]/40">
-        <Loader2 size={10} className="animate-spin" /> Diproses
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70 ring-1 ring-white/15">
-      <CircleDot size={10} /> Antri
-    </span>
-  );
-}
-
-function hasOpenBill(row: TableLiveRow) {
-  return (
-    (row.openBillCount ?? 0) > 0 ||
-    row.status === "pending" ||
-    row.status === "accepted" ||
-    row.status === "awaiting_payment" ||
-    row.status === "ready" ||
-    row.status === "mixed"
-  );
-}
-
-function hasAwaitingPaymentBill(row: TableLiveRow) {
-  return (
-    row.status === "awaiting_payment" ||
-    (row.bills ?? []).some((bill) => bill.status === "awaiting_payment")
-  );
-}
-
-function isWaiterOperator(role: GarageMe["role"]) {
-  return role === "Waiter 1" || role === "Waiter 2";
-}
-
-function isPaidOnly(row: TableLiveRow) {
-  return (
-    (row.openBillCount ?? 0) === 0 &&
-    ((row.paidBillCount ?? 0) > 0 || row.status === "paid")
-  );
-}
-
-function tableTone(row: TableLiveRow) {
-  if (row.needsCleaning || row.status === "needs_cleaning") {
-    return {
-      ring: "ring-[#ef4444]/60",
-      bg: "bg-[#ef4444]/12",
-      label: "PERLU BERSIH",
-      labelColor: "text-[#ffe1e5]",
-      dotBg: "bg-[#ef4444]",
-      dotRing: "ring-[#ef4444]/40",
-    };
-  }
-  if (isPaidOnly(row)) {
-    return {
-      ring: "ring-[#22c55e]/55",
-      bg: "bg-[#22c55e]/12",
-      label: "LUNAS",
-      labelColor: "text-[#bbf7d0]",
-      dotBg: "bg-[#22c55e]",
-      dotRing: "ring-[#22c55e]/40",
-    };
-  }
-  if (row.status === "empty") {
-    // Ready state: meja kosong dan belum ada bill sesi aktif.
-    return {
-      ring: "ring-white/14",
-      bg: "bg-[#11100b]",
-      label: "READY",
-      labelColor: "text-[#d0c5af]",
-      dotBg: "bg-[#d0c5af]/70",
-      dotRing: "ring-white/15",
-    };
-  }
-  if (row.status === "mixed") {
-    // Ada bill lunas + bill aktif belum bayar (skenario teman gabung).
-    return {
-      ring: "ring-[#a855f7]/55",
-      bg: "bg-gradient-to-br from-[#a855f7]/12 to-[#ef4444]/10",
-      label: "MIXED",
-      labelColor: "text-[#e9d5ff]",
-      dotBg: "bg-[#a855f7]",
-      dotRing: "ring-[#a855f7]/40",
-    };
-  }
-  if (
-    row.status === "pending" ||
-    row.status === "accepted" ||
-    row.status === "ready"
-  ) {
-    return {
-      ring: "ring-[#e8883a]/55",
-      bg: "bg-[#e8883a]/12",
-      label: "BELUM BAYAR",
-      labelColor: "text-[#ffd08a]",
-      dotBg: "bg-[#e8883a]",
-      dotRing: "ring-[#e8883a]/40",
-    };
-  }
-  if (row.status === "awaiting_payment") {
-    return {
-      ring: "ring-[#fbbf24]/60",
-      bg: "bg-[#fbbf24]/14",
-      label: "TAGIHAN",
-      labelColor: "text-[#fde68a]",
-      dotBg: "bg-[#fbbf24]",
-      dotRing: "ring-[#fbbf24]/40",
-    };
-  }
-  return {
-    ring: "ring-white/15",
-    bg: "bg-white/[0.04]",
-    label: row.status.replace(/_/g, " ").toUpperCase(),
-    labelColor: "text-white/70",
-    dotBg: "bg-white/40",
-    dotRing: "ring-white/15",
-  };
-}
-
-// Stripe pinggir kartu meja sebagai indikator urgensi: hijau (fresh) ->
-// amber (>15m) -> red (>30m). Hanya untuk meja yang sedang aktif/menunggu,
-// bukan READY atau PAID yang sudah selesai.
-function waitStripe(row: TableLiveRow): string {
-  const inactive =
-    row.status === "empty" || isPaidOnly(row) || !row.currentOrderId;
-  if (inactive) return "";
-  const m = row.timerMinutes ?? 0;
-  const base =
-    "before:content-[''] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-xl";
-  if (m >= 30) return `${base} before:bg-[#d11a2a]`;
-  if (m >= 15) return `${base} before:bg-[#e8883a]`;
-  return `${base} before:bg-[#22c55e]/70`;
-}
-
-function relativeFromNow(iso: string | null): string {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diffSec = Math.max(0, Math.round((Date.now() - then) / 1000));
-  if (diffSec < 60) return `${diffSec}d lalu`;
-  const m = Math.floor(diffSec / 60);
-  if (m < 60) return `${m}m lalu`;
-  const h = Math.floor(m / 60);
-  return `${h}j ${m % 60}m lalu`;
-}
 
 export function WaiterView({ me }: Props) {
   const toast = useGarageToast();
@@ -312,6 +162,12 @@ export function WaiterView({ me }: Props) {
     }
   }, [toast]);
 
+  // Mount offline sync worker — drain queue saat online, retry tiap 20s.
+  useEffect(() => {
+    startSyncWorker();
+    return () => stopSyncWorker();
+  }, []);
+
   // Polling - fetch eksternal yang memang harus update state. Rule
   // set-state-in-effect false-positive untuk subscribe pattern seperti ini.
   useEffect(() => {
@@ -326,9 +182,46 @@ export function WaiterView({ me }: Props) {
   const handleDeliver = useCallback(
     async (ticket: KitchenOrder) => {
       setActingTicket(ticket.id);
+      // Optimistic: langsung hapus ticket dari list. Kalau gagal & offline,
+      // tetap hilang dari UI tapi action di-queue.
+      setTickets((prev) => prev.filter((t) => t.id !== ticket.id));
+
+      const online = typeof navigator === "undefined" ? true : navigator.onLine;
+      const idemKey =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      if (!online) {
+        try {
+          await enqueueAction(idemKey, "deliver", ticket.id, {
+            ticketNo: ticket.id,
+            tableLabel: String(ticket.table),
+            itemCount: ticket.items.length,
+          });
+          toast.push({
+            tone: "info",
+            title: `Diantar (offline) - Meja ${ticket.table}`,
+            body: "Action disimpan, akan sync saat online.",
+            ttl: 3200,
+          });
+        } catch (err) {
+          toast.push({
+            tone: "error",
+            title: "Gagal queue offline",
+            body: err instanceof Error ? err.message : "Coba lagi.",
+          });
+          await loadAll(true);
+        } finally {
+          setActingTicket(null);
+        }
+        return;
+      }
+
       try {
         await fetchJson(`/api/waiter/tickets/${encodeURIComponent(ticket.id)}/deliver`, {
           method: "POST",
+          headers: { "X-Idempotency-Key": idemKey },
         });
         toast.push({
           tone: "success",
@@ -338,11 +231,40 @@ export function WaiterView({ me }: Props) {
         });
         await loadAll(true);
       } catch (err) {
-        toast.push({
-          tone: "error",
-          title: "Gagal antar",
-          body: err instanceof Error ? err.message : "Coba lagi.",
-        });
+        // Network error → queue + biarkan worker retry
+        const msg = err instanceof Error ? err.message : "";
+        const isNetwork = /fetch|network|failed/i.test(msg);
+        if (isNetwork) {
+          try {
+            await enqueueAction(idemKey, "deliver", ticket.id, {
+              ticketNo: ticket.id,
+              tableLabel: String(ticket.table),
+              itemCount: ticket.items.length,
+            });
+            toast.push({
+              tone: "info",
+              title: `Diantar (akan sync) - Meja ${ticket.table}`,
+              body: "Koneksi terganggu, action dikirim ulang otomatis.",
+              ttl: 3200,
+            });
+            triggerSyncNow();
+          } catch (qErr) {
+            toast.push({
+              tone: "error",
+              title: "Gagal antar",
+              body: qErr instanceof Error ? qErr.message : msg,
+            });
+            await loadAll(true);
+          }
+        } else {
+          toast.push({
+            tone: "error",
+            title: "Gagal antar",
+            body: msg || "Coba lagi.",
+          });
+          // Restore ticket karena gagal permanen
+          await loadAll(true);
+        }
       } finally {
         setActingTicket(null);
       }
@@ -620,6 +542,7 @@ export function WaiterView({ me }: Props) {
 
   return (
     <div className="min-h-screen space-y-5 bg-[#080704] px-1 pb-28 pt-2 text-white sm:px-0">
+      <WaiterOfflineBanner />
       <div className="sticky top-2 z-20 rounded-lg border border-[#d4af37]/15 bg-[#080704]/92 px-3.5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-[#080704]/78 sm:px-4">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#d4af37]/14 text-[#f2ca50] ring-1 ring-[#d4af37]/35">
@@ -1448,602 +1371,6 @@ export function WaiterView({ me }: Props) {
           }
         }
       `}</style>
-    </div>
-  );
-}
-
-function EmptyState({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-white/12 bg-white/[0.02] px-4 py-8 text-center">
-      <p className="text-sm font-semibold text-white/80">{title}</p>
-      <p className="mt-1 text-[12px] text-white/55">{body}</p>
-    </div>
-  );
-}
-
-function SettingsDrawer({
-  prefs,
-  onToggleSound,
-  onToggleVibe,
-  onToggleNotif,
-  onClose,
-}: {
-  prefs: WaiterNotifyPrefs;
-  onToggleSound: () => void | Promise<void>;
-  onToggleVibe: () => void;
-  onToggleNotif: () => void | Promise<void>;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  type Row = {
-    label: string;
-    desc: string;
-    icon: typeof Volume2;
-    activeIcon: typeof Volume2;
-    on: boolean;
-    onClick: () => void | Promise<void>;
-  };
-  const rows: Row[] = [
-    {
-      label: "Suara Notifikasi",
-      desc: "Bunyi saat order siap antar.",
-      icon: VolumeX,
-      activeIcon: Volume2,
-      on: prefs.sound,
-      onClick: onToggleSound,
-    },
-    {
-      label: "Getar",
-      desc: "Getar HP saat order siap (jika didukung).",
-      icon: VibrateOff,
-      activeIcon: Vibrate,
-      on: prefs.vibrate,
-      onClick: onToggleVibe,
-    },
-    {
-      label: "Notifikasi Browser",
-      desc: "Tampil bahkan saat tab background.",
-      icon: BellRing,
-      activeIcon: BellRing,
-      on: prefs.browserNotif,
-      onClick: onToggleNotif,
-    },
-  ];
-
-  return (
-    <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Pengaturan notifikasi"
-    >
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-t-2xl border border-white/10 bg-[#0e0e10] shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)] sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden />
-        <header className="flex items-center justify-between border-b border-white/8 px-4 py-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-white/55">Pengaturan</p>
-            <p className="text-lg font-bold text-white">Notifikasi</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-11 w-11 place-items-center rounded-md bg-white/[0.05] text-white/75 ring-1 ring-white/12 transition active:scale-[0.97]"
-            aria-label="Tutup"
-          >
-            <X size={18} />
-          </button>
-        </header>
-        <ul className="divide-y divide-white/6">
-          {rows.map((row) => {
-            const Icon = row.on ? row.activeIcon : row.icon;
-            return (
-              <li key={row.label}>
-                <button
-                  type="button"
-                  onClick={() => void row.onClick()}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.04]"
-                >
-                  <span
-                    className={`grid h-11 w-11 place-items-center rounded-lg ring-1 ${
-                      row.on
-                        ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
-                        : "bg-white/[0.04] text-white/55 ring-white/12"
-                    }`}
-                  >
-                    <Icon size={18} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-white">{row.label}</p>
-                    <p className="text-[11px] text-white/55">{row.desc}</p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${
-                      row.on
-                        ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
-                        : "bg-white/[0.04] text-white/55 ring-white/12"
-                    }`}
-                  >
-                    {row.on ? "ON" : "OFF"}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="px-4 py-3 text-[10px] text-white/45">
-          Pengaturan tersimpan di perangkat ini.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function formatRupiah(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function billStatusTone(status: string): { label: string; cls: string } {
-  if (status === "paid") {
-    return {
-      label: "LUNAS",
-      cls: "bg-[#22c55e]/12 text-[#bbf7d0] ring-[#22c55e]/35",
-    };
-  }
-  if (status === "awaiting_payment") {
-    return {
-      label: "DI KASIR",
-      cls: "bg-[#fbbf24]/15 text-[#fde68a] ring-[#fbbf24]/35",
-    };
-  }
-  if (status === "rejected") {
-    return {
-      label: "DITOLAK",
-      cls: "bg-white/8 text-white/55 ring-white/15",
-    };
-  }
-  return {
-    label: status.replace(/_/g, " ").toUpperCase(),
-    cls: "bg-[#e8883a]/15 text-[#ffd08a] ring-[#e8883a]/35",
-  };
-}
-
-type ToastInput = {
-  tone: "success" | "error" | "info";
-  title: string;
-  body?: string;
-  ttl?: number;
-};
-
-function TableDetailDrawer({
-  row,
-  allTables,
-  actingBillTable,
-  actingCleanTable,
-  actingSeatTable,
-  canRequestBillRole,
-  onClose,
-  onClean,
-  onMoved,
-  onRequestBill,
-  onSeatNew,
-  onToast,
-}: {
-  row: TableLiveRow;
-  allTables: TableLiveRow[];
-  actingBillTable: string | null;
-  actingCleanTable: string | null;
-  actingSeatTable: string | null;
-  canRequestBillRole: boolean;
-  onClose: () => void;
-  onClean: (row: TableLiveRow) => void;
-  onMoved: () => void;
-  onRequestBill: (row: TableLiveRow) => void;
-  onSeatNew: (row: TableLiveRow) => void;
-  onToast: (t: ToastInput) => void;
-}) {
-  const bills = useMemo(() => row.bills ?? [], [row.bills]);
-  const paidTotal = bills
-    .filter((b) => b.status === "paid")
-    .reduce((sum, b) => sum + b.total, 0);
-  const openTotal = bills
-    .filter((b) => b.status !== "paid" && b.status !== "rejected")
-    .reduce((sum, b) => sum + b.total, 0);
-
-  const [history, setHistory] = useState<TableHistoryResponse | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [moveMode, setMoveMode] = useState(false);
-  const [moveTarget, setMoveTarget] = useState("");
-  const [moving, setMoving] = useState(false);
-
-  const canMove = Boolean(row.currentOrderId) && (row.openBillCount ?? 0) > 0;
-  const billAlreadyRequested = hasAwaitingPaymentBill(row);
-  const canRequestBill =
-    canRequestBillRole &&
-    Boolean(row.currentOrderId) &&
-    (row.status === "accepted" || row.status === "ready" || row.status === "mixed") &&
-    !billAlreadyRequested;
-  const canSeatNext = isPaidOnly(row);
-  const canClean =
-    row.needsCleaning ||
-    row.status === "needs_cleaning" ||
-    isPaidOnly(row) ||
-    (!row.currentOrderId && row.status !== "empty");
-  const moveCandidates = useMemo(
-    () =>
-      allTables.filter(
-        (t) =>
-          t.tableNumber !== row.tableNumber &&
-          t.status === "empty" &&
-          !t.currentOrderId &&
-          (t.openBillCount ?? 0) === 0 &&
-          (t.paidBillCount ?? 0) === 0 &&
-          !t.needsCleaning,
-      ),
-    [allTables, row.tableNumber],
-  );
-
-  // ESC untuk close.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // Fetch history hari ini (lintas sesi). Pattern fetch-on-mount: setState
-  // dipanggil di effect untuk loading + hasil. Aman karena dibungkus
-  // cancelled-guard dan tidak loop.
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHistoryLoading(true);
-    fetch(`/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/history`)
-      .then((r) => r.json())
-      .then((payload: ApiEnvelope<TableHistoryResponse>) => {
-        if (cancelled) return;
-        if (payload.error) {
-          setHistory(null);
-        } else {
-          setHistory(payload.data ?? null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setHistory(null);
-      })
-      .finally(() => {
-        if (!cancelled) setHistoryLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [row.tableNumber]);
-
-  const sessionBillIds = useMemo(() => new Set(bills.map((b) => b.id)), [bills]);
-  const previousBills = useMemo(
-    () => (history?.bills ?? []).filter((b) => !sessionBillIds.has(b.id)),
-    [history, sessionBillIds],
-  );
-
-  const handleMove = useCallback(async () => {
-    if (!moveTarget) return;
-    setMoving(true);
-    try {
-      const res = await fetch(
-        `/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/move`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: moveTarget }),
-        },
-      );
-      const payload: ApiEnvelope<{ to: string }> = await res.json().catch(() => ({}));
-      if (!res.ok || payload.error) {
-        throw new Error(payload.error?.message ?? "Gagal pindah meja.");
-      }
-      onToast({
-        tone: "success",
-        title: `Pindah ke Meja ${moveTarget}`,
-        body: `Bill aktif sekarang di Meja ${moveTarget}.`,
-        ttl: 2800,
-      });
-      onMoved();
-    } catch (err) {
-      onToast({
-        tone: "error",
-        title: "Gagal pindah meja",
-        body: err instanceof Error ? err.message : "Coba lagi.",
-      });
-    } finally {
-      setMoving(false);
-    }
-  }, [moveTarget, onMoved, onToast, row.tableNumber]);
-
-  return (
-    <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Detail meja ${row.tableLabel}`}
-    >
-      <div
-        className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0e0e10] shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)] sm:max-h-[85vh] sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Handle bar visual cue swipe-down di mobile */}
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden />
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/8 bg-gradient-to-br from-[#1a1a1d] to-[#0e0e10] px-4 py-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-white/55">Detail Sesi</p>
-            <p className="text-lg font-bold text-white">{row.tableLabel}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-11 w-11 place-items-center rounded-md bg-white/[0.05] text-white/75 ring-1 ring-white/12 transition active:scale-[0.97]"
-            aria-label="Tutup detail"
-          >
-            <X size={18} />
-          </button>
-        </header>
-
-        <div className="flex-1 overflow-y-auto">
-
-        <div className="grid grid-cols-2 gap-2 px-4 py-3">
-          <div className="rounded-lg bg-[#22c55e]/10 px-3 py-2 ring-1 ring-[#22c55e]/28">
-            <p className="text-[10px] uppercase tracking-wider text-[#bbf7d0]/80">Terbayar</p>
-            <p className="font-mono text-sm font-bold text-[#bbf7d0]">{formatRupiah(paidTotal)}</p>
-            <p className="text-[10px] text-white/55">
-              {row.paidBillCount ?? 0} bill lunas
-            </p>
-          </div>
-          <div
-            className={`rounded-lg px-3 py-2 ring-1 ${
-              openTotal > 0
-                ? "bg-[#e8883a]/10 ring-[#e8883a]/35"
-                : "bg-white/[0.03] ring-white/12"
-            }`}
-          >
-            <p
-              className={`text-[10px] uppercase tracking-wider ${
-                openTotal > 0 ? "text-[#ffd08a]" : "text-white/55"
-              }`}
-            >
-              Open
-            </p>
-            <p
-              className={`font-mono text-sm font-bold ${
-                openTotal > 0 ? "text-[#ffd08a]" : "text-white/70"
-              }`}
-            >
-              {formatRupiah(openTotal)}
-            </p>
-            <p className="text-[10px] text-white/55">
-              {row.openBillCount ?? 0} bill aktif
-            </p>
-          </div>
-        </div>
-
-        <div className="border-t border-white/8 bg-[#15120c]/70 px-4 py-3">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#d0c5af]/70">
-            Tindakan
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {canRequestBill ? (
-              <button
-                type="button"
-                onClick={() => onRequestBill(row)}
-                disabled={actingBillTable === row.tableNumber}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#fbbf24] px-3 text-[12px] font-black uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
-              >
-                {actingBillTable === row.tableNumber ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <ReceiptText size={14} />
-                )}
-                Minta Tagihan
-              </button>
-            ) : billAlreadyRequested ? (
-              <div className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 px-3 text-[12px] font-bold uppercase tracking-wide text-[#fde68a]">
-                <ReceiptText size={14} />
-                Tagihan ke Kasir
-              </div>
-            ) : null}
-
-            {canClean ? (
-              <button
-                type="button"
-                onClick={() => onClean(row)}
-                disabled={actingCleanTable === row.tableNumber}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#22c55e] px-3 text-[12px] font-black uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
-              >
-                {actingCleanTable === row.tableNumber ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={14} />
-                )}
-                Bersihkan
-              </button>
-            ) : null}
-
-            {canSeatNext ? (
-              <button
-                type="button"
-                onClick={() => onSeatNew(row)}
-                disabled={actingSeatTable === row.tableNumber}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#e2e8f0] px-3 text-[12px] font-black uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
-              >
-                {actingSeatTable === row.tableNumber ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <UserPlus size={14} />
-                )}
-                Tamu Baru
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {canMove ? (
-          <div className="border-t border-white/8 bg-white/[0.02] px-4 py-2">
-            {!moveMode ? (
-              <button
-                type="button"
-                onClick={() => setMoveMode(true)}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-white/[0.05] text-[12px] font-semibold text-white/85 ring-1 ring-white/15 transition hover:bg-white/[0.1]"
-              >
-                <ArrowRightLeft size={14} /> Pindah ke meja lain
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-wider text-white/55">
-                  Pilih meja tujuan
-                </label>
-                <select
-                  value={moveTarget}
-                  onChange={(e) => setMoveTarget(e.target.value)}
-                  className="h-9 w-full rounded-md bg-[#0b0b0c] px-2 text-[12px] text-white ring-1 ring-white/15 focus:outline-none focus:ring-[#d11a2a]/50"
-                >
-                  <option value="">- pilih meja -</option>
-                  {moveCandidates.map((t) => (
-                    <option key={t.tableNumber} value={t.tableNumber}>
-                      Meja {t.tableNumber} ({t.status})
-                    </option>
-                  ))}
-                </select>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoveMode(false);
-                      setMoveTarget("");
-                    }}
-                    className="h-9 rounded-md bg-white/[0.04] text-[11px] font-semibold uppercase tracking-wide text-white/70 ring-1 ring-white/12 transition hover:bg-white/[0.08]"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleMove()}
-                    disabled={!moveTarget || moving}
-                    className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#d11a2a] text-[11px] font-bold uppercase tracking-wide text-white transition active:scale-[0.97] disabled:opacity-50"
-                  >
-                    {moving ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <ArrowRightLeft size={12} />
-                    )}
-                    Pindahkan
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        <div className="px-4 pb-4">
-          <p className="mb-2 text-[10px] uppercase tracking-wider text-white/55">
-            Bill Sesi Ini
-          </p>
-          {bills.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-white/12 bg-white/[0.02] px-3 py-6 text-center text-[12px] text-white/55">
-              Belum ada bill di sesi ini.
-            </div>
-          ) : (
-            <ul className="space-y-1.5">
-              {bills.map((bill) => {
-                const tone = billStatusTone(bill.status);
-                return (
-                  <li
-                    key={bill.id}
-                    className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/8"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12px] font-semibold text-white">
-                        #{bill.orderNo}
-                      </p>
-                      <p className="text-[10px] text-white/55">
-                        {relativeFromNow(bill.createdAt)}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ${tone.cls}`}
-                    >
-                      {tone.label}
-                    </span>
-                    <span className="font-mono text-[12px] font-bold text-white">
-                      {formatRupiah(bill.total)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {/* Riwayat sesi sebelumnya hari ini (sudah di-clean) */}
-          <div className="mt-4 flex items-center gap-2">
-            <History size={12} className="text-white/55" />
-            <p className="text-[10px] uppercase tracking-wider text-white/55">
-              Sesi sebelumnya hari ini
-              {historyLoading ? " (loading...)" : ""}
-            </p>
-          </div>
-          {!historyLoading && previousBills.length === 0 ? (
-            <p className="mt-1 text-[11px] text-white/45">Tidak ada.</p>
-          ) : null}
-          {previousBills.length > 0 ? (
-            <ul className="mt-2 space-y-1">
-              {previousBills.map((bill) => {
-                const tone = billStatusTone(bill.status);
-                return (
-                  <li
-                    key={bill.id}
-                    className="flex items-center gap-2 rounded-md bg-white/[0.02] px-3 py-1.5 ring-1 ring-white/6"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] text-white/75">
-                        #{bill.orderNo}
-                        {bill.customerName ? (
-                          <span className="ml-1 text-white/45">/ {bill.customerName}</span>
-                        ) : null}
-                      </p>
-                      <p className="text-[9px] text-white/45">
-                        {relativeFromNow(bill.createdAt)}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase ring-1 ${tone.cls}`}
-                    >
-                      {tone.label}
-                    </span>
-                    <span className="font-mono text-[11px] text-white/85">
-                      {formatRupiah(bill.total)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </div>
-        </div>
-      </div>
     </div>
   );
 }

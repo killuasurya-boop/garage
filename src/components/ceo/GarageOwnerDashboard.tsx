@@ -6,12 +6,12 @@ import {
   Activity,
   ArrowUpRight,
   BrainCircuit,
-  CheckCircle2,
   Cpu,
   DatabaseZap,
   Gauge,
   Network,
   RadioTower,
+  ReceiptText,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import styles from "./garage-owner-dashboard.module.css";
+import { profitMaxSummaryCard } from "./data/profitMaxData";
 
 type ModuleTone = "red" | "amber" | "chrome" | "success" | "danger";
 
@@ -76,6 +77,15 @@ const modules: OwnerModule[] = [
     unit: "%",
     tone: "success",
     icon: <TrendingUp size={18} />,
+  },
+  {
+    id: "profitmax",
+    title: profitMaxSummaryCard.title,
+    label: profitMaxSummaryCard.label,
+    value: profitMaxSummaryCard.value,
+    unit: profitMaxSummaryCard.unit,
+    tone: "success",
+    icon: <ReceiptText size={18} />,
   },
   {
     id: "stock-forecast",
@@ -248,7 +258,7 @@ function BarStream({ frame }: { frame: number }) {
   return (
     <div className={styles.barStream} aria-label="Arus data realtime">
       {Array.from({ length: 16 }, (_, index) => {
-        const height = 26 + Math.abs(Math.sin(frame * 1.4 + index * 0.52)) * 72;
+        const height = (26 + Math.abs(Math.sin(frame * 1.4 + index * 0.52)) * 72).toFixed(4);
         const tone: ModuleTone = index % 4 === 0 ? "red" : index % 4 === 1 ? "amber" : index % 4 === 2 ? "success" : "chrome";
         return (
           <span
@@ -313,7 +323,6 @@ export function GarageOwnerDashboard() {
     revenue: 12_480_000,
     orders: 284,
     health: 92,
-    approval: 8,
   };
 
   return (
@@ -337,6 +346,10 @@ export function GarageOwnerDashboard() {
             <Link className={styles.secondaryButton} href="/control/financial">
               <TrendingUp size={16} />
               Kontrol Finance
+            </Link>
+            <Link className={styles.secondaryButton} href="/control/profitmax">
+              <ReceiptText size={16} />
+              ProfitMax
             </Link>
           </div>
         </div>
@@ -362,7 +375,7 @@ export function GarageOwnerDashboard() {
         <MetricTile label="Omzet Hari Ini" value={formatCompactIdr(headline.revenue)} delta="+18.4% live" tone="red" icon={<TrendingUp size={18} />} />
         <MetricTile label="Order Aktif" value={`${Math.round(headline.orders)} trx`} delta="+12 trx/jam" tone="amber" icon={<Activity size={18} />} />
         <MetricTile label="Sistem Aman" value={`${Math.round(headline.health)}%`} delta="normal" tone="success" icon={<ShieldCheck size={18} />} />
-        <MetricTile label="Approval Pending" value={`${Math.max(0, Math.round(headline.approval))}`} delta="cek owner" tone="chrome" icon={<CheckCircle2 size={18} />} />
+        <MetricTile label="ProfitMax BEP" value={`${profitMaxSummaryCard.value}%`} delta="pricing watch" tone="success" icon={<ReceiptText size={18} />} />
       </div>
 
       <div className={styles.mainGrid}>

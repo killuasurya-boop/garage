@@ -1,4 +1,6 @@
-﻿import { PGlite } from "@electric-sql/pglite";
+﻿import path from "node:path";
+
+import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -84,14 +86,22 @@ function getPostgresPool() {
   return globalForDb.garagePool;
 }
 
+function pgliteDataDir() {
+  const fromEnv = process.env.PGLITE_DATA_DIR?.trim();
+  if (fromEnv) return fromEnv;
+  // Fallback cross-platform: simpan di dalam cwd biar tidak bergantung path
+  // hardcoded Windows. Production tetap pakai PGLITE_DATA_DIR atau DATABASE_URL.
+  return path.resolve(process.cwd(), ".pglite-data");
+}
+
 function bootPglite() {
   if (!globalForDb.garagePgliteBoot) {
     globalForDb.garagePgliteBoot = (async () => {
       if (!globalForDb.garagePglite) {
         // Default disamakan dengan PGLITE_DATA_DIR di .env.local: satu sumber DB
         // tunggal yang sehat. Kalau env gagal termuat pun, app tetap pakai dir
-        // yang sama (bukan bikin dir kosong baru yang bikin "backend belum dikonfigurasi").
-        const client = new PGlite(process.env.PGLITE_DATA_DIR ?? "D:/GARAGEFIX/pglite-data-running");
+        // di dalam cwd (bukan bikin path Windows-only).
+        const client = new PGlite(pgliteDataDir());
         await client.waitReady;
         globalForDb.garagePglite = client;
       }
@@ -149,7 +159,7 @@ export async function ensureDatabaseReady() {
     }
 
     console.warn(
-      "[garage-db] PostgreSQL tidak bisa dihubungi di development â€” memakai PGlite lokal:",
+      "[garage-db] PostgreSQL tidak bisa dihubungi di development — memakai PGlite lokal:",
       error instanceof Error ? error.message : error,
     );
     await bootPglite();

@@ -1,6 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
-import Image from "next/image";
-import QRCode from "qrcode";
 
 import {
   QR_TABLE_NUMBERS,
@@ -64,20 +63,9 @@ function shouldAutoPrint(value?: string | string[]) {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
-async function qrCard(baseUrl: string, table: string) {
+function qrCard(baseUrl: string, table: string) {
   const url = garageQrOrderUrl(baseUrl, table);
-  const svg = await QRCode.toString(url, {
-    type: "svg",
-    width: 260,
-    margin: 2,
-    errorCorrectionLevel: "M",
-    color: {
-      dark: "#111116",
-      light: "#ffffff",
-    },
-  });
-
-  return { table, url, svg };
+  return { table, url, imageUrl: `/api/customer/qr?table=${table}` };
 }
 
 export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
@@ -86,20 +74,18 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
   const tables = selectedTables(params.tables);
   const autoPrint = shouldAutoPrint(params.print);
   const isPilot = tables.length < QR_TABLE_NUMBERS.length;
-  const cards = await Promise.all(tables.map((table) => qrCard(base.baseUrl, table)));
+  const cards = tables.map((table) => qrCard(base.baseUrl, table));
 
   return (
     <main className="qr-print-page">
       <header className="print-header">
         <div className="print-title">
           <div className="brand-row">
-            <Image
+            <img
               src="/garage-brand/logo-website.png"
               alt="GARAGE Coffee & Motor"
               width={1024}
               height={325}
-              priority
-              sizes="196px"
               className="brand-logo"
             />
             <span className="brand-divider" />
@@ -135,12 +121,11 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
             aria-label={`QR menu Meja ${card.table}`}
           >
             <div className="qr-card-top">
-              <Image
+              <img
                 src="/garage-brand/logo-website.png"
                 alt="GARAGE"
                 width={1024}
                 height={325}
-                sizes="108px"
                 className="card-logo"
               />
               <span>QR Tetap</span>
@@ -151,9 +136,12 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
             </div>
             <p className="scan-label">Scan untuk order</p>
             <div className="qr-frame">
-              <div
-                className="qr-svg"
-                dangerouslySetInnerHTML={{ __html: card.svg }}
+              <img
+                src={card.imageUrl}
+                alt={`QR Meja ${card.table}`}
+                width={260}
+                height={260}
+                className="qr-image"
               />
             </div>
             <p className="qr-url">{card.url}</p>
@@ -377,15 +365,10 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
           padding: 8px;
         }
 
-        .qr-svg {
+        .qr-image {
+          display: block;
           height: 168px;
           width: 168px;
-        }
-
-        .qr-svg svg {
-          display: block;
-          height: 100%;
-          width: 100%;
         }
 
         .qr-url {
@@ -479,7 +462,7 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
             margin: 3mm 0 2mm;
           }
 
-          .qr-svg {
+          .qr-image {
             height: 36mm;
             width: 36mm;
           }

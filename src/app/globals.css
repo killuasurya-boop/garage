@@ -1873,6 +1873,30 @@ body {
       0 0 16px rgba(209, 26, 42, 0.34);
   }
 
+  .pos-table-indicator[data-state="bill"] {
+    animation: garage-pos-table-bill-pulse 1.24s ease-in-out infinite;
+    background: #f5a742;
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.36),
+      0 0 16px rgba(245, 167, 66, 0.34);
+  }
+
+  .pos-table-indicator[data-state="paid"] {
+    animation: garage-pos-table-ready-pulse 2.2s ease-in-out infinite;
+    background: #22c55e;
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.26),
+      0 0 12px rgba(34, 197, 94, 0.24);
+  }
+
+  .pos-table-indicator[data-state="cleaning"] {
+    animation: garage-pos-table-full-pulse 1.05s ease-in-out infinite;
+    background: #d11a2a;
+    box-shadow:
+      0 0 0 1px rgba(209, 26, 42, 0.36),
+      0 0 18px rgba(209, 26, 42, 0.38);
+  }
+
   .pos-table-indicator[data-state="unknown"] {
     background: #6e6e76;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -2894,12 +2918,6 @@ body {
     animation-duration: 1.8s;
   }
 
-  .garage-os-shell .pos-table-indicator[data-state="ready"],
-  .garage-os-shell .pos-table-indicator[data-state="full"] {
-    animation: none;
-    box-shadow: 0 0 0 1px currentColor;
-  }
-
   .garage-os-shell [class*="backdrop-blur"] {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
@@ -3374,6 +3392,25 @@ body {
     box-shadow:
       0 0 0 4px rgba(209, 26, 42, 0.22),
       0 0 22px rgba(209, 26, 42, 0.42);
+  }
+}
+
+@keyframes garage-pos-table-bill-pulse {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(245, 167, 66, 0.28),
+      0 0 12px rgba(245, 167, 66, 0.2);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.16);
+    box-shadow:
+      0 0 0 4px rgba(245, 167, 66, 0.2),
+      0 0 22px rgba(245, 167, 66, 0.4);
   }
 }
 

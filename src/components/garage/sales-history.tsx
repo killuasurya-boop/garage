@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { GARAGE_TAGS } from "@/lib/garage-cache";
+import { useGarageQuery } from "@/lib/use-garage-query";
 import {
   ArrowLeft,
   Calendar,
@@ -160,38 +162,33 @@ export function SalesHistoryView() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
-  const [rows, setRows] = useState<SalesRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set("search", search.trim());
-      if (status !== "all") params.set("status", status);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      params.set("limit", "100");
-      const res = await garageApi.get<ListResponse>(
-        `/api/orders/history?${params.toString()}`,
-      );
-      setRows(res.rows);
-      setTotal(res.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat data.");
-    } finally {
-      setLoading(false);
-    }
+  // Query string dari filter aktif. Dipakai juga sebagai `key` agar useGarageQuery
+  // refetch saat filter berubah.
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("search", search.trim());
+    if (status !== "all") params.set("status", status);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    params.set("limit", "100");
+    return params.toString();
   }, [search, status, dateFrom, dateTo]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
-    void load();
-  }, [load]);
+  // Membaca via cache-aware hook. Auto-refetch saat tag `orders` di-invalidate
+  // (mis. setelah void order / order baru di modul lain). `load` = refetch.
+  const {
+    data,
+    error,
+    loading,
+    refetch: load,
+  } = useGarageQuery<ListResponse>(
+    () => garageApi.get<ListResponse>(`/api/orders/history?${queryString}`),
+    { tags: GARAGE_TAGS.orders, key: queryString },
+  );
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
 
   if (selectedId) {
     return (

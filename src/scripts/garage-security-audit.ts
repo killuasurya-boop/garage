@@ -378,13 +378,27 @@ function routeRecon(results: AuditResult[]) {
     ),
   );
 
+  // Allowlist public mutating routes yang memang aman by design:
+  // - /api/auth, /api/member/auth: Better Auth handler (CSRF-protected)
+  // - /api/customer/orders: guest checkout, validated dgn nama+WA
+  // - /api/vouchers/validate: rate-limited read-mostly
+  // - /api/dev/demo-login: gated NODE_ENV !== production
+  // - /api/errors: client error reporting, rate-limited
+  // - /api/hr/attendance + /check: kiosk PIN-based auth, rate-limited
+  const PUBLIC_MUTATION_ALLOWLIST = new Set([
+    "/api/customer/orders",
+    "/api/vouchers/validate",
+    "/api/dev/demo-login",
+    "/api/errors",
+    "/api/hr/attendance",
+    "/api/hr/attendance/check",
+  ]);
   const unauthenticatedMutations = publicMutations
     .filter(
       (route) =>
         !route.route.startsWith("/api/auth") &&
         !route.route.startsWith("/api/member/auth") &&
-        route.route !== "/api/customer/orders" &&
-        route.route !== "/api/vouchers/validate",
+        !PUBLIC_MUTATION_ALLOWLIST.has(route.route),
     )
     .map((route) => route.route);
 

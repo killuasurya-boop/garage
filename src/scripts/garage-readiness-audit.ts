@@ -1,6 +1,7 @@
 import { config as loadEnv } from "dotenv";
 
 import { GARAGE_SMOKE_MEMBER_PHONE } from "@/lib/garage-member-seed";
+import { writeReadinessAuditEvidence } from "@/lib/garage-operational-evidence";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
@@ -112,12 +113,23 @@ async function request<T = JsonValue>(
 
   const cookieHeader = jar?.header();
   if (cookieHeader) headers.set("Cookie", cookieHeader);
+  const signal = options.signal ?? AbortSignal.timeout(30_000);
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal,
+      body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
+    });
+  } catch (error) {
+    return {
+      response: new Response(null, { status: 504 }),
+      json: null,
+      text: `${url} request failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
   jar?.store(response.headers);
 
   const text = await response.text();
@@ -147,7 +159,7 @@ function isLikelyTestOrder(order: PendingQrOrder) {
     .toLowerCase();
 
   return (
-    /\b(codex|qa smoke|smoke|test|testing)\b/.test(haystack) ||
+    /\b(codex|qa smoke|qa_sec|security_audit|smoke|test|testing|uat|manual-isolate)\b/.test(haystack) ||
     order.tableLabel.toLowerCase() === "meja 99"
   );
 }
@@ -326,7 +338,19 @@ async function runAudit() {
     results.push(result("fail", "Customer display privacy", "TV queue gagal atau mengandung data customer sensitif."));
   }
 
-  await loginStaff(staffJar);
+  try {
+    await loginStaff(staffJar);
+  } catch (error) {
+    results.push(
+      result(
+        "fail",
+        "Staff login",
+        error instanceof Error ? error.message : "Staff login gagal.",
+      ),
+    );
+    return results;
+  }
+
   const qrInsights = await request<{ data?: { summary?: { total?: number }; shiftReport?: { gate?: string } } }>(
     "/api/customer/orders/insights",
     {},
@@ -451,7 +475,7 @@ async function runAudit() {
   return results;
 }
 
-function printResults(results: AuditResult[]) {
+async function printResults(results: AuditResult[]) {
   for (const item of results) {
     const prefix = item.severity === "pass" ? "PASS" : item.severity === "warn" ? "WARN" : "FAIL";
     console.log(`${prefix} ${item.check}: ${item.detail}`);
@@ -461,6 +485,15 @@ function printResults(results: AuditResult[]) {
   const hasWarn = results.some((item) => item.severity === "warn");
   const status = hasFail ? "NO-GO" : hasWarn ? "CONDITIONAL GO" : "GO";
   console.log(`READINESS STATUS: ${status}`);
+  await writeReadinessAuditEvidence({
+    kind: "readiness-audit",
+    generatedAt: new Date().toISOString(),
+    baseUrl,
+    lanBaseUrl,
+    status,
+    results,
+  });
+  console.log("READINESS REPORT: .garage/readiness/latest-readiness-audit.json");
 
   if (hasFail) {
     process.exitCode = 1;

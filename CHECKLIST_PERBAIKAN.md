@@ -70,8 +70,9 @@
   - Desktop 1366×900 + mobile 390×844: POS, Kitchen, Inventory, Finance, Sales History. Cek overflow, dark mode, klip teks/harga.
   - **Selesai jika:** screenshot tiap modul di 2 ukuran, no overflow.
 - [~] **D2. Unit/component test inti** 🤖 L — MULAI (member-types selesai)
-  - [x] `member-types.test.ts` — 13 test: points (multiplier Silver/Gold/Platinum), redeem discount, level threshold (Gold 2000/Plat 5000), rank, progress. **34 test total hijau** (npm test).
-  - [ ] Sisa: billing totals (perlu export `calculateBillingTotals` dari god-file dulu), recipe deduct, voucher cap, komponen POS cart/kitchen.
+  - [x] `member-types.test.ts` — 13 test: points multiplier, redeem, threshold, rank, progress.
+  - [x] `attendance.test.ts` — 13 test: hashPin (HMAC deterministik+trim), pinHashEquals (timing-safe), haversine geofence, evaluatePunchStatus, label, formatWorkedHours. **Suite total 47 test hijau.**
+  - [ ] Sisa: billing totals (perlu export `calculateBillingTotals` dari god-file dulu — tunda hingga refactor view-split paralel beres agar tak konflik), recipe deduct, voucher cap, komponen POS cart/kitchen.
   - **Selesai jika:** coverage logic finance/POS/inventory ≥70%.
 - [ ] **D3. Uji beban ringan** 🤝 M
   - Simulasi puluhan order beruntun + beberapa kasir paralel. Cek pglite/postgres tahan, tak ada race di cash session/stock.

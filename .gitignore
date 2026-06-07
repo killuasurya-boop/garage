@@ -72,3 +72,17 @@ next-env.d.ts
 
 # Local DB snapshot backups (jangan masuk repo)
 backups/pglite-snapshot-*/
+
+# ── Tambalan celah (cegah `git add -A` nyeret file besar) ──
+# Nested node_modules sub-project (mis. garage-profitmax/) — bukan hanya root.
+**/node_modules/
+# Data DB pglite lokal (data, bukan source).
+/.pglite-data/
+/pglite-data*/
+# Tooling / agent scratch & laporan generated.
+/.agent/
+/.codex/
+/.stitch/
+/.garage/
+# Output generated (moodboards, dll).
+/outputs/

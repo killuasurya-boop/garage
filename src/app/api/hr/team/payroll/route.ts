@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { staffSalaries, staffPayrolls, staffProfiles, user, kpiEvaluations, employeeAttendances, staffAdvances } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq, gte, lt } from "drizzle-orm";
 import { computeWorkedStats, formatWorkedHours } from "@/lib/attendance";
-import { fail } from "@/lib/api-response";
+import { fail, readJson } from "@/lib/api-response";
+
+const payrollNumLike = z.union([z.number(), z.string()]);
+const payrollBodySchema = z.object({
+  action: z.string().optional(),
+  staffId: z.string().min(1).optional(),
+  period: z.string().min(1).optional(),
+  baseSalary: payrollNumLike.optional(),
+  allowance: payrollNumLike.optional(),
+  bonus: payrollNumLike.optional(),
+  deduction: payrollNumLike.optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
 
 export async function GET(req: Request) {
   try {
@@ -176,7 +189,9 @@ export async function POST(req: Request) {
     const session = await requirePermission("finance:write");
     if (session.response) return session.response;
 
-    const body = await req.json();
+    const parsed = await readJson(req, payrollBodySchema);
+    if (parsed.error) return parsed.error;
+    const body = parsed.data;
     const { action } = body;
 
     const db = await getDb();
@@ -199,16 +214,16 @@ export async function POST(req: Request) {
         await db
           .update(staffSalaries)
           .set({
-            baseSalary: parseInt(baseSalary),
-            allowance: parseInt(allowance),
+            baseSalary: parseInt(String(baseSalary)),
+            allowance: parseInt(String(allowance)),
             updatedAt: new Date(),
           })
           .where(eq(staffSalaries.id, existing.id));
       } else {
         await db.insert(staffSalaries).values({
           staffId,
-          baseSalary: parseInt(baseSalary),
-          allowance: parseInt(allowance),
+          baseSalary: parseInt(String(baseSalary)),
+          allowance: parseInt(String(allowance)),
         });
       }
 
@@ -222,10 +237,10 @@ export async function POST(req: Request) {
         return fail(400, "VALIDATION_ERROR", "Missing required fields for payroll record");
       }
 
-      const intBase = parseInt(baseSalary);
-      const intAllow = parseInt(allowance);
-      const intBonus = parseInt(bonus);
-      const intDeduct = parseInt(deduction);
+      const intBase = parseInt(String(baseSalary));
+      const intAllow = parseInt(String(allowance));
+      const intBonus = parseInt(String(bonus));
+      const intDeduct = parseInt(String(deduction));
       const netSalary = (intBase + intAllow + intBonus) - intDeduct;
 
       // Check if monthly record already exists

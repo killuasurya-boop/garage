@@ -68,9 +68,12 @@
 ## FASE D — Testing & Verifikasi (P1/P2)
 > Pembuktian otomatis. Yang paling kurang sekarang.
 
-- [ ] **D1. Verifikasi responsive/visual** 🤝 M
-  - Desktop 1366×900 + mobile 390×844: POS, Kitchen, Inventory, Finance, Sales History. Cek overflow, dark mode, klip teks/harga.
-  - **Selesai jika:** screenshot tiap modul di 2 ukuran, no overflow.
+- [~] **D1. Verifikasi responsive/visual** 🤝 M — SPOT-CHECK (overflow via DOM)
+  - [x] POS desktop 1366×900: **0 overflow horizontal**, 0 elemen melampaui viewport ✅
+  - [x] POS mobile 390×844: **pageOverflowX=0** (layout tidak pecah) ✅. Satu-satunya "offender" = chat FAB di posisi off-screen → terbukti **artefak timing preview** (viewport diterapkan setelah mount; `innerWidth` benar 390, localStorage kosong, komponen sudah punya `clampToViewport`+resize handler). **Bukan bug device nyata.**
+  - [x] Sales History desktop: render bersih, angka/uang tak terpotong (screenshot sesi sebelumnya).
+  - [ ] Belum disisir mobile: Kitchen/Inventory/Finance/CRM (tab in-app, perlu klik nav) — verifikasi penuh sebaiknya manual di tablet/HP nyata (F1).
+  - **Metode:** deteksi overflow via `scrollWidth>clientWidth` + `getBoundingClientRect().right>viewport` (lebih andal dari screenshot utk clipping).
 - [~] **D2. Unit/component test inti** 🤖 L — MULAI (member-types selesai)
   - [x] `member-types.test.ts` — 13 test: points multiplier, redeem, threshold, rank, progress.
   - [x] `attendance.test.ts` — 13 test: hashPin (HMAC deterministik+trim), pinHashEquals (timing-safe), haversine geofence, evaluatePunchStatus, label, formatWorkedHours. **Suite total 47 test hijau.**

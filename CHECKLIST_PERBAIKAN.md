@@ -54,9 +54,10 @@
 - [ ] **C2. Lanjut rollout cache invalidation** 🤖 M
   - 25 komponen ad-hoc fetch → `useGarageQuery`/listener + `invalidateGarageCache` di mutation.
   - **Selesai jika:** modul utama (audit, marketing, membership, dll) ikut pola.
-- [ ] **C3. Tambah Zod di mutation handler yang belum** 🤖 M
-  - Audit per-method POST/PUT/PATCH/DELETE tanpa Zod → tambahkan.
-  - **Selesai jika:** 100% mutation handler validasi input.
+- [~] **C3. Tambah Zod di mutation handler yang belum** 🤖 M — HR routes done
+  - [x] 5 route HR POST diberi Zod via `readJson`: glossary, announcements, locations, kpi, advances. Balas `VALIDATION_ERROR` shape. tsc 0, lint 0, build hijau.
+  - [x] sop & shifts: sudah punya runtime validation memadai (body bersarang template/log + array) — Zod ditunda (benefit kecil, risiko tinggi pada nested/array).
+  - [ ] Sisa: audit mutation handler di modul lain (crm, inventory, dll) — banyak file, dicicil. **Hindari** yg overlap refactor view-split paralel.
 - [ ] **C4. Split god-file** 🤖 L
   - `garage-service.ts` (14.7k) → per-modul; lanjutkan split `garage-app.tsx`.
   - **Selesai jika:** tak ada file >3k baris di domain inti; build hijau.

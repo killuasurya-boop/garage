@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { operationGlossary } from "@/db/schema";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
-import { fail } from "@/lib/api-response";
+import { fail, readJson } from "@/lib/api-response";
+
+const glossaryBodySchema = z.object({
+  action: z.string().optional(),
+  id: z.string().min(1).optional(),
+  term: z.string().trim().min(1).max(200).optional(),
+  definition: z.string().trim().min(1).max(4000).optional(),
+  category: z.string().trim().max(120).optional(),
+});
 
 export async function GET() {
   try {
@@ -27,8 +36,9 @@ export async function POST(req: Request) {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;
 
-    const body = await req.json();
-    const { action, id, term, definition, category } = body;
+    const parsed = await readJson(req, glossaryBodySchema);
+    if (parsed.error) return parsed.error;
+    const { action, id, term, definition, category } = parsed.data;
 
     const db = await getDb();
 
@@ -38,6 +48,10 @@ export async function POST(req: Request) {
       }
       await db.delete(operationGlossary).where(eq(operationGlossary.id, id));
       return NextResponse.json({ success: true });
+    }
+
+    if (!term || !definition) {
+      return fail(400, "VALIDATION_ERROR", "term dan definition wajib diisi");
     }
 
     if (id) {
@@ -55,7 +69,7 @@ export async function POST(req: Request) {
       await db.insert(operationGlossary).values({
         term,
         definition,
-        category,
+        category: category ?? "",
       });
     }
 

@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { kpiEvaluations, employeeAttendances, sopLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq, lt, lte, gte } from "drizzle-orm";
-import { fail } from "@/lib/api-response";
+import { fail, readJson } from "@/lib/api-response";
+
+const kpiBodySchema = z.object({
+  staffId: z.string().min(1),
+  period: z.string().min(1),
+  score: z.union([z.number(), z.string()]),
+  feedback: z.string().max(4000).nullable().optional(),
+});
 
 export async function GET(req: Request) {
   try {
@@ -83,12 +91,9 @@ export async function POST(req: Request) {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;
 
-    const body = await req.json();
-    const { staffId, period, score, feedback } = body; // { staffId, period, score, feedback }
-
-    if (!staffId || !period || score === undefined) {
-      return fail(400, "VALIDATION_ERROR", "Missing required fields");
-    }
+    const parsed = await readJson(req, kpiBodySchema);
+    if (parsed.error) return parsed.error;
+    const { staffId, period, score, feedback } = parsed.data;
 
     const db = await getDb();
     const evaluatorId = session.data.user.id;
@@ -110,7 +115,7 @@ export async function POST(req: Request) {
       await db
         .update(kpiEvaluations)
         .set({
-          score: parseFloat(score),
+          score: parseFloat(String(score)),
           feedback: feedback || null,
           evaluatorId,
           updatedAt: new Date(),
@@ -121,7 +126,7 @@ export async function POST(req: Request) {
       await db.insert(kpiEvaluations).values({
         staffId,
         period,
-        score: parseFloat(score),
+        score: parseFloat(String(score)),
         feedback: feedback || null,
         evaluatorId,
       });

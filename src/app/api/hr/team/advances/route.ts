@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { staffAdvances, staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
-import { fail } from "@/lib/api-response";
+import { fail, readJson } from "@/lib/api-response";
+
+const advanceBodySchema = z.object({
+  action: z.string().optional(),
+  id: z.string().min(1).optional(),
+  staffId: z.string().min(1).optional(),
+  period: z.string().min(1).optional(),
+  amount: z.union([z.number(), z.string()]).optional(),
+  reason: z.string().max(2000).nullable().optional(),
+  status: z.string().max(40).optional(),
+});
 
 export async function GET(req: Request) {
   try {
@@ -49,7 +60,9 @@ export async function POST(req: Request) {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;
 
-    const body = await req.json();
+    const parsed = await readJson(req, advanceBodySchema);
+    if (parsed.error) return parsed.error;
+    const body = parsed.data;
     const { action } = body;
 
     const db = await getDb();
@@ -65,7 +78,7 @@ export async function POST(req: Request) {
       await db.insert(staffAdvances).values({
         staffId,
         period,
-        amount: parseInt(amount),
+        amount: parseInt(String(amount)),
         reason: reason || null,
         status: "pending",
       });

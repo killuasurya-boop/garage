@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { announcements, user } from "@/db/schema";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 import { desc, eq } from "drizzle-orm";
-import { fail } from "@/lib/api-response";
+import { fail, readJson } from "@/lib/api-response";
+
+const announcementBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  content: z.string().trim().min(1).max(8000),
+  targetRole: z.string().trim().max(80).optional(),
+  outletId: z.string().min(1).optional(),
+});
 
 export async function GET() {
   try {
@@ -45,12 +53,9 @@ export async function POST(req: Request) {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;
 
-    const body = await req.json();
-    const { title, content, targetRole, outletId } = body;
-
-    if (!title || !content) {
-      return fail(400, "VALIDATION_ERROR", "Title and content are required");
-    }
+    const parsed = await readJson(req, announcementBodySchema);
+    if (parsed.error) return parsed.error;
+    const { title, content, targetRole, outletId } = parsed.data;
 
     const db = await getDb();
     const creatorId = session.data.user.id;

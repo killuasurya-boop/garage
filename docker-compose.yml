@@ -30,6 +30,10 @@ services:
     build:
       context: .
       target: migrator
+    # env_file agar seed (src/db/seed.ts) yang memakai Better Auth dapat
+    # BETTER_AUTH_SECRET dll. Migrasi murni tidak butuh, tapi seed butuh.
+    env_file:
+      - .env.production
     environment:
       GARAGE_DB_DRIVER: postgres
       DATABASE_URL: ${DATABASE_URL}

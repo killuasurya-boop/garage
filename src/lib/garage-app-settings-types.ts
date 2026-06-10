@@ -2,6 +2,14 @@
 // dari client component tanpa narik server-only deps (db, drizzle) yang ada
 // di garage-service.ts.
 
+export type StaffFeeRates = {
+  feeWaiterDeliveredPerItem: number;
+  feeKitchenReadyPerItem: number;
+  feeBaristaReadyPerItem: number;
+  feePackagingReadyPerItem: number;
+  feeCashierPaidPerItem: number;
+};
+
 export type AppSettings = {
   // POS billing
   serviceChargePct: number;
@@ -96,6 +104,12 @@ export type AppSettings = {
   aiMaxRiskAuto: string;
   // Garage OS theme
   garageOsThemePreset: string;
+  // Tarif fee staf (Rupiah per item) — bisa diatur owner dari Pengaturan.
+  feeWaiterDeliveredPerItem: number; // waiter saat antar
+  feeKitchenReadyPerItem: number; // Koki / Asisten Koki saat makanan ready
+  feeBaristaReadyPerItem: number; // Barista saat minuman ready
+  feePackagingReadyPerItem: number; // packing
+  feeCashierPaidPerItem: number; // kasir saat order lunas
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -186,4 +200,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   aiMaxRiskAuto: "low",
   // Garage OS theme
   garageOsThemePreset: "industrial-garage",
+  // Tarif fee staf (Rupiah per item)
+  feeWaiterDeliveredPerItem: 100,
+  feeKitchenReadyPerItem: 200,
+  feeBaristaReadyPerItem: 200,
+  feePackagingReadyPerItem: 200,
+  feeCashierPaidPerItem: 200,
 };

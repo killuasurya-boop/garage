@@ -4,15 +4,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
+  Bell,
+  ChefHat,
   ChevronUp,
   CheckCircle2,
   Clock,
+  Coffee,
+  Cookie,
+  CupSoda,
   FileText,
+  Flame,
+  GlassWater,
   LogIn,
+  UtensilsCrossed,
   MessageCircle,
   Minus,
+  PackageCheck,
   Plus,
   QrCode,
+  ReceiptText,
   Search,
   ShoppingCart,
   TicketPercent,
@@ -63,6 +73,7 @@ type CartLine = {
   variant: MenuItem["variants"][number];
   qty: number;
   key: string;
+  note: string;
 };
 
 type CustomerPaymentMethod = "Cash" | "QRIS" | "Bank Transfer";
@@ -286,7 +297,72 @@ function BillLine({
   );
 }
 
-function CartList({ lines }: { lines: CartLine[] }) {
+function CartRow({
+  line,
+  onAdjust,
+  onNote,
+}: {
+  line: CartLine;
+  onAdjust?: (itemId: string, variantId: string, delta: number) => void;
+  onNote?: (itemId: string, variantId: string, value: string) => void;
+}) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const hasNote = line.note.trim().length > 0;
+  const showNote = Boolean(onNote) && (noteOpen || hasNote);
+
+  return (
+    <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-1 text-sm font-semibold text-white">{line.item.name}</p>
+          <p className="mt-1 text-xs text-[#b8b8bf]">
+            {line.variant.label} &middot; {rupiah.format(line.variant.price * line.qty)}
+          </p>
+        </div>
+        {onAdjust ? (
+          <QuantityControl
+            label={`${line.item.name} ${line.variant.label}`}
+            qty={line.qty}
+            onMinus={() => onAdjust(line.item.id, line.variant.id, -1)}
+            onPlus={() => onAdjust(line.item.id, line.variant.id, 1)}
+          />
+        ) : (
+          <p className="garage-mono shrink-0 text-sm font-semibold text-white">{line.qty}x</p>
+        )}
+      </div>
+      {onNote ? (
+        showNote ? (
+          <input
+            value={line.note}
+            onChange={(event) => onNote(line.item.id, line.variant.id, event.target.value)}
+            maxLength={160}
+            autoFocus={noteOpen && !hasNote}
+            placeholder="Catatan item (mis. less ice, tanpa bawang)"
+            className="mt-2 h-9 w-full rounded-md border border-[#34343c] bg-[#111116] px-3 text-xs text-white outline-none transition placeholder:text-[#777782] focus:border-[#f5a742]"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setNoteOpen(true)}
+            className="garage-press mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#f5a742]"
+          >
+            <Plus className="size-3" /> Tambah catatan
+          </button>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function CartList({
+  lines,
+  onAdjust,
+  onNote,
+}: {
+  lines: CartLine[];
+  onAdjust?: (itemId: string, variantId: string, delta: number) => void;
+  onNote?: (itemId: string, variantId: string, value: string) => void;
+}) {
   if (!lines.length) {
     return (
       <div className="rounded-md border border-dashed border-[#4a4a54] p-4 text-center text-sm text-[#b8b8bf]">
@@ -298,21 +374,449 @@ function CartList({ lines }: { lines: CartLine[] }) {
   return (
     <div className="space-y-2">
       {lines.map((line) => (
-        <div
-          key={line.key}
-          className="flex items-start justify-between gap-3 rounded-md border border-[#34343c] bg-white/[0.04] p-3"
-        >
+        <CartRow key={line.key} line={line} onAdjust={onAdjust} onNote={onNote} />
+      ))}
+    </div>
+  );
+}
+
+// Placeholder profesional saat menu belum berfoto: ikon garis monokrom
+// (gaya industrial Garage), bukan emoji. Tampil di kartu & sheet detail.
+function categoryGlyph(category: string, className: string) {
+  if (category === "Coffee") return <Coffee strokeWidth={1.25} className={className} />;
+  if (category === "Non-Coffee") return <CupSoda strokeWidth={1.25} className={className} />;
+  if (category === "Cemilan") return <Cookie strokeWidth={1.25} className={className} />;
+  return <UtensilsCrossed strokeWidth={1.25} className={className} />;
+}
+
+function CategoryPlaceholder({ category, large = false }: { category: string; large?: boolean }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_50%_32%,#2a2724,#131211)]">
+      {categoryGlyph(category, `${large ? "size-12" : "size-8"} text-[#7c7c84]`)}
+      <span
+        className={`garage-mono font-bold uppercase tracking-[0.24em] text-[#6e6e77] ${
+          large ? "text-[11px]" : "text-[9px]"
+        }`}
+      >
+        {category}
+      </span>
+    </div>
+  );
+}
+
+// Kartu menu ringkas: foto/ikon, nama, waktu, harga (atau "mulai"),
+// dan satu aksi yang jelas. Item multi-varian membuka sheet detail;
+// item satu-varian langsung pakai stepper di kartu.
+function MenuCard({
+  item,
+  cartQty,
+  popular = false,
+  onAdd,
+  onOpen,
+}: {
+  item: MenuItem;
+  cartQty: number;
+  popular?: boolean;
+  onAdd: (variantId: string, delta: number) => void;
+  onOpen: () => void;
+}) {
+  const soldOut = item.stock === "sold_out";
+  const minPrice = Math.min(...item.variants.map((variant) => variant.price));
+  const multiVariant = item.variants.length > 1;
+  const singleVariantId = item.variants[0]?.id;
+
+  return (
+    <article
+      className={`group relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#3a3a3a] bg-[#1c1b1b] transition hover:border-[#d4af37]/45 ${
+        soldOut ? "opacity-70" : ""
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={soldOut}
+        aria-label={`Lihat ${item.name}`}
+        className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-[#2a2622] to-[#161616] text-left"
+      >
+        {item.imageUrl ? (
+          // Foto menu berasal dari URL bebas (di-set admin) â€” pakai <img> biasa
+          // supaya tidak terikat remotePatterns next/image.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.imageUrl}
+            alt={item.name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+          />
+        ) : (
+          <CategoryPlaceholder category={item.category} />
+        )}
+        {item.imageUrl ? (
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/25" />
+        ) : null}
+        <span className="absolute left-2 top-2 rounded-full bg-[#0d0d0d]/85 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#f2ca50] backdrop-blur">
+          {item.category}
+        </span>
+        {!soldOut && popular ? (
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-[#f5a742] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#1a1206] shadow-[0_6px_16px_rgba(0,0,0,0.4)]">
+            <Flame className="size-3" /> Paling laku
+          </span>
+        ) : !soldOut && item.stock === "limited" ? (
+          <span className="absolute right-2 top-2 rounded-full border border-[#f2ca50]/55 bg-[#f2ca50]/15 px-2 py-0.5 text-[10px] font-bold text-[#ffe7a4]">
+            Terbatas
+          </span>
+        ) : null}
+        {soldOut ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-sm font-black uppercase tracking-widest text-[#ffb4ac]">
+            Habis
+          </span>
+        ) : null}
+        {cartQty > 0 ? (
+          <span className="absolute bottom-2 right-2 rounded-full bg-[#d11a2a] px-2 py-0.5 text-[11px] font-black text-white shadow-[0_6px_16px_rgba(0,0,0,0.4)]">
+            {cartQty} di keranjang
+          </span>
+        ) : null}
+      </button>
+
+      <div className="flex flex-1 flex-col p-3">
+        <h2 className="line-clamp-2 min-h-[2.6em] text-sm font-black leading-snug text-white">
+          {item.name}
+        </h2>
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-[#b8b8bf]">
+          <Clock className="size-3 text-[#f5a742]" /> {item.prep} &middot; {item.section}
+        </p>
+        <div className="mt-2.5 flex items-end justify-between gap-2">
+          <p className="min-w-0">
+            {multiVariant ? (
+              <span className="block text-[10px] uppercase tracking-wide text-[#b8b8bf]">mulai</span>
+            ) : null}
+            <span className="text-base font-black text-[#f2ca50]">{rupiah.format(minPrice)}</span>
+          </p>
+          {soldOut ? (
+            <span className="rounded-md border border-[#4a4a54] px-3 py-2 text-xs font-bold text-[#888]">
+              Habis
+            </span>
+          ) : multiVariant ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              className="garage-press inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-[#d11a2a] px-4 text-sm font-black text-white transition hover:bg-[#ff2a3a]"
+            >
+              <Plus className="size-4" /> Pilih
+            </button>
+          ) : (
+            <QuantityControl
+              label={item.name}
+              qty={cartQty}
+              onMinus={() => singleVariantId && onAdd(singleVariantId, -1)}
+              onPlus={() => singleVariantId && onAdd(singleVariantId, 1)}
+            />
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// Sheet detail item â€” momen "memilih": foto besar, info, daftar varian
+// dengan harga + stepper. Keranjang diperbarui langsung.
+function MenuDetailSheet({
+  item,
+  cart,
+  onAdjust,
+  onClose,
+}: {
+  item: MenuItem | null;
+  cart: Record<string, number>;
+  onAdjust: (itemId: string, variantId: string, delta: number) => void;
+  onClose: () => void;
+}) {
+  const totalInCart = item
+    ? item.variants.reduce((sum, variant) => sum + (cart[cartKey(item.id, variant.id)] ?? 0), 0)
+    : 0;
+
+  return (
+    <Sheet open={Boolean(item)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <SheetContent
+        side="bottom"
+        className="garage-shell inset-x-0 bottom-0 z-[95] mx-auto flex max-h-[90svh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border-[#34343c] bg-[#111116] p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(520px,calc(100vw-32px))] sm:rounded-2xl sm:border"
+      >
+        {item ? (
+          <>
+            <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              ) : (
+                <CategoryPlaceholder category={item.category} large />
+              )}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#111116] via-[#111116]/10 to-transparent" />
+              <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-[#0d0d0d]/80 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-[#f2ca50] backdrop-blur">
+                {item.category}
+              </span>
+            </div>
+            <SheetHeader className="border-b border-[#34343c] px-4 pb-4 pt-3 text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SheetTitle
+                    className="text-lg font-black leading-tight tracking-normal text-white sm:text-xl"
+                    style={{
+                      fontFamily:
+                        'var(--font-space-grotesk), "Space Grotesk", ui-sans-serif, system-ui, sans-serif',
+                    }}
+                  >
+                    {item.name}
+                  </SheetTitle>
+                  <SheetDescription className="mt-1.5 flex items-center gap-1 text-xs text-[#b8b8bf]">
+                    <Clock className="size-3.5 text-[#f5a742]" /> {item.prep} &middot; {item.section}
+                  </SheetDescription>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="garage-mono text-[10px] uppercase tracking-wide text-[#8a8a93]">
+                    {item.variants.length > 1 ? "Mulai" : "Harga"}
+                  </p>
+                  <p className="text-base font-black text-[#f2ca50]">
+                    {rupiah.format(Math.min(...item.variants.map((variant) => variant.price)))}
+                  </p>
+                </div>
+              </div>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.14em] text-[#d6d6dc]">
+                {item.variants.length > 1 ? "Pilih varian" : "Jumlah pesanan"}
+              </p>
+              <div className="space-y-2">
+                {item.variants.map((variant) => {
+                  const qty = cart[cartKey(item.id, variant.id)] ?? 0;
+                  const singleVariant = item.variants.length === 1;
+                  return (
+                    <div
+                      key={variant.id}
+                      className={`flex items-center justify-between gap-3 rounded-lg border p-3.5 transition ${
+                        qty > 0
+                          ? "border-[#d11a2a]/55 bg-[#d11a2a]/10 ring-1 ring-inset ring-[#d11a2a]/30"
+                          : "border-[#34343c] bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="line-clamp-1 text-base font-bold text-white">
+                            {variant.label}
+                          </p>
+                          {qty > 0 ? (
+                            <span className="shrink-0 rounded-full bg-[#d11a2a] px-1.5 py-0.5 text-[10px] font-black tabular-nums text-white">
+                              {qty}&times; di keranjang
+                            </span>
+                          ) : null}
+                        </div>
+                        {/* Harga per-varian hanya untuk multi-varian â€” item satu varian
+                            harganya sudah jelas di header (hindari tampil 2x). */}
+                        {!singleVariant ? (
+                          <p className="mt-0.5 text-sm font-black text-[#f2ca50]">
+                            {rupiah.format(variant.price)}
+                          </p>
+                        ) : null}
+                      </div>
+                      <QuantityControl
+                        label={`${item.name} ${variant.label}`}
+                        qty={qty}
+                        onMinus={() => onAdjust(item.id, variant.id, -1)}
+                        onPlus={() => onAdjust(item.id, variant.id, 1)}
+                        disabled={item.stock === "sold_out"}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="border-t border-[#34343c] bg-[#111116] p-3 sm:p-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="garage-press flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#d11a2a] px-4 text-sm font-black uppercase tracking-[0.06em] text-white transition hover:bg-[#ff2a3a]"
+              >
+                {totalInCart > 0 ? `Selesai (${totalInCart} item)` : "Tutup"}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function stationEmoji(station: string) {
+  if (station === "Bar") return "☕"; // coffee
+  if (station === "Packaging" || station === "Packing") return "\u{1F4E6}"; // box
+  return "\u{1F37D}\u{FE0F}"; // plate â€” Dapur
+}
+
+function formatMmSs(totalSeconds: number) {
+  const s = Math.max(0, Math.round(totalSeconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// Tracker live pelanggan: headline ETA (countdown mulus per detik saat dimasak),
+// stepper berikon, dan ETA per station (Bar/Dapur). Data dari public-status,
+// di-poll tiap 8 detik; di antara poll, countdown tetap turun mulus via tick lokal.
+function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const ks = status?.kitchenStatus ?? "waiting_cashier";
+  const rejected = ks === "rejected" || status?.orderStatus === "rejected";
+  const done = ks === "delivered" || ks === "completed";
+
+  const rawStations = status?.stations ?? [];
+  const anyCooking = rawStations.some(
+    (entry) => entry.status === "cooking" && entry.cookingStartedAt,
+  );
+  // Tick per detik HANYA saat ada station sedang dimasak (hemat render).
+  useEffect(() => {
+    if (!anyCooking) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [anyCooking]);
+
+  const stations = rawStations.map((entry) => {
+    const ready = entry.status === "ready" || entry.status === "delivered";
+    let remainingSec: number | null;
+    if (ready) {
+      remainingSec = 0;
+    } else if (entry.status === "cooking" && entry.cookingStartedAt) {
+      const elapsed = (nowMs - new Date(entry.cookingStartedAt).getTime()) / 1000;
+      remainingSec = Math.max(0, entry.targetSeconds - elapsed);
+    } else {
+      remainingSec = entry.etaSeconds;
+    }
+    return { ...entry, ready, remainingSec };
+  });
+
+  const pending = stations.filter((entry) => !entry.ready);
+  const headlineSec = pending.length
+    ? Math.max(...pending.map((entry) => entry.remainingSec ?? 0))
+    : null;
+  const allReady = stations.length > 0 && stations.every((entry) => entry.ready);
+
+  if (rejected) {
+    return (
+      <div className="mt-3 rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-3 text-sm font-semibold text-[#ffb0b8]">
+        Pesanan ditolak kasir. Silakan hubungi staf.
+      </div>
+    );
+  }
+
+  const steps = [
+    { label: "Masuk kasir", icon: ReceiptText },
+    { label: "Diproses", icon: ChefHat },
+    { label: "Siap", icon: PackageCheck },
+  ];
+  const stepIndex = ks === "ready" || done ? 2 : ks === "queue" || ks === "cooking" ? 1 : 0;
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Headline status */}
+      {allReady || ks === "ready" ? (
+        <div className="flex items-center gap-3 rounded-lg border border-[#22c55e]/45 bg-[#22c55e]/12 p-3">
+          <PackageCheck className="size-7 shrink-0 text-[#86efac]" />
           <div className="min-w-0">
-            <p className="line-clamp-1 text-sm font-semibold text-white">{line.item.name}</p>
-            <p className="mt-1 text-xs text-[#b8b8bf]">
-              {line.qty}x {line.variant.label}
+            <p className="text-base font-black text-[#bbf7d0]">Pesanan SIAP {"\u{1F389}"}</p>
+            <p className="text-xs text-[#dcfce7]">Silakan ambil atau akan segera diantar.</p>
+          </div>
+        </div>
+      ) : done ? (
+        <div className="flex items-center gap-3 rounded-lg border border-[#22c55e]/35 bg-[#22c55e]/10 p-3">
+          <CheckCircle2 className="size-7 shrink-0 text-[#86efac]" />
+          <p className="text-sm font-bold text-[#dcfce7]">Pesanan selesai. Terima kasih!</p>
+        </div>
+      ) : anyCooking && headlineSec != null ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-[#f5a742]/40 bg-[#f5a742]/10 p-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#ffd79a]">
+              Estimasi siap dalam
+            </p>
+            <p className="font-mono text-3xl font-black tabular-nums leading-none text-white">
+              {formatMmSs(headlineSec)}
             </p>
           </div>
-          <p className="garage-mono shrink-0 text-sm font-semibold text-white">
-            {rupiah.format(line.variant.price * line.qty)}
+          <ChefHat className="size-8 shrink-0 text-[#f5a742]" />
+        </div>
+      ) : ks === "queue" ? (
+        <div className="flex items-center gap-3 rounded-lg border border-[#34343c] bg-white/[0.05] p-3">
+          <Clock className="size-6 shrink-0 text-[#f5a742]" />
+          <p className="text-sm font-semibold text-[#e7e7ea]">
+            Masuk antrean dapur
+            {headlineSec != null ? ` — perkiraan ± ${Math.max(1, Math.round(headlineSec / 60))} menit.` : "."}
           </p>
         </div>
-      ))}
+      ) : (
+        <div className="flex items-center gap-3 rounded-lg border border-[#34343c] bg-white/[0.05] p-3">
+          <Clock className="size-6 shrink-0 text-[#f5a742]" />
+          <p className="text-sm font-semibold text-[#e7e7ea]">Menunggu konfirmasi kasir…</p>
+        </div>
+      )}
+
+      {/* Stepper berikon */}
+      <div className="flex items-start gap-1.5">
+        {steps.map((step, index) => {
+          const reached = index <= stepIndex;
+          const current = index === stepIndex && !done;
+          const Icon = step.icon;
+          return (
+            <div key={step.label} className="flex flex-1 flex-col items-center gap-1">
+              <div
+                className={`flex size-8 items-center justify-center rounded-full border transition ${
+                  reached
+                    ? "border-[#22c55e]/55 bg-[#22c55e]/15 text-[#86efac]"
+                    : "border-[#34343c] bg-white/[0.04] text-[#8f8f99]"
+                } ${current ? "ring-2 ring-[#f5a742]/55" : ""}`}
+              >
+                <Icon className="size-4" />
+              </div>
+              <span
+                className={`text-center text-[10px] font-bold ${
+                  current ? "text-[#ffd79a]" : reached ? "text-[#dcfce7]" : "text-[#8f8f99]"
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ETA per station */}
+      {stations.length ? (
+        <div className="flex flex-wrap gap-2">
+          {stations.map((entry) => {
+            const tone = entry.ready
+              ? "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#bbf7d0]"
+              : entry.status === "cooking"
+                ? "border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffd79a]"
+                : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]";
+            const label = entry.ready
+              ? "Siap"
+              : entry.status === "cooking" && entry.remainingSec != null
+                ? formatMmSs(entry.remainingSec)
+                : entry.remainingSec != null
+                  ? `± ${Math.max(1, Math.round(entry.remainingSec / 60))} mnt`
+                  : "Antre";
+            return (
+              <span
+                key={entry.station}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums ${tone}`}
+              >
+                <span>{stationEmoji(entry.station)}</span>
+                {entry.station}: {label}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <p className="garage-mono text-[10px] text-[#9a9aa3]">Update otomatis tiap 8 detik</p>
     </div>
   );
 }
@@ -322,23 +826,29 @@ export function MemberOrderPage({
   initialReturnPath,
   initialSearchQuery,
   initialMenuItems,
+  bestSellerIds,
 }: {
   initialQrContext?: QrContext;
   initialReturnPath?: string;
   initialSearchQuery?: string;
   initialMenuItems?: MenuItem[];
+  bestSellerIds?: string[];
 }) {
   const hasInitialMenuItems = Boolean(initialMenuItems?.length);
+  const bestSellerSet = useMemo(() => new Set(bestSellerIds ?? []), [bestSellerIds]);
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [mode, setMode] = useState<"guest" | "member">("guest");
   const [menuItems, setMenuItems] = useState<MenuItem[]>(() => initialMenuItems ?? []);
   const [cart, setCart] = useState<Record<string, number>>({});
+  // Catatan per-item keranjang (mis. "less ice"), keyed by cartKey item::variant.
+  const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
+  // Item yang dibuka di sheet detail (pilih varian + qty).
+  const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [query, setQuery] = useState(() =>
     (initialSearchQuery ?? readInitialSearchQuery()).trim().slice(0, 80),
   );
   const [category, setCategory] = useState(ALL_CATEGORY);
   const [guestName, setGuestName] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherResult, setVoucherResult] = useState<VoucherValidation | null>(null);
@@ -354,8 +864,34 @@ export function MemberOrderPage({
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [lastOrder, setLastOrder] = useState<CustomerOrderCreateResponse | null>(null);
   const [orderStatus, setOrderStatus] = useState<PublicOrderStatus | null>(null);
+  // Order yang dilanjutkan dari kunjungan sebelumnya (persist via localStorage)
+  // supaya tracker tidak hilang saat halaman di-refresh.
+  const [trackedOrderId, setTrackedOrderId] = useState<string | null>(null);
+  const [trackedOrderNo, setTrackedOrderNo] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpBusy, setHelpBusy] = useState<string | null>(null);
+  // Field opsional checkout disembunyikan dulu agar tampilan minimalis.
+  const [showVoucherField, setShowVoucherField] = useState(false);
+  const [showNoteField, setShowNoteField] = useState(false);
   const deferredQuery = useDeferredValue(query);
+
+  async function callService(type: "call" | "bill" | "water", label: string) {
+    setHelpBusy(type);
+    setHelpMessage("");
+    try {
+      await postJson("/api/customer/service-requests", {
+        tableLabel: qrContext.tableLabel,
+        outletId: qrContext.outletId,
+        type,
+      });
+      setHelpMessage(`${label} terkirim. Pelayan akan segera datang ke ${qrContext.tableLabel}.`);
+    } catch {
+      setHelpMessage("Gagal mengirim panggilan. Coba lagi sebentar.");
+    } finally {
+      setHelpBusy(null);
+    }
+  }
 
   const loadProfile = useCallback(async () => {
     try {
@@ -440,6 +976,65 @@ export function MemberOrderPage({
     };
   }, [lastOrder?.order.id]);
 
+  // Resume: baca order terakhir dari localStorage saat mount (kalau belum ada
+  // sesi aktif), supaya tracker tetap muncul setelah refresh/buka ulang.
+  useEffect(() => {
+    if (lastOrder) return;
+    try {
+      const raw = window.localStorage.getItem("garage:trackedOrder");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { id?: string; orderNo?: string };
+      if (parsed?.id) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time init from storage
+        setTrackedOrderId(parsed.id);
+        setTrackedOrderNo(parsed.orderNo ?? null);
+      }
+    } catch {
+      /* localStorage tidak tersedia */
+    }
+  }, [lastOrder]);
+
+  // Poll status untuk order yang di-resume (tanpa sesi lastOrder aktif).
+  useEffect(() => {
+    if (lastOrder || !trackedOrderId) return;
+    let alive = true;
+    const loadStatus = async () => {
+      try {
+        const status = await getJson<PublicOrderStatus>(
+          `/api/customer/orders/${trackedOrderId}/public-status`,
+        );
+        if (!alive) return;
+        setOrderStatus(status);
+        const finished =
+          ["delivered", "completed", "rejected"].includes(status.kitchenStatus) ||
+          status.orderStatus === "paid";
+        if (finished) {
+          // Sudah selesai â€” berhenti menyimpan supaya kunjungan berikutnya bersih.
+          try {
+            window.localStorage.removeItem("garage:trackedOrder");
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        if (alive) {
+          setTrackedOrderId(null);
+          try {
+            window.localStorage.removeItem("garage:trackedOrder");
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    };
+    void loadStatus();
+    const intervalId = window.setInterval(loadStatus, 8_000);
+    return () => {
+      alive = false;
+      window.clearInterval(intervalId);
+    };
+  }, [lastOrder, trackedOrderId]);
+
   const categories = useMemo(
     () => [ALL_CATEGORY, ...Array.from(new Set(menuItems.map((item) => item.category)))],
     [menuItems],
@@ -471,10 +1066,10 @@ export function MemberOrderPage({
           const item = menuItems.find((entry) => entry.id === itemId);
           const variant = item?.variants.find((entry) => entry.id === variantId);
           if (!item || !variant || qty <= 0) return null;
-          return { item, variant, qty, key };
+          return { item, variant, qty, key, note: cartNotes[key] ?? "" };
         })
         .filter((line): line is CartLine => Boolean(line)),
-    [cart, menuItems],
+    [cart, menuItems, cartNotes],
   );
 
   const subtotal = cartLines.reduce((sum, line) => sum + line.variant.price * line.qty, 0);
@@ -487,7 +1082,7 @@ export function MemberOrderPage({
   const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = mode === "guest" && !guestName.trim();
-  const guestPhoneMissing = mode === "guest" && !guestPhone.trim();
+  // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
   const cashPaymentLabel =
@@ -506,20 +1101,15 @@ export function MemberOrderPage({
     cartLines.length > 0 &&
     !busy &&
     !guestNameMissing &&
-    !guestPhoneMissing &&
     !memberMissing &&
     !soldOutCartLine;
   const checkoutBlockReason = memberMissing
     ? "Login member untuk lanjut."
     : soldOutCartLine
       ? `${soldOutCartLine.item.name} sedang habis. Hapus dari keranjang.`
-    : guestNameMissing && guestPhoneMissing
-      ? "Lengkapi nama dan WhatsApp."
       : guestNameMissing
         ? "Lengkapi nama customer."
-        : guestPhoneMissing
-          ? "Lengkapi nomor WhatsApp."
-          : "";
+        : "";
   const channelLabel =
     qrContext.orderType === "takeaway"
       ? "Takeaway"
@@ -536,14 +1126,28 @@ export function MemberOrderPage({
       return;
     }
 
+    const key = cartKey(itemId, variantId);
     setCart((current) => {
-      const key = cartKey(itemId, variantId);
       const nextQty = Math.max(0, (current[key] ?? 0) + delta);
       const next = { ...current };
       if (nextQty === 0) delete next[key];
       else next[key] = nextQty;
+      // Bersihkan catatan kalau item dihapus dari keranjang.
+      if (nextQty === 0) {
+        setCartNotes((notes) => {
+          if (!(key in notes)) return notes;
+          const copy = { ...notes };
+          delete copy[key];
+          return copy;
+        });
+      }
       return next;
     });
+  }
+
+  function setLineNote(itemId: string, variantId: string, value: string) {
+    const key = cartKey(itemId, variantId);
+    setCartNotes((notes) => ({ ...notes, [key]: value.slice(0, 160) }));
   }
 
   function openCheckout() {
@@ -606,8 +1210,8 @@ export function MemberOrderPage({
       if (soldOutCartLine) {
         throw new Error(`${soldOutCartLine.item.name} sedang habis. Hapus dari keranjang.`);
       }
-      if (guestNameMissing || guestPhoneMissing) {
-        throw new Error("Nama dan nomor WhatsApp guest wajib diisi.");
+      if (guestNameMissing) {
+        throw new Error("Nama customer wajib diisi.");
       }
 
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", {
@@ -616,7 +1220,6 @@ export function MemberOrderPage({
         outletId: qrContext.outletId,
         customerMode: mode,
         guestName: mode === "guest" ? guestName.trim() : undefined,
-        guestPhone: mode === "guest" ? guestPhone.trim() : undefined,
         customerNote: customerNote.trim() || undefined,
         source: qrContext.source,
         campaign: qrContext.campaign,
@@ -628,15 +1231,26 @@ export function MemberOrderPage({
           itemId: line.item.id,
           variantId: line.variant.id,
           qty: line.qty,
+          note: line.note.trim() || undefined,
         })),
       });
 
       setCart({});
+      setCartNotes({});
       setCustomerNote("");
       setPaymentReference("");
       setCheckoutOpen(false);
       setMessage(`${result.order.orderNo} masuk ke kasir. Pembayaran menunggu konfirmasi.`);
       setLastOrder(result);
+      // Persist supaya tracker tetap ada walau halaman di-refresh.
+      try {
+        window.localStorage.setItem(
+          "garage:trackedOrder",
+          JSON.stringify({ id: result.order.id, orderNo: result.order.orderNo }),
+        );
+      } catch {
+        /* localStorage tidak tersedia */
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Checkout gagal.");
     } finally {
@@ -646,6 +1260,33 @@ export function MemberOrderPage({
 
   const checkoutContent = (
     <>
+      {/* PESANAN â€” review item paling atas: lihat semua item, ubah qty,
+          tambah catatan per-item, dan subtotal langsung terlihat. */}
+      <div className="rounded-lg border border-[#34343c] bg-[#15151b]/84 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-black uppercase tracking-[0.04em] text-white">Pesanan</p>
+          <span className="rounded-full border border-[#f5a742]/45 bg-[#f5a742]/12 px-2.5 py-0.5 text-xs font-bold text-[#ffd79a]">
+            {itemCount} item
+          </span>
+        </div>
+        <div className="mt-3">
+          <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
+        </div>
+        <div className="mt-3 space-y-1.5 border-t border-[#34343c] pt-3 text-sm">
+          <BillLine label="Subtotal" value={rupiah.format(subtotal)} />
+          <BillLine label="Service" value={rupiah.format(service)} />
+          {discount > 0 ? (
+            <BillLine label={discountLabel} value={`- ${rupiah.format(discount)}`} />
+          ) : null}
+          {voucherDiscount > 0 ? (
+            <BillLine label="Voucher tambahan" value={`- ${rupiah.format(voucherDiscount)}`} />
+          ) : null}
+        </div>
+      </div>
+
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#d6d6dc]">
+        Data Customer
+      </p>
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
@@ -659,8 +1300,8 @@ export function MemberOrderPage({
           <div className="flex items-center gap-2">
             <ShoppingCart className="size-4 shrink-0 text-[#f5a742]" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">Guest</p>
-              <p className="truncate text-xs text-[#b8b8bf]">Pakai WhatsApp</p>
+              <p className="text-sm font-bold text-white">Guest</p>
+              <p className="truncate text-xs text-[#c7c7ce]">Tanpa login, langsung pesan</p>
             </div>
           </div>
         </button>
@@ -676,8 +1317,8 @@ export function MemberOrderPage({
           <div className="flex items-center gap-2">
             <User className="size-4 shrink-0 text-[#f5a742]" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">Member</p>
-              <p className="truncate text-xs text-[#b8b8bf]">
+              <p className="text-sm font-bold text-white">Member</p>
+              <p className="truncate text-xs text-[#c7c7ce]">
                 {member ? `${member.level} - ${number.format(member.totalPoints)} pts` : "Login dulu"}
               </p>
             </div>
@@ -686,43 +1327,23 @@ export function MemberOrderPage({
       </div>
 
       {mode === "guest" ? (
-        <div className="grid gap-2.5">
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b8b8bf]">
-              Nama
-            </span>
-            <input
-              value={guestName}
-              onChange={(event) => setGuestName(event.target.value)}
-              className={`h-11 w-full rounded-md border bg-white/[0.055] px-4 text-white outline-none transition focus:border-[#f5a742] ${
-                guestNameMissing ? "border-[#d11a2a]/70" : "border-[#34343c]"
-              }`}
-              placeholder="Nama customer"
-              autoComplete="name"
-            />
-            {guestNameMissing ? (
-              <span className="text-xs text-[#ffb0b8]">Nama wajib diisi.</span>
-            ) : null}
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b8b8bf]">
-              WhatsApp
-            </span>
-            <input
-              value={guestPhone}
-              onChange={(event) => setGuestPhone(event.target.value)}
-              className={`h-11 w-full rounded-md border bg-white/[0.055] px-4 text-white outline-none transition focus:border-[#f5a742] ${
-                guestPhoneMissing ? "border-[#d11a2a]/70" : "border-[#34343c]"
-              }`}
-              placeholder="0813..."
-              autoComplete="tel"
-              inputMode="tel"
-            />
-            {guestPhoneMissing ? (
-              <span className="text-xs text-[#ffb0b8]">Nomor WhatsApp wajib diisi.</span>
-            ) : null}
-          </label>
-        </div>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-[#d6d6dc]">
+            Nama
+          </span>
+          <input
+            value={guestName}
+            onChange={(event) => setGuestName(event.target.value)}
+            className={`h-11 w-full rounded-md border bg-white/[0.055] px-4 text-white outline-none transition focus:border-[#f5a742] ${
+              guestNameMissing ? "border-[#d11a2a]/70" : "border-[#34343c]"
+            }`}
+            placeholder="Nama customer"
+            autoComplete="name"
+          />
+          {guestNameMissing ? (
+            <span className="text-xs font-semibold text-[#ffb0b8]">Nama wajib diisi.</span>
+          ) : null}
+        </label>
       ) : member ? (
         <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
           <p className="text-sm font-semibold text-white">{member.name}</p>
@@ -741,87 +1362,115 @@ export function MemberOrderPage({
         </div>
       )}
 
-      <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-        <div className="flex items-center gap-2">
-          <TicketPercent className="size-4 shrink-0 text-[#f5a742]" />
-          <p className="text-sm font-semibold text-white">Voucher / promo</p>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <input
-            value={voucherCode}
-            onChange={(event) => {
-              setVoucherCode(event.target.value);
-              setVoucherResult(null);
-            }}
-            className="h-11 min-w-0 flex-1 rounded-md border border-[#34343c] bg-[#111116] px-3 text-sm uppercase text-white outline-none transition placeholder:normal-case placeholder:text-[#777782] focus:border-[#f5a742]"
-            placeholder="Kode voucher opsional"
-            autoComplete="off"
-          />
+      {/* Ekstra opsional â€” disembunyikan agar minimalis */}
+      <div className="flex flex-wrap gap-2">
+        {!showVoucherField && !voucherResult ? (
           <button
             type="button"
-            className="garage-press h-11 shrink-0 rounded-md border border-[#4a4a54] px-3 text-xs font-bold text-white disabled:opacity-50"
-            disabled={voucherBusy || !subtotal}
-            onClick={() => void checkVoucher()}
+            onClick={() => setShowVoucherField(true)}
+            className="garage-press inline-flex items-center gap-1.5 rounded-full border border-[#4a4a54] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-[#ffd79a] hover:bg-white/[0.08]"
           >
-            {voucherBusy ? "Cek..." : "Cek"}
+            <TicketPercent className="size-3.5" /> Punya kode promo?
           </button>
-        </div>
-        {voucherResult ? (
-          <p
-            className={`mt-2 text-xs leading-5 ${
-              voucherResult.valid ? "text-[#dcfce7]" : "text-[#ffb0b8]"
-            }`}
+        ) : null}
+        {!showNoteField && !customerNote ? (
+          <button
+            type="button"
+            onClick={() => setShowNoteField(true)}
+            className="garage-press inline-flex items-center gap-1.5 rounded-full border border-[#4a4a54] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-[#d6d6dc] hover:bg-white/[0.08]"
           >
-            {voucherResult.message}
-            {voucherResult.valid ? ` Diskon ${rupiah.format(voucherResult.discount)}.` : ""}
-          </p>
+            <Plus className="size-3.5" /> Tambah catatan
+          </button>
         ) : null}
       </div>
 
-      <label className="grid gap-1.5">
-        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b8b8bf]">
-          Catatan
-        </span>
-        <input
-          value={customerNote}
-          onChange={(event) => setCustomerNote(event.target.value)}
-          className="h-11 w-full rounded-md border border-[#34343c] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-[#777782] focus:border-[#f5a742]"
-          placeholder="Contoh: tidak pedas, gula sedikit"
-        />
-      </label>
+      {showVoucherField || voucherResult ? (
+        <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+          <div className="flex items-center gap-2">
+            <TicketPercent className="size-4 shrink-0 text-[#f5a742]" />
+            <p className="text-sm font-semibold text-white">Voucher / promo</p>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={voucherCode}
+              onChange={(event) => {
+                setVoucherCode(event.target.value);
+                setVoucherResult(null);
+              }}
+              className="h-11 min-w-0 flex-1 rounded-md border border-[#34343c] bg-[#111116] px-3 text-sm uppercase text-white outline-none transition placeholder:normal-case placeholder:text-[#777782] focus:border-[#f5a742]"
+              placeholder="Kode voucher"
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              className="garage-press h-11 shrink-0 rounded-md border border-[#4a4a54] px-4 text-xs font-bold text-white disabled:opacity-50"
+              disabled={voucherBusy || !subtotal}
+              onClick={() => void checkVoucher()}
+            >
+              {voucherBusy ? "Cek..." : "Cek"}
+            </button>
+          </div>
+          {voucherResult ? (
+            <p
+              className={`mt-2 text-xs leading-5 ${
+                voucherResult.valid ? "text-[#dcfce7]" : "text-[#ffb0b8]"
+              }`}
+            >
+              {voucherResult.message}
+              {voucherResult.valid ? ` Diskon ${rupiah.format(voucherResult.discount)}.` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
-      <div className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-3">
-        <p className="text-sm font-black text-white">Metode Pembayaran</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      {showNoteField || customerNote ? (
+        <label className="grid gap-1.5">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-[#d6d6dc]">
+            Catatan
+          </span>
+          <input
+            value={customerNote}
+            onChange={(event) => setCustomerNote(event.target.value)}
+            className="h-11 w-full rounded-md border border-[#34343c] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-[#777782] focus:border-[#f5a742]"
+            placeholder="Contoh: tidak pedas, gula sedikit"
+          />
+        </label>
+      ) : null}
+
+      <div className="rounded-lg border border-[#34343c] bg-[#15151b]/84 p-3">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#d6d6dc]">
+          Pembayaran
+        </p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
           {customerPaymentMethods.map((method) => {
-            const label = method === "Cash" ? cashPaymentLabel : method === "QRIS" ? "Bayar QRIS" : "Transfer Bank";
+            const label = method === "Cash" ? "Tunai" : method === "QRIS" ? "QRIS" : "Transfer";
             const selected = paymentMethod === method;
             return (
               <button
                 key={method}
                 type="button"
-                className={`garage-press min-h-14 rounded-md border p-2.5 text-left transition ${
+                className={`garage-press flex min-h-11 items-center justify-center rounded-md border px-2 text-center text-sm font-bold transition ${
                   selected
                     ? "border-[#d11a2a] bg-[#d11a2a]/18 text-white"
-                    : "border-[#34343c] bg-white/[0.04] text-[#d6d6dc]"
+                    : "border-[#34343c] bg-white/[0.04] text-[#d6d6dc] hover:bg-white/[0.07]"
                 }`}
                 onClick={() => {
                   setPaymentMethod(method);
                   setPaymentReference("");
                 }}
               >
-                <span className="block text-sm font-black">{label}</span>
-                <span className="mt-1 block text-[11px] leading-4 text-[#b8b8bf]">
-                  Kasir konfirmasi sebelum lunas.
-                </span>
+                {label}
               </button>
             );
           })}
         </div>
+        <p className="mt-2 text-xs leading-5 text-[#b8b8bf]">
+          Bayar saat di kasir / meja. Kasir konfirmasi sebelum lunas.
+        </p>
 
         {paymentMethod === "Cash" ? (
-          <p className="mt-3 rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3 text-xs leading-5 text-[#ffd79a]">
-            Pilih ini jika pembayaran dilakukan langsung ke karyawan.
+          <p className="mt-3 rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3 text-xs font-semibold leading-5 text-[#ffe0aa]">
+            {cashPaymentLabel} — bayar tunai langsung ke karyawan.
           </p>
         ) : null}
 
@@ -886,22 +1535,6 @@ export function MemberOrderPage({
               />
             </label>
           </div>
-        ) : null}
-      </div>
-
-      <div className="max-h-32 overflow-y-auto pr-1">
-        <CartList lines={cartLines} />
-      </div>
-
-      <div className="space-y-1.5 rounded-md border border-[#34343c] bg-[#15151b]/84 p-3 text-sm">
-        <BillLine label="Item" value={`${itemCount}`} />
-        <BillLine label="Subtotal" value={rupiah.format(subtotal)} />
-        <BillLine label="Service" value={rupiah.format(service)} />
-        {discount > 0 ? (
-          <BillLine label={discountLabel} value={`- ${rupiah.format(discount)}`} />
-        ) : null}
-        {voucherDiscount > 0 ? (
-          <BillLine label="Voucher tambahan" value={`- ${rupiah.format(voucherDiscount)}`} />
         ) : null}
       </div>
 
@@ -980,6 +1613,42 @@ export function MemberOrderPage({
             </Link>
           </div>
         </header>
+
+        {qrContext.orderType === "dine-in" ? (
+          <div className="mt-5 rounded-lg border border-[#34343c] bg-[#15151b]/80 p-3 sm:p-4">
+            <div className="flex items-center gap-2">
+              <Bell className="size-4 text-[#f5a742]" />
+              <p className="text-sm font-black text-white">
+                Butuh bantuan di {qrContext.tableLabel}?
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {(
+                [
+                  ["call", "Panggil pelayan", Bell],
+                  ["bill", "Minta bill", FileText],
+                  ["water", "Air / tisu", GlassWater],
+                ] as const
+              ).map(([type, label, Icon]) => (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={helpBusy === type}
+                  onClick={() => void callService(type, label)}
+                  className="garage-press flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-md border border-[#4a4a54] bg-white/[0.04] px-2 py-2 text-center text-xs font-bold text-[#e7e7ea] transition hover:bg-white/[0.08] disabled:opacity-50"
+                >
+                  <Icon className="size-5 text-[#f5a742]" />
+                  {helpBusy === type ? "Mengirim..." : label}
+                </button>
+              ))}
+            </div>
+            {helpMessage ? (
+              <p className="mt-2 rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 px-3 py-2 text-xs font-semibold text-[#dcfce7]">
+                {helpMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
@@ -1092,6 +1761,32 @@ export function MemberOrderPage({
               </div>
             ) : null}
 
+            {!lastOrder && trackedOrderId && orderStatus ? (
+              <div className="mt-5 rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#86efac]" />
+                  <div className="min-w-0">
+                    <p className="text-lg font-black text-white">
+                      Status pesanan {trackedOrderNo ?? orderStatus.orderNo}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[#dcfce7]">{orderStatus.message}</p>
+                  </div>
+                </div>
+                <OrderTracker status={orderStatus} />
+                {orderStatus.invoiceWebUrl ? (
+                  <a
+                    href={orderStatus.invoiceWebUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="garage-press mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/12 text-sm font-semibold text-[#ffe7b8] sm:w-auto sm:px-4"
+                  >
+                    <FileText size={16} />
+                    Buka halaman tracking
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+
             {lastOrder ? (
               <div className="mt-5 rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 p-4 sm:p-5">
                 {(() => {
@@ -1110,18 +1805,15 @@ export function MemberOrderPage({
                       {orderStatus?.message ??
                         `${qrContext.tableLabel} sudah diterima sistem. Kasir akan accept sebelum masuk kitchen.`}
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3">
                       <span className="garage-mono rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 px-2 py-1 text-[10px] text-[#ffd79a]">
                         {lastOrder.order.paymentMethod ?? "Cash"}
                       </span>
-                      <span className="garage-mono rounded-md border border-[#22c55e]/35 bg-[#22c55e]/12 px-2 py-1 text-[10px] text-[#dcfce7]">
-                        {orderStatus?.kitchenStatus ?? "waiting_cashier"}
-                      </span>
-                      <span className="garage-mono rounded-md border border-[#34343c] bg-white/[0.05] px-2 py-1 text-[10px] text-[#d6d6dc]">
-                        Update otomatis 8 detik
-                      </span>
                     </div>
-                    <p className="mt-2 text-sm font-semibold text-white">{lastOrder.memberCta}</p>
+                    <OrderTracker status={orderStatus} />
+                    {mode !== "guest" ? (
+                      <p className="mt-3 text-sm font-semibold text-white">{lastOrder.memberCta}</p>
+                    ) : null}
                   </div>
                 </div>
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -1174,7 +1866,7 @@ export function MemberOrderPage({
               </div>
             ) : null}
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
               {loading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <div key={index} className="garage-panel min-h-44 animate-pulse rounded-md p-4">
@@ -1186,92 +1878,17 @@ export function MemberOrderPage({
                 ))
               ) : filteredMenu.length ? (
                 filteredMenu.map((item) => (
-                  <article
+                  <MenuCard
                     key={item.id}
-                    className={`relative flex min-h-[224px] min-w-0 flex-col overflow-hidden rounded-lg border border-[#404040] bg-[#201f1f] p-4 transition hover:border-[#d4af37]/45 hover:bg-[#2a2a2a] sm:p-5 ${
-                      item.stock === "sold_out" ? "opacity-70" : ""
-                    }`}
-                  >
-                    {item.stock === "sold_out" ? (
-                      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#0d0d0d]/55 backdrop-grayscale">
-                        <span className="rotate-[-12deg] border-2 border-[#ffb4ac] px-4 py-1 text-base font-black uppercase tracking-widest text-[#ffb4ac]">
-                          Habis
-                        </span>
-                      </div>
-                    ) : null}
-                    {item.imageUrl ? (
-                      <div className="relative mb-3 aspect-square overflow-hidden rounded-md border border-[#404040] bg-[#121212] sm:aspect-[16/10]">
-                        <Image
-                          src={item.imageUrl}
-                          alt={item.name}
-                          fill
-                          sizes="(max-width: 768px) 50vw, (max-width: 1280px) 45vw, 28vw"
-                          className="object-cover"
-                        />
-                        <span className="garage-mono absolute left-2 top-2 rounded bg-[#0d0d0d]/85 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#f2ca50] backdrop-blur">
-                          {item.category}
-                        </span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="garage-mono text-[10px] uppercase text-[#d0c5af]/75">
-                          {item.category} - {item.section}
-                        </p>
-                        <h2 className="mt-2 line-clamp-2 min-h-[44px] text-lg font-black leading-tight text-white">
-                          {item.name}
-                        </h2>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#d0d0d6]">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="size-3.5 text-[#f5a742]" />
-                            {item.prep}
-                          </span>
-                          <span className="truncate">{item.section}</span>
-                        </div>
-                      </div>
-                      <span
-                        className={`garage-mono shrink-0 rounded-sm border px-2 py-1 text-[10px] ${
-                          item.stock === "sold_out"
-                            ? "border-[#d11a2a]/55 bg-[#d11a2a]/18 text-[#ffc2c8]"
-                            : item.stock === "limited"
-                              ? "border-[#f2ca50]/45 bg-[#f2ca50]/10 text-[#ffe7a4]"
-                              : "border-[#79e2b9]/35 bg-[#79e2b9]/10 text-[#8df7cc]"
-                        }`}
-                      >
-                        {item.stock === "sold_out" ? "HABIS" : item.stock}
-                      </span>
-                    </div>
-
-                    <div className="mt-5 space-y-3">
-                      {item.variants.map((variant) => {
-                        const key = cartKey(item.id, variant.id);
-                        const qty = cart[key] ?? 0;
-                        const label = `${item.name} ${variant.label}`;
-                        return (
-                          <div
-                            key={variant.id}
-                            className="flex items-center justify-between gap-3 rounded-md border border-[#404040] bg-[#121212] p-3"
-                          >
-                            <div className="min-w-0">
-                              <p className="line-clamp-1 text-sm font-semibold text-white">
-                                {variant.label}
-                              </p>
-                              <p className="text-sm font-black text-[#f2ca50]">
-                                {rupiah.format(variant.price)}
-                              </p>
-                            </div>
-                            <QuantityControl
-                              label={label}
-                              qty={qty}
-                              onMinus={() => add(item.id, variant.id, -1)}
-                              onPlus={() => add(item.id, variant.id, 1)}
-                              disabled={item.stock === "sold_out"}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </article>
+                    item={item}
+                    popular={bestSellerSet.has(item.id)}
+                    cartQty={item.variants.reduce(
+                      (sum, variant) => sum + (cart[cartKey(item.id, variant.id)] ?? 0),
+                      0,
+                    )}
+                    onAdd={(variantId, delta) => add(item.id, variantId, delta)}
+                    onOpen={() => setDetailItem(item)}
+                  />
                 ))
               ) : (
                 <div className="garage-panel col-span-full flex min-h-52 flex-col items-center justify-center rounded-md p-6 text-center">
@@ -1299,7 +1916,7 @@ export function MemberOrderPage({
               </div>
 
               <div className="mt-4 max-h-[34vh] overflow-y-auto pr-1">
-                <CartList lines={cartLines} />
+                <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
               </div>
 
               <div className="mt-4 space-y-1.5 rounded-md border border-[#404040] bg-[#121212] p-3 text-sm">
@@ -1351,24 +1968,24 @@ export function MemberOrderPage({
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative">
                 <ShoppingCart className="size-6" />
-                <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full border border-[#f2ca50] bg-[#241a00] text-[10px] font-black text-[#f2ca50]">
+                <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full border-2 border-[#f2ca50] bg-[#241a00] text-[10px] font-black text-[#f2ca50]">
                   {itemCount}
                 </span>
               </div>
-              <div className="flex min-w-0 flex-col items-start leading-none">
-                <span className="garage-mono text-[10px] font-bold uppercase opacity-80">
-                  Subtotal
+              <div className="flex min-w-0 flex-col items-start leading-tight">
+                <span className="garage-mono text-[11px] font-bold uppercase tracking-wide text-[#4a3a08]">
+                  {itemCount} item &middot; Subtotal
                 </span>
-                <span className="mt-1 truncate text-base font-black">
+                <span className="truncate text-xl font-black leading-tight text-[#1c1500]">
                   {rupiah.format(total)}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-wide">
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#241a00] px-4 py-2.5 text-[#ffd97a] shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
+              <span className="text-xs font-black uppercase tracking-[0.06em]">
                 Lihat Pesanan
               </span>
-              <ChevronUp className="size-5" />
+              <ChevronUp className="size-4" />
             </div>
           </button>
         </div>
@@ -1389,6 +2006,13 @@ export function MemberOrderPage({
         </button>
       ) : null}
 
+      <MenuDetailSheet
+        item={detailItem}
+        cart={cart}
+        onAdjust={add}
+        onClose={() => setDetailItem(null)}
+      />
+
       <Sheet open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <SheetContent
           side="bottom"
@@ -1400,11 +2024,17 @@ export function MemberOrderPage({
                 {compactTableNumber(qrContext.tableLabel)}
               </div>
               <div className="min-w-0">
-                <SheetTitle className="text-lg font-black text-white sm:text-xl">
+                <SheetTitle
+                  className="text-lg font-black tracking-normal text-white sm:text-xl"
+                  style={{
+                    fontFamily:
+                      'var(--font-space-grotesk), "Space Grotesk", ui-sans-serif, system-ui, sans-serif',
+                  }}
+                >
                   Checkout {qrContext.tableLabel}
                 </SheetTitle>
-                <SheetDescription className="mt-1 text-xs text-[#b8b8bf] sm:text-sm">
-                  Cek data customer, lalu kirim order ke kasir.
+                <SheetDescription className="mt-1 text-xs text-[#cdcdd4] sm:text-sm">
+                  Cek pesanan, isi nama, lalu kirim ke kasir.
                 </SheetDescription>
               </div>
             </div>

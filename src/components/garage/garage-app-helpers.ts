@@ -315,21 +315,11 @@ export function tableLiveStatusLabel(table: TableLiveRow | null | undefined) {
 
 export function tableLiveStatusTone(table: TableLiveRow | null | undefined) {
   if (!table) return "border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8]";
-  if (tableNeedsCleaning(table)) {
-    return "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
-  }
-  if (hasAwaitingTableBill(table)) {
-    return "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]";
-  }
-  if (hasOpenTableBill(table)) {
-    return "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]";
-  }
-  if (isPaidOnlyTable(table)) return "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]";
-  if (table.status === "empty") return "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]";
-  if (occupiedTableStatuses.has(table.status)) {
-    return "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
-  }
-  return "border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8]";
+  // Binary occupancy: kosong = hijau, terisi (order/bill/lunas/perlu bersih) = merah.
+  const isEmpty = table.status === "empty" && !tableHasLiveSession(table);
+  return isEmpty
+    ? "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]"
+    : "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
 }
 
 // --- Auth session check ---------------------------------------------------

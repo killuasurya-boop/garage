@@ -10,7 +10,7 @@
       "autoPort": false,
       "env": {
         "GARAGE_DB_DRIVER": "pglite",
-        "PGLITE_DATA_DIR": "D:/GARAGEFIX/pglite-data-running"
+        "PGLITE_DATA_DIR": "D:/GARAGEFIX/pglite-data-lan-20260609"
       }
     }
   ]

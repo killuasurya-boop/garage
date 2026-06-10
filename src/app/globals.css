@@ -1290,6 +1290,25 @@ body {
       0 0 24px rgba(209, 26, 42, 0.18);
   }
 
+  /* Tombol login member: matikan slide-in putih .btn-primary supaya teks tidak
+     hilang (putih-di-atas-putih) saat ditekan/fokus. Selalu merah + teks putih. */
+  .garage-login-submit.btn-primary::before {
+    display: none !important;
+  }
+  .garage-login-submit.btn-primary,
+  .garage-login-submit.btn-primary:hover,
+  .garage-login-submit.btn-primary:active,
+  .garage-login-submit.btn-primary:focus,
+  .garage-login-submit.btn-primary:focus-visible {
+    color: #fff !important;
+    background: #d11a2a !important;
+    border-color: #d11a2a !important;
+  }
+  .garage-login-submit.btn-primary:hover {
+    background: #ff2a3a !important;
+    border-color: #ff2a3a !important;
+  }
+
   .garage-login-card [data-slot="input"]:focus-visible {
     box-shadow:
       0 0 0 1px rgba(245, 167, 66, 0.32),
@@ -1882,11 +1901,14 @@ body {
   }
 
   .pos-table-indicator[data-state="paid"] {
-    animation: garage-pos-table-ready-pulse 2.2s ease-in-out infinite;
-    background: #22c55e;
+    /* Lunas tetap "terisi": meja sudah di-order, belum di-clear → merah,
+       konsisten dengan binary occupancy (tableLiveStatusTone). Pulse lebih
+       lambat dari "full" supaya kasir tetap bisa bedakan settled vs open. */
+    animation: garage-pos-table-full-pulse 2.2s ease-in-out infinite;
+    background: #d11a2a;
     box-shadow:
-      0 0 0 1px rgba(34, 197, 94, 0.26),
-      0 0 12px rgba(34, 197, 94, 0.24);
+      0 0 0 1px rgba(209, 26, 42, 0.3),
+      0 0 14px rgba(209, 26, 42, 0.3);
   }
 
   .pos-table-indicator[data-state="cleaning"] {

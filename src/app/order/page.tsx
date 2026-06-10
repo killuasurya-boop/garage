@@ -5,7 +5,7 @@ import {
   type CustomerOrderQrContext,
 } from "@/components/garage/member-order-page";
 import type { MenuItem } from "@/lib/garage-api-types";
-import { getMenuData } from "@/lib/garage-service";
+import { getBestSellerMenuItemIds, getMenuData } from "@/lib/garage-service";
 
 export const metadata: Metadata = {
   title: "Digital Menu - Garage Coffee & Motor",
@@ -81,13 +81,17 @@ export default async function OrderPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const initialMenuItems = await getInitialMenuItems();
+  const [initialMenuItems, bestSellerIds] = await Promise.all([
+    getInitialMenuItems(),
+    getBestSellerMenuItemIds().catch(() => [] as string[]),
+  ]);
   return (
     <MemberOrderPage
       initialQrContext={buildQrContext(params)}
       initialReturnPath={buildReturnPath(params)}
       initialSearchQuery={buildInitialSearchQuery(params)}
       initialMenuItems={initialMenuItems}
+      bestSellerIds={bestSellerIds}
     />
   );
 }

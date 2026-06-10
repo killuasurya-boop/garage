@@ -281,6 +281,8 @@ export const menuItems = pgTable("menu_items", {
   status: text("status").notNull().default("active"),
   prep: text("prep").notNull(),
   tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  // URL foto menu untuk tampilan menu digital (opsional). Kosong = pakai ikon kategori.
+  imageUrl: text("image_url"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -531,9 +533,34 @@ export const orderItems = pgTable(
     unitPrice: integer("unit_price").notNull(),
     qty: integer("qty").notNull(),
     lineTotal: integer("line_total").notNull(),
+    // Catatan per-item dari pelanggan (mis. "less ice", "tanpa bawang").
+    // Diteruskan ke itemNotes tiket dapur saat order diterima kasir.
+    note: text("note"),
   },
   (table) => ({
     orderIdx: index("order_items_order_id_idx").on(table.orderId),
+  }),
+);
+
+// Panggilan pelayan dari meja (QR dine-in): "call" (panggil pelayan),
+// "bill" (minta bill), "water" (minta air/tisu), "other".
+export const serviceRequests = pgTable(
+  "service_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    tableLabel: text("table_label").notNull(),
+    type: text("type").notNull().default("call"),
+    note: text("note"),
+    status: text("status").notNull().default("open"),
+    resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    statusIdx: index("service_requests_status_idx").on(table.status),
+    outletIdx: index("service_requests_outlet_id_idx").on(table.outletId),
+    createdIdx: index("service_requests_created_at_idx").on(table.createdAt),
   }),
 );
 
@@ -580,6 +607,11 @@ export const kitchenTickets = pgTable(
     readyByName: text("ready_by_name"),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     deliveredByName: text("delivered_by_name"),
+    // Klaim antar (waiter): waiter yang klaim duluan mengunci tiket & dapat fee
+    // antar. Hanya pengklaim (atau manager) yang boleh menandai delivered.
+    claimedBy: text("claimed_by").references(() => user.id, { onDelete: "set null" }),
+    claimedByName: text("claimed_by_name"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     items: jsonb("items").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     itemNotes: jsonb("item_notes")
       .$type<Record<string, unknown>>()

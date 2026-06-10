@@ -33,9 +33,9 @@
 
 ---
 
-# 1. CORE ARCHITECTURE CHECKLIST
+## 1. CORE ARCHITECTURE CHECKLIST
 
-## 1.1 Struktur Project
+### 1.1 Struktur Project
 
 ```txt
 [ ] src/app menggunakan Next.js App Router dengan rapi
@@ -51,7 +51,7 @@
 [ ] Server Actions tidak dipakai kecuali benar-benar diminta
 ```
 
-## 1.2 Stack Standard
+### 1.2 Stack Standard
 
 ```txt
 [ ] Next.js App Router stabil
@@ -66,7 +66,7 @@
 [ ] Build tidak membutuhkan koneksi database live
 ```
 
-## 1.3 Build Safety
+### 1.3 Build Safety
 
 ```txt
 [ ] next build berhasil tanpa koneksi database live
@@ -79,7 +79,7 @@
 
 ---
 
-# 2. AUTHENTICATION & SESSION CHECKLIST
+## 2. AUTHENTICATION & SESSION CHECKLIST
 
 ```txt
 [ ] Login utama staff tersedia
@@ -103,9 +103,9 @@
 
 ---
 
-# 3. ROLE & PERMISSION CHECKLIST
+## 3. ROLE & PERMISSION CHECKLIST
 
-## 3.1 Role Utama
+### 3.1 Role Utama
 
 ```txt
 [ ] Owner / CEO
@@ -123,7 +123,7 @@
 [ ] Franchise Admin optional
 ```
 
-## 3.2 Permission Wajib
+### 3.2 Permission Wajib
 
 ```txt
 [ ] dashboard.view
@@ -210,7 +210,7 @@
 [ ] sop.update
 ```
 
-## 3.3 Rules Permission
+### 3.3 Rules Permission
 
 ```txt
 [ ] Setiap halaman mengecek permission
@@ -228,9 +228,9 @@
 
 ---
 
-# 4. UI/UX GLOBAL CHECKLIST
+## 4. UI/UX GLOBAL CHECKLIST
 
-## 4.1 Theme Garage
+### 4.1 Theme Garage
 
 ```txt
 [ ] Tema asphalt-chrome-red-amber konsisten
@@ -252,7 +252,7 @@
 [ ] Error state tersedia
 ```
 
-## 4.2 Responsive
+### 4.2 Responsive
 
 ```txt
 [ ] Desktop memakai sidebar penuh
@@ -272,9 +272,9 @@
 
 ---
 
-# 5. DATABASE & DATA MODEL CHECKLIST
+## 5. DATABASE & DATA MODEL CHECKLIST
 
-## 5.1 Auth & User
+### 5.1 Auth & User
 
 ```txt
 [ ] users
@@ -288,7 +288,7 @@
 [ ] user_sessions
 ```
 
-## 5.2 Outlet & Company
+### 5.2 Outlet & Company
 
 ```txt
 [ ] company_settings
@@ -299,7 +299,7 @@
 [ ] outlet_cash_registers
 ```
 
-## 5.3 POS & Orders
+### 5.3 POS & Orders
 
 ```txt
 [ ] products
@@ -316,7 +316,7 @@
 [ ] cashier_shift_transactions
 ```
 
-## 5.4 Kitchen & Waiter
+### 5.4 Kitchen & Waiter
 
 ```txt
 [ ] kitchen_tickets
@@ -328,7 +328,7 @@
 [ ] waiter_tasks
 ```
 
-## 5.5 Inventory
+### 5.5 Inventory
 
 ```txt
 [ ] inventory_items
@@ -343,7 +343,7 @@
 [ ] reorder_rules
 ```
 
-## 5.6 Finance
+### 5.6 Finance
 
 ```txt
 [ ] cash_closings
@@ -356,7 +356,7 @@
 [ ] anomaly_logs
 ```
 
-## 5.7 CRM & Membership
+### 5.7 CRM & Membership
 
 ```txt
 [ ] customers
@@ -370,7 +370,7 @@
 [ ] member_transactions
 ```
 
-## 5.8 Marketing
+### 5.8 Marketing
 
 ```txt
 [ ] campaigns
@@ -380,7 +380,7 @@
 [ ] voucher_redemptions
 ```
 
-## 5.9 Approvals & Audit
+### 5.9 Approvals & Audit
 
 ```txt
 [ ] approval_requests
@@ -390,7 +390,7 @@
 [ ] risk_rules
 ```
 
-## 5.10 HR, SOP, Training
+### 5.10 HR, SOP, Training
 
 ```txt
 [ ] employees
@@ -411,7 +411,7 @@
 [ ] glossary_terms
 ```
 
-## 5.11 AI, Notification, Chat
+### 5.11 AI, Notification, Chat
 
 ```txt
 [ ] notifications
@@ -427,7 +427,7 @@
 
 ---
 
-# 6. API STANDARD CHECKLIST
+## 6. API STANDARD CHECKLIST
 
 ```txt
 [ ] Semua API memakai Route Handlers
@@ -448,7 +448,7 @@
 [ ] Rate limit direncanakan untuk endpoint sensitif
 ```
 
-## 6.1 Format Response Sukses
+### 6.1 Format Response Sukses
 
 ```json
 {
@@ -457,7 +457,7 @@
 }
 ```
 
-## 6.2 Format Response Error
+### 6.2 Format Response Error
 
 ```json
 {
@@ -470,7 +470,7 @@
 
 ---
 
-# 7. DASHBOARD CHECKLIST
+## 7. DASHBOARD CHECKLIST
 
 ```txt
 [ ] Dashboard owner command center tersedia
@@ -501,9 +501,9 @@
 
 ---
 
-# 8. POS CHECKLIST
+## 8. POS CHECKLIST
 
-## 8.1 POS Core
+### 8.1 POS Core
 
 ```txt
 [ ] POS tablet tersedia
@@ -538,7 +538,7 @@
 [ ] Sales history
 ```
 
-## 8.2 POS Advanced
+### 8.2 POS Advanced
 
 ```txt
 [ ] Quick reorder
@@ -557,7 +557,7 @@
 
 ---
 
-# 9. KITCHEN DISPLAY SYSTEM CHECKLIST
+## 9. KITCHEN DISPLAY SYSTEM CHECKLIST
 
 ```txt
 [ ] KDS live queue tersedia
@@ -579,7 +579,7 @@
 
 ---
 
-# 10. WAITER CHECKLIST
+## 10. WAITER CHECKLIST
 
 ```txt
 [ ] Waiter view tersedia
@@ -596,7 +596,7 @@
 
 ---
 
-# 11. CUSTOMER QUEUE DISPLAY CHECKLIST
+## 11. CUSTOMER QUEUE DISPLAY CHECKLIST
 
 ```txt
 [ ] Display pelanggan tersedia
@@ -610,7 +610,7 @@
 
 ---
 
-# 12. PRODUCT MANAGEMENT CHECKLIST
+## 12. PRODUCT MANAGEMENT CHECKLIST
 
 ```txt
 [ ] CRUD produk
@@ -636,9 +636,9 @@
 
 ---
 
-# 13. INVENTORY CHECKLIST
+## 13. INVENTORY CHECKLIST
 
-## 13.1 Inventory Core
+### 13.1 Inventory Core
 
 ```txt
 [ ] Data raw material
@@ -664,7 +664,7 @@
 [ ] Alert stok rendah
 ```
 
-## 13.2 Inventory Intelligence
+### 13.2 Inventory Intelligence
 
 ```txt
 [ ] Smart reorder panel
@@ -680,7 +680,7 @@
 
 ---
 
-# 14. SUPPLIER & PURCHASE ORDER CHECKLIST
+## 14. SUPPLIER & PURCHASE ORDER CHECKLIST
 
 ```txt
 [ ] Data supplier
@@ -705,9 +705,9 @@
 
 ---
 
-# 15. FINANCE CHECKLIST
+## 15. FINANCE CHECKLIST
 
-## 15.1 Finance Core
+### 15.1 Finance Core
 
 ```txt
 [ ] Finance view tersedia
@@ -725,7 +725,7 @@
 [ ] CFO brief
 ```
 
-## 15.2 Cash Closing
+### 15.2 Cash Closing
 
 ```txt
 [ ] Kasir buka shift
@@ -739,7 +739,7 @@
 [ ] Owner dapat lihat closing semua outlet
 ```
 
-## 15.3 Finance Advanced
+### 15.3 Finance Advanced
 
 ```txt
 [ ] Finance anomaly panel
@@ -754,7 +754,7 @@
 
 ---
 
-# 16. CRM CHECKLIST
+## 16. CRM CHECKLIST
 
 ```txt
 [ ] Customer list
@@ -777,7 +777,7 @@
 
 ---
 
-# 17. MEMBERSHIP CHECKLIST
+## 17. MEMBERSHIP CHECKLIST
 
 ```txt
 [ ] Member login
@@ -800,7 +800,7 @@
 
 ---
 
-# 18. MARKETING CHECKLIST
+## 18. MARKETING CHECKLIST
 
 ```txt
 [ ] Marketing module tersedia
@@ -821,7 +821,7 @@
 
 ---
 
-# 19. APPROVALS / RISK GATE CHECKLIST
+## 19. APPROVALS / RISK GATE CHECKLIST
 
 ```txt
 [ ] Approval board tersedia
@@ -841,7 +841,7 @@
 
 ---
 
-# 20. WEBSITE & FRANCHISE CHECKLIST
+## 20. WEBSITE & FRANCHISE CHECKLIST
 
 ```txt
 [ ] Website public tersedia
@@ -860,9 +860,9 @@
 
 ---
 
-# 21. CEO CONTROL / OWNER VAULT CHECKLIST
+## 21. CEO CONTROL / OWNER VAULT CHECKLIST
 
-## 21.1 Security
+### 21.1 Security
 
 ```txt
 [ ] CEO Control punya route khusus /control
@@ -877,7 +877,7 @@
 [ ] Database purge sangat dibatasi
 ```
 
-## 21.2 Owner Command Center
+### 21.2 Owner Command Center
 
 ```txt
 [ ] Branches / multi-outlet
@@ -899,7 +899,7 @@
 [ ] SaaS executive view
 ```
 
-## 21.3 CEO Intelligence
+### 21.3 CEO Intelligence
 
 ```txt
 [ ] Owner dapat melihat outlet terbaik
@@ -914,7 +914,7 @@
 
 ---
 
-# 22. FEE SAYA / EARNINGS CHECKLIST
+## 22. FEE SAYA / EARNINGS CHECKLIST
 
 ```txt
 [ ] Earnings view tersedia
@@ -931,7 +931,7 @@
 
 ---
 
-# 23. AUDIT CHECKLIST
+## 23. AUDIT CHECKLIST
 
 ```txt
 [ ] Audit log viewer
@@ -954,7 +954,7 @@
 
 ---
 
-# 24. SMART NOTIFICATION CHECKLIST
+## 24. SMART NOTIFICATION CHECKLIST
 
 ```txt
 [ ] AI alerts bell
@@ -976,7 +976,7 @@
 
 ---
 
-# 25. GARAGE AI CHECKLIST
+## 25. GARAGE AI CHECKLIST
 
 ```txt
 [ ] GARAGE AI simple view untuk user non-teknis
@@ -997,7 +997,7 @@
 
 ---
 
-# 26. CHAT INTERNAL CHECKLIST
+## 26. CHAT INTERNAL CHECKLIST
 
 ```txt
 [ ] Chat module tersedia
@@ -1015,7 +1015,7 @@
 
 ---
 
-# 27. PENGATURAN CHECKLIST
+## 27. PENGATURAN CHECKLIST
 
 ```txt
 [ ] Settings manager
@@ -1037,9 +1037,9 @@
 
 ---
 
-# 28. HR / MANAJEMEN TIM CHECKLIST
+## 28. HR / MANAJEMEN TIM CHECKLIST
 
-## 28.1 Employee & Directory
+### 28.1 Employee & Directory
 
 ```txt
 [ ] Team management dashboard
@@ -1053,7 +1053,7 @@
 [ ] Dokumen karyawan optional
 ```
 
-## 28.2 Attendance
+### 28.2 Attendance
 
 ```txt
 [ ] Attendance page
@@ -1072,7 +1072,7 @@
 [ ] Export absensi
 ```
 
-## 28.3 Shift
+### 28.3 Shift
 
 ```txt
 [ ] Shift page
@@ -1086,7 +1086,7 @@
 [ ] Shift report
 ```
 
-## 28.4 Payroll & Kasbon
+### 28.4 Payroll & Kasbon
 
 ```txt
 [ ] Payroll manager
@@ -1099,7 +1099,7 @@
 [ ] Akses hanya HR/Finance/Owner
 ```
 
-## 28.5 Team Productivity
+### 28.5 Team Productivity
 
 ```txt
 [ ] Team tasks manager
@@ -1115,7 +1115,7 @@
 
 ---
 
-# 29. SOP & BUKU PINTAR CHECKLIST
+## 29. SOP & BUKU PINTAR CHECKLIST
 
 ```txt
 [ ] Buku Pintar tersedia
@@ -1139,7 +1139,7 @@
 
 ---
 
-# 30. CROSS-MODUL INTEGRATION CHECKLIST
+## 30. CROSS-MODUL INTEGRATION CHECKLIST
 
 ```txt
 [ ] POS order masuk Kitchen
@@ -1164,7 +1164,7 @@
 
 ---
 
-# 31. SECURITY CHECKLIST
+## 31. SECURITY CHECKLIST
 
 ```txt
 [ ] Auth aman
@@ -1190,7 +1190,7 @@
 
 ---
 
-# 32. PERFORMANCE CHECKLIST
+## 32. PERFORMANCE CHECKLIST
 
 ```txt
 [ ] POS cepat di tablet
@@ -1210,7 +1210,7 @@
 
 ---
 
-# 33. OFFLINE / RELIABILITY CHECKLIST
+## 33. OFFLINE / RELIABILITY CHECKLIST
 
 ```txt
 [ ] POS memiliki strategi offline queue minimal
@@ -1227,9 +1227,9 @@
 
 ---
 
-# 34. TESTING CHECKLIST
+## 34. TESTING CHECKLIST
 
-## 34.1 Command Test
+### 34.1 Command Test
 
 ```bash
 npm run db:generate
@@ -1239,19 +1239,26 @@ npm run db:migrate
 npm run db:seed
 ```
 
-## 34.2 Browser Test
+### 34.2 Browser Test
 
 ```txt
-[ ] Buka http://127.0.0.1:3000/
-[ ] Login seeded berhasil
-[ ] Desktop 1366x900 aman
-[ ] Mobile 390x844 aman
-[ ] Tidak ada console error
+[x] Buka http://localhost:3001/ dan route utama berhasil
+[x] Login seeded owner berhasil via development demo login
+[x] Desktop 1366x900 aman untuk route utama
+[x] Mobile 390x844 aman untuk POS/member/order/OS
+[x] Tidak ada console error pada browser sweep route utama
 [ ] Tidak ada clipping
 [ ] Tidak ada kontrol tumpang tindih
 ```
 
-## 34.3 Functional Test
+Evidence 2026-06-06 (Codex):
+- Screenshot browser tersimpan di `.garage/audit-ui/2026-06-06/`.
+- Route utama desktop/mobile: landing, QR order, member, control, ProfitMax, onboarding, OS, POS.
+- 24 route `/control/*` authenticated smoke pass; `/control/settings` redirect expected ke `/os?module=settings&scope=global`.
+- `UI-001` fixed: hydration mismatch `/control` dan warning LCP logo landing hilang.
+- Validasi: `npm run lint`, `npx tsc --noEmit`, `npm run build` exit 0.
+
+### 34.3 Functional Test
 
 ```txt
 [ ] Login staff
@@ -1285,7 +1292,7 @@ npm run db:seed
 
 ---
 
-# 35. MVP CHECKLIST
+## 35. MVP CHECKLIST
 
 ```txt
 [ ] Login staff
@@ -1311,7 +1318,7 @@ npm run db:seed
 
 ---
 
-# 36. MASTER PRO CHECKLIST
+## 36. MASTER PRO CHECKLIST
 
 ```txt
 [ ] Permission matrix granular
@@ -1341,7 +1348,7 @@ npm run db:seed
 
 ---
 
-# 37. FINAL PRODUCTION READY CHECKLIST
+## 37. FINAL PRODUCTION READY CHECKLIST
 
 ```txt
 [ ] Semua MVP selesai
@@ -1370,7 +1377,7 @@ npm run db:seed
 
 ---
 
-# 38. DEFINITION OF DONE PER FITUR
+## 38. DEFINITION OF DONE PER FITUR
 
 Satu fitur Garage OS hanya boleh dianggap selesai kalau:
 
@@ -1396,7 +1403,7 @@ Satu fitur Garage OS hanya boleh dianggap selesai kalau:
 
 ---
 
-# 39. PROMPT CHECKLIST UNTUK AI AGENT
+## 39. PROMPT CHECKLIST UNTUK AI AGENT
 
 Gunakan prompt ini agar AI Agent selalu bekerja maksimal:
 
@@ -1452,7 +1459,7 @@ MVP siap operasional, Master Pro lengkap, Final Production Ready aman, cepat, re
 
 ---
 
-# 40. PRIORITAS EKSEKUSI PALING TEPAT
+## 40. PRIORITAS EKSEKUSI PALING TEPAT
 
 ```txt
 1. Core architecture
@@ -1495,7 +1502,7 @@ MVP siap operasional, Master Pro lengkap, Final Production Ready aman, cepat, re
 
 ---
 
-# 41. RULES KERJA AI AGENT SAAT MENERIMA TUGAS
+## 41. RULES KERJA AI AGENT SAAT MENERIMA TUGAS
 
 Setiap kali user meminta pembuatan atau perbaikan fitur, AI Agent wajib menjawab atau bekerja dengan struktur berikut:
 
@@ -1519,7 +1526,7 @@ Setiap kali user meminta pembuatan atau perbaikan fitur, AI Agent wajib menjawab
 
 ---
 
-# 42. LARANGAN UTAMA UNTUK AI AGENT
+## 42. LARANGAN UTAMA UNTUK AI AGENT
 
 ```txt
 [ ] Jangan membuat UI tanpa backend plan
@@ -1540,7 +1547,7 @@ Setiap kali user meminta pembuatan atau perbaikan fitur, AI Agent wajib menjawab
 
 ---
 
-# 43. RILIS FINAL — GO / NO-GO CHECKLIST
+## 43. RILIS FINAL — GO / NO-GO CHECKLIST
 
 ```txt
 [ ] Semua route utama bisa dibuka

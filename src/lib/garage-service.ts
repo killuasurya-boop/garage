@@ -5,6 +5,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, or,
 import {
   DEFAULT_APP_SETTINGS,
   type AppSettings,
+  type StaffFeeRates,
 } from "@/lib/garage-app-settings-types";
 import {
   GarageOsThemeSaveError,
@@ -13,6 +14,18 @@ import {
 import { getDb } from "@/db";
 
 export { DEFAULT_APP_SETTINGS, type AppSettings };
+
+// Ambil tarif fee staf dari AppSettings (untuk diteruskan ke perhitungan earning).
+function staffFeeRatesFromSettings(settings: AppSettings): StaffFeeRates {
+  return {
+    feeWaiterDeliveredPerItem: settings.feeWaiterDeliveredPerItem,
+    feeKitchenReadyPerItem: settings.feeKitchenReadyPerItem,
+    feeBaristaReadyPerItem: settings.feeBaristaReadyPerItem,
+    feePackagingReadyPerItem: settings.feePackagingReadyPerItem,
+    feeCashierPaidPerItem: settings.feeCashierPaidPerItem,
+  };
+}
+
 import {
   appSettings,
   approvals,
@@ -44,6 +57,7 @@ import {
   supplierInvoices,
   supplierReceivingItems,
   supplierReceivings,
+  serviceRequests,
   suppliers,
   staffProfiles,
   staffEarnings,
@@ -280,6 +294,7 @@ export type MenuProductInput = {
 
 export type MenuProductUpdateInput = Partial<Omit<MenuProductInput, "id" | "variants">> & {
   variants?: MenuProductInput["variants"];
+  imageUrl?: string | null;
 };
 
 type StockOpnameInput = {
@@ -1157,6 +1172,38 @@ export async function getDashboardData() {
   };
 }
 
+// Best-seller: item paling laku berdasarkan total qty terjual 30 hari terakhir
+// (mengecualikan order rejected/canceled). Dipakai untuk badge "Paling laku"
+// di menu digital. Build-safe: kalau DB kosong, kembalikan array kosong.
+export async function getBestSellerMenuItemIds(limit = 6): Promise<string[]> {
+  try {
+    const db = getDb();
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const rows = await db
+      .select({
+        menuItemId: orderItems.menuItemId,
+        sold: sql<number>`sum(${orderItems.qty})`.mapWith(Number),
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(
+        and(
+          isNotNull(orderItems.menuItemId),
+          gte(orders.createdAt, since),
+          sql`${orders.status} not in ('rejected','canceled','cancelled')`,
+        ),
+      )
+      .groupBy(orderItems.menuItemId)
+      .orderBy(desc(sql`sum(${orderItems.qty})`))
+      .limit(limit);
+    return rows
+      .map((row) => row.menuItemId)
+      .filter((id): id is string => Boolean(id));
+  } catch {
+    return [];
+  }
+}
+
 export async function getMenuData(params?: {
   category?: string;
   q?: string;
@@ -1228,6 +1275,7 @@ export async function getMenuData(params?: {
     status: item.status as "active" | "archived",
     prep: item.prep,
     tags: item.tags,
+    imageUrl: item.imageUrl ?? undefined,
   }));
 
   if (!params?.includeCosting) {
@@ -1629,6 +1677,7 @@ export async function updateMenuProduct(
   if (input.prep !== undefined) update.prep = input.prep.trim() || "10m";
   if (input.tags !== undefined) update.tags = input.tags;
   if (input.sortOrder !== undefined) update.sortOrder = input.sortOrder;
+  if (input.imageUrl !== undefined) update.imageUrl = input.imageUrl?.trim() || null;
 
   const variants =
     input.variants !== undefined
@@ -1833,6 +1882,8 @@ export async function getKitchenData(params?: {
     readyByName: row.readyByName,
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
     deliveredByName: row.deliveredByName,
+    claimedBy: row.claimedBy ?? null,
+    claimedByName: row.claimedByName ?? null,
     createdAt: row.createdAt.toISOString(),
     // Sequence dalam session meja: 1 = order pertama, 2+ = addon
     addonSequence: row.orderId ? sequenceByOrderId.get(row.orderId) ?? 1 : 1,
@@ -4241,6 +4292,58 @@ export async function markCustomerUltraCandidate(customerId: string) {
   return updated ?? null;
 }
 
+// Penyesuaian poin manual oleh admin (kompensasi/koreksi/reward). Tercatat
+// sebagai transaksi member + audit. Poin tidak boleh jadi negatif.
+export async function adjustCrmMemberPoints(input: {
+  customerId: string;
+  delta: number;
+  reason: string;
+  actor: GarageSession;
+}) {
+  const db = getDb();
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, input.customerId))
+    .limit(1);
+  if (!customer) return { data: null, error: "Member tidak ditemukan." };
+
+  const newPoints = Math.max(0, customer.points + input.delta);
+  const realDelta = newPoints - customer.points;
+  const [updated] = await db
+    .update(customers)
+    .set({ points: newPoints, updatedAt: new Date() })
+    .where(eq(customers.id, customer.id))
+    .returning();
+
+  await db.insert(memberTransactions).values({
+    customerId: customer.id,
+    source: "ADJUSTMENT",
+    amount: 0,
+    pointsEarned: realDelta,
+    levelBefore: customer.tier,
+    levelAfter: updated.tier,
+    upgradeNotification: `Poin ${realDelta >= 0 ? "+" : ""}${realDelta} oleh ${input.actor.user.name}: ${input.reason}`,
+  });
+
+  await createAuditLog({
+    actor: `${input.actor.user.name} / ${roleDisplayName[input.actor.profile.role]}`,
+    action: `Atur poin member ${realDelta >= 0 ? "+" : ""}${realDelta}`,
+    object: customer.name,
+    device: input.actor.profile.deviceLabel,
+    status: "adjusted",
+    metadata: {
+      customerId: customer.id,
+      delta: realDelta,
+      reason: input.reason,
+      before: customer.points,
+      after: newPoints,
+    },
+  });
+
+  return { data: { points: newPoints, delta: realDelta }, error: null };
+}
+
 export async function createCrmMember(input: {
   name: string;
   phone: string;
@@ -6258,6 +6361,37 @@ export async function getPublicCustomerOrderStatus(id: string) {
         ? Math.max(...ticketRows.map((ticket) => ticket.targetMinutes))
         : null;
 
+  // Rincian per station (Bar/Dapur) + ETA live untuk tracker pelanggan.
+  // ETA = sisa menit perkiraan: ready/delivered = 0; cooking = target - elapsed
+  // sejak diterima; queue = target penuh.
+  const nowMs = Date.now();
+  const stations = ticketRows
+    .filter((ticket) => !["rejected", "canceled", "cancelled"].includes(ticket.status))
+    .map((ticket) => {
+      const targetSeconds = Math.max(0, ticket.targetMinutes) * 60;
+      const cookingStartedAt =
+        ticket.status === "cooking" && ticket.acceptedAt
+          ? new Date(ticket.acceptedAt).toISOString()
+          : null;
+      let etaSeconds: number | null;
+      if (ticket.status === "ready" || ticket.status === "delivered") {
+        etaSeconds = 0;
+      } else if (ticket.status === "cooking" && ticket.acceptedAt) {
+        const elapsedSec = (nowMs - new Date(ticket.acceptedAt).getTime()) / 1000;
+        etaSeconds = Math.max(0, Math.round(targetSeconds - elapsedSec));
+      } else {
+        etaSeconds = targetSeconds; // queue: target penuh, belum mulai dimasak
+      }
+      return {
+        station: ticket.station === "Food" ? "Dapur" : ticket.station,
+        status: ticket.status,
+        etaSeconds,
+        targetSeconds,
+        cookingStartedAt,
+      };
+    })
+    .sort((a, b) => a.station.localeCompare(b.station));
+
   return {
     id: invoiceReadyOrder.id,
     orderNo: invoiceReadyOrder.orderNo,
@@ -6265,9 +6399,84 @@ export async function getPublicCustomerOrderStatus(id: string) {
     orderStatus: invoiceReadyOrder.status,
     kitchenStatus: publicKitchenStatus,
     estimatedMinutes,
+    stations,
+    invoiceWebUrl: invoiceWebPath(invoiceReadyOrder.invoiceTrackingToken),
+    whatsappInvoiceUrl: invoiceReadyOrder.whatsappInvoiceUrl ?? null,
     message: publicStatusMessage(invoiceReadyOrder.status, kitchenStatus),
     updatedAt: invoiceReadyOrder.updatedAt.toISOString(),
   };
+}
+
+export type ServiceRequestType = "call" | "bill" | "water" | "other";
+
+const serviceRequestTypes: ServiceRequestType[] = ["call", "bill", "water", "other"];
+
+// Panggilan pelayan dari meja. Dedup 60 detik per (meja+type) supaya tap
+// berulang tidak membanjiri staf.
+export async function createServiceRequest(input: {
+  tableLabel: string;
+  outletId?: string;
+  type?: ServiceRequestType;
+  note?: string;
+}) {
+  const db = getDb();
+  const tableLabel = input.tableLabel.trim();
+  const type: ServiceRequestType = serviceRequestTypes.includes(input.type as ServiceRequestType)
+    ? (input.type as ServiceRequestType)
+    : "call";
+  const since = new Date(Date.now() - 60_000);
+  const [existing] = await db
+    .select({ id: serviceRequests.id })
+    .from(serviceRequests)
+    .where(
+      and(
+        eq(serviceRequests.tableLabel, tableLabel),
+        eq(serviceRequests.type, type),
+        eq(serviceRequests.status, "open"),
+        gte(serviceRequests.createdAt, since),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    return { id: existing.id, deduped: true };
+  }
+  const [row] = await db
+    .insert(serviceRequests)
+    .values({
+      tableLabel,
+      outletId: input.outletId ?? null,
+      type,
+      note: input.note?.trim() || null,
+    })
+    .returning();
+  return { id: row.id, deduped: false };
+}
+
+export async function listOpenServiceRequests() {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(serviceRequests)
+    .where(eq(serviceRequests.status, "open"))
+    .orderBy(asc(serviceRequests.createdAt))
+    .limit(100);
+  return rows.map((row) => ({
+    id: row.id,
+    tableLabel: row.tableLabel,
+    type: row.type,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+export async function resolveServiceRequest(id: string, userId: string) {
+  const db = getDb();
+  const [row] = await db
+    .update(serviceRequests)
+    .set({ status: "resolved", resolvedBy: userId, resolvedAt: new Date() })
+    .where(and(eq(serviceRequests.id, id), eq(serviceRequests.status, "open")))
+    .returning();
+  return row ? { id: row.id } : null;
 }
 
 export async function getPublicInvoiceTracking(token: string) {
@@ -6282,7 +6491,8 @@ export async function getPublicInvoiceTracking(token: string) {
     .from(orders)
     .where(eq(orders.invoiceTrackingToken, safeToken))
     .limit(1);
-  if (!order || !order.customerPhone) {
+  // Token acak = kontrol akses; customerPhone boleh null (guest tanpa WhatsApp).
+  if (!order) {
     return null;
   }
 
@@ -7108,66 +7318,89 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     throw new Error("Sesi member tidak valid untuk customer order.");
   }
 
+  const guestNameTrimmed = input.guestName?.trim();
   const customerName =
-    memberCustomer?.name ?? input.guestName?.trim() ?? "Guest Customer";
-  const customerPhone = memberCustomer?.phone ?? normalizePhone(input.guestPhone ?? "");
-  if (!customerPhone || customerPhone.length < 8) {
-    throw new Error("Nomor WhatsApp customer wajib diisi.");
+    memberCustomer?.name ??
+    (guestNameTrimmed && guestNameTrimmed.length > 0 ? guestNameTrimmed : "Guest Customer");
+  // Guest boleh checkout TANPA nomor WhatsApp. Member tetap wajib punya phone
+  // (diambil dari akun). customerPhone null = guest tanpa WA â†’ tanpa invoice WA
+  // dan tanpa record customer (kolom customers.phone NOT NULL & unique).
+  const normalizedGuestPhone = input.guestPhone?.trim()
+    ? normalizePhone(input.guestPhone)
+    : "";
+  const customerPhone: string | null =
+    memberCustomer?.phone ??
+    (normalizedGuestPhone.length >= 8 ? normalizedGuestPhone : null);
+  if (input.customerMode === "member" && (!customerPhone || customerPhone.length < 8)) {
+    throw new Error("Nomor WhatsApp member tidak valid.");
   }
 
   const tableLabel =
     input.tableLabel?.trim() ||
     (input.orderType === "dine-in" ? "Meja QR" : orderTypeToChannel(input.orderType));
-  const initialWhatsappInvoiceInput = {
-    phone: customerPhone,
-    orderNo,
-    tableLabel,
-    total,
-    items: lines,
-  };
-  const initialWhatsappInvoiceUrl = makeWhatsappInvoiceUrl(initialWhatsappInvoiceInput);
+  const initialWhatsappInvoiceInput = customerPhone
+    ? {
+        phone: customerPhone,
+        orderNo,
+        tableLabel,
+        total,
+        items: lines,
+      }
+    : null;
+  const initialWhatsappInvoiceUrl = initialWhatsappInvoiceInput
+    ? makeWhatsappInvoiceUrl(initialWhatsappInvoiceInput)
+    : null;
 
   const created = await db.transaction(async (tx) => {
-    const [existingByPhone] = await tx
-      .select()
-      .from(customers)
-      .where(eq(customers.phone, customerPhone))
-      .limit(1);
+    const [existingByPhone] = customerPhone
+      ? await tx
+          .select()
+          .from(customers)
+          .where(eq(customers.phone, customerPhone))
+          .limit(1)
+      : [undefined];
     const currentCustomer = memberCustomer ?? existingByPhone ?? null;
     const lockedCustomerName = currentCustomer?.name ?? customerName;
-    const customerValues = {
-      name: lockedCustomerName,
-      phone: customerPhone,
-      tier: memberLevelForPoints(currentCustomer?.points ?? 0),
-      points: currentCustomer?.points ?? 0,
-      visits: currentCustomer?.visits ?? 0,
-      lastOrder: `${customerOrderSourceLabel(source)} ${orderNo}`,
-      flag:
-        input.customerMode === "member"
-          ? currentCustomer?.flag ?? "Member aktif"
-          : currentCustomer?.flag?.toLowerCase().includes("member")
-            ? currentCustomer.flag
-            : "QR lead",
-      updatedAt: new Date(),
-    };
 
-    const [customer] = currentCustomer
-      ? await tx
-          .update(customers)
-          .set(customerValues)
-          .where(eq(customers.id, currentCustomer.id))
-          .returning()
-      : await tx
-          .insert(customers)
-          .values(customerValues)
-          .returning();
+    // Guest tanpa WA: tidak membuat/menyentuh record customer karena
+    // customers.phone wajib & unik. Order tetap tercatat (nama + customerMode)
+    // dengan customerId null.
+    let customer: typeof customers.$inferSelect | null = currentCustomer;
+    if (customerPhone) {
+      const customerValues = {
+        name: lockedCustomerName,
+        phone: customerPhone,
+        tier: memberLevelForPoints(currentCustomer?.points ?? 0),
+        points: currentCustomer?.points ?? 0,
+        visits: currentCustomer?.visits ?? 0,
+        lastOrder: `${customerOrderSourceLabel(source)} ${orderNo}`,
+        flag:
+          input.customerMode === "member"
+            ? currentCustomer?.flag ?? "Member aktif"
+            : currentCustomer?.flag?.toLowerCase().includes("member")
+              ? currentCustomer.flag
+              : "QR lead",
+        updatedAt: new Date(),
+      };
+
+      [customer] = currentCustomer
+        ? await tx
+            .update(customers)
+            .set(customerValues)
+            .where(eq(customers.id, currentCustomer.id))
+            .returning()
+        : await tx
+            .insert(customers)
+            .values(customerValues)
+            .returning();
+    }
 
     const [order] = await tx
       .insert(orders)
       .values({
         orderNo,
         outletId: outlet.id,
-        customerId: customer.id,
+        customerId: customer?.id ?? null,
         tableLabel,
         channel,
         status: initialOrderStatus,
@@ -7178,7 +7411,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         total,
         orderSource: source,
         customerMode: input.customerMode,
-        customerName: customer.name,
+        customerName: customer?.name ?? customerName,
         customerPhone,
         customerNote: input.customerNote?.trim() || null,
         campaign: input.campaign?.trim() || null,
@@ -7199,6 +7432,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
           unitPrice: line.price,
           qty: line.qty,
           lineTotal: line.lineTotal,
+          note: line.note?.trim() || null,
         })),
       )
       .returning();
@@ -7236,7 +7470,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         await tx.insert(voucherRedemptions).values({
           voucherId: voucher.id,
           orderId: order.id,
-          customerId: customer.id,
+          customerId: customer?.id ?? null,
           customerPhone,
           discount: voucherDiscountValue,
         });
@@ -7252,7 +7486,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
 
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
-      actor: `${customerName} / ${customerPhone}`,
+      actor: customerPhone ? `${customerName} / ${customerPhone}` : customerName,
       action: `Create QR order ${orderNo}`,
       object: tableLabel,
       device: "Customer QR",
@@ -7290,11 +7524,15 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   });
 
   const trackingToken = created.orderRow.invoiceTrackingToken ?? makeInvoiceTrackingToken();
-  const invoiceWhatsappInput = {
-    ...initialWhatsappInvoiceInput,
-    invoiceUrl: invoiceWebUrl(trackingToken),
-  };
-  const invoiceWhatsappUrl = makeWhatsappInvoiceUrl(invoiceWhatsappInput);
+  const invoiceWhatsappInput = initialWhatsappInvoiceInput
+    ? {
+        ...initialWhatsappInvoiceInput,
+        invoiceUrl: invoiceWebUrl(trackingToken),
+      }
+    : null;
+  const invoiceWhatsappUrl = invoiceWhatsappInput
+    ? makeWhatsappInvoiceUrl(invoiceWhatsappInput)
+    : null;
 
   await db
     .update(orders)
@@ -7320,6 +7558,10 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     memberCta: created.memberCta,
   };
 
+  // Guest tanpa nomor WA: tidak ada invoice WhatsApp untuk dikirim.
+  if (!invoiceWhatsappInput) {
+    return baseResponse;
+  }
   const whatsappDelivery = await sendWhatsappCloudInvoice(invoiceWhatsappInput);
   if (whatsappDelivery.status === "not_sent") {
     return baseResponse;
@@ -7612,6 +7854,7 @@ export async function updateCustomerOrderStatus(
           itemName: orderItems.itemName,
           variantLabel: orderItems.variantLabel,
           qty: orderItems.qty,
+          note: orderItems.note,
           category: menuItems.category,
         })
         .from(orderItems)
@@ -7626,13 +7869,24 @@ export async function updateCustomerOrderStatus(
         ]);
       }
       const ticketDrafts = Array.from(linesByTargetGroup.entries()).map(
-        ([targetGroup, groupLines]) => ({
-          ticketNo: makeTicketNo(),
-          targetGroup,
-          targetMinutes: kitchenTargetMinutes[targetGroup],
-          station: kitchenStationForTargetGroup(targetGroup),
-          items: groupLines.map(kitchenItemLabel),
-        }),
+        ([targetGroup, groupLines]) => {
+          // Catatan per-item pelanggan â†’ itemNotes tiket (label -> note),
+          // dibaca KDS dapur/bar persis seperti jalur POS.
+          const itemNotes: Record<string, string> = {};
+          for (const line of groupLines) {
+            if (line.note && line.note.trim()) {
+              itemNotes[kitchenItemLabel(line)] = line.note.trim();
+            }
+          }
+          return {
+            ticketNo: makeTicketNo(),
+            targetGroup,
+            targetMinutes: kitchenTargetMinutes[targetGroup],
+            station: kitchenStationForTargetGroup(targetGroup),
+            items: groupLines.map(kitchenItemLabel),
+            itemNotes,
+          };
+        },
       );
 
       const insertedTickets = await tx
@@ -7650,6 +7904,7 @@ export async function updateCustomerOrderStatus(
             targetMinutes: ticket.targetMinutes,
             targetGroup: ticket.targetGroup,
             items: ticket.items,
+            itemNotes: ticket.itemNotes,
           })),
         )
         .returning();
@@ -8270,7 +8525,10 @@ export async function updateCustomerOrderStatus(
       outletId: garage.profile.outlet.id,
     };
     try {
-      await recordOrderPaidEarnings(orderPaidPayload);
+      const feeRates = staffFeeRatesFromSettings(
+        await getAppSettings(garage.profile.outlet.id),
+      );
+      await recordOrderPaidEarnings({ ...orderPaidPayload, fees: feeRates });
     } catch (error) {
       await enqueueFailedEarning("order_paid", orderPaidPayload, error);
     }
@@ -8588,6 +8846,7 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
           unitPrice: line.price,
           qty: line.qty,
           lineTotal: line.lineTotal,
+          note: line.note?.trim() || null,
         })),
       )
       .returning();
@@ -9018,7 +9277,10 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     outletId: garage.profile.outlet.id,
   };
   try {
-    await recordOrderPaidEarnings(orderPaidPayload);
+    const feeRates = staffFeeRatesFromSettings(
+      await getAppSettings(garage.profile.outlet.id),
+    );
+    await recordOrderPaidEarnings({ ...orderPaidPayload, fees: feeRates });
   } catch (error) {
     await enqueueFailedEarning("order_paid", orderPaidPayload, error);
   }
@@ -9094,6 +9356,96 @@ export class KitchenTransitionError extends Error {
     super(`Kitchen ticket cannot move from "${from}" to "${to}"`);
     this.name = "KitchenTransitionError";
   }
+}
+
+export class TicketClaimError extends Error {
+  constructor(public readonly claimedByName: string) {
+    super(`Ticket sudah diambil oleh ${claimedByName}`);
+    this.name = "TicketClaimError";
+  }
+}
+
+const ticketClaimManagerRoles = [
+  "Owner / CEO",
+  "Admin",
+  "Manager Operasional",
+  "Supervisor Shift",
+];
+
+// Waiter klaim tiket "Saya antar": kunci tiket ke dirinya supaya waiter lain
+// tidak ikut jalan, dan fee antar nanti jatuh ke pengklaim.
+export async function claimKitchenTicket(ticketNo: string, garage: GarageSession) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  if (ticket.claimedBy && ticket.claimedBy !== garage.user.id) {
+    throw new TicketClaimError(ticket.claimedByName ?? "waiter lain");
+  }
+  const [updated] = await db
+    .update(kitchenTickets)
+    .set({
+      claimedBy: garage.user.id,
+      claimedByName: garage.user.name ?? "Waiter",
+      claimedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .returning();
+  return updated ?? null;
+}
+
+// Lepas klaim (batal antar). Hanya pengklaim atau manager.
+export async function releaseKitchenTicket(ticketNo: string, garage: GarageSession) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  const isManager = ticketClaimManagerRoles.includes(garage.profile.role);
+  if (ticket.claimedBy && ticket.claimedBy !== garage.user.id && !isManager) {
+    throw new TicketClaimError(ticket.claimedByName ?? "waiter lain");
+  }
+  const [updated] = await db
+    .update(kitchenTickets)
+    .set({ claimedBy: null, claimedByName: null, claimedAt: null, updatedAt: new Date() })
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .returning();
+  return updated ?? null;
+}
+
+// Antar tiket: hanya pengklaim (atau manager) yang boleh. Kalau belum diklaim,
+// auto-klaim ke yang mengantar supaya fee jelas. Fee delivered dikredit ke
+// garage.user di updateKitchenStatus â†’ otomatis ke pengklaim.
+export async function deliverClaimedTicket(ticketNo: string, garage: GarageSession) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  const isManager = ticketClaimManagerRoles.includes(garage.profile.role);
+  if (ticket.claimedBy && ticket.claimedBy !== garage.user.id && !isManager) {
+    throw new TicketClaimError(ticket.claimedByName ?? "waiter lain");
+  }
+  if (!ticket.claimedBy) {
+    await db
+      .update(kitchenTickets)
+      .set({
+        claimedBy: garage.user.id,
+        claimedByName: garage.user.name ?? "Waiter",
+        claimedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(kitchenTickets.id, ticket.id));
+  }
+  return updateKitchenStatus(ticketNo, "delivered", garage);
 }
 
 export async function updateKitchenStatus(
@@ -9178,6 +9530,14 @@ export async function updateKitchenStatus(
     return latest ?? null;
   }
 
+  // Tarif fee diambil dari Pengaturan (owner bisa atur) saat ada kredit fee.
+  const needsFeeCredit =
+    (status === "ready" && current.status !== "ready") ||
+    (status === "delivered" && current.status !== "delivered");
+  const feeRates: StaffFeeRates | undefined = needsFeeCredit
+    ? staffFeeRatesFromSettings(await getAppSettings(garage.profile.outlet.id))
+    : undefined;
+
   // Credit staff fee when the ticket transitions cooking/queue → ready.
   if (status === "ready" && current.status !== "ready") {
     const readyPayload = {
@@ -9188,7 +9548,7 @@ export async function updateKitchenStatus(
       earnedAt: now.toISOString(),
     };
     try {
-      await recordTicketReadyEarnings({ ...readyPayload, earnedAt: now });
+      await recordTicketReadyEarnings({ ...readyPayload, earnedAt: now, fees: feeRates });
     } catch (error) {
       await enqueueFailedEarning("ticket_ready", readyPayload, error);
     }
@@ -9204,7 +9564,7 @@ export async function updateKitchenStatus(
       earnedAt: now.toISOString(),
     };
     try {
-      await recordTicketDeliveredEarnings({ ...deliveredPayload, earnedAt: now });
+      await recordTicketDeliveredEarnings({ ...deliveredPayload, earnedAt: now, fees: feeRates });
     } catch (error) {
       await enqueueFailedEarning("ticket_delivered", deliveredPayload, error);
     }

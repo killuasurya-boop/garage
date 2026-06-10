@@ -203,6 +203,11 @@ export function MembershipAdminView({
   const [editError, setEditError] = useState<string | null>(null);
   const [detail, setDetail] = useState<CrmCustomerDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Atur poin manual
+  const [pointDelta, setPointDelta] = useState("");
+  const [pointReason, setPointReason] = useState("");
+  const [pointBusy, setPointBusy] = useState(false);
+  const [pointMsg, setPointMsg] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [lastCreated, setLastCreated] = useState<LastCreatedMember>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -496,6 +501,45 @@ export function MembershipAdminView({
       setEditError(error instanceof Error ? error.message : "Gagal simpan perubahan member.");
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  async function handleAdjustPoints(sign: 1 | -1) {
+    if (!selected?.id) return;
+    const magnitude = Math.round(Math.abs(Number(pointDelta)));
+    if (!magnitude || Number.isNaN(magnitude)) {
+      setPointMsg("Isi jumlah poin dulu.");
+      return;
+    }
+    if (!pointReason.trim()) {
+      setPointMsg("Alasan wajib diisi.");
+      return;
+    }
+    setPointBusy(true);
+    setPointMsg(null);
+    try {
+      const response = await fetch(`/api/crm/customers/${selected.id}/points`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delta: sign * magnitude, reason: pointReason.trim() }),
+      });
+      const json = (await response.json().catch(() => ({}))) as {
+        data?: { points: number; delta: number };
+        error?: { message?: string };
+      };
+      if (!response.ok) {
+        throw new Error(json.error?.message ?? "Gagal mengatur poin.");
+      }
+      setPointMsg(
+        `Poin ${json.data && json.data.delta >= 0 ? "+" : ""}${json.data?.delta ?? ""} diterapkan. Saldo: ${json.data?.points ?? "-"}.`,
+      );
+      setPointDelta("");
+      setPointReason("");
+      await onChanged?.();
+    } catch (error) {
+      setPointMsg(error instanceof Error ? error.message : "Gagal mengatur poin.");
+    } finally {
+      setPointBusy(false);
     }
   }
 
@@ -861,6 +905,52 @@ export function MembershipAdminView({
                   </dd>
                 </div>
               </dl>
+
+              {/* Atur poin manual (kompensasi / koreksi / reward) */}
+              <div className="mt-5 rounded-md border border-[#f5a742]/30 bg-[#f5a742]/[0.06] p-3">
+                <p className="text-sm font-black text-white">Atur Poin Manual</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-[#b8b8bf]">
+                  Tambah/kurangi poin member. Tercatat sebagai transaksi &amp; audit.
+                </p>
+                <div className="mt-3 grid gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={pointDelta}
+                    onChange={(e) => setPointDelta(e.target.value)}
+                    placeholder="Jumlah poin (mis. 50)"
+                    className="h-10 w-full rounded-md border border-[#34343c] bg-[#111116] px-3 text-sm text-white outline-none transition focus:border-[#f5a742]"
+                  />
+                  <input
+                    value={pointReason}
+                    onChange={(e) => setPointReason(e.target.value)}
+                    placeholder="Alasan (wajib): mis. kompensasi pesanan salah"
+                    maxLength={240}
+                    className="h-10 w-full rounded-md border border-[#34343c] bg-[#111116] px-3 text-sm text-white outline-none transition focus:border-[#f5a742]"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={pointBusy}
+                      onClick={() => void handleAdjustPoints(1)}
+                      className="garage-press flex h-10 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-xs font-black uppercase tracking-wide text-[#04140a] transition hover:bg-[#34d77f] disabled:opacity-50"
+                    >
+                      + Tambah
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pointBusy}
+                      onClick={() => void handleAdjustPoints(-1)}
+                      className="garage-press flex h-10 items-center justify-center gap-1 rounded-md bg-[#d11a2a] text-xs font-black uppercase tracking-wide text-white transition hover:bg-[#ff2a3a] disabled:opacity-50"
+                    >
+                      − Kurangi
+                    </button>
+                  </div>
+                  {pointMsg ? (
+                    <p className="text-xs font-semibold text-[#ffd79a]">{pointMsg}</p>
+                  ) : null}
+                </div>
+              </div>
 
               <div className="mt-5 grid grid-cols-3 gap-2">
                 <a

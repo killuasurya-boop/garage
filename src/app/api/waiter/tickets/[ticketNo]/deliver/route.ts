@@ -1,5 +1,9 @@
 import { fail, ok } from "@/lib/api-response";
-import { KitchenTransitionError, updateKitchenStatus } from "@/lib/garage-service";
+import {
+  KitchenTransitionError,
+  TicketClaimError,
+  deliverClaimedTicket,
+} from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -22,12 +26,15 @@ export async function POST(
   }
 
   try {
-    const ticket = await updateKitchenStatus(ticketNo, "delivered", session.data);
+    const ticket = await deliverClaimedTicket(ticketNo, session.data);
     if (!ticket) {
       return fail(404, "TICKET_NOT_FOUND", "Ticket tidak ditemukan.");
     }
     return ok(ticket);
   } catch (error) {
+    if (error instanceof TicketClaimError) {
+      return fail(409, "TICKET_CLAIMED", `Tiket sudah diambil oleh ${error.claimedByName}.`);
+    }
     if (error instanceof KitchenTransitionError) {
       return fail(
         422,

@@ -19,6 +19,7 @@ import {
   Sparkles,
   Users,
   Volume2,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { garageApi } from "@/lib/api-client";
+import { printThermal } from "@/lib/print-client";
 import { currency } from "@/lib/garage-data";
 import type { AppSettings, GarageMe } from "@/lib/garage-api-types";
 import { useGarageTheme } from "@/components/garage/theme/garage-theme-provider";
@@ -73,6 +75,7 @@ type SettingsTab =
   | "theme"
   | "pos"
   | "approval"
+  | "fee"
   | "branding"
   | "notif"
   | "ai"
@@ -303,36 +306,31 @@ export function SettingsView({ me }: { me: GarageMe }) {
     setNotice(null);
     setError(null);
     try {
-      const response = await fetch("/api/print/thermal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          printerName: merged.defaultPrinterName || undefined,
-          copies: merged.receiptCopies,
-          receipt: {
-            invoiceNo: "TEST-SETTINGS",
-            orderNo: "TEST-PRINT",
-            createdAt: new Date().toISOString(),
-            outlet: { name: me.outlet.name, code: me.outlet.code },
-            cashier: { name: me.user.name },
-            payment: { method: "TEST", provider: "Settings", reference: "Printer check" },
-            items: [
-              {
-                name: "Test Print GARAGE",
-                variant: "Settings",
-                qty: 1,
-                unitPrice: 1000,
-                lineTotal: 1000,
-              },
-            ],
-            subtotal: 1000,
-            service: 0,
-            tax: 0,
-            discount: 0,
-            total: 1000,
-          },
-        }),
+      const response = await printThermal({
+        printerName: merged.defaultPrinterName || undefined,
+        copies: merged.receiptCopies,
+        receipt: {
+          invoiceNo: "TEST-SETTINGS",
+          orderNo: "TEST-PRINT",
+          createdAt: new Date().toISOString(),
+          outlet: { name: me.outlet.name, code: me.outlet.code },
+          cashier: { name: me.user.name },
+          payment: { method: "TEST" },
+          items: [
+            {
+              name: "Test Print GARAGE",
+              variant: "Settings",
+              qty: 1,
+              unitPrice: 1000,
+              lineTotal: 1000,
+            },
+          ],
+          subtotal: 1000,
+          service: 0,
+          tax: 0,
+          discount: 0,
+          total: 1000,
+        },
       });
       const payload = (await response.json().catch(() => null)) as
         | { success?: boolean; printer?: string; error?: { message?: string; hint?: string } }
@@ -381,6 +379,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
   }> = [
     { id: "pos", label: "POS Billing", icon: ShoppingCart, group: "Transaksi", keywords: "billing pajak pb1 service charge diskon kasir total struk pembayaran" },
     { id: "approval", label: "Approval", icon: ShieldCheck, group: "Transaksi", keywords: "approval persetujuan threshold diskon expense void" },
+    { id: "fee", label: "Fee Staf", icon: Wallet, group: "Transaksi", keywords: "fee tarif insentif bonus gaji waiter koki barista kasir antar earning" },
     { id: "loyalty", label: "Loyalty", icon: Users, group: "Transaksi", keywords: "loyalty poin member reward point" },
     { id: "notif", label: "Notifikasi", icon: Bell, group: "Operasional", keywords: "notifikasi alert suara sound bell pemberitahuan" },
     { id: "printer", label: "Printer", icon: Printer, group: "Operasional", keywords: "printer cetak struk auto-print kertas" },
@@ -401,6 +400,13 @@ export function SettingsView({ me }: { me: GarageMe }) {
     theme: ["garageOsThemePreset"],
     pos: ["serviceChargePct", "taxPct", "manualDiscountMaxPct", "manualDiscountApprovalPct", "receiptHistoryMax"],
     approval: ["expenseApprovalThreshold"],
+    fee: [
+      "feeWaiterDeliveredPerItem",
+      "feeKitchenReadyPerItem",
+      "feeBaristaReadyPerItem",
+      "feePackagingReadyPerItem",
+      "feeCashierPaidPerItem",
+    ],
     branding: ["brandName", "brandTagline", "outletAddress", "outletPhone", "npwp", "receiptFooter"],
     notif: ["approvalPollIntervalSec", "qrSoundOn", "autoPrintReceipt"],
     ai: [
@@ -935,6 +941,79 @@ export function SettingsView({ me }: { me: GarageMe }) {
                 className="h-10 border-[#34343c] bg-white/[0.06]"
               />
             </SettingsField>
+          ) : null}
+
+          {activeTab === "fee" ? (
+            <>
+              <p className="mb-1 rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs leading-5 text-[#cdcdd4]">
+                Tarif fee per item (Rupiah). Fee dihitung otomatis: waiter saat
+                mengantar (masuk ke yang klaim), Koki/Asisten & Barista saat tiket
+                ready, kasir saat order lunas. Tarif berlaku untuk semua staf di
+                role tersebut.
+              </p>
+              {(
+                [
+                  [
+                    "feeWaiterDeliveredPerItem",
+                    "Fee Waiter (antar) / item",
+                    "Untuk Waiter 1/2 saat menandai pesanan diantar. Masuk ke yang klaim & antar.",
+                  ],
+                  [
+                    "feeKitchenReadyPerItem",
+                    "Fee Dapur (Koki/Asisten) / item",
+                    "Saat tiket makanan ditandai ready.",
+                  ],
+                  [
+                    "feeBaristaReadyPerItem",
+                    "Fee Barista (minuman) / item",
+                    "Saat tiket minuman ditandai ready.",
+                  ],
+                  [
+                    "feePackagingReadyPerItem",
+                    "Fee Packing / item",
+                    "Untuk station packing saat tiket ready.",
+                  ],
+                  [
+                    "feeCashierPaidPerItem",
+                    "Fee Kasir / item",
+                    "Saat kasir menandai order lunas (paid).",
+                  ],
+                ] as Array<
+                  [
+                    (
+                      | "feeWaiterDeliveredPerItem"
+                      | "feeKitchenReadyPerItem"
+                      | "feeBaristaReadyPerItem"
+                      | "feePackagingReadyPerItem"
+                      | "feeCashierPaidPerItem"
+                    ),
+                    string,
+                    string,
+                  ]
+                >
+              ).map(([key, label, desc]) => (
+                <SettingsField
+                  key={key}
+                  label={label}
+                  description={desc}
+                  defaultValue={defaults[key]}
+                  currentValue={merged[key]}
+                  onReset={() => resetField(key)}
+                  disabled={!canWrite}
+                  displayValue={currency.format(merged[key])}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    step="50"
+                    value={merged[key]}
+                    onChange={(e) => setField(key, Number(e.target.value))}
+                    disabled={!canWrite}
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                  />
+                </SettingsField>
+              ))}
+            </>
           ) : null}
 
           {activeTab === "branding" ? (

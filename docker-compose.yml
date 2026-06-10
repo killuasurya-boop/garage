@@ -1,0 +1,81 @@
+# =============================================================================
+# Garage Coffee & Motor OS — production stack untuk VPS (Hostinger KVM, dll.)
+#   db      : PostgreSQL 16 (persisten)
+#   migrate : one-shot, apply drizzle/*.sql lalu exit
+#   app     : Next.js standalone
+#   caddy   : reverse proxy + HTTPS otomatis (Let's Encrypt)
+#
+# Pakai:  docker compose up -d --build
+# Seed (sekali):  docker compose run --rm migrate node_modules/.bin/tsx src/db/seed.ts
+# =============================================================================
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - garage-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Tidak expose port ke host: hanya app/migrate yang akses via network internal.
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      GARAGE_DB_DRIVER: postgres
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      GARAGE_DB_DRIVER: postgres
+      DATABASE_SSL: "false"
+    volumes:
+      # Upload gambar menu disimpan persisten — kalau tidak, hilang tiap redeploy.
+      - garage-uploads:/app/public/garage-uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Port hanya dibuka ke Caddy lewat network internal, tidak ke publik.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      GARAGE_DOMAIN: ${GARAGE_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  garage-db-data:
+  garage-uploads:
+  caddy-data:
+  caddy-config:

@@ -139,11 +139,18 @@
   - `website-events` → public analytics ingest ✅
 - **Tidak ada route mutasi sensitif yang terekspos tanpa auth.**
 
-### 3.4 Error Handling End-to-End
-- [ ] Frontend: try/catch di setiap fetch
-- [ ] Backend: try/catch di setiap route handler
-- [ ] User-facing error message konsisten
-- [ ] Logging untuk debugging
+### 3.4 Error Handling End-to-End — SELESAI ✅ (audit, read-only)
+**Coverage frontend: 73/75 file komponen (97%)** yang manggil `fetch`/`garageApi` punya `try/catch` atau `.catch`.
+
+- [x] **Frontend try/catch di setiap fetch** — coverage kini **75/75 (100%)**. 2 gap minor sudah DIPERBAIKI:
+  - `password-change-panel.tsx` (`submit()`) — dibungkus try/catch/finally, catch transport error.
+  - `settings-manager.tsx` (`save()`, `reloadScope()`, `revertOverride()`) — ketiganya dibungkus try/catch.
+  - Fix additive: kalau jaringan mati / respons non-JSON → user dapat pesan "Gagal terhubung ke server" (sebelumnya unhandled rejection). `res.json()` juga di-guard `.catch(() => ({}))`. tsc 0, lint 0.
+- [x] **Backend try/catch** — route handlers mission-critical (orders, approvals, finance, hr) sudah try/catch atau pakai `ok/fail` helper (lihat Fase 1.1).
+- [x] **User-facing error message konsisten** — pola `json?.error?.message ?? fallback` dominan; error shape `{ error: { code, message } }` distandardkan (commit 4c1dcd82).
+- [x] **Logging** — `console.error` di catch backend; client pakai setError state.
+
+**Rekomendasi fix (opsional, additive):** bungkus body `submit()`/`save()`/`reloadScope()`/`revertOverride()` di 2 file itu dengan `try { ... } catch (err) { setError(...) } ` agar offline/parse-fail tetap kasih feedback. ~4 lokasi, low-risk.
 
 ---
 

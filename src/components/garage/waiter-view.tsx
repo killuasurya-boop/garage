@@ -85,10 +85,28 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 
+type ServiceRequest = {
+  id: string;
+  tableLabel: string;
+  type: string;
+  note: string | null;
+  createdAt: string;
+};
+
+function serviceRequestLabel(type: string) {
+  if (type === "bill") return "Minta Bill";
+  if (type === "water") return "Air / Tisu";
+  if (type === "other") return "Bantuan";
+  return "Panggil Pelayan";
+}
+
 export function WaiterView({ me }: Props) {
   const toast = useGarageToast();
   const [tickets, setTickets] = useState<KitchenOrder[]>([]);
   const [tables, setTables] = useState<TableLiveRow[]>([]);
+  const [serviceReqs, setServiceReqs] = useState<ServiceRequest[]>([]);
+  const [resolvingReq, setResolvingReq] = useState<string | null>(null);
+  const prevServiceReqIdsRef = useRef<Set<string>>(new Set());
   const canRequestBillRole = isWaiterOperator(me.role);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,14 +145,29 @@ export function WaiterView({ me }: Props) {
   const loadAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [tk, tb] = await Promise.all([
+      const [tk, tb, sr] = await Promise.all([
         fetchJson<KitchenOrder[]>("/api/waiter/tickets"),
         fetchJson<TableLiveRow[]>("/api/waiter/tables"),
+        fetchJson<ServiceRequest[]>("/api/waiter/service-requests").catch(() => [] as ServiceRequest[]),
       ]);
       setError(null);
       setTickets(tk);
       setTables(tb);
+      setServiceReqs(sr);
       setLastSyncedAt(new Date());
+
+      // Toast saat ada panggilan meja baru (skip load pertama).
+      const nextReqIds = new Set(sr.map((req) => req.id));
+      if (hasInitialLoadRef.current) {
+        for (const req of sr) {
+          if (!prevServiceReqIdsRef.current.has(req.id)) {
+            const title = `Panggilan ${serviceRequestLabel(req.type)} - ${req.tableLabel}`;
+            notifyOrderReady(prefsRef.current, title, req.note ?? "Pelanggan butuh bantuan");
+            toast.push({ tone: "info", title, body: req.note ?? "Pelanggan butuh bantuan", ttl: 6000 });
+          }
+        }
+      }
+      prevServiceReqIdsRef.current = nextReqIds;
 
       // Deteksi transisi ke "ready" sejak poll terakhir.
       const next = new Map<string, string>();
@@ -150,7 +183,7 @@ export function WaiterView({ me }: Props) {
       hasInitialLoadRef.current = true;
 
       for (const t of newlyReady) {
-        const title = `Order siap antar - Meja ${t.table}`;
+        const title = `Order siap antar - ${t.table}`;
         const body = `${t.items.length} item - ${t.station}`;
         notifyOrderReady(prefsRef.current, title, body);
         toast.push({ tone: "success", title, body, ttl: 5200 });
@@ -161,6 +194,24 @@ export function WaiterView({ me }: Props) {
       if (!silent) setLoading(false);
     }
   }, [toast]);
+
+  const resolveRequest = useCallback(
+    async (id: string) => {
+      setResolvingReq(id);
+      try {
+        await fetchJson(`/api/waiter/service-requests/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+        });
+        setServiceReqs((current) => current.filter((req) => req.id !== id));
+        prevServiceReqIdsRef.current.delete(id);
+      } catch {
+        toast.push({ tone: "error", title: "Gagal", body: "Tidak bisa menyelesaikan panggilan." });
+      } finally {
+        setResolvingReq(null);
+      }
+    },
+    [toast],
+  );
 
   // Mount offline sync worker — drain queue saat online, retry tiap 20s.
   useEffect(() => {
@@ -201,7 +252,7 @@ export function WaiterView({ me }: Props) {
           });
           toast.push({
             tone: "info",
-            title: `Diantar (offline) - Meja ${ticket.table}`,
+            title: `Diantar (offline) - ${ticket.table}`,
             body: "Action disimpan, akan sync saat online.",
             ttl: 3200,
           });
@@ -225,7 +276,7 @@ export function WaiterView({ me }: Props) {
         });
         toast.push({
           tone: "success",
-          title: `Diantar - Meja ${ticket.table}`,
+          title: `Diantar - ${ticket.table}`,
           body: "Ticket ditandai delivered.",
           ttl: 2400,
         });
@@ -243,7 +294,7 @@ export function WaiterView({ me }: Props) {
             });
             toast.push({
               tone: "info",
-              title: `Diantar (akan sync) - Meja ${ticket.table}`,
+              title: `Diantar (akan sync) - ${ticket.table}`,
               body: "Koneksi terganggu, action dikirim ulang otomatis.",
               ttl: 3200,
             });
@@ -265,6 +316,51 @@ export function WaiterView({ me }: Props) {
           // Restore ticket karena gagal permanen
           await loadAll(true);
         }
+      } finally {
+        setActingTicket(null);
+      }
+    },
+    [loadAll, toast],
+  );
+
+  // Klaim "Saya antar": kunci tiket ke waiter ini (fee antar nanti ke dia).
+  const handleClaim = useCallback(
+    async (ticket: KitchenOrder) => {
+      setActingTicket(ticket.id);
+      try {
+        await fetchJson(`/api/waiter/tickets/${encodeURIComponent(ticket.id)}/claim`, {
+          method: "POST",
+        });
+        await loadAll(true);
+      } catch (err) {
+        toast.push({
+          tone: "error",
+          title: "Tidak bisa ambil",
+          body: err instanceof Error ? err.message : "Tiket mungkin sudah diambil waiter lain.",
+        });
+        await loadAll(true);
+      } finally {
+        setActingTicket(null);
+      }
+    },
+    [loadAll, toast],
+  );
+
+  const handleRelease = useCallback(
+    async (ticket: KitchenOrder) => {
+      setActingTicket(ticket.id);
+      try {
+        await fetchJson(`/api/waiter/tickets/${encodeURIComponent(ticket.id)}/release`, {
+          method: "POST",
+        });
+        await loadAll(true);
+      } catch (err) {
+        toast.push({
+          tone: "error",
+          title: "Gagal lepas",
+          body: err instanceof Error ? err.message : "Coba lagi.",
+        });
+        await loadAll(true);
       } finally {
         setActingTicket(null);
       }
@@ -385,6 +481,24 @@ export function WaiterView({ me }: Props) {
   );
 
   const ready = useMemo(() => tickets.filter((t) => t.status === "ready"), [tickets]);
+  // Kelengkapan per order (table + addonSequence): satu order bisa pecah ke
+  // Bar + Dapur. Waiter perlu tahu apakah SEMUA station order itu sudah ready
+  // supaya tidak antar makanan duluan saat minuman masih dibuat.
+  const orderCompletion = useMemo(() => {
+    const groups = new Map<string, { pending: string[]; total: number }>();
+    for (const t of tickets) {
+      if (!["queue", "cooking", "ready"].includes(t.status)) continue;
+      const key = `${t.table}::${t.addonSequence ?? 1}`;
+      const group = groups.get(key) ?? { pending: [], total: 0 };
+      group.total += 1;
+      if (t.status !== "ready") {
+        const label = t.station === "Food" ? "Dapur" : t.station;
+        if (!group.pending.includes(label)) group.pending.push(label);
+      }
+      groups.set(key, group);
+    }
+    return groups;
+  }, [tickets]);
   const upcoming = useMemo(
     () => tickets.filter((t) => t.status !== "ready"),
     [tickets],
@@ -673,6 +787,49 @@ export function WaiterView({ me }: Props) {
           </p>
         ) : null}
       </div>
+
+      {serviceReqs.length > 0 ? (
+        <section className="space-y-2 rounded-xl border border-[#ffb4ab]/40 bg-[#2a1116] p-3">
+          <div className="flex items-center gap-2">
+            <BellRing size={16} className="text-[#ffb4ab]" />
+            <p className="text-sm font-black uppercase tracking-wide text-[#ffd7da]">
+              Panggilan Meja ({serviceReqs.length})
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {serviceReqs.map((req) => (
+              <div
+                key={req.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-[#d11a2a]/40 bg-[#1c0e11] p-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-white">{req.tableLabel}</p>
+                  <p className="truncate text-xs font-semibold text-[#ffb4ab]">
+                    {serviceRequestLabel(req.type)}
+                    {req.note ? ` - ${req.note}` : ""}
+                  </p>
+                  <p className="text-[10px] text-white/45">
+                    {new Date(req.createdAt).toLocaleTimeString("id-ID")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={resolvingReq === req.id}
+                  onClick={() => void resolveRequest(req.id)}
+                  className="garage-press flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-[#22c55e] px-3 text-xs font-black text-[#04140a] transition hover:bg-[#34d77f] disabled:opacity-50"
+                >
+                  {resolvingReq === req.id ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={14} />
+                  )}
+                  Selesai
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
@@ -1073,10 +1230,19 @@ export function WaiterView({ me }: Props) {
               />
             ) : (
               <ul className="space-y-2">
-                {ready.map((t) => (
+                {ready.map((t) => {
+                  const group = orderCompletion.get(`${t.table}::${t.addonSequence ?? 1}`);
+                  const orderComplete = !group || group.pending.length === 0;
+                  const multiStation = (group?.total ?? 1) > 1;
+                  const claimedByMe = t.claimedBy === me.user.id;
+                  const claimedByOther = Boolean(t.claimedBy) && !claimedByMe;
+                  const acting = actingTicket === t.id;
+                  return (
                   <li
                     key={t.id}
-                    className="rounded-lg bg-[#0f140d] p-3 ring-1 ring-[#22c55e]/30"
+                    className={`rounded-lg bg-[#0f140d] p-3 ring-1 ${
+                      orderComplete ? "ring-[#22c55e]/30" : "ring-[#f5a742]/45"
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[#22c55e]/14 font-mono text-2xl font-black text-[#bbf7d0] ring-1 ring-[#22c55e]/35">
@@ -1088,6 +1254,15 @@ export function WaiterView({ me }: Props) {
                           <span className={`flex items-center gap-1 text-[11px] ${stationTone(t.station)}`}>
                             {stationIcon(t.station)} {t.station}
                           </span>
+                          {multiStation && orderComplete ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#22c55e]/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#bbf7d0] ring-1 ring-[#22c55e]/40">
+                              <CheckCircle2 size={11} /> Pesanan lengkap
+                            </span>
+                          ) : !orderComplete ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5a742]/18 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#ffd79a] ring-1 ring-[#f5a742]/40">
+                              Tunggu {group?.pending.join(", ")}
+                            </span>
+                          ) : null}
                           <span className="font-mono text-[10px] text-white/45">#{t.id}</span>
                         </div>
                         <ul className="mt-2 space-y-1 text-[12px] leading-5 text-white/82">
@@ -1099,21 +1274,57 @@ export function WaiterView({ me }: Props) {
                         </ul>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeliver(t)}
-                      disabled={actingTicket === t.id}
-                      className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#22c55e] text-[12px] font-black uppercase tracking-wide text-[#052e16] transition active:scale-[0.98] disabled:opacity-60"
-                    >
-                      {actingTicket === t.id ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={15} />
-                      )}
-                      Antar ke Meja {t.table}
-                    </button>
+                    {!orderComplete ? (
+                      <p className="mt-2 rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-[#ffd79a]">
+                        {group?.pending.join(", ")} masih dibuat. Antar item ini saja atau tunggu agar 1 meja lengkap.
+                      </p>
+                    ) : null}
+                    {claimedByOther ? (
+                      <div className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 text-[12px] font-bold text-[#ffd79a]">
+                        <UserPlus size={14} /> Diambil oleh {t.claimedByName}
+                      </div>
+                    ) : claimedByMe ? (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeliver(t)}
+                          disabled={acting}
+                          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-[#22c55e] text-[12px] font-black uppercase tracking-wide text-[#052e16] transition active:scale-[0.98] disabled:opacity-60"
+                        >
+                          {acting ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <CheckCircle2 size={15} />
+                          )}
+                          Antar ke {t.table}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleRelease(t)}
+                          disabled={acting}
+                          className="inline-flex h-11 shrink-0 items-center justify-center rounded-md border border-[#4a4a54] px-3 text-[11px] font-bold text-white/70 transition hover:bg-white/[0.06] disabled:opacity-60"
+                        >
+                          Lepas
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handleClaim(t)}
+                        disabled={acting}
+                        className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#d11a2a] text-[12px] font-black uppercase tracking-wide text-white transition active:scale-[0.98] hover:bg-[#ff2a3a] disabled:opacity-60"
+                      >
+                        {acting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <UserPlus size={15} />
+                        )}
+                        Saya Antar
+                      </button>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -1305,7 +1516,7 @@ export function WaiterView({ me }: Props) {
                     className="flex items-center gap-2 rounded-md bg-white/[0.03] px-2 py-2 text-[12px] text-white/75"
                   >
                     <span className="font-mono text-[11px] text-white/55">#{t.id}</span>
-                    <span className="font-semibold text-white">Meja {t.table}</span>
+                    <span className="font-semibold text-white">{t.table}</span>
                     <span className={`flex items-center gap-1 ${stationTone(t.station)}`}>
                       {stationIcon(t.station)} {t.station}
                     </span>

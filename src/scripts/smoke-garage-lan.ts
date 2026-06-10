@@ -346,6 +346,46 @@ async function main() {
     }
     console.log("OK guest QR order create, reject cleanup, and duplicate guard");
 
+    // Guest TANPA WhatsApp (WA opsional): harus tetap bisa order, customerPhone
+    // null, dan halaman tracking publik HARUS 200 (regresi 404 yang pernah ada).
+    const guestNoWa = await request("/api/customer/orders", {
+      method: "POST",
+      json: {
+        orderType: "dine-in",
+        tableLabel: "Meja 51",
+        customerMode: "guest",
+        guestName: `QA Smoke NoWA ${smokeStamp}`,
+        source: "qr_table",
+        items: [{ itemId: selectedItem.id, variantId: selectedVariant.id, qty: 1 }],
+      },
+    });
+    expectStatus(guestNoWa, 201, "guest QR order tanpa WhatsApp create");
+    const noWaData = dataOf<{
+      order: { id: string; status: string; customerPhone?: string | null };
+    }>(guestNoWa.json);
+    if (!noWaData.order?.id || noWaData.order.status !== "pending_cashier") {
+      throw new Error(`guest no-WA order invalid: ${JSON.stringify(noWaData)}`);
+    }
+    createdOrderIds.push(noWaData.order.id);
+    if (noWaData.order.customerPhone) {
+      throw new Error("guest no-WA order should have null customerPhone");
+    }
+    const noWaStatus = await request(`/api/customer/orders/${noWaData.order.id}/public-status`);
+    expectStatus(noWaStatus, 200, "guest no-WA public status");
+    const noWaStatusData = dataOf<{ invoiceWebUrl?: string | null }>(noWaStatus.json);
+    if (!noWaStatusData.invoiceWebUrl?.startsWith("/invoice/")) {
+      throw new Error(`no-WA order missing invoice tracking url: ${JSON.stringify(noWaStatusData)}`);
+    }
+    const noWaTrackPage = await request(noWaStatusData.invoiceWebUrl);
+    if (noWaTrackPage.response.status !== 200) {
+      throw new Error(
+        `no-WA invoice tracking page expected 200, got ${noWaTrackPage.response.status}`,
+      );
+    }
+    await rejectOrder(staffJar, noWaData.order.id, "Smoke cleanup no-WA order", false);
+    createdOrderIds.pop();
+    console.log("OK guest QR order tanpa WhatsApp (create, customerPhone null, tracking 200)");
+
     try {
       await loginMember(memberJar);
     } catch (loginErr) {

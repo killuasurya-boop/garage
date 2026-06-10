@@ -17,6 +17,21 @@ import {
   User,
 } from "lucide-react";
 
+import {
+  PremiumMembershipCard,
+  type PremiumMembershipCardData,
+} from "@/components/garage/premium-membership-card";
+
+// Kartu contoh untuk hero halaman login (data dummy, bukan member asli).
+const showcaseCard: PremiumMembershipCardData = {
+  name: "Member Garage",
+  memberId: "GRG-2026-0001",
+  phone: "0812-3456-7890",
+  tier: "Gold",
+  membershipSince: "2026",
+  validThru: "12/28",
+};
+
 type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; message: string };
@@ -85,6 +100,8 @@ export function MemberLoginScreen({
   const [birthday, setBirthday] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  // Data tambahan (email/tgl lahir/referral) disembunyikan agar daftar cepat.
+  const [showOptional, setShowOptional] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const returnTarget = sanitizeMemberRedirectTarget(initialReturnTarget);
@@ -93,10 +110,23 @@ export function MemberLoginScreen({
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const refParam = params.get("ref") ?? params.get("referral");
-    const wantsRegister = params.get("mode") === "register" || Boolean(refParam);
+    const nameParam = params.get("name");
+    const phoneParam = params.get("phone");
+    const wantsRegister =
+      params.get("mode") === "register" ||
+      Boolean(refParam) ||
+      Boolean(nameParam) ||
+      Boolean(phoneParam);
     if (refParam) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot URL hydration on mount
       setReferralCode(refParam.trim().toUpperCase());
+    }
+    // Prefill dari checkout (guest -> daftar member) supaya tinggal isi PIN.
+    if (nameParam) {
+      setName(nameParam.slice(0, 80));
+    }
+    if (phoneParam) {
+      setPhone(phoneParam.replace(/[^0-9+]/g, "").slice(0, 20));
     }
     if (wantsRegister) {
       setMode("register");
@@ -162,7 +192,7 @@ export function MemberLoginScreen({
   const headerBackHref = fromDigitalMenu ? returnTarget : "/";
 
   return (
-    <main className="garage-shell garage-login-shell min-h-screen overflow-hidden text-white">
+    <main className="garage-shell garage-login-shell min-h-screen overflow-x-hidden text-white">
       <div className="garage-login-ambient" aria-hidden="true">
         <span className="garage-login-neon-rail garage-login-neon-rail-top" />
         <span className="garage-login-neon-rail garage-login-neon-rail-bottom" />
@@ -206,89 +236,78 @@ export function MemberLoginScreen({
 
         <div className="grid flex-1 items-center gap-5 py-6 md:gap-7 lg:grid-cols-[0.92fr_0.82fr] lg:py-8 xl:gap-10">
           <section className="garage-login-hero garage-animate-in order-2 min-h-0 rounded-md border border-[#34343c] bg-black/24 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)] sm:p-7 lg:order-1 lg:min-h-[560px] lg:p-8">
-            <div className="flex h-full flex-col justify-between gap-8">
+            <div className="flex h-full flex-col gap-6">
               <div>
-                <div className="hidden max-w-[380px] sm:block">
-                  <div className="garage-logo-frame">
-                    <Image
-                      src="/garage-brand/logo-website.png"
-                      alt="Garage Coffee & Motor"
-                      width={1024}
-                      height={325}
-                      priority
-                      className="garage-logo-image"
-                    />
-                  </div>
-                </div>
-
-                <div className="garage-login-chip mt-0 inline-flex items-center gap-2 rounded-full border border-[#d11a2a]/45 bg-[#d11a2a]/14 px-3 py-1 text-xs font-medium text-[#ffb0b8] sm:mt-8">
+                <div className="garage-login-chip inline-flex items-center gap-2 rounded-full border border-[#d11a2a]/45 bg-[#d11a2a]/14 px-3 py-1 text-xs font-semibold text-[#ffb0b8]">
                   <Sparkles size={14} />
                   Membership Master Pro
                 </div>
 
-                <h1 className="garage-display mt-4 text-[clamp(50px,10vw,132px)] leading-none">
-                  Master Pro
-                  <span className="block text-[#d11a2a]">Rewards</span>
+                <h1 className="mt-3 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+                  Kartu Member <span className="text-[#d11a2a]">GARAGE</span>
                 </h1>
 
-                <p className="mt-4 max-w-xl text-sm leading-6 text-[#c9c9d1] sm:mt-6 sm:text-base sm:leading-7">
-                  Masuk cepat pakai nomor HP untuk melihat points, tier Silver sampai Ultra, voucher, kartu digital, dan riwayat kunjungan yang tersambung ke CRM POS.
+                <p className="mt-2.5 max-w-md text-sm leading-6 text-[#cdcdd4]">
+                  Kumpulkan poin tiap order, naik tier Silver hingga Ultra, redeem
+                  voucher, dan dapat kartu digital — semua tersambung ke kasir.
                 </p>
               </div>
 
-              <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {levelBadges.map((item) => (
-                    <div key={item.level} className={`garage-hover-lift min-w-0 border ${item.tone} p-3`}>
-                      <p className="garage-mono truncate">{item.range}</p>
-                      <p className="garage-display mt-1 truncate text-[clamp(22px,4vw,34px)]">{item.level}</p>
-                      <p className="text-xs font-semibold text-[#f5a742]">{item.multiplier} point</p>
-                    </div>
-                  ))}
+              {/* Kartu membership sebagai hero */}
+              <div className="flex justify-center">
+                <div className="w-full max-w-[360px] drop-shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+                  <PremiumMembershipCard
+                    data={showcaseCard}
+                    interactive
+                    ariaLabel="Contoh kartu member Garage"
+                  />
                 </div>
+              </div>
 
-                <div className="grid gap-2 border border-white/10 bg-white/[0.04] p-3 sm:grid-cols-3">
-                  <div className="flex items-center gap-2 text-sm text-[#d0d0d6]">
-                    <BadgeCheck size={16} className="text-[#f5a742]" />
-                    Point otomatis
+              {/* Tier strip â€” nama tidak terpotong */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {levelBadges.map((item) => (
+                  <div
+                    key={item.level}
+                    className={`rounded-md border p-2.5 text-center ${item.tone}`}
+                  >
+                    <p className="text-sm font-black text-white">{item.level}</p>
+                    <p className="text-[11px] font-bold text-[#f5a742]">
+                      {item.multiplier} poin
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-[#d0d0d6]">
-                    <Gift size={16} className="text-[#f5a742]" />
-                    Redeem voucher
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[#d0d0d6]">
-                    <ShieldCheck size={16} className="text-[#f5a742]" />
-                    Khusus customer
-                  </div>
-                </div>
+                ))}
+              </div>
+
+              {/* Benefit ringkas */}
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-md border border-white/10 bg-white/[0.04] p-3 text-sm text-[#d6d6dc]">
+                <span className="inline-flex items-center gap-1.5">
+                  <BadgeCheck size={16} className="text-[#f5a742]" /> Poin otomatis
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Gift size={16} className="text-[#f5a742]" /> Redeem voucher
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <ShieldCheck size={16} className="text-[#f5a742]" /> Khusus customer
+                </span>
               </div>
             </div>
           </section>
 
           <section className="garage-login-card garage-panel order-1 mx-auto w-full max-w-[500px] p-5 sm:p-7 lg:order-2">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 border border-[#f5a742]/35 bg-[#f5a742]/10 px-3 py-1 text-xs font-semibold uppercase text-[#ffd79a]">
-                  <LockKeyhole size={13} />
-                  Customer Access
-                </div>
-                <h2 className="garage-display mt-4 text-5xl leading-none sm:text-6xl">
-                  {mode === "login" ? "Masuk" : "Daftar"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[#b8b8bf]">
-                  {mode === "login"
-                    ? "Portal khusus customer untuk points, voucher, dan level member."
-                    : "Aktivasi akun member untuk menyimpan point dan level dari CRM POS."}
-                </p>
+            <div className="mb-6">
+              <div className="inline-flex items-center gap-2 border border-[#f5a742]/35 bg-[#f5a742]/10 px-3 py-1 text-xs font-semibold uppercase text-[#ffd79a]">
+                <LockKeyhole size={13} />
+                Customer Access
               </div>
-              <Image
-                src="/garage-brand/logo-icon.png"
-                alt=""
-                width={64}
-                height={64}
-                sizes="56px"
-                className="size-12 shrink-0 object-contain opacity-85 sm:size-14"
-              />
+              <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+                {mode === "login" ? "Masuk Member" : "Daftar Member"}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#cdcdd4]">
+                {mode === "login"
+                  ? "Portal khusus customer untuk points, voucher, dan level member."
+                  : "Aktivasi akun member untuk menyimpan point dan level dari CRM POS."}
+              </p>
             </div>
 
             {mode === "login" ? (
@@ -339,92 +358,115 @@ export function MemberLoginScreen({
               </form>
             ) : (
               <form className="grid gap-4" onSubmit={handleRegister}>
+                <div className="rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 p-3 text-sm leading-6 text-[#dcfce7]">
+                  <span className="font-black text-white">Gratis &amp; cepat.</span> Begitu
+                  daftar, kamu langsung jadi member{" "}
+                  <span className="font-bold text-white">Silver</span> — dapat welcome
+                  voucher, poin tiap order, dan tersambung otomatis ke kasir &amp; CRM.
+                </div>
+
                 <label className="grid gap-2">
-                  <span className="garage-mono">Nama</span>
+                  <span className="garage-mono text-[#d6d6dc]">Nama Lengkap</span>
                   <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
                     <User size={17} className="shrink-0 text-[#f5a742]" />
                     <input
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                       className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
-                      placeholder="Nama member"
+                      placeholder="Nama kamu"
                       autoComplete="name"
                       required
                     />
                   </span>
                 </label>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="grid gap-2">
-                    <span className="garage-mono">Nomor HP</span>
-                    <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
-                      <Phone size={17} className="shrink-0 text-[#f5a742]" />
-                      <input
-                        value={phone}
-                        onChange={(event) => setPhone(event.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
-                        placeholder="0813..."
-                        autoComplete="tel"
-                        required
-                      />
-                    </span>
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="garage-mono">Email</span>
-                    <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
-                      <Mail size={17} className="shrink-0 text-[#f5a742]" />
-                      <input
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
-                        placeholder="Opsional"
-                        autoComplete="email"
-                      />
-                    </span>
-                  </label>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="grid gap-2">
-                    <span className="garage-mono">Tanggal Lahir</span>
-                    <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
-                      <Gift size={17} className="shrink-0 text-[#f5a742]" />
-                      <input
-                        value={birthday}
-                        onChange={(event) => setBirthday(event.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
-                        type="date"
-                      />
-                    </span>
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="garage-mono">Kode Referral</span>
-                    <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
-                      <BadgeCheck size={17} className="shrink-0 text-[#f5a742]" />
-                      <input
-                        value={referralCode}
-                        onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
-                        className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
-                        placeholder="Opsional"
-                      />
-                    </span>
-                  </label>
-                </div>
+
                 <label className="grid gap-2">
-                  <span className="garage-mono">Password / PIN</span>
+                  <span className="garage-mono text-[#d6d6dc]">Nomor HP</span>
+                  <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
+                    <Phone size={17} className="shrink-0 text-[#f5a742]" />
+                    <input
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
+                      placeholder="0813..."
+                      autoComplete="tel"
+                      inputMode="tel"
+                      required
+                    />
+                  </span>
+                </label>
+
+                <label className="grid gap-1.5">
+                  <span className="garage-mono text-[#d6d6dc]">Buat PIN</span>
                   <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
                     <LockKeyhole size={17} className="shrink-0 text-[#f5a742]" />
                     <input
                       value={registerPassword}
                       onChange={(event) => setRegisterPassword(event.target.value)}
                       className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
-                      placeholder="Minimal 6 karakter"
+                      placeholder="Min. 6 digit/karakter"
                       type="password"
                       autoComplete="new-password"
                       required
                     />
                   </span>
+                  <span className="text-xs text-[#9696a1]">Dipakai untuk login member berikutnya.</span>
                 </label>
-                <button className="btn btn-primary garage-login-submit mt-2 justify-center whitespace-nowrap" disabled={busy}>
-                  <span className="truncate">{busy ? "Memproses" : "Aktivasi Member"}</span>
+
+                {!showOptional ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowOptional(true)}
+                    className="garage-press inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#ffd79a]"
+                  >
+                    + Lengkapi data (opsional): email, ulang tahun, referral
+                  </button>
+                ) : (
+                  <div className="grid gap-4 rounded-md border border-[#34343c] bg-white/[0.02] p-3">
+                    <label className="grid gap-2">
+                      <span className="garage-mono text-[#d6d6dc]">Email (opsional)</span>
+                      <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
+                        <Mail size={17} className="shrink-0 text-[#f5a742]" />
+                        <input
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
+                          placeholder="nama@email.com"
+                          autoComplete="email"
+                        />
+                      </span>
+                    </label>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="garage-mono text-[#d6d6dc]">Tanggal Lahir</span>
+                        <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
+                          <Gift size={17} className="shrink-0 text-[#f5a742]" />
+                          <input
+                            value={birthday}
+                            onChange={(event) => setBirthday(event.target.value)}
+                            className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
+                            type="date"
+                          />
+                        </span>
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="garage-mono text-[#d6d6dc]">Kode Referral</span>
+                        <span className="flex items-center gap-3 border border-[#34343c] bg-white/[0.055] px-4 py-3 transition-colors focus-within:border-[#f5a742]">
+                          <BadgeCheck size={17} className="shrink-0 text-[#f5a742]" />
+                          <input
+                            value={referralCode}
+                            onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
+                            className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-[#777782]"
+                            placeholder="Punya kode teman?"
+                          />
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                <button className="btn btn-primary garage-login-submit mt-1 justify-center whitespace-nowrap" disabled={busy}>
+                  <span className="truncate">{busy ? "Memproses" : "Daftar Gratis"}</span>
                   <ArrowRight size={15} />
                 </button>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">

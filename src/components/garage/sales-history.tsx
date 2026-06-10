@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GarageApiError, garageApi } from "@/lib/api-client";
+import { printThermal } from "@/lib/print-client";
 import { CashierRulesPanel } from "@/components/garage/cashier-rules-panel";
 import {
   GarageEmpty,
@@ -494,14 +495,16 @@ function OrderDetailView({
         invoiceWebUrl: data.order.invoiceWebUrl,
       };
 
-      const res = await garageApi.post<{ success: boolean; printer?: string }>(
-        "/api/print/thermal",
-        { receipt },
-      );
+      const response = await printThermal({ receipt });
+      const res = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        printer?: string;
+        error?: { message?: string };
+      };
       setPrintResult(
-        res.success
+        response.ok && res.success
           ? `Tercetak${res.printer ? ` ke ${res.printer}` : ""}.`
-          : "Print gagal — cek thermal printer.",
+          : res.error?.message || "Print gagal — cek thermal printer / agen cetak lokal.",
       );
     } catch (err) {
       setPrintResult(

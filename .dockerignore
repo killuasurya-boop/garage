@@ -1,0 +1,27 @@
+# Build context kecil = build cepat. Jangan kirim artefak lokal & rahasia.
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.production.example
+
+# Data & artefak lokal PGlite (production pakai Postgres)
+.pglite-data
+pglite-data-*
+*.pglite
+
+# Tooling & dokumentasi yang tidak perlu di image
+.claude
+testsprite_tests
+docs
+design-system
+garage-profitmax
+garage-profitmax-ui
+certs
+*.md
+!README.md
+
+# OS / editor
+.DS_Store
+Thumbs.db

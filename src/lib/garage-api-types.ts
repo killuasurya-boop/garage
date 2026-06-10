@@ -84,6 +84,8 @@ export type KitchenOrder = {
   readyByName: string | null;
   deliveredAt: string | null;
   deliveredByName: string | null;
+  claimedBy?: string | null;
+  claimedByName?: string | null;
   createdAt: string;
   // Sequence dalam session meja yang sama: 1 = order pertama, 2+ = add-on
   addonSequence?: number;
@@ -512,6 +514,13 @@ export type PublicOrderStatus = {
   orderStatus: string;
   kitchenStatus: "waiting_cashier" | "queue" | "cooking" | "ready" | "delivered" | "rejected" | "completed";
   estimatedMinutes: number | null;
+  stations?: Array<{
+    station: string;
+    status: string;
+    etaSeconds: number | null;
+    targetSeconds: number;
+    cookingStartedAt: string | null;
+  }>;
   message: string;
   invoicePdfUrl?: string | null;
   invoiceWebUrl?: string | null;

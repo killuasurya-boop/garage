@@ -7,6 +7,8 @@ ArrowLeft,
 ArrowRight,
 Ban,
 Banknote,
+Camera,
+Loader2,
 BarChart3,
 Bell,
 Check,
@@ -45,6 +47,7 @@ Square,
 SunMedium,
 Timer,
 Trash2,
+UserPlus,
 Users,
 Volume2,
 Wallet,
@@ -55,6 +58,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import {
+ChangeEvent,
 FormEvent,
 useCallback,
 useDeferredValue,
@@ -83,10 +87,7 @@ defaultPaymentProvider,
 eWalletAccounts,
 fallbackTableLiveRow,
 generateTemporaryMemberPin,
-hasAwaitingTableBill,
-hasOpenTableBill,
 initialsForProfile,
-isPaidOnlyTable,
 isWaiterRole,
 loadCashierPosSettings,
 loadParkedOrders,
@@ -193,6 +194,7 @@ TableLiveRow,
 VoucherValidation
 } from "@/lib/garage-api-types";
 import { menuFilterMatches } from "@/lib/garage-api-types";
+import { printThermal } from "@/lib/print-client";
 import {
 currency
 } from "@/lib/garage-data";
@@ -528,6 +530,53 @@ export function PosView({
   // Sold-out flag per item (frontend-only). Persist ke localStorage.
   const [soldOutIds, setSoldOutIds] = useState<Set<string>>(new Set());
   const [soldOutDialogOpen, setSoldOutDialogOpen] = useState(false);
+  // Kasir daftarkan member (selalu Silver)
+  const [memberRegOpen, setMemberRegOpen] = useState(false);
+  const [memberRegName, setMemberRegName] = useState("");
+  const [memberRegPhone, setMemberRegPhone] = useState("");
+  const [memberRegPin, setMemberRegPin] = useState("");
+  const [memberRegBusy, setMemberRegBusy] = useState(false);
+  const [memberRegMsg, setMemberRegMsg] = useState<string | null>(null);
+
+  async function submitMemberRegister() {
+    if (!memberRegName.trim() || memberRegPhone.trim().length < 8 || memberRegPin.length < 6) {
+      setMemberRegMsg("Lengkapi nama, nomor HP, dan PIN (min. 6).");
+      return;
+    }
+    setMemberRegBusy(true);
+    setMemberRegMsg(null);
+    try {
+      const res = await fetch("/api/pos/member/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: memberRegName.trim(),
+          phone: memberRegPhone.trim(),
+          password: memberRegPin,
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        data?: { name?: string; memberCode?: string | null };
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        throw new Error(payload?.error?.message ?? "Daftar member gagal.");
+      }
+      setPosNotice(
+        `Member ${payload.data?.name ?? memberRegName.trim()} terdaftar (Silver)${
+          payload.data?.memberCode ? ` · ${payload.data.memberCode}` : ""
+        }.`,
+      );
+      setMemberRegName("");
+      setMemberRegPhone("");
+      setMemberRegPin("");
+      setMemberRegOpen(false);
+    } catch (error) {
+      setMemberRegMsg(error instanceof Error ? error.message : "Daftar member gagal.");
+    } finally {
+      setMemberRegBusy(false);
+    }
+  }
   const [soldOutQuery, setSoldOutQuery] = useState("");
   const [soldOutPendingIds, setSoldOutPendingIds] = useState<Set<string>>(new Set());
   // Riwayat struk shift untuk reprint (last 20)
@@ -693,6 +742,11 @@ export function PosView({
   const [qrPreviewLoading, setQrPreviewLoading] = useState(false);
   const [resetTableDialogOpen, setResetTableDialogOpen] = useState(false);
   const [selectedTableToReset, setSelectedTableToReset] = useState<TableLiveRow | null>(null);
+  // Cek Meja: panel detail saat tap kartu meja + filter status grid.
+  const [tableDetail, setTableDetail] = useState<TableLiveRow | null>(null);
+  const [tableMapFilter, setTableMapFilter] = useState<
+    "all" | "empty" | "occupied" | "cleaning"
+  >("all");
   const [qrPreviewError, setQrPreviewError] = useState<string | null>(null);
   const [tablePrintOpen, setTablePrintOpen] = useState(false);
   const [tablePrintMode, setTablePrintMode] = useState<"single" | "range" | "all">("single");
@@ -728,7 +782,7 @@ export function PosView({
         return next;
       });
     },
-    [],
+    [setCashierPosSettings],
   );
   const isCashierKiosk = me.role === "Kasir";
   const canManagePosSettings = me.role === "Owner / CEO" || me.role === "Admin";
@@ -1512,6 +1566,41 @@ export function PosView({
     }
   }, []);
 
+  // Sumber baris peta meja: live data kalau ada, kalau belum sinkron pakai
+  // fallback 50 meja kosong. Dipakai grid, ringkasan jumlah, dan filter.
+  const tableMapRows = useMemo<TableLiveRow[]>(
+    () =>
+      tableLiveRows.length
+        ? tableLiveRows
+        : tableNumbers.map((table) => ({
+            tableNumber: table,
+            tableLabel: `Meja ${table}`,
+            status: "empty",
+            currentOrderId: null,
+            orderNo: null,
+            customerName: null,
+            customerPhone: null,
+            total: 0,
+            timerMinutes: 0,
+            kitchenStatus: null,
+            needsCleaning: false,
+            lastStatusAt: null,
+          })),
+    [tableLiveRows],
+  );
+
+  const tableMapCounts = useMemo(() => {
+    let empty = 0;
+    let occupied = 0;
+    let cleaning = 0;
+    for (const row of tableMapRows) {
+      if (tableNeedsCleaning(row)) cleaning += 1;
+      else if (row.status === "empty" && !tableHasLiveSession(row)) empty += 1;
+      else occupied += 1;
+    }
+    return { empty, occupied, cleaning };
+  }, [tableMapRows]);
+
   const resetTableCleaning = useCallback(async (tableNumber: string) => {
     setTableLiveLoading(true);
     setResetTableDialogOpen(false);
@@ -2182,6 +2271,60 @@ export function PosView({
     }
   }
 
+  // Upload foto menu digital per item: owner pilih foto dari HP/galeri,
+  // di-upload ke server (dikompres ke webp), lalu jadi imageUrl item.
+  const menuPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const [menuPhotoTargetId, setMenuPhotoTargetId] = useState<string | null>(null);
+  const [menuPhotoUploadingId, setMenuPhotoUploadingId] = useState<string | null>(null);
+
+  function openMenuPhotoPicker(itemId: string) {
+    setMenuPhotoTargetId(itemId);
+    menuPhotoInputRef.current?.click();
+  }
+
+  async function removeMenuItemPhoto(itemId: string) {
+    try {
+      await garageApi.patch(`/api/menu/${encodeURIComponent(itemId)}`, { imageUrl: "" });
+      setPosNotice("Foto menu dihapus.");
+      void onOrderCreated();
+    } catch (error) {
+      setCustomerOrderError(
+        error instanceof Error ? error.message : "Gagal menghapus foto menu.",
+      );
+    }
+  }
+
+  async function onMenuPhotoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    const itemId = menuPhotoTargetId;
+    event.target.value = ""; // reset agar bisa pilih file yang sama lagi
+    if (!file || !itemId) return;
+    setMenuPhotoUploadingId(itemId);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch(`/api/menu/${encodeURIComponent(itemId)}/image`, {
+        method: "POST",
+        body: form,
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        throw new Error(payload?.error?.message ?? "Upload foto gagal.");
+      }
+      setPosNotice("Foto menu diperbarui.");
+      void onOrderCreated();
+    } catch (error) {
+      setCustomerOrderError(
+        error instanceof Error ? error.message : "Gagal upload foto menu.",
+      );
+    } finally {
+      setMenuPhotoUploadingId(null);
+      setMenuPhotoTargetId(null);
+    }
+  }
+
   async function clearAllSoldOut() {
     const ids = Array.from(soldOutIds);
     if (!ids.length) return;
@@ -2217,14 +2360,10 @@ export function PosView({
       reprintAt: new Date().toISOString(),
     };
     try {
-      const res = await fetch("/api/print/thermal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          receipt: reprintPayload,
-          printerName: reprintPayload.settings?.defaultPrinterName || undefined,
-          copies: reprintPayload.settings?.receiptCopies,
-        }),
+      const res = await printThermal({
+        receipt: reprintPayload,
+        printerName: reprintPayload.settings?.defaultPrinterName || undefined,
+        copies: reprintPayload.settings?.receiptCopies,
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: { message?: string };
@@ -3177,6 +3316,19 @@ export function PosView({
                 <Banknote className="size-4" />
                 Catat Pengeluaran
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
+                onClick={() => {
+                  setCashierMenuOpen(false);
+                  setMemberRegMsg(null);
+                  setMemberRegOpen(true);
+                }}
+              >
+                <UserPlus className="size-4" />
+                Daftar Member
+              </Button>
               {canQuickCount ? (
                 <Button
                   type="button"
@@ -3403,6 +3555,19 @@ export function PosView({
               >
                 <Banknote className="size-4" />
                 Catat Pengeluaran
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
+                onClick={() => {
+                  setCashierMenuOpen(false);
+                  setMemberRegMsg(null);
+                  setMemberRegOpen(true);
+                }}
+              >
+                <UserPlus className="size-4" />
+                Daftar Member
               </Button>
               {canQuickCount ? (
                 <Button
@@ -4171,6 +4336,163 @@ export function PosView({
             </Button>
           </div>
         </DialogContent>
+      </Dialog>
+
+      {/* Cek Meja: detail + aksi cepat saat tap kartu meja */}
+      <Dialog
+        open={Boolean(tableDetail)}
+        onOpenChange={(open) => {
+          if (!open) setTableDetail(null);
+        }}
+      >
+        {tableDetail
+          ? (() => {
+              const detailEmpty =
+                tableDetail.status === "empty" && !tableHasLiveSession(tableDetail);
+              const detailCleaning = tableNeedsCleaning(tableDetail);
+              const pickTable = () => {
+                setOrderType("dine-in");
+                setSelectedTableNumber(tableDetail.tableNumber);
+                setTableDetail(null);
+                setQrOperationsOpen(false);
+              };
+              return (
+                <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+                  <DialogHeader className="text-left">
+                    <DialogTitle className="flex items-center gap-2">
+                      <span
+                        className={`size-2.5 rounded-full ${
+                          detailEmpty ? "bg-[#22c55e]" : "bg-[#d11a2a]"
+                        }`}
+                      />
+                      Meja {tableDetail.tableNumber}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {detailCleaning
+                        ? "Perlu dibersihkan sebelum dipakai lagi."
+                        : detailEmpty
+                          ? "Meja kosong dan siap digunakan."
+                          : `Terisi · ${tableLiveStatusLabel(tableDetail)}`}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {!detailEmpty ? (
+                    <div className="space-y-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[#b8b8bf]">Status</span>
+                        <span className="font-semibold text-white">
+                          {tableLiveStatusLabel(tableDetail)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[#b8b8bf]">Durasi terisi</span>
+                        <span
+                          className={`garage-mono font-semibold ${
+                            tableDetail.timerMinutes >= 90
+                              ? "text-[#ffd08a]"
+                              : "text-white"
+                          }`}
+                        >
+                          {tableDetail.timerMinutes}m
+                        </span>
+                      </div>
+                      {tableDetail.orderNo ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[#b8b8bf]">Order</span>
+                          <span className="garage-mono font-semibold text-white">
+                            {tableDetail.orderNo}
+                          </span>
+                        </div>
+                      ) : null}
+                      {tableDetail.customerName ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[#b8b8bf]">Customer</span>
+                          <span className="truncate font-semibold text-white">
+                            {tableDetail.customerName}
+                          </span>
+                        </div>
+                      ) : null}
+                      {tableDetail.total > 0 ? (
+                        <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
+                          <span className="text-[#b8b8bf]">Total bill</span>
+                          <span className="garage-mono text-base font-black text-[#ffd08a]">
+                            {currency.format(tableDetail.total)}
+                          </span>
+                        </div>
+                      ) : null}
+                      {tableDetail.bills?.length ? (
+                        <div className="border-t border-[#34343c] pt-2">
+                          <p className="mb-1 text-[10px] uppercase tracking-wide text-[#8f8f98]">
+                            Bill
+                          </p>
+                          <div className="space-y-1">
+                            {tableDetail.bills.slice(0, 4).map((bill) => (
+                              <div
+                                key={bill.id}
+                                className="flex items-center justify-between gap-2 text-xs"
+                              >
+                                <span className="garage-mono truncate text-[#d6d6dc]">
+                                  {bill.orderNo}
+                                </span>
+                                <span className="shrink-0 text-[#b8b8bf]">
+                                  {bill.status} · {currency.format(bill.total)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      className="garage-press h-11 bg-[#d11a2a] text-sm text-white hover:bg-[#ff2a3a]"
+                      onClick={pickTable}
+                    >
+                      {detailEmpty
+                        ? "Pilih meja ini untuk order"
+                        : "Tambah order ke meja ini"}
+                    </Button>
+                    {!detailEmpty ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="garage-press h-11 border-[#4a4a54] bg-white/[0.05] text-sm"
+                        onClick={() => {
+                          const target = tableDetail.tableNumber;
+                          setTableDetail(null);
+                          setQrInsightFilters((current) => ({
+                            ...current,
+                            table: target,
+                          }));
+                          setQrWorkTab("qr_control");
+                        }}
+                      >
+                        Lihat bill di QR control
+                      </Button>
+                    ) : null}
+                    {detailCleaning ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="garage-press h-11 border-[#22c55e]/55 bg-[#22c55e]/12 text-sm text-[#dcfce7]"
+                        onClick={() => {
+                          const target = tableDetail;
+                          setTableDetail(null);
+                          setSelectedTableToReset(target);
+                          setResetTableDialogOpen(true);
+                        }}
+                      >
+                        Bersihkan meja
+                      </Button>
+                    ) : null}
+                  </div>
+                </DialogContent>
+              );
+            })()
+          : null}
       </Dialog>
 
       <Dialog open={memberCreateOpen} onOpenChange={setMemberCreateOpen}>
@@ -5584,65 +5906,86 @@ export function PosView({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="garage-mono text-[11px] uppercase tracking-[0.16em] text-[#b8b8bf]">
-                    Live table map
+                    Cek meja
                   </p>
-                  <h3 className="mt-1 text-base font-black text-white">50 meja outlet</h3>
+                  <h3 className="mt-1 text-base font-black text-white">
+                    {tableMapRows.length} meja outlet
+                  </h3>
                 </div>
-                <Badge className={`${tableLiveRows.some((row) => hasOpenTableBill(row) || tableNeedsCleaning(row)) ? statusClass.warning : statusClass.ready} w-fit px-2 text-[10px]`}>
-                  {tableLiveRows.filter(tableHasLiveSession).length} aktif
-                </Badge>
+                {/* Ringkasan cepat: kosong / terisi / perlu bersih */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[#22c55e]/45 bg-[#22c55e]/12 px-2 py-1 text-[11px] font-semibold text-[#dcfce7]">
+                    <span className="size-2 rounded-full bg-[#22c55e]" />
+                    {tableMapCounts.empty} kosong
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 px-2 py-1 text-[11px] font-semibold text-[#ffc2c8]">
+                    <span className="size-2 rounded-full bg-[#d11a2a]" />
+                    {tableMapCounts.occupied} terisi
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/12 px-2 py-1 text-[11px] font-semibold text-[#ffd08a]">
+                    <span className="size-2 rounded-full bg-[#f5a742]" />
+                    {tableMapCounts.cleaning} perlu bersih
+                  </span>
+                </div>
               </div>
+
+              {/* Filter chips */}
+              <div className="garage-scroll-x mt-3 flex gap-1.5 pb-0.5">
+                {([
+                  { value: "all", label: `Semua (${tableMapRows.length})` },
+                  { value: "empty", label: `Kosong (${tableMapCounts.empty})` },
+                  { value: "occupied", label: `Terisi (${tableMapCounts.occupied})` },
+                  { value: "cleaning", label: `Perlu bersih (${tableMapCounts.cleaning})` },
+                ] as const).map((chip) => {
+                  const active = tableMapFilter === chip.value;
+                  return (
+                    <Button
+                      key={chip.value}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={`garage-press h-8 shrink-0 px-3 text-xs ${
+                        active
+                          ? "border-[#d11a2a]/70 bg-[#d11a2a]/18 text-white"
+                          : "border-[#34343c] bg-white/[0.045] text-[#d6d6dc]"
+                      }`}
+                      onClick={() => setTableMapFilter(chip.value)}
+                    >
+                      {chip.label}
+                    </Button>
+                  );
+                })}
+              </div>
+
               <div className="mt-3 grid grid-cols-5 gap-1.5 sm:grid-cols-10 2xl:grid-cols-[repeat(25,minmax(0,1fr))]">
-                {(tableLiveRows.length ? tableLiveRows : tableNumbers.map((table) => ({
-                  tableNumber: table,
-                  tableLabel: `Meja ${table}`,
-                  status: "empty",
-                  currentOrderId: null,
-                  orderNo: null,
-                  customerName: null,
-                  customerPhone: null,
-                  total: 0,
-                  timerMinutes: 0,
-                  kitchenStatus: null,
-                  needsCleaning: false,
-                  lastStatusAt: null,
-                } satisfies TableLiveRow))).map((table) => {
+                {tableMapRows
+                  .filter((table) => {
+                    if (tableMapFilter === "all") return true;
+                    const cleaning = tableNeedsCleaning(table);
+                    const empty =
+                      table.status === "empty" && !tableHasLiveSession(table);
+                    if (tableMapFilter === "cleaning") return cleaning;
+                    if (tableMapFilter === "empty") return empty;
+                    return !empty && !cleaning;
+                  })
+                  .map((table) => {
                   const isNeedsCleaning = tableNeedsCleaning(table);
+                  // Binary occupancy: meja kosong = hijau, meja terisi (ada order /
+                  // bill / lunas belum di-clear / perlu bersih) = merah.
                   const isEmpty = table.status === "empty" && !tableHasLiveSession(table);
-                  const hasBill = hasOpenTableBill(table);
-                  const paidOnly = isPaidOnlyTable(table);
-                  const isActive = tableHasLiveSession(table) && !isNeedsCleaning && !paidOnly;
-                  const toneClass =
-                    hasAwaitingTableBill(table)
-                      ? "border-[#f5a742]/65 bg-[#f5a742]/16"
-                      : hasBill
-                        ? "border-[#f5a742]/65 bg-[#f5a742]/16"
-                      : paidOnly
-                        ? "border-[#22c55e]/55 bg-[#22c55e]/12"
-                        : table.status === "rejected"
-                          ? "border-[#d11a2a]/55 bg-[#d11a2a]/12"
-                          : isNeedsCleaning
-                            ? "border-[#d11a2a]/55 bg-[#d11a2a]/14"
-                            : isActive
-                              ? "border-[#d4d4d8]/35 bg-white/[0.07]"
-                              : "border-[#303038] bg-black/12";
+                  // Meja terisi > 90 menit ditandai amber (perlu perhatian).
+                  const isLongOccupied = !isEmpty && table.timerMinutes >= 90;
+                  const toneClass = isEmpty
+                    ? "border-[#22c55e]/55 bg-[#22c55e]/14"
+                    : "border-[#d11a2a]/55 bg-[#d11a2a]/14";
                   return (
                     <button
                       key={table.tableNumber}
                       type="button"
-                      className={`garage-press relative min-h-[76px] w-full rounded-md border p-2 text-left transition sm:min-h-[80px] ${toneClass}`}
-                      onClick={() => {
-                        if (isNeedsCleaning) {
-                          setSelectedTableToReset(table);
-                          setResetTableDialogOpen(true);
-                        } else {
-                          setQrInsightFilters((current) => ({
-                            ...current,
-                            table: table.tableNumber,
-                          }));
-                          setQrWorkTab("qr_control");
-                        }
-                      }}
+                      className={`garage-press relative min-h-[76px] w-full rounded-md border p-2 text-left transition sm:min-h-[80px] ${toneClass} ${
+                        isLongOccupied ? "ring-2 ring-[#f5a742]/70" : ""
+                      }`}
+                      onClick={() => setTableDetail(table)}
                     >
                       {/* Indicator dot */}
                       <div className="flex items-center justify-between gap-1">
@@ -5650,19 +5993,7 @@ export function PosView({
                           {table.tableNumber}
                         </span>
                         <span className={`size-2 shrink-0 rounded-full ${
-                          hasAwaitingTableBill(table)
-                            ? "bg-[#f5a742]"
-                            : hasBill
-                              ? "bg-[#f5a742]"
-                            : paidOnly
-                              ? "bg-[#22c55e]"
-                              : table.status === "rejected"
-                                ? "bg-[#d11a2a]"
-                                : isNeedsCleaning
-                                  ? "bg-[#d11a2a]"
-                                  : isActive
-                                    ? "bg-[#d4d4d8]"
-                                    : "bg-[#4a4a54]"
+                          isEmpty ? "bg-[#22c55e]" : "bg-[#d11a2a]"
                         }`} />
                       </div>
 
@@ -5682,8 +6013,10 @@ export function PosView({
                           <p className="truncate text-[10px] font-semibold leading-tight text-[#d6d6dc] sm:text-[11px]">
                             {tableLiveStatusLabel(table)}
                           </p>
-                          <p className="garage-mono mt-0.5 truncate text-[9px] text-[#8f8f98] sm:text-[10px]">
-                            {table.orderNo} ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {table.timerMinutes}m
+                          <p className={`garage-mono mt-0.5 truncate text-[9px] sm:text-[10px] ${
+                            isLongOccupied ? "font-bold text-[#ffd08a]" : "text-[#8f8f98]"
+                          }`}>
+                            {table.orderNo} · {table.timerMinutes}m
                           </p>
                         </div>
                       ) : (
@@ -5699,6 +6032,20 @@ export function PosView({
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Legend warna meja */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#34343c] pt-2 text-[10px] text-[#8f8f98]">
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2 rounded-full bg-[#22c55e]" /> Kosong
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2 rounded-full bg-[#d11a2a]" /> Terisi
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2 rounded-sm bg-[#d11a2a] ring-2 ring-[#f5a742]/70" /> Terisi &gt; 90 menit
+                </span>
+                <span className="ml-auto hidden sm:inline">Tap meja untuk detail &amp; aksi</span>
               </div>
             </div>
           ) : null}
@@ -6551,12 +6898,12 @@ export function PosView({
                         {isAll
                           ? "Semua"
                           : group === "Dapur"
-                            ? "ðŸ´ Dapur"
-                            : "â˜• Bar"}
+                            ? "🍴 Dapur"
+                            : "☕ Bar"}
                       </Button>
                     );
                   })}
-                  {/* Filter Bestseller â€” toggle untuk highlight top items */}
+                  {/* Filter Bestseller — toggle untuk highlight top items */}
                   <Button
                     type="button"
                     size="sm"
@@ -6568,7 +6915,7 @@ export function PosView({
                     }`}
                     onClick={() => setBestsellerOnly((v) => !v)}
                   >
-                    â­ Bestseller
+                    ⭐ Bestseller
                   </Button>
                 </div>
                 {(menuCategory === "Dapur" ||
@@ -6981,7 +7328,7 @@ export function PosView({
                       </p>
                       {manualDiscountAwaitingApproval ? (
                         <p className="text-[10px] font-semibold text-[#ffd79a]">
-                          Menunggu approval supervisorâ€¦
+                          Menunggu approval supervisor…
                         </p>
                       ) : null}
                     </>
@@ -7806,7 +8153,7 @@ export function PosView({
             <div>
               <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
                 {manualDiscountTypeInput === "percent"
-                  ? "Persen diskon (1â€“100)"
+                  ? "Persen diskon (1–100)"
                   : "Nominal diskon (Rp)"}
               </p>
               <Input
@@ -7886,6 +8233,76 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
+      {/* Dialog: Daftar Member (kasir) */}
+      <Dialog open={memberRegOpen} onOpenChange={setMemberRegOpen}>
+        <DialogContent
+          data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
+          className="border-[#34343c] bg-[#111116] sm:max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>Daftar Member Baru</DialogTitle>
+            <DialogDescription>
+              Daftarkan pelanggan jadi member Silver. Pakai PIN sederhana yang mudah
+              diingat (mis. 6 digit). Tier lebih tinggi diatur lewat menu Membership.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-[#d6d6dc]">Nama</span>
+              <Input
+                value={memberRegName}
+                onChange={(e) => setMemberRegName(e.target.value)}
+                placeholder="Nama pelanggan"
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-[#d6d6dc]">Nomor HP</span>
+              <Input
+                value={memberRegPhone}
+                onChange={(e) => setMemberRegPhone(e.target.value)}
+                placeholder="0813..."
+                inputMode="tel"
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-[#d6d6dc]">PIN</span>
+              <Input
+                value={memberRegPin}
+                onChange={(e) => setMemberRegPin(e.target.value)}
+                placeholder="Min. 6 digit"
+                type="password"
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </div>
+            {memberRegMsg ? (
+              <p className="rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/12 px-3 py-2 text-xs font-semibold text-[#ffb4bd]">
+                {memberRegMsg}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-10 border-[#4a4a54]"
+              onClick={() => setMemberRegOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              className="garage-press h-10"
+              disabled={memberRegBusy}
+              onClick={() => void submitMemberRegister()}
+            >
+              {memberRegBusy ? "Mendaftar..." : "Daftarkan (Silver)"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog: Atur Stok Habis */}
       <Dialog open={soldOutDialogOpen} onOpenChange={setSoldOutDialogOpen}>
         <DialogContent
@@ -7893,10 +8310,10 @@ export function PosView({
           className="flex max-h-[88svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] sm:max-w-xl"
         >
           <DialogHeader>
-            <DialogTitle>Atur Stok Habis</DialogTitle>
+            <DialogTitle>Atur Menu Digital</DialogTitle>
             <DialogDescription>
-              Tandai item yang habis supaya terkunci di POS dan Menu Digital QR
-              semua customer.
+              Ketuk item untuk tandai HABIS (terkunci di POS &amp; Menu Digital QR),
+              atau tekan ikon kamera untuk set foto menu.
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2">
@@ -7932,45 +8349,86 @@ export function PosView({
               return filtered.map((item) => {
                 const isSoldOut = soldOutIds.has(item.id);
                 const isPending = soldOutPendingIds.has(item.id);
+                const hasPhoto = Boolean(item.imageUrl);
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => void updateSoldOutStock(item.id, !isSoldOut)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition ${
+                    className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition ${
                       isSoldOut
                         ? "border-[#d11a2a]/55 bg-[#d11a2a]/14"
-                        : "border-[#34343c] bg-white/[0.04] hover:bg-white/[0.08]"
-                    } disabled:cursor-wait disabled:opacity-70`}
+                        : "border-[#34343c] bg-white/[0.04]"
+                    }`}
                   >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">
-                        {item.name}
-                      </p>
-                      <p className="truncate text-[11px] text-[#b8b8bf]">
-                        {item.category} Â· {item.section}
-                      </p>
-                    </div>
-                    {isPending ? (
-                      <Badge className="border-[#f5a742]/55 bg-[#f5a742]/14 px-2 text-[10px] text-[#ffd08a]">
-                        Sync...
-                      </Badge>
-                    ) : isSoldOut ? (
-                      <Badge className="border-[#d11a2a]/55 bg-[#d11a2a]/22 px-2 text-[10px] font-extrabold text-[#ffe1e5]">
-                        <Ban className="mr-1 size-3" />
-                        HABIS
-                      </Badge>
-                    ) : (
-                      <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px] text-[#d6d6dc]">
-                        Tersedia
-                      </Badge>
-                    )}
-                  </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => void updateSoldOutStock(item.id, !isSoldOut)}
+                      className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded px-1 py-1 text-left transition hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-70"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">
+                          {item.name}
+                        </p>
+                        <p className="truncate text-[11px] text-[#b8b8bf]">
+                          {item.category} &middot; {item.section}
+                        </p>
+                      </div>
+                      {isPending ? (
+                        <Badge className="border-[#f5a742]/55 bg-[#f5a742]/14 px-2 text-[10px] text-[#ffd08a]">
+                          Sync...
+                        </Badge>
+                      ) : isSoldOut ? (
+                        <Badge className="border-[#d11a2a]/55 bg-[#d11a2a]/22 px-2 text-[10px] font-extrabold text-[#ffe1e5]">
+                          <Ban className="mr-1 size-3" />
+                          HABIS
+                        </Badge>
+                      ) : (
+                        <Badge className="border-[#4a4a54] bg-white/[0.08] px-2 text-[10px] text-[#d6d6dc]">
+                          Tersedia
+                        </Badge>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      title={hasPhoto ? "Ganti foto menu" : "Upload foto menu"}
+                      aria-label={`Upload foto ${item.name}`}
+                      disabled={menuPhotoUploadingId === item.id}
+                      onClick={() => openMenuPhotoPicker(item.id)}
+                      className={`garage-press flex size-9 shrink-0 items-center justify-center rounded-md border transition disabled:opacity-60 ${
+                        hasPhoto
+                          ? "border-[#79e2b9]/45 bg-[#79e2b9]/12 text-[#8df7cc] hover:bg-[#79e2b9]/20"
+                          : "border-[#4a4a54] bg-white/[0.05] text-[#d6d6dc] hover:bg-white/[0.1]"
+                      }`}
+                    >
+                      {menuPhotoUploadingId === item.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Camera className="size-4" />
+                      )}
+                    </button>
+                    {hasPhoto ? (
+                      <button
+                        type="button"
+                        title="Hapus foto"
+                        aria-label={`Hapus foto ${item.name}`}
+                        onClick={() => void removeMenuItemPhoto(item.id)}
+                        className="garage-press flex size-9 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/10 text-[#ffb4bd] transition hover:bg-[#d11a2a]/20"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    ) : null}
+                  </div>
                 );
               });
             })()}
           </div>
+          <input
+            ref={menuPhotoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => void onMenuPhotoSelected(event)}
+          />
           <div className="flex justify-end pt-2">
             <Button
               type="button"
@@ -8461,7 +8919,7 @@ export function PosView({
                                         [item.sku]: event.target.value,
                                       }))
                                     }
-                                    placeholder="â€”"
+                                    placeholder="—"
                                     className="ml-auto h-9 w-24 border-[#34343c] bg-white/[0.06] text-right"
                                   />
                                 </TableCell>
@@ -8481,7 +8939,7 @@ export function PosView({
                                     </span>
                                   ) : (
                                     <span className="text-[11px] text-[#8f8f99]">
-                                      â€”
+                                      —
                                     </span>
                                   )}
                                 </TableCell>
@@ -8780,11 +9238,9 @@ function CheckoutOrderStep({
                       ? "border-[#f5a742]/80 bg-[#f5a742]/12 text-white ring-2 ring-[#f5a742]/55"
                       : availability === "ready"
                         ? "border-[#22c55e]/50 bg-[#22c55e]/10 text-[#dcfce7]"
-                        : availability === "paid"
-                          ? "border-[#22c55e]/55 bg-[#22c55e]/12 text-[#dcfce7]"
                         : availability === "bill"
                           ? "border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffd08a]"
-                        : availability === "cleaning" || availability === "full"
+                        : availability === "cleaning" || availability === "full" || availability === "paid"
                           ? "border-[#d11a2a]/55 bg-[#d11a2a]/12 text-[#ffc2c8]"
                           : "border-[#303038] bg-black/16 text-[#d4d4d8]"
                   }`}
@@ -9632,14 +10088,10 @@ function PaymentCompletePanel({
     setPrintStatus("printing");
     setPrintError("");
     try {
-      const res = await fetch("/api/print/thermal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          receipt,
-          printerName: receipt.settings?.defaultPrinterName || undefined,
-          copies: receipt.settings?.receiptCopies,
-        }),
+      const res = await printThermal({
+        receipt,
+        printerName: receipt.settings?.defaultPrinterName || undefined,
+        copies: receipt.settings?.receiptCopies,
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: { message?: string };
@@ -9797,7 +10249,7 @@ function PaymentCompletePanel({
           </div>
           {waSentTo && !waEditing && (
             <span className="garage-mono text-[10px] uppercase tracking-wide text-[#4ade80]">
-              âœ“ Terkirim
+              ✓ Terkirim
             </span>
           )}
         </div>

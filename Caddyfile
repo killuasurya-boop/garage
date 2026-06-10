@@ -1,0 +1,12 @@
+# Ganti app.namawarung.com dengan domain Anda (sudah diarahkan A record ke IP VPS).
+# Caddy otomatis terbitkan & perpanjang sertifikat HTTPS (Let's Encrypt).
+{$GARAGE_DOMAIN} {
+	encode gzip zstd
+
+	# Upload gambar menu bisa besar — naikkan limit body.
+	request_body {
+		max_size 12MB
+	}
+
+	reverse_proxy app:3000
+}

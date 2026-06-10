@@ -86,3 +86,5 @@ backups/pglite-snapshot-*/
 /.garage/
 # Output generated (moodboards, dll).
 /outputs/
+
+testsprite_tests\tmp\config.json

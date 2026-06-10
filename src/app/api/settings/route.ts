@@ -74,6 +74,12 @@ const patchSchema = z.object({
     .refine(isThemePresetId, "Tema Garage OS tidak dikenal.")
     .refine(isSavableGarageOsThemePreset, "Hanya tema operasional MVP yang boleh disimpan.")
     .optional(),
+  // Tarif fee staf (Rupiah per item)
+  feeWaiterDeliveredPerItem: z.number().int().min(0).max(100_000).optional(),
+  feeKitchenReadyPerItem: z.number().int().min(0).max(100_000).optional(),
+  feeBaristaReadyPerItem: z.number().int().min(0).max(100_000).optional(),
+  feePackagingReadyPerItem: z.number().int().min(0).max(100_000).optional(),
+  feeCashierPaidPerItem: z.number().int().min(0).max(100_000).optional(),
 });
 
 export async function GET() {

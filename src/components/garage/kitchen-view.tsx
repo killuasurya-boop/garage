@@ -125,9 +125,10 @@ export function KitchenView({
   const canEarn = canUseApi(role, "earnings:read");
 
   useEffect(() => {
-    // SLA ticker â€” 5 detik cukup untuk warn/late tone (toleransi menit),
-    // 1 detik bikin seluruh KitchenView re-render tiap detik tanpa benefit visual.
-    const id = window.setInterval(() => setNow(new Date()), 5000);
+    // Ticker 1 detik supaya hitung mundur "SISA" turun mulus per detik di KDS
+    // dapur & bar. KitchenView memang re-render tiap detik, tapi countdown yang
+    // terlihat berjalan lebih penting untuk operasional daripada hemat render.
+    const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -293,13 +294,26 @@ export function KitchenView({
       const nextStatus = statusOverrides[order.id] ?? order.status;
       const targetMin = order.targetMinutes > 0 ? order.targetMinutes : order.targetGroup === "drink" ? 5 : 15;
       const targetSec = targetMin * 60;
-      const prodStart = acceptedAt && !Number.isNaN(acceptedAt.getTime()) ? acceptedAt : null;
+      const acceptedValid = acceptedAt && !Number.isNaN(acceptedAt.getTime());
+      // Tiket yang sudah diproses (bukan "queue") tapi acceptedAt belum tercatat
+      // â€” mis. data seed/demo atau tiket lama â€” harus tetap pakai titik mulai live
+      // (createdAt) supaya hitung mundur berjalan, bukan beku di order.elapsed statis.
+      const prodStart = acceptedValid
+        ? acceptedAt
+        : nextStatus !== "queue"
+          ? createdAt
+          : null;
       const prodEnd = readyAt && !Number.isNaN(readyAt.getTime()) ? readyAt : null;
+      // Timer hanya berjalan live SELAMA "cooking". Begitu tiket ready/delivered
+      // (sudah di-acc waiter/bar) atau punya readyAt, waktu HARUS berhenti â€”
+      // tidak boleh terus menghitung atau menambah "LEWAT". prodEnd (readyAt)
+      // membekukan ke durasi nyata; tanpa readyAt (data seed) dibekukan ke
+      // order.elapsed supaya tidak ikut tick "now".
       const prodSec = prodEnd
         ? Math.max(0, Math.floor((prodEnd.getTime() - (prodStart?.getTime() ?? createdAt.getTime())) / 1000))
-        : prodStart
+        : nextStatus === "cooking" && prodStart
           ? Math.max(0, Math.floor((now.getTime() - prodStart.getTime()) / 1000))
-          : Math.max(order.elapsed * 60, nextStatus === "queue" ? 0 : 0);
+          : Math.max(order.elapsed * 60, 0);
       const remainingSec = targetSec - prodSec;
       const isLate = nextStatus !== "queue" && prodSec > targetSec;
       const isWarning = nextStatus === "cooking" && !isLate && remainingSec <= 120;

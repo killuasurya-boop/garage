@@ -24,6 +24,8 @@ const menuProductUpdateSchema = z.object({
   prep: z.string().trim().min(1).max(20).optional(),
   tags: z.array(z.string().trim().min(1).max(32)).max(8).optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
+  // URL foto menu; string kosong = hapus foto (pakai ikon kategori).
+  imageUrl: z.string().trim().url().max(500).or(z.literal("")).optional(),
   variants: z
     .array(
       z.object({

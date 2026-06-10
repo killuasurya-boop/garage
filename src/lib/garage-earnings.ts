@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
+import type { StaffFeeRates } from "@/lib/garage-app-settings-types";
 import {
   earningsFailedQueue,
   kitchenTickets,
@@ -121,37 +122,44 @@ export type EarningEvent =
  * Lookup unit fee in IDR per item qty based on the staff role and the
  * earning event. Returns 0 when the role is not eligible.
  */
-export function lookupUnitFee(input: {
-  role: string;
-  itemKind: EarningItemKind;
-  event: EarningEvent;
-}): number {
+export function lookupUnitFee(
+  input: {
+    role: string;
+    itemKind: EarningItemKind;
+    event: EarningEvent;
+  },
+  fees?: StaffFeeRates,
+): number {
   const { role, itemKind, event } = input;
+  // Tarif dari Pengaturan kalau tersedia; jika tidak, fallback ke default lama.
+  const kitchenFee = fees?.feeKitchenReadyPerItem ?? 200;
+  const baristaFee = fees?.feeBaristaReadyPerItem ?? 200;
+  const packagingFee = fees?.feePackagingReadyPerItem ?? 200;
+  const waiterFee = fees?.feeWaiterDeliveredPerItem ?? 100;
+  const cashierFee = fees?.feeCashierPaidPerItem ?? 200;
 
   if (event === "ticket_ready") {
     if (itemKind === "food") {
-      if (role === "Koki") return 200;
-      if (role === "Asisten Koki") return 200;
+      if (role === "Koki" || role === "Asisten Koki") return kitchenFee;
       return 0;
     }
     if (itemKind === "drink") {
-      if (role === "Barista") return 200;
-      if (role === "Kitchen / Barista") return 200;
+      if (role === "Barista" || role === "Kitchen / Barista") return baristaFee;
       return 0;
     }
-    if (itemKind === "packaging") return 200;
+    if (itemKind === "packaging") return packagingFee;
     return 0;
   }
 
   if (event === "ticket_delivered") {
     if (itemKind !== "service") return 0;
-    if (role === "Waiter 1" || role === "Waiter 2") return 100;
+    if (role === "Waiter 1" || role === "Waiter 2") return waiterFee;
     return 0;
   }
 
   if (event === "order_paid") {
     if (itemKind !== "cashier") return 0;
-    if (role === "Kasir") return 200;
+    if (role === "Kasir") return cashierFee;
     return 0;
   }
 
@@ -324,6 +332,7 @@ type RecordTicketReadyInput = {
   staffRole: string;
   outletId: string | null;
   earnedAt?: Date;
+  fees?: StaffFeeRates;
 };
 
 /**
@@ -417,11 +426,14 @@ export async function recordTicketReadyEarnings(input: RecordTicketReadyInput) {
       const key = `${recipient.staffUserId}:${item.id}:${recipient.staffRole}`;
       if (existingKeys.has(key)) return [];
 
-      const unitFee = lookupUnitFee({
-        role: recipient.staffRole,
-        itemKind: ticketKind,
-        event: "ticket_ready",
-      });
+      const unitFee = lookupUnitFee(
+        {
+          role: recipient.staffRole,
+          itemKind: ticketKind,
+          event: "ticket_ready",
+        },
+        input.fees,
+      );
       if (unitFee <= 0) return [];
 
       return {
@@ -456,6 +468,7 @@ type RecordTicketDeliveredInput = {
   staffRole: string;
   outletId: string | null;
   earnedAt?: Date;
+  fees?: StaffFeeRates;
 };
 
 export async function recordTicketDeliveredEarnings(input: RecordTicketDeliveredInput) {
@@ -471,11 +484,14 @@ export async function recordTicketDeliveredEarnings(input: RecordTicketDelivered
   });
   if (!earningStaff) return [];
 
-  const unitFee = lookupUnitFee({
-    role: earningStaff.staffRole,
-    itemKind: "service",
-    event: "ticket_delivered",
-  });
+  const unitFee = lookupUnitFee(
+    {
+      role: earningStaff.staffRole,
+      itemKind: "service",
+      event: "ticket_delivered",
+    },
+    input.fees,
+  );
   if (unitFee <= 0) return [];
 
   // Idempotent: skip if waiter already credited this ticket
@@ -532,6 +548,7 @@ type RecordOrderPaidInput = {
   staffRole: string;
   outletId: string | null;
   earnedAt?: Date;
+  fees?: StaffFeeRates;
 };
 
 export async function recordOrderPaidEarnings(input: RecordOrderPaidInput) {
@@ -547,11 +564,14 @@ export async function recordOrderPaidEarnings(input: RecordOrderPaidInput) {
   });
   if (!earningStaff) return [];
 
-  const unitFee = lookupUnitFee({
-    role: earningStaff.staffRole,
-    itemKind: "cashier",
-    event: "order_paid",
-  });
+  const unitFee = lookupUnitFee(
+    {
+      role: earningStaff.staffRole,
+      itemKind: "cashier",
+      event: "order_paid",
+    },
+    input.fees,
+  );
   if (unitFee <= 0) return [];
 
   // Idempotent: skip if kasir already credited this order

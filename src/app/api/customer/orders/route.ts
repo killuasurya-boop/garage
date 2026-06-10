@@ -18,6 +18,8 @@ const itemSchema = z.object({
   itemId: z.string().trim().min(1),
   variantId: z.string().trim().min(1),
   qty: z.number().int().positive().max(25),
+  // Catatan per-item opsional (mis. "less ice", "tanpa bawang").
+  note: z.string().trim().max(160).optional(),
 });
 
 const customerOrderSchema = z.object({
@@ -26,7 +28,11 @@ const customerOrderSchema = z.object({
   outletId: z.string().uuid().optional(),
   customerMode: z.enum(["guest", "member"]).default("guest"),
   guestName: z.string().trim().min(2).max(80).optional(),
-  guestPhone: z.string().trim().min(8).max(24).optional(),
+  // WA opsional: string kosong diperlakukan sebagai tidak diisi (undefined).
+  guestPhone: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().trim().min(8).max(24).optional(),
+  ),
   customerNote: z.string().trim().max(240).optional(),
   source: z.enum(["qr_table", "qr_takeaway", "instagram", "campaign"]).optional(),
   campaign: z.string().trim().max(80).optional(),
@@ -67,8 +73,9 @@ export async function POST(request: Request) {
       return fail(401, "MEMBER_LOGIN_REQUIRED", "Login member diperlukan untuk checkout member.");
     }
     memberCustomerId = member.data.customer.id;
-  } else if (!body.data.guestName || !body.data.guestPhone) {
-    return fail(400, "GUEST_REQUIRED", "Nama dan nomor WhatsApp guest wajib diisi.");
+  } else if (!body.data.guestName) {
+    // Nomor WhatsApp opsional untuk guest â€” cukup nama untuk lanjut transaksi.
+    return fail(400, "GUEST_REQUIRED", "Nama customer wajib diisi.");
   }
 
   // Anti double-tap QR ordering: klien kirim X-Idempotency-Key per submission.

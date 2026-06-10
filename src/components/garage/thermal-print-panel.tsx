@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import type { OrderReceipt } from "@/lib/garage-api-types";
+import { printThermal } from "@/lib/print-client";
 
 interface ThermalPrintProps {
   receipt: OrderReceipt;
@@ -37,10 +38,10 @@ export function ThermalPrintPanel({ receipt, onClose, onPrintAgain }: ThermalPri
     setShowDetail(false);
 
     try {
-      const res = await fetch("/api/print/thermal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receipt }),
+      const res = await printThermal({
+        receipt,
+        printerName: receipt.settings?.defaultPrinterName || undefined,
+        copies: receipt.settings?.receiptCopies,
       });
 
       const data = (await res.json().catch(() => ({}))) as {

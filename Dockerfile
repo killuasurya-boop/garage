@@ -17,6 +17,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Placeholder build-time only: `next build` (page-data collection) menyentuh
+# modul auth yang mewajibkan secret saat NODE_ENV=production. Nilai ASLI
+# di-inject saat runtime via env_file; placeholder ini tidak pernah dipakai
+# untuk signing produksi.
+ENV BETTER_AUTH_SECRET=build-time-placeholder-not-used-at-runtime
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 # DB tidak dihubungi saat build (init Drizzle lazy/build-safe).
 RUN npm run build
 

@@ -1,0 +1,254 @@
+// ============================================
+// GARAGE ProfitMax — Prisma Schema v1.0 (SQLite Version)
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ----- USERS & AUTH -----
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  username     String    @unique
+  password     String    // bcrypt hashed
+  role         String    @default("KASIR") // ENUM: SUPER_ADMIN, MANAGER, KASIR, BARISTA, MARKETING
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  transactions Transaction[]
+  payrolls     Payroll[]
+}
+
+// ----- BAHAN BAKU -----
+
+model Ingredient {
+  id           String    @id @default(cuid())
+  code         String    @unique  // e.g., "ING-001"
+  name         String
+  unit         String    // gram, ml, pcs, lembar, butir
+  buyUnit      String    // "1 kg", "1 liter", "per pcs"
+  buyPrice     Float     // Harga beli per satuan beli
+  pricePerUnit Float     // Harga per unit kecil (per gram/ml/pcs)
+  category     String    // ENUM: KOPI, SUSU_DAIRY, dll.
+  currentStock Float     @default(0)
+  minimumStock Float     @default(0)
+  lastUpdated  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  recipeItems  RecipeIngredient[]
+  stockLogs    StockLog[]
+}
+
+// ----- MENU & RESEP -----
+
+model MenuCategory {
+  id    String @id @default(cuid())
+  code  String @unique  
+  name  String
+  menus Menu[]
+}
+
+model Menu {
+  id            String       @id @default(cuid())
+  code          String       @unique  
+  name          String
+  categoryId    String
+  category      MenuCategory @relation(fields: [categoryId], references: [id])
+  variant       String?      
+  hpp           Float        
+  oldPrice      Float?       
+  currentPrice  Float        
+  profit        Float        
+  margin        Float        
+  priceStatus   String       @default("OK")  // ENUM: OK, NAIK, BARU, URGENT, RUGI
+  notes         String?
+  isActive      Boolean      @default(true)
+  isSignature   Boolean      @default(false)
+  isSecretMenu  Boolean      @default(false)
+  imageUrl      String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  recipe        Recipe?
+  transactionItems TransactionItem[]
+  bundlingItems    BundlingItem[]
+}
+
+model Recipe {
+  id          String    @id @default(cuid())
+  menuId      String    @unique
+  menu        Menu      @relation(fields: [menuId], references: [id])
+  description String?
+  servingSize String?   
+  prepTime    Int?      
+  steps       String    // JSON string array
+  ingredients RecipeIngredient[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model RecipeIngredient {
+  id           String     @id @default(cuid())
+  recipeId     String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id])
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  quantity     Float      
+  unit         String     
+  cost         Float      
+}
+
+// ----- BUNDLING -----
+
+model Bundling {
+  id          String         @id @default(cuid())
+  code        String         @unique  
+  name        String         
+  description String?
+  hpp         Float          
+  normalPrice Float          
+  bundlePrice Float          
+  profit      Float
+  margin      Float
+  discount    Float          
+  isActive    Boolean        @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  items       BundlingItem[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model BundlingItem {
+  id         String   @id @default(cuid())
+  bundlingId String
+  bundling   Bundling @relation(fields: [bundlingId], references: [id])
+  menuId     String
+  menu       Menu     @relation(fields: [menuId], references: [id])
+  quantity   Int      @default(1)
+}
+
+// ----- PROMO & DISKON -----
+
+model Promo {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  name         String
+  type         String     // ENUM: PERCENTAGE, FIXED_AMOUNT, BOGO, HAPPY_HOUR, FREE_ITEM
+  value        Float      
+  minMarginSafe Float     @default(30)  
+  targetMenus  String     // JSON string array
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean    @default(true)
+  usageLimit   Int?
+  usageCount   Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// ----- TRANSAKSI -----
+
+model Transaction {
+  id              String            @id @default(cuid())
+  transactionCode String            @unique  
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  subtotal        Float
+  discountAmount  Float             @default(0)
+  promoId         String?
+  total           Float
+  paymentMethod   String            @default("CASH") // ENUM: CASH, QRIS, TRANSFER, GOFOOD, GRABFOOD
+  channel         String            @default("DINE_IN") // ENUM: DINE_IN, TAKEAWAY, GOFOOD, dll.
+  notes           String?
+  createdAt       DateTime          @default(now())
+  items           TransactionItem[]
+}
+
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  menuId        String
+  menu          Menu        @relation(fields: [menuId], references: [id])
+  quantity      Int
+  priceAtTime   Float       
+  hppAtTime     Float       
+  subtotal      Float
+}
+
+// ----- STOK & INVENTORY -----
+
+model StockLog {
+  id           String       @id @default(cuid())
+  ingredientId String
+  ingredient   Ingredient   @relation(fields: [ingredientId], references: [id])
+  type         String       // ENUM: IN, OUT, ADJUSTMENT, WASTE
+  quantity     Float
+  unitCost     Float?       
+  notes        String?
+  createdAt    DateTime     @default(now())
+}
+
+// ----- KARYAWAN & PENGGAJIAN -----
+
+model Employee {
+  id         String    @id @default(cuid())
+  name       String
+  position   String    
+  baseSalary Float     
+  phone      String?
+  joinDate   DateTime
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  payrolls   Payroll[]
+}
+
+model Payroll {
+  id             String    @id @default(cuid())
+  employeeId     String
+  employee       Employee  @relation(fields: [employeeId], references: [id])
+  periodMonth    Int       
+  periodYear     Int
+  baseSalary     Float
+  allowances     Float     @default(0)
+  deductions     Float     @default(0)
+  totalSalary    Float
+  status         String    @default("DRAFT") // ENUM: DRAFT, APPROVED, PAID
+  paidAt         DateTime?
+  paidBy         String?   
+  generatedBy    User?     @relation(fields: [paidBy], references: [id])
+  pdfUrl         String?
+  createdAt      DateTime  @default(now())
+}
+
+// ----- OVERHEAD -----
+
+model OverheadConfig {
+  id              String    @id @default(cuid())
+  name            String    
+  amount          Float     
+  category        String
+  isActive        Boolean   @default(true)
+  updatedAt       DateTime  @updatedAt
+}
+
+// ----- BUSINESS CONFIG -----
+
+model BusinessConfig {
+  id                   String  @id @default(cuid())
+  totalInitialCapital  Float   
+  monthlyTargetRevenue Float   
+  dailyTargetVisitors  Int     
+  avgTicketSize        Float   
+  hppPercentageTarget  Float   
+  marginAlertThreshold Float   
+  updatedAt            DateTime @updatedAt
+}

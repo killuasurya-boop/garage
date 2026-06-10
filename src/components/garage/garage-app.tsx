@@ -1761,13 +1761,16 @@ function LoginScreen({
   includeOwnerPreset?: boolean;
 }) {
   const isPosLogin = variant === "pos";
+  // Helper preset/demo hanya untuk non-production. Di VPS/production layar login
+  // bersih: cukup email + password, tanpa membocorkan akun internal.
+  const showDemoHelpers = process.env.NODE_ENV !== "production";
   const rolePresets = isPosLogin
     ? posLoginRolePresets
     : includeOwnerPreset
       ? loginRolePresets
       : visibleLoginRolePresets;
   const [email, setEmail] = useState(
-    initialEmail ?? rolePresets[0]?.email ?? "kasir@garage.local",
+    initialEmail ?? (showDemoHelpers ? rolePresets[0]?.email ?? "" : ""),
   );
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1973,21 +1976,26 @@ function LoginScreen({
                     : "Better Auth session untuk struktur kerja Garage."}
                 </CardDescription>
               </div>
-              <Badge className={selectedPreset.tone}>{selectedPreset.label}</Badge>
+              {showDemoHelpers ? (
+                <Badge className={selectedPreset.tone}>{selectedPreset.label}</Badge>
+              ) : null}
             </div>
-            <div className="garage-surface rounded-md p-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <SelectedPresetIcon className="size-5 shrink-0 text-[#f5a742]" />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-white">
-                    {selectedPreset.role}
-                  </p>
-                  <p className="truncate text-sm text-[#d0d0d6]">{selectedPreset.station}</p>
+            {showDemoHelpers ? (
+              <div className="garage-surface rounded-md p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <SelectedPresetIcon className="size-5 shrink-0 text-[#f5a742]" />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-white">
+                      {selectedPreset.role}
+                    </p>
+                    <p className="truncate text-sm text-[#d0d0d6]">{selectedPreset.station}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-5">
+            {showDemoHelpers ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {rolePresets.map((preset) => {
                 const RoleIcon = preset.icon;
@@ -2025,11 +2033,12 @@ function LoginScreen({
                 );
               })}
             </div>
+            ) : null}
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-[1.08fr_0.92fr]">
                 <div className="space-y-1">
-                  <p className="garage-mono">Email</p>
+                  <p className="garage-mono flex h-6 items-center">Email</p>
                   <Input
                     type="email"
                     value={email}
@@ -2039,7 +2048,7 @@ function LoginScreen({
                   />
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex h-6 items-center justify-between gap-2">
                     <p className="garage-mono">Password</p>
                     {devLoginPassword ? (
                       <button

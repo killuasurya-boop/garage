@@ -10,7 +10,8 @@
       "Bash(git add *)",
       "Bash(git reset *)",
       "Bash(git commit -m ' *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(ssh -i ~/.ssh/garage_vps -o ConnectTimeout=15 -o BatchMode=yes root@156.67.214.203 \"cd /root/garage && docker compose --env-file .env.production ps --format 'table {{.Service}}\\\\t{{.Status}}'\")"
     ]
   }
 }

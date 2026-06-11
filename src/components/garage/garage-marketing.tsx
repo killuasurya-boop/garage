@@ -1456,6 +1456,34 @@ function MarketingBroadcasts({
     }
   }
 
+  async function handleSend(row: BroadcastDto) {
+    if (
+      !confirm(
+        `Kirim broadcast "${row.name}" ke semua penerima segmen ${segmentLabel(row.segmentKey)} sekarang?`,
+      )
+    )
+      return;
+    try {
+      const summary = await garageApi.post<{
+        total: number;
+        sent: number;
+        simulated: number;
+        failed: number;
+        provider: string;
+      }>(`/api/marketing/broadcasts/${row.id}/send`, {});
+      const sentTotal = summary.sent + summary.simulated;
+      setNotice(
+        `Broadcast ${row.name}: ${sentTotal}/${summary.total} terkirim` +
+          (summary.provider === "simulation" ? " (mode simulasi)" : "") +
+          (summary.failed > 0 ? `, ${summary.failed} gagal` : "") +
+          ".",
+      );
+      await load();
+    } catch (err) {
+      setError(describeApiError(err));
+    }
+  }
+
   async function handleCancel(row: BroadcastDto) {
     if (!confirm(`Batalkan broadcast "${row.name}"?`)) return;
     try {
@@ -1537,6 +1565,7 @@ function MarketingBroadcasts({
               key={row.id}
               row={row}
               canWrite={canWrite}
+              onSend={() => void handleSend(row)}
               onMarkSent={() => void handleMarkSent(row)}
               onCancel={() => void handleCancel(row)}
             />
@@ -1563,11 +1592,13 @@ function MarketingBroadcasts({
 function BroadcastCard({
   row,
   canWrite,
+  onSend,
   onMarkSent,
   onCancel,
 }: {
   row: BroadcastDto;
   canWrite: boolean;
+  onSend: () => void;
   onMarkSent: () => void;
   onCancel: () => void;
 }) {
@@ -1639,7 +1670,18 @@ function BroadcastCard({
             <Button
               type="button"
               size="sm"
-              className="h-8 bg-[#22c55e] text-black hover:bg-[#34d674]"
+              className="h-8 bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+              disabled={!canWrite}
+              onClick={onSend}
+            >
+              <Send className="mr-1.5 size-3.5" />
+              Kirim sekarang
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 border-[#4a4a54]"
               disabled={!canWrite}
               onClick={onMarkSent}
             >

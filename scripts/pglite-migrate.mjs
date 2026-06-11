@@ -8,7 +8,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 
-const dataDir = path.join(process.cwd(), ".garage-db");
+// Honor the same data dir the app uses (PGLITE_DATA_DIR), else default to
+// the local .garage-db. Avoids migrating the wrong PGlite store.
+const dataDir = process.env.PGLITE_DATA_DIR
+  ? path.resolve(process.env.PGLITE_DATA_DIR)
+  : path.join(process.cwd(), ".garage-db");
 const migrationsFolder = path.join(process.cwd(), "drizzle");
 const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
 

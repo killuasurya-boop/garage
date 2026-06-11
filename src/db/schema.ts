@@ -1187,6 +1187,37 @@ export const marketingBroadcasts = pgTable(
   }),
 );
 
+// Catatan pengiriman per-penerima untuk sebuah broadcast.
+// status: queued | simulated | sent | failed
+// provider: simulation | fonnte | cloud_api | email (pluggable)
+export const marketingBroadcastDeliveries = pgTable(
+  "marketing_broadcast_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    broadcastId: uuid("broadcast_id")
+      .notNull()
+      .references(() => marketingBroadcasts.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    recipientName: text("recipient_name").notNull().default(""),
+    recipientPhone: text("recipient_phone").notNull().default(""),
+    channel: text("channel").notNull().default("whatsapp"),
+    provider: text("provider").notNull().default("simulation"),
+    status: text("status").notNull().default("queued"),
+    renderedBody: text("rendered_body").notNull().default(""),
+    providerMessageId: text("provider_message_id"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    broadcastIdx: index("marketing_broadcast_deliveries_broadcast_idx").on(
+      table.broadcastId,
+    ),
+    statusIdx: index("marketing_broadcast_deliveries_status_idx").on(table.status),
+  }),
+);
+
 export const menuRecipes = pgTable(
   "menu_recipes",
   {

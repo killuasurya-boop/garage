@@ -17,6 +17,19 @@ const acceptedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const acceptedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 const qualitySteps = [72, 64, 56, 48, 40, 34];
 
+function projectRoot() {
+  const cwd = process.cwd();
+  if (
+    path.basename(cwd).toLowerCase() === "standalone" &&
+    path.basename(path.dirname(cwd)).toLowerCase() === ".next"
+  ) {
+    return path.resolve(cwd, "..", "..");
+  }
+  return process.env.GARAGE_PROJECT_ROOT
+    ? path.resolve(process.env.GARAGE_PROJECT_ROOT)
+    : cwd;
+}
+
 function isAcceptedImage(file: File) {
   const ext = path.extname(file.name).toLowerCase();
   return acceptedMimeTypes.has(file.type.toLowerCase()) || acceptedExtensions.has(ext);
@@ -76,7 +89,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return fail(400, "MENU_IMAGE_INVALID", error instanceof Error ? error.message : "Foto tidak bisa diproses.");
   }
 
-  const uploadDir = path.join(process.cwd(), "public", "garage-uploads", "menu");
+  const uploadDir = path.join(projectRoot(), "public", "garage-uploads", "menu");
   await mkdir(uploadDir, { recursive: true });
   const fileName = `${safeId.replace(/[^a-z0-9_-]/gi, "_")}-${Date.now()}.webp`;
   await writeFile(path.join(uploadDir, fileName), output.data);

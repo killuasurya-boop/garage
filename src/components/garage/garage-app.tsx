@@ -1427,6 +1427,9 @@ function GarageWorkspace({
                   // disinkron lewat shift report / close-shift fetch on-demand.
                   // Sebelumnya tiap order trigger /api/bootstrap (600-2000ms).
                   onOrderCreated={() => loadKitchenOrders()}
+                  // Refetch menu (imageUrl/stok) setelah upload/hapus foto di POS
+                  // supaya foto langsung tampil tanpa reload halaman.
+                  onMenuChanged={loadMenu}
                   onSignOut={handleSignOut}
                   signOutPending={signOutPending}
                   signOutError={signOutError}

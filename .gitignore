@@ -91,3 +91,8 @@ backups/pglite-snapshot-*/
 /outputs/
 
 testsprite_tests\tmp\config.json
+
+# local agent tooling & dev config (jangan commit)
+/.agents/
+/data/
+.claude/launch.json

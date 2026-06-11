@@ -1,16 +1,14 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Archive,
   ArrowDown,
   Boxes,
   Check,
-  ChefHat,
   ClipboardCheck,
-  Coffee,
   FileText,
   History,
   Info,
@@ -26,7 +24,6 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
-  X,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -74,6 +71,14 @@ import {
 } from "@/lib/garage-data";
 import type { InventoryItem, MenuItem } from "@/lib/garage-api-types";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
+import { ProductFormPanel } from "@/components/garage/inventory/product-form";
+import {
+  productVariantDraftId,
+  recipeCostForVariantDraft,
+  type ProductDraftState,
+  type ProductRecipeDraft,
+  type ProductVariantDraft,
+} from "@/components/garage/inventory/product-draft";
 const InventoryModuleFallback = () => (
   <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat inventory...</div>
 );
@@ -89,13 +94,6 @@ const WarehouseCashierPos = dynamic(
 
 const GARAGE_ADD_PRODUCT_DRAFT_STORAGE_KEY = "garage-add-product-draft";
 
-type ProductVariantDraft = {
-  key: string;
-  id?: string;
-  label: string;
-  price: string;
-  baseCost: string;
-};
 const statusClass: Record<string, string> = {
   ready: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
   safe: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
@@ -150,52 +148,6 @@ const statusClass: Record<string, string> = {
   skipped: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
   untested: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
 };
-
-type ProductRecipeDraft = {
-  key: string;
-  variantId: string;
-  inventorySku: string;
-  qty: string;
-  unit: string;
-  wastePct: string;
-};
-
-type ProductDraftState = {
-  editId: string;
-  name: string;
-  category: MenuCategory;
-  section: string;
-  prep: string;
-  stock: "ready" | "limited" | "sold_out";
-  tags: string;
-  variants: ProductVariantDraft[];
-  recipes: ProductRecipeDraft[];
-  savedAt: string;
-};
-
-function recipeDraftLineCost(recipe: ProductRecipeDraft, inventoryItems: InventoryItem[]) {
-  const item = inventoryItems.find((entry) => entry.sku === recipe.inventorySku);
-  const qty = Number(recipe.qty);
-  const wastePct = Number(recipe.wastePct || 0);
-  if (!item || !Number.isFinite(qty) || qty <= 0) return 0;
-
-  return Math.round(
-    qty * Number(item.unitCost ?? 0) * (1 + Math.max(0, wastePct) / 100),
-  );
-}
-
-function recipeCostForVariantDraft(
-  recipes: ProductRecipeDraft[],
-  inventoryItems: InventoryItem[],
-  variantId: string,
-) {
-  return recipes
-    .filter((recipe) => {
-      const recipeVariantId = recipe.variantId || "all";
-      return recipeVariantId === "all" || recipeVariantId === variantId;
-    })
-    .reduce((sum, recipe) => sum + recipeDraftLineCost(recipe, inventoryItems), 0);
-}
 
 type ManagedProductItem = MenuItem & {
   status?: "active" | "archived";
@@ -574,6 +526,11 @@ export function InventoryView({
   ]);
   const [productRecipes, setProductRecipes] = useState<ProductRecipeDraft[]>([]);
   const [productTags, setProductTags] = useState("");
+  // Foto produk: file dipilih owner saat tambah/edit; di-upload setelah produk
+  // tersimpan (butuh id). Preview menampilkan file baru atau imageUrl existing.
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
+  const productImageInputRef = useRef<HTMLInputElement | null>(null);
   const [productAction, setProductAction] = useState<string | null>(null);
   const [productError, setProductError] = useState<string | null>(null);
   const [productNotice, setProductNotice] = useState<string | null>(null);
@@ -1736,7 +1693,10 @@ export function InventoryView({
     if (!canManageMenuProducts) return;
     setProductLoading(true);
     try {
-      const rows = await garageApi.get<ManagedProductItem[]>("/api/menu?includeArchived=1");
+      const rows = await garageApi.get<ManagedProductItem[]>(
+        `/api/menu?includeArchived=1&_=${Date.now()}`,
+        { cache: "no-store" },
+      );
       setProductItems(rows);
     } catch (err) {
       setProductError(err instanceof Error ? err.message : "Gagal memuat produk.");
@@ -1755,6 +1715,29 @@ export function InventoryView({
     setProductTags("");
     setProductVariants([{ key: "regular", label: "Regular", price: "", baseCost: "" }]);
     setProductRecipes([]);
+    setProductImageFile(null);
+    setProductImagePreview(null);
+  }
+
+  function onProductImageSelected(file: File | null) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      setProductError("Format foto harus JPG, PNG, atau WebP.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setProductError("Ukuran foto maksimal 8 MB.");
+      return;
+    }
+    setProductError(null);
+    setProductImageFile(file);
+    setProductImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearProductImage() {
+    setProductImageFile(null);
+    setProductImagePreview(null);
+    if (productImageInputRef.current) productImageInputRef.current.value = "";
   }
 
   function saveProductDraft() {
@@ -1896,19 +1879,43 @@ export function InventoryView({
     setProductRecipes((current) => current.filter((recipe) => recipe.key !== key));
   }
 
-  function productVariantDraftId(variant: ProductVariantDraft, index: number) {
-    const fallback = index === 0 ? "regular" : `variant-${index + 1}`;
-    return (
-      variant.id ||
-      (variant.label || fallback)
-        .trim()
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "") ||
-      fallback
+  async function uploadProductImage(itemId: string, file: File) {
+    const imageForm = new FormData();
+    imageForm.append("image", file);
+
+    const imgRes = await fetch(`/api/menu/${encodeURIComponent(itemId)}/image`, {
+      method: "POST",
+      body: imageForm,
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    const imgPayload = (await imgRes.json().catch(() => ({}))) as {
+      data?: { imageUrl?: string; product?: MenuItem | null };
+      error?: { message?: string };
+    };
+
+    if (!imgRes.ok) {
+      throw new Error(imgPayload.error?.message ?? "Upload foto gagal.");
+    }
+
+    const imageUrl = imgPayload.data?.imageUrl ?? imgPayload.data?.product?.imageUrl;
+    if (!imageUrl) {
+      throw new Error("Upload foto selesai, tapi server tidak mengembalikan URL foto.");
+    }
+
+    setProductItems((current) =>
+      current.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              ...(imgPayload.data?.product ?? {}),
+              imageUrl,
+            }
+          : item,
+      ),
     );
+
+    return imageUrl;
   }
 
   function buildProductVariantsPayload() {
@@ -1981,6 +1988,8 @@ export function InventoryView({
     setProductPrep(product.prep || "10m");
     setProductStock(product.stock);
     setProductTags(product.tags.join(", "));
+    setProductImageFile(null);
+    setProductImagePreview(product.imageUrl ?? null);
     setProductVariants(
       product.variants.length
         ? product.variants.map((variant, index) => ({
@@ -2046,8 +2055,27 @@ export function InventoryView({
             payload,
           )
         : await garageApi.post<{ product: MenuItem | null }>("/api/menu", payload);
+
+      // Upload foto produk bila owner memilih file (butuh id produk).
+      const savedId = productEditId || response.product?.id;
+      let uploadedImageUrl: string | null = null;
+      if (productImageFile && savedId) {
+        try {
+          uploadedImageUrl = await uploadProductImage(savedId, productImageFile);
+        } catch (imgErr) {
+          // Produk tetap tersimpan; jangan tutup dialog supaya owner bisa upload ulang.
+          setProductError(
+            imgErr instanceof Error
+              ? `Produk tersimpan, tapi foto gagal diupload: ${imgErr.message}`
+              : "Produk tersimpan, tapi foto gagal diupload.",
+          );
+          setProductAction(null);
+          return;
+        }
+      }
+
       setProductNotice(
-        `${response.product?.name ?? productName.trim()} berhasil ${productEditId ? "diupdate" : "ditambahkan"} ke POS dan QR menu.`,
+        `${response.product?.name ?? productName.trim()} berhasil ${productEditId ? "diupdate" : "ditambahkan"} ke POS dan QR menu${uploadedImageUrl ? " dengan foto baru" : ""}.`,
       );
       clearProductDraft();
       resetProductForm();
@@ -2618,424 +2646,43 @@ export function InventoryView({
                   </div>
                 </div>
 
-                <div className="garage-scrollbar grid min-h-0 flex-1 gap-4 overflow-y-auto bg-[#0b0b0e] p-4 lg:grid-cols-[1fr_320px]">
-                  <div className="space-y-4 rounded-md border border-[#34343c] bg-[#18181f] p-4 shadow-sm">
-                    <div>
-                      <p className="text-sm font-black text-white">Detail Produk</p>
-                      <p className="text-xs text-[#a1a1aa]">Nama, kategori, station, stok, dan waktu prep.</p>
-                    </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
-              <Input
-                value={productName}
-                onChange={(event) => setProductName(event.target.value)}
-                className="h-10 border-[#34343c] bg-white/[0.06]"
-                placeholder="Nama produk"
-              />
-              <Select
-                value={productCategory}
-                onValueChange={(value) => {
-                  const category = value as MenuCategory;
-                  setProductCategory(category);
-                  setProductSection(category === "Coffee" || category === "Non-Coffee" ? "Bar" : "Dapur");
-                }}
-              >
-                <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
-                  <SelectValue placeholder="Kategori" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Makanan">Makanan</SelectItem>
-                  <SelectItem value="Cemilan">Cemilan</SelectItem>
-                  <SelectItem value="Coffee">Coffee</SelectItem>
-                  <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={productSection} onValueChange={setProductSection}>
-                <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
-                  <SelectValue placeholder="Station" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Dapur">Dapur</SelectItem>
-                  <SelectItem value="Bar">Bar</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                value={productPrep}
-                onChange={(event) => setProductPrep(event.target.value)}
-                className="h-10 border-[#34343c] bg-white/[0.06]"
-                placeholder="10m"
-              />
-              <Select
-                value={productStock}
-                onValueChange={(value) =>
-                  setProductStock(value as "ready" | "limited" | "sold_out")
-                }
-              >
-                <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
-                  <SelectValue placeholder="Stok menu" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ready">Ready</SelectItem>
-                  <SelectItem value="limited">Limited</SelectItem>
-                  <SelectItem value="sold_out">Habis</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-10 gap-2 border-[#34343c] bg-white/[0.04]"
-                onClick={() => {
-                  resetProductForm();
-                  clearProductDraft();
-                  setProductNotice("Form produk direset.");
-                }}
-              >
-                <X className="size-4" />
-                Reset
-              </Button>
-            </div>
-
-            <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-[#888]">
-                  Harga jual & HPP varian
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-8 gap-1.5 border-[#34343c] bg-white/[0.04] px-2 text-xs"
-                  onClick={addProductVariant}
-                  disabled={productVariants.length >= 8}
-                >
-                  <Plus className="size-3.5" />
-                  Tambah Varian
-                </Button>
-              </div>
-              {productVariants.map((variant, index) => {
-                const variantId = productVariantDraftId(variant, index);
-                const autoBaseCost = recipeCostForVariantDraft(
-                  productRecipes,
-                  inventoryItems,
-                  variantId,
-                );
-                const manualBaseCost = Number(variant.baseCost);
-                const costDiffPct =
-                  autoBaseCost > 0 && Number.isFinite(manualBaseCost) && manualBaseCost > 0
-                    ? Math.round((Math.abs(manualBaseCost - autoBaseCost) / autoBaseCost) * 100)
-                    : 0;
-                return (
-                  <div key={variant.key} className="space-y-1">
-                    <div className="grid gap-2 sm:grid-cols-[1fr_150px_150px_42px]">
-                      <Input
-                        value={variant.label}
-                        onChange={(event) =>
-                          updateProductVariant(variant.key, "label", event.target.value)
-                        }
-                        className="h-10 border-[#34343c] bg-white/[0.06]"
-                        placeholder={index === 0 ? "Regular" : "Nama varian"}
-                      />
-                      <Input
-                        inputMode="numeric"
-                        value={variant.price}
-                        onChange={(event) =>
-                          updateProductVariant(
-                            variant.key,
-                            "price",
-                            event.target.value.replace(/[^\d]/g, ""),
-                          )
-                        }
-                        className="h-10 border-[#34343c] bg-white/[0.06]"
-                        placeholder="Harga jual"
-                      />
-                      <Input
-                        inputMode="numeric"
-                        value={variant.baseCost}
-                        onChange={(event) =>
-                          updateProductVariant(
-                            variant.key,
-                            "baseCost",
-                            event.target.value.replace(/[^\d]/g, ""),
-                          )
-                        }
-                        className="h-10 border-[#34343c] bg-white/[0.06]"
-                        placeholder={autoBaseCost ? `HPP auto ${autoBaseCost}` : "Harga dasar/HPP"}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="garage-press h-10 border-[#34343c] bg-white/[0.04] px-0"
-                        onClick={() => removeProductVariant(variant.key)}
-                        disabled={productVariants.length <= 1}
-                        aria-label="Hapus varian"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                    <p className="text-[11px] text-[#a1a1aa]">
-                      HPP resep {currency.format(autoBaseCost)}
-                      {costDiffPct > 30 ? (
-                        <span className="ml-2 text-[#ffd08a]">
-                          Manual beda {costDiffPct}% dari resep.
-                        </span>
-                      ) : null}
-                      {autoBaseCost > 0 ? (
-                        <button
-                          type="button"
-                          className="ml-2 font-bold text-[#bbf7d0] underline-offset-2 hover:underline"
-                          onClick={() =>
-                            updateProductVariant(variant.key, "baseCost", String(autoBaseCost))
-                          }
-                        >
-                          Pakai HPP Auto
-                        </button>
-                      ) : null}
-                    </p>
-                  </div>
-                );
-              })}
-              <div className="grid gap-2 sm:grid-cols-3">
-                <div className="rounded border border-[#34343c] bg-black/20 p-3">
-                  <p className="garage-mono text-[10px] text-[#888]">HPP RESEP</p>
-                  <p className="mt-1 font-black text-white">{currency.format(recipeCostPreview)}</p>
-                </div>
-                <div className="rounded border border-[#34343c] bg-black/20 p-3">
-                  <p className="garage-mono text-[10px] text-[#888]">MARGIN PREVIEW</p>
-                  <p className="mt-1 font-black text-white">
-                    {marginPreview ? currency.format(marginPreview.margin) : "Rp 0"}
-                  </p>
-                </div>
-                <div className="rounded border border-[#34343c] bg-black/20 p-3">
-                  <p className="garage-mono text-[10px] text-[#888]">RASIO MARGIN</p>
-                  <p className={`mt-1 font-black ${marginPreview && marginPreview.marginPct < 55 ? "text-[#ffd08a]" : "text-[#bbf7d0]"}`}>
-                    {marginPreview ? `${marginPreview.marginPct}%` : "0%"}
-                  </p>
-                </div>
-              </div>
-              {marginPreview && marginPreview.marginPct < 55 && (
-                <div className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/12 p-3 text-xs text-[#ffd08a]">
-                  Margin {marginPreview.label} masih {marginPreview.marginPct}%. Untuk F&B Garage, aman MVP biasanya minimal 55%.
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-[#888]">
-                  Resep bahan stok
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-8 gap-1.5 border-[#34343c] bg-white/[0.04] px-2 text-xs"
-                  onClick={addProductRecipe}
-                  disabled={!inventoryItems.length || productRecipes.length >= 24}
-                >
-                  <Plus className="size-3.5" />
-                  Tambah Bahan
-                </Button>
-              </div>
-              {productRecipes.length === 0 ? (
-                <div className="rounded border border-dashed border-[#34343c] p-3 text-xs text-[#888]">
-                  Resep opsional. Jika diisi, HPP dihitung dari bahan dan stok bahan akan berkurang saat transaksi POS/QR selesai.
-                </div>
-              ) : (
-                productRecipes.map((recipe) => {
-                  const selectedItem = inventoryItems.find((item) => item.sku === recipe.inventorySku);
-                  const qty = Number(recipe.qty);
-                  const wastePct = Number(recipe.wastePct || 0);
-                  const lineCost =
-                    selectedItem && Number.isFinite(qty) && qty > 0
-                      ? Math.round(qty * Number(selectedItem.unitCost ?? 0) * (1 + Math.max(0, wastePct) / 100))
-                      : 0;
-                  return (
-                    <div
-                      key={recipe.key}
-                      className="space-y-1 rounded-md border border-[#34343c] bg-black/10 p-2"
-                    >
-                      <div className="grid gap-2 lg:grid-cols-[150px_1fr_110px_90px_95px_42px]">
-                        <Select
-                          value={recipe.variantId || "all"}
-                          onValueChange={(value) =>
-                            updateProductRecipe(recipe.key, "variantId", value)
-                          }
-                        >
-                          <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
-                            <SelectValue placeholder="Varian" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Semua varian</SelectItem>
-                            {productVariants.map((variant, index) => {
-                              const variantId = productVariantDraftId(variant, index);
-                              const label = variant.label.trim() || (index === 0 ? "Regular" : `Varian ${index + 1}`);
-                              return (
-                                <SelectItem key={`${variant.key}-${variantId}`} value={variantId}>
-                                  {label}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={recipe.inventorySku || "__none"}
-                          onValueChange={(value) =>
-                            updateProductRecipe(
-                              recipe.key,
-                              "inventorySku",
-                              value === "__none" ? "" : value,
-                            )
-                          }
-                        >
-                          <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
-                            <SelectValue placeholder="Bahan stok" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">Pilih bahan</SelectItem>
-                            {inventoryItems.map((item) => (
-                              <SelectItem key={item.sku} value={item.sku}>
-                                {item.name} - stok {item.onHand} {item.unit} - HPP {currency.format(Number(item.unitCost ?? 0))}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          inputMode="decimal"
-                          value={recipe.qty}
-                          onChange={(event) =>
-                            updateProductRecipe(
-                              recipe.key,
-                              "qty",
-                              event.target.value.replace(/[^\d.]/g, ""),
-                            )
-                          }
-                          className="h-10 border-[#34343c] bg-white/[0.06]"
-                          placeholder="Qty pakai"
-                        />
-                        <Input
-                          value={recipe.unit}
-                          onChange={(event) =>
-                            updateProductRecipe(recipe.key, "unit", event.target.value)
-                          }
-                          className="h-10 border-[#34343c] bg-white/[0.06]"
-                          placeholder={selectedItem?.unit ?? "unit"}
-                        />
-                        <Input
-                          inputMode="numeric"
-                          value={recipe.wastePct}
-                          onChange={(event) =>
-                            updateProductRecipe(
-                              recipe.key,
-                              "wastePct",
-                              event.target.value.replace(/[^\d.]/g, ""),
-                            )
-                          }
-                          className="h-10 border-[#34343c] bg-white/[0.06]"
-                          placeholder="Waste %"
-                          title={`Estimasi HPP bahan: ${currency.format(lineCost)}`}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="garage-press h-10 border-[#34343c] bg-white/[0.04] px-0"
-                          onClick={() => removeProductRecipe(recipe.key)}
-                          aria-label="Hapus bahan resep"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#a1a1aa]">
-                        {selectedItem ? (
-                          <>
-                            <span>
-                              Stok {selectedItem.onHand} {selectedItem.unit}
-                            </span>
-                            <span>Unit cost {currency.format(Number(selectedItem.unitCost ?? 0))}</span>
-                            <span>Line HPP {currency.format(lineCost)}</span>
-                            {Number(selectedItem.unitCost ?? 0) <= 0 && (
-                              <span className="font-semibold text-[#ffd08a]">
-                                Unit cost masih 0, HPP belum valid.
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span>Pilih bahan untuk melihat stok dan estimasi HPP.</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="grid gap-3">
-              <Input
-                value={productTags}
-                onChange={(event) => setProductTags(event.target.value)}
-                className="h-10 border-[#34343c] bg-white/[0.06]"
-                placeholder="Tags opsional, pisahkan koma"
-              />
-            </div>
-                  </div>
-
-                  <aside className="space-y-3 rounded-md border border-[#34343c] bg-[#18181f] p-4 shadow-sm">
-                    <div>
-                      <p className="text-sm font-black text-white">Preview Produk</p>
-                      <p className="text-xs text-[#a1a1aa]">Tampilan ringkas sebelum masuk POS dan QR Menu.</p>
-                    </div>
-                    <div className="overflow-hidden rounded-md border border-[#34343c] bg-[#0b0b0e]">
-                      <div className="flex aspect-[4/3] items-center justify-center bg-[radial-gradient(circle_at_top,#34343c_0%,#18181f_42%,#0b0b0e_100%)] p-5 text-center">
-                        <div>
-                          <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f5a742]">
-                            {productCategory === "Coffee" || productCategory === "Non-Coffee" ? (
-                              <Coffee className="size-8" />
-                            ) : (
-                              <ChefHat className="size-8" />
-                            )}
-                          </div>
-                          <p className="mt-4 text-lg font-black text-white">
-                            {productName.trim() || "Nama Produk"}
-                          </p>
-                          <p className="mt-1 text-xs text-[#d4d4d8]">
-                            {productCategory} Â· {productSection || "Station"} Â· {productPrep || "10m"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 border-t border-[#34343c] bg-[#111116] p-3 text-center">
-                        <div className="rounded border border-[#34343c] bg-white/[0.04] p-2">
-                          <p className="text-[10px] font-bold uppercase text-[#8f8f99]">Jual</p>
-                          <p className="mt-1 text-xs font-black text-white">
-                            {currency.format(Number(productVariants[0]?.price || 0))}
-                          </p>
-                        </div>
-                        <div className="rounded border border-[#34343c] bg-white/[0.04] p-2">
-                          <p className="text-[10px] font-bold uppercase text-[#8f8f99]">HPP</p>
-                          <p className="mt-1 text-xs font-black text-white">
-                            {currency.format(Number(productVariants[0]?.baseCost || recipeCostPreview || 0))}
-                          </p>
-                        </div>
-                        <div className="rounded border border-[#34343c] bg-white/[0.04] p-2">
-                          <p className="text-[10px] font-bold uppercase text-[#8f8f99]">Margin</p>
-                          <p className={`mt-1 text-xs font-black ${marginPreview && marginPreview.marginPct < 55 ? "text-[#ffd08a]" : "text-[#bbf7d0]"}`}>
-                            {marginPreview ? `${marginPreview.marginPct}%` : "0%"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-md border border-[#34343c] bg-black/20 p-3">
-                        <p className="font-bold text-[#a1a1aa]">Varian</p>
-                        <p className="mt-1 text-lg font-black text-white">{productVariants.length}</p>
-                      </div>
-                      <div className="rounded-md border border-[#34343c] bg-black/20 p-3">
-                        <p className="font-bold text-[#a1a1aa]">Bahan</p>
-                        <p className="mt-1 text-lg font-black text-white">{productRecipes.length}</p>
-                      </div>
-                    </div>
-                    <div className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3 text-xs text-[#ffd08a]">
-                      Produk aktif akan tampil di POS kasir dan QR Menu. HPP hanya terlihat Owner/Admin.
-                    </div>
-                  </aside>
-                </div>
+                <ProductFormPanel
+                  name={productName}
+                  onNameChange={setProductName}
+                  category={productCategory}
+                  onCategoryChange={(value) => {
+                    setProductCategory(value);
+                    setProductSection(value === "Coffee" || value === "Non-Coffee" ? "Bar" : "Dapur");
+                  }}
+                  section={productSection}
+                  onSectionChange={setProductSection}
+                  prep={productPrep}
+                  onPrepChange={setProductPrep}
+                  stock={productStock}
+                  onStockChange={setProductStock}
+                  tags={productTags}
+                  onTagsChange={setProductTags}
+                  onReset={() => {
+                    resetProductForm();
+                    clearProductDraft();
+                    setProductNotice("Form produk direset.");
+                  }}
+                  variants={productVariants}
+                  onAddVariant={addProductVariant}
+                  onUpdateVariant={updateProductVariant}
+                  onRemoveVariant={removeProductVariant}
+                  recipes={productRecipes}
+                  onAddRecipe={addProductRecipe}
+                  onUpdateRecipe={updateProductRecipe}
+                  onRemoveRecipe={removeProductRecipe}
+                  inventoryItems={inventoryItems}
+                  recipeCostPreview={recipeCostPreview}
+                  marginPreview={marginPreview}
+                  imagePreview={productImagePreview}
+                  imageInputRef={productImageInputRef}
+                  onImageSelected={onProductImageSelected}
+                  onClearImage={clearProductImage}
+                />
               </DialogContent>
             </Dialog>
 
@@ -6073,5 +5720,3 @@ function InventoryDetailModal({
 // kosong terisi fallback yang masuk akal.
 // Alias ke AppSettings canonical â€” sebelumnya duplikat yang sering ketinggalan
 // saat key baru ditambah. Sekarang tipe sinkron otomatis.
-
-

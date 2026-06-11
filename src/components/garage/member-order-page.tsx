@@ -232,18 +232,22 @@ function QuantityControl({
   onMinus,
   onPlus,
   disabled = false,
+  fullWidth = false,
 }: {
   label: string;
   qty: number;
   onMinus: () => void;
   onPlus: () => void;
   disabled?: boolean;
+  fullWidth?: boolean;
 }) {
   if (qty <= 0) {
     return (
       <button
         type="button"
-        className="garage-press inline-flex h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md bg-[#d11a2a] px-4 text-sm font-black text-white transition hover:bg-[#ff2a3a] disabled:cursor-not-allowed disabled:bg-[#4a4a54] disabled:text-[#b8b8bf]"
+        className={`garage-press inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#d11a2a] px-4 text-sm font-black text-white transition hover:bg-[#ff2a3a] disabled:cursor-not-allowed disabled:bg-[#4a4a54] disabled:text-[#b8b8bf] ${
+          fullWidth ? "w-full" : "min-w-[112px] shrink-0"
+        }`}
         aria-label={`Tambah ${label}`}
         disabled={disabled}
         onClick={onPlus}
@@ -255,7 +259,11 @@ function QuantityControl({
   }
 
   return (
-    <div className="inline-flex h-11 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
+    <div
+      className={`inline-flex h-11 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b] ${
+        fullWidth ? "w-full justify-between" : "shrink-0"
+      }`}
+    >
       <button
         type="button"
         className="garage-press flex size-11 items-center justify-center text-white"
@@ -436,7 +444,7 @@ function MenuCard({
         onClick={onOpen}
         disabled={soldOut}
         aria-label={`Lihat ${item.name}`}
-        className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-[#2a2622] to-[#161616] text-left"
+        className="relative block aspect-square w-full overflow-hidden bg-gradient-to-br from-[#2a2622] to-[#161616] text-left"
       >
         {item.imageUrl ? (
           // Foto menu berasal dari URL bebas (di-set admin) â€” pakai <img> biasa
@@ -485,22 +493,26 @@ function MenuCard({
         <p className="mt-1 flex items-center gap-1 text-[11px] text-[#b8b8bf]">
           <Clock className="size-3 text-[#f5a742]" /> {item.prep} &middot; {item.section}
         </p>
-        <div className="mt-2.5 flex items-end justify-between gap-2">
-          <p className="min-w-0">
+        {/* Footer kartu: harga selalu tampil penuh di atas, aksi full-width di
+            bawah. Mencegah tombol menutupi harga di kartu sempit (mobile 2 kolom). */}
+        <div className="mt-2.5 flex flex-col gap-2">
+          <p className="flex items-baseline gap-1.5">
             {multiVariant ? (
-              <span className="block text-[10px] uppercase tracking-wide text-[#b8b8bf]">mulai</span>
+              <span className="text-[10px] uppercase tracking-wide text-[#b8b8bf]">mulai</span>
             ) : null}
-            <span className="text-base font-black text-[#f2ca50]">{rupiah.format(minPrice)}</span>
+            <span className="truncate text-base font-black text-[#f2ca50]">
+              {rupiah.format(minPrice)}
+            </span>
           </p>
           {soldOut ? (
-            <span className="rounded-md border border-[#4a4a54] px-3 py-2 text-xs font-bold text-[#888]">
+            <span className="w-full rounded-md border border-[#4a4a54] py-2 text-center text-xs font-bold text-[#888]">
               Habis
             </span>
           ) : multiVariant ? (
             <button
               type="button"
               onClick={onOpen}
-              className="garage-press inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-[#d11a2a] px-4 text-sm font-black text-white transition hover:bg-[#ff2a3a]"
+              className="garage-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-[#d11a2a] px-4 text-sm font-black text-white transition hover:bg-[#ff2a3a]"
             >
               <Plus className="size-4" /> Pilih
             </button>
@@ -508,6 +520,7 @@ function MenuCard({
             <QuantityControl
               label={item.name}
               qty={cartQty}
+              fullWidth
               onMinus={() => singleVariantId && onAdd(singleVariantId, -1)}
               onPlus={() => singleVariantId && onAdd(singleVariantId, 1)}
             />
@@ -543,7 +556,7 @@ function MenuDetailSheet({
       >
         {item ? (
           <>
-            <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden">
+            <div className="relative aspect-square w-full shrink-0 overflow-hidden">
               {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

@@ -29,13 +29,14 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  // Terima/tolak order QR = validasi kasir (pembayaran). Waiter TIDAK termasuk:
+  // tugas waiter = antar + pesankan order, bukan validasi. Hindari ambiguitas
+  // "Tunggu Kasir" tapi waiter ikut acc.
   const session = await requireGarageSession([
     "Owner / CEO",
     "Admin",
     "Manager Operasional",
     "Kasir",
-    "Waiter 1",
-    "Waiter 2",
     "Supervisor Shift",
   ]);
   if (session.response) {

@@ -8,6 +8,7 @@ ArrowRight,
 Ban,
 Banknote,
 Camera,
+Image as ImageIcon,
 Loader2,
 BarChart3,
 Bell,
@@ -471,6 +472,7 @@ export function PosView({
   onExit,
   onOpenEarnings,
   onOrderCreated,
+  onMenuChanged,
   onSignOut,
   signOutPending,
   signOutError,
@@ -489,6 +491,9 @@ export function PosView({
   onExit: () => void;
   onOpenEarnings: () => void;
   onOrderCreated: () => Promise<void> | void;
+  /** Refetch data MENU (mis. setelah upload/hapus foto atau ubah stok) supaya
+      imageUrl & status terbaru langsung tampil tanpa reload halaman. */
+  onMenuChanged?: () => Promise<void> | void;
   onSignOut: () => Promise<void> | void;
   signOutPending: boolean;
   signOutError: string | null;
@@ -2286,7 +2291,8 @@ export function PosView({
     try {
       await garageApi.patch(`/api/menu/${encodeURIComponent(itemId)}`, { imageUrl: "" });
       setPosNotice("Foto menu dihapus.");
-      void onOrderCreated();
+      // Refetch MENU supaya foto hilang langsung tampil (bukan cuma kitchen).
+      void (onMenuChanged ?? onOrderCreated)();
     } catch (error) {
       setCustomerOrderError(
         error instanceof Error ? error.message : "Gagal menghapus foto menu.",
@@ -2314,7 +2320,8 @@ export function PosView({
         throw new Error(payload?.error?.message ?? "Upload foto gagal.");
       }
       setPosNotice("Foto menu diperbarui.");
-      void onOrderCreated();
+      // Refetch MENU supaya foto baru langsung tampil di kartu (bukan reload).
+      void (onMenuChanged ?? onOrderCreated)();
     } catch (error) {
       setCustomerOrderError(
         error instanceof Error ? error.message : "Gagal upload foto menu.",
@@ -7006,6 +7013,21 @@ export function PosView({
                       aria-disabled={isSoldOut}
                     >
                       <div className="flex h-full flex-col">
+                        <div className="relative mb-2 aspect-square w-full shrink-0 overflow-hidden rounded-md border border-[#34343c] bg-[#15151b]">
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#202027] to-[#15151b] text-[#5b5b66]">
+                              <ImageIcon className="size-6" />
+                            </div>
+                          )}
+                        </div>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="pos-product-name line-clamp-2 break-words text-[13px] font-semibold leading-4 text-white sm:text-sm sm:leading-5">

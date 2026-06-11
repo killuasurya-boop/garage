@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { config } from "dotenv";
 import { count, eq, inArray, notInArray } from "drizzle-orm";
 
-import { getDb, getPgPool } from "@/db";
+import { ensureDatabaseReady, getDb, getPgPool } from "@/db";
 import { customers, memberAccounts, memberTransactions } from "@/db/schema";
 import { hashPassword } from "@/lib/member-auth";
 
@@ -19,7 +19,7 @@ type CsvMember = {
   card: string;
 };
 
-const csvPath = process.argv[2] ?? "H:/My Drive/GARAGE_DATA_MEMBER csv.csv";
+const csvPath = process.argv[2] ?? "data/garage-members.csv";
 const seedMemberPassword = process.env.GARAGE_MEMBER_SEED_PASSWORD ?? "member12345";
 
 function parseCsvLine(line: string) {
@@ -57,7 +57,16 @@ function tierFromCard(card: string) {
 }
 
 function normalizePhone(phone: string) {
-  return phone.trim().replace(/[^\d+]/g, "");
+  let normalized = phone.trim().replace(/[^\d+]/g, "");
+  // Indonesian WA numbers must keep the leading 0; some source data drops it.
+  if (normalized.startsWith("+62")) {
+    normalized = `0${normalized.slice(3)}`;
+  } else if (normalized.startsWith("62")) {
+    normalized = `0${normalized.slice(2)}`;
+  } else if (normalized && !normalized.startsWith("0")) {
+    normalized = `0${normalized}`;
+  }
+  return normalized;
 }
 
 function emailFromMember(member: CsvMember) {
@@ -97,6 +106,7 @@ async function main() {
     throw new Error("DATABASE_URL wajib ada di .env.local sebelum sync member.");
   }
 
+  await ensureDatabaseReady();
   const db = getDb();
   const activeMembers = await readMembers();
   const activePhones = activeMembers.map((member) => member.phone);

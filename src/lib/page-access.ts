@@ -7,11 +7,12 @@ import { requireGarageSession } from "@/lib/server-auth";
 export async function requireModulePageAccess(moduleId: ModuleId) {
   const session = await requireGarageSession();
   if (session.response) {
+    const next = encodeURIComponent(`/os?module=${moduleId}`);
     if (session.response.status === 401) {
-      redirect("/login");
+      redirect(`/login?next=${next}`);
     }
 
-    redirect("/login");
+    redirect(`/login?next=${next}`);
   }
 
   const role = session.data.profile.role;

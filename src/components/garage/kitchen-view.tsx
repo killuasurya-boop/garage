@@ -103,7 +103,7 @@ export function KitchenView({
   };
   const [status, setStatus] = useState<KitchenTicketStatus>("all");
   const [stationState, setStationState] = useState<KitchenStationFilter>(
-    lockedStation ?? "all",
+    lockedStation ?? "Food",
   );
   const station: KitchenStationFilter = lockedStation ?? stationState;
   const setStation = (next: KitchenStationFilter) => {
@@ -382,7 +382,9 @@ export function KitchenView({
   );
 
   const statusFilters = useMemo<KitchenTicketStatus[]>(() => {
-    const filters: KitchenTicketStatus[] = ["all", "queue", "cooking", "ready", "delivered"];
+    // "Selesai" (delivered) sengaja TIDAK ditampilkan sebagai filter di dapur/bar:
+    // delivery adalah domain waiter. Dapur/bar fokus queue/cooking/ready.
+    const filters: KitchenTicketStatus[] = ["all", "queue", "cooking", "ready"];
     if (tickets.some((ticket) => ticket.status === "rejected")) filters.push("rejected");
     if (tickets.some((ticket) => ticket.status === "cancelled" || ticket.status === "canceled")) {
       filters.push("cancelled");
@@ -517,9 +519,13 @@ export function KitchenView({
   }, [tickets]);
 
   async function updateStatus(order: KitchenTicketView) {
+    // Dapur & bar HANYA memajukan sampai "ready". Transisi ready -> delivered
+    // (antar) adalah hak waiter (acc), supaya tidak ada tiket "selesai" padahal
+    // belum benar-benar diantar. Lihat waiter-view handleDeliver.
     const next = order.status === "queue" ? "cooking"
       : order.status === "cooking" ? "ready"
-      : order.status === "ready" ? "delivered" : "delivered";
+      : null;
+    if (!next) return;
     setUpdatingTicket(order.id);
     setMutationError(null);
     try {
@@ -600,9 +606,6 @@ export function KitchenView({
     }[v] ?? v;
   }
   function stLbl(v: KitchenStationFilter) { return { all: "Semua Station", Food: "Dapur", Bar: "Bar", Packaging: "Packing" }[v] ?? v; }
-  function isTerminalKitchenStatus(value: string) {
-    return ["delivered", "rejected", "cancelled", "canceled"].includes(value);
-  }
   function stationTitle() {
     if (lockedStation === "Food") return "Dapur Makanan";
     if (lockedStation === "Bar") return "Bar Minuman";
@@ -653,7 +656,6 @@ export function KitchenView({
   function renderBoard(order: KitchenTicketView) {
     const bc = order.slaTone === "late" ? "#d11a2a" : order.slaTone === "watch" ? "#f5a742" : "#3a3a42";
     const bg = order.slaTone === "late" ? "#2a1116" : order.slaTone === "watch" ? "#2b2114" : "#202027";
-    const isTerminal = isTerminalKitchenStatus(order.status);
     const tC = order.slaTone === "late" ? "text-[#ff4d5d]" : order.slaTone === "watch" ? "text-[#ffd08a]" : "text-white";
     const bC = order.slaTone === "late" ? "bg-[#d11a2a]" : order.slaTone === "watch" ? "bg-[#f5a742]" : "bg-[#555]";
     const clock = order.status === "queue" ? fmtClock(order.targetSec)
@@ -716,13 +718,17 @@ export function KitchenView({
         {order.internalNotes && (
           <p className="mt-2 rounded border border-[#f5a742]/40 bg-[#f5a742]/12 px-2.5 py-2 text-sm font-black leading-snug text-[#ffd08a]">CATATAN ORDER: {order.internalNotes}</p>
         )}
-        {!isTerminal && (
+        {order.status === "queue" || order.status === "cooking" ? (
           <button onClick={() => void updateStatus(order)} disabled={updatingTicket === order.id}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-[#d11a2a] px-4 py-3 text-sm font-black uppercase tracking-wide text-white active:scale-95 disabled:opacity-50 transition-transform">
             {updatingTicket === order.id ? <RefreshCw className="size-4 animate-spin" /> : <Check className="size-4" />}
-            {order.status === "queue" ? "Terima" : order.status === "cooking" ? "Siap" : "Selesai"}
+            {order.status === "queue" ? "Terima" : "Siap"}
           </button>
-        )}
+        ) : order.status === "ready" ? (
+          <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-[#22c55e]/45 bg-[#22c55e]/12 px-4 py-3 text-sm font-black uppercase tracking-wide text-[#9be7bf]">
+            <Check className="size-4" /> Siap &middot; Menunggu Waiter
+          </div>
+        ) : null}
         <div className="mt-2 flex gap-1.5">
           <button onClick={() => void togglePin(order)}
             className={"flex-1 rounded border py-1.5 text-[10px] font-bold uppercase transition " + (order.pinned ? "border-[#f5a742] bg-[#f5a742]/20 text-[#ffd08a]" : "border-[#444] bg-white/5 text-[#888]")}>
@@ -740,7 +746,6 @@ export function KitchenView({
   function renderList(order: KitchenTicketView) {
     const bg = order.slaTone === "late" ? "#2a1116" : order.slaTone === "watch" ? "#2b2114" : "#202027";
     const bc = order.slaTone === "late" ? "#d11a2a" : order.slaTone === "watch" ? "#f5a742" : "#3a3a42";
-    const isTerminal = isTerminalKitchenStatus(order.status);
     const tC = order.slaTone === "late" ? "text-[#ff4d5d]" : order.slaTone === "watch" ? "text-[#ffd08a]" : "text-white";
     const clock = order.status === "queue" ? fmtClock(order.targetSec)
       : order.isLate ? fmtClock(order.prodSec - order.targetSec)
@@ -795,12 +800,14 @@ export function KitchenView({
             <p className="text-[9px] uppercase text-[#777]">{order.isLate ? "Lewat" : order.status === "queue" ? "Target" : "Sisa"}</p>
             <p className={"font-mono text-2xl font-black " + tC}>{clock}</p>
           </div>
-          {!isTerminal ? (
+          {order.status === "queue" || order.status === "cooking" ? (
             <button onClick={() => void updateStatus(order)} disabled={updatingTicket === order.id}
               className="flex w-full items-center justify-center gap-1 rounded bg-[#d11a2a] px-3 py-2.5 text-xs font-black uppercase text-white active:scale-95 disabled:opacity-50 transition-transform sm:w-auto sm:px-4">
               {updatingTicket === order.id ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-              {order.status === "queue" ? "Terima" : order.status === "cooking" ? "Siap" : "Selesai"}
+              {order.status === "queue" ? "Terima" : "Siap"}
             </button>
+          ) : order.status === "ready" ? (
+            <span className="rounded border border-[#22c55e]/40 bg-[#22c55e]/15 px-2 py-1 text-[10px] font-bold text-[#9be7bf]">SIAP &middot; WAITER</span>
           ) : (
             <span className="rounded bg-white/8 px-2 py-1 text-[10px] font-bold text-[#888]">SELESAI</span>
           )}
@@ -941,7 +948,11 @@ export function KitchenView({
                 ) : null}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(["all", "Food", "Bar", "Packaging"] as KitchenStationFilter[]).map((s) => {
+                {/* "Semua Station" (all) & "Packaging" sengaja DIHILANGKAN dari
+                    operasional: tiket hanya pernah ber-station Food/Bar (lihat
+                    garage-service), dan tiap layar fokus station-nya sendiri
+                    (anti-keliru pegang tiket station lain / opsi kosong). */}
+                {(["Food", "Bar"] as KitchenStationFilter[]).map((s) => {
                   const disabled = lockedStation !== null && lockedStation !== s;
                   return (
                     <button

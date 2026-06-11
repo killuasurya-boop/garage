@@ -12,6 +12,8 @@ import {
   ChefHat,
   CheckCircle2,
   Clock,
+  Download,
+  FileSpreadsheet,
   RefreshCw,
   ShieldAlert,
   Sparkles,
@@ -96,13 +98,27 @@ export default function BriefingPage() {
         title="Ringkasan Harian"
         subtitle={brief ? `Diperbarui ${timeFmt.format(new Date(brief.generatedAt))}` : "Memuat…"}
         actions={
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-[11px] font-semibold uppercase text-zinc-200 hover:bg-[var(--garage-bg-3)]"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Segarkan
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/api/owner/daily-brief/export?format=pdf"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--garage-amber)_45%,transparent)] bg-[color-mix(in_srgb,var(--garage-amber)_12%,transparent)] px-3 py-1.5 text-[11px] font-semibold uppercase text-[#ffd8a8] hover:bg-[color-mix(in_srgb,var(--garage-amber)_20%,transparent)]"
+            >
+              <Download className="h-3.5 w-3.5" /> PDF
+            </a>
+            <a
+              href="/api/owner/daily-brief/export?format=xlsx"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-[11px] font-semibold uppercase text-zinc-200 hover:bg-[var(--garage-bg-3)]"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+            </a>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-[11px] font-semibold uppercase text-zinc-200 hover:bg-[var(--garage-bg-3)]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Segarkan
+            </button>
+          </div>
         }
       />
 

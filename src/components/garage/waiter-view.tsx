@@ -13,6 +13,7 @@ import {
   ChefHat,
   CircleDot,
   Loader2,
+  NotebookPen,
   RefreshCw,
   ReceiptText,
   Settings,
@@ -1150,6 +1151,24 @@ export function WaiterView({ me }: Props) {
                   ) : (
                     <div className="mt-1 h-9" aria-hidden />
                   )}
+                  {/* Pesankan: waiter ambil pesanan langsung untuk meja ini.
+                      Buka menu digital prefill meja (tab baru) -> order masuk
+                      sebagai pending_cashier untuk divalidasi kasir. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        `/order?table=${encodeURIComponent(row.tableNumber)}&source=qr_table`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      )
+                    }
+                    title={`Pesankan order untuk meja ${row.tableNumber}`}
+                    className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/15 text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#ffb4bd] transition hover:bg-[#d11a2a]/25 active:scale-[0.97]"
+                  >
+                    <NotebookPen size={12} />
+                    <span>Pesankan</span>
+                  </button>
                 </div>
               );
             })}

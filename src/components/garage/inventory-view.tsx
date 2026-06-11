@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   FileText,
   History,
+  Image as ImageIcon,
   Info,
   LockKeyhole,
   Minus,
@@ -513,9 +514,17 @@ export function InventoryView({
     menuItems as ManagedProductItem[],
   );
   const [productListMode, setProductListMode] = useState<"active" | "archived">("active");
+  // Filter & sort daftar produk (B2). Default urut A-Z by nama.
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState<"all" | MenuCategory>("all");
+  const [productStockFilter, setProductStockFilter] = useState<"all" | "ready" | "limited" | "sold_out">("all");
+  const [productSortBy, setProductSortBy] = useState<"name-asc" | "name-desc" | "sku-asc" | "price-asc" | "price-desc">("name-asc");
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [productEditId, setProductEditId] = useState("");
   const [productName, setProductName] = useState("");
+  const [productSku, setProductSku] = useState("");
+  const [productPromoActive, setProductPromoActive] = useState(false);
+  const [productPromoPrice, setProductPromoPrice] = useState("");
   const [productCategory, setProductCategory] = useState<MenuCategory>("Cemilan");
   const [productSection, setProductSection] = useState("Dapur");
   const [productPrep, setProductPrep] = useState("10m");
@@ -1636,8 +1645,45 @@ export function InventoryView({
     () => productItems.filter((item) => item.status === "archived"),
     [productItems],
   );
-  const visibleProductItems =
+  const baseProductItems =
     productListMode === "active" ? activeProductItems : archivedProductItems;
+  const visibleProductItems = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    const lowestPrice = (item: ManagedProductItem) =>
+      item.variants.length
+        ? Math.min(...item.variants.map((variant) => variant.price))
+        : 0;
+    const filtered = baseProductItems.filter((item) => {
+      if (productCategoryFilter !== "all" && item.category !== productCategoryFilter) {
+        return false;
+      }
+      if (productStockFilter !== "all" && item.stock !== productStockFilter) {
+        return false;
+      }
+      if (q) {
+        const haystack = `${item.name} ${item.sku ?? ""} ${item.category} ${item.section}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (productSortBy) {
+        case "name-desc":
+          return b.name.localeCompare(a.name, "id");
+        case "sku-asc":
+          return (a.sku ?? "~").localeCompare(b.sku ?? "~", "id");
+        case "price-asc":
+          return lowestPrice(a) - lowestPrice(b);
+        case "price-desc":
+          return lowestPrice(b) - lowestPrice(a);
+        case "name-asc":
+        default:
+          return a.name.localeCompare(b.name, "id");
+      }
+    });
+    return sorted;
+  }, [baseProductItems, productSearch, productCategoryFilter, productStockFilter, productSortBy]);
   const recipeCostPreview = useMemo(
     () =>
       productVariants[0]
@@ -1708,6 +1754,9 @@ export function InventoryView({
   function resetProductForm() {
     setProductEditId("");
     setProductName("");
+    setProductSku("");
+    setProductPromoActive(false);
+    setProductPromoPrice("");
     setProductCategory("Cemilan");
     setProductSection("Dapur");
     setProductPrep("10m");
@@ -1745,6 +1794,9 @@ export function InventoryView({
     const draft: ProductDraftState = {
       editId: productEditId,
       name: productName,
+      sku: productSku,
+      promoActive: productPromoActive,
+      promoPrice: productPromoPrice,
       category: productCategory,
       section: productSection,
       prep: productPrep,
@@ -1790,6 +1842,9 @@ export function InventoryView({
 
       setProductEditId(typeof draft.editId === "string" ? draft.editId : "");
       setProductName(typeof draft.name === "string" ? draft.name : "");
+      setProductSku(typeof draft.sku === "string" ? draft.sku : "");
+      setProductPromoActive(Boolean(draft.promoActive));
+      setProductPromoPrice(typeof draft.promoPrice === "string" ? draft.promoPrice : "");
       setProductCategory(validCategory);
       setProductSection(typeof draft.section === "string" ? draft.section : "Dapur");
       setProductPrep(typeof draft.prep === "string" ? draft.prep : "10m");
@@ -1983,6 +2038,9 @@ export function InventoryView({
   function beginEditProduct(product: ManagedProductItem) {
     setProductEditId(product.id);
     setProductName(product.name);
+    setProductSku(product.sku ?? "");
+    setProductPromoActive(Boolean(product.promoActive));
+    setProductPromoPrice(product.promoPrice ? String(product.promoPrice) : "");
     setProductCategory(product.category);
     setProductSection(product.section || (product.category === "Coffee" || product.category === "Non-Coffee" ? "Bar" : "Dapur"));
     setProductPrep(product.prep || "10m");
@@ -2023,10 +2081,47 @@ export function InventoryView({
       setProductError("Nama produk wajib diisi.");
       return;
     }
+
+    // Cegah "varian hilang diam-diam": varian yang sudah diisi (punya label atau
+    // harga) tapi harga jualnya kosong/invalid harus memunculkan pesan jelas,
+    // bukan di-drop tanpa kabar. Hanya baris benar-benar kosong yang diabaikan.
+    const invalidVariants = productVariants
+      .map((variant, index) => ({ variant, index }))
+      .filter(({ variant }) => {
+        const touched =
+          variant.label.trim() !== "" ||
+          variant.price.trim() !== "" ||
+          variant.baseCost.trim() !== "";
+        const price = Number(variant.price);
+        const priceValid = Number.isFinite(price) && price > 0;
+        return touched && !priceValid;
+      });
+    if (invalidVariants.length) {
+      const names = invalidVariants
+        .map(
+          ({ variant, index }) =>
+            `"${variant.label.trim() || (index === 0 ? "Regular" : `Varian ${index + 1}`)}"`,
+        )
+        .join(", ");
+      setProductError(
+        `Harga jual varian ${names} belum valid. Isi harga jual (> 0) atau hapus varian itu sebelum simpan.`,
+      );
+      return;
+    }
+
     const variants = buildProductVariantsPayload();
     if (!variants.length) {
       setProductError("Isi minimal 1 varian dengan harga jual yang valid.");
       return;
+    }
+
+    // Promo aktif wajib punya harga promo valid (> 0).
+    if (productPromoActive) {
+      const promoNum = Number(productPromoPrice);
+      if (!Number.isFinite(promoNum) || promoNum <= 0) {
+        setProductError("Promo aktif tapi harga promo belum diisi. Isi harga promo (> 0) atau matikan promo.");
+        return;
+      }
     }
     const recipes = buildProductRecipesPayload();
 
@@ -2038,8 +2133,15 @@ export function InventoryView({
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean);
+      const promoPriceNum = Number(productPromoPrice);
       const payload = {
         name: productName.trim(),
+        sku: productSku.trim() || undefined,
+        promoActive: productPromoActive,
+        promoPrice:
+          productPromoActive && Number.isFinite(promoPriceNum) && promoPriceNum > 0
+            ? Math.round(promoPriceNum)
+            : null,
         category: productCategory,
         section: productSection.trim() || (productCategory === "Coffee" || productCategory === "Non-Coffee" ? "Bar" : "Dapur"),
         stock: productStock,
@@ -2649,6 +2751,12 @@ export function InventoryView({
                 <ProductFormPanel
                   name={productName}
                   onNameChange={setProductName}
+                  sku={productSku}
+                  onSkuChange={setProductSku}
+                  promoActive={productPromoActive}
+                  onPromoActiveChange={setProductPromoActive}
+                  promoPrice={productPromoPrice}
+                  onPromoPriceChange={setProductPromoPrice}
                   category={productCategory}
                   onCategoryChange={(value) => {
                     setProductCategory(value);
@@ -2800,12 +2908,79 @@ export function InventoryView({
               </Button>
             </div>
 
+            {/* Toolbar filter & sort produk (B2) */}
+            <div className="grid gap-2 rounded-md border border-[#34343c] bg-white/[0.03] p-2 lg:grid-cols-[1fr_150px_140px_160px]">
+              <Input
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Cari nama atau SKU produk…"
+                className="h-9 border-[#34343c] bg-black/20 text-sm"
+              />
+              <Select
+                value={productCategoryFilter}
+                onValueChange={(value) => setProductCategoryFilter(value as "all" | MenuCategory)}
+              >
+                <SelectTrigger className="h-9 border-[#34343c] bg-black/20 text-xs">
+                  <SelectValue placeholder="Kategori" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua kategori</SelectItem>
+                  <SelectItem value="Makanan">Makanan</SelectItem>
+                  <SelectItem value="Cemilan">Cemilan</SelectItem>
+                  <SelectItem value="Coffee">Coffee</SelectItem>
+                  <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={productStockFilter}
+                onValueChange={(value) =>
+                  setProductStockFilter(value as "all" | "ready" | "limited" | "sold_out")
+                }
+              >
+                <SelectTrigger className="h-9 border-[#34343c] bg-black/20 text-xs">
+                  <SelectValue placeholder="Stok" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua stok</SelectItem>
+                  <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="limited">Limited</SelectItem>
+                  <SelectItem value="sold_out">Habis</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={productSortBy}
+                onValueChange={(value) =>
+                  setProductSortBy(value as typeof productSortBy)
+                }
+              >
+                <SelectTrigger className="h-9 border-[#34343c] bg-black/20 text-xs">
+                  <SelectValue placeholder="Urutkan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Nama A → Z</SelectItem>
+                  <SelectItem value="name-desc">Nama Z → A</SelectItem>
+                  <SelectItem value="sku-asc">SKU A → Z</SelectItem>
+                  <SelectItem value="price-asc">Harga termurah</SelectItem>
+                  <SelectItem value="price-desc">Harga termahal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="px-1 text-xs text-[#888]">
+              Menampilkan {visibleProductItems.length} produk
+              {productSearch.trim() || productCategoryFilter !== "all" || productStockFilter !== "all"
+                ? " (terfilter)"
+                : ""}
+              .
+            </p>
+
             <div className="overflow-hidden rounded-md border border-[#34343c]">
               {visibleProductItems.length === 0 ? (
                 <div className="p-4 text-center text-sm text-[#888]">
-                  {productListMode === "active"
-                    ? "Belum ada produk aktif."
-                    : "Belum ada produk arsip."}
+                  {baseProductItems.length === 0
+                    ? productListMode === "active"
+                      ? "Belum ada produk aktif."
+                      : "Belum ada produk arsip."
+                    : "Tidak ada produk yang cocok dengan filter."}
                 </div>
               ) : (
                 <div className="divide-y divide-[#34343c]">
@@ -2814,11 +2989,43 @@ export function InventoryView({
                       key={item.id}
                       className="grid gap-3 bg-white/[0.03] p-3 lg:grid-cols-[1fr_140px_130px_260px] lg:items-center"
                     >
-                      <div className="min-w-0">
-                        <p className="truncate font-black text-white">{item.name}</p>
-                        <p className="text-xs text-[#888]">
-                          {item.category} Â· {item.section} Â· {item.prep} Â· {item.variants.length} varian
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#34343c] bg-[#15151b]">
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <ImageIcon className="size-5 text-[#5b5b66]" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            {item.sku ? (
+                              <span className="shrink-0 rounded border border-[#34343c] bg-black/30 px-1.5 py-0.5 font-mono text-[10px] text-[#d4d4d8]">
+                                {item.sku}
+                              </span>
+                            ) : null}
+                            <p className="truncate font-black text-white">{item.name}</p>
+                            {item.promoActive && item.promoPrice ? (
+                              <span className="shrink-0 rounded bg-[#d11a2a] px-1.5 py-0.5 text-[10px] font-black text-white">
+                                PROMO
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 text-xs text-[#888]">
+                            {item.category} · {item.section} · {item.prep} · {item.variants.length} varian
+                            {item.promoActive && item.promoPrice ? (
+                              <span className="ml-1 text-[#ffb4bd]">
+                                · Promo {currency.format(item.promoPrice)}
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
                       </div>
                       <Badge
                         className={

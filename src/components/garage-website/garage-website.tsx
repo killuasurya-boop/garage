@@ -5891,6 +5891,132 @@ function Footer() {
 }
 
 
+// Section Promo Aktif — tarik produk promo (promoActive) langsung dari DB lewat
+// /api/customer/menu. Tampil hanya bila ada promo. Harga promo + harga coret.
+const formatRupiah = (value) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0);
+
+function PromoProducts() {
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/customer/menu", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((rows) => {
+        if (cancelled || !Array.isArray(rows)) return;
+        const promos = rows
+          .filter((it) => it && it.promoActive && Number(it.promoPrice) > 0)
+          .map((it) => {
+            const base = Array.isArray(it.variants) && it.variants.length
+              ? Math.min(...it.variants.map((v) => Number(v.price) || 0))
+              : 0;
+            return { ...it, basePrice: base };
+          })
+          .filter((it) => it.basePrice > Number(it.promoPrice));
+        setItems(promos);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!loaded || items.length === 0) return null;
+
+  return (
+    <section id="promo" className="section-pad" style={{
+      borderTop: "1px solid var(--line)",
+      background: "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
+    }}>
+      <div className="shell">
+        <div style={{ marginBottom: 40 }}>
+          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>
+            03 / Promo
+          </Reveal>
+          <Reveal mask as="h2" delay={100} className="display" aria-label="Promo aktif."
+            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
+            <span style={{ display: "block" }}>Promo</span>
+            <span style={{ display: "block", color: "var(--red)" }}>aktif.</span>
+          </Reveal>
+          <Reveal delay={300} as="p" style={{ marginTop: 16, color: "var(--fg-mute)", maxWidth: 520 }}>
+            Harga spesial yang lagi jalan di GARAGE. Datang langsung atau order via WhatsApp selagi promo masih ada.
+          </Reveal>
+        </div>
+
+        <div style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+        }}>
+          {items.map((it, idx) => {
+            const off = Math.round(
+              ((it.basePrice - Number(it.promoPrice)) / it.basePrice) * 100,
+            );
+            const waUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
+              `Halo GARAGE, saya mau pesan ${it.name} (promo ${formatRupiah(it.promoPrice)}).`,
+            )}`;
+            return (
+              <Reveal key={it.id || idx} delay={idx * 60}>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="promo-card" style={{
+                  display: "block",
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  border: "1px solid var(--line)",
+                  background: "var(--bg-2, #18181f)",
+                  textDecoration: "none",
+                  color: "inherit",
+                  transition: "transform .25s, border-color .25s",
+                }}>
+                  <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#15151b" }}>
+                    {it.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={it.imageUrl} alt={it.name} loading="lazy"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : null}
+                    <span style={{
+                      position: "absolute", top: 10, left: 10,
+                      background: "var(--red)", color: "#fff",
+                      fontWeight: 900, fontSize: 11, letterSpacing: ".05em",
+                      padding: "4px 8px", borderRadius: 6,
+                    }}>
+                      PROMO{off > 0 ? ` -${off}%` : ""}
+                    </span>
+                  </div>
+                  <div style={{ padding: 14 }}>
+                    <p style={{ fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.3 }}>
+                      {it.name}
+                    </p>
+                    <p className="mono" style={{ margin: "4px 0 10px", color: "var(--fg-mute)", fontSize: 11 }}>
+                      {it.category}
+                    </p>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ color: "var(--red)", fontWeight: 800, fontSize: 18 }}>
+                        {formatRupiah(it.promoPrice)}
+                      </span>
+                      <span style={{ color: "var(--fg-mute)", textDecoration: "line-through", fontSize: 13 }}>
+                        {formatRupiah(it.basePrice)}
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              </Reveal>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function GarageWebsiteRoot({
   landingHero = null,
 }: {
@@ -5939,6 +6065,7 @@ function GarageWebsiteRoot({
       <LiveTrackingSystem />
       <S3MvpStrip />
       <Menu />
+      <PromoProducts />
       <About />
       <Atmosphere landingHero={landingHero} />
       <Experience />

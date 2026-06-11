@@ -12,6 +12,8 @@ Bell,
 Check,
 Clock,
 Database,
+Eye,
+EyeOff,
 FileText,
 Gauge,
 Info,
@@ -1786,6 +1788,7 @@ function LoginScreen({
     initialEmail ?? (showDemoHelpers ? rolePresets[0]?.email ?? "" : ""),
   );
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const selectedPreset =
@@ -2048,43 +2051,66 @@ function LoginScreen({
             </div>
             ) : null}
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-[1.08fr_0.92fr]">
-                <div className="space-y-1">
-                  <p className="garage-mono flex h-6 items-center">Email</p>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="h-11 border-[#34343c] bg-white/[0.06]"
-                    autoComplete="email"
-                  />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="garage-login-email" className="block text-sm font-semibold text-white">
+                  Email Karyawan
+                </label>
+                <Input
+                  id="garage-login-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="nama@garage.local"
+                  className="h-11 border-[#34343c] bg-white/[0.06] text-base"
+                  autoComplete="email"
+                  required
+                />
+                <p className="text-xs text-[#9696a1]">
+                  Gunakan email akun staff yang sudah didaftarkan owner.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="garage-login-password" className="block text-sm font-semibold text-white">
+                    Password
+                  </label>
+                  {devLoginPassword ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPassword(devLoginPassword);
+                        setError(null);
+                      }}
+                      className="garage-mono rounded border border-[#4a4a54] px-2 py-1 text-[10px] text-[#d4d4d8] transition hover:border-[#d11a2a]/70 hover:text-white"
+                    >
+                      Isi demo
+                    </button>
+                  ) : null}
                 </div>
-                <div className="space-y-1">
-                  <div className="flex h-6 items-center justify-between gap-2">
-                    <p className="garage-mono">Password</p>
-                    {devLoginPassword ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPassword(devLoginPassword);
-                          setError(null);
-                        }}
-                        className="garage-mono rounded border border-[#4a4a54] px-2 py-1 text-[10px] text-[#d4d4d8] transition hover:border-[#d11a2a]/70 hover:text-white"
-                      >
-                        Isi demo
-                      </button>
-                    ) : null}
-                  </div>
+                <div className="relative">
                   <Input
-                    type="password"
+                    id="garage-login-password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="h-11 border-[#34343c] bg-white/[0.06]"
+                    placeholder="Masukkan password"
+                    className="h-11 border-[#34343c] bg-white/[0.06] pr-11 text-base"
                     autoComplete="current-password"
+                    required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    className="absolute right-1 top-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-[#9696a1] transition hover:bg-white/[0.06] hover:text-white"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
                 </div>
               </div>
+
               {error && (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                   <AlertTriangle className="size-4" />
@@ -2092,16 +2118,21 @@ function LoginScreen({
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <Button disabled={pending} className="garage-login-submit garage-press h-11 w-full">
+
+              <Button disabled={pending} className="garage-login-submit garage-press h-12 w-full text-base font-semibold">
                 {pending ? (
                   <RefreshCw className="mr-2 size-4 animate-spin" />
                 ) : (
                   <LockKeyhole className="mr-2 size-4" />
                 )}
                 <span className="truncate whitespace-nowrap">
-                  {isPosLogin ? "Masuk POS" : "Masuk Garage OS"}
+                  {pending ? "Memverifikasi…" : isPosLogin ? "Masuk POS" : "Masuk Garage OS"}
                 </span>
               </Button>
+
+              <p className="text-center text-xs text-[#9696a1]">
+                Lupa password? Hubungi Owner atau Admin untuk reset akun.
+              </p>
             </form>
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#34343c] pt-4 text-xs text-[#9696a1]">
@@ -2369,56 +2400,93 @@ function ModuleNav({
     canAccessModule(role, module.id),
   );
 
-  return (
-    <nav className="grid min-w-0 gap-1.5">
-      {accessibleModules.map((module) => {
-        const isActive = activeModule === module.id;
-        const showBadge =
-          module.id === "approvals" && approvalBadgeCount > 0;
-        return (
-          <Tooltip key={module.id}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                data-module-nav-item={module.id}
-                onClick={() => onChange(module.id)}
-                aria-current={isActive ? "page" : undefined}
-                className={`garage-press grid min-h-11 w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors ${
-                  isActive
-                    ? "border-[#ff2a3a]/45 bg-[#d11a2a]/18 text-white shadow-[inset_3px_0_0_rgba(255,42,58,0.95)]"
-                    : "border-transparent text-[#d0d0d6] hover:border-white/10 hover:bg-white/[0.075] hover:text-white"
-                }`}
+  // Pengelompokan sidebar (D1/D2) — murni visual, tidak mengubah route/logika.
+  // Modul yang tidak masuk grup mana pun jatuh ke "Lainnya" supaya tak hilang.
+  const NAV_GROUPS: Array<{ title: string; ids: ModuleId[] }> = [
+    { title: "Ringkasan", ids: ["dashboard", "ai-agent"] },
+    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "inventory", "smart-notif"] },
+    { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website"] },
+    { title: "Keuangan", ids: ["finance", "earnings", "approvals"] },
+    {
+      title: "Manajemen & Sistem",
+      ids: ["team-management", "audit", "company-control", "settings", "chat", "training"],
+    },
+  ];
+
+  type NavModule = (typeof accessibleModules)[number];
+  const byId = new Map<ModuleId, NavModule>(
+    accessibleModules.map((module) => [module.id, module]),
+  );
+  const groupedIds = new Set(NAV_GROUPS.flatMap((group) => group.ids));
+  const grouped = NAV_GROUPS.map((group) => ({
+    title: group.title,
+    items: group.ids
+      .map((id) => byId.get(id))
+      .filter((module): module is NavModule => Boolean(module)),
+  })).filter((group) => group.items.length > 0);
+  const leftover = accessibleModules.filter((module) => !groupedIds.has(module.id));
+  if (leftover.length) {
+    grouped.push({ title: "Lainnya", items: leftover });
+  }
+
+  const renderModuleButton = (module: NavModule) => {
+    const isActive = activeModule === module.id;
+    const showBadge = module.id === "approvals" && approvalBadgeCount > 0;
+    return (
+      <Tooltip key={module.id}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            data-module-nav-item={module.id}
+            onClick={() => onChange(module.id)}
+            aria-current={isActive ? "page" : undefined}
+            className={`garage-press grid min-h-11 w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors ${
+              isActive
+                ? "border-[#ff2a3a]/45 bg-[#d11a2a]/18 text-white shadow-[inset_3px_0_0_rgba(255,42,58,0.95)]"
+                : "border-transparent text-[#d0d0d6] hover:border-white/10 hover:bg-white/[0.075] hover:text-white"
+            }`}
+          >
+            <span
+              data-module-nav-icon={module.id}
+              className={`flex h-8 w-8 min-w-8 items-center justify-center rounded-md ${
+                isActive ? "bg-[#d11a2a]/18 text-[#ff2a3a]" : "text-[#b8b8bf]"
+              }`}
+              aria-hidden="true"
+            >
+              <module.icon className="size-4" />
+            </span>
+            <span className="min-w-0 truncate text-sm font-semibold leading-tight">
+              {module.label}
+            </span>
+            {showBadge ? (
+              <span
+                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d11a2a] px-1.5 text-[10px] font-extrabold text-white shadow-[0_0_8px_rgba(209,26,42,0.65)]"
+                aria-label={`${approvalBadgeCount} approval pending`}
               >
-                <span
-                  data-module-nav-icon={module.id}
-                  className={`flex h-8 w-8 min-w-8 items-center justify-center rounded-md ${
-                    isActive
-                      ? "bg-[#d11a2a]/18 text-[#ff2a3a]"
-                      : "text-[#b8b8bf]"
-                  }`}
-                  aria-hidden="true"
-                >
-                  <module.icon className="size-4" />
-                </span>
-                <span className="min-w-0 truncate text-sm font-semibold leading-tight">
-                  {module.label}
-                </span>
-                {showBadge ? (
-                  <span
-                    className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d11a2a] px-1.5 text-[10px] font-extrabold text-white shadow-[0_0_8px_rgba(209,26,42,0.65)]"
-                    aria-label={`${approvalBadgeCount} approval pending`}
-                  >
-                    {approvalBadgeCount > 99 ? "99+" : approvalBadgeCount}
-                  </span>
-                ) : isActive ? (
-                  <ArrowRight className="hidden size-4 shrink-0 text-[#ffccd1] min-[420px]:block" />
-                ) : null}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">{module.description}</TooltipContent>
-          </Tooltip>
-        );
-      })}
+                {approvalBadgeCount > 99 ? "99+" : approvalBadgeCount}
+              </span>
+            ) : isActive ? (
+              <ArrowRight className="hidden size-4 shrink-0 text-[#ffccd1] min-[420px]:block" />
+            ) : null}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{module.description}</TooltipContent>
+      </Tooltip>
+    );
+  };
+
+  return (
+    <nav className="grid min-w-0 gap-3">
+      {grouped.map((group) => (
+        <div key={group.title} className="grid min-w-0 gap-1">
+          <p className="garage-mono px-2.5 pb-0.5 text-[10px] uppercase tracking-[0.18em] text-[#7d7d87]">
+            {group.title}
+          </p>
+          <div className="grid min-w-0 gap-1.5">
+            {group.items.map(renderModuleButton)}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }

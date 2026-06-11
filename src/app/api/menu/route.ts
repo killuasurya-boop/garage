@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 const menuProductSchema = z.object({
   id: z.string().trim().min(2).max(80).optional(),
+  sku: z.string().trim().max(40).optional(),
   name: z.string().trim().min(2).max(120),
   category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee"]),
   section: z.string().trim().min(2).max(40).optional(),
@@ -15,6 +16,8 @@ const menuProductSchema = z.object({
   prep: z.string().trim().min(1).max(20).optional(),
   tags: z.array(z.string().trim().min(1).max(32)).max(8).optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
+  promoActive: z.boolean().optional(),
+  promoPrice: z.number().int().min(0).max(50_000_000).nullable().optional(),
   variants: z
     .array(
       z.object({

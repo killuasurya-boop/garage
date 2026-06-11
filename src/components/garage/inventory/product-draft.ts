@@ -25,6 +25,9 @@ export type ProductRecipeDraft = {
 export type ProductDraftState = {
   editId: string;
   name: string;
+  sku?: string;
+  promoActive?: boolean;
+  promoPrice?: string;
   category: MenuCategory;
   section: string;
   prep: string;

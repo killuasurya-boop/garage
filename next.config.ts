@@ -25,6 +25,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["@electric-sql/pglite"],
   allowedDevOrigins: lanDevOrigins(),
+  // Google Drive (I:) tidak mendukung junction/symlink yang Turbopack butuhkan.
+  // Arahkan build cache ke disk lokal saat dev di Drive.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
 };
 
 export default nextConfig;

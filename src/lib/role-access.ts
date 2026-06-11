@@ -71,12 +71,33 @@ const ownerPermissions: Permission[] = [
 
 export const rolePermissions: Record<Role, Permission[]> = {
   "Owner / CEO": ownerPermissions,
-  Admin: ownerPermissions.filter(
-    (permission) =>
-      permission !== "ai:manage" &&
-      permission !== "company:read" &&
-      permission !== "company:manage",
-  ),
+  // Admin = operasional saja. DILARANG (owner-only): dashboard owner, Garage AI,
+  // Finance, Earnings/payroll, CEO Control (company), Audit. Definisi eksplisit
+  // supaya tidak bocor saat ownerPermissions bertambah di kemudian hari.
+  Admin: [
+    "pos:use",
+    "orders:read",
+    "orders:manage",
+    "kitchen:read",
+    "kitchen:write",
+    "inventory:read",
+    "inventory:write",
+    "crm:read",
+    "crm:write",
+    "marketing:read",
+    "marketing:write",
+    "approvals:read",
+    "approvals:decide",
+    "staff:manage",
+    "website:manage",
+    "tables:read",
+    "tables:write",
+    "print:read",
+    "print:write",
+    "shift:cash",
+    "shift:handover",
+    "chat:use",
+  ],
   "Manager Operasional": [
     "dashboard:read",
     "pos:use",
@@ -191,21 +212,18 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "team-management",
     "settings",
   ],
+  // Admin = operasional. Tanpa dashboard owner, ai-agent, finance, earnings,
+  // audit, company-control (sesuai keputusan owner).
   Admin: [
-    "dashboard",
     "pos",
-    "ai-agent",
     "kitchen",
     "waiter",
     "inventory",
-    "finance",
     "crm",
     "membership",
     "marketing",
     "approvals",
     "website",
-    "earnings",
-    "audit",
     "team-management",
     "settings",
   ],

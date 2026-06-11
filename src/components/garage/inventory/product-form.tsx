@@ -32,6 +32,12 @@ export interface ProductFormPanelProps {
   // Detail
   name: string;
   onNameChange: (value: string) => void;
+  sku: string;
+  onSkuChange: (value: string) => void;
+  promoActive: boolean;
+  onPromoActiveChange: (value: boolean) => void;
+  promoPrice: string;
+  onPromoPriceChange: (value: string) => void;
   category: MenuCategory;
   onCategoryChange: (value: MenuCategory) => void;
   section: string;
@@ -79,6 +85,12 @@ export interface ProductFormPanelProps {
 export function ProductFormPanel({
   name,
   onNameChange,
+  sku,
+  onSkuChange,
+  promoActive,
+  onPromoActiveChange,
+  promoPrice,
+  onPromoPriceChange,
   category,
   onCategoryChange,
   section,
@@ -112,7 +124,66 @@ export function ProductFormPanel({
       <div className="space-y-4 rounded-md border border-[#34343c] bg-[#18181f] p-4 shadow-sm">
         <div>
           <p className="text-sm font-black text-white">Detail Produk</p>
-          <p className="text-xs text-[#a1a1aa]">Nama, kategori, station, stok, dan waktu prep.</p>
+          <p className="text-xs text-[#a1a1aa]">SKU, nama, kategori, station, stok, dan waktu prep.</p>
+        </div>
+        <div className="grid gap-1 sm:max-w-[260px]">
+          <label className="text-xs font-semibold text-[#d4d4d8]">SKU Produk</label>
+          <Input
+            value={sku}
+            onChange={(event) =>
+              onSkuChange(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))
+            }
+            className="h-10 border-[#34343c] bg-white/[0.06] font-mono"
+            placeholder="Auto (COF-001)"
+          />
+          <p className="text-[10px] leading-4 text-[#a1a1aa]">
+            Kosongkan untuk auto sesuai kategori. Bisa diubah manual, wajib unik.
+          </p>
+        </div>
+
+        {/* Promo produk (harga tetap, toggle on/off) */}
+        <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
+          <button
+            type="button"
+            onClick={() => onPromoActiveChange(!promoActive)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+            aria-pressed={promoActive}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white">Promo Produk</p>
+              <p className="text-[11px] text-[#a1a1aa]">
+                Harga promo tetap, tampil di POS &amp; menu dengan harga coret.
+              </p>
+            </div>
+            <span
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+                promoActive ? "bg-[#d11a2a]" : "bg-[#34343c]"
+              }`}
+            >
+              <span
+                className={`inline-block size-4 transform rounded-full bg-white transition ${
+                  promoActive ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </span>
+          </button>
+          {promoActive ? (
+            <div className="grid gap-1 sm:max-w-[260px]">
+              <label className="text-xs font-semibold text-[#d4d4d8]">Harga Promo (Rp)</label>
+              <Input
+                inputMode="numeric"
+                value={promoPrice}
+                onChange={(event) =>
+                  onPromoPriceChange(event.target.value.replace(/[^\d]/g, ""))
+                }
+                className="h-10 border-[#34343c] bg-white/[0.06]"
+                placeholder="Mis. 20000"
+              />
+              <p className="text-[10px] leading-4 text-[#a1a1aa]">
+                Harga promo meng-override harga varian saat transaksi.
+              </p>
+            </div>
+          ) : null}
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
           <Input

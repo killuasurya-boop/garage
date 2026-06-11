@@ -272,21 +272,34 @@ export const staffProfiles = pgTable(
   }),
 );
 
-export const menuItems = pgTable("menu_items", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
-  section: text("section").notNull(),
-  stock: text("stock").notNull().default("ready"),
-  status: text("status").notNull().default("active"),
-  prep: text("prep").notNull(),
-  tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  // URL foto menu untuk tampilan menu digital (opsional). Kosong = pakai ikon kategori.
-  imageUrl: text("image_url"),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const menuItems = pgTable(
+  "menu_items",
+  {
+    id: text("id").primaryKey(),
+    // SKU produk untuk kasir/inventory. Format kategori+urut (COF-001, FOOD-014).
+    // Nullable supaya data lama tetap valid; di-backfill via migrasi. Unik bila terisi.
+    sku: text("sku"),
+    name: text("name").notNull(),
+    category: text("category").notNull(),
+    section: text("section").notNull(),
+    stock: text("stock").notNull().default("ready"),
+    status: text("status").notNull().default("active"),
+    prep: text("prep").notNull(),
+    tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    // URL foto menu untuk tampilan menu digital (opsional). Kosong = pakai ikon kategori.
+    imageUrl: text("image_url"),
+    // Promo per produk (harga tetap, toggle on/off). Aktif bila promoActive=true
+    // dan promoPrice > 0; promoPrice meng-override harga varian saat POS/menu.
+    promoActive: boolean("promo_active").notNull().default(false),
+    promoPrice: integer("promo_price"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    skuIdx: uniqueIndex("menu_items_sku_idx").on(table.sku),
+  }),
+);
 
 export const menuVariants = pgTable(
   "menu_variants",

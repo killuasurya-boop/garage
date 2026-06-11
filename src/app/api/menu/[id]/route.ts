@@ -17,6 +17,7 @@ const menuProductPatchSchema = z.object({
 
 const menuProductUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
+  sku: z.string().trim().max(40).optional(),
   category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee"]).optional(),
   section: z.string().trim().min(2).max(40).optional(),
   stock: z.enum(["ready", "limited", "sold_out"]).optional(),
@@ -24,6 +25,8 @@ const menuProductUpdateSchema = z.object({
   prep: z.string().trim().min(1).max(20).optional(),
   tags: z.array(z.string().trim().min(1).max(32)).max(8).optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
+  promoActive: z.boolean().optional(),
+  promoPrice: z.number().int().min(0).max(50_000_000).nullable().optional(),
   // URL foto menu; string kosong = hapus foto (pakai ikon kategori).
   imageUrl: z.string().trim().url().max(500).or(z.literal("")).optional(),
   variants: z

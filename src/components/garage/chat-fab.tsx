@@ -277,24 +277,37 @@ export function ChatFab({
       ) : null}
 
       {open ? (
+        // Widget live-chat mengambang: kompak di pojok kanan-bawah, TANPA backdrop
+        // full-screen, supaya app di belakang tetap terlihat & bisa dipakai.
         <div
-          className="fixed inset-0 z-50 flex items-end justify-end bg-black/60 p-0 sm:p-4"
-          onClick={() => setOpen(false)}
+          className="garage-chat-widget fixed bottom-4 right-4 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-[#34343c] bg-[#0b0b0e] shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+          style={{ height: "min(640px, calc(100dvh - 2rem))" }}
+          role="dialog"
+          aria-label="Chat tim"
         >
-          <div
-            className="garage-scroll relative flex h-full w-full flex-col overflow-y-auto rounded-none border border-[#34343c] bg-[#0b0b0e] p-3 shadow-2xl sm:h-[min(90vh,820px)] sm:max-w-[980px] sm:rounded-lg sm:p-4"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-label="Chat tim"
-          >
+          {/* Header widget */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#34343c] bg-[#15151b] px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d11a2a] text-white">
+                <MessageCircle className="h-4 w-4" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#15151b] bg-[#22c55e]" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-white">Chat Tim Garage</p>
+                <p className="truncate text-[10px] text-[#22c55e]">Online</p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Tutup chat"
-              className="garage-press absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-md border border-[#4a4a54] bg-[#15151b] text-[#d4d4d8] hover:bg-[#1f1f27] hover:text-white"
+              className="garage-press flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#4a4a54] bg-[#15151b] text-[#d4d4d8] hover:bg-[#1f1f27] hover:text-white"
             >
               <X className="h-4 w-4" />
             </button>
+          </div>
+          {/* Isi chat */}
+          <div className="garage-scroll min-h-0 flex-1 overflow-y-auto p-3">
             <ChatModule
               currentUserId={currentUserId}
               currentUserName={currentUserName}

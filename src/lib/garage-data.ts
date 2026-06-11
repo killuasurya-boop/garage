@@ -67,6 +67,7 @@ export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
 
 export type GarageMenuItem = {
   id: string;
+  sku?: string;
   name: string;
   category: MenuCategory;
   section: string;
@@ -81,6 +82,8 @@ export type GarageMenuItem = {
   prep: string;
   tags: string[];
   imageUrl?: string;
+  promoActive?: boolean;
+  promoPrice?: number;
   recipeCost?: number;
   recipes?: Array<{
     variantId: string;

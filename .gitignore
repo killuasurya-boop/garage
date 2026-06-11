@@ -96,3 +96,8 @@ testsprite_tests\tmp\config.json
 /.agents/
 /data/
 .claude/launch.json
+
+# Sisa sync VPS & backup DB lokal (jangan masuk repo)
+/.pglite-data.backup-*/
+/garage-data.sql
+/garage-uploads.tgz

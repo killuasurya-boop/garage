@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "crypto";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -268,6 +268,7 @@ type ExpenseInput = {
 
 export type MenuProductInput = {
   id?: string;
+  sku?: string;
   name: string;
   category: MenuCategory;
   section?: string;
@@ -276,6 +277,8 @@ export type MenuProductInput = {
   prep?: string;
   tags?: string[];
   sortOrder?: number;
+  promoActive?: boolean;
+  promoPrice?: number | null;
   variants: Array<{
     id?: string;
     label: string;
@@ -1224,6 +1227,7 @@ export async function getMenuData(params?: {
     filters.push(
       or(
         ilike(menuItems.id, search),
+        ilike(menuItems.sku, search),
         ilike(menuItems.name, search),
         ilike(menuItems.category, search),
         ilike(menuItems.section, search),
@@ -1262,6 +1266,7 @@ export async function getMenuData(params?: {
 
   const baseRows = itemRows.map((item) => ({
     id: item.id,
+    sku: item.sku ?? undefined,
     name: item.name,
     category: item.category as MenuCategory,
     section: item.section,
@@ -1276,6 +1281,8 @@ export async function getMenuData(params?: {
     prep: item.prep,
     tags: item.tags,
     imageUrl: item.imageUrl ?? undefined,
+    promoActive: item.promoActive ?? false,
+    promoPrice: item.promoPrice ?? undefined,
   }));
 
   if (!params?.includeCosting) {
@@ -1358,6 +1365,64 @@ function sectionForMenuCategory(category: MenuCategory) {
 function normalizeVariantId(value: string | undefined, index: number) {
   const fallback = index === 0 ? "regular" : `variant-${index + 1}`;
   return slugifyMenuId(value || fallback) || fallback;
+}
+
+const MENU_SKU_PREFIX: Record<string, string> = {
+  Coffee: "COF",
+  "Non-Coffee": "NCOF",
+  Makanan: "FOOD",
+  Cemilan: "SNCK",
+};
+
+function menuSkuPrefix(category: string) {
+  return MENU_SKU_PREFIX[category] ?? "GEN";
+}
+
+// Auto-generate SKU unik format <PREFIX>-<urut 3 digit> berdasar kategori.
+// Cari nomor tertinggi yang sudah dipakai prefix tsb lalu +1 (toleran gap).
+async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
+  const prefix = menuSkuPrefix(category);
+  const rows = await tx
+    .select({ sku: menuItems.sku })
+    .from(menuItems)
+    .where(ilike(menuItems.sku, `${prefix}-%`));
+  let max = 0;
+  for (const row of rows) {
+    const m = /^[A-Z]+-(\d+)$/.exec(row.sku ?? "");
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
+// Normalisasi SKU manual: uppercase, hanya huruf/angka/dash. Kosong → null.
+function normalizeMenuSku(raw: string | undefined | null) {
+  const trimmed = (raw ?? "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  return trimmed || null;
+}
+
+// Harga efektif transaksi: pakai harga promo bila aktif, valid, dan lebih murah
+// dari harga varian (promo hanya boleh mendiskon, tidak menaikkan harga).
+function effectiveMenuPrice(
+  variantPrice: number,
+  promoActive: boolean | null | undefined,
+  promoPrice: number | null | undefined,
+) {
+  if (promoActive && promoPrice != null && promoPrice > 0 && promoPrice < variantPrice) {
+    return promoPrice;
+  }
+  return variantPrice;
+}
+
+// Normalisasi promo: aktif hanya bila toggle on DAN harga promo valid (> 0).
+// promoPrice null saat tidak aktif supaya data bersih.
+function normalizeMenuPromo(
+  promoActive: boolean | undefined,
+  promoPrice: number | null | undefined,
+) {
+  const price =
+    promoPrice == null ? null : Math.max(0, Math.round(Number(promoPrice)));
+  const active = Boolean(promoActive) && price != null && price > 0;
+  return { promoActive: active, promoPrice: active ? price : null };
 }
 
 function normalizeMenuProductVariants(input: MenuProductInput["variants"], itemId: string) {
@@ -1512,10 +1577,27 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
       throw new Error("ID produk sudah ada. Gunakan nama/ID lain.");
     }
 
+    // SKU: pakai input manual bila ada (cek unik), kalau tidak auto-generate.
+    let sku = normalizeMenuSku(input.sku);
+    if (sku) {
+      const [dupSku] = await tx
+        .select({ id: menuItems.id })
+        .from(menuItems)
+        .where(eq(menuItems.sku, sku))
+        .limit(1);
+      if (dupSku) {
+        throw new Error(`SKU "${sku}" sudah dipakai produk lain.`);
+      }
+    } else {
+      sku = await nextMenuSku(tx, input.category);
+    }
+
+    const promo = normalizeMenuPromo(input.promoActive, input.promoPrice);
     const inserted = await tx
       .insert(menuItems)
       .values({
         id,
+        sku,
         name,
         category: input.category,
         section: input.section?.trim() || sectionForMenuCategory(input.category),
@@ -1523,6 +1605,8 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         status: input.status ?? "active",
         prep: input.prep?.trim() || "10m",
         tags: input.tags ?? [],
+        promoActive: promo.promoActive,
+        promoPrice: promo.promoPrice,
         sortOrder: input.sortOrder ?? 999,
         updatedAt: now,
       })
@@ -1678,6 +1762,30 @@ export async function updateMenuProduct(
   if (input.tags !== undefined) update.tags = input.tags;
   if (input.sortOrder !== undefined) update.sortOrder = input.sortOrder;
   if (input.imageUrl !== undefined) update.imageUrl = input.imageUrl?.trim() || null;
+  if (input.sku !== undefined) {
+    const nextSku = normalizeMenuSku(input.sku);
+    if (nextSku) {
+      const [dupSku] = await db
+        .select({ id: menuItems.id })
+        .from(menuItems)
+        .where(and(eq(menuItems.sku, nextSku), ne(menuItems.id, safeId)))
+        .limit(1);
+      if (dupSku) {
+        throw new Error(`SKU "${nextSku}" sudah dipakai produk lain.`);
+      }
+    }
+    update.sku = nextSku;
+  }
+  if (input.promoActive !== undefined || input.promoPrice !== undefined) {
+    // Pakai nilai existing bila salah satu field tidak dikirim, supaya partial
+    // update tidak mematikan promo secara tak sengaja.
+    const promo = normalizeMenuPromo(
+      input.promoActive ?? existing.promoActive,
+      input.promoPrice !== undefined ? input.promoPrice : existing.promoPrice,
+    );
+    update.promoActive = promo.promoActive;
+    update.promoPrice = promo.promoPrice;
+  }
 
   const variants =
     input.variants !== undefined
@@ -7223,6 +7331,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       itemName: menuItems.name,
       category: menuItems.category,
       stock: menuItems.stock,
+      promoActive: menuItems.promoActive,
+      promoPrice: menuItems.promoPrice,
     })
     .from(menuVariants)
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
@@ -7240,10 +7350,16 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       throw new Error(`${variant.itemName} sedang habis dan tidak bisa dipesan.`);
     }
 
+    const unitPrice = effectiveMenuPrice(
+      variant.price,
+      variant.promoActive,
+      variant.promoPrice,
+    );
     return {
       ...line,
       ...variant,
-      lineTotal: variant.price * line.qty,
+      price: unitPrice,
+      lineTotal: unitPrice * line.qty,
     };
   });
 
@@ -8625,6 +8741,8 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       price: menuVariants.price,
       itemName: menuItems.name,
       category: menuItems.category,
+      promoActive: menuItems.promoActive,
+      promoPrice: menuItems.promoPrice,
     })
     .from(menuVariants)
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
@@ -8639,10 +8757,16 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       throw new Error(`Menu variant not found: ${line.itemId}/${line.variantId}`);
     }
 
+    const unitPrice = effectiveMenuPrice(
+      variant.price,
+      variant.promoActive,
+      variant.promoPrice,
+    );
     return {
       ...line,
       ...variant,
-      lineTotal: variant.price * line.qty,
+      price: unitPrice,
+      lineTotal: unitPrice * line.qty,
     };
   });
   const settings = await getAppSettings(garage.profile.outlet.id);

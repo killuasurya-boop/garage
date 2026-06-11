@@ -1601,6 +1601,35 @@ body {
     text-shadow: var(--garage-chrome-shadow);
   }
 
+  /* ── Tipografi 3-tier (sumber kebenaran) ─────────────────────────────
+     Headline → Bold (display Anton).  Tagline → Medium-Bold (semibold).
+     Body → Normal.  Pakai class ini di seluruh modul agar konsisten &
+     profesional, hindari weight acak per komponen. */
+  .garage-headline {
+    font-family: var(--garage-font-display);
+    font-weight: 700;
+    letter-spacing: var(--garage-letter-spacing);
+    line-height: 1.05;
+    text-transform: var(--garage-display-transform);
+    color: var(--garage-fg);
+  }
+
+  .garage-tagline {
+    font-family: var(--garage-font-body);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+    color: var(--garage-dim);
+  }
+
+  .garage-body {
+    font-family: var(--garage-font-body);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.6;
+    color: var(--garage-fg);
+  }
+
   .garage-red-glow {
     box-shadow:
       0 0 0 1px rgba(255, 42, 58, 0.28),

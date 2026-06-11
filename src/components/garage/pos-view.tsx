@@ -938,9 +938,20 @@ export function PosView({
       cart
         .map((line) => {
           const item = menuItemsById.get(line.itemId);
-          const variant = item?.variants.find(
+          const rawVariant = item?.variants.find(
             (entry) => entry.id === line.variantId,
           );
+          // Promo produk (harga tetap) meng-override harga varian saat di cart,
+          // sinkron dengan perhitungan server (effectiveMenuPrice). Promo hanya
+          // mendiskon: dipakai bila lebih murah dari harga varian.
+          const variant =
+            rawVariant &&
+            item?.promoActive &&
+            item.promoPrice &&
+            item.promoPrice > 0 &&
+            item.promoPrice < rawVariant.price
+              ? { ...rawVariant, price: item.promoPrice }
+              : rawVariant;
 
           return {
             ...line,
@@ -6993,6 +7004,7 @@ export function PosView({
                         Math.min(...item.variants.map((variant) => variant.price)),
                       )}+`
                     : currency.format(baseVariant.price);
+                  const hasPromo = Boolean(item.promoActive && item.promoPrice);
                   const isSoldOut = soldOutIds.has(item.id);
 
                   return (
@@ -7041,6 +7053,10 @@ export function PosView({
                             <Badge className="shrink-0 border-[#d11a2a]/55 bg-[#d11a2a]/22 px-1.5 text-[10px] font-extrabold text-[#ffe1e5]">
                               HABIS
                             </Badge>
+                          ) : hasPromo ? (
+                            <Badge className="shrink-0 border-0 bg-[#d11a2a] px-1.5 text-[10px] font-black text-white">
+                              PROMO
+                            </Badge>
                           ) : (
                             <Badge className={`${statusClass[item.stock]} shrink-0 px-1.5 text-[10px]`}>
                               {item.stock}
@@ -7048,9 +7064,20 @@ export function PosView({
                           )}
                         </div>
                         <div className="mt-auto pt-2.5">
-                          <p className="pos-product-price truncate text-[15px] font-semibold text-white sm:text-base">
-                            {priceRange}
-                          </p>
+                          {hasPromo ? (
+                            <div className="flex items-baseline gap-2">
+                              <p className="pos-product-price truncate text-[15px] font-semibold text-[#ffb4bd] sm:text-base">
+                                {currency.format(item.promoPrice as number)}
+                              </p>
+                              <p className="truncate text-[11px] text-[#8f8f99] line-through">
+                                {priceRange}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="pos-product-price truncate text-[15px] font-semibold text-white sm:text-base">
+                              {priceRange}
+                            </p>
+                          )}
                           <div className="mt-2 flex items-center justify-between gap-2">
                             <span className="pos-product-note min-w-0 truncate text-[10px] text-[#d6d6dc] sm:text-[11px]">
                               {isSoldOut

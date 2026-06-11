@@ -4,8 +4,8 @@ import {
 Activity,
 AlertTriangle,
 ArrowDown,
-ArrowLeft,
 ArrowRight,
+Home,
 ArrowUp,
 BadgeCheck,
 Bell,
@@ -996,6 +996,8 @@ function GarageWorkspace({
   const showDesktopSidebar = !isPosMode;
   const themeLabel = getPreset(activeOsTheme.presetId).label;
   const canGoBackToRoleHome = safeActiveModule !== roleHomeModule;
+  const roleHomeLabel =
+    modules.find((item) => item.id === roleHomeModule)?.label ?? "Beranda";
 
   return (
     <div
@@ -1089,7 +1091,7 @@ function GarageWorkspace({
                     <Button
                       variant="outline"
                       size="icon"
-                      className="garage-press h-11 w-11 shrink-0 border-[#4a4a54] bg-white/[0.08] lg:hidden"
+                      className="garage-press h-11 w-11 shrink-0 border-[#4a4a54] bg-white/[0.08] xl:hidden"
                       aria-label="Open navigation"
                     >
                       <Menu className="size-4" />
@@ -1154,17 +1156,19 @@ function GarageWorkspace({
                   </Button>
                 )}
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-11 shrink-0 gap-2 border-[#4a4a54] bg-white/[0.08] px-3 text-xs text-[#d4d4d8] hover:bg-white/[0.11] disabled:opacity-45"
-                  disabled={!canGoBackToRoleHome}
-                  onClick={() => handleModuleChange(roleHomeModule)}
-                  aria-label="Kembali ke modul utama"
-                >
-                  <ArrowLeft className="size-4" />
-                  <span className="hidden sm:inline">Kembali</span>
-                </Button>
+                {canGoBackToRoleHome && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="garage-press h-11 shrink-0 gap-2 border-[#4a4a54] bg-white/[0.08] px-3 text-xs text-[#d4d4d8] hover:bg-white/[0.11]"
+                    onClick={() => handleModuleChange(roleHomeModule)}
+                    aria-label={`Kembali ke ${roleHomeLabel}`}
+                    title={`Kembali ke ${roleHomeLabel}`}
+                  >
+                    <Home className="size-4" />
+                    <span className="hidden sm:inline">{roleHomeLabel}</span>
+                  </Button>
+                )}
 
                 <GarageAiAlertsBell
                   role={data.me.role}
@@ -1199,15 +1203,21 @@ function GarageWorkspace({
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Quick action</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => handleModuleChange("pos")}>
-                      Open POS tablet
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleModuleChange("finance")}>
-                      Start closing review
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleModuleChange("approvals")}>
-                      Review approvals
-                    </DropdownMenuItem>
+                    {canAccessModule(data.me.role, "pos") && (
+                      <DropdownMenuItem onClick={() => handleModuleChange("pos")}>
+                        Open POS tablet
+                      </DropdownMenuItem>
+                    )}
+                    {canAccessModule(data.me.role, "finance") && (
+                      <DropdownMenuItem onClick={() => handleModuleChange("finance")}>
+                        Start closing review
+                      </DropdownMenuItem>
+                    )}
+                    {canAccessModule(data.me.role, "approvals") && (
+                      <DropdownMenuItem onClick={() => handleModuleChange("approvals")}>
+                        Review approvals
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => void loadBootstrap()}>
                       Refresh API data
                     </DropdownMenuItem>

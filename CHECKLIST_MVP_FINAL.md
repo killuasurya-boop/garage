@@ -108,12 +108,15 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
 
 Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
 
-- [ ] E1. **Dashboard Owner** — lengkapi:
-  - [ ] Omzet harian + bulanan
-  - [ ] Top produk
-  - [ ] Low stock alert
-  - [ ] Queue kitchen real-time
-  - [ ] Notifikasi penting
+- [~] E1. **Dashboard Owner** — lengkapi:
+  - [x] Omzet harian (revenue today + net profit + AOV di snapshot)
+  - [x] Sales trend per jam REAL dari DB (fix dari mock statis)
+  - [x] Top produk (top selling di snapshot)
+  - [x] Low stock alert (di alert strip snapshot)
+  - [x] Queue kitchen (order aktif dari kitchen_tickets di headline metric)
+  - [x] Notifikasi penting (critical alerts: audit/warning/low-stock)
+  - [x] Hapus placeholder mati "Realtime layer"
+  - [ ] Omzet bulanan eksplisit (opsional, belum ada tile khusus)
 - [ ] E2. **Garage AI** — fungsionalitas penuh
 - [ ] E3. **Kitchen** — queue + status ticket
 - [ ] E4. **Waiter** — order table + handoff ke kitchen
@@ -140,11 +143,11 @@ Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
   - [ ] Backup folder `public/garage-uploads`
   - [ ] Backup on-demand dari UI Owner
   - [ ] Retention 30 hari
-- [ ] F2. **DB stabilisasi**
-  - [ ] Audit query lambat
-  - [ ] Tambah index yang perlu
-  - [ ] Validasi Zod di semua route handler
-  - [ ] Error response format `{ error: { code, message } }`
+- [~] F2. **DB stabilisasi**
+  - [x] Audit 284 route: semua mutasi ter-proteksi (session/permission/job-secret/PIN)
+  - [x] Validasi Zod konsisten di route bertubuh data; route aksi pakai param URL
+  - [x] Error response format `{ error: { code, message } }` (via fail())
+  - [ ] Audit query lambat + index (butuh profiling runtime, belum)
 - [ ] F3. **Responsive audit**
   - [ ] Desktop 1366×900
   - [ ] Tablet 834×1112 (POS)

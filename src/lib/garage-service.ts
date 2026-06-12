@@ -76,7 +76,6 @@ import {
   closingChecklist as fallbackClosingChecklist,
   cartSeed,
   operationalSignals,
-  salesTrend,
   serviceRules,
   type MenuCategory,
   type Role,
@@ -1119,6 +1118,33 @@ export async function getDashboardData() {
     .from(approvals)
     .where(eq(approvals.status, "pending"));
 
+  // Sales trend REAL per jam (08–19) dari payment captured hari ini — bukan mock.
+  // Chart dashboard pakai tinggi relatif, jadi rupiah mentah aman dipakai.
+  const salesTrendRows = await db
+    .select({
+      hour: sql<number>`extract(hour from ${orders.createdAt} AT TIME ZONE 'Asia/Jakarta')::int`,
+      sales: sql<number>`coalesce(sum(${payments.amount}), 0)::bigint`,
+    })
+    .from(payments)
+    .innerJoin(orders, eq(payments.orderId, orders.id))
+    .where(
+      and(
+        eq(payments.status, "captured"),
+        eq(orders.status, "paid"),
+        gte(orders.createdAt, todayStart),
+        lt(orders.createdAt, todayEnd),
+      ),
+    )
+    .groupBy(sql`1`);
+  const salesByHour = new Map<number, number>();
+  for (const row of salesTrendRows) {
+    salesByHour.set(Number(row.hour), Number(row.sales));
+  }
+  const computedSalesTrend = Array.from({ length: 12 }, (_, index) => {
+    const hour = index + 8;
+    return { hour: String(hour).padStart(2, "0"), sales: salesByHour.get(hour) ?? 0 };
+  });
+
   const todayRevenue = Number(todayPaymentAgg?.amount ?? 0);
   const todayOrderCount = Number(todayPaymentAgg?.orderCount ?? 0);
   const cashDiscrepancy = Number(latestCashSession?.discrepancy ?? 0);
@@ -1170,7 +1196,7 @@ export async function getDashboardData() {
         tone: (pendingApprovals?.total ?? 0) > 0 ? "risk" : "good",
       },
     ],
-    salesTrend,
+    salesTrend: computedSalesTrend,
     operationalSignals,
   };
 }

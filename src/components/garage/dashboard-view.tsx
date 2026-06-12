@@ -19,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardData, GarageMe } from "@/lib/garage-api-types";
 import type { ModuleId } from "@/lib/garage-data";
 
@@ -147,7 +146,7 @@ export function DashboardView({
           <CardHeader>
             <CardTitle>Sales trend hari ini</CardTitle>
             <CardDescription>
-              Visual ringkas dari transaksi POS mock per jam.
+              Omzet per jam dari transaksi POS yang sudah dibayar (live).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -185,15 +184,6 @@ export function DashboardView({
                 <p className="mt-1 text-sm text-zinc-200">{signal.status}</p>
               </div>
             ))}
-            <div className="garage-surface flex items-center gap-3 rounded-md p-3">
-              <Skeleton className="size-10 rounded-sm bg-white/10" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-white">Realtime layer</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  KDS, audit log, dan sync queue siap divisualkan.
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

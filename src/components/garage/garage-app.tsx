@@ -10039,6 +10039,44 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
     }
   }
 
+  // Testimoni landing (C6) — owner isi review ASLI.
+  type TestimonialForm = { name: string; role: string; text: string; rating: number };
+  const [testimonials, setTestimonials] = useState<TestimonialForm[]>([]);
+  const [tstSaving, setTstSaving] = useState(false);
+  const [tstError, setTstError] = useState<string | null>(null);
+  const [tstSuccess, setTstSuccess] = useState<string | null>(null);
+
+  const loadTestimonials = useCallback(async () => {
+    try {
+      const rows = await garageApi.get<TestimonialForm[]>("/api/site/testimonials", {
+        cache: "no-store",
+      });
+      setTestimonials(Array.isArray(rows) ? rows : []);
+    } catch {
+      // diam
+    }
+  }, []);
+
+  async function submitTestimonials() {
+    if (!canManageWebsite) {
+      setTstError("Role ini hanya bisa melihat preview website.");
+      return;
+    }
+    const items = testimonials.filter((t) => t.text.trim());
+    setTstSaving(true);
+    setTstError(null);
+    setTstSuccess(null);
+    try {
+      const saved = await garageApi.put<TestimonialForm[]>("/api/site/testimonials", { items });
+      setTestimonials(Array.isArray(saved) ? saved : []);
+      setTstSuccess(`${items.length} testimoni tersimpan & tampil di landing.`);
+    } catch (error) {
+      setTstError(error instanceof Error ? error.message : "Testimoni gagal disimpan.");
+    } finally {
+      setTstSaving(false);
+    }
+  }
+
   const loadHero = useCallback(async () => {
     setHeroLoading(true);
     setHeroError(null);
@@ -10065,12 +10103,13 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
     const timeoutId = window.setTimeout(() => {
       void loadHero();
       void loadBizInfo();
+      void loadTestimonials();
     }, 0);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [loadHero, loadBizInfo]);
+  }, [loadHero, loadBizInfo, loadTestimonials]);
 
   function handleFileChange(fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -10417,6 +10456,91 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 </div>
               )}
             </form>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Testimoni landing (C6) — review asli, owner-managed */}
+      <Card className="garage-panel garage-animate-in">
+        <CardHeader>
+          <CardTitle>Testimoni Landing</CardTitle>
+          <CardDescription>
+            Review pelanggan ASLI. Tampil di landing (section &ldquo;Kata mereka&rdquo;),
+            tersembunyi otomatis bila kosong. Maks 20.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {testimonials.length === 0 ? (
+            <p className="text-sm text-[#9696a1]">Belum ada testimoni. Tambah review asli pelanggan di bawah.</p>
+          ) : (
+            testimonials.map((t, idx) => (
+              <div key={idx} className="grid gap-2 rounded-md border border-[#34343c] bg-black/15 p-3 sm:grid-cols-[1fr_1fr_90px_40px]">
+                <Input
+                  value={t.name}
+                  onChange={(e) => setTestimonials(testimonials.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="Nama pelanggan"
+                />
+                <Input
+                  value={t.role}
+                  onChange={(e) => setTestimonials(testimonials.map((x, i) => i === idx ? { ...x, role: e.target.value } : x))}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="Mis. Member · Pelanggan tetap"
+                />
+                <Select
+                  value={String(t.rating)}
+                  onValueChange={(v) => setTestimonials(testimonials.map((x, i) => i === idx ? { ...x, rating: Number(v) } : x))}
+                >
+                  <SelectTrigger className="border-[#34343c] bg-white/[0.06]">
+                    <SelectValue placeholder="★" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[5, 4, 3, 2, 1].map((r) => (
+                      <SelectItem key={r} value={String(r)}>{r} ★</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="garage-press border-[#34343c] bg-white/[0.04] px-0"
+                  onClick={() => setTestimonials(testimonials.filter((_, i) => i !== idx))}
+                  aria-label="Hapus testimoni"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+                <textarea
+                  value={t.text}
+                  onChange={(e) => setTestimonials(testimonials.map((x, i) => i === idx ? { ...x, text: e.target.value } : x))}
+                  className="garage-scroll min-h-[64px] rounded-md border border-[#34343c] bg-white/[0.06] p-2 text-sm text-white sm:col-span-4"
+                  placeholder="Isi review pelanggan…"
+                  maxLength={600}
+                />
+              </div>
+            ))
+          )}
+          {tstError && <p className="text-sm text-[#ffb4bd]">{tstError}</p>}
+          {tstSuccess && <p className="text-sm text-[#bbf7d0]">{tstSuccess}</p>}
+          {canManageWebsite && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press border-[#34343c] bg-white/[0.04]"
+                disabled={testimonials.length >= 20}
+                onClick={() => setTestimonials([...testimonials, { name: "", role: "", text: "", rating: 5 }])}
+              >
+                + Tambah Testimoni
+              </Button>
+              <Button
+                type="button"
+                disabled={tstSaving}
+                className="garage-press bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+                onClick={() => void submitTestimonials()}
+              >
+                {tstSaving ? "Menyimpan…" : "Simpan Testimoni"}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

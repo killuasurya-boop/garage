@@ -10862,6 +10862,68 @@ export async function saveBusinessInfo(
   return merged;
 }
 
+// ─── Testimoni landing (C6) ───────────────────────────────────────────────
+// Disimpan di app_settings key global 'site.testimonials' sebagai array. Owner
+// isi review ASLI dari modul Website; landing tampil hanya bila ada isi.
+export type Testimonial = {
+  name: string;
+  role: string;
+  text: string;
+  rating: number; // 1-5
+};
+
+const TESTIMONIALS_KEY = "site.testimonials";
+
+export async function getTestimonials(): Promise<Testimonial[]> {
+  const [row] = await getDb()
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, TESTIMONIALS_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  const stored = row?.valueJson;
+  if (!Array.isArray(stored)) return [];
+  return stored
+    .filter((t) => t && typeof t.text === "string" && t.text.trim())
+    .map((t) => ({
+      name: String(t.name ?? "").slice(0, 80),
+      role: String(t.role ?? "").slice(0, 80),
+      text: String(t.text ?? "").slice(0, 600),
+      rating: Math.max(1, Math.min(5, Math.round(Number(t.rating) || 5))),
+    }));
+}
+
+export async function saveTestimonials(
+  input: Testimonial[],
+  updatedBy: string | null,
+): Promise<Testimonial[]> {
+  const db = getDb();
+  const clean = (Array.isArray(input) ? input : [])
+    .filter((t) => t && typeof t.text === "string" && t.text.trim())
+    .slice(0, 20)
+    .map((t) => ({
+      name: String(t.name ?? "").trim().slice(0, 80),
+      role: String(t.role ?? "").trim().slice(0, 80),
+      text: String(t.text ?? "").trim().slice(0, 600),
+      rating: Math.max(1, Math.min(5, Math.round(Number(t.rating) || 5))),
+    }));
+  const [existing] = await db
+    .select({ id: appSettings.id })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, TESTIMONIALS_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ valueJson: clean, updatedBy, updatedAt: sql`now()` })
+      .where(eq(appSettings.id, existing.id));
+  } else {
+    await db
+      .insert(appSettings)
+      .values({ outletId: null, key: TESTIMONIALS_KEY, valueJson: clean, updatedBy });
+  }
+  return clean;
+}
+
 // ─── App Settings (per outlet) ───────────────────────────────
 // Settings disimpan key-value per outlet. Default values di-define di garage-app-settings-types.ts
 // supaya bisa di-import dari client component (decoupled dari DB).

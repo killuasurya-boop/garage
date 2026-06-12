@@ -6039,6 +6039,75 @@ function PromoProducts() {
   );
 }
 
+// Section Testimoni (C6) — review ASLI yang diisi owner dari modul Website.
+// Tampil hanya bila ada isi (hidden saat kosong).
+function Testimonials() {
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site/testimonials", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled) return;
+        const rows = json?.data ?? json;
+        if (Array.isArray(rows)) setItems(rows);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!loaded || items.length === 0) return null;
+  return (
+    <section id="testimoni" className="section-pad" style={{
+      borderTop: "1px solid var(--line)",
+      background: "linear-gradient(180deg, var(--bg-0), var(--bg-1))",
+    }}>
+      <div className="shell">
+        <div style={{ marginBottom: 40 }}>
+          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Testimoni</Reveal>
+          <Reveal mask as="h2" delay={100} className="display" aria-label="Kata mereka."
+            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
+            <span style={{ display: "block" }}>Kata</span>
+            <span style={{ display: "block", color: "var(--red)" }}>mereka.</span>
+          </Reveal>
+        </div>
+        <div style={{
+          display: "grid", gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        }}>
+          {items.map((t, idx) => (
+            <Reveal key={idx} delay={idx * 60}>
+              <figure style={{
+                margin: 0, height: "100%", display: "flex", flexDirection: "column",
+                borderRadius: 14, border: "1px solid var(--line)",
+                background: "var(--bg-2, #18181f)", padding: 24,
+              }}>
+                <div style={{ display: "flex", gap: 2, marginBottom: 12 }}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i} style={{ color: i < (t.rating || 5) ? "var(--red)" : "var(--line)", fontSize: 16 }}>★</span>
+                  ))}
+                </div>
+                <blockquote style={{ margin: 0, flex: 1, color: "var(--fg)", fontSize: 15, lineHeight: 1.6 }}>
+                  “{t.text}”
+                </blockquote>
+                <figcaption style={{ marginTop: 16, color: "var(--fg-mute)", fontSize: 13 }}>
+                  <strong style={{ color: "#fff" }}>{t.name || "Pelanggan"}</strong>
+                  {t.role ? ` · ${t.role}` : ""}
+                </figcaption>
+              </figure>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function GarageWebsiteRoot({
   landingHero = null,
   businessInfo = null,
@@ -6112,6 +6181,7 @@ function GarageWebsiteRoot({
       <S3MvpStrip />
       <Menu />
       <PromoProducts />
+      <Testimonials />
       <About />
       <Atmosphere landingHero={landingHero} />
       <Experience />

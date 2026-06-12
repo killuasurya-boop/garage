@@ -75,7 +75,9 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
 - [x] C4. **Promo Aktif** — BARU: section `PromoProducts` tarik live dari /api/customer/menu,
   filter promoActive, foto + harga promo + coret + badge %off + CTA WhatsApp, auto-hide bila kosong
 - [~] C5. **Galeri** — landing punya Atmosphere/visual. DEFER: galeri foto khusus
-- [ ] C6. **Testimoni** — belum ada (butuh data review asli dari user)
+- [x] C6. **Testimoni** — sistem owner-managed: store app_settings + API GET publik/PUT owner
+  + editor di modul Website (nama/role/rating/text, add/remove) + section landing "Kata mereka"
+  (auto-hide bila kosong). Owner tinggal isi review ASLI dari UI.
 - [x] C7. **Lokasi & Jam Buka** — SUDAH ADA (Location + jam 07-23)
 - [x] C8. **Kontak / CTA Footer** — SUDAH ADA (WhatsApp 6285188983600, Footer, FloatingWA)
 - [x] C9. **SEO** — SUDAH ADA (meta, OpenGraph, JSON-LD CafeOrCoffeeShop)

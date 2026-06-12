@@ -6048,6 +6048,68 @@ function PromoProducts() {
   );
 }
 
+// Section Galeri (C5) — foto produk asli dari DB (/api/customer/menu). Additive,
+// tampil hanya bila ada foto. Tidak butuh upload terpisah.
+function MenuGallery() {
+  const [photos, setPhotos] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/customer/menu", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled) return;
+        const rows = json?.data ?? json;
+        if (!Array.isArray(rows)) return;
+        const withPhoto = rows
+          .filter((it) => it && it.imageUrl)
+          .map((it) => ({ name: it.name, imageUrl: it.imageUrl }))
+          .slice(0, 12);
+        setPhotos(withPhoto);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!loaded || photos.length < 3) return null;
+  return (
+    <section id="galeri" className="section-pad" style={{
+      borderTop: "1px solid var(--line)", background: "var(--bg-1)",
+    }}>
+      <div className="shell">
+        <div style={{ marginBottom: 40 }}>
+          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Galeri</Reveal>
+          <Reveal mask as="h2" delay={100} className="display" aria-label="Dari dapur kami."
+            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
+            <span style={{ display: "block" }}>Dari dapur</span>
+            <span style={{ display: "block", color: "var(--red)" }}>kami.</span>
+          </Reveal>
+        </div>
+        <div style={{
+          display: "grid", gap: 8,
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+        }}>
+          {photos.map((p, idx) => (
+            <Reveal key={idx} delay={idx * 40}>
+              <div style={{
+                position: "relative", aspectRatio: "1 / 1", overflow: "hidden",
+                borderRadius: 10, border: "1px solid var(--line)", background: "#15151b",
+              }}>
+                <img src={p.imageUrl} alt={p.name} loading="lazy"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // Section Testimoni (C6) — review ASLI yang diisi owner dari modul Website.
 // Tampil hanya bila ada isi (hidden saat kosong).
 function LiveTestimonials() {
@@ -6193,6 +6255,7 @@ function GarageWebsiteRoot({
       <PromoProducts />
       <LiveTestimonials />
       <About />
+      <MenuGallery />
       <Atmosphere landingHero={landingHero} />
       <Experience />
       <MembershipMasterPro />

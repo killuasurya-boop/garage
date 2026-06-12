@@ -150,11 +150,11 @@ Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
   - [x] Validasi Zod konsisten di route bertubuh data; route aksi pakai param URL
   - [x] Error response format `{ error: { code, message } }` (via fail())
   - [ ] Audit query lambat + index (butuh profiling runtime, belum)
-- [ ] F3. **Responsive audit**
-  - [ ] Desktop 1366×900
-  - [ ] Tablet 834×1112 (POS)
-  - [ ] Mobile 390×844
-  - [ ] Tidak ada text overflow / clip
+- [~] F3. **Responsive audit** (level kode selesai; device test butuh user)
+  - [x] Komponen baru responsif (toolbar, list produk, promo, chat widget, form, dashboard)
+  - [x] Tabel lebar terbungkus garage-scroll (overflow auto) → scroll horizontal aman
+  - [x] Polish toolbar filter 2 kolom di tablet
+  - [ ] Verifikasi device asli (HP/tablet) oleh user — sebut bila ada yang sempit/clip
 - [ ] F4. **Aksesibilitas dasar** — kontras, focus ring, prefers-reduced-motion
 
 ---

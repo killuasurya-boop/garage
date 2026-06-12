@@ -118,7 +118,7 @@ Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
   - [x] Queue kitchen (order aktif dari kitchen_tickets di headline metric)
   - [x] Notifikasi penting (critical alerts: audit/warning/low-stock)
   - [x] Hapus placeholder mati "Realtime layer"
-  - [ ] Omzet bulanan eksplisit (opsional, belum ada tile khusus)
+  - [x] Omzet bulanan eksplisit — tile "Omzet Bulan Ini" (MTD) di snapshot owner, dari profitLoss.grossRevenue ✓
 Audit level kode (backend+view ada, tanpa mock/dead-code, build pass). Verifikasi klik-per-klik butuh login user.
 - [x] E2. **Garage AI** — 32 API route + view ✓
 - [x] E3. **Kitchen** — 8 route + getKitchenData + view ✓
@@ -181,14 +181,10 @@ Audit level kode (backend+view ada, tanpa mock/dead-code, build pass). Verifikas
 
 ## DATA DARI USER YANG DITUNGGU
 
-- [ ] Tagline final (pakai saran "Ngopi di Pit Stop. Hidup Tetap di Gear Tinggi." atau punya sendiri)
-- [ ] Nomor WhatsApp Garage
-- [ ] Alamat lengkap + Google Maps link
-- [ ] Jam buka (hari & jam)
-- [ ] IG handle
-- [ ] 6-8 produk hero (atau biarkan AI pilih dari best seller)
-- [ ] Live chat: staff↔staff ATAU customer↔owner?
-- [ ] OAuth Google Cloud credential untuk backup Drive (saat fase F)
+- [x] Tagline/WhatsApp/Alamat/Jam/IG/Maps — kini EDITABLE via modul Website (C10), default sudah terisi
+- [x] Live chat: staff↔staff (ChatModule multi-channel) — sudah diputuskan & jalan
+- [ ] 6-8 produk hero (opsional — landing Menu masih curated statis; bisa pilih nanti)
+- [ ] OAuth Google Cloud credential untuk backup Drive (F1, ditunda — tercatat di memory)
 
 ---
 

@@ -35,6 +35,11 @@ type FinanceOverview = {
     cashCollected: number;
     nonCashCollected: number;
   };
+  // P&L bulan berjalan (month-to-date) — untuk tile omzet bulanan.
+  profitLoss?: {
+    grossRevenue: number;
+    netProfit: number;
+  };
   financeGuard?: {
     healthScore: number;
     level: string;
@@ -363,6 +368,13 @@ export function DashboardOwnerSnapshot({
           sub={`${data.finance?.today.orderCount ?? 0} order paid`}
           icon={<DollarSign className="size-4" />}
           tone={(data.finance?.today.revenue ?? 0) > 0 ? "good" : "muted"}
+        />
+        <SnapshotCard
+          label="Omzet Bulan Ini"
+          value={compactCurrency(data.finance?.profitLoss?.grossRevenue ?? 0)}
+          sub={`Net ${compactCurrency(data.finance?.profitLoss?.netProfit ?? 0)} (MTD)`}
+          icon={<DollarSign className="size-4" />}
+          tone={(data.finance?.profitLoss?.grossRevenue ?? 0) > 0 ? "good" : "muted"}
         />
         <SnapshotCard
           label="Finance Guard"

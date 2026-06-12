@@ -5809,6 +5809,9 @@ function FinalCTA() {
 
 // ---------------- FOOTER ----------------
 function Footer() {
+  const biz = useBiz();
+  const waUrl = bizWaUrl(biz.whatsapp);
+  const mapsUrl = biz.mapsUrl || MAPS_URL;
   const cols = [
   {
     h: "Jelajahi",
@@ -5816,11 +5819,11 @@ function Footer() {
   },
   {
     h: "Kunjungi",
-    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["WhatsApp", WHATSAPP_URL], ["Reservasi", WHATSAPP_URL], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
+    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["WhatsApp", waUrl], ["Reservasi", waUrl], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
   },
   {
     h: "Kontak",
-    links: [[BUSINESS_EMAIL, `mailto:${BUSINESS_EMAIL}`], ["Order Digital", "/order"], ["Cek Meja", "#live-status"], ["Maps", MAPS_URL]]
+    links: [[biz.email, `mailto:${biz.email}`], ["Order Digital", "/order"], ["Cek Meja", "#live-status"], ["Maps", mapsUrl]]
   }];
 
   return (
@@ -5834,11 +5837,11 @@ function Footer() {
               Kopi premium dengan jiwa otomotif. Buka tujuh hari seminggu, sampai larut malam.
             </p>
             <p style={{ marginTop: 16, color: "var(--fg-dim)", maxWidth: 420, fontSize: 13, lineHeight: 1.55 }}>
-              {BUSINESS_ADDRESS}
+              {biz.address}
             </p>
             <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 8, height: 8, background: "#0db86c", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(13,184,108,0.2)" }} />
-              <span className="mono" style={{ color: "var(--fg)" }}>SEDANG BUKA · TUTUP 23:00</span>
+              <span className="mono" style={{ color: "var(--fg)" }}>BUKA {biz.hoursOpen} · TUTUP {biz.hoursClose}</span>
             </div>
           </div>
           {cols.map((c) =>

@@ -5978,7 +5978,6 @@ function PromoProducts() {
                 }}>
                   <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#15151b" }}>
                     {it.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={it.imageUrl} alt={it.name} loading="lazy"
                         style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : null}
@@ -6019,21 +6018,42 @@ function PromoProducts() {
 
 function GarageWebsiteRoot({
   landingHero = null,
+  businessInfo = null,
 }: {
   landingHero?: SiteAsset | null;
+  businessInfo?: {
+    tagline?: string;
+    whatsapp?: string;
+    instagram?: string;
+    email?: string;
+    address?: string;
+    hoursOpen?: string;
+    hoursClose?: string;
+    mapsUrl?: string;
+  } | null;
 }) {
+  // Info bisnis editable (C10) dengan fallback ke nilai default sekarang → tanpa regresi.
+  const biz = {
+    whatsapp: businessInfo?.whatsapp || WHATSAPP_PHONE,
+    email: businessInfo?.email || BUSINESS_EMAIL,
+    address: businessInfo?.address || "Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi Kota, Sumatera Utara 20631",
+    hoursOpen: businessInfo?.hoursOpen || "07:00",
+    hoursClose: businessInfo?.hoursClose || "23:00",
+    tagline: businessInfo?.tagline || "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
+  };
+
   const localBusinessJsonLd = {
     "@context": "https://schema.org",
     "@type": "CafeOrCoffeeShop",
     name: "GARAGE Coffee & Motor",
     description:
       "GARAGE Coffee & Motor Tebing Tinggi. Cafe, coffee shop, tempat nongkrong, menu digital, takeaway, reservasi WhatsApp, membership, dan event komunitas.",
-    telephone: `+${WHATSAPP_PHONE}`,
-    email: BUSINESS_EMAIL,
+    telephone: `+${biz.whatsapp}`,
+    email: biz.email,
     priceRange: "Rp 8K - Rp 100K",
     address: {
       "@type": "PostalAddress",
-      streetAddress: "Jl. Mayjen Sutoyo, Rambung",
+      streetAddress: biz.address,
       addressLocality: "Tebing Tinggi Kota",
       addressRegion: "Sumatera Utara",
       postalCode: "20631",
@@ -6042,8 +6062,8 @@ function GarageWebsiteRoot({
     openingHoursSpecification: [{
       "@type": "OpeningHoursSpecification",
       dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-      opens: "07:00",
-      closes: "23:00",
+      opens: biz.hoursOpen,
+      closes: biz.hoursClose,
     }],
     servesCuisine: ["Coffee", "Indonesian", "Burger", "Kebab"],
     areaServed: "Tebing Tinggi",

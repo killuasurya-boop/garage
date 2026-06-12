@@ -79,12 +79,13 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
 - [x] C7. **Lokasi & Jam Buka** — SUDAH ADA (Location + jam 07-23)
 - [x] C8. **Kontak / CTA Footer** — SUDAH ADA (WhatsApp 6285188983600, Footer, FloatingWA)
 - [x] C9. **SEO** — SUDAH ADA (meta, OpenGraph, JSON-LD CafeOrCoffeeShop)
-- [ ] C10. **Halaman admin Website**
-  - [ ] Edit hero text + tagline
-  - [ ] Edit about
-  - [ ] Pilih featured menu (checkbox di list produk)
-  - [ ] Upload galeri (batch)
-  - [ ] Edit jam buka + alamat + WA + IG
+- [~] C10. **Halaman admin Website**
+  - [x] Editor Info Bisnis di modul Website (tagline, WA, IG, email, alamat, jam buka/tutup, Maps URL)
+  - [x] Storage app_settings (key global, NULL-safe upsert) + API GET publik / PUT owner (Zod)
+  - [x] Landing baca businessInfo → JSON-LD/SEO (default = nilai sekarang, zero regression)
+  - [x] Upload hero image (sudah ada sebelumnya)
+  - [ ] Wire businessInfo ke section VISIBLE (Hero/Location/FloatingWA) — follow-up (landing 6k baris hardcoded, hati-hati)
+  - [ ] Edit about + featured menu + galeri batch — follow-up
 
 ---
 

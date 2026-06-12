@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { GarageWebsite } from "@/components/garage-website/garage-website";
 import { getLandingHeroAsset } from "@/lib/site-assets";
+import { getBusinessInfo } from "@/lib/garage-service";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const landingHero = await getLandingHeroAsset().catch(() => null);
+  const [landingHero, businessInfo] = await Promise.all([
+    getLandingHeroAsset().catch(() => null),
+    getBusinessInfo().catch(() => null),
+  ]);
 
-  return <GarageWebsite landingHero={landingHero} />;
+  return <GarageWebsite landingHero={landingHero} businessInfo={businessInfo} />;
 }

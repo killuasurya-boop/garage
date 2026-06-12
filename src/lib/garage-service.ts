@@ -10798,6 +10798,70 @@ export async function createSupplier(input: SupplierInput, garage: GarageSession
  * Recipe cost vs sale price report per menu item / variant.
  * Returns rows: menuItemId, variantId, price, recipeCost, margin, marginPct.
  */
+// ─── Business Info (info bisnis untuk landing publik, C10) ────────────────
+// Disimpan di app_settings key global (outlet_id NULL). Owner edit dari modul
+// Website; landing memakai untuk JSON-LD/SEO & kontak. Default = nilai sekarang
+// supaya tanpa regresi bila belum pernah diset.
+export type BusinessInfo = {
+  tagline: string;
+  whatsapp: string;
+  instagram: string;
+  email: string;
+  address: string;
+  hoursOpen: string;
+  hoursClose: string;
+  mapsUrl: string;
+};
+
+export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
+  tagline: "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
+  whatsapp: "6285188983600",
+  instagram: "",
+  email: "garagetebingtinggi@gmail.com",
+  address: "Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi Kota, Sumatera Utara 20631",
+  hoursOpen: "07:00",
+  hoursClose: "23:00",
+  mapsUrl: "",
+};
+
+const BUSINESS_INFO_KEY = "site.businessInfo";
+
+export async function getBusinessInfo(): Promise<BusinessInfo> {
+  const [row] = await getDb()
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, BUSINESS_INFO_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  const stored = (row?.valueJson ?? {}) as Partial<BusinessInfo>;
+  return { ...DEFAULT_BUSINESS_INFO, ...stored };
+}
+
+export async function saveBusinessInfo(
+  input: Partial<BusinessInfo>,
+  updatedBy: string | null,
+): Promise<BusinessInfo> {
+  const db = getDb();
+  const merged = { ...(await getBusinessInfo()), ...input };
+  // Upsert manual: unique index (outlet_id, key) tidak men-trigger ON CONFLICT
+  // untuk baris global (outlet_id NULL, NULL dianggap distinct di Postgres).
+  const [existing] = await db
+    .select({ id: appSettings.id })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, BUSINESS_INFO_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ valueJson: merged, updatedBy, updatedAt: sql`now()` })
+      .where(eq(appSettings.id, existing.id));
+  } else {
+    await db
+      .insert(appSettings)
+      .values({ outletId: null, key: BUSINESS_INFO_KEY, valueJson: merged, updatedBy });
+  }
+  return merged;
+}
+
 // ─── App Settings (per outlet) ───────────────────────────────
 // Settings disimpan key-value per outlet. Default values di-define di garage-app-settings-types.ts
 // supaya bisa di-import dari client component (decoupled dari DB).

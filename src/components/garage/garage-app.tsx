@@ -9991,6 +9991,54 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
   const [alt, setAlt] = useState("Hero Garage Coffee & Motor");
   const [uploading, setUploading] = useState(false);
 
+  // Business info (C10) — info bisnis editable untuk landing publik.
+  type BusinessInfoForm = {
+    tagline: string;
+    whatsapp: string;
+    instagram: string;
+    email: string;
+    address: string;
+    hoursOpen: string;
+    hoursClose: string;
+    mapsUrl: string;
+  };
+  const [bizInfo, setBizInfo] = useState<BusinessInfoForm | null>(null);
+  const [bizSaving, setBizSaving] = useState(false);
+  const [bizError, setBizError] = useState<string | null>(null);
+  const [bizSuccess, setBizSuccess] = useState<string | null>(null);
+
+  const loadBizInfo = useCallback(async () => {
+    try {
+      const info = await garageApi.get<BusinessInfoForm>("/api/site/business-info", {
+        cache: "no-store",
+      });
+      setBizInfo(info);
+    } catch {
+      // Diam: form muncul saat data siap; error utama ditangani saat simpan.
+    }
+  }, []);
+
+  async function submitBizInfo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!bizInfo) return;
+    if (!canManageWebsite) {
+      setBizError("Role ini hanya bisa melihat preview website.");
+      return;
+    }
+    setBizSaving(true);
+    setBizError(null);
+    setBizSuccess(null);
+    try {
+      const saved = await garageApi.put<BusinessInfoForm>("/api/site/business-info", bizInfo);
+      setBizInfo(saved);
+      setBizSuccess("Info bisnis tersimpan & langsung dipakai landing.");
+    } catch (error) {
+      setBizError(error instanceof Error ? error.message : "Info bisnis gagal disimpan.");
+    } finally {
+      setBizSaving(false);
+    }
+  }
+
   const loadHero = useCallback(async () => {
     setHeroLoading(true);
     setHeroError(null);
@@ -10016,12 +10064,13 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadHero();
+      void loadBizInfo();
     }, 0);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [loadHero]);
+  }, [loadHero, loadBizInfo]);
 
   function handleFileChange(fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -10263,6 +10312,114 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Info Bisnis editable (C10) — dipakai landing publik (SEO + kontak). */}
+      <Card className="garage-panel garage-animate-in">
+        <CardHeader>
+          <CardTitle>Info Bisnis Landing</CardTitle>
+          <CardDescription>
+            Tagline, WhatsApp, alamat, jam buka, Instagram & Maps. Dipakai landing
+            publik (SEO &amp; kontak). Tersimpan langsung dipakai tanpa redeploy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!bizInfo ? (
+            <p className="text-sm text-[#9696a1]">Memuat info bisnis…</p>
+          ) : (
+            <form className="grid gap-3 sm:grid-cols-2" onSubmit={submitBizInfo}>
+              <label className="grid gap-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Tagline</span>
+                <Input
+                  value={bizInfo.tagline}
+                  onChange={(e) => setBizInfo({ ...bizInfo, tagline: e.target.value })}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="Tagline singkat"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-[#d4d4d8]">WhatsApp (62…)</span>
+                <Input
+                  value={bizInfo.whatsapp}
+                  onChange={(e) => setBizInfo({ ...bizInfo, whatsapp: e.target.value.replace(/[^\d]/g, "") })}
+                  className="border-[#34343c] bg-white/[0.06] font-mono"
+                  placeholder="6285188983600"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Instagram (handle)</span>
+                <Input
+                  value={bizInfo.instagram}
+                  onChange={(e) => setBizInfo({ ...bizInfo, instagram: e.target.value.replace(/^@/, "") })}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="garagecoffee"
+                />
+              </label>
+              <label className="grid gap-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Alamat</span>
+                <Input
+                  value={bizInfo.address}
+                  onChange={(e) => setBizInfo({ ...bizInfo, address: e.target.value })}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="Jl. …"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Jam buka</span>
+                <Input
+                  value={bizInfo.hoursOpen}
+                  onChange={(e) => setBizInfo({ ...bizInfo, hoursOpen: e.target.value })}
+                  className="border-[#34343c] bg-white/[0.06] font-mono"
+                  placeholder="07:00"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Jam tutup</span>
+                <Input
+                  value={bizInfo.hoursClose}
+                  onChange={(e) => setBizInfo({ ...bizInfo, hoursClose: e.target.value })}
+                  className="border-[#34343c] bg-white/[0.06] font-mono"
+                  placeholder="23:00"
+                />
+              </label>
+              <label className="grid gap-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Email</span>
+                <Input
+                  value={bizInfo.email}
+                  onChange={(e) => setBizInfo({ ...bizInfo, email: e.target.value })}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="email@domain.com"
+                />
+              </label>
+              <label className="grid gap-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-[#d4d4d8]">Google Maps URL</span>
+                <Input
+                  value={bizInfo.mapsUrl}
+                  onChange={(e) => setBizInfo({ ...bizInfo, mapsUrl: e.target.value })}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="https://maps.google.com/…"
+                />
+              </label>
+              {bizError && (
+                <p className="sm:col-span-2 text-sm text-[#ffb4bd]">{bizError}</p>
+              )}
+              {bizSuccess && (
+                <p className="sm:col-span-2 text-sm text-[#bbf7d0]">{bizSuccess}</p>
+              )}
+              {canManageWebsite && (
+                <div className="sm:col-span-2">
+                  <Button
+                    type="submit"
+                    disabled={bizSaving}
+                    className="garage-press bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+                  >
+                    {bizSaving ? "Menyimpan…" : "Simpan Info Bisnis"}
+                  </Button>
+                </div>
+              )}
+            </form>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }

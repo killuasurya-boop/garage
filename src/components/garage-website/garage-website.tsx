@@ -849,12 +849,14 @@ const MEGA_CATS = [
 
 function Nav() {
   const y = useScrollY();
+  const biz = useBiz();
   const condensed = y > 80;
   const items = [
   ["Live", "#live-status"],
   ["Menu", "#menu", true],
   ["Tracking", "#live-tracking-system"],
   ["Event", "#events"],
+  ["Franchise", "/franchise"],
   ["Lokasi", "#location"]];
 
   const [mobOpen, setMobOpen] = useState(false);
@@ -972,7 +974,7 @@ function Nav() {
           <div className="site-nav-status" aria-label="Garage outlet status">
             <span />
             <strong>OPEN</strong>
-            <em>07-23</em>
+            <em>{`${biz.hoursOpen}–${biz.hoursClose}`}</em>
           </div>
 
           <div className="site-nav-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1931,6 +1933,8 @@ function Nav() {
 // ---------------- HERO ----------------
 function Hero({ landingHero }) {
   const y = useScrollY();
+  const biz = useBiz();
+  const hoursLabel = `${biz.hoursOpen}–${biz.hoursClose}`;
   const parallax = Math.min(y * 0.3, 200);
 
   // floating particles
@@ -1994,7 +1998,7 @@ function Hero({ landingHero }) {
               BUKA SEKARANG / EST. 2024
             </Reveal>
             <Reveal as="div" className="mono" delay={1000} style={{ textAlign: "right" }}>
-              JL. MAYJEN SUTOYO, RAMBUNG / BUKA 07-23
+              {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
             </Reveal>
           </div>
 
@@ -2325,7 +2329,7 @@ function Hero({ landingHero }) {
             ● BUKA — MENYAJIKAN SEKARANG / EST. 2024
           </Reveal>
           <Reveal as="div" className="mono" delay={1300} style={{ textAlign: "right" }}>
-            JL. MAYJEN SUTOYO, RAMBUNG, / BUKA 07—23
+            {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
           </Reveal>
         </div>
 
@@ -4093,6 +4097,8 @@ function menuDisplayPrice(item) {
 }
 
 function Menu() {
+  const biz = useBiz();
+  const hoursLabel = `${biz.hoursOpen}–${biz.hoursClose}`;
   const cats = Object.keys(MENU);
   const [cat, setCat] = useState(cats[0]);
   const data = MENU[cat];
@@ -4120,7 +4126,7 @@ function Menu() {
             <div className="menu-compact-stats">
               <MenuStat n="4" l="Pilihan cepat" />
               <MenuStat n="8K" l="Mulai dari" />
-              <MenuStat n="07-23" l="Tersedia" />
+              <MenuStat n={hoursLabel} l="Tersedia" />
             </div>
           </Reveal>
         </div>
@@ -4410,7 +4416,7 @@ function Menu() {
             <div style={{ display: "flex", gap: 18, marginTop: 18, flexWrap: "wrap" }}>
               <MenuStat n="90+" l="Total menu" />
               <MenuStat n="8K" l="Mulai dari" />
-              <MenuStat n="07—23" l="Tersedia" />
+              <MenuStat n={hoursLabel} l="Tersedia" />
             </div>
           </Reveal>
         </div>
@@ -5752,6 +5758,7 @@ function InfoBlock({ label, mainline, sub }) {
 
 // ---------------- FINAL CTA ----------------
 function FinalCTA() {
+  const biz = useBiz();
   return (
     <section className="section-pad" style={{
       borderTop: "1px solid var(--line)",
@@ -5800,7 +5807,7 @@ function FinalCTA() {
 
         {/* horizontal text */}
         <div style={{ marginTop: 100, opacity: 0.4 }}>
-          <div className="mono">JL. MAYJEN SUTOYO / TEBING TINGGI / 07-23 SETIAP HARI</div>
+          <div className="mono">{`${biz.address.split(",")[0].toUpperCase()} / ${biz.hoursOpen}–${biz.hoursClose} SETIAP HARI`}</div>
         </div>
       </div>
     </section>);
@@ -5815,7 +5822,7 @@ function Footer() {
   const cols = [
   {
     h: "Jelajahi",
-    links: [["Live Status", "#live-status"], ["Live Tracking", "#live-tracking-system"], ["Menu", "#menu"], ["Cek Nomor Order", `#${TRACKING_SECTION_ID}`], ["Event", "#events"]]
+    links: [["Live Status", "#live-status"], ["Live Tracking", "#live-tracking-system"], ["Menu", "#menu"], ["Franchise", "/franchise"], ["Cek Nomor Order", `#${TRACKING_SECTION_ID}`], ["Event", "#events"]]
   },
   {
     h: "Kunjungi",
@@ -6041,7 +6048,7 @@ function PromoProducts() {
 
 // Section Testimoni (C6) — review ASLI yang diisi owner dari modul Website.
 // Tampil hanya bila ada isi (hidden saat kosong).
-function Testimonials() {
+function LiveTestimonials() {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
@@ -6181,7 +6188,7 @@ function GarageWebsiteRoot({
       <S3MvpStrip />
       <Menu />
       <PromoProducts />
-      <Testimonials />
+      <LiveTestimonials />
       <About />
       <Atmosphere landingHero={landingHero} />
       <Experience />

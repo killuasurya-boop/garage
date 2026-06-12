@@ -21,6 +21,24 @@ const BUSINESS_ADDRESS = "Jl. Mayjen Sutoyo, Rambung, Kec. Tebing Tinggi Kota, K
 const WHATSAPP_DEFAULT_MESSAGE = "Halo GARAGE, saya lihat status meja di website. Saya mau reservasi/order.";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_DEFAULT_MESSAGE)}`;
 const MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS_ADDRESS)}`;
+
+// Info bisnis editable (C10) lewat context — default = konstanta hardcoded di atas
+// supaya komponen yang belum di-wire tetap aman & tanpa regresi.
+const BizContext = React.createContext(null);
+const useBiz = () => {
+  const ctx = React.useContext(BizContext);
+  return {
+    whatsapp: ctx?.whatsapp || WHATSAPP_PHONE,
+    email: ctx?.email || BUSINESS_EMAIL,
+    address: ctx?.address || BUSINESS_ADDRESS,
+    hoursOpen: ctx?.hoursOpen || "07:00",
+    hoursClose: ctx?.hoursClose || "23:00",
+    instagram: ctx?.instagram || "",
+    mapsUrl: ctx?.mapsUrl || "",
+  };
+};
+const bizWaUrl = (phone, message) =>
+  `https://wa.me/${phone}?text=${encodeURIComponent(message || WHATSAPP_DEFAULT_MESSAGE)}`;
 const DIGITAL_MENU_URL = {
   pathname: "/order",
   query: { source: "qr_takeaway", campaign: "landing_menu" },
@@ -3809,9 +3827,10 @@ function PromoBar() {
 // ---------------- FLOATING WHATSAPP ----------------
 function FloatingWA() {
   const [hover, setHover] = useState(false);
+  const biz = useBiz();
   return (
     <a
-      href={WHATSAPP_URL}
+      href={bizWaUrl(biz.whatsapp)}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -5597,6 +5616,7 @@ function Testimonials() {
 
 // ---------------- LOCATION ----------------
 function Location() {
+  const biz = useBiz();
   return (
     <section id="location" className="section-pad" style={{ borderTop: "1px solid var(--line)", background: "var(--bg-1)" }}>
       <div className="shell">
@@ -5611,18 +5631,18 @@ function Location() {
 
             <div style={{ marginTop: 48, display: "grid", gap: 28 }}>
               <Reveal delay={400}>
-                <InfoBlock label="Alamat" mainline="Jl. Mayjen Sutoyo, Rambung, Kec. Tebing Tinggi Kota" sub="Kota Tebing Tinggi, Sumatera Utara, 20631" />
+                <InfoBlock label="Alamat" mainline={biz.address} sub="Tebing Tinggi Kota, Sumatera Utara" />
               </Reveal>
               <Reveal delay={500}>
-                <InfoBlock label="Jam Buka" mainline="07:00 — 23:00" sub="Buka hari Selasa - Minggu · Dapur tutup 22:30" />
+                <InfoBlock label="Jam Buka" mainline={`${biz.hoursOpen} — ${biz.hoursClose}`} sub="Buka setiap hari · Dapur tutup 30 menit sebelum closing" />
               </Reveal>
               <Reveal delay={600}>
-                <InfoBlock label="Kontak" mainline="+62 851 8898 3600" sub={BUSINESS_EMAIL} />
+                <InfoBlock label="Kontak" mainline={`+${biz.whatsapp}`} sub={biz.email} />
               </Reveal>
               <Reveal delay={700}>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-                  <a className="btn btn-primary" href={WHATSAPP_URL}><span>WhatsApp</span><ArrowRight /></a>
-                  <a className="btn" href={MAPS_URL} target="_blank" rel="noreferrer"><span>Buka di Maps</span><ArrowRight /></a>
+                  <a className="btn btn-primary" href={bizWaUrl(biz.whatsapp)}><span>WhatsApp</span><ArrowRight /></a>
+                  <a className="btn" href={biz.mapsUrl || MAPS_URL} target="_blank" rel="noreferrer"><span>Buka di Maps</span><ArrowRight /></a>
                 </div>
               </Reveal>
             </div>
@@ -6036,9 +6056,11 @@ function GarageWebsiteRoot({
   const biz = {
     whatsapp: businessInfo?.whatsapp || WHATSAPP_PHONE,
     email: businessInfo?.email || BUSINESS_EMAIL,
-    address: businessInfo?.address || "Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi Kota, Sumatera Utara 20631",
+    address: businessInfo?.address || BUSINESS_ADDRESS,
     hoursOpen: businessInfo?.hoursOpen || "07:00",
     hoursClose: businessInfo?.hoursClose || "23:00",
+    instagram: businessInfo?.instagram || "",
+    mapsUrl: businessInfo?.mapsUrl || "",
     tagline: businessInfo?.tagline || "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
   };
 
@@ -6070,6 +6092,7 @@ function GarageWebsiteRoot({
   };
 
   return (
+    <BizContext.Provider value={biz}>
     <main id="top" className="garage-website">
       <script
         type="application/ld+json"
@@ -6097,6 +6120,7 @@ function GarageWebsiteRoot({
       <Footer />
       <FloatingWA />
     </main>
+    </BizContext.Provider>
   );
 }
 

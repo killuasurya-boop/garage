@@ -84,7 +84,8 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
   - [x] Storage app_settings (key global, NULL-safe upsert) + API GET publik / PUT owner (Zod)
   - [x] Landing baca businessInfo → JSON-LD/SEO (default = nilai sekarang, zero regression)
   - [x] Upload hero image (sudah ada sebelumnya)
-  - [ ] Wire businessInfo ke section VISIBLE (Hero/Location/FloatingWA) — follow-up (landing 6k baris hardcoded, hati-hati)
+  - [x] Wire businessInfo ke section VISIBLE via React Context: FloatingWA (tombol WA) + Location (alamat/jam/kontak/WA/Maps) — terverifikasi render dari DB
+  - [ ] Wire sisa spot dekoratif (Nav/Footer/marquee strip) — opsional, default sudah benar
   - [ ] Edit about + featured menu + galeri batch — follow-up
 
 ---

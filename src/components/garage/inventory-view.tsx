@@ -2909,7 +2909,7 @@ export function InventoryView({
             </div>
 
             {/* Toolbar filter & sort produk (B2) */}
-            <div className="grid gap-2 rounded-md border border-[#34343c] bg-white/[0.03] p-2 lg:grid-cols-[1fr_150px_140px_160px]">
+            <div className="grid gap-2 rounded-md border border-[#34343c] bg-white/[0.03] p-2 sm:grid-cols-2 lg:grid-cols-[1fr_150px_140px_160px]">
               <Input
                 value={productSearch}
                 onChange={(event) => setProductSearch(event.target.value)}

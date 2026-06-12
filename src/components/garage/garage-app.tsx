@@ -10001,6 +10001,7 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
     hoursOpen: string;
     hoursClose: string;
     mapsUrl: string;
+    aboutText: string;
   };
   const [bizInfo, setBizInfo] = useState<BusinessInfoForm | null>(null);
   const [bizSaving, setBizSaving] = useState(false);
@@ -10437,6 +10438,17 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                   className="border-[#34343c] bg-white/[0.06]"
                   placeholder="https://maps.google.com/…"
                 />
+              </label>
+              <label className="grid gap-1 sm:col-span-2">
+                <span className="text-xs font-semibold text-[#d4d4d8]">About / Story (landing)</span>
+                <textarea
+                  value={bizInfo.aboutText}
+                  onChange={(e) => setBizInfo({ ...bizInfo, aboutText: e.target.value })}
+                  className="garage-scroll min-h-[120px] rounded-md border border-[#34343c] bg-white/[0.06] p-2 text-sm text-white"
+                  placeholder="Cerita singkat tentang Garage… (pisahkan paragraf dengan baris kosong)"
+                  maxLength={2000}
+                />
+                <span className="text-[10px] text-[#a1a1aa]">Pisahkan antar-paragraf dengan baris kosong (Enter 2×).</span>
               </label>
               {bizError && (
                 <p className="sm:col-span-2 text-sm text-[#ffb4bd]">{bizError}</p>

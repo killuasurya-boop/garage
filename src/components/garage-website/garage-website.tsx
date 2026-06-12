@@ -35,6 +35,7 @@ const useBiz = () => {
     hoursClose: ctx?.hoursClose || "23:00",
     instagram: ctx?.instagram || "",
     mapsUrl: ctx?.mapsUrl || "",
+    aboutText: ctx?.aboutText || "",
   };
 };
 const bizWaUrl = (phone, message) =>
@@ -4720,6 +4721,8 @@ function MenuRow({ item, idx, cols }) {
 
 // ---------------- ABOUT ----------------
 function About() {
+  const biz = useBiz();
+  const aboutParas = (biz.aboutText || "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   return (
     <section id="about" className="section-pad" style={{ borderTop: "1px solid var(--line)" }}>
       <div className="shell">
@@ -4734,15 +4737,14 @@ function About() {
             </Reveal>
 
             <Reveal delay={700} as="div" style={{ marginTop: 40, display: "flex", flexDirection: "column", gap: 24, maxWidth: 460 }}>
-              <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-                Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang
-                tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial
-                bertemu seni meracik kopi, dan setiap kunjungan terasa seperti pulang ke garasi favoritmu.
-              </p>
-              <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-                Kami me-roasting dalam batch kecil. Buka pagi, tutup larut. Tidak mengikuti tren — kami sedang membangun
-                tempat yang layak ditempuh perjalanannya.
-              </p>
+              {(aboutParas.length ? aboutParas : [
+                "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi, dan setiap kunjungan terasa seperti pulang ke garasi favoritmu.",
+                "Kami me-roasting dalam batch kecil. Buka pagi, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
+              ]).map((para, i) => (
+                <p key={i} style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
+                  {para}
+                </p>
+              ))}
             </Reveal>
 
             <Reveal delay={900} as="div" style={{ marginTop: 48, display: "flex", gap: 36, flexWrap: "wrap" }}>
@@ -6141,6 +6143,7 @@ function GarageWebsiteRoot({
     instagram: businessInfo?.instagram || "",
     mapsUrl: businessInfo?.mapsUrl || "",
     tagline: businessInfo?.tagline || "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
+    aboutText: businessInfo?.aboutText || "",
   };
 
   const localBusinessJsonLd = {

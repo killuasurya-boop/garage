@@ -10811,6 +10811,7 @@ export type BusinessInfo = {
   hoursOpen: string;
   hoursClose: string;
   mapsUrl: string;
+  aboutText: string; // paragraf "About/Story" landing, pisah antar-paragraf dgn baris kosong
 };
 
 export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
@@ -10822,6 +10823,8 @@ export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
   hoursOpen: "07:00",
   hoursClose: "23:00",
   mapsUrl: "",
+  aboutText:
+    "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi.\n\nKami me-roasting dalam batch kecil. Buka pagi, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
 };
 
 const BUSINESS_INFO_KEY = "site.businessInfo";

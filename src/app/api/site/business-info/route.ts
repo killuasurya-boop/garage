@@ -21,6 +21,7 @@ const businessInfoSchema = z.object({
   hoursOpen: z.string().trim().regex(/^\d{2}:\d{2}$/, "Format jam HH:MM.").optional(),
   hoursClose: z.string().trim().regex(/^\d{2}:\d{2}$/, "Format jam HH:MM.").optional(),
   mapsUrl: z.string().trim().url().max(500).or(z.literal("")).optional(),
+  aboutText: z.string().trim().max(2000).optional(),
 });
 
 export async function PUT(request: Request) {

@@ -6048,6 +6048,93 @@ function PromoProducts() {
   );
 }
 
+// Section Menu Unggulan (C3) — produk bertag "Bestseller"/"Unggulan" dari DB.
+// Owner kontrol via tag di Produk Manajemen. Additive, tampil bila ada isi.
+function FeaturedMenu() {
+  const biz = useBiz();
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/customer/menu", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled) return;
+        const rows = json?.data ?? json;
+        if (!Array.isArray(rows)) return;
+        const featured = rows
+          .filter((it) => Array.isArray(it?.tags) && it.tags.some((t) =>
+            /bestseller|unggulan|favorit|signature/i.test(String(t))))
+          .map((it) => ({
+            name: it.name,
+            imageUrl: it.imageUrl,
+            category: it.category,
+            price: Array.isArray(it.variants) && it.variants.length
+              ? Math.min(...it.variants.map((v) => Number(v.price) || 0))
+              : 0,
+          }))
+          .slice(0, 8);
+        setItems(featured);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!loaded || items.length === 0) return null;
+  const fmt = (v) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(v) || 0);
+  return (
+    <section id="unggulan" className="section-pad" style={{
+      borderTop: "1px solid var(--line)", background: "linear-gradient(180deg, var(--bg-1), var(--bg-0))",
+    }}>
+      <div className="shell">
+        <div style={{ marginBottom: 40 }}>
+          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Unggulan</Reveal>
+          <Reveal mask as="h2" delay={100} className="display" aria-label="Menu unggulan."
+            style={{ fontSize: "clamp(40px, 7vw, 110px)" }}>
+            <span style={{ display: "block" }}>Menu</span>
+            <span style={{ display: "block", color: "var(--red)" }}>unggulan.</span>
+          </Reveal>
+        </div>
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+          {items.map((it, idx) => {
+            const waUrl = bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau pesan ${it.name}.`);
+            return (
+              <Reveal key={idx} delay={idx * 60}>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{
+                  display: "block", borderRadius: 14, overflow: "hidden",
+                  border: "1px solid var(--line)", background: "var(--bg-2, #18181f)",
+                  textDecoration: "none", color: "inherit",
+                }}>
+                  <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#15151b" }}>
+                    {it.imageUrl ? (
+                      <img src={it.imageUrl} alt={it.name} loading="lazy"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : null}
+                    <span style={{
+                      position: "absolute", top: 10, left: 10, background: "var(--red)",
+                      color: "#fff", fontWeight: 900, fontSize: 10, letterSpacing: ".05em",
+                      padding: "4px 8px", borderRadius: 6,
+                    }}>UNGGULAN</span>
+                  </div>
+                  <div style={{ padding: 14 }}>
+                    <p style={{ fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.3 }}>{it.name}</p>
+                    <p className="mono" style={{ margin: "4px 0 8px", color: "var(--fg-mute)", fontSize: 11 }}>{it.category}</p>
+                    {it.price ? <span style={{ color: "var(--fg)", fontWeight: 800, fontSize: 16 }}>{fmt(it.price)}</span> : null}
+                  </div>
+                </a>
+              </Reveal>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // Section Galeri (C5) — foto produk asli dari DB (/api/customer/menu). Additive,
 // tampil hanya bila ada foto. Tidak butuh upload terpisah.
 function MenuGallery() {
@@ -6252,6 +6339,7 @@ function GarageWebsiteRoot({
       <LiveTrackingSystem />
       <S3MvpStrip />
       <Menu />
+      <FeaturedMenu />
       <PromoProducts />
       <LiveTestimonials />
       <About />

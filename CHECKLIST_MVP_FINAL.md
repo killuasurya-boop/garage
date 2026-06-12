@@ -71,7 +71,9 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
 
 - [x] C1. **Hero** — SUDAH ADA di landing existing (logo, CTA, visual)
 - [x] C2. **About / Story** — SUDAH ADA (section About)
-- [~] C3. **Menu Unggulan** — landing punya Menu (data statis). DEFER: ganti ke DB featured
+- [x] C3. **Menu Unggulan** — section "Menu Unggulan" live dari DB (produk bertag Bestseller/Unggulan) ✓
+- [x] C5. **Galeri** — section "Dari dapur kami" dari foto produk DB ✓
+- [x] Franchise — link di Nav+Footer → microsite /franchise ✓
 - [x] C4. **Promo Aktif** — BARU: section `PromoProducts` tarik live dari /api/customer/menu,
   filter promoActive, foto + harga promo + coret + badge %off + CTA WhatsApp, auto-hide bila kosong
 - [~] C5. **Galeri** — landing punya Atmosphere/visual. DEFER: galeri foto khusus
@@ -87,8 +89,11 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
   - [x] Landing baca businessInfo → JSON-LD/SEO (default = nilai sekarang, zero regression)
   - [x] Upload hero image (sudah ada sebelumnya)
   - [x] Wire businessInfo ke section VISIBLE via React Context: FloatingWA (tombol WA) + Location (alamat/jam/kontak/WA/Maps) — terverifikasi render dari DB
-  - [ ] Wire sisa spot dekoratif (Nav/Footer/marquee strip) — opsional, default sudah benar
-  - [ ] Edit about + featured menu + galeri batch — follow-up
+  - [x] Wire spot dekoratif (Nav status, Hero marquee ×2, Menu stat ×2, FinalCTA) + link Franchise (Nav+Footer) ✓
+  - [x] Edit About (textarea editor + landing dari businessInfo.aboutText) ✓
+  - [x] Featured menu — section "Menu Unggulan" dari produk bertag Bestseller/Unggulan (owner kontrol via tag) ✓
+  - [x] Galeri — section "Dari dapur kami" dari foto produk DB ✓
+  - [~] Galeri batch-upload gambar terpisah (selain foto produk) — opsional, belum (pakai foto produk dulu)
 
 ---
 

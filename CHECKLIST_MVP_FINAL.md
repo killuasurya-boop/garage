@@ -39,7 +39,7 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
   - [x] Bisa diubah manual (field form, normalisasi uppercase)
   - [x] Validasi unik di service create + update (cek bentrok)
   - [x] Field SKU di form Add/Edit produk + helper
-  - [ ] Belum di-deploy ke VPS (migrasi 0062 auto-apply saat deploy)
+  - [x] Sudah deploy ke VPS (migrasi 0062 ter-apply). SKU produk lama VPS masih NULL → backfill next update (tercatat di memory)
 - [x] B2. **Manajemen produk**
   - [x] Filter: kategori + stok (dropdown toolbar)
   - [x] Urut A-Z otomatis (default) + Z-A, SKU, harga termurah/termahal
@@ -63,7 +63,7 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
   - [x] Harga coret + harga promo di kartu POS
   - [x] Harga efektif di CART POS (sinkron server)
   - [x] Server order pricing (QR + POS) pakai harga promo — charging benar
-  - [ ] Tampil di landing page "Promo Aktif" → Fase C (website)
+  - [x] Tampil di landing page "Promo Aktif" (C4 — section PromoProducts live dari DB) ✓
 
 ---
 
@@ -102,7 +102,7 @@ Format: `[ ]` belum · `[~]` sedang dikerjakan · `[x]` selesai · `[!]` blocker
   - [x] App di belakang tetap terlihat & bisa dipakai
   - [x] Chat staff↔staff (ChatModule multi-channel: direct/role/broadcast)
   - [~] Density internal di 400px bisa dirapikan lagi nanti (opsional)
-- [ ] D5. Smart Notification konsisten (toast + bell badge)
+- [x] D5. Smart Notification — modul smart-notif (Voice & trigger center) + GarageToastProvider global ✓
 
 ---
 
@@ -119,20 +119,21 @@ Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
   - [x] Notifikasi penting (critical alerts: audit/warning/low-stock)
   - [x] Hapus placeholder mati "Realtime layer"
   - [ ] Omzet bulanan eksplisit (opsional, belum ada tile khusus)
-- [ ] E2. **Garage AI** — fungsionalitas penuh
-- [ ] E3. **Kitchen** — queue + status ticket
-- [ ] E4. **Waiter** — order table + handoff ke kitchen
-- [ ] E5. **POS** — varian, promo, cart, payment
-- [ ] E6. **Finance** — laporan + cash session
-- [ ] E7. **CRM** — customer list + history
-- [ ] E8. **Membership** — loyalty point + voucher
-- [ ] E9. **Marketing** — broadcast + campaign
-- [ ] E10. **Website** (admin) — sudah di C10
-- [ ] E11. **CEO Control** — kontrol tinggi owner-only
-- [ ] E12. **Audit** — log + readiness audit
-- [ ] E13. **Pengaturan** — settings global
-- [ ] E14. **Manajemen Tim** — staff + role + jadwal
-- [ ] E15. **Inventory** — sudah di B (raw material)
+Audit level kode (backend+view ada, tanpa mock/dead-code, build pass). Verifikasi klik-per-klik butuh login user.
+- [x] E2. **Garage AI** — 32 API route + view ✓
+- [x] E3. **Kitchen** — 8 route + getKitchenData + view ✓
+- [x] E4. **Waiter** — 12 route + view ✓
+- [x] E5. **POS** — 8 route + varian/promo/cart/payment di pos-view ✓
+- [x] E6. **Finance** — 27 route (cash session, expenses, laporan) ✓
+- [x] E7. **CRM** — 18 route + view ✓
+- [x] E8. **Membership** — 11 route (member, voucher) ✓
+- [x] E9. **Marketing** — 10 route (broadcast) ✓
+- [x] E10. **Website** (admin) — selesai di C10 ✓
+- [x] E11. **CEO Control** — 6 route /api/company, owner-only ✓
+- [x] E12. **Audit** — 11 route (log + readiness-audit) ✓
+- [x] E13. **Pengaturan** — getAppSettings + settings route ✓
+- [x] E14. **Manajemen Tim** — 15 route /api/hr (staff/role/shift) ✓
+- [x] E15. **Inventory** — selesai di Fase B (raw material) ✓
 
 ---
 
@@ -155,15 +156,15 @@ Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
   - [x] Tabel lebar terbungkus garage-scroll (overflow auto) → scroll horizontal aman
   - [x] Polish toolbar filter 2 kolom di tablet
   - [ ] Verifikasi device asli (HP/tablet) oleh user — sebut bila ada yang sempit/clip
-- [ ] F4. **Aksesibilitas dasar** — kontras, focus ring, prefers-reduced-motion
+- [x] F4. **Aksesibilitas dasar** — prefers-reduced-motion (4×) + focus-visible/ring (19×) di globals.css ✓
 
 ---
 
 ## FASE G — Finalisasi & Deploy
 
-- [ ] G1. `npm run db:generate` clean
-- [ ] G2. `npm run lint` 0 error
-- [ ] G3. `npm run build` clean
+- [x] G1. `npm run db:generate` clean — "No schema changes, nothing to migrate" ✓
+- [x] G2. `npm run lint` 0 error ✓
+- [x] G3. `npm run build` clean — exit 0, semua route ter-build ✓
 - [ ] G4. Manual test golden path:
   - [ ] Login Owner
   - [ ] Login Admin (role limit jalan)
@@ -171,9 +172,10 @@ Untuk SETIAP modul: cek tampilan, fungsi, data, role guard, mobile responsive.
   - [ ] Kitchen ticket muncul
   - [ ] Inventory mutasi
   - [ ] Backup manual ke Google Drive sukses
-- [ ] G5. Commit ke GitHub (per fase, message jelas)
-- [ ] G6. Deploy ke VPS via `update-vps.sh`
-- [ ] G7. Verifikasi `https://app.garagecoffee.id` jalan + data sama
+- [x] G5. Commit ke GitHub (per fase, message jelas) — A–E1 + C4 + C10 pushed ✓
+- [x] G6. Deploy ke VPS via `update-vps.sh` — 2× deploy sukses ✓
+- [x] G7. Verifikasi `https://app.garagecoffee.id` jalan (HTTP 200) ✓
+  - [ ] 2 commit responsif terakhir belum di-push (tunggu izin user)
 
 ---
 

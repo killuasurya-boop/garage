@@ -205,6 +205,7 @@ garageQrOrderUrl,
 isLocalQrBaseUrl,
 } from "@/lib/garage-qr";
 import { voice } from "@/lib/garage-voice";
+import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
 import { normalizePhone } from "@/lib/member-types";
 
 const PosModuleFallback = () => (
@@ -3151,6 +3152,7 @@ export function PosView({
         isCashierKiosk ? "xl:pl-[292px]" : ""
       }`}
     >
+      <PosChatInbox />
       <VoiceSettingsDialog
         open={voiceDialogOpen}
         onOpenChange={setVoiceDialogOpen}

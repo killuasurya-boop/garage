@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   ShoppingCart,
   Sparkles,
+  UserPlus,
   Users,
   Wallet,
   WalletCards,
@@ -61,7 +62,8 @@ export type ModuleId =
   | "smart-notif"
   | "team-management"
   | "settings"
-  | "training";
+  | "training"
+  | "recruitment";
 
 export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
 
@@ -211,6 +213,12 @@ export const modules = [
     label: "Buku Pintar",
     description: "Tutorial & SOP Karyawan",
     icon: BookOpen,
+  },
+  {
+    id: "recruitment",
+    label: "Recruitment",
+    description: "Open hiring & kandidat",
+    icon: UserPlus,
   },
 ] satisfies Array<{
   id: ModuleId;

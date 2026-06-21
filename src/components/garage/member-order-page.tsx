@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   ChefHat,
@@ -165,6 +165,197 @@ async function postJson<T>(url: string, payload: unknown) {
   }
   if ("error" in json && json.error) throw new Error(json.error.message);
   return json.data;
+}
+
+function getOrCreateChatToken(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    let t = window.localStorage.getItem("garage:chatToken");
+    if (!t || t.length < 12) {
+      const raw =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `c${Date.now()}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+      t = raw.replace(/-/g, "");
+      window.localStorage.setItem("garage:chatToken", t);
+    }
+    return t;
+  } catch {
+    return `c${Date.now()}${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+type ChatMsg = { id: string; sender: string; body: string; createdAt: string };
+
+function ChatBubble({ msg }: { msg: ChatMsg }) {
+  if (msg.sender === "system") {
+    return (
+      <p className="mx-auto w-fit rounded-full border border-[#f5a742]/30 bg-[#f5a742]/10 px-3 py-1 text-center text-[11px] font-semibold text-[#ffd79a]">
+        {msg.body}
+      </p>
+    );
+  }
+  const mine = msg.sender === "customer";
+  return (
+    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${
+          mine
+            ? "rounded-br-sm bg-[#d11a2a] text-white"
+            : "rounded-bl-sm border border-[#34343c] bg-white/[0.06] text-[#e7e7ea]"
+        }`}
+      >
+        {!mine ? (
+          <span className="mb-0.5 block text-[10px] font-bold uppercase text-[#f5a742]">Kasir</span>
+        ) : null}
+        <span className="whitespace-pre-wrap break-words">{msg.body}</span>
+      </div>
+    </div>
+  );
+}
+
+function CustomerChatPanel({ tableLabel }: { tableLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const lastIdRef = useRef<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const seenRef = useRef<Set<string>>(new Set());
+  const tokenRef = useRef<string>("");
+
+  const ensureToken = useCallback(() => {
+    if (!tokenRef.current) tokenRef.current = getOrCreateChatToken();
+    return tokenRef.current;
+  }, []);
+
+  const mergeMessages = useCallback((incoming: ChatMsg[]) => {
+    if (!incoming.length) return;
+    setMessages((prev) => {
+      const next = [...prev];
+      for (const m of incoming) {
+        if (!seenRef.current.has(m.id)) {
+          seenRef.current.add(m.id);
+          next.push(m);
+        }
+      }
+      return next;
+    });
+    lastIdRef.current = incoming[incoming.length - 1].id;
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    async function poll() {
+      try {
+        const token = ensureToken();
+        if (!token) return;
+        const after = lastIdRef.current;
+        const url = `/api/customer/chat?token=${encodeURIComponent(token)}${
+          after ? `&afterId=${encodeURIComponent(after)}` : ""
+        }`;
+        const data = await getJson<{ threadId: string | null; status: string; messages: ChatMsg[] }>(url);
+        if (active) mergeMessages(data.messages);
+      } catch {
+        /* offline sesaat - polling berikutnya coba lagi */
+      }
+    }
+    void poll();
+    const id = window.setInterval(() => void poll(), 3000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, [open, ensureToken, mergeMessages]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  async function send() {
+    const body = input.trim();
+    if (!body || sending) return;
+    setSending(true);
+    setError("");
+    const tk = ensureToken();
+    try {
+      await postJson("/api/customer/chat", { chatToken: tk, tableLabel, body });
+      setInput("");
+      const data = await getJson<{ messages: ChatMsg[] }>(
+        `/api/customer/chat?token=${encodeURIComponent(tk)}${
+          lastIdRef.current ? `&afterId=${encodeURIComponent(lastIdRef.current)}` : ""
+        }`,
+      );
+      mergeMessages(data.messages);
+    } catch {
+      setError("Gagal mengirim. Coba lagi.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="garage-press mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 px-3 py-2.5 text-xs font-bold text-[#ffc2c8] transition hover:bg-[#d11a2a]/20"
+      >
+        <MessageCircle className="size-4" />
+        Chat langsung dengan kasir
+      </button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="bottom"
+          className="flex h-[80vh] flex-col gap-0 border-[#34343c] bg-[#121218] p-0"
+        >
+          <SheetHeader className="border-b border-[#34343c] p-4 text-left">
+            <SheetTitle className="flex items-center gap-2 text-white">
+              <MessageCircle className="size-4 text-[#f5a742]" /> Chat Kasir
+            </SheetTitle>
+            <SheetDescription className="text-[#b8b8bf]">
+              {tableLabel} - kasir akan balas secepatnya.
+            </SheetDescription>
+          </SheetHeader>
+          <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-4">
+            {messages.length === 0 ? (
+              <p className="mt-6 text-center text-sm text-[#9696a1]">
+                Mulai chat dengan kasir - tanya menu, ralat pesanan, atau minta bantuan.
+              </p>
+            ) : (
+              messages.map((m) => <ChatBubble key={m.id} msg={m} />)
+            )}
+          </div>
+          {error ? <p className="px-4 pb-1 text-xs text-[#fca5a5]">{error}</p> : null}
+          <div className="flex items-end gap-2 border-t border-[#34343c] p-3">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              rows={1}
+              placeholder="Tulis pesan..."
+              className="max-h-24 min-h-11 flex-1 resize-none rounded-md border border-[#4a4a54] bg-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#7a7a85] focus:border-[#d11a2a]/60 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={sending || !input.trim()}
+              className="garage-press h-11 shrink-0 rounded-md bg-[#d11a2a] px-4 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {sending ? "..." : "Kirim"}
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
 }
 
 function readQrContext(): QrContext {
@@ -1660,6 +1851,7 @@ export function MemberOrderPage({
                 {helpMessage}
               </p>
             ) : null}
+            <CustomerChatPanel tableLabel={qrContext.tableLabel} />
           </div>
         ) : null}
 

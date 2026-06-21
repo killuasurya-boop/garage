@@ -577,6 +577,55 @@ export const serviceRequests = pgTable(
   }),
 );
 
+// Live chat customer (guest/member) <-> kasir. Thread diikat ke meja + token
+// acak (kontrol akses guest tanpa login, pola sama invoice_tracking_token).
+// Terpisah dari chat INTERNAL staf (chat_channels/chat_messages di bawah).
+export const customerChatThreads = pgTable(
+  "customer_chat_threads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    tableLabel: text("table_label").notNull(),
+    chatToken: text("chat_token").notNull(),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    memberId: text("member_id"),
+    status: text("status").notNull().default("open"),
+    assignedToUserId: text("assigned_to_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+    lastCustomerAt: timestamp("last_customer_at", { withTimezone: true }),
+    staffReadAt: timestamp("staff_read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex("customer_chat_threads_chat_token_idx").on(table.chatToken),
+    statusIdx: index("customer_chat_threads_status_idx").on(table.status),
+    lastMsgIdx: index("customer_chat_threads_last_message_at_idx").on(table.lastMessageAt),
+    orderIdx: index("customer_chat_threads_order_id_idx").on(table.orderId),
+  }),
+);
+
+export const customerChatMessages = pgTable(
+  "customer_chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => customerChatThreads.id, { onDelete: "cascade" }),
+    sender: text("sender").notNull(), // customer | staff | system
+    staffUserId: text("staff_user_id").references(() => user.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    threadIdx: index("customer_chat_messages_thread_id_created_at_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+  }),
+);
+
 export const payments = pgTable(
   "payments",
   {
@@ -2283,6 +2332,91 @@ export const complianceItems = pgTable(
     categoryIdx: index("compliance_items_category_idx").on(table.category),
     expiresIdx: index("compliance_items_expires_idx").on(table.expiresAt),
     statusIdx: index("compliance_items_status_idx").on(table.status),
+  }),
+);
+
+// ─── Recruitment: kandidat open hiring (Garage Recruitment System) ──────────
+// Data dikumpulkan dari form publik /recruitment, dikelola admin/HR/CEO di OS.
+export const candidates = pgTable(
+  "candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Data pribadi
+    fullName: text("full_name").notNull(),
+    whatsapp: text("whatsapp").notNull(),
+    email: text("email").notNull(),
+    domicile: text("domicile").notNull(),
+    birthDate: date("birth_date"),
+    gender: text("gender"),
+    // Posisi & ketersediaan
+    appliedPosition: text("applied_position").notNull(),
+    preferredLocation: text("preferred_location"),
+    availableStartDate: date("available_start_date"),
+    willingShift: boolean("willing_shift").notNull().default(false),
+    willingRelocate: boolean("willing_relocate").notNull().default(false),
+    // Pendidikan & pengalaman
+    education: text("education"),
+    lastExperience: text("last_experience"),
+    experienceDuration: text("experience_duration"),
+    previousCompany: text("previous_company"),
+    resignReason: text("resign_reason"),
+    // Skill & karakter
+    mainSkill: text("main_skill"),
+    strength: text("strength"),
+    weakness: text("weakness"),
+    motivation: text("motivation"),
+    customerExperience: text("customer_experience"),
+    // Ekspektasi
+    expectedSalary: integer("expected_salary"),
+    interviewAvailability: text("interview_availability"),
+    // Dokumen
+    cvUrl: text("cv_url"),
+    photoUrl: text("photo_url"),
+    portfolioUrl: text("portfolio_url"),
+    socialMediaUrl: text("social_media_url"),
+    // Manajemen (pipeline / scoring / follow-up)
+    status: text("status").notNull().default("New Applicant"),
+    score: integer("score"),
+    notes: text("notes"),
+    assignedTo: text("assigned_to"),
+    followUpDate: date("follow_up_date"),
+    finalDecision: text("final_decision"),
+    // Jadwal Interview (Superpowers Goal)
+    interviewDate: timestamp("interview_date", { withTimezone: true }),
+    interviewLink: text("interview_link"),
+    // Data parsing AI
+    cvParsedData: jsonb("cv_parsed_data"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    statusIdx: index("candidates_status_idx").on(table.status),
+    positionIdx: index("candidates_position_idx").on(table.appliedPosition),
+    locationIdx: index("candidates_location_idx").on(table.preferredLocation),
+    createdIdx: index("candidates_created_idx").on(table.createdAt),
+  }),
+);
+// ─── Recruitment Positions: posisi yang dibuka (dinamis, bisa buka/tutup) ──
+// Dikelola oleh CEO/Admin dari OS. Pelamar di /recruitment melihat isOpen=true.
+export const recruitmentPositions = pgTable(
+  "recruitment_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    location: text("location").notNull().default("Tebing Tinggi"),
+    type: text("type").notNull().default("Full-time"),
+    experience: text("experience").notNull().default(""),
+    description: text("description").notNull().default(""),
+    isOpen: boolean("is_open").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    slugIdx: uniqueIndex("recruitment_positions_slug_idx").on(table.slug),
+    isOpenIdx: index("recruitment_positions_is_open_idx").on(table.isOpen),
+    sortIdx: index("recruitment_positions_sort_idx").on(table.sortOrder),
   }),
 );
 

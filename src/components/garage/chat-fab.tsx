@@ -277,42 +277,41 @@ export function ChatFab({
       ) : null}
 
       {open ? (
-        // Widget live-chat mengambang: kompak di pojok kanan-bawah, TANPA backdrop
-        // full-screen, supaya app di belakang tetap terlihat & bisa dipakai.
-        <div
-          className="garage-chat-widget fixed bottom-4 right-4 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-[#34343c] bg-[#0b0b0e] shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
-          style={{ height: "min(640px, calc(100dvh - 2rem))" }}
-          role="dialog"
-          aria-label="Chat tim"
-        >
-          {/* Header widget */}
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#34343c] bg-[#15151b] px-3 py-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d11a2a] text-white">
-                <MessageCircle className="h-4 w-4" />
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#15151b] bg-[#22c55e]" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-white">Chat Tim Garage</p>
-                <p className="truncate text-[10px] text-[#22c55e]">Online</p>
+        // Workspace live-chat: Modal layar penuh (Pro Max) dengan backdrop
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6" role="dialog" aria-modal="true" aria-label="Chat tim">
+          <div
+            className="garage-chat-widget flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#34343c] bg-[#0b0b0e] shadow-[0_24px_60px_rgba(0,0,0,0.85)]"
+            style={{ height: "min(900px, 95vh)" }}
+          >
+            {/* Header widget */}
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#34343c] bg-[#15151b] px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d11a2a] text-white">
+                  <MessageCircle className="h-5 w-5" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#15151b] bg-[#22c55e]" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-base font-bold text-white tracking-wide">Workspace Komunikasi Tim</p>
+                  <p className="truncate text-xs text-[#22c55e]">Sistem Online & Terhubung</p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Tutup chat"
+                className="garage-press flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#4a4a54] bg-[#15151b] text-[#d4d4d8] hover:bg-[#1f1f27] hover:text-white hover:border-[#d11a2a]"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Tutup chat"
-              className="garage-press flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#4a4a54] bg-[#15151b] text-[#d4d4d8] hover:bg-[#1f1f27] hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          {/* Isi chat */}
-          <div className="garage-scroll min-h-0 flex-1 overflow-y-auto p-3">
-            <ChatModule
-              currentUserId={currentUserId}
-              currentUserName={currentUserName}
-              currentUserRole={currentUserRole}
-            />
+            {/* Isi chat */}
+            <div className="garage-scroll min-h-0 flex-1 overflow-y-auto">
+              <ChatModule
+                currentUserId={currentUserId}
+                currentUserName={currentUserName}
+                currentUserRole={currentUserRole}
+              />
+            </div>
           </div>
         </div>
       ) : null}

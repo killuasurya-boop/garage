@@ -211,6 +211,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "audit",
     "team-management",
     "settings",
+    "recruitment",
   ],
   // Admin = operasional. Tanpa dashboard owner, ai-agent, finance, earnings,
   // audit, company-control (sesuai keputusan owner).
@@ -226,6 +227,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "website",
     "team-management",
     "settings",
+    "recruitment",
   ],
   "Manager Operasional": [
     "dashboard",
@@ -243,6 +245,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "audit",
     "team-management",
     "settings",
+    "recruitment",
   ],
   "Finance / CFO": ["dashboard", "ai-agent", "finance", "earnings", "approvals", "audit"],
   Kasir: ["pos", "earnings"],

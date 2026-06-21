@@ -17,8 +17,10 @@ async function runStatement(
 }
 
 async function main() {
-  const migrationFile = "0051_nervous_amphibian.sql";
-  console.log(`Applying specific migration: ${migrationFile}`);
+  const migrationFile = process.argv[2] || "0051_nervous_amphibian.sql";
+  // Hilangkan path jika user mengirimkan path
+  const filename = path.basename(migrationFile);
+  console.log(`Applying specific migration: ${filename}`);
   
   await ensureDatabaseReady();
   const driver = getDatabaseDriver();
@@ -26,7 +28,7 @@ async function main() {
   const client = getPgPool();
   
   try {
-    const sqlContent = fs.readFileSync(path.join("./drizzle", migrationFile), "utf8");
+    const sqlContent = fs.readFileSync(path.join("./drizzle", filename), "utf8");
     const statements = sqlContent.split("--> statement-breakpoint").filter(s => s.trim().length > 0);
     
     for (const statement of statements) {

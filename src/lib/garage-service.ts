@@ -58,6 +58,8 @@ import {
   supplierReceivingItems,
   supplierReceivings,
   serviceRequests,
+  customerChatThreads,
+  customerChatMessages,
   suppliers,
   staffProfiles,
   staffEarnings,
@@ -6611,6 +6613,243 @@ export async function resolveServiceRequest(id: string, userId: string) {
     .where(and(eq(serviceRequests.id, id), eq(serviceRequests.status, "open")))
     .returning();
   return row ? { id: row.id } : null;
+}
+
+// ── Live chat customer (guest/member) <-> kasir ───────────────────────────
+// Thread diikat ke chatToken acak (kontrol akses guest tanpa login) + meja.
+type CustomerChatMessageRow = {
+  id: string;
+  sender: string;
+  body: string;
+  staffUserId: string | null;
+  createdAt: Date;
+};
+
+function mapCustomerChatMessage(row: CustomerChatMessageRow) {
+  return {
+    id: row.id,
+    sender: row.sender,
+    body: row.body,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+async function ensureCustomerChatThread(input: {
+  chatToken: string;
+  tableLabel: string;
+  outletId?: string | null;
+  orderId?: string | null;
+  memberId?: string | null;
+}) {
+  const db = getDb();
+  const chatToken = input.chatToken.trim();
+  const [existing] = await db
+    .select()
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.chatToken, chatToken))
+    .limit(1);
+  if (existing) {
+    const patch: Record<string, unknown> = {};
+    if (existing.status !== "open") patch.status = "open";
+    if (input.tableLabel && input.tableLabel.trim() && input.tableLabel.trim() !== existing.tableLabel) {
+      patch.tableLabel = input.tableLabel.trim();
+    }
+    if (input.orderId && !existing.orderId) patch.orderId = input.orderId;
+    if (input.memberId && !existing.memberId) patch.memberId = input.memberId;
+    if (Object.keys(patch).length) {
+      await db.update(customerChatThreads).set(patch).where(eq(customerChatThreads.id, existing.id));
+    }
+    return existing.id;
+  }
+  const [row] = await db
+    .insert(customerChatThreads)
+    .values({
+      chatToken,
+      tableLabel: input.tableLabel.trim() || "Meja QR",
+      outletId: input.outletId ?? null,
+      orderId: input.orderId ?? null,
+      memberId: input.memberId ?? null,
+    })
+    .returning({ id: customerChatThreads.id });
+  return row.id;
+}
+
+export async function postCustomerChatMessage(input: {
+  chatToken: string;
+  tableLabel: string;
+  body: string;
+  orderId?: string | null;
+  memberId?: string | null;
+}) {
+  const db = getDb();
+  const body = input.body.trim();
+  if (!body) return null;
+  const threadId = await ensureCustomerChatThread(input);
+  const now = new Date();
+  const [msg] = await db
+    .insert(customerChatMessages)
+    .values({ threadId, sender: "customer", body })
+    .returning();
+  await db
+    .update(customerChatThreads)
+    .set({ lastMessageAt: now, lastCustomerAt: now })
+    .where(eq(customerChatThreads.id, threadId));
+  return { threadId, id: msg.id, createdAt: msg.createdAt.toISOString() };
+}
+
+export async function getCustomerChatMessages(input: { chatToken: string; afterId?: string }) {
+  const db = getDb();
+  const [thread] = await db
+    .select()
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.chatToken, input.chatToken.trim()))
+    .limit(1);
+  if (!thread) {
+    return { threadId: null as string | null, status: "open", messages: [] as ReturnType<typeof mapCustomerChatMessage>[] };
+  }
+  const rows = await db
+    .select()
+    .from(customerChatMessages)
+    .where(eq(customerChatMessages.threadId, thread.id))
+    .orderBy(asc(customerChatMessages.createdAt))
+    .limit(200);
+  let messages = rows.map(mapCustomerChatMessage);
+  if (input.afterId) {
+    const idx = messages.findIndex((m) => m.id === input.afterId);
+    if (idx >= 0) messages = messages.slice(idx + 1);
+  }
+  return { threadId: thread.id, status: thread.status, messages };
+}
+
+export async function listStaffChatThreads() {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.status, "open"))
+    .orderBy(desc(customerChatThreads.lastMessageAt))
+    .limit(100);
+  const result = [];
+  for (const t of rows) {
+    const [last] = await db
+      .select({ body: customerChatMessages.body, sender: customerChatMessages.sender })
+      .from(customerChatMessages)
+      .where(eq(customerChatMessages.threadId, t.id))
+      .orderBy(desc(customerChatMessages.createdAt))
+      .limit(1);
+    const unread = t.lastCustomerAt != null && (t.staffReadAt == null || t.lastCustomerAt > t.staffReadAt);
+    result.push({
+      id: t.id,
+      tableLabel: t.tableLabel,
+      orderId: t.orderId,
+      status: t.status,
+      unread,
+      lastMessageAt: t.lastMessageAt.toISOString(),
+      preview: last ? last.body.slice(0, 80) : "",
+      lastSender: last?.sender ?? null,
+    });
+  }
+  return result;
+}
+
+export async function getStaffChatThread(
+  threadId: string,
+  opts?: { markRead?: boolean },
+) {
+  const db = getDb();
+  const [thread] = await db
+    .select()
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.id, threadId))
+    .limit(1);
+  if (!thread) return null;
+  const rows = await db
+    .select()
+    .from(customerChatMessages)
+    .where(eq(customerChatMessages.threadId, threadId))
+    .orderBy(asc(customerChatMessages.createdAt))
+    .limit(300);
+  if (opts?.markRead) {
+    await db
+      .update(customerChatThreads)
+      .set({ staffReadAt: new Date() })
+      .where(eq(customerChatThreads.id, threadId));
+  }
+  return {
+    id: thread.id,
+    tableLabel: thread.tableLabel,
+    orderId: thread.orderId,
+    status: thread.status,
+    messages: rows.map((r) => ({ ...mapCustomerChatMessage(r), staffUserId: r.staffUserId })),
+  };
+}
+
+export async function postStaffChatMessage(input: { threadId: string; userId: string; body: string }) {
+  const db = getDb();
+  const body = input.body.trim();
+  if (!body) return null;
+  const now = new Date();
+  const [msg] = await db
+    .insert(customerChatMessages)
+    .values({ threadId: input.threadId, sender: "staff", staffUserId: input.userId, body })
+    .returning();
+  await db
+    .update(customerChatThreads)
+    .set({ lastMessageAt: now, staffReadAt: now })
+    .where(eq(customerChatThreads.id, input.threadId));
+  return { id: msg.id, createdAt: msg.createdAt.toISOString() };
+}
+
+// Dipakai untuk push status order otomatis ke percakapan (system message).
+export async function postSystemChatMessageForOrder(orderId: string, body: string) {
+  const db = getDb();
+  const [thread] = await db
+    .select({ id: customerChatThreads.id })
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.orderId, orderId))
+    .limit(1);
+  if (!thread) return null;
+  const [msg] = await db
+    .insert(customerChatMessages)
+    .values({ threadId: thread.id, sender: "system", body: body.trim() })
+    .returning({ id: customerChatMessages.id });
+  await db
+    .update(customerChatThreads)
+    .set({ lastMessageAt: new Date() })
+    .where(eq(customerChatThreads.id, thread.id));
+  return { id: msg.id };
+}
+
+export async function resolveCustomerChatThread(threadId: string, userId: string) {
+  const db = getDb();
+  const [row] = await db
+    .update(customerChatThreads)
+    .set({ status: "resolved", assignedToUserId: userId, staffReadAt: new Date() })
+    .where(eq(customerChatThreads.id, threadId))
+    .returning({ id: customerChatThreads.id });
+  return row ? { id: row.id } : null;
+}
+
+export async function forwardCustomerChatToWaiter(threadId: string, userId: string) {
+  const db = getDb();
+  const [thread] = await db
+    .select()
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.id, threadId))
+    .limit(1);
+  if (!thread) return null;
+  await createServiceRequest({
+    tableLabel: thread.tableLabel,
+    outletId: thread.outletId ?? undefined,
+    type: "call",
+    note: "Diteruskan dari chat kasir",
+  });
+  await postStaffChatMessage({
+    threadId,
+    userId,
+    body: "Pelayan sudah diarahkan ke meja Anda. 🙏",
+  });
+  return { ok: true };
 }
 
 export async function getPublicInvoiceTracking(token: string) {

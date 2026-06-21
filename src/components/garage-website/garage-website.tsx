@@ -897,6 +897,7 @@ function Nav() {
   ["Tracking", "#live-tracking-system"],
   ["Event", "#events"],
   ["Franchise", "/franchise"],
+  ["Recruitment", "/recruitment"],
   ["Lokasi", "#location"]];
 
   const [mobOpen, setMobOpen] = useState(false);
@@ -6201,7 +6202,7 @@ function Footer() {
   },
   {
     h: "Kunjungi",
-    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["WhatsApp", waUrl], ["Reservasi", waUrl], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
+    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["Karier / Recruitment", "/recruitment"], ["WhatsApp", waUrl], ["Reservasi", waUrl], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
   },
   {
     h: "Kontak",

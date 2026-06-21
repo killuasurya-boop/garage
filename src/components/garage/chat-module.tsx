@@ -1466,78 +1466,101 @@ export function ChatModule({
           <div className="garage-mono px-2 pb-2 pt-1 text-[10px] uppercase text-[#8f8f99]">
             {channelsLoading ? "Memuat..." : `${sortedChannels.length} channel`}
           </div>
-          <div className="garage-scroll max-h-[560px] space-y-1 overflow-y-auto pr-1">
-            {sortedChannels.map((c) => {
-              const isActive = c.id === activeChannelId;
-              const Icon = c.type === "direct" ? MessageCircle : c.type === "role" ? Users : Hash;
+          <div className="garage-scroll max-h-[560px] space-y-3 overflow-y-auto pr-1 pb-2">
+            {!channelsLoading && sortedChannels.length === 0 ? (
+              <p className="garage-mono px-2 py-4 text-[10px] text-[#8f8f99]">Belum ada channel.</p>
+            ) : null}
+            
+            {(["broadcast", "role", "direct"] as const).map((groupType) => {
+              const groupChannels = sortedChannels.filter(c => c.type === groupType);
+              if (groupChannels.length === 0) return null;
+              
+              const groupLabels = {
+                broadcast: "📢 PENGUMUMAN",
+                role: "🏢 SALURAN TIM",
+                direct: "💬 PESAN PRIBADI",
+              };
+              
               return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setActiveChannelId(c.id)}
-                  className={`flex w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left transition ${
-                    isActive
-                      ? "border-[#d11a2a]/45 bg-[#d11a2a]/12"
-                      : "border-transparent hover:bg-[#18181f]"
-                  }`}
-                >
-                  <Icon
-                    className={`mt-0.5 h-4 w-4 shrink-0 ${
-                      isActive ? "text-[#ff8a93]" : "text-[#b8b8bf]"
-                    }`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[12px] font-semibold text-white">{c.name}</p>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {draftChannels.has(c.id) ? (
-                          <span
-                            title="Draft belum terkirim"
-                            className="garage-mono rounded-full border border-[#f5a742]/50 bg-[#f5a742]/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-[#ffd08a]"
-                          >
-                            Draft
-                          </span>
-                        ) : null}
-                        {c.unread > 0 ? (
-                          <span className="garage-mono rounded-full bg-[#d11a2a] px-1.5 py-0.5 text-[9px] font-extrabold text-white">
-                            {c.unread > 99 ? "99+" : c.unread}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    {c.preview ? (
-                      <p className="garage-mono mt-0.5 truncate text-[10px] text-[#8f8f99]">
-                        {c.preview}
-                      </p>
-                    ) : null}
-                  </div>
-                </button>
+                <div key={groupType} className="space-y-1">
+                  <p className="px-2 pt-2 pb-1 text-[10px] font-bold tracking-wider text-[#ffd08a]/80 uppercase">
+                    {groupLabels[groupType]}
+                  </p>
+                  {groupChannels.map((c) => {
+                    const isActive = c.id === activeChannelId;
+                    const Icon = c.type === "direct" ? MessageCircle : c.type === "role" ? Users : Megaphone;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setActiveChannelId(c.id)}
+                        className={`flex w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left transition ${
+                          isActive
+                            ? "border-[#d11a2a]/45 bg-[#d11a2a]/12"
+                            : "border-transparent hover:bg-[#18181f]"
+                        }`}
+                      >
+                        <Icon
+                          className={`mt-0.5 h-4 w-4 shrink-0 ${
+                            isActive ? "text-[#ff8a93]" : "text-[#b8b8bf]"
+                          }`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-[12px] font-semibold text-white">{c.name}</p>
+                            <div className="flex shrink-0 items-center gap-1">
+                              {draftChannels.has(c.id) ? (
+                                <span
+                                  title="Draft belum terkirim"
+                                  className="garage-mono rounded-full border border-[#f5a742]/50 bg-[#f5a742]/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-[#ffd08a]"
+                                >
+                                  Draft
+                                </span>
+                              ) : null}
+                              {c.unread > 0 ? (
+                                <span className="garage-mono rounded-full bg-[#d11a2a] px-1.5 py-0.5 text-[9px] font-extrabold text-white">
+                                  {c.unread > 99 ? "99+" : c.unread}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          {c.preview ? (
+                            <p className="garage-mono mt-0.5 truncate text-[10px] text-[#8f8f99]">
+                              {c.preview}
+                            </p>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
-            {!channelsLoading && sortedChannels.length === 0 ? (
-              <p className="garage-mono px-2 py-4 text-[10px] text-[#8f8f99]">
-                Belum ada channel.
-              </p>
-            ) : null}
           </div>
         </div>
 
         {/* Thread */}
-        <div className="flex h-[640px] flex-col rounded-lg border border-[#34343c] bg-[#111116]">
+        <div className="relative flex h-[640px] flex-col rounded-lg border border-[#34343c] bg-[#111116]">
           {activeChannel ? (
             <>
               <div className="flex items-center justify-between gap-2 border-b border-[#34343c] px-4 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-white">{activeChannel.name}</p>
-                  <p className="garage-mono text-[10px] text-[#8f8f99]">
-                    {activeChannel.type === "direct"
-                      ? "DM langsung"
-                      : activeChannel.type === "role"
-                        ? "Channel role"
-                        : "Broadcast tim"}
-                    {" - "}
-                    {activeChannel.members.length} member
-                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="garage-mono text-[10px] text-[#8f8f99]">
+                      {activeChannel.type === "direct"
+                        ? "DM langsung"
+                        : activeChannel.type === "role"
+                          ? "Channel role"
+                          : "Broadcast tim"}
+                      {" - "}
+                      {activeChannel.members.length} member
+                    </p>
+                    <span className="flex items-center gap-1 rounded-full border border-[#3b82f6]/30 bg-[#3b82f6]/10 px-1.5 py-0.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6] animate-pulse"></span>
+                      <span className="text-[9px] font-bold text-[#bfdbfe]">AI Co-Pilot Standby</span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1619,7 +1642,7 @@ export function ChatModule({
 
               <div
                 ref={scrollRef}
-                className="garage-scroll flex-1 space-y-3 overflow-y-auto px-4 py-3"
+                className="garage-scroll flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-24"
               >
                 {messageLoading && messages.length === 0 ? (
                   <div className="flex items-center justify-center py-8 text-[#8f8f99]">
@@ -1628,9 +1651,29 @@ export function ChatModule({
                   </div>
                 ) : null}
                 {!messageLoading && messages.length === 0 ? (
-                  <p className="garage-mono py-8 text-center text-[11px] text-[#8f8f99]">
-                    Belum ada pesan. Mulai obrolan!
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#18181f] border border-[#34343c]">
+                      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#3b82f6] text-white">
+                        <MessageCircle className="h-4 w-4" />
+                        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#18181f] bg-[#22c55e]" />
+                      </span>
+                    </div>
+                    <p className="garage-mono mb-2 text-xs font-bold text-white uppercase tracking-wider">
+                      Ruang Percakapan Terenkripsi
+                    </p>
+                    <p className="text-[11px] text-[#8f8f99] max-w-sm mb-5">
+                      Belum ada pesan. Mulai obrolan atau koordinasi dengan rekan tim Anda di sini.
+                    </p>
+                    <div className="rounded-lg border border-[#3b82f6]/30 bg-[#3b82f6]/5 p-3 text-left w-full max-w-sm shadow-sm">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[#22c55e] animate-pulse"></span>
+                        <p className="text-[11px] font-bold text-[#3b82f6] tracking-wide">GARAGE-BOT AI STANDBY</p>
+                      </div>
+                      <p className="text-[11px] text-[#d4d4d8] leading-relaxed">
+                        Tanyakan sesuatu pada sistem intelijen Garage! Ketik <strong className="text-[#bfdbfe] bg-[#3b82f6]/20 px-1 rounded">@garagebot</strong> atau <strong className="text-[#bfdbfe] bg-[#3b82f6]/20 px-1 rounded">!tanya</strong> pada pesan Anda (contoh: <em>&apos;@garagebot tolong rekap total omzet hari ini&apos;</em>).
+                      </p>
+                    </div>
+                  </div>
                 ) : null}
                 {groupedMessages.map((g) => (
                   <div key={g.day} className="space-y-2">
@@ -1714,7 +1757,7 @@ export function ChatModule({
                 ))}
               </div>
 
-              <div className="border-t border-[#34343c] p-2.5">
+              <div className="absolute bottom-3 left-3 right-3 z-10 rounded-2xl border border-[#4a4a54] bg-[#18181f]/85 p-2.5 shadow-[0_8px_30px_rgb(0,0,0,0.4)] backdrop-blur-md">
                 {pendingAttachment ? (
                   <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-[#ffd08a]/30 bg-[#ffd08a]/10 px-2.5 py-1.5">
                     <div className="garage-mono flex items-center gap-1.5 text-[11px] text-[#ffd08a]">

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
 Activity,
@@ -213,6 +213,10 @@ const ModuleChunkFallback = () => (
 
 const EarningsView = dynamic(
   () => import("@/components/garage/earnings-view").then((m) => m.EarningsView),
+  { loading: ModuleChunkFallback },
+);
+const RecruitmentView = dynamic(
+  () => import("@/components/garage/recruitment-view").then((m) => m.RecruitmentView),
   { loading: ModuleChunkFallback },
 );
 const PosView = dynamic(
@@ -583,7 +587,7 @@ function GarageWorkspace({
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const signOutInFlight = useRef(false);
-  // Badge counter pending approvals di nav module â€” polling 60s
+  // Badge counter pending approvals di nav module — polling 60s
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const lastPendingApprovalRef = useRef(0);
   useEffect(() => {
@@ -614,6 +618,32 @@ function GarageWorkspace({
     };
     void load();
     const id = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [data?.me]);
+
+  // Badge counter "New Applicant" di menu Recruitment — polling 90s.
+  const [newRecruitmentCount, setNewRecruitmentCount] = useState(0);
+  useEffect(() => {
+    if (!data?.me) return;
+    if (!canAccessModule(data.me.role, "recruitment")) return;
+    let cancelled = false;
+    const loadRec = async () => {
+      try {
+        const res = await garageApi.get<{ stats: { byStatus: Record<string, number> } }>(
+          "/api/recruitment/candidates?status=New+Applicant&pageSize=1",
+          { cache: "no-store" },
+        );
+        if (cancelled) return;
+        setNewRecruitmentCount(res.stats?.byStatus?.["New Applicant"] ?? 0);
+      } catch {
+        /* silent fail */
+      }
+    };
+    void loadRec();
+    const id = window.setInterval(loadRec, 90_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -1052,6 +1082,7 @@ function GarageWorkspace({
               role={data.me.role}
               onChange={handleModuleChange}
               approvalBadgeCount={pendingApprovalCount}
+              recruitmentBadgeCount={newRecruitmentCount}
             />
             <div className="garage-panel garage-animate-in mt-6 rounded-md p-3">
               <div className="flex items-center gap-2 text-sm font-medium text-[#f4f4f5]">
@@ -1124,6 +1155,7 @@ function GarageWorkspace({
                           handleModuleChange(value);
                         }}
                         approvalBadgeCount={pendingApprovalCount}
+                        recruitmentBadgeCount={newRecruitmentCount}
                       />
                     </div>
                   </SheetContent>
@@ -1335,6 +1367,7 @@ function GarageWorkspace({
                       role={data.me.role}
                       onChange={handleModuleChange}
                       approvalBadgeCount={pendingApprovalCount}
+                      recruitmentBadgeCount={newRecruitmentCount}
                     />
                   </div>
                 </SheetContent>
@@ -1553,6 +1586,7 @@ function GarageWorkspace({
             )}
             {safeActiveModule === "team-management" && <TeamManagementDashboard role={data.me.role} />}
             {safeActiveModule === "training" && <GarageTrainingModule />}
+            {safeActiveModule === "recruitment" && <RecruitmentView />}
             {safeActiveModule === "settings" && <SettingsView me={data.me} />}
             {safeActiveModule === "smart-notif" && (
               <VoiceSettingsDialog embedded />
@@ -2390,11 +2424,13 @@ function ModuleNav({
   role,
   onChange,
   approvalBadgeCount = 0,
+  recruitmentBadgeCount = 0,
 }: {
   activeModule: ModuleId;
   role: Role;
   onChange: (module: ModuleId) => void;
   approvalBadgeCount?: number;
+  recruitmentBadgeCount?: number;
 }) {
   const accessibleModules = modules.filter((module) =>
     canAccessModule(role, module.id),
@@ -2409,7 +2445,7 @@ function ModuleNav({
     { title: "Keuangan", ids: ["finance", "earnings", "approvals"] },
     {
       title: "Manajemen & Sistem",
-      ids: ["team-management", "audit", "company-control", "settings", "chat", "training"],
+      ids: ["team-management", "recruitment", "audit", "company-control", "settings", "chat", "training"],
     },
   ];
 
@@ -2431,7 +2467,16 @@ function ModuleNav({
 
   const renderModuleButton = (module: NavModule) => {
     const isActive = activeModule === module.id;
-    const showBadge = module.id === "approvals" && approvalBadgeCount > 0;
+    const showApprovalBadge = module.id === "approvals" && approvalBadgeCount > 0;
+    const showRecruitmentBadge = module.id === "recruitment" && recruitmentBadgeCount > 0;
+    const showBadge = showApprovalBadge || showRecruitmentBadge;
+    const badgeCount = showApprovalBadge ? approvalBadgeCount : recruitmentBadgeCount;
+    const badgeLabel = showApprovalBadge
+      ? `${approvalBadgeCount} approval pending`
+      : `${recruitmentBadgeCount} pelamar baru`;
+    const badgeColor = showRecruitmentBadge
+      ? "bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.65)]"
+      : "bg-[#d11a2a] shadow-[0_0_8px_rgba(209,26,42,0.65)]";
     return (
       <Tooltip key={module.id}>
         <TooltipTrigger asChild>
@@ -2460,11 +2505,12 @@ function ModuleNav({
             </span>
             {showBadge ? (
               <span
-                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d11a2a] px-1.5 text-[10px] font-extrabold text-white shadow-[0_0_8px_rgba(209,26,42,0.65)]"
-                aria-label={`${approvalBadgeCount} approval pending`}
+                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full ${badgeColor} px-1.5 text-[10px] font-extrabold text-white`}
+                aria-label={badgeLabel}
               >
-                {approvalBadgeCount > 99 ? "99+" : approvalBadgeCount}
+                {badgeCount > 99 ? "99+" : badgeCount}
               </span>
+
             ) : isActive ? (
               <ArrowRight className="hidden size-4 shrink-0 text-[#ffccd1] min-[420px]:block" />
             ) : null}

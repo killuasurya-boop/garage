@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
+import { Coffee, Sparkles, Snowflake, UtensilsCrossed, Sandwich, Cookie } from "lucide-react";
 
 import {
   Sheet,
@@ -53,6 +54,44 @@ const LOGIN_URL = "/login";
 const MEMBER_LOGIN_URL = "/member-login";
 const BRAND_LOGO_URL = "/garage-brand/logo-website.png";
 const BRAND_LOGO_ASPECT = 1024 / 325;
+const SOCIAL_LINKS = [
+  {
+    id: "youtube",
+    label: "YouTube",
+    href: "https://www.youtube.com/@GarageId",
+    handle: "@GarageId",
+    proof: "Video suasana & menu",
+    description: "Lihat suasana GARAGE, menu favorit, dan cerita komunitas dalam format video.",
+    cta: "Review di YouTube",
+  },
+  {
+    id: "instagram",
+    label: "Instagram",
+    href: "https://www.instagram.com/garage_tbt.id/",
+    handle: "@garage_tbt.id",
+    proof: "Foto menu, story, promo",
+    description: "Cek foto menu, promo aktif, story harian, dan vibe tempat sebelum datang.",
+    cta: "Review di Instagram",
+  },
+  {
+    id: "tiktok",
+    label: "TikTok",
+    href: "https://www.tiktok.com/@garage_tbt.id",
+    handle: "@garage_tbt.id",
+    proof: "Short video & vibe harian",
+    description: "Tonton video pendek tentang menu, suasana malam, dan momen customer GARAGE.",
+    cta: "Review di TikTok",
+  },
+  {
+    id: "facebook",
+    label: "Facebook",
+    href: "https://www.facebook.com/garagetbt.id/",
+    handle: "garagetbt.id",
+    proof: "Update komunitas & info",
+    description: "Ikuti update komunitas, info event, dan pengumuman GARAGE Tebing Tinggi.",
+    cta: "Review di Facebook",
+  },
+];
 const LOGIN_OPTIONS = [
   { label: "Login Karyawan", href: LOGIN_URL, meta: "POS & operasional" },
   { label: "Login Member", href: MEMBER_LOGIN_URL, meta: "Rewards & riwayat" },
@@ -807,7 +846,7 @@ function Loader({ onDone }) {
 
         <div style={{ marginTop: 56, width: "min(420px, 80vw)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }} className="mono">
-            <span>DISABLED</span>
+            <span>MEMUAT</span>
             <span style={{ color: "var(--fg)" }}>{String(pct).padStart(3, "0")} / 100</span>
           </div>
           <div style={{ height: 2, background: "var(--bg-3)", overflow: "hidden" }}>
@@ -840,12 +879,12 @@ function Loader({ onDone }) {
 
 // ---------------- NAV ----------------
 const MEGA_CATS = [
-{ icon: "☕", name: "Coffee", desc: "Espresso · V60 · Sanger · Vietnam Drip", count: "11 menu" },
-{ icon: "✶", name: "Flavor Coffee", desc: "Butterscotch · Caramel · Mocca", count: "10 varian" },
-{ icon: "❄", name: "Non-Coffee", desc: "12 varian dingin — semua Rp 12K", count: "12 menu" },
-{ icon: "◆", name: "Makanan", desc: "Nasi Goreng · Indomie · Ayam Richeese", count: "9 menu" },
-{ icon: "◼", name: "Burger & Kebab", desc: "30+ kombinasi mulai Rp 8K", count: "30+ varian" },
-{ icon: "○", name: "Cemilan", desc: "Kentang · Sosis · Nugget — Rp 10K", count: "3 menu" }];
+{ Icon: Coffee, name: "Coffee", desc: "Espresso · V60 · Sanger · Vietnam Drip", count: "11 menu" },
+{ Icon: Sparkles, name: "Flavor Coffee", desc: "Butterscotch · Caramel · Mocca", count: "10 varian" },
+{ Icon: Snowflake, name: "Non-Coffee", desc: "12 varian dingin — semua Rp 12K", count: "12 menu" },
+{ Icon: UtensilsCrossed, name: "Makanan", desc: "Nasi Goreng · Indomie · Ayam Richeese", count: "9 menu" },
+{ Icon: Sandwich, name: "Burger & Kebab", desc: "30+ kombinasi mulai Rp 8K", count: "30+ varian" },
+{ Icon: Cookie, name: "Cemilan", desc: "Kentang · Sosis · Nugget — Rp 10K", count: "3 menu" }];
 
 
 function Nav() {
@@ -1077,7 +1116,7 @@ function Nav() {
                 className="mega-cat">
                 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontSize: 20, color: "var(--red)" }}>{c.icon}</span>
+                    <c.Icon size={22} color="var(--red)" strokeWidth={1.75} aria-hidden="true" />
                     <span className="mono">{c.count}</span>
                   </div>
                   <div style={{
@@ -4651,11 +4690,12 @@ function MenuRow({ item, idx, cols }) {
               color: p === "—" ? "var(--fg-mute)" : "var(--fg)",
               textAlign: "right",
               lineHeight: 1,
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             {p === "—" ? "—" : (
               <>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--fg-mute)", letterSpacing: "0.15em", marginRight: 2 }}>RP</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-dim)", letterSpacing: "0.15em", marginRight: 2 }}>RP</span>
                 {p}<span style={{ fontSize: 14, color: "var(--fg-mute)" }}>K</span>
               </>
             )}
@@ -4869,28 +4909,56 @@ function AboutStat({ n, l }) {
 // ---------------- ATMOSPHERE ----------------
 function Atmosphere({ landingHero = null }) {
   const tiles = [
-    { l: "Interior — area utama",         h: 360, c: 1 },
-    { l: "Bar — pour over station",       h: 460, c: 1 },
-    { l: "Suasana malam — eksterior",     h: 400, c: 2 },
-    { l: "Pintu garasi — open kitchen",   h: 340, c: 1 },
-    { l: "Dinding fitur motor",           h: 420, c: 1 },
-    { l: "Latte art — close up",          h: 360, c: 1 },
+    { src: "/garage-website/showcase/sanger.webp",       l: "Sanger — Hot & Iced", h: 360 },
+    { src: "/garage-website/showcase/v60.webp",          l: "V60 Manual Brew",     h: 460 },
+    { src: "/garage-website/showcase/taro-milk.webp",    l: "Taro Milk",           h: 400 },
+    { src: "/garage-website/showcase/burger.webp",       l: "Burger Garage",       h: 340 },
+    { src: "/garage-website/showcase/coffee-latte.webp", l: "Coffee Latte",        h: 420 },
+    { src: "/garage-website/showcase/kebab.webp",        l: "Kebab Garage",        h: 360 },
   ];
+  const renderTile = (tile, idx) => {
+    // Tile tengah (idx 1) pakai foto hero editable bila tersedia.
+    const useHero = idx === 1 && landingHero?.publicUrl;
+    const src = useHero ? landingHero.publicUrl : tile.src;
+    const label = useHero ? (landingHero.alt || tile.l) : tile.l;
+    return (
+      <ImageSlot label={label} height={tile.h} dark={idx % 3 === 1}>
+        <Image
+          src={src}
+          alt={label}
+          fill
+          sizes="(max-width: 900px) 92vw, 420px"
+          quality={75}
+          loading="lazy"
+          style={{ objectFit: "cover", objectPosition: "center" }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.18) 55%, rgba(0,0,0,0.55) 100%)",
+            pointerEvents: "none",
+          }}
+        />
+      </ImageSlot>
+    );
+  };
   return (
     <section id="atmosphere" className="section-pad" style={{ borderTop: "1px solid var(--line)" }}>
       <div className="shell">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 64, flexWrap: "wrap", gap: 24 }}>
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>03 / Suasana</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Ruang yang betah ditinggali." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
-              <span style={{ display: "block" }}>Ruang yang</span>
-              <span style={{ display: "block" }}><span style={{ color: "var(--red)" }}>betah</span> ditinggali.</span>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>03 / Signature</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Yang wajib dicoba." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
+              <span style={{ display: "block" }}>Yang wajib</span>
+              <span style={{ display: "block" }}><span style={{ color: "var(--red)" }}>dicoba.</span></span>
             </Reveal>
           </div>
           <Reveal delay={400} style={{ maxWidth: 340 }}>
-            <p style={{ fontSize: 15, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-              Beton ekspos. Mezzanine baja. CB350 vintage tergantung di tempat yang biasanya jadi papan menu.
-              Dirancang untuk malam yang enggan diakhiri.
+            <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
+              Sanger panas-dingin, V60 manual brew, taro creamy, sampai burger &amp; kebab khas Garage.
+              Diracik dengan jiwa otomotif — siap nemenin nongkrong sampai larut.
             </p>
           </Reveal>
         </div>
@@ -4901,49 +4969,251 @@ function Atmosphere({ landingHero = null }) {
           gridAutoRows: "minmax(0, auto)",
           gap: 16,
         }} className="gallery-grid">
-          <Reveal delay={0}><ImageSlot label={tiles[0].l} height={tiles[0].h} /></Reveal>
-          <Reveal delay={120}>
-            <ImageSlot label={landingHero?.alt || "Garage signature cup"} height={tiles[1].h}>
-              {landingHero?.publicUrl ? (
-                <>
-                  <Image
-                    src={landingHero.publicUrl}
-                    alt={landingHero.alt || "Garage Coffee & Motor"}
-                    fill
-                    sizes="(max-width: 900px) 92vw, 520px"
-                    quality={75}
-                    style={{ objectFit: "cover", objectPosition: "center" }}
-                  />
-                  <div
-                    aria-hidden
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.34))",
-                      pointerEvents: "none",
-                    }}
-                  />
-                </>
-              ) : (
-                <div style={{
-                  position: "absolute", inset: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <CoffeeCup size={Math.min(280, tiles[1].h * 0.62)} />
-                </div>
-              )}
-            </ImageSlot>
-          </Reveal>
-          <Reveal delay={240}><ImageSlot label={tiles[2].l} height={tiles[2].h} dark /></Reveal>
-          <Reveal delay={360}><ImageSlot label={tiles[3].l} height={tiles[3].h} dark /></Reveal>
-          <Reveal delay={480}><ImageSlot label={tiles[4].l} height={tiles[4].h} /></Reveal>
-          <Reveal delay={600}><ImageSlot label={tiles[5].l} height={tiles[5].h} /></Reveal>
+          {tiles.map((tile, idx) => (
+            <Reveal key={tile.src} delay={idx * 120}>{renderTile(tile, idx)}</Reveal>
+          ))}
         </div>
       </div>
       <style>{`
         @media (max-width: 900px) {
           .gallery-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+// ---------------- SOCIAL PORTFOLIO ----------------
+function SocialMark({ id }) {
+  if (id === "youtube") {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true" className="social-mark-svg">
+        <rect x="8" y="16" width="48" height="32" rx="10" fill="#ff0033" />
+        <path d="M28 24L42 32L28 40V24Z" fill="#fff" />
+      </svg>
+    );
+  }
+  if (id === "instagram") {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true" className="social-mark-svg">
+        <defs>
+          <linearGradient id="garage-instagram-mark" x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#feda75" />
+            <stop offset="0.35" stopColor="#fa7e1e" />
+            <stop offset="0.68" stopColor="#d62976" />
+            <stop offset="1" stopColor="#8134af" />
+          </linearGradient>
+        </defs>
+        <rect x="13" y="13" width="38" height="38" rx="12" fill="none" stroke="url(#garage-instagram-mark)" strokeWidth="5" />
+        <circle cx="32" cy="32" r="9" fill="none" stroke="url(#garage-instagram-mark)" strokeWidth="5" />
+        <circle cx="43" cy="21" r="3.2" fill="#f4f4f5" />
+      </svg>
+    );
+  }
+  if (id === "tiktok") {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true" className="social-mark-svg">
+        <path d="M36 12V38.5C36 47 30.5 52 23.5 52C17.4 52 12 47.7 12 41.2C12 34.4 17.5 30.1 24.2 30.1C25.5 30.1 26.7 30.3 27.8 30.7V38.1C26.8 37.5 25.8 37.2 24.5 37.2C21.7 37.2 19.4 38.8 19.4 41.2C19.4 43.6 21.4 45.2 23.8 45.2C26.7 45.2 28.6 43.1 28.6 39.4V12H36Z" fill="#f4f4f5" />
+        <path d="M36 12C37.3 19.3 42.1 23.4 50 24.1V31.6C44.6 31.3 39.9 29.3 36 25.7V12Z" fill="#25f4ee" />
+        <path d="M39.7 15.5C41.7 20.1 45.9 22.6 52 23.1V28.4C46.3 28.1 41.9 25.9 38.5 22.5L39.7 15.5Z" fill="#fe2c55" opacity="0.82" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true" className="social-mark-svg">
+      <rect x="12" y="10" width="40" height="44" rx="10" fill="#1877f2" opacity="0.92" />
+      <path d="M35.6 54V35.8H42L43.2 28.2H35.6V23.4C35.6 21.3 36.6 19.8 39.6 19.8H43V13.1C41.4 12.9 39.6 12.8 37.6 12.8C31.2 12.8 27.1 16.8 27.1 22.8V28.2H20.8V35.8H27.1V54H35.6Z" fill="#fff" />
+    </svg>
+  );
+}
+
+function SocialPortfolio() {
+  return (
+    <section id="social-portfolio" className="section-pad social-portfolio" style={{
+      borderTop: "1px solid var(--line)",
+      background:
+        "radial-gradient(circle at 18% 12%, rgba(209,26,42,0.16), transparent 32%), linear-gradient(180deg, var(--bg-1), var(--bg-0))",
+    }}>
+      <div className="shell">
+        <div className="social-portfolio-head">
+          <div>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>04 / Social Proof</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Review GARAGE dari social media." style={{ fontSize: "clamp(44px, 7vw, 116px)" }}>
+              <span style={{ display: "block" }}>Review GARAGE</span>
+              <span style={{ display: "block" }}>dari <span style={{ color: "var(--red)" }}>social media.</span></span>
+            </Reveal>
+          </div>
+          <Reveal delay={320} as="p" className="social-portfolio-copy">
+            Lihat bukti suasana, menu, promo, dan aktivitas komunitas GARAGE langsung dari channel resmi sebelum kamu datang.
+          </Reveal>
+        </div>
+
+        <div className="social-portfolio-grid">
+          {SOCIAL_LINKS.map((social, idx) => (
+            <Reveal key={social.id} delay={idx * 90}>
+              <a
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Review GARAGE di ${social.label} resmi, buka di tab baru`}
+                className={`social-portfolio-card social-portfolio-card-${social.id}`}
+              >
+                <div className="social-card-top">
+                  <div className="social-mark">
+                    <SocialMark id={social.id} />
+                  </div>
+                  <span className="mono">OFFICIAL</span>
+                </div>
+                <div>
+                  <p className="social-proof">{social.proof}</p>
+                  <h3>{social.label}</h3>
+                  <p className="social-handle">{social.handle}</p>
+                  <p className="social-description">{social.description}</p>
+                </div>
+                <div className="social-card-cta">
+                  <span>{social.cta}</span>
+                  <ArrowRight size={12} />
+                </div>
+              </a>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        .social-portfolio-head {
+          display: grid;
+          grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+          gap: 40px;
+          align-items: end;
+          margin-bottom: 48px;
+        }
+        .social-portfolio-copy {
+          color: var(--fg-dim);
+          font-size: 16px;
+          line-height: 1.7;
+          max-width: 520px;
+        }
+        .social-portfolio-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+        }
+        .social-portfolio-card {
+          min-height: 320px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          gap: 28px;
+          border: 1px solid rgba(244,244,245,0.14);
+          background:
+            linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.018)),
+            rgba(14,14,18,0.88);
+          color: var(--fg);
+          padding: 24px;
+          position: relative;
+          overflow: hidden;
+          transition:
+            border-color 0.28s var(--ease-out),
+            box-shadow 0.28s var(--ease-out),
+            transform 0.28s var(--ease-out);
+        }
+        .social-portfolio-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(135deg, transparent 0 60%, rgba(255,255,255,0.06) 100%),
+            radial-gradient(circle at 20% 20%, var(--social-glow, rgba(209,26,42,0.18)), transparent 38%);
+          opacity: 0.72;
+          pointer-events: none;
+          transition: opacity 0.28s var(--ease-out);
+        }
+        .social-portfolio-card > * {
+          position: relative;
+          z-index: 1;
+        }
+        .social-portfolio-card-youtube { --social-glow: rgba(255,0,51,0.22); }
+        .social-portfolio-card-instagram { --social-glow: rgba(214,41,118,0.20); }
+        .social-portfolio-card-tiktok { --social-glow: rgba(37,244,238,0.16); }
+        .social-portfolio-card-facebook { --social-glow: rgba(24,119,242,0.18); }
+        .social-portfolio-card:hover {
+          border-color: rgba(209,26,42,0.58);
+          box-shadow: 0 20px 54px rgba(0,0,0,0.28), 0 0 34px rgba(209,26,42,0.11);
+          transform: translateY(-4px);
+        }
+        .social-card-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .social-card-top .mono {
+          color: var(--fg-mute);
+          font-size: 10px;
+          letter-spacing: 0.13em;
+        }
+        .social-mark {
+          width: 64px;
+          height: 64px;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(244,244,245,0.16);
+          background: rgba(0,0,0,0.24);
+        }
+        .social-mark-svg {
+          width: 42px;
+          height: 42px;
+          display: block;
+        }
+        .social-proof {
+          color: var(--red);
+          font-family: var(--font-mono);
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          margin-bottom: 14px;
+          text-transform: uppercase;
+        }
+        .social-portfolio-card h3 {
+          color: var(--fg);
+          font-family: var(--font-display);
+          font-size: clamp(30px, 3vw, 42px);
+          line-height: 0.92;
+          text-transform: uppercase;
+        }
+        .social-handle {
+          color: var(--fg-dim);
+          font-family: var(--font-mono);
+          font-size: 12px;
+          letter-spacing: 0.06em;
+          margin-top: 8px;
+        }
+        .social-description {
+          color: var(--fg-dim);
+          font-size: 14px;
+          line-height: 1.6;
+          margin-top: 18px;
+        }
+        .social-card-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--fg);
+          font-family: var(--font-mono);
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .social-portfolio-card:hover .social-card-cta {
+          color: #fff;
+        }
+        @media (max-width: 1100px) {
+          .social-portfolio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 760px) {
+          .social-portfolio-head { grid-template-columns: 1fr; }
+          .social-portfolio-grid { grid-template-columns: 1fr; }
+          .social-portfolio-card { min-height: 280px; }
         }
       `}</style>
     </section>
@@ -5686,6 +5956,100 @@ function Location() {
 
 }
 
+function LocationMvp() {
+  const biz = useBiz();
+  const directionMessage = "Halo GARAGE, saya mau tanya arah ke lokasi GARAGE. Mohon info patokan dan akses masuknya.";
+  const reservationMessage = "Halo GARAGE, saya mau reservasi. Mohon info ketersediaan meja dan jamnya.";
+  return (
+    <section id="location" className="section-pad location-mvp">
+      <div className="shell">
+        <div className="location-mvp-grid">
+          <div className="location-mvp-info">
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>08 / Temukan kami</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Mampir saja. Kami menunggu." style={{ fontSize: "clamp(40px, 5vw, 76px)" }}>
+              <span style={{ display: "block" }}>Mampir saja.</span>
+              <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
+            </Reveal>
+            <Reveal delay={260} as="p" className="location-mvp-copy">
+              Maps resmi sedang disiapkan karena area GARAGE masih dalam tahap pembangunan.
+              Untuk arah paling akurat, hubungi tim kami via WhatsApp.
+            </Reveal>
+            <Reveal delay={360} as="div" className="location-mvp-cta-row">
+              <a className="btn btn-primary" href={bizWaUrl(biz.whatsapp, directionMessage)}><span>Tanya Arah via WhatsApp</span><ArrowRight /></a>
+              <a className="btn" href={bizWaUrl(biz.whatsapp, reservationMessage)}><span>Reservasi</span><ArrowRight /></a>
+              <span className="location-mvp-status">Maps segera hadir</span>
+            </Reveal>
+            <div className="location-mvp-cards">
+              <Reveal delay={460}>
+                <InfoBlock label="Alamat" mainline="Jl. Mayjen Sutoyo, Rambung" sub="Tebing Tinggi Kota, Sumatera Utara 20631" />
+              </Reveal>
+              <Reveal delay={540}>
+                <InfoBlock label="Jam Buka" mainline={`${biz.hoursOpen} - ${biz.hoursClose}`} sub="Buka setiap hari. Dapur tutup 30 menit sebelum closing." />
+              </Reveal>
+              <Reveal delay={620}>
+                <InfoBlock label="Kontak" mainline={`+${biz.whatsapp}`} sub={biz.email} />
+              </Reveal>
+            </div>
+          </div>
+          <Reveal delay={260} className="location-mvp-map">
+            <div className="dummy-map" aria-label="Dummy map GARAGE, maps resmi segera hadir" role="img">
+              <div className="dummy-map-grid" />
+              <div className="dummy-road dummy-road-a" />
+              <div className="dummy-road dummy-road-b" />
+              <div className="dummy-road dummy-road-c" />
+              <svg className="dummy-route" viewBox="0 0 640 520" aria-hidden="true" preserveAspectRatio="none">
+                <path d="M42 422 C160 350 210 384 286 302 S392 168 594 108" />
+                <path d="M42 422 C160 350 210 384 286 302 S392 168 594 108" className="dummy-route-glow" />
+              </svg>
+              <div className="dummy-pin"><span /></div>
+              <div className="dummy-map-label">
+                <strong>GARAGE Coffee &amp; Motor</strong>
+                <small>Jl. Mayjen Sutoyo, Rambung</small>
+              </div>
+              <div className="dummy-map-badge">MAPS SEGERA HADIR</div>
+              <div className="dummy-map-note">
+                <span className="mono">PATOKAN LOKASI</span>
+                <p>Hubungi WhatsApp untuk update akses masuk dan titik temu paling akurat.</p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </div>
+      <style>{`
+        .location-mvp { border-top: 1px solid var(--line); background: radial-gradient(circle at 78% 16%, rgba(209,26,42,0.12), transparent 30%), var(--bg-1); }
+        .location-mvp-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr); border: 1px solid var(--line); min-height: 560px; }
+        .location-mvp-info { padding: 56px; display: flex; flex-direction: column; }
+        .location-mvp-copy { color: var(--fg-dim); font-size: 16px; line-height: 1.7; margin-top: 26px; max-width: 560px; }
+        .location-mvp-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 28px; }
+        .location-mvp-status { border: 1px solid rgba(244,244,245,0.14); color: var(--fg-dim); display: inline-flex; align-items: center; min-height: 52px; padding: 0 18px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+        .location-mvp-cards { display: grid; gap: 28px; margin-top: 44px; }
+        .location-mvp-map { min-height: 560px; border-left: 1px solid var(--line); }
+        .dummy-map { position: relative; min-height: 560px; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 48%, rgba(245,158,11,0.12), transparent 18%), radial-gradient(circle at 60% 24%, rgba(209,26,42,0.12), transparent 24%), linear-gradient(135deg, #111116, #08080b 70%); }
+        .dummy-map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(244,244,245,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(244,244,245,0.055) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(circle at 50% 45%, rgba(0,0,0,0.95), transparent 78%); opacity: 0.55; }
+        .dummy-road { position: absolute; height: 1px; width: 96%; left: 2%; background: rgba(244,244,245,0.12); transform-origin: center; }
+        .dummy-road-a { top: 31%; transform: rotate(-19deg); }
+        .dummy-road-b { top: 58%; transform: rotate(14deg); }
+        .dummy-road-c { top: 76%; transform: rotate(-7deg); opacity: 0.7; }
+        .dummy-route { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; }
+        .dummy-route path { stroke: var(--red); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 16 12; opacity: 0.95; }
+        .dummy-route .dummy-route-glow { stroke-width: 16; opacity: 0.12; stroke-dasharray: none; }
+        .dummy-pin { position: absolute; left: 50%; top: 48%; width: 74px; height: 74px; transform: translate(-50%, -50%); border: 1px solid rgba(245,158,11,0.55); border-radius: 999px; display: grid; place-items: center; box-shadow: 0 0 42px rgba(245,158,11,0.22); }
+        .dummy-pin::before, .dummy-pin::after { content: ""; position: absolute; border: 1px solid rgba(245,158,11,0.22); border-radius: 999px; inset: -16px; }
+        .dummy-pin::after { inset: -32px; opacity: 0.55; }
+        .dummy-pin span { width: 18px; height: 18px; border-radius: 999px; background: var(--red); box-shadow: 0 0 0 8px rgba(209,26,42,0.22), 0 0 28px rgba(209,26,42,0.5); }
+        .dummy-map-label { position: absolute; left: 50%; top: calc(48% + 62px); transform: translateX(-50%); border: 1px solid rgba(244,244,245,0.14); background: rgba(8,8,11,0.78); backdrop-filter: blur(12px); min-width: min(320px, 82%); padding: 16px 18px; text-align: center; }
+        .dummy-map-label strong { color: var(--fg); display: block; font-family: var(--font-display); font-size: 22px; line-height: 1; text-transform: uppercase; }
+        .dummy-map-label small { color: var(--fg-dim); display: block; font-size: 13px; margin-top: 8px; }
+        .dummy-map-badge { position: absolute; right: 24px; top: 24px; background: var(--red); color: #fff; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; padding: 10px 12px; text-transform: uppercase; }
+        .dummy-map-note { position: absolute; left: 24px; bottom: 24px; max-width: 300px; border-left: 2px solid var(--red); padding-left: 16px; }
+        .dummy-map-note p { color: var(--fg-dim); font-size: 13px; line-height: 1.55; margin-top: 8px; }
+        @media (max-width: 960px) { .location-mvp-grid { grid-template-columns: 1fr; } .location-mvp-map { border-left: 0; border-top: 1px solid var(--line); min-height: 340px; } .dummy-map { min-height: 340px; } }
+        @media (max-width: 560px) { .location-mvp-info { padding: 32px 24px; } .location-mvp-cta-row .btn, .location-mvp-status { width: 100%; justify-content: center; } .dummy-map-badge { left: 18px; right: auto; top: 18px; } .dummy-map-note { left: 18px; right: 18px; bottom: 18px; max-width: none; } }
+      `}</style>
+    </section>
+  );
+}
+
 function LocalSeoBlock() {
   return (
     <section id="local-seo" className="local-seo-band">
@@ -5807,6 +6171,15 @@ function FinalCTA() {
           <a href={WHATSAPP_URL} className="btn" style={{ padding: "22px 36px" }}><span>Reservasi WhatsApp</span><ArrowRight /></a>
         </Reveal>
 
+        <Reveal delay={720} as="p" className="mono" style={{
+          marginTop: 22,
+          color: "var(--fg-dim)",
+          fontSize: 12,
+          letterSpacing: "0.12em"
+        }}>
+          LIHAT MENU, EVENT, DAN SUASANA TERBARU DI SOCIAL MEDIA GARAGE.
+        </Reveal>
+
         {/* horizontal text */}
         <div style={{ marginTop: 100, opacity: 0.4 }}>
           <div className="mono">{`${biz.address.split(",")[0].toUpperCase()} / ${biz.hoursOpen}–${biz.hoursClose} SETIAP HARI`}</div>
@@ -5848,6 +6221,31 @@ function Footer() {
             <p style={{ marginTop: 16, color: "var(--fg-dim)", maxWidth: 420, fontSize: 13, lineHeight: 1.55 }}>
               {biz.address}
             </p>
+            <div style={{ marginTop: 24 }}>
+              <div className="mono" style={{ marginBottom: 12, color: "var(--fg)" }}>IKUTI GARAGE</div>
+              <p style={{ color: "var(--fg-dim)", maxWidth: 360, fontSize: 13, lineHeight: 1.55, marginBottom: 14 }}>
+                Lihat menu, event, dan suasana terbaru di social media GARAGE.
+              </p>
+              <div className="social-pill-grid" aria-label="Social media resmi GARAGE">
+                {SOCIAL_LINKS.map((social) => (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Buka ${social.label} resmi GARAGE di tab baru`}
+                    className="social-pill"
+                  >
+                    <span className="footer-social-mark" aria-hidden="true">
+                      <SocialMark id={social.id} />
+                    </span>
+                    <span className="footer-social-copy">
+                      <strong>{social.label}</strong>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
             <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 8, height: 8, background: "#0db86c", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(13,184,108,0.2)" }} />
               <span className="mono" style={{ color: "var(--fg)" }}>BUKA {biz.hoursOpen} · TUTUP {biz.hoursClose}</span>
@@ -5911,11 +6309,56 @@ function Footer() {
         }
         .foot-link:hover { color: var(--fg); }
         .foot-link:hover::after { width: 100%; }
+        .social-pill-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 18px 22px;
+          max-width: 520px;
+        }
+        .social-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          min-height: 32px;
+          padding: 0;
+          color: var(--fg);
+          transition:
+            color 0.25s var(--ease-out),
+            opacity 0.25s var(--ease-out),
+            transform 0.25s var(--ease-out);
+        }
+        .footer-social-mark {
+          width: 28px;
+          height: 28px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
+        }
+        .footer-social-mark .social-mark-svg {
+          width: 24px;
+          height: 24px;
+        }
+        .footer-social-copy {
+          min-width: 0;
+          display: flex;
+        }
+        .footer-social-copy strong {
+          font-family: var(--font-display);
+          font-size: 18px;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .social-pill:hover {
+          color: #fff;
+          opacity: 0.86;
+          transform: translateY(-1px);
+        }
         @media (max-width: 900px) {
           .foot-grid { grid-template-columns: 1fr 1fr !important; gap: 40px !important; }
         }
         @media (max-width: 560px) {
           .foot-grid { grid-template-columns: 1fr !important; }
+          .social-pill-grid { gap: 16px 18px; }
         }
       `}</style>
     </footer>);
@@ -5925,6 +6368,329 @@ function Footer() {
 
 // Section Promo Aktif — tarik produk promo (promoActive) langsung dari DB lewat
 // /api/customer/menu. Tampil hanya bila ada promo. Harga promo + harga coret.
+function FooterMvp() {
+  const biz = useBiz();
+  const waUrl = bizWaUrl(biz.whatsapp);
+  const mapsUrl = biz.mapsUrl || MAPS_URL;
+  const shortAddress = "Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi";
+  const quickLinks = [
+    ["Menu", "#menu"],
+    ["Cek Meja", "#live-status"],
+    ["Member", MEMBER_LOGIN_URL],
+    ["Login Karyawan", LOGIN_URL],
+    ["Franchise", "/franchise"],
+  ];
+
+  return (
+    <footer className="footer-mvp">
+      <div className="shell footer-mvp-shell">
+        <div className="footer-mvp-grid">
+          <div className="footer-mvp-brand">
+            <LogoImage variant="wordmark" height={56} />
+            <div className="mono footer-mvp-est">COFFEE & MOTOR · EST. 2026</div>
+            <p className="footer-mvp-copy">
+              Kopi premium dengan jiwa otomotif. Menu digital, reservasi meja,
+              takeaway, dan event komunitas dalam satu tempat.
+            </p>
+            <div className="footer-mvp-social">
+              <div className="mono footer-mvp-label">FOLLOW THE GARAGE</div>
+              <div className="footer-mvp-social-row" aria-label="Social media resmi GARAGE">
+                {SOCIAL_LINKS.map((social) => (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Buka ${social.label} resmi GARAGE di tab baru`}
+                    className="footer-mvp-social-link"
+                  >
+                    <span className="footer-mvp-social-mark" aria-hidden="true">
+                      <SocialMark id={social.id} />
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="footer-mvp-visit">
+            <div className="mono footer-mvp-label">KUNJUNGI</div>
+            <p className="footer-mvp-address">{shortAddress}</p>
+            <div className="footer-mvp-open">
+              <span className="footer-mvp-open-dot" />
+              <span className="mono">OPEN {biz.hoursOpen} - {biz.hoursClose}</span>
+            </div>
+            <p className="footer-mvp-meta">{biz.email}</p>
+          </div>
+
+          <div className="footer-mvp-action">
+            <div className="mono footer-mvp-label">AKSI CEPAT</div>
+            <div className="footer-mvp-cta-row">
+              <a href={waUrl} className="footer-mvp-cta footer-mvp-cta-primary">
+                <span>Reservasi WhatsApp</span>
+                <ArrowRight size={12} />
+              </a>
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="footer-mvp-cta">
+                <span>Buka Maps</span>
+                <ArrowRight size={12} />
+              </a>
+            </div>
+            <nav className="footer-mvp-quick-links" aria-label="Link cepat footer">
+              {quickLinks.map(([label, href]) =>
+                isLoginHref(href) ? (
+                  <a key={label} href={href} onClick={(event) => goToAccess(event, href)} className="footer-mvp-link">{label}</a>
+                ) : (
+                  <a key={label} href={href} className="footer-mvp-link">{label}</a>
+                )
+              )}
+            </nav>
+          </div>
+        </div>
+
+        <div className="footer-mvp-bottom">
+          <div className="mono">© 2026 GARAGE COFFEE &amp; MOTOR · SEMUA HAK CIPTA DILINDUNGI</div>
+          <div className="footer-mvp-bottom-links">
+            <a href={MEMBER_LOGIN_URL} className="footer-mvp-link">Login Member</a>
+            <a href={LOGIN_URL} onClick={(event) => goToAccess(event, LOGIN_URL)} className="footer-mvp-link">Login Karyawan</a>
+          </div>
+        </div>
+      </div>
+
+      <div className="footer-mvp-watermark" aria-hidden="true">
+        <Reveal>
+          <LogoImage
+            variant="wordmark"
+            width="min(1500px, 94vw)"
+            style={{
+              opacity: 0.28,
+              maskImage: "linear-gradient(180deg, rgba(0,0,0,0.75) 0%, transparent 92%)",
+              WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,0.75) 0%, transparent 92%)",
+            }}
+          />
+        </Reveal>
+      </div>
+
+      <style>{`
+        .footer-mvp {
+          border-top: 1px solid var(--line);
+          background:
+            radial-gradient(circle at 18% 0%, rgba(209,26,42,0.12), transparent 34%),
+            var(--bg-1);
+          position: relative;
+          z-index: 2;
+        }
+        .footer-mvp-shell {
+          padding-top: 72px;
+          padding-bottom: 32px;
+        }
+        .footer-mvp-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.75fr) minmax(270px, 0.9fr);
+          gap: 56px;
+          align-items: start;
+        }
+        .footer-mvp-est {
+          margin-top: 8px;
+        }
+        .footer-mvp-copy,
+        .footer-mvp-address,
+        .footer-mvp-meta {
+          color: var(--fg-dim);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .footer-mvp-copy {
+          margin-top: 24px;
+          max-width: 430px;
+        }
+        .footer-mvp-social {
+          margin-top: 24px;
+        }
+        .footer-mvp-label {
+          color: var(--fg);
+          margin-bottom: 14px;
+        }
+        .footer-mvp-social-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          max-width: 520px;
+        }
+        .footer-mvp-social-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
+          border-radius: 999px;
+          background: rgba(244,244,245,0.08);
+          color: var(--fg);
+          transition:
+            background 0.25s var(--ease-out),
+            color 0.25s var(--ease-out),
+            opacity 0.25s var(--ease-out),
+            transform 0.25s var(--ease-out);
+        }
+        .footer-mvp-social-link:hover {
+          background: rgba(244,244,245,0.14);
+          color: #fff;
+          transform: translateY(-1px);
+        }
+        .footer-mvp-social-mark {
+          width: 24px;
+          height: 24px;
+          display: grid;
+          place-items: center;
+          flex: 0 0 auto;
+        }
+        .footer-mvp-social-mark .social-mark-svg {
+          width: 21px;
+          height: 21px;
+        }
+        .footer-mvp-address {
+          max-width: 280px;
+          margin-bottom: 18px;
+        }
+        .footer-mvp-open {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          color: var(--fg);
+        }
+        .footer-mvp-open-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #0db86c;
+          box-shadow: 0 0 0 4px rgba(13,184,108,0.16);
+        }
+        .footer-mvp-meta {
+          margin-top: 16px;
+          word-break: break-word;
+        }
+        .footer-mvp-cta-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 22px;
+        }
+        .footer-mvp-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid rgba(244,244,245,0.18);
+          color: var(--fg);
+          font-family: var(--font-mono);
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          padding: 12px 14px;
+          text-transform: uppercase;
+          transition:
+            border-color 0.25s var(--ease-out),
+            color 0.25s var(--ease-out),
+            transform 0.25s var(--ease-out);
+        }
+        .footer-mvp-cta-primary {
+          background: var(--red);
+          border-color: var(--red);
+          color: #fff;
+        }
+        .footer-mvp-cta:hover {
+          border-color: rgba(209,26,42,0.78);
+          color: #fff;
+          transform: translateY(-1px);
+        }
+        .footer-mvp-quick-links,
+        .footer-mvp-bottom-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px 18px;
+        }
+        .footer-mvp-quick-links {
+          max-width: 340px;
+        }
+        .footer-mvp-link {
+          color: var(--fg-dim);
+          display: inline-block;
+          font-size: 14px;
+          position: relative;
+          transition: color 0.25s var(--ease-out);
+        }
+        .footer-mvp-link::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          bottom: -2px;
+          width: 0;
+          height: 1px;
+          background: var(--red);
+          transition: width 0.32s var(--ease-out);
+        }
+        .footer-mvp-link:hover {
+          color: var(--fg);
+        }
+        .footer-mvp-link:hover::after {
+          width: 100%;
+        }
+        .footer-mvp-bottom {
+          margin-top: 64px;
+          padding-top: 24px;
+          border-top: 1px solid var(--line);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        .footer-mvp-watermark {
+          margin-top: 24px;
+          overflow: hidden;
+          position: relative;
+          display: flex;
+          justify-content: center;
+        }
+        @media (max-width: 1040px) {
+          .footer-mvp-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 44px;
+          }
+          .footer-mvp-action {
+            grid-column: 1 / -1;
+          }
+        }
+        @media (max-width: 900px) {
+          .footer-mvp-grid {
+            grid-template-columns: 1fr;
+            gap: 36px;
+          }
+          .footer-mvp-copy,
+          .footer-mvp-address {
+            max-width: 560px;
+          }
+        }
+        @media (max-width: 560px) {
+          .footer-mvp-shell {
+            padding-top: 56px;
+          }
+          .footer-mvp-cta-row {
+            flex-direction: column;
+          }
+          .footer-mvp-cta {
+            justify-content: center;
+          }
+          .footer-mvp-social-row {
+            gap: 16px 18px;
+          }
+          .footer-mvp-bottom {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+        }
+      `}</style>
+    </footer>
+  );
+}
+
 const formatRupiah = (value) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -6320,6 +7086,7 @@ function GarageWebsiteRoot({
     }],
     servesCuisine: ["Coffee", "Indonesian", "Burger", "Kebab"],
     areaServed: "Tebing Tinggi",
+    sameAs: SOCIAL_LINKS.map((social) => social.href),
   };
 
   return (
@@ -6345,13 +7112,14 @@ function GarageWebsiteRoot({
       <About />
       <MenuGallery />
       <Atmosphere landingHero={landingHero} />
+      <SocialPortfolio />
       <Experience />
       <MembershipMasterPro />
       <Events />
       <LocalSeoBlock />
-      <Location />
+      <LocationMvp />
       <FinalCTA />
-      <Footer />
+      <FooterMvp />
       <FloatingWA />
     </main>
     </BizContext.Provider>

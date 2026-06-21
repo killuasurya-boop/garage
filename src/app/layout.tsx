@@ -24,7 +24,11 @@ const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://app.garagecoffee.id";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   applicationName: "Garage POS",
   title: "Garage Coffee & Motor",
   description:

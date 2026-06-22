@@ -7729,7 +7729,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     memberCustomer?.name ??
     (guestNameTrimmed && guestNameTrimmed.length > 0 ? guestNameTrimmed : "Guest Customer");
   // Guest boleh checkout TANPA nomor WhatsApp. Member tetap wajib punya phone
-  // (diambil dari akun). customerPhone null = guest tanpa WA â†’ tanpa invoice WA
+  // (diambil dari akun). customerPhone null = guest tanpa WA → tanpa invoice WA
   // dan tanpa record customer (kolom customers.phone NOT NULL & unique).
   const normalizedGuestPhone = input.guestPhone?.trim()
     ? normalizePhone(input.guestPhone)
@@ -8286,7 +8286,7 @@ export async function updateCustomerOrderStatus(
       }
       const ticketDrafts = Array.from(linesByTargetGroup.entries()).map(
         ([targetGroup, groupLines]) => {
-          // Catatan per-item pelanggan â†’ itemNotes tiket (label -> note),
+          // Catatan per-item pelanggan → itemNotes tiket (label -> note),
           // dibaca KDS dapur/bar persis seperti jalur POS.
           const itemNotes: Record<string, string> = {};
           for (const line of groupLines) {
@@ -9862,7 +9862,7 @@ export async function releaseKitchenTicket(ticketNo: string, garage: GarageSessi
 
 // Antar tiket: hanya pengklaim (atau manager) yang boleh. Kalau belum diklaim,
 // auto-klaim ke yang mengantar supaya fee jelas. Fee delivered dikredit ke
-// garage.user di updateKitchenStatus â†’ otomatis ke pengklaim.
+// garage.user di updateKitchenStatus → otomatis ke pengklaim.
 export async function deliverClaimedTicket(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db

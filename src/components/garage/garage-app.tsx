@@ -188,7 +188,7 @@ canUseApi,
 firstModuleForRole,
 modulesForRole,
 } from "@/lib/role-access";
-// First-paint / selalu tampil / kecil â†’ tetap statis (cepat).
+// First-paint / selalu tampil / kecil → tetap statis (cepat).
 import { ChatFab } from "@/components/garage/chat-fab";
 import {
 DateFilterBar,
@@ -2263,10 +2263,10 @@ function OutletSwitcher({
       >
         <div className="min-w-0">
           <p className="garage-mono text-[10px] uppercase tracking-wide text-[#b8b8bf]">
-            Outlet aktif {canSwitch ? "Â· bisa switch" : ""}
+            Outlet aktif {canSwitch ? "· bisa switch" : ""}
           </p>
           <p className="truncate text-sm font-bold text-white">
-            {activeOutlet.code} Â· {activeOutlet.name}
+            {activeOutlet.code} &middot; {activeOutlet.name}
           </p>
         </div>
         <ArrowRight
@@ -2310,7 +2310,7 @@ function OutletSwitcher({
                     >
                       <span className="min-w-0 truncate">
                         <span className="garage-mono font-bold">{o.code}</span>{" "}
-                        Â· {o.name}
+                        &middot; {o.name}
                       </span>
                       {isActive ? (
                         <Check className="size-3 shrink-0 text-[#4ade80]" />
@@ -9933,13 +9933,13 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
         <aside className="garage-panel garage-animate-in hidden h-fit rounded-md p-4 xl:block">
           <p className="text-sm font-semibold text-white">Ringkasan</p>
           <p className="mt-2 text-xs leading-5 text-[#b8b8bf]">
-            Pengingat tim â†’ lonceng header. Tanya AI â†’ tab ini. Approval kritis tetap manual.
+            Pengingat tim → lonceng header. Tanya AI → tab ini. Approval kritis tetap manual.
           </p>
           <Separator className="my-4 bg-[#34343c]" />
           <ul className="space-y-2 text-xs leading-5 text-[#d6d6dc]">
-            <li>Â· Void/refund/diskon besar butuh approval</li>
-            <li>Â· AI tidak mengubah transaksi sendiri</li>
-            <li>Â· Data mengikuti role login</li>
+            <li>&middot; Void/refund/diskon besar butuh approval</li>
+            <li>&middot; AI tidak mengubah transaksi sendiri</li>
+            <li>&middot; Data mengikuti role login</li>
           </ul>
         </aside>
       ) : null}

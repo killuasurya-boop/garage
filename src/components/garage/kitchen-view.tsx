@@ -142,7 +142,7 @@ export function KitchenView({
   const previousLateIdsRef = useRef<Set<string>>(new Set());
   const soundInitializedRef = useRef(false);
   // Voice announcement â€” gaya bandara, beda dari KDS local sound.
-  // Snapshot status per ticket untuk diff transition (queueâ†’cookingâ†’readyâ†’delivered).
+  // Snapshot status per ticket untuk diff transition (queue→cooking→ready→delivered).
   const previousTicketStateRef = useRef<
     Map<string, { status: string; station: string; channel: string }>
   >(new Map());
@@ -174,7 +174,7 @@ export function KitchenView({
         const oscillator = ctx.createOscillator();
         oscillator.type = "sine";
         if (kind === "new") {
-          // Two-tone chime: 880Hz â†’ 1320Hz (cheerful)
+          // Two-tone chime: 880Hz → 1320Hz (cheerful)
           oscillator.frequency.setValueAtTime(880, startAt);
           oscillator.frequency.exponentialRampToValueAtTime(1320, startAt + 0.12);
           gain.gain.setValueAtTime(0.0001, startAt);
@@ -392,10 +392,10 @@ export function KitchenView({
     return filters;
   }, [tickets]);
 
-  // â”€â”€â”€ DETECT NEW ORDERS & NEW LATE TICKETS â†’ trigger sound â”€â”€â”€
+  // â”€â”€â”€ DETECT NEW ORDERS & NEW LATE TICKETS → trigger sound â”€â”€â”€
   // Diff current ticket IDs vs previous snapshot. Kalau ada ID baru
-  // yang statusnya "queue" â†’ bunyikan "new order" tone.
-  // Kalau ada ticket yang baru jadi late â†’ bunyikan "late alert" tone.
+  // yang statusnya "queue" → bunyikan "new order" tone.
+  // Kalau ada ticket yang baru jadi late → bunyikan "late alert" tone.
   useEffect(() => {
     if (!soundEnabled) {
       // Tetap update snapshot supaya kalau user enable sound nanti,
@@ -434,7 +434,7 @@ export function KitchenView({
     }
 
     if (hasNewOrder) playKitchenTone("new");
-    // Late lebih urgent â†’ kalau dua-duanya terjadi, late dapat priority
+    // Late lebih urgent → kalau dua-duanya terjadi, late dapat priority
     // dengan delay singkat supaya tidak overlap dengan new order tone
     if (hasNewlyLate) {
       window.setTimeout(() => playKitchenTone("late"), hasNewOrder ? 600 : 0);
@@ -446,11 +446,11 @@ export function KitchenView({
 
   // â”€â”€â”€ VOICE ANNOUNCEMENT (gaya bandara) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Layer terpisah dari KDS local sound. Diff status transition per ticket:
-  //   - online ticket baru muncul       â†’ "online_new"
-  //   - queue â†’ cooking (Food)          â†’ "kitchen_cooking"
-  //   - queue â†’ cooking (Bar)           â†’ "bar_mixing"
-  //   - cooking â†’ ready                 â†’ "order_ready"
-  //   - ready â†’ delivered               â†’ "order_ready_deliver"
+  //   - online ticket baru muncul       → "online_new"
+  //   - queue → cooking (Food)          → "kitchen_cooking"
+  //   - queue → cooking (Bar)           → "bar_mixing"
+  //   - cooking → ready                 → "order_ready"
+  //   - ready → delivered               → "order_ready_deliver"
   // First paint: tidak announce ticket lama (cuma seed snapshot).
   // Cooldown 3.5s per (ticketId+scenario) sudah dihandle di garage-voice.ts.
   useEffect(() => {
@@ -943,7 +943,7 @@ export function KitchenView({
                 Station
                 {lockedStation ? (
                   <span className="ml-2 normal-case tracking-normal text-[#f5a742]">
-                    Â· terkunci untuk {role}
+                    · terkunci untuk {role}
                   </span>
                 ) : null}
               </p>
@@ -1123,7 +1123,7 @@ export function KitchenView({
                     >
                       <div>
                         <p className="text-sm font-black text-white">{shift.shiftLabel}</p>
-                        <p className="text-[#888]">{shift.cashierName} Â· {shift.status}</p>
+                        <p className="text-[#888]">{shift.cashierName} · {shift.status}</p>
                       </div>
                       <div>
                         <p className="font-mono text-[10px] uppercase text-[#777]">Item Ready</p>

@@ -395,7 +395,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
     tab.label.toLowerCase().includes(normalizedSettingsQuery) ||
     tab.keywords.includes(normalizedSettingsQuery);
   const visibleTabs = tabs.filter(matchesSettingsQuery);
-  // Peta fieldâ†’tab untuk indikator "perubahan belum disimpan" per kategori.
+  // Peta field→tab untuk indikator "perubahan belum disimpan" per kategori.
   const tabFieldKeys: Record<SettingsTab, Array<keyof AppSettingsClient>> = {
     theme: ["garageOsThemePreset"],
     pos: ["serviceChargePct", "taxPct", "manualDiscountMaxPct", "manualDiscountApprovalPct", "receiptHistoryMax"],
@@ -593,7 +593,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                         <SelectItem key={tab.id} value={tab.id}>
                           {tab.label}
                           {tabDirtyCount(tab.id) > 0
-                            ? ` Â· ${tabDirtyCount(tab.id)} unsaved`
+                            ? ` · ${tabDirtyCount(tab.id)} unsaved`
                             : ""}
                         </SelectItem>
                       ))}
@@ -1760,7 +1760,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
       </div>
 
       <p className="text-[11px] text-[#8f8f99]">
-        Outlet aktif: <span className="garage-mono text-[#ffd08a]">{me.outlet.code}</span> Â·{" "}
+        Outlet aktif: <span className="garage-mono text-[#ffd08a]">{me.outlet.code}</span> ·{" "}
         {me.outlet.name}. Pengaturan disimpan per outlet â€” switch outlet untuk
         edit setting outlet lain.
       </p>

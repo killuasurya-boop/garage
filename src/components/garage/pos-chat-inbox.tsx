@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, Send, CheckCheck, Bell, ArrowLeft } from "lucide-react";
+import { MessageCircle, Send, CheckCheck, Bell, ArrowLeft, Headset } from "lucide-react";
 
 import {
   Sheet,
@@ -211,14 +211,16 @@ export function PosChatInbox() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Chat customer"
+        aria-label="Chat tamu / customer"
+        title="Chat tamu (customer)"
         // Top-right + z-50 supaya tidak bentrok pos-bill-panel (z-40 bottom)
-        // dan mini bottom-bar (z-30). Selalu terlihat di kasir.
-        className="garage-press fixed right-4 top-20 z-50 flex size-12 items-center justify-center rounded-full border border-[#d11a2a]/60 bg-[#d11a2a] text-white shadow-[0_10px_30px_rgba(0,0,0,0.45)] sm:size-14 md:top-4"
+        // dan mini bottom-bar (z-30). Ikon Headset = chat TAMU, beda dari
+        // ChatFab tim staf (MessageCircle, bottom-right) agar tidak rancu.
+        className="garage-press fixed right-4 top-20 z-50 flex size-12 items-center justify-center rounded-full border border-[#f5a742]/70 bg-[#f5a742] text-black shadow-[0_10px_30px_rgba(0,0,0,0.45)] sm:size-14 md:top-4"
       >
-        <MessageCircle className="size-6" />
+        <Headset className="size-6" />
         {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex min-w-6 items-center justify-center rounded-full border-2 border-[#121218] bg-[#f5a742] px-1.5 text-xs font-black text-black">
+          <span className="absolute -right-1 -top-1 flex min-w-6 items-center justify-center rounded-full border-2 border-[#121218] bg-[#d11a2a] px-1.5 text-xs font-black text-white">
             {unreadCount}
           </span>
         ) : null}

@@ -475,7 +475,7 @@ export function InventoryView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when entering Gudang workspace
   }, [inventoryWorkspaceTab]);
   // â”€â”€ Mode Opname â”€â”€
-  // opnameDraft: map sku â†’ input qty fisik (string supaya empty terdistinguish dari 0)
+  // opnameDraft: map sku → input qty fisik (string supaya empty terdistinguish dari 0)
   const [opnameOpen, setOpnameOpen] = useState(false);
   const [opnameLocationType, setOpnameLocationType] = useState<"warehouse" | "outlet">("warehouse");
   const [opnameOutletId, setOpnameOutletId] = useState("");
@@ -1625,7 +1625,7 @@ export function InventoryView({
             itemSku: entry.item.sku,
             type: entry.delta >= 0 ? "stock_in" : "stock_out",
             qty: entry.delta,
-            note: `${baseNote}: sistem ${entry.item.onHand} â†’ fisik ${entry.fisik} ${entry.item.unit}`,
+            note: `${baseNote}: sistem ${entry.item.onHand} → fisik ${entry.fisik} ${entry.item.unit}`,
           }),
         }).catch(() => {
           // movement gagal â€” onHand sudah update, jadi anggap success sebagian
@@ -4462,7 +4462,7 @@ export function InventoryView({
                 <SelectContent>
                   <SelectItem value="all">Semua status</SelectItem>
                   <SelectItem value="low">âš  Low only</SelectItem>
-                  <SelectItem value="watch">ðŸ‘ Watch only</SelectItem>
+                  <SelectItem value="watch">👁 Watch only</SelectItem>
                   <SelectItem value="safe">âœ“ Safe only</SelectItem>
                 </SelectContent>
               </Select>
@@ -4681,7 +4681,7 @@ export function InventoryView({
               <div className="rounded-md border border-[#34343c] bg-[#0f0f14] p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="garage-mono text-[10px] uppercase tracking-wide text-[#b8b8bf]">
-                    {movementSummary.rangeDays} hari Â· {movementSummary.totalEvents} event
+                    {movementSummary.rangeDays} hari · {movementSummary.totalEvents} event
                   </p>
                 </div>
                 <div className="space-y-1.5">
@@ -5149,7 +5149,7 @@ export function InventoryView({
                                 {item.name}
                               </p>
                               <p className="text-[11px] text-muted-foreground">
-                                {item.sku} Â· {item.category}
+                                {item.sku} · {item.category}
                               </p>
                             </div>
                             <div className="text-right">
@@ -5223,7 +5223,7 @@ export function InventoryView({
                           <TableCell className="min-w-[220px]">
                             <p className="font-medium text-white">{item.name}</p>
                             <p className="text-[11px] text-muted-foreground">
-                              {item.sku} Â· {item.category}
+                              {item.sku} · {item.category}
                             </p>
                           </TableCell>
                           <TableCell className="text-right text-zinc-200">
@@ -5482,7 +5482,7 @@ function InventoryDetailModal({
           itemSku: detail.item.sku,
           type: adjustMovementType,
           qty: delta,
-          note: `Adjust manual: ${adjustNote.trim()} (${detail.item.onHand} â†’ ${onHandValue} ${detail.item.unit})`,
+          note: `Adjust manual: ${adjustNote.trim()} (${detail.item.onHand} → ${onHandValue} ${detail.item.unit})`,
         }),
       });
       // Re-fetch detail
@@ -5564,7 +5564,7 @@ function InventoryDetailModal({
             {item?.name ?? "Detail SKU Gudang"}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            {item?.sku} {item?.alternativeName ? `Â· ${item.alternativeName}` : ""}
+            {item?.sku} {item?.alternativeName ? `· ${item.alternativeName}` : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -5595,7 +5595,7 @@ function InventoryDetailModal({
                       <span className="text-base text-[#8f8f99]">{item.unit}</span>
                     </p>
                     <p className="mt-1 text-[11px] text-[#8f8f99]">
-                      Min: {item.min} {item.unit} Â· {item.packageSize}
+                      Min: {item.min} {item.unit} · {item.packageSize}
                     </p>
                   </div>
                   <Badge className={`text-[11px] ${statusTone}`}>
@@ -5880,7 +5880,7 @@ function InventoryDetailModal({
                               {mv.note}
                             </p>
                             <p className="mt-0.5 font-mono text-[10px] text-[#8f8f99]">
-                              {mv.actor} Â·{" "}
+                              {mv.actor} ·{" "}
                               {new Intl.DateTimeFormat("id-ID", {
                                 dateStyle: "short",
                                 timeStyle: "short",

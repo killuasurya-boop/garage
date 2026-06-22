@@ -645,8 +645,8 @@ export function PosView({
   >("display");
   const [cashierPosSettings, setCashierPosSettings] =
     useState<CashierPosSettings>(loadCashierPosSettings);
-  // Wire: defaultPaymentMethod dari /control/settings â†’ POS payment.
-  // Mapping lowercase setting â†’ PaymentMethod label.
+  // Wire: defaultPaymentMethod dari /control/settings → POS payment.
+  // Mapping lowercase setting → PaymentMethod label.
   const defaultPmFromSettings: PaymentMethod = (() => {
     switch (settings?.defaultPaymentMethod) {
       case "qris":
@@ -669,7 +669,7 @@ export function PosView({
   const [paymentResult, setPaymentResult] = useState<string | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<OrderReceipt | null>(null);
   const [qrisImageReady, setQrisImageReady] = useState(true);
-  // Wire: shiftOpeningCashDefault dari /control/settings â†’ Shift & Cash
+  // Wire: shiftOpeningCashDefault dari /control/settings → Shift & Cash
   // Default settings 500K, tapi form max 500K & multiple of 50K. Coerce ke valid range.
   const _shiftOpeningDefault = (() => {
     const raw = Number(settings?.shiftOpeningCashDefault ?? 50000);
@@ -926,8 +926,8 @@ export function PosView({
   );
   const hasMoreProducts = visibleProductCount < filteredMenu.length;
 
-  // Lookup map idâ†’MenuItem dipakai di cart, sold-out check, dan voice
-  // announce. Hindari .find() O(N) per line per render (sebelumnya O(NÂ·M)).
+  // Lookup map id→MenuItem dipakai di cart, sold-out check, dan voice
+  // announce. Hindari .find() O(N) per line per render (sebelumnya O(N·M)).
   const menuItemsById = useMemo(() => {
     const map = new Map<string, MenuItem>();
     for (const item of menuItems) map.set(item.id, item);
@@ -998,7 +998,7 @@ export function PosView({
   const tax = Math.round((subtotal + service) * (taxPct / 100));
   const total = subtotal + service + tax;
   const voucher = posVoucherResult?.valid ? posVoucherResult.discount : 0;
-  // Manual discount dihitung dari total SETELAH voucher (urutan: voucher â†’ manual)
+  // Manual discount dihitung dari total SETELAH voucher (urutan: voucher → manual)
   const manualDiscountAmount = manualDiscount
     ? manualDiscount.type === "percent"
       ? Math.min(
@@ -2591,7 +2591,7 @@ export function PosView({
             itemSku: entry.item.sku,
             type: entry.delta >= 0 ? "stock_in" : "stock_out",
             qty: entry.delta,
-            note: `${baseNote}: sistem ${entry.item.onHand} â†’ fisik ${entry.fisik} ${entry.item.unit}`,
+            note: `${baseNote}: sistem ${entry.item.onHand} → fisik ${entry.fisik} ${entry.item.unit}`,
           }),
         }).catch(() => {
           /* movement gagal tapi onHand sudah update */
@@ -2636,7 +2636,7 @@ export function PosView({
       });
       setExpenseDialogOpen(false);
       const approvalNote =
-        amount >= 1_000_000 ? " Â· butuh approval manager" : "";
+        amount >= 1_000_000 ? " · butuh approval manager" : "";
       setPosNotice(
         `Pengeluaran ${currency.format(Math.round(amount))} dicatat.${approvalNote}`,
       );
@@ -2937,7 +2937,7 @@ export function PosView({
     setCompletedReceipt(null);
 
     // Anti double-submit: generate idempotency key per submission attempt.
-    // Klik dobel kasir / retry network akan kirim key sama â†’ server return order yang sama.
+    // Klik dobel kasir / retry network akan kirim key sama → server return order yang sama.
     const idempotencyKey =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -7374,8 +7374,8 @@ export function PosView({
                     <>
                       <p className="truncate text-[11px] font-semibold text-[#ffd08a]">
                         {manualDiscount.type === "percent"
-                          ? `${manualDiscount.rawValue}% Â· ${manualDiscount.reason}`
-                          : `${currency.format(manualDiscount.amount)} Â· ${manualDiscount.reason}`}
+                          ? `${manualDiscount.rawValue}% · ${manualDiscount.reason}`
+                          : `${currency.format(manualDiscount.amount)} · ${manualDiscount.reason}`}
                       </p>
                       {manualDiscountAwaitingApproval ? (
                         <p className="text-[10px] font-semibold text-[#ffd79a]">
@@ -7790,7 +7790,7 @@ export function PosView({
                 Bill yang akan di-park
               </p>
               <p className="mt-1 text-sm font-semibold text-white">
-                {cartLines.length} item Â· {currency.format(estimateCartTotal(cart))}
+                {cartLines.length} item · {currency.format(estimateCartTotal(cart))}
               </p>
               <p className="mt-0.5 text-[10px] text-[#8f8f99]">
                 {orderType === "dine-in" && selectedTableNumber
@@ -7875,8 +7875,8 @@ export function PosView({
                           {parked.label}
                         </p>
                         <p className="mt-0.5 font-mono text-[10px] text-[#8f8f99]">
-                          {parked.itemCount} item Â·{" "}
-                          {currency.format(parked.estimatedTotal)} Â·{" "}
+                          {parked.itemCount} item ·{" "}
+                          {currency.format(parked.estimatedTotal)} ·{" "}
                           {ageMinutes === 0 ? "baru saja" : `${ageMinutes}m lalu`}
                         </p>
                         <p className="mt-0.5 text-[10px] text-[#8f8f99]">
@@ -7886,10 +7886,10 @@ export function PosView({
                             : parked.orderType}
                           {parked.posCustomerMode === "member" &&
                             parked.memberPhone &&
-                            ` Â· Member ${parked.memberPhone}`}
+                            ` · Member ${parked.memberPhone}`}
                           {parked.posCustomerMode === "guest" &&
                             parked.guestName &&
-                            ` Â· ${parked.guestName}`}
+                            ` · ${parked.guestName}`}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-1">
@@ -7927,7 +7927,7 @@ export function PosView({
           )}
           <div className="flex justify-end border-t border-[#34343c] pt-3">
             <p className="text-[10px] text-[#8f8f99]">
-              Auto-hapus saat browser cache clear Â· max 20 bill
+              Auto-hapus saat browser cache clear · max 20 bill
             </p>
           </div>
         </DialogContent>
@@ -8543,10 +8543,10 @@ export function PosView({
                           {receipt.invoiceNo}
                         </p>
                         <p className="truncate text-sm font-semibold text-white">
-                          {receipt.orderNo} Â· {receipt.tableLabel}
+                          {receipt.orderNo} · {receipt.tableLabel}
                         </p>
                         <p className="text-[11px] text-[#b8b8bf]">
-                          {formatReceiptDate(receipt.createdAt)} Â·{" "}
+                          {formatReceiptDate(receipt.createdAt)} ·{" "}
                           {receipt.payment.method}
                         </p>
                       </div>
@@ -8952,7 +8952,7 @@ export function PosView({
                                     {item.name}
                                   </p>
                                   <p className="text-[11px] text-muted-foreground">
-                                    {item.sku} Â· {item.category}
+                                    {item.sku} · {item.category}
                                   </p>
                                 </TableCell>
                                 <TableCell className="text-right text-zinc-200">
@@ -9337,9 +9337,9 @@ function CheckoutOrderStep({
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // TableSessionInfoCard â€” UX upgrade untuk meja yang dipilih.
-// Kalau meja kosong â†’ tampilkan card hijau "siap dipakai".
-// Kalau meja butuh dibersihkan â†’ card merah "perlu cleaning".
-// Kalau meja punya session aktif (sudah ada order) â†’ card amber
+// Kalau meja kosong → tampilkan card hijau "siap dipakai".
+// Kalau meja butuh dibersihkan → card merah "perlu cleaning".
+// Kalau meja punya session aktif (sudah ada order) → card amber
 // "ORDER TAMBAHAN â€” akan masuk ke bill session yang sama".
 // Ini menggantikan warning generic lama yang cuma bilang "status: pending".
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -9353,7 +9353,7 @@ function TableSessionInfoCard({
   const status = row.status;
   const hasActiveOrder = Boolean(row.currentOrderId);
 
-  // Status "empty" + tidak butuh cleaning â†’ green ready card
+  // Status "empty" + tidak butuh cleaning → green ready card
   if (status === "empty" && !row.needsCleaning) {
     return (
       <div className="mt-3 rounded-md border border-[#22c55e]/40 bg-[#22c55e]/10 p-3">
@@ -9370,7 +9370,7 @@ function TableSessionInfoCard({
     );
   }
 
-  // Needs cleaning â†’ red warning
+  // Needs cleaning → red warning
   if (row.needsCleaning && !hasActiveOrder) {
     return (
       <div className="mt-3 rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-3">
@@ -9728,7 +9728,7 @@ function CheckoutCustomerStep({
 }
 
 // â”€â”€â”€ CartLineNoteRow â€” input catatan per item di cart â”€â”€â”€
-// UX: default collapsed (cuma tombol "+ Catatan" kecil). Klik â†’ expand input.
+// UX: default collapsed (cuma tombol "+ Catatan" kecil). Klik → expand input.
 // Auto-save on blur. Visible chip dengan icon jika sudah ada catatan.
 function CartLineNoteRow({
   note,
@@ -9769,7 +9769,7 @@ function CartLineNoteRow({
     <div className="mt-2 rounded-md border border-[#f5a742]/30 bg-[#f5a742]/6 p-2">
       <div className="flex items-center justify-between gap-2">
         <p className="garage-mono text-[10px] uppercase tracking-wide text-[#ffd79a]">
-          ðŸ“ Catatan untuk dapur
+          📝 Catatan untuk dapur
         </p>
         {!draft && (
           <button
@@ -10191,7 +10191,7 @@ function PaymentCompletePanel({
         return receipt.whatsappInvoiceUrl;
       }
 
-      // Bangun manual: normalisasi nomor (0xxx â†’ 62xxx) + template ringkas
+      // Bangun manual: normalisasi nomor (0xxx → 62xxx) + template ringkas
       const normalized = normalizeWaNumber(trimmed);
       const lines = [
         `Invoice GARAGE Coffee & Motor`,
@@ -10422,7 +10422,7 @@ function normalizeWaNumber(phone: string): string {
   return digits;
 }
 
-// Format tampilan: 6281234567890 â†’ +62 812-3456-7890
+// Format tampilan: 6281234567890 → +62 812-3456-7890
 function formatWaDisplay(phone: string): string {
   const normalized = normalizeWaNumber(phone);
   if (!normalized.startsWith("62")) return phone;
@@ -10445,7 +10445,7 @@ function ReceiptPreviewCard({ receipt }: { receipt: OrderReceipt }) {
       {receipt.isReprint ? (
         <div className="mb-3 flex items-center justify-center gap-2 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/14 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#ffd08a]">
           <Printer className="size-3.5" />
-          Cetak Ulang Â· {formatReceiptDate(receipt.reprintAt ?? new Date().toISOString())}
+          Cetak Ulang · {formatReceiptDate(receipt.reprintAt ?? new Date().toISOString())}
         </div>
       ) : null}
       <div className="flex items-start justify-between gap-3">

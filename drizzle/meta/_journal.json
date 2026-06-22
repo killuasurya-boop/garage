@@ -477,6 +477,13 @@
       "when": 1782048225103,
       "tag": "0067_gray_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1782121418288,
+      "tag": "0068_lumpy_giant_girl",
+      "breakpoints": true
     }
   ]
 }

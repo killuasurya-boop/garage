@@ -15,10 +15,10 @@ export async function POST() {
       assetBasePath: "/audio/smart-notif",
       generatedTables: "1-50",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/smart-notif/generate-all] Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

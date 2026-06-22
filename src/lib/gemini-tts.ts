@@ -46,7 +46,7 @@ ${opts.message}`;
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
-        // @ts-ignore - The types might not have responseModalities yet depending on version
+        // @ts-expect-error - responseModalities belum ada di typing versi SDK ini
         responseModalities: ["AUDIO"],
         speechConfig: {
           voiceConfig: {

@@ -370,8 +370,8 @@ export function VoiceSettingsDialog({
         const data = await res.json();
         alert(`Gagal memulai generate: ${data.error || "Unknown error"}`);
       }
-    } catch (e: any) {
-      alert(`Gagal memanggil API: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Gagal memanggil API: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setGeneratingAll(false);
     }

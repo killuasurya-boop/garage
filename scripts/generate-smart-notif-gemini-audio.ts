@@ -1,6 +1,4 @@
-// @ts-nocheck
-// WIP script (smart-notif voice generator) — bypass typecheck supaya tidak
-// memblokir next build. Akan dibenahi saat smart-notif diselesaikan.
+// Script generator audio smart-notif (Gemini TTS) — dev/operator only.
 import fs from "fs";
 import path from "path";
 import { parseArgs } from "util";
@@ -82,7 +80,9 @@ async function main() {
     for (let i = start; i <= end; i++) {
       const payload = { tableNo: String(i) };
       const message = buildSmartNotifMessage(trigger, payload);
-      const { absolutePath } = buildVoiceAssetPath(trigger, payload);
+      const { publicUrl } = buildVoiceAssetPath(trigger, payload);
+      // publicUrl mis. "/audio/smart-notif/generated/<trigger>/table-N.mp3"
+      const absolutePath = path.join(process.cwd(), "public", publicUrl);
 
       if (fs.existsSync(absolutePath) && !force) {
         console.log(`  [SKIPPED] ${path.basename(absolutePath)} already exists (use --force to overwrite)`);

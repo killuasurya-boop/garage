@@ -2420,3 +2420,24 @@ export const recruitmentPositions = pgTable(
   }),
 );
 
+// 🔊 Smart Notification Logs
+export const notificationLogs = pgTable(
+  "notification_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    triggerKey: text("trigger_key").notNull(),
+    tableNo: text("table_no"),
+    orderNo: text("order_no"),
+    audioUrl: text("audio_url"),
+    audioSource: text("audio_source"),
+    voiceGeneratedAt: timestamp("voice_generated_at", { withTimezone: true }),
+    ttsProvider: text("tts_provider"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    triggerKeyIdx: index("notification_logs_trigger_key_idx").on(table.triggerKey),
+    createdAtIdx: index("notification_logs_created_at_idx").on(table.createdAt),
+  }),
+);
+
+

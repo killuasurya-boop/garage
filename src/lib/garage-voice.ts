@@ -76,6 +76,12 @@ export type VoiceSettings = {
   smartTtsProvider: VoiceTtsProvider;
   /** CEO Brain — browser / Edge / ElevenLabs. */
   executiveTtsProvider: VoiceTtsProvider;
+  /** Whether to automatically generate missing voice assets with Gemini */
+  autoGenerateVoiceAsset: boolean;
+  /** Whether to use fallback audio if smart TTS fails or is missing */
+  fallbackEnabled: boolean;
+  /** Delay between subsequent voice triggers to prevent spam */
+  cooldownMs: number;
 };
 
 export type ExecutiveTtsStatus = {
@@ -176,6 +182,9 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   },
   smartTtsProvider: "local",
   executiveTtsProvider: "auto",
+  autoGenerateVoiceAsset: false,
+  fallbackEnabled: true,
+  cooldownMs: 3500,
 };
 
 export const VOICE_CHANNEL_LABEL: Record<VoiceChannel, string> = {
@@ -192,7 +201,7 @@ export const SCENARIO_META: Record<
     label: string;
     channel: VoiceChannel;
     dingKind: DingKind;
-    build: (p: AnnouncePayload) => string;
+    build: (p: AnnounceOptions) => string;
   }
 > = {
   order_new: {
@@ -209,16 +218,25 @@ export const SCENARIO_META: Record<
     label: "Order baru → Dapur (kasir input)",
     channel: "kitchen",
     dingKind: "soft",
-    // Heads-up dapur saat kasir submit order yang punya item makanan/cemilan.
-    // Pakai file MP3 statis (text tidak di-build dinamis).
-    build: () => `Tim Dapur. Pesanan baru dari kasir telah masuk antrian.`,
+    build: ({ table, dedupKey }) => {
+      const t = normalizeTable(table);
+      const o = dedupKey ? `, nomor ${dedupKey},` : "";
+      if (t && o) return `Perhatian. Pesanan baru ${t}${o} telah masuk ke dapur.`;
+      if (t) return `Perhatian. Pesanan baru ${t} telah masuk ke dapur.`;
+      return `Perhatian. Pesanan baru telah masuk ke dapur.`;
+    },
   },
   order_new_bar: {
     label: "Order baru → Bar (kasir input)",
     channel: "bar",
     dingKind: "soft",
-    // Heads-up bar saat kasir submit order yang punya item coffee/non-coffee.
-    build: () => `Tim Bar. Pesanan minuman baru dari kasir telah masuk antrian.`,
+    build: ({ table, dedupKey }) => {
+      const t = normalizeTable(table);
+      const o = dedupKey ? `, nomor ${dedupKey},` : "";
+      if (t && o) return `Perhatian. Pesanan baru minuman ${t}${o} telah masuk ke bar.`;
+      if (t) return `Perhatian. Pesanan baru minuman ${t} telah masuk ke bar.`;
+      return `Perhatian. Pesanan baru minuman telah masuk ke bar.`;
+    },
   },
   airport_qr: {
     label: "QR masuk (airport)",
@@ -248,8 +266,9 @@ export const SCENARIO_META: Record<
     channel: "kitchen",
     dingKind: "soft",
     build: ({ table }) => {
-      const t = normalizeTable(table) || "meja";
-      return `Tim dapur, ${t} mulai dimasak. Tetap on time ya.`;
+      const t = normalizeTable(table);
+      if (t) return `Tim dapur, pesanan ${t} mulai dimasak. Tetap on time ya.`;
+      return `Tim dapur, pesanan mulai dimasak. Tetap on time ya.`;
     },
   },
   bar_mixing: {
@@ -257,17 +276,21 @@ export const SCENARIO_META: Record<
     channel: "bar",
     dingKind: "soft",
     build: ({ table }) => {
-      const t = normalizeTable(table) || "meja";
-      return `Hai bar, minuman ${t} sedang diracik. Lanjutkan ya.`;
+      const t = normalizeTable(table);
+      if (t) return `Hai bar, minuman ${t} sedang diracik. Lanjutkan ya.`;
+      return `Hai bar, minuman sedang diracik. Lanjutkan ya.`;
     },
   },
   order_ready: {
     label: "Pesanan selesai",
     channel: "kitchen",
     dingKind: "soft",
-    build: ({ table }) => {
-      const t = normalizeTable(table) || "meja";
-      return `Hai semua, pesanan ${t} sudah siap. Bisa diantar.`;
+    build: ({ table, dedupKey }) => {
+      const t = normalizeTable(table);
+      const o = dedupKey ? `, nomor ${dedupKey},` : "";
+      if (t && o) return `Pesanan ${t}${o} sudah siap diantar.`;
+      if (t) return `Pesanan ${t} sudah siap diantar.`;
+      return `Ada pesanan siap diantar.`;
     },
   },
   order_ready_deliver: {
@@ -275,8 +298,9 @@ export const SCENARIO_META: Record<
     channel: "kitchen",
     dingKind: "soft",
     build: ({ table }) => {
-      const t = normalizeTable(table) || "meja";
-      return `Hai runner, pesanan ${t} siap antar. Ke meja sekarang ya.`;
+      const t = normalizeTable(table);
+      if (t) return `Waiter. Pesanan ${t} siap diantar.`;
+      return `Waiter. Ada pesanan siap diantar.`;
     },
   },
   warning_printer: {
@@ -1054,7 +1078,7 @@ export function announce(
       }
       playDing(dingKind, undefined, opts.force);
       await new Promise<void>((r) => window.setTimeout(r, 260));
-      await speakChannelText(scenario, text, meta.channel, opts.force);
+      await speakChannelText(scenario, text, meta.channel, opts.force, opts);
       // gap kecil antar announcement supaya tidak menumpuk
       await new Promise<void>((r) => window.setTimeout(r, 120));
     } catch {
@@ -1232,18 +1256,75 @@ async function shouldUseServerTts(provider: VoiceTtsProvider): Promise<boolean> 
   return Boolean(status?.edge.enabled || status?.elevenlabs.enabled);
 }
 
+async function playLocalAudioDirectly(url: string, volume: number): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  return new Promise<boolean>((resolve) => {
+    const audio = new Audio(url);
+    _currentAnnouncementAudio = audio;
+    audio.volume = clamp(volume, 0, 1);
+    audio.preload = "auto";
+
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (_currentAnnouncementAudio === audio) _currentAnnouncementAudio = null;
+      resolve(ok);
+    };
+
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    window.setTimeout(() => finish(true), 12000);
+
+    void audio.play().then(() => undefined).catch(() => finish(false));
+  });
+}
+
+function buildClientVoiceAssetUrl(scenario: string, tableNo?: string | null): string | null {
+  if (!tableNo) return null;
+  let normalizedTrigger = scenario;
+  if (scenario === "order_new_kitchen" || scenario === "order_new_bar") normalizedTrigger = "pos.order_created";
+  if (scenario === "order_ready") normalizedTrigger = "kitchen.order_ready";
+  if (scenario === "order_ready_deliver") normalizedTrigger = "waiter.order_ready";
+  
+  // if not one of the pre-generated triggers, skip
+  if (!["pos.order_created", "kitchen.order_ready", "waiter.order_ready", "kitchen.sla_warning"].includes(normalizedTrigger)) return null;
+
+  const tableId = tableNo.match(/\d+/)?.[0] ?? tableNo.replace(/[^a-zA-Z0-9]/g, "");
+  if (!tableId) return null;
+
+  const filename = `table-${tableId}.mp3`;
+  return `/audio/smart-notif/generated/${normalizedTrigger}/${filename}`;
+}
+
 async function speakChannelText(
   scenario: VoiceScenario,
   text: string,
   channel: VoiceChannel,
   force = false,
+  opts?: AnnounceOptions
 ): Promise<void> {
   const settings = getVoiceSettings();
   const provider = settings.smartTtsProvider;
 
   if (provider === "local" || provider === "auto") {
-    const playedLocal = await playLocalScenarioAudio(scenario, settings.volume);
+    let playedLocal = false;
+    
+    // 1. Try table-specific audio
+    if (opts?.table) {
+      const tableUrl = buildClientVoiceAssetUrl(scenario, opts.table);
+      if (tableUrl && (await probeLocalAudio(tableUrl))) {
+        playedLocal = await playLocalAudioDirectly(tableUrl, settings.volume);
+      }
+    }
+
+    // 2. Try generic scenario audio
+    if (!playedLocal) {
+      playedLocal = await playLocalScenarioAudio(scenario, settings.volume);
+    }
+    
     if (playedLocal) return;
+    
     if (provider === "local") {
       await speakText(text, channel, force);
       return;

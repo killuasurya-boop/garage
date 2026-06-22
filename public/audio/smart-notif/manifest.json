@@ -1,0 +1,1852 @@
+{
+  "generatedAt": "2026-06-21T19:32:19.814Z",
+  "basePath": "/audio/smart-notif",
+  "providerRequested": "edge",
+  "files": [
+    {
+      "triggerKey": "chime",
+      "variant": "garage-station-chime",
+      "tableNo": null,
+      "text": "Ding ding ding.",
+      "url": "/audio/smart-notif/chime/garage-station-chime.mp3",
+      "source": "edge",
+      "bytes": 12096
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "fallback",
+      "tableNo": null,
+      "text": "Ding ding ding. Perhatian. Pesanan baru telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/fallback/order-created.mp3",
+      "source": "edge",
+      "bytes": 64944
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 1,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 1, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-1.mp3",
+      "source": "edge",
+      "bytes": 72288
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 2,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 2, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-2.mp3",
+      "source": "edge",
+      "bytes": 71568
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 3,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 3, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-3.mp3",
+      "source": "edge",
+      "bytes": 72144
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 4,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 4, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-4.mp3",
+      "source": "edge",
+      "bytes": 71568
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 5,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 5, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-5.mp3",
+      "source": "edge",
+      "bytes": 71568
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 6,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 6, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-6.mp3",
+      "source": "edge",
+      "bytes": 72000
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 7,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 7, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-7.mp3",
+      "source": "edge",
+      "bytes": 72000
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 8,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 8, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-8.mp3",
+      "source": "edge",
+      "bytes": 72432
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 9,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 9, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-9.mp3",
+      "source": "edge",
+      "bytes": 72720
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 10,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 10, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-10.mp3",
+      "source": "edge",
+      "bytes": 72432
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 11,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 11, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-11.mp3",
+      "source": "edge",
+      "bytes": 72144
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 12,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 12, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-12.mp3",
+      "source": "edge",
+      "bytes": 73152
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 13,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 13, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-13.mp3",
+      "source": "edge",
+      "bytes": 73728
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 14,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 14, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-14.mp3",
+      "source": "edge",
+      "bytes": 74016
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 15,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 15, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-15.mp3",
+      "source": "edge",
+      "bytes": 73440
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 16,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 16, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-16.mp3",
+      "source": "edge",
+      "bytes": 73584
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 17,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 17, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-17.mp3",
+      "source": "edge",
+      "bytes": 73728
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 18,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 18, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-18.mp3",
+      "source": "edge",
+      "bytes": 74016
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 19,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 19, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-19.mp3",
+      "source": "edge",
+      "bytes": 74448
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 20,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 20, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-20.mp3",
+      "source": "edge",
+      "bytes": 73440
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 21,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 21, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-21.mp3",
+      "source": "edge",
+      "bytes": 74880
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 22,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 22, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-22.mp3",
+      "source": "edge",
+      "bytes": 74736
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 23,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 23, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-23.mp3",
+      "source": "edge",
+      "bytes": 75168
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 24,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 24, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-24.mp3",
+      "source": "edge",
+      "bytes": 74304
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 25,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 25, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-25.mp3",
+      "source": "edge",
+      "bytes": 74736
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 26,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 26, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-26.mp3",
+      "source": "edge",
+      "bytes": 74736
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 27,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 27, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-27.mp3",
+      "source": "edge",
+      "bytes": 75024
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 28,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 28, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-28.mp3",
+      "source": "edge",
+      "bytes": 75744
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 29,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 29, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-29.mp3",
+      "source": "edge",
+      "bytes": 75456
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 30,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 30, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-30.mp3",
+      "source": "edge",
+      "bytes": 73872
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 31,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 31, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-31.mp3",
+      "source": "edge",
+      "bytes": 75744
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 32,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 32, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-32.mp3",
+      "source": "edge",
+      "bytes": 75312
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 33,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 33, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-33.mp3",
+      "source": "edge",
+      "bytes": 75888
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 34,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 34, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-34.mp3",
+      "source": "edge",
+      "bytes": 75024
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 35,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 35, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-35.mp3",
+      "source": "edge",
+      "bytes": 75312
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 36,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 36, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-36.mp3",
+      "source": "edge",
+      "bytes": 75600
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 37,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 37, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-37.mp3",
+      "source": "edge",
+      "bytes": 75600
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 38,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 38, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-38.mp3",
+      "source": "edge",
+      "bytes": 76464
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 39,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 39, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-39.mp3",
+      "source": "edge",
+      "bytes": 76176
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 40,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 40, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-40.mp3",
+      "source": "edge",
+      "bytes": 74160
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 41,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 41, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-41.mp3",
+      "source": "edge",
+      "bytes": 75744
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 42,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 42, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-42.mp3",
+      "source": "edge",
+      "bytes": 75600
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 43,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 43, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-43.mp3",
+      "source": "edge",
+      "bytes": 76032
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 44,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 44, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-44.mp3",
+      "source": "edge",
+      "bytes": 75168
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 45,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 45, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-45.mp3",
+      "source": "edge",
+      "bytes": 75600
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 46,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 46, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-46.mp3",
+      "source": "edge",
+      "bytes": 75888
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 47,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 47, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-47.mp3",
+      "source": "edge",
+      "bytes": 75744
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 48,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 48, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-48.mp3",
+      "source": "edge",
+      "bytes": 76464
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 49,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 49, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-49.mp3",
+      "source": "edge",
+      "bytes": 76608
+    },
+    {
+      "triggerKey": "pos.order_created",
+      "variant": "table",
+      "tableNo": 50,
+      "text": "Ding ding ding. Perhatian. Pesanan baru meja 50, telah masuk ke dapur. Tim dapur mohon segera cek layar kitchen display.",
+      "url": "/audio/smart-notif/generated/pos.order_created/table-50.mp3",
+      "source": "edge",
+      "bytes": 73872
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "fallback",
+      "tableNo": null,
+      "text": "Ding ding ding. Ada pesanan yang sudah siap di pass counter. Waiter mohon segera cek dan antar ke pelanggan.",
+      "url": "/audio/smart-notif/fallback/kitchen-ready.mp3",
+      "source": "edge",
+      "bytes": 57312
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 1,
+      "text": "Ding ding ding. Pesanan meja 1 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-1.mp3",
+      "source": "edge",
+      "bytes": 55872
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 2,
+      "text": "Ding ding ding. Pesanan meja 2 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-2.mp3",
+      "source": "edge",
+      "bytes": 56016
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 3,
+      "text": "Ding ding ding. Pesanan meja 3 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-3.mp3",
+      "source": "edge",
+      "bytes": 55728
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 4,
+      "text": "Ding ding ding. Pesanan meja 4 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-4.mp3",
+      "source": "edge",
+      "bytes": 56160
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 5,
+      "text": "Ding ding ding. Pesanan meja 5 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-5.mp3",
+      "source": "edge",
+      "bytes": 56016
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 6,
+      "text": "Ding ding ding. Pesanan meja 6 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-6.mp3",
+      "source": "edge",
+      "bytes": 56304
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 7,
+      "text": "Ding ding ding. Pesanan meja 7 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-7.mp3",
+      "source": "edge",
+      "bytes": 56592
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 8,
+      "text": "Ding ding ding. Pesanan meja 8 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-8.mp3",
+      "source": "edge",
+      "bytes": 57168
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 9,
+      "text": "Ding ding ding. Pesanan meja 9 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-9.mp3",
+      "source": "edge",
+      "bytes": 57312
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 10,
+      "text": "Ding ding ding. Pesanan meja 10 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-10.mp3",
+      "source": "edge",
+      "bytes": 57024
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 11,
+      "text": "Ding ding ding. Pesanan meja 11 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-11.mp3",
+      "source": "edge",
+      "bytes": 56592
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 12,
+      "text": "Ding ding ding. Pesanan meja 12 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-12.mp3",
+      "source": "edge",
+      "bytes": 57456
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 13,
+      "text": "Ding ding ding. Pesanan meja 13 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-13.mp3",
+      "source": "edge",
+      "bytes": 57888
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 14,
+      "text": "Ding ding ding. Pesanan meja 14 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-14.mp3",
+      "source": "edge",
+      "bytes": 58032
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 15,
+      "text": "Ding ding ding. Pesanan meja 15 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-15.mp3",
+      "source": "edge",
+      "bytes": 57888
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 16,
+      "text": "Ding ding ding. Pesanan meja 16 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-16.mp3",
+      "source": "edge",
+      "bytes": 57456
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 17,
+      "text": "Ding ding ding. Pesanan meja 17 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-17.mp3",
+      "source": "edge",
+      "bytes": 57888
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 18,
+      "text": "Ding ding ding. Pesanan meja 18 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-18.mp3",
+      "source": "edge",
+      "bytes": 58032
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 19,
+      "text": "Ding ding ding. Pesanan meja 19 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-19.mp3",
+      "source": "edge",
+      "bytes": 58608
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 20,
+      "text": "Ding ding ding. Pesanan meja 20 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-20.mp3",
+      "source": "edge",
+      "bytes": 58032
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 21,
+      "text": "Ding ding ding. Pesanan meja 21 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-21.mp3",
+      "source": "edge",
+      "bytes": 59760
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 22,
+      "text": "Ding ding ding. Pesanan meja 22 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-22.mp3",
+      "source": "edge",
+      "bytes": 59328
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 23,
+      "text": "Ding ding ding. Pesanan meja 23 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-23.mp3",
+      "source": "edge",
+      "bytes": 59904
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 24,
+      "text": "Ding ding ding. Pesanan meja 24 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-24.mp3",
+      "source": "edge",
+      "bytes": 59328
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 25,
+      "text": "Ding ding ding. Pesanan meja 25 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-25.mp3",
+      "source": "edge",
+      "bytes": 59472
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 26,
+      "text": "Ding ding ding. Pesanan meja 26 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-26.mp3",
+      "source": "edge",
+      "bytes": 59616
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 27,
+      "text": "Ding ding ding. Pesanan meja 27 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-27.mp3",
+      "source": "edge",
+      "bytes": 60048
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 28,
+      "text": "Ding ding ding. Pesanan meja 28 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-28.mp3",
+      "source": "edge",
+      "bytes": 60192
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 29,
+      "text": "Ding ding ding. Pesanan meja 29 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-29.mp3",
+      "source": "edge",
+      "bytes": 60048
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 30,
+      "text": "Ding ding ding. Pesanan meja 30 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-30.mp3",
+      "source": "edge",
+      "bytes": 58608
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 31,
+      "text": "Ding ding ding. Pesanan meja 31 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-31.mp3",
+      "source": "edge",
+      "bytes": 60480
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 32,
+      "text": "Ding ding ding. Pesanan meja 32 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-32.mp3",
+      "source": "edge",
+      "bytes": 59904
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 33,
+      "text": "Ding ding ding. Pesanan meja 33 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-33.mp3",
+      "source": "edge",
+      "bytes": 60624
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 34,
+      "text": "Ding ding ding. Pesanan meja 34 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-34.mp3",
+      "source": "edge",
+      "bytes": 60192
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 35,
+      "text": "Ding ding ding. Pesanan meja 35 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-35.mp3",
+      "source": "edge",
+      "bytes": 60192
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 36,
+      "text": "Ding ding ding. Pesanan meja 36 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-36.mp3",
+      "source": "edge",
+      "bytes": 60336
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 37,
+      "text": "Ding ding ding. Pesanan meja 37 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-37.mp3",
+      "source": "edge",
+      "bytes": 60912
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 38,
+      "text": "Ding ding ding. Pesanan meja 38 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-38.mp3",
+      "source": "edge",
+      "bytes": 60912
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 39,
+      "text": "Ding ding ding. Pesanan meja 39 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-39.mp3",
+      "source": "edge",
+      "bytes": 60912
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 40,
+      "text": "Ding ding ding. Pesanan meja 40 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-40.mp3",
+      "source": "edge",
+      "bytes": 58176
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 41,
+      "text": "Ding ding ding. Pesanan meja 41 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-41.mp3",
+      "source": "edge",
+      "bytes": 60192
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 42,
+      "text": "Ding ding ding. Pesanan meja 42 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-42.mp3",
+      "source": "edge",
+      "bytes": 60048
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 43,
+      "text": "Ding ding ding. Pesanan meja 43 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-43.mp3",
+      "source": "edge",
+      "bytes": 60480
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 44,
+      "text": "Ding ding ding. Pesanan meja 44 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-44.mp3",
+      "source": "edge",
+      "bytes": 60048
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 45,
+      "text": "Ding ding ding. Pesanan meja 45 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-45.mp3",
+      "source": "edge",
+      "bytes": 60048
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 46,
+      "text": "Ding ding ding. Pesanan meja 46 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-46.mp3",
+      "source": "edge",
+      "bytes": 60192
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 47,
+      "text": "Ding ding ding. Pesanan meja 47 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-47.mp3",
+      "source": "edge",
+      "bytes": 60768
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 48,
+      "text": "Ding ding ding. Pesanan meja 48 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-48.mp3",
+      "source": "edge",
+      "bytes": 60912
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 49,
+      "text": "Ding ding ding. Pesanan meja 49 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-49.mp3",
+      "source": "edge",
+      "bytes": 60912
+    },
+    {
+      "triggerKey": "kitchen.order_ready",
+      "variant": "table",
+      "tableNo": 50,
+      "text": "Ding ding ding. Pesanan meja 50 sudah siap di pass counter. Waiter mohon segera antar ke pelanggan.",
+      "url": "/audio/smart-notif/generated/kitchen.order_ready/table-50.mp3",
+      "source": "edge",
+      "bytes": 58032
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "fallback",
+      "tableNo": null,
+      "text": "Waiter. Ada pesanan siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/fallback/waiter-ready.mp3",
+      "source": "edge",
+      "bytes": 44064
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 1,
+      "text": "Waiter. Pesanan meja 1 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-1.mp3",
+      "source": "edge",
+      "bytes": 46944
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 2,
+      "text": "Waiter. Pesanan meja 2 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-2.mp3",
+      "source": "edge",
+      "bytes": 46656
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 3,
+      "text": "Waiter. Pesanan meja 3 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-3.mp3",
+      "source": "edge",
+      "bytes": 47232
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 4,
+      "text": "Waiter. Pesanan meja 4 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-4.mp3",
+      "source": "edge",
+      "bytes": 46944
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 5,
+      "text": "Waiter. Pesanan meja 5 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-5.mp3",
+      "source": "edge",
+      "bytes": 47232
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 6,
+      "text": "Waiter. Pesanan meja 6 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-6.mp3",
+      "source": "edge",
+      "bytes": 47232
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 7,
+      "text": "Waiter. Pesanan meja 7 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-7.mp3",
+      "source": "edge",
+      "bytes": 47232
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 8,
+      "text": "Waiter. Pesanan meja 8 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-8.mp3",
+      "source": "edge",
+      "bytes": 47376
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 9,
+      "text": "Waiter. Pesanan meja 9 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-9.mp3",
+      "source": "edge",
+      "bytes": 47664
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 10,
+      "text": "Waiter. Pesanan meja 10 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-10.mp3",
+      "source": "edge",
+      "bytes": 47520
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 11,
+      "text": "Waiter. Pesanan meja 11 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-11.mp3",
+      "source": "edge",
+      "bytes": 46944
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 12,
+      "text": "Waiter. Pesanan meja 12 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-12.mp3",
+      "source": "edge",
+      "bytes": 47664
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 13,
+      "text": "Waiter. Pesanan meja 13 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-13.mp3",
+      "source": "edge",
+      "bytes": 48384
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 14,
+      "text": "Waiter. Pesanan meja 14 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-14.mp3",
+      "source": "edge",
+      "bytes": 48528
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 15,
+      "text": "Waiter. Pesanan meja 15 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-15.mp3",
+      "source": "edge",
+      "bytes": 48240
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 16,
+      "text": "Waiter. Pesanan meja 16 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-16.mp3",
+      "source": "edge",
+      "bytes": 48528
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 17,
+      "text": "Waiter. Pesanan meja 17 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-17.mp3",
+      "source": "edge",
+      "bytes": 48240
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 18,
+      "text": "Waiter. Pesanan meja 18 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-18.mp3",
+      "source": "edge",
+      "bytes": 48240
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 19,
+      "text": "Waiter. Pesanan meja 19 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-19.mp3",
+      "source": "edge",
+      "bytes": 48672
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 20,
+      "text": "Waiter. Pesanan meja 20 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-20.mp3",
+      "source": "edge",
+      "bytes": 47808
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 21,
+      "text": "Waiter. Pesanan meja 21 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-21.mp3",
+      "source": "edge",
+      "bytes": 49680
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 22,
+      "text": "Waiter. Pesanan meja 22 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-22.mp3",
+      "source": "edge",
+      "bytes": 49536
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 23,
+      "text": "Waiter. Pesanan meja 23 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-23.mp3",
+      "source": "edge",
+      "bytes": 49968
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 24,
+      "text": "Waiter. Pesanan meja 24 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-24.mp3",
+      "source": "edge",
+      "bytes": 49968
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 25,
+      "text": "Waiter. Pesanan meja 25 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-25.mp3",
+      "source": "edge",
+      "bytes": 49968
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 26,
+      "text": "Waiter. Pesanan meja 26 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-26.mp3",
+      "source": "edge",
+      "bytes": 50400
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 27,
+      "text": "Waiter. Pesanan meja 27 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-27.mp3",
+      "source": "edge",
+      "bytes": 50112
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 28,
+      "text": "Waiter. Pesanan meja 28 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-28.mp3",
+      "source": "edge",
+      "bytes": 50400
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 29,
+      "text": "Waiter. Pesanan meja 29 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-29.mp3",
+      "source": "edge",
+      "bytes": 50112
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 30,
+      "text": "Waiter. Pesanan meja 30 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-30.mp3",
+      "source": "edge",
+      "bytes": 48528
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 31,
+      "text": "Waiter. Pesanan meja 31 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-31.mp3",
+      "source": "edge",
+      "bytes": 50544
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 32,
+      "text": "Waiter. Pesanan meja 32 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-32.mp3",
+      "source": "edge",
+      "bytes": 50256
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 33,
+      "text": "Waiter. Pesanan meja 33 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-33.mp3",
+      "source": "edge",
+      "bytes": 50688
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 34,
+      "text": "Waiter. Pesanan meja 34 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-34.mp3",
+      "source": "edge",
+      "bytes": 50400
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 35,
+      "text": "Waiter. Pesanan meja 35 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-35.mp3",
+      "source": "edge",
+      "bytes": 50544
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 36,
+      "text": "Waiter. Pesanan meja 36 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-36.mp3",
+      "source": "edge",
+      "bytes": 51120
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 37,
+      "text": "Waiter. Pesanan meja 37 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-37.mp3",
+      "source": "edge",
+      "bytes": 50832
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 38,
+      "text": "Waiter. Pesanan meja 38 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-38.mp3",
+      "source": "edge",
+      "bytes": 51120
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 39,
+      "text": "Waiter. Pesanan meja 39 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-39.mp3",
+      "source": "edge",
+      "bytes": 51120
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 40,
+      "text": "Waiter. Pesanan meja 40 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-40.mp3",
+      "source": "edge",
+      "bytes": 48528
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 41,
+      "text": "Waiter. Pesanan meja 41 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-41.mp3",
+      "source": "edge",
+      "bytes": 50544
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 42,
+      "text": "Waiter. Pesanan meja 42 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-42.mp3",
+      "source": "edge",
+      "bytes": 50400
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 43,
+      "text": "Waiter. Pesanan meja 43 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-43.mp3",
+      "source": "edge",
+      "bytes": 50688
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 44,
+      "text": "Waiter. Pesanan meja 44 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-44.mp3",
+      "source": "edge",
+      "bytes": 50400
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 45,
+      "text": "Waiter. Pesanan meja 45 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-45.mp3",
+      "source": "edge",
+      "bytes": 50688
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 46,
+      "text": "Waiter. Pesanan meja 46 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-46.mp3",
+      "source": "edge",
+      "bytes": 51120
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 47,
+      "text": "Waiter. Pesanan meja 47 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-47.mp3",
+      "source": "edge",
+      "bytes": 50688
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 48,
+      "text": "Waiter. Pesanan meja 48 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-48.mp3",
+      "source": "edge",
+      "bytes": 51408
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 49,
+      "text": "Waiter. Pesanan meja 49 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-49.mp3",
+      "source": "edge",
+      "bytes": 50832
+    },
+    {
+      "triggerKey": "waiter.order_ready",
+      "variant": "table",
+      "tableNo": 50,
+      "text": "Waiter. Pesanan meja 50 siap diantar. Ambil di pass counter sekarang.",
+      "url": "/audio/smart-notif/generated/waiter.order_ready/table-50.mp3",
+      "source": "edge",
+      "bytes": 48384
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "fallback",
+      "tableNo": null,
+      "text": "Perhatian dapur. Ada pesanan yang telah melewati batas waktu layanan. Supervisor mohon bantu cek dan percepat penyelesaian.",
+      "url": "/audio/smart-notif/fallback/general-alert.mp3",
+      "source": "edge",
+      "bytes": 62784
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 1,
+      "text": "Perhatian dapur. Pesanan meja 1 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-1.mp3",
+      "source": "edge",
+      "bytes": 61920
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 2,
+      "text": "Perhatian dapur. Pesanan meja 2 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-2.mp3",
+      "source": "edge",
+      "bytes": 61488
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 3,
+      "text": "Perhatian dapur. Pesanan meja 3 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-3.mp3",
+      "source": "edge",
+      "bytes": 61776
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 4,
+      "text": "Perhatian dapur. Pesanan meja 4 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-4.mp3",
+      "source": "edge",
+      "bytes": 61776
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 5,
+      "text": "Perhatian dapur. Pesanan meja 5 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-5.mp3",
+      "source": "edge",
+      "bytes": 61920
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 6,
+      "text": "Perhatian dapur. Pesanan meja 6 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-6.mp3",
+      "source": "edge",
+      "bytes": 62064
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 7,
+      "text": "Perhatian dapur. Pesanan meja 7 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-7.mp3",
+      "source": "edge",
+      "bytes": 63072
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 8,
+      "text": "Perhatian dapur. Pesanan meja 8 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-8.mp3",
+      "source": "edge",
+      "bytes": 62208
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 9,
+      "text": "Perhatian dapur. Pesanan meja 9 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-9.mp3",
+      "source": "edge",
+      "bytes": 62928
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 10,
+      "text": "Perhatian dapur. Pesanan meja 10 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-10.mp3",
+      "source": "edge",
+      "bytes": 63360
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 11,
+      "text": "Perhatian dapur. Pesanan meja 11 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-11.mp3",
+      "source": "edge",
+      "bytes": 62352
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 12,
+      "text": "Perhatian dapur. Pesanan meja 12 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-12.mp3",
+      "source": "edge",
+      "bytes": 63504
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 13,
+      "text": "Perhatian dapur. Pesanan meja 13 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-13.mp3",
+      "source": "edge",
+      "bytes": 64080
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 14,
+      "text": "Perhatian dapur. Pesanan meja 14 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-14.mp3",
+      "source": "edge",
+      "bytes": 64080
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 15,
+      "text": "Perhatian dapur. Pesanan meja 15 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-15.mp3",
+      "source": "edge",
+      "bytes": 63792
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 16,
+      "text": "Perhatian dapur. Pesanan meja 16 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-16.mp3",
+      "source": "edge",
+      "bytes": 63792
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 17,
+      "text": "Perhatian dapur. Pesanan meja 17 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-17.mp3",
+      "source": "edge",
+      "bytes": 64080
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 18,
+      "text": "Perhatian dapur. Pesanan meja 18 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-18.mp3",
+      "source": "edge",
+      "bytes": 63792
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 19,
+      "text": "Perhatian dapur. Pesanan meja 19 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-19.mp3",
+      "source": "edge",
+      "bytes": 64224
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 20,
+      "text": "Perhatian dapur. Pesanan meja 20 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-20.mp3",
+      "source": "edge",
+      "bytes": 63936
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 21,
+      "text": "Perhatian dapur. Pesanan meja 21 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-21.mp3",
+      "source": "edge",
+      "bytes": 64800
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 22,
+      "text": "Perhatian dapur. Pesanan meja 22 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-22.mp3",
+      "source": "edge",
+      "bytes": 64656
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 23,
+      "text": "Perhatian dapur. Pesanan meja 23 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-23.mp3",
+      "source": "edge",
+      "bytes": 65232
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 24,
+      "text": "Perhatian dapur. Pesanan meja 24 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-24.mp3",
+      "source": "edge",
+      "bytes": 64800
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 25,
+      "text": "Perhatian dapur. Pesanan meja 25 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-25.mp3",
+      "source": "edge",
+      "bytes": 64800
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 26,
+      "text": "Perhatian dapur. Pesanan meja 26 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-26.mp3",
+      "source": "edge",
+      "bytes": 65088
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 27,
+      "text": "Perhatian dapur. Pesanan meja 27 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-27.mp3",
+      "source": "edge",
+      "bytes": 65808
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 28,
+      "text": "Perhatian dapur. Pesanan meja 28 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-28.mp3",
+      "source": "edge",
+      "bytes": 65808
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 29,
+      "text": "Perhatian dapur. Pesanan meja 29 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-29.mp3",
+      "source": "edge",
+      "bytes": 65664
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 30,
+      "text": "Perhatian dapur. Pesanan meja 30 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-30.mp3",
+      "source": "edge",
+      "bytes": 64944
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 31,
+      "text": "Perhatian dapur. Pesanan meja 31 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-31.mp3",
+      "source": "edge",
+      "bytes": 65808
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 32,
+      "text": "Perhatian dapur. Pesanan meja 32 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-32.mp3",
+      "source": "edge",
+      "bytes": 65376
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 33,
+      "text": "Perhatian dapur. Pesanan meja 33 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-33.mp3",
+      "source": "edge",
+      "bytes": 66096
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 34,
+      "text": "Perhatian dapur. Pesanan meja 34 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-34.mp3",
+      "source": "edge",
+      "bytes": 65664
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 35,
+      "text": "Perhatian dapur. Pesanan meja 35 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-35.mp3",
+      "source": "edge",
+      "bytes": 65664
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 36,
+      "text": "Perhatian dapur. Pesanan meja 36 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-36.mp3",
+      "source": "edge",
+      "bytes": 65952
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 37,
+      "text": "Perhatian dapur. Pesanan meja 37 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-37.mp3",
+      "source": "edge",
+      "bytes": 66816
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 38,
+      "text": "Perhatian dapur. Pesanan meja 38 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-38.mp3",
+      "source": "edge",
+      "bytes": 66528
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 39,
+      "text": "Perhatian dapur. Pesanan meja 39 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-39.mp3",
+      "source": "edge",
+      "bytes": 66384
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 40,
+      "text": "Perhatian dapur. Pesanan meja 40 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-40.mp3",
+      "source": "edge",
+      "bytes": 64512
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 41,
+      "text": "Perhatian dapur. Pesanan meja 41 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-41.mp3",
+      "source": "edge",
+      "bytes": 65664
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 42,
+      "text": "Perhatian dapur. Pesanan meja 42 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-42.mp3",
+      "source": "edge",
+      "bytes": 65376
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 43,
+      "text": "Perhatian dapur. Pesanan meja 43 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-43.mp3",
+      "source": "edge",
+      "bytes": 65808
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 44,
+      "text": "Perhatian dapur. Pesanan meja 44 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-44.mp3",
+      "source": "edge",
+      "bytes": 65808
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 45,
+      "text": "Perhatian dapur. Pesanan meja 45 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-45.mp3",
+      "source": "edge",
+      "bytes": 65664
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 46,
+      "text": "Perhatian dapur. Pesanan meja 46 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-46.mp3",
+      "source": "edge",
+      "bytes": 66096
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 47,
+      "text": "Perhatian dapur. Pesanan meja 47 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-47.mp3",
+      "source": "edge",
+      "bytes": 66528
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 48,
+      "text": "Perhatian dapur. Pesanan meja 48 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-48.mp3",
+      "source": "edge",
+      "bytes": 66384
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 49,
+      "text": "Perhatian dapur. Pesanan meja 49 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-49.mp3",
+      "source": "edge",
+      "bytes": 66384
+    },
+    {
+      "triggerKey": "kitchen.sla_warning",
+      "variant": "table",
+      "tableNo": 50,
+      "text": "Perhatian dapur. Pesanan meja 50 telah melewati batas waktu layanan. Supervisor mohon bantu percepat penyelesaian.",
+      "url": "/audio/smart-notif/generated/kitchen.sla_warning/table-50.mp3",
+      "source": "edge",
+      "bytes": 64512
+    }
+  ]
+}

@@ -338,6 +338,45 @@ export function VoiceSettingsDialog({
     voice.updateSettings({ executiveTtsProvider: value });
   }, []);
 
+  const handleAutoGenerateToggle = useCallback(() => {
+    voice.updateSettings({ autoGenerateVoiceAsset: !settings.autoGenerateVoiceAsset });
+  }, [settings.autoGenerateVoiceAsset]);
+
+  const handleFallbackToggle = useCallback(() => {
+    voice.updateSettings({ fallbackEnabled: !settings.fallbackEnabled });
+  }, [settings.fallbackEnabled]);
+
+  const handleCooldownChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = Number(event.target.value);
+      voice.updateSettings({ cooldownMs: Math.max(1000, Math.min(10000, value)) });
+    },
+    [],
+  );
+
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const handleGenerateAll = useCallback(async () => {
+    if (generatingAll) return;
+    setGeneratingAll(true);
+    try {
+      const res = await fetch("/api/smart-notif/generate-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tables: "1-50" }),
+      });
+      if (res.ok) {
+        alert("Proses generate audio Meja 1-50 sedang berjalan di background.");
+      } else {
+        const data = await res.json();
+        alert(`Gagal memulai generate: ${data.error || "Unknown error"}`);
+      }
+    } catch (e: any) {
+      alert(`Gagal memanggil API: ${e.message}`);
+    } finally {
+      setGeneratingAll(false);
+    }
+  }, [generatingAll]);
+
   const handleExecutiveTest = useCallback(async () => {
     if (executiveTestRunning) return;
     voice.unlock();
@@ -522,7 +561,7 @@ export function VoiceSettingsDialog({
               <p className="text-xs text-[#9a9aa0]">
                 Default <strong className="text-[#fde8c8]">File MP3 lokal</strong> di{" "}
                 <span className="garage-mono">public/voice/scenarios</span> — tanpa API
-                ElevenLabs/Edge saat operasional. Cadangan: Otomatis → Edge → browser.
+                Gemini/Edge saat operasional. Cadangan: Otomatis → Edge → browser.
               </p>
               <Select
                 value={settings.smartTtsProvider}
@@ -575,10 +614,77 @@ export function VoiceSettingsDialog({
                   aria-label="Speaking rate"
                 />
               </label>
+              <label className="space-y-1 col-span-2 sm:col-span-1">
+                <div className="flex items-center justify-between text-xs text-[#b8b8bf]">
+                  <span className="garage-mono uppercase tracking-[0.14em]">Cooldown (ms)</span>
+                  <span className="text-[#f4f4f5]">{settings.cooldownMs}ms</span>
+                </div>
+                <input
+                  type="range"
+                  min={1000}
+                  max={10000}
+                  step={500}
+                  value={settings.cooldownMs}
+                  onChange={handleCooldownChange}
+                  className="garage-press h-2 w-full cursor-pointer appearance-none rounded-full bg-[#23232a] accent-[#f5a742]"
+                  aria-label="Cooldown"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#f4f4f5]">Gunakan Fallback Audio</p>
+                  <p className="text-xs text-[#9a9aa0]">Jika audio file tidak ditemukan, gunakan audio generik (tanpa nomor meja).</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={`garage-press h-8 border-[#4a4a54] ${
+                    settings.fallbackEnabled ? "bg-[#1f6b3a]/22 text-[#c9f0d4]" : "bg-white/[0.06] text-[#d6d6dc]"
+                  }`}
+                  onClick={handleFallbackToggle}
+                >
+                  {settings.fallbackEnabled ? "ON" : "OFF"}
+                </Button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#f4f4f5]">Auto Generate Voice Asset</p>
+                  <p className="text-xs text-[#9a9aa0]">Buat MP3 via Gemini otomatis jika belum ada (Limitasi 10/hari untuk free tier!).</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={`garage-press h-8 border-[#4a4a54] ${
+                    settings.autoGenerateVoiceAsset ? "bg-[#1f6b3a]/22 text-[#c9f0d4]" : "bg-white/[0.06] text-[#d6d6dc]"
+                  }`}
+                  onClick={handleAutoGenerateToggle}
+                >
+                  {settings.autoGenerateVoiceAsset ? "ON" : "OFF"}
+                </Button>
+              </div>
+              <div className="flex items-center justify-between border-t border-[#34343c] pt-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#f4f4f5]">Generate Massal (Meja 1-50)</p>
+                  <p className="text-xs text-[#9a9aa0]">Generasi manual membutuhkan API Key berbayar agar lolos limitasi harian.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="garage-press h-8 border-[#f5a742]/55 bg-[#f5a742]/14 text-[#fde8c8]"
+                  onClick={handleGenerateAll}
+                  disabled={generatingAll}
+                >
+                  {generatingAll ? <RotateCcw className="mr-2 size-4 animate-spin" /> : null}
+                  Generate Meja 1-50
+                </Button>
+              </div>
             </div>
           </section>
 
-          {/* CEO Executive voice (ElevenLabs) */}
+          {/* CEO Executive voice (Gemini TTS) */}
           <section className="rounded-md border border-[#34343c] bg-white/[0.045] p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -587,7 +693,7 @@ export function VoiceSettingsDialog({
                 </p>
                 <p className="mt-1 text-xs text-[#9a9aa0]">
                   Untuk mode Executive Assistant (Owner/Manager). Rekomendasi gratis:
-                  Microsoft Edge neural (Gadis). ElevenLabs opsional berbayar.
+                  Microsoft Edge neural (Gadis). Gemini TTS opsional berbayar.
                 </p>
               </div>
               <Button
@@ -618,7 +724,7 @@ export function VoiceSettingsDialog({
                   }
                 />
                 <HealthTile
-                  label="ElevenLabs"
+                  label="Gemini TTS"
                   ok={executiveTtsStatus.elevenlabs.enabled}
                   value={
                     executiveTtsStatus.elevenlabs.enabled ? "Aktif" : "Opsional"
@@ -638,14 +744,14 @@ export function VoiceSettingsDialog({
                       : settings.executiveTtsProvider === "edge"
                         ? "Edge neural"
                         : settings.executiveTtsProvider === "elevenlabs"
-                          ? "ElevenLabs"
+                          ? "Gemini TTS"
                           : "Browser"
                   }
                 />
               </div>
             ) : (
               <p className="mt-3 text-xs text-[#9a9aa0]">
-                Status ElevenLabs hanya untuk Owner / Admin / Manager (login diperlukan).
+                Status Gemini TTS hanya untuk Owner / Admin / Manager (login diperlukan).
               </p>
             )}
 

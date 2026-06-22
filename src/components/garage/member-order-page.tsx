@@ -1418,6 +1418,16 @@ export function MemberOrderPage({
         throw new Error("Nama customer wajib diisi.");
       }
 
+      const existingChatToken =
+        typeof window !== "undefined"
+          ? (() => {
+              try {
+                return window.localStorage.getItem("garage:chatToken") || undefined;
+              } catch {
+                return undefined;
+              }
+            })()
+          : undefined;
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", {
         orderType: qrContext.orderType,
         tableLabel: qrContext.tableLabel,
@@ -1431,6 +1441,7 @@ export function MemberOrderPage({
         paymentMethod,
         paymentProvider: paymentProviderValue || undefined,
         paymentReference: paymentReference.trim() || undefined,
+        chatToken: existingChatToken && existingChatToken.length >= 12 ? existingChatToken : undefined,
         items: cartLines.map((line) => ({
           itemId: line.item.id,
           variantId: line.variant.id,

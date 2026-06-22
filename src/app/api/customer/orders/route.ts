@@ -40,6 +40,9 @@ const customerOrderSchema = z.object({
   paymentMethod: z.enum(["Cash", "QRIS", "Bank Transfer"]).default("Cash"),
   paymentProvider: z.string().trim().max(60).optional(),
   paymentReference: z.string().trim().max(80).optional(),
+  // Token chat (opsional). Bila customer sudah ngobrol, order ditautkan ke
+  // thread chat agar update status order otomatis muncul di percakapan.
+  chatToken: z.string().trim().min(12).max(120).optional(),
   items: z.array(itemSchema).min(1).max(40),
 });
 

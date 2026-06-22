@@ -167,6 +167,9 @@ type CustomerOrderInput = {
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
+  // Token chat customer (opsional). Bila ada, order ditautkan ke thread chat
+  // sehingga update status order otomatis muncul sebagai system message.
+  chatToken?: string;
   items: OrderInput["items"];
 };
 
@@ -6800,6 +6803,28 @@ export async function postStaffChatMessage(input: { threadId: string; userId: st
   return { id: msg.id, createdAt: msg.createdAt.toISOString() };
 }
 
+// Tautkan thread chat ke order saat customer checkout. Setelah ini, semua
+// transisi status order akan otomatis jadi system message di percakapan.
+export async function linkChatThreadToOrder(chatToken: string, orderId: string, orderNo?: string | null) {
+  const db = getDb();
+  const [thread] = await db
+    .select({ id: customerChatThreads.id })
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.chatToken, chatToken))
+    .limit(1);
+  if (!thread) return null;
+  await db
+    .update(customerChatThreads)
+    .set({ orderId, lastMessageAt: new Date() })
+    .where(eq(customerChatThreads.id, thread.id));
+  await db.insert(customerChatMessages).values({
+    threadId: thread.id,
+    sender: "system",
+    body: orderNo ? `Pesanan ${orderNo} diterima sistem.` : "Pesanan diterima sistem.",
+  });
+  return { threadId: thread.id };
+}
+
 // Dipakai untuk push status order otomatis ke percakapan (system message).
 export async function postSystemChatMessageForOrder(orderId: string, body: string) {
   const db = getDb();
@@ -7924,6 +7949,16 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     })
     .where(eq(orders.id, created.order.id));
 
+  // Tautkan chat customer ke order ini (kalau ada) supaya update status order
+  // otomatis muncul sebagai system message di chat.
+  if (input.chatToken && input.chatToken.trim().length >= 12) {
+    try {
+      await linkChatThreadToOrder(input.chatToken.trim(), created.order.id, created.order.orderNo);
+    } catch {
+      /* non-blocking: chat thread tidak harus ada */
+    }
+  }
+
   const baseResponse = {
     order: {
       ...created.order,
@@ -8912,6 +8947,23 @@ export async function updateCustomerOrderStatus(
       await recordOrderPaidEarnings({ ...orderPaidPayload, fees: feeRates });
     } catch (error) {
       await enqueueFailedEarning("order_paid", orderPaidPayload, error);
+    }
+  }
+
+  // Auto system-message ke chat customer untuk transisi accept/paid/reject.
+  // Non-blocking: chat thread mungkin tidak ada.
+  if (result) {
+    try {
+      const orderNo = result.order.orderNo;
+      const labels: Record<string, string> = {
+        accept: `Pesanan ${orderNo} diterima kasir, sedang dipersiapkan. 🙏`,
+        paid: `Pembayaran ${orderNo} berhasil. Terima kasih! ☕`,
+        reject: `Pesanan ${orderNo} ditolak${input.reason ? ` (${input.reason})` : ""}.`,
+      };
+      const body = labels[input.action];
+      if (body) await postSystemChatMessageForOrder(result.order.id, body);
+    } catch {
+      /* non-blocking */
     }
   }
 
@@ -9956,6 +10008,21 @@ export async function updateKitchenStatus(
       await recordTicketDeliveredEarnings({ ...deliveredPayload, earnedAt: now, fees: feeRates });
     } catch (error) {
       await enqueueFailedEarning("ticket_delivered", deliveredPayload, error);
+    }
+  }
+
+  // Auto system message ke chat customer untuk transisi ready/delivered.
+  // Non-blocking: chat thread mungkin tidak ada untuk order ini.
+  if (ticket.orderId && (status === "ready" || status === "delivered")) {
+    try {
+      const station = ticket.targetGroup === "Bar" ? "Bar" : "Dapur";
+      const body =
+        status === "ready"
+          ? `${station}: pesanan siap, sebentar lagi diantar. 🛎️`
+          : `${station}: pesanan sudah diantar ke meja. Selamat menikmati! ☕`;
+      await postSystemChatMessageForOrder(ticket.orderId, body);
+    } catch {
+      /* non-blocking */
     }
   }
 

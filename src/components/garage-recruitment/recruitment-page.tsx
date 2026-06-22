@@ -178,9 +178,14 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
     <main className="garage-website" style={{ minHeight: "100vh", background: "var(--bg-0)", color: "var(--fg)" }}>
       {/* Navbar Glass */}
       <div style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "rgba(11,11,14,0.7)", backdropFilter: "blur(16px)", zIndex: 50 }}>
-        <Link href="/" style={{ color: "var(--fg)", textDecoration: "none", fontWeight: 800, letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 24, height: 24, background: "var(--red)", borderRadius: 6 }} />
-          GARAGE
+        <Link href="/" style={{ color: "var(--fg)", textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Pakai logo Garage resmi (sama dgn /os, /pos, dll), bukan kotak merah polos */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/garage-brand/logo-website.png"
+            alt="GARAGE Coffee & Motor"
+            style={{ height: 32, width: "auto", objectFit: "contain" }}
+          />
         </Link>
         <div style={{ display: "flex", gap: 12, background: "rgba(255,255,255,0.05)", padding: 4, borderRadius: 100 }}>
           <button 

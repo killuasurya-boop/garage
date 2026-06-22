@@ -212,7 +212,9 @@ export function PosChatInbox() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Chat customer"
-        className="garage-press fixed bottom-5 right-5 z-40 flex size-14 items-center justify-center rounded-full border border-[#d11a2a]/60 bg-[#d11a2a] text-white shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
+        // Top-right + z-50 supaya tidak bentrok pos-bill-panel (z-40 bottom)
+        // dan mini bottom-bar (z-30). Selalu terlihat di kasir.
+        className="garage-press fixed right-4 top-20 z-50 flex size-12 items-center justify-center rounded-full border border-[#d11a2a]/60 bg-[#d11a2a] text-white shadow-[0_10px_30px_rgba(0,0,0,0.45)] sm:size-14 md:top-4"
       >
         <MessageCircle className="size-6" />
         {unreadCount > 0 ? (

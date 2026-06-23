@@ -154,6 +154,9 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
   ikut berubah (termasuk 0%). Pengaturan terbukti terhubung ke perhitungan POS.
 - ✅ **Relasi DB inti** terbukti via integrasi: order↔kasir↔kitchen(tiket)↔waiter↔
   payment↔finance↔dashboard owner (semua test integrasi lulus).
+- ✅ **Voucher member end-to-end** — `garage-voucher.integration.test.ts`:
+  aturan (khusus member, minSpend, kode tak dikenal) + penukaran via order
+  (diskon diterapkan, total turun, `usedCount` +1). Jalur member (akun/poin) teruji.
 - ⬜ Website/landing + recruitment sinkron dashboard (lanjutan)
 - ⬜ UI/UX responsive desktop/tablet/mobile (lanjutan; UI POS sudah dirapikan)
 

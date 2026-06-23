@@ -162,4 +162,4 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
 
 ---
 
-_Update terakhir: lapisan keamanan/permission + perbaikan test stale; suite Vitest hijau (70 pass, 1 todo)._
+_Update terakhir: **7/7 role TUNTAS** (unit + integrasi DB nyata). Suite Vitest hijau (128 pass, 0 todo), tsc & lint hijau. Temuan terbuka: F-02. Lanjutan: audit UI/UX responsif, Settings/Website, E2E browser opsional._

@@ -55,6 +55,7 @@ chat, smart-notif, team-management, settings, training, recruitment.
 | # | Temuan | Dampak | Status |
 |---|---|---|---|
 | F-01 | `Manager Operasional` punya modul `finance` & `earnings` di sidebar tanpa permission baca | Modul muncul lalu data 403 (modul "putus") | ✅ **SELESAI** — keputusan owner: sembunyikan Finance & Earnings dari Manager. Modul dihapus di `role-access.ts`; invariant konsistensi diperluas mencakup finance/earnings (semua role lain sudah konsisten) |
+| F-02 | Chart **sales-trend** dashboard hanya jam 08:00–19:00 (`getDashboardData`) | Penjualan malam (peak kafe) tak tampil di chart; **omzet headline tetap utuh** | 🟡 **TERBUKA (keputusan owner)** — bukan bug data, hanya jendela visual. Rekomendasi: lebarkan ke jam tutup nyata (mis. 08–23) atau dorong dari pengaturan jam operasional. Belum diubah karena ini keputusan produk |
 
 ---
 
@@ -130,8 +131,20 @@ kasir OTOMATIS terhitung di finance (tidak ada modul putus).
 | Isolasi akses | Finance/CFO tak bisa company:manage/staff:manage/pos | OK | — | ✅ permission | ⏳ |
 | Input pengeluaran / export | `listExpenses` + CRUD pengeluaran | — | CRUD ada; verifikasi lanjutan | 🔄 | — |
 
-### STEP 6 — Manager (Manager Operasional) ⬜
-### STEP 7 — Owner (Owner / CEO) ⬜
+### STEP 6 — Manager ✅ TUNTAS · STEP 7 — Owner ✅ TUNTAS
+Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
+`garage-dashboard.integration.test.ts`. Diverifikasi `orders.status` default `paid`
+& POS tak meng-override → omzet kasir OTOMATIS masuk dashboard.
+
+| Fitur | Skenario | Bug | Solusi | Test | Commit |
+|---|---|---|---|---|---|
+| Revenue/omzet hari ini | metrik revenue = order paid hari ini ("3 order paid") | OK | — | ✅ integrasi | ⏳ |
+| Sales trend harian | jam operasional 08–19, jumlah = omzet (jam-aware) | OK* | *lihat F-02 | ✅ integrasi | ⏳ |
+| Order aktif | hitung tiket queue/cooking | OK | — | ✅ integrasi | ⏳ |
+| Menu terlaris | item terjual terbanyak (kopi > nasi) | OK | — | ✅ integrasi | ⏳ |
+| Isolasi Manager | tanpa company:manage; Finance/Earnings disembunyikan (F-01) | OK | — | ✅ permission | ⏳ |
+| Owner akses penuh monitoring | semua modul + dashboard | OK | — | ✅ permission | ⏳ |
+| Monitoring meja/staff/stok | low stock + approval pending di metrik | OK | — | ✅ (via dashboard) | ⏳ |
 
 ---
 

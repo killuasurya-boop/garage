@@ -1105,8 +1105,14 @@ export async function getDashboardData() {
   for (const row of salesTrendRows) {
     salesByHour.set(Number(row.hour), Number(row.sales));
   }
-  const computedSalesTrend = Array.from({ length: 12 }, (_, index) => {
-    const hour = index + 8;
+  // Jendela chart: baseline jam operasional 08–19, tapi MELEBAR otomatis
+  // mengikuti jam yang benar-benar ada penjualan (mis. sampai 22:00) supaya
+  // omzet malam/pagi tidak pernah tersembunyi dari chart. (F-02)
+  const saleHours = [...salesByHour.keys()];
+  const startHour = Math.min(8, ...saleHours);
+  const endHour = Math.max(19, ...saleHours);
+  const computedSalesTrend = Array.from({ length: endHour - startHour + 1 }, (_, index) => {
+    const hour = startHour + index;
     return { hour: String(hour).padStart(2, "0"), sales: salesByHour.get(hour) ?? 0 };
   });
 

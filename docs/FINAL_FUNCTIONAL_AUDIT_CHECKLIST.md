@@ -55,7 +55,7 @@ chat, smart-notif, team-management, settings, training, recruitment.
 | # | Temuan | Dampak | Status |
 |---|---|---|---|
 | F-01 | `Manager Operasional` punya modul `finance` & `earnings` di sidebar tanpa permission baca | Modul muncul lalu data 403 (modul "putus") | ✅ **SELESAI** — keputusan owner: sembunyikan Finance & Earnings dari Manager. Modul dihapus di `role-access.ts`; invariant konsistensi diperluas mencakup finance/earnings (semua role lain sudah konsisten) |
-| F-02 | Chart **sales-trend** dashboard hanya jam 08:00–19:00 (`getDashboardData`) | Penjualan malam (peak kafe) tak tampil di chart; **omzet headline tetap utuh** | 🟡 **TERBUKA (keputusan owner)** — bukan bug data, hanya jendela visual. Rekomendasi: lebarkan ke jam tutup nyata (mis. 08–23) atau dorong dari pengaturan jam operasional. Belum diubah karena ini keputusan produk |
+| F-02 | Chart **sales-trend** dashboard hanya jam 08:00–19:00 (`getDashboardData`) | Penjualan malam (peak kafe) tak tampil di chart | ✅ **SELESAI** — jendela chart kini **melebar otomatis** mengikuti jam yang ada penjualan (baseline 08–19 tetap, meluas bila ada transaksi pagi/malam). Test menjamin total chart = omzet, kapan pun transaksinya. Konsumer chart sudah memetakan array dinamis (aman) |
 
 ---
 
@@ -139,7 +139,7 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
 | Fitur | Skenario | Bug | Solusi | Test | Commit |
 |---|---|---|---|---|---|
 | Revenue/omzet hari ini | metrik revenue = order paid hari ini ("3 order paid") | OK | — | ✅ integrasi | ⏳ |
-| Sales trend harian | jam operasional 08–19, jumlah = omzet (jam-aware) | OK* | *lihat F-02 | ✅ integrasi | ⏳ |
+| Sales trend harian | jendela adaptif; total chart = SELURUH omzet (F-02 fixed) | DIPERBAIKI | jendela melebar ikut jam penjualan | ✅ integrasi | ⏳ |
 | Order aktif | hitung tiket queue/cooking | OK | — | ✅ integrasi | ⏳ |
 | Menu terlaris | item terjual terbanyak (kopi > nasi) | OK | — | ✅ integrasi | ⏳ |
 | Isolasi Manager | tanpa company:manage; Finance/Earnings disembunyikan (F-01) | OK | — | ✅ permission | ⏳ |

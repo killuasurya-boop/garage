@@ -26,7 +26,7 @@ via harness reusable) → perbaikan konsistensi role (F-01) → dokumentasi oper
 ## 3. Bug / Temuan
 - **F-01** — Manager menampilkan modul **Finance & Earnings** tanpa permission baca → modul "putus".
 - **Test stale** — `firstModuleForRole('Admin')` mengharap `dashboard` (Admin sengaja tanpa dashboard).
-- **F-02** — chart sales-trend dashboard hanya 08:00–19:00 → penjualan malam tak tampil di chart (omzet headline tetap utuh). **Terbuka — keputusan produk owner**.
+- **F-02 (diperbaiki)** — chart sales-trend dashboard dulu dipatok 08:00–19:00 → penjualan malam tak tampil di chart. Kini jendela melebar otomatis mengikuti jam penjualan; total chart dijamin = omzet.
 - **Verifikasi sinkron data (bukan bug, terkonfirmasi sehat):** `payments.status` default `captured` & `orders.status` default `paid`, dan POS `createOrder` tak meng-override keduanya → transaksi kasir OTOMATIS masuk Finance & Owner dashboard.
 
 ## 4. Bug yang Diperbaiki
@@ -75,7 +75,6 @@ Integrasi (DB nyata, via `test-helpers/garage-test-db.ts`):
 - `626a7af7` test(manager,owner): integration dashboard monitoring
 
 ## 10. Sisa Risiko / Belum Tuntas (jujur)
-- **F-02 (terbuka)**: jendela chart sales-trend 08–19 — keputusan owner (lihat checklist).
 - **E2E browser** (klik UI nyata via Playwright) belum dibuat — sengaja diganti test
   integrasi DB yang lebih andal/berulang. UI POS sudah dirapikan sesi sebelumnya.
 - **Audit UI/UX responsif** (desktop/tablet/HP) per role belum dijalankan menyeluruh.

@@ -88,12 +88,15 @@ describe("Manager/Owner — dashboard monitoring (DB nyata)", () => {
     expect(revenue.tone).toBe("good");
   });
 
-  it("sales trend harian menjumlah omzet pada jam operasional 08–19", async () => {
+  it("sales trend menjumlah SELURUH omzet hari ini (F-02: tak ada jam tersembunyi)", async () => {
     const dash = await getDashboardData();
-    // Chart sales-trend hanya mencakup jam operasional 08:00–19:00 (12 bar).
-    expect(dash.salesTrend.length).toBe(12);
+    // Baseline 08–19 (12 bar) tetap minimal; jendela melebar bila ada penjualan
+    // di luar jam itu — jadi total chart SELALU = omzet, kapan pun transaksinya.
+    expect(dash.salesTrend.length).toBeGreaterThanOrEqual(12);
     const trendSum = dash.salesTrend.reduce((s: number, p: any) => s + Number(p.sales), 0);
+    expect(trendSum).toBe(revenueExpected);
 
+    // Jam transaksi (Jakarta) wajib termasuk dalam jendela chart.
     const jakartaHour = Number(
       new Intl.DateTimeFormat("en-US", {
         timeZone: "Asia/Jakarta",
@@ -101,13 +104,9 @@ describe("Manager/Owner — dashboard monitoring (DB nyata)", () => {
         hour12: false,
       }).format(new Date()),
     );
-    if (jakartaHour >= 8 && jakartaHour <= 19) {
-      // Order dibuat dalam jam operasional → masuk chart.
-      expect(trendSum).toBe(revenueExpected);
-    } else {
-      // Di luar jam operasional, order tak tampil di chart (omzet headline tetap utuh).
-      expect(trendSum).toBe(0);
-    }
+    const hours = dash.salesTrend.map((p: any) => Number(p.hour));
+    expect(Math.min(...hours)).toBeLessThanOrEqual(jakartaHour);
+    expect(Math.max(...hours)).toBeGreaterThanOrEqual(jakartaHour);
   });
 
   it("metrik order aktif menghitung tiket queue/cooking", async () => {

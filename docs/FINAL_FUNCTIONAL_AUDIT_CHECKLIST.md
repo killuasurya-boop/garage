@@ -89,18 +89,27 @@ Refactor: helper tagihan murni diekstrak ke `src/lib/garage-billing.ts` (dari
 > (`garage-billing.test.ts`) + integrasi DB nyata (`garage-order.integration.test.ts`)
 > + permission. Harness integrasi memakai PGlite sementara terisolasi (aman untuk CI).
 
-### STEP 2-4 — Barista / Koki / Waiter 🔄 (alur status KDS SELESAI + test lulus)
-Ketiganya berbagi alur tiket KDS. Logika transisi diekstrak ke
-`src/lib/garage-kitchen-status.ts` + test `garage-kitchen-status.test.ts`.
+### STEP 2 — Barista ✅ TUNTAS  ·  STEP 3 — Koki ✅ TUNTAS
+Keduanya berbagi mekanisme `updateKitchenStatus` (beda hanya station Bar vs Food,
+diuji lewat routing). Logika murni: `garage-kitchen-status.ts` + unit test.
+Integrasi DB nyata: `garage-kitchen.integration.test.ts`.
 
 | Fitur | Skenario | Bug | Solusi | Test | Commit |
 |---|---|---|---|---|---|
-| Barista/Koki proses tiket | `queue→cooking→ready` sah | OK | — | ✅ | ⏳ |
-| Waiter antar pesanan | `ready→delivered` sah | OK | — | ✅ | ⏳ |
-| Cegah lompat/mundur status | transisi ilegal ditolak (`KitchenTransitionError`) | OK | — | ✅ | ⏳ |
-| Status final | `delivered` tanpa lanjutan | OK | — | ✅ | ⏳ |
-| Lihat antrian/meja/catatan, notif siap, UI tablet/HP | kitchen-view / waiter-view UI | — | (verifikasi UI) | ⬜ | ⬜ |
-| Sinkron status ke kasir/owner | cross-module (system message chat sudah ada) | — | (integrasi) | ⬜ | ⬜ |
+| Order kasir → tiket Bar & Food status awal `queue` | integrasi | OK | — | ✅ integrasi | ⏳ |
+| Barista/Koki proses tiket queue→cooking→ready | nama acceptedBy/readyBy tercatat | OK | — | ✅ integrasi | ⏳ |
+| Cegah transisi ilegal (queue→delivered, mundur) | `KitchenTransitionError` | OK | — | ✅ unit+integrasi | ⏳ |
+| Idempoten set status sama | tidak error, kembalikan tiket | OK | — | ✅ integrasi | ⏳ |
+| Tiket tidak dikenal | kembalikan null (aman) | OK | — | ✅ integrasi | ⏳ |
+| Optimistic lock (anti double-credit) | update by (ticketNo,status lama) | OK (sudah ada) | — | ✅ (jalur teruji) | ⏳ |
+| Sinkron status ke kasir/owner/customer | system message chat + audit log saat ready/delivered | OK | — | ✅ (via integrasi) | ⏳ |
+| UI antrian/meja/catatan, notif, tablet/HP | kitchen-view UI | — | disarankan cek manual berkala | 🔄 | — |
+
+### STEP 4 — Waiter 🔄 (alur ready→delivered sah; lanjutan)
+| Fitur | Skenario | Bug | Solusi | Test | Commit |
+|---|---|---|---|---|---|
+| Waiter antar pesanan | `ready→delivered` sah, deliveredBy tercatat | OK | — | ✅ unit | ⏳ |
+| Klaim tiket / daftar meja / sinkron | waiter-view + claimKitchenTicket | — | (integrasi berikutnya) | ⬜ | ⬜ |
 ### STEP 5 — Admin Finance (Finance / CFO) ⬜
 ### STEP 6 — Manager (Manager Operasional) ⬜
 ### STEP 7 — Owner (Owner / CEO) ⬜

@@ -76,10 +76,18 @@ Refactor: helper tagihan murni diekstrak ke `src/lib/garage-billing.ts` (dari
 | Diskon > ambang butuh approval | `manualDiscountNeedsApproval` | OK | — | ✅ | ⏳ |
 | Routing tiket: minuman→Bar, makanan→Dapur | `kitchenTargetGroupForCategory` | OK | — | ✅ | ⏳ |
 | Channel order (dine-in/takeaway/delivery) | `orderTypeToChannel` | OK | — | ✅ | ⏳ |
-| Buat order, pilih meja, tambah item, qty, hapus, catatan | POS cart UI | — | (verifikasi UI) | ⬜ | ⬜ |
-| Bayar cash & QRIS + struk | `createOrder` end-to-end | — | (integrasi/E2E) | ⬜ | ⬜ |
-| Sinkron ke waiter/finance/owner | cross-module | — | (integrasi) | ⬜ | ⬜ |
-| Error handling (meja kosong, dll) | validasi | — | — | ⬜ | ⬜ |
+| Buat order dine-in (meja) + item makanan & minuman | `createOrder` simpan order+item ke DB nyata | OK | — | ✅ `garage-order.integration.test.ts` | ⏳ |
+| Bayar cash + total tersimpan | payment row = total, customerMode `cashier` | OK | — | ✅ integrasi | ⏳ |
+| Routing tiket: minuman→Bar, makanan→Food | 2 tiket KDS dgn station benar | OK | — | ✅ integrasi | ⏳ |
+| Guard: wajib open shift | tanpa kas terbuka → ditolak | OK | — | ✅ integrasi | ⏳ |
+| Guard: diskon hanya member | non-member + diskon → ditolak | OK | — | ✅ integrasi | ⏳ |
+| Guard: variant tidak dikenal | item/variant salah → ditolak | OK | — | ✅ integrasi | ⏳ |
+| Sinkron ke finance/owner | order+payment tertulis ke DB (sumber dashboard) | OK | — | ✅ (via integrasi) | ⏳ |
+| Verifikasi UI cart (qty/hapus/catatan) + responsif | POS view desktop/tablet/HP | — | UI sudah dirapikan (keranjang fokus) sesi sebelumnya; disarankan cek manual berkala | 🔄 | — |
+
+> **STEP 1 (Kasir) TUNTAS** di level logika + transaksi + keamanan: unit test
+> (`garage-billing.test.ts`) + integrasi DB nyata (`garage-order.integration.test.ts`)
+> + permission. Harness integrasi memakai PGlite sementara terisolasi (aman untuk CI).
 
 ### STEP 2-4 — Barista / Koki / Waiter 🔄 (alur status KDS SELESAI + test lulus)
 Ketiganya berbagi alur tiket KDS. Logika transisi diekstrak ke

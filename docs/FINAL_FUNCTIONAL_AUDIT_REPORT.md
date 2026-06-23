@@ -57,9 +57,11 @@ Integrasi (DB nyata, via `test-helpers/garage-test-db.ts`):
 - `garage-waiter.integration.test.ts` — Waiter: klaim & antar.
 - `garage-finance.integration.test.ts` — Finance: agregasi transaksi.
 - `garage-dashboard.integration.test.ts` — Manager/Owner: dashboard monitoring.
+- `garage-settings.integration.test.ts` — Settings mengontrol total POS.
+- `garage-voucher.integration.test.ts` — Voucher member: aturan + penukaran.
 
 ## 8. Test Result
-`vitest run` → **12 file, 128 test PASS, 0 todo**. `tsc --noEmit` → **0 error**.
+`vitest run` → **14 file, 136 test PASS, 0 todo**. `tsc --noEmit` → **0 error**.
 `eslint` modul baru → **0 error**.
 
 ## 9. Commit List (branch audit)

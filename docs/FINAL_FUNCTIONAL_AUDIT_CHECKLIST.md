@@ -105,11 +105,17 @@ Integrasi DB nyata: `garage-kitchen.integration.test.ts`.
 | Sinkron status ke kasir/owner/customer | system message chat + audit log saat ready/delivered | OK | — | ✅ (via integrasi) | ⏳ |
 | UI antrian/meja/catatan, notif, tablet/HP | kitchen-view UI | — | disarankan cek manual berkala | 🔄 | — |
 
-### STEP 4 — Waiter 🔄 (alur ready→delivered sah; lanjutan)
+### STEP 4 — Waiter ✅ TUNTAS
+Integrasi DB nyata: `garage-waiter.integration.test.ts`.
+
 | Fitur | Skenario | Bug | Solusi | Test | Commit |
 |---|---|---|---|---|---|
-| Waiter antar pesanan | `ready→delivered` sah, deliveredBy tercatat | OK | — | ✅ unit | ⏳ |
-| Klaim tiket / daftar meja / sinkron | waiter-view + claimKitchenTicket | — | (integrasi berikutnya) | ⬜ | ⬜ |
+| Klaim tiket ready | claimedBy/Name tercatat | OK | — | ✅ integrasi | ⏳ |
+| Anti-rebut | waiter lain klaim tiket terklaim → `TicketClaimError` | OK | — | ✅ integrasi | ⏳ |
+| Antar pesanan terklaim | `ready→delivered`, deliveredBy tercatat | OK | — | ✅ integrasi | ⏳ |
+| Auto-klaim saat antar | antar tanpa klaim → auto-klaim lalu delivered | OK | — | ✅ integrasi | ⏳ |
+| Sinkron ke kasir/owner/customer | system message chat + audit (via updateKitchenStatus) | OK | — | ✅ (jalur teruji) | ⏳ |
+| UI daftar meja / HP | waiter-view UI | — | disarankan cek manual berkala | 🔄 | — |
 ### STEP 5 — Admin Finance (Finance / CFO) ⬜
 ### STEP 6 — Manager (Manager Operasional) ⬜
 ### STEP 7 — Owner (Owner / CEO) ⬜

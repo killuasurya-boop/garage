@@ -11,7 +11,6 @@ import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import {
   type KitchenTargetGroup,
   kitchenTargetMinutes,
-  applyRoundingMode,
   calculateBillingTotals,
   capVoucherDiscountBySettings,
   computeManualDiscountAmount,

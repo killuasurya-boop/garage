@@ -1,16 +1,23 @@
-import { NextResponse } from "next/server";
-import { getRecruitmentStats } from "@/lib/garage-recruitment-service";
+import { ok } from "@/lib/api-response";
+import { getRecruitmentStats, getRecruitmentAnalytics } from "@/lib/garage-recruitment-service";
+import { requireGarageSession } from "@/lib/server-auth";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Analytics rekrutmen — dilindungi auth. Hanya Owner/Admin/Manager.
 export async function GET() {
-  try {
-    const stats = await getRecruitmentStats();
-    return NextResponse.json({ ok: true, data: stats });
-  } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Gagal mengambil statistik rekrutmen" },
-      { status: 500 }
-    );
-  }
+  const session = await requireGarageSession([
+    "Owner / CEO",
+    "Admin",
+    "Manager Operasional",
+  ]);
+  if (session.response) return session.response;
+
+  const [stats, analytics] = await Promise.all([
+    getRecruitmentStats(),
+    getRecruitmentAnalytics(),
+  ]);
+
+  return ok({ stats, analytics });
 }

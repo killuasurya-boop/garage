@@ -425,6 +425,7 @@ export type OrderReceipt = {
 };
 
 export type OrderCreateResponse = {
+  orderId?: string;
   orderNo: string;
   ticketNo: string;
   ticketNos: string[];

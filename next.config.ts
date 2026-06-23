@@ -23,7 +23,16 @@ const nextConfig: NextConfig = {
   // VPS. `next start` tidak dipakai di production container; kita jalankan
   // `node server.js`.
   output: "standalone",
-  serverExternalPackages: ["@electric-sql/pglite"],
+  // pdfkit dibiarkan eksternal (jangan di-bundle webpack): kalau di-bundle,
+  // __dirname-nya jadi path palsu (mis. "D:\ROOT\...") sehingga file font .afm
+  // tidak ketemu → invoice PDF 500. Sebagai eksternal, ia di-require dari
+  // node_modules asli dengan path benar.
+  serverExternalPackages: ["@electric-sql/pglite", "pdfkit"],
+  // Pastikan data font bawaan pdfkit (.afm) ikut tertrace ke build standalone
+  // (Docker/VPS hanya menyalin .next/standalone). Tanpa ini, file font hilang.
+  outputFileTracingIncludes: {
+    "/api/orders/[id]/invoice": ["./node_modules/pdfkit/js/data/*.afm"],
+  },
   allowedDevOrigins: lanDevOrigins(),
   // Google Drive (I:) tidak mendukung junction/symlink yang Turbopack butuhkan.
   // Arahkan build cache ke disk lokal saat dev di Drive.

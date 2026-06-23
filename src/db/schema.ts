@@ -2351,6 +2351,7 @@ export const candidates = pgTable(
     // Posisi & ketersediaan
     appliedPosition: text("applied_position").notNull(),
     preferredLocation: text("preferred_location"),
+    workType: text("work_type"),
     availableStartDate: date("available_start_date"),
     willingShift: boolean("willing_shift").notNull().default(false),
     willingRelocate: boolean("willing_relocate").notNull().default(false),
@@ -2362,6 +2363,7 @@ export const candidates = pgTable(
     resignReason: text("resign_reason"),
     // Skill & karakter
     mainSkill: text("main_skill"),
+    skillLevel: text("skill_level"),
     strength: text("strength"),
     weakness: text("weakness"),
     motivation: text("motivation"),
@@ -2372,10 +2374,17 @@ export const candidates = pgTable(
     // Dokumen
     cvUrl: text("cv_url"),
     photoUrl: text("photo_url"),
+    ktpUrl: text("ktp_url"),
+    certificateUrl: text("certificate_url"),
     portfolioUrl: text("portfolio_url"),
+    instagramUrl: text("instagram_url"),
+    tiktokUrl: text("tiktok_url"),
+    linkedinUrl: text("linkedin_url"),
     socialMediaUrl: text("social_media_url"),
+    // Sumber pelamar — dari mana tahu lowongan (Instagram/TikTok/Teman/Poster/dll)
+    referralSource: text("referral_source"),
     // Manajemen (pipeline / scoring / follow-up)
-    status: text("status").notNull().default("New Applicant"),
+    status: text("status").notNull().default("Baru"),
     score: integer("score"),
     notes: text("notes"),
     assignedTo: text("assigned_to"),

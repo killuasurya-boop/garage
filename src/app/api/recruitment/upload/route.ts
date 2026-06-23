@@ -8,12 +8,59 @@ import { rateLimit } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const maxBytes = 5 * 1024 * 1024; // 5 MB
-const accepted: Record<string, string> = {
-  "application/pdf": ".pdf",
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
+type UploadKind = "cv" | "photo" | "ktp" | "portfolio" | "certificate";
+
+const uploadRules: Record<UploadKind, { label: string; maxBytes: number; accepted: Record<string, string>; hint: string }> = {
+  cv: {
+    label: "CV",
+    maxBytes: 5 * 1024 * 1024,
+    accepted: {
+      "application/pdf": ".pdf",
+      "application/msword": ".doc",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    },
+    hint: "Format CV harus PDF, DOC, atau DOCX maksimal 5 MB.",
+  },
+  photo: {
+    label: "Pas foto",
+    maxBytes: 3 * 1024 * 1024,
+    accepted: {
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+      "image/webp": ".webp",
+    },
+    hint: "Format pas foto harus JPG, PNG, atau WebP maksimal 3 MB.",
+  },
+  ktp: {
+    label: "KTP",
+    maxBytes: 5 * 1024 * 1024,
+    accepted: {
+      "application/pdf": ".pdf",
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+    },
+    hint: "Format KTP harus JPG, PNG, atau PDF maksimal 5 MB.",
+  },
+  portfolio: {
+    label: "Portfolio",
+    maxBytes: 10 * 1024 * 1024,
+    accepted: {
+      "application/pdf": ".pdf",
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+    },
+    hint: "Format portfolio harus PDF, JPG, atau PNG maksimal 10 MB.",
+  },
+  certificate: {
+    label: "Sertifikat",
+    maxBytes: 10 * 1024 * 1024,
+    accepted: {
+      "application/pdf": ".pdf",
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+    },
+    hint: "Format sertifikat harus PDF, JPG, atau PNG maksimal 10 MB.",
+  },
 };
 
 function projectRoot() {
@@ -42,22 +89,24 @@ export async function POST(request: Request) {
   }
 
   const file = formData.get("file");
-  const kind = String(formData.get("kind") ?? "cv").replace(/[^a-z]/gi, "").toLowerCase() || "cv";
+  const kindRaw = String(formData.get("kind") ?? "cv").replace(/[^a-z]/gi, "").toLowerCase();
+  const kind = (Object.keys(uploadRules).includes(kindRaw) ? kindRaw : "cv") as UploadKind;
+  const rule = uploadRules[kind];
   if (!(file instanceof File)) {
     return fail(400, "FILE_MISSING", "File wajib diupload.");
   }
   if (file.size <= 0) {
     return fail(400, "FILE_EMPTY", "File kosong.");
   }
-  if (file.size > maxBytes) {
-    return fail(413, "FILE_TOO_LARGE", "Ukuran file maksimal 5 MB.");
+  if (file.size > rule.maxBytes) {
+    return fail(413, "FILE_TOO_LARGE", `${rule.label} terlalu besar. ${rule.hint}`);
   }
-  const ext = accepted[file.type.toLowerCase()];
+  const ext = rule.accepted[file.type.toLowerCase()];
   if (!ext) {
-    return fail(400, "FILE_UNSUPPORTED", "Format harus PDF, JPG, PNG, atau WebP.");
+    return fail(400, "FILE_UNSUPPORTED", rule.hint);
   }
 
-  const dir = path.join(projectRoot(), "public", "garage-uploads", "recruitment");
+  const dir = path.join(projectRoot(), "storage", "recruitment");
   await mkdir(dir, { recursive: true });
   const fileName = `${kind}-${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
   try {
@@ -66,5 +115,5 @@ export async function POST(request: Request) {
     return fail(500, "FILE_SAVE_FAILED", error instanceof Error ? error.message : "Gagal menyimpan file.");
   }
 
-  return ok({ url: `/garage-uploads/recruitment/${fileName}` }, { status: 201 });
+  return ok({ url: `/api/recruitment/files/${fileName}` }, { status: 201 });
 }

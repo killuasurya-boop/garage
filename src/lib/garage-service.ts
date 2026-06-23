@@ -9726,34 +9726,23 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     await enqueueFailedEarning("order_paid", orderPaidPayload, error);
   }
 
-  const baseResponse = {
-    orderNo: created.orderNo,
-    ticketNo: created.ticketNo,
-    ticketNos: created.ticketNos,
-    subtotal: created.subtotal,
-    service: created.service,
-    tax: created.tax,
-    discount: created.discount,
-    total: created.total,
-    memberReward: created.memberReward,
-    receipt: created.receipt,
-  };
+  const invoicePdfPath = `/api/orders/${created.orderRow.id}/invoice`;
 
+  // Setiap order POS dapat link tracking + token (akses-kontrol acak) supaya
+  // kasir selalu bisa salin link / cetak PDF, dan guest yang baru kasih WA di
+  // layar sukses tetap dapat link. WhatsApp hanya dibuat kalau ada nomor.
   const invoiceCustomerPhone = memberCustomer?.phone ?? guestPhone;
-  if (!invoiceCustomerPhone) {
-    return baseResponse;
-  }
-
   const trackingToken = created.orderRow.invoiceTrackingToken ?? makeInvoiceTrackingToken();
-  const invoiceWhatsappInput = {
-    phone: invoiceCustomerPhone,
-    orderNo,
-    tableLabel,
-    total,
-    items: lines,
-    invoiceUrl: invoiceWebUrl(trackingToken),
-  };
-  const invoiceWhatsappUrl = makeWhatsappInvoiceUrl(invoiceWhatsappInput);
+  const invoiceWhatsappUrl = invoiceCustomerPhone
+    ? makeWhatsappInvoiceUrl({
+        phone: invoiceCustomerPhone,
+        orderNo,
+        tableLabel,
+        total,
+        items: lines,
+        invoiceUrl: invoiceWebUrl(trackingToken),
+      })
+    : null;
 
   await db
     .update(orders)
@@ -9764,19 +9753,29 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     })
     .where(eq(orders.id, created.orderRow.id));
 
+  const invoiceWebPathValue = invoiceWebPath(trackingToken);
   return {
-    ...baseResponse,
-    invoicePdfUrl: null,
-    invoiceWebUrl: invoiceWebPath(trackingToken),
+    orderId: created.orderRow.id,
+    orderNo: created.orderNo,
+    ticketNo: created.ticketNo,
+    ticketNos: created.ticketNos,
+    subtotal: created.subtotal,
+    service: created.service,
+    tax: created.tax,
+    discount: created.discount,
+    total: created.total,
+    memberReward: created.memberReward,
+    invoicePdfUrl: invoicePdfPath,
+    invoiceWebUrl: invoiceWebPathValue,
     whatsappInvoiceUrl: invoiceWhatsappUrl,
     receipt: {
-      ...baseResponse.receipt,
+      ...created.receipt,
       customer: {
         name: memberCustomer?.name ?? guestName,
         phone: invoiceCustomerPhone,
       },
-      invoicePdfUrl: null,
-      invoiceWebUrl: invoiceWebPath(trackingToken),
+      invoicePdfUrl: invoicePdfPath,
+      invoiceWebUrl: invoiceWebPathValue,
       whatsappInvoiceUrl: invoiceWhatsappUrl,
     },
   };

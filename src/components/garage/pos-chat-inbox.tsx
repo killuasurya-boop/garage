@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, Send, CheckCheck, Bell, ArrowLeft, Headset } from "lucide-react";
+import { MessageCircle, Send, CheckCheck, Bell, ArrowLeft } from "lucide-react";
 
 import {
   Sheet,
@@ -114,8 +114,19 @@ function ChatLine({ msg }: { msg: ChatMsg }) {
   );
 }
 
-export function PosChatInbox() {
-  const [open, setOpen] = useState(false);
+// Controlled: trigger ada di toolbar POS (samping Voice ON). Komponen ini hanya
+// render popup + polling/notifikasi. `onUnread` melaporkan jumlah unread agar
+// badge di toolbar update walau popup tertutup.
+export function PosChatInbox({
+  open,
+  onOpenChange,
+  onUnread,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onUnread?: (n: number) => void;
+}) {
+  const setOpen = onOpenChange;
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [active, setActive] = useState<ThreadDetail | null>(null);
   const [input, setInput] = useState("");
@@ -124,6 +135,10 @@ export function PosChatInbox() {
   const prevUnreadIds = useRef<Set<string>>(new Set());
 
   const unreadCount = threads.filter((t) => t.unread).length;
+
+  useEffect(() => {
+    onUnread?.(unreadCount);
+  }, [unreadCount, onUnread]);
 
   // Polling daftar thread (selalu jalan agar badge update walau sheet tertutup).
   useEffect(() => {
@@ -206,26 +221,9 @@ export function PosChatInbox() {
     }
   }
 
+  // Trigger dipindah ke toolbar POS (samping Voice ON). Komponen ini hanya popup.
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Chat tamu / customer"
-        title="Chat tamu (customer)"
-        // Top-right + z-50 supaya tidak bentrok pos-bill-panel (z-40 bottom)
-        // dan mini bottom-bar (z-30). Ikon Headset = chat TAMU, beda dari
-        // ChatFab tim staf (MessageCircle, bottom-right) agar tidak rancu.
-        className="garage-press fixed right-4 top-20 z-50 flex size-12 items-center justify-center rounded-full border border-[#f5a742]/70 bg-[#f5a742] text-black shadow-[0_10px_30px_rgba(0,0,0,0.45)] sm:size-14 md:top-4"
-      >
-        <Headset className="size-6" />
-        {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex min-w-6 items-center justify-center rounded-full border-2 border-[#121218] bg-[#d11a2a] px-1.5 text-xs font-black text-white">
-            {unreadCount}
-          </span>
-        ) : null}
-      </button>
-
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent className="flex w-full flex-col gap-0 border-[#34343c] bg-[#121218] p-0 sm:max-w-md">
           <SheetHeader className="border-b border-[#34343c] p-4 text-left">

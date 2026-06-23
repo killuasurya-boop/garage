@@ -23,8 +23,6 @@ import {
   Save,
   CheckCircle2,
 } from "lucide-react";
-import { format } from "date-fns";
-import { id } from "date-fns/locale";
 
 
 import { Button } from "@/components/ui/button";
@@ -55,6 +53,7 @@ type Candidate = {
   birthDate: string | null;
   appliedPosition: string;
   preferredLocation: string | null;
+  workType?: string | null;
   availableStartDate: string | null;
   willingShift: boolean;
   willingRelocate: boolean;
@@ -64,6 +63,7 @@ type Candidate = {
   previousCompany: string | null;
   resignReason: string | null;
   mainSkill: string | null;
+  skillLevel?: string | null;
   strength: string | null;
   weakness: string | null;
   motivation: string | null;
@@ -72,7 +72,12 @@ type Candidate = {
   interviewAvailability: string | null;
   cvUrl: string | null;
   photoUrl: string | null;
+  ktpUrl?: string | null;
+  certificateUrl?: string | null;
   portfolioUrl: string | null;
+  instagramUrl?: string | null;
+  tiktokUrl?: string | null;
+  linkedinUrl?: string | null;
   socialMediaUrl?: string | null;
   status: string;
   score?: number | null;
@@ -109,17 +114,17 @@ type PositionRow = {
 };
 
 type PositionsApiResp = { positions: PositionRow[] };
+type WhatsappTemplate = "follow_up" | "interview" | "reject" | "offer" | "talent_pool";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const statusTone: Record<string, string> = {
-  "Pelamar Baru": "border-[#3b82f6]/45 bg-[#3b82f6]/14 text-[#bfdbfe]",
-  "Sedang Direview": "border-[#a78bfa]/45 bg-[#a78bfa]/14 text-[#ddd6fe]",
-  "Dijadwalkan Interview": "border-[#f0abfc]/45 bg-[#f0abfc]/14 text-[#f5d0fe]",
-  "Selesai Interview": "border-[#818cf8]/45 bg-[#818cf8]/14 text-[#c7d2fe]",
+  "Baru": "border-[#3b82f6]/45 bg-[#3b82f6]/14 text-[#bfdbfe]",
+  "Diproses": "border-[#a78bfa]/45 bg-[#a78bfa]/14 text-[#ddd6fe]",
+  "Interview": "border-[#f0abfc]/45 bg-[#f0abfc]/14 text-[#f5d0fe]",
   "Diterima": "border-[#22c55e]/45 bg-[#22c55e]/14 text-[#bbf7d0]",
   "Ditolak": "border-[#ef4444]/45 bg-[#ef4444]/14 text-[#fca5a5]",
-  "Disimpan": "border-[#2dd4bf]/45 bg-[#2dd4bf]/14 text-[#99f6e4]",
+  "Talent Pool": "border-[#f59e0b]/45 bg-[#f59e0b]/14 text-[#fcd34d]",
 };
 
 const fmtDate = (iso: string | null | undefined) => {
@@ -136,12 +141,33 @@ const fmtRp = (n: number | null | undefined) => {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 };
 
-const whatsappLink = (raw: string, name: string, position: string) => {
+const getWhatsappLink = (
+  raw: string,
+  name: string,
+  position: string,
+  template: WhatsappTemplate = "follow_up",
+  interviewDate?: string,
+  interviewLink?: string
+) => {
   const digits = raw.replace(/\D/g, "");
   const normalized = digits.startsWith("0") ? `62${digits.slice(1)}` : digits;
-  const text = encodeURIComponent(
-    `Halo ${name}, kami dari GARAGE Recruitment. Lamaran kamu untuk posisi ${position} sudah kami terima. Kami ingin follow up proses seleksi kamu.`,
-  );
+  
+  let msg = `Halo ${name}, kami dari GARAGE Recruitment. Lamaran kamu untuk posisi ${position} sudah kami terima. Kami ingin follow up proses seleksi kamu.`;
+  
+  if (template === "interview") {
+    const fmtDate = interviewDate 
+      ? new Date(interviewDate).toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + " WIB"
+      : "[TANGGAL BELUM DITENTUKAN]";
+    msg = `Halo ${name}, selamat lamaran kamu untuk posisi ${position} lolos seleksi awal. Kami mengundang kamu untuk interview pada:\n\nTanggal: ${fmtDate}\nLokasi/Link: ${interviewLink || "[LOKASI BELUM DITENTUKAN]"}\n\nMohon konfirmasi kehadirannya ya. Terima kasih!`;
+  } else if (template === "reject") {
+    msg = `Halo ${name}, terima kasih telah melamar untuk posisi ${position} di GARAGE.\n\nSayang sekali saat ini kami belum bisa melanjutkan lamaran kamu ke tahap selanjutnya. Jangan patah semangat dan coba lagi di kesempatan lain ya!`;
+  } else if (template === "offer") {
+    msg = `Halo ${name}, selamat! Kamu dinyatakan LULUS untuk posisi ${position} di GARAGE.\n\nUntuk tahapan Offering dan pemberkasan selanjutnya, silakan balas pesan ini. Terima kasih!`;
+  } else if (template === "talent_pool") {
+    msg = `Halo ${name}, terima kasih telah melamar untuk posisi ${position}.\n\nProfil kamu sangat menarik, namun posisi ini sudah terisi. Kami akan menyimpan data kamu di Talent Pool GARAGE dan akan menghubungi kamu langsung jika ada lowongan yang sesuai nantinya.`;
+  }
+
+  const text = encodeURIComponent(msg);
   return `https://wa.me/${normalized}?text=${text}`;
 };
 
@@ -158,6 +184,7 @@ function CandidateDrawer({
   onStatusChange: (c: Candidate, status: string) => Promise<void>;
   onSaved: () => void;
 }) {
+  const [waTemplate, setWaTemplate] = useState<WhatsappTemplate>("follow_up");
   const [score, setScore] = useState(candidate.score?.toString() ?? "");
   const [notes, setNotes] = useState(candidate.notes ?? "");
   const [followUpDate, setFollowUpDate] = useState(candidate.followUpDate ?? "");
@@ -201,8 +228,26 @@ function CandidateDrawer({
 
   async function handleStatus(s: string) {
     setUpdatingStatus(true);
-    await onStatusChange(candidate, s);
-    setUpdatingStatus(false);
+    setSaveError(null);
+    try {
+      if (s === "Interview" && !interviewDate) {
+        setSaveError("Isi tanggal dan jam interview dulu sebelum mengubah status ke Interview.");
+        return;
+      }
+
+      await onStatusChange(
+        {
+          ...candidate,
+          interviewDate: interviewDate ? new Date(interviewDate).toISOString() : candidate.interviewDate,
+          interviewLink: interviewLink || candidate.interviewLink,
+        },
+        s,
+      );
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Gagal update status kandidat.");
+    } finally {
+      setUpdatingStatus(false);
+    }
   }
 
   const inputCls = "w-full rounded-md border border-[#34343c] bg-black/20 px-3 py-2 text-sm text-white placeholder-[#666] focus:border-[#d11a2a]/60 focus:outline-none";
@@ -242,7 +287,7 @@ function CandidateDrawer({
             <div className="space-y-2 text-sm">
               <div className="flex items-start gap-2.5 text-[#d4d4d8]">
                 <Phone className="mt-0.5 size-3.5 shrink-0 text-[#888]" />
-                <a href={whatsappLink(candidate.whatsapp, candidate.fullName, candidate.appliedPosition)} target="_blank" rel="noopener noreferrer" className="hover:text-[#22c55e] hover:underline">{candidate.whatsapp}</a>
+                <a href={getWhatsappLink(candidate.whatsapp, candidate.fullName, candidate.appliedPosition)} target="_blank" rel="noopener noreferrer" className="hover:text-[#22c55e] hover:underline">{candidate.whatsapp}</a>
               </div>
               <div className="flex items-start gap-2.5 text-[#d4d4d8]">
                 <Mail className="mt-0.5 size-3.5 shrink-0 text-[#888]" />
@@ -267,6 +312,7 @@ function CandidateDrawer({
             <div className="space-y-1.5 text-sm text-[#d4d4d8]">
               <p><span className="text-[#888]">Posisi:</span> <strong>{candidate.appliedPosition}</strong></p>
               {candidate.preferredLocation && <p><span className="text-[#888]">Lokasi:</span> {candidate.preferredLocation}</p>}
+              {candidate.workType && <p><span className="text-[#888]">Tipe kerja:</span> {candidate.workType}</p>}
               {candidate.availableStartDate && <p><span className="text-[#888]">Mulai:</span> {fmtDate(candidate.availableStartDate)}</p>}
               {candidate.interviewAvailability && <p><span className="text-[#888]">Interview:</span> {candidate.interviewAvailability}</p>}
               <div className="flex gap-3 pt-1">
@@ -311,6 +357,7 @@ function CandidateDrawer({
               <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Skill & Karakter</p>
               <div className="space-y-2 text-sm text-[#d4d4d8]">
                 {candidate.mainSkill && <p><span className="text-[#888]">Skill utama:</span> {candidate.mainSkill}</p>}
+                {candidate.skillLevel && <p><span className="text-[#888]">Level skill:</span> {candidate.skillLevel}</p>}
                 {candidate.strength && (
                   <div><p className="text-[#888] text-[11px] mb-1">Kelebihan:</p><p className="whitespace-pre-wrap text-xs leading-relaxed">{candidate.strength}</p></div>
                 )}
@@ -347,10 +394,33 @@ function CandidateDrawer({
                   <Briefcase className="size-3.5" /> Portfolio <ExternalLink className="size-3" />
                 </a>
               )}
-              {candidate.socialMediaUrl && (
-                <a href={candidate.socialMediaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
-                  <ExternalLink className="size-3.5" /> Sosial Media
+              {candidate.certificateUrl && (
+                <a href={candidate.certificateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                  <FileText className="size-3.5" /> Sertifikat <ExternalLink className="size-3" />
                 </a>
+              )}
+              {candidate.ktpUrl && (
+                <a href={candidate.ktpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-1.5 text-xs font-semibold text-[#fde68a] hover:bg-[#f59e0b]/20">
+                  <FileText className="size-3.5" /> KTP Internal <ExternalLink className="size-3" />
+                </a>
+              )}
+              {candidate.instagramUrl && (
+                <a href={candidate.instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                  <ExternalLink className="size-3.5" /> Instagram
+                </a>
+              )}
+              {candidate.tiktokUrl && (
+                <a href={candidate.tiktokUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                  <ExternalLink className="size-3.5" /> TikTok
+                </a>
+              )}
+              {candidate.linkedinUrl && (
+                <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                  <ExternalLink className="size-3.5" /> LinkedIn
+                </a>
+              )}
+              {candidate.socialMediaUrl && !candidate.instagramUrl && !candidate.tiktokUrl && !candidate.linkedinUrl && (
+                <span className="block text-xs text-[#a1a1aa]">Social: {candidate.socialMediaUrl}</span>
               )}
               <p className="text-[11px] text-[#666]">Apply: {fmtDate(candidate.createdAt)}</p>
             </div>
@@ -415,7 +485,7 @@ function CandidateDrawer({
                     className={inputCls}
                   />
                   <p className="mt-1 text-[10px] text-[#888]">
-                    Tentukan jadwal ini sebelum mengubah status menjadi &quot;Interview Scheduled&quot;. Notifikasi WA otomatis akan terkirim.
+                    Tentukan jadwal ini sebelum mengubah status menjadi &quot;Interview&quot; agar undangan WA otomatis berisi jadwal yang benar.
                   </p>
                 </div>
                 <div>
@@ -477,15 +547,33 @@ function CandidateDrawer({
           </div>
 
           {/* WhatsApp CTA */}
-          <a
-            href={whatsappLink(candidate.whatsapp, candidate.fullName, candidate.appliedPosition)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-[#25d366] py-2.5 text-sm font-bold text-[#06130a] transition-colors hover:bg-[#20bc5a]"
-          >
-            <MessageCircle className="size-4" />
-            Follow Up via WhatsApp
-          </a>
+          <div className="rounded-md border border-[#25d366]/30 bg-[#25d366]/[0.04] p-4 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#25d366]">Follow Up WhatsApp</p>
+            <div>
+              <label className={labelCls}>Pilih Template Pesan</label>
+              <Select value={waTemplate} onValueChange={(val) => setWaTemplate(val as WhatsappTemplate)}>
+                <SelectTrigger className="h-9 border-[#25d366]/50 bg-black/40 text-xs text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="follow_up">Follow Up Umum</SelectItem>
+                  <SelectItem value="interview">Undangan Interview</SelectItem>
+                  <SelectItem value="offer">Offering Kerja (Lulus)</SelectItem>
+                  <SelectItem value="talent_pool">Simpan di Talent Pool</SelectItem>
+                  <SelectItem value="reject">Penolakan Halus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <a
+              href={getWhatsappLink(candidate.whatsapp, candidate.fullName, candidate.appliedPosition, waTemplate, interviewDate, interviewLink)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#25d366] py-2.5 text-sm font-bold text-[#06130a] transition-colors hover:bg-[#20bc5a]"
+            >
+              <MessageCircle className="size-4" />
+              Kirim via WhatsApp
+            </a>
+          </div>
         </div>
       </aside>
     </div>
@@ -675,6 +763,7 @@ export function RecruitmentView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -689,7 +778,7 @@ export function RecruitmentView() {
       const qp = new URLSearchParams();
       if (statusFilter !== "all") qp.set("status", statusFilter);
       if (positionFilter !== "all") qp.set("position", positionFilter);
-      if (q.trim()) qp.set("q", q.trim());
+      if (debouncedQ.trim()) qp.set("q", debouncedQ.trim());
       qp.set("page", pageToLoad.toString());
       qp.set("pageSize", "25");
       const resp = await garageApi.get<ApiResp>(
@@ -702,10 +791,10 @@ export function RecruitmentView() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, positionFilter, q]);
+  }, [statusFilter, positionFilter, debouncedQ]);
 
   useEffect(() => {
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load(page);
   }, [load, page]);
 
@@ -715,7 +804,7 @@ export function RecruitmentView() {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
       setPage(1);
-      void load(1);
+      setDebouncedQ(q.trim());
     }, 350);
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
   }, [q]);
@@ -724,17 +813,28 @@ export function RecruitmentView() {
     setUpdatingId(candidate.id);
     setError(null);
     try {
-      await garageApi.patch<{ candidate: Candidate }>(`/api/recruitment/candidates/${candidate.id}`, { status });
+      const payload: {
+        status: string;
+        interviewDate?: string | null;
+        interviewLink?: string | null;
+      } = { status };
+
+      if (status === "Interview") {
+        payload.interviewDate = candidate.interviewDate ?? null;
+        payload.interviewLink = candidate.interviewLink ?? null;
+      }
+
+      const resp = await garageApi.patch<{ candidate: Candidate }>(`/api/recruitment/candidates/${candidate.id}`, payload);
       // Update candidate in list & in drawer optimistically
       setData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          items: prev.items.map((c) => c.id === candidate.id ? { ...c, status } : c),
+          items: prev.items.map((c) => c.id === candidate.id ? resp.candidate : c),
         };
       });
       if (selectedCandidate?.id === candidate.id) {
-        setSelectedCandidate((prev) => prev ? { ...prev, status } : prev);
+        setSelectedCandidate((prev) => prev ? { ...prev, ...resp.candidate } : prev);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal update status kandidat.");
@@ -747,17 +847,18 @@ export function RecruitmentView() {
 
   const STAT_CARDS = [
     { label: "Total", value: stats?.total ?? 0 },
-    { label: "Baru", value: stats?.byStatus["Pelamar Baru"] ?? 0, hot: true },
-    { label: "Review", value: stats?.byStatus["Sedang Direview"] ?? 0 },
-    { label: "Interview", value: (stats?.byStatus["Dijadwalkan Interview"] ?? 0) + (stats?.byStatus["Selesai Interview"] ?? 0) },
+    { label: "Baru", value: stats?.byStatus["Baru"] ?? 0, hot: true },
+    { label: "Diproses", value: stats?.byStatus["Diproses"] ?? 0 },
+    { label: "Interview", value: stats?.byStatus["Interview"] ?? 0 },
     { label: "Diterima", value: stats?.byStatus["Diterima"] ?? 0 },
     { label: "Ditolak", value: stats?.byStatus["Ditolak"] ?? 0 },
+    { label: "Talent Pool", value: stats?.byStatus["Talent Pool"] ?? 0 },
   ];
 
   const funnelData = [
     { name: "Pelamar Masuk", value: stats?.total ?? 0, fill: "#3b82f6" },
-    { name: "Diproses", value: (stats?.total ?? 0) - (stats?.byStatus["Pelamar Baru"] ?? 0) - (stats?.byStatus["Ditolak"] ?? 0), fill: "#8b5cf6" },
-    { name: "Lolos Interview", value: (stats?.byStatus["Selesai Interview"] ?? 0) + (stats?.byStatus["Diterima"] ?? 0), fill: "#ec4899" },
+    { name: "Diproses", value: (stats?.byStatus["Diproses"] ?? 0) + (stats?.byStatus["Interview"] ?? 0) + (stats?.byStatus["Diterima"] ?? 0), fill: "#8b5cf6" },
+    { name: "Interview", value: (stats?.byStatus["Interview"] ?? 0) + (stats?.byStatus["Diterima"] ?? 0), fill: "#ec4899" },
     { name: "Diterima", value: stats?.byStatus["Diterima"] ?? 0, fill: "#22c55e" },
   ].filter(d => d.value > 0);
 
@@ -843,7 +944,7 @@ export function RecruitmentView() {
                       return (
                         <div key={d.name} className="group relative flex w-full flex-col items-center">
                           <div 
-                            className="flex h-12 items-center justify-between rounded-lg border px-4 transition-all duration-300 group-hover:scale-[1.01] group-hover:brightness-125"
+                            className="flex h-12 items-center justify-between rounded-lg border px-4 transition-[filter,border-color,box-shadow] duration-300 group-hover:brightness-125"
                             style={{ 
                               width: `${widthPercent}%`,
                               backgroundImage: `linear-gradient(135deg, ${d.fill}15, ${d.fill}35)`,
@@ -985,7 +1086,7 @@ export function RecruitmentView() {
                               <BookOpen className="size-3.5" /> Detail
                             </button>
                             <a
-                              href={whatsappLink(c.whatsapp, c.fullName, c.appliedPosition)}
+                              href={getWhatsappLink(c.whatsapp, c.fullName, c.appliedPosition)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex h-7 items-center gap-1 rounded border border-[#25d366]/30 bg-[#25d366]/10 px-2 text-[11px] text-[#bbf7d0] transition-colors hover:bg-[#25d366]/20"

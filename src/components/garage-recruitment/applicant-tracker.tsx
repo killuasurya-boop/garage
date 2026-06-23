@@ -20,11 +20,10 @@ type TrackerData = {
 };
 
 const STEPS = [
-  { id: "New", label: "Lamaran Diterima" },
-  { id: "Qualified", label: "Screening Lolos" },
-  { id: "CEO Review", label: "Review Manajemen" },
-  { id: "Interview Scheduled", label: "Jadwal Interview" },
-  { id: "Hired", label: "Diterima (Hired)" },
+  { id: "Baru", label: "Lamaran Diterima" },
+  { id: "Diproses", label: "Review HR" },
+  { id: "Interview", label: "Jadwal Interview" },
+  { id: "Diterima", label: "Diterima" },
 ];
 
 export function ApplicantTracker() {
@@ -59,7 +58,7 @@ export function ApplicantTracker() {
   }
 
   function getStepIndex(status: string) {
-    if (status === "Rejected") return -1;
+    if (status === "Ditolak" || status === "Talent Pool") return -1;
     const idx = STEPS.findIndex(s => s.id === status);
     return idx === -1 ? 0 : idx;
   }
@@ -138,12 +137,20 @@ export function ApplicantTracker() {
               </div>
             </div>
 
-            {data.status === "Rejected" ? (
+            {data.status === "Ditolak" ? (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                 <XCircle size={48} color="#ef4444" style={{ margin: "0 auto 16px" }} />
                 <h4 style={{ color: "#fff", fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Mohon Maaf</h4>
                 <p style={{ color: "var(--fg-dim)", fontSize: 14, lineHeight: 1.5 }}>
                   Saat ini kami belum dapat melanjutkan lamaran Anda ke tahap berikutnya. Jangan menyerah dan coba lagi di kesempatan lain!
+                </p>
+              </div>
+            ) : data.status === "Talent Pool" ? (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <CheckCircle2 size={48} color="#f59e0b" style={{ margin: "0 auto 16px" }} />
+                <h4 style={{ color: "#fff", fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Masuk Talent Pool</h4>
+                <p style={{ color: "var(--fg-dim)", fontSize: 14, lineHeight: 1.5 }}>
+                  Profil Anda sangat menarik! Namun posisi saat ini sudah terpenuhi. Data Anda telah kami simpan di Talent Pool GARAGE dan akan kami hubungi kembali jika ada lowongan yang sesuai.
                 </p>
               </div>
             ) : (
@@ -171,7 +178,7 @@ export function ApplicantTracker() {
                         <div style={{ color: isCompleted ? "#fff" : "var(--fg-dim)", fontWeight: isCurrent ? 700 : 500, fontSize: 15 }}>
                           {step.label}
                         </div>
-                        {isCurrent && data.status === "Interview Scheduled" && data.interviewDate && (
+                        {isCurrent && data.status === "Interview" && data.interviewDate && (
                           <motion.div 
                             initial={{ opacity: 0, height: 0 }} 
                             animate={{ opacity: 1, height: "auto" }}

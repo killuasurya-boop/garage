@@ -94,18 +94,39 @@ function pgliteDataDir() {
   return path.resolve(process.cwd(), ".pglite-data");
 }
 
+function pgliteDataDirFallbacks() {
+  const primary = path.resolve(pgliteDataDir());
+  const localFallback = path.resolve(process.cwd(), ".pglite-data");
+  return Array.from(new Set([primary, localFallback]));
+}
+
 function bootPglite() {
   if (!globalForDb.garagePgliteBoot) {
     globalForDb.garagePgliteBoot = (async () => {
-      if (!globalForDb.garagePglite) {
-        // Default disamakan dengan PGLITE_DATA_DIR di .env.local: satu sumber DB
-        // tunggal yang sehat. Kalau env gagal termuat pun, app tetap pakai dir
-        // di dalam cwd (bukan bikin path Windows-only).
-        const client = new PGlite(pgliteDataDir());
-        await client.waitReady;
-        globalForDb.garagePglite = client;
+      let lastError: unknown;
+
+      for (const dataDir of pgliteDataDirFallbacks()) {
+        try {
+          if (!globalForDb.garagePglite) {
+            const client = new PGlite(dataDir);
+            await client.waitReady;
+            globalForDb.garagePglite = client;
+          }
+          return globalForDb.garagePglite;
+        } catch (error) {
+          lastError = error;
+          globalForDb.garagePglite = undefined;
+          console.warn(
+            `[garage-db] PGlite gagal boot di ${dataDir}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
       }
-      return globalForDb.garagePglite;
+
+      globalForDb.garagePgliteBoot = undefined;
+      globalForDb.garageDb = undefined;
+      globalForDb.garageDriver = undefined;
+      throw lastError;
     })();
   }
 
@@ -197,4 +218,3 @@ export function getPgPool(): PGlite | pg.Pool {
 }
 
 export { schema };
-

@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const updateCandidateSchema = z.object({
   status: z.enum([...RECRUITMENT_STATUSES] as [string, ...string[]]).optional(),
+  score: z.number().int().min(1).max(10).optional().nullable(),
   notes: z.string().optional().nullable(),
   followUpDate: z.string().optional().nullable(),
   assignedTo: z.string().optional().nullable(),

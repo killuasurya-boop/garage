@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
-import { getDb } from "@/db";
+import { ensureDatabaseReady } from "@/db";
 import { candidates } from "@/db/schema";
 import { getSender, resolveProvider } from "@/lib/messaging/senders";
 
@@ -20,6 +20,7 @@ export type CandidateInput = {
   gender?: string | null;
   appliedPosition: string;
   preferredLocation?: string | null;
+  workType?: string | null;
   availableStartDate?: string | null;
   willingShift?: boolean;
   willingRelocate?: boolean;
@@ -29,6 +30,7 @@ export type CandidateInput = {
   previousCompany?: string | null;
   resignReason?: string | null;
   mainSkill?: string | null;
+  skillLevel?: string | null;
   strength?: string | null;
   weakness?: string | null;
   motivation?: string | null;
@@ -37,8 +39,14 @@ export type CandidateInput = {
   interviewAvailability?: string | null;
   cvUrl?: string | null;
   photoUrl?: string | null;
+  ktpUrl?: string | null;
+  certificateUrl?: string | null;
   portfolioUrl?: string | null;
+  instagramUrl?: string | null;
+  tiktokUrl?: string | null;
+  linkedinUrl?: string | null;
   socialMediaUrl?: string | null;
+  referralSource?: string | null;
 };
 
 const clean = (v: string | null | undefined) => {
@@ -46,9 +54,9 @@ const clean = (v: string | null | undefined) => {
   return t || null;
 };
 
-// Buat kandidat baru dari form publik. Status awal selalu "New Applicant".
+// Buat kandidat baru dari form publik. Status awal selalu "Baru".
 export async function createCandidate(input: CandidateInput) {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const [row] = await db
     .insert(candidates)
     .values({
@@ -60,6 +68,7 @@ export async function createCandidate(input: CandidateInput) {
       gender: clean(input.gender),
       appliedPosition: input.appliedPosition.trim(),
       preferredLocation: clean(input.preferredLocation),
+      workType: clean(input.workType),
       availableStartDate: clean(input.availableStartDate),
       willingShift: Boolean(input.willingShift),
       willingRelocate: Boolean(input.willingRelocate),
@@ -69,6 +78,7 @@ export async function createCandidate(input: CandidateInput) {
       previousCompany: clean(input.previousCompany),
       resignReason: clean(input.resignReason),
       mainSkill: clean(input.mainSkill),
+      skillLevel: clean(input.skillLevel),
       strength: clean(input.strength),
       weakness: clean(input.weakness),
       motivation: clean(input.motivation),
@@ -80,9 +90,15 @@ export async function createCandidate(input: CandidateInput) {
       interviewAvailability: clean(input.interviewAvailability),
       cvUrl: clean(input.cvUrl),
       photoUrl: clean(input.photoUrl),
+      ktpUrl: clean(input.ktpUrl),
+      certificateUrl: clean(input.certificateUrl),
       portfolioUrl: clean(input.portfolioUrl),
+      instagramUrl: clean(input.instagramUrl),
+      tiktokUrl: clean(input.tiktokUrl),
+      linkedinUrl: clean(input.linkedinUrl),
       socialMediaUrl: clean(input.socialMediaUrl),
-      status: "Pelamar Baru",
+      referralSource: clean(input.referralSource),
+      status: "Baru",
       updatedAt: new Date(),
     })
     .returning({ id: candidates.id, fullName: candidates.fullName, appliedPosition: candidates.appliedPosition });
@@ -100,6 +116,7 @@ export type CandidateListParams = {
 
 export type CandidateUpdateInput = {
   status?: string;
+  score?: number | null;
   notes?: string | null;
   followUpDate?: string | null;
   assignedTo?: string | null;
@@ -110,7 +127,7 @@ export type CandidateUpdateInput = {
 
 // Daftar kandidat untuk admin/HR/CEO. Urut terbaru. Support pagination.
 export async function listCandidates(params: CandidateListParams = {}) {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const filters = [];
   if (params.status && params.status !== "all") {
     filters.push(eq(candidates.status, params.status));
@@ -169,7 +186,7 @@ export async function listCandidates(params: CandidateListParams = {}) {
 
 // Ambil satu kandidat by ID (untuk panel detail).
 export async function getCandidateById(id: string) {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const [row] = await db.select().from(candidates).where(eq(candidates.id, id)).limit(1);
   if (!row) return null;
   return {
@@ -180,12 +197,15 @@ export async function getCandidateById(id: string) {
 }
 
 export async function updateCandidate(id: string, input: CandidateUpdateInput) {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const patch: Partial<typeof candidates.$inferInsert> = {
     updatedAt: new Date(),
   };
 
   if (input.status !== undefined) patch.status = input.status;
+  if (input.score !== undefined) {
+    patch.score = input.score == null ? null : Math.min(Math.max(Math.round(input.score), 1), 10);
+  }
   if (input.notes !== undefined) patch.notes = clean(input.notes);
   if (input.followUpDate !== undefined) patch.followUpDate = clean(input.followUpDate);
   if (input.assignedTo !== undefined) patch.assignedTo = clean(input.assignedTo);
@@ -205,10 +225,14 @@ export async function updateCandidate(id: string, input: CandidateUpdateInput) {
     const sender = getSender(provider);
     
     let messageBody = "";
-    if (input.status === "Interview Scheduled" && input.interviewDate) {
+    if (input.status === "Interview" && input.interviewDate) {
       const dateStr = new Date(input.interviewDate).toLocaleString("id-ID");
       messageBody = `Halo ${row.fullName}, selamat Anda lolos ke tahap Interview untuk posisi ${row.appliedPosition} di GARAGE. Jadwal interview Anda: ${dateStr}. ${input.interviewLink ? "Link: " + input.interviewLink : ""}`;
-    } else if (input.status === "Rejected") {
+    } else if (input.status === "Diterima") {
+      messageBody = `Halo ${row.fullName}, SELAMAT! Anda dinyatakan LULUS dan diterima untuk posisi ${row.appliedPosition} di GARAGE. Tim HR kami akan segera menghubungi Anda untuk proses pemberkasan dan onboarding. Terima kasih!`;
+    } else if (input.status === "Talent Pool") {
+      messageBody = `Halo ${row.fullName}, terima kasih telah melamar di GARAGE untuk posisi ${row.appliedPosition}. Profil Anda sangat menarik, namun posisi ini sudah terpenuhi saat ini. Kami menyimpan data Anda di Talent Pool dan akan menghubungi Anda jika ada lowongan yang sesuai!`;
+    } else if (input.status === "Ditolak") {
       messageBody = `Halo ${row.fullName}, terima kasih atas minat Anda pada GARAGE. Saat ini kami belum bisa melanjutkan lamaran Anda untuk posisi ${row.appliedPosition}. Tetap semangat!`;
     }
 
@@ -235,7 +259,7 @@ export async function updateCandidate(id: string, input: CandidateUpdateInput) {
 
 // Ringkasan statistik untuk dashboard recruitment.
 export async function getRecruitmentStats() {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const rows = await db
     .select({ status: candidates.status, total: sql<number>`count(*)::int` })
     .from(candidates)
@@ -248,3 +272,91 @@ export async function getRecruitmentStats() {
   }
   return { total, byStatus };
 }
+
+// Analytics mendalam: conversion funnel, time-to-hire, per-posisi, sumber pelamar.
+export async function getRecruitmentAnalytics() {
+  const db = await ensureDatabaseReady();
+
+  // 1. Per-posisi breakdown
+  const byPosition = await db
+    .select({
+      position: candidates.appliedPosition,
+      total: sql<number>`count(*)::int`,
+      accepted: sql<number>`count(*) filter (where ${candidates.status} = 'Diterima')::int`,
+      rejected: sql<number>`count(*) filter (where ${candidates.status} = 'Ditolak')::int`,
+      talentPool: sql<number>`count(*) filter (where ${candidates.status} = 'Talent Pool')::int`,
+    })
+    .from(candidates)
+    .groupBy(candidates.appliedPosition)
+    .orderBy(sql`count(*) desc`);
+
+  // 2. Time-to-hire (rata-rata hari dari createdAt ke updatedAt bagi yang Diterima)
+  const [tthRow] = await db
+    .select({
+      avgDays: sql<number>`coalesce(avg(extract(epoch from (${candidates.updatedAt} - ${candidates.createdAt})) / 86400)::int, 0)`,
+      minDays: sql<number>`coalesce(min(extract(epoch from (${candidates.updatedAt} - ${candidates.createdAt})) / 86400)::int, 0)`,
+      maxDays: sql<number>`coalesce(max(extract(epoch from (${candidates.updatedAt} - ${candidates.createdAt})) / 86400)::int, 0)`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(candidates)
+    .where(eq(candidates.status, "Diterima"));
+
+  // 3. Pelamar per minggu (4 minggu terakhir)
+  const weeklyTrend = await db
+    .select({
+      week: sql<string>`to_char(date_trunc('week', ${candidates.createdAt}), 'YYYY-MM-DD')`,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(candidates)
+    .where(sql`${candidates.createdAt} >= now() - interval '28 days'`)
+    .groupBy(sql`date_trunc('week', ${candidates.createdAt})`)
+    .orderBy(sql`date_trunc('week', ${candidates.createdAt})`);
+
+  // 4. Sumber pelamar (referral source)
+  const bySource = await db
+    .select({
+      source: sql<string>`coalesce(${candidates.referralSource}, 'Belum diisi')`,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(candidates)
+    .groupBy(sql`coalesce(${candidates.referralSource}, 'Belum diisi')`)
+    .orderBy(sql`count(*) desc`);
+
+  return {
+    byPosition,
+    timeToHire: {
+      avgDays: Number(tthRow?.avgDays ?? 0),
+      minDays: Number(tthRow?.minDays ?? 0),
+      maxDays: Number(tthRow?.maxDays ?? 0),
+      totalHired: Number(tthRow?.count ?? 0),
+    },
+    weeklyTrend,
+    bySource,
+  };
+}
+
+// Cek duplikat lamaran — apakah WA/email sudah pernah apply posisi yang sama dalam 30 hari.
+export async function checkDuplicateCandidate(whatsapp: string, email: string, position: string) {
+  const db = await ensureDatabaseReady();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const [existing] = await db
+    .select({ id: candidates.id, status: candidates.status, createdAt: candidates.createdAt })
+    .from(candidates)
+    .where(
+      and(
+        or(
+          eq(candidates.whatsapp, whatsapp),
+          eq(candidates.email, email),
+        ),
+        eq(candidates.appliedPosition, position),
+        sql`${candidates.createdAt} >= ${thirtyDaysAgo.toISOString()}`,
+      ),
+    )
+    .orderBy(desc(candidates.createdAt))
+    .limit(1);
+
+  return existing ?? null;
+}
+

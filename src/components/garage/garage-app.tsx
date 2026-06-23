@@ -624,7 +624,7 @@ function GarageWorkspace({
     };
   }, [data?.me]);
 
-  // Badge counter "New Applicant" di menu Recruitment — polling 90s.
+  // Badge counter kandidat "Baru" di menu Recruitment — polling 90s.
   const [newRecruitmentCount, setNewRecruitmentCount] = useState(0);
   useEffect(() => {
     if (!data?.me) return;
@@ -633,11 +633,11 @@ function GarageWorkspace({
     const loadRec = async () => {
       try {
         const res = await garageApi.get<{ stats: { byStatus: Record<string, number> } }>(
-          "/api/recruitment/candidates?status=New+Applicant&pageSize=1",
+          "/api/recruitment/candidates?status=Baru&pageSize=1",
           { cache: "no-store" },
         );
         if (cancelled) return;
-        setNewRecruitmentCount(res.stats?.byStatus?.["New Applicant"] ?? 0);
+        setNewRecruitmentCount(res.stats?.byStatus?.["Baru"] ?? 0);
       } catch {
         /* silent fail */
       }
@@ -10611,8 +10611,6 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
 // Komponen baru: live polling 15s, filter (status/date/actor/search),
 // stats bar (events today, critical, warnings, top actor/module),
 // modal detail dengan metadata JSON viewer.
-
-
 
 
 

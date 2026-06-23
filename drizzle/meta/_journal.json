@@ -484,6 +484,13 @@
       "when": 1782121418288,
       "tag": "0068_lumpy_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1782133924680,
+      "tag": "0069_round_slyde",
+      "breakpoints": true
     }
   ]
 }

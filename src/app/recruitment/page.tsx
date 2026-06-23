@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { RecruitmentPage } from "@/components/garage-recruitment/recruitment-page";
+import { RECRUITMENT_POSITIONS } from "@/lib/garage-recruitment-data";
 import { listOpenPositions } from "@/lib/garage-recruitment-positions-service";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,26 @@ export const metadata: Metadata = {
   },
 };
 
+const POSITION_LOAD_TIMEOUT_MS = 2500;
+
+async function loadPositionsWithFallback() {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const timeout = new Promise<typeof RECRUITMENT_POSITIONS>((resolve) => {
+      timeoutId = setTimeout(() => resolve(RECRUITMENT_POSITIONS), POSITION_LOAD_TIMEOUT_MS);
+    });
+
+    return await Promise.race([listOpenPositions(), timeout]);
+  } catch (error) {
+    console.error("Failed to load recruitment positions, using fallback positions", error);
+    return RECRUITMENT_POSITIONS;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export default async function Page() {
-  const positions = await listOpenPositions();
+  const positions = await loadPositionsWithFallback();
   return <RecruitmentPage positions={positions} />;
 }

@@ -56,6 +56,9 @@ services:
     volumes:
       # Upload gambar menu disimpan persisten — kalau tidak, hilang tiap redeploy.
       - garage-uploads:/app/public/garage-uploads
+      # Berkas lamaran recruitment (CV, foto, KTP, dll) — WAJIB persisten,
+      # kalau tidak semua berkas pelamar hilang tiap redeploy.
+      - garage-recruitment-files:/app/storage/recruitment
     depends_on:
       db:
         condition: service_healthy
@@ -81,5 +84,6 @@ services:
 volumes:
   garage-db-data:
   garage-uploads:
+  garage-recruitment-files:
   caddy-data:
   caddy-config:

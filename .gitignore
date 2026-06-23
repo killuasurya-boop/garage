@@ -98,6 +98,16 @@ testsprite_tests\tmp\config.json
 .claude/launch.json
 
 # Sisa sync VPS & backup DB lokal (jangan masuk repo)
+# Catch-all semua varian data PGlite ber-suffix (backup/old/broken/corrupt/dst)
+# supaya `git add -A` di update-vps.sh tidak pernah menyeret data DB besar.
+/.pglite-data.*/
 /.pglite-data.backup-*/
+/.pglite-data.old-*/
 /garage-data.sql
 /garage-uploads.tgz
+
+# Berkas upload recruitment (runtime, persisten via volume di prod) — jangan commit
+/storage/recruitment/*
+!/storage/recruitment/.gitkeep
+# Debris/skrip uji sementara
+/test-pglite.mjs

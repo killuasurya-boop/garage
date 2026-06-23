@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 
-import { getDb } from "@/db";
+import { ensureDatabaseReady } from "@/db";
 import { recruitmentPositions } from "@/db/schema";
 import { RECRUITMENT_POSITIONS as SEED_POSITIONS } from "@/lib/garage-recruitment-data";
 
@@ -31,7 +31,7 @@ export type PositionInput = {
 
 // Pastikan tabel tidak kosong — seed dari data hardcode jika perlu.
 async function ensureSeeded() {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const existing = await db.select({ id: recruitmentPositions.id }).from(recruitmentPositions).limit(1);
   if (existing.length > 0) return;
 
@@ -62,7 +62,7 @@ function mapRow(row: typeof recruitmentPositions.$inferSelect): RecruitmentPosit
 // Posisi terbuka — untuk halaman publik /recruitment.
 export async function listOpenPositions(): Promise<RecruitmentPositionRow[]> {
   await ensureSeeded();
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const rows = await db
     .select()
     .from(recruitmentPositions)
@@ -74,7 +74,7 @@ export async function listOpenPositions(): Promise<RecruitmentPositionRow[]> {
 // Semua posisi — untuk dashboard admin/CEO.
 export async function listAllPositions(): Promise<RecruitmentPositionRow[]> {
   await ensureSeeded();
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const rows = await db
     .select()
     .from(recruitmentPositions)
@@ -84,7 +84,7 @@ export async function listAllPositions(): Promise<RecruitmentPositionRow[]> {
 
 // Buat posisi baru.
 export async function createPosition(input: PositionInput): Promise<RecruitmentPositionRow> {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const [row] = await db
     .insert(recruitmentPositions)
     .values({
@@ -107,7 +107,7 @@ export async function updatePosition(
   id: string,
   input: Partial<PositionInput>,
 ): Promise<RecruitmentPositionRow | null> {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const patch: Partial<typeof recruitmentPositions.$inferInsert> = { updatedAt: new Date() };
   if (input.title !== undefined) patch.title = input.title.trim();
   if (input.slug !== undefined) patch.slug = input.slug.trim().toLowerCase().replace(/\s+/g, "-");
@@ -128,7 +128,7 @@ export async function updatePosition(
 
 // Hapus posisi.
 export async function deletePosition(id: string): Promise<boolean> {
-  const db = getDb();
+  const db = await ensureDatabaseReady();
   const result = await db
     .delete(recruitmentPositions)
     .where(eq(recruitmentPositions.id, id))

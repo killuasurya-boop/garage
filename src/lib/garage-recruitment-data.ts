@@ -22,11 +22,10 @@ export const RECRUITMENT_POSITIONS: RecruitmentPosition[] = [
 ];
 
 export const RECRUITMENT_STATUSES = [
-  "Pelamar Baru",
-  "Sedang Direview",
-  "Dijadwalkan Interview",
-  "Selesai Interview",
+  "Baru",
+  "Diproses",
+  "Interview",
   "Diterima",
   "Ditolak",
-  "Disimpan",
+  "Talent Pool",
 ] as const;

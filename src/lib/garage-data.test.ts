@@ -144,10 +144,11 @@ describe('Garage OS Data Layer', () => {
     });
 
     it('should return correct first module for each role', () => {
-      // Dashboard should be first for owner, admin, manager
+      // Dashboard owner hanya untuk Owner & Manager. Admin SENGAJA tanpa
+      // dashboard owner (Admin = operasional) → landing-nya POS.
       expect(firstModuleForRole('Owner / CEO')).toBe('dashboard');
-      expect(firstModuleForRole('Admin')).toBe('dashboard');
       expect(firstModuleForRole('Manager Operasional')).toBe('dashboard');
+      expect(firstModuleForRole('Admin')).toBe('pos');
       // Kasir first module should be pos
       expect(firstModuleForRole('Kasir')).toBe('pos');
       // Barista first module should be kitchen

@@ -8,6 +8,17 @@ import {
   type StaffFeeRates,
 } from "@/lib/garage-app-settings-types";
 import {
+  type KitchenTargetGroup,
+  kitchenTargetMinutes,
+  applyRoundingMode,
+  calculateBillingTotals,
+  capVoucherDiscountBySettings,
+  computeManualDiscountAmount,
+  manualDiscountNeedsApproval,
+  orderTypeToChannel,
+  kitchenTargetGroupForCategory,
+} from "@/lib/garage-billing";
+import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
 } from "@/lib/garage-theme";
@@ -386,35 +397,6 @@ const receiptBrand = {
   },
 };
 
-function applyRoundingMode(amount: number, mode: string): number {
-  switch (mode) {
-    case "nearest_100":
-      return Math.round(amount / 100) * 100;
-    case "nearest_500":
-      return Math.round(amount / 500) * 500;
-    case "nearest_1000":
-      return Math.round(amount / 1000) * 1000;
-    case "none":
-    default:
-      return amount;
-  }
-}
-
-function calculateBillingTotals(subtotal: number, settings: AppSettings) {
-  const service = Math.round(subtotal * (settings.serviceChargePct / 100));
-  const tax = Math.round((subtotal + service) * (settings.taxPct / 100));
-  const grossTotal = applyRoundingMode(
-    subtotal + service + tax,
-    settings.roundingMode,
-  );
-  return { service, tax, grossTotal };
-}
-
-function capVoucherDiscountBySettings(discount: number, subtotal: number, settings: AppSettings) {
-  const cap = Math.round(subtotal * (settings.voucherMaxDiscountPct / 100));
-  return Math.max(0, Math.min(discount, cap));
-}
-
 function calculateEarnedPointsWithSettings(
   amount: number,
   level: string,
@@ -462,29 +444,6 @@ function formatIdrShort(value: number) {
   }
 
   return `Rp ${value}`;
-}
-
-function orderTypeToChannel(orderType: OrderInput["orderType"]) {
-  if (orderType === "takeaway") {
-    return "Take away";
-  }
-
-  if (orderType === "delivery") {
-    return "Delivery";
-  }
-
-  return "Dine in";
-}
-
-type KitchenTargetGroup = "drink" | "food";
-
-const kitchenTargetMinutes: Record<KitchenTargetGroup, number> = {
-  drink: 5,
-  food: 15,
-};
-
-function kitchenTargetGroupForCategory(category: string): KitchenTargetGroup {
-  return category === "Coffee" || category === "Non-Coffee" ? "drink" : "food";
 }
 
 function kitchenStationForTargetGroup(targetGroup: KitchenTargetGroup) {
@@ -4951,29 +4910,6 @@ function formatApprovalAge(createdAt: Date) {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}j`;
   return `${Math.floor(hours / 24)}h`;
-}
-
-function computeManualDiscountAmount(
-  input: NonNullable<OrderInput["manualDiscount"]>,
-  baseAfterVoucher: number,
-) {
-  const base = Math.max(0, baseAfterVoucher);
-  const computed =
-    input.type === "percent"
-      ? Math.min(base, Math.round((base * input.rawValue) / 100))
-      : Math.min(base, Math.round(input.rawValue));
-  if (Math.abs(computed - input.amount) > 1) {
-    throw new Error("Nilai diskon manual tidak sesuai perhitungan server.");
-  }
-  return computed;
-}
-
-function manualDiscountNeedsApproval(amount: number, baseAfterVoucher: number, settings: AppSettings) {
-  if (amount <= 0) return false;
-  const base = Math.max(0, baseAfterVoucher);
-  if (base <= 0) return true;
-  const pct = (amount / base) * 100;
-  return pct > settings.manualDiscountApprovalPct;
 }
 
 export async function getApprovalById(id: string) {

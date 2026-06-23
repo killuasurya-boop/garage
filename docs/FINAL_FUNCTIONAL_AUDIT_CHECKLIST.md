@@ -62,17 +62,23 @@ chat, smart-notif, team-management, settings, training, recruitment.
 
 Status: ⬜ belum • 🔄 berjalan • ✅ selesai (test lulus + commit)
 
-### STEP 1 — Kasir 🔄
+### STEP 1 — Kasir 🔄 (logika inti SELESAI + test lulus)
+Refactor: helper tagihan murni diekstrak ke `src/lib/garage-billing.ts` (dari
+`garage-service.ts`) agar bisa diuji unit & dipakai ulang. tsc & suite hijau.
+
 | Fitur | Skenario | Bug | Solusi | Test | Commit |
 |---|---|---|---|---|---|
-| Login → modul awal POS | `firstModuleForRole('Kasir')==='pos'` | OK | — | ✅ | ⏳ |
-| Buat order, pilih meja, tambah item makanan+minuman | POS cart | — | — | ⬜ | ⬜ |
-| Catatan, qty, hapus item | cart mutate | — | — | ⬜ | ⬜ |
-| Voucher/diskon di checkout | dialog bayar | — | — | ⬜ | ⬜ |
-| Hitung subtotal/service/PB1/total | `calculateBillingTotals` | — | — | ⬜ | ⬜ |
-| Bayar cash & QRIS | `createOrder` | — | — | ⬜ | ⬜ |
-| Struk + order → kitchen/bar (KDS) | tiket per station | — | — | ⬜ | ⬜ |
-| Sinkron ke waiter/finance/owner | cross-module | — | — | ⬜ | ⬜ |
+| Login → modul awal POS | `firstModuleForRole('Kasir')==='pos'` | OK | — | ✅ | ✅ |
+| Hitung subtotal/service 5%/PB1 10%/total | `calculateBillingTotals` (service lalu PB1 di atas subtotal+service) | OK | — | ✅ `garage-billing.test.ts` | ⏳ |
+| Pembulatan total | `applyRoundingMode` (none/100/500/1000) | OK | — | ✅ | ⏳ |
+| Voucher dibatasi cap % | `capVoucherDiscountBySettings` | OK | — | ✅ | ⏳ |
+| Diskon kasir (percent/amount) + anti-manipulasi | `computeManualDiscountAmount` (tolak amount klien ≠ server) | OK | — | ✅ | ⏳ |
+| Diskon > ambang butuh approval | `manualDiscountNeedsApproval` | OK | — | ✅ | ⏳ |
+| Routing tiket: minuman→Bar, makanan→Dapur | `kitchenTargetGroupForCategory` | OK | — | ✅ | ⏳ |
+| Channel order (dine-in/takeaway/delivery) | `orderTypeToChannel` | OK | — | ✅ | ⏳ |
+| Buat order, pilih meja, tambah item, qty, hapus, catatan | POS cart UI | — | (verifikasi UI) | ⬜ | ⬜ |
+| Bayar cash & QRIS + struk | `createOrder` end-to-end | — | (integrasi/E2E) | ⬜ | ⬜ |
+| Sinkron ke waiter/finance/owner | cross-module | — | (integrasi) | ⬜ | ⬜ |
 | Error handling (meja kosong, dll) | validasi | — | — | ⬜ | ⬜ |
 
 ### STEP 2 — Barista ⬜

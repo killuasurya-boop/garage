@@ -52,9 +52,9 @@ chat, smart-notif, team-management, settings, training, recruitment.
 
 ## 2. TEMUAN TERBUKA (perlu keputusan / lanjutan)
 
-| # | Temuan | Dampak | Rekomendasi |
+| # | Temuan | Dampak | Status |
 |---|---|---|---|
-| F-01 | `Manager Operasional` punya modul `finance` & `earnings` di sidebar, tapi permission `finance:read`/`earnings:read` tidak ada | Manager klik Finance/Earnings → modul muncul lalu data 403 (modul "putus") | Keputusan owner: (a) beri `finance:read`+`earnings:read` (monitoring read-only) ATAU (b) hapus modul finance/earnings dari Manager. Tercatat sbg `it.todo` di `role-access.test.ts` |
+| F-01 | `Manager Operasional` punya modul `finance` & `earnings` di sidebar tanpa permission baca | Modul muncul lalu data 403 (modul "putus") | ✅ **SELESAI** — keputusan owner: sembunyikan Finance & Earnings dari Manager. Modul dihapus di `role-access.ts`; invariant konsistensi diperluas mencakup finance/earnings (semua role lain sudah konsisten) |
 
 ---
 

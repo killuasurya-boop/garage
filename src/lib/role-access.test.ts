@@ -130,6 +130,16 @@ describe("role-access: isolasi modul sensitif (mandat keamanan)", () => {
     expect(canUseApi(mgr, "dashboard:read")).toBe(true);
   });
 
+  // F-01 (keputusan owner): Finance & Earnings disembunyikan dari Manager —
+  // operasional murni. Modul tak boleh muncul tanpa permission baca.
+  it("Manager Operasional tidak melihat modul Finance & Earnings", () => {
+    const mgr: Role = "Manager Operasional";
+    expect(canAccessModule(mgr, "finance")).toBe(false);
+    expect(canAccessModule(mgr, "earnings")).toBe(false);
+    expect(canUseApi(mgr, "finance:read")).toBe(false);
+    expect(canUseApi(mgr, "earnings:read")).toBe(false);
+  });
+
   // Gudang: hanya inventory.
   it("Gudang hanya akses inventory (tanpa pos/finance/kitchen-write umum)", () => {
     expect(canUseApi("Gudang", "inventory:read")).toBe(true);
@@ -150,6 +160,9 @@ describe("role-access: konsistensi modul ↔ permission data", () => {
     approvals: "approvals:read",
     audit: "audit:read",
     "team-management": "staff:manage",
+    // Setelah F-01 diselesaikan, finance & earnings juga konsisten:
+    finance: "finance:read",
+    earnings: "earnings:read",
   } as const;
 
   for (const [moduleId, perm] of Object.entries(MODULE_READ_PERMISSION)) {
@@ -162,11 +175,4 @@ describe("role-access: konsistensi modul ↔ permission data", () => {
     });
   }
 
-  // FINDING (audit): Manager Operasional + Finance/CFO punya modul finance &
-  // earnings di sidebar, tetapi matriks permission belum tentu sinkron. Ini
-  // dicatat sebagai temuan terbuka (lihat FINAL_FUNCTIONAL_AUDIT_CHECKLIST.md)
-  // — butuh keputusan owner: beri permission read atau sembunyikan modulnya.
-  it.todo(
-    "FINDING: selaraskan modul finance/earnings Manager Operasional dengan permission (keputusan owner)",
-  );
 });

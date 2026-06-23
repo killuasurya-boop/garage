@@ -229,6 +229,9 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "settings",
     "recruitment",
   ],
+  // Manager = operasional murni. Finance & Earnings (payroll) DISEMBUNYIKAN
+  // (eksklusif Owner & Finance/CFO) agar sidebar cocok dengan permission —
+  // sebelumnya modul muncul tapi datanya 403 (keputusan owner, temuan F-01).
   "Manager Operasional": [
     "dashboard",
     "pos",
@@ -236,12 +239,10 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "kitchen",
     "waiter",
     "inventory",
-    "finance",
     "crm",
     "membership",
     "marketing",
     "approvals",
-    "earnings",
     "audit",
     "team-management",
     "settings",

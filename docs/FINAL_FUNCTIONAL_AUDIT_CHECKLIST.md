@@ -116,7 +116,20 @@ Integrasi DB nyata: `garage-waiter.integration.test.ts`.
 | Auto-klaim saat antar | antar tanpa klaim → auto-klaim lalu delivered | OK | — | ✅ integrasi | ⏳ |
 | Sinkron ke kasir/owner/customer | system message chat + audit (via updateKitchenStatus) | OK | — | ✅ (jalur teruji) | ⏳ |
 | UI daftar meja / HP | waiter-view UI | — | disarankan cek manual berkala | 🔄 | — |
-### STEP 5 — Admin Finance (Finance / CFO) ⬜
+### STEP 5 — Admin Finance (Finance / CFO) ✅ TUNTAS
+Integrasi DB nyata: `garage-finance.integration.test.ts`. Diverifikasi:
+`payments.status` default `captured` & `createOrder` tak meng-override → transaksi
+kasir OTOMATIS terhitung di finance (tidak ada modul putus).
+
+| Fitur | Skenario | Bug | Solusi | Test | Commit |
+|---|---|---|---|---|---|
+| Data kasir → finance | Cash & QRIS kasir muncul di `getFinanceSummary` | OK | — | ✅ integrasi | ⏳ |
+| Rincian metode bayar | breakdown method + nominal + share ~100% | OK | — | ✅ integrasi | ⏳ |
+| Omzet total | jumlah seluruh payment captured | OK | — | ✅ integrasi | ⏳ |
+| Pemantauan kas | shift open; cash order tambah `expectedCash`, QRIS tidak | OK | — | ✅ integrasi | ⏳ |
+| Isolasi akses | Finance/CFO tak bisa company:manage/staff:manage/pos | OK | — | ✅ permission | ⏳ |
+| Input pengeluaran / export | `listExpenses` + CRUD pengeluaran | — | CRUD ada; verifikasi lanjutan | 🔄 | — |
+
 ### STEP 6 — Manager (Manager Operasional) ⬜
 ### STEP 7 — Owner (Owner / CEO) ⬜
 

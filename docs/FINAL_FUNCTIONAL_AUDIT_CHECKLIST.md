@@ -149,10 +149,13 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
 ---
 
 ## 4. Audit Lintas-Modul (BERJALAN)
-- ⬜ Settings mengontrol fitur penting (`garage-settings-schema.ts`)
-- ⬜ Website/landing + recruitment sinkron dashboard
-- ⬜ UI/UX responsive desktop/tablet/mobile
-- ⬜ Relasi DB (order↔meja↔kasir↔kitchen↔waiter↔finance↔owner)
+- ✅ **Settings mengontrol transaksi** — `garage-settings.integration.test.ts`:
+  owner ubah serviceChargePct/taxPct via `updateAppSettings` → total order kasir
+  ikut berubah (termasuk 0%). Pengaturan terbukti terhubung ke perhitungan POS.
+- ✅ **Relasi DB inti** terbukti via integrasi: order↔kasir↔kitchen(tiket)↔waiter↔
+  payment↔finance↔dashboard owner (semua test integrasi lulus).
+- ⬜ Website/landing + recruitment sinkron dashboard (lanjutan)
+- ⬜ UI/UX responsive desktop/tablet/mobile (lanjutan; UI POS sudah dirapikan)
 
 ---
 

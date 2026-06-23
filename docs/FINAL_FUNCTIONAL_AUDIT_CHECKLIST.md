@@ -81,9 +81,18 @@ Refactor: helper tagihan murni diekstrak ke `src/lib/garage-billing.ts` (dari
 | Sinkron ke waiter/finance/owner | cross-module | — | (integrasi) | ⬜ | ⬜ |
 | Error handling (meja kosong, dll) | validasi | — | — | ⬜ | ⬜ |
 
-### STEP 2 — Barista ⬜
-### STEP 3 — Koki / Kitchen ⬜
-### STEP 4 — Waiter ⬜
+### STEP 2-4 — Barista / Koki / Waiter 🔄 (alur status KDS SELESAI + test lulus)
+Ketiganya berbagi alur tiket KDS. Logika transisi diekstrak ke
+`src/lib/garage-kitchen-status.ts` + test `garage-kitchen-status.test.ts`.
+
+| Fitur | Skenario | Bug | Solusi | Test | Commit |
+|---|---|---|---|---|---|
+| Barista/Koki proses tiket | `queue→cooking→ready` sah | OK | — | ✅ | ⏳ |
+| Waiter antar pesanan | `ready→delivered` sah | OK | — | ✅ | ⏳ |
+| Cegah lompat/mundur status | transisi ilegal ditolak (`KitchenTransitionError`) | OK | — | ✅ | ⏳ |
+| Status final | `delivered` tanpa lanjutan | OK | — | ✅ | ⏳ |
+| Lihat antrian/meja/catatan, notif siap, UI tablet/HP | kitchen-view / waiter-view UI | — | (verifikasi UI) | ⬜ | ⬜ |
+| Sinkron status ke kasir/owner | cross-module (system message chat sudah ada) | — | (integrasi) | ⬜ | ⬜ |
 ### STEP 5 — Admin Finance (Finance / CFO) ⬜
 ### STEP 6 — Manager (Manager Operasional) ⬜
 ### STEP 7 — Owner (Owner / CEO) ⬜

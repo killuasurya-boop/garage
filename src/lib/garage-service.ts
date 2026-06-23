@@ -7,6 +7,7 @@ import {
   type AppSettings,
   type StaffFeeRates,
 } from "@/lib/garage-app-settings-types";
+import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import {
   type KitchenTargetGroup,
   kitchenTargetMinutes,
@@ -9717,13 +9718,6 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
   };
 }
 
-const KITCHEN_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
-  queue: ["cooking", "ready"],
-  cooking: ["ready"],
-  ready: ["delivered"],
-  delivered: [],
-};
-
 export class KitchenTransitionError extends Error {
   constructor(
     public readonly from: string,
@@ -9844,8 +9838,7 @@ export async function updateKitchenStatus(
     return current;
   }
 
-  const allowed = KITCHEN_STATUS_TRANSITIONS[current.status] ?? [];
-  if (!allowed.includes(status)) {
+  if (!canTransitionKitchenStatus(current.status, status)) {
     throw new KitchenTransitionError(current.status, status);
   }
 

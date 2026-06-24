@@ -192,6 +192,8 @@ export function ProdukGudangView({
         ) : null}
       </div>
 
+      <RingkasanCards menuItems={menuItems} inventoryItems={inventoryItems} />
+
       <Tabs defaultValue="menu" className="w-full">
         <div className="garage-scroll-x -mx-1 overflow-x-auto px-1">
           <TabsList className="flex w-max gap-1.5 bg-transparent p-0">
@@ -233,6 +235,54 @@ export function ProdukGudangView({
       <p className="text-center text-[11px] text-[#6f6f78]">
         Peran kamu: {role}. Data masih bisa berubah selama tahap riset.
       </p>
+    </div>
+  );
+}
+
+// ── Ringkasan owner (dihitung dari data, tanpa backend baru) ─────────────────
+function RingkasanCards({
+  menuItems,
+  inventoryItems,
+}: {
+  menuItems: MenuItem[];
+  inventoryItems: InventoryItem[];
+}) {
+  const menuAktif = menuItems.filter((m) => (m.status ?? "active") === "active").length;
+  const menuArsip = menuItems.filter((m) => m.status === "archived").length;
+  const bahanRendah = inventoryItems.filter((i) => i.onHand <= i.min).length;
+  const bahanTotal = inventoryItems.length;
+
+  // HPP tertinggi + margin terendah dari menu yang punya resep.
+  let hppTertinggi = 0;
+  let marginTerendah: number | null = null;
+  for (const m of menuItems) {
+    const hpp = m.recipeCost ?? 0;
+    if (hpp > hppTertinggi) hppTertinggi = hpp;
+    const price = lowestPrice(m);
+    if (price > 0 && hpp > 0) {
+      const pct = Math.round(((price - hpp) / price) * 100);
+      if (marginTerendah == null || pct < marginTerendah) marginTerendah = pct;
+    }
+  }
+
+  const cards: Array<{ label: string; value: string; tone: "white" | "good" | "warn" | "risk" | "muted" }> = [
+    { label: "Menu Aktif", value: String(menuAktif), tone: "good" },
+    { label: "Menu Arsip", value: String(menuArsip), tone: "muted" },
+    { label: "Total Bahan", value: String(bahanTotal), tone: "white" },
+    { label: "Bahan Stok Rendah", value: String(bahanRendah), tone: bahanRendah > 0 ? "warn" : "good" },
+    { label: "HPP Tertinggi (est)", value: hppTertinggi > 0 ? currency.format(hppTertinggi) : "—", tone: "white" },
+    {
+      label: "Margin Terendah (est)",
+      value: marginTerendah != null ? `${marginTerendah}%` : "—",
+      tone: marginTerendah == null ? "muted" : marginTerendah >= 60 ? "good" : marginTerendah >= 35 ? "warn" : "risk",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {cards.map((c) => (
+        <SummaryCard key={c.label} label={c.label} value={c.value} tone={c.tone} />
+      ))}
     </div>
   );
 }

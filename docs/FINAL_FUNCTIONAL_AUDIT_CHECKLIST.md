@@ -167,7 +167,11 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
   tablet KDS), scroll container untuk antrian padat (`overflow-x/y-auto`), pola
   responsif lengkap (`hidden sm:`, `sm:flex-wrap`, tinggi/teks kartu adaptif),
   tanpa lebar tetap berisiko overflow.
-- ⬜ Website/landing + recruitment sinkron dashboard (lanjutan)
+- ✅ **Website publik sinkron dashboard** — `garage-website.integration.test.ts`:
+  menu customer (`/order` via `getMenuData`) baca DB yang sama dgn dashboard
+  (satu sumber, tak ada duplikat); ubah harga di dashboard → langsung tampil;
+  item arsip disembunyikan dari customer; filter kategori jalan. Recruitment
+  publik sudah di-rework (Gemini) di sesi sebelumnya.
 
 ---
 

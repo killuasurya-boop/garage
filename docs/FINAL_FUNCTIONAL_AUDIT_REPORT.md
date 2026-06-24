@@ -59,10 +59,12 @@ Integrasi (DB nyata, via `test-helpers/garage-test-db.ts`):
 - `garage-dashboard.integration.test.ts` — Manager/Owner: dashboard monitoring.
 - `garage-settings.integration.test.ts` — Settings mengontrol total POS.
 - `garage-voucher.integration.test.ts` — Voucher member: aturan + penukaran.
+- `garage-website.integration.test.ts` — menu publik sinkron dashboard.
 
 ## 8. Test Result
-`vitest run` → **14 file, 136 test PASS, 0 todo**. `tsc --noEmit` → **0 error**.
-`eslint` modul baru → **0 error**.
+`vitest run` → **15 file, 140 test PASS, 0 todo**. `tsc --noEmit` → **0 error**.
+`eslint` modul baru → **0 error**. Audit UI responsif POS/Kitchen/Waiter di browser
+& kode (touch target POS diperbaiki; Kitchen/Waiter sudah responsif-ready).
 
 ## 9. Commit List (branch audit)
 - `3a8a7a50` test(security): role permission matrix + checklist + fix stale test

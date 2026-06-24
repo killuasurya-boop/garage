@@ -162,8 +162,12 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
   panel ter-dock kanan di tablet/desktop, grid menu rapi, harga/label terbaca.
   Temuan & **diperbaiki**: chip kategori (Semua/Dapur/Bar/Bestseller) 28px →
   `min-h-9` (36px) agar nyaman ditekan di tablet kasir.
+- ✅ **UI/UX responsif Kitchen & Waiter** (audit kode) — sudah responsif-ready,
+  tanpa perbaikan: tombol aksi status `h-11`/`h-10`/`h-9` (40–44px, ideal sentuh
+  tablet KDS), scroll container untuk antrian padat (`overflow-x/y-auto`), pola
+  responsif lengkap (`hidden sm:`, `sm:flex-wrap`, tinggi/teks kartu adaptif),
+  tanpa lebar tetap berisiko overflow.
 - ⬜ Website/landing + recruitment sinkron dashboard (lanjutan)
-- ⬜ UI/UX responsif modul lain (Kitchen/Waiter/Finance) — lanjutan
 
 ---
 

@@ -6930,7 +6930,7 @@ export function PosView({
                         type="button"
                         size="sm"
                         variant={active ? "default" : "outline"}
-                        className={`shrink-0 ${
+                        className={`min-h-9 shrink-0 ${
                           active
                             ? "bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
                             : "border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8]"
@@ -6950,7 +6950,7 @@ export function PosView({
                     type="button"
                     size="sm"
                     variant={bestsellerOnly ? "default" : "outline"}
-                    className={`shrink-0 ${
+                    className={`min-h-9 shrink-0 ${
                       bestsellerOnly
                         ? "border-[#f5a742]/55 bg-[#f5a742] text-black hover:bg-[#ffc167]"
                         : "border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffd08a] hover:bg-[#f5a742]/22"

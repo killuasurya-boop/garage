@@ -157,8 +157,13 @@ Keduanya membaca `getDashboardData` (Owner = superset). Integrasi DB nyata:
 - ✅ **Voucher member end-to-end** — `garage-voucher.integration.test.ts`:
   aturan (khusus member, minSpend, kode tak dikenal) + penukaran via order
   (diskon diterapkan, total turun, `usedCount` +1). Jalur member (akun/poin) teruji.
+- ✅ **UI/UX responsif POS** — diverifikasi di browser (standalone) pada mobile
+  375px, tablet 768px, desktop 1280px: **tidak ada overflow horizontal**, cart
+  panel ter-dock kanan di tablet/desktop, grid menu rapi, harga/label terbaca.
+  Temuan & **diperbaiki**: chip kategori (Semua/Dapur/Bar/Bestseller) 28px →
+  `min-h-9` (36px) agar nyaman ditekan di tablet kasir.
 - ⬜ Website/landing + recruitment sinkron dashboard (lanjutan)
-- ⬜ UI/UX responsive desktop/tablet/mobile (lanjutan; UI POS sudah dirapikan)
+- ⬜ UI/UX responsif modul lain (Kitchen/Waiter/Finance) — lanjutan
 
 ---
 

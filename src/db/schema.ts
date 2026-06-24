@@ -705,7 +705,11 @@ export const inventoryItems = pgTable(
     unitCost: integer("unit_cost").notNull().default(0),
     onHand: real("on_hand").notNull(),
     min: real("min_stock").notNull(),
+    // `status` = level stok operasional (low/watch/safe). JANGAN dipakai utk lifecycle.
     status: text("status").notNull(),
+    // `stage` = lifecycle data (draft/active/archived). Default 'active' agar data
+    // lama tetap aktif. Bahan Draft = masih riset; Archived = arsip (soft-delete).
+    stage: text("stage").notNull().default("active"),
     movement: text("movement").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -713,6 +717,7 @@ export const inventoryItems = pgTable(
     categoryIdx: index("inventory_items_category_idx").on(table.category),
     usageAreaIdx: index("inventory_items_usage_area_idx").on(table.usageArea),
     statusIdx: index("inventory_items_status_idx").on(table.status),
+    stageIdx: index("inventory_items_stage_idx").on(table.stage),
   }),
 );
 
@@ -1305,6 +1310,30 @@ export const menuRecipes = pgTable(
     itemIdx: index("menu_recipes_menu_item_idx").on(table.menuItemId),
     skuIdx: index("menu_recipes_inventory_sku_idx").on(table.inventorySku),
     statusIdx: index("menu_recipes_status_idx").on(table.status),
+  }),
+);
+
+// Riset Menu — catatan eksperimen rasa/resep/HPP sebelum produk diaktifkan.
+// productId opsional (boleh riset produk yang belum jadi menuItems).
+export const menuResearch = pgTable(
+  "menu_research",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: text("product_id").references(() => menuItems.id, { onDelete: "set null" }),
+    productName: text("product_name").notNull(),
+    tasteNotes: text("taste_notes").notNull().default(""),
+    recipeNotes: text("recipe_notes").notNull().default(""),
+    hppNotes: text("hpp_notes").notNull().default(""),
+    sellingPriceNotes: text("selling_price_notes").notNull().default(""),
+    // research | revise | approved | rejected
+    decision: text("decision").notNull().default("research"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    decisionIdx: index("menu_research_decision_idx").on(table.decision),
+    productIdx: index("menu_research_product_idx").on(table.productId),
   }),
 );
 

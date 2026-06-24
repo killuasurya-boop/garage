@@ -491,6 +491,13 @@
       "when": 1782133924680,
       "tag": "0069_round_slyde",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1782275814612,
+      "tag": "0070_aromatic_tag",
+      "breakpoints": true
     }
   ]
 }

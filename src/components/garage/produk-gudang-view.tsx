@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Archive,
   Boxes,
@@ -12,16 +12,42 @@ import {
   Layers,
   PackagePlus,
   Pencil,
+  Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
   Warehouse,
 } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { garageApi } from "@/lib/api-client";
 import { currency, type Role } from "@/lib/garage-data";
 import type { InventoryItem, MenuItem } from "@/lib/garage-api-types";
+
+type ResearchRow = {
+  id: string;
+  productId: string | null;
+  productName: string;
+  tasteNotes: string;
+  recipeNotes: string;
+  hppNotes: string;
+  sellingPriceNotes: string;
+  decision: "research" | "revise" | "approved" | "rejected";
+  createdAt: string;
+  updatedAt: string;
+};
+
+const DECISION_META: Record<
+  ResearchRow["decision"],
+  { label: string; tone: "ok" | "warn" | "off"; cls: string }
+> = {
+  research: { label: "Riset", tone: "warn", cls: "border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffd08a]" },
+  revise: { label: "Revisi", tone: "warn", cls: "border-[#60a5fa]/45 bg-[#60a5fa]/12 text-[#bcd7ff]" },
+  approved: { label: "Lolos", tone: "ok", cls: "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#86efac]" },
+  rejected: { label: "Ditolak", tone: "off", cls: "border-[#ff6b6b]/45 bg-[#ff6b6b]/12 text-[#ffb3b3]" },
+};
 
 // =============================================================================
 // PRODUK & GUDANG — wajah owner-friendly (FASE 1, UI saja). Membaca data yang
@@ -632,12 +658,231 @@ function GudangTab({
 
 // ── Tab 5: Riset Menu ───────────────────────────────────────────────────────
 function RisetTab() {
+  const [rows, setRows] = useState<ResearchRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [form, setForm] = useState({
+    productName: "",
+    tasteNotes: "",
+    recipeNotes: "",
+    hppNotes: "",
+    sellingPriceNotes: "",
+  });
+
+  async function load() {
+    try {
+      setRows(await garageApi.get<ResearchRow[]>("/api/produk-gudang/research"));
+      setErr(null);
+    } catch {
+      setErr("Gagal memuat catatan riset.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const data = await garageApi.get<ResearchRow[]>("/api/produk-gudang/research");
+        if (alive) {
+          setRows(data);
+          setErr(null);
+        }
+      } catch {
+        if (alive) setErr("Gagal memuat catatan riset.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function submit() {
+    if (!form.productName.trim() || busy) return;
+    setBusy(true);
+    try {
+      await garageApi.post("/api/produk-gudang/research", form);
+      setForm({ productName: "", tasteNotes: "", recipeNotes: "", hppNotes: "", sellingPriceNotes: "" });
+      setAdding(false);
+      await load();
+    } catch {
+      setErr("Gagal menyimpan catatan riset.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setDecision(id: string, decision: ResearchRow["decision"]) {
+    setBusy(true);
+    try {
+      await garageApi.patch(`/api/produk-gudang/research/${id}`, { decision });
+      await load();
+    } catch {
+      setErr("Gagal memperbarui keputusan.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm("Hapus catatan riset ini? Tindakan ini permanen.")) return;
+    setBusy(true);
+    try {
+      await garageApi.delete(`/api/produk-gudang/research/${id}`);
+      await load();
+    } catch {
+      setErr("Gagal menghapus catatan riset.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <EmptyState
-      icon={FlaskConical}
-      title="Riset Menu — segera hadir"
-      desc="Nanti owner bisa mencatat produk percobaan, catatan rasa, catatan revisi resep, estimasi HPP & harga jual, lalu menandai keputusan: Lanjut, Revisi, atau Tolak. Fitur ini menyusul setelah bahan baku mulai final."
-    />
+    <div className="space-y-3">
+      <Helper>
+        Riset Menu untuk mencatat produk percobaan: catatan rasa, revisi resep, estimasi HPP &amp;
+        harga jual. Tandai keputusan <b>Riset / Revisi / Lolos / Ditolak</b>. Data ini terpisah dari
+        menu jualan sampai kamu putuskan diaktifkan.
+      </Helper>
+
+      <div className="flex justify-between gap-2">
+        <p className="text-sm text-[#9a9aa4]">{rows.length} catatan riset</p>
+        <Button
+          type="button"
+          onClick={() => setAdding((v) => !v)}
+          className="min-h-9 bg-[#d11a2a] text-white"
+        >
+          <Plus className="size-4" /> Tambah Riset
+        </Button>
+      </div>
+
+      {err ? <p className="text-sm text-[#ffb3b3]">{err}</p> : null}
+
+      {adding ? (
+        <div className="space-y-2 rounded-lg border border-[#34343c] bg-white/[0.03] p-3">
+          <Input
+            value={form.productName}
+            onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
+            placeholder="Nama produk percobaan (wajib)"
+            className="h-9 border-[#34343c] bg-white/[0.06]"
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <textarea
+              value={form.tasteNotes}
+              onChange={(e) => setForm((f) => ({ ...f, tasteNotes: e.target.value }))}
+              placeholder="Catatan rasa…"
+              rows={2}
+              className="resize-none rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-[#7a7a85]"
+            />
+            <textarea
+              value={form.recipeNotes}
+              onChange={(e) => setForm((f) => ({ ...f, recipeNotes: e.target.value }))}
+              placeholder="Catatan resep / revisi…"
+              rows={2}
+              className="resize-none rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-[#7a7a85]"
+            />
+            <Input
+              value={form.hppNotes}
+              onChange={(e) => setForm((f) => ({ ...f, hppNotes: e.target.value }))}
+              placeholder="Estimasi HPP (mis. Rp4.500)"
+              className="h-9 border-[#34343c] bg-white/[0.06]"
+            />
+            <Input
+              value={form.sellingPriceNotes}
+              onChange={(e) => setForm((f) => ({ ...f, sellingPriceNotes: e.target.value }))}
+              placeholder="Rencana harga jual (mis. Rp18.000)"
+              className="h-9 border-[#34343c] bg-white/[0.06]"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAdding(false)}
+              className="min-h-9 border-[#4a4a54] bg-white/[0.05] text-[#cfcfd6]"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              disabled={!form.productName.trim() || busy}
+              onClick={() => void submit()}
+              className="min-h-9 bg-[#22c55e] text-[#04140a] hover:bg-[#34d77f]"
+            >
+              Simpan
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <p className="py-8 text-center text-sm text-[#9a9aa4]">Memuat…</p>
+      ) : rows.length === 0 && !adding ? (
+        <EmptyState
+          icon={FlaskConical}
+          title="Belum ada catatan riset"
+          desc="Catat produk percobaanmu: rasa, resep, estimasi HPP & harga jual. Tandai keputusan lanjut/revisi/tolak sambil menyempurnakan menu."
+          action={
+            <Button onClick={() => setAdding(true)} className="min-h-9 bg-[#d11a2a] text-white">
+              <Plus className="size-4" /> Tambah Riset
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {rows.map((r) => (
+            <div key={r.id} className="space-y-2 rounded-lg border border-[#2a2a32] bg-white/[0.02] p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 break-words font-bold text-white">{r.productName}</p>
+                <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${DECISION_META[r.decision].cls}`}>
+                  {DECISION_META[r.decision].label}
+                </span>
+              </div>
+              {r.tasteNotes ? <p className="text-xs text-[#cfcfd6]"><b className="text-[#9a9aa4]">Rasa:</b> {r.tasteNotes}</p> : null}
+              {r.recipeNotes ? <p className="text-xs text-[#cfcfd6]"><b className="text-[#9a9aa4]">Resep:</b> {r.recipeNotes}</p> : null}
+              {(r.hppNotes || r.sellingPriceNotes) ? (
+                <p className="text-xs text-[#cfcfd6]">
+                  {r.hppNotes ? <span><b className="text-[#9a9aa4]">HPP:</b> {r.hppNotes} </span> : null}
+                  {r.sellingPriceNotes ? <span><b className="text-[#9a9aa4]">Jual:</b> {r.sellingPriceNotes}</span> : null}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-1 pt-1">
+                {(["research", "revise", "approved", "rejected"] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    disabled={busy || r.decision === d}
+                    onClick={() => void setDecision(r.id, d)}
+                    className={`min-h-8 rounded-md border px-2 text-[11px] font-semibold transition disabled:opacity-50 ${
+                      r.decision === d
+                        ? DECISION_META[d].cls
+                        : "border-[#4a4a54] bg-white/[0.04] text-[#cfcfd6] hover:bg-white/[0.1]"
+                    }`}
+                  >
+                    {DECISION_META[d].label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void remove(r.id)}
+                  title="Hapus catatan"
+                  className="ml-auto grid size-8 place-items-center rounded-md border border-[#ff6b6b]/40 text-[#ffb3b3] transition hover:bg-[#ff6b6b]/12 disabled:opacity-50"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

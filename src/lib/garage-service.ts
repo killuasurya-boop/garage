@@ -57,6 +57,7 @@ import {
   memberAccounts,
   memberTransactions,
   menuRecipes,
+  menuResearch,
   menuItems,
   menuVariants,
   orderItems,
@@ -12051,6 +12052,93 @@ export async function createPaymentSettlement(
   });
 
   return settlement;
+}
+
+// ── Riset Menu (menu_research) — catatan eksperimen sebelum produk diaktifkan ──
+export type MenuResearchDecision = "research" | "revise" | "approved" | "rejected";
+
+export async function listMenuResearch() {
+  const rows = await getDb()
+    .select()
+    .from(menuResearch)
+    .orderBy(desc(menuResearch.updatedAt));
+  return rows.map((r) => ({
+    id: r.id,
+    productId: r.productId,
+    productName: r.productName,
+    tasteNotes: r.tasteNotes,
+    recipeNotes: r.recipeNotes,
+    hppNotes: r.hppNotes,
+    sellingPriceNotes: r.sellingPriceNotes,
+    decision: r.decision as MenuResearchDecision,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }));
+}
+
+export async function createMenuResearch(
+  input: {
+    productName: string;
+    productId?: string | null;
+    tasteNotes?: string;
+    recipeNotes?: string;
+    hppNotes?: string;
+    sellingPriceNotes?: string;
+    decision?: MenuResearchDecision;
+  },
+  garage: GarageSession,
+) {
+  const [row] = await getDb()
+    .insert(menuResearch)
+    .values({
+      productName: input.productName.trim(),
+      productId: input.productId ?? null,
+      tasteNotes: input.tasteNotes?.trim() ?? "",
+      recipeNotes: input.recipeNotes?.trim() ?? "",
+      hppNotes: input.hppNotes?.trim() ?? "",
+      sellingPriceNotes: input.sellingPriceNotes?.trim() ?? "",
+      decision: input.decision ?? "research",
+      createdBy: garage.user.id,
+    })
+    .returning();
+  return row;
+}
+
+export async function updateMenuResearch(
+  id: string,
+  patch: {
+    productName?: string;
+    tasteNotes?: string;
+    recipeNotes?: string;
+    hppNotes?: string;
+    sellingPriceNotes?: string;
+    decision?: MenuResearchDecision;
+  },
+) {
+  const [row] = await getDb()
+    .update(menuResearch)
+    .set({
+      ...(patch.productName != null ? { productName: patch.productName.trim() } : {}),
+      ...(patch.tasteNotes != null ? { tasteNotes: patch.tasteNotes.trim() } : {}),
+      ...(patch.recipeNotes != null ? { recipeNotes: patch.recipeNotes.trim() } : {}),
+      ...(patch.hppNotes != null ? { hppNotes: patch.hppNotes.trim() } : {}),
+      ...(patch.sellingPriceNotes != null
+        ? { sellingPriceNotes: patch.sellingPriceNotes.trim() }
+        : {}),
+      ...(patch.decision != null ? { decision: patch.decision } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(menuResearch.id, id))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteMenuResearch(id: string) {
+  const [row] = await getDb()
+    .delete(menuResearch)
+    .where(eq(menuResearch.id, id))
+    .returning();
+  return row ?? null;
 }
 
 export async function createMenuRecipe(input: RecipeInput, garage: GarageSession) {

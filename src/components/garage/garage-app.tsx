@@ -287,6 +287,10 @@ const InventoryView = dynamic(
   () => import("@/components/garage/inventory-view").then((m) => m.InventoryView),
   { loading: ModuleChunkFallback },
 );
+const ProdukGudangView = dynamic(
+  () => import("@/components/garage/produk-gudang-view").then((m) => m.ProdukGudangView),
+  { loading: ModuleChunkFallback },
+);
 const KitchenView = dynamic(
   () => import("@/components/garage/kitchen-view").then((m) => m.KitchenView),
   { loading: ModuleChunkFallback },
@@ -1514,13 +1518,21 @@ function GarageWorkspace({
             )}
             {safeActiveModule === "waiter" && <WaiterView me={data.me} />}
             {safeActiveModule === "inventory" && (
-              <InventoryView
+              <ProdukGudangView
                 role={data.me.role}
                 menuItems={data.menuItems}
                 inventoryItems={data.inventoryItems}
                 stockMovements={data.stockMovements}
-                onMenuChanged={loadMenu}
-                onNavigateModule={handleModuleChange}
+                fullView={
+                  <InventoryView
+                    role={data.me.role}
+                    menuItems={data.menuItems}
+                    inventoryItems={data.inventoryItems}
+                    stockMovements={data.stockMovements}
+                    onMenuChanged={loadMenu}
+                    onNavigateModule={handleModuleChange}
+                  />
+                }
               />
             )}
             {safeActiveModule === "finance" && (

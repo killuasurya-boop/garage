@@ -376,14 +376,31 @@ function BahanTab({
 }) {
   const [q, setQ] = useState("");
   const [area, setArea] = useState<string>("Semua");
+  const [stageFilter, setStageFilter] = useState<string>("Semua");
+  const [stageOverride, setStageOverride] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
 
   const areaLabel = (a: string) =>
     a === "bar" ? "Bar" : a === "dapur" ? "Dapur" : a === "packaging" ? "Kemasan" : "Umum";
   const areas = ["Semua", "bar", "dapur", "packaging", "general"];
+  const stageOf = (i: InventoryItem) => stageOverride[i.sku] ?? i.stage ?? "active";
+
+  async function setStage(sku: string, stage: "active" | "archived" | "draft") {
+    setBusy(sku);
+    try {
+      await garageApi.patch(`/api/inventory/${encodeURIComponent(sku)}`, { stage });
+      setStageOverride((prev) => ({ ...prev, [sku]: stage }));
+    } catch {
+      /* abaikan; biarkan user coba lagi */
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const needle = q.trim().toLowerCase();
   const filtered = inventoryItems.filter((i) => {
     if (area !== "Semua" && i.usageArea !== area) return false;
+    if (stageFilter !== "Semua" && stageOf(i) !== stageFilter) return false;
     if (needle && !`${i.name} ${i.alternativeName} ${i.category}`.toLowerCase().includes(needle))
       return false;
     return true;
@@ -413,6 +430,18 @@ function BahanTab({
             </FilterChip>
           ))}
         </div>
+        <div className="flex gap-1.5">
+          {[
+            { v: "Semua", l: "Semua" },
+            { v: "active", l: "Aktif" },
+            { v: "draft", l: "Draft" },
+            { v: "archived", l: "Arsip" },
+          ].map((s) => (
+            <FilterChip key={s.v} active={stageFilter === s.v} onClick={() => setStageFilter(s.v)}>
+              {s.l}
+            </FilterChip>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -439,13 +468,18 @@ function BahanTab({
                 <th className="px-3 py-2 text-right font-semibold">Harga beli (est)</th>
                 <th className="px-3 py-2 text-right font-semibold">Stok</th>
                 <th className="px-3 py-2 text-right font-semibold">Min</th>
-                <th className="px-3 py-2 font-semibold">Status</th>
+                <th className="px-3 py-2 font-semibold">Stok</th>
+                <th className="px-3 py-2 font-semibold">Data</th>
                 <th className="px-3 py-2 text-right font-semibold">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((i) => {
                 const low = i.onHand <= i.min;
+                const stage = stageOf(i);
+                const stageTone = stage === "archived" ? "off" : stage === "draft" ? "warn" : "ok";
+                const stageLabel = stage === "archived" ? "Arsip" : stage === "draft" ? "Draft" : "Aktif";
+                const isBusy = busy === i.sku;
                 return (
                   <tr key={i.sku} className="border-b border-[#222228] last:border-0 hover:bg-white/[0.02]">
                     <td className="px-3 py-2 font-semibold text-white">{i.name}</td>
@@ -464,6 +498,9 @@ function BahanTab({
                       <StatusPill tone={low ? "warn" : "ok"} label={low ? "Stok Rendah" : "Aman"} />
                     </td>
                     <td className="px-3 py-2">
+                      <StatusPill tone={stageTone} label={stageLabel} />
+                    </td>
+                    <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
                         <ActionBtn title="Stok Masuk (Mode Lengkap)" onClick={onOpenFull}>
                           <PackagePlus className="size-4" />
@@ -471,9 +508,22 @@ function BahanTab({
                         <ActionBtn title="Koreksi Stok (Mode Lengkap)" onClick={onOpenFull}>
                           <SlidersHorizontal className="size-4" />
                         </ActionBtn>
-                        <ActionBtn title="Arsipkan (Mode Lengkap)" tone="amber" onClick={onOpenFull}>
-                          <Archive className="size-4" />
-                        </ActionBtn>
+                        {stage === "archived" ? (
+                          <ActionBtn
+                            title="Aktifkan kembali"
+                            onClick={isBusy ? undefined : () => void setStage(i.sku, "active")}
+                          >
+                            <PackagePlus className="size-4" />
+                          </ActionBtn>
+                        ) : (
+                          <ActionBtn
+                            title="Arsipkan bahan ini"
+                            tone="amber"
+                            onClick={isBusy ? undefined : () => void setStage(i.sku, "archived")}
+                          >
+                            <Archive className="size-4" />
+                          </ActionBtn>
+                        )}
                       </div>
                     </td>
                   </tr>

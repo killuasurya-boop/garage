@@ -9991,6 +9991,7 @@ export async function updateInventoryItem(
     onHand: number;
     min: number;
     status: string;
+    stage: string;
     movement: string;
   }>,
   garage: GarageSession,
@@ -10030,6 +10031,7 @@ export async function updateInventoryItem(
   if (input.unitCost !== undefined) setValues.unitCost = Math.max(0, Math.round(input.unitCost));
   if (input.onHand !== undefined) setValues.onHand = input.onHand;
   if (input.min !== undefined) setValues.min = input.min;
+  if (input.stage !== undefined) setValues.stage = input.stage;
   if (input.movement !== undefined) setValues.movement = input.movement.trim();
 
   const [item] = await db

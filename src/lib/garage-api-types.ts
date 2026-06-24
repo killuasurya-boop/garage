@@ -165,6 +165,7 @@ export type InventoryItem = {
   packageSize: string;
   unitCost?: number;
   status: string;
+  stage?: string;
   movement: string;
 };
 

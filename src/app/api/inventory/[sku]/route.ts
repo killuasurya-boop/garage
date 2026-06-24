@@ -22,6 +22,7 @@ const inventoryPatchSchema = z.object({
   onHand: z.number().nonnegative().optional(),
   min: z.number().nonnegative().optional(),
   status: z.enum(["safe", "watch", "low"]).optional(),
+  stage: z.enum(["draft", "active", "archived"]).optional(),
   movement: z.string().trim().min(1).max(200).optional(),
 });
 

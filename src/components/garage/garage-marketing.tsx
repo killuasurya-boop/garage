@@ -51,13 +51,15 @@ import { GarageApiError, garageApi } from "@/lib/api-client";
 import type { AppSettings, Customer, GarageMe } from "@/lib/garage-api-types";
 import { currency } from "@/lib/garage-data";
 import { canUseApi } from "@/lib/role-access";
+import { ContentPublisher } from "@/components/garage/content-publisher";
 
 type MarketingTab =
   | "overview"
   | "campaigns"
   | "broadcasts"
   | "promos"
-  | "calendar";
+  | "calendar"
+  | "publisher";
 
 type CampaignStatus =
   | "draft"
@@ -349,13 +351,14 @@ export function GarageMarketingView({
     <section className="space-y-4">
       <MarketingHeader settings={settings} totalCustomers={customers.length} />
 
-      <div className="grid grid-cols-3 items-center gap-1 rounded-lg border border-[#34343c] bg-[#111116] p-1 lg:grid-cols-5">
+      <div className="grid grid-cols-3 items-center gap-1 rounded-lg border border-[#34343c] bg-[#111116] p-1 lg:grid-cols-6">
         {([
           { key: "overview", label: "Overview", icon: LineChart },
           { key: "campaigns", label: "Campaigns", icon: Target },
           { key: "broadcasts", label: "Broadcasts", icon: Send },
           { key: "promos", label: "Promos", icon: Ticket },
           { key: "calendar", label: "Calendar", icon: CalendarDays },
+          { key: "publisher", label: "Publisher", icon: Send },
         ] as Array<{ key: MarketingTab; label: string; icon: typeof LineChart }>).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -386,6 +389,7 @@ export function GarageMarketingView({
       )}
       {activeTab === "promos" && <MarketingPromos canWrite={canWrite} settings={settings} />}
       {activeTab === "calendar" && <MarketingCalendar />}
+      {activeTab === "publisher" && <ContentPublisher canWrite={canWrite} />}
     </section>
   );
 }

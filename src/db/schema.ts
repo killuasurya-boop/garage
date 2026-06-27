@@ -1285,6 +1285,146 @@ export const marketingBroadcastDeliveries = pgTable(
   }),
 );
 
+// Social publishing connection. OAuth tokens are encrypted before persistence.
+export const socialPublisherConnections = pgTable(
+  "social_publisher_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("platform").notNull(),
+    resourceType: text("resource_type").notNull().default("account"),
+    resourceId: text("resource_id").notNull(),
+    accountId: text("account_id"),
+    accountName: text("account_name"),
+    accessTokenEncrypted: text("access_token_encrypted"),
+    refreshTokenEncrypted: text("refresh_token_encrypted"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }),
+    scopes: jsonb("scopes").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    status: text("status").notNull().default("connected"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    lastHealthCheckAt: timestamp("last_health_check_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    permissionsCheckedAt: timestamp("permissions_checked_at", { withTimezone: true }),
+    webhookSubscribedAt: timestamp("webhook_subscribed_at", { withTimezone: true }),
+    connectedBy: text("connected_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    resourceIdx: uniqueIndex("social_publisher_connections_resource_idx").on(
+      table.provider,
+      table.resourceType,
+      table.resourceId,
+    ),
+    providerIdx: index("social_publisher_connections_provider_idx").on(table.provider),
+    statusIdx: index("social_publisher_connections_status_idx").on(table.status),
+  }),
+);
+
+// Content approval and scheduling queue owned by GARAGE OS.
+export const contentPublishingQueue = pgTable(
+  "content_publishing_queue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").references(() => marketingCampaigns.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    contentText: text("content_text").notNull().default(""),
+    caption: text("caption").notNull().default(""),
+    hashtags: jsonb("hashtags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    assetUrl: text("asset_url"),
+    assetUrls: jsonb("asset_urls").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    thumbnailUrl: text("thumbnail_url"),
+    platforms: jsonb("platforms").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    status: text("status").notNull().default("draft"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    rejectionReason: text("rejection_reason"),
+    revisionNotes: text("revision_notes"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    campaignIdx: index("content_publishing_queue_campaign_idx").on(table.campaignId),
+    statusIdx: index("content_publishing_queue_status_idx").on(table.status),
+    scheduleIdx: index("content_publishing_queue_scheduled_at_idx").on(table.scheduledAt),
+  }),
+);
+
+export const contentPublishingResults = pgTable(
+  "content_publishing_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    queueId: uuid("queue_id")
+      .notNull()
+      .references(() => contentPublishingQueue.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").notNull().default("queued"),
+    providerPostId: text("provider_post_id"),
+    publishedUrl: text("published_url"),
+    error: text("error"),
+    analytics: jsonb("analytics").$type<Record<string, number>>(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    queuePlatformIdx: uniqueIndex("content_publishing_results_queue_platform_idx").on(
+      table.queueId,
+      table.platform,
+    ),
+    idempotencyIdx: uniqueIndex("content_publishing_results_idempotency_idx").on(
+      table.idempotencyKey,
+    ),
+    statusIdx: index("content_publishing_results_status_idx").on(table.status),
+  }),
+);
+
+// WhatsApp uses a dedicated queue because it is a messaging channel, not a social post.
+export const whatsappMessagingQueue = pgTable(
+  "whatsapp_messaging_queue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipient: text("recipient").notNull(),
+    messageType: text("message_type").notNull().default("template"),
+    templateName: text("template_name"),
+    templateLanguage: text("template_language").notNull().default("id"),
+    templateParameters: jsonb("template_parameters")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    body: text("body"),
+    status: text("status").notNull().default("queued"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    providerMessageId: text("provider_message_id"),
+    error: text("error"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    idempotencyIdx: uniqueIndex("whatsapp_messaging_queue_idempotency_idx").on(
+      table.idempotencyKey,
+    ),
+    statusScheduleIdx: index("whatsapp_messaging_queue_status_schedule_idx").on(
+      table.status,
+      table.scheduledAt,
+    ),
+    providerMessageIdx: index("whatsapp_messaging_queue_provider_message_idx").on(
+      table.providerMessageId,
+    ),
+  }),
+);
+
 export const menuRecipes = pgTable(
   "menu_recipes",
   {

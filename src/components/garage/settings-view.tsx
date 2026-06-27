@@ -11,6 +11,7 @@ import {
   Megaphone,
   Palette,
   Printer,
+  PlugZap,
   RefreshCw,
   Search,
   Settings,
@@ -69,6 +70,13 @@ const GlobalSettingsPanel = dynamic(
   () => import("@/components/garage/admin/global-settings-panel").then((m) => m.GlobalSettingsPanel),
   { loading: SettingsModuleFallback },
 );
+const IntegrationControlCenter = dynamic(
+  () =>
+    import("@/components/garage/integration-control-center").then(
+      (module) => module.IntegrationControlCenter,
+    ),
+  { loading: SettingsModuleFallback },
+);
 type AppSettingsClient = AppSettings;
 
 type SettingsTab =
@@ -97,11 +105,13 @@ export function SettingsView({ me }: { me: GarageMe }) {
   const [settingsQuery, setSettingsQuery] = useState("");
   // Scope toggle: "operational" (per outlet, default) vs "global" (sistem,
   // Owner/Admin only). Initial value bisa di-deep-link via ?scope=global.
-  const [settingsScope, setSettingsScope] = useState<"operational" | "global">(
+  const [settingsScope, setSettingsScope] = useState<
+    "operational" | "global" | "integrations"
+  >(
     () => {
       if (typeof window === "undefined") return "operational";
       const param = new URLSearchParams(window.location.search).get("scope");
-      return param === "global" ? "global" : "operational";
+      return param === "global" || param === "integrations" ? param : "operational";
     },
   );
 
@@ -479,7 +489,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
           <p className="text-[11px] font-medium uppercase tracking-wide text-[#8a8a93]">
             Cakupan pengaturan
           </p>
-          <div className="grid grid-cols-2 gap-1 rounded-lg border border-[#34343c] bg-white/[0.04] p-1">
+          <div className={`grid gap-1 rounded-lg border border-[#34343c] bg-white/[0.04] p-1 ${me.role === "Owner / CEO" ? "grid-cols-3" : "grid-cols-2"}`}>
             <button
               type="button"
               onClick={() => setSettingsScope("operational")}
@@ -506,12 +516,29 @@ export function SettingsView({ me }: { me: GarageMe }) {
               <ShieldCheck className="size-3.5 shrink-0" />
               <span className="truncate">Global Sistem</span>
             </button>
+            {me.role === "Owner / CEO" ? (
+              <button
+                type="button"
+                onClick={() => setSettingsScope("integrations")}
+                aria-pressed={settingsScope === "integrations"}
+                className={`flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors ${
+                  settingsScope === "integrations"
+                    ? "bg-[#d11a2a] text-white shadow-[0_1px_8px_rgba(209,26,42,0.35)]"
+                    : "text-[#d4d4d8] hover:bg-white/[0.06]"
+                }`}
+              >
+                <PlugZap className="size-3.5 shrink-0" />
+                <span className="truncate">Integrasi</span>
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
 
       {settingsScope === "global" ? (
         <GlobalSettingsPanel />
+      ) : settingsScope === "integrations" && me.role === "Owner / CEO" ? (
+        <IntegrationControlCenter />
       ) : (
         <>
       {error ? (
@@ -2064,4 +2091,3 @@ function renderMarketingMessage({
     .replaceAll("{campaign}", settings.marketingCampaignName)
     .replaceAll("{orderUrl}", marketingOrderUrl(settings));
 }
-

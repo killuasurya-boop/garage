@@ -498,6 +498,27 @@
       "when": 1782275814612,
       "tag": "0070_aromatic_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1782325202495,
+      "tag": "0071_loud_rattler",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1782409285492,
+      "tag": "0072_fantastic_ezekiel",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1782410447694,
+      "tag": "0073_charming_trish_tilby",
+      "breakpoints": true
     }
   ]
 }

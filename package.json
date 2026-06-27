@@ -25,6 +25,7 @@
     "voice:generate-mp3": "tsx src/scripts/generate-voice-mp3.ts",
     "voice:publish-scenarios": "tsx src/scripts/publish-scenario-audio.ts",
     "voice:test-elevenlabs": "tsx src/scripts/test-elevenlabs-tts.ts",
+    "social:migrate-youtube": "tsx src/scripts/migrate-legacy-youtube-token.ts",
     "voice:generate-smart-notif": "tsx scripts/generate-smart-notif-audio.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

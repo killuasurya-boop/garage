@@ -9978,6 +9978,49 @@ export async function updateKitchenStatus(
   return ticket;
 }
 
+// Hapus permanen bahan baku — HANYA bila belum pernah dipakai (tanpa histori
+// stok & tidak dipakai resep manapun). Kalau sudah dipakai → tolak, sarankan
+// Arsipkan (soft-delete). Mengembalikan { deleted } atau melempar error jelas.
+export class InventoryDeleteBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InventoryDeleteBlockedError";
+  }
+}
+
+export async function deleteInventoryItem(sku: string) {
+  const db = getDb();
+  const [current] = await db
+    .select({ sku: inventoryItems.sku })
+    .from(inventoryItems)
+    .where(eq(inventoryItems.sku, sku))
+    .limit(1);
+  if (!current) return null;
+
+  const [moves] = await db
+    .select({ n: count() })
+    .from(stockMovements)
+    .where(eq(stockMovements.itemSku, sku));
+  if (Number(moves?.n ?? 0) > 0) {
+    throw new InventoryDeleteBlockedError(
+      "Bahan ini sudah punya histori stok. Tidak bisa dihapus permanen — Arsipkan saja.",
+    );
+  }
+
+  const [recipes] = await db
+    .select({ n: count() })
+    .from(menuRecipes)
+    .where(eq(menuRecipes.inventorySku, sku));
+  if (Number(recipes?.n ?? 0) > 0) {
+    throw new InventoryDeleteBlockedError(
+      "Bahan ini masih dipakai di resep menu. Lepas dari resep dulu atau Arsipkan saja.",
+    );
+  }
+
+  await db.delete(inventoryItems).where(eq(inventoryItems.sku, sku));
+  return { sku };
+}
+
 export async function updateInventoryItem(
   sku: string,
   input: Partial<{

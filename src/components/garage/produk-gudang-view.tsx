@@ -459,6 +459,24 @@ function BahanTab({
   const [stageFilter, setStageFilter] = useState<string>("Semua");
   const [stageOverride, setStageOverride] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState<Record<string, true>>({});
+  const [delErr, setDelErr] = useState<string | null>(null);
+
+  async function remove(sku: string, name: string) {
+    if (!window.confirm(`Hapus permanen "${name}"? Hanya bisa kalau bahan belum pernah dipakai.`)) {
+      return;
+    }
+    setBusy(sku);
+    try {
+      await garageApi.delete(`/api/inventory/${encodeURIComponent(sku)}`);
+      setDeleted((prev) => ({ ...prev, [sku]: true }));
+      setDelErr(null);
+    } catch (e) {
+      setDelErr(e instanceof Error ? e.message : "Gagal menghapus bahan.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const areaLabel = (a: string) =>
     a === "bar" ? "Bar" : a === "dapur" ? "Dapur" : a === "packaging" ? "Kemasan" : "Umum";
@@ -479,6 +497,7 @@ function BahanTab({
 
   const needle = q.trim().toLowerCase();
   const filtered = inventoryItems.filter((i) => {
+    if (deleted[i.sku]) return false;
     if (area !== "Semua" && i.usageArea !== area) return false;
     if (stageFilter !== "Semua" && stageOf(i) !== stageFilter) return false;
     if (needle && !`${i.name} ${i.alternativeName} ${i.category}`.toLowerCase().includes(needle))
@@ -523,6 +542,12 @@ function BahanTab({
           ))}
         </div>
       </div>
+
+      {delErr ? (
+        <div className="rounded-md border border-[#ff6b6b]/40 bg-[#ff6b6b]/10 px-3 py-2 text-sm text-[#ffb3b3]">
+          {delErr}
+        </div>
+      ) : null}
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -604,6 +629,13 @@ function BahanTab({
                             <Archive className="size-4" />
                           </ActionBtn>
                         )}
+                        <ActionBtn
+                          title="Hapus permanen (hanya jika belum pernah dipakai)"
+                          tone="danger"
+                          onClick={isBusy ? undefined : () => void remove(i.sku, i.name)}
+                        >
+                          <Trash2 className="size-4" />
+                        </ActionBtn>
                       </div>
                     </td>
                   </tr>
@@ -1025,13 +1057,15 @@ function ActionBtn({
 }: {
   title: string;
   onClick?: () => void;
-  tone?: "amber";
+  tone?: "amber" | "danger";
   children: ReactNode;
 }) {
   const color =
     tone === "amber"
       ? "border-[#f5a742]/40 text-[#ffd08a] hover:bg-[#f5a742]/12"
-      : "border-[#4a4a54] text-[#cfcfd6] hover:bg-white/[0.1]";
+      : tone === "danger"
+        ? "border-[#ff6b6b]/40 text-[#ffb3b3] hover:bg-[#ff6b6b]/12"
+        : "border-[#4a4a54] text-[#cfcfd6] hover:bg-white/[0.1]";
   return (
     <button
       type="button"

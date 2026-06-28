@@ -2,9 +2,11 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import {
+  deleteInventoryItem,
   getInventoryData,
   getInventorySkuTimeline,
   getStockMovementsForSku,
+  InventoryDeleteBlockedError,
   updateInventoryItem,
 } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
@@ -66,4 +68,27 @@ export async function PATCH(
   }
 
   return ok(item);
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ sku: string }> },
+) {
+  const session = await requirePermission("inventory:write");
+  if (session.response) return session.response;
+
+  const { sku } = await context.params;
+  try {
+    const result = await deleteInventoryItem(sku);
+    if (!result) {
+      return fail(404, "INVENTORY_NOT_FOUND", "Bahan tidak ditemukan.");
+    }
+    return ok(result);
+  } catch (error) {
+    if (error instanceof InventoryDeleteBlockedError) {
+      // 409 Conflict — sudah dipakai, sarankan arsipkan.
+      return fail(409, "INVENTORY_DELETE_BLOCKED", error.message);
+    }
+    throw error;
+  }
 }

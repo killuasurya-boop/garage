@@ -292,12 +292,28 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("Semua");
   const [stat, setStat] = useState<"Semua" | "active" | "archived">("Semua");
+  const [statusOverride, setStatusOverride] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const statusOf = (m: MenuItem) => statusOverride[m.id] ?? m.status ?? "active";
+
+  async function setMenuStatus(id: string, status: "active" | "archived") {
+    setBusy(id);
+    try {
+      await garageApi.patch(`/api/menu/${encodeURIComponent(id)}`, { status });
+      setStatusOverride((prev) => ({ ...prev, [id]: status }));
+    } catch {
+      /* abaikan; user bisa coba lagi */
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const cats = ["Semua", "Coffee", "Non-Coffee", "Makanan", "Cemilan"];
   const needle = q.trim().toLowerCase();
   const filtered = menuItems.filter((m) => {
     if (cat !== "Semua" && m.category !== cat) return false;
-    const s = m.status ?? "active";
+    const s = statusOf(m);
     if (stat !== "Semua" && s !== stat) return false;
     if (needle && !`${m.name} ${m.category}`.toLowerCase().includes(needle)) return false;
     return true;
@@ -369,7 +385,8 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
                 const hpp = m.recipeCost ?? 0;
                 const margin = price > 0 && hpp > 0 ? price - hpp : null;
                 const marginPct = margin != null && price > 0 ? Math.round((margin / price) * 100) : null;
-                const archived = (m.status ?? "active") === "archived";
+                const archived = statusOf(m) === "archived";
+                const isBusy = busy === m.id;
                 return (
                   <tr key={m.id} className="border-b border-[#222228] last:border-0 hover:bg-white/[0.02]">
                     <td className="px-3 py-2 font-semibold text-white">{m.name}</td>
@@ -400,9 +417,22 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
                         <ActionBtn title="Edit di Mode Lengkap" onClick={onOpenFull}>
                           <Pencil className="size-4" />
                         </ActionBtn>
-                        <ActionBtn title="Arsipkan di Mode Lengkap" tone="amber" onClick={onOpenFull}>
-                          <Archive className="size-4" />
-                        </ActionBtn>
+                        {archived ? (
+                          <ActionBtn
+                            title="Aktifkan kembali"
+                            onClick={isBusy ? undefined : () => void setMenuStatus(m.id, "active")}
+                          >
+                            <PackagePlus className="size-4" />
+                          </ActionBtn>
+                        ) : (
+                          <ActionBtn
+                            title="Arsipkan menu ini"
+                            tone="amber"
+                            onClick={isBusy ? undefined : () => void setMenuStatus(m.id, "archived")}
+                          >
+                            <Archive className="size-4" />
+                          </ActionBtn>
+                        )}
                       </div>
                     </td>
                   </tr>

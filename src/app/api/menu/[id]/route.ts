@@ -4,6 +4,7 @@ import { fail, ok } from "@/lib/api-response";
 import {
   deleteMenuProduct,
   getMenuProductAuditHistory,
+  getMenuProductOrderCount,
   updateMenuProduct,
   updateMenuProductStock,
 } from "@/lib/garage-service";
@@ -140,7 +141,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const session = await requireGarageSession(["Owner / CEO", "Admin"]);
@@ -149,6 +150,20 @@ export async function DELETE(
   }
 
   const { id } = await context.params;
+
+  // ?guard=1 → tolak hapus permanen bila produk pernah terjual; sarankan Arsipkan.
+  const guard = new URL(request.url).searchParams.get("guard") === "1";
+  if (guard) {
+    const used = await getMenuProductOrderCount(id);
+    if (used > 0) {
+      return fail(
+        409,
+        "MENU_DELETE_BLOCKED",
+        "Produk ini sudah pernah terjual. Riwayat penjualan tetap aman, tapi sebaiknya Arsipkan saja, jangan hapus permanen.",
+      );
+    }
+  }
+
   const deleted = await deleteMenuProduct(id, session.data);
   if (!deleted) {
     return fail(404, "MENU_PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");

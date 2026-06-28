@@ -1857,6 +1857,15 @@ export async function updateMenuProduct(
   return product ?? null;
 }
 
+// Jumlah order_items yang pernah memakai produk ini (untuk guard hapus permanen).
+export async function getMenuProductOrderCount(id: string) {
+  const [row] = await getDb()
+    .select({ n: count(orderItems.id) })
+    .from(orderItems)
+    .where(eq(orderItems.menuItemId, id.trim()));
+  return Number(row?.n ?? 0);
+}
+
 export async function deleteMenuProduct(id: string, garage: GarageSession) {
   const db = getDb();
   const safeId = id.trim();

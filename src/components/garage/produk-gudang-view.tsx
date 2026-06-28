@@ -294,6 +294,8 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
   const [stat, setStat] = useState<"Semua" | "active" | "archived">("Semua");
   const [statusOverride, setStatusOverride] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState<Record<string, true>>({});
+  const [delErr, setDelErr] = useState<string | null>(null);
 
   const statusOf = (m: MenuItem) => statusOverride[m.id] ?? m.status ?? "active";
 
@@ -309,9 +311,26 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
     }
   }
 
+  async function remove(id: string, name: string) {
+    if (!window.confirm(`Hapus permanen produk "${name}"? Hanya bisa kalau belum pernah terjual.`)) {
+      return;
+    }
+    setBusy(id);
+    try {
+      await garageApi.delete(`/api/menu/${encodeURIComponent(id)}?guard=1`);
+      setDeleted((prev) => ({ ...prev, [id]: true }));
+      setDelErr(null);
+    } catch (e) {
+      setDelErr(e instanceof Error ? e.message : "Gagal menghapus produk.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const cats = ["Semua", "Coffee", "Non-Coffee", "Makanan", "Cemilan"];
   const needle = q.trim().toLowerCase();
   const filtered = menuItems.filter((m) => {
+    if (deleted[m.id]) return false;
     if (cat !== "Semua" && m.category !== cat) return false;
     const s = statusOf(m);
     if (stat !== "Semua" && s !== stat) return false;
@@ -351,6 +370,12 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
           ))}
         </div>
       </div>
+
+      {delErr ? (
+        <div className="rounded-md border border-[#ff6b6b]/40 bg-[#ff6b6b]/10 px-3 py-2 text-sm text-[#ffb3b3]">
+          {delErr}
+        </div>
+      ) : null}
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -433,6 +458,13 @@ function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?
                             <Archive className="size-4" />
                           </ActionBtn>
                         )}
+                        <ActionBtn
+                          title="Hapus permanen (hanya jika belum pernah terjual)"
+                          tone="danger"
+                          onClick={isBusy ? undefined : () => void remove(m.id, m.name)}
+                        >
+                          <Trash2 className="size-4" />
+                        </ActionBtn>
                       </div>
                     </td>
                   </tr>

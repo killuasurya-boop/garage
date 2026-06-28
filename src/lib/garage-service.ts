@@ -8976,6 +8976,54 @@ export async function updateCustomerOrderStatus(
   };
 }
 
+// Potong stok bahan otomatis dari resep aktif saat menu terjual. Mencatat
+// stockMovements (stock_out) + mengurangi onHand (tidak boleh minus). Dipanggil
+// di luar transaksi order + try/catch supaya gangguan stok tak membatalkan jual.
+async function applyRecipeStockDeduction(input: {
+  lines: Array<{ itemId: string; variantId: string; qty: number; itemName: string }>;
+  orderNo: string;
+  actor: string;
+}) {
+  const db = getDb();
+  for (const line of input.lines) {
+    const recipeRows = await db
+      .select()
+      .from(menuRecipes)
+      .where(
+        and(
+          eq(menuRecipes.menuItemId, line.itemId),
+          eq(menuRecipes.status, "active"),
+          or(eq(menuRecipes.variantId, line.variantId), eq(menuRecipes.variantId, "all")),
+        ),
+      );
+    if (recipeRows.length === 0) continue;
+
+    // Hindari dobel potong: utamakan resep khusus varian, kalau tak ada pakai "all".
+    const specific = recipeRows.filter((r) => r.variantId === line.variantId);
+    const used = specific.length ? specific : recipeRows.filter((r) => r.variantId === "all");
+
+    for (const r of used) {
+      if (!r.inventorySku) continue;
+      const consume = r.qty * line.qty * (1 + (r.wastePct ?? 0) / 100);
+      if (consume <= 0) continue;
+      await db
+        .update(inventoryItems)
+        .set({
+          onHand: sql`GREATEST(0, ${inventoryItems.onHand} - ${consume})`,
+          updatedAt: new Date(),
+        })
+        .where(eq(inventoryItems.sku, r.inventorySku));
+      await db.insert(stockMovements).values({
+        itemSku: r.inventorySku,
+        type: "stock_out",
+        note: `Terjual: ${line.qty}x ${line.itemName} (order ${input.orderNo})`,
+        qty: consume,
+        actor: input.actor || "Kasir",
+      });
+    }
+  }
+}
+
 export async function createOrder(input: OrderInput, garage: GarageSession) {
   const db = getDb();
   const [openCashSession] = await db
@@ -9676,6 +9724,27 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     await recordOrderPaidEarnings({ ...orderPaidPayload, fees: feeRates });
   } catch (error) {
     await enqueueFailedEarning("order_paid", orderPaidPayload, error);
+  }
+
+  // Potong stok bahan otomatis dari resep (bila diaktifkan di Pengaturan).
+  if (settings.inventoryAutoDeduct) {
+    try {
+      await applyRecipeStockDeduction({
+        lines: lines.map((l) => ({
+          itemId: l.itemId,
+          variantId: l.variantId,
+          qty: l.qty,
+          itemName: l.itemName,
+        })),
+        orderNo,
+        actor: garage.user.name,
+      });
+    } catch (error) {
+      console.warn(
+        "[garage] auto-deduct stok gagal:",
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   const invoicePdfPath = `/api/orders/${created.orderRow.id}/invoice`;

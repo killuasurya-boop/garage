@@ -135,6 +135,12 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         defaultValue: DEFAULT_APP_SETTINGS.cashDrawerOnPayment,
       },
       {
+        key: "inventoryAutoDeduct",
+        label: "Potong stok bahan otomatis saat menu terjual (dari resep)",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.inventoryAutoDeduct,
+      },
+      {
         key: "defaultPaymentMethod",
         label: "Metode pembayaran default",
         type: "select",

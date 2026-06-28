@@ -806,7 +806,8 @@ function GudangTab({
     <div className="space-y-3">
       <Helper>
         Gudang mencatat pergerakan stok: <b>Stok Masuk</b>, <b>Stok Keluar</b>, <b>Koreksi Stok</b>, dan
-        <b> Transfer</b>. Gunakan Mode Lengkap untuk input stok masuk, opname, dan transfer antar lokasi.
+        <b> Transfer</b>. Stok bahan <b>berkurang otomatis</b> saat menu yang punya resep terjual
+        (entri &quot;Terjual: …&quot;). Atur on/off di Pengaturan → POS. Stok masuk/opname/transfer ada di Mode Lengkap.
       </Helper>
 
       <div className="flex flex-wrap gap-2">

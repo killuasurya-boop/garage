@@ -69,6 +69,8 @@ export type AppSettings = {
   requireManagerForVoid: boolean;
   cashDrawerOnPayment: boolean;
   defaultPaymentMethod: string;
+  // Gudang: potong stok bahan otomatis dari resep saat menu terjual.
+  inventoryAutoDeduct: boolean;
   quickReorderWindowMinutes: number;
   // Receipt extra
   receiptHeaderText: string;
@@ -165,6 +167,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   requireManagerForVoid: true,
   cashDrawerOnPayment: true,
   defaultPaymentMethod: "cash",
+  inventoryAutoDeduct: true,
   quickReorderWindowMinutes: 30,
   // Receipt extra
   receiptHeaderText: "Garage Coffee & Motor\nJl. Contoh No. 1, Jakarta",

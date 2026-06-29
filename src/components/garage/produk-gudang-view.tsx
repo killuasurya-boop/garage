@@ -10,10 +10,14 @@ import {
   FlaskConical,
   Info,
   Layers,
+  Check,
+  ChevronDown,
+  Copy,
   PackagePlus,
   Pencil,
   Plus,
   Search,
+  ShoppingCart,
   SlidersHorizontal,
   Trash2,
   Warehouse,
@@ -287,6 +291,79 @@ function RingkasanCards({
   );
 }
 
+// ── Daftar Belanja otomatis (bahan di bawah minimum) ─────────────────────────
+function DaftarBelanja({ items }: { items: InventoryItem[] }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const low = items.filter((i) => i.onHand <= i.min);
+
+  if (low.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-[#22c55e]/30 bg-[#22c55e]/[0.08] px-3 py-2 text-sm text-[#86efac]">
+        <Check className="size-4 shrink-0" /> Semua stok aman — belum ada yang perlu dibeli.
+      </div>
+    );
+  }
+
+  const text = low
+    .map((i) => `- ${i.name}: stok ${i.onHand} ${i.unit} (min ${i.min} ${i.unit})`)
+    .join("\n");
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(`Daftar Belanja Garage\n${text}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard tidak tersedia */
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-[#f5a742]/35 bg-[#f5a742]/[0.06]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+      >
+        <span className="flex items-center gap-2 font-bold text-[#ffd08a]">
+          <ShoppingCart className="size-4 shrink-0" /> Daftar Belanja — {low.length} bahan perlu dibeli
+        </span>
+        <ChevronDown className={`size-4 shrink-0 text-[#ffd08a] transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-[#f5a742]/20 p-3">
+          <ul className="space-y-1 text-sm">
+            {low.map((i) => (
+              <li key={i.sku} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-semibold text-white">{i.name}</span>
+                <span className="shrink-0 text-[#cfcfd6]">
+                  stok {i.onHand} {i.unit} <span className="text-[#9a9aa4]">/ min {i.min}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            onClick={() => void copy()}
+            className="min-h-9 bg-[#f5a742] text-black hover:bg-[#ffc167]"
+          >
+            {copied ? (
+              <>
+                <Check className="size-4" /> Tersalin
+              </>
+            ) : (
+              <>
+                <Copy className="size-4" /> Salin daftar
+              </>
+            )}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ── Tab 1: Menu Jualan ──────────────────────────────────────────────────────
 function MenuTab({ menuItems, onOpenFull }: { menuItems: MenuItem[]; onOpenFull?: () => void }) {
   const [q, setQ] = useState("");
@@ -543,6 +620,10 @@ function BahanTab({
         Bahan baku adalah semua barang yang dipakai untuk membuat menu, seperti kopi, susu, gula,
         sirup, nasi, ayam, dan kemasan. Tandai stok yang menipis agar tidak kehabisan.
       </Helper>
+
+      <DaftarBelanja
+        items={inventoryItems.filter((i) => !deleted[i.sku] && stageOf(i) !== "archived")}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[180px] flex-1">

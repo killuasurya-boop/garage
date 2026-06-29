@@ -8998,11 +8998,10 @@ async function applyRecipeStockDeduction(input: {
       );
     if (recipeRows.length === 0) continue;
 
-    // Hindari dobel potong: utamakan resep khusus varian, kalau tak ada pakai "all".
-    const specific = recipeRows.filter((r) => r.variantId === line.variantId);
-    const used = specific.length ? specific : recipeRows.filter((r) => r.variantId === "all");
-
-    for (const r of used) {
+    // ADDITIF: konsumsi semua resep yang cocok (varian + "all" dijumlah) — sama
+    // dengan perhitungan HPP/COGS & deduction order customer, supaya stok yang
+    // terpotong konsisten dengan modal yang ditampilkan.
+    for (const r of recipeRows) {
       if (!r.inventorySku) continue;
       const consume = r.qty * line.qty * (1 + (r.wastePct ?? 0) / 100);
       if (consume <= 0) continue;

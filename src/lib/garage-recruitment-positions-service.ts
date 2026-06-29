@@ -29,26 +29,37 @@ export type PositionInput = {
   sortOrder?: number;
 };
 
-// Pastikan tabel tidak kosong — seed dari data hardcode jika perlu.
+// Self-healing seed: pastikan SEMUA posisi default ada (insert yang slug-nya
+// belum ada). Aman dijalankan berulang & di DB yang sudah pernah ter-seed —
+// posisi baru yang ditambah ke RECRUITMENT_POSITIONS otomatis ikut muncul.
 async function ensureSeeded() {
   const db = await ensureDatabaseReady();
-  const existing = await db.select({ id: recruitmentPositions.id }).from(recruitmentPositions).limit(1);
-  if (existing.length > 0) return;
+  const existingRows = await db
+    .select({ slug: recruitmentPositions.slug })
+    .from(recruitmentPositions);
+  const existingSlugs = new Set(existingRows.map((r) => r.slug));
 
-  // Seed posisi dari data hardcode lama
-  await db.insert(recruitmentPositions).values(
-    SEED_POSITIONS.map((p, i) => ({
-      slug: p.slug,
-      title: p.title,
-      location: p.location,
-      type: p.type,
-      experience: p.experience,
-      description: p.description,
-      isOpen: true,
-      sortOrder: i,
-      updatedAt: new Date(),
-    })),
-  ).onConflictDoNothing();
+  const missing = SEED_POSITIONS.map((p, i) => ({ p, i })).filter(
+    ({ p }) => !existingSlugs.has(p.slug),
+  );
+  if (missing.length === 0) return;
+
+  await db
+    .insert(recruitmentPositions)
+    .values(
+      missing.map(({ p, i }) => ({
+        slug: p.slug,
+        title: p.title,
+        location: p.location,
+        type: p.type,
+        experience: p.experience,
+        description: p.description,
+        isOpen: true,
+        sortOrder: i,
+        updatedAt: new Date(),
+      })),
+    )
+    .onConflictDoNothing({ target: recruitmentPositions.slug });
 }
 
 function mapRow(row: typeof recruitmentPositions.$inferSelect): RecruitmentPositionRow {

@@ -229,7 +229,11 @@ export function ProdukGudangView({
           <ResepTab menuItems={menuItems} />
         </TabsContent>
         <TabsContent value="gudang" className="mt-3">
-          <GudangTab stockMovements={stockMovements} onOpenFull={fullView ? () => setShowFull(true) : undefined} />
+          <GudangTab
+            stockMovements={stockMovements}
+            inventoryItems={inventoryItems}
+            onOpenFull={fullView ? () => setShowFull(true) : undefined}
+          />
         </TabsContent>
         <TabsContent value="riset" className="mt-3">
           <RisetTab />
@@ -878,38 +882,136 @@ function ResepTab({ menuItems }: { menuItems: MenuItem[] }) {
 // ── Tab 4: Gudang ───────────────────────────────────────────────────────────
 function GudangTab({
   stockMovements,
+  inventoryItems,
   onOpenFull,
 }: {
   stockMovements: string[];
+  inventoryItems: InventoryItem[];
   onOpenFull?: () => void;
 }) {
+  const [formOpen, setFormOpen] = useState(false);
+  const [sku, setSku] = useState("");
+  const [qty, setQty] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [extra, setExtra] = useState<string[]>([]); // entri baru sesi ini
+
+  const bahanAktif = inventoryItems.filter((i) => (i.stage ?? "active") !== "archived");
+
+  async function submitStokMasuk() {
+    const jumlah = Number(qty);
+    if (!sku || !Number.isFinite(jumlah) || jumlah <= 0 || busy) return;
+    const item = inventoryItems.find((i) => i.sku === sku);
+    const catatan = note.trim() || `Stok masuk ${jumlah} ${item?.unit ?? ""}`.trim();
+    setBusy(true);
+    try {
+      await garageApi.post("/api/inventory/movements", {
+        itemSku: sku,
+        type: "stock_in",
+        note: catatan,
+        qty: jumlah,
+        applyToStock: true,
+      });
+      setExtra((prev) => [`${catatan} — ${item?.name ?? sku}`, ...prev]);
+      setMsg(`Stok ${item?.name ?? sku} bertambah ${jumlah} ${item?.unit ?? ""}.`);
+      setQty("");
+      setNote("");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Gagal menyimpan stok masuk.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <Helper>
         Gudang mencatat pergerakan stok: <b>Stok Masuk</b>, <b>Stok Keluar</b>, <b>Koreksi Stok</b>, dan
         <b> Transfer</b>. Stok bahan <b>berkurang otomatis</b> saat menu yang punya resep terjual
-        (entri &quot;Terjual: …&quot;). Atur on/off di Pengaturan → POS. Stok masuk/opname/transfer ada di Mode Lengkap.
+        (entri &quot;Terjual: …&quot;). Atur on/off di Pengaturan → POS. Stok keluar/opname/transfer ada di Mode Lengkap.
       </Helper>
 
       <div className="flex flex-wrap gap-2">
-        {[
-          { label: "Stok Masuk", icon: PackagePlus },
-          { label: "Stok Keluar", icon: Boxes },
-          { label: "Koreksi Stok", icon: SlidersHorizontal },
-        ].map(({ label, icon: Icon }) => (
-          <Button
-            key={label}
-            type="button"
-            variant="outline"
-            onClick={onOpenFull}
-            className="min-h-9 border-[#4a4a54] bg-white/[0.05] text-[#cfcfd6]"
-          >
-            <Icon className="size-4" /> {label}
-          </Button>
-        ))}
+        <Button
+          type="button"
+          onClick={() => setFormOpen((v) => !v)}
+          className="min-h-9 bg-[#22c55e] text-[#04140a] hover:bg-[#34d77f]"
+        >
+          <PackagePlus className="size-4" /> Stok Masuk (Belanja)
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onOpenFull}
+          className="min-h-9 border-[#4a4a54] bg-white/[0.05] text-[#cfcfd6]"
+        >
+          <Boxes className="size-4" /> Stok Keluar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onOpenFull}
+          className="min-h-9 border-[#4a4a54] bg-white/[0.05] text-[#cfcfd6]"
+        >
+          <SlidersHorizontal className="size-4" /> Koreksi Stok
+        </Button>
       </div>
 
-      {stockMovements.length === 0 ? (
+      {formOpen ? (
+        <div className="space-y-2 rounded-lg border border-[#22c55e]/30 bg-[#22c55e]/[0.05] p-3">
+          <p className="text-sm font-bold text-[#86efac]">Catat belanja / stok masuk</p>
+          <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
+            <select
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              className="h-9 rounded-md border border-[#34343c] bg-[#14141a] px-2 text-sm text-white"
+            >
+              <option value="">Pilih bahan…</option>
+              {bahanAktif.map((i) => (
+                <option key={i.sku} value={i.sku}>
+                  {i.name} (stok {i.onHand} {i.unit})
+                </option>
+              ))}
+            </select>
+            <Input
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              inputMode="decimal"
+              placeholder="Jumlah"
+              className="h-9 border-[#34343c] bg-white/[0.06]"
+            />
+          </div>
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Catatan (opsional, mis. beli di Pasar Pagi)"
+            className="h-9 border-[#34343c] bg-white/[0.06]"
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFormOpen(false)}
+              className="min-h-9 border-[#4a4a54] bg-white/[0.05] text-[#cfcfd6]"
+            >
+              Tutup
+            </Button>
+            <Button
+              type="button"
+              disabled={!sku || !qty || busy}
+              onClick={() => void submitStokMasuk()}
+              className="min-h-9 bg-[#22c55e] text-[#04140a] hover:bg-[#34d77f]"
+            >
+              Simpan stok masuk
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {msg ? <p className="text-sm text-[#86efac]">{msg}</p> : null}
+
+      {stockMovements.length === 0 && extra.length === 0 ? (
         <EmptyState
           icon={Warehouse}
           title="Belum ada pergerakan stok"
@@ -917,10 +1019,14 @@ function GudangTab({
         />
       ) : (
         <div className="garage-scroll-y max-h-[460px] space-y-1.5 overflow-y-auto rounded-lg border border-[#2a2a32] p-2">
-          {stockMovements.map((line, idx) => (
+          {[...extra, ...stockMovements].map((line, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-2 rounded-md border border-[#222228] bg-white/[0.02] px-3 py-2 text-sm text-[#d4d4d8]"
+              className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
+                idx < extra.length
+                  ? "border-[#22c55e]/30 bg-[#22c55e]/[0.06] text-[#bbf7d0]"
+                  : "border-[#222228] bg-white/[0.02] text-[#d4d4d8]"
+              }`}
             >
               <Warehouse className="mt-0.5 size-4 shrink-0 text-[#f5a742]" />
               <span className="min-w-0">{line}</span>

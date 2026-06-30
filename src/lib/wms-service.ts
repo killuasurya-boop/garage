@@ -2,7 +2,10 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  wmsBatch,
   wmsProduct,
+  wmsReceiving,
+  wmsReceivingItem,
   wmsStockMovement,
   wmsWarehouse,
   wmsWarehouseStock,
@@ -277,4 +280,201 @@ export async function getWmsDashboard(params?: { warehouseId?: string }): Promis
       createdAt: r.createdAt.toISOString(),
     })),
   };
+}
+
+// =============================================================================
+// FASE 2 — Receiving (penerimaan barang). Saat complete: +stok + buat batch +
+// update HPP rata-rata produk (weighted average) + catat ledger.
+// =============================================================================
+
+function makeWmsDoc(prefix: string) {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${ymd}-${rand}`;
+}
+
+async function totalOnHand(db: Db, productId: string): Promise<number> {
+  const [row] = await db
+    .select({ total: sql<number>`coalesce(sum(${wmsWarehouseStock.qty}), 0)` })
+    .from(wmsWarehouseStock)
+    .where(eq(wmsWarehouseStock.productId, productId));
+  return Number(row?.total ?? 0);
+}
+
+export type ReceivingItemInput = {
+  productId: string;
+  orderedQty: number;
+  receivedQty: number;
+  hpp: number;
+  qc?: "pass" | "discrepancy" | "reject";
+  batchNo?: string;
+  expiredAt?: string | null;
+};
+
+export async function createReceiving(
+  input: {
+    supplier?: string;
+    warehouseId?: string;
+    items: ReceivingItemInput[];
+  },
+  userId?: string | null,
+) {
+  const db = getDb();
+  const whId = input.warehouseId ?? (await primaryWarehouseId(db));
+  const [rec] = await db
+    .insert(wmsReceiving)
+    .values({
+      doc: makeWmsDoc("RCV"),
+      supplier: input.supplier?.trim() ?? "",
+      warehouseId: whId,
+      status: "draft",
+      createdBy: userId ?? null,
+    })
+    .returning();
+
+  if (input.items.length) {
+    await db.insert(wmsReceivingItem).values(
+      input.items.map((it) => ({
+        receivingId: rec.id,
+        productId: it.productId,
+        orderedQty: it.orderedQty,
+        receivedQty: it.receivedQty,
+        hpp: it.hpp,
+        qc: it.qc ?? "pass",
+        batchNo: it.batchNo ?? null,
+        expiredAt: it.expiredAt ? new Date(it.expiredAt) : null,
+      })),
+    );
+  }
+  return rec;
+}
+
+export async function listReceivings() {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: wmsReceiving.id,
+      doc: wmsReceiving.doc,
+      supplier: wmsReceiving.supplier,
+      status: wmsReceiving.status,
+      createdAt: wmsReceiving.createdAt,
+      items: sql<number>`count(${wmsReceivingItem.id})::int`,
+      totalValue: sql<number>`coalesce(sum(${wmsReceivingItem.receivedQty} * ${wmsReceivingItem.hpp}), 0)`,
+    })
+    .from(wmsReceiving)
+    .leftJoin(wmsReceivingItem, eq(wmsReceivingItem.receivingId, wmsReceiving.id))
+    .groupBy(wmsReceiving.id)
+    .orderBy(desc(wmsReceiving.createdAt))
+    .limit(100);
+  return rows.map((r) => ({
+    id: r.id,
+    doc: r.doc,
+    supplier: r.supplier,
+    status: r.status,
+    items: Number(r.items),
+    totalValue: Math.round(Number(r.totalValue)),
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function getReceiving(id: string) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).limit(1);
+  if (!rec) return null;
+  const items = await db
+    .select({
+      id: wmsReceivingItem.id,
+      productId: wmsReceivingItem.productId,
+      productName: wmsProduct.name,
+      sku: wmsProduct.sku,
+      unit: wmsProduct.unit,
+      orderedQty: wmsReceivingItem.orderedQty,
+      receivedQty: wmsReceivingItem.receivedQty,
+      hpp: wmsReceivingItem.hpp,
+      qc: wmsReceivingItem.qc,
+      batchNo: wmsReceivingItem.batchNo,
+      expiredAt: wmsReceivingItem.expiredAt,
+    })
+    .from(wmsReceivingItem)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsReceivingItem.productId))
+    .where(eq(wmsReceivingItem.receivingId, id));
+  return {
+    id: rec.id,
+    doc: rec.doc,
+    supplier: rec.supplier,
+    warehouseId: rec.warehouseId,
+    status: rec.status,
+    createdAt: rec.createdAt.toISOString(),
+    items: items.map((it) => ({
+      ...it,
+      expiredAt: it.expiredAt ? it.expiredAt.toISOString() : null,
+    })),
+  };
+}
+
+/** Selesaikan receiving: hanya item QC pass yang diterima → +stok +batch +HPP avg. */
+export async function completeReceiving(id: string, userId?: string | null) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).limit(1);
+  if (!rec) return null;
+  if (rec.status === "completed") return rec; // idempoten
+  const whId = rec.warehouseId;
+  if (!whId) throw new Error("Receiving tanpa warehouse tidak bisa diselesaikan.");
+
+  const items = await db
+    .select()
+    .from(wmsReceivingItem)
+    .where(eq(wmsReceivingItem.receivingId, id));
+
+  for (const it of items) {
+    if (!it.productId) continue;
+    if (it.qc === "reject") continue;
+    const qty = Number(it.receivedQty);
+    if (qty <= 0) continue;
+
+    // HPP rata-rata tertimbang (berdasarkan total stok lama).
+    const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+    if (prod) {
+      const oldQty = await totalOnHand(db, it.productId);
+      const oldValue = oldQty * Number(prod.hpp);
+      const newQty = oldQty + qty;
+      const newHpp = newQty > 0 ? (oldValue + qty * Number(it.hpp)) / newQty : Number(it.hpp);
+      await db
+        .update(wmsProduct)
+        .set({ hpp: newHpp, updatedAt: new Date() })
+        .where(eq(wmsProduct.id, it.productId));
+    }
+
+    // Buat batch (FEFO).
+    await db.insert(wmsBatch).values({
+      productId: it.productId,
+      warehouseId: whId,
+      batchNo: it.batchNo ?? makeWmsDoc("BATCH"),
+      expiredAt: it.expiredAt ?? null,
+      qty,
+      hpp: Number(it.hpp),
+      location: "",
+    });
+
+    // +stok + ledger.
+    await recordStockMovement(db, {
+      type: "in",
+      productId: it.productId,
+      warehouseId: whId,
+      deltaQty: qty,
+      hpp: Number(it.hpp),
+      refDoc: rec.doc,
+      userId: userId ?? null,
+    });
+  }
+
+  const [updated] = await db
+    .update(wmsReceiving)
+    .set({ status: "completed" })
+    .where(eq(wmsReceiving.id, id))
+    .returning();
+  return updated;
 }

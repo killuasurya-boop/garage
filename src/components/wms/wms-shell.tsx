@@ -44,7 +44,7 @@ const NAV: NavGroup[] = [
       { label: "Dashboard", href: "/warehouse", icon: LayoutDashboard },
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
       { label: "Scan Barcode", icon: ScanLine, soon: true },
-      { label: "Receiving", icon: Truck, soon: true },
+      { label: "Receiving", href: "/warehouse/receiving", icon: Truck },
       { label: "Transfer", icon: ArrowLeftRight, soon: true },
     ],
   },
@@ -274,5 +274,6 @@ export function WmsShell({
 function pageTitle(pathname: string) {
   if (pathname === "/warehouse") return "Dashboard";
   if (pathname.startsWith("/warehouse/inventory")) return "Inventory";
+  if (pathname.startsWith("/warehouse/receiving")) return "Receiving";
   return "Warehouse";
 }

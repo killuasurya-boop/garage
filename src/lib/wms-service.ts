@@ -3,6 +3,8 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   wmsBatch,
+  wmsInternalOrder,
+  wmsInternalOrderItem,
   wmsProduct,
   wmsReceiving,
   wmsReceivingItem,
@@ -107,6 +109,15 @@ export async function ensureWmsSeeded() {
         deltaQty: initial,
         hpp,
         refDoc: "SEED",
+      });
+      // Batch awal agar FEFO punya sumber biaya & kadaluarsa.
+      await db.insert(wmsBatch).values({
+        productId: prod.id,
+        warehouseId: main.id,
+        batchNo: `SEED-${sku}`,
+        qty: initial,
+        hpp,
+        location: "",
       });
     }
   }
@@ -477,4 +488,169 @@ export async function completeReceiving(id: string, userId?: string | null) {
     .where(eq(wmsReceiving.id, id))
     .returning();
   return updated;
+}
+
+// =============================================================================
+// FASE 3 — Internal Order + FEFO (inti). Gudang Utama "menjual" bahan ke outlet
+// (Dapur/Bar). Pengambilan batch FEFO (expired terdekat dulu); potong stok
+// sumber + tambah stok outlet + ledger. Biaya (lineHpp) dari batch yang dipakai.
+// =============================================================================
+
+/** Stok agregat produk di sebuah warehouse. */
+async function warehouseOnHand(db: Db, productId: string, warehouseId: string): Promise<number> {
+  const [row] = await db
+    .select({ qty: wmsWarehouseStock.qty })
+    .from(wmsWarehouseStock)
+    .where(
+      and(eq(wmsWarehouseStock.productId, productId), eq(wmsWarehouseStock.warehouseId, warehouseId)),
+    )
+    .limit(1);
+  return Number(row?.qty ?? 0);
+}
+
+/** Konsumsi qty dari batch FEFO di warehouse sumber → kembalikan total biaya. */
+async function consumeFefo(
+  db: Db,
+  productId: string,
+  warehouseId: string,
+  qty: number,
+  fallbackHpp: number,
+): Promise<number> {
+  const batches = await db
+    .select()
+    .from(wmsBatch)
+    .where(
+      and(
+        eq(wmsBatch.productId, productId),
+        eq(wmsBatch.warehouseId, warehouseId),
+        sql`${wmsBatch.qty} > 0`,
+      ),
+    )
+    .orderBy(sql`${wmsBatch.expiredAt} ASC NULLS LAST`, wmsBatch.receivedAt);
+
+  let remaining = qty;
+  let cost = 0;
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(Number(b.qty), remaining);
+    if (take <= 0) continue;
+    cost += take * Number(b.hpp);
+    remaining -= take;
+    await db
+      .update(wmsBatch)
+      .set({ qty: Number(b.qty) - take })
+      .where(eq(wmsBatch.id, b.id));
+  }
+  // Batch kurang dari permintaan (data tak sinkron) → sisanya pakai HPP produk.
+  if (remaining > 0) cost += remaining * fallbackHpp;
+  return cost;
+}
+
+export type InternalOrderItemInput = { productId: string; qty: number };
+
+export async function createInternalOrder(
+  input: { outletWarehouseId: string; items: InternalOrderItemInput[] },
+  userId?: string | null,
+) {
+  const db = getDb();
+  const source = await primaryWarehouseId(db);
+  if (!source) throw new Error("Gudang utama belum ada.");
+  if (input.outletWarehouseId === source) throw new Error("Outlet tujuan tidak boleh gudang utama.");
+
+  // Validasi semua item dulu (atomic-ish: jangan potong sebagian).
+  const lines: Array<{ productId: string; qty: number; fallbackHpp: number }> = [];
+  for (const it of input.items) {
+    const qty = Number(it.qty);
+    if (qty <= 0) continue;
+    const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+    if (!prod) throw new Error("Produk tidak ditemukan.");
+    const avail = await warehouseOnHand(db, it.productId, source);
+    if (qty > avail) {
+      throw new Error(`Stok ${prod.name} tidak cukup (tersedia ${avail}, diminta ${qty}).`);
+    }
+    lines.push({ productId: it.productId, qty, fallbackHpp: Number(prod.hpp) });
+  }
+  if (lines.length === 0) throw new Error("Tidak ada item valid.");
+
+  const [order] = await db
+    .insert(wmsInternalOrder)
+    .values({
+      doc: makeWmsDoc("IO"),
+      outletWarehouseId: input.outletWarehouseId,
+      status: "issued",
+      totalHpp: 0,
+      createdBy: userId ?? null,
+    })
+    .returning();
+
+  let totalHpp = 0;
+  for (const ln of lines) {
+    const cost = await consumeFefo(db, ln.productId, source, ln.qty, ln.fallbackHpp);
+    const unit = ln.qty > 0 ? cost / ln.qty : 0;
+
+    // Potong stok gudang utama (internal_out) + tambah stok outlet (in).
+    await recordStockMovement(db, {
+      type: "internal_out",
+      productId: ln.productId,
+      warehouseId: source,
+      deltaQty: -ln.qty,
+      hpp: unit,
+      refDoc: order.doc,
+      userId: userId ?? null,
+    });
+    await recordStockMovement(db, {
+      type: "in",
+      productId: ln.productId,
+      warehouseId: input.outletWarehouseId,
+      deltaQty: ln.qty,
+      hpp: unit,
+      refDoc: order.doc,
+      userId: userId ?? null,
+    });
+
+    await db.insert(wmsInternalOrderItem).values({
+      orderId: order.id,
+      productId: ln.productId,
+      qty: ln.qty,
+      lineHpp: cost,
+    });
+    totalHpp += cost;
+  }
+
+  const [updated] = await db
+    .update(wmsInternalOrder)
+    .set({ totalHpp })
+    .where(eq(wmsInternalOrder.id, order.id))
+    .returning();
+  return updated;
+}
+
+export async function listInternalOrders() {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: wmsInternalOrder.id,
+      doc: wmsInternalOrder.doc,
+      status: wmsInternalOrder.status,
+      totalHpp: wmsInternalOrder.totalHpp,
+      createdAt: wmsInternalOrder.createdAt,
+      outletCode: wmsWarehouse.code,
+      outletName: wmsWarehouse.name,
+      items: sql<number>`count(${wmsInternalOrderItem.id})::int`,
+    })
+    .from(wmsInternalOrder)
+    .leftJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsInternalOrder.outletWarehouseId))
+    .leftJoin(wmsInternalOrderItem, eq(wmsInternalOrderItem.orderId, wmsInternalOrder.id))
+    .groupBy(wmsInternalOrder.id, wmsWarehouse.code, wmsWarehouse.name)
+    .orderBy(desc(wmsInternalOrder.createdAt))
+    .limit(100);
+  return rows.map((r) => ({
+    id: r.id,
+    doc: r.doc,
+    status: r.status,
+    totalHpp: Math.round(Number(r.totalHpp)),
+    outlet: r.outletName ? `${r.outletCode} · ${r.outletName}` : "-",
+    items: Number(r.items),
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

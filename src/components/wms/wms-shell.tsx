@@ -51,7 +51,7 @@ const NAV: NavGroup[] = [
   {
     title: "Operations",
     items: [
-      { label: "Internal Order", icon: ShoppingCart, soon: true },
+      { label: "Internal Order", href: "/warehouse/internal-order", icon: ShoppingCart },
       { label: "Kitchen", icon: ChefHat, soon: true },
       { label: "Bar", icon: Coffee, soon: true },
       { label: "Recipe", icon: BookOpen, soon: true },
@@ -275,5 +275,6 @@ function pageTitle(pathname: string) {
   if (pathname === "/warehouse") return "Dashboard";
   if (pathname.startsWith("/warehouse/inventory")) return "Inventory";
   if (pathname.startsWith("/warehouse/receiving")) return "Receiving";
+  if (pathname.startsWith("/warehouse/internal-order")) return "Internal Order";
   return "Warehouse";
 }

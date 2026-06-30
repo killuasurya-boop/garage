@@ -61,9 +61,9 @@ const NAV: NavGroup[] = [
   {
     title: "Control",
     items: [
-      { label: "Stock Opname", icon: ClipboardCheck, soon: true },
-      { label: "Adjustment", icon: Sliders, soon: true },
-      { label: "Reports", icon: FileBarChart, soon: true },
+      { label: "Stock Opname", href: "/warehouse/opname", icon: ClipboardCheck },
+      { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders },
+      { label: "Reports", href: "/warehouse/reports", icon: FileBarChart },
       { label: "Keuangan & HPP", href: "/warehouse/keuangan", icon: Wallet },
     ],
   },
@@ -278,5 +278,8 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/internal-order")) return "Internal Order";
   if (pathname.startsWith("/warehouse/recipe")) return "Recipe / BOM";
   if (pathname.startsWith("/warehouse/keuangan")) return "Keuangan & HPP";
+  if (pathname.startsWith("/warehouse/reports")) return "Reports";
+  if (pathname.startsWith("/warehouse/opname")) return "Stock Opname";
+  if (pathname.startsWith("/warehouse/adjustment")) return "Adjustment";
   return "Warehouse";
 }

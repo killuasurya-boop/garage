@@ -6,11 +6,13 @@ import {
   wmsBomItem,
   wmsInternalOrder,
   wmsInternalOrderItem,
+  wmsOpnameLine,
   wmsProduct,
   wmsReceiving,
   wmsReceivingItem,
   wmsRecipe,
   wmsStockMovement,
+  wmsStockOpname,
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
@@ -794,4 +796,222 @@ export async function getWmsFinanceOverview() {
       hpp: p.hpp,
     })),
   };
+}
+
+// =============================================================================
+// FASE 5 — Reports (dari ledger) + Stock Opname + Adjustment.
+// =============================================================================
+
+export async function getWmsReports(params?: { from?: string; to?: string; type?: string }) {
+  const db = getDb();
+  const filters = [];
+  if (params?.from) filters.push(sql`${wmsStockMovement.createdAt} >= ${new Date(params.from)}`);
+  if (params?.to) filters.push(sql`${wmsStockMovement.createdAt} <= ${new Date(params.to)}`);
+  if (params?.type && params.type !== "all") filters.push(eq(wmsStockMovement.type, params.type));
+  const where = filters.length ? and(...filters) : undefined;
+
+  const [agg] = await db
+    .select({
+      masuk: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} > 0 then ${wmsStockMovement.qty} else 0 end), 0)`,
+      keluar: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then -${wmsStockMovement.qty} else 0 end), 0)`,
+      valueMasuk: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} > 0 then ${wmsStockMovement.valueHpp} else 0 end), 0)`,
+      valueKeluar: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then ${wmsStockMovement.valueHpp} else 0 end), 0)`,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(wmsStockMovement)
+    .where(where);
+
+  const bars = await db
+    .select({
+      day: sql<string>`to_char(${wmsStockMovement.createdAt} AT TIME ZONE 'Asia/Jakarta', 'DD/MM')`,
+      masuk: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} > 0 then ${wmsStockMovement.qty} else 0 end), 0)`,
+      keluar: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then -${wmsStockMovement.qty} else 0 end), 0)`,
+    })
+    .from(wmsStockMovement)
+    .where(where)
+    .groupBy(sql`1`)
+    .orderBy(sql`1`);
+
+  const rows = await db
+    .select({
+      id: wmsStockMovement.id,
+      type: wmsStockMovement.type,
+      qty: wmsStockMovement.qty,
+      valueHpp: wmsStockMovement.valueHpp,
+      refDoc: wmsStockMovement.refDoc,
+      createdAt: wmsStockMovement.createdAt,
+      productName: wmsProduct.name,
+      warehouseName: wmsWarehouse.name,
+    })
+    .from(wmsStockMovement)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsStockMovement.productId))
+    .leftJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsStockMovement.warehouseId))
+    .where(where)
+    .orderBy(desc(wmsStockMovement.createdAt))
+    .limit(200);
+
+  return {
+    kpis: {
+      masuk: Math.round(Number(agg?.masuk ?? 0)),
+      keluar: Math.round(Number(agg?.keluar ?? 0)),
+      valueMasuk: Math.round(Number(agg?.valueMasuk ?? 0)),
+      valueKeluar: Math.round(Number(agg?.valueKeluar ?? 0)),
+      total: Number(agg?.total ?? 0),
+    },
+    bars: bars.map((b) => ({ label: b.day, masuk: Number(b.masuk), keluar: Number(b.keluar) })),
+    movements: rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      qty: Number(r.qty),
+      valueHpp: Math.round(Number(r.valueHpp)),
+      refDoc: r.refDoc,
+      productName: r.productName ?? "-",
+      warehouseName: r.warehouseName ?? "-",
+      createdAt: r.createdAt.toISOString(),
+    })),
+  };
+}
+
+/** Adjustment manual stok (koreksi) — lewat ledger. */
+export async function adjustWmsStock(
+  input: { productId: string; warehouseId: string; deltaQty: number; note?: string },
+  userId?: string | null,
+) {
+  const db = getDb();
+  const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, input.productId)).limit(1);
+  if (!prod) throw new Error("Produk tidak ditemukan.");
+  await recordStockMovement(db, {
+    type: "adjustment",
+    productId: input.productId,
+    warehouseId: input.warehouseId,
+    deltaQty: input.deltaQty,
+    hpp: Number(prod.hpp),
+    refDoc: input.note?.trim() || "ADJ",
+    userId: userId ?? null,
+  });
+  return { ok: true };
+}
+
+export async function createWmsOpname(warehouseId: string, userId?: string | null) {
+  const db = getDb();
+  const [op] = await db
+    .insert(wmsStockOpname)
+    .values({ doc: makeWmsDoc("OPN"), warehouseId, status: "draft", createdBy: userId ?? null })
+    .returning();
+
+  const stocks = await db
+    .select({ productId: wmsWarehouseStock.productId, qty: wmsWarehouseStock.qty })
+    .from(wmsWarehouseStock)
+    .where(eq(wmsWarehouseStock.warehouseId, warehouseId));
+  if (stocks.length) {
+    await db.insert(wmsOpnameLine).values(
+      stocks.map((s) => ({
+        opnameId: op.id,
+        productId: s.productId,
+        systemQty: Number(s.qty),
+        physicalQty: Number(s.qty),
+      })),
+    );
+  }
+  return op;
+}
+
+export async function getWmsOpname(id: string) {
+  const db = getDb();
+  const [op] = await db.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).limit(1);
+  if (!op) return null;
+  const lines = await db
+    .select({
+      id: wmsOpnameLine.id,
+      productId: wmsOpnameLine.productId,
+      productName: wmsProduct.name,
+      unit: wmsProduct.unit,
+      systemQty: wmsOpnameLine.systemQty,
+      physicalQty: wmsOpnameLine.physicalQty,
+    })
+    .from(wmsOpnameLine)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsOpnameLine.productId))
+    .where(eq(wmsOpnameLine.opnameId, id));
+  return {
+    id: op.id,
+    doc: op.doc,
+    warehouseId: op.warehouseId,
+    status: op.status,
+    createdAt: op.createdAt.toISOString(),
+    lines: lines.map((l) => ({
+      ...l,
+      systemQty: Number(l.systemQty),
+      physicalQty: Number(l.physicalQty),
+      variance: Number(l.physicalQty) - Number(l.systemQty),
+    })),
+  };
+}
+
+export async function listWmsOpnames() {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: wmsStockOpname.id,
+      doc: wmsStockOpname.doc,
+      status: wmsStockOpname.status,
+      createdAt: wmsStockOpname.createdAt,
+      warehouseName: wmsWarehouse.name,
+      lines: sql<number>`count(${wmsOpnameLine.id})::int`,
+    })
+    .from(wmsStockOpname)
+    .leftJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsStockOpname.warehouseId))
+    .leftJoin(wmsOpnameLine, eq(wmsOpnameLine.opnameId, wmsStockOpname.id))
+    .groupBy(wmsStockOpname.id, wmsWarehouse.name)
+    .orderBy(desc(wmsStockOpname.createdAt))
+    .limit(50);
+  return rows.map((r) => ({
+    id: r.id,
+    doc: r.doc,
+    status: r.status,
+    warehouse: r.warehouseName ?? "-",
+    lines: Number(r.lines),
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function saveWmsOpnameLine(lineId: string, physicalQty: number) {
+  const db = getDb();
+  const [row] = await db
+    .update(wmsOpnameLine)
+    .set({ physicalQty })
+    .where(eq(wmsOpnameLine.id, lineId))
+    .returning();
+  return row ?? null;
+}
+
+/** Finalize: reconcile stok ke fisik via adjustment ledger; status completed. */
+export async function finalizeWmsOpname(id: string, userId?: string | null) {
+  const db = getDb();
+  const [op] = await db.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).limit(1);
+  if (!op) return null;
+  if (op.status === "completed") return op;
+  if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
+
+  const lines = await db.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
+  for (const l of lines) {
+    if (!l.productId) continue;
+    const variance = Number(l.physicalQty) - Number(l.systemQty);
+    if (variance === 0) continue;
+    const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, l.productId)).limit(1);
+    await recordStockMovement(db, {
+      type: "adjustment",
+      productId: l.productId,
+      warehouseId: op.warehouseId,
+      deltaQty: variance,
+      hpp: Number(prod?.hpp ?? 0),
+      refDoc: op.doc,
+      userId: userId ?? null,
+    });
+  }
+  const [updated] = await db
+    .update(wmsStockOpname)
+    .set({ status: "completed" })
+    .where(eq(wmsStockOpname.id, id))
+    .returning();
+  return updated;
 }

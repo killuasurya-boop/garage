@@ -2618,4 +2618,206 @@ export const notificationLogs = pgTable(
   }),
 );
 
+// =============================================================================
+// GARAGE WMS — Warehouse Management System (subsistem independen, terhubung POS
+// lewat webhook). Semua tabel prefix wms_. Mutasi stok WAJIB lewat wms_stock_movement.
+// =============================================================================
+
+export const wmsWarehouse = pgTable("wms_warehouse", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // main | bar | kitchen
+  isPrimary: boolean("is_primary").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsProduct = pgTable(
+  "wms_product",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sku: text("sku").notNull().unique(),
+    name: text("name").notNull(),
+    category: text("category").notNull(),
+    unit: text("unit").notNull(),
+    minStock: real("min_stock").notNull().default(0),
+    hpp: real("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ categoryIdx: index("wms_product_category_idx").on(t.category) }),
+);
+
+export const wmsWarehouseStock = pgTable(
+  "wms_warehouse_stock",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    warehouseId: uuid("warehouse_id")
+      .notNull()
+      .references(() => wmsWarehouse.id, { onDelete: "cascade" }),
+    qty: real("qty").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pwIdx: uniqueIndex("wms_warehouse_stock_product_wh_idx").on(t.productId, t.warehouseId),
+  }),
+);
+
+export const wmsBatch = pgTable(
+  "wms_batch",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    batchNo: text("batch_no").notNull(),
+    expiredAt: timestamp("expired_at", { withTimezone: true }),
+    qty: real("qty").notNull().default(0),
+    hpp: real("hpp").notNull().default(0),
+    location: text("location").notNull().default(""),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    productIdx: index("wms_batch_product_idx").on(t.productId),
+    fefoIdx: index("wms_batch_fefo_idx").on(t.productId, t.expiredAt),
+  }),
+);
+
+export const wmsReceiving = pgTable("wms_receiving", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doc: text("doc").notNull().unique(),
+  supplier: text("supplier").notNull().default(""),
+  warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("draft"), // draft|request|approved|issued|received|completed
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsReceivingItem = pgTable(
+  "wms_receiving_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    receivingId: uuid("receiving_id")
+      .notNull()
+      .references(() => wmsReceiving.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    orderedQty: real("ordered_qty").notNull().default(0),
+    receivedQty: real("received_qty").notNull().default(0),
+    hpp: real("hpp").notNull().default(0),
+    qc: text("qc").notNull().default("pass"), // pass|discrepancy|reject
+    batchNo: text("batch_no"),
+    expiredAt: timestamp("expired_at", { withTimezone: true }),
+  },
+  (t) => ({ recIdx: index("wms_receiving_item_rec_idx").on(t.receivingId) }),
+);
+
+export const wmsInternalOrder = pgTable("wms_internal_order", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doc: text("doc").notNull().unique(),
+  outletWarehouseId: uuid("outlet_warehouse_id").references(() => wmsWarehouse.id, {
+    onDelete: "set null",
+  }),
+  status: text("status").notNull().default("draft"),
+  totalHpp: real("total_hpp").notNull().default(0),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsInternalOrderItem = pgTable(
+  "wms_internal_order_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => wmsInternalOrder.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
+    qty: real("qty").notNull().default(0),
+    lineHpp: real("line_hpp").notNull().default(0),
+  },
+  (t) => ({ orderIdx: index("wms_internal_order_item_order_idx").on(t.orderId) }),
+);
+
+export const wmsRecipe = pgTable("wms_recipe", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default(""),
+  yieldQty: text("yield_qty").notNull().default("1"),
+  sellPrice: integer("sell_price").notNull().default(0),
+  version: text("version").notNull().default("v1"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsBomItem = pgTable(
+  "wms_bom_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => wmsRecipe.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    qty: real("qty").notNull().default(0),
+  },
+  (t) => ({ recipeIdx: index("wms_bom_item_recipe_idx").on(t.recipeId) }),
+);
+
+export const wmsStockOpname = pgTable("wms_stock_opname", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doc: text("doc").notNull(),
+  warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("draft"),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsOpnameLine = pgTable(
+  "wms_opname_line",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    opnameId: uuid("opname_id")
+      .notNull()
+      .references(() => wmsStockOpname.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    systemQty: real("system_qty").notNull().default(0),
+    physicalQty: real("physical_qty").notNull().default(0),
+  },
+  (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
+);
+
+export const wmsColdChainReading = pgTable(
+  "wms_cold_chain_reading",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    unitCode: text("unit_code").notNull(),
+    tempC: real("temp_c").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ unitIdx: index("wms_cold_chain_unit_idx").on(t.unitCode, t.recordedAt) }),
+);
+
+export const wmsStockMovement = pgTable(
+  "wms_stock_movement",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    type: text("type").notNull(), // in|out|transfer|waste|adjustment|internal_out
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    qty: real("qty").notNull(),
+    valueHpp: real("value_hpp").notNull().default(0),
+    refDoc: text("ref_doc").notNull().default(""),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    productIdx: index("wms_stock_movement_product_idx").on(t.productId),
+    typeIdx: index("wms_stock_movement_type_idx").on(t.type),
+    createdAtIdx: index("wms_stock_movement_created_at_idx").on(t.createdAt),
+  }),
+);
+
 

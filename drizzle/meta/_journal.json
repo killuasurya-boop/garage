@@ -519,6 +519,13 @@
       "when": 1782410447694,
       "tag": "0073_charming_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1782800976488,
+      "tag": "0074_majestic_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

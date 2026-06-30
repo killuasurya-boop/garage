@@ -283,12 +283,8 @@ const SettingsView = dynamic(
   () => import("@/components/garage/settings-view").then((m) => m.SettingsView),
   { loading: ModuleChunkFallback },
 );
-const InventoryView = dynamic(
-  () => import("@/components/garage/inventory-view").then((m) => m.InventoryView),
-  { loading: ModuleChunkFallback },
-);
-const ProdukGudangView = dynamic(
-  () => import("@/components/garage/produk-gudang-view").then((m) => m.ProdukGudangView),
+const WarehouseRedirect = dynamic(
+  () => import("@/components/wms/warehouse-redirect").then((m) => m.WarehouseRedirect),
   { loading: ModuleChunkFallback },
 );
 const KitchenView = dynamic(
@@ -1517,24 +1513,7 @@ function GarageWorkspace({
               </DateFilterProvider>
             )}
             {safeActiveModule === "waiter" && <WaiterView me={data.me} />}
-            {safeActiveModule === "inventory" && (
-              <ProdukGudangView
-                role={data.me.role}
-                menuItems={data.menuItems}
-                inventoryItems={data.inventoryItems}
-                stockMovements={data.stockMovements}
-                fullView={
-                  <InventoryView
-                    role={data.me.role}
-                    menuItems={data.menuItems}
-                    inventoryItems={data.inventoryItems}
-                    stockMovements={data.stockMovements}
-                    onMenuChanged={loadMenu}
-                    onNavigateModule={handleModuleChange}
-                  />
-                }
-              />
-            )}
+            {safeActiveModule === "inventory" && <WarehouseRedirect />}
             {safeActiveModule === "finance" && (
               <DateFilterProvider>
                 <div className="space-y-3">

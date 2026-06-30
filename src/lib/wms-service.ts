@@ -3,11 +3,13 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   wmsBatch,
+  wmsBomItem,
   wmsInternalOrder,
   wmsInternalOrderItem,
   wmsProduct,
   wmsReceiving,
   wmsReceivingItem,
+  wmsRecipe,
   wmsStockMovement,
   wmsWarehouse,
   wmsWarehouseStock,
@@ -653,4 +655,143 @@ export async function listInternalOrders() {
     items: Number(r.items),
     createdAt: r.createdAt.toISOString(),
   }));
+}
+
+// =============================================================================
+// FASE 4 — Recipe/BOM + Keuangan/HPP. COGS/foodCost/margin DIHITUNG saat query
+// dari product.hpp → otomatis ikut saat HPP bahan berubah (receiving). Tidak disimpan.
+// =============================================================================
+
+export type RecipeInputWms = {
+  name: string;
+  category?: string;
+  yieldQty?: string;
+  sellPrice: number;
+  bom: Array<{ productId: string; qty: number }>;
+};
+
+export async function createWmsRecipe(input: RecipeInputWms) {
+  const db = getDb();
+  const [rec] = await db
+    .insert(wmsRecipe)
+    .values({
+      name: input.name.trim(),
+      category: input.category?.trim() ?? "",
+      yieldQty: input.yieldQty?.trim() || "1",
+      sellPrice: Math.round(input.sellPrice),
+    })
+    .returning();
+  if (input.bom.length) {
+    await db.insert(wmsBomItem).values(
+      input.bom.map((b) => ({ recipeId: rec.id, productId: b.productId, qty: b.qty })),
+    );
+  }
+  return rec;
+}
+
+export async function deleteWmsRecipe(id: string) {
+  const db = getDb();
+  const [row] = await db.delete(wmsRecipe).where(eq(wmsRecipe.id, id)).returning();
+  return row ?? null;
+}
+
+/** Recipe + COGS/foodCost/margin (dihitung dari product.hpp saat query). */
+export async function listWmsRecipes() {
+  const db = getDb();
+  const recipes = await db.select().from(wmsRecipe).orderBy(desc(wmsRecipe.createdAt));
+  const costRows = await db
+    .select({
+      recipeId: wmsBomItem.recipeId,
+      cogs: sql<number>`coalesce(sum(${wmsBomItem.qty} * ${wmsProduct.hpp}), 0)`,
+    })
+    .from(wmsBomItem)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
+    .groupBy(wmsBomItem.recipeId);
+  const cogsBy = new Map(costRows.map((r) => [r.recipeId, Number(r.cogs)]));
+
+  return recipes.map((r) => {
+    const cogs = cogsBy.get(r.id) ?? 0;
+    const sell = Number(r.sellPrice);
+    const foodCostPct = sell > 0 ? (cogs / sell) * 100 : 0;
+    return {
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      yieldQty: r.yieldQty,
+      sellPrice: sell,
+      cogs: Math.round(cogs),
+      foodCostPct: Math.round(foodCostPct * 10) / 10,
+      margin: Math.round(sell - cogs),
+    };
+  });
+}
+
+export async function getWmsRecipe(id: string) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, id)).limit(1);
+  if (!rec) return null;
+  const bom = await db
+    .select({
+      id: wmsBomItem.id,
+      productId: wmsBomItem.productId,
+      productName: wmsProduct.name,
+      unit: wmsProduct.unit,
+      hpp: wmsProduct.hpp,
+      qty: wmsBomItem.qty,
+    })
+    .from(wmsBomItem)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
+    .where(eq(wmsBomItem.recipeId, id));
+
+  const lines = bom.map((b) => ({ ...b, lineCost: Number(b.qty) * Number(b.hpp ?? 0) }));
+  const cogs = lines.reduce((s, l) => s + l.lineCost, 0);
+  const sell = Number(rec.sellPrice);
+  return {
+    id: rec.id,
+    name: rec.name,
+    category: rec.category,
+    yieldQty: rec.yieldQty,
+    sellPrice: sell,
+    cogs: Math.round(cogs),
+    foodCostPct: sell > 0 ? Math.round((cogs / sell) * 1000) / 10 : 0,
+    margin: Math.round(sell - cogs),
+    bom: lines.map((l) => ({
+      id: l.id,
+      productId: l.productId,
+      productName: l.productName ?? "-",
+      unit: l.unit ?? "",
+      qty: Number(l.qty),
+      hpp: Number(l.hpp ?? 0),
+      lineCost: Math.round(l.lineCost),
+      contribPct: cogs > 0 ? Math.round((l.lineCost / cogs) * 1000) / 10 : 0,
+    })),
+  };
+}
+
+/** Keuangan & HPP: KPI + ringkasan per resep. */
+export async function getWmsFinanceOverview() {
+  const recipes = await listWmsRecipes();
+  const products = await getWmsProducts();
+  const inventoryValue = Math.round(products.reduce((s, p) => s + p.onHand * p.hpp, 0));
+  const withCost = recipes.filter((r) => r.cogs > 0);
+  const avgFoodCost =
+    withCost.length > 0
+      ? Math.round((withCost.reduce((s, r) => s + r.foodCostPct, 0) / withCost.length) * 10) / 10
+      : 0;
+  return {
+    kpis: {
+      inventoryValue,
+      avgFoodCost,
+      totalMaterials: products.length,
+      totalRecipes: recipes.length,
+    },
+    recipes,
+    materials: products.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      unit: p.unit,
+      hpp: p.hpp,
+    })),
+  };
 }

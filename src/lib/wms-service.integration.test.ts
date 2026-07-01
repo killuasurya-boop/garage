@@ -68,20 +68,34 @@ describe("WMS fondasi", () => {
     expect(moves[0].type).toBe("out");
   });
 
-  it("anti-minus: keluar melebihi stok tidak membuat stok negatif", async () => {
+  it("anti-minus: keluar melebihi stok DITOLAK (tidak clamp diam-diam)", async () => {
+    const { eq } = await import("drizzle-orm");
     const p = (await svc.getWmsProducts()).find((x: any) => x.sku === "SYR-CARAMEL");
     const wh = await svc.listWmsWarehouses();
     const main = wh.find((w: any) => w.isPrimary);
-    await svc.recordStockMovement(t.getDb(), {
-      type: "out",
-      productId: p.id,
-      warehouseId: main.id,
-      deltaQty: -999999,
-      hpp: p.hpp,
-      refDoc: "TEST-NEG",
-    });
+    const before = p.onHand;
+
+    // Sekarang oversell dilempar sebagai error (ledger & stok tetap konsisten).
+    await expect(
+      svc.recordStockMovement(t.getDb(), {
+        type: "out",
+        productId: p.id,
+        warehouseId: main.id,
+        deltaQty: -999999,
+        hpp: p.hpp,
+        refDoc: "TEST-NEG",
+      }),
+    ).rejects.toThrow(/tidak cukup/i);
+
+    // Stok tidak berubah, dan tidak ada ledger phantom untuk percobaan gagal.
     const after = (await svc.getWmsProducts()).find((x: any) => x.sku === "SYR-CARAMEL");
-    expect(after.onHand).toBe(0);
+    expect(after.onHand).toBe(before);
+    const moves = await t
+      .getDb()
+      .select()
+      .from(t.schema.wmsStockMovement)
+      .where(eq(t.schema.wmsStockMovement.refDoc, "TEST-NEG"));
+    expect(moves.length).toBe(0);
   });
 
   it("dashboard: KPI terisi dari data seed", async () => {

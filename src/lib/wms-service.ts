@@ -33,10 +33,62 @@ import {
 // =============================================================================
 
 type Db = ReturnType<typeof getDb>;
+// Transaksi Drizzle memakai API query yang sama dengan koneksi utama; kita cukup
+// menerima keduanya lewat tipe Db supaya fungsi mutasi bisa dijalankan atomik.
+type Tx = Db;
 
-/** Mutasi stok terpusat: ledger + upsert stok (anti-minus). deltaQty bertanda. */
+/** Jalankan fn dalam transaksi (atomic). Semua mutasi stok wajib lewat sini. */
+export function runInTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return (getDb() as Db).transaction(fn as never) as Promise<T>;
+}
+
+/** Konsumsi qty dari batch FEFO (expired terdekat dulu) → kembalikan biaya aktual. */
+async function consumeBatchesFefo(
+  tx: Tx,
+  productId: string,
+  warehouseId: string,
+  qty: number,
+  fallbackHpp: number,
+): Promise<number> {
+  const batches = await tx
+    .select()
+    .from(wmsBatch)
+    .where(
+      and(
+        eq(wmsBatch.productId, productId),
+        eq(wmsBatch.warehouseId, warehouseId),
+        sql`${wmsBatch.qty} > 0`,
+      ),
+    )
+    .orderBy(sql`${wmsBatch.expiredAt} ASC NULLS LAST`, wmsBatch.receivedAt);
+
+  let remaining = qty;
+  let cost = 0;
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(Number(b.qty), remaining);
+    if (take <= 0) continue;
+    cost += take * Number(b.hpp);
+    remaining -= take;
+    await tx
+      .update(wmsBatch)
+      .set({ qty: Number(b.qty) - take })
+      .where(eq(wmsBatch.id, b.id));
+  }
+  // Batch kurang dari permintaan (mis. stok awal tanpa batch) → sisanya pakai HPP produk.
+  if (remaining > 0) cost += remaining * fallbackHpp;
+  return cost;
+}
+
+/**
+ * Mutasi stok terpusat (WAJIB dijalankan di dalam runInTx). Menegakkan invariant:
+ * - ledger + wms_warehouse_stock + wms_batch selalu konsisten;
+ * - TIDAK ada clamp diam-diam: keluar melebihi stok → lempar error (rollback);
+ * - masuk (+) membuat batch, keluar (−) mengonsumsi batch FEFO.
+ * Mengembalikan biaya aktual (untuk keluar = biaya FEFO; untuk masuk = qty×hpp).
+ */
 export async function recordStockMovement(
-  db: Db,
+  tx: Tx,
   input: {
     type: MoveType;
     productId: string;
@@ -45,28 +97,73 @@ export async function recordStockMovement(
     hpp: number;
     refDoc?: string;
     userId?: string | null;
+    batchNo?: string;
+    expiredAt?: Date | null;
   },
-) {
-  await db.insert(wmsStockMovement).values({
+): Promise<{ cost: number }> {
+  const delta = Number(input.deltaQty);
+
+  // Kunci baris stok terkait supaya order/opname paralel tidak oversell.
+  const [cur] = await tx
+    .select({ qty: wmsWarehouseStock.qty })
+    .from(wmsWarehouseStock)
+    .where(
+      and(
+        eq(wmsWarehouseStock.productId, input.productId),
+        eq(wmsWarehouseStock.warehouseId, input.warehouseId),
+      ),
+    )
+    .for("update");
+  const current = Number(cur?.qty ?? 0);
+  const next = current + delta;
+  if (next < 0) {
+    throw new Error(`Stok tidak cukup (tersedia ${current}, diminta ${-delta}).`);
+  }
+
+  let cost: number;
+  if (delta < 0) {
+    cost = await consumeBatchesFefo(tx, input.productId, input.warehouseId, -delta, input.hpp);
+  } else {
+    cost = delta * input.hpp;
+    if (delta > 0) {
+      await tx.insert(wmsBatch).values({
+        productId: input.productId,
+        warehouseId: input.warehouseId,
+        batchNo: input.batchNo ?? makeWmsDoc("BATCH"),
+        expiredAt: input.expiredAt ?? null,
+        qty: delta,
+        hpp: input.hpp,
+        location: "",
+      });
+    }
+  }
+
+  await tx.insert(wmsStockMovement).values({
     type: input.type,
     productId: input.productId,
     warehouseId: input.warehouseId,
-    qty: input.deltaQty,
-    valueHpp: Math.abs(input.deltaQty) * input.hpp,
+    qty: delta,
+    valueHpp: cost,
     refDoc: input.refDoc ?? "",
     userId: input.userId ?? null,
   });
 
-  await db
-    .insert(wmsWarehouseStock)
-    .values({ productId: input.productId, warehouseId: input.warehouseId, qty: Math.max(0, input.deltaQty) })
-    .onConflictDoUpdate({
-      target: [wmsWarehouseStock.productId, wmsWarehouseStock.warehouseId],
-      set: {
-        qty: sql`GREATEST(0, ${wmsWarehouseStock.qty} + ${input.deltaQty})`,
-        updatedAt: new Date(),
-      },
-    });
+  if (cur) {
+    await tx
+      .update(wmsWarehouseStock)
+      .set({ qty: next, updatedAt: new Date() })
+      .where(
+        and(
+          eq(wmsWarehouseStock.productId, input.productId),
+          eq(wmsWarehouseStock.warehouseId, input.warehouseId),
+        ),
+      );
+  } else {
+    await tx
+      .insert(wmsWarehouseStock)
+      .values({ productId: input.productId, warehouseId: input.warehouseId, qty: next });
+  }
+  return { cost };
 }
 
 /** Self-healing seed: warehouse default + contoh produk + stok awal. */
@@ -107,23 +204,18 @@ export async function ensureWmsSeeded() {
       .values({ sku, name, category, unit, minStock, hpp })
       .returning();
     if (initial > 0) {
-      await recordStockMovement(db, {
-        type: "in",
-        productId: prod.id,
-        warehouseId: main.id,
-        deltaQty: initial,
-        hpp,
-        refDoc: "SEED",
-      });
-      // Batch awal agar FEFO punya sumber biaya & kadaluarsa.
-      await db.insert(wmsBatch).values({
-        productId: prod.id,
-        warehouseId: main.id,
-        batchNo: `SEED-${sku}`,
-        qty: initial,
-        hpp,
-        location: "",
-      });
+      // recordStockMovement kini membuat batch awal sendiri (FEFO) — atomik.
+      await runInTx((tx) =>
+        recordStockMovement(tx, {
+          type: "in",
+          productId: prod.id,
+          warehouseId: main.id,
+          deltaQty: initial,
+          hpp,
+          refDoc: "SEED",
+          batchNo: `SEED-${sku}`,
+        }),
+      );
     }
   }
 }
@@ -433,66 +525,64 @@ export async function getReceiving(id: string) {
 
 /** Selesaikan receiving: hanya item QC pass yang diterima → +stok +batch +HPP avg. */
 export async function completeReceiving(id: string, userId?: string | null) {
-  const db = getDb();
-  const [rec] = await db.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).limit(1);
-  if (!rec) return null;
-  if (rec.status === "completed") return rec; // idempoten
-  const whId = rec.warehouseId;
-  if (!whId) throw new Error("Receiving tanpa warehouse tidak bisa diselesaikan.");
+  return runInTx(async (tx) => {
+    // Kunci dokumen receiving agar tidak diselesaikan dua kali secara paralel.
+    const [rec] = await tx
+      .select()
+      .from(wmsReceiving)
+      .where(eq(wmsReceiving.id, id))
+      .for("update")
+      .limit(1);
+    if (!rec) return null;
+    if (rec.status === "completed") return rec; // idempoten
+    const whId = rec.warehouseId;
+    if (!whId) throw new Error("Receiving tanpa warehouse tidak bisa diselesaikan.");
 
-  const items = await db
-    .select()
-    .from(wmsReceivingItem)
-    .where(eq(wmsReceivingItem.receivingId, id));
+    const items = await tx
+      .select()
+      .from(wmsReceivingItem)
+      .where(eq(wmsReceivingItem.receivingId, id));
 
-  for (const it of items) {
-    if (!it.productId) continue;
-    if (it.qc === "reject") continue;
-    const qty = Number(it.receivedQty);
-    if (qty <= 0) continue;
+    for (const it of items) {
+      if (!it.productId) continue;
+      if (it.qc === "reject") continue;
+      const qty = Number(it.receivedQty);
+      if (qty <= 0) continue;
 
-    // HPP rata-rata tertimbang (berdasarkan total stok lama).
-    const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
-    if (prod) {
-      const oldQty = await totalOnHand(db, it.productId);
-      const oldValue = oldQty * Number(prod.hpp);
-      const newQty = oldQty + qty;
-      const newHpp = newQty > 0 ? (oldValue + qty * Number(it.hpp)) / newQty : Number(it.hpp);
-      await db
-        .update(wmsProduct)
-        .set({ hpp: newHpp, updatedAt: new Date() })
-        .where(eq(wmsProduct.id, it.productId));
+      // HPP rata-rata tertimbang (berdasarkan total stok lama) — dihitung sebelum mutasi.
+      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+      if (prod) {
+        const oldQty = await totalOnHand(tx, it.productId);
+        const oldValue = oldQty * Number(prod.hpp);
+        const newQty = oldQty + qty;
+        const newHpp = newQty > 0 ? (oldValue + qty * Number(it.hpp)) / newQty : Number(it.hpp);
+        await tx
+          .update(wmsProduct)
+          .set({ hpp: newHpp, updatedAt: new Date() })
+          .where(eq(wmsProduct.id, it.productId));
+      }
+
+      // +stok + batch (FEFO) + ledger, atomik.
+      await recordStockMovement(tx, {
+        type: "in",
+        productId: it.productId,
+        warehouseId: whId,
+        deltaQty: qty,
+        hpp: Number(it.hpp),
+        refDoc: rec.doc,
+        userId: userId ?? null,
+        batchNo: it.batchNo ?? undefined,
+        expiredAt: it.expiredAt ?? null,
+      });
     }
 
-    // Buat batch (FEFO).
-    await db.insert(wmsBatch).values({
-      productId: it.productId,
-      warehouseId: whId,
-      batchNo: it.batchNo ?? makeWmsDoc("BATCH"),
-      expiredAt: it.expiredAt ?? null,
-      qty,
-      hpp: Number(it.hpp),
-      location: "",
-    });
-
-    // +stok + ledger.
-    await recordStockMovement(db, {
-      type: "in",
-      productId: it.productId,
-      warehouseId: whId,
-      deltaQty: qty,
-      hpp: Number(it.hpp),
-      refDoc: rec.doc,
-      userId: userId ?? null,
-    });
-  }
-
-  const [updated] = await db
-    .update(wmsReceiving)
-    .set({ status: "completed" })
-    .where(eq(wmsReceiving.id, id))
-    .returning();
-  return updated;
+    const [updated] = await tx
+      .update(wmsReceiving)
+      .set({ status: "completed" })
+      .where(eq(wmsReceiving.id, id))
+      .returning();
+    return updated;
+  });
 }
 
 // =============================================================================
@@ -513,121 +603,97 @@ async function warehouseOnHand(db: Db, productId: string, warehouseId: string): 
   return Number(row?.qty ?? 0);
 }
 
-/** Konsumsi qty dari batch FEFO di warehouse sumber → kembalikan total biaya. */
-async function consumeFefo(
-  db: Db,
-  productId: string,
-  warehouseId: string,
-  qty: number,
-  fallbackHpp: number,
-): Promise<number> {
-  const batches = await db
-    .select()
-    .from(wmsBatch)
-    .where(
-      and(
-        eq(wmsBatch.productId, productId),
-        eq(wmsBatch.warehouseId, warehouseId),
-        sql`${wmsBatch.qty} > 0`,
-      ),
-    )
-    .orderBy(sql`${wmsBatch.expiredAt} ASC NULLS LAST`, wmsBatch.receivedAt);
-
-  let remaining = qty;
-  let cost = 0;
-  for (const b of batches) {
-    if (remaining <= 0) break;
-    const take = Math.min(Number(b.qty), remaining);
-    if (take <= 0) continue;
-    cost += take * Number(b.hpp);
-    remaining -= take;
-    await db
-      .update(wmsBatch)
-      .set({ qty: Number(b.qty) - take })
-      .where(eq(wmsBatch.id, b.id));
-  }
-  // Batch kurang dari permintaan (data tak sinkron) → sisanya pakai HPP produk.
-  if (remaining > 0) cost += remaining * fallbackHpp;
-  return cost;
-}
-
 export type InternalOrderItemInput = { productId: string; qty: number };
 
 export async function createInternalOrder(
-  input: { outletWarehouseId: string; items: InternalOrderItemInput[] },
+  input: { outletWarehouseId: string; items: InternalOrderItemInput[]; sourceRef?: string | null },
   userId?: string | null,
 ) {
-  const db = getDb();
-  const source = await primaryWarehouseId(db);
-  if (!source) throw new Error("Gudang utama belum ada.");
-  if (input.outletWarehouseId === source) throw new Error("Outlet tujuan tidak boleh gudang utama.");
-
-  // Validasi semua item dulu (atomic-ish: jangan potong sebagian).
-  const lines: Array<{ productId: string; qty: number; fallbackHpp: number }> = [];
-  for (const it of input.items) {
-    const qty = Number(it.qty);
-    if (qty <= 0) continue;
-    const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
-    if (!prod) throw new Error("Produk tidak ditemukan.");
-    const avail = await warehouseOnHand(db, it.productId, source);
-    if (qty > avail) {
-      throw new Error(`Stok ${prod.name} tidak cukup (tersedia ${avail}, diminta ${qty}).`);
+  return runInTx(async (tx) => {
+    const source = await primaryWarehouseId(tx);
+    if (!source) throw new Error("Gudang utama belum ada.");
+    if (input.outletWarehouseId === source) {
+      throw new Error("Outlet tujuan tidak boleh gudang utama.");
     }
-    lines.push({ productId: it.productId, qty, fallbackHpp: Number(prod.hpp) });
-  }
-  if (lines.length === 0) throw new Error("Tidak ada item valid.");
 
-  const [order] = await db
-    .insert(wmsInternalOrder)
-    .values({
-      doc: makeWmsDoc("IO"),
-      outletWarehouseId: input.outletWarehouseId,
-      status: "issued",
-      totalHpp: 0,
-      createdBy: userId ?? null,
-    })
-    .returning();
+    // Idempotensi: jika sourceRef sudah pernah diproses, kembalikan order lama.
+    if (input.sourceRef) {
+      const [dupe] = await tx
+        .select()
+        .from(wmsInternalOrder)
+        .where(eq(wmsInternalOrder.sourceRef, input.sourceRef))
+        .limit(1);
+      if (dupe) return dupe;
+    }
 
-  let totalHpp = 0;
-  for (const ln of lines) {
-    const cost = await consumeFefo(db, ln.productId, source, ln.qty, ln.fallbackHpp);
-    const unit = ln.qty > 0 ? cost / ln.qty : 0;
+    // Pra-validasi (pesan error ramah). recordStockMovement tetap jadi penjaga
+    // akhir di bawah kunci baris — mencegah oversell paralel.
+    const lines: Array<{ productId: string; qty: number; fallbackHpp: number }> = [];
+    for (const it of input.items) {
+      const qty = Number(it.qty);
+      if (qty <= 0) continue;
+      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+      if (!prod) throw new Error("Produk tidak ditemukan.");
+      const avail = await warehouseOnHand(tx, it.productId, source);
+      if (qty > avail) {
+        throw new Error(`Stok ${prod.name} tidak cukup (tersedia ${avail}, diminta ${qty}).`);
+      }
+      lines.push({ productId: it.productId, qty, fallbackHpp: Number(prod.hpp) });
+    }
+    if (lines.length === 0) throw new Error("Tidak ada item valid.");
 
-    // Potong stok gudang utama (internal_out) + tambah stok outlet (in).
-    await recordStockMovement(db, {
-      type: "internal_out",
-      productId: ln.productId,
-      warehouseId: source,
-      deltaQty: -ln.qty,
-      hpp: unit,
-      refDoc: order.doc,
-      userId: userId ?? null,
-    });
-    await recordStockMovement(db, {
-      type: "in",
-      productId: ln.productId,
-      warehouseId: input.outletWarehouseId,
-      deltaQty: ln.qty,
-      hpp: unit,
-      refDoc: order.doc,
-      userId: userId ?? null,
-    });
+    const [order] = await tx
+      .insert(wmsInternalOrder)
+      .values({
+        doc: makeWmsDoc("IO"),
+        outletWarehouseId: input.outletWarehouseId,
+        status: "issued",
+        totalHpp: 0,
+        sourceRef: input.sourceRef ?? null,
+        createdBy: userId ?? null,
+      })
+      .returning();
 
-    await db.insert(wmsInternalOrderItem).values({
-      orderId: order.id,
-      productId: ln.productId,
-      qty: ln.qty,
-      lineHpp: cost,
-    });
-    totalHpp += cost;
-  }
+    let totalHpp = 0;
+    for (const ln of lines) {
+      // Potong stok gudang utama (internal_out, FEFO) → biaya aktual dari batch.
+      const { cost } = await recordStockMovement(tx, {
+        type: "internal_out",
+        productId: ln.productId,
+        warehouseId: source,
+        deltaQty: -ln.qty,
+        hpp: ln.fallbackHpp,
+        refDoc: order.doc,
+        userId: userId ?? null,
+      });
+      const unit = ln.qty > 0 ? cost / ln.qty : 0;
+      // Tambah stok outlet (in) dengan HPP = biaya rata-rata batch yang dipakai.
+      await recordStockMovement(tx, {
+        type: "in",
+        productId: ln.productId,
+        warehouseId: input.outletWarehouseId,
+        deltaQty: ln.qty,
+        hpp: unit,
+        refDoc: order.doc,
+        userId: userId ?? null,
+      });
 
-  const [updated] = await db
-    .update(wmsInternalOrder)
-    .set({ totalHpp })
-    .where(eq(wmsInternalOrder.id, order.id))
-    .returning();
-  return updated;
+      await tx.insert(wmsInternalOrderItem).values({
+        orderId: order.id,
+        productId: ln.productId,
+        qty: ln.qty,
+        lineHpp: cost,
+      });
+      totalHpp += cost;
+    }
+
+    const [updated] = await tx
+      .update(wmsInternalOrder)
+      .set({ totalHpp })
+      .where(eq(wmsInternalOrder.id, order.id))
+      .returning();
+    return updated;
+  });
 }
 
 export async function listInternalOrders() {
@@ -873,24 +939,29 @@ export async function getWmsReports(params?: { from?: string; to?: string; type?
   };
 }
 
-/** Adjustment manual stok (koreksi) — lewat ledger. */
+/** Adjustment manual stok (koreksi) — lewat ledger. Wajib alasan (audit). */
 export async function adjustWmsStock(
   input: { productId: string; warehouseId: string; deltaQty: number; note?: string },
   userId?: string | null,
 ) {
-  const db = getDb();
-  const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, input.productId)).limit(1);
-  if (!prod) throw new Error("Produk tidak ditemukan.");
-  await recordStockMovement(db, {
-    type: "adjustment",
-    productId: input.productId,
-    warehouseId: input.warehouseId,
-    deltaQty: input.deltaQty,
-    hpp: Number(prod.hpp),
-    refDoc: input.note?.trim() || "ADJ",
-    userId: userId ?? null,
+  const reason = input.note?.trim();
+  if (!reason) throw new Error("Alasan penyesuaian wajib diisi.");
+  const delta = Number(input.deltaQty);
+  if (!Number.isFinite(delta) || delta === 0) throw new Error("Jumlah penyesuaian tidak valid.");
+  return runInTx(async (tx) => {
+    const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, input.productId)).limit(1);
+    if (!prod) throw new Error("Produk tidak ditemukan.");
+    await recordStockMovement(tx, {
+      type: "adjustment",
+      productId: input.productId,
+      warehouseId: input.warehouseId,
+      deltaQty: delta,
+      hpp: Number(prod.hpp),
+      refDoc: `ADJ · ${reason}`,
+      userId: userId ?? null,
+    });
+    return { ok: true };
   });
-  return { ok: true };
 }
 
 export async function createWmsOpname(warehouseId: string, userId?: string | null) {
@@ -985,36 +1056,54 @@ export async function saveWmsOpnameLine(lineId: string, physicalQty: number) {
   return row ?? null;
 }
 
-/** Finalize: reconcile stok ke fisik via adjustment ledger; status completed. */
+/**
+ * Finalize: setel stok ke hasil hitung fisik. Variance dihitung terhadap stok
+ * LIVE saat finalize (bukan snapshot systemQty yang bisa basi bila ada mutasi
+ * selama penghitungan), di dalam transaksi + kunci dokumen (anti double-finalize).
+ */
 export async function finalizeWmsOpname(id: string, userId?: string | null) {
-  const db = getDb();
-  const [op] = await db.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).limit(1);
-  if (!op) return null;
-  if (op.status === "completed") return op;
-  if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
+  return runInTx(async (tx) => {
+    const [op] = await tx
+      .select()
+      .from(wmsStockOpname)
+      .where(eq(wmsStockOpname.id, id))
+      .for("update")
+      .limit(1);
+    if (!op) return null;
+    if (op.status === "completed") return op;
+    if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
 
-  const lines = await db.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
-  for (const l of lines) {
-    if (!l.productId) continue;
-    const variance = Number(l.physicalQty) - Number(l.systemQty);
-    if (variance === 0) continue;
-    const [prod] = await db.select().from(wmsProduct).where(eq(wmsProduct.id, l.productId)).limit(1);
-    await recordStockMovement(db, {
-      type: "adjustment",
-      productId: l.productId,
-      warehouseId: op.warehouseId,
-      deltaQty: variance,
-      hpp: Number(prod?.hpp ?? 0),
-      refDoc: op.doc,
-      userId: userId ?? null,
-    });
-  }
-  const [updated] = await db
-    .update(wmsStockOpname)
-    .set({ status: "completed" })
-    .where(eq(wmsStockOpname.id, id))
-    .returning();
-  return updated;
+    const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
+    for (const l of lines) {
+      if (!l.productId) continue;
+      // Variance vs stok LIVE — recordStockMovement mengunci baris stok, jadi
+      // nilai yang dibaca di sini konsisten dengan mutasi lain.
+      const liveQty = await warehouseOnHand(tx, l.productId, op.warehouseId);
+      const variance = Number(l.physicalQty) - liveQty;
+      // Simpan systemQty final = stok live saat rekonsiliasi (jejak audit akurat).
+      await tx
+        .update(wmsOpnameLine)
+        .set({ systemQty: liveQty })
+        .where(eq(wmsOpnameLine.id, l.id));
+      if (variance === 0) continue;
+      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, l.productId)).limit(1);
+      await recordStockMovement(tx, {
+        type: "adjustment",
+        productId: l.productId,
+        warehouseId: op.warehouseId,
+        deltaQty: variance,
+        hpp: Number(prod?.hpp ?? 0),
+        refDoc: `${op.doc} · opname`,
+        userId: userId ?? null,
+      });
+    }
+    const [updated] = await tx
+      .update(wmsStockOpname)
+      .set({ status: "completed" })
+      .where(eq(wmsStockOpname.id, id))
+      .returning();
+    return updated;
+  });
 }
 
 // =============================================================================
@@ -1179,27 +1268,50 @@ export async function getWmsOwnerAnalytics() {
 // resep WMS dilewati (tidak error). Stok kurang → dilewati (tidak blok jualan).
 // =============================================================================
 
+/** Normalisasi nama menu untuk pencocokan resep: buang varian & rapikan spasi. */
+function normalizeMenuName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\((?:hot|cold|ice|panas|dingin|sedang|pedas|barbeque|balado|campur)\)/g, "")
+    .replace(/\b(hot|cold|ice|panas|dingin|sedang|pedas|barbeque|balado|campur)\b/g, "")
+    .replace(/[-–—|].*$/, "") // buang keterangan setelah pemisah
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function processPosSale(
-  input: { items: Array<{ name: string; qty: number }> },
+  input: { items: Array<{ name: string; qty: number }>; ref?: string | null },
   userId?: string | null,
 ) {
   const db = getDb();
   const processed: Array<{ menu: string; io: string }> = [];
   const skipped: Array<{ menu: string; reason: string }> = [];
 
+  // Muat semua resep sekali; cocokkan di memori (persis dulu, lalu ternormalisasi).
+  const recipes = await db.select().from(wmsRecipe);
+  const norm = new Map<string, typeof recipes>();
+  for (const r of recipes) {
+    const key = normalizeMenuName(r.name);
+    const arr = norm.get(key) ?? [];
+    arr.push(r);
+    norm.set(key, arr);
+  }
+
   for (const it of input.items) {
     const soldQty = Number(it.qty);
     if (soldQty <= 0) continue;
 
-    const [rec] = await db
-      .select()
-      .from(wmsRecipe)
-      .where(ilike(wmsRecipe.name, it.name.trim()))
-      .limit(1);
-    if (!rec) {
+    const exact = recipes.find((r) => r.name.trim().toLowerCase() === it.name.trim().toLowerCase());
+    const candidates = exact ? [exact] : (norm.get(normalizeMenuName(it.name)) ?? []);
+    if (candidates.length === 0) {
       skipped.push({ menu: it.name, reason: "tanpa resep WMS" });
       continue;
     }
+    if (candidates.length > 1) {
+      skipped.push({ menu: it.name, reason: "resep ganda (ambigu) — tidak dipotong" });
+      continue;
+    }
+    const rec = candidates[0];
     const bom = await db.select().from(wmsBomItem).where(eq(wmsBomItem.recipeId, rec.id));
     const items = bom
       .filter((b) => b.productId)
@@ -1219,7 +1331,12 @@ export async function processPosSale(
     }
 
     try {
-      const io = await createInternalOrder({ outletWarehouseId: outlet.id, items }, userId);
+      // Idempotensi: kunci unik per (sale, resep) → retry webhook tak dobel potong.
+      const sourceRef = input.ref ? `sale:${input.ref}:${rec.id}` : null;
+      const io = await createInternalOrder(
+        { outletWarehouseId: outlet.id, items, sourceRef },
+        userId,
+      );
       processed.push({ menu: it.name, io: io.doc });
     } catch (e) {
       skipped.push({ menu: it.name, reason: e instanceof Error ? e.message : "gagal potong stok" });

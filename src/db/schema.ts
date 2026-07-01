@@ -2715,17 +2715,26 @@ export const wmsReceivingItem = pgTable(
   (t) => ({ recIdx: index("wms_receiving_item_rec_idx").on(t.receivingId) }),
 );
 
-export const wmsInternalOrder = pgTable("wms_internal_order", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  doc: text("doc").notNull().unique(),
-  outletWarehouseId: uuid("outlet_warehouse_id").references(() => wmsWarehouse.id, {
-    onDelete: "set null",
+export const wmsInternalOrder = pgTable(
+  "wms_internal_order",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    outletWarehouseId: uuid("outlet_warehouse_id").references(() => wmsWarehouse.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").notNull().default("draft"),
+    totalHpp: real("total_hpp").notNull().default(0),
+    // Idempotensi integrasi POS: penanda sumber (mis. sale:<orderId>). Unik agar
+    // retry webhook penjualan yang sama tidak memotong bahan dua kali.
+    sourceRef: text("source_ref"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    sourceRefIdx: uniqueIndex("wms_internal_order_source_ref_idx").on(t.sourceRef),
   }),
-  status: text("status").notNull().default("draft"),
-  totalHpp: real("total_hpp").notNull().default(0),
-  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+);
 
 export const wmsInternalOrderItem = pgTable(
   "wms_internal_order_item",

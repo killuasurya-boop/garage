@@ -50,11 +50,11 @@ export default function WmsAdjustmentPage() {
 
   async function submit() {
     const d = Number(delta);
-    if (!productId || !warehouseId || !d || busy) return;
+    if (!productId || !warehouseId || !d || note.trim().length < 3 || busy) return;
     setBusy(true);
     setMsg(null);
     try {
-      await garageApi.post("/api/wms/adjustment", { productId, warehouseId, deltaQty: d, note: note.trim() || undefined });
+      await garageApi.post("/api/wms/adjustment", { productId, warehouseId, deltaQty: d, note: note.trim() });
       setMsg("Koreksi stok tersimpan.");
       setDelta("");
       setNote("");
@@ -87,9 +87,10 @@ export default function WmsAdjustmentPage() {
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
             <input value={delta} onChange={(e) => setDelta(e.target.value)} inputMode="decimal" placeholder="Delta (mis. -50 atau +20)" className={input} />
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan (rusak, hilang, dll)" className={input} />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (rusak, hilang, dll)" className={input} />
+            <p className="text-[11px] text-[#9AA0A6]">Alasan wajib diisi (min 3 karakter) — hanya Owner/Admin/Manager.</p>
             {msg && <p className="text-[12.5px] font-semibold text-[#16A34A]">{msg}</p>}
-            <button type="button" disabled={!productId || !Number(delta) || busy} onClick={() => void submit()} className="w-full rounded-lg bg-[#C8102E] py-2.5 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
+            <button type="button" disabled={!productId || !Number(delta) || note.trim().length < 3 || busy} onClick={() => void submit()} className="w-full rounded-lg bg-[#C8102E] py-2.5 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
               Simpan Koreksi
             </button>
           </div>

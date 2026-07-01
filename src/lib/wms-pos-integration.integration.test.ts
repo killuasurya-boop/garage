@@ -58,4 +58,24 @@ describe("POS sale → WMS consume", () => {
     expect(res.skipped.length).toBe(1);
     expect(res.skipped[0].reason).toMatch(/tanpa resep/i);
   });
+
+  it("varian menu (Hot/Cold) tetap cocok ke resep dasar", async () => {
+    const beanBefore = (await bySku("BEAN-ARB")).onHand;
+    const res = await svc.processPosSale({ items: [{ name: "Kopi Susu Garage (Hot)", qty: 1 }] });
+    expect(res.processed.length).toBe(1);
+    expect((await bySku("BEAN-ARB")).onHand).toBe(beanBefore - 18);
+  });
+
+  it("idempotensi: ref penjualan sama diproses ulang → tidak dobel potong", async () => {
+    const beanBefore = (await bySku("BEAN-ARB")).onHand;
+    const first = await svc.processPosSale({ ref: "ORDER-XYZ", items: [{ name: "Kopi Susu Garage", qty: 1 }] });
+    expect(first.processed.length).toBe(1);
+    const beanAfterFirst = (await bySku("BEAN-ARB")).onHand;
+    expect(beanAfterFirst).toBe(beanBefore - 18);
+
+    // Retry webhook dengan ref yang sama → stok TIDAK berubah lagi.
+    const second = await svc.processPosSale({ ref: "ORDER-XYZ", items: [{ name: "Kopi Susu Garage", qty: 1 }] });
+    expect(second.processed.length).toBe(1); // dikembalikan order lama (idempoten)
+    expect((await bySku("BEAN-ARB")).onHand).toBe(beanAfterFirst);
+  });
 });

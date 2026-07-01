@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { canUseApi } from "@/lib/role-access";
 import { requireGarageSession } from "@/lib/server-auth";
 import { listWmsWarehouses } from "@/lib/wms-service";
+import { wmsAllowedWarehouseTypes } from "@/lib/wms-access";
 import { WmsShell } from "@/components/wms/wms-shell";
 
 export const runtime = "nodejs";
@@ -26,7 +27,8 @@ export default async function WarehouseLayout({ children }: { children: ReactNod
     redirect("/os");
   }
 
-  const warehouses = await listWmsWarehouses();
+  // Selektor gudang ter-scope: staff outlet tak melihat gudang utama.
+  const warehouses = await listWmsWarehouses({ allowedTypes: wmsAllowedWarehouseTypes(role) });
 
   return (
     <div className={`${inter.variable} ${mono.variable}`}>

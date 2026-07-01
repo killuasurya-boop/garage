@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { ok, readJson } from "@/lib/api-response";
 import { createWmsProduct, getWmsProducts } from "@/lib/wms-service";
-import { requirePermission } from "@/lib/server-auth";
+import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await requirePermission("inventory:write");
+  // Master produk (bahan + HPP awal) = data inti → peran elevated.
+  const session = await requireGarageSession([...WMS_ELEVATED_ROLES]);
   if (session.response) return session.response;
 
   const parsed = await readJson(request, createSchema);

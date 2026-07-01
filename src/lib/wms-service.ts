@@ -240,16 +240,21 @@ async function doEnsureWmsSeeded() {
   }
 }
 
-export async function listWmsWarehouses(): Promise<WmsWarehouse[]> {
+export async function listWmsWarehouses(opts?: {
+  allowedTypes?: WmsWarehouse["type"][] | "all";
+}): Promise<WmsWarehouse[]> {
   await ensureWmsSeeded();
   const rows = await getDb().select().from(wmsWarehouse).orderBy(desc(wmsWarehouse.isPrimary), wmsWarehouse.code);
-  return rows.map((r) => ({
-    id: r.id,
-    code: r.code,
-    name: r.name,
-    type: r.type as WmsWarehouse["type"],
-    isPrimary: r.isPrimary,
-  }));
+  const allowed = opts?.allowedTypes;
+  return rows
+    .filter((r) => !allowed || allowed === "all" || allowed.includes(r.type as WmsWarehouse["type"]))
+    .map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      type: r.type as WmsWarehouse["type"],
+      isPrimary: r.isPrimary,
+    }));
 }
 
 async function primaryWarehouseId(db: Db): Promise<string | null> {

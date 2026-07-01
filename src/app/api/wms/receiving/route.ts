@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { ok, readJson } from "@/lib/api-response";
 import { createReceiving, listReceivings } from "@/lib/wms-service";
-import { requirePermission } from "@/lib/server-auth";
+import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await requirePermission("inventory:write");
+  // Inbound gudang utama = tindakan manajemen → peran elevated.
+  const session = await requireGarageSession([...WMS_ELEVATED_ROLES]);
   if (session.response) return session.response;
   const parsed = await readJson(request, createSchema);
   if (parsed.error) return parsed.error;

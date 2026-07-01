@@ -1,11 +1,12 @@
 import { fail, ok } from "@/lib/api-response";
 import { completeReceiving } from "@/lib/wms-service";
-import { requirePermission } from "@/lib/server-auth";
+import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const session = await requirePermission("inventory:write");
+  const session = await requireGarageSession([...WMS_ELEVATED_ROLES]);
   if (session.response) return session.response;
   const { id } = await context.params;
   try {

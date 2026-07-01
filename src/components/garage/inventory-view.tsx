@@ -199,6 +199,7 @@ export function InventoryView({
   stockMovements,
   onMenuChanged,
   onNavigateModule,
+  productsOnly = false,
 }: {
   role: Role;
   menuItems: MenuItem[];
@@ -206,6 +207,9 @@ export function InventoryView({
   stockMovements: string[];
   onMenuChanged: () => Promise<void>;
   onNavigateModule?: (module: ModuleId) => void;
+  // productsOnly: modul "Produk" mandiri — hanya kelola produk jual; bagian gudang
+  // (kini digantikan WMS /warehouse) disembunyikan.
+  productsOnly?: boolean;
 }) {
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [inventoryCategory, setInventoryCategory] = useState("All");
@@ -222,8 +226,10 @@ export function InventoryView({
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
   const [inventoryWorkspaceTab, setInventoryWorkspaceTab] =
     useState<"products" | "warehouse">(
-      role === "Owner / CEO" || role === "Admin" ? "products" : "warehouse",
+      productsOnly || role === "Owner / CEO" || role === "Admin" ? "products" : "warehouse",
     );
+  // Modul Produk mandiri: paksa selalu di workspace "products".
+  const effectiveWorkspaceTab = productsOnly ? "products" : inventoryWorkspaceTab;
   const [warehouseSubTab, setWarehouseSubTab] = useState<
     | "warehouse-dashboard"
     | "daily-report"
@@ -2452,54 +2458,56 @@ export function InventoryView({
             </Button>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-md border border-[#34343c] bg-black/20 p-1">
-          <button
-            type="button"
-            onClick={() => setInventoryWorkspaceTab("products")}
-            className={`garage-press rounded-md px-3 py-2 text-sm font-semibold transition ${
-              inventoryWorkspaceTab === "products"
-                ? "bg-[#f5a742] text-black"
-                : "text-[#d6d6dc] hover:bg-white/[0.04]"
-            }`}
-          >
-            Produk Manajemen
-          </button>
-          <button
-            type="button"
-            onClick={() => setInventoryWorkspaceTab("warehouse")}
-            className={`garage-press rounded-md px-3 py-2 text-sm font-semibold transition ${
-              inventoryWorkspaceTab === "warehouse"
-                ? "bg-[#f5a742] text-black"
-                : "text-[#d6d6dc] hover:bg-white/[0.04]"
-            }`}
-          >
-            Gudang
-            {outletLowCount > 0 ? (
-              <span
-                className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-                  inventoryWorkspaceTab === "warehouse"
-                    ? "bg-black text-[#ffc2c8]"
-                    : "bg-[#d11a2a] text-white"
-                }`}
-              >
-                {outletLowCount}
-              </span>
-            ) : smartOutletNeedCount > 0 || outletWatchCount > 0 ? (
-              <span
-                className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-                  inventoryWorkspaceTab === "warehouse"
-                    ? "bg-black text-[#f5a742]"
-                    : "bg-[#f5a742] text-black"
-                }`}
-              >
-                {Math.max(smartOutletNeedCount, outletWatchCount)}
-              </span>
-            ) : null}
-          </button>
-        </div>
+        {!productsOnly && (
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-md border border-[#34343c] bg-black/20 p-1">
+            <button
+              type="button"
+              onClick={() => setInventoryWorkspaceTab("products")}
+              className={`garage-press rounded-md px-3 py-2 text-sm font-semibold transition ${
+                effectiveWorkspaceTab === "products"
+                  ? "bg-[#f5a742] text-black"
+                  : "text-[#d6d6dc] hover:bg-white/[0.04]"
+              }`}
+            >
+              Produk Manajemen
+            </button>
+            <button
+              type="button"
+              onClick={() => setInventoryWorkspaceTab("warehouse")}
+              className={`garage-press rounded-md px-3 py-2 text-sm font-semibold transition ${
+                effectiveWorkspaceTab === "warehouse"
+                  ? "bg-[#f5a742] text-black"
+                  : "text-[#d6d6dc] hover:bg-white/[0.04]"
+              }`}
+            >
+              Gudang
+              {outletLowCount > 0 ? (
+                <span
+                  className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                    effectiveWorkspaceTab === "warehouse"
+                      ? "bg-black text-[#ffc2c8]"
+                      : "bg-[#d11a2a] text-white"
+                  }`}
+                >
+                  {outletLowCount}
+                </span>
+              ) : smartOutletNeedCount > 0 || outletWatchCount > 0 ? (
+                <span
+                  className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                    effectiveWorkspaceTab === "warehouse"
+                      ? "bg-black text-[#f5a742]"
+                      : "bg-[#f5a742] text-black"
+                  }`}
+                >
+                  {Math.max(smartOutletNeedCount, outletWatchCount)}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        )}
       </div>
 
-      {inventoryWorkspaceTab === "warehouse" && (
+      {effectiveWorkspaceTab === "warehouse" && (
         <div className="rounded-lg border border-[#34343c] bg-[#111116] p-3">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {[
@@ -2612,7 +2620,7 @@ export function InventoryView({
         </div>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-stock" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-stock" && (
         <div className="garage-scroll-x flex gap-2 pb-1">
           {areaSummary.map((summary) => (
             <button
@@ -2656,7 +2664,7 @@ export function InventoryView({
         </div>
       )}
 
-      {inventoryWorkspaceTab === "products" && canManageMenuProducts && (
+      {effectiveWorkspaceTab === "products" && canManageMenuProducts && (
         <Card className="garage-panel garage-animate-in">
           <CardHeader>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -3122,7 +3130,7 @@ export function InventoryView({
         </Card>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "outlet-stock" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "outlet-stock" && (
         <>
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3455,7 +3463,7 @@ export function InventoryView({
         </>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "request-outlet" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "request-outlet" && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3743,7 +3751,7 @@ export function InventoryView({
         </section>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "supplier-pos" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "supplier-pos" && (
         <section className="grid gap-4 xl:grid-cols-[380px_1fr]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3838,11 +3846,11 @@ export function InventoryView({
         </section>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "kasir-pos" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "kasir-pos" && (
         <WarehouseCashierPos inventoryItems={inventoryItems} />
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-dashboard" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-dashboard" && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3985,7 +3993,7 @@ export function InventoryView({
         </section>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "daily-report" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "daily-report" && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -4355,7 +4363,7 @@ export function InventoryView({
         </section>
       )}
 
-      {inventoryWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-stock" && (
+      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-stock" && (
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Card className="garage-panel garage-animate-in">
           <CardHeader>

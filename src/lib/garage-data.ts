@@ -7,6 +7,7 @@ import {
   Boxes,
   ChefHat,
   ClipboardCheck,
+  Coffee,
   CreditCard,
   Gauge,
   History,
@@ -48,6 +49,7 @@ export type ModuleId =
   | "ai-agent"
   | "kitchen"
   | "waiter"
+  | "produk"
   | "inventory"
   | "finance"
   | "crm"
@@ -154,7 +156,8 @@ export const modules = [
     description: "Antar pesanan & status meja",
     icon: BellRing,
   },
-  { id: "inventory", label: "Produk Manajemen", description: "Produk & Gudang", icon: Boxes },
+  { id: "produk", label: "Produk", description: "Menu & harga jual", icon: Coffee },
+  { id: "inventory", label: "Warehouse", description: "Gudang bahan baku (WMS)", icon: Boxes },
   { id: "finance", label: "Finance", description: "Cash closing", icon: CreditCard },
   { id: "crm", label: "CRM", description: "Members", icon: Users },
   {

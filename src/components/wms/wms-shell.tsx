@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import {
+  ArrowLeft,
   ArrowLeftRight,
   Bell,
   BookOpen,
@@ -211,6 +212,15 @@ export function WmsShell({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Kembali ke Garage OS (keluar dari sub-app WMS) */}
+            <Link
+              href="/os"
+              className="flex items-center gap-1.5 rounded-md border border-[#E8E8E8] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
+              title="Kembali ke Garage OS"
+            >
+              <ArrowLeft className="size-3.5 text-[#C8102E]" />
+              <span className="hidden sm:inline">Garage OS</span>
+            </Link>
             {/* Warehouse selector */}
             <div className="relative">
               <button

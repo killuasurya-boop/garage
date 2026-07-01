@@ -287,6 +287,10 @@ const WarehouseRedirect = dynamic(
   () => import("@/components/wms/warehouse-redirect").then((m) => m.WarehouseRedirect),
   { loading: ModuleChunkFallback },
 );
+const InventoryView = dynamic(
+  () => import("@/components/garage/inventory-view").then((m) => m.InventoryView),
+  { loading: ModuleChunkFallback },
+);
 const KitchenView = dynamic(
   () => import("@/components/garage/kitchen-view").then((m) => m.KitchenView),
   { loading: ModuleChunkFallback },
@@ -1513,6 +1517,17 @@ function GarageWorkspace({
               </DateFilterProvider>
             )}
             {safeActiveModule === "waiter" && <WaiterView me={data.me} />}
+            {safeActiveModule === "produk" && (
+              <InventoryView
+                role={data.me.role}
+                menuItems={data.menuItems}
+                inventoryItems={data.inventoryItems}
+                stockMovements={data.stockMovements}
+                onMenuChanged={loadMenu}
+                onNavigateModule={handleModuleChange}
+                productsOnly
+              />
+            )}
             {safeActiveModule === "inventory" && <WarehouseRedirect />}
             {safeActiveModule === "finance" && (
               <DateFilterProvider>
@@ -2431,7 +2446,7 @@ function ModuleNav({
   // Modul yang tidak masuk grup mana pun jatuh ke "Lainnya" supaya tak hilang.
   const NAV_GROUPS: Array<{ title: string; ids: ModuleId[] }> = [
     { title: "Ringkasan", ids: ["dashboard", "ai-agent"] },
-    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "inventory", "smart-notif"] },
+    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "produk", "inventory", "smart-notif"] },
     { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website"] },
     { title: "Keuangan", ids: ["finance", "earnings", "approvals"] },
     {

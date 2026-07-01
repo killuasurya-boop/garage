@@ -98,6 +98,21 @@ describe("WMS fondasi", () => {
     expect(moves.length).toBe(0);
   });
 
+  it("presisi numeric: HPP pecahan round-trip eksak (bukan float drift)", async () => {
+    const prod = await svc.createWmsProduct({
+      sku: "NUM-TEST",
+      name: "Uji Presisi",
+      category: "Test",
+      unit: "gram",
+      hpp: 0.0018,
+    });
+    const back = (await svc.getWmsProducts({ search: "NUM-TEST" })).find(
+      (p: any) => p.sku === "NUM-TEST",
+    );
+    expect(back.hpp).toBe(0.0018);
+    void prod;
+  });
+
   it("dashboard: KPI terisi dari data seed", async () => {
     const dash = await svc.getWmsDashboard();
     expect(dash.kpis.totalProducts).toBeGreaterThan(0);

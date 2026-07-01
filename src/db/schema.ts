@@ -5,6 +5,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   real,
   text,
@@ -2632,6 +2633,10 @@ export const wmsWarehouse = pgTable("wms_warehouse", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Kolom uang/kuantitas WMS: numeric desimal EKSAK (mode number → tetap JS number).
+// Menghindari drift float pada HPP per-unit pecahan (Rp0,12/gram) & akumulasi nilai.
+const wmsNum = (name: string) => numeric(name, { precision: 14, scale: 4, mode: "number" });
+
 export const wmsProduct = pgTable(
   "wms_product",
   {
@@ -2640,8 +2645,8 @@ export const wmsProduct = pgTable(
     name: text("name").notNull(),
     category: text("category").notNull(),
     unit: text("unit").notNull(),
-    minStock: real("min_stock").notNull().default(0),
-    hpp: real("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
+    minStock: wmsNum("min_stock").notNull().default(0),
+    hpp: wmsNum("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2659,7 +2664,7 @@ export const wmsWarehouseStock = pgTable(
     warehouseId: uuid("warehouse_id")
       .notNull()
       .references(() => wmsWarehouse.id, { onDelete: "cascade" }),
-    qty: real("qty").notNull().default(0),
+    qty: wmsNum("qty").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -2677,8 +2682,8 @@ export const wmsBatch = pgTable(
     warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
     batchNo: text("batch_no").notNull(),
     expiredAt: timestamp("expired_at", { withTimezone: true }),
-    qty: real("qty").notNull().default(0),
-    hpp: real("hpp").notNull().default(0),
+    qty: wmsNum("qty").notNull().default(0),
+    hpp: wmsNum("hpp").notNull().default(0),
     location: text("location").notNull().default(""),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2706,9 +2711,9 @@ export const wmsReceivingItem = pgTable(
       .notNull()
       .references(() => wmsReceiving.id, { onDelete: "cascade" }),
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
-    orderedQty: real("ordered_qty").notNull().default(0),
-    receivedQty: real("received_qty").notNull().default(0),
-    hpp: real("hpp").notNull().default(0),
+    orderedQty: wmsNum("ordered_qty").notNull().default(0),
+    receivedQty: wmsNum("received_qty").notNull().default(0),
+    hpp: wmsNum("hpp").notNull().default(0),
     qc: text("qc").notNull().default("pass"), // pass|discrepancy|reject
     batchNo: text("batch_no"),
     expiredAt: timestamp("expired_at", { withTimezone: true }),
@@ -2725,7 +2730,7 @@ export const wmsInternalOrder = pgTable(
       onDelete: "set null",
     }),
     status: text("status").notNull().default("draft"),
-    totalHpp: real("total_hpp").notNull().default(0),
+    totalHpp: wmsNum("total_hpp").notNull().default(0),
     // Idempotensi integrasi POS: penanda sumber (mis. sale:<orderId>). Unik agar
     // retry webhook penjualan yang sama tidak memotong bahan dua kali.
     sourceRef: text("source_ref"),
@@ -2746,8 +2751,8 @@ export const wmsInternalOrderItem = pgTable(
       .references(() => wmsInternalOrder.id, { onDelete: "cascade" }),
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
     batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
-    qty: real("qty").notNull().default(0),
-    lineHpp: real("line_hpp").notNull().default(0),
+    qty: wmsNum("qty").notNull().default(0),
+    lineHpp: wmsNum("line_hpp").notNull().default(0),
   },
   (t) => ({ orderIdx: index("wms_internal_order_item_order_idx").on(t.orderId) }),
 );
@@ -2771,7 +2776,7 @@ export const wmsBomItem = pgTable(
       .notNull()
       .references(() => wmsRecipe.id, { onDelete: "cascade" }),
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
-    qty: real("qty").notNull().default(0),
+    qty: wmsNum("qty").notNull().default(0),
   },
   (t) => ({ recipeIdx: index("wms_bom_item_recipe_idx").on(t.recipeId) }),
 );
@@ -2793,8 +2798,8 @@ export const wmsOpnameLine = pgTable(
       .notNull()
       .references(() => wmsStockOpname.id, { onDelete: "cascade" }),
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
-    systemQty: real("system_qty").notNull().default(0),
-    physicalQty: real("physical_qty").notNull().default(0),
+    systemQty: wmsNum("system_qty").notNull().default(0),
+    physicalQty: wmsNum("physical_qty").notNull().default(0),
   },
   (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
 );
@@ -2817,8 +2822,8 @@ export const wmsStockMovement = pgTable(
     type: text("type").notNull(), // in|out|transfer|waste|adjustment|internal_out
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
     warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
-    qty: real("qty").notNull(),
-    valueHpp: real("value_hpp").notNull().default(0),
+    qty: wmsNum("qty").notNull(),
+    valueHpp: wmsNum("value_hpp").notNull().default(0),
     refDoc: text("ref_doc").notNull().default(""),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

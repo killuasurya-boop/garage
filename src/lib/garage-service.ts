@@ -9746,6 +9746,23 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     }
   }
 
+  // GARAGE WMS: kirim penjualan ke gudang → potong bahan via BOM resep WMS.
+  // Non-blocking + dynamic import (subsistem independen). Opt-in via setting.
+  if (settings.wmsAutoConsume) {
+    try {
+      const { processPosSale } = await import("@/lib/wms-service");
+      await processPosSale(
+        { items: lines.map((l) => ({ name: l.itemName, qty: l.qty })) },
+        garage.user.id,
+      );
+    } catch (error) {
+      console.warn(
+        "[garage] WMS consume gagal:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
   const invoicePdfPath = `/api/orders/${created.orderRow.id}/invoice`;
 
   // Setiap order POS dapat link tracking + token (akses-kontrol acak) supaya

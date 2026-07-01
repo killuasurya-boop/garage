@@ -75,7 +75,7 @@ const NAV: NavGroup[] = [
       { label: "Owner Analytics", href: "/warehouse/analytics", icon: TrendingUp },
     ],
   },
-  { title: "System", items: [{ label: "Settings", icon: Settings, soon: true }] },
+  { title: "System", items: [{ label: "Settings", href: "/warehouse/settings", icon: Settings }] },
 ];
 
 export function WmsShell({
@@ -284,5 +284,6 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/reorder")) return "Smart Reorder";
   if (pathname.startsWith("/warehouse/cold-chain")) return "Cold Chain";
   if (pathname.startsWith("/warehouse/analytics")) return "Owner Analytics";
+  if (pathname.startsWith("/warehouse/settings")) return "Settings";
   return "Warehouse";
 }

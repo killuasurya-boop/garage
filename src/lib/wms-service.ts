@@ -1172,3 +1172,59 @@ export async function getWmsOwnerAnalytics() {
     recipes: recipes.slice(0, 10),
   };
 }
+
+// =============================================================================
+// FASE 7 — Integrasi POS. Setiap penjualan POS → cocokkan menu ke resep WMS →
+// baca BOM → buat Internal Order untuk memotong bahan gudang (FEFO). Item tanpa
+// resep WMS dilewati (tidak error). Stok kurang → dilewati (tidak blok jualan).
+// =============================================================================
+
+export async function processPosSale(
+  input: { items: Array<{ name: string; qty: number }> },
+  userId?: string | null,
+) {
+  const db = getDb();
+  const processed: Array<{ menu: string; io: string }> = [];
+  const skipped: Array<{ menu: string; reason: string }> = [];
+
+  for (const it of input.items) {
+    const soldQty = Number(it.qty);
+    if (soldQty <= 0) continue;
+
+    const [rec] = await db
+      .select()
+      .from(wmsRecipe)
+      .where(ilike(wmsRecipe.name, it.name.trim()))
+      .limit(1);
+    if (!rec) {
+      skipped.push({ menu: it.name, reason: "tanpa resep WMS" });
+      continue;
+    }
+    const bom = await db.select().from(wmsBomItem).where(eq(wmsBomItem.recipeId, rec.id));
+    const items = bom
+      .filter((b) => b.productId)
+      .map((b) => ({ productId: b.productId as string, qty: Number(b.qty) * soldQty }));
+    if (items.length === 0) {
+      skipped.push({ menu: it.name, reason: "resep tanpa bahan" });
+      continue;
+    }
+
+    // Outlet berdasarkan kategori resep (minuman → bar, lainnya → dapur).
+    const outletType = /coffee|non.?coffee|kopi|minum|bar|drink/i.test(rec.category) ? "bar" : "kitchen";
+    let [outlet] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, outletType)).limit(1);
+    if (!outlet) [outlet] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "bar")).limit(1);
+    if (!outlet) {
+      skipped.push({ menu: it.name, reason: "outlet tidak ada" });
+      continue;
+    }
+
+    try {
+      const io = await createInternalOrder({ outletWarehouseId: outlet.id, items }, userId);
+      processed.push({ menu: it.name, io: io.doc });
+    } catch (e) {
+      skipped.push({ menu: it.name, reason: e instanceof Error ? e.message : "gagal potong stok" });
+    }
+  }
+
+  return { processed, skipped };
+}

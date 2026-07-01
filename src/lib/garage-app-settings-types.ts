@@ -71,6 +71,8 @@ export type AppSettings = {
   defaultPaymentMethod: string;
   // Gudang: potong stok bahan otomatis dari resep saat menu terjual.
   inventoryAutoDeduct: boolean;
+  // GARAGE WMS: saat POS jual, kirim ke WMS → baca BOM resep → potong bahan gudang.
+  wmsAutoConsume: boolean;
   quickReorderWindowMinutes: number;
   // Receipt extra
   receiptHeaderText: string;
@@ -168,6 +170,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   cashDrawerOnPayment: true,
   defaultPaymentMethod: "cash",
   inventoryAutoDeduct: true,
+  wmsAutoConsume: false,
   quickReorderWindowMinutes: 30,
   // Receipt extra
   receiptHeaderText: "Garage Coffee & Motor\nJl. Contoh No. 1, Jakarta",

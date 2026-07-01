@@ -141,6 +141,12 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         defaultValue: DEFAULT_APP_SETTINGS.inventoryAutoDeduct,
       },
       {
+        key: "wmsAutoConsume",
+        label: "GARAGE WMS: potong bahan gudang otomatis saat POS jual (via BOM resep WMS)",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.wmsAutoConsume,
+      },
+      {
         key: "defaultPaymentMethod",
         label: "Metode pembayaran default",
         type: "select",

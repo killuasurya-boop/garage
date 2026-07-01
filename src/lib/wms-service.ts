@@ -166,8 +166,23 @@ export async function recordStockMovement(
   return { cost };
 }
 
+// Single-flight: seed hanya dijalankan sekali per proses (cegah query berulang di
+// tiap request & race double-seed saat request pertama bersamaan).
+let wmsSeedPromise: Promise<void> | null = null;
+
 /** Self-healing seed: warehouse default + contoh produk + stok awal. */
-export async function ensureWmsSeeded() {
+export function ensureWmsSeeded(): Promise<void> {
+  if (!wmsSeedPromise) {
+    wmsSeedPromise = doEnsureWmsSeeded().catch((err) => {
+      // Gagal → reset supaya percobaan berikutnya bisa mengulang.
+      wmsSeedPromise = null;
+      throw err;
+    });
+  }
+  return wmsSeedPromise;
+}
+
+async function doEnsureWmsSeeded() {
   const db = getDb();
   const existingWh = await db.select({ code: wmsWarehouse.code }).from(wmsWarehouse);
   const existingCodes = new Set(existingWh.map((w) => w.code));
@@ -178,6 +193,11 @@ export async function ensureWmsSeeded() {
 
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wmsProduct);
   if (Number(n) > 0) return;
+
+  // Contoh produk hanya untuk dev/test/demo — JANGAN cemari gudang produksi.
+  const allowSampleData =
+    process.env.NODE_ENV !== "production" || process.env.GARAGE_SEED_DEMO === "true";
+  if (!allowSampleData) return;
 
   const [main] = await db
     .select()
@@ -309,9 +329,9 @@ export async function createWmsProduct(
       unit: input.unit.trim(),
       minStock: input.minStock ?? 0,
       hpp: input.hpp ?? 0,
+      createdBy: userId ?? null,
     })
     .returning();
-  void userId;
   return prod;
 }
 
@@ -325,11 +345,13 @@ export async function getWmsDashboard(params?: { warehouseId?: string }): Promis
   const outOfStock = products.filter((p) => p.status === "out").length;
   const stockValue = Math.round(products.reduce((s, p) => s + p.onHand * p.hpp, 0));
 
-  // Pergerakan hari ini.
+  // Pergerakan hari ini (kalender Asia/Jakarta, bukan sekadar 24 jam terakhir).
   const [{ today }] = await db
     .select({ today: sql<number>`count(*)::int` })
     .from(wmsStockMovement)
-    .where(sql`${wmsStockMovement.createdAt} >= now() - interval '1 day'`);
+    .where(
+      sql`(${wmsStockMovement.createdAt} AT TIME ZONE 'Asia/Jakarta')::date = (now() AT TIME ZONE 'Asia/Jakarta')::date`,
+    );
 
   // Tren 7 hari (masuk vs keluar) dari ledger.
   const trendRows = await db
@@ -869,8 +891,16 @@ export async function getWmsFinanceOverview() {
 // FASE 5 — Reports (dari ledger) + Stock Opname + Adjustment.
 // =============================================================================
 
-export async function getWmsReports(params?: { from?: string; to?: string; type?: string }) {
+export async function getWmsReports(params?: {
+  from?: string;
+  to?: string;
+  type?: string;
+  limit?: number;
+  offset?: number;
+}) {
   const db = getDb();
+  const limit = Math.min(Math.max(Number(params?.limit ?? 200), 1), 500);
+  const offset = Math.max(Number(params?.offset ?? 0), 0);
   const filters = [];
   if (params?.from) filters.push(sql`${wmsStockMovement.createdAt} >= ${new Date(params.from)}`);
   if (params?.to) filters.push(sql`${wmsStockMovement.createdAt} <= ${new Date(params.to)}`);
@@ -915,16 +945,19 @@ export async function getWmsReports(params?: { from?: string; to?: string; type?
     .leftJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsStockMovement.warehouseId))
     .where(where)
     .orderBy(desc(wmsStockMovement.createdAt))
-    .limit(200);
+    .limit(limit)
+    .offset(offset);
 
+  const totalRows = Number(agg?.total ?? 0);
   return {
     kpis: {
       masuk: Math.round(Number(agg?.masuk ?? 0)),
       keluar: Math.round(Number(agg?.keluar ?? 0)),
       valueMasuk: Math.round(Number(agg?.valueMasuk ?? 0)),
       valueKeluar: Math.round(Number(agg?.valueKeluar ?? 0)),
-      total: Number(agg?.total ?? 0),
+      total: totalRows,
     },
+    page: { limit, offset, total: totalRows, hasMore: offset + limit < totalRows },
     bars: bars.map((b) => ({ label: b.day, masuk: Number(b.masuk), keluar: Number(b.keluar) })),
     movements: rows.map((r) => ({
       id: r.id,
@@ -1170,9 +1203,12 @@ export async function addColdChainReading(unitCode: string, tempC: number) {
 /** Ringkasan cold chain: unit + suhu terkini + tren + alert zona aman (0–8°C). */
 export async function getWmsColdChain() {
   const db = getDb();
-  // Seed demo bila kosong (agar UI tidak kosong).
+  // Seed contoh HANYA di dev/test/demo — di produksi jangan fabrikasi data sensor
+  // (bacaan suhu palsu bisa menyembunyikan alert cold chain yang nyata).
+  const allowSampleData =
+    process.env.NODE_ENV !== "production" || process.env.GARAGE_SEED_DEMO === "true";
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wmsColdChainReading);
-  if (Number(n) === 0) {
+  if (Number(n) === 0 && allowSampleData) {
     const now = Date.now();
     const units: Array<[string, number]> = [
       ["CHILLER-01", 4],

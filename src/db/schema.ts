@@ -2642,6 +2642,7 @@ export const wmsProduct = pgTable(
     unit: text("unit").notNull(),
     minStock: real("min_stock").notNull().default(0),
     hpp: real("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

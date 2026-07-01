@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import {
   wmsBatch,
   wmsBomItem,
+  wmsColdChainReading,
   wmsInternalOrder,
   wmsInternalOrderItem,
   wmsOpnameLine,
@@ -1014,4 +1015,160 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
     .where(eq(wmsStockOpname.id, id))
     .returning();
   return updated;
+}
+
+// =============================================================================
+// FASE 6 — Smart 2026: Smart Reorder (forecast) + Cold Chain + Owner Analytics.
+// =============================================================================
+
+/** Saran reorder dari rata-rata konsumsi (out/internal_out) 30 hari terakhir. */
+export async function getWmsSmartReorder() {
+  const db = getDb();
+  const products = await getWmsProducts();
+
+  const usageRows = await db
+    .select({
+      productId: wmsStockMovement.productId,
+      totalOut: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then -${wmsStockMovement.qty} else 0 end), 0)`,
+    })
+    .from(wmsStockMovement)
+    .where(
+      and(
+        sql`${wmsStockMovement.createdAt} >= now() - interval '30 days'`,
+        or(eq(wmsStockMovement.type, "out"), eq(wmsStockMovement.type, "internal_out")),
+      ),
+    )
+    .groupBy(wmsStockMovement.productId);
+  const usageBy = new Map(usageRows.map((r) => [r.productId, Number(r.totalOut)]));
+
+  const items = products.map((p) => {
+    const avgDaily = (usageBy.get(p.id) ?? 0) / 30;
+    const daysCover = avgDaily > 0 ? p.onHand / avgDaily : null;
+    // Target: cukup 14 hari + buffer minStock. Saran = target - onHand (>=0).
+    const target = Math.max(p.minStock, Math.ceil(avgDaily * 14));
+    const suggestedQty = Math.max(0, Math.round(target - p.onHand));
+    const urgency = p.onHand <= 0 ? "critical" : p.onHand <= p.minStock ? "low" : "ok";
+    return {
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      unit: p.unit,
+      onHand: p.onHand,
+      minStock: p.minStock,
+      avgDaily: Math.round(avgDaily * 100) / 100,
+      daysCover: daysCover != null ? Math.round(daysCover * 10) / 10 : null,
+      suggestedQty,
+      urgency,
+    };
+  });
+
+  const needReorder = items
+    .filter((i) => i.suggestedQty > 0 || i.urgency !== "ok")
+    .sort((a, b) => (a.daysCover ?? 9999) - (b.daysCover ?? 9999));
+  return { items: needReorder, totalSuggestions: needReorder.length };
+}
+
+/** Simpan bacaan suhu cold chain (webhook IoT). */
+export async function addColdChainReading(unitCode: string, tempC: number) {
+  const db = getDb();
+  const [row] = await db
+    .insert(wmsColdChainReading)
+    .values({ unitCode: unitCode.trim(), tempC })
+    .returning();
+  return row;
+}
+
+/** Ringkasan cold chain: unit + suhu terkini + tren + alert zona aman (0–8°C). */
+export async function getWmsColdChain() {
+  const db = getDb();
+  // Seed demo bila kosong (agar UI tidak kosong).
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wmsColdChainReading);
+  if (Number(n) === 0) {
+    const now = Date.now();
+    const units: Array<[string, number]> = [
+      ["CHILLER-01", 4],
+      ["FREEZER-01", -18],
+      ["CHILLER-02", 9],
+    ];
+    const seed = [];
+    for (const [code, base] of units) {
+      for (let i = 11; i >= 0; i--) {
+        seed.push({
+          unitCode: code,
+          tempC: Math.round((base + (Math.random() * 2 - 1)) * 10) / 10,
+          recordedAt: new Date(now - i * 60 * 60 * 1000),
+        });
+      }
+    }
+    await db.insert(wmsColdChainReading).values(seed);
+  }
+
+  const rows = await db
+    .select()
+    .from(wmsColdChainReading)
+    .where(sql`${wmsColdChainReading.recordedAt} >= now() - interval '1 day'`)
+    .orderBy(wmsColdChainReading.recordedAt);
+
+  const byUnit = new Map<string, Array<{ t: string; temp: number }>>();
+  for (const r of rows) {
+    const arr = byUnit.get(r.unitCode) ?? [];
+    arr.push({ t: r.recordedAt.toISOString(), temp: Number(r.tempC) });
+    byUnit.set(r.unitCode, arr);
+  }
+
+  const units = Array.from(byUnit.entries()).map(([code, series]) => {
+    const latest = series[series.length - 1]?.temp ?? 0;
+    const isFreezer = code.toUpperCase().includes("FREEZER");
+    const safe = isFreezer ? latest <= -12 : latest >= 0 && latest <= 8;
+    return { code, latest, safe, series };
+  });
+
+  return {
+    units,
+    alerts: units.filter((u) => !u.safe).map((u) => ({ code: u.code, temp: u.latest })),
+  };
+}
+
+/** Owner analytics: food cost, margin, top bahan konsumsi, waste. */
+export async function getWmsOwnerAnalytics() {
+  const db = getDb();
+  const recipes = await listWmsRecipes();
+  const withCost = recipes.filter((r) => r.cogs > 0);
+  const avgFoodCost =
+    withCost.length > 0
+      ? Math.round((withCost.reduce((s, r) => s + r.foodCostPct, 0) / withCost.length) * 10) / 10
+      : 0;
+  const avgMargin =
+    recipes.length > 0 ? Math.round(recipes.reduce((s, r) => s + r.margin, 0) / recipes.length) : 0;
+
+  // Top bahan berdasarkan nilai konsumsi 30 hari.
+  const topRows = await db
+    .select({
+      name: wmsProduct.name,
+      value: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then ${wmsStockMovement.valueHpp} else 0 end), 0)`,
+    })
+    .from(wmsStockMovement)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsStockMovement.productId))
+    .where(sql`${wmsStockMovement.createdAt} >= now() - interval '30 days'`)
+    .groupBy(wmsProduct.name)
+    .orderBy(sql`2 desc`)
+    .limit(6);
+
+  const [waste] = await db
+    .select({ v: sql<number>`coalesce(sum(${wmsStockMovement.valueHpp}), 0)` })
+    .from(wmsStockMovement)
+    .where(eq(wmsStockMovement.type, "waste"));
+
+  return {
+    kpis: {
+      avgFoodCost,
+      avgMargin,
+      totalRecipes: recipes.length,
+      wasteValue: Math.round(Number(waste?.v ?? 0)),
+    },
+    topMaterials: topRows
+      .filter((r) => Number(r.value) > 0)
+      .map((r) => ({ name: r.name ?? "-", value: Math.round(Number(r.value)) })),
+    recipes: recipes.slice(0, 10),
+  };
 }

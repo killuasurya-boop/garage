@@ -70,9 +70,9 @@ const NAV: NavGroup[] = [
   {
     title: "Smart 2026",
     items: [
-      { label: "Smart Reorder", icon: Sparkles, soon: true },
-      { label: "Cold Chain", icon: Thermometer, soon: true },
-      { label: "Owner Analytics", icon: TrendingUp, soon: true },
+      { label: "Smart Reorder", href: "/warehouse/reorder", icon: Sparkles },
+      { label: "Cold Chain", href: "/warehouse/cold-chain", icon: Thermometer },
+      { label: "Owner Analytics", href: "/warehouse/analytics", icon: TrendingUp },
     ],
   },
   { title: "System", items: [{ label: "Settings", icon: Settings, soon: true }] },
@@ -281,5 +281,8 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/reports")) return "Reports";
   if (pathname.startsWith("/warehouse/opname")) return "Stock Opname";
   if (pathname.startsWith("/warehouse/adjustment")) return "Adjustment";
+  if (pathname.startsWith("/warehouse/reorder")) return "Smart Reorder";
+  if (pathname.startsWith("/warehouse/cold-chain")) return "Cold Chain";
+  if (pathname.startsWith("/warehouse/analytics")) return "Owner Analytics";
   return "Warehouse";
 }

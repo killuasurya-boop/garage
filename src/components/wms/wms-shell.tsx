@@ -56,7 +56,7 @@ const NAV: NavGroup[] = [
       { label: "Kitchen", href: "/warehouse/kitchen", icon: ChefHat },
       { label: "Bar", href: "/warehouse/bar", icon: Coffee },
       { label: "Recipe", href: "/warehouse/recipe", icon: BookOpen },
-      { label: "Production", icon: Factory, soon: true },
+      { label: "Production", href: "/warehouse/production", icon: Factory },
     ],
   },
   {
@@ -296,6 +296,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/transfer")) return "Transfer Antar-Gudang";
   if (pathname.startsWith("/warehouse/kitchen")) return "Kitchen · Stok Dapur";
   if (pathname.startsWith("/warehouse/bar")) return "Bar · Stok Bar";
+  if (pathname.startsWith("/warehouse/production")) return "Production";
   if (pathname.startsWith("/warehouse/recipe")) return "Recipe / BOM";
   if (pathname.startsWith("/warehouse/keuangan")) return "Keuangan & HPP";
   if (pathname.startsWith("/warehouse/reports")) return "Reports";

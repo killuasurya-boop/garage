@@ -2787,6 +2787,29 @@ export const wmsBomItem = pgTable(
   (t) => ({ recipeIdx: index("wms_bom_item_recipe_idx").on(t.recipeId) }),
 );
 
+// Resep PRODUKSI: olah bahan mentah → produk jadi/setengah-jadi (output = wms_product).
+export const wmsProductionRecipe = pgTable("wms_production_recipe", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  outputProductId: uuid("output_product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+  outputQty: wmsNum("output_qty").notNull().default(1), // hasil per 1 batch produksi
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsProductionBom = pgTable(
+  "wms_production_bom",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => wmsProductionRecipe.id, { onDelete: "cascade" }),
+    inputProductId: uuid("input_product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    qty: wmsNum("qty").notNull().default(0), // bahan per 1 batch
+  },
+  (t) => ({ recipeIdx: index("wms_production_bom_recipe_idx").on(t.recipeId) }),
+);
+
 export const wmsStockOpname = pgTable("wms_stock_opname", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull(),

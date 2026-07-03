@@ -9,6 +9,8 @@ import {
   wmsInternalOrderItem,
   wmsOpnameLine,
   wmsProduct,
+  wmsProductionBom,
+  wmsProductionRecipe,
   wmsReceiving,
   wmsReceivingItem,
   wmsRecipe,
@@ -1061,6 +1063,196 @@ export async function listWmsTransfers() {
     qtyOut: Math.round(Number(r.qtyOut)),
     valueHpp: Math.round(Number(r.valueHpp)),
     items: Number(r.items),
+  }));
+}
+
+// =============================================================================
+// Production — olah bahan mentah → produk jadi. Konsumsi input FEFO (type out) +
+// hasil output (type in, HPP = biaya input / hasil). HPP output di-weighted-average.
+// =============================================================================
+
+export type ProductionRecipeInput = {
+  name: string;
+  outputProductId: string;
+  outputQty: number;
+  bom: Array<{ inputProductId: string; qty: number }>;
+};
+
+export async function createProductionRecipe(input: ProductionRecipeInput, userId?: string | null) {
+  const db = getDb();
+  const [rec] = await db
+    .insert(wmsProductionRecipe)
+    .values({
+      name: input.name.trim(),
+      outputProductId: input.outputProductId,
+      outputQty: input.outputQty > 0 ? input.outputQty : 1,
+      createdBy: userId ?? null,
+    })
+    .returning();
+  if (input.bom.length) {
+    await db.insert(wmsProductionBom).values(
+      input.bom.filter((b) => b.qty > 0).map((b) => ({ recipeId: rec.id, inputProductId: b.inputProductId, qty: b.qty })),
+    );
+  }
+  return rec;
+}
+
+export async function deleteProductionRecipe(id: string) {
+  const db = getDb();
+  const [row] = await db.delete(wmsProductionRecipe).where(eq(wmsProductionRecipe.id, id)).returning();
+  return row ?? null;
+}
+
+export async function listProductionRecipes() {
+  const db = getDb();
+  const recipes = await db
+    .select({
+      id: wmsProductionRecipe.id,
+      name: wmsProductionRecipe.name,
+      outputQty: wmsProductionRecipe.outputQty,
+      outputProductId: wmsProductionRecipe.outputProductId,
+      outputName: wmsProduct.name,
+      outputUnit: wmsProduct.unit,
+    })
+    .from(wmsProductionRecipe)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsProductionRecipe.outputProductId))
+    .orderBy(desc(wmsProductionRecipe.createdAt));
+  const bomRows = await db
+    .select({ recipeId: wmsProductionBom.recipeId, n: sql<number>`count(*)::int` })
+    .from(wmsProductionBom)
+    .groupBy(wmsProductionBom.recipeId);
+  const bomBy = new Map(bomRows.map((r) => [r.recipeId, Number(r.n)]));
+  return recipes.map((r) => ({
+    id: r.id,
+    name: r.name,
+    outputQty: Number(r.outputQty),
+    outputProductId: r.outputProductId,
+    outputName: r.outputName ?? "-",
+    outputUnit: r.outputUnit ?? "",
+    inputs: bomBy.get(r.id) ?? 0,
+  }));
+}
+
+export async function getProductionRecipe(id: string) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsProductionRecipe).where(eq(wmsProductionRecipe.id, id)).limit(1);
+  if (!rec) return null;
+  const bom = await db
+    .select({
+      id: wmsProductionBom.id,
+      inputProductId: wmsProductionBom.inputProductId,
+      name: wmsProduct.name,
+      unit: wmsProduct.unit,
+      hpp: wmsProduct.hpp,
+      qty: wmsProductionBom.qty,
+    })
+    .from(wmsProductionBom)
+    .leftJoin(wmsProduct, eq(wmsProduct.id, wmsProductionBom.inputProductId))
+    .where(eq(wmsProductionBom.recipeId, id));
+  return {
+    id: rec.id,
+    name: rec.name,
+    outputProductId: rec.outputProductId,
+    outputQty: Number(rec.outputQty),
+    bom: bom.map((b) => ({
+      id: b.id,
+      inputProductId: b.inputProductId,
+      name: b.name ?? "-",
+      unit: b.unit ?? "",
+      qty: Number(b.qty),
+      hpp: Number(b.hpp ?? 0),
+    })),
+  };
+}
+
+/** Jalankan produksi: konsumsi input (FEFO) × batch + hasilkan output (in). */
+export async function runProduction(
+  input: { recipeId: string; batches: number; warehouseId: string },
+  userId?: string | null,
+) {
+  const batches = Number(input.batches);
+  if (!(batches > 0)) throw new Error("Jumlah batch harus lebih dari 0.");
+  return runInTx(async (tx) => {
+    const [rec] = await tx.select().from(wmsProductionRecipe).where(eq(wmsProductionRecipe.id, input.recipeId)).limit(1);
+    if (!rec) throw new Error("Resep produksi tidak ditemukan.");
+    if (!rec.outputProductId) throw new Error("Resep tanpa produk output.");
+    const bom = await tx.select().from(wmsProductionBom).where(eq(wmsProductionBom.recipeId, rec.id));
+    if (bom.length === 0) throw new Error("Resep tanpa bahan input.");
+
+    // Validasi stok input dulu (pesan ramah).
+    for (const b of bom) {
+      if (!b.inputProductId) continue;
+      const need = Number(b.qty) * batches;
+      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, b.inputProductId)).limit(1);
+      const avail = await warehouseOnHand(tx, b.inputProductId, input.warehouseId);
+      if (need > avail) throw new Error(`Stok ${prod?.name ?? "bahan"} tidak cukup (tersedia ${avail}, butuh ${need}).`);
+    }
+
+    const doc = makeWmsDoc("PRD");
+    let totalCost = 0;
+    for (const b of bom) {
+      if (!b.inputProductId) continue;
+      const need = Number(b.qty) * batches;
+      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, b.inputProductId)).limit(1);
+      const { cost } = await recordStockMovement(tx, {
+        type: "out",
+        productId: b.inputProductId,
+        warehouseId: input.warehouseId,
+        deltaQty: -need,
+        hpp: Number(prod?.hpp ?? 0),
+        refDoc: doc,
+        userId: userId ?? null,
+      });
+      totalCost += cost;
+    }
+
+    const producedQty = Number(rec.outputQty) * batches;
+    const unitCost = producedQty > 0 ? totalCost / producedQty : 0;
+
+    // Update HPP rata-rata tertimbang produk output (seperti receiving).
+    const [outProd] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, rec.outputProductId)).limit(1);
+    if (outProd) {
+      const oldQty = await totalOnHand(tx, rec.outputProductId);
+      const oldValue = oldQty * Number(outProd.hpp);
+      const newQty = oldQty + producedQty;
+      const newHpp = newQty > 0 ? (oldValue + totalCost) / newQty : unitCost;
+      await tx.update(wmsProduct).set({ hpp: newHpp, updatedAt: new Date() }).where(eq(wmsProduct.id, rec.outputProductId));
+    }
+
+    await recordStockMovement(tx, {
+      type: "in",
+      productId: rec.outputProductId,
+      warehouseId: input.warehouseId,
+      deltaQty: producedQty,
+      hpp: unitCost,
+      refDoc: doc,
+      userId: userId ?? null,
+    });
+
+    return { doc, producedQty, cost: Math.round(totalCost) };
+  });
+}
+
+/** Riwayat produksi (dari ledger, dokumen PRD-*). */
+export async function listProductions() {
+  const db = getDb();
+  const rows = await db
+    .select({
+      doc: wmsStockMovement.refDoc,
+      createdAt: sql<string>`min(${wmsStockMovement.createdAt})`,
+      producedQty: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} > 0 then ${wmsStockMovement.qty} else 0 end), 0)`,
+      cost: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then ${wmsStockMovement.valueHpp} else 0 end), 0)`,
+    })
+    .from(wmsStockMovement)
+    .where(sql`${wmsStockMovement.refDoc} like 'PRD-%'`)
+    .groupBy(wmsStockMovement.refDoc)
+    .orderBy(sql`min(${wmsStockMovement.createdAt}) desc`)
+    .limit(100);
+  return rows.map((r) => ({
+    doc: r.doc,
+    createdAt: new Date(r.createdAt).toISOString(),
+    producedQty: Math.round(Number(r.producedQty)),
+    cost: Math.round(Number(r.cost)),
   }));
 }
 

@@ -2648,12 +2648,16 @@ export const wmsProduct = pgTable(
     minStock: wmsNum("min_stock").notNull().default(0),
     hpp: wmsNum("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
     imageUrl: text("image_url"), // foto bahan baku (opsional)
+    barcode: text("barcode"), // barcode asli kemasan supplier (EAN/UPC), opsional
     archivedAt: timestamp("archived_at", { withTimezone: true }), // soft-delete: jejak laporan tetap utuh
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({ categoryIdx: index("wms_product_category_idx").on(t.category) }),
+  (t) => ({
+    categoryIdx: index("wms_product_category_idx").on(t.category),
+    barcodeIdx: index("wms_product_barcode_idx").on(t.barcode),
+  }),
 );
 
 export const wmsWarehouseStock = pgTable(

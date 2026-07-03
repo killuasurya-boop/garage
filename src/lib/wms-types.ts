@@ -23,6 +23,7 @@ export type WmsProductRow = {
   onHand: number; // di warehouse aktif (atau total bila scope semua)
   status: StockStatus;
   imageUrl: string | null;
+  barcode: string | null;
   createdAt: string;
 };
 

@@ -14,6 +14,7 @@ const createSchema = z.object({
   unit: z.string().trim().min(1).max(24),
   minStock: z.number().nonnegative().max(10_000_000).optional(),
   hpp: z.number().nonnegative().max(100_000_000).optional(),
+  barcode: z.string().trim().max(64).nullable().optional(),
 });
 
 export async function GET(request: Request) {
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
       search: url.searchParams.get("search") ?? undefined,
       category: url.searchParams.get("category") ?? undefined,
       warehouseId: url.searchParams.get("warehouse") ?? undefined,
+      archived: url.searchParams.get("archived") === "1" ? "archived" : "active",
     }),
   );
 }

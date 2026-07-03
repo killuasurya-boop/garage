@@ -14,6 +14,8 @@ const patchSchema = z.object({
   minStock: z.number().nonnegative().max(10_000_000).optional(),
   hpp: z.number().nonnegative().max(100_000_000).optional(),
   imageUrl: z.string().trim().max(400).nullable().optional(),
+  barcode: z.string().trim().max(64).nullable().optional(),
+  restore: z.boolean().optional(), // true = pulihkan dari arsip
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -22,7 +24,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { id } = await context.params;
   const parsed = await readJson(request, patchSchema);
   if (parsed.error) return parsed.error;
-  const row = await updateWmsProduct(id, parsed.data);
+  const { restore, ...patch } = parsed.data;
+  const row = await updateWmsProduct(id, {
+    ...patch,
+    ...(restore ? { archivedAt: null } : {}),
+  });
   if (!row) return fail(404, "PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
   return ok(row);
 }

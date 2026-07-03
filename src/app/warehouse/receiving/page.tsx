@@ -40,12 +40,30 @@ const emptyItem = (): ItemDraft => ({
 export default function WmsReceivingPage() {
   const [list, setList] = useState<ReceivingRow[]>([]);
   const [products, setProducts] = useState<WmsProductRow[]>([]);
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [supplier, setSupplier] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
+  const [addingSupplier, setAddingSupplier] = useState(false);
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
+
+  async function loadSuppliers() {
+    try { setSuppliers(await garageApi.get<Array<{ id: string; name: string }>>("/api/wms/suppliers")); } catch { /* abaikan */ }
+  }
+
+  async function saveSupplier() {
+    if (newSupplier.trim().length < 2) return;
+    try {
+      const s = await garageApi.post<{ name: string }>("/api/wms/suppliers", { name: newSupplier.trim() });
+      await loadSuppliers();
+      setSupplier(s.name);
+      setNewSupplier("");
+      setAddingSupplier(false);
+    } catch { /* abaikan */ }
+  }
 
   async function load() {
     const [recs, prods] = await Promise.all([
@@ -54,6 +72,7 @@ export default function WmsReceivingPage() {
     ]);
     setList(recs);
     setProducts(prods);
+    void loadSuppliers();
   }
 
   useEffect(() => {
@@ -67,6 +86,7 @@ export default function WmsReceivingPage() {
         if (alive) {
           setList(recs);
           setProducts(prods);
+          void loadSuppliers();
         }
       } catch {
         /* abaikan */
@@ -165,12 +185,23 @@ export default function WmsReceivingPage() {
             ))}
           </div>
 
-          <input
-            value={supplier}
-            onChange={(e) => setSupplier(e.target.value)}
-            placeholder="Nama supplier (opsional)"
-            className={`${input} mb-3 w-full sm:w-80`}
-          />
+          <div className="mb-3">
+            <select
+              value={addingSupplier ? "__new__" : supplier}
+              onChange={(e) => { if (e.target.value === "__new__") setAddingSupplier(true); else { setAddingSupplier(false); setSupplier(e.target.value); } }}
+              className={`${input} w-full sm:w-80`}
+            >
+              <option value="">Pilih supplier (opsional)…</option>
+              {suppliers.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+              <option value="__new__">+ Supplier baru…</option>
+            </select>
+            {addingSupplier && (
+              <div className="mt-2 flex gap-2 sm:w-80">
+                <input value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} placeholder="Nama supplier baru" className={`${input} flex-1`} />
+                <button type="button" onClick={() => void saveSupplier()} className="rounded-md bg-[#2F3136] px-3 text-[12px] font-semibold text-white hover:bg-black">Simpan</button>
+              </div>
+            )}
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-[13px]">

@@ -26,6 +26,14 @@ import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import { WMS_STATUS_COLOR, type WmsProductRow } from "@/lib/wms-types";
 
+type WmsCategory = { id: string; name: string; area: "bar" | "dapur" | "umum" };
+const AREA_LABEL: Record<string, string> = { bar: "Bar", dapur: "Dapur", umum: "Umum" };
+
+/** Prefix SKU dari nama kategori (3 huruf/angka pertama). */
+function catPrefix(name: string): string {
+  return name.replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "PRD";
+}
+
 function fmtDate(iso: string) {
   try {
     return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
@@ -74,6 +82,23 @@ export default function WmsInventoryPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [importing, setImporting] = useState(false);
   const [scanning, setScanning] = useState(searchParams.get("scan") === "1");
+  const [cats, setCats] = useState<WmsCategory[]>([]);
+
+  async function loadCategories() {
+    try {
+      setCats(await garageApi.get<WmsCategory[]>("/api/wms/categories"));
+    } catch { /* abaikan */ }
+  }
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const c = await garageApi.get<WmsCategory[]>("/api/wms/categories");
+        if (alive) setCats(c);
+      } catch { /* abaikan */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   async function handleArchive(ids: string[]) {
     if (ids.length === 0 || busyAction) return;
@@ -164,11 +189,11 @@ export default function WmsInventoryPage() {
   }, [showArchived, wh]);
 
   const categories = useMemo(() => {
-    // Selalu tampilkan kategori baku + kategori lain yang muncul di data.
-    const base = CATEGORY_OPTIONS.map((c) => c.label);
+    // Kategori master + kategori lain yang muncul di data.
+    const base = cats.map((c) => c.name);
     const fromData = rows.map((r) => r.category);
     return ["all", ...Array.from(new Set([...base, ...fromData]))];
-  }, [rows]);
+  }, [rows, cats]);
 
   const needle = q.trim().toLowerCase();
   const filtered = rows.filter((r) => {
@@ -230,10 +255,12 @@ export default function WmsInventoryPage() {
         </div>
       </div>
 
-      {adding && <AddForm rows={rows} onDone={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />}
+      {adding && <AddForm rows={rows} cats={cats} onCatAdded={loadCategories} onDone={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />}
       {editing && (
         <EditForm
           product={editing}
+          cats={cats}
+          onCatAdded={loadCategories}
           onDone={() => { setEditing(null); void load(); }}
           onCancel={() => setEditing(null)}
         />
@@ -458,15 +485,60 @@ export default function WmsInventoryPage() {
   );
 }
 
-// Kategori baku + prefix SKU (pengelompokan bahan). Prefix dipakai untuk SKU otomatis.
-const CATEGORY_OPTIONS: Array<{ label: string; prefix: string; hint: string }> = [
-  { label: "Bahan Bar", prefix: "BAR", hint: "kopi, susu, sirup, dll" },
-  { label: "Bahan Dapur", prefix: "DPR", hint: "beras, ayam, minyak, dll" },
-  { label: "Kemasan", prefix: "KMS", hint: "gelas, sedotan, kotak, dll" },
-  { label: "Umum / Lainnya", prefix: "UMM", hint: "bahan umum" },
-];
 const UNIT_OPTIONS = ["gram", "kg", "ml", "liter", "pcs", "pack", "sachet", "botol"];
 const CUSTOM = "__custom__";
+
+/** Dropdown kategori dari master + "+ Kategori baru" (dengan area bar/dapur/umum). */
+function CategoryPicker({ cats, value, onChange, onCatAdded }: {
+  cats: WmsCategory[]; value: string; onChange: (name: string) => void; onCatAdded: () => Promise<void> | void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newArea, setNewArea] = useState<"bar" | "dapur" | "umum">("umum");
+  const [busy, setBusy] = useState(false);
+  const known = cats.some((c) => c.name === value);
+  const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+
+  async function create() {
+    if (newName.trim().length < 2 || busy) return;
+    setBusy(true);
+    try {
+      const c = await garageApi.post<WmsCategory>("/api/wms/categories", { name: newName.trim(), area: newArea });
+      await onCatAdded();
+      onChange(c.name);
+      setCreating(false);
+      setNewName("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <select
+        value={creating ? "__new__" : value}
+        onChange={(e) => { if (e.target.value === "__new__") setCreating(true); else { setCreating(false); onChange(e.target.value); } }}
+        className={`${input} w-full`}
+      >
+        <option value="">Pilih kategori…</option>
+        {cats.map((c) => <option key={c.id} value={c.name}>{c.name} · {AREA_LABEL[c.area]}</option>)}
+        {!known && value && <option value={value}>{value}</option>}
+        <option value="__new__">+ Kategori baru…</option>
+      </select>
+      {creating && (
+        <div className="mt-2 flex gap-2">
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nama kategori" className={`${input} flex-1`} />
+          <select value={newArea} onChange={(e) => setNewArea(e.target.value as "bar" | "dapur" | "umum")} className={input}>
+            <option value="bar">Bar</option>
+            <option value="dapur">Dapur</option>
+            <option value="umum">Umum</option>
+          </select>
+          <button type="button" disabled={busy} onClick={() => void create()} className="rounded-md bg-[#2F3136] px-3 text-[12px] font-semibold text-white hover:bg-black disabled:opacity-50">Simpan</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** SKU otomatis: prefix kategori + nomor urut tertinggi + 1 (mis. BAR-003). */
 function nextSku(prefix: string, rows: WmsProductRow[]): string {
@@ -480,10 +552,9 @@ function nextSku(prefix: string, rows: WmsProductRow[]): string {
   return `${prefix}-${String(max + 1).padStart(3, "0")}`;
 }
 
-function AddForm({ rows, onDone, onCancel }: { rows: WmsProductRow[]; onDone: () => void; onCancel: () => void }) {
+function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProductRow[]; cats: WmsCategory[]; onCatAdded: () => Promise<void> | void; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState("");
-  const [categorySel, setCategorySel] = useState(CATEGORY_OPTIONS[0].label);
-  const [customCategory, setCustomCategory] = useState("");
+  const [category, setCategory] = useState(cats[0]?.name ?? "");
   const [unitSel, setUnitSel] = useState(UNIT_OPTIONS[0]);
   const [customUnit, setCustomUnit] = useState("");
   const [autoSku, setAutoSku] = useState(true);
@@ -496,15 +567,10 @@ function AddForm({ rows, onDone, onCancel }: { rows: WmsProductRow[]; onDone: ()
   const [err, setErr] = useState<string | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
 
-  const isCustomCat = categorySel === CUSTOM;
-  const category = (isCustomCat ? customCategory : categorySel).trim();
   const unit = (unitSel === CUSTOM ? customUnit : unitSel).trim();
-  const prefix = isCustomCat
-    ? customCategory.trim().slice(0, 3).toUpperCase() || "PRD"
-    : CATEGORY_OPTIONS.find((c) => c.label === categorySel)?.prefix ?? "PRD";
+  const prefix = catPrefix(category);
   const autoSkuValue = useMemo(() => nextSku(prefix, rows), [prefix, rows]);
   const sku = (autoSku ? autoSkuValue : manualSku).trim();
-  const catHint = CATEGORY_OPTIONS.find((c) => c.label === categorySel)?.hint;
 
   async function submit() {
     if (!sku || !name.trim() || !category || busy) return;
@@ -547,16 +613,10 @@ function AddForm({ rows, onDone, onCancel }: { rows: WmsProductRow[]; onDone: ()
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="mis. Kopi Robusta" className={`${input} w-full`} />
         </div>
 
-        {/* Kategori */}
+        {/* Kategori (master + tambah baru) */}
         <div>
-          <label className={label}>Kategori {catHint && <span className="font-normal text-[#9CA3AF]">· {catHint}</span>}</label>
-          <select value={categorySel} onChange={(e) => setCategorySel(e.target.value)} className={`${input} w-full`}>
-            {CATEGORY_OPTIONS.map((c) => <option key={c.label} value={c.label}>{c.label}</option>)}
-            <option value={CUSTOM}>+ Kategori lain…</option>
-          </select>
-          {isCustomCat && (
-            <input value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} placeholder="Nama kategori baru" className={`${input} mt-2 w-full`} />
-          )}
+          <label className={label}>Kategori</label>
+          <CategoryPicker cats={cats} value={category} onChange={setCategory} onCatAdded={onCatAdded} />
         </div>
 
         {/* Satuan */}
@@ -632,12 +692,10 @@ function AddForm({ rows, onDone, onCancel }: { rows: WmsProductRow[]; onDone: ()
   );
 }
 
-function EditForm({ product, onDone, onCancel }: { product: WmsProductRow; onDone: () => void; onCancel: () => void }) {
-  const knownCat = CATEGORY_OPTIONS.some((c) => c.label === product.category);
+function EditForm({ product, cats, onCatAdded, onDone, onCancel }: { product: WmsProductRow; cats: WmsCategory[]; onCatAdded: () => Promise<void> | void; onDone: () => void; onCancel: () => void }) {
   const knownUnit = UNIT_OPTIONS.includes(product.unit);
   const [name, setName] = useState(product.name);
-  const [categorySel, setCategorySel] = useState(knownCat ? product.category : CUSTOM);
-  const [customCategory, setCustomCategory] = useState(knownCat ? "" : product.category);
+  const [category, setCategory] = useState(product.category);
   const [unitSel, setUnitSel] = useState(knownUnit ? product.unit : CUSTOM);
   const [customUnit, setCustomUnit] = useState(knownUnit ? "" : product.unit);
   const [minStock, setMinStock] = useState(String(product.minStock));
@@ -650,7 +708,6 @@ function EditForm({ product, onDone, onCancel }: { product: WmsProductRow; onDon
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const category = (categorySel === CUSTOM ? customCategory : categorySel).trim();
   const unit = (unitSel === CUSTOM ? customUnit : unitSel).trim();
 
   // Generate QR (encode SKU) untuk ditampilkan & dicetak.
@@ -745,11 +802,7 @@ function EditForm({ product, onDone, onCancel }: { product: WmsProductRow; onDon
           </div>
           <div>
             <label className={label}>Kategori</label>
-            <select value={categorySel} onChange={(e) => setCategorySel(e.target.value)} className={`${input} w-full`}>
-              {CATEGORY_OPTIONS.map((c) => <option key={c.label} value={c.label}>{c.label}</option>)}
-              <option value={CUSTOM}>+ Kategori lain…</option>
-            </select>
-            {categorySel === CUSTOM && <input value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} placeholder="Nama kategori" className={`${input} mt-2 w-full`} />}
+            <CategoryPicker cats={cats} value={category} onChange={setCategory} onCatAdded={onCatAdded} />
           </div>
           <div>
             <label className={label}>Satuan</label>

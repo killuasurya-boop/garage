@@ -2633,6 +2633,25 @@ export const wmsWarehouse = pgTable("wms_warehouse", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Master kategori bahan (bebas ditambah owner). area = pengelompokan outlet:
+// bar | dapur | umum → memudahkan pisahkan bahan Bar vs Dapur di seluruh sistem.
+export const wmsCategory = pgTable("wms_category", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  area: text("area").notNull().default("umum"), // bar | dapur | umum
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Master supplier (didaftarkan owner, dipilih saat Receiving).
+export const wmsSupplier = pgTable("wms_supplier", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  phone: text("phone").notNull().default(""),
+  note: text("note").notNull().default(""),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Kolom uang/kuantitas WMS: numeric desimal EKSAK (mode number → tetap JS number).
 // Menghindari drift float pada HPP per-unit pecahan (Rp0,12/gram) & akumulasi nilai.
 const wmsNum = (name: string) => numeric(name, { precision: 14, scale: 4, mode: "number" });

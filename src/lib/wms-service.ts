@@ -4,7 +4,9 @@ import { getDb } from "@/db";
 import {
   wmsBatch,
   wmsBomItem,
+  wmsCategory,
   wmsColdChainReading,
+  wmsSupplier,
   wmsInternalOrder,
   wmsInternalOrderItem,
   wmsOpnameLine,
@@ -192,6 +194,17 @@ async function doEnsureWmsSeeded() {
   if (missingWh.length) {
     await db.insert(wmsWarehouse).values(missingWh).onConflictDoNothing();
   }
+
+  // Kategori master default (selalu, termasuk produksi) — owner bisa tambah bebas.
+  await db
+    .insert(wmsCategory)
+    .values([
+      { name: "Bahan Bar", area: "bar" },
+      { name: "Bahan Dapur", area: "dapur" },
+      { name: "Kemasan", area: "umum" },
+      { name: "Umum / Lainnya", area: "umum" },
+    ])
+    .onConflictDoNothing();
 
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wmsProduct);
   if (Number(n) > 0) return;
@@ -409,6 +422,55 @@ export async function createWmsProduct(
 }
 
 // =============================================================================
+// Master data: Kategori (ber-area bar/dapur/umum) + Supplier. Owner bebas tambah.
+// =============================================================================
+
+export type WmsArea = "bar" | "dapur" | "umum";
+
+export async function listWmsCategories() {
+  await ensureWmsSeeded();
+  const rows = await getDb().select().from(wmsCategory).orderBy(wmsCategory.area, wmsCategory.name);
+  return rows.map((r) => ({ id: r.id, name: r.name, area: r.area as WmsArea }));
+}
+
+export async function createWmsCategory(input: { name: string; area?: WmsArea }) {
+  const db = getDb();
+  const name = input.name.trim();
+  if (!name) throw new Error("Nama kategori wajib.");
+  const area = input.area && ["bar", "dapur", "umum"].includes(input.area) ? input.area : "umum";
+  const [row] = await db
+    .insert(wmsCategory)
+    .values({ name, area })
+    .onConflictDoUpdate({ target: wmsCategory.name, set: { area } })
+    .returning();
+  return { id: row.id, name: row.name, area: row.area as WmsArea };
+}
+
+export async function listWmsSuppliers() {
+  const rows = await getDb()
+    .select()
+    .from(wmsSupplier)
+    .where(sql`${wmsSupplier.archivedAt} is null`)
+    .orderBy(wmsSupplier.name);
+  return rows.map((r) => ({ id: r.id, name: r.name, phone: r.phone, note: r.note }));
+}
+
+export async function createWmsSupplier(input: { name: string; phone?: string; note?: string }) {
+  const db = getDb();
+  const name = input.name.trim();
+  if (!name) throw new Error("Nama supplier wajib.");
+  const [row] = await db
+    .insert(wmsSupplier)
+    .values({ name, phone: input.phone?.trim() ?? "", note: input.note?.trim() ?? "" })
+    .onConflictDoUpdate({
+      target: wmsSupplier.name,
+      set: { phone: input.phone?.trim() ?? "", note: input.note?.trim() ?? "", archivedAt: null },
+    })
+    .returning();
+  return { id: row.id, name: row.name, phone: row.phone, note: row.note };
+}
+
+// =============================================================================
 // Export / Import Excel (ExcelJS di-import dinamis agar tak membebani bundle lain).
 // Kolom template = round-trip (export bisa langsung diedit lalu di-import balik).
 // Import TIDAK mengubah stok (stok hanya lewat Receiving/Adjustment) — hanya master.
@@ -439,6 +501,24 @@ export async function exportWmsProductsWorkbook(opts?: { template?: boolean }): 
       ws.addRow({ sku: p.sku, name: p.name, category: p.category, unit: p.unit, minStock: p.minStock, hpp: p.hpp, onHand: p.onHand, barcode: p.barcode ?? "" });
     }
   }
+
+  // Dropdown validasi (ikut master): sheet tersembunyi "Master" berisi daftar
+  // kategori & satuan → kolom Kategori (C) & Satuan (D) memilih dari daftar ini.
+  const units = ["gram", "kg", "ml", "liter", "pcs", "pack", "sachet", "botol"];
+  const cats = await listWmsCategories();
+  const master = wb.addWorksheet("Master");
+  master.state = "hidden";
+  master.getCell("A1").value = "Kategori";
+  master.getCell("B1").value = "Satuan";
+  cats.forEach((c, i) => { master.getCell(`A${i + 2}`).value = c.name; });
+  units.forEach((u, i) => { master.getCell(`B${i + 2}`).value = u; });
+  const lastCat = Math.max(2, cats.length + 1);
+  const lastUnit = units.length + 1;
+  for (let r = 2; r <= 500; r++) {
+    ws.getCell(`C${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`Master!$A$2:$A$${lastCat}`] };
+    ws.getCell(`D${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`Master!$B$2:$B$${lastUnit}`] };
+  }
+
   // Catatan: kolom "Stok" hanya informasi — diabaikan saat import (stok lewat Receiving/Adjustment).
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

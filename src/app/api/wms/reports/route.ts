@@ -15,6 +15,7 @@ export async function GET(request: Request) {
       from: url.searchParams.get("from") ?? undefined,
       to: url.searchParams.get("to") ?? undefined,
       type: url.searchParams.get("type") ?? undefined,
+      warehouseId: url.searchParams.get("warehouse") ?? undefined,
       limit: limitRaw ? Number(limitRaw) : undefined,
       offset: offsetRaw ? Number(offsetRaw) : undefined,
     }),

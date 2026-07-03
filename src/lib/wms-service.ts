@@ -1211,6 +1211,7 @@ export async function getWmsReports(params?: {
   from?: string;
   to?: string;
   type?: string;
+  warehouseId?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -1221,6 +1222,7 @@ export async function getWmsReports(params?: {
   if (params?.from) filters.push(sql`${wmsStockMovement.createdAt} >= ${new Date(params.from)}`);
   if (params?.to) filters.push(sql`${wmsStockMovement.createdAt} <= ${new Date(params.to)}`);
   if (params?.type && params.type !== "all") filters.push(eq(wmsStockMovement.type, params.type));
+  if (params?.warehouseId) filters.push(eq(wmsStockMovement.warehouseId, params.warehouseId));
   const where = filters.length ? and(...filters) : undefined;
 
   const [agg] = await db

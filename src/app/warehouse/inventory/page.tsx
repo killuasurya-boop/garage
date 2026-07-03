@@ -69,7 +69,7 @@ export default function WmsInventoryPage() {
         </button>
       </div>
 
-      {adding && <AddForm onDone={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />}
+      {adding && <AddForm rows={rows} onDone={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />}
 
       {/* Filter bar */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[#E8E8E8] bg-white/95 p-2 backdrop-blur">
@@ -201,22 +201,63 @@ export default function WmsInventoryPage() {
   );
 }
 
-function AddForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const [f, setF] = useState({ sku: "", name: "", category: "", unit: "gram", minStock: "", hpp: "" });
+// Kategori baku + prefix SKU (pengelompokan bahan). Prefix dipakai untuk SKU otomatis.
+const CATEGORY_OPTIONS: Array<{ label: string; prefix: string; hint: string }> = [
+  { label: "Bahan Bar", prefix: "BAR", hint: "kopi, susu, sirup, dll" },
+  { label: "Bahan Dapur", prefix: "DPR", hint: "beras, ayam, minyak, dll" },
+  { label: "Kemasan", prefix: "KMS", hint: "gelas, sedotan, kotak, dll" },
+  { label: "Umum / Lainnya", prefix: "UMM", hint: "bahan umum" },
+];
+const UNIT_OPTIONS = ["gram", "kg", "ml", "liter", "pcs", "pack", "sachet", "botol"];
+const CUSTOM = "__custom__";
+
+/** SKU otomatis: prefix kategori + nomor urut tertinggi + 1 (mis. BAR-003). */
+function nextSku(prefix: string, rows: WmsProductRow[]): string {
+  if (!prefix) return "";
+  const re = new RegExp(`^${prefix}-(\\d+)$`, "i");
+  let max = 0;
+  for (const r of rows) {
+    const m = r.sku.match(re);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
+function AddForm({ rows, onDone, onCancel }: { rows: WmsProductRow[]; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState("");
+  const [categorySel, setCategorySel] = useState(CATEGORY_OPTIONS[0].label);
+  const [customCategory, setCustomCategory] = useState("");
+  const [unitSel, setUnitSel] = useState(UNIT_OPTIONS[0]);
+  const [customUnit, setCustomUnit] = useState("");
+  const [autoSku, setAutoSku] = useState(true);
+  const [manualSku, setManualSku] = useState("");
+  const [minStock, setMinStock] = useState("");
+  const [hpp, setHpp] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const isCustomCat = categorySel === CUSTOM;
+  const category = (isCustomCat ? customCategory : categorySel).trim();
+  const unit = (unitSel === CUSTOM ? customUnit : unitSel).trim();
+  const prefix = isCustomCat
+    ? customCategory.trim().slice(0, 3).toUpperCase() || "PRD"
+    : CATEGORY_OPTIONS.find((c) => c.label === categorySel)?.prefix ?? "PRD";
+  const autoSkuValue = useMemo(() => nextSku(prefix, rows), [prefix, rows]);
+  const sku = (autoSku ? autoSkuValue : manualSku).trim();
+  const catHint = CATEGORY_OPTIONS.find((c) => c.label === categorySel)?.hint;
+
   async function submit() {
-    if (!f.sku.trim() || !f.name.trim() || !f.category.trim() || busy) return;
+    if (!sku || !name.trim() || !category || busy) return;
     setBusy(true);
+    setErr(null);
     try {
       await garageApi.post("/api/wms/products", {
-        sku: f.sku.trim(),
-        name: f.name.trim(),
-        category: f.category.trim(),
-        unit: f.unit.trim() || "pcs",
-        minStock: Number(f.minStock) || 0,
-        hpp: Number(f.hpp) || 0,
+        sku,
+        name: name.trim(),
+        category,
+        unit: unit || "pcs",
+        minStock: Number(minStock) || 0,
+        hpp: Number(hpp) || 0,
       });
       onDone();
     } catch (e) {
@@ -227,18 +268,68 @@ function AddForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
   }
 
   const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+  const label = "mb-1 block text-[11px] font-semibold text-[#6B7280]";
 
   return (
     <div className="rounded-xl border border-[#E8E8E8] bg-white p-4">
       <p className="mb-3 text-[14px] font-bold text-[#111111]">Tambah Produk</p>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <input value={f.sku} onChange={(e) => setF({ ...f, sku: e.target.value })} placeholder="SKU (mis. BEAN-ROB)" className={`${input} font-mono`} />
-        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Nama produk" className={`${input} sm:col-span-2`} />
-        <input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} placeholder="Kategori (mis. Bahan Bar)" className={input} />
-        <input value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} placeholder="Satuan (gram/ml/pcs)" className={input} />
-        <div className="grid grid-cols-2 gap-2">
-          <input value={f.minStock} onChange={(e) => setF({ ...f, minStock: e.target.value })} inputMode="decimal" placeholder="Min stok" className={input} />
-          <input value={f.hpp} onChange={(e) => setF({ ...f, hpp: e.target.value })} inputMode="decimal" placeholder="HPP/satuan" className={input} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Nama */}
+        <div className="sm:col-span-2">
+          <label className={label}>Nama produk</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="mis. Kopi Robusta" className={`${input} w-full`} />
+        </div>
+
+        {/* Kategori */}
+        <div>
+          <label className={label}>Kategori {catHint && <span className="font-normal text-[#9CA3AF]">· {catHint}</span>}</label>
+          <select value={categorySel} onChange={(e) => setCategorySel(e.target.value)} className={`${input} w-full`}>
+            {CATEGORY_OPTIONS.map((c) => <option key={c.label} value={c.label}>{c.label}</option>)}
+            <option value={CUSTOM}>+ Kategori lain…</option>
+          </select>
+          {isCustomCat && (
+            <input value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} placeholder="Nama kategori baru" className={`${input} mt-2 w-full`} />
+          )}
+        </div>
+
+        {/* Satuan */}
+        <div>
+          <label className={label}>Satuan</label>
+          <select value={unitSel} onChange={(e) => setUnitSel(e.target.value)} className={`${input} w-full`}>
+            {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+            <option value={CUSTOM}>+ Satuan lain…</option>
+          </select>
+          {unitSel === CUSTOM && (
+            <input value={customUnit} onChange={(e) => setCustomUnit(e.target.value)} placeholder="mis. lusin" className={`${input} mt-2 w-full`} />
+          )}
+        </div>
+
+        {/* SKU otomatis */}
+        <div className="sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <label className={label}>SKU</label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-[#6B7280]">
+              <input type="checkbox" checked={autoSku} onChange={(e) => setAutoSku(e.target.checked)} className="size-3.5 accent-[#C8102E]" />
+              Otomatis
+            </label>
+          </div>
+          <input
+            value={autoSku ? autoSkuValue : manualSku}
+            onChange={(e) => setManualSku(e.target.value)}
+            readOnly={autoSku}
+            placeholder="mis. BAR-001"
+            className={`${input} w-full font-mono ${autoSku ? "bg-[#F8F9FB] text-[#6B7280]" : ""}`}
+          />
+        </div>
+
+        {/* Min & HPP */}
+        <div>
+          <label className={label}>Min stok</label>
+          <input value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} w-full`} />
+        </div>
+        <div>
+          <label className={label}>HPP / satuan (Rp)</label>
+          <input value={hpp} onChange={(e) => setHpp(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} w-full`} />
         </div>
       </div>
       {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
@@ -248,7 +339,7 @@ function AddForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
         </button>
         <button
           type="button"
-          disabled={busy || !f.sku.trim() || !f.name.trim() || !f.category.trim()}
+          disabled={busy || !sku || !name.trim() || !category}
           onClick={() => void submit()}
           className="rounded-md bg-[#C8102E] px-3.5 py-2 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(200,16,46,0.25)] hover:bg-[#a60d26] disabled:opacity-50"
         >

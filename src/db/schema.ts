@@ -2647,6 +2647,8 @@ export const wmsProduct = pgTable(
     unit: text("unit").notNull(),
     minStock: wmsNum("min_stock").notNull().default(0),
     hpp: wmsNum("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)
+    imageUrl: text("image_url"), // foto bahan baku (opsional)
+    archivedAt: timestamp("archived_at", { withTimezone: true }), // soft-delete: jejak laporan tetap utuh
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

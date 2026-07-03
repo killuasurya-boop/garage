@@ -275,13 +275,14 @@ export async function getWmsProducts(params?: {
   const db = getDb();
   const whId = params?.warehouseId ?? (await primaryWarehouseId(db));
 
-  const filters = [];
+  // Produk terarsip disembunyikan dari daftar (jejak laporan tetap utuh).
+  const filters = [sql`${wmsProduct.archivedAt} is null`];
   if (params?.category && params.category !== "all") {
     filters.push(eq(wmsProduct.category, params.category));
   }
   if (params?.search) {
     const s = `%${params.search.trim()}%`;
-    filters.push(or(ilike(wmsProduct.sku, s), ilike(wmsProduct.name, s), ilike(wmsProduct.category, s)));
+    filters.push(or(ilike(wmsProduct.sku, s), ilike(wmsProduct.name, s), ilike(wmsProduct.category, s))!);
   }
 
   const rows = await db
@@ -293,6 +294,8 @@ export async function getWmsProducts(params?: {
       unit: wmsProduct.unit,
       minStock: wmsProduct.minStock,
       hpp: wmsProduct.hpp,
+      imageUrl: wmsProduct.imageUrl,
+      createdAt: wmsProduct.createdAt,
       onHand: sql<number>`coalesce(${wmsWarehouseStock.qty}, 0)`,
     })
     .from(wmsProduct)
@@ -303,14 +306,57 @@ export async function getWmsProducts(params?: {
         whId ? eq(wmsWarehouseStock.warehouseId, whId) : sql`false`,
       ),
     )
-    .where(filters.length ? and(...filters) : undefined)
+    .where(and(...filters))
     .orderBy(wmsProduct.category, wmsProduct.name);
 
   return rows.map((r) => ({
-    ...r,
+    id: r.id,
+    sku: r.sku,
+    name: r.name,
+    category: r.category,
+    unit: r.unit,
+    minStock: Number(r.minStock),
+    hpp: Number(r.hpp),
     onHand: Number(r.onHand),
-    status: stockStatus(Number(r.onHand), r.minStock),
+    status: stockStatus(Number(r.onHand), Number(r.minStock)),
+    imageUrl: r.imageUrl ?? null,
+    createdAt: r.createdAt.toISOString(),
   }));
+}
+
+/** Update field produk (nama/kategori/satuan/min/hpp/gambar). */
+export async function updateWmsProduct(
+  id: string,
+  patch: {
+    name?: string;
+    category?: string;
+    unit?: string;
+    minStock?: number;
+    hpp?: number;
+    imageUrl?: string | null;
+  },
+) {
+  const db = getDb();
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (patch.name !== undefined) set.name = patch.name.trim();
+  if (patch.category !== undefined) set.category = patch.category.trim();
+  if (patch.unit !== undefined) set.unit = patch.unit.trim();
+  if (patch.minStock !== undefined) set.minStock = patch.minStock;
+  if (patch.hpp !== undefined) set.hpp = patch.hpp;
+  if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl;
+  const [row] = await db.update(wmsProduct).set(set).where(eq(wmsProduct.id, id)).returning();
+  return row ?? null;
+}
+
+/** Soft-delete (arsip): produk hilang dari daftar tapi riwayat ledger tetap ada. */
+export async function archiveWmsProduct(id: string) {
+  const db = getDb();
+  const [row] = await db
+    .update(wmsProduct)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(wmsProduct.id, id))
+    .returning();
+  return row ?? null;
 }
 
 export async function createWmsProduct(

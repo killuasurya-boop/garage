@@ -547,6 +547,13 @@
       "when": 1782903413293,
       "tag": "0077_crazy_amazoness",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1783039787246,
+      "tag": "0078_fresh_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

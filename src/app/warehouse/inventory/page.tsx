@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ImageOff, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import { WMS_STATUS_COLOR, type WmsProductRow } from "@/lib/wms-types";
+
+function fmtDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return "-";
+  }
+}
 
 export default function WmsInventoryPage() {
   const [rows, setRows] = useState<WmsProductRow[]>([]);
@@ -14,6 +22,45 @@ export default function WmsInventoryPage() {
   const [cat, setCat] = useState("all");
   const [selected, setSelected] = useState<Record<string, true>>({});
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<WmsProductRow | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
+
+  async function handleArchive(ids: string[]) {
+    if (ids.length === 0 || busyAction) return;
+    const names = ids.length === 1 ? rows.find((r) => r.id === ids[0])?.name ?? "produk ini" : `${ids.length} produk`;
+    if (!window.confirm(`Arsipkan ${names}? Produk hilang dari daftar, tapi riwayat laporan tetap tersimpan.`)) return;
+    setBusyAction(true);
+    try {
+      await Promise.all(ids.map((id) => garageApi.delete(`/api/wms/products/${id}`)));
+      setSelected({});
+      await load();
+    } catch {
+      window.alert("Sebagian gagal diarsipkan. Coba lagi.");
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function handleBulkMinStock(ids: string[]) {
+    if (ids.length === 0 || busyAction) return;
+    const val = window.prompt(`Set Min Stok untuk ${ids.length} produk ke:`, "");
+    if (val === null) return;
+    const minStock = Number(val);
+    if (!Number.isFinite(minStock) || minStock < 0) {
+      window.alert("Nilai tidak valid.");
+      return;
+    }
+    setBusyAction(true);
+    try {
+      await Promise.all(
+        ids.map((id) => garageApi.patch(`/api/wms/products/${id}`, { minStock })),
+      );
+      setSelected({});
+      await load();
+    } finally {
+      setBusyAction(false);
+    }
+  }
 
   async function load() {
     try {
@@ -70,6 +117,13 @@ export default function WmsInventoryPage() {
       </div>
 
       {adding && <AddForm rows={rows} onDone={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />}
+      {editing && (
+        <EditForm
+          product={editing}
+          onDone={() => { setEditing(null); void load(); }}
+          onCancel={() => setEditing(null)}
+        />
+      )}
 
       {/* Filter bar */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[#E8E8E8] bg-white/95 p-2 backdrop-blur">
@@ -106,22 +160,25 @@ export default function WmsInventoryPage() {
           <thead>
             <tr className="border-b border-[#E8E8E8] bg-[#F8F9FB] text-left text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#6B7280]">
               <th className="w-10 px-3 py-2.5" />
+              <th className="w-12 px-3 py-2.5">Foto</th>
               <th className="px-3 py-2.5">SKU</th>
               <th className="px-3 py-2.5">Nama</th>
               <th className="px-3 py-2.5">Kategori</th>
               <th className="px-3 py-2.5 text-right">Min</th>
               <th className="px-3 py-2.5">Stok / Status</th>
               <th className="px-3 py-2.5 text-right">HPP</th>
+              <th className="px-3 py-2.5">Ditambahkan</th>
+              <th className="w-20 px-3 py-2.5 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-[#6B7280]">Memuat…</td>
+                <td colSpan={10} className="px-3 py-10 text-center text-[#6B7280]">Memuat…</td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-[#6B7280]">
+                <td colSpan={10} className="px-3 py-10 text-center text-[#6B7280]">
                   Tidak ada produk. Tambahkan produk untuk mulai.
                 </td>
               </tr>
@@ -150,6 +207,16 @@ export default function WmsInventoryPage() {
                         className="size-4 accent-[#C8102E]"
                       />
                     </td>
+                    <td className="px-3 py-2.5">
+                      {r.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.imageUrl} alt={r.name} className="size-9 rounded-md border border-[#E8E8E8] object-cover" />
+                      ) : (
+                        <span className="grid size-9 place-items-center rounded-md border border-dashed border-[#E8E8E8] text-[#C7CBD1]">
+                          <ImageOff className="size-4" />
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 font-mono text-[12px] font-bold text-[#C8102E]">{r.sku}</td>
                     <td className="px-3 py-2.5 font-semibold text-[#111111]">{r.name}</td>
                     <td className="px-3 py-2.5 text-[#6B7280]">{r.category}</td>
@@ -174,6 +241,28 @@ export default function WmsInventoryPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-[#111111]">{currency.format(Math.round(r.hpp))}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-[#6B7280]">{fmtDate(r.createdAt)}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(r)}
+                          className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB] hover:text-[#111111]"
+                          title="Edit produk"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleArchive([r.id])}
+                          disabled={busyAction}
+                          className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E] disabled:opacity-50"
+                          title="Hapus (arsipkan) produk"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })
@@ -187,11 +276,22 @@ export default function WmsInventoryPage() {
         <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit items-center gap-3 rounded-full bg-[#2F3136] px-4 py-2.5 text-[13px] text-white shadow-[0_10px_40px_rgba(0,0,0,0.3)]">
           <span className="font-semibold">{selectedCount} item dipilih</span>
           <span className="h-4 w-px bg-white/20" />
-          {["Print Labels", "Export", "Update Min Stok"].map((b) => (
-            <button key={b} type="button" className="rounded-md px-2 py-1 text-white/70 hover:bg-white/10" title="Fase berikutnya">
-              {b}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => void handleBulkMinStock(Object.keys(selected))}
+            disabled={busyAction}
+            className="rounded-md px-2 py-1 text-white/80 hover:bg-white/10 disabled:opacity-50"
+          >
+            Update Min Stok
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleArchive(Object.keys(selected))}
+            disabled={busyAction}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[#ffb3bc] hover:bg-white/10 disabled:opacity-50"
+          >
+            <Trash2 className="size-3.5" /> Arsipkan
+          </button>
           <button type="button" onClick={() => setSelected({})} className="grid size-7 place-items-center rounded-full hover:bg-white/10">
             <X className="size-4" />
           </button>
@@ -345,6 +445,130 @@ function AddForm({ rows, onDone, onCancel }: { rows: WmsProductRow[]; onDone: ()
         >
           Simpan produk
         </button>
+      </div>
+    </div>
+  );
+}
+
+function EditForm({ product, onDone, onCancel }: { product: WmsProductRow; onDone: () => void; onCancel: () => void }) {
+  const knownCat = CATEGORY_OPTIONS.some((c) => c.label === product.category);
+  const knownUnit = UNIT_OPTIONS.includes(product.unit);
+  const [name, setName] = useState(product.name);
+  const [categorySel, setCategorySel] = useState(knownCat ? product.category : CUSTOM);
+  const [customCategory, setCustomCategory] = useState(knownCat ? "" : product.category);
+  const [unitSel, setUnitSel] = useState(knownUnit ? product.unit : CUSTOM);
+  const [customUnit, setCustomUnit] = useState(knownUnit ? "" : product.unit);
+  const [minStock, setMinStock] = useState(String(product.minStock));
+  const [hpp, setHpp] = useState(String(product.hpp));
+  const [imageUrl, setImageUrl] = useState<string | null>(product.imageUrl);
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const category = (categorySel === CUSTOM ? customCategory : categorySel).trim();
+  const unit = (unitSel === CUSTOM ? customUnit : unitSel).trim();
+
+  async function uploadImage(file: File) {
+    setUploading(true);
+    setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch(`/api/wms/products/${product.id}/image`, { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message ?? "Gagal upload foto.");
+      setImageUrl(json.data.imageUrl as string);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Gagal upload foto.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function save() {
+    if (!name.trim() || !category || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await garageApi.patch(`/api/wms/products/${product.id}`, {
+        name: name.trim(),
+        category,
+        unit: unit || "pcs",
+        minStock: Number(minStock) || 0,
+        hpp: Number(hpp) || 0,
+      });
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Gagal menyimpan.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+  const label = "mb-1 block text-[11px] font-semibold text-[#6B7280]";
+
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-4" onClick={onCancel}>
+      <div className="w-full max-w-lg rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[14px] font-bold text-[#111111]">Edit Produk · <span className="font-mono text-[#C8102E]">{product.sku}</span></p>
+          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+        </div>
+
+        {/* Foto bahan baku */}
+        <div className="mb-3 flex items-center gap-3">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt={name} className="size-16 rounded-lg border border-[#E8E8E8] object-cover" />
+          ) : (
+            <span className="grid size-16 place-items-center rounded-lg border border-dashed border-[#E8E8E8] text-[#C7CBD1]"><ImageOff className="size-6" /></span>
+          )}
+          <div>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadImage(f); }} />
+            <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-md border border-[#E8E8E8] px-3 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB] disabled:opacity-50">
+              <Upload className="size-3.5 text-[#C8102E]" /> {uploading ? "Mengunggah…" : imageUrl ? "Ganti foto" : "Unggah foto"}
+            </button>
+            <p className="mt-1 text-[11px] text-[#9CA3AF]">JPG/PNG/WebP, maks 8 MB.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className={label}>Nama produk</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className={`${input} w-full`} />
+          </div>
+          <div>
+            <label className={label}>Kategori</label>
+            <select value={categorySel} onChange={(e) => setCategorySel(e.target.value)} className={`${input} w-full`}>
+              {CATEGORY_OPTIONS.map((c) => <option key={c.label} value={c.label}>{c.label}</option>)}
+              <option value={CUSTOM}>+ Kategori lain…</option>
+            </select>
+            {categorySel === CUSTOM && <input value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} placeholder="Nama kategori" className={`${input} mt-2 w-full`} />}
+          </div>
+          <div>
+            <label className={label}>Satuan</label>
+            <select value={unitSel} onChange={(e) => setUnitSel(e.target.value)} className={`${input} w-full`}>
+              {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+              <option value={CUSTOM}>+ Satuan lain…</option>
+            </select>
+            {unitSel === CUSTOM && <input value={customUnit} onChange={(e) => setCustomUnit(e.target.value)} placeholder="mis. lusin" className={`${input} mt-2 w-full`} />}
+          </div>
+          <div>
+            <label className={label}>Min stok</label>
+            <input value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" className={`${input} w-full`} />
+          </div>
+          <div>
+            <label className={label}>HPP / satuan (Rp)</label>
+            <input value={hpp} onChange={(e) => setHpp(e.target.value)} inputMode="decimal" className={`${input} w-full`} />
+          </div>
+        </div>
+        {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
+        <div className="mt-3 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#6B7280] hover:bg-[#F8F9FB]">Batal</button>
+          <button type="button" disabled={busy || !name.trim() || !category} onClick={() => void save()} className="rounded-md bg-[#C8102E] px-3.5 py-2 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(200,16,46,0.25)] hover:bg-[#a60d26] disabled:opacity-50">Simpan perubahan</button>
+        </div>
       </div>
     </div>
   );

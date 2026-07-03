@@ -22,6 +22,8 @@ export type WmsProductRow = {
   hpp: number;
   onHand: number; // di warehouse aktif (atau total bila scope semua)
   status: StockStatus;
+  imageUrl: string | null;
+  createdAt: string;
 };
 
 export type WmsDashboard = {

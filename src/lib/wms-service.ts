@@ -982,6 +982,89 @@ export async function listInternalOrders() {
 }
 
 // =============================================================================
+// Transfer antar-gudang (bebas: gudang mana pun → gudang mana pun). Potong stok
+// sumber FEFO (type transfer) + tambah stok tujuan (type in, HPP = biaya batch).
+// =============================================================================
+
+export type TransferItemInput = { productId: string; qty: number };
+
+export async function transferStock(
+  input: { fromWarehouseId: string; toWarehouseId: string; items: TransferItemInput[] },
+  userId?: string | null,
+) {
+  if (input.fromWarehouseId === input.toWarehouseId) {
+    throw new Error("Gudang asal & tujuan tidak boleh sama.");
+  }
+  return runInTx(async (tx) => {
+    // Pra-validasi stok (pesan ramah); recordStockMovement tetap penjaga akhir.
+    const lines: Array<{ productId: string; qty: number; fallbackHpp: number }> = [];
+    for (const it of input.items) {
+      const qty = Number(it.qty);
+      if (qty <= 0) continue;
+      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+      if (!prod) throw new Error("Produk tidak ditemukan.");
+      const avail = await warehouseOnHand(tx, it.productId, input.fromWarehouseId);
+      if (qty > avail) {
+        throw new Error(`Stok ${prod.name} tidak cukup (tersedia ${avail}, diminta ${qty}).`);
+      }
+      lines.push({ productId: it.productId, qty, fallbackHpp: Number(prod.hpp) });
+    }
+    if (lines.length === 0) throw new Error("Tidak ada item valid.");
+
+    const doc = makeWmsDoc("TRF");
+    let total = 0;
+    for (const ln of lines) {
+      const { cost } = await recordStockMovement(tx, {
+        type: "transfer",
+        productId: ln.productId,
+        warehouseId: input.fromWarehouseId,
+        deltaQty: -ln.qty,
+        hpp: ln.fallbackHpp,
+        refDoc: doc,
+        userId: userId ?? null,
+      });
+      const unit = ln.qty > 0 ? cost / ln.qty : 0;
+      await recordStockMovement(tx, {
+        type: "in",
+        productId: ln.productId,
+        warehouseId: input.toWarehouseId,
+        deltaQty: ln.qty,
+        hpp: unit,
+        refDoc: doc,
+        userId: userId ?? null,
+      });
+      total += cost;
+    }
+    return { doc, count: lines.length, totalHpp: Math.round(total) };
+  });
+}
+
+/** Riwayat transfer (dikelompokkan per dokumen TRF dari ledger). */
+export async function listWmsTransfers() {
+  const db = getDb();
+  const rows = await db
+    .select({
+      doc: wmsStockMovement.refDoc,
+      createdAt: sql<string>`min(${wmsStockMovement.createdAt})`,
+      qtyOut: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then -${wmsStockMovement.qty} else 0 end), 0)`,
+      valueHpp: sql<number>`coalesce(sum(case when ${wmsStockMovement.qty} < 0 then ${wmsStockMovement.valueHpp} else 0 end), 0)`,
+      items: sql<number>`count(distinct ${wmsStockMovement.productId})`,
+    })
+    .from(wmsStockMovement)
+    .where(sql`${wmsStockMovement.refDoc} like 'TRF-%'`)
+    .groupBy(wmsStockMovement.refDoc)
+    .orderBy(sql`min(${wmsStockMovement.createdAt}) desc`)
+    .limit(100);
+  return rows.map((r) => ({
+    doc: r.doc,
+    createdAt: new Date(r.createdAt).toISOString(),
+    qtyOut: Math.round(Number(r.qtyOut)),
+    valueHpp: Math.round(Number(r.valueHpp)),
+    items: Number(r.items),
+  }));
+}
+
+// =============================================================================
 // FASE 4 — Recipe/BOM + Keuangan/HPP. COGS/foodCost/margin DIHITUNG saat query
 // dari product.hpp → otomatis ikut saat HPP bahan berubah (receiving). Tidak disimpan.
 // =============================================================================

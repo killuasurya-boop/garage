@@ -46,7 +46,7 @@ const NAV: NavGroup[] = [
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
       { label: "Scan Barcode", href: "/warehouse/inventory?scan=1", icon: ScanLine },
       { label: "Receiving", href: "/warehouse/receiving", icon: Truck },
-      { label: "Transfer", icon: ArrowLeftRight, soon: true },
+      { label: "Transfer", href: "/warehouse/transfer", icon: ArrowLeftRight },
     ],
   },
   {
@@ -293,6 +293,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/inventory")) return "Inventory";
   if (pathname.startsWith("/warehouse/receiving")) return "Receiving";
   if (pathname.startsWith("/warehouse/internal-order")) return "Internal Order";
+  if (pathname.startsWith("/warehouse/transfer")) return "Transfer Antar-Gudang";
   if (pathname.startsWith("/warehouse/recipe")) return "Recipe / BOM";
   if (pathname.startsWith("/warehouse/keuangan")) return "Keuangan & HPP";
   if (pathname.startsWith("/warehouse/reports")) return "Reports";

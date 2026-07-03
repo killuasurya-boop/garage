@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import {
   Archive,
+  Camera,
   FileDown,
   FileUp,
   ImageOff,
@@ -14,6 +15,7 @@ import {
   Plus,
   QrCode,
   RotateCcw,
+  ScanLine,
   Search,
   Trash2,
   Upload,
@@ -71,6 +73,7 @@ export default function WmsInventoryPage() {
   const [busyAction, setBusyAction] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [scanning, setScanning] = useState(searchParams.get("scan") === "1");
 
   async function handleArchive(ids: string[]) {
     if (ids.length === 0 || busyAction) return;
@@ -203,6 +206,13 @@ export default function WmsInventoryPage() {
           </a>
           <button
             type="button"
+            onClick={() => setScanning(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
+          >
+            <ScanLine className="size-4 text-[#C8102E]" /> Scan
+          </button>
+          <button
+            type="button"
             onClick={() => setImporting(true)}
             className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
           >
@@ -229,6 +239,7 @@ export default function WmsInventoryPage() {
         />
       )}
       {importing && <ImportModal onDone={() => { setImporting(false); void load(); }} onCancel={() => setImporting(false)} />}
+      {scanning && <ScanModal onDetect={(v) => { setQ(v); setScanning(false); }} onCancel={() => setScanning(false)} />}
 
       {/* Filter bar */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[#E8E8E8] bg-white/95 p-2 backdrop-blur">
@@ -845,6 +856,72 @@ function ImportModal({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
 
         {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
         <p className="mt-3 text-[11px] text-[#9CA3AF]">Cocok berdasarkan SKU. Kolom Stok diabaikan — ubah stok lewat Receiving/Adjustment.</p>
+      </div>
+    </div>
+  );
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function ScanModal({ onDetect, onCancel }: { onDetect: (v: string) => void; onCancel: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const detectRef = useRef(onDetect);
+  const [err, setErr] = useState<string | null>(null);
+  const [supported, setSupported] = useState(true);
+
+  useEffect(() => { detectRef.current = onDetect; }, [onDetect]);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let raf = 0;
+    let stopped = false;
+    void (async () => {
+      const Detector = (window as any).BarcodeDetector;
+      if (!Detector) { setSupported(false); return; }
+      const detector = new Detector({ formats: ["qr_code", "code_128", "ean_13", "ean_8", "code_39", "upc_a", "upc_e"] });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        const tick = async () => {
+          if (stopped || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes.length > 0 && codes[0].rawValue) { detectRef.current(String(codes[0].rawValue)); return; }
+          } catch { /* frame gagal — lanjut */ }
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      } catch {
+        setErr("Tidak bisa akses kamera. Izinkan kamera di browser, atau ketik manual.");
+      }
+    })();
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="flex items-center gap-1.5 text-[14px] font-bold text-[#111111]"><Camera className="size-4 text-[#C8102E]" /> Scan Barcode / QR</p>
+          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+        </div>
+        {supported ? (
+          <>
+            <div className="overflow-hidden rounded-lg bg-black">
+              <video ref={videoRef} playsInline muted className="h-56 w-full object-cover" />
+            </div>
+            <p className="mt-2 text-center text-[12px] text-[#6B7280]">Arahkan kamera ke QR/barcode produk.</p>
+          </>
+        ) : (
+          <p className="text-[13px] text-[#6B7280]">Browser ini tidak mendukung pemindaian kamera. Gunakan Chrome/Android, atau ketik SKU/barcode di kotak pencarian.</p>
+        )}
+        {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
       </div>
     </div>
   );

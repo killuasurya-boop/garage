@@ -44,7 +44,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/warehouse", icon: LayoutDashboard },
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
-      { label: "Scan Barcode", icon: ScanLine, soon: true },
+      { label: "Scan Barcode", href: "/warehouse/inventory?scan=1", icon: ScanLine },
       { label: "Receiving", href: "/warehouse/receiving", icon: Truck },
       { label: "Transfer", icon: ArrowLeftRight, soon: true },
     ],

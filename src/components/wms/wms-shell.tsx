@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import {
   ArrowLeft,
@@ -89,12 +89,22 @@ export function WmsShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
-  const [activeWh, setActiveWh] = useState(
-    warehouses.find((w) => w.isPrimary)?.id ?? warehouses[0]?.id ?? "",
-  );
+  // Gudang aktif dari URL (?wh=), fallback ke gudang utama. Dibagikan ke halaman
+  // lewat URL param supaya stok yang ditampilkan ikut gudang terpilih.
+  const defaultWh = warehouses.find((w) => w.isPrimary)?.id ?? warehouses[0]?.id ?? "";
+  const activeWh = searchParams.get("wh") ?? defaultWh;
   const [whOpen, setWhOpen] = useState(false);
   const wh = warehouses.find((w) => w.id === activeWh);
+
+  function selectWarehouse(id: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("wh", id);
+    router.push(`${pathname}?${params.toString()}`);
+    setWhOpen(false);
+  }
 
   const initials = user.name
     .split(" ")
@@ -238,10 +248,7 @@ export function WmsShell({
                     <button
                       key={w.id}
                       type="button"
-                      onClick={() => {
-                        setActiveWh(w.id);
-                        setWhOpen(false);
-                      }}
+                      onClick={() => selectWarehouse(w.id)}
                       className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] hover:bg-[#F8F9FB] ${
                         w.id === activeWh ? "font-bold text-[#C8102E]" : "text-[#111111]"
                       }`}

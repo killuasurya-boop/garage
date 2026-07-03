@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Area,
   AreaChart,
@@ -24,6 +25,8 @@ import { currency } from "@/lib/garage-data";
 import type { WmsDashboard } from "@/lib/wms-types";
 
 export default function WmsDashboardPage() {
+  const searchParams = useSearchParams();
+  const wh = searchParams.get("wh") ?? "";
   const [data, setData] = useState<WmsDashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -31,7 +34,7 @@ export default function WmsDashboardPage() {
     let alive = true;
     void (async () => {
       try {
-        const d = await garageApi.get<WmsDashboard>("/api/wms/dashboard");
+        const d = await garageApi.get<WmsDashboard>(wh ? `/api/wms/dashboard?warehouse=${wh}` : "/api/wms/dashboard");
         if (alive) setData(d);
       } catch {
         if (alive) setErr("Gagal memuat dashboard.");
@@ -40,7 +43,7 @@ export default function WmsDashboardPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [wh]);
 
   if (err) return <p className="text-sm text-[#DC2626]">{err}</p>;
   if (!data) return <p className="text-sm text-[#6B7280]">Memuat dashboard…</p>;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import {
   Archive,
@@ -58,6 +59,8 @@ async function printQrLabels(items: WmsProductRow[]) {
 }
 
 export default function WmsInventoryPage() {
+  const searchParams = useSearchParams();
+  const wh = searchParams.get("wh") ?? "";
   const [rows, setRows] = useState<WmsProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -123,10 +126,17 @@ export default function WmsInventoryPage() {
     }
   }
 
+  function productsUrl() {
+    const p = new URLSearchParams();
+    if (showArchived) p.set("archived", "1");
+    if (wh) p.set("warehouse", wh);
+    const qs = p.toString();
+    return qs ? `/api/wms/products?${qs}` : "/api/wms/products";
+  }
+
   async function load() {
     try {
-      const url = showArchived ? "/api/wms/products?archived=1" : "/api/wms/products";
-      setRows(await garageApi.get<WmsProductRow[]>(url));
+      setRows(await garageApi.get<WmsProductRow[]>(productsUrl()));
     } catch {
       /* abaikan */
     } finally {
@@ -138,8 +148,7 @@ export default function WmsInventoryPage() {
     let alive = true;
     void (async () => {
       try {
-        const url = showArchived ? "/api/wms/products?archived=1" : "/api/wms/products";
-        const data = await garageApi.get<WmsProductRow[]>(url);
+        const data = await garageApi.get<WmsProductRow[]>(productsUrl());
         if (alive) setRows(data);
       } finally {
         if (alive) setLoading(false);
@@ -148,12 +157,15 @@ export default function WmsInventoryPage() {
     return () => {
       alive = false;
     };
-  }, [showArchived]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArchived, wh]);
 
-  const categories = useMemo(
-    () => ["all", ...Array.from(new Set(rows.map((r) => r.category)))],
-    [rows],
-  );
+  const categories = useMemo(() => {
+    // Selalu tampilkan kategori baku + kategori lain yang muncul di data.
+    const base = CATEGORY_OPTIONS.map((c) => c.label);
+    const fromData = rows.map((r) => r.category);
+    return ["all", ...Array.from(new Set([...base, ...fromData]))];
+  }, [rows]);
 
   const needle = q.trim().toLowerCase();
   const filtered = rows.filter((r) => {

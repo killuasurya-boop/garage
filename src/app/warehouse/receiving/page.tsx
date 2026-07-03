@@ -158,7 +158,7 @@ export default function WmsReceivingPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-extrabold text-[#111111]">Receiving</h1>
-          <p className="text-[13px] text-[#6B7280]">Penerimaan barang dari supplier → stok + batch + HPP.</p>
+          <p className="text-[13px] text-[#6B7280]">Penerimaan barang dari supplier → stok + batch + HPP. Bahan otomatis masuk ke <b>Ruang Bar/Dapur</b> sesuai kategori.</p>
         </div>
         <button
           type="button"

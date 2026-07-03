@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
@@ -66,6 +66,25 @@ export default function WmsInternalOrderPage() {
 
   const outlets = warehouses.filter((w) => w.type === "bar" || w.type === "kitchen");
   const estTotal = cart.reduce((s, l) => s + l.qty * l.product.hpp, 0);
+
+  // Sumber = ruang gudang utama sesuai area outlet terpilih (Outlet Bar←Ruang Bar, dst).
+  const selectedOutlet = warehouses.find((w) => w.id === outletId);
+  const sourceRoom = useMemo(() => {
+    if (!selectedOutlet) return null;
+    return (
+      warehouses.find((w) => w.type === "main" && w.area === selectedOutlet.area) ??
+      warehouses.find((w) => w.isPrimary) ??
+      null
+    );
+  }, [selectedOutlet, warehouses]);
+
+  // Muat stok dari ruang sumber (ketersediaan akurat) saat outlet berubah.
+  useEffect(() => {
+    if (!sourceRoom) return;
+    let alive = true;
+    void garageApi.get<WmsProductRow[]>(`/api/wms/products?warehouse=${sourceRoom.id}`).then((p) => { if (alive) setProducts(p); });
+    return () => { alive = false; };
+  }, [sourceRoom]);
 
   function addItem() {
     const p = products.find((x) => x.id === pick);
@@ -175,7 +194,7 @@ export default function WmsInternalOrderPage() {
                 <button
                   key={o.id}
                   type="button"
-                  onClick={() => setOutletId(o.id)}
+                  onClick={() => { setOutletId(o.id); setCart([]); }}
                   className={`flex-1 rounded-lg border px-3 py-2.5 text-[13px] font-semibold transition ${
                     outletId === o.id ? "border-[#C8102E] bg-[#FDF1F3] text-[#C8102E]" : "border-[#E8E8E8] text-[#111111] hover:bg-[#F8F9FB]"
                   }`}
@@ -184,6 +203,9 @@ export default function WmsInternalOrderPage() {
                 </button>
               ))}
             </div>
+            {sourceRoom && (
+              <p className="mt-1.5 text-[11px] text-[#6B7280]">Sumber otomatis: <b className="text-[#111111]">{sourceRoom.name}</b></p>
+            )}
           </div>
 
           <div>

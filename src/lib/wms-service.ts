@@ -188,12 +188,15 @@ export function ensureWmsSeeded(): Promise<void> {
 
 async function doEnsureWmsSeeded() {
   const db = getDb();
-  const existingWh = await db.select({ code: wmsWarehouse.code }).from(wmsWarehouse);
-  const existingCodes = new Set(existingWh.map((w) => w.code));
-  const missingWh = WMS_DEFAULT_WAREHOUSES.filter((w) => !existingCodes.has(w.code));
-  if (missingWh.length) {
-    await db.insert(wmsWarehouse).values(missingWh).onConflictDoNothing();
-  }
+  // Upsert 4 warehouse default (2 ruang gudang utama + 2 outlet). onConflictDoUpdate
+  // backfill nama+area+type utk produksi lama (WH-01/BAR/KIT) & insert WH-MK.
+  await db
+    .insert(wmsWarehouse)
+    .values(WMS_DEFAULT_WAREHOUSES)
+    .onConflictDoUpdate({
+      target: wmsWarehouse.code,
+      set: { name: sql`excluded.name`, area: sql`excluded.area`, type: sql`excluded.type` },
+    });
 
   // Kategori master default (selalu, termasuk produksi) — owner bisa tambah bebas.
   await db
@@ -214,37 +217,37 @@ async function doEnsureWmsSeeded() {
     process.env.NODE_ENV !== "production" || process.env.GARAGE_SEED_DEMO === "true";
   if (!allowSampleData) return;
 
-  const [main] = await db
-    .select()
-    .from(wmsWarehouse)
-    .where(eq(wmsWarehouse.isPrimary, true))
-    .limit(1);
-  if (!main) return;
+  // Ruang gudang utama per area (bar/dapur). Fallback primary bila salah satu tak ada.
+  const mainRooms = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "main"));
+  const roomByArea = new Map(mainRooms.map((w) => [w.area, w.id]));
+  const primaryRoom = mainRooms.find((w) => w.isPrimary)?.id ?? mainRooms[0]?.id;
+  if (!primaryRoom) return;
+  const roomFor = (area: string) => roomByArea.get(area) ?? primaryRoom;
 
-  // Contoh bahan F&B (sku, nama, kategori, unit, min, hpp, stok awal).
-  const samples: Array<[string, string, string, string, number, number, number]> = [
-    ["BEAN-ARB", "Kopi Arabika", "Bahan Bar", "gram", 2000, 0.12, 8000],
-    ["MILK-FC", "Susu Full Cream", "Bahan Bar", "ml", 5000, 0.018, 12000],
-    ["SUGAR-PALM", "Gula Aren Cair", "Bahan Bar", "ml", 1000, 0.05, 1500],
-    ["CUP-16", "Gelas Plastik 16oz", "Kemasan", "pcs", 300, 650, 240],
-    ["RICE", "Beras", "Bahan Dapur", "gram", 10000, 0.013, 25000],
-    ["CHICK", "Ayam Fillet", "Bahan Dapur", "gram", 3000, 0.045, 1200],
-    ["OIL", "Minyak Goreng", "Bahan Dapur", "ml", 2000, 0.02, 6000],
-    ["SYR-CARAMEL", "Sirup Caramel", "Bahan Bar", "ml", 500, 0.09, 300],
+  // Contoh bahan F&B (sku, nama, kategori, unit, min, hpp, stok awal, area).
+  const samples: Array<[string, string, string, string, number, number, number, string]> = [
+    ["BEAN-ARB", "Kopi Arabika", "Bahan Bar", "gram", 2000, 0.12, 8000, "bar"],
+    ["MILK-FC", "Susu Full Cream", "Bahan Bar", "ml", 5000, 0.018, 12000, "bar"],
+    ["SUGAR-PALM", "Gula Aren Cair", "Bahan Bar", "ml", 1000, 0.05, 1500, "bar"],
+    ["CUP-16", "Gelas Plastik 16oz", "Kemasan", "pcs", 300, 650, 240, "bar"],
+    ["RICE", "Beras", "Bahan Dapur", "gram", 10000, 0.013, 25000, "dapur"],
+    ["CHICK", "Ayam Fillet", "Bahan Dapur", "gram", 3000, 0.045, 1200, "dapur"],
+    ["OIL", "Minyak Goreng", "Bahan Dapur", "ml", 2000, 0.02, 6000, "dapur"],
+    ["SYR-CARAMEL", "Sirup Caramel", "Bahan Bar", "ml", 500, 0.09, 300, "bar"],
   ];
 
-  for (const [sku, name, category, unit, minStock, hpp, initial] of samples) {
+  for (const [sku, name, category, unit, minStock, hpp, initial, area] of samples) {
     const [prod] = await db
       .insert(wmsProduct)
       .values({ sku, name, category, unit, minStock, hpp })
       .returning();
     if (initial > 0) {
-      // recordStockMovement kini membuat batch awal sendiri (FEFO) — atomik.
+      // Stok awal ke ruang gudang utama sesuai area kategorinya.
       await runInTx((tx) =>
         recordStockMovement(tx, {
           type: "in",
           productId: prod.id,
-          warehouseId: main.id,
+          warehouseId: roomFor(area),
           deltaQty: initial,
           hpp,
           refDoc: "SEED",
@@ -268,6 +271,7 @@ export async function listWmsWarehouses(opts?: {
       code: r.code,
       name: r.name,
       type: r.type as WmsWarehouse["type"],
+      area: r.area as WmsWarehouse["area"],
       isPrimary: r.isPrimary,
     }));
 }
@@ -279,6 +283,16 @@ async function primaryWarehouseId(db: Db): Promise<string | null> {
     .where(eq(wmsWarehouse.isPrimary, true))
     .limit(1);
   return w?.id ?? null;
+}
+
+/** Ruang gudang utama (type=main) untuk sebuah area; fallback ke primary. */
+async function mainWarehouseForArea(db: Db, area: string): Promise<string | null> {
+  const [w] = await db
+    .select({ id: wmsWarehouse.id })
+    .from(wmsWarehouse)
+    .where(and(eq(wmsWarehouse.type, "main"), eq(wmsWarehouse.area, area)))
+    .limit(1);
+  return w?.id ?? (await primaryWarehouseId(db));
 }
 
 export async function getWmsProducts(params?: {
@@ -925,6 +939,10 @@ export async function completeReceiving(id: string, userId?: string | null) {
       .from(wmsReceivingItem)
       .where(eq(wmsReceivingItem.receivingId, id));
 
+    // Peta kategori→area untuk auto-sortir bahan ke Ruang Bar/Dapur.
+    const catRows = await tx.select({ name: wmsCategory.name, area: wmsCategory.area }).from(wmsCategory);
+    const areaByCat = new Map(catRows.map((c) => [c.name.trim().toLowerCase(), c.area]));
+
     for (const it of items) {
       if (!it.productId) continue;
       if (it.qc === "reject") continue;
@@ -944,11 +962,15 @@ export async function completeReceiving(id: string, userId?: string | null) {
           .where(eq(wmsProduct.id, it.productId));
       }
 
+      // Auto-sortir: bahan bar→Ruang Bar, dapur→Ruang Dapur; umum→warehouse dokumen.
+      const area = areaByCat.get((prod?.category ?? "").trim().toLowerCase()) ?? "umum";
+      const target = area === "umum" ? whId : ((await mainWarehouseForArea(tx, area)) ?? whId);
+
       // +stok + batch (FEFO) + ledger, atomik.
       await recordStockMovement(tx, {
         type: "in",
         productId: it.productId,
-        warehouseId: whId,
+        warehouseId: target,
         deltaQty: qty,
         hpp: Number(it.hpp),
         refDoc: rec.doc,
@@ -988,14 +1010,29 @@ async function warehouseOnHand(db: Db, productId: string, warehouseId: string): 
 export type InternalOrderItemInput = { productId: string; qty: number };
 
 export async function createInternalOrder(
-  input: { outletWarehouseId: string; items: InternalOrderItemInput[]; sourceRef?: string | null },
+  input: {
+    outletWarehouseId: string;
+    items: InternalOrderItemInput[];
+    sourceRef?: string | null;
+    sourceWarehouseId?: string | null;
+  },
   userId?: string | null,
 ) {
   return runInTx(async (tx) => {
-    const source = await primaryWarehouseId(tx);
+    // Sumber = ruang gudang utama sesuai AREA outlet tujuan (Outlet Bar←Ruang Bar,
+    // Outlet Dapur←Ruang Dapur). Bisa dioverride via sourceWarehouseId.
+    let source = input.sourceWarehouseId ?? null;
+    if (!source) {
+      const [outlet] = await tx
+        .select({ area: wmsWarehouse.area })
+        .from(wmsWarehouse)
+        .where(eq(wmsWarehouse.id, input.outletWarehouseId))
+        .limit(1);
+      source = await mainWarehouseForArea(tx, outlet?.area ?? "bar");
+    }
     if (!source) throw new Error("Gudang utama belum ada.");
     if (input.outletWarehouseId === source) {
-      throw new Error("Outlet tujuan tidak boleh gudang utama.");
+      throw new Error("Outlet tujuan tidak boleh sama dengan gudang sumber.");
     }
 
     // Idempotensi: jika sourceRef sudah pernah diproses, kembalikan order lama.

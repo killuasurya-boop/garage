@@ -2629,6 +2629,7 @@ export const wmsWarehouse = pgTable("wms_warehouse", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   type: text("type").notNull(), // main | bar | kitchen
+  area: text("area").notNull().default("umum"), // bar | dapur | umum — bedakan 2 ruang gudang utama
   isPrimary: boolean("is_primary").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -250,20 +250,31 @@ export function WmsShell({
                 <ChevronDown className="size-3.5 text-[#6B7280]" />
               </button>
               {whOpen && (
-                <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-[#E8E8E8] bg-white py-1 shadow-lg">
-                  {warehouses.map((w) => (
-                    <button
-                      key={w.id}
-                      type="button"
-                      onClick={() => selectWarehouse(w.id)}
-                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] hover:bg-[#F8F9FB] ${
-                        w.id === activeWh ? "font-bold text-[#C8102E]" : "text-[#111111]"
-                      }`}
-                    >
-                      <span className="font-mono text-[11px] text-[#6B7280]">{w.code}</span>
-                      {w.name}
-                    </button>
-                  ))}
+                <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-[#E8E8E8] bg-white py-1 shadow-lg">
+                  {(["main", "outlet"] as const).map((grp) => {
+                    const list = warehouses.filter((w) => (grp === "main" ? w.type === "main" : w.type !== "main"));
+                    if (list.length === 0) return null;
+                    return (
+                      <div key={grp}>
+                        <p className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#9CA3AF]">
+                          {grp === "main" ? "Gudang Utama" : "Outlet Jual"}
+                        </p>
+                        {list.map((w) => (
+                          <button
+                            key={w.id}
+                            type="button"
+                            onClick={() => selectWarehouse(w.id)}
+                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] hover:bg-[#F8F9FB] ${
+                              w.id === activeWh ? "font-bold text-[#C8102E]" : "text-[#111111]"
+                            }`}
+                          >
+                            <span className="font-mono text-[11px] text-[#6B7280]">{w.code}</span>
+                            {w.name}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

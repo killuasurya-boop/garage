@@ -1,6 +1,7 @@
 // Tipe & konstanta WMS yang AMAN untuk client (tanpa import DB/server).
 
 export type WhType = "main" | "bar" | "kitchen";
+export type WhArea = "bar" | "dapur" | "umum";
 export type StockStatus = "in" | "low" | "out";
 export type MoveType = "in" | "out" | "transfer" | "waste" | "adjustment" | "internal_out";
 
@@ -9,6 +10,7 @@ export type WmsWarehouse = {
   code: string;
   name: string;
   type: WhType;
+  area: WhArea;
   isPrimary: boolean;
 };
 
@@ -53,16 +55,18 @@ export function stockStatus(onHand: number, min: number): StockStatus {
   return "in";
 }
 
-// Seed default warehouse (3 scope: Gudang Utama / Stok Bar / Stok Dapur).
+// Seed default warehouse: Gudang Utama = 2 RUANG (Bar & Dapur) + 2 Outlet jual.
 export const WMS_DEFAULT_WAREHOUSES: Array<{
   code: string;
   name: string;
   type: WhType;
+  area: WhArea;
   isPrimary: boolean;
 }> = [
-  { code: "WH-01", name: "Gudang Utama", type: "main", isPrimary: true },
-  { code: "WH-BAR", name: "Stok Bar", type: "bar", isPrimary: false },
-  { code: "WH-KIT", name: "Stok Dapur", type: "kitchen", isPrimary: false },
+  { code: "WH-01", name: "Gudang Utama · Ruang Bar", type: "main", area: "bar", isPrimary: true },
+  { code: "WH-MK", name: "Gudang Utama · Ruang Dapur", type: "main", area: "dapur", isPrimary: false },
+  { code: "WH-BAR", name: "Outlet Bar", type: "bar", area: "bar", isPrimary: false },
+  { code: "WH-KIT", name: "Outlet Dapur", type: "kitchen", area: "dapur", isPrimary: false },
 ];
 
 // Status → warna token (dipakai badge UI; konsisten dgn README §8).

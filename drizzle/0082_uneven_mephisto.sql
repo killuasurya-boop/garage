@@ -1,0 +1,1 @@
+ALTER TABLE "wms_warehouse" ADD COLUMN "area" text DEFAULT 'umum' NOT NULL;

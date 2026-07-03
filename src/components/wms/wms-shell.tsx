@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   Sliders,
   Sparkles,
+  Tags,
   Thermometer,
   TrendingUp,
   Truck,
@@ -76,7 +77,13 @@ const NAV: NavGroup[] = [
       { label: "Owner Analytics", href: "/warehouse/analytics", icon: TrendingUp },
     ],
   },
-  { title: "System", items: [{ label: "Settings", href: "/warehouse/settings", icon: Settings }] },
+  {
+    title: "System",
+    items: [
+      { label: "Master Data", href: "/warehouse/master", icon: Tags },
+      { label: "Settings", href: "/warehouse/settings", icon: Settings },
+    ],
+  },
 ];
 
 export function WmsShell({
@@ -297,6 +304,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/kitchen")) return "Kitchen · Stok Dapur";
   if (pathname.startsWith("/warehouse/bar")) return "Bar · Stok Bar";
   if (pathname.startsWith("/warehouse/production")) return "Production";
+  if (pathname.startsWith("/warehouse/master")) return "Kelola Master";
   if (pathname.startsWith("/warehouse/recipe")) return "Recipe / BOM";
   if (pathname.startsWith("/warehouse/keuangan")) return "Keuangan & HPP";
   if (pathname.startsWith("/warehouse/reports")) return "Reports";

@@ -470,6 +470,51 @@ export async function createWmsSupplier(input: { name: string; phone?: string; n
   return { id: row.id, name: row.name, phone: row.phone, note: row.note };
 }
 
+export async function updateWmsCategory(id: string, patch: { name?: string; area?: WmsArea }) {
+  const db = getDb();
+  const set: Record<string, unknown> = {};
+  if (patch.name !== undefined && patch.name.trim()) set.name = patch.name.trim();
+  if (patch.area !== undefined && ["bar", "dapur", "umum"].includes(patch.area)) set.area = patch.area;
+  if (Object.keys(set).length === 0) return null;
+  const [row] = await db.update(wmsCategory).set(set).where(eq(wmsCategory.id, id)).returning();
+  return row ? { id: row.id, name: row.name, area: row.area as WmsArea } : null;
+}
+
+export async function deleteWmsCategory(id: string) {
+  const db = getDb();
+  const [cat] = await db.select().from(wmsCategory).where(eq(wmsCategory.id, id)).limit(1);
+  if (!cat) return { ok: false, reason: "not_found" as const };
+  // Tolak hapus bila masih dipakai produk aktif — arahkan owner ganti kategori dulu.
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(wmsProduct)
+    .where(and(eq(wmsProduct.category, cat.name), sql`${wmsProduct.archivedAt} is null`));
+  if (Number(n) > 0) return { ok: false, reason: "in_use" as const, count: Number(n) };
+  await db.delete(wmsCategory).where(eq(wmsCategory.id, id));
+  return { ok: true as const };
+}
+
+export async function updateWmsSupplier(id: string, patch: { name?: string; phone?: string; note?: string }) {
+  const db = getDb();
+  const set: Record<string, unknown> = {};
+  if (patch.name !== undefined && patch.name.trim()) set.name = patch.name.trim();
+  if (patch.phone !== undefined) set.phone = patch.phone.trim();
+  if (patch.note !== undefined) set.note = patch.note.trim();
+  if (Object.keys(set).length === 0) return null;
+  const [row] = await db.update(wmsSupplier).set(set).where(eq(wmsSupplier.id, id)).returning();
+  return row ? { id: row.id, name: row.name, phone: row.phone, note: row.note } : null;
+}
+
+export async function archiveWmsSupplier(id: string) {
+  const db = getDb();
+  const [row] = await db
+    .update(wmsSupplier)
+    .set({ archivedAt: new Date() })
+    .where(eq(wmsSupplier.id, id))
+    .returning();
+  return row ? { ok: true as const } : { ok: false as const };
+}
+
 // =============================================================================
 // Export / Import Excel (ExcelJS di-import dinamis agar tak membebani bundle lain).
 // Kolom template = round-trip (export bisa langsung diedit lalu di-import balik).
@@ -1923,6 +1968,18 @@ export async function processPosSale(
     norm.set(key, arr);
   }
 
+  // Peta kategori → area (bar/dapur/umum) untuk routing per bahan.
+  const cats = await listWmsCategories();
+  const areaByCat = new Map(cats.map((c) => [c.name.trim().toLowerCase(), c.area]));
+  const areaOf = (category: string | null): WmsArea =>
+    areaByCat.get((category ?? "").trim().toLowerCase()) ?? "umum";
+
+  // Gudang outlet per tipe (dimuat sekali).
+  const [barWh] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "bar")).limit(1);
+  const [kitWh] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "kitchen")).limit(1);
+  const outletFor = (type: "bar" | "kitchen") =>
+    type === "bar" ? (barWh ?? kitWh) : (kitWh ?? barWh);
+
   for (const it of input.items) {
     const soldQty = Number(it.qty);
     if (soldQty <= 0) continue;
@@ -1938,35 +1995,53 @@ export async function processPosSale(
       continue;
     }
     const rec = candidates[0];
-    const bom = await db.select().from(wmsBomItem).where(eq(wmsBomItem.recipeId, rec.id));
-    const items = bom
+    // Baca BOM + kategori tiap bahan (untuk tentukan area/outlet).
+    const bom = await db
+      .select({ productId: wmsBomItem.productId, qty: wmsBomItem.qty, category: wmsProduct.category })
+      .from(wmsBomItem)
+      .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
+      .where(eq(wmsBomItem.recipeId, rec.id));
+    const lines = bom
       .filter((b) => b.productId)
-      .map((b) => ({ productId: b.productId as string, qty: Number(b.qty) * soldQty }));
-    if (items.length === 0) {
+      .map((b) => ({ productId: b.productId as string, qty: Number(b.qty) * soldQty, area: areaOf(b.category) }));
+    if (lines.length === 0) {
       skipped.push({ menu: it.name, reason: "resep tanpa bahan" });
       continue;
     }
 
-    // Outlet berdasarkan kategori resep (minuman → bar, lainnya → dapur).
-    const outletType = /coffee|non.?coffee|kopi|minum|bar|drink/i.test(rec.category) ? "bar" : "kitchen";
-    let [outlet] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, outletType)).limit(1);
-    if (!outlet) [outlet] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "bar")).limit(1);
-    if (!outlet) {
-      skipped.push({ menu: it.name, reason: "outlet tidak ada" });
-      continue;
+    // Outlet utama menu = area mayoritas bahan non-umum; semua umum → fallback regex resep.
+    const barCount = lines.filter((l) => l.area === "bar").length;
+    const kitCount = lines.filter((l) => l.area === "dapur").length;
+    const primaryType: "bar" | "kitchen" =
+      barCount === 0 && kitCount === 0
+        ? /coffee|non.?coffee|kopi|minum|bar|drink/i.test(rec.category) ? "bar" : "kitchen"
+        : barCount >= kitCount ? "bar" : "kitchen";
+
+    // Kelompokkan bahan per outlet: bar→bar, dapur→kitchen, umum→outlet utama.
+    const groups: Record<"bar" | "kitchen", Array<{ productId: string; qty: number }>> = { bar: [], kitchen: [] };
+    for (const l of lines) {
+      const target = l.area === "bar" ? "bar" : l.area === "dapur" ? "kitchen" : primaryType;
+      groups[target].push({ productId: l.productId, qty: l.qty });
     }
 
-    try {
-      // Idempotensi: kunci unik per (sale, resep) → retry webhook tak dobel potong.
-      const sourceRef = input.ref ? `sale:${input.ref}:${rec.id}` : null;
-      const io = await createInternalOrder(
-        { outletWarehouseId: outlet.id, items, sourceRef },
-        userId,
-      );
-      processed.push({ menu: it.name, io: io.doc });
-    } catch (e) {
-      skipped.push({ menu: it.name, reason: e instanceof Error ? e.message : "gagal potong stok" });
+    // Buat 1 Internal Order per kelompok outlet (idempotensi per sale+resep+outlet).
+    const docs: string[] = [];
+    let failReason: string | null = null;
+    for (const type of ["bar", "kitchen"] as const) {
+      if (groups[type].length === 0) continue;
+      const outlet = outletFor(type);
+      if (!outlet) { failReason = "outlet tidak ada"; break; }
+      try {
+        const sourceRef = input.ref ? `sale:${input.ref}:${rec.id}:${type}` : null;
+        const io = await createInternalOrder({ outletWarehouseId: outlet.id, items: groups[type], sourceRef }, userId);
+        docs.push(io.doc);
+      } catch (e) {
+        failReason = e instanceof Error ? e.message : "gagal potong stok";
+        break;
+      }
     }
+    if (failReason) skipped.push({ menu: it.name, reason: failReason });
+    else processed.push({ menu: it.name, io: docs.join(", ") });
   }
 
   return { processed, skipped };

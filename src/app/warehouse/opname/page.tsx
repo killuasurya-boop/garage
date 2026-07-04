@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ClipboardCheck, Plus } from "lucide-react";
+import { ClipboardCheck, Plus, Printer } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
+import { printWmsDoc, escapeHtml } from "@/lib/wms-print";
 import type { WmsWarehouse } from "@/lib/wms-types";
 
 type OpnameRow = { id: string; doc: string; status: string; warehouse: string; lines: number; createdAt: string };
@@ -76,6 +77,17 @@ export default function WmsOpnamePage() {
 
   if (active) {
     const totalVar = active.lines.filter((l) => l.variance !== 0).length;
+    const printSheet = () => {
+      const rows = active.lines
+        .map((l) => `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(l.unit)}</td><td class="r">${l.systemQty}</td><td style="width:90px"></td><td style="width:90px"></td></tr>`)
+        .join("");
+      printWmsDoc(
+        `Lembar Opname · ${active.doc}`,
+        `<table><thead><tr><th>Produk</th><th class="c">Satuan</th><th class="r">Stok Sistem</th><th class="c">Hitung Fisik</th><th class="c">Selisih</th></tr></thead><tbody>${rows}</tbody></table>
+         <div class="sign"><div><div class="line">Penghitung</div></div><div><div class="line">Diperiksa Manajer</div></div></div>`,
+        `${active.doc} · untuk hitung fisik manual`,
+      );
+    };
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -84,11 +96,16 @@ export default function WmsOpnamePage() {
             <h1 className="font-mono text-[20px] font-extrabold text-[#111111]">{active.doc}</h1>
             <p className="text-[13px] text-[#6B7280]">{totalVar} item ada selisih · {active.status}</p>
           </div>
-          {active.status !== "completed" && (
-            <button type="button" disabled={busy} onClick={() => void finalize()} className="rounded-lg bg-[#16A34A] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#15803d] disabled:opacity-50">
-              Finalisasi &amp; Reconcile Stok
+          <div className="flex gap-2">
+            <button type="button" onClick={printSheet} className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]">
+              <Printer className="size-4 text-[#2563EB]" /> Cetak Lembar
             </button>
-          )}
+            {active.status !== "completed" && (
+              <button type="button" disabled={busy} onClick={() => void finalize()} className="rounded-lg bg-[#16A34A] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#15803d] disabled:opacity-50">
+                Finalisasi &amp; Reconcile Stok
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-[#E8E8E8] bg-white">

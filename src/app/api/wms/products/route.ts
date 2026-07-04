@@ -15,6 +15,8 @@ const createSchema = z.object({
   minStock: z.number().nonnegative().max(10_000_000).optional(),
   hpp: z.number().nonnegative().max(100_000_000).optional(),
   barcode: z.string().trim().max(64).nullable().optional(),
+  initialStock: z.number().nonnegative().max(100_000_000).optional(),
+  initialWarehouseId: z.string().uuid().nullable().optional(),
 });
 
 export async function GET(request: Request) {

@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus, Trash2, Truck } from "lucide-react";
+import { Check, Plus, Printer, ScanLine, Trash2, Truck } from "lucide-react";
+
+import { printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
+import { ScanModal } from "@/components/wms/scan-modal";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
@@ -49,6 +52,22 @@ export default function WmsReceivingPage() {
   const [newSupplier, setNewSupplier] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
+  const [scanning, setScanning] = useState(false);
+
+  function addByCode(code: string) {
+    const q = code.trim().toLowerCase();
+    const p = products.find((x) => x.sku.toLowerCase() === q || (x.barcode ?? "").toLowerCase() === q);
+    setScanning(false);
+    if (!p) { window.alert(`Produk dengan kode "${code}" tak ditemukan. Daftarkan dulu di Inventory.`); return; }
+    setItems((prev) => {
+      const existing = prev.find((it) => it.productId === p.id);
+      if (existing) return prev.map((it) => it.productId === p.id ? { ...it, receivedQty: String((Number(it.receivedQty) || 0) + 1) } : it);
+      const empty = prev.findIndex((it) => !it.productId);
+      const row: ItemDraft = { ...emptyItem(), productId: p.id, receivedQty: "1", hpp: String(p.hpp || "") };
+      if (empty >= 0) return prev.map((it, i) => (i === empty ? row : it));
+      return [...prev, row];
+    });
+  }
 
   async function loadSuppliers() {
     try { setSuppliers(await garageApi.get<Array<{ id: string; name: string }>>("/api/wms/suppliers")); } catch { /* abaikan */ }
@@ -259,15 +278,38 @@ export default function WmsReceivingPage() {
             </table>
           </div>
 
-          <button type="button" onClick={() => setItems((p) => [...p, emptyItem()])} className="mt-2 flex items-center gap-1 text-[12.5px] font-semibold text-[#C8102E]">
-            <Plus className="size-3.5" /> Tambah baris
-          </button>
+          <div className="mt-2 flex items-center gap-3">
+            <button type="button" onClick={() => setItems((p) => [...p, emptyItem()])} className="flex items-center gap-1 text-[12.5px] font-semibold text-[#C8102E]">
+              <Plus className="size-3.5" /> Tambah baris
+            </button>
+            <button type="button" onClick={() => setScanning(true)} className="flex items-center gap-1 text-[12.5px] font-semibold text-[#2563EB]">
+              <ScanLine className="size-3.5" /> Scan bahan
+            </button>
+          </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#F0F1F4] pt-3">
             <span className="text-[13px] text-[#6B7280]">
               Total nilai diterima: <span className="font-mono font-bold text-[#111111]">{currency.format(Math.round(totalValue))}</span>
             </span>
             <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={!valid}
+                onClick={() => {
+                  const rows = items.filter((it) => it.productId && Number(it.receivedQty) > 0).map((it) => {
+                    const p = products.find((x) => x.id === it.productId);
+                    return `<tr><td>${escapeHtml(p?.name ?? "-")}</td><td class="c">${escapeHtml(p?.unit ?? "")}</td><td class="r">${Number(it.receivedQty) || 0}</td><td class="r">${currency.format(Number(it.hpp) || 0)}</td><td class="c">${escapeHtml(it.batchNo || "-")}</td></tr>`;
+                  }).join("");
+                  printWmsDoc(
+                    "Bukti Penerimaan Barang",
+                    `<table><thead><tr><th>Bahan</th><th class="c">Satuan</th><th class="r">Qty</th><th class="r">HPP</th><th class="c">Batch</th></tr></thead><tbody>${rows}</tbody></table>${signatureRow(["Penerima (Gudang)", "Pengirim (Supplier)"])}`,
+                    `Supplier: ${supplier || "-"}`,
+                  );
+                }}
+                className="flex items-center gap-1.5 rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB] disabled:opacity-50"
+              >
+                <Printer className="size-4 text-[#2563EB]" /> Cetak
+              </button>
               <button type="button" onClick={() => void submit(false)} disabled={!valid || busy} className="rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#6B7280] hover:bg-[#F8F9FB] disabled:opacity-50">
                 Simpan Draft
               </button>
@@ -323,6 +365,8 @@ export default function WmsReceivingPage() {
           </tbody>
         </table>
       </div>
+
+      {scanning && <ScanModal title="Scan bahan (SKU/barcode)" onDetect={addByCode} onCancel={() => setScanning(false)} />}
     </div>
   );
 }

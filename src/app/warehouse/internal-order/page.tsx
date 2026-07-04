@@ -5,6 +5,7 @@ import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
+import { printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
 
 type IoRow = {
@@ -274,14 +275,31 @@ export default function WmsInternalOrderPage() {
             <span className="text-[12px] text-[#6B7280]">Estimasi total HPP</span>
             <span className="font-mono text-[16px] font-extrabold text-[#111111]">{currency.format(Math.round(estTotal))}</span>
           </div>
-          <button
-            type="button"
-            disabled={!outletId || cart.length === 0 || busy || cart.some((l) => l.qty > l.product.onHand)}
-            onClick={() => void confirm()}
-            className="w-full rounded-lg bg-[#16A34A] py-3 text-[14px] font-bold text-white hover:bg-[#15803d] disabled:opacity-50"
-          >
-            Konfirmasi &amp; Potong Stok
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={cart.length === 0}
+              onClick={() => {
+                const rows = cart.map((l) => `<tr><td>${escapeHtml(l.product.name)}</td><td class="c">${escapeHtml(l.product.unit)}</td><td class="r">${l.qty}</td></tr>`).join("");
+                printWmsDoc(
+                  "Slip Internal Order",
+                  `<table><thead><tr><th>Bahan</th><th class="c">Satuan</th><th class="r">Qty</th></tr></thead><tbody>${rows}</tbody></table>${signatureRow(["Diserahkan (Gudang)", "Diterima (Outlet)"])}`,
+                  `${sourceRoom?.name ?? "Gudang Utama"} → ${selectedOutlet?.name ?? "Outlet"}`,
+                );
+              }}
+              className="rounded-lg border border-[#E8E8E8] px-3 py-3 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB] disabled:opacity-50"
+            >
+              Cetak Slip
+            </button>
+            <button
+              type="button"
+              disabled={!outletId || cart.length === 0 || busy || cart.some((l) => l.qty > l.product.onHand)}
+              onClick={() => void confirm()}
+              className="flex-1 rounded-lg bg-[#16A34A] py-3 text-[14px] font-bold text-white hover:bg-[#15803d] disabled:opacity-50"
+            >
+              Konfirmasi &amp; Potong Stok
+            </button>
+          </div>
         </div>
       </aside>
     </div>

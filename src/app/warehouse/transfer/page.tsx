@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, Plus, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Plus, Printer, Trash2 } from "lucide-react";
+
+import { printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
@@ -138,9 +140,28 @@ export default function WmsTransferPage() {
 
           <div className="mt-3 flex items-center justify-between border-t border-[#E8E8E8] pt-3">
             <span className="text-[12.5px] text-[#6B7280]">Estimasi nilai: <b className="text-[#111111]">{currency.format(Math.round(totalValue))}</b></span>
-            <button type="button" disabled={busy || cart.length === 0 || !toWh || fromWh === toWh} onClick={() => void submit()} className="rounded-lg bg-[#C8102E] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
-              {busy ? "Memproses…" : "Transfer Stok"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={cart.length === 0}
+                onClick={() => {
+                  const from = warehouses.find((w) => w.id === fromWh)?.name ?? "—";
+                  const to = warehouses.find((w) => w.id === toWh)?.name ?? "—";
+                  const rows = cart.map((l) => `<tr><td>${escapeHtml(l.product.name)}</td><td class="c">${escapeHtml(l.product.unit)}</td><td class="r">${l.qty}</td></tr>`).join("");
+                  printWmsDoc(
+                    "Slip Transfer Stok",
+                    `<table><thead><tr><th>Bahan</th><th class="c">Satuan</th><th class="r">Qty</th></tr></thead><tbody>${rows}</tbody></table>${signatureRow(["Diserahkan", "Diterima"])}`,
+                    `${from} → ${to}`,
+                  );
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB] disabled:opacity-50"
+              >
+                <Printer className="size-4 text-[#2563EB]" /> Slip
+              </button>
+              <button type="button" disabled={busy || cart.length === 0 || !toWh || fromWh === toWh} onClick={() => void submit()} className="rounded-lg bg-[#C8102E] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
+                {busy ? "Memproses…" : "Transfer Stok"}
+              </button>
+            </div>
           </div>
         </section>
 

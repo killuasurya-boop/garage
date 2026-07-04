@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import {
   Archive,
-  Camera,
   FileDown,
   FileUp,
   ImageOff,
@@ -24,6 +23,7 @@ import {
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
+import { ScanModal } from "@/components/wms/scan-modal";
 import { WMS_STATUS_COLOR, type WmsProductRow } from "@/lib/wms-types";
 
 type WmsCategory = { id: string; name: string; area: "bar" | "dapur" | "umum" };
@@ -227,7 +227,14 @@ export default function WmsInventoryPage() {
             href="/api/wms/products/export"
             className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
           >
-            <FileDown className="size-4 text-[#16A34A]" /> Export
+            <FileDown className="size-4 text-[#16A34A]" /> Excel
+          </a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a
+            href="/api/wms/products/export?format=pdf"
+            className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
+          >
+            <FileDown className="size-4 text-[#C8102E]" /> PDF
           </a>
           <button
             type="button"
@@ -536,6 +543,7 @@ function CategoryPicker({ cats, value, onChange, onCatAdded }: {
           <button type="button" disabled={busy} onClick={() => void create()} className="rounded-md bg-[#2F3136] px-3 text-[12px] font-semibold text-white hover:bg-black disabled:opacity-50">Simpan</button>
         </div>
       )}
+      <Link href="/warehouse/master" className="mt-1 inline-block text-[11px] font-semibold text-[#2563EB] hover:underline">Kelola / hapus kategori →</Link>
     </div>
   );
 }
@@ -561,6 +569,7 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
   const [manualSku, setManualSku] = useState("");
   const [minStock, setMinStock] = useState("");
   const [hpp, setHpp] = useState("");
+  const [initialStock, setInitialStock] = useState("");
   const [barcode, setBarcode] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -585,6 +594,7 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
         minStock: Number(minStock) || 0,
         hpp: Number(hpp) || 0,
         barcode: barcode.trim() || null,
+        initialStock: Number(initialStock) || 0,
       });
       // Upload foto (bila dipilih) setelah produk dibuat — butuh id produk.
       if (photo && created?.id) {
@@ -657,6 +667,14 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
         <div>
           <label className={label}>HPP / satuan (Rp)</label>
           <input value={hpp} onChange={(e) => setHpp(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} w-full`} />
+        </div>
+
+        {/* Stok awal (opsional) → masuk ruang sesuai area kategori */}
+        <div className="sm:col-span-2">
+          <label className={label}>
+            Stok awal <span className="font-normal text-[#9CA3AF]">· opsional, masuk ke Ruang {AREA_LABEL[cats.find((c) => c.name === category)?.area ?? "umum"]}</span>
+          </label>
+          <input value={initialStock} onChange={(e) => setInitialStock(e.target.value)} inputMode="decimal" placeholder="0 (bisa juga diisi lewat Receiving)" className={`${input} w-full`} />
         </div>
 
         {/* Barcode kemasan (opsional) */}
@@ -734,6 +752,21 @@ function EditForm({ product, cats, onCatAdded, onDone, onCancel }: { product: Wm
     }
   }
 
+  async function removePhoto() {
+    if (uploading) return;
+    if (!window.confirm("Hapus foto produk ini?")) return;
+    setUploading(true);
+    setErr(null);
+    try {
+      await garageApi.patch(`/api/wms/products/${product.id}`, { imageUrl: null });
+      setImageUrl(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Gagal hapus foto.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function save() {
     if (!name.trim() || !category || busy) return;
     setBusy(true);
@@ -777,9 +810,16 @@ function EditForm({ product, cats, onCatAdded, onDone, onCancel }: { product: Wm
             )}
             <div>
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadImage(f); }} />
-              <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-md border border-[#E8E8E8] px-3 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB] disabled:opacity-50">
-                <Upload className="size-3.5 text-[#C8102E]" /> {uploading ? "Mengunggah…" : imageUrl ? "Ganti foto" : "Unggah foto"}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-md border border-[#E8E8E8] px-3 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB] disabled:opacity-50">
+                  <Upload className="size-3.5 text-[#C8102E]" /> {uploading ? "Mengunggah…" : imageUrl ? "Ganti foto" : "Unggah foto"}
+                </button>
+                {imageUrl && (
+                  <button type="button" disabled={uploading} onClick={() => void removePhoto()} className="flex items-center gap-1 rounded-md border border-[#E8E8E8] px-2.5 py-1.5 text-[12px] font-semibold text-[#C8102E] hover:bg-[#FDF1F3] disabled:opacity-50">
+                    <Trash2 className="size-3.5" /> Hapus
+                  </button>
+                )}
+              </div>
               <p className="mt-1 text-[11px] text-[#9CA3AF]">JPG/PNG/WebP, maks 8 MB.</p>
             </div>
           </div>
@@ -914,68 +954,3 @@ function ImportModal({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
   );
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function ScanModal({ onDetect, onCancel }: { onDetect: (v: string) => void; onCancel: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const detectRef = useRef(onDetect);
-  const [err, setErr] = useState<string | null>(null);
-  const [supported, setSupported] = useState(true);
-
-  useEffect(() => { detectRef.current = onDetect; }, [onDetect]);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    let raf = 0;
-    let stopped = false;
-    void (async () => {
-      const Detector = (window as any).BarcodeDetector;
-      if (!Detector) { setSupported(false); return; }
-      const detector = new Detector({ formats: ["qr_code", "code_128", "ean_13", "ean_8", "code_39", "upc_a", "upc_e"] });
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        const tick = async () => {
-          if (stopped || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0].rawValue) { detectRef.current(String(codes[0].rawValue)); return; }
-          } catch { /* frame gagal — lanjut */ }
-          raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      } catch {
-        setErr("Tidak bisa akses kamera. Izinkan kamera di browser, atau ketik manual.");
-      }
-    })();
-    return () => {
-      stopped = true;
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
-    };
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4" onClick={onCancel}>
-      <div className="w-full max-w-sm rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="flex items-center gap-1.5 text-[14px] font-bold text-[#111111]"><Camera className="size-4 text-[#C8102E]" /> Scan Barcode / QR</p>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
-        </div>
-        {supported ? (
-          <>
-            <div className="overflow-hidden rounded-lg bg-black">
-              <video ref={videoRef} playsInline muted className="h-56 w-full object-cover" />
-            </div>
-            <p className="mt-2 text-center text-[12px] text-[#6B7280]">Arahkan kamera ke QR/barcode produk.</p>
-          </>
-        ) : (
-          <p className="text-[13px] text-[#6B7280]">Browser ini tidak mendukung pemindaian kamera. Gunakan Chrome/Android, atau ketik SKU/barcode di kotak pencarian.</p>
-        )}
-        {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
-      </div>
-    </div>
-  );
-}

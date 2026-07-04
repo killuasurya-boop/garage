@@ -415,6 +415,8 @@ export async function createWmsProduct(
     minStock?: number;
     hpp?: number;
     barcode?: string | null;
+    initialStock?: number; // stok awal (opsional) → masuk ruang sesuai area kategori
+    initialWarehouseId?: string | null;
   },
   userId?: string | null,
 ) {
@@ -432,6 +434,34 @@ export async function createWmsProduct(
       createdBy: userId ?? null,
     })
     .returning();
+
+  // Stok awal: catat masuk ke ruang gudang utama sesuai area kategori (atau dipilih).
+  const initial = Number(input.initialStock ?? 0);
+  if (initial > 0) {
+    let target = input.initialWarehouseId ?? null;
+    if (!target) {
+      const [cat] = await db
+        .select({ area: wmsCategory.area })
+        .from(wmsCategory)
+        .where(eq(wmsCategory.name, input.category.trim()))
+        .limit(1);
+      target = await mainWarehouseForArea(db, cat?.area ?? "umum");
+    }
+    if (target) {
+      await runInTx((tx) =>
+        recordStockMovement(tx, {
+          type: "in",
+          productId: prod.id,
+          warehouseId: target as string,
+          deltaQty: initial,
+          hpp: input.hpp ?? 0,
+          refDoc: "STOK-AWAL",
+          userId: userId ?? null,
+          batchNo: `INIT-${prod.sku.trim()}`,
+        }),
+      );
+    }
+  }
   return prod;
 }
 
@@ -1809,6 +1839,61 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
       .returning();
     return updated;
   });
+}
+
+// =============================================================================
+// Ringkasan WMS (dipakai dashboard WMS + integrasi modul OS via /api/wms/summary).
+// =============================================================================
+
+export type WmsSummary = {
+  inventoryValue: number; // total nilai stok (semua gudang)
+  lowStockTotal: number; // total item menipis/habis di outlet
+  byWarehouse: Array<{ code: string; name: string; type: string; area: string; value: number; lowCount: number; outCount: number }>;
+  outletAlerts: Array<{ warehouse: string; area: string; items: Array<{ name: string; unit: string; onHand: number; min: number; status: "low" | "out" }> }>;
+};
+
+export async function getWmsSummary(): Promise<WmsSummary> {
+  const warehouses = await listWmsWarehouses();
+  let inventoryValue = 0;
+  const byWarehouse: WmsSummary["byWarehouse"] = [];
+  const outletAlerts: WmsSummary["outletAlerts"] = [];
+
+  for (const w of warehouses) {
+    const prods = await getWmsProducts({ warehouseId: w.id });
+    const value = Math.round(prods.reduce((s, p) => s + p.onHand * p.hpp, 0));
+    inventoryValue += value;
+    // Alert: produk dengan ambang min (>0) yang stoknya di gudang ini <= min.
+    const low = prods.filter((p) => p.minStock > 0 && p.onHand <= p.minStock);
+    byWarehouse.push({
+      code: w.code,
+      name: w.name,
+      type: w.type,
+      area: w.area,
+      value,
+      lowCount: low.filter((p) => p.onHand > 0).length,
+      outCount: low.filter((p) => p.onHand <= 0).length,
+    });
+    if (w.type !== "main" && low.length > 0) {
+      outletAlerts.push({
+        warehouse: w.name,
+        area: w.area,
+        items: low.slice(0, 25).map((p) => ({
+          name: p.name,
+          unit: p.unit,
+          onHand: p.onHand,
+          min: p.minStock,
+          status: p.onHand <= 0 ? "out" : "low",
+        })),
+      });
+    }
+  }
+
+  return {
+    inventoryValue,
+    lowStockTotal: outletAlerts.reduce((s, a) => s + a.items.length, 0),
+    byWarehouse,
+    outletAlerts,
+  };
 }
 
 // =============================================================================

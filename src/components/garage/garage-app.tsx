@@ -291,6 +291,10 @@ const InventoryView = dynamic(
   () => import("@/components/garage/inventory-view").then((m) => m.InventoryView),
   { loading: ModuleChunkFallback },
 );
+const WmsAlertWidget = dynamic(
+  () => import("@/components/garage/wms-alert-widget").then((m) => m.WmsAlertWidget),
+  { ssr: false },
+);
 const KitchenView = dynamic(
   () => import("@/components/garage/kitchen-view").then((m) => m.KitchenView),
   { loading: ModuleChunkFallback },
@@ -1452,6 +1456,7 @@ function GarageWorkspace({
               <DateFilterProvider>
                 <div className="space-y-3">
                   <DateFilterBar />
+                  <WmsAlertWidget variant="card" />
                   <DashboardView
                     data={data.dashboard}
                     me={data.me}
@@ -1494,6 +1499,7 @@ function GarageWorkspace({
               <DateFilterProvider>
                 <div className="space-y-3">
                   <DateFilterBar />
+                  <WmsAlertWidget variant="banner" />
                   <KitchenView
                     kitchenOrders={data.kitchenOrders}
                     role={data.me.role}
@@ -1533,6 +1539,7 @@ function GarageWorkspace({
               <DateFilterProvider>
                 <div className="space-y-3">
                   <DateFilterBar />
+                  <WmsAlertWidget variant="card" />
                   <FinanceView
                     cashSession={data.cashSession}
                     closingChecklist={data.closingChecklist}

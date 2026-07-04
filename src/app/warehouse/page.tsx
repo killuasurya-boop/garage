@@ -20,14 +20,24 @@ import {
   Wallet,
 } from "lucide-react";
 
+import Link from "next/link";
+
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import type { WmsDashboard } from "@/lib/wms-types";
+
+type Summary = {
+  inventoryValue: number;
+  lowStockTotal: number;
+  byWarehouse: Array<{ code: string; name: string; type: string; area: string; value: number; lowCount: number; outCount: number }>;
+  outletAlerts: Array<{ warehouse: string; area: string; items: Array<{ name: string; unit: string; onHand: number; min: number; status: "low" | "out" }> }>;
+};
 
 export default function WmsDashboardPage() {
   const searchParams = useSearchParams();
   const wh = searchParams.get("wh") ?? "";
   const [data, setData] = useState<WmsDashboard | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +54,12 @@ export default function WmsDashboardPage() {
       alive = false;
     };
   }, [wh]);
+
+  useEffect(() => {
+    let alive = true;
+    void garageApi.get<Summary>("/api/wms/summary").then((s) => { if (alive) setSummary(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   if (err) return <p className="text-sm text-[#DC2626]">{err}</p>;
   if (!data) return <p className="text-sm text-[#6B7280]">Memuat dashboard…</p>;
@@ -126,6 +142,57 @@ export default function WmsDashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* Nilai Stok per Ruang + Alert Stok Outlet */}
+      {summary && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card title="Nilai Stok per Ruang">
+            <div className="divide-y divide-[#F0F1F4]">
+              {summary.byWarehouse.map((w) => (
+                <div key={w.code} className="flex items-center justify-between py-2 text-[13px]">
+                  <div>
+                    <p className="font-semibold text-[#111111]">{w.name}</p>
+                    <p className="text-[11px] text-[#9CA3AF]">
+                      {w.type === "main" ? "Gudang Utama" : "Outlet"}
+                      {w.lowCount + w.outCount > 0 ? ` · ${w.lowCount + w.outCount} perlu restock` : ""}
+                    </p>
+                  </div>
+                  <span className="font-mono font-bold text-[#111111]">{currency.format(w.value)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2 text-[13px]">
+                <span className="font-bold text-[#111111]">Total Nilai Persediaan</span>
+                <span className="font-mono font-extrabold text-[#C8102E]">{currency.format(summary.inventoryValue)}</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card title={<span className="flex items-center gap-2"><AlertTriangle className="size-4 text-[#D97706]" /> Alert Stok Outlet</span>}>
+            {summary.outletAlerts.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-[#6B7280]">Stok outlet aman 👍</p>
+            ) : (
+              <div className="space-y-3">
+                {summary.outletAlerts.map((a) => (
+                  <div key={a.warehouse}>
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="text-[12px] font-bold text-[#111111]">{a.warehouse}</p>
+                      <Link href="/warehouse/internal-order" className="text-[11px] font-semibold text-[#2563EB] hover:underline">Restock →</Link>
+                    </div>
+                    <div className="space-y-1">
+                      {a.items.map((it) => (
+                        <div key={it.name} className="flex items-center justify-between rounded-md border-l-[3px] bg-[#F8F9FB] px-2.5 py-1.5 text-[12px]" style={{ borderLeftColor: it.status === "out" ? "#DC2626" : "#D97706" }}>
+                          <span className="text-[#111111]">{it.name}</span>
+                          <span className="font-mono text-[#6B7280]">{it.onHand}/{it.min} {it.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       {/* Recent + Quick */}
       <div className="grid gap-3 lg:grid-cols-2">

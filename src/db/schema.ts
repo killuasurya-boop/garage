@@ -2723,6 +2723,8 @@ export const wmsReceiving = pgTable("wms_receiving", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull().unique(),
   supplier: text("supplier").notNull().default(""),
+  poNumber: text("po_number").notNull().default(""), // No. PO / referensi order
+  additionalCost: wmsNum("additional_cost").notNull().default(0), // ongkir/pajak → landed cost
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
   status: text("status").notNull().default("draft"), // draft|request|approved|issued|received|completed
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
@@ -2740,6 +2742,11 @@ export const wmsReceivingItem = pgTable(
     orderedQty: wmsNum("ordered_qty").notNull().default(0),
     receivedQty: wmsNum("received_qty").notNull().default(0),
     hpp: wmsNum("hpp").notNull().default(0),
+    // Konversi satuan beli→simpan: receivedQty = buyQty × packSize (bila diisi).
+    buyQty: wmsNum("buy_qty"),
+    packSize: wmsNum("pack_size"),
+    buyUnit: text("buy_unit"),
+    discrepancyNote: text("discrepancy_note").notNull().default(""),
     qc: text("qc").notNull().default("pass"), // pass|discrepancy|reject
     batchNo: text("batch_no"),
     expiredAt: timestamp("expired_at", { withTimezone: true }),
@@ -2862,6 +2869,34 @@ export const wmsColdChainReading = pgTable(
     recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ unitIdx: index("wms_cold_chain_unit_idx").on(t.unitCode, t.recordedAt) }),
+);
+
+// Checklist gudang: harian buka/tutup, QC saat receiving, langkah opname.
+export const wmsChecklistRun = pgTable("wms_checklist_run", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  type: text("type").notNull(), // daily | receiving | opname
+  warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+  refId: text("ref_id"), // opsional: kaitkan ke dokumen receiving/opname
+  status: text("status").notNull().default("draft"), // draft | completed
+  note: text("note").notNull().default(""),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const wmsChecklistRunItem = pgTable(
+  "wms_checklist_run_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => wmsChecklistRun.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    checked: boolean("checked").notNull().default(false),
+    note: text("note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => ({ runIdx: index("wms_checklist_run_item_run_idx").on(t.runId) }),
 );
 
 export const wmsStockMovement = pgTable(

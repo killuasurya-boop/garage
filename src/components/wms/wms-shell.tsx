@@ -16,6 +16,7 @@ import {
   FileBarChart,
   Factory,
   LayoutDashboard,
+  ListChecks,
   Menu,
   Package,
   PanelLeft,
@@ -64,6 +65,7 @@ const NAV: NavGroup[] = [
     title: "Control",
     items: [
       { label: "Stock Opname", href: "/warehouse/opname", icon: ClipboardCheck },
+      { label: "Checklist", href: "/warehouse/checklist", icon: ListChecks },
       { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders },
       { label: "Reports", href: "/warehouse/reports", icon: FileBarChart },
       { label: "Keuangan & HPP", href: "/warehouse/keuangan", icon: Wallet },
@@ -320,6 +322,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/keuangan")) return "Keuangan & HPP";
   if (pathname.startsWith("/warehouse/reports")) return "Reports";
   if (pathname.startsWith("/warehouse/opname")) return "Stock Opname";
+  if (pathname.startsWith("/warehouse/checklist")) return "Checklist Gudang";
   if (pathname.startsWith("/warehouse/adjustment")) return "Adjustment";
   if (pathname.startsWith("/warehouse/reorder")) return "Smart Reorder";
   if (pathname.startsWith("/warehouse/cold-chain")) return "Cold Chain";

@@ -285,7 +285,6 @@ export default function WmsInventoryPage() {
       {adjusting && (
         <StockAdjustModal
           product={adjusting}
-          whs={whs}
           defaultWh={wh || whs.find((w) => w.isPrimary)?.id || whs[0]?.id || ""}
           onDone={() => { setAdjusting(null); void load(); }}
           onCancel={() => setAdjusting(null)}
@@ -979,27 +978,55 @@ function ImportModal({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
   );
 }
 
-function StockAdjustModal({ product, whs, defaultWh, onDone, onCancel }: { product: WmsProductRow; whs: WmsWarehouse[]; defaultWh: string; onDone: () => void; onCancel: () => void }) {
+type StockRow = { warehouseId: string; code: string; name: string; type: string; area: string; onHand: number };
+
+function StockAdjustModal({ product, defaultWh, onDone, onCancel }: { product: WmsProductRow; defaultWh: string; onDone: () => void; onCancel: () => void }) {
+  const [rooms, setRooms] = useState<StockRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [warehouseId, setWarehouseId] = useState(defaultWh);
-  const [mode, setMode] = useState<"add" | "sub">("add");
+  const [mode, setMode] = useState<"set" | "add" | "sub">("set");
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  async function loadStock() {
+    try {
+      const r = await garageApi.get<StockRow[]>(`/api/wms/products/${product.id}/stock`);
+      setRooms(r);
+      if (!r.some((x) => x.warehouseId === warehouseId) && r[0]) setWarehouseId(r[0].warehouseId);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void loadStock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const current = rooms.find((r) => r.warehouseId === warehouseId)?.onHand ?? 0;
+  const n = Number(qty);
+  const delta = mode === "set" ? n - current : mode === "add" ? n : -n;
+  const total = rooms.reduce((s, r) => s + r.onHand, 0);
+  const canSubmit = warehouseId && qty !== "" && Number.isFinite(n) && delta !== 0 && note.trim().length >= 3 && !busy;
+
   async function submit() {
-    const n = Number(qty);
-    if (!warehouseId || !(n > 0) || note.trim().length < 3 || busy) return;
+    if (!canSubmit) return;
     setBusy(true);
     setErr(null);
+    setMsg(null);
     try {
       await garageApi.post("/api/wms/adjustment", {
         productId: product.id,
         warehouseId,
-        deltaQty: mode === "add" ? n : -n,
+        deltaQty: delta,
         note: note.trim(),
       });
-      onDone();
+      setQty("");
+      setNote("");
+      setMsg("Stok diperbarui.");
+      await loadStock();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Gagal menyesuaikan stok.");
     } finally {
@@ -1008,34 +1035,62 @@ function StockAdjustModal({ product, whs, defaultWh, onDone, onCancel }: { produ
   }
 
   const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+  const roomLabel = (t: string) => (t === "main" ? "Gudang Utama" : "Outlet");
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-4" onClick={onCancel}>
-      <div className="w-full max-w-sm rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-[14px] font-bold text-[#111111]">Sesuaikan Stok · {product.name}</p>
+          <div>
+            <p className="text-[14px] font-bold text-[#111111]">Kelola Stok · {product.name}</p>
+            <p className="text-[11px] text-[#9CA3AF]">Total semua ruang: <b className="text-[#111111]">{total} {product.unit}</b></p>
+          </div>
           <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
-        <div className="space-y-2.5">
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Gudang / Ruang</label>
-            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={`${input} w-full`}>
-              {whs.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex overflow-hidden rounded-md border border-[#E8E8E8]">
-              <button type="button" onClick={() => setMode("add")} className={`px-3 text-[13px] font-bold ${mode === "add" ? "bg-[#16A34A] text-white" : "text-[#6B7280]"}`}>+ Tambah</button>
-              <button type="button" onClick={() => setMode("sub")} className={`px-3 text-[13px] font-bold ${mode === "sub" ? "bg-[#C8102E] text-white" : "text-[#6B7280]"}`}>− Kurang</button>
-            </div>
-            <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder={`Jumlah (${product.unit})`} className={`${input} flex-1`} />
-          </div>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (mis. rusak, koreksi, hilang)" className={`${input} w-full`} />
-          <p className="text-[11px] text-[#9CA3AF]">Tercatat di ledger sebagai koreksi (butuh alasan, min 3 karakter).</p>
+
+        {/* Stok per ruang */}
+        <div className="mb-3 overflow-hidden rounded-lg border border-[#E8E8E8]">
+          {loading ? (
+            <p className="px-3 py-4 text-center text-[12.5px] text-[#6B7280]">Memuat stok…</p>
+          ) : (
+            rooms.map((r) => {
+              const sel = r.warehouseId === warehouseId;
+              return (
+                <button
+                  key={r.warehouseId}
+                  type="button"
+                  onClick={() => setWarehouseId(r.warehouseId)}
+                  className={`flex w-full items-center justify-between border-b border-[#F0F1F4] px-3 py-2 text-left last:border-0 ${sel ? "bg-[#FDF1F3]" : "hover:bg-[#F8F9FB]"}`}
+                >
+                  <span>
+                    <span className={`text-[13px] font-semibold ${sel ? "text-[#C8102E]" : "text-[#111111]"}`}>{r.name}</span>
+                    <span className="ml-1.5 text-[10px] text-[#9CA3AF]">{roomLabel(r.type)}</span>
+                  </span>
+                  <span className={`font-mono text-[13px] font-bold ${r.onHand <= 0 ? "text-[#DC2626]" : "text-[#111111]"}`}>{r.onHand} <span className="text-[10px] font-normal text-[#9CA3AF]">{product.unit}</span></span>
+                </button>
+              );
+            })
+          )}
         </div>
+
+        {/* Aksi */}
+        <div className="space-y-2.5">
+          <div className="flex overflow-hidden rounded-md border border-[#E8E8E8]">
+            {([["set", "Set jumlah"], ["add", "+ Tambah"], ["sub", "− Kurang"]] as const).map(([m, l]) => (
+              <button key={m} type="button" onClick={() => setMode(m)} className={`flex-1 py-1.5 text-[12.5px] font-bold ${mode === m ? (m === "sub" ? "bg-[#C8102E] text-white" : "bg-[#2F3136] text-white") : "text-[#6B7280]"}`}>{l}</button>
+            ))}
+          </div>
+          <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder={mode === "set" ? `Jumlah akhir di ruang ini (${product.unit})` : `Jumlah (${product.unit})`} className={`${input} w-full`} />
+          {qty !== "" && Number.isFinite(n) && (
+            <p className="text-[11px] text-[#6B7280]">Stok ruang ini: <b>{current}</b> → <b className={delta >= 0 ? "text-[#16A34A]" : "text-[#C8102E]"}>{current + delta}</b> ({delta >= 0 ? "+" : ""}{delta})</p>
+          )}
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (rusak, koreksi, stok fisik, dll)" className={`${input} w-full`} />
+        </div>
+
+        {msg && <p className="mt-2 text-[12.5px] font-semibold text-[#16A34A]">{msg}</p>}
         {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
         <div className="mt-3 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#6B7280] hover:bg-[#F8F9FB]">Batal</button>
-          <button type="button" disabled={busy || !(Number(qty) > 0) || note.trim().length < 3} onClick={() => void submit()} className="rounded-md bg-[#C8102E] px-3.5 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">Simpan Koreksi</button>
+          <button type="button" onClick={() => onDone()} className="rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#6B7280] hover:bg-[#F8F9FB]">Tutup</button>
+          <button type="button" disabled={!canSubmit} onClick={() => void submit()} className="rounded-md bg-[#C8102E] px-3.5 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">Simpan Koreksi</button>
         </div>
       </div>
     </div>

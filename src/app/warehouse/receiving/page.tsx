@@ -23,22 +23,41 @@ type ReceivingRow = {
 type ItemDraft = {
   productId: string;
   orderedQty: string;
+  buyQty: string;
+  packSize: string;
   receivedQty: string;
   hpp: string;
   qc: "pass" | "discrepancy" | "reject";
   batchNo: string;
   expiredAt: string;
+  discrepancyNote: string;
 };
 
 const emptyItem = (): ItemDraft => ({
   productId: "",
   orderedQty: "",
+  buyQty: "",
+  packSize: "",
   receivedQty: "",
   hpp: "",
   qc: "pass",
   batchNo: "",
   expiredAt: "",
+  discrepancyNote: "",
 });
+
+/** receivedQty efektif: buyQty×packSize bila keduanya diisi, else input manual. */
+function effReceived(it: ItemDraft): number {
+  const bq = Number(it.buyQty);
+  const ps = Number(it.packSize);
+  if (bq > 0 && ps > 0) return bq * ps;
+  return Number(it.receivedQty) || 0;
+}
+function expiryWarn(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr).getTime();
+  return Number.isFinite(d) && d - Date.now() < 30 * 864e5;
+}
 
 export default function WmsReceivingPage() {
   const [list, setList] = useState<ReceivingRow[]>([]);
@@ -49,6 +68,8 @@ export default function WmsReceivingPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [supplier, setSupplier] = useState("");
+  const [poNumber, setPoNumber] = useState("");
+  const [additionalCost, setAdditionalCost] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
@@ -116,11 +137,8 @@ export default function WmsReceivingPage() {
     };
   }, []);
 
-  const totalValue = items.reduce(
-    (s, it) => s + (Number(it.receivedQty) || 0) * (Number(it.hpp) || 0),
-    0,
-  );
-  const valid = items.some((it) => it.productId && Number(it.receivedQty) > 0);
+  const totalValue = items.reduce((s, it) => s + effReceived(it) * (Number(it.hpp) || 0), 0) + (Number(additionalCost) || 0);
+  const valid = items.some((it) => it.productId && effReceived(it) > 0);
 
   async function submit(complete: boolean) {
     if (!valid || busy) return;
@@ -129,16 +147,21 @@ export default function WmsReceivingPage() {
     try {
       const payload = {
         supplier: supplier.trim() || undefined,
+        poNumber: poNumber.trim() || undefined,
+        additionalCost: Number(additionalCost) || 0,
         items: items
-          .filter((it) => it.productId && Number(it.receivedQty) >= 0)
+          .filter((it) => it.productId && effReceived(it) >= 0)
           .map((it) => ({
             productId: it.productId,
             orderedQty: Number(it.orderedQty) || 0,
-            receivedQty: Number(it.receivedQty) || 0,
+            receivedQty: effReceived(it),
             hpp: Number(it.hpp) || 0,
             qc: it.qc,
             batchNo: it.batchNo.trim() || undefined,
             expiredAt: it.expiredAt || null,
+            buyQty: Number(it.buyQty) || null,
+            packSize: Number(it.packSize) || null,
+            discrepancyNote: it.discrepancyNote.trim() || undefined,
           })),
       };
       const rec = await garageApi.post<{ id: string; doc: string }>("/api/wms/receiving", payload);
@@ -149,6 +172,8 @@ export default function WmsReceivingPage() {
         setMsg(`Draft ${rec.doc} disimpan.`);
       }
       setSupplier("");
+      setPoNumber("");
+      setAdditionalCost("");
       setItems([emptyItem()]);
       setCreating(false);
       await load();
@@ -220,19 +245,25 @@ export default function WmsReceivingPage() {
                 <button type="button" onClick={() => void saveSupplier()} className="rounded-md bg-[#2F3136] px-3 text-[12px] font-semibold text-white hover:bg-black">Simpan</button>
               </div>
             )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="No. PO / referensi (opsional)" className={`${input} w-full sm:w-52`} />
+              <input value={additionalCost} onChange={(e) => setAdditionalCost(e.target.value)} inputMode="decimal" placeholder="Biaya tambahan Rp (ongkir/pajak)" className={`${input} w-full sm:w-56`} title="Dialokasikan proporsional ke HPP bahan (landed cost)" />
+            </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-[13px]">
+            <table className="w-full min-w-[1040px] text-[13px]">
               <thead>
                 <tr className="text-left text-[10.5px] font-bold uppercase tracking-wide text-[#6B7280]">
                   <th className="py-1.5 pr-2">Produk</th>
                   <th className="py-1.5 px-2 text-right">Dipesan</th>
+                  <th className="py-1.5 px-2 text-center">Beli (qty × isi)</th>
                   <th className="py-1.5 px-2 text-right">Diterima</th>
                   <th className="py-1.5 px-2 text-right">HPP/unit</th>
                   <th className="py-1.5 px-2">QC</th>
                   <th className="py-1.5 px-2">Batch</th>
                   <th className="py-1.5 px-2">Expired</th>
+                  <th className="py-1.5 px-2">Catatan</th>
                   <th className="py-1.5 pl-2" />
                 </tr>
               </thead>
@@ -254,7 +285,31 @@ export default function WmsReceivingPage() {
                       </select>
                     </td>
                     <td className="py-1 px-2"><input value={it.orderedQty} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, orderedQty: e.target.value } : x)))} inputMode="decimal" className={`${input} w-20 text-right`} /></td>
-                    <td className="py-1 px-2"><input value={it.receivedQty} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, receivedQty: e.target.value } : x)))} inputMode="decimal" className={`${input} w-20 text-right`} /></td>
+                    <td className="py-1 px-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <input value={it.buyQty} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, buyQty: e.target.value } : x)))} inputMode="decimal" placeholder="dus" className={`${input} w-14 text-right`} />
+                        <span className="text-[#9CA3AF]">×</span>
+                        <input value={it.packSize} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, packSize: e.target.value } : x)))} inputMode="decimal" placeholder="isi" className={`${input} w-14 text-right`} />
+                      </div>
+                    </td>
+                    <td className="py-1 px-2">
+                      {(() => {
+                        const auto = Number(it.buyQty) > 0 && Number(it.packSize) > 0;
+                        const recv = effReceived(it);
+                        const ord = Number(it.orderedQty) || 0;
+                        const badge = ord > 0 && recv > 0 ? (recv < ord ? "kurang" : recv > ord ? "lebih" : "pas") : null;
+                        return (
+                          <div className="flex items-center justify-end gap-1">
+                            {auto ? (
+                              <span className="w-20 rounded-md bg-[#F8F9FB] px-2 py-1.5 text-right font-mono text-[13px] text-[#111111]">{recv}</span>
+                            ) : (
+                              <input value={it.receivedQty} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, receivedQty: e.target.value } : x)))} inputMode="decimal" className={`${input} w-20 text-right`} />
+                            )}
+                            {badge && <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${badge === "pas" ? "bg-[#DCFCE7] text-[#16A34A]" : badge === "kurang" ? "bg-[#FEF3C7] text-[#D97706]" : "bg-[#E0E7FF] text-[#4338CA]"}`}>{badge}</span>}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="py-1 px-2"><input value={it.hpp} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, hpp: e.target.value } : x)))} inputMode="decimal" className={`${input} w-24 text-right`} /></td>
                     <td className="py-1 px-2">
                       <select value={it.qc} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, qc: e.target.value as ItemDraft["qc"] } : x)))} className={`${input} w-32`}>
@@ -264,7 +319,10 @@ export default function WmsReceivingPage() {
                       </select>
                     </td>
                     <td className="py-1 px-2"><input value={it.batchNo} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, batchNo: e.target.value } : x)))} placeholder="auto" className={`${input} w-28`} /></td>
-                    <td className="py-1 px-2"><input type="date" value={it.expiredAt} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, expiredAt: e.target.value } : x)))} className={`${input} w-36`} /></td>
+                    <td className="py-1 px-2">
+                      <input type="date" value={it.expiredAt} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, expiredAt: e.target.value } : x)))} className={`${input} w-36 ${expiryWarn(it.expiredAt) ? "border-[#D97706] bg-[#FFFBEB] text-[#B45309]" : ""}`} title={expiryWarn(it.expiredAt) ? "Kadaluarsa < 30 hari" : undefined} />
+                    </td>
+                    <td className="py-1 px-2"><input value={it.discrepancyNote} onChange={(e) => setItems((p) => p.map((x, i) => (i === idx ? { ...x, discrepancyNote: e.target.value } : x)))} placeholder="selisih/kondisi" className={`${input} w-32`} /></td>
                     <td className="py-1 pl-2">
                       {items.length > 1 && (
                         <button type="button" onClick={() => setItems((p) => p.filter((_, i) => i !== idx))} className="grid size-8 place-items-center rounded-md text-[#DC2626] hover:bg-[#FEE2E2]">

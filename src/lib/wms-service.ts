@@ -5,6 +5,8 @@ import {
   wmsBatch,
   wmsBomItem,
   wmsCategory,
+  wmsChecklistRun,
+  wmsChecklistRunItem,
   wmsColdChainReading,
   wmsSupplier,
   wmsInternalOrder,
@@ -21,6 +23,7 @@ import {
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
+import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
 import {
   WMS_DEFAULT_WAREHOUSES,
   stockStatus,
@@ -364,6 +367,28 @@ export async function getWmsProducts(params?: {
     imageUrl: r.imageUrl ?? null,
     barcode: r.barcode ?? null,
     createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+/** Stok sebuah produk di SETIAP gudang/ruang (untuk panel Kelola Stok). */
+export async function getWmsProductStock(productId: string) {
+  const db = getDb();
+  const warehouses = await db
+    .select()
+    .from(wmsWarehouse)
+    .orderBy(desc(wmsWarehouse.type), desc(wmsWarehouse.isPrimary), wmsWarehouse.code);
+  const stocks = await db
+    .select({ warehouseId: wmsWarehouseStock.warehouseId, qty: wmsWarehouseStock.qty })
+    .from(wmsWarehouseStock)
+    .where(eq(wmsWarehouseStock.productId, productId));
+  const byWh = new Map(stocks.map((s) => [s.warehouseId, Number(s.qty)]));
+  return warehouses.map((w) => ({
+    warehouseId: w.id,
+    code: w.code,
+    name: w.name,
+    type: w.type as WmsWarehouse["type"],
+    area: w.area as WmsWarehouse["area"],
+    onHand: byWh.get(w.id) ?? 0,
   }));
 }
 
@@ -846,11 +871,17 @@ export type ReceivingItemInput = {
   qc?: "pass" | "discrepancy" | "reject";
   batchNo?: string;
   expiredAt?: string | null;
+  buyQty?: number | null; // qty kemasan beli (mis. 5 dus)
+  packSize?: number | null; // isi per kemasan (mis. 24 pcs/dus)
+  buyUnit?: string | null; // satuan beli (dus/karton)
+  discrepancyNote?: string;
 };
 
 export async function createReceiving(
   input: {
     supplier?: string;
+    poNumber?: string;
+    additionalCost?: number;
     warehouseId?: string;
     items: ReceivingItemInput[];
   },
@@ -863,6 +894,8 @@ export async function createReceiving(
     .values({
       doc: makeWmsDoc("RCV"),
       supplier: input.supplier?.trim() ?? "",
+      poNumber: input.poNumber?.trim() ?? "",
+      additionalCost: input.additionalCost ?? 0,
       warehouseId: whId,
       status: "draft",
       createdBy: userId ?? null,
@@ -871,16 +904,26 @@ export async function createReceiving(
 
   if (input.items.length) {
     await db.insert(wmsReceivingItem).values(
-      input.items.map((it) => ({
-        receivingId: rec.id,
-        productId: it.productId,
-        orderedQty: it.orderedQty,
-        receivedQty: it.receivedQty,
-        hpp: it.hpp,
-        qc: it.qc ?? "pass",
-        batchNo: it.batchNo ?? null,
-        expiredAt: it.expiredAt ? new Date(it.expiredAt) : null,
-      })),
+      input.items.map((it) => {
+        // Konversi satuan beli→simpan: bila buyQty & packSize diisi → receivedQty otomatis.
+        const buyQty = it.buyQty && it.buyQty > 0 ? it.buyQty : null;
+        const packSize = it.packSize && it.packSize > 0 ? it.packSize : null;
+        const received = buyQty && packSize ? buyQty * packSize : it.receivedQty;
+        return {
+          receivingId: rec.id,
+          productId: it.productId,
+          orderedQty: it.orderedQty,
+          receivedQty: received,
+          hpp: it.hpp,
+          buyQty,
+          packSize,
+          buyUnit: it.buyUnit?.trim() || null,
+          discrepancyNote: it.discrepancyNote?.trim() ?? "",
+          qc: it.qc ?? "pass",
+          batchNo: it.batchNo ?? null,
+          expiredAt: it.expiredAt ? new Date(it.expiredAt) : null,
+        };
+      }),
     );
   }
   return rec;
@@ -973,11 +1016,21 @@ export async function completeReceiving(id: string, userId?: string | null) {
     const catRows = await tx.select({ name: wmsCategory.name, area: wmsCategory.area }).from(wmsCategory);
     const areaByCat = new Map(catRows.map((c) => [c.name.trim().toLowerCase(), c.area]));
 
+    // Landed cost: alokasi biaya tambahan (ongkir/pajak) proporsional ke nilai item.
+    const additionalCost = Number(rec.additionalCost ?? 0);
+    const accepted = items.filter((x) => x.productId && x.qc !== "reject" && Number(x.receivedQty) > 0);
+    const totalValue = accepted.reduce((s, x) => s + Number(x.receivedQty) * Number(x.hpp), 0);
+
     for (const it of items) {
       if (!it.productId) continue;
       if (it.qc === "reject") continue;
       const qty = Number(it.receivedQty);
       if (qty <= 0) continue;
+
+      // HPP efektif = HPP + porsi landed cost per satuan.
+      const itemValue = qty * Number(it.hpp);
+      const share = additionalCost > 0 && totalValue > 0 ? (additionalCost * itemValue) / totalValue : 0;
+      const effHpp = Number(it.hpp) + (qty > 0 ? share / qty : 0);
 
       // HPP rata-rata tertimbang (berdasarkan total stok lama) — dihitung sebelum mutasi.
       const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
@@ -985,7 +1038,7 @@ export async function completeReceiving(id: string, userId?: string | null) {
         const oldQty = await totalOnHand(tx, it.productId);
         const oldValue = oldQty * Number(prod.hpp);
         const newQty = oldQty + qty;
-        const newHpp = newQty > 0 ? (oldValue + qty * Number(it.hpp)) / newQty : Number(it.hpp);
+        const newHpp = newQty > 0 ? (oldValue + qty * effHpp) / newQty : effHpp;
         await tx
           .update(wmsProduct)
           .set({ hpp: newHpp, updatedAt: new Date() })
@@ -996,13 +1049,13 @@ export async function completeReceiving(id: string, userId?: string | null) {
       const area = areaByCat.get((prod?.category ?? "").trim().toLowerCase()) ?? "umum";
       const target = area === "umum" ? whId : ((await mainWarehouseForArea(tx, area)) ?? whId);
 
-      // +stok + batch (FEFO) + ledger, atomik.
+      // +stok + batch (FEFO) + ledger, atomik. HPP sudah termasuk landed cost.
       await recordStockMovement(tx, {
         type: "in",
         productId: it.productId,
         warehouseId: target,
         deltaQty: qty,
-        hpp: Number(it.hpp),
+        hpp: effHpp,
         refDoc: rec.doc,
         userId: userId ?? null,
         batchNo: it.batchNo ?? undefined,
@@ -1896,6 +1949,110 @@ export async function getWmsSummary(): Promise<WmsSummary> {
     byWarehouse,
     outletAlerts,
   };
+}
+
+// =============================================================================
+// Checklist gudang (harian / receiving-QC / opname). Template hardcoded per jenis.
+// =============================================================================
+
+export async function createChecklistRun(
+  input: { type: ChecklistType; warehouseId?: string | null; refId?: string | null },
+  userId?: string | null,
+) {
+  const db = getDb();
+  const tpl = WMS_CHECKLIST_TEMPLATES[input.type];
+  if (!tpl) throw new Error("Jenis checklist tidak dikenal.");
+  const [run] = await db
+    .insert(wmsChecklistRun)
+    .values({
+      type: input.type,
+      warehouseId: input.warehouseId ?? null,
+      refId: input.refId ?? null,
+      status: "draft",
+      createdBy: userId ?? null,
+    })
+    .returning();
+  await db.insert(wmsChecklistRunItem).values(
+    tpl.items.map((label, i) => ({ runId: run.id, label, sortOrder: i })),
+  );
+  return run;
+}
+
+export async function getChecklistRun(id: string) {
+  const db = getDb();
+  const [run] = await db.select().from(wmsChecklistRun).where(eq(wmsChecklistRun.id, id)).limit(1);
+  if (!run) return null;
+  const items = await db
+    .select()
+    .from(wmsChecklistRunItem)
+    .where(eq(wmsChecklistRunItem.runId, id))
+    .orderBy(wmsChecklistRunItem.sortOrder);
+  const [wh] = run.warehouseId
+    ? await db.select({ name: wmsWarehouse.name }).from(wmsWarehouse).where(eq(wmsWarehouse.id, run.warehouseId)).limit(1)
+    : [{ name: null }];
+  return {
+    id: run.id,
+    type: run.type,
+    title: WMS_CHECKLIST_TEMPLATES[run.type as ChecklistType]?.title ?? "Checklist",
+    warehouseId: run.warehouseId,
+    warehouseName: wh?.name ?? null,
+    status: run.status,
+    note: run.note,
+    createdAt: run.createdAt.toISOString(),
+    completedAt: run.completedAt ? run.completedAt.toISOString() : null,
+    items: items.map((it) => ({ id: it.id, label: it.label, checked: it.checked, note: it.note })),
+  };
+}
+
+export async function toggleChecklistItem(itemId: string, checked: boolean, note?: string) {
+  const db = getDb();
+  const set: Record<string, unknown> = { checked };
+  if (note !== undefined) set.note = note.trim();
+  const [row] = await db.update(wmsChecklistRunItem).set(set).where(eq(wmsChecklistRunItem.id, itemId)).returning();
+  return row ?? null;
+}
+
+export async function completeChecklistRun(id: string) {
+  const db = getDb();
+  const [row] = await db
+    .update(wmsChecklistRun)
+    .set({ status: "completed", completedAt: new Date() })
+    .where(eq(wmsChecklistRun.id, id))
+    .returning();
+  return row ?? null;
+}
+
+export async function listChecklistRuns(type?: ChecklistType) {
+  const db = getDb();
+  const filters = [];
+  if (type) filters.push(eq(wmsChecklistRun.type, type));
+  const rows = await db
+    .select({
+      id: wmsChecklistRun.id,
+      type: wmsChecklistRun.type,
+      status: wmsChecklistRun.status,
+      createdAt: wmsChecklistRun.createdAt,
+      warehouseName: wmsWarehouse.name,
+      total: sql<number>`count(${wmsChecklistRunItem.id})::int`,
+      done: sql<number>`coalesce(sum(case when ${wmsChecklistRunItem.checked} then 1 else 0 end), 0)::int`,
+    })
+    .from(wmsChecklistRun)
+    .leftJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsChecklistRun.warehouseId))
+    .leftJoin(wmsChecklistRunItem, eq(wmsChecklistRunItem.runId, wmsChecklistRun.id))
+    .where(filters.length ? and(...filters) : undefined)
+    .groupBy(wmsChecklistRun.id, wmsWarehouse.name)
+    .orderBy(desc(wmsChecklistRun.createdAt))
+    .limit(60);
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    title: WMS_CHECKLIST_TEMPLATES[r.type as ChecklistType]?.title ?? "Checklist",
+    status: r.status,
+    warehouse: r.warehouseName ?? "-",
+    total: Number(r.total),
+    done: Number(r.done),
+    createdAt: r.createdAt.toISOString(),
+  }));
 }
 
 // =============================================================================

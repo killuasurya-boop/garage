@@ -9,6 +9,8 @@ export const runtime = "nodejs";
 
 const createSchema = z.object({
   supplier: z.string().trim().max(140).optional(),
+  poNumber: z.string().trim().max(60).optional(),
+  additionalCost: z.number().nonnegative().max(1_000_000_000).optional(),
   warehouseId: z.string().uuid().optional(),
   items: z
     .array(
@@ -20,6 +22,10 @@ const createSchema = z.object({
         qc: z.enum(["pass", "discrepancy", "reject"]).optional(),
         batchNo: z.string().trim().max(60).optional(),
         expiredAt: z.string().optional().nullable(),
+        buyQty: z.number().nonnegative().nullable().optional(),
+        packSize: z.number().nonnegative().nullable().optional(),
+        buyUnit: z.string().trim().max(24).nullable().optional(),
+        discrepancyNote: z.string().trim().max(200).optional(),
       }),
     )
     .min(1)

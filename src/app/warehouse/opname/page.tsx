@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ClipboardCheck, Plus, Printer } from "lucide-react";
+import { ClipboardCheck, Plus, Printer, ScanLine } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 import { printWmsDoc, escapeHtml } from "@/lib/wms-print";
+import { ScanModal } from "@/components/wms/scan-modal";
 import type { WmsWarehouse } from "@/lib/wms-types";
 
 type OpnameRow = { id: string; doc: string; status: string; warehouse: string; lines: number; createdAt: string };
-type OpnameLine = { id: string; productName: string; unit: string; systemQty: number; physicalQty: number; variance: number };
+type OpnameLine = { id: string; productName: string; sku: string | null; barcode: string | null; unit: string; systemQty: number; physicalQty: number; variance: number };
 type OpnameDetail = { id: string; doc: string; status: string; lines: OpnameLine[] };
 
 export default function WmsOpnamePage() {
@@ -16,6 +17,17 @@ export default function WmsOpnamePage() {
   const [warehouses, setWarehouses] = useState<WmsWarehouse[]>([]);
   const [active, setActive] = useState<OpnameDetail | null>(null);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  function focusByCode(code: string) {
+    setScanning(false);
+    if (!active) return;
+    const q = code.trim().toLowerCase();
+    const line = active.lines.find((l) => (l.sku ?? "").toLowerCase() === q || (l.barcode ?? "").toLowerCase() === q);
+    if (!line) { window.alert(`Produk kode "${code}" tak ada di sesi opname ini.`); return; }
+    const el = document.getElementById(`opl-${line.id}`) as HTMLInputElement | null;
+    if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus(); el.select(); }
+  }
 
   async function loadList() {
     setList(await garageApi.get<OpnameRow[]>("/api/wms/opname"));
@@ -97,6 +109,11 @@ export default function WmsOpnamePage() {
             <p className="text-[13px] text-[#6B7280]">{totalVar} item ada selisih · {active.status}</p>
           </div>
           <div className="flex gap-2">
+            {active.status !== "completed" && (
+              <button type="button" onClick={() => setScanning(true)} className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]">
+                <ScanLine className="size-4 text-[#C8102E]" /> Scan
+              </button>
+            )}
             <button type="button" onClick={printSheet} className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]">
               <Printer className="size-4 text-[#2563EB]" /> Cetak Lembar
             </button>
@@ -127,11 +144,12 @@ export default function WmsOpnamePage() {
                     <td className="px-3 py-2 text-right font-mono text-[#6B7280]">{l.systemQty}</td>
                     <td className="px-3 py-2 text-right">
                       <input
+                        id={`opl-${l.id}`}
                         defaultValue={l.physicalQty}
                         disabled={active.status === "completed"}
                         onBlur={(e) => void saveLine(l.id, Number(e.target.value) || 0)}
                         inputMode="decimal"
-                        className="h-8 w-24 rounded-md border border-[#E8E8E8] text-right font-mono text-[13px] outline-none focus:border-[#C8102E] disabled:bg-[#F8F9FB]"
+                        className="h-8 w-24 rounded-md border border-[#E8E8E8] text-right font-mono text-[13px] outline-none focus:border-[#C8102E] focus:ring-2 focus:ring-[#C8102E]/30 disabled:bg-[#F8F9FB]"
                       />
                     </td>
                     <td className={`px-3 py-2 text-right font-mono font-bold ${l.variance === 0 ? "text-[#9CA3AF]" : l.variance > 0 ? "text-[#16A34A]" : "text-[#C8102E]"}`}>
@@ -143,6 +161,7 @@ export default function WmsOpnamePage() {
             </tbody>
           </table>
         </div>
+        {scanning && <ScanModal title="Scan produk (SKU/barcode)" onDetect={focusByCode} onCancel={() => setScanning(false)} />}
       </div>
     );
   }

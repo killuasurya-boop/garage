@@ -4626,6 +4626,17 @@ export function PosView({
         </div>
         <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
           <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
+          <span
+            className={`inline-flex h-10 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold ${
+              settings?.wmsAutoConsume
+                ? "border-[#16A34A]/45 bg-[#16A34A]/12 text-[#7fd7a3]"
+                : "border-[#34343c] bg-white/[0.04] text-[#8f8f99]"
+            }`}
+            title={settings?.wmsAutoConsume ? "Penjualan otomatis memotong bahan di gudang (WMS)" : "Auto-potong bahan gudang mati — aktifkan di Warehouse › Settings"}
+          >
+            <span className={`size-2 rounded-full ${settings?.wmsAutoConsume ? "bg-[#16A34A]" : "bg-[#8f8f99]"}`} />
+            Gudang {settings?.wmsAutoConsume ? "Auto" : "Manual"}
+          </span>
           <Button
             type="button"
             variant="outline"

@@ -1732,6 +1732,8 @@ export async function getWmsOpname(id: string) {
       id: wmsOpnameLine.id,
       productId: wmsOpnameLine.productId,
       productName: wmsProduct.name,
+      sku: wmsProduct.sku,
+      barcode: wmsProduct.barcode,
       unit: wmsProduct.unit,
       systemQty: wmsOpnameLine.systemQty,
       physicalQty: wmsOpnameLine.physicalQty,

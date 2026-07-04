@@ -276,6 +276,7 @@ export default function WmsInventoryPage() {
           product={editing}
           cats={cats}
           onCatAdded={loadCategories}
+          onManageStock={(p) => { setEditing(null); setAdjusting(p); }}
           onDone={() => { setEditing(null); void load(); }}
           onCancel={() => setEditing(null)}
         />
@@ -734,7 +735,7 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
   );
 }
 
-function EditForm({ product, cats, onCatAdded, onDone, onCancel }: { product: WmsProductRow; cats: WmsCategory[]; onCatAdded: () => Promise<void> | void; onDone: () => void; onCancel: () => void }) {
+function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }: { product: WmsProductRow; cats: WmsCategory[]; onCatAdded: () => Promise<void> | void; onManageStock: (p: WmsProductRow) => void; onDone: () => void; onCancel: () => void }) {
   const knownUnit = UNIT_OPTIONS.includes(product.unit);
   const [name, setName] = useState(product.name);
   const [category, setCategory] = useState(product.category);
@@ -745,12 +746,21 @@ function EditForm({ product, cats, onCatAdded, onDone, onCancel }: { product: Wm
   const [barcode, setBarcode] = useState(product.barcode ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(product.imageUrl);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [stockRooms, setStockRooms] = useState<StockRow[] | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const unit = (unitSel === CUSTOM ? customUnit : unitSel).trim();
+  const totalStock = stockRooms ? stockRooms.reduce((s, r) => s + r.onHand, 0) : null;
+
+  // Muat stok saat ini per ruang (ringkasan di modal Edit).
+  useEffect(() => {
+    let alive = true;
+    void garageApi.get<StockRow[]>(`/api/wms/products/${product.id}/stock`).then((r) => { if (alive) setStockRooms(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [product.id]);
 
   // Generate QR (encode SKU) untuk ditampilkan & dicetak.
   useEffect(() => {
@@ -887,6 +897,37 @@ function EditForm({ product, cats, onCatAdded, onDone, onCancel }: { product: Wm
           <div className="sm:col-span-2">
             <label className={label}>Barcode kemasan <span className="font-normal text-[#9CA3AF]">· opsional (EAN/UPC supplier)</span></label>
             <input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan/ketik barcode fisik" className={`${input} w-full font-mono`} />
+          </div>
+
+          {/* Stok saat ini (per ruang) + kelola */}
+          <div className="rounded-lg border border-[#E8E8E8] bg-[#F8F9FB] p-3 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-semibold text-[#6B7280]">Stok saat ini</p>
+                <p className="text-[16px] font-extrabold text-[#111111]">
+                  {totalStock === null ? "…" : totalStock} <span className="text-[12px] font-normal text-[#9CA3AF]">{product.unit}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onManageStock(product)}
+                className="flex items-center gap-1.5 rounded-md bg-[#2F3136] px-3 py-2 text-[12.5px] font-bold text-white hover:bg-black"
+              >
+                <SlidersHorizontal className="size-3.5" /> Kelola Stok
+              </button>
+            </div>
+            {stockRooms && stockRooms.some((r) => r.onHand !== 0) && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {stockRooms.filter((r) => r.onHand !== 0).map((r) => (
+                  <span key={r.warehouseId} className="rounded-full border border-[#E8E8E8] bg-white px-2 py-0.5 text-[11px] text-[#374151]">
+                    {r.name}: <b className={r.onHand <= 0 ? "text-[#DC2626]" : "text-[#111111]"}>{r.onHand}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+            {stockRooms && totalStock === 0 && (
+              <p className="mt-1.5 text-[11px] font-semibold text-[#DC2626]">Belum ada stok — klik Kelola Stok untuk mengisi.</p>
+            )}
           </div>
         </div>
         {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}

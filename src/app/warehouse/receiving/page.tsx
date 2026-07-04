@@ -251,9 +251,9 @@ export default function WmsReceivingPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="max-h-[440px] overflow-auto rounded-lg border border-[#F0F1F4]">
             <table className="w-full min-w-[1040px] text-[13px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_#E8E8E8]">
                 <tr className="text-left text-[10.5px] font-bold uppercase tracking-wide text-[#6B7280]">
                   <th className="py-1.5 pr-2">Produk</th>
                   <th className="py-1.5 px-2 text-right">Dipesan</th>
@@ -380,9 +380,9 @@ export default function WmsReceivingPage() {
       )}
 
       {/* List */}
-      <div className="overflow-x-auto rounded-xl border border-[#E8E8E8] bg-white">
+      <div className="max-h-[520px] overflow-auto rounded-xl border border-[#E8E8E8] bg-white">
         <table className="w-full min-w-[680px] text-[13px]">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-[#E8E8E8] bg-[#F8F9FB] text-left text-[10.5px] font-bold uppercase tracking-wide text-[#6B7280]">
               <th className="px-3 py-2.5">Dokumen</th>
               <th className="px-3 py-2.5">Supplier</th>

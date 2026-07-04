@@ -227,6 +227,52 @@ body {
   background: linear-gradient(180deg, var(--garage-silver), var(--garage-red));
 }
 
+/* ============================================================================
+   WMS scrollbar — desain modern 2026 (light): tipis, membulat penuh, track
+   transparan, thumb low-contrast yang menipis; hover memberi aksen merah GARAGE.
+   Di-scope ke .wms-scope (area konten Warehouse) agar sidebar gelap tak berubah.
+   ============================================================================ */
+.wms-scope,
+.wms-scope * {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd0d8 transparent;
+}
+.wms-scope::-webkit-scrollbar,
+.wms-scope *::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.wms-scope::-webkit-scrollbar-track,
+.wms-scope *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wms-scope::-webkit-scrollbar-thumb,
+.wms-scope *::-webkit-scrollbar-thumb {
+  background: #d3d8e0;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+.wms-scope::-webkit-scrollbar-thumb:hover,
+.wms-scope *::-webkit-scrollbar-thumb:hover {
+  background: #c8102e;
+  background-clip: padding-box;
+}
+.wms-scope::-webkit-scrollbar-thumb:active,
+.wms-scope *::-webkit-scrollbar-thumb:active {
+  background: #a60d26;
+  background-clip: padding-box;
+}
+.wms-scope::-webkit-scrollbar-corner,
+.wms-scope *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Scroll halus di seluruh area WMS */
+.wms-scope {
+  scroll-behavior: smooth;
+}
+
 @layer components {
   .garage-shell {
     min-height: 100vh;

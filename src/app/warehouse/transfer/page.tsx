@@ -120,7 +120,7 @@ export default function WmsTransferPage() {
             <button type="button" disabled={!pick} onClick={addItem} className="flex items-center gap-1 rounded-md bg-[#2F3136] px-3 text-[13px] font-semibold text-white hover:bg-black disabled:opacity-50"><Plus className="size-4" /> Tambah</button>
           </div>
 
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 max-h-[320px] space-y-2 overflow-y-auto pr-1">
             {cart.length === 0 && <p className="py-4 text-center text-[12.5px] text-[#9CA3AF]">Belum ada item.</p>}
             {cart.map((l) => (
               <div key={l.product.id} className="flex items-center gap-2 rounded-lg border border-[#E8E8E8] p-2">
@@ -168,7 +168,7 @@ export default function WmsTransferPage() {
         {/* Riwayat */}
         <section className="rounded-xl border border-[#E8E8E8] bg-white p-4">
           <p className="mb-2 text-[14px] font-bold text-[#111111]">Riwayat Transfer</p>
-          <div className="space-y-1.5">
+          <div className="max-h-[460px] space-y-1.5 overflow-y-auto pr-1">
             {history.length === 0 && <p className="py-4 text-center text-[12.5px] text-[#9CA3AF]">Belum ada transfer.</p>}
             {history.map((h) => (
               <div key={h.doc} className="flex items-center justify-between rounded-lg border border-[#F0F1F4] px-3 py-2 text-[12.5px]">

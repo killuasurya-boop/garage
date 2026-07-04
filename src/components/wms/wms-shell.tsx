@@ -298,8 +298,8 @@ export function WmsShell({
           </div>
         </header>
 
-        {/* Content */}
-        <div className="relative flex-1 overflow-y-auto">
+        {/* Content — wms-scope: scrollbar modern 2026 (light) untuk seluruh area konten */}
+        <div className="wms-scope relative flex-1 overflow-y-auto">
           <div className="absolute inset-x-0 top-0 h-1 bg-[#C8102E]" />
           <main className="p-6">{children}</main>
         </div>

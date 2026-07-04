@@ -16,6 +16,7 @@ import {
   RotateCcw,
   ScanLine,
   Search,
+  SlidersHorizontal,
   Trash2,
   Upload,
   X,
@@ -24,7 +25,7 @@ import {
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import { ScanModal } from "@/components/wms/scan-modal";
-import { WMS_STATUS_COLOR, type WmsProductRow } from "@/lib/wms-types";
+import { WMS_STATUS_COLOR, type WmsProductRow, type WmsWarehouse } from "@/lib/wms-types";
 
 type WmsCategory = { id: string; name: string; area: "bar" | "dapur" | "umum" };
 const AREA_LABEL: Record<string, string> = { bar: "Bar", dapur: "Dapur", umum: "Umum" };
@@ -83,12 +84,19 @@ export default function WmsInventoryPage() {
   const [importing, setImporting] = useState(false);
   const [scanning, setScanning] = useState(searchParams.get("scan") === "1");
   const [cats, setCats] = useState<WmsCategory[]>([]);
+  const [whs, setWhs] = useState<WmsWarehouse[]>([]);
+  const [adjusting, setAdjusting] = useState<WmsProductRow | null>(null);
 
   async function loadCategories() {
     try {
       setCats(await garageApi.get<WmsCategory[]>("/api/wms/categories"));
     } catch { /* abaikan */ }
   }
+  useEffect(() => {
+    let alive = true;
+    void garageApi.get<WmsWarehouse[]>("/api/wms/warehouses").then((w) => { if (alive) setWhs(w); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -274,6 +282,15 @@ export default function WmsInventoryPage() {
       )}
       {importing && <ImportModal onDone={() => { setImporting(false); void load(); }} onCancel={() => setImporting(false)} />}
       {scanning && <ScanModal onDetect={(v) => { setQ(v); setScanning(false); }} onCancel={() => setScanning(false)} />}
+      {adjusting && (
+        <StockAdjustModal
+          product={adjusting}
+          whs={whs}
+          defaultWh={wh || whs.find((w) => w.isPrimary)?.id || whs[0]?.id || ""}
+          onDone={() => { setAdjusting(null); void load(); }}
+          onCancel={() => setAdjusting(null)}
+        />
+      )}
 
       {/* Filter bar */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[#E8E8E8] bg-white/95 p-2 backdrop-blur">
@@ -413,6 +430,14 @@ export default function WmsInventoryPage() {
                             >
                               <PackagePlus className="size-3.5" />
                             </Link>
+                            <button
+                              type="button"
+                              onClick={() => setAdjusting(r)}
+                              className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB] hover:text-[#2563EB]"
+                              title="Sesuaikan stok"
+                            >
+                              <SlidersHorizontal className="size-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => setEditing(r)}
@@ -949,6 +974,69 @@ function ImportModal({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
 
         {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
         <p className="mt-3 text-[11px] text-[#9CA3AF]">Cocok berdasarkan SKU. Kolom Stok diabaikan — ubah stok lewat Receiving/Adjustment.</p>
+      </div>
+    </div>
+  );
+}
+
+function StockAdjustModal({ product, whs, defaultWh, onDone, onCancel }: { product: WmsProductRow; whs: WmsWarehouse[]; defaultWh: string; onDone: () => void; onCancel: () => void }) {
+  const [warehouseId, setWarehouseId] = useState(defaultWh);
+  const [mode, setMode] = useState<"add" | "sub">("add");
+  const [qty, setQty] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    const n = Number(qty);
+    if (!warehouseId || !(n > 0) || note.trim().length < 3 || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await garageApi.post("/api/wms/adjustment", {
+        productId: product.id,
+        warehouseId,
+        deltaQty: mode === "add" ? n : -n,
+        note: note.trim(),
+      });
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Gagal menyesuaikan stok.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[14px] font-bold text-[#111111]">Sesuaikan Stok · {product.name}</p>
+          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-2.5">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Gudang / Ruang</label>
+            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={`${input} w-full`}>
+              {whs.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex overflow-hidden rounded-md border border-[#E8E8E8]">
+              <button type="button" onClick={() => setMode("add")} className={`px-3 text-[13px] font-bold ${mode === "add" ? "bg-[#16A34A] text-white" : "text-[#6B7280]"}`}>+ Tambah</button>
+              <button type="button" onClick={() => setMode("sub")} className={`px-3 text-[13px] font-bold ${mode === "sub" ? "bg-[#C8102E] text-white" : "text-[#6B7280]"}`}>− Kurang</button>
+            </div>
+            <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder={`Jumlah (${product.unit})`} className={`${input} flex-1`} />
+          </div>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (mis. rusak, koreksi, hilang)" className={`${input} w-full`} />
+          <p className="text-[11px] text-[#9CA3AF]">Tercatat di ledger sebagai koreksi (butuh alasan, min 3 karakter).</p>
+        </div>
+        {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
+        <div className="mt-3 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#6B7280] hover:bg-[#F8F9FB]">Batal</button>
+          <button type="button" disabled={busy || !(Number(qty) > 0) || note.trim().length < 3} onClick={() => void submit()} className="rounded-md bg-[#C8102E] px-3.5 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">Simpan Koreksi</button>
+        </div>
       </div>
     </div>
   );

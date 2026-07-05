@@ -277,6 +277,8 @@ export default function WmsReceivingPage() {
   useEffect(() => {
     if (poDraftLoadedRef.current) return;
     poDraftLoadedRef.current = true;
+    // Hidrasi draft PO dari sessionStorage sekali saat mount (bukan cascading render).
+    /* eslint-disable react-hooks/set-state-in-effect */
     try {
       const raw = sessionStorage.getItem("wms-po-draft");
       if (!raw) return;
@@ -298,6 +300,7 @@ export default function WmsReceivingPage() {
     } catch {
       /* abaikan */
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   useEffect(() => {

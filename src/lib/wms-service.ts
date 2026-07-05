@@ -1763,6 +1763,8 @@ export async function listWmsRecipes() {
       cogs: Math.round(cogs),
       foodCostPct: Math.round(foodCostPct * 10) / 10,
       margin: Math.round(sell - cogs),
+      source: r.version.startsWith("os:") ? ("os-sync" as const) : ("manual" as const),
+      menuItemId: r.version.startsWith("os:") ? (r.version.split(":")[1] ?? null) : null,
     };
   });
 }
@@ -1796,6 +1798,7 @@ export async function getWmsRecipe(id: string) {
     cogs: Math.round(cogs),
     foodCostPct: sell > 0 ? Math.round((cogs / sell) * 1000) / 10 : 0,
     margin: Math.round(sell - cogs),
+    source: rec.version.startsWith("os:") ? ("os-sync" as const) : ("manual" as const),
     bom: lines.map((l) => ({
       id: l.id,
       productId: l.productId,
@@ -2465,7 +2468,21 @@ export async function processPosSale(
     if (soldQty <= 0) continue;
 
     const exact = recipes.find((r) => r.name.trim().toLowerCase() === it.name.trim().toLowerCase());
-    const candidates = exact ? [exact] : (norm.get(normalizeMenuName(it.name)) ?? []);
+    let candidates = exact ? [exact] : (norm.get(normalizeMenuName(it.name)) ?? []);
+
+    if (!exact && candidates.length > 1) {
+      const { parsePosMenuName } = await import("@/lib/wms-bridge");
+      const parsed = parsePosMenuName(it.name);
+      if (parsed.variantLabel) {
+        const vLower = parsed.variantLabel.toLowerCase();
+        const variantMatch = candidates.find(
+          (r) =>
+            r.name.trim().toLowerCase() === it.name.trim().toLowerCase() ||
+            r.name.trim().toLowerCase().endsWith(` ${vLower}`),
+        );
+        if (variantMatch) candidates = [variantMatch];
+      }
+    }
 
     let recId: string;
     let recCategory: string;

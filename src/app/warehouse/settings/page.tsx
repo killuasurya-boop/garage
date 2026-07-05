@@ -129,6 +129,7 @@ export default function WmsSettingsPage() {
 
   useEffect(() => {
     if (searchParams.get("sync") === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab("sync");
       void runSync();
     }

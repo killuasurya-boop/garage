@@ -9753,7 +9753,11 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       const { processPosSale } = await import("@/lib/wms-service");
       await processPosSale(
         {
-          items: lines.map((l) => ({ name: l.itemName, qty: l.qty })),
+          items: lines.map((l) => ({
+            name:
+              l.variantLabel === "Regular" ? l.itemName : `${l.itemName} ${l.variantLabel}`,
+            qty: l.qty,
+          })),
           ref: created.orderRow.id, // idempotensi: retry order sama tak dobel potong
         },
         garage.user.id,

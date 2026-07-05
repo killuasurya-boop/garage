@@ -1,0 +1,1 @@
+ALTER TABLE "wms_receiving_item" ADD COLUMN "put_away_location" text DEFAULT '' NOT NULL;

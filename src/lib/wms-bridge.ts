@@ -41,6 +41,108 @@ export function normalizeMenuName(name: string): string {
     .trim();
 }
 
+/** Parse nama baris POS → nama menu dasar + label varian (Hot/Cold/dll). */
+export function parsePosMenuName(name: string): { base: string; variantLabel: string | null } {
+  const trimmed = name.trim();
+  const paren = trimmed.match(/^(.+?)\s*\(([^)]+)\)\s*$/i);
+  if (paren) {
+    return { base: paren[1].trim(), variantLabel: paren[2].trim() };
+  }
+  const tail = trimmed.match(
+    /^(.+?)\s+(Hot|Cold|Ice|Panas|Dingin|Sedang|Pedas|Barbeque|Balado|Campur)\s*$/i,
+  );
+  if (tail) {
+    return { base: tail[1].trim(), variantLabel: tail[2].trim() };
+  }
+  return { base: trimmed, variantLabel: null };
+}
+
+function variantLabelToId(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function recipeDisplayName(menuName: string, variantLabel: string, multiVariant: boolean): string {
+  const base = menuName.trim();
+  if (!multiVariant || variantLabel.toLowerCase() === "regular" || variantLabel === "all") {
+    return base;
+  }
+  return `${base} ${variantLabel}`;
+}
+
+function buildBomMap(
+  lines: Array<{ inventorySku: string | null; qty: number; wastePct: number }>,
+  skuToProduct: Map<string, string>,
+): Map<string, number> {
+  const bomMap = new Map<string, number>();
+  for (const line of lines) {
+    if (!line.inventorySku) continue;
+    const productId = skuToProduct.get(line.inventorySku);
+    if (!productId) continue;
+    const eff = Number(line.qty) * (1 + Number(line.wastePct) / 100);
+    bomMap.set(productId, (bomMap.get(productId) ?? 0) + eff);
+  }
+  return bomMap;
+}
+
+async function upsertOsRecipe(
+  db: ReturnType<typeof getDb>,
+  opts: {
+    menuId: string;
+    variantId: string;
+    name: string;
+    category: string;
+    sellPrice: number;
+    bomMap: Map<string, number>;
+  },
+): Promise<"created" | "updated" | "skipped"> {
+  if (opts.bomMap.size === 0) return "skipped";
+
+  const versionKey = `os:${opts.menuId}:${opts.variantId}`;
+  const [existing] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.version, versionKey)).limit(1);
+
+  let recipeId: string;
+  if (existing) {
+    recipeId = existing.id;
+    await db
+      .update(wmsRecipe)
+      .set({
+        name: opts.name,
+        category: opts.category,
+        sellPrice: opts.sellPrice > 0 ? opts.sellPrice : existing.sellPrice,
+        updatedAt: new Date(),
+      })
+      .where(eq(wmsRecipe.id, existing.id));
+    await db.delete(wmsBomItem).where(eq(wmsBomItem.recipeId, existing.id));
+  } else {
+    const [rec] = await db
+      .insert(wmsRecipe)
+      .values({
+        name: opts.name,
+        category: opts.category,
+        sellPrice: Math.round(opts.sellPrice),
+        yieldQty: "1",
+        version: versionKey,
+      })
+      .returning();
+    recipeId = rec.id;
+  }
+
+  await db.insert(wmsBomItem).values(
+    [...opts.bomMap.entries()].map(([productId, qty]) => ({
+      recipeId,
+      productId,
+      qty,
+    })),
+  );
+  return existing ? "updated" : "created";
+}
+
 function usageToArea(usageArea: string): WhArea {
   if (usageArea === "bar") return "bar";
   if (usageArea === "dapur") return "dapur";
@@ -202,7 +304,7 @@ export async function syncOsInventoryToWms(opts?: { bootstrapStock?: boolean }):
   return { products: { created, updated, skipped }, stockBootstrapped };
 }
 
-/** Sinkron menu_recipes → wms_recipe + BOM (nama resep = nama menu POS). */
+/** Sinkron menu_recipes → wms_recipe + BOM (1 resep per varian bila perlu). */
 export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "recipes">> {
   await ensureBridgeWarehouses();
   const db = getDb();
@@ -213,11 +315,6 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
     .from(menuRecipes)
     .where(eq(menuRecipes.status, "active"));
   const variants = await db.select().from(menuVariants);
-  const priceByItem = new Map<string, number>();
-  for (const v of variants) {
-    const cur = priceByItem.get(v.itemId) ?? Infinity;
-    priceByItem.set(v.itemId, Math.min(cur, Number(v.price)));
-  }
 
   const skuToProduct = new Map(
     (await db.select({ id: wmsProduct.id, sku: wmsProduct.sku }).from(wmsProduct)).map((p) => [
@@ -231,67 +328,48 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
   let skipped = 0;
 
   for (const menu of menus) {
-    const lines = allRecipes.filter((r) => r.menuItemId === menu.id && r.variantId === "all");
-    const recipeLines =
-      lines.length > 0
-        ? lines
-        : allRecipes.filter((r) => r.menuItemId === menu.id);
-
-    const bomMap = new Map<string, number>();
-    for (const line of recipeLines) {
-      if (!line.inventorySku) continue;
-      const productId = skuToProduct.get(line.inventorySku);
-      if (!productId) continue;
-      const eff = Number(line.qty) * (1 + Number(line.wastePct) / 100);
-      bomMap.set(productId, (bomMap.get(productId) ?? 0) + eff);
-    }
-    if (bomMap.size === 0) {
+    const menuVariants = variants.filter((v) => v.itemId === menu.id);
+    const itemRecipes = allRecipes.filter((r) => r.menuItemId === menu.id);
+    if (itemRecipes.length === 0) {
       skipped++;
       continue;
     }
 
-    const sellPrice = priceByItem.get(menu.id) ?? 0;
-    const [existing] = await db
-      .select()
-      .from(wmsRecipe)
-      .where(sql`lower(trim(${wmsRecipe.name})) = lower(trim(${menu.name}))`)
-      .limit(1);
+    const multiVariant =
+      menuVariants.length > 1 ||
+      menuVariants.some((v) => v.variantId !== "all" && v.label.toLowerCase() !== "regular");
 
-    let recipeId: string;
-    if (existing) {
-      recipeId = existing.id;
-      await db
-        .update(wmsRecipe)
-        .set({
-          category: menu.category,
-          sellPrice: sellPrice > 0 ? sellPrice : existing.sellPrice,
-          updatedAt: new Date(),
-        })
-        .where(eq(wmsRecipe.id, existing.id));
-      await db.delete(wmsBomItem).where(eq(wmsBomItem.recipeId, existing.id));
-      updated++;
-    } else {
-      const [rec] = await db
-        .insert(wmsRecipe)
-        .values({
-          name: menu.name.trim(),
-          category: menu.category,
-          sellPrice: Math.round(sellPrice),
-          yieldQty: "1",
-          version: "os-sync",
-        })
-        .returning();
-      recipeId = rec.id;
-      created++;
+    const variantIdsInLines = [...new Set(itemRecipes.map((r) => r.variantId))];
+    const specificIds = variantIdsInLines.filter((id) => id !== "all");
+    const syncVariantIds = multiVariant && specificIds.length > 0 ? specificIds : ["all"];
+
+    let menuSynced = false;
+    for (const variantId of syncVariantIds) {
+      const lines = itemRecipes.filter((r) => r.variantId === variantId || r.variantId === "all");
+      const bomMap = buildBomMap(lines, skuToProduct);
+      if (bomMap.size === 0) continue;
+
+      const variantRow = menuVariants.find((v) => v.variantId === variantId);
+      const variantLabel = variantRow?.label ?? (variantId === "all" ? "Regular" : variantId);
+      const sellPrice = variantRow ? Number(variantRow.price) : Math.min(...menuVariants.map((v) => Number(v.price)));
+
+      const result = await upsertOsRecipe(db, {
+        menuId: menu.id,
+        variantId,
+        name: recipeDisplayName(menu.name, variantLabel, multiVariant),
+        category: menu.category,
+        sellPrice: Number.isFinite(sellPrice) ? sellPrice : 0,
+        bomMap,
+      });
+      if (result === "created") {
+        created++;
+        menuSynced = true;
+      } else if (result === "updated") {
+        updated++;
+        menuSynced = true;
+      }
     }
-
-    await db.insert(wmsBomItem).values(
-      [...bomMap.entries()].map(([productId, qty]) => ({
-        recipeId,
-        productId,
-        qty,
-      })),
-    );
+    if (!menuSynced) skipped++;
   }
 
   return { recipes: { created, updated, skipped } };
@@ -319,22 +397,40 @@ export type ResolvedMenuBom = {
 /** Resolve BOM dari menu OS (fallback bila wms_recipe belum ada / belum sync). */
 export async function resolveMenuBom(menuName: string): Promise<ResolvedMenuBom | null> {
   const db = getDb();
-  const trimmed = menuName.trim();
-  const norm = normalizeMenuName(trimmed);
+  const parsed = parsePosMenuName(menuName);
+  const trimmed = parsed.base.trim();
+  const norm = normalizeMenuName(menuName);
 
   const menus = await db.select().from(menuItems).where(eq(menuItems.status, "active"));
-  let menu =
+  const menu =
     menus.find((m) => m.name.trim().toLowerCase() === trimmed.toLowerCase()) ??
     menus.find((m) => normalizeMenuName(m.name) === norm) ??
     null;
   if (!menu) return null;
 
+  const variantRows = await db.select().from(menuVariants).where(eq(menuVariants.itemId, menu.id));
+  const variantIdHint = parsed.variantLabel
+    ? variantRows.find(
+        (v) =>
+          v.label.trim().toLowerCase() === parsed.variantLabel!.trim().toLowerCase() ||
+          v.variantId === variantLabelToId(parsed.variantLabel!),
+      )?.variantId
+    : null;
+
   const recipes = await db
     .select()
     .from(menuRecipes)
     .where(and(eq(menuRecipes.menuItemId, menu.id), eq(menuRecipes.status, "active")));
-  const base = recipes.filter((r) => r.variantId === "all");
-  const recipeLines = base.length > 0 ? base : recipes;
+
+  let recipeLines = recipes;
+  if (variantIdHint) {
+    const specific = recipes.filter((r) => r.variantId === variantIdHint);
+    const shared = recipes.filter((r) => r.variantId === "all");
+    recipeLines = specific.length > 0 ? [...specific, ...shared] : recipes.filter((r) => r.variantId === "all");
+  } else {
+    const base = recipes.filter((r) => r.variantId === "all");
+    recipeLines = base.length > 0 ? base : recipes;
+  }
 
   const cats = await db.select().from(wmsCategory);
   const areaByCat = new Map(cats.map((c) => [c.name.trim().toLowerCase(), c.area as WhArea]));
@@ -370,20 +466,72 @@ export async function resolveMenuBom(menuName: string): Promise<ResolvedMenuBom 
   }
   if (bomMap.size === 0) return null;
 
-  const [priceRow] = await db
-    .select({ price: sql<number>`min(${menuVariants.price})::int` })
-    .from(menuVariants)
-    .where(eq(menuVariants.itemId, menu.id));
+  const sellPrice = variantIdHint
+    ? Number(variantRows.find((v) => v.variantId === variantIdHint)?.price ?? 0)
+    : Number(
+        variantRows.length > 0
+          ? Math.min(...variantRows.map((v) => Number(v.price)))
+          : 0,
+      );
 
   return {
     menuItemId: menu.id,
-    name: menu.name,
+    name: parsed.variantLabel ? recipeDisplayName(menu.name, parsed.variantLabel, true) : menu.name,
     category: menu.category,
-    sellPrice: Number(priceRow?.price ?? 0),
+    sellPrice,
     lines: [...bomMap.entries()].map(([productId, v]) => ({
       productId,
       qty: v.qty,
       area: v.area,
     })),
+  };
+}
+
+export type WmsRecipeCoverage = {
+  totalProducts: number;
+  withMenuRecipes: number;
+  syncedToWms: number;
+  coveragePct: number;
+  missingMenuRecipes: Array<{ id: string; name: string; category: string }>;
+  pendingSync: Array<{ id: string; name: string; category: string }>;
+};
+
+/** Laporan cakupan BOM: produk OS vs menu_recipes vs wms_recipe. */
+export async function getWmsRecipeCoverage(): Promise<WmsRecipeCoverage> {
+  const db = getDb();
+  const menus = await db
+    .select({ id: menuItems.id, name: menuItems.name, category: menuItems.category })
+    .from(menuItems)
+    .where(eq(menuItems.status, "active"));
+
+  const recipeRows = await db
+    .select({ menuItemId: menuRecipes.menuItemId })
+    .from(menuRecipes)
+    .where(eq(menuRecipes.status, "active"));
+  const menusWithRecipes = new Set(recipeRows.map((r) => r.menuItemId).filter(Boolean) as string[]);
+
+  const syncedRows = await db
+    .select({ version: wmsRecipe.version })
+    .from(wmsRecipe)
+    .where(sql`${wmsRecipe.version} like 'os:%'`);
+  const syncedMenuIds = new Set(
+    syncedRows
+      .map((r) => r.version?.split(":")[1])
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const missingMenuRecipes = menus.filter((m) => !menusWithRecipes.has(m.id));
+  const pendingSync = menus.filter((m) => menusWithRecipes.has(m.id) && !syncedMenuIds.has(m.id));
+  const withMenuRecipes = menus.length - missingMenuRecipes.length;
+  const syncedToWms = syncedMenuIds.size;
+  const coveragePct = menus.length > 0 ? Math.round((syncedToWms / menus.length) * 1000) / 10 : 100;
+
+  return {
+    totalProducts: menus.length,
+    withMenuRecipes,
+    syncedToWms,
+    coveragePct,
+    missingMenuRecipes: missingMenuRecipes.map((m) => ({ id: m.id, name: m.name, category: m.category })),
+    pendingSync: pendingSync.map((m) => ({ id: m.id, name: m.name, category: m.category })),
   };
 }

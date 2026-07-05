@@ -34,9 +34,15 @@ export function WmsCommandPalette({ open, onClose }: { open: boolean; onClose: (
   const router = useRouter();
   const [q, setQ] = useState("");
 
-  useEffect(() => {
-    if (!open) setQ("");
-  }, [open]);
+  function close() {
+    setQ("");
+    onClose();
+  }
+  function go(href: string) {
+    setQ("");
+    router.push(href);
+    onClose();
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -52,7 +58,7 @@ export function WmsCommandPalette({ open, onClose }: { open: boolean; onClose: (
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start bg-black/40 px-4 pt-[12vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-50 grid place-items-start bg-black/40 px-4 pt-[12vh]" onClick={close}>
       <div
         className="w-full max-w-lg overflow-hidden rounded-xl border border-[#E8E8E8] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -65,16 +71,13 @@ export function WmsCommandPalette({ open, onClose }: { open: boolean; onClose: (
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") onClose();
-              if (e.key === "Enter" && filtered[0]) {
-                router.push(filtered[0].href);
-                onClose();
-              }
+              if (e.key === "Escape") close();
+              if (e.key === "Enter" && filtered[0]) go(filtered[0].href);
             }}
             placeholder="Cari modul atau aksi…"
             className="h-9 flex-1 bg-transparent text-[14px] outline-none"
           />
-          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]">
+          <button type="button" onClick={close} className="grid size-8 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]">
             <X className="size-4" />
           </button>
         </div>
@@ -86,7 +89,7 @@ export function WmsCommandPalette({ open, onClose }: { open: boolean; onClose: (
               <li key={item.href + item.label}>
                 <Link
                   href={item.href}
-                  onClick={onClose}
+                  onClick={close}
                   className="flex items-center justify-between px-4 py-2.5 text-[13px] hover:bg-[#F8F9FB]"
                 >
                   <span className="font-semibold text-[#111111]">{item.label}</span>

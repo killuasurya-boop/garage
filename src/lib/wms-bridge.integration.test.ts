@@ -100,4 +100,13 @@ describe("WMS OS bridge", () => {
     const after = (await svc.getWmsProducts()).find((p: any) => p.sku === "INV-BRIDGE-01").onHand;
     expect(after).toBe(before - 36);
   });
+
+  it("getWmsRecipeCoverage melaporkan cakupan resep tersinkron", async () => {
+    await bridge.syncOsRecipesToWms(); // pastikan resep OS tersinkron ke WMS
+    const cov = await bridge.getWmsRecipeCoverage();
+    expect(cov.totalProducts).toBeGreaterThan(0);
+    expect(cov.syncedToWms).toBeGreaterThan(0);
+    expect(cov.coveragePct).toBeGreaterThan(0);
+    expect(Array.isArray(cov.missingMenuRecipes)).toBe(true);
+  });
 });

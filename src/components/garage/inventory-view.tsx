@@ -476,10 +476,11 @@ export function InventoryView({
 
   useEffect(() => {
     if (inventoryWorkspaceTab !== "warehouse") return;
+    if (role === "Owner / CEO" || role === "Admin" || role === "Gudang") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch remote Gudang state after entering workspace
     void loadWarehouseFlows();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when entering Gudang workspace
-  }, [inventoryWorkspaceTab]);
+  }, [inventoryWorkspaceTab, role]);
   // â”€â”€ Mode Opname â”€â”€
   // opnameDraft: map sku → input qty fisik (string supaya empty terdistinguish dari 0)
   const [opnameOpen, setOpnameOpen] = useState(false);
@@ -513,6 +514,8 @@ export function InventoryView({
   const restrictedInventoryArea = inventoryRoleArea(role);
   const canSwitchInventoryArea = !restrictedInventoryArea;
   const canManageWarehouseFlow = role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  const legacyWarehouseUi = effectiveWorkspaceTab === "warehouse" && !canManageWarehouseFlow;
+  const wmsWarehouseRedirect = effectiveWorkspaceTab === "warehouse" && canManageWarehouseFlow;
   const effectiveInventoryUsageArea = restrictedInventoryArea ?? inventoryUsageArea;
   const effectiveOutletAuditArea = restrictedInventoryArea ?? outletAuditArea;
   const effectiveTransferStation = restrictedInventoryArea ?? transferStation;
@@ -2507,7 +2510,29 @@ export function InventoryView({
         )}
       </div>
 
-      {effectiveWorkspaceTab === "warehouse" && (
+      {wmsWarehouseRedirect && (
+        <div className="rounded-lg border border-[#34343c] bg-gradient-to-br from-[#111116] to-[#1a1b22] p-5">
+          <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#f5a742]">Garage WMS</p>
+          <h2 className="mt-1 text-lg font-black text-white sm:text-xl">Operasi gudang pindah ke Warehouse OS</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#b8b8bf]">
+            Receiving, transfer, opname, cold chain, smart reorder, dan scan barcode sekarang dikelola di modul{" "}
+            <span className="font-semibold text-white">/warehouse</span>. Tab gudang lama di Inventory hanya untuk request outlet bar/dapur.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild className="garage-press h-10 bg-[#d11a2a] px-4 text-sm font-bold text-white hover:bg-[#b01522]">
+              <a href="/warehouse">Buka Garage WMS →</a>
+            </Button>
+            <Button asChild variant="outline" className="garage-press h-10 border-[#34343c] bg-white/[0.04] px-4 text-sm text-white hover:bg-white/[0.08]">
+              <a href="/warehouse/receiving">Receiving</a>
+            </Button>
+            <Button asChild variant="outline" className="garage-press h-10 border-[#34343c] bg-white/[0.04] px-4 text-sm text-white hover:bg-white/[0.08]">
+              <a href="/warehouse/reorder">Smart Reorder</a>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {legacyWarehouseUi && (
         <div className="rounded-lg border border-[#34343c] bg-[#111116] p-3">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {[
@@ -2620,7 +2645,7 @@ export function InventoryView({
         </div>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-stock" && (
+      {legacyWarehouseUi && warehouseSubTab === "warehouse-stock" && (
         <div className="garage-scroll-x flex gap-2 pb-1">
           {areaSummary.map((summary) => (
             <button
@@ -3130,7 +3155,7 @@ export function InventoryView({
         </Card>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "outlet-stock" && (
+      {legacyWarehouseUi && warehouseSubTab === "outlet-stock" && (
         <>
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3463,7 +3488,7 @@ export function InventoryView({
         </>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "request-outlet" && (
+      {legacyWarehouseUi && warehouseSubTab === "request-outlet" && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3751,7 +3776,7 @@ export function InventoryView({
         </section>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "supplier-pos" && (
+      {legacyWarehouseUi && warehouseSubTab === "supplier-pos" && (
         <section className="grid gap-4 xl:grid-cols-[380px_1fr]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3846,11 +3871,11 @@ export function InventoryView({
         </section>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "kasir-pos" && (
+      {legacyWarehouseUi && warehouseSubTab === "kasir-pos" && (
         <WarehouseCashierPos inventoryItems={inventoryItems} />
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-dashboard" && (
+      {legacyWarehouseUi && warehouseSubTab === "warehouse-dashboard" && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -3993,7 +4018,7 @@ export function InventoryView({
         </section>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "daily-report" && (
+      {legacyWarehouseUi && warehouseSubTab === "daily-report" && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <Card className="garage-panel garage-animate-in">
             <CardHeader>
@@ -4035,18 +4060,6 @@ export function InventoryView({
                     {warehouseReportLocking ? <RefreshCw className="mr-1.5 size-3.5 animate-spin" /> : <LockKeyhole className="mr-1.5 size-3.5" />}
                     {warehouseReportLock ? "Terkunci" : "Kunci Laporan"}
                   </Button>
-                  {warehouseReportLock && (role === "Owner / CEO" || role === "Admin") ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="garage-press h-9 border-[#f5a742]/45 bg-[#f5a742]/10 px-3 text-xs text-[#ffd08a] hover:bg-[#f5a742]/18"
-                      onClick={() => void unlockWarehouseDailyReportUi(warehouseReportDate)}
-                      disabled={warehouseReportUnlocking}
-                    >
-                      {warehouseReportUnlocking ? <RefreshCw className="mr-1.5 size-3.5 animate-spin" /> : <ShieldAlert className="mr-1.5 size-3.5" />}
-                      Reopen
-                    </Button>
-                  ) : null}
                   <Button
                     type="button"
                     className="garage-press h-9 bg-[#d11a2a] px-3 text-xs text-white"
@@ -4363,7 +4376,7 @@ export function InventoryView({
         </section>
       )}
 
-      {effectiveWorkspaceTab === "warehouse" && warehouseSubTab === "warehouse-stock" && (
+      {legacyWarehouseUi && warehouseSubTab === "warehouse-stock" && (
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Card className="garage-panel garage-animate-in">
           <CardHeader>

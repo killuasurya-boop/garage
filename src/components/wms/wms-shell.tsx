@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -32,7 +32,10 @@ import {
   Wallet,
 } from "lucide-react";
 
-import type { WmsWarehouse } from "@/lib/wms-types";
+import type { WmsNotification, WmsWarehouse } from "@/lib/wms-types";
+import { garageApi } from "@/lib/api-client";
+import { WmsCommandPalette, useWmsCommandPalette } from "@/components/wms/wms-command-palette";
+import { WmsNotificationsDrawer } from "@/components/wms/wms-notifications-drawer";
 
 // Shell desain GARAGE WMS (README §5/§8). Tema light di-scope di sini; tidak
 // memakai token gelap Garage OS. Sidebar graphite collapsible, header 60px.
@@ -46,7 +49,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/warehouse", icon: LayoutDashboard },
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
-      { label: "Scan Barcode", href: "/warehouse/inventory?scan=1", icon: ScanLine },
+      { label: "Scan Barcode", href: "/warehouse/scan", icon: ScanLine },
       { label: "Receiving", href: "/warehouse/receiving", icon: Truck },
       { label: "Transfer", href: "/warehouse/transfer", icon: ArrowLeftRight },
     ],
@@ -101,6 +104,17 @@ export function WmsShell({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
+  const palette = useWmsCommandPalette();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    void garageApi.get<WmsNotification[]>("/api/wms/notifications").then((d) => {
+      if (alive) setNotifCount(d.length);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [pathname]);
   // Gudang aktif dari URL (?wh=), fallback ke gudang utama. Dibagikan ke halaman
   // lewat URL param supaya stok yang ditampilkan ikut gudang terpilih.
   const defaultWh = warehouses.find((w) => w.isPrimary)?.id ?? warehouses[0]?.id ?? "";
@@ -282,6 +296,7 @@ export function WmsShell({
             </div>
             <button
               type="button"
+              onClick={() => palette.setOpen(true)}
               className="hidden items-center gap-1.5 rounded-md border border-[#E8E8E8] px-2.5 py-1.5 text-[11px] text-[#6B7280] hover:bg-[#F8F9FB] sm:flex"
               title="Command palette"
             >
@@ -289,11 +304,16 @@ export function WmsShell({
             </button>
             <button
               type="button"
+              onClick={() => setNotifOpen(true)}
               className="relative grid size-9 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"
               aria-label="Notifikasi"
             >
               <Bell className="size-5" />
-              <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[#C8102E]" />
+              {notifCount > 0 && (
+                <span className="absolute right-1 top-1 grid min-w-[16px] place-items-center rounded-full bg-[#C8102E] px-1 text-[9px] font-bold text-white">
+                  {notifCount > 9 ? "9+" : notifCount}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -304,15 +324,17 @@ export function WmsShell({
           <main className="p-6">{children}</main>
         </div>
       </div>
+      <WmsCommandPalette open={palette.open} onClose={() => palette.setOpen(false)} />
+      <WmsNotificationsDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
     </div>
   );
 }
 
 function pageTitle(pathname: string) {
   if (pathname === "/warehouse") return "Dashboard";
+  if (pathname.startsWith("/warehouse/scan")) return "Scan Barcode";
   if (pathname.startsWith("/warehouse/inventory")) return "Inventory";
   if (pathname.startsWith("/warehouse/receiving")) return "Receiving";
-  if (pathname.startsWith("/warehouse/internal-order")) return "Internal Order";
   if (pathname.startsWith("/warehouse/transfer")) return "Transfer Antar-Gudang";
   if (pathname.startsWith("/warehouse/kitchen")) return "Kitchen · Stok Dapur";
   if (pathname.startsWith("/warehouse/bar")) return "Bar · Stok Bar";

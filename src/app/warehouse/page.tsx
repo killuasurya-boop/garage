@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Area,
   AreaChart,
@@ -16,11 +17,12 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Boxes,
+  ClipboardCheck,
   PackageX,
+  Sparkles,
+  Truck,
   Wallet,
 } from "lucide-react";
-
-import Link from "next/link";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
@@ -68,6 +70,30 @@ export default function WmsDashboardPage() {
 
   return (
     <div className="space-y-5">
+      {k.lowStock > 0 && (
+        <div
+          className="flex flex-col gap-3 rounded-xl bg-gradient-to-r from-[#2F3136] to-[#1a1b1f] p-4 text-white sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#FCA5A5]">
+              <Sparkles className="size-3.5" /> AI Insight · Smart Reorder
+            </p>
+            <p className="mt-1 text-[14px] font-semibold">
+              {k.lowStock} bahan mendekati minimum — pertimbangkan PO ulang hari ini.
+            </p>
+            <p className="mt-0.5 text-[12px] text-white/55">
+              Forecast berdasarkan konsumsi 7 hari terakhir dari ledger stok WMS.
+            </p>
+          </div>
+          <Link
+            href="/warehouse/reorder"
+            className="shrink-0 rounded-lg bg-[#C8102E] px-4 py-2.5 text-center text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(200,16,46,.25)] hover:bg-[#a50d25]"
+          >
+            Lihat Saran Reorder →
+          </Link>
+        </div>
+      )}
+
       <div>
         <h1 className="text-[22px] font-extrabold text-[#111111]">Dashboard Gudang</h1>
         <p className="text-[13px] text-[#6B7280]">Ringkasan stok, nilai inventory, dan pergerakan hari ini.</p>
@@ -80,6 +106,20 @@ export default function WmsDashboardPage() {
         <Kpi icon={AlertTriangle} label="Low Stock" value={String(k.lowStock)} tone="amber" pulse={k.lowStock > 0} />
         <Kpi icon={PackageX} label="Out of Stock" value={String(k.outOfStock)} tone="red" pulse={k.outOfStock > 0} />
       </div>
+
+      {data.receiving && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Kpi icon={Truck} label="Receiving Hari Ini" value={String(data.receiving.todayCount)} tone="graphite" />
+          <Kpi icon={Wallet} label="Nilai Diterima (HPP)" value={currency.format(data.receiving.todayValue)} tone="graphite" />
+          <Kpi
+            icon={ClipboardCheck}
+            label="Draft / Pending Approval"
+            value={String(data.receiving.draftCount)}
+            tone={data.receiving.draftCount > 0 ? "amber" : "graphite"}
+            pulse={data.receiving.draftCount > 0}
+          />
+        </div>
+      )}
 
       {/* Chart 60 / Alerts 40 */}
       <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr]">

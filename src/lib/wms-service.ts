@@ -2,6 +2,9 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  appSettings,
+  approvals,
+  inventoryItems,
   wmsBatch,
   wmsBomItem,
   wmsCategory,
@@ -24,6 +27,11 @@ import {
   wmsWarehouseStock,
 } from "@/db/schema";
 import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
+import {
+  autoBatchNo,
+  needsDiscrepancyApproval,
+  validateReceivingLines,
+} from "@/lib/wms-receiving-utils";
 import {
   WMS_DEFAULT_WAREHOUSES,
   stockStatus,
@@ -106,6 +114,7 @@ export async function recordStockMovement(
     userId?: string | null;
     batchNo?: string;
     expiredAt?: Date | null;
+    location?: string;
   },
 ): Promise<{ cost: number }> {
   const delta = Number(input.deltaQty);
@@ -140,7 +149,7 @@ export async function recordStockMovement(
         expiredAt: input.expiredAt ?? null,
         qty: delta,
         hpp: input.hpp,
-        location: "",
+        location: input.location?.trim() || "",
       });
     }
   }
@@ -189,10 +198,8 @@ export function ensureWmsSeeded(): Promise<void> {
   return wmsSeedPromise;
 }
 
-async function doEnsureWmsSeeded() {
+async function seedWmsWarehousesAndCategories() {
   const db = getDb();
-  // Upsert 4 warehouse default (2 ruang gudang utama + 2 outlet). onConflictDoUpdate
-  // backfill nama+area+type utk produksi lama (WH-01/BAR/KIT) & insert WH-MK.
   await db
     .insert(wmsWarehouse)
     .values(WMS_DEFAULT_WAREHOUSES)
@@ -201,7 +208,6 @@ async function doEnsureWmsSeeded() {
       set: { name: sql`excluded.name`, area: sql`excluded.area`, type: sql`excluded.type` },
     });
 
-  // Kategori master default (selalu, termasuk produksi) — owner bisa tambah bebas.
   await db
     .insert(wmsCategory)
     .values([
@@ -211,23 +217,20 @@ async function doEnsureWmsSeeded() {
       { name: "Umum / Lainnya", area: "umum" },
     ])
     .onConflictDoNothing();
+}
 
-  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wmsProduct);
-  if (Number(n) > 0) return;
-
-  // Contoh produk hanya untuk dev/test/demo — JANGAN cemari gudang produksi.
+async function seedWmsSampleProducts() {
+  const db = getDb();
   const allowSampleData =
     process.env.NODE_ENV !== "production" || process.env.GARAGE_SEED_DEMO === "true";
   if (!allowSampleData) return;
 
-  // Ruang gudang utama per area (bar/dapur). Fallback primary bila salah satu tak ada.
   const mainRooms = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "main"));
   const roomByArea = new Map(mainRooms.map((w) => [w.area, w.id]));
   const primaryRoom = mainRooms.find((w) => w.isPrimary)?.id ?? mainRooms[0]?.id;
   if (!primaryRoom) return;
   const roomFor = (area: string) => roomByArea.get(area) ?? primaryRoom;
 
-  // Contoh bahan F&B (sku, nama, kategori, unit, min, hpp, stok awal, area).
   const samples: Array<[string, string, string, string, number, number, number, string]> = [
     ["BEAN-ARB", "Kopi Arabika", "Bahan Bar", "gram", 2000, 0.12, 8000, "bar"],
     ["MILK-FC", "Susu Full Cream", "Bahan Bar", "ml", 5000, 0.018, 12000, "bar"],
@@ -245,7 +248,6 @@ async function doEnsureWmsSeeded() {
       .values({ sku, name, category, unit, minStock, hpp })
       .returning();
     if (initial > 0) {
-      // Stok awal ke ruang gudang utama sesuai area kategorinya.
       await runInTx((tx) =>
         recordStockMovement(tx, {
           type: "in",
@@ -259,6 +261,23 @@ async function doEnsureWmsSeeded() {
       );
     }
   }
+}
+
+async function doEnsureWmsSeeded() {
+  await seedWmsWarehousesAndCategories();
+
+  const db = getDb();
+  const [{ invN }] = await db.select({ invN: sql<number>`count(*)::int` }).from(inventoryItems);
+  if (Number(invN) > 0) {
+    const { syncOsToWms } = await import("@/lib/wms-bridge");
+    await syncOsToWms({ bootstrapStock: true });
+    return;
+  }
+
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wmsProduct);
+  if (Number(n) > 0) return;
+
+  await seedWmsSampleProducts();
 }
 
 export async function listWmsWarehouses(opts?: {
@@ -875,6 +894,7 @@ export type ReceivingItemInput = {
   packSize?: number | null; // isi per kemasan (mis. 24 pcs/dus)
   buyUnit?: string | null; // satuan beli (dus/karton)
   discrepancyNote?: string;
+  putAwayLocation?: string;
 };
 
 export async function createReceiving(
@@ -919,6 +939,7 @@ export async function createReceiving(
           packSize,
           buyUnit: it.buyUnit?.trim() || null,
           discrepancyNote: it.discrepancyNote?.trim() ?? "",
+          putAwayLocation: it.putAwayLocation?.trim() ?? "",
           qc: it.qc ?? "pass",
           batchNo: it.batchNo ?? null,
           expiredAt: it.expiredAt ? new Date(it.expiredAt) : null,
@@ -966,14 +987,20 @@ export async function getReceiving(id: string) {
       id: wmsReceivingItem.id,
       productId: wmsReceivingItem.productId,
       productName: wmsProduct.name,
+      category: wmsProduct.category,
       sku: wmsProduct.sku,
       unit: wmsProduct.unit,
       orderedQty: wmsReceivingItem.orderedQty,
       receivedQty: wmsReceivingItem.receivedQty,
+      buyQty: wmsReceivingItem.buyQty,
+      packSize: wmsReceivingItem.packSize,
+      buyUnit: wmsReceivingItem.buyUnit,
       hpp: wmsReceivingItem.hpp,
       qc: wmsReceivingItem.qc,
       batchNo: wmsReceivingItem.batchNo,
       expiredAt: wmsReceivingItem.expiredAt,
+      discrepancyNote: wmsReceivingItem.discrepancyNote,
+      putAwayLocation: wmsReceivingItem.putAwayLocation,
     })
     .from(wmsReceivingItem)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsReceivingItem.productId))
@@ -982,6 +1009,8 @@ export async function getReceiving(id: string) {
     id: rec.id,
     doc: rec.doc,
     supplier: rec.supplier,
+    poNumber: rec.poNumber,
+    additionalCost: Number(rec.additionalCost ?? 0),
     warehouseId: rec.warehouseId,
     status: rec.status,
     createdAt: rec.createdAt.toISOString(),
@@ -992,10 +1021,119 @@ export async function getReceiving(id: string) {
   };
 }
 
-/** Selesaikan receiving: hanya item QC pass yang diterima → +stok +batch +HPP avg. */
-export async function completeReceiving(id: string, userId?: string | null) {
+/** Update draft receiving (hanya status draft / pending_approval). */
+export async function updateReceiving(
+  id: string,
+  input: {
+    supplier?: string;
+    poNumber?: string;
+    additionalCost?: number;
+    warehouseId?: string;
+    items: ReceivingItemInput[];
+  },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).limit(1);
+  if (!rec) return null;
+  if (rec.status !== "draft" && rec.status !== "pending_approval") {
+    throw new Error("Hanya draft yang bisa diedit.");
+  }
+  await db
+    .update(wmsReceiving)
+    .set({
+      supplier: input.supplier?.trim() ?? rec.supplier,
+      poNumber: input.poNumber?.trim() ?? rec.poNumber,
+      additionalCost: input.additionalCost ?? rec.additionalCost,
+      warehouseId: input.warehouseId ?? rec.warehouseId,
+      status: "draft",
+    })
+    .where(eq(wmsReceiving.id, id));
+  await db.delete(wmsReceivingItem).where(eq(wmsReceivingItem.receivingId, id));
+  if (input.items.length) {
+    await db.insert(wmsReceivingItem).values(
+      input.items.map((it) => {
+        const buyQty = it.buyQty && it.buyQty > 0 ? it.buyQty : null;
+        const packSize = it.packSize && it.packSize > 0 ? it.packSize : null;
+        const received = buyQty && packSize ? buyQty * packSize : it.receivedQty;
+        return {
+          receivingId: id,
+          productId: it.productId,
+          orderedQty: it.orderedQty,
+          receivedQty: received,
+          hpp: it.hpp,
+          buyQty,
+          packSize,
+          buyUnit: it.buyUnit?.trim() || null,
+          discrepancyNote: it.discrepancyNote?.trim() ?? "",
+          putAwayLocation: it.putAwayLocation?.trim() ?? "",
+          qc: it.qc ?? "pass",
+          batchNo: it.batchNo ?? null,
+          expiredAt: it.expiredAt ? new Date(it.expiredAt) : null,
+        };
+      }),
+    );
+  }
+  return getReceiving(id);
+}
+
+/** Statistik receiving untuk dashboard. */
+export async function getWmsReceivingStats() {
+  const db = getDb();
+  const [{ todayCount }] = await db
+    .select({ todayCount: sql<number>`count(*)::int` })
+    .from(wmsReceiving)
+    .where(
+      sql`(${wmsReceiving.createdAt} AT TIME ZONE 'Asia/Jakarta')::date = (now() AT TIME ZONE 'Asia/Jakarta')::date`,
+    );
+  const [{ todayValue }] = await db
+    .select({
+      todayValue: sql<number>`coalesce(sum(${wmsReceivingItem.receivedQty} * ${wmsReceivingItem.hpp}), 0)`,
+    })
+    .from(wmsReceivingItem)
+    .innerJoin(wmsReceiving, eq(wmsReceiving.id, wmsReceivingItem.receivingId))
+    .where(
+      and(
+        eq(wmsReceiving.status, "completed"),
+        sql`(${wmsReceiving.createdAt} AT TIME ZONE 'Asia/Jakarta')::date = (now() AT TIME ZONE 'Asia/Jakarta')::date`,
+      ),
+    );
+  const [{ draftCount }] = await db
+    .select({ draftCount: sql<number>`count(*)::int` })
+    .from(wmsReceiving)
+    .where(or(eq(wmsReceiving.status, "draft"), eq(wmsReceiving.status, "pending_approval")));
+  return {
+    todayCount: Number(todayCount),
+    todayValue: Math.round(Number(todayValue)),
+    draftCount: Number(draftCount),
+  };
+}
+
+/** Generate nomor PO draft dari smart reorder. */
+export async function generateWmsPoDraft() {
+  const reorder = await getWmsSmartReorder();
+  const poNumber = makeWmsDoc("PO");
+  return {
+    poNumber,
+    items: reorder.items
+      .filter((i) => i.suggestedQty > 0)
+      .map((i) => ({
+        productId: i.id,
+        sku: i.sku,
+        name: i.name,
+        unit: i.unit,
+        orderedQty: i.suggestedQty,
+        hpp: 0,
+      })),
+  };
+}
+
+/** Selesaikan receiving: hanya item QC pass/discrepancy yang diterima → +stok +batch +HPP avg. */
+export async function completeReceiving(
+  id: string,
+  userId?: string | null,
+  opts?: { forceApprove?: boolean; actorName?: string },
+) {
   return runInTx(async (tx) => {
-    // Kunci dokumen receiving agar tidak diselesaikan dua kali secara paralel.
     const [rec] = await tx
       .select()
       .from(wmsReceiving)
@@ -1003,36 +1141,92 @@ export async function completeReceiving(id: string, userId?: string | null) {
       .for("update")
       .limit(1);
     if (!rec) return null;
-    if (rec.status === "completed") return rec; // idempoten
+    if (rec.status === "completed") return rec;
+    if (rec.status === "pending_approval" && !opts?.forceApprove) {
+      throw new Error("Menunggu approval manager untuk selisih >10%.");
+    }
     const whId = rec.warehouseId;
     if (!whId) throw new Error("Receiving tanpa warehouse tidak bisa diselesaikan.");
 
     const items = await tx
-      .select()
+      .select({
+        row: wmsReceivingItem,
+        productName: wmsProduct.name,
+        category: wmsProduct.category,
+        sku: wmsProduct.sku,
+      })
       .from(wmsReceivingItem)
+      .leftJoin(wmsProduct, eq(wmsProduct.id, wmsReceivingItem.productId))
       .where(eq(wmsReceivingItem.receivingId, id));
 
-    // Peta kategori→area untuk auto-sortir bahan ke Ruang Bar/Dapur.
+    const validationLines = items
+      .filter((x) => x.row.productId && x.row.qc !== "reject" && Number(x.row.receivedQty) > 0)
+      .map((x) => ({
+        productId: x.row.productId as string,
+        productName: x.productName ?? "",
+        category: x.category ?? "",
+        orderedQty: Number(x.row.orderedQty),
+        receivedQty: Number(x.row.receivedQty),
+        qc: x.row.qc,
+        expiredAt: x.row.expiredAt?.toISOString() ?? null,
+        batchNo: x.row.batchNo,
+      }));
+    const valErrors = validateReceivingLines(validationLines);
+    if (valErrors.length) throw new Error(valErrors.join(" "));
+
+    const needsApproval = items.some(
+      (x) =>
+        x.row.productId &&
+        needsDiscrepancyApproval(Number(x.row.orderedQty), Number(x.row.receivedQty), x.row.qc),
+    );
+    if (needsApproval && !opts?.forceApprove) {
+      const approvalId = `APP-RCV-${rec.doc}`;
+      await tx
+        .update(wmsReceiving)
+        .set({ status: "pending_approval" })
+        .where(eq(wmsReceiving.id, id));
+      await tx
+        .insert(approvals)
+        .values({
+          id: approvalId,
+          type: "Selisih Receiving WMS",
+          requester: opts?.actorName ?? "Staff Gudang",
+          requesterPhone: null,
+          amount: rec.doc,
+          reason: `Selisih qty >10% pada ${rec.doc} — perlu review manager.`,
+          risk: "medium",
+          age: "baru saja",
+          status: "pending",
+        })
+        .onConflictDoNothing();
+      throw new Error("Selisih >10% — menunggu approval manager.");
+    }
+
     const catRows = await tx.select({ name: wmsCategory.name, area: wmsCategory.area }).from(wmsCategory);
     const areaByCat = new Map(catRows.map((c) => [c.name.trim().toLowerCase(), c.area]));
 
-    // Landed cost: alokasi biaya tambahan (ongkir/pajak) proporsional ke nilai item.
     const additionalCost = Number(rec.additionalCost ?? 0);
-    const accepted = items.filter((x) => x.productId && x.qc !== "reject" && Number(x.receivedQty) > 0);
-    const totalValue = accepted.reduce((s, x) => s + Number(x.receivedQty) * Number(x.hpp), 0);
+    const accepted = items.filter(
+      (x) => x.row.productId && x.row.qc !== "reject" && Number(x.row.receivedQty) > 0,
+    );
+    const totalValue = accepted.reduce(
+      (s, x) => s + Number(x.row.receivedQty) * Number(x.row.hpp),
+      0,
+    );
 
-    for (const it of items) {
+    let lineIndex = 0;
+    for (const { row: it, productName, category, sku } of items) {
       if (!it.productId) continue;
       if (it.qc === "reject") continue;
       const qty = Number(it.receivedQty);
       if (qty <= 0) continue;
 
-      // HPP efektif = HPP + porsi landed cost per satuan.
+      const batchNo =
+        it.batchNo?.trim() || autoBatchNo(rec.doc, sku ?? productName ?? "ITEM", lineIndex++);
       const itemValue = qty * Number(it.hpp);
       const share = additionalCost > 0 && totalValue > 0 ? (additionalCost * itemValue) / totalValue : 0;
       const effHpp = Number(it.hpp) + (qty > 0 ? share / qty : 0);
 
-      // HPP rata-rata tertimbang (berdasarkan total stok lama) — dihitung sebelum mutasi.
       const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
       if (prod) {
         const oldQty = await totalOnHand(tx, it.productId);
@@ -1045,11 +1239,9 @@ export async function completeReceiving(id: string, userId?: string | null) {
           .where(eq(wmsProduct.id, it.productId));
       }
 
-      // Auto-sortir: bahan bar→Ruang Bar, dapur→Ruang Dapur; umum→warehouse dokumen.
-      const area = areaByCat.get((prod?.category ?? "").trim().toLowerCase()) ?? "umum";
+      const area = areaByCat.get((prod?.category ?? category ?? "").trim().toLowerCase()) ?? "umum";
       const target = area === "umum" ? whId : ((await mainWarehouseForArea(tx, area)) ?? whId);
 
-      // +stok + batch (FEFO) + ledger, atomik. HPP sudah termasuk landed cost.
       await recordStockMovement(tx, {
         type: "in",
         productId: it.productId,
@@ -1058,9 +1250,14 @@ export async function completeReceiving(id: string, userId?: string | null) {
         hpp: effHpp,
         refDoc: rec.doc,
         userId: userId ?? null,
-        batchNo: it.batchNo ?? undefined,
+        batchNo,
         expiredAt: it.expiredAt ?? null,
+        location: it.putAwayLocation ?? "",
       });
+
+      if (!it.batchNo) {
+        await tx.update(wmsReceivingItem).set({ batchNo }).where(eq(wmsReceivingItem.id, it.id));
+      }
     }
 
     const [updated] = await tx
@@ -2062,6 +2259,8 @@ export async function listChecklistRuns(type?: ChecklistType) {
 /** Saran reorder dari rata-rata konsumsi (out/internal_out) 30 hari terakhir. */
 export async function getWmsSmartReorder() {
   const db = getDb();
+  const config = await getWmsExtendedConfig();
+  const coverDays = config.reorderLeadDays;
   const products = await getWmsProducts();
 
   const usageRows = await db
@@ -2082,8 +2281,8 @@ export async function getWmsSmartReorder() {
   const items = products.map((p) => {
     const avgDaily = (usageBy.get(p.id) ?? 0) / 30;
     const daysCover = avgDaily > 0 ? p.onHand / avgDaily : null;
-    // Target: cukup 14 hari + buffer minStock. Saran = target - onHand (>=0).
-    const target = Math.max(p.minStock, Math.ceil(avgDaily * 14));
+    // Target: cukup N hari (settings) + buffer minStock.
+    const target = Math.max(p.minStock, Math.ceil(avgDaily * coverDays));
     const suggestedQty = Math.max(0, Math.round(target - p.onHand));
     const urgency = p.onHand <= 0 ? "critical" : p.onHand <= p.minStock ? "low" : "ok";
     return {
@@ -2267,24 +2466,46 @@ export async function processPosSale(
 
     const exact = recipes.find((r) => r.name.trim().toLowerCase() === it.name.trim().toLowerCase());
     const candidates = exact ? [exact] : (norm.get(normalizeMenuName(it.name)) ?? []);
-    if (candidates.length === 0) {
-      skipped.push({ menu: it.name, reason: "tanpa resep WMS" });
-      continue;
-    }
-    if (candidates.length > 1) {
+
+    let recId: string;
+    let recCategory: string;
+    let lines: Array<{ productId: string; qty: number; area: WmsArea }>;
+
+    if (candidates.length === 1) {
+      const rec = candidates[0];
+      recId = rec.id;
+      recCategory = rec.category;
+      const bom = await db
+        .select({ productId: wmsBomItem.productId, qty: wmsBomItem.qty, category: wmsProduct.category })
+        .from(wmsBomItem)
+        .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
+        .where(eq(wmsBomItem.recipeId, rec.id));
+      lines = bom
+        .filter((b) => b.productId)
+        .map((b) => ({
+          productId: b.productId as string,
+          qty: Number(b.qty) * soldQty,
+          area: areaOf(b.category),
+        }));
+    } else if (candidates.length === 0) {
+      const { resolveMenuBom } = await import("@/lib/wms-bridge");
+      const osBom = await resolveMenuBom(it.name);
+      if (!osBom) {
+        skipped.push({ menu: it.name, reason: "tanpa resep WMS / menu OS" });
+        continue;
+      }
+      recId = osBom.menuItemId;
+      recCategory = osBom.category;
+      lines = osBom.lines.map((b) => ({
+        productId: b.productId,
+        qty: b.qty * soldQty,
+        area: b.area,
+      }));
+    } else {
       skipped.push({ menu: it.name, reason: "resep ganda (ambigu) — tidak dipotong" });
       continue;
     }
-    const rec = candidates[0];
-    // Baca BOM + kategori tiap bahan (untuk tentukan area/outlet).
-    const bom = await db
-      .select({ productId: wmsBomItem.productId, qty: wmsBomItem.qty, category: wmsProduct.category })
-      .from(wmsBomItem)
-      .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
-      .where(eq(wmsBomItem.recipeId, rec.id));
-    const lines = bom
-      .filter((b) => b.productId)
-      .map((b) => ({ productId: b.productId as string, qty: Number(b.qty) * soldQty, area: areaOf(b.category) }));
+
     if (lines.length === 0) {
       skipped.push({ menu: it.name, reason: "resep tanpa bahan" });
       continue;
@@ -2295,7 +2516,7 @@ export async function processPosSale(
     const kitCount = lines.filter((l) => l.area === "dapur").length;
     const primaryType: "bar" | "kitchen" =
       barCount === 0 && kitCount === 0
-        ? /coffee|non.?coffee|kopi|minum|bar|drink/i.test(rec.category) ? "bar" : "kitchen"
+        ? /coffee|non.?coffee|kopi|minum|bar|drink/i.test(recCategory) ? "bar" : "kitchen"
         : barCount >= kitCount ? "bar" : "kitchen";
 
     // Kelompokkan bahan per outlet: bar→bar, dapur→kitchen, umum→outlet utama.
@@ -2313,7 +2534,7 @@ export async function processPosSale(
       const outlet = outletFor(type);
       if (!outlet) { failReason = "outlet tidak ada"; break; }
       try {
-        const sourceRef = input.ref ? `sale:${input.ref}:${rec.id}:${type}` : null;
+        const sourceRef = input.ref ? `sale:${input.ref}:${recId}:${type}` : null;
         const io = await createInternalOrder({ outletWarehouseId: outlet.id, items: groups[type], sourceRef }, userId);
         docs.push(io.doc);
       } catch (e) {
@@ -2326,4 +2547,121 @@ export async function processPosSale(
   }
 
   return { processed, skipped };
+}
+
+// =============================================================================
+// WMS Notifications + extended settings (app_settings key wms.config)
+// =============================================================================
+
+export type WmsNotification = {
+  id: string;
+  level: "critical" | "warning" | "info";
+  title: string;
+  text: string;
+  href: string;
+};
+
+export type WmsConfig = {
+  expiryStrict: boolean;
+  defaultPutAway: string;
+  notifyLowStock: boolean;
+  notifyColdChain: boolean;
+  reorderLeadDays: number;
+};
+
+const WMS_CONFIG_KEY = "wms.config";
+const DEFAULT_WMS_CONFIG: WmsConfig = {
+  expiryStrict: true,
+  defaultPutAway: "DRY",
+  notifyLowStock: true,
+  notifyColdChain: true,
+  reorderLeadDays: 14,
+};
+
+export async function getWmsExtendedConfig(): Promise<WmsConfig> {
+  const db = getDb();
+  const [row] = await db
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, WMS_CONFIG_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  const raw = row?.valueJson as Partial<WmsConfig> | undefined;
+  return { ...DEFAULT_WMS_CONFIG, ...raw };
+}
+
+export async function updateWmsExtendedConfig(patch: Partial<WmsConfig>): Promise<WmsConfig> {
+  const db = getDb();
+  const current = await getWmsExtendedConfig();
+  const next = { ...current, ...patch };
+  const [existing] = await db
+    .select({ id: appSettings.id })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, WMS_CONFIG_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  if (existing) {
+    await db.update(appSettings).set({ valueJson: next }).where(eq(appSettings.id, existing.id));
+  } else {
+    await db.insert(appSettings).values({ key: WMS_CONFIG_KEY, valueJson: next, outletId: null });
+  }
+  return next;
+}
+
+export async function getWmsNotifications(): Promise<WmsNotification[]> {
+  await ensureWmsSeeded();
+  const db = getDb();
+  const config = await getWmsExtendedConfig();
+  const notes: WmsNotification[] = [];
+  if (config.notifyLowStock) {
+    const products = await getWmsProducts();
+    const low = products.filter((p) => p.status === "low" || p.status === "out");
+    for (const p of low.slice(0, 5)) {
+      notes.push({
+        id: `low-${p.id}`,
+        level: p.status === "out" ? "critical" : "warning",
+        title: p.status === "out" ? "Out of Stock" : "Low Stock",
+        text: `${p.name} (${p.onHand} ${p.unit})`,
+        href: "/warehouse/inventory",
+      });
+    }
+  }
+  if (config.notifyColdChain) {
+    const cold = await getWmsColdChain();
+    for (const a of cold.alerts.slice(0, 3)) {
+      notes.push({
+        id: `cold-${a.code}`,
+        level: "critical",
+        title: "Cold Chain Alert",
+        text: `${a.code} suhu ${a.temp}°C di luar zona aman`,
+        href: "/warehouse/cold-chain",
+      });
+    }
+  }
+  const [{ draftCount }] = await db
+    .select({ draftCount: sql<number>`count(*)::int` })
+    .from(wmsReceiving)
+    .where(or(eq(wmsReceiving.status, "draft"), eq(wmsReceiving.status, "pending_approval")));
+  if (Number(draftCount) > 0) {
+    notes.push({
+      id: "rcv-draft",
+      level: "info",
+      title: "Receiving Draft",
+      text: `${draftCount} dokumen penerimaan belum selesai`,
+      href: "/warehouse/receiving",
+    });
+  }
+  const pendingApprovals = await db
+    .select({ id: approvals.id, amount: approvals.amount })
+    .from(approvals)
+    .where(and(eq(approvals.status, "pending"), ilike(approvals.type, "%Receiving%")))
+    .limit(3);
+  for (const a of pendingApprovals) {
+    notes.push({
+      id: `app-${a.id}`,
+      level: "warning",
+      title: "Approval Receiving",
+      text: `Selisih qty ${a.amount} menunggu manager`,
+      href: "/warehouse/receiving",
+    });
+  }
+  return notes;
 }

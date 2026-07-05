@@ -26,6 +26,7 @@ const createSchema = z.object({
         packSize: z.number().nonnegative().nullable().optional(),
         buyUnit: z.string().trim().max(24).nullable().optional(),
         discrepancyNote: z.string().trim().max(200).optional(),
+        putAwayLocation: z.string().trim().max(60).optional(),
       }),
     )
     .min(1)

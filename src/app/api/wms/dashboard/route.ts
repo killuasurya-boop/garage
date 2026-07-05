@@ -1,5 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { getWmsDashboard } from "@/lib/wms-service";
+import { getWmsDashboard, getWmsReceivingStats } from "@/lib/wms-service";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -9,5 +9,9 @@ export async function GET(request: Request) {
   if (session.response) return session.response;
 
   const url = new URL(request.url);
-  return ok(await getWmsDashboard({ warehouseId: url.searchParams.get("warehouse") ?? undefined }));
+  const [dashboard, receiving] = await Promise.all([
+    getWmsDashboard({ warehouseId: url.searchParams.get("warehouse") ?? undefined }),
+    getWmsReceivingStats(),
+  ]);
+  return ok({ ...dashboard, receiving });
 }

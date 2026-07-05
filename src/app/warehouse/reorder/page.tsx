@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FilePlus2, Sparkles } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 
@@ -18,8 +19,23 @@ type ReorderItem = {
   urgency: "critical" | "low" | "ok";
 };
 
+type PoDraft = {
+  poNumber: string;
+  items: Array<{
+    productId: string;
+    sku: string;
+    name: string;
+    unit: string;
+    orderedQty: number;
+    hpp: number;
+  }>;
+};
+
 export default function WmsReorderPage() {
+  const router = useRouter();
   const [data, setData] = useState<{ items: ReorderItem[]; totalSuggestions: number } | null>(null);
+  const [poLoading, setPoLoading] = useState(false);
+  const [poError, setPoError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -36,6 +52,26 @@ export default function WmsReorderPage() {
     };
   }, []);
 
+  async function generatePoDraft() {
+    setPoLoading(true);
+    setPoError(null);
+    try {
+      const draft = await garageApi.post<PoDraft>("/api/wms/reorder/po-draft", {});
+      if (!draft.items.length) {
+        setPoError("Tidak ada item dengan saran qty > 0.");
+        return;
+      }
+      sessionStorage.setItem("wms-po-draft", JSON.stringify(draft));
+      router.push("/warehouse/receiving");
+    } catch (err) {
+      setPoError(err instanceof Error ? err.message : "Gagal membuat draft PO.");
+    } finally {
+      setPoLoading(false);
+    }
+  }
+
+  const actionable = data?.items.filter((i) => i.suggestedQty > 0).length ?? 0;
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-[#2F3136] p-4 text-white">
@@ -44,9 +80,21 @@ export default function WmsReorderPage() {
         </p>
         <h1 className="mt-1 text-[20px] font-extrabold">Smart Reorder</h1>
         <p className="text-[13px] text-white/70">
-          Saran restock dari rata-rata konsumsi 30 hari + target cover 14 hari.
+          Saran restock dari rata-rata konsumsi 30 hari + target cover sesuai Settings WMS.
           {data ? ` ${data.totalSuggestions} item perlu perhatian.` : ""}
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={poLoading || actionable === 0}
+            onClick={() => void generatePoDraft()}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#C8102E] px-4 py-2.5 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(200,16,46,.25)] hover:bg-[#a50d25] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FilePlus2 className="size-4" />
+            {poLoading ? "Membuat PO…" : `Generate PO (${actionable} item)`}
+          </button>
+          {poError ? <span className="text-[12px] text-[#FCA5A5]">{poError}</span> : null}
+        </div>
       </div>
 
       {!data ? (

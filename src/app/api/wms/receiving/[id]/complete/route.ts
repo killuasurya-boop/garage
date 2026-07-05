@@ -10,7 +10,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   if (session.response) return session.response;
   const { id } = await context.params;
   try {
-    const rec = await completeReceiving(id, session.data.user.id);
+    const actorName = `${session.data.user.name} / ${session.data.profile.role}`;
+    const forceApprove = ["Owner / CEO", "Admin", "Manager Operasional"].includes(session.data.profile.role);
+    const rec = await completeReceiving(id, session.data.user.id, { forceApprove, actorName });
     if (!rec) return fail(404, "RECEIVING_NOT_FOUND", "Dokumen penerimaan tidak ditemukan.");
     return ok(rec);
   } catch (e) {

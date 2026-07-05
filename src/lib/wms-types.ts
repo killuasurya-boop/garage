@@ -47,6 +47,27 @@ export type WmsDashboard = {
     refDoc: string;
     createdAt: string;
   }>;
+  receiving?: {
+    todayCount: number;
+    todayValue: number;
+    draftCount: number;
+  };
+};
+
+export type WmsNotification = {
+  id: string;
+  level: "critical" | "warning" | "info";
+  title: string;
+  text: string;
+  href: string;
+};
+
+export type WmsConfig = {
+  expiryStrict: boolean;
+  defaultPutAway: string;
+  notifyLowStock: boolean;
+  notifyColdChain: boolean;
+  reorderLeadDays: number;
 };
 
 export function stockStatus(onHand: number, min: number): StockStatus {

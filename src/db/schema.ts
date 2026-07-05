@@ -2747,6 +2747,7 @@ export const wmsReceivingItem = pgTable(
     packSize: wmsNum("pack_size"),
     buyUnit: text("buy_unit"),
     discrepancyNote: text("discrepancy_note").notNull().default(""),
+    putAwayLocation: text("put_away_location").notNull().default(""),
     qc: text("qc").notNull().default("pass"), // pass|discrepancy|reject
     batchNo: text("batch_no"),
     expiredAt: timestamp("expired_at", { withTimezone: true }),

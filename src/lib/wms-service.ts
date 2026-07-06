@@ -392,7 +392,13 @@ export async function getWmsProducts(params?: {
   }));
 }
 
-/** Stok sebuah produk di SETIAP gudang/ruang (untuk panel Kelola Stok). */
+/**
+ * Stok sebuah produk di gudang/ruang yang RELEVAN untuk panel Kelola Stok.
+ * Hanya tampilkan ruang yang sesuai area produk (bahan Bar → ruang Bar saja,
+ * bahan Dapur → ruang Dapur saja). Produk "umum" tampil di semua ruang.
+ * Ruang yang masih menyimpan stok tetap ditampilkan meski beda area, supaya
+ * tidak ada stok yang tersembunyi (mis. sisa pindahan / kategori berubah).
+ */
 export async function getWmsProductStock(productId: string) {
   const db = getDb();
   const warehouses = await db
@@ -404,14 +410,36 @@ export async function getWmsProductStock(productId: string) {
     .from(wmsWarehouseStock)
     .where(eq(wmsWarehouseStock.productId, productId));
   const byWh = new Map(stocks.map((s) => [s.warehouseId, Number(s.qty)]));
-  return warehouses.map((w) => ({
-    warehouseId: w.id,
-    code: w.code,
-    name: w.name,
-    type: w.type as WmsWarehouse["type"],
-    area: w.area as WmsWarehouse["area"],
-    onHand: byWh.get(w.id) ?? 0,
-  }));
+
+  // Area produk dari kategorinya (fallback "umum" bila kategori tak dipetakan).
+  const [prod] = await db
+    .select({ category: wmsProduct.category })
+    .from(wmsProduct)
+    .where(eq(wmsProduct.id, productId))
+    .limit(1);
+  const [cat] = prod
+    ? await db
+        .select({ area: wmsCategory.area })
+        .from(wmsCategory)
+        .where(eq(wmsCategory.name, prod.category))
+        .limit(1)
+    : [];
+  const productArea = (cat?.area ?? "umum") as WmsWarehouse["area"];
+
+  return warehouses
+    .filter((w) => {
+      if (productArea === "umum") return true;
+      const onHand = byWh.get(w.id) ?? 0;
+      return w.area === productArea || onHand !== 0;
+    })
+    .map((w) => ({
+      warehouseId: w.id,
+      code: w.code,
+      name: w.name,
+      type: w.type as WmsWarehouse["type"],
+      area: w.area as WmsWarehouse["area"],
+      onHand: byWh.get(w.id) ?? 0,
+    }));
 }
 
 /** Update field produk (nama/kategori/satuan/min/hpp/gambar/barcode/restore). */

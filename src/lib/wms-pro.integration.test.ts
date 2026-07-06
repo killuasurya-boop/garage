@@ -49,11 +49,14 @@ describe("Receiving landed cost + konversi", () => {
 });
 
 describe("getWmsProductStock", () => {
-  it("mengembalikan stok per gudang (semua ruang)", async () => {
+  it("bahan Bar hanya menampilkan ruang area Bar (bukan Dapur)", async () => {
     const bean = (await svc.getWmsProducts()).find((x: any) => x.sku === "BEAN-ARB");
     const stock = await svc.getWmsProductStock(bean.id);
-    expect(stock.length).toBeGreaterThanOrEqual(4);
+    expect(stock.length).toBeGreaterThan(0);
     expect(stock.every((r: any) => typeof r.onHand === "number")).toBe(true);
+    // Tidak boleh ada ruang Dapur kosong untuk bahan Bar (hanya area Bar / ruang berstok).
+    expect(stock.every((r: any) => r.area === "bar" || r.onHand !== 0)).toBe(true);
+    expect(stock.some((r: any) => r.area === "dapur" && r.onHand === 0)).toBe(false);
   });
 });
 

@@ -1,0 +1,1 @@
+ALTER TABLE "wms_recipe" ADD COLUMN "sop_steps" text DEFAULT '[]' NOT NULL;

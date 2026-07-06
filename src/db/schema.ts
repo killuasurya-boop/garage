@@ -2794,13 +2794,66 @@ export const wmsInternalOrderItem = pgTable(
 export const wmsRecipe = pgTable("wms_recipe", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  recipeSku: text("recipe_sku").notNull().default(""),
+  recipeCode: text("recipe_code").notNull().default(""),
   category: text("category").notNull().default(""),
+  subCategory: text("sub_category").notNull().default(""),
+  productionArea: text("production_area").notNull().default(""),
   yieldQty: text("yield_qty").notNull().default("1"),
+  yieldUnit: text("yield_unit").notNull().default("porsi"),
   sellPrice: integer("sell_price").notNull().default(0),
+  /** draft | published | archived */
+  recipeStatus: text("recipe_status").notNull().default("published"),
+  description: text("description").notNull().default(""),
+  /** JSON array langkah produksi/SOP — PRD §9 */
+  sopSteps: text("sop_steps").notNull().default("[]"),
+  isFavorite: boolean("is_favorite").notNull().default(false),
+  /** os:{menuId}:{variantId} untuk sync OS; v1 untuk manual */
   version: text("version").notNull().default("v1"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Audit trail perubahan resep (PRD §17–§18). */
+export const wmsRecipeAuditLog = pgTable(
+  "wms_recipe_audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => wmsRecipe.id, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    step: text("step").notNull().default(""),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    actorName: text("actor_name").notNull().default(""),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ recipeIdx: index("wms_recipe_audit_recipe_idx").on(t.recipeId) }),
+);
+
+/** Snapshot versi resep untuk compare/restore (PRD §16). */
+export const wmsRecipeVersion = pgTable(
+  "wms_recipe_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => wmsRecipe.id, { onDelete: "cascade" }),
+    versionNo: integer("version_no").notNull(),
+    label: text("label").notNull().default(""),
+    snapshot: text("snapshot").notNull(),
+    cogs: integer("cogs").notNull().default(0),
+    sellPrice: integer("sell_price").notNull().default(0),
+    foodCostPct: real("food_cost_pct").notNull().default(0),
+    actorName: text("actor_name").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    recipeIdx: index("wms_recipe_version_recipe_idx").on(t.recipeId),
+    recipeVersionIdx: index("wms_recipe_version_recipe_no_idx").on(t.recipeId, t.versionNo),
+  }),
+);
 
 export const wmsBomItem = pgTable(
   "wms_bom_item",
@@ -2810,7 +2863,13 @@ export const wmsBomItem = pgTable(
       .notNull()
       .references(() => wmsRecipe.id, { onDelete: "cascade" }),
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    /** ingredient | packaging | sub_recipe */
+    lineType: text("line_type").notNull().default("ingredient"),
     qty: wmsNum("qty").notNull().default(0),
+    wastePct: real("waste_pct").notNull().default(0),
+    shrinkagePct: real("shrinkage_pct").notNull().default(0),
+    notes: text("notes").notNull().default(""),
+    subRecipeId: uuid("sub_recipe_id").references(() => wmsProductionRecipe.id, { onDelete: "set null" }),
   },
   (t) => ({ recipeIdx: index("wms_bom_item_recipe_idx").on(t.recipeId) }),
 );
@@ -2919,5 +2978,4 @@ export const wmsStockMovement = pgTable(
     createdAtIdx: index("wms_stock_movement_created_at_idx").on(t.createdAt),
   }),
 );
-
 

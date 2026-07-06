@@ -65,7 +65,11 @@ export type ModuleId =
   | "team-management"
   | "settings"
   | "training"
-  | "recruitment";
+  | "recruitment"
+  | "absensi-v2"
+  | "wallet-gaji"
+  | "wallet-fee"
+  | "payroll-owner";
 
 export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
 
@@ -222,6 +226,31 @@ export const modules = [
     label: "Recruitment",
     description: "Open hiring & kandidat",
     icon: UserPlus,
+  },
+  // --- Payroll V2 modules ---
+  {
+    id: "absensi-v2",
+    label: "Absensi",
+    description: "PIN + Selfie + GPS",
+    icon: ClipboardCheck,
+  },
+  {
+    id: "wallet-gaji",
+    label: "Wallet Gaji",
+    description: "Saldo upah harian",
+    icon: Wallet,
+  },
+  {
+    id: "wallet-fee",
+    label: "Wallet Fee",
+    description: "Pool Rp 200/produk",
+    icon: Wallet,
+  },
+  {
+    id: "payroll-owner",
+    label: "Payroll",
+    description: "Dashboard + settings + payout",
+    icon: FileStack,
   },
 ] satisfies Array<{
   id: ModuleId;

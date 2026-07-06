@@ -18,7 +18,8 @@ export type EarningsRetryKind =
   | "ticket_ready"
   | "ticket_delivered"
   | "order_paid"
-  | "reverse_order";
+  | "reverse_order"
+  | "fee_pool_accumulate";
 
 export async function enqueueFailedEarning(
   kind: EarningsRetryKind,

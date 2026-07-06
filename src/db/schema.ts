@@ -2979,3 +2979,170 @@ export const wmsStockMovement = pgTable(
   }),
 );
 
+// =============================================================================
+// PAYROLL V2 — Absensi + Wallet Gaji + Wallet Fee Pool
+// Feature-flagged: PAYROLL_V2_ENABLED. Non-destructive extension.
+// =============================================================================
+
+// Key-value config: koordinat GPS, upah default, bracket telat, fee/produk, dst.
+export const payrollSettings = pgTable("payroll_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull().$type<Record<string, unknown> | unknown[]>(),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Upah harian per staff (override default role).
+export const staffWageConfig = pgTable(
+  "staff_wage_config",
+  {
+    staffUserId: text("staff_user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dailyWage: integer("daily_wage").notNull().default(0),
+    overtimeHourly: integer("overtime_hourly").notNull().default(0),
+    monthlyDeduction: integer("monthly_deduction").notNull().default(0),
+    notes: text("notes"),
+    updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+// Log absensi V2 (PIN + Selfie + GPS). Satu baris per staff per tanggal.
+export const staffAttendanceV2 = pgTable(
+  "staff_attendance_v2",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    checkinAt: timestamp("checkin_at", { withTimezone: true }),
+    checkinLat: real("checkin_lat"),
+    checkinLng: real("checkin_lng"),
+    checkinSelfieUrl: text("checkin_selfie_url"),
+    checkinDevice: text("checkin_device"),
+    checkoutAt: timestamp("checkout_at", { withTimezone: true }),
+    checkoutLat: real("checkout_lat"),
+    checkoutLng: real("checkout_lng"),
+    checkoutSelfieUrl: text("checkout_selfie_url"),
+    checkoutDevice: text("checkout_device"),
+    method: text("method").notNull().default("pin_selfie_gps"), // pin | pin_selfie_gps | pin_selfie_gps_multi
+    lateMinutes: integer("late_minutes").notNull().default(0),
+    overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+    workedMinutes: integer("worked_minutes").notNull().default(0),
+    // valid | invalid | absent | pending (belum ada checkout)
+    status: text("status").notNull().default("pending"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffDateUnique: uniqueIndex("staff_attendance_v2_staff_date_uidx").on(t.staffUserId, t.date),
+    dateIdx: index("staff_attendance_v2_date_idx").on(t.date),
+    statusIdx: index("staff_attendance_v2_status_idx").on(t.status),
+  }),
+);
+
+// Wallet Gaji: kredit upah harian + lembur + bonus kehadiran (per staff per tanggal).
+export const staffDailyWages = pgTable(
+  "staff_daily_wages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    baseWage: integer("base_wage").notNull().default(0),
+    lateMultiplierPct: integer("late_multiplier_pct").notNull().default(100),
+    overtimeAmount: integer("overtime_amount").notNull().default(0),
+    bonusAmount: integer("bonus_amount").notNull().default(0),
+    deductionAmount: integer("deduction_amount").notNull().default(0),
+    totalCredited: integer("total_credited").notNull().default(0),
+    balanceAfter: integer("balance_after").notNull().default(0),
+    // source: cron_finalize | manual_owner_adjust | monthly_attendance_bonus
+    source: text("source").notNull().default("cron_finalize"),
+    note: text("note"),
+    payoutId: uuid("payout_id"),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffDateUnique: uniqueIndex("staff_daily_wages_staff_date_uidx").on(t.staffUserId, t.date),
+    payoutIdx: index("staff_daily_wages_payout_idx").on(t.payoutId),
+    dateIdx: index("staff_daily_wages_date_idx").on(t.date),
+  }),
+);
+
+// Pool fee harian (akumulasi Rp 200 × produk).
+export const feePoolDaily = pgTable(
+  "fee_pool_daily",
+  {
+    date: date("date").primaryKey(),
+    poolAmount: integer("pool_amount").notNull().default(0),
+    productCount: integer("product_count").notNull().default(0),
+    feePerProduct: integer("fee_per_product").notNull().default(200),
+    // proportional_hours | equal
+    splitMode: text("split_mode").notNull().default("proportional_hours"),
+    // hangus | kas
+    fallbackMode: text("fallback_mode").notNull().default("hangus"),
+    totalStaffValid: integer("total_staff_valid").notNull().default(0),
+    totalMinutesValid: integer("total_minutes_valid").notNull().default(0),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    notes: text("notes"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+// Rincian split fee pool per staff per tanggal.
+export const feePoolSplits = pgTable(
+  "fee_pool_splits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    date: date("date").notNull(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    minutesWorked: integer("minutes_worked").notNull(),
+    sharePct: real("share_pct").notNull(),
+    amount: integer("amount").notNull(),
+    bonusTarget: integer("bonus_target").notNull().default(0),
+    bonusZeroKomplain: integer("bonus_zero_komplain").notNull().default(0),
+    earningId: uuid("earning_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    dateStaffUnique: uniqueIndex("fee_pool_splits_date_staff_uidx").on(t.date, t.staffUserId),
+    dateIdx: index("fee_pool_splits_date_idx").on(t.date),
+  }),
+);
+
+// Payout request V2 (bisa dari Wallet Gaji atau Wallet Fee atau keduanya).
+export const staffPayoutRequests = pgTable(
+  "staff_payout_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // gaji | fee | keduanya
+    walletType: text("wallet_type").notNull(),
+    amountGaji: integer("amount_gaji").notNull().default(0),
+    amountFee: integer("amount_fee").notNull().default(0),
+    reason: text("reason"),
+    // pending | approved | rejected | paid
+    status: text("status").notNull().default("pending"),
+    reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
+    expenseIdGaji: uuid("expense_id_gaji"),
+    expenseIdFee: uuid("expense_id_fee"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffIdx: index("staff_payout_requests_staff_idx").on(t.staffUserId),
+    statusIdx: index("staff_payout_requests_status_idx").on(t.status),
+    createdIdx: index("staff_payout_requests_created_idx").on(t.createdAt),
+  }),
+);

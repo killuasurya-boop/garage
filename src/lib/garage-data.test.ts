@@ -54,11 +54,13 @@ describe('Garage OS Data Layer', () => {
       }
     });
 
-    it('should Owner / CEO have all modules', () => {
+    it('should Owner / CEO have all modules (except staff-only Payroll V2)', () => {
       const ownerMods = roleModules['Owner / CEO'] as string[];
       const definedIds = modules.map((m) => m.id);
-      // Role modules + auto-injected chat & training
+      // Payroll V2: absensi & wallet staff-only — Owner tidak absen (design doc).
+      const staffOnly = new Set(['absensi-v2', 'wallet-gaji', 'wallet-fee']);
       for (const modId of [...definedIds, 'chat', 'training']) {
+        if (staffOnly.has(modId)) continue;
         expect(ownerMods).toContain(modId);
       }
     });

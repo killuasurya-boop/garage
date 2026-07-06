@@ -8900,6 +8900,14 @@ export async function updateCustomerOrderStatus(
     } catch (error) {
       await enqueueFailedEarning("order_paid", orderPaidPayload, error);
     }
+
+    // Payroll V2 — akumulasi fee pool (behind flag PAYROLL_V2_ENABLED). Non-blocking.
+    try {
+      const { accumulateFeePoolFromOrder } = await import("@/lib/garage-fee-pool");
+      await accumulateFeePoolFromOrder(orderPaidPayload.orderId);
+    } catch (error) {
+      await enqueueFailedEarning("fee_pool_accumulate", orderPaidPayload, error);
+    }
   }
 
   // Auto system-message ke chat customer untuk transisi accept/paid/reject.
@@ -9723,6 +9731,14 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     await recordOrderPaidEarnings({ ...orderPaidPayload, fees: feeRates });
   } catch (error) {
     await enqueueFailedEarning("order_paid", orderPaidPayload, error);
+  }
+
+  // Payroll V2 — akumulasi fee pool (behind flag PAYROLL_V2_ENABLED). Non-blocking.
+  try {
+    const { accumulateFeePoolFromOrder } = await import("@/lib/garage-fee-pool");
+    await accumulateFeePoolFromOrder(orderPaidPayload.orderId);
+  } catch (error) {
+    await enqueueFailedEarning("fee_pool_accumulate", orderPaidPayload, error);
   }
 
   // Potong stok bahan otomatis dari resep (bila diaktifkan di Pengaturan).

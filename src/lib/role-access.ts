@@ -312,6 +312,44 @@ for (const role of SMART_NOTIF_ROLES) {
   }
 }
 
+// --- Payroll V2 role gating ---
+// Semua role staff (bukan manajer & owner-back-office) dapat: absensi + wallet-gaji + wallet-fee.
+// Manajer dapat absensi + wallet-gaji (gaji tetap), tapi TIDAK wallet-fee.
+// Owner/Admin/Finance dapat payroll-owner (settings + payout + laporan).
+const PAYROLL_V2_STAFF_ROLES: Role[] = [
+  "Kasir",
+  "Barista",
+  "Koki",
+  "Asisten Koki",
+  "Waiter 1",
+  "Waiter 2",
+  "Kitchen / Barista",
+  "Gudang",
+  "Delivery Admin",
+];
+const PAYROLL_V2_MANAGER_ROLES: Role[] = ["Manager Operasional", "Supervisor Shift"];
+const PAYROLL_V2_OWNER_ROLES: Role[] = ["Owner / CEO", "Admin", "Finance / CFO"];
+
+for (const role of PAYROLL_V2_STAFF_ROLES) {
+  if (roleModules[role]) {
+    for (const m of ["absensi-v2", "wallet-gaji", "wallet-fee"] as ModuleId[]) {
+      if (!roleModules[role].includes(m)) roleModules[role].push(m);
+    }
+  }
+}
+for (const role of PAYROLL_V2_MANAGER_ROLES) {
+  if (roleModules[role]) {
+    for (const m of ["absensi-v2", "wallet-gaji"] as ModuleId[]) {
+      if (!roleModules[role].includes(m)) roleModules[role].push(m);
+    }
+  }
+}
+for (const role of PAYROLL_V2_OWNER_ROLES) {
+  if (roleModules[role] && !roleModules[role].includes("payroll-owner")) {
+    roleModules[role].push("payroll-owner");
+  }
+}
+
 export function permissionsForRole(role: Role) {
   return rolePermissions[role] ?? [];
 }

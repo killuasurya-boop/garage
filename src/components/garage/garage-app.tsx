@@ -2453,9 +2453,10 @@ function ModuleNav({
   // Modul yang tidak masuk grup mana pun jatuh ke "Lainnya" supaya tak hilang.
   const NAV_GROUPS: Array<{ title: string; ids: ModuleId[] }> = [
     { title: "Ringkasan", ids: ["dashboard", "ai-agent"] },
+    { title: "Absensi & Wallet", ids: ["absensi-v2", "wallet-gaji", "wallet-fee"] },
     { title: "Operasional", ids: ["pos", "kitchen", "waiter", "produk", "inventory", "smart-notif"] },
     { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website"] },
-    { title: "Keuangan", ids: ["finance", "earnings", "approvals"] },
+    { title: "Keuangan", ids: ["finance", "earnings", "payroll-owner", "approvals"] },
     {
       title: "Manajemen & Sistem",
       ids: ["team-management", "recruitment", "audit", "company-control", "settings", "chat", "training"],
@@ -2490,13 +2491,27 @@ function ModuleNav({
     const badgeColor = showRecruitmentBadge
       ? "bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.65)]"
       : "bg-[#d11a2a] shadow-[0_0_8px_rgba(209,26,42,0.65)]";
+    // Payroll V2 modules navigasi ke halaman terpisah (bukan internal state).
+    const PAYROLL_V2_ROUTES: Partial<Record<ModuleId, string>> = {
+      "absensi-v2": "/absen",
+      "wallet-gaji": "/staff/wallet-gaji",
+      "wallet-fee": "/staff/wallet-fee",
+      "payroll-owner": "/owner/payroll",
+    };
+    const externalRoute = PAYROLL_V2_ROUTES[module.id];
     return (
       <Tooltip key={module.id}>
         <TooltipTrigger asChild>
           <button
             type="button"
             data-module-nav-item={module.id}
-            onClick={() => onChange(module.id)}
+            onClick={() => {
+              if (externalRoute) {
+                window.location.assign(externalRoute);
+              } else {
+                onChange(module.id);
+              }
+            }}
             aria-current={isActive ? "page" : undefined}
             className={`garage-press grid min-h-11 w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors ${
               isActive

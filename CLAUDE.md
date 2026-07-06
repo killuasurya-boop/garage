@@ -13,6 +13,9 @@ Primary modules:
 - CRM
 - Approvals
 - Audit
+- **Payroll V2** (behind flag `PAYROLL_V2_ENABLED`) — Absensi PIN+Selfie+GPS,
+  Wallet Gaji (upah harian + lembur), Wallet Fee (Rp 200/produk pool split
+  proporsional jam), cron finalisasi 23:59. Lihat `docs/PAYROLL_DESIGN.md`.
 
 Current backend scope is internal route handlers + PostgreSQL persistence only. Do not add payment gateways, email providers, external ERP sync, production messaging integrations, or unrelated infrastructure unless explicitly requested.
 

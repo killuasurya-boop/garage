@@ -54,6 +54,16 @@ segera setelah live.**
 - `docker compose --env-file .env.production logs -f app` → tidak ada error
 - `docker compose --env-file .env.production ps` → semua `running`/`healthy`
 
+### Warehouse go-live (setelah update WMS)
+```bash
+# Migrasi baru otomatis lewat service migrate saat up -d --build.
+# Verifikasi API dari mesin dev (ganti URL production):
+UAT_BASE_URL=https://app.namawarung.com npm run wms:uat
+```
+- `/warehouse/settings` → **Integrasi POS** → nyalakan **Auto consume**
+- `/warehouse/recipe` → **Tarik dari Produk OS** (coverage ≥ 95%)
+- Checklist: `docs/CHECKLIST/WAREHOUSE_OPENING.md`
+
 ## Operasional harian
 
 **Update versi baru:**

@@ -1,7 +1,11 @@
+import { config as loadEnv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 
 import { ensureDatabaseReady, getPgPool } from "@/db";
+
+loadEnv({ path: ".env.local", quiet: true });
+loadEnv({ quiet: true });
 
 async function main() {
   console.log("Booting PGlite (may take 10-30s on first run)...");

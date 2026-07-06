@@ -32,9 +32,19 @@ export type FinalMvpUatEvidence = {
   results: FinalMvpUatEvidenceResult[];
 };
 
+export type WmsOperationalUatEvidence = {
+  kind: "wms-operational-uat";
+  generatedAt: string;
+  baseUrl: string;
+  passCount: number;
+  total: number;
+  results: FinalMvpUatEvidenceResult[];
+};
+
 export type OperationalEvidence = {
   readiness: ReadinessAuditEvidence | null;
   finalMvpUat: FinalMvpUatEvidence | null;
+  wmsOperationalUat: WmsOperationalUatEvidence | null;
 };
 
 const reportDir = path.join(process.cwd(), ".garage", "readiness");
@@ -61,13 +71,18 @@ export async function writeFinalMvpUatEvidence(report: FinalMvpUatEvidence) {
   await writeJson("latest-final-mvp-uat.json", report);
 }
 
+export async function writeWmsOperationalUatEvidence(report: WmsOperationalUatEvidence) {
+  await writeJson("latest-wms-operational-uat.json", report);
+}
+
 export async function readOperationalEvidence(): Promise<OperationalEvidence> {
-  const [readiness, finalMvpUat] = await Promise.all([
+  const [readiness, finalMvpUat, wmsOperationalUat] = await Promise.all([
     readJson<ReadinessAuditEvidence>("latest-readiness-audit.json"),
     readJson<FinalMvpUatEvidence>("latest-final-mvp-uat.json"),
+    readJson<WmsOperationalUatEvidence>("latest-wms-operational-uat.json"),
   ]);
 
-  return { readiness, finalMvpUat };
+  return { readiness, finalMvpUat, wmsOperationalUat };
 }
 
 export function finalMvpPassed(report: FinalMvpUatEvidence | null, id: string) {

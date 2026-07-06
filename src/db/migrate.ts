@@ -1,3 +1,4 @@
+import { config as loadEnv } from "dotenv";
 import crypto from "node:crypto";
 import fs from "fs";
 import path from "path";
@@ -5,6 +6,9 @@ import type pg from "pg";
 
 import { ensureDatabaseReady, getDatabaseDriver, getPgPool } from "./index";
 import type { PGlite } from "@electric-sql/pglite";
+
+loadEnv({ path: ".env.local", quiet: true });
+loadEnv({ quiet: true });
 
 // =============================================================================
 // Migration runner idempoten dengan tracking hash.

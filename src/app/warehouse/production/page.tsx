@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Factory, Play, Plus, Trash2, X } from "lucide-react";
+import { Factory, GitBranch, Play, Plus, Trash2, X } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
@@ -9,6 +9,7 @@ import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
 
 type Recipe = { id: string; name: string; outputQty: number; outputName: string; outputUnit: string; inputs: number };
 type Run = { doc: string; createdAt: string; producedQty: number; cost: number };
+type Dependent = { recipeId: string; recipeName: string; qty: number };
 
 export default function WmsProductionPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -22,6 +23,9 @@ export default function WmsProductionPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [depsRecipeId, setDepsRecipeId] = useState<string | null>(null);
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [depsBusy, setDepsBusy] = useState(false);
 
   async function loadAll() {
     const [prod, whs] = await Promise.all([
@@ -51,6 +55,24 @@ export default function WmsProductionPage() {
     })();
     return () => { alive = false; };
   }, []);
+
+  async function loadDependents(recipeId: string) {
+    if (depsRecipeId === recipeId) {
+      setDepsRecipeId(null);
+      setDependents([]);
+      return;
+    }
+    setDepsBusy(true);
+    try {
+      const rows = await garageApi.get<Dependent[]>(`/api/wms/production/recipes/${recipeId}/dependents`);
+      setDepsRecipeId(recipeId);
+      setDependents(rows);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Gagal memuat dependents.");
+    } finally {
+      setDepsBusy(false);
+    }
+  }
 
   async function run() {
     if (!runRecipe || !runWh || busy) return;
@@ -100,14 +122,47 @@ export default function WmsProductionPage() {
           <div className="divide-y divide-[#F0F1F4]">
             {recipes.length === 0 && <p className="px-4 py-8 text-center text-[13px] text-[#6B7280]">Belum ada resep. Buat resep untuk mulai produksi.</p>}
             {recipes.map((r) => (
-              <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
-                <div>
-                  <p className="text-[13px] font-semibold text-[#111111]">{r.name}</p>
-                  <p className="text-[11px] text-[#9CA3AF]">→ {r.outputQty} {r.outputUnit} {r.outputName} · {r.inputs} bahan</p>
+              <div key={r.id} className="px-4 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-[#111111]">{r.name}</p>
+                    <p className="text-[11px] text-[#9CA3AF]">→ {r.outputQty} {r.outputUnit} {r.outputName} · {r.inputs} bahan</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={depsBusy}
+                      onClick={() => void loadDependents(r.id)}
+                      className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold ${
+                        depsRecipeId === r.id
+                          ? "border-[#C8102E] bg-[#FDF1F3] text-[#C8102E]"
+                          : "border-[#E8E8E8] text-[#6B7280] hover:bg-[#F8F9FB]"
+                      }`}
+                    >
+                      <GitBranch className="size-3.5" /> Deps
+                    </button>
+                    <button type="button" onClick={() => setRunRecipe(r)} className="flex items-center gap-1 rounded-md bg-[#2F3136] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-black">
+                      <Play className="size-3.5" /> Produksi
+                    </button>
+                  </div>
                 </div>
-                <button type="button" onClick={() => setRunRecipe(r)} className="flex items-center gap-1 rounded-md bg-[#2F3136] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-black">
-                  <Play className="size-3.5" /> Produksi
-                </button>
+                {depsRecipeId === r.id && (
+                  <div className="mt-2 rounded-lg border border-[#E8E8E8] bg-[#F8F9FB] p-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B7280]">Menu resep yang memakai sub-recipe ini</p>
+                    {dependents.length === 0 ? (
+                      <p className="mt-1 text-[12px] text-[#9CA3AF]">Belum dipakai di BOM menu — embed via Recipe › BOM › sub-recipe.</p>
+                    ) : (
+                      <ul className="mt-1.5 space-y-1">
+                        {dependents.map((d) => (
+                          <li key={d.recipeId} className="flex items-center justify-between text-[12px]">
+                            <span className="font-semibold text-[#111111]">{d.recipeName}</span>
+                            <span className="font-mono text-[#6B7280]">qty {d.qty}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

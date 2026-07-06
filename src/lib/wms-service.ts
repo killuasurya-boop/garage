@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -21,10 +21,13 @@ import {
   wmsReceiving,
   wmsReceivingItem,
   wmsRecipe,
+  wmsRecipeAuditLog,
+  wmsRecipeVersion,
   wmsStockMovement,
   wmsStockOpname,
   wmsWarehouse,
   wmsWarehouseStock,
+  user,
 } from "@/db/schema";
 import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
 import {
@@ -1703,6 +1706,217 @@ export async function listProductions() {
 // dari product.hpp → otomatis ikut saat HPP bahan berubah (receiving). Tidak disimpan.
 // =============================================================================
 
+function bomActualQty(qty: number, wastePct: number, shrinkagePct: number): number {
+  return qty * (1 + wastePct / 100) * (1 + shrinkagePct / 100);
+}
+
+export type WmsRecipeSopStep = {
+  order: number;
+  title: string;
+  durationMin: number;
+  notes: string;
+};
+
+function parseSopSteps(raw: string | null | undefined): WmsRecipeSopStep[] {
+  if (!raw?.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((s, i) => {
+        const row = s as Record<string, unknown>;
+        return {
+          order: Number(row.order) || i + 1,
+          title: String(row.title ?? "").trim(),
+          durationMin: Math.max(0, Number(row.durationMin) || 0),
+          notes: String(row.notes ?? "").trim(),
+        };
+      })
+      .filter((s) => s.title.length > 0)
+      .sort((a, b) => a.order - b.order);
+  } catch {
+    return [];
+  }
+}
+
+export type WmsRecipeDashboard = {
+  totalRecipes: number;
+  activeRecipes: number;
+  draftRecipes: number;
+  archivedRecipes: number;
+  totalIngredients: number;
+  totalSubRecipes: number;
+  averageHpp: number;
+  averageMargin: number;
+  averageMarginPct: number;
+  needReview: number;
+  needApproval: number;
+  recentlyUpdated: Array<{ id: string; name: string; category: string; updatedAt: string }>;
+  highFoodCost: Array<{ id: string; name: string; foodCostPct: number }>;
+};
+
+export type WmsRecipeBatchResult = {
+  recipeId: string;
+  recipeName: string;
+  targetQty: number;
+  yieldPerRecipe: number;
+  multiplier: number;
+  ingredientCost: number;
+  packagingCost: number;
+  totalCost: number;
+  lines: Array<{
+    productId: string;
+    sku: string;
+    name: string;
+    unit: string;
+    lineType: string;
+    qtyPerServing: number;
+    wastePct: number;
+    shrinkagePct: number;
+    actualQtyPerServing: number;
+    neededQty: number;
+    onHand: number;
+    minStock: number;
+    hpp: number;
+    lineCost: number;
+    stockOk: boolean;
+  }>;
+  missingStock: Array<{ name: string; needed: number; onHand: number; unit: string }>;
+  stockReady: boolean;
+};
+
+export async function getWmsRecipeDashboard(): Promise<WmsRecipeDashboard> {
+  const recipes = await listWmsRecipes();
+  const db = getDb();
+  const subCount = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(wmsProductionRecipe);
+  const ingredientIds = await db
+    .selectDistinct({ productId: wmsBomItem.productId })
+    .from(wmsBomItem)
+    .where(sql`${wmsBomItem.productId} is not null`);
+
+  const active = recipes.filter((r) => r.recipeStatus === "published");
+  const drafts = recipes.filter((r) => r.recipeStatus === "draft");
+  const archived = recipes.filter((r) => r.recipeStatus === "archived");
+  const withCogs = recipes.filter((r) => r.cogs > 0);
+  const avgHpp = withCogs.length ? Math.round(withCogs.reduce((s, r) => s + r.cogs, 0) / withCogs.length) : 0;
+  const avgMargin = withCogs.length ? Math.round(withCogs.reduce((s, r) => s + r.margin, 0) / withCogs.length) : 0;
+  const avgMarginPct =
+    withCogs.length
+      ? Math.round(
+          withCogs.reduce((s, r) => s + (r.sellPrice > 0 ? (r.margin / r.sellPrice) * 100 : 0), 0) /
+            withCogs.length *
+            10,
+        ) / 10
+      : 0;
+  const needReview = recipes.filter((r) => r.foodCostPct > 38 && r.recipeStatus === "published").length;
+  const pendingStatuses = ["pending_kitchen", "pending_warehouse", "pending_manager", "pending_owner"];
+  const needApprovalCount =
+    drafts.length + recipes.filter((r) => pendingStatuses.includes(r.recipeStatus)).length;
+
+  const rows = await db
+    .select({
+      id: wmsRecipe.id,
+      name: wmsRecipe.name,
+      category: wmsRecipe.category,
+      updatedAt: wmsRecipe.updatedAt,
+    })
+    .from(wmsRecipe)
+    .orderBy(desc(wmsRecipe.updatedAt))
+    .limit(5);
+
+  return {
+    totalRecipes: recipes.length,
+    activeRecipes: active.length,
+    draftRecipes: drafts.length,
+    archivedRecipes: archived.length,
+    totalIngredients: ingredientIds.length,
+    totalSubRecipes: Number(subCount[0]?.n ?? 0),
+    averageHpp: avgHpp,
+    averageMargin: avgMargin,
+    averageMarginPct: avgMarginPct,
+    needReview,
+    needApproval: needApprovalCount,
+    recentlyUpdated: rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      updatedAt: new Date(r.updatedAt).toISOString(),
+    })),
+    highFoodCost: recipes
+      .filter((r) => r.foodCostPct > 38)
+      .sort((a, b) => b.foodCostPct - a.foodCostPct)
+      .slice(0, 5)
+      .map((r) => ({ id: r.id, name: r.name, foodCostPct: r.foodCostPct })),
+  };
+}
+
+export async function calculateRecipeBatch(recipeId: string, targetQty: number): Promise<WmsRecipeBatchResult | null> {
+  const detail = await getWmsRecipe(recipeId);
+  if (!detail) return null;
+  const yieldPer = Math.max(1, Number(detail.yieldQty) || 1);
+  const multiplier = targetQty / yieldPer;
+  const products = await getWmsProducts();
+  const stockById = new Map(products.map((p) => [p.id, p]));
+
+  let ingredientCost = 0;
+  let packagingCost = 0;
+  const lines: WmsRecipeBatchResult["lines"] = [];
+  const missingStock: WmsRecipeBatchResult["missingStock"] = [];
+
+  for (const b of detail.bom) {
+    const isSub = b.lineType === "sub_recipe";
+    if (!b.productId && !isSub) continue;
+    const p = b.productId ? stockById.get(b.productId) : undefined;
+    const actualPer = bomActualQty(b.qty, b.wastePct, b.shrinkagePct);
+    const needed = actualPer * multiplier;
+    const lineCost = needed * b.hpp;
+    const stockOk = isSub ? true : (p?.onHand ?? 0) >= needed;
+    if (b.lineType === "packaging") packagingCost += lineCost;
+    else ingredientCost += lineCost;
+    lines.push({
+      productId: b.productId ?? "",
+      sku: b.sku,
+      name: b.productName,
+      unit: b.unit,
+      lineType: b.lineType,
+      qtyPerServing: b.qty,
+      wastePct: b.wastePct,
+      shrinkagePct: b.shrinkagePct,
+      actualQtyPerServing: Math.round(actualPer * 1000) / 1000,
+      neededQty: Math.round(needed * 1000) / 1000,
+      onHand: p?.onHand ?? 0,
+      minStock: p?.minStock ?? 0,
+      hpp: b.hpp,
+      lineCost: Math.round(lineCost),
+      stockOk,
+    });
+    if (!stockOk && !isSub) {
+      missingStock.push({
+        name: b.productName,
+        needed: Math.round(needed * 1000) / 1000,
+        onHand: p?.onHand ?? 0,
+        unit: b.unit,
+      });
+    }
+  }
+
+  return {
+    recipeId: detail.id,
+    recipeName: detail.name,
+    targetQty,
+    yieldPerRecipe: yieldPer,
+    multiplier: Math.round(multiplier * 1000) / 1000,
+    ingredientCost: Math.round(ingredientCost),
+    packagingCost: Math.round(packagingCost),
+    totalCost: Math.round(ingredientCost + packagingCost),
+    lines,
+    missingStock,
+    stockReady: missingStock.length === 0,
+  };
+}
+
 export type RecipeInputWms = {
   name: string;
   category?: string;
@@ -1720,6 +1934,7 @@ export async function createWmsRecipe(input: RecipeInputWms) {
       category: input.category?.trim() ?? "",
       yieldQty: input.yieldQty?.trim() || "1",
       sellPrice: Math.round(input.sellPrice),
+      recipeStatus: "draft",
     })
     .returning();
   if (input.bom.length) {
@@ -1727,6 +1942,7 @@ export async function createWmsRecipe(input: RecipeInputWms) {
       input.bom.map((b) => ({ recipeId: rec.id, productId: b.productId, qty: b.qty })),
     );
   }
+  await saveRecipeVersionSnapshot(rec.id, "Versi awal");
   return rec;
 }
 
@@ -1736,6 +1952,73 @@ export async function deleteWmsRecipe(id: string) {
   return row ?? null;
 }
 
+export async function archiveWmsRecipe(
+  id: string,
+  actor?: { id: string; name: string },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, id)).limit(1);
+  if (!rec) return null;
+  if (rec.version.startsWith("os:")) {
+    throw new Error("Resep OS-sync tidak bisa di-archive dari WMS.");
+  }
+  const [updated] = await db
+    .update(wmsRecipe)
+    .set({ recipeStatus: "archived", updatedAt: new Date() })
+    .where(eq(wmsRecipe.id, id))
+    .returning();
+  if (updated && actor) {
+    await logRecipeAudit(id, "archive", { actorId: actor.id, actorName: actor.name });
+  }
+  return updated ?? null;
+}
+
+export async function duplicateWmsRecipe(id: string, actor?: { id: string; name: string }) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, id)).limit(1);
+  if (!rec) return null;
+  const bomRows = await db.select().from(wmsBomItem).where(eq(wmsBomItem.recipeId, id));
+  const [copy] = await db
+    .insert(wmsRecipe)
+    .values({
+      name: `${rec.name} (salinan)`,
+      recipeSku: "",
+      recipeCode: "",
+      category: rec.category,
+      subCategory: rec.subCategory,
+      productionArea: rec.productionArea,
+      yieldQty: rec.yieldQty,
+      yieldUnit: rec.yieldUnit,
+      sellPrice: rec.sellPrice,
+      recipeStatus: "draft",
+      description: rec.description,
+      version: "v1",
+    })
+    .returning();
+  if (bomRows.length) {
+    await db.insert(wmsBomItem).values(
+      bomRows.map((b) => ({
+        recipeId: copy.id,
+        productId: b.productId,
+        subRecipeId: b.subRecipeId,
+        lineType: b.lineType,
+        qty: b.qty,
+        wastePct: b.wastePct,
+        shrinkagePct: b.shrinkagePct,
+        notes: b.notes,
+      })),
+    );
+  }
+  if (actor) {
+    await logRecipeAudit(copy.id, "duplicate", {
+      actorId: actor.id,
+      actorName: actor.name,
+      note: `Salinan dari ${rec.name}`,
+    });
+  }
+  return copy;
+}
+
 /** Recipe + COGS/foodCost/margin (dihitung dari product.hpp saat query). */
 export async function listWmsRecipes() {
   const db = getDb();
@@ -1743,7 +2026,12 @@ export async function listWmsRecipes() {
   const costRows = await db
     .select({
       recipeId: wmsBomItem.recipeId,
-      cogs: sql<number>`coalesce(sum(${wmsBomItem.qty} * ${wmsProduct.hpp}), 0)`,
+      cogs: sql<number>`coalesce(sum(
+        ${wmsBomItem.qty}
+        * (1 + coalesce(${wmsBomItem.wastePct}, 0) / 100.0)
+        * (1 + coalesce(${wmsBomItem.shrinkagePct}, 0) / 100.0)
+        * coalesce(${wmsProduct.hpp}, 0)
+      ), 0)`,
     })
     .from(wmsBomItem)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
@@ -1757,12 +2045,21 @@ export async function listWmsRecipes() {
     return {
       id: r.id,
       name: r.name,
+      recipeSku: r.recipeSku,
+      recipeCode: r.recipeCode,
       category: r.category,
+      subCategory: r.subCategory,
+      productionArea: r.productionArea,
       yieldQty: r.yieldQty,
+      yieldUnit: r.yieldUnit,
       sellPrice: sell,
+      recipeStatus: r.recipeStatus as WmsRecipeStatus,
+      isFavorite: r.isFavorite,
       cogs: Math.round(cogs),
       foodCostPct: Math.round(foodCostPct * 10) / 10,
       margin: Math.round(sell - cogs),
+      version: r.version,
+      updatedAt: new Date(r.updatedAt).toISOString(),
       source: r.version.startsWith("os:") ? ("os-sync" as const) : ("manual" as const),
       menuItemId: r.version.startsWith("os:") ? (r.version.split(":")[1] ?? null) : null,
     };
@@ -1777,23 +2074,61 @@ export async function getWmsRecipe(id: string) {
     .select({
       id: wmsBomItem.id,
       productId: wmsBomItem.productId,
+      subRecipeId: wmsBomItem.subRecipeId,
       productName: wmsProduct.name,
+      subRecipeName: wmsProductionRecipe.name,
+      sku: wmsProduct.sku,
       unit: wmsProduct.unit,
       hpp: wmsProduct.hpp,
       qty: wmsBomItem.qty,
+      wastePct: wmsBomItem.wastePct,
+      shrinkagePct: wmsBomItem.shrinkagePct,
+      lineType: wmsBomItem.lineType,
+      notes: wmsBomItem.notes,
     })
     .from(wmsBomItem)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
+    .leftJoin(wmsProductionRecipe, eq(wmsProductionRecipe.id, wmsBomItem.subRecipeId))
     .where(eq(wmsBomItem.recipeId, id));
 
-  const lines = bom.map((b) => ({ ...b, lineCost: Number(b.qty) * Number(b.hpp ?? 0) }));
+  const products = await getWmsProducts();
+  const stockById = new Map(products.map((p) => [p.id, p]));
+
+  const lines = await Promise.all(
+    bom.map(async (b) => {
+      const isSub = b.lineType === "sub_recipe" && b.subRecipeId;
+      const unitHpp = isSub ? await getSubRecipeUnitCost(b.subRecipeId!) : Number(b.hpp ?? 0);
+      const actualQty = bomActualQty(Number(b.qty), Number(b.wastePct), Number(b.shrinkagePct));
+      const lineCost = actualQty * unitHpp;
+      const p = b.productId ? stockById.get(b.productId) : undefined;
+      return {
+        ...b,
+        productName: isSub ? (b.subRecipeName ?? "Sub Recipe") : (b.productName ?? "-"),
+        sku: isSub ? `SUB-${b.subRecipeId?.slice(0, 8)}` : (b.sku ?? ""),
+        unit: isSub ? "batch" : (b.unit ?? ""),
+        actualQty: Math.round(actualQty * 1000) / 1000,
+        lineCost,
+        onHand: p?.onHand ?? 0,
+        minStock: p?.minStock ?? 0,
+        hpp: unitHpp,
+      };
+    }),
+  );
   const cogs = lines.reduce((s, l) => s + l.lineCost, 0);
   const sell = Number(rec.sellPrice);
   return {
     id: rec.id,
     name: rec.name,
+    recipeSku: rec.recipeSku,
+    recipeCode: rec.recipeCode,
     category: rec.category,
+    subCategory: rec.subCategory,
+    productionArea: rec.productionArea,
     yieldQty: rec.yieldQty,
+    yieldUnit: rec.yieldUnit,
+    description: rec.description,
+    sopSteps: parseSopSteps(rec.sopSteps),
+    recipeStatus: rec.recipeStatus,
     sellPrice: sell,
     cogs: Math.round(cogs),
     foodCostPct: sell > 0 ? Math.round((cogs / sell) * 1000) / 10 : 0,
@@ -1802,14 +2137,997 @@ export async function getWmsRecipe(id: string) {
     bom: lines.map((l) => ({
       id: l.id,
       productId: l.productId,
-      productName: l.productName ?? "-",
+      subRecipeId: l.subRecipeId,
+      productName: l.productName,
+      sku: l.sku ?? "",
       unit: l.unit ?? "",
       qty: Number(l.qty),
+      wastePct: Number(l.wastePct),
+      shrinkagePct: Number(l.shrinkagePct),
+      actualQty: l.actualQty,
+      lineType: l.lineType,
+      notes: l.notes,
+      onHand: l.onHand,
+      minStock: l.minStock,
       hpp: Number(l.hpp ?? 0),
       lineCost: Math.round(l.lineCost),
       contribPct: cogs > 0 ? Math.round((l.lineCost / cogs) * 1000) / 10 : 0,
     })),
   };
+}
+
+// =============================================================================
+// Recipe/BOM P1 — Ingredient Library, Sub Recipe BOM, Approval Workflow (PRD §5–7, §17–18)
+// =============================================================================
+
+export type WmsRecipeStatus =
+  | "draft"
+  | "pending_kitchen"
+  | "pending_warehouse"
+  | "pending_manager"
+  | "pending_owner"
+  | "published"
+  | "archived";
+
+export type WmsIngredientType = "raw" | "packaging" | "semi_finished" | "finished" | "consumable";
+
+const APPROVAL_CHAIN: Record<string, { next: WmsRecipeStatus; roles: string[] }> = {
+  draft: {
+    next: "pending_kitchen",
+    roles: ["Owner / CEO", "Admin", "Manager Operasional", "Koki", "Asisten Koki", "Barista", "Kitchen / Barista"],
+  },
+  pending_kitchen: {
+    next: "pending_warehouse",
+    roles: ["Koki", "Asisten Koki", "Barista", "Kitchen / Barista", "Owner / CEO", "Admin", "Manager Operasional"],
+  },
+  pending_warehouse: {
+    next: "pending_manager",
+    roles: ["Gudang", "Owner / CEO", "Admin", "Manager Operasional"],
+  },
+  pending_manager: {
+    next: "pending_owner",
+    roles: ["Manager Operasional", "Owner / CEO", "Admin"],
+  },
+  pending_owner: { next: "published", roles: ["Owner / CEO", "Admin"] },
+};
+
+function classifyIngredient(category: string, name: string): WmsIngredientType {
+  const c = `${category} ${name}`.toLowerCase();
+  if (/kemasan|packaging|cup|lid|straw|box|bag|label|sleeve/.test(c)) return "packaging";
+  if (/semi|setengah|base|syrup|sauce|shot|foam/.test(c)) return "semi_finished";
+  if (/jadi|finished|produk/.test(c)) return "finished";
+  if (/tissue|sapu|detergen|consumable|operasional/.test(c)) return "consumable";
+  return "raw";
+}
+
+/** PRD §5 — library bahan dari wms_product. */
+export async function listWmsIngredientLibrary(opts?: { type?: WmsIngredientType; q?: string }) {
+  const products = await getWmsProducts();
+  const q = opts?.q?.trim().toLowerCase() ?? "";
+  return products
+    .map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      category: p.category,
+      unit: p.unit,
+      hpp: p.hpp,
+      onHand: p.onHand,
+      minStock: p.minStock,
+      status: p.status,
+      ingredientType: classifyIngredient(p.category, p.name),
+    }))
+    .filter((p) => !opts?.type || p.ingredientType === opts.type)
+    .filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, "id"));
+}
+
+/** Biaya per unit output sub-recipe (production recipe). */
+export async function getSubRecipeUnitCost(subRecipeId: string): Promise<number> {
+  const detail = await getProductionRecipe(subRecipeId);
+  if (!detail) return 0;
+  const outputQty = Math.max(1, detail.outputQty);
+  const total = detail.bom.reduce((s, b) => s + Number(b.qty) * Number(b.hpp ?? 0), 0);
+  return total / outputQty;
+}
+
+async function logRecipeAudit(
+  recipeId: string,
+  action: string,
+  opts: { step?: string; actorId?: string | null; actorName?: string; note?: string },
+) {
+  const db = getDb();
+  let actorId: string | null = opts.actorId?.trim() ? opts.actorId : null;
+  if (actorId) {
+    const [row] = await db.select({ id: user.id }).from(user).where(eq(user.id, actorId)).limit(1);
+    if (!row) actorId = null;
+  }
+  await db.insert(wmsRecipeAuditLog).values({
+    recipeId,
+    action,
+    step: opts.step ?? "",
+    actorId,
+    actorName: opts.actorName ?? "",
+    note: opts.note ?? "",
+  });
+}
+
+export async function getRecipeAuditLog(recipeId: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(wmsRecipeAuditLog)
+    .where(eq(wmsRecipeAuditLog.recipeId, recipeId))
+    .orderBy(desc(wmsRecipeAuditLog.createdAt))
+    .limit(50);
+  return rows.map((r) => ({
+    id: r.id,
+    action: r.action,
+    step: r.step,
+    actorName: r.actorName,
+    note: r.note,
+    createdAt: new Date(r.createdAt).toISOString(),
+  }));
+}
+
+type RecipeVersionSnapshot = {
+  name: string;
+  recipeSku: string;
+  category: string;
+  subCategory: string;
+  productionArea: string;
+  yieldQty: string;
+  yieldUnit: string;
+  sellPrice: number;
+  recipeStatus: string;
+  description: string;
+  sopSteps: WmsRecipeSopStep[];
+  bom: Array<{
+    lineType: string;
+    productId: string | null;
+    subRecipeId: string | null;
+    productName: string;
+    qty: number;
+    wastePct: number;
+    shrinkagePct: number;
+    notes: string;
+  }>;
+};
+
+async function buildRecipeVersionSnapshot(recipeId: string): Promise<RecipeVersionSnapshot | null> {
+  const detail = await getWmsRecipe(recipeId);
+  if (!detail) return null;
+  return {
+    name: detail.name,
+    recipeSku: detail.recipeSku,
+    category: detail.category,
+    subCategory: detail.subCategory,
+    productionArea: detail.productionArea,
+    yieldQty: detail.yieldQty,
+    yieldUnit: detail.yieldUnit,
+    sellPrice: detail.sellPrice,
+    recipeStatus: detail.recipeStatus,
+    description: detail.description,
+    sopSteps: detail.sopSteps,
+    bom: detail.bom.map((b) => ({
+      lineType: b.lineType,
+      productId: b.productId,
+      subRecipeId: b.subRecipeId,
+      productName: b.productName,
+      qty: b.qty,
+      wastePct: b.wastePct,
+      shrinkagePct: b.shrinkagePct,
+      notes: b.notes ?? "",
+    })),
+  };
+}
+
+export async function saveRecipeVersionSnapshot(
+  recipeId: string,
+  label: string,
+  actorName = "",
+): Promise<{ id: string; versionNo: number } | null> {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, recipeId)).limit(1);
+  if (!rec || rec.version.startsWith("os:")) return null;
+
+  const snapshot = await buildRecipeVersionSnapshot(recipeId);
+  if (!snapshot) return null;
+
+  const detail = await getWmsRecipe(recipeId);
+  const [maxRow] = await db
+    .select({ n: sql<number>`coalesce(max(${wmsRecipeVersion.versionNo}), 0)::int` })
+    .from(wmsRecipeVersion)
+    .where(eq(wmsRecipeVersion.recipeId, recipeId));
+  const versionNo = Number(maxRow?.n ?? 0) + 1;
+
+  const [row] = await db
+    .insert(wmsRecipeVersion)
+    .values({
+      recipeId,
+      versionNo,
+      label: label.trim() || `Versi ${versionNo}`,
+      snapshot: JSON.stringify(snapshot),
+      cogs: detail?.cogs ?? 0,
+      sellPrice: detail?.sellPrice ?? 0,
+      foodCostPct: detail?.foodCostPct ?? 0,
+      actorName,
+    })
+    .returning({ id: wmsRecipeVersion.id, versionNo: wmsRecipeVersion.versionNo });
+  return row ?? null;
+}
+
+export type WmsRecipeVersionRow = {
+  id: string;
+  versionNo: number;
+  label: string;
+  cogs: number;
+  sellPrice: number;
+  foodCostPct: number;
+  actorName: string;
+  createdAt: string;
+  bomLineCount: number;
+  sopStepCount: number;
+};
+
+export type WmsRecipeVersionCompare = {
+  cogsDelta: number;
+  sellPriceDelta: number;
+  foodCostPctDelta: number;
+  bomLineDelta: number;
+  sopStepDelta: number;
+  bomAdded: string[];
+  bomRemoved: string[];
+};
+
+function parseVersionSnapshot(raw: string): RecipeVersionSnapshot | null {
+  try {
+    return JSON.parse(raw) as RecipeVersionSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function compareSnapshotToCurrent(
+  snap: RecipeVersionSnapshot,
+  current: NonNullable<Awaited<ReturnType<typeof getWmsRecipe>>>,
+  versionMetrics: { cogs: number; sellPrice: number; foodCostPct: number },
+): WmsRecipeVersionCompare {
+  const snapKeys = new Set(
+    snap.bom.map((b) => (b.lineType === "sub_recipe" ? `sub:${b.subRecipeId}` : `prod:${b.productId}`)),
+  );
+  const curKeys = new Set(
+    current.bom.map((b) => (b.lineType === "sub_recipe" ? `sub:${b.subRecipeId}` : `prod:${b.productId}`)),
+  );
+  const bomAdded = current.bom
+    .filter((b) => !snapKeys.has(b.lineType === "sub_recipe" ? `sub:${b.subRecipeId}` : `prod:${b.productId}`))
+    .map((b) => b.productName);
+  const bomRemoved = snap.bom
+    .filter((b) => {
+      const key = b.lineType === "sub_recipe" ? `sub:${b.subRecipeId}` : `prod:${b.productId}`;
+      return !curKeys.has(key);
+    })
+    .map((b) => b.productName);
+
+  return {
+    cogsDelta: current.cogs - versionMetrics.cogs,
+    sellPriceDelta: current.sellPrice - versionMetrics.sellPrice,
+    foodCostPctDelta: Math.round((current.foodCostPct - versionMetrics.foodCostPct) * 10) / 10,
+    bomLineDelta: current.bom.length - snap.bom.length,
+    sopStepDelta: current.sopSteps.length - snap.sopSteps.length,
+    bomAdded,
+    bomRemoved,
+  };
+}
+
+export async function listWmsRecipeVersions(recipeId: string): Promise<WmsRecipeVersionRow[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(wmsRecipeVersion)
+    .where(eq(wmsRecipeVersion.recipeId, recipeId))
+    .orderBy(desc(wmsRecipeVersion.versionNo))
+    .limit(30);
+  return rows.map((r) => {
+    const snap = parseVersionSnapshot(r.snapshot);
+    return {
+      id: r.id,
+      versionNo: r.versionNo,
+      label: r.label,
+      cogs: r.cogs,
+      sellPrice: r.sellPrice,
+      foodCostPct: Number(r.foodCostPct),
+      actorName: r.actorName,
+      createdAt: new Date(r.createdAt).toISOString(),
+      bomLineCount: snap?.bom.length ?? 0,
+      sopStepCount: snap?.sopSteps.length ?? 0,
+    };
+  });
+}
+
+export async function getWmsRecipeVersionDetail(versionId: string) {
+  const db = getDb();
+  const [row] = await db.select().from(wmsRecipeVersion).where(eq(wmsRecipeVersion.id, versionId)).limit(1);
+  if (!row) return null;
+  const snapshot = parseVersionSnapshot(row.snapshot);
+  if (!snapshot) return null;
+  const current = await getWmsRecipe(row.recipeId);
+  const compare = current
+    ? compareSnapshotToCurrent(snapshot, current, {
+        cogs: row.cogs,
+        sellPrice: row.sellPrice,
+        foodCostPct: Number(row.foodCostPct),
+      })
+    : null;
+  return {
+    id: row.id,
+    recipeId: row.recipeId,
+    versionNo: row.versionNo,
+    label: row.label,
+    cogs: row.cogs,
+    sellPrice: row.sellPrice,
+    foodCostPct: Number(row.foodCostPct),
+    actorName: row.actorName,
+    createdAt: new Date(row.createdAt).toISOString(),
+    snapshot,
+    compareToCurrent: compare,
+  };
+}
+
+export async function restoreWmsRecipeVersion(
+  recipeId: string,
+  versionId: string,
+  actor?: { id: string; name: string },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, recipeId)).limit(1);
+  if (!rec) return null;
+  if (rec.version.startsWith("os:")) {
+    throw new Error("Resep OS-sync tidak bisa di-restore dari versi WMS.");
+  }
+  const [ver] = await db
+    .select()
+    .from(wmsRecipeVersion)
+    .where(and(eq(wmsRecipeVersion.id, versionId), eq(wmsRecipeVersion.recipeId, recipeId)))
+    .limit(1);
+  if (!ver) return null;
+  const snapshot = parseVersionSnapshot(ver.snapshot);
+  if (!snapshot) throw new Error("Snapshot versi rusak.");
+
+  await saveRecipeVersionSnapshot(recipeId, `Sebelum restore v${ver.versionNo}`, actor?.name ?? "");
+
+  await db
+    .update(wmsRecipe)
+    .set({
+      name: snapshot.name,
+      recipeSku: snapshot.recipeSku,
+      category: snapshot.category,
+      subCategory: snapshot.subCategory,
+      productionArea: snapshot.productionArea,
+      yieldQty: snapshot.yieldQty,
+      yieldUnit: snapshot.yieldUnit,
+      sellPrice: snapshot.sellPrice,
+      description: snapshot.description,
+      sopSteps: JSON.stringify(snapshot.sopSteps),
+      recipeStatus: "draft",
+      updatedAt: new Date(),
+    })
+    .where(eq(wmsRecipe.id, recipeId));
+
+  await db.delete(wmsBomItem).where(eq(wmsBomItem.recipeId, recipeId));
+  if (snapshot.bom.length) {
+    await db.insert(wmsBomItem).values(
+      snapshot.bom.map((b) => ({
+        recipeId,
+        lineType: b.lineType,
+        productId: b.productId,
+        subRecipeId: b.subRecipeId,
+        qty: b.qty,
+        wastePct: b.wastePct,
+        shrinkagePct: b.shrinkagePct,
+        notes: b.notes,
+      })),
+    );
+  }
+
+  if (actor) {
+    await logRecipeAudit(recipeId, "restore", {
+      actorId: actor.id,
+      actorName: actor.name,
+      note: `Restore ke v${ver.versionNo}: ${ver.label}`,
+    });
+  }
+  return getWmsRecipe(recipeId);
+}
+
+export type WmsRecipeInsight = {
+  severity: "info" | "warning" | "critical";
+  code: string;
+  title: string;
+  message: string;
+  action?: string;
+};
+
+export async function getWmsRecipeInsights(recipeId: string): Promise<{
+  score: number;
+  insights: WmsRecipeInsight[];
+}> {
+  const detail = await getWmsRecipe(recipeId);
+  if (!detail) {
+    return {
+      score: 0,
+      insights: [{ severity: "critical", code: "not_found", title: "Resep tidak ditemukan", message: "ID resep tidak valid." }],
+    };
+  }
+
+  const insights: WmsRecipeInsight[] = [];
+  let penalty = 0;
+
+  if (detail.bom.length === 0) {
+    insights.push({
+      severity: "critical",
+      code: "bom_empty",
+      title: "BOM kosong",
+      message: "Resep belum punya bahan — HPP dan potong stok tidak bisa dihitung.",
+      action: "Tambah bahan di tab BOM atau tarik dari Produk OS.",
+    });
+    penalty += 35;
+  }
+
+  if (detail.foodCostPct > 45) {
+    insights.push({
+      severity: "critical",
+      code: "food_cost_critical",
+      title: "Food cost sangat tinggi",
+      message: `Food cost ${detail.foodCostPct}% — jauh di atas target ≤30%.`,
+      action: "Review harga jual atau kurangi qty bahan mahal.",
+    });
+    penalty += 25;
+  } else if (detail.foodCostPct > 38) {
+    insights.push({
+      severity: "warning",
+      code: "food_cost_high",
+      title: "Food cost perlu review",
+      message: `Food cost ${detail.foodCostPct}% — di zona amber (>38%).`,
+      action: "Pertimbangkan substitusi bahan atau adjust porsi.",
+    });
+    penalty += 15;
+  }
+
+  if (detail.margin < 0) {
+    insights.push({
+      severity: "critical",
+      code: "negative_margin",
+      title: "Margin negatif",
+      message: `HPP ${detail.cogs} melebihi harga jual ${detail.sellPrice}.`,
+      action: "Naikkan harga jual atau turunkan BOM.",
+    });
+    penalty += 30;
+  }
+
+  const lowStock = detail.bom.filter((b) => b.lineType !== "sub_recipe" && b.onHand < b.actualQty);
+  if (lowStock.length > 0) {
+    insights.push({
+      severity: "warning",
+      code: "low_stock",
+      title: `${lowStock.length} bahan stok rendah`,
+      message: lowStock.map((b) => `${b.productName} (${b.onHand}/${b.actualQty} ${b.unit})`).slice(0, 3).join(" · "),
+      action: "Cek inventory / buat PO.",
+    });
+    penalty += Math.min(20, lowStock.length * 5);
+  }
+
+  if (detail.source === "manual" && detail.sopSteps.length === 0) {
+    insights.push({
+      severity: "info",
+      code: "no_sop",
+      title: "Belum ada SOP produksi",
+      message: "Langkah produksi kosong — kitchen tidak punya panduan standar.",
+      action: "Isi tab SOP sebelum publish.",
+    });
+    penalty += 5;
+  }
+
+  if (detail.recipeStatus.startsWith("pending_")) {
+    const step = detail.recipeStatus.replace("pending_", "");
+    insights.push({
+      severity: "info",
+      code: "pending_approval",
+      title: "Menunggu approval",
+      message: `Resep menunggu persetujuan tahap ${step}.`,
+      action: "Lihat tab Approval untuk audit trail.",
+    });
+  } else if (detail.recipeStatus === "draft") {
+    insights.push({
+      severity: "info",
+      code: "draft",
+      title: "Masih draft",
+      message: "Resep belum published — tidak dipakai untuk operasional penuh.",
+      action: "Ajukan approval setelah BOM & SOP lengkap.",
+    });
+    penalty += 5;
+  }
+
+  if (detail.source === "os-sync" && detail.bom.length > 0) {
+    const highWaste = detail.bom.filter((b) => b.wastePct > 15);
+    if (highWaste.length > 0) {
+      insights.push({
+        severity: "warning",
+        code: "high_waste",
+        title: "Waste % tinggi",
+        message: `${highWaste.map((b) => `${b.productName} ${b.wastePct}%`).slice(0, 2).join(", ")}`,
+        action: "Review waste di Produk Manajemen OS.",
+      });
+      penalty += 8;
+    }
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      severity: "info",
+      code: "healthy",
+      title: "Resep sehat",
+      message: "Tidak ada masalah operasional terdeteksi.",
+    });
+  }
+
+  return { score: Math.max(0, 100 - penalty), insights };
+}
+
+/** PRD §15 — resep menu yang memakai sub-recipe ini. */
+export async function getRecipeDependents(subRecipeId: string) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      recipeId: wmsBomItem.recipeId,
+      recipeName: wmsRecipe.name,
+      qty: wmsBomItem.qty,
+    })
+    .from(wmsBomItem)
+    .innerJoin(wmsRecipe, eq(wmsRecipe.id, wmsBomItem.recipeId))
+    .where(and(eq(wmsBomItem.subRecipeId, subRecipeId), eq(wmsBomItem.lineType, "sub_recipe")));
+  return rows.map((r) => ({
+    recipeId: r.recipeId,
+    recipeName: r.recipeName,
+    qty: Number(r.qty),
+  }));
+}
+
+export type WmsRecipeDependencyMap = {
+  recipeId: string;
+  recipeName: string;
+  upstream: Array<{
+    lineType: string;
+    refId: string | null;
+    name: string;
+    sku: string;
+    qty: number;
+    unit: string;
+  }>;
+  sharedRecipes: Array<{
+    productId: string;
+    productName: string;
+    recipes: Array<{ recipeId: string; recipeName: string; qty: number }>;
+  }>;
+  subRecipeDependents: Array<{
+    subRecipeId: string;
+    subRecipeName: string;
+    usedBy: Array<{ recipeId: string; recipeName: string; qty: number }>;
+  }>;
+};
+
+/** PRD §15 — peta ketergantungan bahan & sub-recipe untuk satu resep menu. */
+export async function getWmsRecipeDependencyMap(recipeId: string): Promise<WmsRecipeDependencyMap | null> {
+  const detail = await getWmsRecipe(recipeId);
+  if (!detail) return null;
+  const db = getDb();
+
+  const upstream = detail.bom.map((b) => ({
+    lineType: b.lineType,
+    refId: (b.subRecipeId ?? b.productId) || null,
+    name: b.productName,
+    sku: b.sku,
+    qty: b.qty,
+    unit: b.unit,
+  }));
+
+  const productIds = [...new Set(detail.bom.filter((b) => b.productId).map((b) => b.productId!))];
+  const sharedByProduct = new Map<
+    string,
+    { productName: string; recipes: Array<{ recipeId: string; recipeName: string; qty: number }> }
+  >();
+
+  if (productIds.length) {
+    const rows = await db
+      .select({
+        recipeId: wmsBomItem.recipeId,
+        recipeName: wmsRecipe.name,
+        productId: wmsBomItem.productId,
+        productName: wmsProduct.name,
+        qty: wmsBomItem.qty,
+      })
+      .from(wmsBomItem)
+      .innerJoin(wmsRecipe, eq(wmsRecipe.id, wmsBomItem.recipeId))
+      .innerJoin(wmsProduct, eq(wmsProduct.id, wmsBomItem.productId))
+      .where(and(inArray(wmsBomItem.productId, productIds), sql`${wmsBomItem.recipeId} != ${recipeId}`));
+
+    for (const row of rows) {
+      if (!row.productId) continue;
+      const entry = sharedByProduct.get(row.productId) ?? {
+        productName: row.productName ?? "-",
+        recipes: [],
+      };
+      entry.recipes.push({
+        recipeId: row.recipeId,
+        recipeName: row.recipeName,
+        qty: Number(row.qty),
+      });
+      sharedByProduct.set(row.productId, entry);
+    }
+  }
+
+  const sharedRecipes = [...sharedByProduct.entries()].map(([productId, v]) => ({
+    productId,
+    productName: v.productName,
+    recipes: v.recipes,
+  }));
+
+  const subRecipeDependents: WmsRecipeDependencyMap["subRecipeDependents"] = [];
+  for (const line of detail.bom.filter((b) => b.lineType === "sub_recipe" && b.subRecipeId)) {
+    const usedBy = (await getRecipeDependents(line.subRecipeId!)).filter((u) => u.recipeId !== recipeId);
+    subRecipeDependents.push({
+      subRecipeId: line.subRecipeId!,
+      subRecipeName: line.productName,
+      usedBy,
+    });
+  }
+
+  return {
+    recipeId: detail.id,
+    recipeName: detail.name,
+    upstream,
+    sharedRecipes,
+    subRecipeDependents,
+  };
+}
+
+export async function toggleWmsRecipeFavorite(id: string) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, id)).limit(1);
+  if (!rec) return null;
+  const [updated] = await db
+    .update(wmsRecipe)
+    .set({ isFavorite: !rec.isFavorite, updatedAt: new Date() })
+    .where(eq(wmsRecipe.id, id))
+    .returning();
+  return updated;
+}
+
+export async function exportWmsRecipesBundle() {
+  const recipes = await listWmsRecipes();
+  const bundle = [];
+  for (const r of recipes) {
+    const detail = await getWmsRecipe(r.id);
+    if (detail) {
+      bundle.push({
+        name: detail.name,
+        recipeSku: detail.recipeSku,
+        category: detail.category,
+        subCategory: detail.subCategory,
+        productionArea: detail.productionArea,
+        yieldQty: detail.yieldQty,
+        yieldUnit: detail.yieldUnit,
+        sellPrice: detail.sellPrice,
+        recipeStatus: detail.recipeStatus,
+        description: detail.description,
+        sopSteps: detail.sopSteps,
+        source: detail.source,
+        bom: detail.bom.map((b) => ({
+          lineType: b.lineType,
+          productName: b.productName,
+          sku: b.sku,
+          qty: b.qty,
+          unit: b.unit,
+          wastePct: b.wastePct,
+          shrinkagePct: b.shrinkagePct,
+          subRecipeId: b.subRecipeId,
+        })),
+      });
+    }
+  }
+  return { exportedAt: new Date().toISOString(), count: bundle.length, recipes: bundle };
+}
+
+export type WmsRecipeImportRow = {
+  name: string;
+  recipeSku?: string;
+  category?: string;
+  subCategory?: string;
+  productionArea?: string;
+  yieldQty?: string;
+  yieldUnit?: string;
+  sellPrice?: number;
+  description?: string;
+  sopSteps?: WmsRecipeSopStep[];
+  source?: string;
+  bom?: Array<{
+    lineType?: string;
+    productName?: string;
+    sku?: string;
+    qty: number;
+    unit?: string;
+    wastePct?: number;
+    shrinkagePct?: number;
+    subRecipeId?: string;
+  }>;
+};
+
+export type WmsRecipeImportResult = {
+  dryRun: boolean;
+  created: number;
+  skipped: number;
+  errors: string[];
+  preview: Array<{ name: string; bomLines: number; sopSteps: number }>;
+};
+
+export async function importWmsRecipesFromBundle(
+  input: { recipes: WmsRecipeImportRow[] },
+  opts?: { dryRun?: boolean },
+): Promise<WmsRecipeImportResult> {
+  const dryRun = opts?.dryRun ?? false;
+  const products = await getWmsProducts();
+  const skuToId = new Map(products.map((p) => [p.sku.toLowerCase(), p.id]));
+  const subRecipes = await listProductionRecipes();
+  const subByName = new Map(subRecipes.map((s) => [s.name.toLowerCase(), s.id]));
+
+  const result: WmsRecipeImportResult = { dryRun, created: 0, skipped: 0, errors: [], preview: [] };
+
+  for (const row of input.recipes) {
+    if (!row.name?.trim()) {
+      result.errors.push("Baris tanpa nama resep dilewati.");
+      result.skipped++;
+      continue;
+    }
+    if (row.source === "os-sync") {
+      result.skipped++;
+      continue;
+    }
+
+    const bomResolved: Array<
+      | { lineType: "ingredient" | "packaging"; productId: string; qty: number; wastePct: number }
+      | { lineType: "sub_recipe"; subRecipeId: string; qty: number }
+    > = [];
+
+    for (const b of row.bom ?? []) {
+      const qty = Number(b.qty);
+      if (!(qty > 0)) continue;
+      const lineType = b.lineType === "packaging" ? "packaging" : b.lineType === "sub_recipe" ? "sub_recipe" : "ingredient";
+      if (lineType === "sub_recipe") {
+        const subId =
+          b.subRecipeId ||
+          (b.productName ? subByName.get(b.productName.toLowerCase()) : undefined);
+        if (!subId) {
+          result.errors.push(`${row.name}: sub-recipe "${b.productName ?? "?"}" tidak ditemukan.`);
+          continue;
+        }
+        bomResolved.push({ lineType: "sub_recipe", subRecipeId: subId, qty });
+      } else {
+        const pid = b.sku ? skuToId.get(b.sku.toLowerCase()) : undefined;
+        if (!pid) {
+          result.errors.push(`${row.name}: SKU "${b.sku ?? "?"}" tidak ada di WMS.`);
+          continue;
+        }
+        bomResolved.push({
+          lineType: lineType === "packaging" ? "packaging" : "ingredient",
+          productId: pid,
+          qty,
+          wastePct: Number(b.wastePct) || 0,
+        });
+      }
+    }
+
+    const sop = (row.sopSteps ?? []).filter((s) => s.title?.trim());
+    result.preview.push({ name: row.name.trim(), bomLines: bomResolved.length, sopSteps: sop.length });
+
+    if (dryRun) continue;
+
+    const db = getDb();
+    const [rec] = await db
+      .insert(wmsRecipe)
+      .values({
+        name: row.name.trim(),
+        recipeSku: row.recipeSku?.trim() ?? "",
+        recipeCode: row.recipeSku?.trim() ?? "",
+        category: row.category?.trim() ?? "",
+        subCategory: row.subCategory?.trim() ?? "",
+        productionArea: row.productionArea?.trim() ?? "",
+        yieldQty: row.yieldQty?.trim() || "1",
+        yieldUnit: row.yieldUnit?.trim() || "porsi",
+        sellPrice: Math.round(Number(row.sellPrice) || 0),
+        description: row.description?.trim() ?? "",
+        sopSteps: JSON.stringify(
+          sop.map((s, i) => ({
+            order: s.order || i + 1,
+            title: s.title.trim(),
+            durationMin: Math.max(0, Number(s.durationMin) || 0),
+            notes: s.notes?.trim() ?? "",
+          })),
+        ),
+        recipeStatus: "draft",
+        version: "v1",
+      })
+      .returning();
+
+    if (bomResolved.length) {
+      await db.insert(wmsBomItem).values(
+        bomResolved.map((b) =>
+          b.lineType === "sub_recipe"
+            ? { recipeId: rec.id, lineType: "sub_recipe", subRecipeId: b.subRecipeId, qty: b.qty }
+            : {
+                recipeId: rec.id,
+                lineType: b.lineType,
+                productId: b.productId,
+                qty: b.qty,
+                wastePct: b.wastePct,
+              },
+        ),
+      );
+    }
+    result.created++;
+  }
+
+  return result;
+}
+
+export async function updateWmsRecipeSop(
+  recipeId: string,
+  steps: WmsRecipeSopStep[],
+  actor?: { id: string; name: string },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, recipeId)).limit(1);
+  if (!rec) return null;
+  if (rec.version.startsWith("os:")) {
+    throw new Error("SOP resep OS-sync — edit di Produk Manajemen.");
+  }
+  await saveRecipeVersionSnapshot(recipeId, "Sebelum update SOP", actor?.name ?? "");
+  const normalized = steps
+    .map((s, i) => ({
+      order: s.order || i + 1,
+      title: s.title.trim(),
+      durationMin: Math.max(0, Number(s.durationMin) || 0),
+      notes: s.notes?.trim() ?? "",
+    }))
+    .filter((s) => s.title.length > 0);
+  const [updated] = await db
+    .update(wmsRecipe)
+    .set({
+      sopSteps: JSON.stringify(normalized),
+      recipeStatus: "draft",
+      updatedAt: new Date(),
+    })
+    .where(eq(wmsRecipe.id, recipeId))
+    .returning();
+  if (updated && actor) {
+    await logRecipeAudit(recipeId, "sop_update", {
+      actorId: actor.id,
+      actorName: actor.name,
+      note: `${normalized.length} langkah`,
+    });
+  }
+  return { ...updated, sopSteps: normalized };
+}
+
+export async function submitRecipeForApproval(
+  recipeId: string,
+  actor: { id: string; name: string; role: string },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, recipeId)).limit(1);
+  if (!rec) return null;
+  if (rec.recipeStatus !== "draft" && rec.recipeStatus !== "archived") {
+    throw new Error("Hanya resep draft/archived yang bisa diajukan.");
+  }
+  await saveRecipeVersionSnapshot(recipeId, "Sebelum ajukan approval", actor.name);
+  const [updated] = await db
+    .update(wmsRecipe)
+    .set({ recipeStatus: "pending_kitchen", updatedAt: new Date() })
+    .where(eq(wmsRecipe.id, recipeId))
+    .returning();
+  await logRecipeAudit(recipeId, "submit", {
+    step: "kitchen",
+    actorId: actor.id,
+    actorName: actor.name,
+    note: `Diajukan oleh ${actor.role}`,
+  });
+  return updated;
+}
+
+export async function approveRecipeStep(
+  recipeId: string,
+  actor: { id: string; name: string; role: string },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, recipeId)).limit(1);
+  if (!rec) return null;
+  const step = rec.recipeStatus as string;
+  const chain = APPROVAL_CHAIN[step];
+  if (!chain) throw new Error("Resep tidak dalam antrian approval.");
+  if (!chain.roles.includes(actor.role)) {
+    throw new Error(`Role ${actor.role} tidak bisa approve tahap ${step}.`);
+  }
+  const [updated] = await db
+    .update(wmsRecipe)
+    .set({ recipeStatus: chain.next, updatedAt: new Date() })
+    .where(eq(wmsRecipe.id, recipeId))
+    .returning();
+  await logRecipeAudit(recipeId, "approve", {
+    step,
+    actorId: actor.id,
+    actorName: actor.name,
+    note: `→ ${chain.next}`,
+  });
+  return updated;
+}
+
+export async function rejectRecipeToDraft(
+  recipeId: string,
+  actor: { id: string; name: string },
+  note?: string,
+) {
+  const db = getDb();
+  const [updated] = await db
+    .update(wmsRecipe)
+    .set({ recipeStatus: "draft", updatedAt: new Date() })
+    .where(eq(wmsRecipe.id, recipeId))
+    .returning();
+  if (!updated) return null;
+  await logRecipeAudit(recipeId, "reject", {
+    actorId: actor.id,
+    actorName: actor.name,
+    note: note ?? "Dikembalikan ke draft",
+  });
+  return updated;
+}
+
+export async function addRecipeBomLine(
+  recipeId: string,
+  line:
+    | { lineType: "ingredient" | "packaging"; productId: string; qty: number; wastePct?: number }
+    | { lineType: "sub_recipe"; subRecipeId: string; qty: number },
+) {
+  const db = getDb();
+  const [rec] = await db.select().from(wmsRecipe).where(eq(wmsRecipe.id, recipeId)).limit(1);
+  if (!rec) return null;
+  if (rec.version.startsWith("os:")) {
+    throw new Error("BOM resep OS-sync — edit di Produk Manajemen lalu tarik ulang.");
+  }
+  await saveRecipeVersionSnapshot(recipeId, "Sebelum tambah BOM");
+  const values =
+    line.lineType === "sub_recipe"
+      ? {
+          recipeId,
+          lineType: "sub_recipe" as const,
+          subRecipeId: line.subRecipeId,
+          productId: null,
+          qty: line.qty,
+        }
+      : {
+          recipeId,
+          lineType: line.lineType,
+          productId: line.productId,
+          qty: line.qty,
+          wastePct: line.wastePct ?? 0,
+        };
+  const [row] = await db.insert(wmsBomItem).values(values).returning();
+  await db.update(wmsRecipe).set({ recipeStatus: "draft", updatedAt: new Date() }).where(eq(wmsRecipe.id, recipeId));
+  return row;
 }
 
 /** Keuangan & HPP: KPI + ringkasan per resep. */

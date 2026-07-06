@@ -75,17 +75,31 @@ function recipeDisplayName(menuName: string, variantLabel: string, multiVariant:
   return `${base} ${variantLabel}`;
 }
 
+type BomLineMeta = { qty: number; wastePct: number; lineType: string };
+
+function isPackagingSku(category: string): boolean {
+  return /kemasan|packaging|cup|lid|straw|box|bag|label|sleeve/i.test(category);
+}
+
 function buildBomMap(
-  lines: Array<{ inventorySku: string | null; qty: number; wastePct: number }>,
+  lines: Array<{ inventorySku: string | null; qty: number; wastePct: number; unit: string }>,
   skuToProduct: Map<string, string>,
-): Map<string, number> {
-  const bomMap = new Map<string, number>();
+  skuToCategory: Map<string, string>,
+): Map<string, BomLineMeta> {
+  const bomMap = new Map<string, BomLineMeta>();
   for (const line of lines) {
     if (!line.inventorySku) continue;
     const productId = skuToProduct.get(line.inventorySku);
     if (!productId) continue;
-    const eff = Number(line.qty) * (1 + Number(line.wastePct) / 100);
-    bomMap.set(productId, (bomMap.get(productId) ?? 0) + eff);
+    const cat = skuToCategory.get(line.inventorySku) ?? "";
+    const lineType = isPackagingSku(cat) || isPackagingSku(line.unit) ? "packaging" : "ingredient";
+    const prev = bomMap.get(productId);
+    const qty = Number(line.qty) + (prev?.qty ?? 0);
+    bomMap.set(productId, {
+      qty,
+      wastePct: Number(line.wastePct) || prev?.wastePct || 0,
+      lineType: prev?.lineType === "packaging" || lineType === "packaging" ? "packaging" : "ingredient",
+    });
   }
   return bomMap;
 }
@@ -97,8 +111,11 @@ async function upsertOsRecipe(
     variantId: string;
     name: string;
     category: string;
+    subCategory: string;
+    productionArea: string;
+    recipeSku: string;
     sellPrice: number;
-    bomMap: Map<string, number>;
+    bomMap: Map<string, BomLineMeta>;
   },
 ): Promise<"created" | "updated" | "skipped"> {
   if (opts.bomMap.size === 0) return "skipped";
@@ -113,8 +130,12 @@ async function upsertOsRecipe(
       .update(wmsRecipe)
       .set({
         name: opts.name,
+        recipeSku: opts.recipeSku,
         category: opts.category,
+        subCategory: opts.subCategory,
+        productionArea: opts.productionArea,
         sellPrice: opts.sellPrice > 0 ? opts.sellPrice : existing.sellPrice,
+        recipeStatus: "published",
         updatedAt: new Date(),
       })
       .where(eq(wmsRecipe.id, existing.id));
@@ -124,9 +145,15 @@ async function upsertOsRecipe(
       .insert(wmsRecipe)
       .values({
         name: opts.name,
+        recipeSku: opts.recipeSku,
+        recipeCode: opts.recipeSku || opts.menuId,
         category: opts.category,
+        subCategory: opts.subCategory,
+        productionArea: opts.productionArea,
         sellPrice: Math.round(opts.sellPrice),
         yieldQty: "1",
+        yieldUnit: "porsi",
+        recipeStatus: "published",
         version: versionKey,
       })
       .returning();
@@ -134,10 +161,12 @@ async function upsertOsRecipe(
   }
 
   await db.insert(wmsBomItem).values(
-    [...opts.bomMap.entries()].map(([productId, qty]) => ({
+    [...opts.bomMap.entries()].map(([productId, meta]) => ({
       recipeId,
       productId,
-      qty,
+      qty: meta.qty,
+      wastePct: meta.wastePct,
+      lineType: meta.lineType,
     })),
   );
   return existing ? "updated" : "created";
@@ -317,9 +346,14 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
   const variants = await db.select().from(menuVariants);
 
   const skuToProduct = new Map(
-    (await db.select({ id: wmsProduct.id, sku: wmsProduct.sku }).from(wmsProduct)).map((p) => [
+    (await db.select({ id: wmsProduct.id, sku: wmsProduct.sku, category: wmsProduct.category }).from(wmsProduct)).map(
+      (p) => [p.sku, p.id],
+    ),
+  );
+  const skuToCategory = new Map(
+    (await db.select({ sku: wmsProduct.sku, category: wmsProduct.category }).from(wmsProduct)).map((p) => [
       p.sku,
-      p.id,
+      p.category,
     ]),
   );
 
@@ -346,18 +380,22 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
     let menuSynced = false;
     for (const variantId of syncVariantIds) {
       const lines = itemRecipes.filter((r) => r.variantId === variantId || r.variantId === "all");
-      const bomMap = buildBomMap(lines, skuToProduct);
+      const bomMap = buildBomMap(lines, skuToProduct, skuToCategory);
       if (bomMap.size === 0) continue;
 
       const variantRow = menuVariants.find((v) => v.variantId === variantId);
       const variantLabel = variantRow?.label ?? (variantId === "all" ? "Regular" : variantId);
       const sellPrice = variantRow ? Number(variantRow.price) : Math.min(...menuVariants.map((v) => Number(v.price)));
+      const productionArea = /bar|coffee|minum|drink/i.test(menu.section) ? "bar" : "dapur";
 
       const result = await upsertOsRecipe(db, {
         menuId: menu.id,
         variantId,
         name: recipeDisplayName(menu.name, variantLabel, multiVariant),
         category: menu.category,
+        subCategory: menu.section,
+        productionArea,
+        recipeSku: menu.sku ? `${menu.sku}${variantId !== "all" ? `-${variantId}` : ""}` : menu.id,
         sellPrice: Number.isFinite(sellPrice) ? sellPrice : 0,
         bomMap,
       });

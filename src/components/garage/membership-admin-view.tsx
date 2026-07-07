@@ -183,6 +183,8 @@ export function MembershipAdminView({
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewSide, setPreviewSide] = useState<"front" | "back">("front");
+  // Seleksi massal member untuk export aman (NAV_ACTION_AUDIT §1.7, bulk non-destruktif).
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddMemberForm>(emptyAddForm);
   const [creating, setCreating] = useState(false);
@@ -327,6 +329,40 @@ export function MembershipAdminView({
     value: EditMemberForm[K],
   ) {
     setEditForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function toggleBulk(id: string) {
+    setBulkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleBulkAll(ids: string[]) {
+    setBulkIds((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  }
+
+  // Export member terpilih ke CSV (aksi massal aman, tanpa ubah data).
+  function exportSelectedCsv() {
+    const rows = filtered.filter((c) => bulkIds.has(c.identifier));
+    if (rows.length === 0) return;
+    const head = ["Nama", "Telepon", "Tier", "Poin", "Kunjungan", "Status"];
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const body = rows.map((c) =>
+      [c.name, c.phone, c.tierLevel, c.points, c.visits, c.status].map(esc).join(","),
+    );
+    const csv = [head.map(esc).join(","), ...body].join("\r\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `member-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function openEditMember() {
@@ -701,10 +737,40 @@ export function MembershipAdminView({
             </div>
           </div>
 
+          {/* Bar aksi massal aman — export member terpilih (NAV_ACTION_AUDIT §1.7). */}
+          {bulkIds.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/10 px-3 py-2">
+              <span className="text-sm font-semibold text-white">{bulkIds.size} terpilih</span>
+              <button
+                type="button"
+                onClick={exportSelectedCsv}
+                className="inline-flex items-center gap-1.5 rounded border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1 text-xs font-semibold text-[#ffd79a] hover:border-[#f5a742]/70 hover:text-white"
+              >
+                <Download size={13} /> Export CSV terpilih
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkIds(new Set())}
+                className="ml-auto rounded border border-white/15 px-2.5 py-1 text-xs text-[#d0d0d6] hover:border-white/40 hover:text-white"
+              >
+                Batal pilih
+              </button>
+            </div>
+          )}
+
           <div className="garage-scroll-x max-h-[620px] overflow-auto border border-white/8 bg-black/10">
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-[#15151b] text-left">
                 <tr className="border-b border-[#34343c] garage-mono">
+                  <th className="px-3 py-3 w-9">
+                    <input
+                      type="checkbox"
+                      aria-label="Pilih semua member"
+                      className="size-4 cursor-pointer accent-[#d11a2a]"
+                      checked={filtered.length > 0 && filtered.every((c) => bulkIds.has(c.identifier))}
+                      onChange={() => toggleBulkAll(filtered.map((c) => c.identifier))}
+                    />
+                  </th>
                   <th className="px-3 py-3">Member</th>
                   <th className="px-3 py-3">Tier</th>
                   <th className="px-3 py-3">Points</th>
@@ -716,7 +782,7 @@ export function MembershipAdminView({
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-3 py-12 text-center text-sm text-[#9696a1]"
                     >
                       Tidak ada member yang cocok dengan filter sekarang.
@@ -734,6 +800,15 @@ export function MembershipAdminView({
                           isSelected ? "bg-[#d11a2a]/12" : ""
                         }`}
                       >
+                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Pilih ${customer.name}`}
+                            className="size-4 cursor-pointer accent-[#d11a2a]"
+                            checked={bulkIds.has(customer.identifier)}
+                            onChange={() => toggleBulk(customer.identifier)}
+                          />
+                        </td>
                         <td className="px-3 py-3">
                           <div className="font-semibold text-white">{customer.name}</div>
                           <div className="text-xs text-[#9696a1]">{customer.phone}</div>

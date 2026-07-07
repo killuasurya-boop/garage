@@ -198,12 +198,26 @@ Dampak besar dulu (kena semua role), risiko rendah dulu.
   - Bonus: memperbaiki bug laten — tombol Absen Fase 1/2 mengarah ke `/absen` yang
     sebelumnya 503 (checkin V2) saat flag OFF; kini fallback ke terminal legacy.
 
-### Fase 4 — Sapu per modul (Kitchen, Inventory, CRM, Finance, Approvals, Audit,
-Team, Website, Recruitment, Payroll, Warehouse, Admin, CEO) 🟠 SEDANG BERJALAN
-- ✅ **Recruitment (kandidat)** — select-all + checkbox baris + bar aksi massal
-  (ubah status banyak kandidat sekaligus, dengan konfirmasi) sebagai pattern-setter §1.7.
-- ⬜ Modul lain menyusul (Membership pakai master-detail; perlu keputusan apakah
-  ditambah multi-select atau cukup Edit/Hapus per baris yang sudah ada).
+### Fase 4 — Sapu per modul 🟠 SEDANG BERJALAN
+
+**Koreksi audit (scan mendalam ke sub-komponen list):** SEMUA modul list ternyata
+SUDAH punya **Edit + Hapus per baris**. Gap yang seragam hanya **Select-all + aksi
+massal**. Kebijakan owner: **bulk aman saja** (export / ubah status / arsip
+soft-delete) — TANPA hapus permanen massal.
+
+| Modul | Komponen | Edit | Hapus | Select-all + Bulk |
+|---|---|:--:|:--:|:--:|
+| recruitment | recruitment-view | ✅ | ✅ | ✅ bulk ubah status |
+| membership | membership-admin-view | ✅ | ✅ | ✅ bulk export CSV |
+| approvals | approvals-board | — | — | ✅ (sudah ada) |
+| crm-segments | crm-segments | — | — | ✅ (sudah ada) |
+| CRM (customer) | crm-customer-list | ✅ | ✅ | ⬜ belum |
+| marketing | garage-marketing | ✅ | ✅ | ⬜ belum |
+| produk | inventory-view | ✅ | ✅ | ⬜ belum |
+| team | admin/user-management | ✅ | ✅ | ⚠️ ada checkbox, verifikasi bulk |
+
+Sisa: **CRM, marketing, produk** (+ verifikasi team) — pola sama (select-all +
+bar aksi massal aman).
 - **F4-a** Terapkan §1.5 (penempatan aksi) + §1.6 (scroll) per layar.
 - **F4-b** Verifikasi shell Admin & CEO terhadap standar. (N-08)
 - **F4-c** Lengkapi tombol yang kurang per matriks Bagian 3.

@@ -328,7 +328,9 @@ export async function getWmsProducts(params?: {
 }): Promise<WmsProductRow[]> {
   await ensureWmsSeeded();
   const db = getDb();
-  const whId = params?.warehouseId ?? (await primaryWarehouseId(db));
+  // "all" = agregat semua ruang/gudang (total stok gabungan).
+  const allRooms = params?.warehouseId === "all";
+  const whId = allRooms ? null : (params?.warehouseId ?? (await primaryWarehouseId(db)));
 
   // Default hanya produk aktif; "archived" menampilkan yang terarsip (untuk restore).
   const filters = [
@@ -363,14 +365,16 @@ export async function getWmsProducts(params?: {
       imageUrl: wmsProduct.imageUrl,
       barcode: wmsProduct.barcode,
       createdAt: wmsProduct.createdAt,
-      onHand: sql<number>`coalesce(${wmsWarehouseStock.qty}, 0)`,
+      onHand: allRooms
+        ? sql<number>`coalesce((select sum(${wmsWarehouseStock.qty}) from ${wmsWarehouseStock} where ${wmsWarehouseStock.productId} = ${wmsProduct.id}), 0)`
+        : sql<number>`coalesce(${wmsWarehouseStock.qty}, 0)`,
     })
     .from(wmsProduct)
     .leftJoin(
       wmsWarehouseStock,
       and(
         eq(wmsWarehouseStock.productId, wmsProduct.id),
-        whId ? eq(wmsWarehouseStock.warehouseId, whId) : sql`false`,
+        !allRooms && whId ? eq(wmsWarehouseStock.warehouseId, whId) : sql`false`,
       ),
     )
     .where(and(...filters))
@@ -440,6 +444,37 @@ export async function getWmsProductStock(productId: string) {
       area: w.area as WmsWarehouse["area"],
       onHand: byWh.get(w.id) ?? 0,
     }));
+}
+
+/**
+ * Ringkasan stok per gudang/ruang untuk pemilih gudang di header:
+ * jumlah item berstok + jumlah item low (0 < qty ≤ min). Dipakai untuk badge
+ * status supaya owner cepat lihat ruang mana yang perlu restock.
+ */
+export async function getWmsWarehouseSummary(): Promise<
+  { warehouseId: string; items: number; low: number; empty: number }[]
+> {
+  await ensureWmsSeeded();
+  const db = getDb();
+  const rows = await db
+    .select({
+      warehouseId: wmsWarehouseStock.warehouseId,
+      items: sql<number>`count(*) filter (where ${wmsWarehouseStock.qty} > 0)`,
+      low: sql<number>`count(*) filter (where ${wmsWarehouseStock.qty} > 0 and ${wmsWarehouseStock.qty} <= ${wmsProduct.minStock})`,
+      empty: sql<number>`count(*) filter (where ${wmsWarehouseStock.qty} <= 0)`,
+    })
+    .from(wmsWarehouseStock)
+    .innerJoin(
+      wmsProduct,
+      and(eq(wmsProduct.id, wmsWarehouseStock.productId), sql`${wmsProduct.archivedAt} is null`),
+    )
+    .groupBy(wmsWarehouseStock.warehouseId);
+  return rows.map((r) => ({
+    warehouseId: r.warehouseId,
+    items: Number(r.items),
+    low: Number(r.low),
+    empty: Number(r.empty),
+  }));
 }
 
 /** Update field produk (nama/kategori/satuan/min/hpp/gambar/barcode/restore). */

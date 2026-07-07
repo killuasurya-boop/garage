@@ -14,6 +14,13 @@ export type WmsWarehouse = {
   isPrimary: boolean;
 };
 
+export type WmsWarehouseSummary = {
+  warehouseId: string;
+  items: number;
+  low: number;
+  empty: number;
+};
+
 export type WmsProductRow = {
   id: string;
   sku: string;

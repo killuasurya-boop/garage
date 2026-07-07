@@ -58,6 +58,23 @@ describe("getWmsProductStock", () => {
     expect(stock.every((r: any) => r.area === "bar" || r.onHand !== 0)).toBe(true);
     expect(stock.some((r: any) => r.area === "dapur" && r.onHand === 0)).toBe(false);
   });
+
+  it("warehouseId='all' = agregat total stok gabungan semua ruang", async () => {
+    const bean = (await svc.getWmsProducts()).find((x: any) => x.sku === "BEAN-ARB");
+    const perRoom = await svc.getWmsProductStock(bean.id);
+    const expected = perRoom.reduce((s: number, r: any) => s + r.onHand, 0);
+    const all = (await svc.getWmsProducts({ warehouseId: "all" })).find((x: any) => x.sku === "BEAN-ARB");
+    expect(all.onHand).toBe(expected);
+  });
+});
+
+describe("getWmsWarehouseSummary", () => {
+  it("mengembalikan ringkasan item/low/empty per gudang", async () => {
+    const rows = await svc.getWmsWarehouseSummary();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r: any) => typeof r.items === "number" && typeof r.low === "number" && typeof r.empty === "number")).toBe(true);
+    expect(rows.every((r: any) => r.items >= 0 && r.low >= 0)).toBe(true);
+  });
 });
 
 describe("Checklist", () => {

@@ -16,6 +16,7 @@ import {
   Command,
   FileBarChart,
   Factory,
+  Layers,
   LayoutDashboard,
   ListChecks,
   Menu,
@@ -33,7 +34,7 @@ import {
   Wallet,
 } from "lucide-react";
 
-import type { WmsNotification, WmsWarehouse } from "@/lib/wms-types";
+import type { WmsNotification, WmsWarehouse, WmsWarehouseSummary } from "@/lib/wms-types";
 import { garageApi } from "@/lib/api-client";
 import { WmsCommandPalette, useWmsCommandPalette } from "@/components/wms/wms-command-palette";
 import { WmsNotificationsDrawer } from "@/components/wms/wms-notifications-drawer";
@@ -109,11 +110,15 @@ export function WmsShell({
   const palette = useWmsCommandPalette();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
+  const [summary, setSummary] = useState<Record<string, WmsWarehouseSummary>>({});
 
   useEffect(() => {
     let alive = true;
     void garageApi.get<WmsNotification[]>("/api/wms/notifications").then((d) => {
       if (alive) setNotifCount(d.length);
+    }).catch(() => {});
+    void garageApi.get<WmsWarehouseSummary[]>("/api/wms/warehouses/summary").then((rows) => {
+      if (alive) setSummary(Object.fromEntries(rows.map((r) => [r.warehouseId, r])));
     }).catch(() => {});
     return () => { alive = false; };
   }, [pathname]);
@@ -121,8 +126,13 @@ export function WmsShell({
   // lewat URL param supaya stok yang ditampilkan ikut gudang terpilih.
   const defaultWh = warehouses.find((w) => w.isPrimary)?.id ?? warehouses[0]?.id ?? "";
   const activeWh = searchParams.get("wh") ?? defaultWh;
+  const isAll = activeWh === "all";
   const [whOpen, setWhOpen] = useState(false);
   const wh = warehouses.find((w) => w.id === activeWh);
+  const totalAll = Object.values(summary).reduce(
+    (a, s) => ({ items: a.items + s.items, low: a.low + s.low, empty: a.empty + s.empty }),
+    { items: 0, low: 0, empty: 0 },
+  );
 
   function selectWarehouse(id: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -239,7 +249,7 @@ export function WmsShell({
               {collapsed ? <Menu className="size-5" /> : <PanelLeft className="size-5" />}
             </button>
             <div className="min-w-0">
-              <p className="text-[11px] text-[#6B7280]">WMS · {wh?.name ?? "Gudang"}</p>
+              <p className="text-[11px] text-[#6B7280]">WMS · {isAll ? "Semua ruang" : wh?.name ?? "Gudang"}</p>
               <p className="truncate text-[15px] font-bold leading-tight text-[#111111]">
                 {pageTitle(pathname)}
               </p>
@@ -264,11 +274,31 @@ export function WmsShell({
                 className="flex items-center gap-1.5 rounded-full border border-[#E8E8E8] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
               >
                 <span className="size-2 rounded-full bg-[#C8102E]" />
-                {wh ? `${wh.code} · ${wh.name}` : "Pilih gudang"}
+                {isAll ? "Semua ruang" : wh ? `${wh.code} · ${wh.name}` : "Pilih gudang"}
                 <ChevronDown className="size-3.5 text-[#6B7280]" />
               </button>
               {whOpen && (
-                <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-[#E8E8E8] bg-white py-1 shadow-lg">
+                <div className="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-[#E8E8E8] bg-white py-1 shadow-lg">
+                  {/* Agregat semua ruang */}
+                  <button
+                    type="button"
+                    onClick={() => selectWarehouse("all")}
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[#F8F9FB] ${
+                      isAll ? "bg-[#FDF1F3]" : ""
+                    }`}
+                  >
+                    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[#111111] text-white">
+                      <Layers className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`block text-[12.5px] font-bold ${isAll ? "text-[#C8102E]" : "text-[#111111]"}`}>
+                        Semua ruang
+                      </span>
+                      <span className="block text-[10.5px] text-[#6B7280]">Total stok gabungan seluruh gudang</span>
+                    </span>
+                    <StockBadge low={totalAll.low} empty={totalAll.empty} items={totalAll.items} />
+                  </button>
+                  <div className="my-1 h-px bg-[#F0F1F4]" />
                   {(["main", "outlet"] as const).map((grp) => {
                     const list = warehouses.filter((w) => (grp === "main" ? w.type === "main" : w.type !== "main"));
                     if (list.length === 0) return null;
@@ -277,19 +307,42 @@ export function WmsShell({
                         <p className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#9CA3AF]">
                           {grp === "main" ? "Gudang Utama" : "Outlet Jual"}
                         </p>
-                        {list.map((w) => (
-                          <button
-                            key={w.id}
-                            type="button"
-                            onClick={() => selectWarehouse(w.id)}
-                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] hover:bg-[#F8F9FB] ${
-                              w.id === activeWh ? "font-bold text-[#C8102E]" : "text-[#111111]"
-                            }`}
-                          >
-                            <span className="font-mono text-[11px] text-[#6B7280]">{w.code}</span>
-                            {w.name}
-                          </button>
-                        ))}
+                        {list.map((w) => {
+                          const s = summary[w.id];
+                          const AreaIcon = w.area === "dapur" ? ChefHat : w.area === "bar" ? Coffee : Package;
+                          const active = !isAll && w.id === activeWh;
+                          return (
+                            <button
+                              key={w.id}
+                              type="button"
+                              onClick={() => selectWarehouse(w.id)}
+                              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[#F8F9FB] ${
+                                active ? "bg-[#FDF1F3]" : ""
+                              }`}
+                            >
+                              <span
+                                className={`grid size-7 shrink-0 place-items-center rounded-md ${
+                                  w.area === "dapur"
+                                    ? "bg-[#FEF3C7] text-[#B45309]"
+                                    : w.area === "bar"
+                                      ? "bg-[#FEE2E2] text-[#C8102E]"
+                                      : "bg-[#F0F1F4] text-[#6B7280]"
+                                }`}
+                              >
+                                <AreaIcon className="size-3.5" />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className={`block truncate text-[12.5px] font-semibold ${active ? "text-[#C8102E]" : "text-[#111111]"}`}>
+                                  {w.name}
+                                </span>
+                                <span className="block text-[10.5px] text-[#6B7280]">
+                                  <span className="font-mono">{w.code}</span> · {w.area === "dapur" ? "Dapur" : w.area === "bar" ? "Bar" : "Umum"}
+                                </span>
+                              </span>
+                              <StockBadge low={s?.low ?? 0} empty={s?.empty ?? 0} items={s?.items ?? 0} />
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -329,6 +382,29 @@ export function WmsShell({
       <WmsCommandPalette open={palette.open} onClose={() => palette.setOpen(false)} />
       <WmsNotificationsDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
     </div>
+  );
+}
+
+/** Badge status stok ringkas untuk tiap ruang di pemilih gudang. */
+function StockBadge({ items, low, empty }: { items: number; low: number; empty: number }) {
+  if (low > 0) {
+    return (
+      <span className="shrink-0 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#B45309]">
+        {low} low
+      </span>
+    );
+  }
+  if (items > 0) {
+    return (
+      <span className="shrink-0 rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] font-bold text-[#15803D]">
+        {items} item
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 rounded-full bg-[#F0F1F4] px-2 py-0.5 text-[10px] font-bold text-[#9CA3AF]">
+      {empty > 0 ? "kosong" : "0"}
+    </span>
   );
 }
 

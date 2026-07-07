@@ -90,13 +90,13 @@ async function saveSelfie(
   // base64 = "data:image/jpeg;base64,XXXX" atau raw base64
   const cleaned = base64.includes(",") ? base64.split(",", 2)[1] : base64;
   const buffer = Buffer.from(cleaned, "base64");
-  const dir = path.join(process.cwd(), "uploads", "attendance", dateKey);
+  // Simpan ke volume persisten `public/garage-uploads` (writable oleh user nextjs
+  // + di-mount volume Docker → selfie tidak hilang saat redeploy). Di-serve statis.
+  const dir = path.join(process.cwd(), "public", "garage-uploads", "attendance", dateKey);
   await fs.mkdir(dir, { recursive: true });
   const filename = `${staffUserId}-${type}.jpg`;
-  const filePath = path.join(dir, filename);
-  await fs.writeFile(filePath, buffer);
-  // Return relative URL yang bisa di-serve via API route.
-  return `/api/attendance-v2/photo/${dateKey}/${filename}`;
+  await fs.writeFile(path.join(dir, filename), buffer);
+  return `/garage-uploads/attendance/${dateKey}/${filename}`;
 }
 
 async function validateGps(lat: number | null | undefined, lng: number | null | undefined) {

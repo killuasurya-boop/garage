@@ -123,6 +123,41 @@ export function CrmCustomerList({
   const [addOpen, setAddOpen] = useState(false);
   const [allTags, setAllTags] = useState<string[]>([]);
   const [selectedTag, setSelectedTag] = useState("");
+  // Seleksi massal untuk export aman (NAV_ACTION_AUDIT §1.7, non-destruktif).
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set());
+
+  function toggleBulk(id: string) {
+    setBulkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleBulkAll(ids: string[]) {
+    setBulkIds((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  }
+
+  function exportSelectedCsv() {
+    const picked = rows.filter((r) => bulkIds.has(r.id));
+    if (picked.length === 0) return;
+    const head = ["Nama", "Telepon", "Tier", "Total Spend", "Kunjungan", "Poin", "Kunjungan Terakhir"];
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const body = picked.map((r) =>
+      [r.name, r.phone, r.tier, r.totalSpend, r.visits, r.points, r.lastOrderAt ?? "-"].map(esc).join(","),
+    );
+    const csv = [head.map(esc).join(","), ...body].join("\r\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `customer-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -318,11 +353,41 @@ export function CrmCustomerList({
         </div>
       )}
 
+      {/* Bar aksi massal aman — export customer terpilih (NAV_ACTION_AUDIT §1.7). */}
+      {bulkIds.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/10 px-3 py-2">
+          <span className="text-sm font-semibold text-white">{bulkIds.size} terpilih</span>
+          <button
+            type="button"
+            onClick={exportSelectedCsv}
+            className="inline-flex items-center gap-1.5 rounded border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1 text-xs font-semibold text-[#ffd79a] hover:border-[#f5a742]/70 hover:text-white"
+          >
+            <Download size={13} /> Export CSV terpilih
+          </button>
+          <button
+            type="button"
+            onClick={() => setBulkIds(new Set())}
+            className="ml-auto rounded border border-white/15 px-2.5 py-1 text-xs text-[#d0d0d6] hover:border-white/40 hover:text-white"
+          >
+            Batal pilih
+          </button>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-[#34343c] bg-[#111116]">
         <div className="garage-scroll overflow-x-auto">
           <table className="w-full min-w-[820px] border-collapse text-sm">
             <thead className="bg-[#17171c]">
               <tr className="border-b border-[#34343c] font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
+                <th className="px-3 py-2.5 text-center font-normal w-9">
+                  <input
+                    type="checkbox"
+                    aria-label="Pilih semua customer"
+                    className="size-4 cursor-pointer accent-[#d11a2a]"
+                    checked={rows.length > 0 && rows.every((r) => bulkIds.has(r.id))}
+                    onChange={() => toggleBulkAll(rows.map((r) => r.id))}
+                  />
+                </th>
                 <th className="px-3 py-2.5 text-left font-normal">Customer</th>
                 <th className="px-3 py-2.5 text-center font-normal">Tier</th>
                 <th className="px-3 py-2.5 text-right font-normal">Total Spend</th>
@@ -335,14 +400,14 @@ export function CrmCustomerList({
             <tbody>
               {loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center text-sm text-[#8f8f99]">
+                  <td colSpan={8} className="px-3 py-12 text-center text-sm text-[#8f8f99]">
                     <RefreshCw className="mx-auto mb-2 size-5 animate-spin text-[#f5a742]" />
                     Memuat customer…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-16 text-center">
+                  <td colSpan={8} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#23232a]">
                         <User className="size-6 text-[#4a4a54]" />
@@ -356,9 +421,18 @@ export function CrmCustomerList({
                 rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="cursor-pointer border-b border-[#23232a] transition-colors hover:bg-white/[0.04]"
+                    className={`cursor-pointer border-b border-[#23232a] transition-colors hover:bg-white/[0.04] ${bulkIds.has(row.id) ? "bg-[#d11a2a]/10" : ""}`}
                     onClick={() => setSelectedId(row.id)}
                   >
+                    <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Pilih ${row.name}`}
+                        className="size-4 cursor-pointer accent-[#d11a2a]"
+                        checked={bulkIds.has(row.id)}
+                        onChange={() => toggleBulk(row.id)}
+                      />
+                    </td>
                     <td className="px-3 py-3">
                       <p className="font-semibold text-white">{row.name}</p>
                       <p className="mt-0.5 font-mono text-[10px] text-[#8f8f99]">

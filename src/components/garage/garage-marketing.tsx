@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Check,
   Copy,
+  Download,
   Gift,
   Inbox,
   Layers,
@@ -787,6 +788,39 @@ function MarketingCampaigns({
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<CampaignDto | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Seleksi massal untuk export aman (NAV_ACTION_AUDIT §1.7, non-destruktif).
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set());
+
+  function toggleBulk(id: string) {
+    setBulkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleBulkAll(ids: string[]) {
+    setBulkIds((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  }
+  function exportSelectedCsv() {
+    const picked = rows.filter((r) => bulkIds.has(r.id));
+    if (picked.length === 0) return;
+    const head = ["Nama", "Kode", "Channel", "Status", "Budget", "Spend", "Revenue", "Order"];
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const body = picked.map((r) =>
+      [r.name, r.code, r.channel, r.status, r.budget, r.spend, r.actualRevenue, r.actualOrders].map(esc).join(","),
+    );
+    const csv = [head.map(esc).join(","), ...body].join("\r\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campaign-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -899,11 +933,41 @@ function MarketingCampaigns({
         </Alert>
       ) : null}
 
+      {/* Bar aksi massal aman — export campaign terpilih (NAV_ACTION_AUDIT §1.7). */}
+      {bulkIds.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/10 px-3 py-2">
+          <span className="text-sm font-semibold text-white">{bulkIds.size} terpilih</span>
+          <button
+            type="button"
+            onClick={exportSelectedCsv}
+            className="inline-flex items-center gap-1.5 rounded border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1 text-xs font-semibold text-[#ffd79a] hover:border-[#f5a742]/70 hover:text-white"
+          >
+            <Download size={13} /> Export CSV terpilih
+          </button>
+          <button
+            type="button"
+            onClick={() => setBulkIds(new Set())}
+            className="ml-auto rounded border border-white/15 px-2.5 py-1 text-xs text-[#d0d0d6] hover:border-white/40 hover:text-white"
+          >
+            Batal pilih
+          </button>
+        </div>
+      )}
+
       <div className="rounded-lg border border-[#34343c] bg-[#111116]">
         <div className="garage-scroll overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
             <thead className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#8f8f99]">
               <tr className="border-b border-[#34343c]">
+                <th className="px-3 py-2 text-center font-normal w-9">
+                  <input
+                    type="checkbox"
+                    aria-label="Pilih semua campaign"
+                    className="size-4 cursor-pointer accent-[#d11a2a]"
+                    checked={rows.length > 0 && rows.every((r) => bulkIds.has(r.id))}
+                    onChange={() => toggleBulkAll(rows.map((r) => r.id))}
+                  />
+                </th>
                 <th className="px-3 py-2 text-left font-normal">Campaign</th>
                 <th className="px-3 py-2 text-left font-normal">Status</th>
                 <th className="px-3 py-2 text-left font-normal">Channel</th>
@@ -918,19 +982,28 @@ function MarketingCampaigns({
             <tbody>
               {loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-[#8f8f99]">
+                  <td colSpan={10} className="py-10 text-center text-[#8f8f99]">
                     <RefreshCw className="mx-auto size-5 animate-spin text-[#f5a742]" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-[#8f8f99]">
+                  <td colSpan={10} className="py-10 text-center text-[#8f8f99]">
                     Belum ada campaign. Klik &quot;Campaign baru&quot; untuk mulai.
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.id} className="border-t border-[#34343c] text-[#d6d6dc]">
+                  <tr key={row.id} className={`border-t border-[#34343c] text-[#d6d6dc] ${bulkIds.has(row.id) ? "bg-[#d11a2a]/10" : ""}`}>
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`Pilih ${row.name}`}
+                        className="size-4 cursor-pointer accent-[#d11a2a]"
+                        checked={bulkIds.has(row.id)}
+                        onChange={() => toggleBulk(row.id)}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <p className="font-semibold text-white">{row.name}</p>
                       <p className="garage-mono mt-0.5 text-[10px] text-[#8f8f99]">

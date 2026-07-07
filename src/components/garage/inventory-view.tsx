@@ -9,6 +9,7 @@ import {
   Boxes,
   Check,
   ClipboardCheck,
+  Download,
   FileText,
   History,
   Image as ImageIcon,
@@ -224,6 +225,39 @@ export function InventoryView({
   const [outletAdjustError, setOutletAdjustError] = useState<string | null>(null);
   const [inventoryStatus, setInventoryStatus] = useState("all");
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
+  // Seleksi massal produk untuk export aman (NAV_ACTION_AUDIT §1.7, non-destruktif).
+  const [productBulkIds, setProductBulkIds] = useState<Set<string>>(new Set());
+
+  function toggleProductBulk(id: string) {
+    setProductBulkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleProductBulkAll(ids: string[]) {
+    setProductBulkIds((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  }
+  function exportSelectedProductsCsv() {
+    const picked = visibleProductItems.filter((p) => productBulkIds.has(p.id));
+    if (picked.length === 0) return;
+    const head = ["SKU", "Nama", "Kategori", "Section", "Jumlah Varian"];
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const body = picked.map((p) =>
+      [p.sku ?? "", p.name, p.category, p.section, p.variants.length].map(esc).join(","),
+    );
+    const csv = [head.map(esc).join(","), ...body].join("\r\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `produk-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   const [inventoryWorkspaceTab, setInventoryWorkspaceTab] =
     useState<"products" | "warehouse">(
       productsOnly || role === "Owner / CEO" || role === "Admin" ? "products" : "warehouse",
@@ -3006,6 +3040,41 @@ export function InventoryView({
               .
             </p>
 
+            {/* Select-all + bar aksi massal aman — export produk terpilih (NAV_ACTION_AUDIT §1.7). */}
+            {visibleProductItems.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 px-1">
+                <label className="flex items-center gap-2 text-xs text-[#b8b8bf]">
+                  <input
+                    type="checkbox"
+                    aria-label="Pilih semua produk"
+                    className="size-4 cursor-pointer accent-[#d11a2a]"
+                    checked={visibleProductItems.length > 0 && visibleProductItems.every((p) => productBulkIds.has(p.id))}
+                    onChange={() => toggleProductBulkAll(visibleProductItems.map((p) => p.id))}
+                  />
+                  Pilih semua
+                </label>
+                {productBulkIds.size > 0 && (
+                  <>
+                    <span className="text-xs font-semibold text-white">{productBulkIds.size} terpilih</span>
+                    <button
+                      type="button"
+                      onClick={exportSelectedProductsCsv}
+                      className="inline-flex items-center gap-1.5 rounded border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1 text-xs font-semibold text-[#ffd79a] hover:border-[#f5a742]/70 hover:text-white"
+                    >
+                      <Download className="size-3.5" /> Export CSV terpilih
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProductBulkIds(new Set())}
+                      className="rounded border border-white/15 px-2.5 py-1 text-xs text-[#d0d0d6] hover:border-white/40 hover:text-white"
+                    >
+                      Batal pilih
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="overflow-hidden rounded-md border border-[#34343c]">
               {visibleProductItems.length === 0 ? (
                 <div className="p-4 text-center text-sm text-[#888]">
@@ -3020,9 +3089,16 @@ export function InventoryView({
                   {visibleProductItems.map((item) => (
                     <div
                       key={item.id}
-                      className="grid gap-3 bg-white/[0.03] p-3 lg:grid-cols-[1fr_140px_130px_260px] lg:items-center"
+                      className={`grid gap-3 p-3 lg:grid-cols-[1fr_140px_130px_260px] lg:items-center ${productBulkIds.has(item.id) ? "bg-[#d11a2a]/10" : "bg-white/[0.03]"}`}
                     >
                       <div className="flex min-w-0 items-center gap-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Pilih ${item.name}`}
+                          className="size-4 shrink-0 cursor-pointer accent-[#d11a2a]"
+                          checked={productBulkIds.has(item.id)}
+                          onChange={() => toggleProductBulk(item.id)}
+                        />
                         <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#34343c] bg-[#15151b]">
                           {item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element

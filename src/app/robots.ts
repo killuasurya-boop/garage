@@ -20,6 +20,7 @@ export default function robots(): MetadataRoute.Robots {
           "/display",
           "/shift",
           "/attendance",
+          "/absen",
           "/sales-history",
           "/account",
           "/login",

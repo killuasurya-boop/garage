@@ -770,6 +770,9 @@ export function RecruitmentView() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<"candidates" | "positions">("candidates");
+  // Seleksi massal kandidat (NAV_ACTION_AUDIT §1.7 — select-all + aksi massal).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async (pageToLoad: number) => {
     setLoading(true);
@@ -795,6 +798,7 @@ export function RecruitmentView() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedIds(new Set());
     void load(page);
   }, [load, page]);
 
@@ -840,6 +844,47 @@ export function RecruitmentView() {
       setError(err instanceof Error ? err.message : "Gagal update status kandidat.");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(ids: string[]) {
+    setSelectedIds((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  }
+
+  // Ubah status banyak kandidat sekaligus (reuse endpoint per-kandidat + konfirmasi).
+  async function bulkUpdateStatus(status: string) {
+    const targets = (data?.items ?? []).filter((c) => selectedIds.has(c.id));
+    if (targets.length === 0 || bulkBusy) return;
+    if (!window.confirm(`Ubah status ${targets.length} kandidat terpilih menjadi "${status}"?`)) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      for (const c of targets) {
+        const payload: { status: string; interviewDate?: string | null; interviewLink?: string | null } = { status };
+        if (status === "Interview") {
+          payload.interviewDate = c.interviewDate ?? null;
+          payload.interviewLink = c.interviewLink ?? null;
+        }
+        await garageApi.patch(`/api/recruitment/candidates/${c.id}`, payload);
+      }
+      setSelectedIds(new Set());
+      await load(page);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sebagian update massal gagal. Coba lagi.");
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -1019,11 +1064,47 @@ export function RecruitmentView() {
               <div className="rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-3 text-sm text-[#ffb4bd]">{error}</div>
             )}
 
+            {/* Bar aksi massal — muncul saat ada kandidat terpilih (NAV_ACTION_AUDIT §1.7). */}
+            {selectedIds.size > 0 && (
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/10 px-3 py-2">
+                <span className="text-sm font-semibold text-white">{selectedIds.size} terpilih</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#d4d4d8]">Ubah status:</span>
+                  <Select onValueChange={(v) => void bulkUpdateStatus(v)} disabled={bulkBusy}>
+                    <SelectTrigger className="h-8 w-[180px] border-[#34343c] bg-white/[0.06] text-xs">
+                      <SelectValue placeholder={bulkBusy ? "Memproses…" : "Pilih status…"} />
+                    </SelectTrigger>
+                    <SelectContent position="popper" sideOffset={4}>
+                      {RECRUITMENT_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="ml-auto rounded border border-[#34343c] px-2.5 py-1 text-xs text-[#d4d4d8] hover:border-white/40 hover:text-white"
+                >
+                  Batal pilih
+                </button>
+              </div>
+            )}
+
             {/* Table */}
             <div className="garage-scroll overflow-x-auto rounded-md border border-[#34343c]">
               <table className="w-full min-w-[840px] text-sm">
                 <thead>
                   <tr className="border-b border-[#34343c] bg-white/[0.03] text-left text-[11px] uppercase tracking-wider text-[#8f8f99]">
+                    <th className="p-3 w-9">
+                      <input
+                        type="checkbox"
+                        aria-label="Pilih semua kandidat di halaman ini"
+                        className="size-4 cursor-pointer accent-[#d11a2a]"
+                        checked={(data?.items ?? []).length > 0 && (data?.items ?? []).every((c) => selectedIds.has(c.id))}
+                        onChange={() => toggleSelectAll((data?.items ?? []).map((c) => c.id))}
+                      />
+                    </th>
                     <th className="p-3">Kandidat</th>
                     <th className="p-3">Posisi</th>
                     <th className="p-3">Status</th>
@@ -1034,12 +1115,21 @@ export function RecruitmentView() {
                 </thead>
                 <tbody className="divide-y divide-[#34343c]">
                   {loading ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-[#888]">Memuat kandidat…</td></tr>
+                    <tr><td colSpan={7} className="p-6 text-center text-[#888]">Memuat kandidat…</td></tr>
                   ) : (data?.items ?? []).length === 0 ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-[#888]">Belum ada kandidat.</td></tr>
+                    <tr><td colSpan={7} className="p-6 text-center text-[#888]">Belum ada kandidat.</td></tr>
                   ) : (
                     (data?.items ?? []).map((c) => (
-                      <tr key={c.id} className="bg-white/[0.02] align-top hover:bg-white/[0.04]">
+                      <tr key={c.id} className={`align-top hover:bg-white/[0.04] ${selectedIds.has(c.id) ? "bg-[#d11a2a]/10" : "bg-white/[0.02]"}`}>
+                        <td className="p-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Pilih ${c.fullName}`}
+                            className="size-4 cursor-pointer accent-[#d11a2a]"
+                            checked={selectedIds.has(c.id)}
+                            onChange={() => toggleSelect(c.id)}
+                          />
+                        </td>
                         <td className="p-3">
                           <p className="font-bold text-white">{c.fullName}</p>
                           <p className="text-xs text-[#a1a1aa]">{c.whatsapp} · {c.domicile}</p>

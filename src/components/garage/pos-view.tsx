@@ -23,6 +23,7 @@ CreditCard,
 Download,
 Equal,
 ExternalLink,
+Fingerprint,
 FileText,
 History,
 Info,
@@ -65,6 +66,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
 ChangeEvent,
+ComponentType,
 FormEvent,
 useCallback,
 useDeferredValue,
@@ -177,6 +179,7 @@ TableRow,
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { garageApi } from "@/lib/api-client";
+import { canAccessModule } from "@/lib/role-access";
 import { GARAGE_TAGS, invalidateGarageCache } from "@/lib/garage-cache";
 import type {
 AppSettings,
@@ -486,6 +489,8 @@ export function PosView({
   onThemeChange,
   cashierTheme,
   onCashierThemeChange,
+  navModules = [],
+  onNavigateModule,
 }: {
   me: GarageMe;
   menuItems: MenuItem[];
@@ -507,6 +512,9 @@ export function PosView({
   onThemeChange: (theme: GarageThemeMode) => void;
   cashierTheme: CashierThemeMode;
   onCashierThemeChange: (theme: CashierThemeMode) => void;
+  /** Modul yang bisa dinavigasi dari dalam POS (satu menu, tanpa sidebar kedua). */
+  navModules?: Array<{ id: string; label: string; icon: ComponentType<{ className?: string }> }>;
+  onNavigateModule?: (moduleId: string) => void;
 }) {
   const [orderType, setOrderType] = useState<OrderType>("dine-in");
   const [selectedTableNumber, setSelectedTableNumber] = useState("");
@@ -3116,6 +3124,19 @@ export function PosView({
           >
             Mulai Shift Kasir
           </Button>
+          {/* Absen kelas satu: bisa clock-in tanpa harus buka shift dulu (NAV_ACTION_AUDIT §1.3). */}
+          {canAccessModule(me.role, "absensi-v2") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press mt-2 h-11 w-full gap-2 border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffd08a] hover:bg-[#f5a742]/20"
+              onClick={() => window.location.assign("/absen")}
+              aria-label="Absen kehadiran"
+            >
+              <Fingerprint className="size-4" />
+              Absen Kehadiran
+            </Button>
+          )}
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <Button
               type="button"
@@ -3134,13 +3155,13 @@ export function PosView({
               onClick={() => void signOutFromPos()}
             >
               <LogOut className="mr-2 size-4" />
-              {signOutPending ? "Logging out..." : "Logout"}
+              {signOutPending ? "Keluar..." : "Keluar"}
             </Button>
           </div>
           {signOutError && (
             <Alert className="mt-3 border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
               <AlertTriangle className="size-4" />
-              <AlertTitle>Logout gagal</AlertTitle>
+              <AlertTitle>Keluar gagal</AlertTitle>
               <AlertDescription>{signOutError}</AlertDescription>
             </Alert>
           )}
@@ -3192,6 +3213,34 @@ export function PosView({
                 </div>
               </div>
             </div>
+            {/* Navigasi modul di dalam SATU menu kasir — tanpa sidebar kedua
+                (NAV_ACTION_AUDIT §1.4). */}
+            {onNavigateModule && navModules.length > 0 && (
+              <div className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
+                <p className="garage-mono px-1 pb-1.5 pt-1 text-[10px] uppercase tracking-[0.14em] text-[#8a8a92]">
+                  Navigasi Modul
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {navModules.map((m) => {
+                    const Icon = m.icon;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setCashierMenuOpen(false);
+                          onNavigateModule(m.id);
+                        }}
+                        className="garage-press flex h-10 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.04] px-2.5 text-left text-xs font-semibold text-[#d4d4d8] transition-colors hover:border-[#d11a2a]/55 hover:bg-white/[0.08] hover:text-white"
+                      >
+                        <Icon className="size-3.5 shrink-0 text-[#d11a2a]" />
+                        <span className="truncate">{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="grid gap-2">
               <Button
                 type="button"
@@ -3200,7 +3249,7 @@ export function PosView({
                 onClick={() => setCashierMenuOpen(false)}
               >
                 <ShoppingCart className="size-4" />
-                Sell / POS
+                Jual / POS
               </Button>
               <Button
                 type="button"
@@ -3435,7 +3484,7 @@ export function PosView({
                 }}
               >
                 <LogOut className="size-4" />
-                {signOutPending ? "Logging out..." : "Logout"}
+                {signOutPending ? "Keluar..." : "Keluar"}
               </Button>
             </div>
           </div>
@@ -3659,7 +3708,7 @@ export function PosView({
                 onClick={() => void signOutFromPos()}
               >
                 <LogOut className="size-4" />
-                {signOutPending ? "Logging out..." : "Logout"}
+                {signOutPending ? "Keluar..." : "Keluar"}
               </Button>
             </div>
           </div>
@@ -4664,6 +4713,20 @@ export function PosView({
             <Menu className="mr-2 size-3.5" />
             Menu Kasir
           </Button>
+          {/* Absen = aksi kelas satu, selalu tampak di POS (NAV_ACTION_AUDIT §1.3). */}
+          {canAccessModule(me.role, "absensi-v2") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-10 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/12 px-3 text-xs font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20"
+              onClick={() => window.location.assign("/absen")}
+              aria-label="Absen kehadiran"
+              title="Absen kehadiran"
+            >
+              <Fingerprint className="size-3.5" />
+              <span className="hidden sm:inline">Absen</span>
+            </Button>
+          )}
           {!isCashierKiosk && (
             <Button
               type="button"
@@ -4676,6 +4739,7 @@ export function PosView({
               <span className="hidden sm:inline">Kembali</span>
             </Button>
           )}
+          {/* Keluar = satu istilah logout konsisten (NAV_ACTION_AUDIT §1.1). */}
           <Button
             type="button"
             variant="outline"
@@ -4684,11 +4748,11 @@ export function PosView({
             }`}
             disabled={signOutPending}
             onClick={() => void signOutFromPos()}
-            aria-label="Logout POS"
+            aria-label="Keluar"
           >
             <LogOut className="size-3.5" />
             <span className="hidden sm:inline">
-              {signOutPending ? "Logout..." : "Logout"}
+              {signOutPending ? "Keluar..." : "Keluar"}
             </span>
           </Button>
           <Button
@@ -4872,8 +4936,14 @@ export function PosView({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>POS action</DropdownMenuLabel>
+              <DropdownMenuLabel>Aksi POS</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {canAccessModule(me.role, "absensi-v2") && (
+                <DropdownMenuItem onClick={() => window.location.assign("/absen")}>
+                  <Fingerprint className="mr-2 size-4" />
+                  Absen kehadiran
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => onThemeChange(themeMode === "bright" ? "dark" : "bright")}
               >
@@ -4900,10 +4970,24 @@ export function PosView({
                 onClick={() => void signOutFromPos()}
               >
                 <LogOut className="mr-2 size-4" />
-                {signOutPending ? "Logging out..." : "Logout"}
+                {signOutPending ? "Keluar..." : "Keluar"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Absen = aksi kelas satu: tampak di header kasir termasuk layar gate shift. */}
+          {canAccessModule(me.role, "absensi-v2") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-9 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/12 px-3 text-xs font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20"
+              onClick={() => window.location.assign("/absen")}
+              aria-label="Absen kehadiran"
+              title="Absen kehadiran"
+            >
+              <Fingerprint className="size-3.5" />
+              <span className="hidden sm:inline">Absen</span>
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -4921,7 +5005,7 @@ export function PosView({
             onClick={() => void signOutFromPos()}
           >
             <LogOut className="mr-2 size-3.5" />
-            {signOutPending ? "Logging out..." : "Logout"}
+            {signOutPending ? "Keluar..." : "Keluar"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -4967,7 +5051,7 @@ export function PosView({
                     onClick={() => void signOutFromPos()}
                   >
                     <LogOut className="mr-2 size-4" />
-                    {signOutPending ? "Logging out..." : "Sign out"}
+                    {signOutPending ? "Keluar..." : "Keluar"}
                   </DropdownMenuItem>
                 </>
               )}
@@ -4979,7 +5063,7 @@ export function PosView({
       {signOutError && (
         <Alert className="garage-panel border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
           <AlertTriangle className="size-4" />
-          <AlertTitle>Logout gagal</AlertTitle>
+          <AlertTitle>Keluar gagal</AlertTitle>
           <AlertDescription>{signOutError}</AlertDescription>
         </Alert>
       )}
@@ -5166,6 +5250,18 @@ export function PosView({
           >
             Mulai Shift Kasir
           </Button>
+          {canAccessModule(me.role, "absensi-v2") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press mt-2 h-11 w-full gap-2 border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffd08a] hover:bg-[#f5a742]/20"
+              onClick={() => window.location.assign("/absen")}
+              aria-label="Absen kehadiran"
+            >
+              <Fingerprint className="size-4" />
+              Absen Kehadiran
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -8207,7 +8303,7 @@ export function PosView({
                 onClick={() => void signOutFromLockedPos()}
               >
                 <LogOut className="mr-2 size-4" />
-                {signOutPending ? "Logging out..." : "Sign out"}
+                {signOutPending ? "Keluar..." : "Keluar"}
               </Button>
             )}
           </div>

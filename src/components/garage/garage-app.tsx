@@ -11,6 +11,7 @@ BadgeCheck,
 Bell,
 Check,
 Clock,
+Fingerprint,
 Database,
 Eye,
 EyeOff,
@@ -988,7 +989,7 @@ function GarageWorkspace({
       redirected = true;
       window.location.replace("/pos-login");
     } catch {
-      setSignOutError("Logout gagal, coba lagi.");
+      setSignOutError("Keluar gagal, coba lagi.");
     } finally {
       if (!redirected) {
         setSignOutPending(false);
@@ -1212,22 +1213,38 @@ function GarageWorkspace({
                   </Button>
                 )}
 
+                {/* Absen = aksi kelas satu: selalu tampak, tanpa buka profil (NAV_ACTION_AUDIT §1.3). */}
+                {canAccessModule(data.me.role, "absensi-v2") && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="garage-press h-11 shrink-0 gap-2 border-[#f5a742]/50 bg-[#f5a742]/12 px-3 text-xs text-[#ffe9c7] hover:bg-[#f5a742]/20"
+                    onClick={() => window.location.assign("/absen")}
+                    aria-label="Absen kehadiran"
+                    title="Absen kehadiran"
+                  >
+                    <Fingerprint className="size-4" />
+                    <span className="hidden sm:inline">Absen</span>
+                  </Button>
+                )}
+
                 <GarageAiAlertsBell
                   role={data.me.role}
                   onOpenAiModule={() => handleModuleChange("ai-agent")}
                 />
 
+                {/* Keluar = satu-satunya tombol logout (NAV_ACTION_AUDIT §1.1). */}
                 <Button
                   type="button"
                   variant="outline"
                   className="garage-press h-11 shrink-0 gap-2 border-[#d11a2a]/55 bg-[#d11a2a]/14 px-3 text-xs text-[#ffe1e5] hover:bg-[#d11a2a]/22"
                   disabled={signOutPending}
                   onClick={() => void handleSignOut()}
-                  aria-label="Logout"
+                  aria-label="Keluar"
                 >
                   <LogOut className="size-4" />
                   <span className="hidden sm:inline">
-                    {signOutPending ? "Logout..." : "Logout"}
+                    {signOutPending ? "Keluar..." : "Keluar"}
                   </span>
                 </Button>
 
@@ -1243,33 +1260,31 @@ function GarageWorkspace({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>Quick action</DropdownMenuLabel>
+                    <DropdownMenuLabel>Aksi cepat</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {canAccessModule(data.me.role, "absensi-v2") && (
+                      <DropdownMenuItem onClick={() => window.location.assign("/absen")}>
+                        <Fingerprint className="mr-2 size-4" />
+                        Absen kehadiran
+                      </DropdownMenuItem>
+                    )}
                     {canAccessModule(data.me.role, "pos") && (
                       <DropdownMenuItem onClick={() => handleModuleChange("pos")}>
-                        Open POS tablet
+                        Buka POS
                       </DropdownMenuItem>
                     )}
                     {canAccessModule(data.me.role, "finance") && (
                       <DropdownMenuItem onClick={() => handleModuleChange("finance")}>
-                        Start closing review
+                        Mulai tutup buku
                       </DropdownMenuItem>
                     )}
                     {canAccessModule(data.me.role, "approvals") && (
                       <DropdownMenuItem onClick={() => handleModuleChange("approvals")}>
-                        Review approvals
+                        Tinjau approval
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={() => void loadBootstrap()}>
-                      Refresh API data
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      disabled={signOutPending}
-                      onClick={() => void handleSignOut()}
-                    >
-                      <LogOut className="mr-2 size-4" />
-                      {signOutPending ? "Logging out..." : "Sign out"}
+                      Muat ulang data
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1341,45 +1356,9 @@ function GarageWorkspace({
 
           {isPosMode && !isCashierPosMode && (
             <header className="garage-os-toolbar flex min-h-[68px] items-center gap-3 border-b border-[#34343c] bg-[#0b0b0e]/90 px-3 sm:px-4">
-              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="garage-press h-11 w-11 shrink-0 border-[#4a4a54] bg-white/[0.08]"
-                    aria-label="Open POS navigation"
-                  >
-                    <Menu className="size-4" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="garage-scroll garage-side-panel garage-pos-nav-sheet w-[min(88vw,320px)] border-[#34343c] bg-[#0b0b0e] p-4">
-                  <SheetHeader className="text-left">
-                    <SheetTitle>Garage Command</SheetTitle>
-                  </SheetHeader>
-                  <div className="mt-4">
-                    <BrandBlock compact />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleModuleChange("settings");
-                        setMobileOpen(false);
-                      }}
-                      className="garage-press mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#4a4a54] bg-white/[0.055] px-3 text-xs font-semibold text-[#d4d4d8] transition-colors hover:border-[#d11a2a]/60 hover:bg-white/[0.08] hover:text-white"
-                    >
-                      <Settings className="size-3.5" />
-                      Tema: {themeLabel}
-                    </button>
-                    <Separator className="my-4 bg-[#34343c]" />
-                    <ModuleNav
-                      activeModule={safeActiveModule}
-                      role={data.me.role}
-                      onChange={handleModuleChange}
-                      approvalBadgeCount={pendingApprovalCount}
-                      recruitmentBadgeCount={newRecruitmentCount}
-                    />
-                  </div>
-                </SheetContent>
-              </Sheet>
+              {/* Sheet "Garage Command" dihapus di POS: navigasi modul kini menyatu
+                  di dalam satu menu "Menu Kasir" (NAV_ACTION_AUDIT §1.4 — satu sidebar
+                  per konteks). */}
               <PosHeaderBrand />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -1440,7 +1419,7 @@ function GarageWorkspace({
             {signOutError && (
               <Alert className="garage-panel mb-4 border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                 <AlertTriangle className="size-4" />
-                <AlertTitle>Logout gagal</AlertTitle>
+                <AlertTitle>Keluar gagal</AlertTitle>
                 <AlertDescription>{signOutError}</AlertDescription>
               </Alert>
             )}
@@ -1491,6 +1470,15 @@ function GarageWorkspace({
                     onThemeChange={() => undefined}
                   cashierTheme={cashierTheme}
                   onCashierThemeChange={setCashierTheme}
+                  navModules={modules
+                    .filter(
+                      (m) =>
+                        canAccessModule(data.me.role, m.id) &&
+                        m.id !== "pos" &&
+                        !["absensi-v2", "wallet-gaji", "wallet-fee"].includes(m.id),
+                    )
+                    .map((m) => ({ id: m.id, label: m.label, icon: m.icon }))}
+                  onNavigateModule={(id) => handleModuleChange(id as ModuleId)}
                 />
               </DateFilterProvider>
             )}
@@ -5747,7 +5735,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       Cara membuka Provider AI
                     </p>
                     <p className="mt-2 text-xs leading-5 text-[#d6d6dc]">
-                      Logout dari sesi ini lalu masuk memakai akun Owner / CEO.
+                      Keluar dari sesi ini lalu masuk memakai akun Owner / CEO.
                       Setelah itu buka GARAGE AI, klik Manage, lalu pilih Provider AI.
                     </p>
                   </div>

@@ -16,9 +16,11 @@ import {
   Command,
   FileBarChart,
   Factory,
+  Fingerprint,
   Layers,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Menu,
   Package,
   PanelLeft,
@@ -35,6 +37,9 @@ import {
 } from "lucide-react";
 
 import type { WmsNotification, WmsWarehouse, WmsWarehouseSummary } from "@/lib/wms-types";
+import type { Role } from "@/lib/garage-data";
+import { canAccessModule } from "@/lib/role-access";
+import { authClient } from "@/lib/auth-client";
 import { garageApi } from "@/lib/api-client";
 import { WmsCommandPalette, useWmsCommandPalette } from "@/components/wms/wms-command-palette";
 import { WmsNotificationsDrawer } from "@/components/wms/wms-notifications-drawer";
@@ -111,6 +116,20 @@ export function WmsShell({
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
   const [summary, setSummary] = useState<Record<string, WmsWarehouseSummary>>({});
+  const [signingOut, setSigningOut] = useState(false);
+  // Absen kelas satu juga di shell WMS (NAV_ACTION_AUDIT §1.3) untuk role staff gudang.
+  const canAbsen = canAccessModule(user.role as Role, "absensi-v2");
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      window.location.assign("/login");
+    } catch {
+      setSigningOut(false);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -266,6 +285,17 @@ export function WmsShell({
               <ArrowLeft className="size-3.5 text-[#C8102E]" />
               <span className="hidden sm:inline">Garage OS</span>
             </Link>
+            {/* Absen kelas satu (staff gudang) */}
+            {canAbsen && (
+              <Link
+                href="/absen"
+                className="flex items-center gap-1.5 rounded-md border border-[#F59E0B]/50 bg-[#FEF3C7] px-2.5 py-1.5 text-[12px] font-semibold text-[#B45309] hover:bg-[#FDE68A]"
+                title="Absen kehadiran"
+              >
+                <Fingerprint className="size-3.5" />
+                <span className="hidden sm:inline">Absen</span>
+              </Link>
+            )}
             {/* Warehouse selector */}
             <div className="relative">
               <button
@@ -369,6 +399,17 @@ export function WmsShell({
                   {notifCount > 9 ? "9+" : notifCount}
                 </span>
               )}
+            </button>
+            {/* Keluar = logout tunggal juga di shell WMS (NAV_ACTION_AUDIT §1.1) */}
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              disabled={signingOut}
+              className="flex items-center gap-1.5 rounded-md border border-[#C8102E]/40 bg-[#FDECEC] px-2.5 py-1.5 text-[12px] font-semibold text-[#C8102E] hover:bg-[#FBDADA] disabled:opacity-60"
+              aria-label="Keluar"
+            >
+              <LogOut className="size-3.5" />
+              <span className="hidden sm:inline">{signingOut ? "Keluar…" : "Keluar"}</span>
             </button>
           </div>
         </header>

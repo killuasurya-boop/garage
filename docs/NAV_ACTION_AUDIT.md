@@ -231,9 +231,18 @@ seragam Absen+Keluar, 1 sidebar, scroll) — tidak ada perubahan kode lagi.
   Acuan: `warehouse/inventory/page.tsx`.
 - **F4-e** Terapkan §1.8 anti-duplikat: sisir & hapus/gabung fitur/komponen dobel.
 
-### Fase 5 — Verifikasi lintas role
-- Cek tiap role login → header seragam (Absen+Keluar), tak ada sidebar ganda,
-  scroll jelas. Desktop 1366×900 & mobile 390×844.
+### Fase 5 — Verifikasi lintas role ✅ SELESAI
+QA login per role (standalone). Hasil:
+- **Kasir** (POS/kiosk): Absen ✅ · Keluar tunggal ✅
+- **Barista** (kitchen/OS): Absen ✅ · Keluar ✅ · tanpa "Logout/Sign out"
+- **Admin, Finance** (back-office/OS): Absen tersembunyi (benar, tak punya
+  absensi-v2) · Keluar tunggal ✅
+- **Gudang** (shell WMS): AWALNYA tak ada Absen & Keluar (shell WMS di luar scope
+  Fase 1/2) → **DIPERBAIKI**: tambah tombol **Absen** (gated `absensi-v2`) +
+  **Keluar** (logout tunggal) di header `wms-shell.tsx`. Terverifikasi Absen→/absen,
+  Keluar jalan, 0 error console.
+- Kedua cabang gating Absen terbukti (staff = tampil, back-office = sembunyi);
+  "Keluar" tunggal di semua shell (OS, POS, WMS); tak ada "Logout/Sign out" tersisa.
 
 ---
 

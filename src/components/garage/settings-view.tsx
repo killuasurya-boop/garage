@@ -532,6 +532,15 @@ export function SettingsView({ me }: { me: GarageMe }) {
               </button>
             ) : null}
           </div>
+          {/* Penjelas cakupan — hilangkan kesan "pengaturan dobel": ini scope beda,
+              bukan menu terpisah yang sama (NAV_ACTION_AUDIT §1.8). */}
+          <p className="text-[11px] leading-4 text-[#8a8a93]">
+            {settingsScope === "operational"
+              ? `Pengaturan khusus outlet ${me.outlet.code} — menimpa (override) default global untuk outlet ini saja.`
+              : settingsScope === "global"
+                ? "Default sistem untuk SEMUA outlet. Nilai di sini dipakai bila outlet tidak punya override sendiri."
+                : "Koneksi & webhook eksternal (integrasi), bukan pengaturan operasional."}
+          </p>
         </div>
       ) : null}
 

@@ -263,11 +263,15 @@ duplikat "atur" di pengaturan.
 | # | Area | Temuan | Status |
 |---|---|---|---|
 | P-01 | **Payroll** (`/owner/payroll/*`) | Tak ada nav shell: sub-halaman (requests, settings, [staff]) dead-end tanpa "Kembali", tak ada back-to-OS | ✅ **DIPERBAIKI** — `layout.tsx` + `PayrollNav`: back Garage OS + tab Dashboard/Permintaan/Pengaturan |
-| P-02 | **Pengaturan** | 2 permukaan: tab operasional (settings-view) + panel global (SettingsManager via GlobalSettingsPanel) — dugaan "atur sama saja dgn pengaturan" | ⬜ perlu keputusan (gabung/label jelas?) |
-| P-03 | **Warehouse sub-modul** | Header shell WMS sudah punya Absen/Keluar/Back (Fase 5); tiap halaman (`/warehouse/*`) belum diaudit per-tombol | ⬜ pass per-halaman |
-| P-04 | **Buku Pintar / SOP** | belum diaudit nav/tombol | ⬜ |
-| P-05 | **Chat Internal** | belum diaudit nav/tombol | ⬜ |
-| P-06 | **Garage AI** (ai-agent) | belum diaudit nav/tombol | ⬜ |
-| P-07 | **Produk / Membership** | CRUD+bulk sudah (Fase 4); aspek nav lain belum diaudit | ⬜ |
+| P-02 | **Pengaturan** | 2 permukaan (scope Outlet vs Global Sistem) terasa "dobel" | ✅ **DIPERBAIKI (klarifikasi)** — tambah penjelas per-scope di settings-view ("Outlet = override outlet ini", "Global = default semua outlet", "Integrasi = webhook") agar jelas ini SCOPE beda, bukan menu dobel. (Merge penuh = refactor besar, ditahan.) |
+| P-03 | **Warehouse sub-modul** | Header shell WMS sudah punya Absen/Keluar/Back (Fase 5); tiap `/warehouse/*` pakai shell yg sama | ✅ tercakup shell |
+| P-04 | **Buku Pintar / SOP** | Render di dalam shell OS (modul "training") → header terpadu; widget SOP mengambang di-dedup (disembunyikan saat di modul training/chat) | ✅ OK (tak ada gap) |
+| P-05 | **Chat Internal** | Render di dalam shell OS → header terpadu; ChatFab mengambang di-dedup (disembunyikan saat modul chat aktif) | ✅ OK (tak ada gap) |
+| P-06 | **Garage AI** (ai-agent) | Render di dalam shell OS (AiPosAgentView) → header terpadu (Kembali/Absen/Keluar) | ✅ OK (tak ada gap) |
+| P-07 | **Produk / Membership** | CRUD+bulk sudah (Fase 4); nav via shell OS | ✅ tercakup |
 
-Dikerjakan bertahap; Payroll (P-01) selesai lebih dulu karena paling jelas rusak.
+**Fase 6 tuntas.** Gap nyata hanya Payroll (P-01, nav shell) & Pengaturan (P-02,
+klarifikasi scope). Sisanya sudah tercakup shell OS/WMS + dedup widget mengambang.
+
+> Catatan verifikasi P-02: perubahan teks (tsc+lint+build bersih). Verifikasi browser
+> terhalang `/api/settings` 403 di standalone (env/permission seed), bukan cacat kode.

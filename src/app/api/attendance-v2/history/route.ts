@@ -1,6 +1,7 @@
 import { fail, ok } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
 import { getMonthAttendance } from "@/lib/garage-attendance-v2";
+import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,9 @@ export async function GET(request: Request) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return fail(400, "MONTH_REQUIRED", "Query param 'month' harus format YYYY-MM.");
   }
+
+  // Konsisten dgn checkin/checkout/today: saat Payroll V2 OFF, balikan kosong rapi.
+  if (!isPayrollV2Enabled()) return ok({ month, rows: [] });
 
   try {
     const rows = await getMonthAttendance(session.data!.user.id, month);

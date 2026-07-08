@@ -115,7 +115,6 @@ export function PayrollDashboard() {
               <th className="text-right px-3 py-2">Upah/Hari</th>
               <th className="text-right px-3 py-2">Wallet Gaji</th>
               <th className="text-right px-3 py-2">Wallet Fee</th>
-              <th className="px-3 py-2">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -129,14 +128,6 @@ export function PayrollDashboard() {
                 </td>
                 <td className="px-3 py-2 text-right text-[var(--garage-amber)]">
                   {rp(Number(s.wallet_fee ?? 0))}
-                </td>
-                <td className="px-3 py-2">
-                  <Link
-                    href={`/owner/payroll/${s.user_id}`}
-                    className="text-xs text-[var(--garage-amber)] hover:underline"
-                  >
-                    Detail
-                  </Link>
                 </td>
               </tr>
             ))}

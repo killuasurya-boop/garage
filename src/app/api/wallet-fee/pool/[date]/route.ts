@@ -1,6 +1,7 @@
 import { fail, ok } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
 import { getFeePoolDetail } from "@/lib/garage-fee-pool";
+import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,9 @@ export async function GET(_req: Request, { params }: Ctx) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return fail(400, "INVALID_DATE", "Format tanggal harus YYYY-MM-DD.");
   }
+
+  // V2 OFF → pool kosong rapi, hindari 500.
+  if (!isPayrollV2Enabled()) return ok({ pool: null, splits: [] });
 
   try {
     const detail = await getFeePoolDetail(date);

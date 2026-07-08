@@ -273,5 +273,11 @@ duplikat "atur" di pengaturan.
 **Fase 6 tuntas.** Gap nyata hanya Payroll (P-01, nav shell) & Pengaturan (P-02,
 klarifikasi scope). Sisanya sudah tercakup shell OS/WMS + dedup widget mengambang.
 
-> Catatan verifikasi P-02: perubahan teks (tsc+lint+build bersih). Verifikasi browser
-> terhalang `/api/settings` 403 di standalone (env/permission seed), bukan cacat kode.
+### P-08 — Bug: Admin 403 di `/api/settings` (ditemukan saat verifikasi P-02) ✅ DIPERBAIKI
+GET `/api/settings` dulu pakai `requirePermission("dashboard:read")` — permission yang
+**TIDAK dimiliki Admin** (operasional-only), padahal modul Settings TAMPIL untuk Admin →
+403 → halaman Pengaturan nyangkut "Memuat pengaturan…". Ini bug produksi nyata (bukan
+env). Fix: GET pakai `requireGarageSession()` (semua staff terautentikasi boleh baca
+settings non-sensitif; PATCH tetap dibatasi Owner/Admin/Manager/Finance).
+Verifikasi: Admin `/api/settings` kini **200**, Pengaturan load, scope toggle +
+penjelas P-02 tampil (Outlet & Global), 0 error console.

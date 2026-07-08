@@ -7,7 +7,7 @@ import {
   updateAppSettings,
   DEFAULT_APP_SETTINGS,
 } from "@/lib/garage-service";
-import { requireGarageSession, requirePermission } from "@/lib/server-auth";
+import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,8 +83,11 @@ const patchSchema = z.object({
 });
 
 export async function GET() {
-  // Read pakai dashboard:read (semua role bisa lihat settings)
-  const session = await requirePermission("dashboard:read");
+  // Read settings = semua staff terautentikasi (bukan `dashboard:read` yang
+  // TIDAK dimiliki Admin/Kasir/Barista dst — dulu bikin 403 padahal modul
+  // Settings tampil untuk Admin). Settings (pajak/brand/printer) config operasional
+  // non-sensitif; tulis (PATCH) tetap dibatasi role di bawah.
+  const session = await requireGarageSession();
   if (session.response) return session.response;
 
   const settings = await getAppSettings(session.data.profile.outlet.id);

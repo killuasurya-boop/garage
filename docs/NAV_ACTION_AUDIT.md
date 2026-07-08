@@ -250,3 +250,24 @@ QA login per role (standalone). Hasil:
 1. Owner review dokumen ini (terutama **Bagian 1 Standar** & urutan **Bagian 4**).
 2. Setelah oke, Standar dipindah ke `design-system/MASTER.md` (sumber kebenaran).
 3. Eksekusi Fase 1 → verifikasi → lanjut fase berikutnya. Tanpa deploy sampai diperintah.
+
+---
+
+## Fase 6 — Perluasan audit (area di luar 26 modul utama) 🟠 SEDANG BERJALAN
+
+Owner menandai area yang belum diperiksa: warehouse sub-modul, pengaturan,
+payroll, buku pintar, chat internal, garage ai, produk, membership, + dugaan
+duplikat "atur" di pengaturan.
+
+### Temuan
+| # | Area | Temuan | Status |
+|---|---|---|---|
+| P-01 | **Payroll** (`/owner/payroll/*`) | Tak ada nav shell: sub-halaman (requests, settings, [staff]) dead-end tanpa "Kembali", tak ada back-to-OS | ✅ **DIPERBAIKI** — `layout.tsx` + `PayrollNav`: back Garage OS + tab Dashboard/Permintaan/Pengaturan |
+| P-02 | **Pengaturan** | 2 permukaan: tab operasional (settings-view) + panel global (SettingsManager via GlobalSettingsPanel) — dugaan "atur sama saja dgn pengaturan" | ⬜ perlu keputusan (gabung/label jelas?) |
+| P-03 | **Warehouse sub-modul** | Header shell WMS sudah punya Absen/Keluar/Back (Fase 5); tiap halaman (`/warehouse/*`) belum diaudit per-tombol | ⬜ pass per-halaman |
+| P-04 | **Buku Pintar / SOP** | belum diaudit nav/tombol | ⬜ |
+| P-05 | **Chat Internal** | belum diaudit nav/tombol | ⬜ |
+| P-06 | **Garage AI** (ai-agent) | belum diaudit nav/tombol | ⬜ |
+| P-07 | **Produk / Membership** | CRUD+bulk sudah (Fase 4); aspek nav lain belum diaudit | ⬜ |
+
+Dikerjakan bertahap; Payroll (P-01) selesai lebih dulu karena paling jelas rusak.

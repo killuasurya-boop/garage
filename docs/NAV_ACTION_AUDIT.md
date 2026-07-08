@@ -198,7 +198,7 @@ Dampak besar dulu (kena semua role), risiko rendah dulu.
   - Bonus: memperbaiki bug laten — tombol Absen Fase 1/2 mengarah ke `/absen` yang
     sebelumnya 503 (checkin V2) saat flag OFF; kini fallback ke terminal legacy.
 
-### Fase 4 — Sapu per modul 🟠 SEDANG BERJALAN
+### Fase 4 — Sapu per modul ✅ SELESAI
 
 **Koreksi audit (scan mendalam ke sub-komponen list):** SEMUA modul list ternyata
 SUDAH punya **Edit + Hapus per baris**. Gap yang seragam hanya **Select-all + aksi
@@ -214,12 +214,15 @@ soft-delete) — TANPA hapus permanen massal.
 | CRM (customer) | crm-customer-list | ✅ | ✅ | ✅ bulk export CSV |
 | marketing | garage-marketing | ✅ | ✅ | ✅ bulk export CSV |
 | produk | inventory-view | ✅ | ✅ | ✅ bulk export CSV |
-| team | admin/user-management | ✅ | ✅ | ⚠️ ada checkbox, verifikasi bulk |
+| team | admin/user-management | ✅ | ✅ | ✅ bulk suspend/activate/delete/logout (konfirmasi) |
 
-Sisa: hanya **verifikasi team (user-management)**. Semua modul list lain sudah
-punya select-all + bar aksi massal aman (export CSV / ubah status). Produk
+**Fase 4 tuntas.** Semua modul list punya select-all + aksi massal. Produk
 terverifikasi penuh (48 produk, pilih semua → export). CRM & marketing struktur
-benar (seed kosong, tak bisa dijalankan penuh).
+benar (seed kosong). team/user-management sudah lengkap sejak sebelum audit
+(bulk dengan konfirmasi hapus + alasan suspend).
+
+Sisa hanya **Fase 5** = QA verifikasi lintas 15 role (login tiap role, cek header
+seragam Absen+Keluar, 1 sidebar, scroll) — tidak ada perubahan kode lagi.
 - **F4-a** Terapkan §1.5 (penempatan aksi) + §1.6 (scroll) per layar.
 - **F4-b** Verifikasi shell Admin & CEO terhadap standar. (N-08)
 - **F4-c** Lengkapi tombol yang kurang per matriks Bagian 3.

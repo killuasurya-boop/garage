@@ -58,6 +58,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# Direktori volume tulis (selfie absensi, berkas recruitment) — dibuat & di-chown
+# ke nextjs supaya named volume yang mount di sini writable oleh user non-root.
+RUN mkdir -p /app/storage/attendance /app/storage/recruitment /app/public/garage-uploads \
+  && chown -R nextjs:nodejs /app/storage /app/public/garage-uploads
+
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

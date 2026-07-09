@@ -59,6 +59,9 @@ services:
       # Berkas lamaran recruitment (CV, foto, KTP, dll) — WAJIB persisten,
       # kalau tidak semua berkas pelamar hilang tiap redeploy.
       - garage-recruitment-files:/app/storage/recruitment
+      # Selfie absensi — di luar public/ (TIDAK di-serve statis) supaya foto wajah
+      # karyawan hanya bisa diakses lewat API terproteksi. Persisten + writable.
+      - garage-attendance-selfies:/app/storage/attendance
     depends_on:
       db:
         condition: service_healthy
@@ -85,5 +88,6 @@ volumes:
   garage-db-data:
   garage-uploads:
   garage-recruitment-files:
+  garage-attendance-selfies:
   caddy-data:
   caddy-config:

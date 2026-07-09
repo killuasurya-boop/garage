@@ -90,13 +90,24 @@ async function saveSelfie(
   // base64 = "data:image/jpeg;base64,XXXX" atau raw base64
   const cleaned = base64.includes(",") ? base64.split(",", 2)[1] : base64;
   const buffer = Buffer.from(cleaned, "base64");
-  // Simpan ke volume persisten `public/garage-uploads` (writable oleh user nextjs
-  // + di-mount volume Docker → selfie tidak hilang saat redeploy). Di-serve statis.
-  const dir = path.join(process.cwd(), "public", "garage-uploads", "attendance", dateKey);
+  // Validasi magic byte: hanya terima JPEG/PNG asli (anti upload sampah/berbahaya).
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng =
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+  if (!isJpeg && !isPng) {
+    throw new AttendanceError("SELFIE_REQUIRED", "Format selfie tidak valid (harus JPEG/PNG).");
+  }
+  if (buffer.length > 3_000_000) {
+    throw new AttendanceError("SELFIE_REQUIRED", "Ukuran selfie melebihi 3MB.");
+  }
+  // Simpan ke volume persisten `storage/attendance` — DI LUAR public/ sehingga
+  // TIDAK di-serve statis. Foto wajah karyawan hanya bisa dibuka lewat API
+  // terproteksi /api/attendance-v2/photo (butuh sesi + otorisasi).
+  const dir = path.join(process.cwd(), "storage", "attendance", dateKey);
   await fs.mkdir(dir, { recursive: true });
   const filename = `${staffUserId}-${type}.jpg`;
   await fs.writeFile(path.join(dir, filename), buffer);
-  return `/garage-uploads/attendance/${dateKey}/${filename}`;
+  return `/api/attendance-v2/photo/${dateKey}/${filename}`;
 }
 
 async function validateGps(lat: number | null | undefined, lng: number | null | undefined) {

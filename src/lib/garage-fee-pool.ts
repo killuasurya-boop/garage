@@ -243,14 +243,26 @@ export async function getFeePoolDetail(dateKey: string) {
   return { pool: pool ?? null, splits };
 }
 
-/** Ringkasan wallet fee staff (saldo + histori split). */
-export async function getFeeWalletSummary(staffUserId: string) {
+/**
+ * Ringkasan wallet fee staff: saldo (agregat SQL dari SEMUA split) + histori
+ * terbaru (dibatasi supaya query cepat walau data bertahun-tahun).
+ */
+export async function getFeeWalletSummary(staffUserId: string, limit = 60) {
   const db = getDb();
-  const splits = await db
-    .select()
-    .from(feePoolSplits)
-    .where(eq(feePoolSplits.staffUserId, staffUserId))
-    .orderBy(sql`${feePoolSplits.date} DESC`);
-  const balance = splits.reduce((s, r) => s + r.amount + r.bonusTarget + r.bonusZeroKomplain, 0);
-  return { balance, entries: splits };
+  const safeLimit = Math.min(Math.max(1, limit), 366);
+  const [[agg], entries] = await Promise.all([
+    db
+      .select({
+        balance: sql<number>`COALESCE(SUM(${feePoolSplits.amount} + ${feePoolSplits.bonusTarget} + ${feePoolSplits.bonusZeroKomplain}), 0)`,
+      })
+      .from(feePoolSplits)
+      .where(eq(feePoolSplits.staffUserId, staffUserId)),
+    db
+      .select()
+      .from(feePoolSplits)
+      .where(eq(feePoolSplits.staffUserId, staffUserId))
+      .orderBy(sql`${feePoolSplits.date} DESC`)
+      .limit(safeLimit),
+  ]);
+  return { balance: Number(agg?.balance ?? 0), entries };
 }

@@ -204,16 +204,26 @@ export async function creditMonthlyAttendanceBonus(
   return { credited: true, amount: settings.amount };
 }
 
-/** Ambil ringkasan wallet gaji (saldo + histori). */
-export async function getGajiWalletSummary(staffUserId: string) {
+/**
+ * Ambil ringkasan wallet gaji: saldo (agregat SQL dari SEMUA baris) + histori
+ * terbaru (dibatasi supaya query tetap cepat walau data bertahun-tahun).
+ */
+export async function getGajiWalletSummary(staffUserId: string, limit = 60) {
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(staffDailyWages)
-    .where(eq(staffDailyWages.staffUserId, staffUserId))
-    .orderBy(sql`${staffDailyWages.date} DESC`);
-  const balance = rows.reduce((sum, r) => sum + r.totalCredited, 0);
-  return { balance, entries: rows };
+  const safeLimit = Math.min(Math.max(1, limit), 366);
+  const [[agg], entries] = await Promise.all([
+    db
+      .select({ balance: sql<number>`COALESCE(SUM(${staffDailyWages.totalCredited}), 0)` })
+      .from(staffDailyWages)
+      .where(eq(staffDailyWages.staffUserId, staffUserId)),
+    db
+      .select()
+      .from(staffDailyWages)
+      .where(eq(staffDailyWages.staffUserId, staffUserId))
+      .orderBy(sql`${staffDailyWages.date} DESC`)
+      .limit(safeLimit),
+  ]);
+  return { balance: Number(agg?.balance ?? 0), entries };
 }
 
 /** Cek role manajer (yang gaji tetap, tidak dapat fee pool). */

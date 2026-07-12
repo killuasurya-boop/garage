@@ -11,6 +11,19 @@ const fallbackUrl = "http://localhost:3001";
 function betterAuthSecret() {
   const secret = process.env.BETTER_AUTH_SECRET?.trim();
   if (secret) return secret;
+
+  // Saat `next build`, Next.js mengevaluasi modul ini untuk mengumpulkan data
+  // halaman tapi TIDAK melayani request, sehingga secret asli tidak diperlukan.
+  // Izinkan placeholder agar build production tetap sukses meskipun
+  // BETTER_AUTH_SECRET hanya disediakan saat runtime (umum di host seperti
+  // Hostinger yang memisahkan env build dan runtime).
+  const isBuild =
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.NEXT_BUILD === "true";
+  if (isBuild) {
+    return "build-placeholder-secret-jangan-dipakai-di-runtime";
+  }
+
   if (process.env.NODE_ENV === "production") {
     throw new Error("BETTER_AUTH_SECRET wajib diisi untuk production.");
   }

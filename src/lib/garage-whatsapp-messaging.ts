@@ -1,7 +1,7 @@
-import { and, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { whatsappMessagingQueue } from "@/db/schema";
+import { whatsappMessagingQueue, whatsappMessages } from "@/db/schema";
 import { getConnectedAccessToken } from "@/lib/garage-integrations";
 
 export function normalizeWhatsappRecipient(value: string) {
@@ -176,7 +176,106 @@ export async function updateWhatsappDeliveryStatus(
     })
     .where(eq(whatsappMessagingQueue.providerMessageId, providerMessageId))
     .returning();
+  // Mirror ke pesan inbox (jika pesan ini berasal dari reply CS).
+  await getDb()
+    .update(whatsappMessages)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(whatsappMessages.providerMessageId, providerMessageId));
   return row ?? null;
+}
+
+export function isWithin24hWindow(lastInboundAt: Date | null | undefined): boolean {
+  if (!lastInboundAt) return false;
+  const diffMs = Date.now() - new Date(lastInboundAt).getTime();
+  return diffMs >= 0 && diffMs <= 24 * 60 * 60 * 1000;
+}
+
+export function extractWhatsappInboundMessages(payload: unknown) {
+  const typed = payload as {
+    entry?: Array<{
+      changes?: Array<{
+        value?: {
+          messages?: Array<{
+            from?: string;
+            id?: string;
+            type?: string;
+            text?: { body?: string };
+          }>;
+        };
+      }>;
+    }>;
+  };
+  const out: Array<{ from: string; body: string; messageId: string }> = [];
+  for (const entry of typed?.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const message of change.value?.messages ?? []) {
+        if (!message.from || !message.id) continue;
+        if (message.type === "text") {
+          out.push({
+            from: normalizeWhatsappRecipient(message.from),
+            body: message.text?.body ?? "",
+            messageId: message.id,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+export async function sendWhatsappDirect(input: {
+  recipient: string;
+  messageType: "text" | "template";
+  body?: string | null;
+  templateName?: string | null;
+  templateParameters?: string[];
+  createdBy?: string | null;
+}) {
+  const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID?.trim();
+  if (!phoneNumberId) throw new Error("WHATSAPP_CLOUD_PHONE_NUMBER_ID belum dikonfigurasi.");
+  const token =
+    process.env.WHATSAPP_CLOUD_API_TOKEN?.trim() ||
+    (await getConnectedAccessToken("whatsapp", "phone_number").catch(() => null))?.token;
+  if (!token) throw new Error("WhatsApp Cloud API belum dikonfigurasi.");
+  const version = process.env.WHATSAPP_CLOUD_API_VERSION?.trim() || "v23.0";
+  const payload: Record<string, unknown> = {
+    messaging_product: "whatsapp",
+    to: normalizeWhatsappRecipient(input.recipient),
+    type: input.messageType,
+  };
+  if (input.messageType === "text") {
+    payload.text = { body: input.body ?? "" };
+  } else {
+    payload.template = {
+      name: input.templateName,
+      language: { code: "id" },
+      components: input.templateParameters?.length
+        ? [
+            {
+              type: "body",
+              parameters: input.templateParameters.map((text) => ({ type: "text", text })),
+            },
+          ]
+        : [],
+    };
+  }
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    },
+  );
+  const result = (await response.json()) as {
+    messages?: Array<{ id?: string }>;
+    error?: { message?: string };
+  };
+  if (!response.ok || !result.messages?.[0]?.id) {
+    throw new Error(result.error?.message || `WhatsApp Cloud API gagal (${response.status}).`);
+  }
+  return { providerMessageId: result.messages[0].id };
 }
 
 export type WhatsappDeliveryEvent = {

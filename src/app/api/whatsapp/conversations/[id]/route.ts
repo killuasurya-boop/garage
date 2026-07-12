@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { getDb } from "@/db";
-import { whatsappConversations, whatsappMessages } from "@/db/schema";
+import { customers, whatsappConversations, whatsappMessages } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -24,8 +24,21 @@ export async function GET(
   if (session.response) return session.response;
   const { id } = await params;
   const [conv] = await getDb()
-    .select()
+    .select({
+      id: whatsappConversations.id,
+      phoneNumber: whatsappConversations.phoneNumber,
+      customerId: whatsappConversations.customerId,
+      assignedTo: whatsappConversations.assignedTo,
+      status: whatsappConversations.status,
+      unreadCount: whatsappConversations.unreadCount,
+      lastInboundAt: whatsappConversations.lastInboundAt,
+      lastMessagePreview: whatsappConversations.lastMessagePreview,
+      createdAt: whatsappConversations.createdAt,
+      updatedAt: whatsappConversations.updatedAt,
+      customerName: sql<string | null>`${customers.name}`,
+    })
     .from(whatsappConversations)
+    .leftJoin(customers, eq(whatsappConversations.customerId, customers.id))
     .where(eq(whatsappConversations.id, id))
     .limit(1);
   if (!conv) return fail(404, "CONVERSATION_NOT_FOUND", "Percakapan tidak ditemukan.");

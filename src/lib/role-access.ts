@@ -32,7 +32,8 @@ export type Permission =
   | "shift:handover"
   | "earnings:read"
   | "earnings:manage"
-  | "chat:use";
+  | "chat:use"
+  | "whatsapp:use";
 
 const ownerPermissions: Permission[] = [
   "dashboard:read",
@@ -67,6 +68,7 @@ const ownerPermissions: Permission[] = [
   "earnings:read",
   "earnings:manage",
   "chat:use",
+  "whatsapp:use",
 ];
 
 export const rolePermissions: Record<Role, Permission[]> = {
@@ -97,6 +99,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "shift:cash",
     "shift:handover",
     "chat:use",
+    "whatsapp:use",
   ],
   "Manager Operasional": [
     "dashboard:read",
@@ -122,6 +125,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "print:write",
     "shift:cash",
     "shift:handover",
+    "whatsapp:use",
   ],
   "Finance / CFO": [
     "dashboard:read",
@@ -213,6 +217,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "team-management",
     "settings",
     "recruitment",
+    "whatsapp",
   ],
   // Admin = operasional. Tanpa dashboard owner, ai-agent, finance, earnings,
   // audit, company-control (sesuai keputusan owner).
@@ -230,6 +235,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "team-management",
     "settings",
     "recruitment",
+    "whatsapp",
   ],
   // Manager = operasional murni. Finance & Earnings (payroll) DISEMBUNYIKAN
   // (eksklusif Owner & Finance/CFO) agar sidebar cocok dengan permission —
@@ -249,6 +255,7 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "team-management",
     "settings",
     "recruitment",
+    "whatsapp",
   ],
   "Finance / CFO": ["dashboard", "ai-agent", "finance", "earnings", "approvals", "audit"],
   Kasir: ["pos", "earnings"],

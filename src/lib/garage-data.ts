@@ -69,7 +69,8 @@ export type ModuleId =
   | "absensi-v2"
   | "wallet-gaji"
   | "wallet-fee"
-  | "payroll-owner";
+  | "payroll-owner"
+  | "whatsapp";
 
 export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
 

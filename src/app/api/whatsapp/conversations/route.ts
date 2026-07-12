@@ -11,7 +11,6 @@ export async function GET() {
     "Owner / CEO",
     "Manager Operasional",
     "Admin",
-    "Customer Service",
   ]);
   if (session.response) return session.response;
   const rows = await getDb()

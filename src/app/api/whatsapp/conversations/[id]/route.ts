@@ -19,7 +19,6 @@ export async function GET(
     "Owner / CEO",
     "Manager Operasional",
     "Admin",
-    "Customer Service",
   ]);
   if (session.response) return session.response;
   const { id } = await params;
@@ -58,7 +57,6 @@ export async function PATCH(
     "Owner / CEO",
     "Manager Operasional",
     "Admin",
-    "Customer Service",
   ]);
   if (session.response) return session.response;
   const { id } = await params;

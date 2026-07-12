@@ -23,7 +23,6 @@ export async function POST(
     "Owner / CEO",
     "Manager Operasional",
     "Admin",
-    "Customer Service",
   ]);
   if (session.response) return session.response;
   const { id } = await params;

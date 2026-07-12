@@ -1426,6 +1426,56 @@ export const whatsappMessagingQueue = pgTable(
   }),
 );
 
+// Percakapan WhatsApp 2-arah: 1 nomor = 1 percakapan (upsert by phone).
+export const whatsappConversations = pgTable(
+  "whatsapp_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phoneNumber: text("phone_number").notNull(),
+    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    assignedTo: text("assigned_to").references(() => user.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("open"),
+    unreadCount: integer("unread_count").notNull().default(0),
+    lastInboundAt: timestamp("last_inbound_at", { withTimezone: true }),
+    lastMessagePreview: text("last_message_preview"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    phoneIdx: uniqueIndex("whatsapp_conversations_phone_idx").on(table.phoneNumber),
+    statusIdx: index("whatsapp_conversations_status_idx").on(table.status),
+    customerIdx: index("whatsapp_conversations_customer_idx").on(table.customerId),
+  }),
+);
+
+// Pesan per percakapan: inbound (customer) / outbound (CS/staff).
+export const whatsappMessages = pgTable(
+  "whatsapp_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => whatsappConversations.id, { onDelete: "cascade" }),
+    direction: text("direction").notNull(),
+    messageType: text("message_type").notNull().default("text"),
+    body: text("body"),
+    templateName: text("template_name"),
+    templateParams: jsonb("template_params")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    status: text("status").notNull().default("received"),
+    providerMessageId: text("provider_message_id"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    convIdx: index("whatsapp_messages_conversation_idx").on(table.conversationId),
+    provIdx: index("whatsapp_messages_provider_idx").on(table.providerMessageId),
+  }),
+);
+
 export const menuRecipes = pgTable(
   "menu_recipes",
   {

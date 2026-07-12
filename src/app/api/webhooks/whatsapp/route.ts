@@ -1,8 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
 import {
   extractWhatsappDeliveryEvents,
+  extractWhatsappInboundMessages,
   updateWhatsappDeliveryStatus,
 } from "@/lib/garage-whatsapp-messaging";
+import { handleWhatsappInbound } from "@/lib/garage-whatsapp-webhook";
 import { verifyMetaWebhookSignature } from "@/lib/garage-provider-adapters";
 
 export const runtime = "nodejs";
@@ -35,5 +37,7 @@ export async function POST(request: Request) {
     );
     if (row) updated += 1;
   }
-  return ok({ received: true, updated });
+  const inbound = extractWhatsappInboundMessages(payload);
+  if (inbound.length) await handleWhatsappInbound(inbound);
+  return ok({ received: true, updated, inbound: inbound.length });
 }

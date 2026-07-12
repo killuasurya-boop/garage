@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { whatsappMessagingQueue, whatsappMessages } from "@/db/schema";

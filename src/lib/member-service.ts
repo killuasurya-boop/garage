@@ -54,6 +54,7 @@ type EarnPointsInput = {
 type RedeemPointsInput = {
   customerId: string;
   pointsToRedeem: number;
+  rewardName?: string | null;
 };
 
 function normalizeEmail(email?: string | null) {
@@ -559,45 +560,62 @@ export async function earnMemberPoints(input: EarnPointsInput) {
 
 export async function redeemMemberPoints(input: RedeemPointsInput) {
   const db = getDb();
-  const [customer] = await db
-    .select()
-    .from(customers)
-    .where(eq(customers.id, input.customerId))
-    .limit(1);
-
-  if (!customer) {
-    return { data: null, error: "Member tidak ditemukan." };
-  }
 
   if (input.pointsToRedeem % 100 !== 0) {
     return { data: null, error: "Redeem harus kelipatan 100 points." };
   }
-
-  if (customer.points < input.pointsToRedeem) {
-    return { data: null, error: "Points member tidak cukup." };
+  if (input.pointsToRedeem <= 0) {
+    return { data: null, error: "Jumlah redeem tidak valid." };
   }
 
-  const totalPoints = customer.points - input.pointsToRedeem;
-  const level = normalizeMemberLevel(customer.tier);
   const discount = calculateRedeemDiscount(input.pointsToRedeem);
 
+  // ATOMIC — hindari double-spend & saldo minus (TOCTOU race).
+  // UPDATE dengan predicat "points >= X" hanya sukses kalau saldo masih cukup
+  // di database saat write. Kalau dua request bersamaan sama-sama mau redeem,
+  // hanya satu yang mengubah baris; yang lain balik nol baris = ditolak.
   const [updatedCustomer] = await db
     .update(customers)
     .set({
-      points: totalPoints,
-      tier: level,
-      flag: customer.flag,
+      points: sql`${customers.points} - ${input.pointsToRedeem}`,
       updatedAt: new Date(),
     })
-    .where(eq(customers.id, customer.id))
+    .where(
+      and(
+        eq(customers.id, input.customerId),
+        gte(customers.points, input.pointsToRedeem),
+      ),
+    )
+    .returning();
+
+  if (!updatedCustomer) {
+    // Bisa karena: member tidak ada, ATAU saldo tidak cukup (juga menutup
+    // celah balapan). Ambil status sebenarnya untuk pesan yang tepat.
+    const [existing] = await db
+      .select({ id: customers.id, points: customers.points })
+      .from(customers)
+      .where(eq(customers.id, input.customerId))
+      .limit(1);
+    if (!existing) return { data: null, error: "Member tidak ditemukan." };
+    return { data: null, error: "Points member tidak cukup." };
+  }
+
+  const level = normalizeMemberLevel(updatedCustomer.tier);
+
+  // Sinkronkan tier + flag (mengikuti perilaku sebelumnya) tanpa menyentuh points lagi.
+  const [finalCustomer] = await db
+    .update(customers)
+    .set({ tier: level, flag: updatedCustomer.flag })
+    .where(eq(customers.id, input.customerId))
     .returning();
 
   const [redemption] = await db
     .insert(pointRedemptions)
     .values({
-      customerId: customer.id,
+      customerId: input.customerId,
       pointsUsed: input.pointsToRedeem,
       discount,
+      rewardName: input.rewardName ?? null,
     })
     .returning();
 
@@ -605,9 +623,9 @@ export async function redeemMemberPoints(input: RedeemPointsInput) {
     data: {
       redemption,
       discount,
-      totalPoints,
+      totalPoints: finalCustomer.points,
       level,
-      member: memberResponseData(updatedCustomer),
+      member: memberResponseData(finalCustomer),
     },
     error: null,
   };

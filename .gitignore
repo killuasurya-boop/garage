@@ -53,6 +53,9 @@ dev-server.*.log
 
 # env files (can opt-in for committing if needed)
 .env*
+# Kecualikan file contoh/template (tidak berisi rahasia)
+!.env.example
+!.env.production.example
 
 # MCP config — berisi API token rahasia, jangan commit
 .mcp.json

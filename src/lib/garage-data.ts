@@ -41,7 +41,8 @@ export type Role =
   | "Kitchen / Barista"
   | "Gudang"
   | "Supervisor Shift"
-  | "Delivery Admin";
+  | "Delivery Admin"
+  | "Customer Service";
 
 export type ModuleId =
   | "dashboard"
@@ -121,6 +122,7 @@ export const roles: Role[] = [
   "Gudang",
   "Supervisor Shift",
   "Delivery Admin",
+  "Customer Service",
 ];
 
 export const roleNotes: Record<Role, string> = {
@@ -138,6 +140,7 @@ export const roleNotes: Record<Role, string> = {
   Gudang: "Produk manajemen, stok Gudang, opname, dan reorder",
   "Supervisor Shift": "Checklist, approval operasional, handover",
   "Delivery Admin": "Delivery queue, status, dan complaint",
+  "Customer Service": "WhatsApp inbox 2-way, balas customer, dan lookup CRM",
 };
 
 export const modules = [
@@ -252,6 +255,12 @@ export const modules = [
     label: "Payroll",
     description: "Dashboard + settings + payout",
     icon: FileStack,
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp",
+    description: "Inbox 2-arah + settings",
+    icon: MessageCircle,
   },
 ] satisfies Array<{
   id: ModuleId;

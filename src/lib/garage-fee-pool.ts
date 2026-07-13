@@ -10,7 +10,7 @@
 // - Fee credit dicatat di `staffEarnings` (walletType=... eksisting; kita pakai
 //   itemKind='fee_pool' sebagai penanda) + rincian ke `fee_pool_splits`.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -97,17 +97,37 @@ export async function splitFeePoolForDay(
 }> {
   const db = getDb();
 
-  // Idempoten: kalau pool sudah finalized, skip.
+  // Idempoten + atomic gate: klaim pool ini via UPDATE bersyarat
+  // `finalizedAt IS NULL`. Hanya SATU pemanggil yang berhasil mengubah baris
+  // (returning row), yang lain balik nol baris dan langsung skip. Aman
+  // terhadap race cron 23:59 + manual trigger UI di menit yang sama.
   const [pool] = await db
-    .select()
-    .from(feePoolDaily)
-    .where(eq(feePoolDaily.date, dateKey))
-    .limit(1);
+    .update(feePoolDaily)
+    .set({ finalizedAt: now, updatedAt: now })
+    .where(and(eq(feePoolDaily.date, dateKey), isNull(feePoolDaily.finalizedAt)))
+    .returning();
   if (!pool) {
-    return { finalized: false, skipped: "no_pool_row", pool: 0, totalMinutes: 0, splits: [] };
-  }
-  if (pool.finalizedAt) {
-    return { finalized: true, skipped: "already_finalized", pool: pool.poolAmount, totalMinutes: pool.totalMinutesValid, splits: [] };
+    // Tidak ada baris berubah: bisa karena baris belum ada (belum ada order),
+    // atau sudah finalized oleh request lain. Bedakan untuk pelaporan.
+    const [existing] = await db
+      .select({
+        finalizedAt: feePoolDaily.finalizedAt,
+        poolAmount: feePoolDaily.poolAmount,
+        totalMinutesValid: feePoolDaily.totalMinutesValid,
+      })
+      .from(feePoolDaily)
+      .where(eq(feePoolDaily.date, dateKey))
+      .limit(1);
+    if (!existing) {
+      return { finalized: false, skipped: "no_pool_row", pool: 0, totalMinutes: 0, splits: [] };
+    }
+    return {
+      finalized: true,
+      skipped: "already_finalized",
+      pool: existing.poolAmount,
+      totalMinutes: existing.totalMinutesValid,
+      splits: [],
+    };
   }
 
   const settings = (await getPayrollSetting(PAYROLL_KEYS.feePool)) as {
@@ -143,11 +163,11 @@ export async function splitFeePoolForDay(
   const splits: Array<{ staffUserId: string; amount: number; minutes: number }> = [];
 
   if (eligible.length === 0 || totalMinutes === 0) {
-    // Fallback: hangus atau masuk kas — di sini kita hanya tandai finalized tanpa split.
+    // Fallback: hangus atau masuk kas — tandai metadata (finalizedAt sudah di-set
+    // saat klaim gate di awal, jadi kita hanya perbarui field lain).
     await db
       .update(feePoolDaily)
       .set({
-        finalizedAt: now,
         totalStaffValid: 0,
         totalMinutesValid: 0,
         notes: `fallback=${settings.fallbackMode}`,
@@ -212,10 +232,10 @@ export async function splitFeePoolForDay(
         earningId: earning.id,
       });
     }
+    // finalizedAt sudah di-set di klaim gate; di sini hanya perbarui metadata.
     await tx
       .update(feePoolDaily)
       .set({
-        finalizedAt: now,
         totalStaffValid: eligible.length,
         totalMinutesValid: totalMinutes,
         splitMode: settings.splitMode,

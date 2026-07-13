@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -32,23 +32,38 @@ function requestedDriver(): "postgres" | "pglite" | null {
   return null;
 }
 
+/**
+ * Determine primary database driver.
+ * 
+ * Priority:
+ * 1. Explicit GARAGE_DB_DRIVER env (pglite | postgres)
+ * 2. Production + DATABASE_URL: Always use Postgres (Supabase)
+ * 3. Development: Prefer PGlite if DATABASE_URL missing/broken
+ */
 function preferPglite() {
   const requested = requestedDriver();
   if (requested === "pglite") return true;
   if (requested === "postgres") return false;
-  if (!databaseUrl()) return true;
-  // Development default: local PGlite avoids broken/slow cloud connections during daily ops.
-  // Set GARAGE_DB_DRIVER=postgres when cloud Postgres is ready.
-  return process.env.NODE_ENV !== "production";
+  
+  // Production: always use Postgres (Supabase) if DATABASE_URL exists
+  if (process.env.NODE_ENV === "production") {
+    return !databaseUrl();
+  }
+  
+  // Development: use local PGlite unless Postgres is explicitly requested or DATABASE_URL is set
+  return !databaseUrl();
 }
 
 function postgresSsl(connectionString: string) {
   const sslEnv = process.env.DATABASE_SSL?.trim().toLowerCase();
   if (sslEnv === "false") return false;
   if (sslEnv === "true") return { rejectUnauthorized: false } as const;
+  
+  // Supabase always requires SSL
   if (
     connectionString.includes("sslmode=require") ||
-    connectionString.includes("neon.tech")
+    connectionString.includes("neon.tech") ||
+    connectionString.includes("supabase.co")
   ) {
     return { rejectUnauthorized: false } as const;
   }
@@ -73,13 +88,25 @@ export function getDatabaseDriver() {
 function getPostgresPool() {
   const url = databaseUrl();
   if (!url) {
-    throw new Error("DATABASE_URL is required for the postgres database driver.");
+    throw new Error(
+      "DATABASE_URL is required for the postgres database driver. " +
+      "Set DATABASE_URL to Supabase connection string: postgresql://postgres.[project-id]:[password]@db.[project-id].supabase.co:5432/postgres"
+    );
   }
 
   if (!globalForDb.garagePool) {
     globalForDb.garagePool = new pg.Pool({
       connectionString: url,
       ssl: postgresSsl(url),
+      // Supabase connection pooling optimization
+      max: process.env.NODE_ENV === "production" ? 20 : 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
+    
+    // Log connection status
+    globalForDb.garagePool.on("error", (err) => {
+      console.error("[garage-db] Unexpected error on idle client:", err);
     });
   }
 
@@ -173,6 +200,7 @@ export async function ensureDatabaseReady() {
 
   try {
     await getPostgresPool().query("select 1");
+    console.log("[garage-db] Connected to", activeDriver() === "postgres" ? "Supabase PostgreSQL" : "local database");
     return ensurePostgresDb();
   } catch (error) {
     if (process.env.NODE_ENV === "production") {

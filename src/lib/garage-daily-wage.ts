@@ -111,8 +111,12 @@ export async function creditDailyWage(input: CreditDailyWageInput): Promise<Dail
 
   const totalCredited = baseWage + overtimeAmount;
 
-  // Insert + return balanceAfter (approximate: sum of all totalCredited for this staff).
-  const [row] = await db
+  // Insert dengan ON CONFLICT DO NOTHING — mencegah DOUBLE-CREDIT saat cron
+  // 23:59 double-fire (systemd timer + manual trigger UI bersamaan). Unique
+  // constraint `(staff_user_id, date)` sudah ada di schema. Kalau race, INSERT
+  // pihak-kedua tidak error tapi tidak menghasilkan row → `row` undefined =
+  // sudah ter-credit staff lain, kita skip aman.
+  const inserted = await db
     .insert(staffDailyWages)
     .values({
       staffUserId: input.staffUserId,
@@ -125,7 +129,20 @@ export async function creditDailyWage(input: CreditDailyWageInput): Promise<Dail
       source: input.source ?? "cron_finalize",
       note: `late=${input.lateMinutes}m ot=${input.overtimeMinutes}m pct=${percent}`,
     })
+    .onConflictDoNothing({ target: [staffDailyWages.staffUserId, staffDailyWages.date] })
     .returning({ id: staffDailyWages.id });
+  const row = inserted[0];
+  if (!row) {
+    // Race: sudah di-credit request lain di antara guard idempoten & insert.
+    return {
+      skipped: true,
+      reason: "already_credited_race",
+      baseWage: 0,
+      overtimeAmount: 0,
+      totalCredited: 0,
+      balanceAfter: 0,
+    };
+  }
 
   const [{ sum }] = await db
     .select({ sum: sql<number>`COALESCE(SUM(${staffDailyWages.totalCredited}), 0)` })

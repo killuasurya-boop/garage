@@ -30,13 +30,38 @@ Format Pooler:
 postgresql://postgres.<ref>:<PW>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
 ```
 
-### 2. Jalankan Migrasi (dari laptop, sekali di awal)
+### 2a. (Opsional) Dry-run — sanity check migrasi tanpa sentuh Supabase
+```bash
+npx tsx scripts/migrate-dryrun.mts
+```
+Apply 94 file ke PGlite temp fresh. Kalau ada file rusak, ketahuan sekarang
+(bukan di Supabase). Ekspektasi: `94/94 sukses, 131 tabel, 0 error`.
+
+### 2b. Jalankan Migrasi ke Supabase (dari laptop, sekali di awal)
 ```bash
 DATABASE_URL='postgresql://postgres.<ref>:<PW>@...pooler.supabase.com:5432/postgres' \
   ./scripts/supabase-migrate.sh
 ```
-Runner idempoten — aman dijalankan berulang. Sukses = ~92 file `drizzle/*.sql`
+Runner idempoten — aman dijalankan berulang. Sukses = 94 file `drizzle/*.sql`
 terapply, tercatat di tabel `drizzle.__drizzle_migrations`.
+
+### 2c. Verifikasi Migrasi
+```bash
+DATABASE_URL='postgresql://...:5432/postgres' \
+  npx tsx scripts/supabase-verify.mts
+```
+Cek koneksi + 131 tabel + 15 tabel kunci + entry migrasi. Read-only, aman diulang.
+
+### 2d. Seed Minimal (owner + outlet + cash session dev)
+```bash
+DATABASE_URL='postgresql://...:5432/postgres' \
+OWNER_EMAIL='owner@garagecoffee.id' \
+OWNER_NAME='Owner Garage' \
+OWNER_PASSWORD='<PILIH_PASSWORD_KUAT>' \
+  npx tsx scripts/supabase-seed-minimal.mts
+```
+Idempoten (`ON CONFLICT`) — aman diulang. Setelah ini owner bisa login di
+`https://www.garagecoffee.id` pakai email+password yang di-set.
 
 ### 3. Set Env di hPanel Hostinger Web App
 Panel Hostinger → Web App → **Environment Variables**. Isi minimal:

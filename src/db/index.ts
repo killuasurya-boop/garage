@@ -57,13 +57,18 @@ function preferPglite() {
 function postgresSsl(connectionString: string) {
   const sslEnv = process.env.DATABASE_SSL?.trim().toLowerCase();
   if (sslEnv === "false") return false;
+  // Managed Postgres cloud providers (Supabase/Neon/RDS) sering pakai cert
+  // signed oleh CA yang tidak selalu di root store Node. Pakai
+  // `rejectUnauthorized: false` untuk skip cert-chain verify — koneksi tetap
+  // TLS-encrypted (bukan plaintext), cuma verifikasi identitas cert di-skip.
   if (sslEnv === "true") return { rejectUnauthorized: false } as const;
   
   // Supabase always requires SSL
   if (
     connectionString.includes("sslmode=require") ||
     connectionString.includes("neon.tech") ||
-    connectionString.includes("supabase.co")
+    connectionString.includes("supabase.co") ||
+    connectionString.includes("supabase.com")
   ) {
     return { rejectUnauthorized: false } as const;
   }

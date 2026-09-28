@@ -132,7 +132,7 @@ export function KitchenView({
     return () => window.clearInterval(id);
   }, []);
 
-  // â”€â”€â”€ SOUND ALERT SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── SOUND ALERT SYSTEM ───────────────────────────────────
   // Browser policy: audio butuh user gesture untuk unlock.
   // Sound dipakai untuk: (a) order baru masuk, (b) ticket jadi late.
   // Disimpan di localStorage supaya preference persist antar refresh.
@@ -141,7 +141,7 @@ export function KitchenView({
   const previousTicketIdsRef = useRef<Set<string>>(new Set());
   const previousLateIdsRef = useRef<Set<string>>(new Set());
   const soundInitializedRef = useRef(false);
-  // Voice announcement â€” gaya bandara, beda dari KDS local sound.
+  // Voice announcement — gaya bandara, beda dari KDS local sound.
   // Snapshot status per ticket untuk diff transition (queue→cooking→ready→delivered).
   const previousTicketStateRef = useRef<
     Map<string, { status: string; station: string; channel: string }>
@@ -159,7 +159,7 @@ export function KitchenView({
         setSoundEnabled(true);
       }
     } catch {
-      // localStorage unavailable (private mode) â€” biarkan default off
+      // localStorage unavailable (private mode) — biarkan default off
     }
   }, []);
 
@@ -200,7 +200,7 @@ export function KitchenView({
           oscillator.stop(startAt + 0.55);
         }
       } catch {
-        // Audio bisa di-refuse di kiosk mode â€” abaikan
+        // Audio bisa di-refuse di kiosk mode — abaikan
       }
     },
     [soundEnabled],
@@ -296,7 +296,7 @@ export function KitchenView({
       const targetSec = targetMin * 60;
       const acceptedValid = acceptedAt && !Number.isNaN(acceptedAt.getTime());
       // Tiket yang sudah diproses (bukan "queue") tapi acceptedAt belum tercatat
-      // â€” mis. data seed/demo atau tiket lama â€” harus tetap pakai titik mulai live
+      // — mis. data seed/demo atau tiket lama — harus tetap pakai titik mulai live
       // (createdAt) supaya hitung mundur berjalan, bukan beku di order.elapsed statis.
       const prodStart = acceptedValid
         ? acceptedAt
@@ -305,7 +305,7 @@ export function KitchenView({
           : null;
       const prodEnd = readyAt && !Number.isNaN(readyAt.getTime()) ? readyAt : null;
       // Timer hanya berjalan live SELAMA "cooking". Begitu tiket ready/delivered
-      // (sudah di-acc waiter/bar) atau punya readyAt, waktu HARUS berhenti â€”
+      // (sudah di-acc waiter/bar) atau punya readyAt, waktu HARUS berhenti —
       // tidak boleh terus menghitung atau menambah "LEWAT". prodEnd (readyAt)
       // membekukan ke durasi nyata; tanpa readyAt (data seed) dibekukan ke
       // order.elapsed supaya tidak ikut tick "now".
@@ -392,7 +392,7 @@ export function KitchenView({
     return filters;
   }, [tickets]);
 
-  // â”€â”€â”€ DETECT NEW ORDERS & NEW LATE TICKETS → trigger sound â”€â”€â”€
+  // ─── DETECT NEW ORDERS & NEW LATE TICKETS → trigger sound ───
   // Diff current ticket IDs vs previous snapshot. Kalau ada ID baru
   // yang statusnya "queue" → bunyikan "new order" tone.
   // Kalau ada ticket yang baru jadi late → bunyikan "late alert" tone.
@@ -444,7 +444,7 @@ export function KitchenView({
     previousLateIdsRef.current = currentLateIds;
   }, [tickets, soundEnabled, playKitchenTone]);
 
-  // â”€â”€â”€ VOICE ANNOUNCEMENT (gaya bandara) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── VOICE ANNOUNCEMENT (gaya bandara) ──────────────────────
   // Layer terpisah dari KDS local sound. Diff status transition per ticket:
   //   - online ticket baru muncul       → "online_new"
   //   - queue → cooking (Food)          → "kitchen_cooking"
@@ -674,7 +674,7 @@ export function KitchenView({
             <h3 className="truncate text-2xl font-black leading-tight text-white">{order.table}</h3>
             <div className="mt-1 flex flex-wrap items-center gap-1">
               {order.pinned && <span className="inline-block rounded border border-[#f5a742] bg-[#f5a742]/18 px-1.5 py-0.5 text-[10px] font-black uppercase text-[#ffd08a]">PIN</span>}
-              {/* ADD-ON badge â€” order ke-2,3,... di session meja yang sama.
+              {/* ADD-ON badge — order ke-2,3,... di session meja yang sama.
                   Kitchen perlu sadar ini bukan order pertama, supaya tidak
                   duplikasi prep atau confused dengan ticket lama. */}
               {order.addonSequence && order.addonSequence > 1 && (
@@ -883,7 +883,7 @@ export function KitchenView({
               {displayMode === "board" ? "Board" : "List"}
             </span>
           </div>
-          {/* Sound toggle â€” penting untuk kitchen yang sibuk, biar tidak harus
+          {/* Sound toggle — penting untuk kitchen yang sibuk, biar tidak harus
               terus stare layar. Browser butuh klik user dulu untuk unlock audio. */}
           <button
             type="button"
@@ -896,14 +896,14 @@ export function KitchenView({
             aria-label={soundEnabled ? "Matikan suara" : "Nyalakan suara"}
             title={
               soundEnabled
-                ? "Suara aktif â€” order baru & late ada alert"
-                : "Suara mati â€” klik untuk aktifkan"
+                ? "Suara aktif — order baru & late ada alert"
+                : "Suara mati — klik untuk aktifkan"
             }
           >
             <Volume2 className={`size-4 ${soundEnabled ? "" : "opacity-50"}`} />
             <span className="hidden sm:inline">{soundEnabled ? "Sound ON" : "Sound OFF"}</span>
           </button>
-          {/* Voice Announcement gaya bandara â€” status badge dengan dot indicator */}
+          {/* Voice Announcement gaya bandara — status badge dengan dot indicator */}
           <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
           <button
             type="button"

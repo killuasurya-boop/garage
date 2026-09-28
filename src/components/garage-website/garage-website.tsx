@@ -4133,7 +4133,7 @@ function menuSpotlightItems(data) {
 }
 
 function menuDisplayPrice(item) {
-  const firstAvailable = item.prices.find((price) => price && price !== "—" && price !== "â€”");
+  const firstAvailable = item.prices.find((price) => price && price !== "—" && price !== "—");
   return firstAvailable ? `Rp ${firstAvailable}K` : "Cek menu";
 }
 

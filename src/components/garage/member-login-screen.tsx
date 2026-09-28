@@ -264,7 +264,7 @@ export function MemberLoginScreen({
                 </div>
               </div>
 
-              {/* Tier strip â€” nama tidak terpotong */}
+              {/* Tier strip — nama tidak terpotong */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {levelBadges.map((item) => (
                   <div

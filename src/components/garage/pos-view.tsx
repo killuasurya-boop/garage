@@ -527,17 +527,17 @@ export function PosView({
     count: initialVisibleProducts,
   });
   const [cart, setCart] = useState<CartLine[]>(cartSeed);
-  // Parked orders â€” disimpan ke localStorage. Kasir bisa "Park" cart aktif,
+  // Parked orders — disimpan ke localStorage. Kasir bisa "Park" cart aktif,
   // layanin customer lain, lalu "Resume" untuk balik ke bill yang di-park.
   const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>([]);
   const [parkedListOpen, setParkedListOpen] = useState(false);
   const [parkDialogOpen, setParkDialogOpen] = useState(false);
   const [parkLabel, setParkLabel] = useState("");
-  // Voice Notification System â€” airport-style announcement
+  // Voice Notification System — airport-style announcement
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
-  // Split bill calculator â€” display only, tidak ubah payment flow.
+  // Split bill calculator — display only, tidak ubah payment flow.
   // Untuk group customer yang bayar terpisah (bagi rata).
   const [splitBillOpen, setSplitBillOpen] = useState(false);
   const [splitPeopleCount, setSplitPeopleCount] = useState("2");
@@ -608,7 +608,7 @@ export function PosView({
     "idle" | "printing" | "success" | "error"
   >("idle");
   const [reprintError, setReprintError] = useState<string | null>(null);
-  // Catat Pengeluaran (kasbon laci kasir) â€” POST /api/finance/expenses
+  // Catat Pengeluaran (kasbon laci kasir) — POST /api/finance/expenses
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [expenseCategory, setExpenseCategory] = useState("Kasbon");
   const [expenseDescription, setExpenseDescription] = useState("");
@@ -749,7 +749,7 @@ export function PosView({
   });
   const [qrWorkTab, setQrWorkTab] = useState<QrWorkTab>("incoming");
   const [tableLiveRows, setTableLiveRows] = useState<TableLiveRow[]>([]);
-  // Voice clear-table tracking â€” announce hanya saat meja baru transition jadi
+  // Voice clear-table tracking — announce hanya saat meja baru transition jadi
   // "needs_cleaning", bukan setiap polling refresh.
   const previousNeedsCleaningRef = useRef<Set<string> | null>(null);
   const [tableLiveLoading, setTableLiveLoading] = useState(false);
@@ -901,7 +901,7 @@ export function PosView({
   const dineInTableMissing = orderType === "dine-in" && !selectedTableNumber;
   const normalizedMenuQuery = deferredQuery.trim().toLowerCase();
   const productFilterKey = `${menuCategory}\u0000${normalizedMenuQuery}\u0000${menuItems.length}`;
-  // Precompute searchIndex + isBestseller per item â€” sebelumnya di-rebuild
+  // Precompute searchIndex + isBestseller per item — sebelumnya di-rebuild
   // tiap render filter untuk SEMUA item walau cuma kategori yg berubah.
   const indexedMenu = useMemo(
     () =>
@@ -1082,7 +1082,7 @@ export function PosView({
           setManualDiscount((current) =>
             current ? { ...current, approvalStatus: "approved" } : null,
           );
-          setPosNotice("Diskon manual disetujui â€” bisa lanjut bayar.");
+          setPosNotice("Diskon manual disetujui — bisa lanjut bayar.");
         } else if (json.data.status === "rejected") {
           setManualDiscount(null);
           setPosNotice("Diskon manual ditolak supervisor.");
@@ -1452,7 +1452,7 @@ export function PosView({
 
   useEffect(() => {
     // Auto-unlock voice engine + QR audio context pada interaksi user pertama.
-    // Browser butuh user gesture untuk play audio â€” kalau Voice ON tapi tidak
+    // Browser butuh user gesture untuk play audio — kalau Voice ON tapi tidak
     // unlock, MP3 announcement gak akan bunyi. Dengan listener ini, klik atau
     // ketik pertama di app langsung primer audio engine tanpa user harus klik
     // tombol "Voice ON" manual.
@@ -1514,7 +1514,7 @@ export function PosView({
             });
           }
 
-          // 2. Permintaan khusus â€” kalau customer kasih catatan di order
+          // 2. Permintaan khusus — kalau customer kasih catatan di order
           const note = (order.customerNote ?? "").trim();
           if (note) {
             void voice.announce("waiter_special_request", {
@@ -1522,10 +1522,10 @@ export function PosView({
             });
           }
 
-          // 3. Member VIP â€” TODO: butuh lookup tier dari /api/customers/:phone
+          // 3. Member VIP — TODO: butuh lookup tier dari /api/customers/:phone
           //    karena CustomerOrder hanya punya customerMode ("guest"|"member"),
           //    tidak ada tier (Bronze/Silver/Gold/VIP). Untuk sekarang trigger
-          //    di-skip supaya tidak noise â€” hanya fire kalau ada tier VIP/Ultra
+          //    di-skip supaya tidak noise — hanya fire kalau ada tier VIP/Ultra
           //    yang akan ditambahkan via integrasi CRM lookup.
         }
       }
@@ -1841,7 +1841,7 @@ export function PosView({
     }
 
     const tick = () => {
-      // Pause polling saat tab/window di-background â€” kasir nggak butuh
+      // Pause polling saat tab/window di-background — kasir nggak butuh
       // refresh QR/table saat lagi buka modul lain atau monitor mati.
       if (typeof document !== "undefined" && document.hidden) return;
       void loadCustomerOrders({ silent: true });
@@ -1865,7 +1865,7 @@ export function PosView({
   }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, shiftOpen]);
 
   // Voice notification: trigger waiter_clear_table saat meja baru transition
-  // ke "needs_cleaning" â€” tidak re-fire setiap polling untuk meja yang udah
+  // ke "needs_cleaning" — tidak re-fire setiap polling untuk meja yang udah
   // lama needs_cleaning.
   useEffect(() => {
     if (!tableLiveRows.length) return;
@@ -2168,7 +2168,7 @@ export function PosView({
     setParkedOrders((current) => current.filter((p) => p.id !== id));
   }
 
-  // â”€â”€â”€ Diskon manual helpers â”€â”€â”€
+  // ─── Diskon manual helpers ───
   function openManualDiscountDialog() {
     setManualDiscountError(null);
     if (manualDiscount) {
@@ -2268,7 +2268,7 @@ export function PosView({
     setPosNotice("Diskon kasir dibatalkan.");
   }
 
-  // â”€â”€â”€ Sold-out helpers â”€â”€â”€
+  // ─── Sold-out helpers ───
   async function updateSoldOutStock(itemId: string, soldOut: boolean) {
     setSoldOutPendingIds((current) => new Set(current).add(itemId));
     setSoldOutIds((current) => {
@@ -2382,7 +2382,7 @@ export function PosView({
     }
   }
 
-  // â”€â”€â”€ Reprint helpers â”€â”€â”€
+  // ─── Reprint helpers ───
   async function reprintReceipt(receipt: OrderReceipt) {
     setReprintTargetId(receipt.invoiceNo);
     setReprintStatus("printing");
@@ -2488,7 +2488,7 @@ export function PosView({
     if (!reason || reason.trim().length < 3) return;
     setVoidingReceiptId(receipt.invoiceNo);
     try {
-      // Order ID tidak ada di OrderReceipt â€” pakai invoiceNo sebagai fallback
+      // Order ID tidak ada di OrderReceipt — pakai invoiceNo sebagai fallback
       // melalui endpoint search. Kalau gagal, fall back ke orderNo
       const idForVoid = receipt.orderNo;
       const res = await fetch(
@@ -2529,7 +2529,7 @@ export function PosView({
     }
   }
 
-  // â”€â”€â”€ Catat Pengeluaran (kasbon kasir) â”€â”€â”€
+  // ─── Catat Pengeluaran (kasbon kasir) ───
   function openExpenseDialog(presetCategory?: string) {
     setExpenseError(null);
     setExpenseCategory(presetCategory ?? "Kasbon");
@@ -2540,7 +2540,7 @@ export function PosView({
     setExpenseDialogOpen(true);
   }
 
-  // â”€â”€â”€ Quick Count Stok â”€â”€â”€
+  // ─── Quick Count Stok ───
   async function openQuickCount() {
     setQuickCountQuery("");
     setQuickCountDraft({});
@@ -7307,7 +7307,7 @@ export function PosView({
                       ? "Dine in"
                       : "Order tanpa nomor meja"}
                 </p>
-                {/* ADD-ON indicator â€” selalu visible saat kasir lagi
+                {/* ADD-ON indicator — selalu visible saat kasir lagi
                     tambah order ke meja yang sudah aktif. */}
                 {orderType === "dine-in" && selectedTableLiveRow?.currentOrderId ? (
                   <span className="garage-mono mt-1 inline-flex items-center gap-1 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/14 px-2 py-0.5 text-[10px] font-bold uppercase text-[#ffd79a]">
@@ -7438,7 +7438,7 @@ export function PosView({
                           </Button>
                         </div>
                       </div>
-                      {/* Item note input â€” request customer: less ice, no garlic, extra spicy.
+                      {/* Item note input — request customer: less ice, no garlic, extra spicy.
                           Auto-saved on blur. Note dikirim ke kitchen ticket. */}
                       <CartLineNoteRow
                         note={line.note ?? ""}
@@ -7940,7 +7940,7 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
-      {/* PARK DIALOG â€” input label sebelum park */}
+      {/* PARK DIALOG — input label sebelum park */}
       <Dialog open={parkDialogOpen} onOpenChange={setParkDialogOpen}>
         <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
           <DialogHeader>
@@ -8172,7 +8172,7 @@ export function PosView({
                       {currency.format(roundedPerPerson)}
                     </p>
                     <p className="mt-1 text-[10px] text-[#ffd79a]/80">
-                      Ã— {count} orang = {currency.format(totalRounded)}
+                      × {count} orang = {currency.format(totalRounded)}
                       {extraOverpay > 0 && ` (lebih ${currency.format(extraOverpay)})`}
                     </p>
                   </div>
@@ -8951,7 +8951,7 @@ export function PosView({
                 <AlertTriangle className="size-4" />
                 <AlertTitle>Butuh approval manager</AlertTitle>
                 <AlertDescription>
-                  Pengeluaran â‰¥ Rp 1.000.000 otomatis masuk antrian approval
+                  Pengeluaran ≥ Rp 1.000.000 otomatis masuk antrian approval
                   sebelum tercatat permanen.
                 </AlertDescription>
               </Alert>
@@ -8995,7 +8995,7 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Quick Count Stok (POS â€” manager/gudang/supervisor) */}
+      {/* Dialog: Quick Count Stok (POS — manager/gudang/supervisor) */}
       <Dialog
         open={quickCountOpen}
         onOpenChange={(open) => {
@@ -9503,14 +9503,14 @@ function CheckoutOrderStep({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// TableSessionInfoCard â€” UX upgrade untuk meja yang dipilih.
+// ─────────────────────────────────────────────────────────────
+// TableSessionInfoCard — UX upgrade untuk meja yang dipilih.
 // Kalau meja kosong → tampilkan card hijau "siap dipakai".
 // Kalau meja butuh dibersihkan → card merah "perlu cleaning".
 // Kalau meja punya session aktif (sudah ada order) → card amber
-// "ORDER TAMBAHAN â€” akan masuk ke bill session yang sama".
+// "ORDER TAMBAHAN — akan masuk ke bill session yang sama".
 // Ini menggantikan warning generic lama yang cuma bilang "status: pending".
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────
 function TableSessionInfoCard({
   tableLabel,
   row,
@@ -9555,7 +9555,7 @@ function TableSessionInfoCard({
     );
   }
 
-  // Active session â€” INI inti fitur Add Order
+  // Active session — INI inti fitur Add Order
   if (hasActiveOrder) {
     const customerName = row.customerName?.trim() || "Guest";
     const customerPhone = row.customerPhone?.trim();
@@ -9633,7 +9633,7 @@ function TableSessionInfoCard({
     );
   }
 
-  // Fallback â€” status unknown / lain
+  // Fallback — status unknown / lain
   return (
     <div className="mt-3 rounded-md border border-[#34343c] bg-white/[0.04] p-3">
       <p className="text-xs text-[#b8b8bf]">
@@ -9895,7 +9895,7 @@ function CheckoutCustomerStep({
   );
 }
 
-// â”€â”€â”€ CartLineNoteRow â€” input catatan per item di cart â”€â”€â”€
+// ─── CartLineNoteRow — input catatan per item di cart ───
 // UX: default collapsed (cuma tombol "+ Catatan" kecil). Klik → expand input.
 // Auto-save on blur. Visible chip dengan icon jika sudah ada catatan.
 function CartLineNoteRow({

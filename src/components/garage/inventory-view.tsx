@@ -515,7 +515,7 @@ export function InventoryView({
     void loadWarehouseFlows();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when entering Gudang workspace
   }, [inventoryWorkspaceTab, role]);
-  // â”€â”€ Mode Opname â”€â”€
+  // ── Mode Opname ──
   // opnameDraft: map sku → input qty fisik (string supaya empty terdistinguish dari 0)
   const [opnameOpen, setOpnameOpen] = useState(false);
   const [opnameLocationType, setOpnameLocationType] = useState<"warehouse" | "outlet">("warehouse");
@@ -1516,7 +1516,7 @@ export function InventoryView({
     }
   }
 
-  // â”€â”€ Opname computed â”€â”€
+  // ── Opname computed ──
   const opnameFilteredItems = useMemo(() => {
     const q = opnameQuery.trim().toLowerCase();
     return opnameStockItems.filter((item) => {
@@ -1671,7 +1671,7 @@ export function InventoryView({
             note: `${baseNote}: sistem ${entry.item.onHand} → fisik ${entry.fisik} ${entry.item.unit}`,
           }),
         }).catch(() => {
-          // movement gagal â€” onHand sudah update, jadi anggap success sebagian
+          // movement gagal — onHand sudah update, jadi anggap success sebagian
         });
       } catch {
       }
@@ -4558,9 +4558,9 @@ export function InventoryView({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua status</SelectItem>
-                  <SelectItem value="low">âš  Low only</SelectItem>
+                  <SelectItem value="low">⚠ Low only</SelectItem>
                   <SelectItem value="watch">👁 Watch only</SelectItem>
-                  <SelectItem value="safe">âœ“ Safe only</SelectItem>
+                  <SelectItem value="safe">✓ Safe only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -4773,7 +4773,7 @@ export function InventoryView({
             <CardDescription>Mutasi bahan Garage dari POS dan gudang.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* Movement summary 7 hari â€” chart kecil per type + top items */}
+            {/* Movement summary 7 hari — chart kecil per type + top items */}
             {movementSummary ? (
               <div className="rounded-md border border-[#34343c] bg-[#0f0f14] p-3">
                 <div className="mb-2 flex items-center justify-between">
@@ -5223,7 +5223,7 @@ export function InventoryView({
               </div>
 
               <div className="garage-scroll min-h-0 flex-1 overflow-auto rounded-md border border-[#34343c] bg-black/10">
-                {/* Mobile (sm-) â€” card list per item dengan input besar */}
+                {/* Mobile (sm-) — card list per item dengan input besar */}
                 <div className="space-y-1.5 p-1.5 sm:hidden">
                   {opnameFilteredItems.length === 0 ? (
                     <p className="py-8 text-center text-sm text-[#8f8f99]">
@@ -5289,7 +5289,7 @@ export function InventoryView({
                                 </span>
                               ) : (
                                 <span className="text-[11px] text-[#8f8f99]">
-                                  Î”
+                                  Δ
                                 </span>
                               )}
                             </div>
@@ -5299,7 +5299,7 @@ export function InventoryView({
                     })
                   )}
                 </div>
-                {/* Desktop (sm+) â€” table layout existing */}
+                {/* Desktop (sm+) — table layout existing */}
                 <Table className="hidden min-w-[680px] sm:table">
                   <TableHeader className="sticky top-0 z-10 bg-[#1b1b21]">
                     <TableRow>
@@ -5338,7 +5338,7 @@ export function InventoryView({
                                   [item.sku]: event.target.value,
                                 }))
                               }
-                              placeholder="â€”"
+                              placeholder="—"
                               className="ml-auto h-9 w-24 border-[#34343c] bg-white/[0.06] text-right"
                             />
                           </TableCell>
@@ -5357,7 +5357,7 @@ export function InventoryView({
                                 {delta}
                               </span>
                             ) : (
-                              <span className="text-[11px] text-[#8f8f99]">â€”</span>
+                              <span className="text-[11px] text-[#8f8f99]">—</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -5443,7 +5443,7 @@ export function InventoryView({
   );
 }
 
-// â”€â”€â”€ INVENTORY DETAIL MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── INVENTORY DETAIL MODAL ─────────────────────────────────
 // Modal dengan: profil item, stats, history stock movement (live fetch),
 // dan form quick adjust onHand. Reuse pattern modal-detail dari CRM/Finance.
 function InventoryDetailModal({
@@ -5669,7 +5669,7 @@ function InventoryDetailModal({
           {loading && (
             <div className="flex items-center justify-center py-6 text-sm text-[#8f8f99]">
               <RefreshCw className="mr-2 size-4 animate-spin text-[#f5a742]" />
-              Memuat detailâ€¦
+              Memuat detail…
             </div>
           )}
 
@@ -5730,7 +5730,7 @@ function InventoryDetailModal({
                     Movement terakhir
                   </p>
                   <p className="mt-1 line-clamp-2 text-xs text-[#d6d6dc]">
-                    {item.movement || "â€”"}
+                    {item.movement || "—"}
                   </p>
                 </div>
               </div>
@@ -6017,10 +6017,10 @@ function InventoryDetailModal({
   );
 }
 
-// â”€â”€â”€ SETTINGS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SETTINGS VIEW ───────────────────────────────────────────
 // Central pengaturan untuk semua fitur Garage OS. Tabbed UI:
 // POS Billing, Approval, Branding, Notifikasi, Printer, Loyalty.
 // Setiap field punya default dari server (DEFAULT_APP_SETTINGS) supaya
 // kosong terisi fallback yang masuk akal.
-// Alias ke AppSettings canonical â€” sebelumnya duplikat yang sering ketinggalan
+// Alias ke AppSettings canonical — sebelumnya duplikat yang sering ketinggalan
 // saat key baru ditambah. Sekarang tipe sinkron otomatis.

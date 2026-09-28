@@ -447,7 +447,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
           <h1 className="garage-display garage-chrome text-2xl">Pengaturan</h1>
           <p className="mt-1 text-sm text-[#b8b8bf]">
             {settingsScope === "global"
-              ? "Konfigurasi sistem global Garage OS â€” POS, receipt, tax, security, AI, shift, dll. Owner / Admin only."
+              ? "Konfigurasi sistem global Garage OS — POS, receipt, tax, security, AI, shift, dll. Owner / Admin only."
               : "Konfigurasi billing, branding, notifikasi, GARAGE AI, printer, loyalty, dan marketing per outlet. Perubahan tersimpan langsung ke DB."}
           </p>
         </div>
@@ -593,7 +593,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                 if (firstMatch) setActiveTab(firstMatch.id);
               }
             }}
-            placeholder="Cari pengaturanâ€¦ (pajak, diskon, struk, tema)"
+            placeholder="Cari pengaturan… (pajak, diskon, struk, tema)"
             className="h-10 border-[#34343c] bg-white/[0.06] pl-9 pr-9"
           />
           {settingsQuery ? (
@@ -702,7 +702,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                         : "border-[#22c55e]/35 bg-[#22c55e]/12 text-[#dcfce7]"
                     }`}
                   >
-                    {themeDirty ? "Preview â€” belum disimpan" : "Tersimpan"}
+                    {themeDirty ? "Preview — belum disimpan" : "Tersimpan"}
                   </Badge>
                 </div>
                 <p className="text-xs leading-5 text-[#b8b8bf]">
@@ -844,7 +844,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
               </SettingsField>
               <SettingsField
                 label="PB1 / Pajak Restoran (%)"
-                description="Pajak Pembangunan I â€” dihitung dari (subtotal + service)."
+                description="Pajak Pembangunan I — dihitung dari (subtotal + service)."
                 defaultValue={defaults.taxPct}
                 currentValue={merged.taxPct}
                 onReset={() => resetField("taxPct")}
@@ -958,7 +958,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
           {activeTab === "approval" ? (
             <SettingsField
               label="Threshold Approval Expense (Rp)"
-              description="Pengeluaran â‰¥ nominal ini masuk antrian approval manager."
+              description="Pengeluaran ≥ nominal ini masuk antrian approval manager."
               defaultValue={defaults.expenseApprovalThreshold}
               currentValue={merged.expenseApprovalThreshold}
               onReset={() => resetField("expenseApprovalThreshold")}
@@ -1710,7 +1710,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
               </SettingsField>
               <SettingsField
                 label="Voucher Default Value"
-                description="Nilai default voucher saat buat promo baru â€” angka rupiah jika fixed, persen jika percent."
+                description="Nilai default voucher saat buat promo baru — angka rupiah jika fixed, persen jika percent."
                 defaultValue={defaults.marketingDefaultVoucherValue}
                 currentValue={merged.marketingDefaultVoucherValue}
                 onReset={() => resetField("marketingDefaultVoucherValue")}
@@ -1797,7 +1797,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
 
       <p className="text-[11px] text-[#8f8f99]">
         Outlet aktif: <span className="garage-mono text-[#ffd08a]">{me.outlet.code}</span> ·{" "}
-        {me.outlet.name}. Pengaturan disimpan per outlet â€” switch outlet untuk
+        {me.outlet.name}. Pengaturan disimpan per outlet — switch outlet untuk
         edit setting outlet lain.
       </p>
 

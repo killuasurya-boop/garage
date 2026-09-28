@@ -638,7 +638,7 @@ function MenuCard({
         className="relative block aspect-square w-full overflow-hidden bg-gradient-to-br from-[#2a2622] to-[#161616] text-left"
       >
         {item.imageUrl ? (
-          // Foto menu berasal dari URL bebas (di-set admin) â€” pakai <img> biasa
+          // Foto menu berasal dari URL bebas (di-set admin) — pakai <img> biasa
           // supaya tidak terikat remotePatterns next/image.
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -722,7 +722,7 @@ function MenuCard({
   );
 }
 
-// Sheet detail item â€” momen "memilih": foto besar, info, daftar varian
+// Sheet detail item — momen "memilih": foto besar, info, daftar varian
 // dengan harga + stepper. Keranjang diperbarui langsung.
 function MenuDetailSheet({
   item,
@@ -817,7 +817,7 @@ function MenuDetailSheet({
                             </span>
                           ) : null}
                         </div>
-                        {/* Harga per-varian hanya untuk multi-varian â€” item satu varian
+                        {/* Harga per-varian hanya untuk multi-varian — item satu varian
                             harganya sudah jelas di header (hindari tampil 2x). */}
                         {!singleVariant ? (
                           <p className="mt-0.5 text-sm font-black text-[#f2ca50]">
@@ -856,7 +856,7 @@ function MenuDetailSheet({
 function stationEmoji(station: string) {
   if (station === "Bar") return "☕"; // coffee
   if (station === "Packaging" || station === "Packing") return "\u{1F4E6}"; // box
-  return "\u{1F37D}\u{FE0F}"; // plate â€” Dapur
+  return "\u{1F37D}\u{FE0F}"; // plate — Dapur
 }
 
 function formatMmSs(totalSeconds: number) {
@@ -1213,7 +1213,7 @@ export function MemberOrderPage({
           ["delivered", "completed", "rejected"].includes(status.kitchenStatus) ||
           status.orderStatus === "paid";
         if (finished) {
-          // Sudah selesai â€” berhenti menyimpan supaya kunjungan berikutnya bersih.
+          // Sudah selesai — berhenti menyimpan supaya kunjungan berikutnya bersih.
           try {
             window.localStorage.removeItem("garage:trackedOrder");
           } catch {
@@ -1286,7 +1286,7 @@ export function MemberOrderPage({
   const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = mode === "guest" && !guestName.trim();
-  // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
+  // Nomor WhatsApp guest OPSIONAL — tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
   const cashPaymentLabel =
@@ -1475,7 +1475,7 @@ export function MemberOrderPage({
 
   const checkoutContent = (
     <>
-      {/* PESANAN â€” review item paling atas: lihat semua item, ubah qty,
+      {/* PESANAN — review item paling atas: lihat semua item, ubah qty,
           tambah catatan per-item, dan subtotal langsung terlihat. */}
       <div className="rounded-lg border border-[#34343c] bg-[#15151b]/84 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -1577,7 +1577,7 @@ export function MemberOrderPage({
         </div>
       )}
 
-      {/* Ekstra opsional â€” disembunyikan agar minimalis */}
+      {/* Ekstra opsional — disembunyikan agar minimalis */}
       <div className="flex flex-wrap gap-2">
         {!showVoucherField && !voucherResult ? (
           <button

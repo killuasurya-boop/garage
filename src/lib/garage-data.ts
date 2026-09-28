@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageCircle,
+  MessageSquare,
   Mic,
   Monitor,
   FileStack,
@@ -253,12 +254,27 @@ export const modules = [
     description: "Dashboard + settings + payout",
     icon: FileStack,
   },
+  {
+    id: "whatsapp",
+    label: "WhatsApp",
+    description: "Inbox 2-way pelanggan",
+    icon: MessageSquare,
+  },
 ] satisfies Array<{
   id: ModuleId;
   label: string;
   description: string;
   icon: typeof LayoutDashboard;
 }>;
+
+// Modul yang punya halaman terpisah (bukan panel di dalam /os).
+export const externalModuleRoutes: Partial<Record<ModuleId, string>> = {
+  "absensi-v2": "/absen",
+  "wallet-gaji": "/staff/wallet-gaji",
+  "wallet-fee": "/staff/wallet-fee",
+  "payroll-owner": "/owner/payroll",
+  whatsapp: "/whatsapp",
+};
 
 export const headlineMetrics = [
   {

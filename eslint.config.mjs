@@ -18,6 +18,10 @@ const eslintConfig = defineConfig([
     "garage-profitmax/**",
     "garage-profitmax-ui/**",
     "outputs/**",
+    // Aset design handoff (prototype statis, bukan kode app).
+    "warehouse/**",
+    // Skrip CommonJS utilitas lokal (require() memang disengaja).
+    "scripts/**/*.cjs",
   ]),
   // Konvensi Garage: prefix "_" menandai argumen/var/caught-error yang sengaja
   // tidak dipakai (mis. handler dengan signature tetap). Jangan dianggap warning.

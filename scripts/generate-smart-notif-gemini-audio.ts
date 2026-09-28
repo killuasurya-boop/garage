@@ -50,8 +50,9 @@ async function generateWithRetry(message: string, absolutePath: string) {
       fs.writeFileSync(absolutePath, audioResult.buffer);
       console.log(`  [SUCCESS] Saved to ${absolutePath}`);
       return;
-    } catch (err: any) {
-      if (err.status === 429 || err.message?.includes("429") || err.message?.includes("Quota")) {
+    } catch (err: unknown) {
+      const { status, message: errMessage } = (err ?? {}) as { status?: number; message?: string };
+      if (status === 429 || errMessage?.includes("429") || errMessage?.includes("Quota")) {
         console.warn(`  [RATE LIMIT] Hit Gemini Free Tier Limit (3 RPM). Waiting 62 seconds before retry... (${retries + 1}/${maxRetries})`);
         await sleep(62000);
         retries++;
@@ -96,8 +97,8 @@ async function main() {
         // Base delay of 22 seconds to stay under 3 requests/minute (which means 1 request every 20s)
         console.log(`  [COOLDOWN] Waiting 22 seconds to respect 3 RPM limit...`);
         await sleep(22000);
-      } catch (err: any) {
-        console.error(`  [FATAL ERROR] Failed to generate Table ${i}:`, err.message);
+      } catch (err: unknown) {
+        console.error(`  [FATAL ERROR] Failed to generate Table ${i}:`, err instanceof Error ? err.message : err);
         process.exit(1);
       }
     }

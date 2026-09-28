@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { LazyGarageApp } from "@/components/garage/garage-app-loader";
-import { modules, type ModuleId } from "@/lib/garage-data";
+import { externalModuleRoutes, modules, type ModuleId } from "@/lib/garage-data";
 import { requireModulePageAccess } from "@/lib/page-access";
 
 export const metadata: Metadata = {
@@ -26,6 +27,10 @@ export default async function GarageOsPage({
       : "dashboard";
 
   await requireModulePageAccess(initialModule);
+
+  // Modul berhalaman sendiri (mis. WhatsApp, Payroll) tidak punya panel di /os.
+  const externalRoute = externalModuleRoutes[initialModule];
+  if (externalRoute) redirect(externalRoute);
 
   return <LazyGarageApp initialModule={initialModule} />;
 }

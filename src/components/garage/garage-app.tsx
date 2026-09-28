@@ -179,6 +179,7 @@ MenuItem,
 SiteAsset
 } from "@/lib/garage-api-types";
 import {
+externalModuleRoutes,
 modules,
 type ModuleId,
 type Role
@@ -209,7 +210,7 @@ import { voice } from "@/lib/garage-voice";
 // awal shell sehingga login + POS/Dashboard terasa cepat (anti-lelet). Setiap
 // modul punya fallback skeleton kecil saat chunk-nya dimuat.
 const ModuleChunkFallback = () => (
-  <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat modulâ€¦</div>
+  <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat modul…</div>
 );
 
 const EarningsView = dynamic(
@@ -568,7 +569,7 @@ function GarageWorkspace({
   const [data, setData] = useState<GarageBootstrapData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
-  // Voice low-stock tracking â€” announce hanya saat SKU baru transition jadi "low",
+  // Voice low-stock tracking — announce hanya saat SKU baru transition jadi "low",
   // bukan setiap fetch refresh (yang akan re-trigger untuk item yang udah lama low).
   const previousLowStockRef = useRef<Set<string> | null>(null);
   const [kitchenSyncing, setKitchenSyncing] = useState(false);
@@ -897,7 +898,7 @@ function GarageWorkspace({
     };
 
     const timeoutId = window.setTimeout(tick, 0);
-    // 60 detik cukup utk notifikasi low-stock; sebelumnya 15s = 4Ã— lebih
+    // 60 detik cukup utk notifikasi low-stock; sebelumnya 15s = 4× lebih
     // sering tanpa benefit. Polling juga di-pause saat tab tidak aktif.
     const intervalId = window.setInterval(tick, 60_000);
     const onVisible = () => {
@@ -1000,6 +1001,12 @@ function GarageWorkspace({
 
   function handleModuleChange(module: ModuleId) {
     if (!canAccessModule(data?.me.role ?? "Kasir", module)) {
+      return;
+    }
+
+    const externalRoute = externalModuleRoutes[module];
+    if (externalRoute) {
+      window.location.assign(externalRoute);
       return;
     }
 
@@ -2183,7 +2190,7 @@ function LoginScreen({
 
 type BrandBlockMode = "sidebar" | "compact" | "loading";
 
-// Role yang boleh switch outlet â€” sinkron dengan server-side canSwitchOutlet
+// Role yang boleh switch outlet — sinkron dengan server-side canSwitchOutlet
 const OUTLET_SWITCH_ROLES: ReadonlyArray<Role> = [
   "Owner / CEO",
   "Admin",
@@ -2443,7 +2450,7 @@ function ModuleNav({
     { title: "Ringkasan", ids: ["dashboard", "ai-agent"] },
     { title: "Absensi & Wallet", ids: ["absensi-v2", "wallet-gaji", "wallet-fee"] },
     { title: "Operasional", ids: ["pos", "kitchen", "waiter", "produk", "inventory", "smart-notif"] },
-    { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website"] },
+    { title: "Pelanggan & Penjualan", ids: ["crm", "whatsapp", "membership", "marketing", "website"] },
     { title: "Keuangan", ids: ["finance", "earnings", "payroll-owner", "approvals"] },
     {
       title: "Manajemen & Sistem",
@@ -2479,14 +2486,7 @@ function ModuleNav({
     const badgeColor = showRecruitmentBadge
       ? "bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.65)]"
       : "bg-[#d11a2a] shadow-[0_0_8px_rgba(209,26,42,0.65)]";
-    // Payroll V2 modules navigasi ke halaman terpisah (bukan internal state).
-    const PAYROLL_V2_ROUTES: Partial<Record<ModuleId, string>> = {
-      "absensi-v2": "/absen",
-      "wallet-gaji": "/staff/wallet-gaji",
-      "wallet-fee": "/staff/wallet-fee",
-      "payroll-owner": "/owner/payroll",
-    };
-    const externalRoute = PAYROLL_V2_ROUTES[module.id];
+    const externalRoute = externalModuleRoutes[module.id];
     return (
       <Tooltip key={module.id}>
         <TooltipTrigger asChild>
@@ -4172,7 +4172,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       setVoiceStatus(
         options?.executive
           ? "Owner Brain sedang berbicara..."
-          : "GARAGE AI sedang berbicaraâ€¦",
+          : "GARAGE AI sedang berbicara…",
       );
       void voice.speakExecutive(cleanText).then(() => {
         setVoiceStatus(
@@ -5625,7 +5625,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
               GARAGE AI
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#d6d6dc]">
-              Pengawasan tim, tanya data, dan review approval â€” {me.outlet.name}
+              Pengawasan tim, tanya data, dan review approval — {me.outlet.name}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">

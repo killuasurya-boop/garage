@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+
+import { requireModulePageAccess } from "@/lib/page-access";
 import { WhatsappSettingsCard } from "@/components/whatsapp/WhatsappSettingsCard";
 
 export const metadata: Metadata = {
   title: "WhatsApp Settings | Garage OS",
 };
 
-export default function WhatsappSettingsPage() {
+// Akses session/DB saat render → opt-out static generation (build tanpa DB live).
+export const dynamic = "force-dynamic";
+
+export default async function WhatsappSettingsPage() {
+  await requireModulePageAccess("whatsapp");
+
   return (
     <main className="min-h-screen bg-[var(--garage-bg-0)] py-6 px-4">
       <div className="max-w-3xl mx-auto space-y-4">

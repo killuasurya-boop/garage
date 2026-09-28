@@ -3719,7 +3719,9 @@ export async function getWmsColdChain() {
       for (let i = 11; i >= 0; i--) {
         seed.push({
           unitCode: code,
-          tempC: Math.round((base + (Math.random() * 2 - 1)) * 10) / 10,
+          // Jitter ±0.5°C: cukup variatif untuk grafik, tapi status aman/alert
+          // tiap unit tetap deterministik (CHILLER-02 selalu > 8°C).
+          tempC: Math.round((base + (Math.random() - 0.5)) * 10) / 10,
           recordedAt: new Date(now - i * 60 * 60 * 1000),
         });
       }

@@ -2224,6 +2224,14 @@ body {
     border-color: color-mix(in srgb, var(--garage-line) 82%, var(--garage-fg)) !important;
   }
 
+  /* Cincin fokus keyboard yang jelas untuk halaman pelanggan (menu digital,
+     login member) yang tidak memakai preset kasir: amber solid 3px, kontras
+     tinggi di atas latar merah/hitam. Preset kasir di bawah tetap berlaku. */
+  .garage-shell :is(a[href], button, input, select, textarea, [role="radio"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: 2px;
+  }
+
   .garage-shell[data-garage-preset] [data-slot="button"]:focus-visible,
   .garage-shell[data-garage-preset] button:focus-visible,
   .garage-shell[data-garage-preset] a:focus-visible {

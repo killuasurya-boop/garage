@@ -494,7 +494,7 @@ function CartRow({
           <button
             type="button"
             onClick={() => setNoteOpen(true)}
-            className="garage-press mt-1 inline-flex h-8 cursor-pointer items-center gap-1 text-sm font-semibold text-garage-amber hover:underline"
+            className="garage-press mt-1 inline-flex h-11 cursor-pointer items-center gap-1 text-sm font-semibold text-garage-amber hover:underline"
           >
             <Plus className="size-3.5" /> Catatan item
           </button>
@@ -861,6 +861,8 @@ export function MemberOrderPage({
   );
   const [helpOpen, setHelpOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
+  // Pesan error nama baru tampil setelah kolom disentuh (bukan saat dialog baru dibuka).
+  const [guestNameTouched, setGuestNameTouched] = useState(false);
   const [customerNote, setCustomerNote] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherResult, setVoucherResult] = useState<VoucherValidation | null>(null);
@@ -1095,6 +1097,7 @@ export function MemberOrderPage({
   const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = mode === "guest" && !guestName.trim();
+  const showGuestNameError = guestNameMissing && guestNameTouched;
   // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
@@ -1383,12 +1386,17 @@ export function MemberOrderPage({
             <input
               value={guestName}
               onChange={(event) => setGuestName(event.target.value)}
-              className={`${inputClass} ${guestNameMissing ? "border-garage-red/70" : "border-garage-line"}`}
+              onBlur={() => setGuestNameTouched(true)}
+              aria-invalid={showGuestNameError}
+              aria-describedby={showGuestNameError ? "guest-name-error" : undefined}
+              className={`${inputClass} ${showGuestNameError ? "border-garage-red/70" : "border-garage-line"}`}
               placeholder="Nama untuk dipanggil"
               autoComplete="name"
             />
-            {guestNameMissing ? (
-              <span className="text-sm font-semibold text-[#ffb3b3]">Nama wajib diisi.</span>
+            {showGuestNameError ? (
+              <span id="guest-name-error" role="alert" className="text-sm font-semibold text-[#ffb3b3]">
+                Nama wajib diisi.
+              </span>
             ) : null}
           </label>
         ) : member ? (
@@ -1414,7 +1422,7 @@ export function MemberOrderPage({
             <button
               type="button"
               onClick={() => setShowVoucherField(true)}
-              className="garage-press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-garage-line-2 px-3 text-sm font-semibold text-white transition-colors hover:bg-garage-bg-3"
+              className="garage-press inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-garage-line-2 px-3 text-sm font-semibold text-white transition-colors hover:bg-garage-bg-3"
             >
               <TicketPercent className="size-4 text-garage-amber" /> Kode promo
             </button>
@@ -1423,7 +1431,7 @@ export function MemberOrderPage({
             <button
               type="button"
               onClick={() => setShowNoteField(true)}
-              className="garage-press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-garage-line-2 px-3 text-sm font-semibold text-white transition-colors hover:bg-garage-bg-3"
+              className="garage-press inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-garage-line-2 px-3 text-sm font-semibold text-white transition-colors hover:bg-garage-bg-3"
             >
               <Plus className="size-4 text-garage-amber" /> Catatan pesanan
             </button>

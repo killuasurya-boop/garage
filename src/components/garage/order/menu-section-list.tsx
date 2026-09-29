@@ -66,11 +66,11 @@ export function MenuSectionList({
               </span>
             </div>
             {group.sections.map((section) => (
-              <div key={section.name}>
+              <div key={section.name} role="group" aria-label={showSubheads ? section.name : undefined}>
                 {showSubheads ? (
-                  <h3 className="mt-4 font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
+                  <p aria-hidden className="mt-4 font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
                     {section.name}
-                  </h3>
+                  </p>
                 ) : null}
                 <div>
                   {section.items.map((item) => (

@@ -72,12 +72,13 @@ function SheetContent({
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-3 right-3"
+              className="absolute top-3 right-3 pointer-coarse:size-11"
               size="icon-sm"
+              aria-label="Tutup"
             >
               <XIcon
               />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">Tutup</span>
             </Button>
           </SheetPrimitive.Close>
         )}

@@ -219,6 +219,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       handoverByName: ticket.handoverByName ?? null,
       issueReason: ticket.issueReason ?? null,
       addonSequence: ticket.orderId ? addonByOrder.get(ticket.orderId) ?? 1 : 1,
+      chitPrintedAt: ticket.chitPrintedAt?.toISOString() ?? null,
       legacy,
       pendingBatchNos,
       items: legacy
@@ -738,4 +739,21 @@ export async function cancelProductionBatch(
   });
 
   return batch;
+}
+
+/**
+ * Tandai chit tiket sudah tercetak di printer stasiun (Bar/Dapur). Hanya baris
+ * yang belum bertanda yang diisi, jadi dua perangkat stasiun yang menekan
+ * "Cetak" hampir bersamaan tidak saling menimpa. Mengembalikan jumlah baris yang
+ * benar-benar berubah.
+ */
+export async function markProductionChitsPrinted(ticketNos: string[]): Promise<number> {
+  const unique = [...new Set(ticketNos.map((no) => no.trim()).filter(Boolean))].slice(0, 100);
+  if (unique.length === 0) return 0;
+  const rows = await getDb()
+    .update(kitchenTickets)
+    .set({ chitPrintedAt: new Date() })
+    .where(and(inArray(kitchenTickets.ticketNo, unique), isNull(kitchenTickets.chitPrintedAt)))
+    .returning({ id: kitchenTickets.id });
+  return rows.length;
 }

@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StationPrintPanel } from "@/components/garage/station-print-panel";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import { GARAGE_TAGS, invalidateGarageCache, subscribeGarageCache } from "@/lib/garage-cache";
 import { currency } from "@/lib/garage-data";
@@ -893,6 +894,8 @@ export function ProductionView({
           ))}
         </div>
       </div>
+
+      <StationPrintPanel tickets={tickets} station={station} onPrinted={() => void load(true)} />
 
       {visibleCancelled.length ? (
         <section

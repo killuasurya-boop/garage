@@ -1,0 +1,1 @@
+ALTER TABLE "kitchen_tickets" ADD COLUMN "chit_printed_at" timestamp with time zone;

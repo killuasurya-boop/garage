@@ -721,6 +721,9 @@ export const kitchenTickets = pgTable(
     // (claimedBy = waiter yang dipanggil; null = siapa saja).
     handoverAt: timestamp("handover_at", { withTimezone: true }),
     handoverByName: text("handover_by_name"),
+    // Chit cetak stasiun (printer Bar/Dapur): terisi saat sudah dicetak, supaya
+    // tiket tidak tercetak dobel di perangkat stasiun mana pun.
+    chitPrintedAt: timestamp("chit_printed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

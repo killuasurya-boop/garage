@@ -30,7 +30,7 @@ export function OrderHeader({
   return (
     <header className="pt-3">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/" className="block w-[132px] shrink-0 sm:w-[168px]" aria-label="Kembali ke website Garage">
+        <Link href="/" className="flex min-h-11 w-[132px] shrink-0 items-center sm:w-[168px]" aria-label="Kembali ke website Garage">
           <Image
             src="/garage-brand/logo-website.png"
             alt="Garage Coffee & Motor"
@@ -46,7 +46,7 @@ export function OrderHeader({
             className="flex h-11 shrink-0 flex-col items-center justify-center rounded-md border border-garage-line-2 bg-garage-bg-2 px-2.5 leading-none"
             aria-label={dineIn ? tableLabel : channelLabel}
           >
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-garage-dim">
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-garage-dim">
               {dineIn ? "Meja" : "Order"}
             </span>
             <span className="mt-0.5 font-mono text-base font-bold tabular-nums text-white">{tableCode}</span>
@@ -96,7 +96,7 @@ export function OrderHeader({
               href={GARAGE_LOCATION.directionsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 underline-offset-4 transition-colors hover:text-white hover:underline"
+              className="inline-flex min-h-11 items-center gap-1.5 underline-offset-4 transition-colors hover:text-white hover:underline"
             >
               <MapPin className="size-4 text-garage-amber" aria-hidden /> Rute ke GARAGE
             </a>

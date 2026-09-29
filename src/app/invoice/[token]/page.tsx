@@ -473,7 +473,7 @@ export default async function InvoiceTrackingPage({
                 </a>
                 <div className="flex items-center gap-2 text-xs text-[#b8b8bf]">
                   <Smartphone className="size-3 shrink-0 text-[#f5a742]" />
-                  <span>app.garagecoffee.id</span>
+                  <span>garagecoffee.id</span>
                 </div>
               </div>
 
@@ -884,7 +884,7 @@ export default async function InvoiceTrackingPage({
               Terima kasih atas kunjungan Anda!
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              app.garagecoffee.id &nbsp;|&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;|&nbsp; Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi
+              garagecoffee.id &nbsp;|&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;|&nbsp; Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi
             </p>
           </div>
 
@@ -909,7 +909,7 @@ export default async function InvoiceTrackingPage({
               . 🙏
             </p>
             <p className="mt-1 text-[11px] text-[#8f8f99]">
-              app.garagecoffee.id &nbsp;&bull;&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;&bull;&nbsp; Pesanan yang sudah dibuat tidak dapat dikembalikan.
+              garagecoffee.id &nbsp;&bull;&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;&bull;&nbsp; Pesanan yang sudah dibuat tidak dapat dikembalikan.
             </p>
           </div>
         </div>

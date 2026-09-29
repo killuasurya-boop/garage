@@ -43,7 +43,7 @@ export async function GET(req: Request) {
       metadata: { provider: "meta" },
     });
 
-    const destination = new URL(returnTo, process.env.GARAGE_PUBLIC_BASE_URL || "https://app.garagecoffee.id");
+    const destination = new URL(returnTo, process.env.GARAGE_PUBLIC_BASE_URL || "https://garagecoffee.id");
     destination.searchParams.set("meta_connected", "1");
     return NextResponse.redirect(destination.toString());
   } catch (err: unknown) {

@@ -42,7 +42,7 @@ function publicBaseUrl() {
   return (
     process.env.GARAGE_PUBLIC_BASE_URL?.trim() ||
     process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.trim() ||
-    "https://app.garagecoffee.id"
+    "https://garagecoffee.id"
   ).replace(/\/+$/, "");
 }
 

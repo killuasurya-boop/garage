@@ -62,7 +62,7 @@ export async function generateInvoicePdf(data: OrderReceiptData): Promise<Buffer
       doc
         .fillColor("#666")
         .text("Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi, Sumut 20631", 48, doc.y, { width: 330 })
-        .text(`Telp/WA ${GARAGE_LOCATION.phoneDisplay} · app.garagecoffee.id`, 48, doc.y, { width: 330 });
+        .text(`Telp/WA ${GARAGE_LOCATION.phoneDisplay} · garagecoffee.id`, 48, doc.y, { width: 330 });
       const headerLeftBottom = doc.y;
 
       // Invoice label (right side)

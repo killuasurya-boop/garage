@@ -7095,7 +7095,7 @@ function GarageWebsiteRoot({
     // Domain publik (https) dari env bila sudah ada; alamat LAN (http://192.168…) tidak dipakai untuk Google.
     url: process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.startsWith("https://")
       ? process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL
-      : "https://app.garagecoffee.id",
+      : "https://garagecoffee.id",
     telephone: `+${biz.whatsapp}`,
     email: biz.email,
     priceRange: "Rp 8K - Rp 100K",

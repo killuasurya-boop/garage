@@ -25,7 +25,7 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://app.garagecoffee.id";
+  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://garagecoffee.id";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

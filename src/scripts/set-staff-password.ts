@@ -4,11 +4,11 @@
 // akses DB langsung — bukan endpoint publik.
 //
 // Pakai:
-//   STAFF_EMAIL=owner@garage.local STAFF_PASSWORD=passbaru \
+//   STAFF_EMAIL=owner@garage.id STAFF_PASSWORD=passbaru \
 //     npx tsx src/scripts/set-staff-password.ts
 //
 // Atau via argv:
-//   npx tsx src/scripts/set-staff-password.ts owner@garage.local passbaru
+//   npx tsx src/scripts/set-staff-password.ts owner@garage.id passbaru
 //
 // Catatan: TIDAK menerima password sebagai literal kode — hanya runtime.
 import { and, eq } from "drizzle-orm";

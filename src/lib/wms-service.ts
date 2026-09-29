@@ -1,10 +1,12 @@
-import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   appSettings,
   approvals,
   inventoryItems,
+  outlets,
+  supplierInvoices,
   wmsBatch,
   wmsBomItem,
   wmsCategory,
@@ -29,6 +31,7 @@ import {
   wmsWarehouseStock,
   user,
 } from "@/db/schema";
+import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
 import {
   autoBatchNo,
@@ -58,6 +61,31 @@ type Tx = Db;
 /** Jalankan fn dalam transaksi (atomic). Semua mutasi stok wajib lewat sini. */
 export function runInTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   return (getDb() as Db).transaction(fn as never) as Promise<T>;
+}
+
+/**
+ * HPP bahan WMS berubah (receiving / produksi) → teruskan ke katalog OS
+ * (inventory_items.unit_cost) yang dipakai resep & laporan keuangan, lalu hitung
+ * ulang HPP menu yang memakai bahan tsb. Tanpa ini, sinkron OS→WMS berikutnya
+ * menimpa HPP rata-rata WMS dengan harga lama.
+ */
+async function propagateHppToOs(tx: Tx, productId: string, hpp: number, lastUnitPrice?: number) {
+  if (!Number.isFinite(hpp) || hpp < 0) return;
+  const [prod] = await tx.select({ sku: wmsProduct.sku }).from(wmsProduct).where(eq(wmsProduct.id, productId)).limit(1);
+  if (!prod) return;
+  // Receiving: harga beli per kemasan terakhir = harga/satuan dari supplier × isi kemasan.
+  const priceUpdate =
+    lastUnitPrice !== undefined && Number.isFinite(lastUnitPrice) && lastUnitPrice > 0
+      ? {
+          purchasePrice: sql<number>`case when ${inventoryItems.packageQty} > 0 then round((${lastUnitPrice} * ${inventoryItems.packageQty})::numeric, 4) else ${inventoryItems.purchasePrice} end`,
+        }
+      : {};
+  const updated = await tx
+    .update(inventoryItems)
+    .set({ unitCost: Math.round(hpp * 10_000) / 10_000, ...priceUpdate, updatedAt: new Date() })
+    .where(eq(inventoryItems.sku, prod.sku))
+    .returning({ sku: inventoryItems.sku });
+  if (updated.length) await syncRecipeBaseCosts(tx, { skus: [prod.sku] });
 }
 
 /** Konsumsi qty dari batch FEFO (expired terdekat dulu) → kembalikan biaya aktual. */
@@ -118,6 +146,12 @@ export async function recordStockMovement(
     batchNo?: string;
     expiredAt?: Date | null;
     location?: string;
+    /**
+     * Khusus konsumsi penjualan: boleh minus supaya bahan yang terjual melebihi
+     * stok tercatat tetap terpotong (selisih terlihat & dikoreksi saat opname),
+     * bukan hilang diam-diam.
+     */
+    allowNegative?: boolean;
   },
 ): Promise<{ cost: number }> {
   const delta = Number(input.deltaQty);
@@ -135,7 +169,7 @@ export async function recordStockMovement(
     .for("update");
   const current = Number(cur?.qty ?? 0);
   const next = current + delta;
-  if (next < 0) {
+  if (next < 0 && !input.allowNegative) {
     throw new Error(`Stok tidak cukup (tersedia ${current}, diminta ${-delta}).`);
   }
 
@@ -182,7 +216,155 @@ export async function recordStockMovement(
       .insert(wmsWarehouseStock)
       .values({ productId: input.productId, warehouseId: input.warehouseId, qty: next });
   }
+  await mirrorWmsStockToOs(tx, input.productId);
   return { cost };
+}
+
+/**
+ * WMS = satu-satunya catatan stok fisik. Stok katalog OS (inventory_items.onHand)
+ * dijadikan cermin TOTAL stok WMS semua ruang, supaya alert stok rendah, nilai
+ * stok laporan keuangan, dan auto-habis membaca angka yang sama dengan gudang.
+ */
+async function mirrorWmsStockToOs(tx: Tx, productId: string) {
+  const [prod] = await tx
+    .select({ sku: wmsProduct.sku })
+    .from(wmsProduct)
+    .where(eq(wmsProduct.id, productId))
+    .limit(1);
+  if (!prod) return;
+  // Catatan: jangan pakai subquery berkorelasi di select satu-tabel — Drizzle
+  // menulis kolom tanpa nama tabel sehingga "id" tertukar dengan id baris stok.
+  const total = await totalOnHand(tx, productId);
+  await tx
+    .update(inventoryItems)
+    .set({
+      onHand: total,
+      status: sql<string>`case when ${total} <= ${inventoryItems.min} then 'low' when ${total} <= ${inventoryItems.min} * 1.25 then 'watch' else 'safe' end`,
+      updatedAt: new Date(),
+    })
+    .where(eq(inventoryItems.sku, prod.sku));
+}
+
+type SaleStockInput = { sku: string; qty: number; refDoc: string; userId?: string | null };
+
+/** Produk WMS + area (bar/dapur/umum) untuk SKU katalog; null bila bahan belum ada di WMS. */
+async function wmsProductForSku(tx: Tx, sku: string) {
+  const [prod] = await tx
+    .select({ id: wmsProduct.id, hpp: wmsProduct.hpp, area: wmsCategory.area })
+    .from(wmsProduct)
+    .leftJoin(wmsCategory, eq(wmsCategory.name, wmsProduct.category))
+    .where(and(eq(wmsProduct.sku, sku), sql`${wmsProduct.archivedAt} is null`))
+    .limit(1);
+  if (!prod) return null;
+  return { id: prod.id, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea };
+}
+
+async function wmsProductById(tx: Tx, id: string) {
+  const [prod] = await tx
+    .select({ id: wmsProduct.id, hpp: wmsProduct.hpp, area: wmsCategory.area })
+    .from(wmsProduct)
+    .leftJoin(wmsCategory, eq(wmsCategory.name, wmsProduct.category))
+    .where(eq(wmsProduct.id, id))
+    .limit(1);
+  if (!prod) return null;
+  return { id: prod.id, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea };
+}
+
+/** Urutan ruang pengambilan bahan jual: outlet area → gudang utama area → ruang lain. */
+async function saleWarehouseOrder(tx: Tx, area: WmsArea) {
+  const whs = await tx.select().from(wmsWarehouse);
+  const outletType = area === "dapur" ? "kitchen" : "bar";
+  const rank = (w: typeof wmsWarehouse.$inferSelect) => {
+    if (area !== "umum" && w.type === outletType) return 0;
+    if (area !== "umum" && w.type === "main" && w.area === area) return 1;
+    if (area === "umum" && w.type !== "main") return 0;
+    if (area === "umum" && w.isPrimary) return 1;
+    return 2;
+  };
+  return whs.sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * Konsumsi bahan untuk penjualan (dipanggil dari potong stok resep order POS/QR).
+ * Ambil dari outlet area dulu, lalu gudang utama area, lalu ruang lain; sisa yang
+ * tidak ada stoknya dipotong minus di ruang pertama. Mengembalikan false bila
+ * SKU belum terdaftar di WMS (pemanggil memakai logika stok lama).
+ */
+export async function consumeWmsStockForSale(tx: Tx, input: SaleStockInput): Promise<{ handled: boolean; shortage: number }> {
+  const prod = await wmsProductForSku(tx, input.sku);
+  if (!prod) return { handled: false, shortage: 0 };
+  const shortage = await consumeProductForSale(tx, prod, Number(input.qty), input.refDoc, input.userId ?? null);
+  return { handled: true, shortage };
+}
+
+/** Konsumsi 1 produk WMS untuk penjualan; kembalikan jumlah yang terpotong minus (kekurangan). */
+async function consumeProductForSale(
+  tx: Tx,
+  prod: { id: string; hpp: number; area: WmsArea },
+  qty: number,
+  refDoc: string,
+  userId: string | null,
+): Promise<number> {
+  if (!(qty > 0)) return 0;
+  const input = { refDoc, userId };
+  const order = await saleWarehouseOrder(tx, prod.area);
+  let remaining = qty;
+  for (const wh of order) {
+    if (remaining <= 0) break;
+    const avail = await warehouseOnHand(tx, prod.id, wh.id);
+    const take = Math.min(avail, remaining);
+    if (take <= 0) continue;
+    await recordStockMovement(tx, {
+      type: "out",
+      productId: prod.id,
+      warehouseId: wh.id,
+      deltaQty: -take,
+      hpp: prod.hpp,
+      refDoc: input.refDoc,
+      userId: input.userId ?? null,
+    });
+    remaining = Number((remaining - take).toFixed(4));
+  }
+  const shortage = remaining > 0 ? remaining : 0;
+  if (shortage > 0 && order[0]) {
+    await recordStockMovement(tx, {
+      type: "out",
+      productId: prod.id,
+      warehouseId: order[0].id,
+      deltaQty: -shortage,
+      hpp: prod.hpp,
+      refDoc: `${input.refDoc} (melebihi stok tercatat)`,
+      userId: input.userId ?? null,
+      allowNegative: true,
+    });
+  }
+  return shortage;
+}
+
+/** Kembalikan bahan penjualan (void/refund) ke ruang pengambilan utama area. */
+export async function returnWmsStockForSale(tx: Tx, input: SaleStockInput): Promise<{ handled: boolean }> {
+  const qty = Number(input.qty);
+  const prod = await wmsProductForSku(tx, input.sku);
+  if (!prod) return { handled: false };
+  if (!(qty > 0)) return { handled: true };
+  const [target] = await saleWarehouseOrder(tx, prod.area);
+  if (!target) return { handled: false };
+  await recordStockMovement(tx, {
+    type: "in",
+    productId: prod.id,
+    warehouseId: target.id,
+    deltaQty: qty,
+    hpp: prod.hpp,
+    refDoc: input.refDoc,
+    userId: input.userId ?? null,
+    batchNo: `RETUR-${input.refDoc}`.slice(0, 60),
+  });
+  return { handled: true };
+}
+
+/** True bila SKU dikelola WMS (stok fisiknya dicatat di WMS). */
+export async function isWmsManagedSku(tx: Tx, sku: string): Promise<boolean> {
+  return (await wmsProductForSku(tx, sku)) !== null;
 }
 
 // Single-flight: seed hanya dijalankan sekali per proses (cegah query berulang di
@@ -362,6 +544,9 @@ export async function getWmsProducts(params?: {
       unit: wmsProduct.unit,
       minStock: wmsProduct.minStock,
       hpp: wmsProduct.hpp,
+      packPrice: inventoryItems.purchasePrice,
+      packQty: inventoryItems.packageQty,
+      packageLabel: inventoryItems.packageSize,
       imageUrl: wmsProduct.imageUrl,
       barcode: wmsProduct.barcode,
       createdAt: wmsProduct.createdAt,
@@ -370,6 +555,9 @@ export async function getWmsProducts(params?: {
         : sql<number>`coalesce(${wmsWarehouseStock.qty}, 0)`,
     })
     .from(wmsProduct)
+    // Harga beli & isi kemasan tinggal di katalog bahan (inventory_items) — sumber
+    // HPP resep & laporan keuangan.
+    .leftJoin(inventoryItems, eq(inventoryItems.sku, wmsProduct.sku))
     .leftJoin(
       wmsWarehouseStock,
       and(
@@ -388,6 +576,9 @@ export async function getWmsProducts(params?: {
     unit: r.unit,
     minStock: Number(r.minStock),
     hpp: Number(r.hpp),
+    packPrice: Number(r.packPrice ?? 0),
+    packQty: Number(r.packQty ?? 0),
+    packageLabel: r.packageLabel ?? null,
     onHand: Number(r.onHand),
     status: stockStatus(Number(r.onHand), Number(r.minStock)),
     imageUrl: r.imageUrl ?? null,
@@ -477,7 +668,77 @@ export async function getWmsWarehouseSummary(): Promise<
   }));
 }
 
-/** Update field produk (nama/kategori/satuan/min/hpp/gambar/barcode/restore). */
+/** Harga beli per kemasan & isi kemasan (dalam satuan stok) dari form Inventory. */
+export type WmsPackInput = { packPrice?: number; packQty?: number; packName?: string };
+
+/** HPP per satuan = harga beli per kemasan ÷ isi kemasan (4 desimal). */
+function unitCostFromPack(pack: WmsPackInput): number | null {
+  const price = Number(pack.packPrice);
+  const qty = Number(pack.packQty);
+  if (!Number.isFinite(price) || !Number.isFinite(qty) || price < 0 || qty <= 0) return null;
+  return Math.round((price / qty) * 10_000) / 10_000;
+}
+
+function osUsageArea(area: string | null | undefined): "bar" | "dapur" | "general" {
+  return area === "bar" ? "bar" : area === "dapur" ? "dapur" : "general";
+}
+
+/**
+ * Simpan master bahan WMS ke katalog OS (inventory_items) — sumber HPP resep &
+ * laporan keuangan sekaligus sumber sinkron OS→WMS. Tanpa ini edit di WMS
+ * tertimpa balik saat sinkron dan bahan buatan WMS tidak bisa dipakai di resep.
+ * HPP menu yang memakai bahan ini dihitung ulang bila HPP-nya berubah.
+ */
+async function mirrorWmsProductToOs(db: Db, prod: typeof wmsProduct.$inferSelect, pack: WmsPackInput) {
+  const [cat] = await db
+    .select({ area: wmsCategory.area })
+    .from(wmsCategory)
+    .where(eq(wmsCategory.name, prod.category))
+    .limit(1);
+  const [existing] = await db.select().from(inventoryItems).where(eq(inventoryItems.sku, prod.sku)).limit(1);
+
+  const packQty = pack.packQty !== undefined ? Number(pack.packQty) : Number(existing?.packageQty ?? 0);
+  const packPrice = pack.packPrice !== undefined ? Number(pack.packPrice) : Number(existing?.purchasePrice ?? 0);
+  const packName = pack.packName?.trim();
+  const labelChanged =
+    pack.packQty !== undefined &&
+    packQty > 0 &&
+    (!existing || Number(existing.packageQty) !== packQty || (packName && !existing.packageSize.startsWith(packName)));
+  const packageSize = labelChanged
+    ? `${packName || "kemasan"} ${packQty} ${prod.unit}`
+    : (existing?.packageSize ?? `1 ${prod.unit}`);
+  const minStock = Number(prod.minStock);
+  const values = {
+    name: prod.name,
+    category: prod.category,
+    usageArea: osUsageArea(cat?.area),
+    unit: prod.unit,
+    min: minStock,
+    unitCost: Number(prod.hpp),
+    purchasePrice: packPrice,
+    packageQty: packQty,
+    packageSize,
+    updatedAt: new Date(),
+  };
+
+  if (existing) {
+    await db.update(inventoryItems).set(values).where(eq(inventoryItems.sku, prod.sku));
+  } else {
+    await db.insert(inventoryItems).values({
+      sku: prod.sku,
+      alternativeName: "-",
+      onHand: 0,
+      status: minStock > 0 ? "low" : "safe",
+      movement: "",
+      ...values,
+    });
+  }
+  if (!existing || Number(existing.unitCost) !== Number(prod.hpp)) {
+    await syncRecipeBaseCosts(db, { skus: [prod.sku] });
+  }
+}
+
+/** Update field produk (nama/kategori/satuan/min/hpp/harga kemasan/gambar/barcode/restore). */
 export async function updateWmsProduct(
   id: string,
   patch: {
@@ -489,7 +750,7 @@ export async function updateWmsProduct(
     imageUrl?: string | null;
     barcode?: string | null;
     archivedAt?: Date | null; // set null = restore dari arsip
-  },
+  } & WmsPackInput,
 ) {
   const db = getDb();
   const set: Record<string, unknown> = { updatedAt: new Date() };
@@ -498,11 +759,22 @@ export async function updateWmsProduct(
   if (patch.unit !== undefined) set.unit = patch.unit.trim();
   if (patch.minStock !== undefined) set.minStock = patch.minStock;
   if (patch.hpp !== undefined) set.hpp = patch.hpp;
+  // Harga beli per kemasan + isi → HPP per satuan dihitung otomatis (menang atas hpp manual).
+  const packUnitCost = unitCostFromPack(patch);
+  if (packUnitCost !== null) set.hpp = packUnitCost;
   if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl;
   if (patch.barcode !== undefined) set.barcode = patch.barcode ? patch.barcode.trim() : null;
   if (patch.archivedAt !== undefined) set.archivedAt = patch.archivedAt;
   const [row] = await db.update(wmsProduct).set(set).where(eq(wmsProduct.id, id)).returning();
-  return row ?? null;
+  if (!row) return null;
+
+  const masterChanged = ["name", "category", "unit", "minStock", "hpp", "packPrice", "packQty", "packName"].some(
+    (key) => patch[key as keyof typeof patch] !== undefined,
+  );
+  if (masterChanged) {
+    await mirrorWmsProductToOs(db, row, { packPrice: patch.packPrice, packQty: patch.packQty, packName: patch.packName });
+  }
+  return row;
 }
 
 /** Soft-delete (arsip): produk hilang dari daftar tapi riwayat ledger tetap ada. */
@@ -527,10 +799,11 @@ export async function createWmsProduct(
     barcode?: string | null;
     initialStock?: number; // stok awal (opsional) → masuk ruang sesuai area kategori
     initialWarehouseId?: string | null;
-  },
+  } & WmsPackInput,
   userId?: string | null,
 ) {
   const db = getDb();
+  const hpp = unitCostFromPack(input) ?? input.hpp ?? 0;
   const [prod] = await db
     .insert(wmsProduct)
     .values({
@@ -539,11 +812,13 @@ export async function createWmsProduct(
       category: input.category.trim(),
       unit: input.unit.trim(),
       minStock: input.minStock ?? 0,
-      hpp: input.hpp ?? 0,
+      hpp,
       barcode: input.barcode?.trim() || null,
       createdBy: userId ?? null,
     })
     .returning();
+  // Bahan baru dari WMS langsung masuk katalog OS → bisa dipakai di resep menu.
+  await mirrorWmsProductToOs(db, prod, { packPrice: input.packPrice, packQty: input.packQty, packName: input.packName });
 
   // Stok awal: catat masuk ke ruang gudang utama sesuai area kategori (atau dipilih).
   const initial = Number(input.initialStock ?? 0);
@@ -564,7 +839,7 @@ export async function createWmsProduct(
           productId: prod.id,
           warehouseId: target as string,
           deltaQty: initial,
-          hpp: input.hpp ?? 0,
+          hpp,
           refDoc: "STOK-AWAL",
           userId: userId ?? null,
           batchNo: `INIT-${prod.sku.trim()}`,
@@ -1303,6 +1578,7 @@ export async function completeReceiving(
           .update(wmsProduct)
           .set({ hpp: newHpp, updatedAt: new Date() })
           .where(eq(wmsProduct.id, it.productId));
+        await propagateHppToOs(tx, it.productId, newHpp, Number(it.hpp));
       }
 
       const area = areaByCat.get((prod?.category ?? category ?? "").trim().toLowerCase()) ?? "umum";
@@ -1324,6 +1600,40 @@ export async function completeReceiving(
       if (!it.batchNo) {
         await tx.update(wmsReceivingItem).set({ batchNo }).where(eq(wmsReceivingItem.id, it.id));
       }
+    }
+
+    // Pembelian WMS → tagihan supplier (hutang, belum dibayar) supaya belanja
+    // bahan tercatat di Keuangan. Uang keluar baru dicatat saat invoice dibayar
+    // (markSupplierInvoicePaid → expense) — tidak dobel. Idempoten via invoiceNo.
+    const purchaseTotal = Math.round(totalValue + additionalCost);
+    if (purchaseTotal > 0) {
+      const areaCount = { bar: 0, dapur: 0 };
+      for (const x of accepted) {
+        const area = areaByCat.get((x.category ?? "").trim().toLowerCase());
+        if (area === "bar") areaCount.bar += 1;
+        else if (area === "dapur") areaCount.dapur += 1;
+      }
+      const category =
+        areaCount.bar > 0 && areaCount.dapur === 0
+          ? "Belanja Bar"
+          : areaCount.dapur > 0 && areaCount.bar === 0
+            ? "Belanja Dapur"
+            : "COGS";
+      const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
+      await tx
+        .insert(supplierInvoices)
+        .values({
+          outletId: outlet?.id ?? null,
+          invoiceNo: rec.poNumber?.trim() ? `${rec.doc} / ${rec.poNumber.trim()}` : rec.doc,
+          category,
+          description: `Receiving WMS ${rec.doc}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
+          amount: purchaseTotal,
+          status: "unpaid",
+          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          createdBy: userId ?? null,
+          notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
+        })
+        .onConflictDoNothing({ target: supplierInvoices.invoiceNo });
     }
 
     const [updated] = await tx
@@ -1725,6 +2035,7 @@ export async function runProduction(
       const newQty = oldQty + producedQty;
       const newHpp = newQty > 0 ? (oldValue + totalCost) / newQty : unitCost;
       await tx.update(wmsProduct).set({ hpp: newHpp, updatedAt: new Date() }).where(eq(wmsProduct.id, rec.outputProductId));
+      await propagateHppToOs(tx, rec.outputProductId, newHpp);
     }
 
     await recordStockMovement(tx, {
@@ -2237,21 +2548,21 @@ export type WmsIngredientType = "raw" | "packaging" | "semi_finished" | "finishe
 const APPROVAL_CHAIN: Record<string, { next: WmsRecipeStatus; roles: string[] }> = {
   draft: {
     next: "pending_kitchen",
-    roles: ["Owner / CEO", "Admin", "Manager Operasional", "Koki", "Asisten Koki", "Barista", "Kitchen / Barista"],
+    roles: ["Owner", "Manajer", "Kasir"],
   },
   pending_kitchen: {
     next: "pending_warehouse",
-    roles: ["Koki", "Asisten Koki", "Barista", "Kitchen / Barista", "Owner / CEO", "Admin", "Manager Operasional"],
+    roles: ["Kasir", "Owner", "Manajer"],
   },
   pending_warehouse: {
     next: "pending_manager",
-    roles: ["Gudang", "Owner / CEO", "Admin", "Manager Operasional"],
+    roles: ["Kasir", "Owner", "Manajer"],
   },
   pending_manager: {
     next: "pending_owner",
-    roles: ["Manager Operasional", "Owner / CEO", "Admin"],
+    roles: ["Manajer", "Owner"],
   },
-  pending_owner: { next: "published", roles: ["Owner / CEO", "Admin"] },
+  pending_owner: { next: "published", roles: ["Owner"] },
 };
 
 function classifyIngredient(category: string, name: string): WmsIngredientType {
@@ -3823,7 +4134,8 @@ export async function processPosSale(
   const skipped: Array<{ menu: string; reason: string }> = [];
 
   // Muat semua resep sekali; cocokkan di memori (persis dulu, lalu ternormalisasi).
-  const recipes = await db.select().from(wmsRecipe);
+  // Resep yang diarsipkan tidak ikut dicocokkan supaya tidak memotong bahan lama.
+  const recipes = await db.select().from(wmsRecipe).where(ne(wmsRecipe.recipeStatus, "archived"));
   const norm = new Map<string, typeof recipes>();
   for (const r of recipes) {
     const key = normalizeMenuName(r.name);
@@ -3838,11 +4150,6 @@ export async function processPosSale(
   const areaOf = (category: string | null): WmsArea =>
     areaByCat.get((category ?? "").trim().toLowerCase()) ?? "umum";
 
-  // Gudang outlet per tipe (dimuat sekali).
-  const [barWh] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "bar")).limit(1);
-  const [kitWh] = await db.select().from(wmsWarehouse).where(eq(wmsWarehouse.type, "kitchen")).limit(1);
-  const outletFor = (type: "bar" | "kitchen") =>
-    type === "bar" ? (barWh ?? kitWh) : (kitWh ?? barWh);
 
   for (const it of input.items) {
     const soldQty = Number(it.qty);
@@ -3909,39 +4216,44 @@ export async function processPosSale(
       continue;
     }
 
-    // Outlet utama menu = area mayoritas bahan non-umum; semua umum → fallback regex resep.
+    // Penjualan = KONSUMSI bahan (mutasi "out"), bukan transfer gudang→outlet.
+    // (Dulu memakai createInternalOrder: stok hanya pindah ruang, total tak berkurang.)
+    // Bahan umum mengikuti area mayoritas resep supaya diambil dari ruang yang sama.
     const barCount = lines.filter((l) => l.area === "bar").length;
     const kitCount = lines.filter((l) => l.area === "dapur").length;
-    const primaryType: "bar" | "kitchen" =
+    const primaryArea: WmsArea =
       barCount === 0 && kitCount === 0
-        ? /coffee|non.?coffee|kopi|minum|bar|drink/i.test(recCategory) ? "bar" : "kitchen"
-        : barCount >= kitCount ? "bar" : "kitchen";
+        ? /coffee|non.?coffee|kopi|minum|bar|drink/i.test(recCategory) ? "bar" : "dapur"
+        : barCount >= kitCount ? "bar" : "dapur";
 
-    // Kelompokkan bahan per outlet: bar→bar, dapur→kitchen, umum→outlet utama.
-    const groups: Record<"bar" | "kitchen", Array<{ productId: string; qty: number }>> = { bar: [], kitchen: [] };
-    for (const l of lines) {
-      const target = l.area === "bar" ? "bar" : l.area === "dapur" ? "kitchen" : primaryType;
-      groups[target].push({ productId: l.productId, qty: l.qty });
+    const refDoc = input.ref ? `SALE ${input.ref}:${recId}` : `SALE ${makeWmsDoc("POS")}`;
+    try {
+      const result = await runInTx(async (tx) => {
+        // Idempotensi: retry webhook dengan ref+resep sama tidak memotong dua kali.
+        if (input.ref) {
+          const [dupe] = await tx
+            .select({ id: wmsStockMovement.id })
+            .from(wmsStockMovement)
+            .where(sql`${wmsStockMovement.refDoc} like ${`${refDoc}%`}`)
+            .limit(1);
+          if (dupe) return { duplicate: true, shortage: 0 };
+        }
+        let shortage = 0;
+        for (const l of lines) {
+          const prod = await wmsProductById(tx, l.productId);
+          if (!prod) continue;
+          const area = prod.area === "umum" ? primaryArea : prod.area;
+          shortage += await consumeProductForSale(tx, { ...prod, area }, l.qty, refDoc, userId ?? null);
+        }
+        return { duplicate: false, shortage };
+      });
+      processed.push({
+        menu: it.name,
+        io: result.duplicate ? `${refDoc} (sudah diproses)` : result.shortage > 0 ? `${refDoc} (melebihi stok tercatat)` : refDoc,
+      });
+    } catch (e) {
+      skipped.push({ menu: it.name, reason: e instanceof Error ? e.message : "gagal potong stok" });
     }
-
-    // Buat 1 Internal Order per kelompok outlet (idempotensi per sale+resep+outlet).
-    const docs: string[] = [];
-    let failReason: string | null = null;
-    for (const type of ["bar", "kitchen"] as const) {
-      if (groups[type].length === 0) continue;
-      const outlet = outletFor(type);
-      if (!outlet) { failReason = "outlet tidak ada"; break; }
-      try {
-        const sourceRef = input.ref ? `sale:${input.ref}:${recId}:${type}` : null;
-        const io = await createInternalOrder({ outletWarehouseId: outlet.id, items: groups[type], sourceRef }, userId);
-        docs.push(io.doc);
-      } catch (e) {
-        failReason = e instanceof Error ? e.message : "gagal potong stok";
-        break;
-      }
-    }
-    if (failReason) skipped.push({ menu: it.name, reason: failReason });
-    else processed.push({ menu: it.name, io: docs.join(", ") });
   }
 
   return { processed, skipped };

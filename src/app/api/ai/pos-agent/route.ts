@@ -104,8 +104,8 @@ export async function POST(request: Request) {
   const aiMode = body.data.mode ?? "operational";
   const isOwnerFreeChat = aiMode === "owner_free_chat";
 
-  if (isOwnerFreeChat && session.data.profile.role !== "Owner / CEO") {
-    return fail(403, "FORBIDDEN", "Chat bebas hanya tersedia untuk Owner / CEO.");
+  if (isOwnerFreeChat && session.data.profile.role !== "Owner") {
+    return fail(403, "FORBIDDEN", "Chat bebas hanya tersedia untuk Owner.");
   }
 
   const compactOwnerHistory = isOwnerFreeChat

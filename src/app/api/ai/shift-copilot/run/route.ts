@@ -6,12 +6,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 export async function POST(_request: Request) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-    "Supervisor Shift",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

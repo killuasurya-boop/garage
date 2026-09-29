@@ -10,8 +10,8 @@ import {
 } from "@/lib/test-helpers/garage-test-db";
 
 // =============================================================================
-// STEP 4 (Waiter) — TEST INTEGRASI pelayanan meja terhadap DB nyata.
-// Kasir order → Barista bikin ready → Waiter klaim tiket (anti rebutan) →
+// TEST INTEGRASI pelayanan meja terhadap DB nyata.
+// Kasir order → Kasir (KDS) bikin ready → Waiter klaim tiket (anti rebutan) →
 // antar (ready→delivered, nama pengantar tercatat). Auto-klaim saat antar.
 // =============================================================================
 
@@ -21,10 +21,11 @@ let createOrder: any;
 let updateKitchenStatus: any;
 let claimKitchenTicket: any;
 let deliverClaimedTicket: any;
+let handoverKitchenTicket: any;
 let outletId = "";
 
 const KASIR = "user-itest-kasir";
-const BARISTA = "user-itest-barista";
+const BARISTA = "user-itest-kasir-kds";
 const WAITER1 = "user-itest-waiter1";
 const WAITER2 = "user-itest-waiter2";
 
@@ -37,6 +38,8 @@ function makeSession(userId: string, name: string, role: Role): GarageSession {
       shiftLabel: "Pagi",
       deviceLabel: "HP-Waiter",
       passwordResetRequired: false,
+      // Kasir KDS ditugaskan Bar + Dapur (Production Hub); Waiter tetap ditolak per role.
+      workstation: "all",
       outlet: { id: outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
     },
   } as unknown as GarageSession;
@@ -65,9 +68,11 @@ async function makeReadyTicket(table: string) {
     .select()
     .from(t.schema.kitchenTickets)
     .where(eq(t.schema.kitchenTickets.orderId, order.id));
-  const barista = makeSession(BARISTA, "Barista Test", "Barista");
+  const barista = makeSession(BARISTA, "Kasir KDS Test", "Kasir");
   await updateKitchenStatus(tk.ticketNo, "cooking", barista);
-  await updateKitchenStatus(tk.ticketNo, "ready", barista);
+  await updateKitchenStatus(tk.ticketNo, "ready", barista, { qcConfirmed: true });
+  // Helper Bar ACC serah-terima & panggil "siapa saja" sebelum waiter mengambil.
+  await handoverKitchenTicket(tk.ticketNo, null, barista);
   return tk.ticketNo;
 }
 
@@ -77,9 +82,9 @@ beforeAll(async () => {
   outletId = seeded.outletId;
   const d = t.getDb();
   await d.insert(t.schema.user).values([
-    { id: BARISTA, name: "Barista Test", email: `${BARISTA}@garage.local` },
-    { id: WAITER1, name: "Waiter Satu", email: `${WAITER1}@garage.local` },
-    { id: WAITER2, name: "Waiter Dua", email: `${WAITER2}@garage.local` },
+    { id: BARISTA, name: "Kasir KDS Test", email: `${BARISTA}@garage.id` },
+    { id: WAITER1, name: "Waiter Satu", email: `${WAITER1}@garage.id` },
+    { id: WAITER2, name: "Waiter Dua", email: `${WAITER2}@garage.id` },
   ]);
 
   const svc = await import("@/lib/garage-service");
@@ -87,6 +92,7 @@ beforeAll(async () => {
   updateKitchenStatus = svc.updateKitchenStatus;
   claimKitchenTicket = svc.claimKitchenTicket;
   deliverClaimedTicket = svc.deliverClaimedTicket;
+  handoverKitchenTicket = svc.handoverKitchenTicket;
 }, 60_000);
 
 afterAll(async () => {
@@ -96,22 +102,22 @@ afterAll(async () => {
 describe("Waiter — klaim & antar tiket (DB nyata)", () => {
   it("Waiter klaim tiket ready, nama tercatat", async () => {
     const ticketNo = await makeReadyTicket("10");
-    const claimed = await claimKitchenTicket(ticketNo, makeSession(WAITER1, "Waiter Satu", "Waiter 1"));
+    const claimed = await claimKitchenTicket(ticketNo, makeSession(WAITER1, "Waiter Satu", "Waiter"));
     expect(claimed.claimedBy).toBe(WAITER1);
     expect(claimed.claimedByName).toBe("Waiter Satu");
   });
 
   it("Waiter lain tidak bisa merebut tiket yang sudah diklaim", async () => {
     const ticketNo = await makeReadyTicket("11");
-    await claimKitchenTicket(ticketNo, makeSession(WAITER1, "Waiter Satu", "Waiter 1"));
+    await claimKitchenTicket(ticketNo, makeSession(WAITER1, "Waiter Satu", "Waiter"));
     await expect(
-      claimKitchenTicket(ticketNo, makeSession(WAITER2, "Waiter Dua", "Waiter 2")),
+      claimKitchenTicket(ticketNo, makeSession(WAITER2, "Waiter Dua", "Waiter")),
     ).rejects.toThrow(/Waiter Satu|diambil/i);
   });
 
   it("Waiter antar tiket terklaim → delivered, pengantar tercatat", async () => {
     const ticketNo = await makeReadyTicket("12");
-    const waiter = makeSession(WAITER1, "Waiter Satu", "Waiter 1");
+    const waiter = makeSession(WAITER1, "Waiter Satu", "Waiter");
     await claimKitchenTicket(ticketNo, waiter);
     const delivered = await deliverClaimedTicket(ticketNo, waiter);
     expect(delivered.status).toBe("delivered");
@@ -120,7 +126,7 @@ describe("Waiter — klaim & antar tiket (DB nyata)", () => {
 
   it("antar tanpa klaim → auto-klaim lalu delivered", async () => {
     const ticketNo = await makeReadyTicket("14");
-    const waiter = makeSession(WAITER2, "Waiter Dua", "Waiter 2");
+    const waiter = makeSession(WAITER2, "Waiter Dua", "Waiter");
     const delivered = await deliverClaimedTicket(ticketNo, waiter);
     expect(delivered.status).toBe("delivered");
     expect(delivered.deliveredByName).toBe("Waiter Dua");

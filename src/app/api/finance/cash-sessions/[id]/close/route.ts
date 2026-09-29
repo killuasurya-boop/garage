@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { createDbBackup } from "@/lib/garage-db-backup";
 import { closeCashSession } from "@/lib/garage-service";
 import { rateLimit } from "@/lib/rate-limit";
 import { requireAnyPermission } from "@/lib/server-auth";
@@ -40,6 +41,8 @@ export async function PATCH(
     if (!cashSession) {
       return fail(404, "CASH_SESSION_NOT_FOUND", "Cash session was not found.");
     }
+    // Backup setiap tutup kasir (di latar belakang, tidak menahan respons).
+    void createDbBackup("tutupkasir").catch((err) => console.error("[backup] tutup kasir gagal", err));
     return ok(cashSession);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to close cash session.";

@@ -326,7 +326,7 @@ export function SecurityCenter({
                 value={`${securitySettings["securityLockoutDurationMinutes"] ?? "—"} menit`}
               />
               <PolicyChip
-                label="2FA Owner/Admin"
+                label="2FA Owner/Manajer"
                 value={securitySettings["securityRequire2faForOwner"] ? "Wajib" : "Optional"}
               />
             </div>

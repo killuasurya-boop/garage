@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminHubPage() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     if (session.response.status === 401) {
       redirect("/login?next=%2Fcontrol%2Fadmin");
@@ -24,12 +24,12 @@ export default async function AdminHubPage() {
     redirect("/os?module=dashboard");
   }
 
-  // Hard-enforce 2FA policy: kalau policy aktif & user Owner/Admin tapi belum
+  // Hard-enforce 2FA policy: kalau policy aktif & user Owner/Manajer tapi belum
   // setup 2FA, redirect ke setup page. Setup page itself accessible (gak loop).
   const policy = await loadSettingsByKeys(["securityRequire2faForOwner"]);
   const userIs2faPrivileged =
-    session.data.profile.role === "Owner / CEO" ||
-    session.data.profile.role === "Admin";
+    session.data.profile.role === "Owner" ||
+    session.data.profile.role === "Manajer";
   const userHas2fa = Boolean(
     (session.data.user as { twoFactorEnabled?: boolean }).twoFactorEnabled,
   );

@@ -12,7 +12,7 @@ export async function ControlDashboardRoute({
   children: ReactNode;
   next?: string;
 }) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     if (session.response.status === 401) {
       redirect(`/login?next=${encodeURIComponent(next)}`);

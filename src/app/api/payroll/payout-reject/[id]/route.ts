@@ -5,10 +5,9 @@ import { getDb } from "@/db";
 import { auditLogs, staffPayoutRequests } from "@/db/schema";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 export const runtime = "nodejs";
-
-const OWNER_ROLES = ["Owner / CEO", "Admin", "Finance / CFO"] as const;
 
 const schema = z.object({
   reason: z.string().min(3).max(500),
@@ -19,7 +18,7 @@ interface Ctx {
 }
 
 export async function POST(request: Request, { params }: Ctx) {
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  const session = await requireGarageSession(MANAGEMENT_ROLES);
   if (session.response) return session.response;
 
   const { id } = await params;

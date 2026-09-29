@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-type PurgeTarget = "orders" | "approvals" | "chat";
+type PurgeTarget = "approvals" | "chat";
 
 type PurgeResponse = {
   data: {
@@ -20,17 +20,18 @@ type PurgeResponse = {
   };
 };
 
-const ALL_TARGETS: PurgeTarget[] = ["orders", "approvals", "chat"];
+const ALL_TARGETS: PurgeTarget[] = ["chat", "approvals"];
+// Persetujuan = bukti kontrol keuangan; server menolak retensi < 365 hari.
+const APPROVAL_MIN_RETENTION_DAYS = 365;
 
 const TARGET_LABEL: Record<PurgeTarget, string> = {
-  orders: "Orders selesai",
-  approvals: "Approvals selesai",
+  approvals: "Approvals selesai (≥365 hari)",
   chat: "Chat internal",
 };
 
 export function DatabasePurgePanel() {
   const [retentionDays, setRetentionDays] = useState(30);
-  const [targets, setTargets] = useState<PurgeTarget[]>([...ALL_TARGETS]);
+  const [targets, setTargets] = useState<PurgeTarget[]>(["chat"]);
   const [loading, setLoading] = useState<"dry" | "exec" | null>(null);
   const [result, setResult] = useState<PurgeResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,8 +76,8 @@ export function DatabasePurgePanel() {
           Maintenance Database — Auto Purge
         </CardTitle>
         <CardDescription>
-          Hapus data lama (orders selesai, approvals selesai, chat internal) untuk jaga DB ringan.
-          Owner / Admin only. Audit logs <strong>tidak</strong> dihapus.
+          Hapus chat internal lama (dan persetujuan ≥ 1 tahun) untuk jaga DB ringan. Owner only.
+          Order/penjualan, pembayaran, dan audit log <strong>tidak pernah</strong> dihapus.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -86,12 +87,12 @@ export function DatabasePurgePanel() {
             <Input
               type="number"
               min={7}
-              max={365}
+              max={3650}
               value={retentionDays}
-              onChange={(e) => setRetentionDays(Math.max(7, Math.min(365, Number(e.target.value) || 30)))}
+              onChange={(e) => setRetentionDays(Math.max(7, Math.min(3650, Number(e.target.value) || 30)))}
               className="mt-1 h-10 border-[#34343c] bg-black/30"
             />
-            <p className="mt-1 text-[10px] text-white/40">Min 7 · Max 365 · Default 30</p>
+            <p className="mt-1 text-[10px] text-white/40">Min 7 · Default 30 · Approvals min 365</p>
           </div>
           <div>
             <label className="text-[11px] font-bold uppercase text-white/60">Target tabel</label>
@@ -120,7 +121,7 @@ export function DatabasePurgePanel() {
             variant="outline"
             className="border-amber-400/40 text-amber-200"
             onClick={() => void call(true)}
-            disabled={loading !== null || targets.length === 0}
+            disabled={loading !== null || targets.length === 0 || (targets.includes("approvals") && retentionDays < APPROVAL_MIN_RETENTION_DAYS)}
           >
             {loading === "dry" ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
             Dry Run (cek jumlah)
@@ -129,7 +130,7 @@ export function DatabasePurgePanel() {
             type="button"
             className="bg-red-600 text-white hover:bg-red-700"
             onClick={() => void call(false)}
-            disabled={loading !== null || targets.length === 0}
+            disabled={loading !== null || targets.length === 0 || (targets.includes("approvals") && retentionDays < APPROVAL_MIN_RETENTION_DAYS)}
           >
             {loading === "exec" ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}
             Eksekusi Hapus
@@ -166,10 +167,8 @@ export function DatabasePurgePanel() {
         <div className="flex items-start gap-2 rounded-md border border-[#34343c] bg-black/20 p-3 text-[11px] text-white/60">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-300" />
           <span>
-            <strong>Cron otomatis bulanan:</strong> set Vercel Cron / Neon scheduler untuk POST ke{" "}
-            <code className="rounded bg-black/40 px-1">/api/admin/purge</code> dengan body{" "}
-            <code className="rounded bg-black/40 px-1">{`{"retentionDays":30,"dryRun":false}`}</code>. Endpoint butuh
-            session Owner — siapkan service auth token jika dipanggil tanpa browser.
+            <strong>Cron otomatis bulanan</strong> (<code className="rounded bg-black/40 px-1">/api/admin/purge/cron</code>) hanya
+            menghapus chat internal lama. Penjualan tidak pernah ikut terhapus.
           </span>
         </div>
       </CardContent>

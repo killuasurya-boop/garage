@@ -23,11 +23,7 @@ type RouteContext = {
 };
 
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const { id } = await context.params;

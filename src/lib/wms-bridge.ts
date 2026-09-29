@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, like, ne, notInArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -92,7 +92,9 @@ function buildBomMap(
     const productId = skuToProduct.get(line.inventorySku);
     if (!productId) continue;
     const cat = skuToCategory.get(line.inventorySku) ?? "";
-    const lineType = isPackagingSku(cat) || isPackagingSku(line.unit) ? "packaging" : "ingredient";
+    // Kategori menentukan jenis baris; satuan hanya dipakai bila kategori kosong
+    // (mis. Es Batu bersatuan "cup" tetap bahan, bukan kemasan).
+    const lineType = (cat ? isPackagingSku(cat) : isPackagingSku(line.unit)) ? "packaging" : "ingredient";
     const prev = bomMap.get(productId);
     const qty = Number(line.qty) + (prev?.qty ?? 0);
     bomMap.set(productId, {
@@ -360,6 +362,7 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  const syncedVersionKeys: string[] = [];
 
   for (const menu of menus) {
     const menuVariants = variants.filter((v) => v.itemId === menu.id);
@@ -386,7 +389,9 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
       const variantRow = menuVariants.find((v) => v.variantId === variantId);
       const variantLabel = variantRow?.label ?? (variantId === "all" ? "Regular" : variantId);
       const sellPrice = variantRow ? Number(variantRow.price) : Math.min(...menuVariants.map((v) => Number(v.price)));
-      const productionArea = /bar|coffee|minum|drink/i.test(menu.section) ? "bar" : "dapur";
+      const productionArea = /bar|coffee|minum|drink/i.test(`${menu.category} ${menu.section}`)
+        ? "bar"
+        : "dapur";
 
       const result = await upsertOsRecipe(db, {
         menuId: menu.id,
@@ -406,9 +411,24 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
         updated++;
         menuSynced = true;
       }
+      if (result !== "skipped") syncedVersionKeys.push(`os:${menu.id}:${variantId}`);
     }
     if (!menuSynced) skipped++;
   }
+
+  // Resep hasil sinkron milik menu yang sudah diarsipkan / tak punya resep lagi
+  // ikut diarsipkan. processPosSale mencocokkan resep BY NAMA, jadi sisa resep
+  // lama (mis. "Coffee Latte" menu lama) bisa bikin menu baru bernama sama ambigu.
+  await db
+    .update(wmsRecipe)
+    .set({ recipeStatus: "archived", updatedAt: new Date() })
+    .where(
+      and(
+        like(wmsRecipe.version, "os:%"),
+        ne(wmsRecipe.recipeStatus, "archived"),
+        syncedVersionKeys.length > 0 ? notInArray(wmsRecipe.version, syncedVersionKeys) : undefined,
+      ),
+    );
 
   return { recipes: { created, updated, skipped } };
 }

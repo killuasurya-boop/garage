@@ -14,7 +14,6 @@ export async function GET(request: Request) {
   const data = await getKitchenData({
     status: url.searchParams.get("status") ?? undefined,
     station: url.searchParams.get("station") ?? undefined,
-    viewerRole: session.data.profile.role,
   });
   return okWithEtag(request, data);
 }

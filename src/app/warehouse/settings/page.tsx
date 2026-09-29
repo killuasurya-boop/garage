@@ -22,7 +22,7 @@ import { WMS_PUTAWAY_ZONES } from "@/lib/wms-receiving-utils";
 import type { WmsBridgeSyncResult } from "@/lib/wms-bridge";
 import type { WmsConfig } from "@/lib/wms-types";
 
-type WmsSettings = WmsConfig & { wmsAutoConsume: boolean };
+type WmsSettings = WmsConfig & { autoSoldOutFromStock: boolean };
 
 type SettingsTab = "pos" | "sync" | "stock" | "notif" | "reorder" | "coldchain" | "about";
 
@@ -37,7 +37,7 @@ const TABS: Array<{ id: SettingsTab; label: string; icon: typeof Plug }> = [
 ];
 
 const DEFAULT_SETTINGS: WmsSettings = {
-  wmsAutoConsume: false,
+  autoSoldOutFromStock: false,
   expiryStrict: true,
   defaultPutAway: "DRY",
   notifyLowStock: true,
@@ -231,25 +231,26 @@ export default function WmsSettingsPage() {
         <div className="flex flex-col gap-4">
           {activeTab === "pos" && (
             <section className="rounded-xl border border-[#E8E8E8] bg-white p-[22px]">
-              <h2 className="mb-1 text-[15px] font-bold text-[#111111]">Integrasi POS · Auto-Consume</h2>
+              <h2 className="mb-1 text-[15px] font-bold text-[#111111]">Integrasi POS</h2>
               <p className="mb-4 text-[12px] text-[#6B7280]">
-                Saat kasir menjual menu di Garage OS, WMS membaca BOM resep WMS atau fallback menu_recipes OS, lalu
-                memotong stok gudang (Internal Order + FEFO).
+                Setiap penjualan POS / pesanan QR otomatis memotong bahan di gudang sesuai resep (ruang Outlet dulu,
+                lalu Gudang Utama area yang sama). Void & refund mengembalikan bahannya. Bila terjual melebihi stok
+                tercatat, stok boleh minus dan muncul sebagai peringatan — koreksi lewat Receiving / Stock Opname.
               </p>
               <SettingRow
-                title="Auto-Consume dari POS"
-                description="Penjualan kasir otomatis memotong bahan gudang sesuai resep."
+                title="Auto-habis dari stok gudang"
+                description="Menu otomatis HABIS di POS & menu digital bila bahan utama resepnya tidak cukup untuk 1 porsi. Nyalakan setelah stock opname pembukaan (stok awal 0 membuat semua menu habis)."
                 border={false}
               >
                 <WmsToggle
-                  checked={!!settings?.wmsAutoConsume}
-                  disabled={loading || busyKey === "wmsAutoConsume"}
-                  label="Auto-Consume dari POS"
+                  checked={!!settings?.autoSoldOutFromStock}
+                  disabled={loading || busyKey === "autoSoldOutFromStock"}
+                  label="Auto-habis dari stok gudang"
                   onChange={(next) =>
                     void patchSettings(
-                      { wmsAutoConsume: next },
-                      "wmsAutoConsume",
-                      next ? "Integrasi POS aktif — penjualan akan memotong bahan gudang." : "Integrasi POS dimatikan.",
+                      { autoSoldOutFromStock: next },
+                      "autoSoldOutFromStock",
+                      next ? "Auto-habis aktif — menu habis otomatis bila bahan kurang." : "Auto-habis dimatikan.",
                     )
                   }
                 />

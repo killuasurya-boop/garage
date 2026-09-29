@@ -157,7 +157,7 @@ async function listKnowledgeFiles(storeId: string) {
 }
 
 export async function GET() {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }
@@ -201,7 +201,7 @@ export async function GET() {
 }
 
 export async function DELETE(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }

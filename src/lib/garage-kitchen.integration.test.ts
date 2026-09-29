@@ -10,9 +10,9 @@ import {
 } from "@/lib/test-helpers/garage-test-db";
 
 // =============================================================================
-// STEP 2-3 (Barista / Koki) — TEST INTEGRASI alur status tiket KDS terhadap DB
-// nyata. Kasir membuat order → tiket Bar (minuman) & Food (makanan) →
-// Barista/Koki menjalankan queue→cooking→ready, dengan optimistic-lock,
+// TEST INTEGRASI alur status tiket KDS terhadap DB nyata. Kasir membuat order
+// → tiket Bar (minuman) & Food (makanan) → Kasir (sekarang juga pegang KDS
+// dapur/bar) menjalankan queue→cooking→ready, dengan optimistic-lock,
 // pencatat nama (acceptedBy/readyBy), dan penolakan transisi ilegal.
 // =============================================================================
 
@@ -23,7 +23,7 @@ let updateKitchenStatus: any;
 let outletId = "";
 
 const KASIR = "user-itest-kasir";
-const BARISTA = "user-itest-barista";
+const BARISTA = "user-itest-kasir-kds";
 
 function makeSession(userId: string, name: string, role: Role): GarageSession {
   return {
@@ -34,6 +34,8 @@ function makeSession(userId: string, name: string, role: Role): GarageSession {
       shiftLabel: "Pagi",
       deviceLabel: "KDS-1",
       passwordResetRequired: false,
+      // Akun KDS ditugaskan ke workstation Bar + Dapur (Production Hub).
+      workstation: "all",
       outlet: { id: outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
     },
   } as unknown as GarageSession;
@@ -57,11 +59,11 @@ beforeAll(async () => {
   t = await setupGarageTestDb();
   const seeded = await seedGarageBasics(t, { userId: KASIR });
   outletId = seeded.outletId;
-  // User Barista untuk kredit fee saat tiket ready.
+  // User Kasir (KDS) untuk kredit fee saat tiket ready.
   await t
     .getDb()
     .insert(t.schema.user)
-    .values({ id: BARISTA, name: "Barista Test", email: `${BARISTA}@garage.local` });
+    .values({ id: BARISTA, name: "Kasir KDS Test", email: `${BARISTA}@garage.id` });
 
   const svc = await import("@/lib/garage-service");
   createOrder = svc.createOrder;
@@ -72,7 +74,7 @@ afterAll(async () => {
   await teardownGarageTestDb(t);
 });
 
-describe("Barista/Koki — alur status tiket KDS (DB nyata)", () => {
+describe("Kasir (KDS) — alur status tiket KDS (DB nyata)", () => {
   it("order kasir menghasilkan tiket Bar & Food berstatus awal queue", async () => {
     const res = await createOrder(
       {
@@ -92,7 +94,7 @@ describe("Barista/Koki — alur status tiket KDS (DB nyata)", () => {
     for (const tk of tickets) expect(tk.status).toBe("queue");
   });
 
-  it("Barista memproses tiket Bar: queue→cooking→ready, nama tercatat", async () => {
+  it("Kasir (KDS) memproses tiket Bar: queue→cooking→ready, nama tercatat", async () => {
     const res = await createOrder(
       {
         orderType: "dine-in",
@@ -104,15 +106,15 @@ describe("Barista/Koki — alur status tiket KDS (DB nyata)", () => {
       makeSession(KASIR, "Kasir Test", "Kasir"),
     );
     const [bar] = await ticketsForOrder(res.orderNo);
-    const barista = makeSession(BARISTA, "Barista Test", "Barista");
+    const barista = makeSession(BARISTA, "Kasir KDS Test", "Kasir");
 
     const cooking = await updateKitchenStatus(bar.ticketNo, "cooking", barista);
     expect(cooking.status).toBe("cooking");
-    expect(cooking.acceptedByName).toBe("Barista Test");
+    expect(cooking.acceptedByName).toBe("Kasir KDS Test");
 
-    const ready = await updateKitchenStatus(bar.ticketNo, "ready", barista);
+    const ready = await updateKitchenStatus(bar.ticketNo, "ready", barista, { qcConfirmed: true });
     expect(ready.status).toBe("ready");
-    expect(ready.readyByName).toBe("Barista Test");
+    expect(ready.readyByName).toBe("Kasir KDS Test");
   });
 
   it("menolak transisi ilegal queue→delivered", async () => {
@@ -128,7 +130,7 @@ describe("Barista/Koki — alur status tiket KDS (DB nyata)", () => {
     );
     const [food] = await ticketsForOrder(res.orderNo);
     await expect(
-      updateKitchenStatus(food.ticketNo, "delivered", makeSession(BARISTA, "Barista Test", "Barista")),
+      updateKitchenStatus(food.ticketNo, "delivered", makeSession(BARISTA, "Kasir KDS Test", "Kasir")),
     ).rejects.toThrow();
   });
 
@@ -144,7 +146,7 @@ describe("Barista/Koki — alur status tiket KDS (DB nyata)", () => {
       makeSession(KASIR, "Kasir Test", "Kasir"),
     );
     const [bar] = await ticketsForOrder(res.orderNo);
-    const barista = makeSession(BARISTA, "Barista Test", "Barista");
+    const barista = makeSession(BARISTA, "Kasir KDS Test", "Kasir");
     await updateKitchenStatus(bar.ticketNo, "cooking", barista);
     const again = await updateKitchenStatus(bar.ticketNo, "cooking", barista);
     expect(again.status).toBe("cooking");
@@ -154,7 +156,7 @@ describe("Barista/Koki — alur status tiket KDS (DB nyata)", () => {
     const out = await updateKitchenStatus(
       "TICKET-TIDAK-ADA",
       "cooking",
-      makeSession(BARISTA, "Barista Test", "Barista"),
+      makeSession(BARISTA, "Kasir KDS Test", "Kasir"),
     );
     expect(out).toBeNull();
   });

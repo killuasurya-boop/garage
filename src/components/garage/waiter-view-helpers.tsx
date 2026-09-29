@@ -70,7 +70,7 @@ export function hasAwaitingPaymentBill(row: TableLiveRow) {
 }
 
 export function isWaiterOperator(role: GarageMe["role"]) {
-  return role === "Waiter 1" || role === "Waiter 2";
+  return role === "Waiter";
 }
 
 export function isPaidOnly(row: TableLiveRow) {
@@ -80,15 +80,45 @@ export function isPaidOnly(row: TableLiveRow) {
   );
 }
 
+// Siklus meja (Production Hub §12): AVAILABLE → OCCUPIED → DIRTY → CLEANING →
+// AVAILABLE, plus RESERVED.
+export function isCleaningTable(row: TableLiveRow) {
+  return row.status === "cleaning";
+}
+
+export function isDirtyTable(row: TableLiveRow) {
+  return !isCleaningTable(row) && (row.needsCleaning || row.status === "needs_cleaning");
+}
+
 export function tableTone(row: TableLiveRow) {
-  if (row.needsCleaning || row.status === "needs_cleaning") {
+  if (isCleaningTable(row)) {
+    return {
+      ring: "ring-[#f5a742]/60",
+      bg: "bg-[#f5a742]/10",
+      label: "CLEANING",
+      labelColor: "text-[#ffe0aa]",
+      dotBg: "bg-[#f5a742]",
+      dotRing: "ring-[#f5a742]/40",
+    };
+  }
+  if (isDirtyTable(row)) {
     return {
       ring: "ring-[#ef4444]/60",
       bg: "bg-[#ef4444]/12",
-      label: "PERLU BERSIH",
+      label: "DIRTY",
       labelColor: "text-[#ffe1e5]",
       dotBg: "bg-[#ef4444]",
       dotRing: "ring-[#ef4444]/40",
+    };
+  }
+  if (row.status === "reserved") {
+    return {
+      ring: "ring-[#d4d4d8]/50",
+      bg: "bg-[#d4d4d8]/10",
+      label: "RESERVED",
+      labelColor: "text-[#f4f4f5]",
+      dotBg: "bg-[#d4d4d8]",
+      dotRing: "ring-[#d4d4d8]/40",
     };
   }
   if (isPaidOnly(row)) {
@@ -105,7 +135,7 @@ export function tableTone(row: TableLiveRow) {
     return {
       ring: "ring-white/14",
       bg: "bg-[#11100b]",
-      label: "READY",
+      label: "AVAILABLE",
       labelColor: "text-[#d0c5af]",
       dotBg: "bg-[#d0c5af]/70",
       dotRing: "ring-white/15",

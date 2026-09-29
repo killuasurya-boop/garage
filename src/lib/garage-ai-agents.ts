@@ -139,46 +139,12 @@ const defaultAgentConfigs: DefaultAgentConfig[] = [
   },
 ];
 
-const allFloorRoles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-  "Kasir",
-  "Waiter 1",
-  "Waiter 2",
-  "Barista",
-  "Koki",
-  "Kitchen / Barista",
-];
-const managementRoles: Role[] = ["Owner / CEO", "Admin", "Manager Operasional"];
-const financeRoles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-];
-const kitchenRoles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-  "Barista",
-  "Koki",
-  "Kitchen / Barista",
-];
-const inventoryRoles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Gudang",
-];
-const shiftLeadRoles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-];
+const allFloorRoles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];
+const managementRoles: Role[] = ["Owner", "Manajer"];
+const financeRoles: Role[] = ["Owner", "Manajer"];
+const kitchenRoles: Role[] = ["Owner", "Manajer", "Kasir"];
+const inventoryRoles: Role[] = ["Owner", "Manajer", "Kasir"];
+const shiftLeadRoles: Role[] = ["Owner", "Manajer"];
 
 const defaultActionRegistry: DefaultActionRegistry[] = [
   {
@@ -305,7 +271,7 @@ const defaultActionRegistry: DefaultActionRegistry[] = [
     safetyLevel: "critical",
     requiresApproval: true,
     enabled: true,
-    allowedRoles: ["Owner / CEO"],
+    allowedRoles: ["Owner"],
   },
   {
     actionType: "stock_adjustment_draft",

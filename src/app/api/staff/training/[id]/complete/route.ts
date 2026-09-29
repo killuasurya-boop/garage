@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db";
-import { trainingProgress } from "@/db/schema";
+import { trainingCourses, trainingProgress } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
 import { fail } from "@/lib/api-response";
 
@@ -15,6 +15,15 @@ export async function POST(
 
     const { id: courseId } = await params;
     const db = getDb();
+
+    const [course] = await db
+      .select({ id: trainingCourses.id })
+      .from(trainingCourses)
+      .where(eq(trainingCourses.id, courseId))
+      .limit(1);
+    if (!course) {
+      return fail(404, "COURSE_NOT_FOUND", "Materi training tidak ditemukan.");
+    }
 
     // Cek apakah sudah ada progress
     const existing = await db.select().from(trainingProgress).where(

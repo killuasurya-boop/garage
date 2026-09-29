@@ -5,7 +5,12 @@ import {
   type CustomerOrderQrContext,
 } from "@/components/garage/member-order-page";
 import type { MenuItem } from "@/lib/garage-api-types";
-import { getBestSellerMenuItemIds, getMenuData } from "@/lib/garage-service";
+import { resolveOrderCampaign } from "@/lib/order-campaign";
+import {
+  getBestSellerMenuItemIds,
+  getCustomerOrderBillingSettings,
+  getMenuData,
+} from "@/lib/garage-service";
 
 export const metadata: Metadata = {
   title: "Digital Menu - Garage Coffee & Motor",
@@ -46,7 +51,7 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
     orderType,
     source,
     outletId: uuidOrUndefined(firstParam(params, "outletId")),
-    campaign: firstParam(params, "campaign")?.trim() || undefined,
+    campaign: resolveOrderCampaign((key) => firstParam(params, key)),
   };
 }
 
@@ -81,17 +86,22 @@ export default async function OrderPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const [initialMenuItems, bestSellerIds] = await Promise.all([
+  const qrContext = buildQrContext(params);
+  const [initialMenuItems, bestSellerIds, billing] = await Promise.all([
     getInitialMenuItems(),
     getBestSellerMenuItemIds().catch(() => [] as string[]),
+    // Pengaturan tagihan outlet (service/PB1/pembulatan) → total di HP pelanggan
+    // sama dengan yang ditagih kasir.
+    getCustomerOrderBillingSettings(qrContext.outletId).catch(() => undefined),
   ]);
   return (
     <MemberOrderPage
-      initialQrContext={buildQrContext(params)}
+      initialQrContext={qrContext}
       initialReturnPath={buildReturnPath(params)}
       initialSearchQuery={buildInitialSearchQuery(params)}
       initialMenuItems={initialMenuItems}
       bestSellerIds={bestSellerIds}
+      billing={billing}
     />
   );
 }

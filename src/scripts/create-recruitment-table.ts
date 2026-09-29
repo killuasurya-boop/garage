@@ -27,15 +27,21 @@ async function main() {
   // Tambahkan kolom baru ke tabel candidates jika belum ada (dari task recruitment)
   try {
     await db.execute(sql`ALTER TABLE "candidates" ADD COLUMN "interview_date" timestamp with time zone;`);
-  } catch(e) {}
+  } catch {
+    // kolom sudah ada
+  }
   
   try {
     await db.execute(sql`ALTER TABLE "candidates" ADD COLUMN "interview_link" text;`);
-  } catch(e) {}
+  } catch {
+    // kolom sudah ada
+  }
   
   try {
     await db.execute(sql`ALTER TABLE "candidates" ADD COLUMN "cv_parsed_data" jsonb;`);
-  } catch(e) {}
+  } catch {
+    // kolom sudah ada
+  }
   console.log("Kolom candidates selesai.");
 
   process.exit(0);

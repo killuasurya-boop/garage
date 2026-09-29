@@ -38,18 +38,7 @@ const ROLE_KEY_PREFIX = "role:";
 
 // Role yang menerima broadcast. Setiap role dapat instruksi spesifik di
 // formatRoleInstruction(). Tambah role di sini kalau channel-nya mau di-broadcast.
-const BROADCAST_TARGETS: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Gudang",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Kitchen / Barista",
-  "Supervisor Shift",
-];
+const BROADCAST_TARGETS: Role[] = ["Owner", "Manajer", "Kasir"];
 
 type CeoContextBundle = {
   generatedAt: string;
@@ -110,7 +99,7 @@ async function ensureCeoAiUser(): Promise<void> {
       .values({
         userId: CEO_AI_USER_ID,
         outletId: outlet.id,
-        role: "Owner / CEO",
+        role: "Owner",
         shiftLabel: "Auto",
         deviceLabel: "CEO-AI",
       })
@@ -224,7 +213,7 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
   const addon: string[] = [];
   const tasks: RolePayload["tasks"] = [];
 
-  if (role === "Gudang") {
+  if (role === "Kasir") {
     const reorder = context.inventory.reorder as
       | { suggestions: Array<{ name: string; sku: string; onHand: number; unit: string; daysUntilEmpty: number | null; suggestedReorderQty: number; riskLevel: string }> }
       | null;
@@ -245,7 +234,7 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
     }
   }
 
-  if (role === "Finance / CFO" || role === "Owner / CEO") {
+  if (role === "Manajer" || role === "Owner") {
     const anomaly = context.anomaly as
       | { anomalies: Array<{ metric: string; todayValue: number; avg7dValue: number; deviationPct: number; severity: string; message: string }> }
       | null;
@@ -258,7 +247,7 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
         addon.push(
           `• ${label}: ${rupiah(a.todayValue)} (${sign}${a.deviationPct}% vs avg 7d ${rupiah(a.avg7dValue)}) — ${a.message}`,
         );
-        if (role === "Finance / CFO") {
+        if (role === "Manajer") {
           tasks.push({
             title: `Investigasi anomali ${label.toLowerCase()}`,
             detail: `${label} hari ini ${rupiah(a.todayValue)} (${sign}${a.deviationPct}% vs avg 7d ${rupiah(a.avg7dValue)}). ${a.message}`,
@@ -270,10 +259,8 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
   }
 
   if (
-    role === "Admin" ||
-    role === "Manager Operasional" ||
-    role === "Supervisor Shift" ||
-    role === "Owner / CEO"
+    role === "Manajer" ||
+    role === "Owner"
   ) {
     const suspicious = context.suspicious as
       | { flags: Array<{ kind: string; actor: string | null; count: number; severity: string }> }
@@ -290,7 +277,7 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
         const icon = f.severity === "critical" ? "🔴" : "🟠";
         const label = labelByKind[f.kind] ?? f.kind;
         addon.push(`${icon} ${label} · ${f.actor ?? "—"} · ${f.count}x`);
-        if (role === "Admin" || role === "Supervisor Shift") {
+        if (role === "Manajer") {
           tasks.push({
             title: `Audit ${label.toLowerCase()}`,
             detail: `Actor ${f.actor ?? "tidak diketahui"} terdeteksi ${f.count}x dalam 24 jam. Konfirmasi dengan kasir/staff terkait.`,
@@ -301,7 +288,7 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
     }
   }
 
-  if (role === "Kasir" || role === "Barista" || role === "Koki" || role === "Kitchen / Barista") {
+  if (role === "Kasir") {
     if (suggested.length) {
       addon.push("", "✅ *Yang perlu dilakukan:*");
       for (const s of suggested.slice(0, 4)) {
@@ -320,11 +307,7 @@ function formatRoleInstruction(input: RoleInstructionInput): RolePayload | null 
     addon.push("", `➡️ *Next step:* ${nextStep}`);
   }
 
-  const isExec =
-    role === "Owner / CEO" ||
-    role === "Admin" ||
-    role === "Finance / CFO" ||
-    role === "Manager Operasional";
+  const isExec = role === "Owner" || role === "Manajer";
   if (addon.length === 0 && !isExec) return null;
 
   return { message: [...lines, ...addon].join("\n"), tasks };

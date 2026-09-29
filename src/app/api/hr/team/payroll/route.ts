@@ -121,12 +121,11 @@ export async function GET(req: Request) {
       const savedPay = payrollMap.get(st.id);
       const kpiScore = kpiMap.get(st.id) || 0;
 
-      // Base & Fixed Allowance defaults (1,500,000 to 4,000,000 depending on role if not set)
+      // Base & Fixed Allowance defaults (2,500,000 to 5,000,000 depending on role if not set)
       const baseSalary = masterSal?.baseSalary ?? (
-        st.role.includes("Owner") ? 5000000 :
-        st.role.includes("Admin") || st.role.includes("Manager") ? 4000000 :
-        st.role.includes("Finance") ? 3800000 :
-        st.role.includes("Kasir") || st.role.includes("Barista") || st.role.includes("Koki") ? 3200000 : 2500000
+        st.role === "Owner" ? 5000000 :
+        st.role === "Manajer" ? 4000000 :
+        st.role === "Kasir" ? 3200000 : 2500000
       );
       const allowance = masterSal?.allowance ?? 300000;
 

@@ -89,6 +89,134 @@ export type KitchenOrder = {
   createdAt: string;
   // Sequence dalam session meja yang sama: 1 = order pertama, 2+ = add-on
   addonSequence?: number;
+  // Nomor antrian harian (cocok dengan struk) — untuk ditampilkan di papan Siap.
+  queueNo?: number | null;
+  // Identitas Production Hub: Nama + Meja + Order ID tidak boleh hilang.
+  customerName?: string | null;
+  orderNo?: string | null;
+  orderId?: string | null;
+  claimedAt?: string | null;
+  issueReason?: string | null;
+  // Serah-terima: helper Bar/Dapur ACC & memanggil waiter (claimedBy = waiter
+  // yang dipanggil; null = siapa saja).
+  handoverAt?: string | null;
+  handoverByName?: string | null;
+};
+
+// ─── Production Hub ─────────────────────────────────────────────────────────
+
+export type ProductionItemView = {
+  id: string;
+  label: string;
+  qty: number;
+  note: string | null;
+  status: "waiting" | "processing" | "ready" | string;
+  batchId: string | null;
+  batchNo: string | null;
+};
+
+export type ProductionTicketView = {
+  ticketNo: string;
+  orderId: string | null;
+  orderNo: string | null;
+  queueNo: number | null;
+  customerName: string | null;
+  identity: string;
+  table: string;
+  channel: string;
+  station: "Bar" | "Food";
+  status: "queue" | "cooking" | "ready" | string;
+  createdAt: string;
+  acceptedAt: string | null;
+  readyAt: string | null;
+  targetMinutes: number;
+  claimedByName: string | null;
+  handoverAt: string | null;
+  handoverByName: string | null;
+  issueReason: string | null;
+  addonSequence: number;
+  items: ProductionItemView[];
+  // Tiket lama tanpa porsi terstruktur (dibuat sebelum Production Hub).
+  legacy: boolean;
+  pendingBatchNos: string[];
+};
+
+export type ProductionAllocationView = {
+  id: string;
+  ticketNo: string | null;
+  orderNo: string | null;
+  customerName: string | null;
+  identity: string;
+  table: string;
+  qty: number;
+  note: string | null;
+  allocated: boolean;
+};
+
+export type ProductionBatchView = {
+  id: string;
+  batchNo: string;
+  station: "Bar" | "Food";
+  itemLabel: string;
+  note: string | null;
+  totalQty: number;
+  status: string;
+  startedAt: string;
+  startedByName: string | null;
+  allocations: ProductionAllocationView[];
+};
+
+export type ProductionBatchSuggestionView = {
+  key: string;
+  station: "Bar" | "Food";
+  itemLabel: string;
+  note: string | null;
+  totalQty: number;
+  oldestAt: string;
+  items: Array<{
+    id: string;
+    ticketNo: string;
+    identity: string;
+    table: string;
+    orderNo: string | null;
+    qty: number;
+  }>;
+};
+
+export type ProductionStationLoad = {
+  station: "Bar" | "Food";
+  waiting: number;
+  processing: number;
+  ready: number;
+  oldestWaitingMinutes: number | null;
+  avgProductionMinutes: number | null;
+  slaRisk: number;
+};
+
+export type ProductionBoard = {
+  generatedAt: string;
+  batchWindowSec: number;
+  tickets: ProductionTicketView[];
+  batches: ProductionBatchView[];
+  suggestions: ProductionBatchSuggestionView[];
+  load: ProductionStationLoad[];
+  canOperate: { Bar: boolean; Food: boolean };
+  // Helper/serah-terima: boleh ACC & panggil waiter untuk produk READY.
+  canHandover: { Bar: boolean; Food: boolean };
+  // Waiter yang sedang login (urut paling sedikit antaran berjalan).
+  waiters: Array<{ id: string; name: string; activeDeliveries: number }>;
+  // Tiket yang dibatalkan (order di-void) dalam 15 menit terakhir — tanda
+  // "hentikan produksi" untuk Bar/Dapur.
+  cancelled: Array<{
+    ticketNo: string;
+    orderNo: string | null;
+    identity: string;
+    table: string;
+    station: "Bar" | "Food";
+    reason: string | null;
+    cancelledAt: string;
+    items: string[];
+  }>;
 };
 
 export type KitchenPerformanceRow = {
@@ -138,8 +266,7 @@ export type KitchenShiftReport = {
     activeTickets: number;
     totalItems: number;
     totalFee: number;
-    kokiFee: number;
-    assistantFee: number;
+    kitchenFee: number;
   }>;
   totals: {
     shifts: number;
@@ -148,8 +275,7 @@ export type KitchenShiftReport = {
     activeTickets: number;
     totalItems: number;
     totalFee: number;
-    kokiFee: number;
-    assistantFee: number;
+    kitchenFee: number;
   };
 };
 
@@ -326,6 +452,8 @@ export type GarageMe = {
   };
   shift: string;
   device: string;
+  // Workstation Production Hub ("bar" | "dapur" | "all" | null).
+  workstation?: string | null;
 };
 
 export type GarageBootstrapData = {
@@ -356,6 +484,7 @@ export type OrderReceipt = {
   invoiceNo: string;
   invoiceStatus: string;
   orderNo: string;
+  queueNo?: number | null;
   ticketNo: string;
   ticketNos: string[];
   createdAt: string;
@@ -455,6 +584,7 @@ export type CustomerOrderItem = {
 export type CustomerOrder = {
   id: string;
   orderNo: string;
+  queueNo?: number | null;
   tableLabel: string;
   channel: string;
   status: "pending_cashier" | "awaiting_payment" | "accepted" | "paid" | "rejected" | string;
@@ -548,6 +678,50 @@ export type TableHistoryResponse = {
   bills: TableHistoryBill[];
 };
 
+export type TableOrderItemLine = {
+  id: string;
+  itemName: string;
+  variantLabel: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+  note: string | null;
+  // Station dapur item (Dapur = makanan/cemilan, Bar = minuman).
+  station: "Dapur" | "Bar";
+};
+
+// Status tiket dapur per station untuk satu order. Status per item tidak ada
+// di data — item mewarisi status tiket station-nya. status null = belum masuk dapur.
+export type TableOrderStation = {
+  station: "Dapur" | "Bar";
+  status: string | null;
+  ticketNo: string;
+  ticketNos: string[];
+  targetMinutes: number;
+};
+
+export type TableOrderBill = {
+  id: string;
+  orderNo: string;
+  status: string;
+  total: number;
+  createdAt: string;
+  customerName: string | null;
+  customerNote: string | null;
+  // Bill hasil pisah bill per produk menunjuk ke order meja asalnya.
+  parentOrderId?: string | null;
+  canSplit?: boolean;
+  canPay?: boolean;
+  stations: TableOrderStation[];
+  items: TableOrderItemLine[];
+};
+
+export type TableOrderItemsResponse = {
+  tableNumber: string;
+  tableLabel: string;
+  bills: TableOrderBill[];
+};
+
 export type TableLiveRow = {
   tableNumber: string;
   tableLabel: string;
@@ -560,6 +734,8 @@ export type TableLiveRow = {
     | "ready"
     | "mixed"
     | "needs_cleaning"
+    | "cleaning"
+    | "reserved"
     | "rejected"
     | string;
   currentOrderId: string | null;

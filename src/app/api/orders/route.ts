@@ -95,8 +95,14 @@ export async function POST(request: Request) {
   }
 
   const idempotencyKey = readIdempotencyKey(request);
+  // Jendela 15 menit: kasir sering baru mengulang Bayar setelah WiFi/server pulih.
+  // Retry dengan key sama dalam jendela ini mengembalikan order yang sama (tidak dobel).
   const cache = idempotencyKey
-    ? checkIdempotency<CreateOrderResult>(`orders-create:${session.data.user.id}`, idempotencyKey)
+    ? checkIdempotency<CreateOrderResult>(
+        `orders-create:${session.data.user.id}`,
+        idempotencyKey,
+        15 * 60_000,
+      )
     : null;
 
   if (cache?.kind === "hit") {
@@ -107,15 +113,23 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await createOrder(body.data, session.data);
+    // Sinkron order offline: uang sudah diterima fisik → kekurangan tunai dicatat, tidak ditolak.
+    const offlineSync = request.headers.get("x-garage-offline-sync") === "1";
+    // Cache memori di atas hanya bertahan selama proses hidup; kunci juga
+    // disimpan di order (unik di DB) sehingga retry setelah server restart
+    // tetap mengembalikan order yang sama.
+    const result = await createOrder(body.data, session.data, {
+      offlineSync,
+      requestKey: idempotencyKey ? `${session.data.user.id}:${idempotencyKey}` : undefined,
+    });
     if (cache?.kind === "miss") cache.commit(result);
-    return ok(result, { status: 201 });
+    return ok(result, { status: "replayed" in result ? 200 : 201 });
   } catch (error) {
     if (cache?.kind === "miss") cache.abandon();
     return fail(
       400,
       "ORDER_CREATE_FAILED",
-      error instanceof Error ? error.message : "Unable to create order.",
+      error instanceof Error ? error.message : "Gagal membuat order.",
     );
   }
 }

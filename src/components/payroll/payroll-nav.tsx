@@ -2,14 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, LayoutDashboard, Receipt, Settings } from "lucide-react";
+import { ArrowLeft, Banknote, ClipboardCheck, Gift, LayoutDashboard, ListChecks, Receipt, Settings, Users } from "lucide-react";
 
 // Nav shell payroll owner (NAV_ACTION_AUDIT §1.1/§1.4): Kembali ke Garage OS +
 // tab antar-halaman payroll, supaya sub-halaman tidak lagi dead-end.
 const TABS = [
-  { href: "/owner/payroll", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/owner/payroll/requests", label: "Permintaan Payout", icon: Receipt, exact: false },
+  { href: "/owner/payroll/today", label: "Absen Hari Ini", icon: ClipboardCheck, exact: false },
+  { href: "/owner/payroll", label: "Rekap & Slip", icon: LayoutDashboard, exact: true },
+  { href: "/owner/payroll/pay", label: "Gajian & Kasbon", icon: Banknote, exact: false },
+  { href: "/owner/payroll/thr", label: "THR", icon: Gift, exact: false },
+  { href: "/owner/payroll/employees", label: "Karyawan Absen", icon: Users, exact: false },
+  { href: "/owner/payroll/readiness", label: "Cek Kesiapan", icon: ListChecks, exact: false },
   { href: "/owner/payroll/settings", label: "Pengaturan", icon: Settings, exact: false },
+  { href: "/owner/payroll/requests", label: "Payout Lama", icon: Receipt, exact: false },
 ];
 
 export function PayrollNav() {

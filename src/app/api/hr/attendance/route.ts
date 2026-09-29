@@ -26,8 +26,11 @@ import {
 } from "@/lib/attendance";
 import { getAppSettings } from "@/lib/garage-service";
 import { fail } from "@/lib/api-response";
+import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
 
 export const runtime = "nodejs";
+
+const ATTENDANCE_GLOBAL_RATE_KEY = "attendance:global";
 
 const attendanceSchema = z.object({
   pinCode: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4-8 digit angka"),
@@ -68,10 +71,20 @@ async function saveSelfie(dataUrl: string | undefined): Promise<string | null> {
 // (bukan sesi login operator). Keamanan = hash PIN + rate-limit IP + geofence
 // + double-punch. Inilah perbaikan "PIN 401": sebelumnya menuntut sesi login.
 export async function POST(req: Request) {
+  // Payroll V2 memakai /api/absen (KODE + PIN). Endpoint lama (lookup PIN saja)
+  // dimatikan supaya tidak jadi celah tebak PIN — PIN yang sama dipakai untuk
+  // persetujuan Manajer di POS.
+  if (isPayrollV2Enabled()) {
+    return fail(410, "LEGACY_ATTENDANCE_DISABLED", "Absensi lama dinonaktifkan. Gunakan halaman /absen (kode + PIN).");
+  }
   try {
-    // Rate-limit per IP terminal untuk cegah brute-force PIN.
+    // Rate-limit per IP terminal + global (X-Forwarded-For bisa dipalsukan).
     const rateKey = `attendance:${clientIp(req)}`;
     const limit = checkRateLimit(rateKey);
+    const globalLimit = checkRateLimit(ATTENDANCE_GLOBAL_RATE_KEY);
+    if (!globalLimit.allowed) {
+      return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan PIN salah. Coba lagi dalam ${globalLimit.retryAfterSec}s.`);
+    }
     if (!limit.allowed) {
       return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan PIN salah. Coba lagi dalam ${limit.retryAfterSec}s.`);
     }
@@ -132,6 +145,7 @@ export async function POST(req: Request) {
 
     if (!resolved) {
       recordFailedAttempt(rateKey);
+      recordFailedAttempt(ATTENDANCE_GLOBAL_RATE_KEY);
       return fail(404, "PIN_NOT_FOUND", "PIN tidak ditemukan");
     }
     resetRateLimit(rateKey);

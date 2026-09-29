@@ -6,7 +6,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
   try {
     const { searchParams } = new URL(req.url);

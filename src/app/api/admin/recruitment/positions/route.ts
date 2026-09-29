@@ -23,7 +23,7 @@ const createSchema = z.object({
 
 // GET semua posisi (termasuk yang ditutup) — admin only.
 export async function GET() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const positions = await listAllPositions();
@@ -32,7 +32,7 @@ export async function GET() {
 
 // POST buat posisi baru — admin only.
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const body = await readJson(request, createSchema);

@@ -17,8 +17,11 @@ import {
 } from "@/lib/attendance";
 import { getAppSettings } from "@/lib/garage-service";
 import { fail } from "@/lib/api-response";
+import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
 
 export const runtime = "nodejs";
+
+const ATTENDANCE_CHECK_GLOBAL_RATE_KEY = "attendance-check:global";
 
 const checkSchema = z.object({
   pinCode: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4-8 digit angka"),
@@ -33,9 +36,17 @@ function clientIp(req: Request): string {
 // Cek status absensi staff (IN/OUT terakhir + jadwal shift hari ini) TANPA
 // mencatat punch. Kiosk publik di-auth oleh PIN (lihat catatan di POST punch).
 export async function POST(req: Request) {
+  // Lihat catatan di /api/hr/attendance: endpoint lama mati saat Payroll V2 aktif.
+  if (isPayrollV2Enabled()) {
+    return fail(410, "LEGACY_ATTENDANCE_DISABLED", "Absensi lama dinonaktifkan. Gunakan halaman /absen (kode + PIN).");
+  }
   try {
     const rateKey = `attendance-check:${clientIp(req)}`;
     const limit = checkRateLimit(rateKey);
+    const globalLimit = checkRateLimit(ATTENDANCE_CHECK_GLOBAL_RATE_KEY);
+    if (!globalLimit.allowed) {
+      return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan. Coba lagi dalam ${globalLimit.retryAfterSec}s.`);
+    }
     if (!limit.allowed) {
       return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan. Coba lagi dalam ${limit.retryAfterSec}s.`);
     }
@@ -81,6 +92,7 @@ export async function POST(req: Request) {
 
     if (!resolved) {
       recordFailedAttempt(rateKey);
+      recordFailedAttempt(ATTENDANCE_CHECK_GLOBAL_RATE_KEY);
       return fail(404, "PIN_NOT_FOUND", "PIN tidak ditemukan");
     }
     if (resolved.status !== "active") {

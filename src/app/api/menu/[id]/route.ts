@@ -28,6 +28,9 @@ const menuProductUpdateSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional(),
   promoActive: z.boolean().optional(),
   promoPrice: z.number().int().min(0).max(50_000_000).nullable().optional(),
+  // Production Hub: routing station (null = otomatis dari kategori) & Smart Batch.
+  station: z.enum(["bar", "dapur"]).nullable().optional(),
+  batchEligible: z.boolean().optional(),
   // URL foto menu; string kosong = hapus foto (pakai ikon kategori).
   imageUrl: z.string().trim().url().max(500).or(z.literal("")).optional(),
   variants: z
@@ -61,7 +64,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }
@@ -115,7 +118,7 @@ export async function PATCH(
     return ok({ product });
   }
 
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }
@@ -144,7 +147,7 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

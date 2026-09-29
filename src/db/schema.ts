@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
@@ -144,6 +145,11 @@ export const twoFactor = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     secret: text("secret").notNull(),
     backupCodes: text("backup_codes").notNull(),
+    // Kolom wajib plugin twoFactor Better Auth 1.6 — tanpa ini aktivasi 2FA
+    // gagal 500 ("field verified does not exist"). Temuan QA-audit 2026-09-28.
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
   },
   (table) => ({
     userIdx: index("two_factor_user_id_idx").on(table.userId),
@@ -263,6 +269,10 @@ export const staffProfiles = pgTable(
     // HMAC-SHA256 dari PIN (deterministik, bisa di-lookup). pinCode lama
     // dipertahankan untuk lazy-migration; verifikasi pakai pinHash bila ada.
     pinHash: text("pin_hash"),
+    // Penugasan workstation Production Hub: "bar" | "dapur" | "all". NULL =
+    // tidak ditugaskan produksi (mis. kasir di mesin kasir) → tidak boleh
+    // MULAI/READY tiket. Owner/Manajer selalu boleh (override, tercatat audit).
+    workstation: text("workstation"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -293,6 +303,11 @@ export const menuItems = pgTable(
     // dan promoPrice > 0; promoPrice meng-override harga varian saat POS/menu.
     promoActive: boolean("promo_active").notNull().default(false),
     promoPrice: integer("promo_price"),
+    // Routing Production Hub: "bar" | "dapur". NULL = otomatis dari kategori
+    // (Coffee/Non-Coffee → Bar, lainnya → Dapur).
+    station: text("station"),
+    // Boleh digabung Smart Batch dengan porsi produk sama dari order lain.
+    batchEligible: boolean("batch_eligible").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -432,6 +447,9 @@ export const memberTransactions = pgTable(
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
     source: text("source").notNull(),
+    // Order asal poin — supaya void/refund bisa menarik poin order tsb. Null
+    // untuk transaksi non-order (penyesuaian manual, referral lama).
+    orderId: uuid("order_id").references((): AnyPgColumn => orders.id, { onDelete: "set null" }),
     amount: integer("amount").notNull(),
     pointsEarned: integer("points_earned").notNull(),
     levelBefore: text("level_before").notNull(),
@@ -487,6 +505,9 @@ export const orders = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orderNo: text("order_no").notNull().unique(),
+    // Nomor antrian harian (reset tiap hari, per outlet) — nomor pendek yang mudah
+    // dicek: tampil di struk & papan Siap. Nullable untuk baris lama.
+    queueNo: integer("queue_no"),
     outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
     customerId: uuid("customer_id").references(() => customers.id, {
       onDelete: "set null",
@@ -516,11 +537,19 @@ export const orders = pgTable(
     rejectedBy: text("rejected_by").references(() => user.id, { onDelete: "set null" }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),
     rejectionReason: text("rejection_reason"),
+    // Bill hasil "pisah bill per produk" menunjuk ke order meja asalnya.
+    parentOrderId: uuid("parent_order_id"),
+    // Kunci anti-dobel dari kasir ("<userId>:<X-Idempotency-Key>"). Unik di DB
+    // → tombol Bayar diulang (juga setelah server restart) tidak membuat order kedua.
+    clientRequestKey: text("client_request_key"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    clientRequestKeyIdx: uniqueIndex("orders_client_request_key_idx").on(table.clientRequestKey),
+    parentOrderIdx: index("orders_parent_order_id_idx").on(table.parentOrderId),
+    customerIdx: index("orders_customer_id_idx").on(table.customerId),
     statusIdx: index("orders_status_idx").on(table.status),
     outletIdx: index("orders_outlet_id_idx").on(table.outletId),
     sourceIdx: index("orders_order_source_idx").on(table.orderSource),
@@ -681,15 +710,131 @@ export const kitchenTickets = pgTable(
       .notNull()
       .default(sql`'{}'::jsonb`),
     internalNotes: text("internal_notes"),
+    // Snapshot identitas (Production Hub): nama customer + nomor order tetap
+    // melekat di tiket walau data order berubah kemudian.
+    customerName: text("customer_name"),
+    orderNo: text("order_no"),
+    // Tiket READY dikembalikan ke PROCESSING (salah/rusak) — alasan wajib.
+    issueReason: text("issue_reason"),
+    issueAt: timestamp("issue_at", { withTimezone: true }),
+    // Serah-terima: helper Bar/Dapur ACC produk READY lalu memanggil waiter
+    // (claimedBy = waiter yang dipanggil; null = siapa saja).
+    handoverAt: timestamp("handover_at", { withTimezone: true }),
+    handoverByName: text("handover_by_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     statusIdx: index("kitchen_tickets_status_idx").on(table.status),
+    orderIdx: index("kitchen_tickets_order_id_idx").on(table.orderId),
     stationIdx: index("kitchen_tickets_station_idx").on(table.station),
     readyAtIdx: index("kitchen_tickets_ready_at_idx").on(table.readyAt),
     priorityIdx: index("kitchen_tickets_priority_idx").on(table.priority),
     statusCreatedIdx: index("kitchen_tickets_status_created_idx").on(table.status, table.createdAt),
+  }),
+);
+
+// =============================================================================
+// PRODUCTION HUB — pengganti modul Kitchen.
+// Tiket (kitchen_tickets) = satu order per workstation. Tiap baris order yang
+// masuk tiket punya production_ticket_items sendiri supaya porsi bisa dibatch
+// lintas order tanpa kehilangan identitas Customer + Meja + Order ID.
+// =============================================================================
+
+export const productionBatches = pgTable(
+  "production_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchNo: text("batch_no").notNull().unique(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    station: text("station").notNull(),
+    menuItemId: text("menu_item_id"),
+    variantId: text("variant_id"),
+    itemLabel: text("item_label").notNull(),
+    note: text("note"),
+    totalQty: integer("total_qty").notNull(),
+    // processing → completed (allocation 100%) | cancelled
+    status: text("status").notNull().default("processing"),
+    startedByName: text("started_by_name"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedByName: text("completed_by_name"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    stationStatusIdx: index("production_batches_station_status_idx").on(table.station, table.status),
+    createdIdx: index("production_batches_created_at_idx").on(table.createdAt),
+  }),
+);
+
+export const productionTicketItems = pgTable(
+  "production_ticket_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => kitchenTickets.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    orderItemId: uuid("order_item_id").references(() => orderItems.id, { onDelete: "set null" }),
+    menuItemId: text("menu_item_id"),
+    variantId: text("variant_id"),
+    itemName: text("item_name").notNull(),
+    variantLabel: text("variant_label").notNull(),
+    qty: integer("qty").notNull(),
+    note: text("note"),
+    station: text("station").notNull(),
+    batchEligible: boolean("batch_eligible").notNull().default(true),
+    batchId: uuid("batch_id").references(() => productionBatches.id, { onDelete: "set null" }),
+    // waiting → processing → ready
+    status: text("status").notNull().default("waiting"),
+    customerName: text("customer_name"),
+    tableLabel: text("table_label").notNull(),
+    orderNo: text("order_no"),
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    ticketIdx: index("production_ticket_items_ticket_id_idx").on(table.ticketId),
+    orderIdx: index("production_ticket_items_order_id_idx").on(table.orderId),
+    batchIdx: index("production_ticket_items_batch_id_idx").on(table.batchId),
+    stationStatusIdx: index("production_ticket_items_station_status_idx").on(
+      table.station,
+      table.status,
+    ),
+  }),
+);
+
+// Allocation: hasil batch dipetakan kembali ke porsi order asal. Batch baru
+// boleh COMPLETE bila seluruh baris ter-allocate (coverage 100%, BR-06).
+export const productionBatchAllocations = pgTable(
+  "production_batch_allocations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => productionBatches.id, { onDelete: "cascade" }),
+    ticketItemId: uuid("ticket_item_id")
+      .notNull()
+      .references(() => productionTicketItems.id, { onDelete: "cascade" }),
+    ticketId: uuid("ticket_id").references(() => kitchenTickets.id, { onDelete: "set null" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    qty: integer("qty").notNull(),
+    customerName: text("customer_name"),
+    tableLabel: text("table_label").notNull(),
+    orderNo: text("order_no"),
+    note: text("note"),
+    allocatedAt: timestamp("allocated_at", { withTimezone: true }),
+    allocatedByName: text("allocated_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    batchIdx: index("production_batch_allocations_batch_id_idx").on(table.batchId),
+    ticketIdx: index("production_batch_allocations_ticket_id_idx").on(table.ticketId),
+    orderIdx: index("production_batch_allocations_order_id_idx").on(table.orderId),
+    ticketItemIdx: uniqueIndex("production_batch_allocations_ticket_item_idx").on(
+      table.batchId,
+      table.ticketItemId,
+    ),
   }),
 );
 
@@ -703,7 +848,13 @@ export const inventoryItems = pgTable(
     usageArea: text("usage_area").notNull().default("dapur"),
     unit: text("unit").notNull(),
     packageSize: text("package_size").notNull(),
-    unitCost: integer("unit_cost").notNull().default(0),
+    // HPP per satuan stok, boleh pecahan (mis. Rp144,7368/ml sirup botol 760 ml).
+    unitCost: numeric("unit_cost", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
+    // Harga beli per kemasan dari supplier (mis. Rp110.000/botol) & isi kemasan
+    // dalam satuan stok (mis. 760 ml). unitCost = purchasePrice ÷ packageQty bila
+    // keduanya diisi; update harga supplier cukup ubah purchasePrice. 0 = belum diisi.
+    purchasePrice: numeric("purchase_price", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
+    packageQty: numeric("package_qty", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
     onHand: real("on_hand").notNull(),
     min: real("min_stock").notNull(),
     // `status` = level stok operasional (low/watch/safe). JANGAN dipakai utk lifecycle.
@@ -808,7 +959,7 @@ export const inventoryTransferItems = pgTable(
     unit: text("unit").notNull(),
     requestedQty: real("requested_qty").notNull(),
     issuedQty: real("issued_qty").notNull().default(0),
-    unitCost: integer("unit_cost").notNull().default(0),
+    unitCost: numeric("unit_cost", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -993,7 +1144,7 @@ export const supplierReceivingItems = pgTable(
     itemName: text("item_name").notNull(),
     unit: text("unit").notNull(),
     qty: real("qty").notNull(),
-    unitCost: integer("unit_cost").notNull().default(0),
+    unitCost: numeric("unit_cost", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
     lineTotal: integer("line_total").notNull().default(0),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1537,6 +1688,11 @@ export const approvals = pgTable("approvals", {
   decidedByName: text("decided_by_name"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   reasonDecided: text("reason_decided"),
+  // Data detail pengajuan (orderId, kode alasan, item refund, dll).
+  // Bentuk: ApprovalPayload di src/lib/approval-rules.ts.
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  // "board" (diputus di modul Persetujuan) | "pin" (PIN Manajer di POS) | "auto"
+  decidedVia: text("decided_via"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -2005,6 +2161,7 @@ export const staffEarnings = pgTable(
     staffIdx: index("staff_earnings_staff_idx").on(table.staffUserId),
     statusIdx: index("staff_earnings_status_idx").on(table.status),
     payoutIdx: index("staff_earnings_payout_idx").on(table.payoutId),
+    orderItemIdx: index("staff_earnings_order_item_id_idx").on(table.orderItemId),
     cycleIdx: index("staff_earnings_cycle_idx").on(table.cycleStart),
     ticketIdx: index("staff_earnings_ticket_idx").on(table.ticketId),
     orderIdx: index("staff_earnings_order_idx").on(table.orderId),
@@ -3000,12 +3157,28 @@ export const staffWageConfig = pgTable(
       .primaryKey()
       .references(() => user.id, { onDelete: "cascade" }),
     dailyWage: integer("daily_wage").notNull().default(0),
+    // Gaji bulanan persis sesuai input owner (dailyWage = round(monthlySalary / 30)).
+    monthlySalary: integer("monthly_salary"),
     overtimeHourly: integer("overtime_hourly").notNull().default(0),
     monthlyDeduction: integer("monthly_deduction").notNull().default(0),
+    // Payroll V2: kecualikan staff ini dari fee/produk (mis. jaga malam) walau
+    // role-nya berhak. Per-orang, tidak bergantung role (sistem 4-role).
+    excludeFromFee: boolean("exclude_from_fee").notNull().default(false),
+    // Kode login absen (kode + PIN di /absen). Terisi = identitas absen payroll,
+    // terpisah dari akun login sistem.
+    absenCode: text("absen_code"),
+    // Jam masuk shift pribadi (menit sejak 00:00 WIB, mis. 1380 = 23:00). Kosong =
+    // pakai general.openHour. Shift >= 12:00 dianggap shift malam (lintas tengah malam).
+    shiftStartMinutes: integer("shift_start_minutes"),
+    // Tanggal mulai kerja (dasar masa kerja THR). Kosong = tanggal akun absen dibuat.
+    joinDate: date("join_date"),
     notes: text("notes"),
     updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
+  (t) => ({
+    absenCodeUnique: uniqueIndex("staff_wage_config_absen_code_uidx").on(t.absenCode),
+  }),
 );
 
 // Log absensi V2 (PIN + Selfie + GPS). Satu baris per staff per tanggal.
@@ -3044,6 +3217,27 @@ export const staffAttendanceV2 = pgTable(
   }),
 );
 
+// Izin / sakit / cuti yang dicatat manajer. Hari ini tidak dihitung "tidak hadir"
+// (bonus tidak gugur) dan tetap tidak digaji (tidak absen = tidak bergaji).
+export const staffLeaves = pgTable(
+  "staff_leaves",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    type: text("type").notNull(), // izin | sakit | cuti
+    reason: text("reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffDateUnique: uniqueIndex("staff_leaves_staff_date_uidx").on(t.staffUserId, t.date),
+    dateIdx: index("staff_leaves_date_idx").on(t.date),
+  }),
+);
+
 // Wallet Gaji: kredit upah harian + lembur + bonus kehadiran (per staff per tanggal).
 export const staffDailyWages = pgTable(
   "staff_daily_wages",
@@ -3068,7 +3262,13 @@ export const staffDailyWages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    staffDateUnique: uniqueIndex("staff_daily_wages_staff_date_uidx").on(t.staffUserId, t.date),
+    // Unik per source: gaji harian, bonus bulanan, dan penyesuaian owner boleh
+    // jatuh di tanggal yang sama tanpa saling menimpa.
+    staffDateSourceUnique: uniqueIndex("staff_daily_wages_staff_date_source_uidx").on(
+      t.staffUserId,
+      t.date,
+      t.source,
+    ),
     payoutIdx: index("staff_daily_wages_payout_idx").on(t.payoutId),
     dateIdx: index("staff_daily_wages_date_idx").on(t.date),
   }),
@@ -3109,11 +3309,106 @@ export const feePoolSplits = pgTable(
     bonusTarget: integer("bonus_target").notNull().default(0),
     bonusZeroKomplain: integer("bonus_zero_komplain").notNull().default(0),
     earningId: uuid("earning_id"),
+    // Terisi = fee hari itu sudah dibayar lewat gajian (staff_payroll_payments.id).
+    paymentId: uuid("payment_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     dateStaffUnique: uniqueIndex("fee_pool_splits_date_staff_uidx").on(t.date, t.staffUserId),
     dateIdx: index("fee_pool_splits_date_idx").on(t.date),
+  }),
+);
+
+// Gajian: pembayaran gaji + fee yang belum dibayar s/d `paidUntil`, dipotong kasbon.
+// Baris staff_daily_wages.payout_id & fee_pool_splits.payment_id menunjuk ke sini.
+export const staffPayrollPayments = pgTable(
+  "staff_payroll_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    paidUntil: date("paid_until").notNull(),
+    grossGaji: integer("gross_gaji").notNull().default(0),
+    grossFee: integer("gross_fee").notNull().default(0),
+    advanceDeducted: integer("advance_deducted").notNull().default(0),
+    netPaid: integer("net_paid").notNull().default(0),
+    method: text("method").notNull().default("Cash"),
+    note: text("note"),
+    gajiExpenseId: uuid("gaji_expense_id"),
+    feeExpenseId: uuid("fee_expense_id"),
+    // paid | cancelled (dibatalkan manajer / pengeluaran ditolak di Approvals).
+    status: text("status").notNull().default("paid"),
+    // Kasbon yang dilunasi gajian ini: [{ advanceId, amount }] — untuk pembatalan tepat.
+    advanceAllocations: jsonb("advance_allocations")
+      .$type<Array<{ advanceId: string; amount: number }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffIdx: index("staff_payroll_payments_staff_idx").on(t.staffUserId),
+    createdIdx: index("staff_payroll_payments_created_idx").on(t.createdAt),
+  }),
+);
+
+// THR (Tunjangan Hari Raya): satu baris per karyawan per hari raya. Masa kerja ≥ 12
+// bulan = 1× gaji bulanan; 1–12 bulan = proporsional (masa kerja/12 × gaji).
+export const staffThrPayments = pgTable(
+  "staff_thr_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    holidayName: text("holiday_name").notNull(),
+    holidayDate: date("holiday_date").notNull(),
+    monthsWorked: integer("months_worked").notNull(),
+    baseSalary: integer("base_salary").notNull(),
+    amount: integer("amount").notNull(),
+    method: text("method").notNull().default("Cash"),
+    note: text("note"),
+    expenseId: uuid("expense_id"),
+    // paid | cancelled
+    status: text("status").notNull().default("paid"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffIdx: index("staff_thr_payments_staff_idx").on(t.staffUserId),
+    holidayIdx: index("staff_thr_payments_holiday_idx").on(t.holidayDate),
+  }),
+);
+
+// Kasbon karyawan. Dipotong otomatis saat gajian (FIFO); sisa terbawa ke gajian berikutnya.
+export const staffCashAdvances = pgTable(
+  "staff_cash_advances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: text("staff_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    amount: integer("amount").notNull(),
+    settledAmount: integer("settled_amount").notNull().default(0),
+    method: text("method").notNull().default("Cash"),
+    note: text("note"),
+    expenseId: uuid("expense_id"),
+    // active | cancelled. Kasbon yang pengeluarannya masih menunggu Approvals
+    // belum dipotong (uang belum boleh diserahkan).
+    status: text("status").notNull().default("active"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    staffIdx: index("staff_cash_advances_staff_idx").on(t.staffUserId),
   }),
 );
 
@@ -3146,3 +3441,6 @@ export const staffPayoutRequests = pgTable(
     createdIdx: index("staff_payout_requests_created_idx").on(t.createdAt),
   }),
 );
+
+// Garage Financial Control System (PRD V2.0) — tabel di file terpisah.
+export * from "./schema-finance";

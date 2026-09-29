@@ -28,7 +28,14 @@ const updateSchema = z.object({
 
 export async function GET(request: Request) {
   const session = await requireMemberAuth(request);
-  if (session.response) return session.response;
+  if (session.response) {
+    // ?optional=1: halaman /order tamu cukup tahu "bukan member" tanpa 401
+    // yang memenuhi console di setiap kunjungan tamu.
+    if (session.response.status === 401 && new URL(request.url).searchParams.get("optional") === "1") {
+      return successJson({ member: null });
+    }
+    return session.response;
+  }
 
   const member = await getMemberProfile(session.data.customer.id);
   return successJson({ member: member ?? session.data.member });

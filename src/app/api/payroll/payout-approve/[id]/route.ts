@@ -6,10 +6,9 @@ import { auditLogs, staffPayoutRequests, user } from "@/db/schema";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
 import { createExpense } from "@/lib/garage-service";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 export const runtime = "nodejs";
-
-const OWNER_ROLES = ["Owner / CEO", "Admin", "Finance / CFO"] as const;
 
 const schema = z.object({
   note: z.string().max(500).optional().nullable(),
@@ -19,9 +18,22 @@ interface Ctx {
   params: Promise<{ id: string }>;
 }
 
+// Alur payout lama DITUTUP: menyetujui di sini mencatat pengeluaran gaji tanpa
+// menandai baris gaji/fee lunas → gaji yang sama bisa dibayar lagi lewat Gajian.
+// Semua pembayaran sekarang lewat /owner/payroll/pay (payEmployee). Permintaan
+// lama yang masih pending cukup ditolak (payout-reject tetap berfungsi).
+const PAYOUT_RETIRED = true;
+
 export async function POST(request: Request, { params }: Ctx) {
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  const session = await requireGarageSession(MANAGEMENT_ROLES);
   if (session.response) return session.response;
+  if (PAYOUT_RETIRED) {
+    return fail(
+      410,
+      "PAYOUT_RETIRED",
+      "Persetujuan payout lama sudah ditutup. Bayar lewat Payroll → Gajian & Kasbon, lalu tolak permintaan ini.",
+    );
+  }
 
   const { id } = await params;
   const body = await readJson(request, schema);

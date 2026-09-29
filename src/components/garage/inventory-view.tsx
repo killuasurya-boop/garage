@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,7 +22,6 @@ import {
   ReceiptText,
   Search,
   Settings,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -67,6 +66,7 @@ import { garageApi } from "@/lib/api-client";
 import { GARAGE_TAGS, subscribeGarageCache } from "@/lib/garage-cache";
 import {
   currency,
+  unitCostCurrency,
   type MenuCategory,
   type ModuleId,
   type Role,
@@ -173,6 +173,17 @@ const inventoryUsageAreaLabels: Record<"bar" | "dapur" | "general", string> = {
   general: "Umum",
 };
 
+// HPP per satuan boleh pecahan (Rp/ml, Rp/gr) — 4 desimal seperti kolom DB.
+function roundUnitCost(value: number) {
+  return Math.max(0, Math.round(value * 10_000) / 10_000);
+}
+
+// Input harga desimal: terima koma/titik ("151,3158" → "151.3158"), satu pemisah saja.
+function decimalCostInput(value: string) {
+  const [whole, ...rest] = value.replace(/,/g, ".").replace(/[^\d.]/g, "").split(".");
+  return rest.length ? `${whole}.${rest.join("")}` : whole;
+}
+
 function inventoryUsageAreaForItem(item: Pick<InventoryItem, "usageArea" | "category" | "name">) {
   if (item.usageArea === "bar" || item.usageArea === "dapur" || item.usageArea === "general") {
     return item.usageArea;
@@ -187,9 +198,9 @@ function inventoryUsageAreaForItem(item: Pick<InventoryItem, "usageArea" | "cate
   return "dapur";
 }
 
-function inventoryRoleArea(role: Role): "bar" | "dapur" | null {
-  if (role === "Barista") return "bar";
-  if (role === "Koki" || role === "Asisten Koki") return "dapur";
+// Barista/Koki/Asisten Koki bukan role terpisah lagi — Kasir pegang KDS
+// dapur & bar keduanya, jadi tidak ada lagi role yang terkunci ke satu area.
+function inventoryRoleArea(_role: Role): "bar" | "dapur" | null {
   return null;
 }
 
@@ -260,7 +271,7 @@ export function InventoryView({
   }
   const [inventoryWorkspaceTab, setInventoryWorkspaceTab] =
     useState<"products" | "warehouse">(
-      productsOnly || role === "Owner / CEO" || role === "Admin" ? "products" : "warehouse",
+      productsOnly || role === "Owner" || role === "Manajer" ? "products" : "warehouse",
     );
   // Modul Produk mandiri: paksa selalu di workspace "products".
   const effectiveWorkspaceTab = productsOnly ? "products" : inventoryWorkspaceTab;
@@ -273,7 +284,7 @@ export function InventoryView({
     | "outlet-stock"
     | "request-outlet"
     | "supplier-pos"
-  >(role === "Gudang" ? "warehouse-dashboard" : inventoryRoleArea(role) ? "request-outlet" : "kasir-pos");
+  >(role === "Kasir" ? "warehouse-dashboard" : "kasir-pos");
   const [warehouseDialogOpen, setWarehouseDialogOpen] = useState(false);
   const [warehouseSku, setWarehouseSku] = useState("");
   const [warehouseName, setWarehouseName] = useState("");
@@ -510,7 +521,7 @@ export function InventoryView({
 
   useEffect(() => {
     if (inventoryWorkspaceTab !== "warehouse") return;
-    if (role === "Owner / CEO" || role === "Admin" || role === "Gudang") return;
+    if (role === "Owner" || role === "Manajer" || role === "Kasir") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch remote Gudang state after entering workspace
     void loadWarehouseFlows();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when entering Gudang workspace
@@ -544,10 +555,10 @@ export function InventoryView({
     }>
   >([]);
   const [opnameActionId, setOpnameActionId] = useState<string | null>(null);
-  const canManageMenuProducts = role === "Owner / CEO" || role === "Admin";
+  const canManageMenuProducts = role === "Owner" || role === "Manajer";
   const restrictedInventoryArea = inventoryRoleArea(role);
   const canSwitchInventoryArea = !restrictedInventoryArea;
-  const canManageWarehouseFlow = role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  const canManageWarehouseFlow = role === "Owner" || role === "Manajer" || role === "Kasir";
   const legacyWarehouseUi = effectiveWorkspaceTab === "warehouse" && !canManageWarehouseFlow;
   const wmsWarehouseRedirect = effectiveWorkspaceTab === "warehouse" && canManageWarehouseFlow;
   const effectiveInventoryUsageArea = restrictedInventoryArea ?? inventoryUsageArea;
@@ -568,6 +579,9 @@ export function InventoryView({
   const [productSku, setProductSku] = useState("");
   const [productPromoActive, setProductPromoActive] = useState(false);
   const [productPromoPrice, setProductPromoPrice] = useState("");
+  // Production Hub: "" = station otomatis dari kategori.
+  const [productStation, setProductStation] = useState<"" | "bar" | "dapur">("");
+  const [productBatchEligible, setProductBatchEligible] = useState(true);
   const [productCategory, setProductCategory] = useState<MenuCategory>("Cemilan");
   const [productSection, setProductSection] = useState("Dapur");
   const [productPrep, setProductPrep] = useState("10m");
@@ -870,7 +884,7 @@ export function InventoryView({
       return;
     }
     setSupplierCart((current) => {
-      const existing = current.find((item) => item.sku === selected.sku && item.unitCost === Math.round(unitCost));
+      const existing = current.find((item) => item.sku === selected.sku && item.unitCost === roundUnitCost(unitCost));
       if (existing) {
         return current.map((item) =>
           item.key === existing.key
@@ -886,7 +900,7 @@ export function InventoryView({
           name: selected.name,
           unit: selected.unit,
           qty,
-          unitCost: Math.round(unitCost),
+          unitCost: roundUnitCost(unitCost),
         },
       ];
     });
@@ -905,7 +919,7 @@ export function InventoryView({
       .map((suggestion) => {
         const qty = Number(suggestion.supplierOrderQty || 0);
         if (!Number.isFinite(qty) || qty <= 0) return null;
-        const unitCost = Math.round(Number(suggestion.supplierOrderValue || 0) / qty);
+        const unitCost = roundUnitCost(Number(suggestion.supplierOrderValue || 0) / qty);
         return {
           key: `${suggestion.sku}-supplier-smart-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           sku: suggestion.sku,
@@ -1742,7 +1756,8 @@ export function InventoryView({
     const valid = productVariants
       .map((variant) => {
         const price = Number(variant.price);
-        const baseCost = Number(variant.baseCost || recipeCostPreview || 0);
+        // HPP resep (bahan baku) didahulukan; angka ketik hanya untuk varian tanpa resep.
+        const baseCost = Number(recipeCostPreview || variant.baseCost || 0);
         if (!Number.isFinite(price) || price <= 0) return null;
         return {
           label: variant.label.trim() || "Regular",
@@ -1800,6 +1815,8 @@ export function InventoryView({
     setProductSku("");
     setProductPromoActive(false);
     setProductPromoPrice("");
+    setProductStation("");
+    setProductBatchEligible(true);
     setProductCategory("Cemilan");
     setProductSection("Dapur");
     setProductPrep("10m");
@@ -1840,6 +1857,8 @@ export function InventoryView({
       sku: productSku,
       promoActive: productPromoActive,
       promoPrice: productPromoPrice,
+      station: productStation,
+      batchEligible: productBatchEligible,
       category: productCategory,
       section: productSection,
       prep: productPrep,
@@ -1888,6 +1907,8 @@ export function InventoryView({
       setProductSku(typeof draft.sku === "string" ? draft.sku : "");
       setProductPromoActive(Boolean(draft.promoActive));
       setProductPromoPrice(typeof draft.promoPrice === "string" ? draft.promoPrice : "");
+      setProductStation(draft.station === "bar" || draft.station === "dapur" ? draft.station : "");
+      setProductBatchEligible(draft.batchEligible !== false);
       setProductCategory(validCategory);
       setProductSection(typeof draft.section === "string" ? draft.section : "Dapur");
       setProductPrep(typeof draft.prep === "string" ? draft.prep : "10m");
@@ -2027,7 +2048,8 @@ export function InventoryView({
           inventoryItems,
           variantId,
         );
-        const baseCost = Number(variant.baseCost || recipeBaseCost || 0);
+        // Varian ber-resep: HPP dari bahan (server juga menghitung ulang live).
+        const baseCost = Number(recipeBaseCost || variant.baseCost || 0);
         if (!Number.isFinite(price) || price <= 0) return null;
         return {
           id: variantId,
@@ -2084,6 +2106,8 @@ export function InventoryView({
     setProductSku(product.sku ?? "");
     setProductPromoActive(Boolean(product.promoActive));
     setProductPromoPrice(product.promoPrice ? String(product.promoPrice) : "");
+    setProductStation(product.station === "bar" || product.station === "dapur" ? product.station : "");
+    setProductBatchEligible(product.batchEligible !== false);
     setProductCategory(product.category);
     setProductSection(product.section || (product.category === "Coffee" || product.category === "Non-Coffee" ? "Bar" : "Dapur"));
     setProductPrep(product.prep || "10m");
@@ -2185,6 +2209,8 @@ export function InventoryView({
           productPromoActive && Number.isFinite(promoPriceNum) && promoPriceNum > 0
             ? Math.round(promoPriceNum)
             : null,
+        station: productStation || null,
+        batchEligible: productBatchEligible,
         category: productCategory,
         section: productSection.trim() || (productCategory === "Coffee" || productCategory === "Non-Coffee" ? "Bar" : "Dapur"),
         stock: productStock,
@@ -2361,7 +2387,7 @@ export function InventoryView({
         usageArea: warehouseUsageArea,
         unit: warehouseUnit.trim() || "unit",
         packageSize: warehousePackageSize.trim() || "1 unit",
-        unitCost: Math.round(unitCost),
+        unitCost: roundUnitCost(unitCost),
         onHand,
         min,
         movement: warehouseMovement.trim() || "SKU gudang baru",
@@ -2829,8 +2855,10 @@ export function InventoryView({
                     setProductCategory(value);
                     setProductSection(value === "Coffee" || value === "Non-Coffee" ? "Bar" : "Dapur");
                   }}
-                  section={productSection}
-                  onSectionChange={setProductSection}
+                  station={productStation}
+                  onStationChange={setProductStation}
+                  batchEligible={productBatchEligible}
+                  onBatchEligibleChange={setProductBatchEligible}
                   prep={productPrep}
                   onPrepChange={setProductPrep}
                   stock={productStock}
@@ -3876,7 +3904,7 @@ export function InventoryView({
               </Select>
               <div className="grid grid-cols-2 gap-2">
                 <Input value={supplierQty} onChange={(event) => setSupplierQty(event.target.value)} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Qty" inputMode="decimal" />
-                <Input value={supplierUnitCost} onChange={(event) => setSupplierUnitCost(event.target.value.replace(/[^\d]/g, ""))} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Harga input" inputMode="numeric" />
+                <Input value={supplierUnitCost} onChange={(event) => setSupplierUnitCost(decimalCostInput(event.target.value))} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Harga input" inputMode="decimal" />
               </div>
               <Button type="button" variant="outline" className="garage-press h-9 w-full border-[#34343c] bg-white/[0.04] text-xs" onClick={addSupplierCartItem} disabled={warehouseFlowLoading}>
                 <Plus className="mr-2 size-3.5" />
@@ -3891,7 +3919,7 @@ export function InventoryView({
                       <div className="min-w-0">
                         <p className="truncate font-black text-white">{item.name}</p>
                         <p className="text-[#888]">
-                          {item.qty} {item.unit} x {currency.format(item.unitCost)}
+                          {item.qty} {item.unit} x {unitCostCurrency.format(item.unitCost)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -4136,6 +4164,18 @@ export function InventoryView({
                     {warehouseReportLocking ? <RefreshCw className="mr-1.5 size-3.5 animate-spin" /> : <LockKeyhole className="mr-1.5 size-3.5" />}
                     {warehouseReportLock ? "Terkunci" : "Kunci Laporan"}
                   </Button>
+                  {warehouseReportLock && canManageMenuProducts ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="garage-press h-9 border-[#f59e0b]/45 bg-[#f59e0b]/10 px-3 text-xs text-[#fde68a] hover:bg-[#f59e0b]/18"
+                      onClick={() => void unlockWarehouseDailyReportUi(warehouseReportDate)}
+                      disabled={warehouseReportUnlocking}
+                    >
+                      {warehouseReportUnlocking ? <RefreshCw className="mr-1.5 size-3.5 animate-spin" /> : <LockKeyhole className="mr-1.5 size-3.5" />}
+                      Buka Kunci
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     className="garage-press h-9 bg-[#d11a2a] px-3 text-xs text-white"
@@ -5027,9 +5067,9 @@ export function InventoryView({
               placeholder="Package size, contoh: 1 kg"
             />
             <Input
-              inputMode="numeric"
+              inputMode="decimal"
               value={warehouseUnitCost}
-              onChange={(event) => setWarehouseUnitCost(event.target.value.replace(/[^\d]/g, ""))}
+              onChange={(event) => setWarehouseUnitCost(decimalCostInput(event.target.value))}
               className="h-10 border-[#34343c] bg-white/[0.06]"
               placeholder="Unit cost / HPP per unit"
             />
@@ -5338,7 +5378,7 @@ export function InventoryView({
                                   [item.sku]: event.target.value,
                                 }))
                               }
-                              placeholder="â€”"
+                              placeholder="—"
                               className="ml-auto h-9 w-24 border-[#34343c] bg-white/[0.06] text-right"
                             />
                           </TableCell>
@@ -5357,7 +5397,7 @@ export function InventoryView({
                                 {delta}
                               </span>
                             ) : (
-                              <span className="text-[11px] text-[#8f8f99]">â€”</span>
+                              <span className="text-[11px] text-[#8f8f99]">—</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -5620,7 +5660,7 @@ function InventoryDetailModal({
           usageArea: editUsageArea,
           unit: editUnit.trim(),
           packageSize: editPackageSize.trim(),
-          unitCost: Math.round(unitCost),
+          unitCost: roundUnitCost(unitCost),
           min,
           movement: detail.item.movement,
         }),
@@ -5669,7 +5709,7 @@ function InventoryDetailModal({
           {loading && (
             <div className="flex items-center justify-center py-6 text-sm text-[#8f8f99]">
               <RefreshCw className="mr-2 size-4 animate-spin text-[#f5a742]" />
-              Memuat detailâ€¦
+              Memuat detail…
             </div>
           )}
 
@@ -5730,7 +5770,7 @@ function InventoryDetailModal({
                     Movement terakhir
                   </p>
                   <p className="mt-1 line-clamp-2 text-xs text-[#d6d6dc]">
-                    {item.movement || "â€”"}
+                    {item.movement || "—"}
                   </p>
                 </div>
               </div>
@@ -5781,7 +5821,7 @@ function InventoryDetailModal({
                     </Select>
                     <Input value={editUnit} onChange={(event) => setEditUnit(event.target.value)} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Unit" />
                     <Input value={editPackageSize} onChange={(event) => setEditPackageSize(event.target.value)} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Package size" />
-                    <Input inputMode="numeric" value={editUnitCost} onChange={(event) => setEditUnitCost(event.target.value.replace(/[^\d]/g, ""))} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Unit cost" />
+                    <Input inputMode="decimal" value={editUnitCost} onChange={(event) => setEditUnitCost(decimalCostInput(event.target.value))} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Unit cost" />
                     <Input type="number" step="any" min={0} value={editMin} onChange={(event) => setEditMin(event.target.value)} className="h-10 border-[#34343c] bg-white/[0.06]" placeholder="Minimum stok" />
                   </div>
                   <div className="mt-3 flex justify-end gap-2">
@@ -5922,7 +5962,7 @@ function InventoryDetailModal({
                             <span className="garage-mono text-[#bbf7d0]">{currency.format(row.lineTotal)}</span>
                           </div>
                           <p className="mt-0.5 text-[#8f8f99]">
-                            {row.qty} {row.unit} x {currency.format(row.unitCost)} / {new Date(row.receivedAt).toLocaleDateString("id-ID")}
+                            {row.qty} {row.unit} x {unitCostCurrency.format(row.unitCost)} / {new Date(row.receivedAt).toLocaleDateString("id-ID")}
                           </p>
                         </div>
                       ))}

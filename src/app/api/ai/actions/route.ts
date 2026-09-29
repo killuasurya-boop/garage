@@ -20,7 +20,7 @@ function parseStatus(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

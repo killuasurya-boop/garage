@@ -19,7 +19,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
   const body = await readJson(request, schema);
   if (body.error) return body.error;

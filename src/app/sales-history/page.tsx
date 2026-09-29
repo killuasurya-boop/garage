@@ -13,15 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function SalesHistoryPage() {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-    "Supervisor Shift",
-    "Kasir",
-    "Waiter 1",
-    "Waiter 2",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
   if (session.response) {
     redirect("/login");
   }

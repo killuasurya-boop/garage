@@ -11,7 +11,7 @@ const systemDoctorSchema = z.object({
 });
 
 export async function GET() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }
@@ -34,7 +34,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

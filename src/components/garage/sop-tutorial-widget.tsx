@@ -25,20 +25,10 @@ type SopTutorialWidgetProps = {
 };
 
 const roleCategoryMap: Record<Role, string[]> = {
-  "Owner / CEO": ["dashboard", "finance", "audit", "hrd", "pos", "kitchen", "waitress", "inventory", "crm"],
-  Admin: ["dashboard", "pos", "kitchen", "waitress", "inventory", "finance", "hrd", "audit", "crm"],
-  "Manager Operasional": ["dashboard", "pos", "kitchen", "waitress", "inventory", "hrd", "audit"],
-  "Finance / CFO": ["finance", "audit", "pos"],
-  Kasir: ["pos", "finance", "crm"],
-  Barista: ["kitchen", "inventory"],
-  Koki: ["kitchen", "inventory"],
-  "Asisten Koki": ["kitchen", "inventory"],
-  "Waiter 1": ["waitress", "pos"],
-  "Waiter 2": ["waitress", "pos"],
-  "Kitchen / Barista": ["kitchen", "inventory"],
-  Gudang: ["inventory"],
-  "Supervisor Shift": ["dashboard", "pos", "kitchen", "waitress", "inventory", "finance", "hrd", "audit"],
-  "Delivery Admin": ["pos", "crm"],
+  Owner: ["dashboard", "finance", "audit", "hrd", "pos", "kitchen", "waitress", "inventory", "crm"],
+  Manajer: ["dashboard", "pos", "kitchen", "waitress", "inventory", "finance", "hrd", "audit", "crm"],
+  Kasir: ["pos", "finance", "crm", "kitchen", "inventory"],
+  Waiter: ["waitress", "pos", "crm"],
 };
 
 const moduleCategoryMap: Partial<Record<ModuleId, string[]>> = {

@@ -29,16 +29,22 @@ Sistem HR terintegrasi Garage OS:
 
 ## 3. Role Matrix (fitur wajib)
 
+4 role login: Owner, Manajer, Kasir, Waiter. Kasir sekarang juga pegang KDS
+dapur/bar dan stok gudang (dulu peran terpisah Barista/Koki/Asisten
+Koki/Kitchen-Barista/Gudang); Waiter mencakup layanan meja & delivery (dulu
+Waiter 1/2/Delivery Admin); Manajer mencakup operasional+finance (dulu
+Admin/Manager Operasional/Finance-CFO/Supervisor Shift).
+
 | Role | Absen | Wallet Gaji | Wallet Fee | Kelola |
 |---|---|---|---|---|
-| Barista, Koki, Asisten Koki, Kitchen/Barista | ✅ PIN+Selfie+GPS | ✅ | ✅ | — |
 | Kasir | ✅ PIN (tablet) | ✅ | ✅ | — |
-| Waiter 1/2, Delivery Admin | ✅ PIN+Selfie+GPS (multi) | ✅ | ✅ | — |
-| Gudang | ✅ | ✅ | ✅ | — |
-| Supervisor Shift, Manager Operasional | ✅ | ✅ (gaji tetap) | ❌ | Tim |
-| Owner/CEO, Admin, Finance/CFO | ❌ | ❌ | ❌ | Full |
+| Waiter | ✅ PIN+Selfie+GPS (multi) | ✅ | ✅ | — |
+| Manajer | ✅ | ✅ (gaji tetap) | ❌ | Tim |
+| Owner | ❌ | ❌ | ❌ | Full |
 
-Manajer/Owner **dikunci di kode** via `MANAGER_ROLES` set.
+Manajer/Owner **dikunci di kode** via `MANAGER_ROLES` set (lihat
+`src/lib/garage-payroll-settings.ts`, sinkron dengan `MANAGEMENT_ROLES` di
+`src/lib/role-access.ts`).
 
 ## 4. Schema Ringkas
 

@@ -7,8 +7,10 @@ import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
+// Potong stok WMS dari penjualan POS kini selalu aktif (lewat potong stok resep
+// order) — toggle yang tersisa di sini: auto-habis dari stok gudang.
 const patchSchema = z.object({
-  wmsAutoConsume: z.boolean().optional(),
+  autoSoldOutFromStock: z.boolean().optional(),
   expiryStrict: z.boolean().optional(),
   defaultPutAway: z.string().trim().max(40).optional(),
   notifyLowStock: z.boolean().optional(),
@@ -23,19 +25,19 @@ export async function GET() {
     getAppSettings(session.data.profile.outlet.id),
     getWmsExtendedConfig(),
   ]);
-  return ok({ wmsAutoConsume: settings.wmsAutoConsume, ...wmsConfig });
+  return ok({ autoSoldOutFromStock: settings.autoSoldOutFromStock, ...wmsConfig });
 }
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
   const parsed = await readJson(request, patchSchema);
   if (parsed.error) return parsed.error;
-  const { wmsAutoConsume, ...wmsPatch } = parsed.data;
-  if (wmsAutoConsume !== undefined) {
-    await updateAppSettings(session.data.profile.outlet.id, { wmsAutoConsume }, session.data);
+  const { autoSoldOutFromStock, ...wmsPatch } = parsed.data;
+  if (autoSoldOutFromStock !== undefined) {
+    await updateAppSettings(session.data.profile.outlet.id, { autoSoldOutFromStock }, session.data);
   }
   const wmsConfig = Object.keys(wmsPatch).length ? await updateWmsExtendedConfig(wmsPatch) : await getWmsExtendedConfig();
   const settings = await getAppSettings(session.data.profile.outlet.id);
-  return ok({ wmsAutoConsume: settings.wmsAutoConsume, ...wmsConfig });
+  return ok({ autoSoldOutFromStock: settings.autoSoldOutFromStock, ...wmsConfig });
 }

@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { LazyGarageApp } from "@/components/garage/garage-app-loader";
 import { modules, type ModuleId } from "@/lib/garage-data";
 import { requireModulePageAccess } from "@/lib/page-access";
+import { staffViewport } from "@/lib/staff-viewport";
+
+// Layar staf: zoom dua jari dikunci (lihat src/lib/staff-viewport.ts).
+export const viewport = staffViewport;
 
 export const metadata: Metadata = {
   title: "Garage Coffee & Motor OS",

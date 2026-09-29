@@ -12,12 +12,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ELEVATED_ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-];
+const ELEVATED_ROLES: Role[] = ["Owner", "Manajer"];
 
 const createSchema = z.object({
   targetRole: z.string(),

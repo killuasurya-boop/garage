@@ -19,7 +19,8 @@ export type EarningsRetryKind =
   | "ticket_delivered"
   | "order_paid"
   | "reverse_order"
-  | "fee_pool_accumulate";
+  | "fee_pool_accumulate"
+  | "fee_pool_reverse";
 
 export async function enqueueFailedEarning(
   kind: EarningsRetryKind,
@@ -140,12 +141,13 @@ export function lookupUnitFee(
   const cashierFee = fees?.feeCashierPaidPerItem ?? 200;
 
   if (event === "ticket_ready") {
+    // Koki/Asisten Koki/Barista bukan role terpisah lagi — Kasir pegang semua KDS.
     if (itemKind === "food") {
-      if (role === "Koki" || role === "Asisten Koki") return kitchenFee;
+      if (role === "Kasir") return kitchenFee;
       return 0;
     }
     if (itemKind === "drink") {
-      if (role === "Barista" || role === "Kitchen / Barista") return baristaFee;
+      if (role === "Kasir") return baristaFee;
       return 0;
     }
     if (itemKind === "packaging") return packagingFee;
@@ -154,7 +156,7 @@ export function lookupUnitFee(
 
   if (event === "ticket_delivered") {
     if (itemKind !== "service") return 0;
-    if (role === "Waiter 1" || role === "Waiter 2") return waiterFee;
+    if (role === "Waiter") return waiterFee;
     return 0;
   }
 
@@ -365,23 +367,22 @@ export async function recordTicketReadyEarnings(input: RecordTicketReadyInput) {
     return [];
   }
 
+  // Koki/Asisten Koki/Barista bukan role terpisah lagi — Kasir pegang semua
+  // KDS dapur/bar, jadi satu-satunya role yang eligible untuk fee tiket ini.
   const recipients =
     ticketKind === "food"
       ? await resolveEarningStaffRecipients({
           actorUserId: input.staffUserId,
           actorRole: input.staffRole,
           outletId: input.outletId,
-          eligibleRoles: ["Koki", "Asisten Koki"],
+          eligibleRoles: ["Kasir"],
         })
       : await (async () => {
           const earningStaff = await resolveEarningStaff({
             actorUserId: input.staffUserId,
             actorRole: input.staffRole,
             outletId: input.outletId,
-            eligibleRoles:
-              ticketKind === "drink"
-                ? ["Barista", "Kitchen / Barista"]
-                : ["Koki", "Barista", "Kitchen / Barista"],
+            eligibleRoles: ["Kasir"],
           });
           return earningStaff ? [earningStaff] : [];
         })();
@@ -481,7 +482,7 @@ export async function recordTicketDeliveredEarnings(input: RecordTicketDelivered
     actorUserId: input.staffUserId,
     actorRole: input.staffRole,
     outletId: input.outletId,
-    eligibleRoles: ["Waiter 1", "Waiter 2"],
+    eligibleRoles: ["Waiter"],
   });
   if (!earningStaff) return [];
 

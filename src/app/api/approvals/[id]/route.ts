@@ -16,7 +16,7 @@ const approvalSchema = z
       data.status !== "rejected" ||
       (data.reasonDecided && data.reasonDecided.length >= 5),
     {
-      message: "Alasan reject wajib diisi minimal 5 karakter.",
+      message: "Alasan menolak wajib diisi minimal 5 karakter.",
       path: ["reasonDecided"],
     },
   );
@@ -33,7 +33,7 @@ export async function GET(
   const { id } = await context.params;
   const approval = await getApprovalById(id);
   if (!approval) {
-    return fail(404, "APPROVAL_NOT_FOUND", "Approval tidak ditemukan.");
+    return fail(404, "APPROVAL_NOT_FOUND", "Pengajuan tidak ditemukan.");
   }
   return ok(approval);
 }
@@ -63,7 +63,7 @@ export async function PATCH(
       session.data,
     );
     if (!approval) {
-      return fail(404, "APPROVAL_NOT_FOUND", "Approval tidak ditemukan.");
+      return fail(404, "APPROVAL_NOT_FOUND", "Pengajuan tidak ditemukan.");
     }
     return ok(approval);
   } catch (err) {

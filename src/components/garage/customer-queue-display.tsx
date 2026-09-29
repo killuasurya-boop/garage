@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clock, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import type { ApiEnvelope, DisplayQueueOrder } from "@/lib/garage-api-types";
 
@@ -14,25 +14,66 @@ async function getQueue() {
   return json.data;
 }
 
-const statusLabel: Record<string, string> = {
-  queue: "Antre",
-  cooking: "Diproses",
-  ready: "Siap",
-  delivered: "Selesai",
+type QueueStatus = "ready" | "cooking" | "queue";
+
+type MergedOrder = {
+  key: string;
+  bigLabel: string;
+  subLabel: string;
+  status: QueueStatus;
+  waitMinutes: number;
 };
 
-const statusClass: Record<string, string> = {
-  queue: "border-[#9696a1]/45 bg-white/[0.08] text-[#e8e8ec]",
-  cooking: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  ready: "border-[#22c55e]/45 bg-[#22c55e]/14 text-[#dcfce7]",
-  delivered: "border-[#4a4a54] bg-[#222229] text-[#d0d0d6]",
-};
+// Identitas ramah-layar: dine-in tampil NOMOR MEJA, takeaway/delivery tampil
+// kode antrean ringkas dari orderNo (3 digit terakhir) supaya mudah dipanggil.
+function displayLabel(order: DisplayQueueOrder): { big: string; sub: string } {
+  const table = (order.tableLabel ?? "").trim();
+  const mejaMatch = table.match(/meja\s*0*(\d+)/i);
+  if (mejaMatch) {
+    return { big: mejaMatch[1].padStart(2, "0"), sub: "MEJA" };
+  }
+  const digits = (order.orderNo ?? order.ticketNo ?? "").replace(/\D/g, "");
+  const code = digits.slice(-3) || "--";
+  if (/take|bawa/i.test(table)) return { big: code, sub: "TAKE AWAY" };
+  if (/deliver|antar/i.test(table)) return { big: code, sub: "DELIVERY" };
+  return { big: table || code, sub: "" };
+}
+
+function mergeOrders(orders: DisplayQueueOrder[]): MergedOrder[] {
+  // Gabung tiket per-order (1 order bisa punya tiket Dapur + Bar) → 1 kartu.
+  const groups = new Map<string, DisplayQueueOrder[]>();
+  for (const o of orders) {
+    const key = o.orderNo ?? o.ticketNo;
+    const list = groups.get(key);
+    if (list) list.push(o);
+    else groups.set(key, [o]);
+  }
+
+  const merged: MergedOrder[] = [];
+  for (const [key, tix] of groups) {
+    if (tix.every((t) => t.status === "delivered")) continue; // sudah diterima
+    const anyCooking = tix.some((t) => t.status === "cooking");
+    const anyQueue = tix.some((t) => t.status === "queue");
+    const allDone = tix.every((t) => t.status === "ready" || t.status === "delivered");
+    const status: QueueStatus = allDone ? "ready" : anyCooking ? "cooking" : anyQueue ? "queue" : "queue";
+    const { big, sub } = displayLabel(tix[0]);
+    merged.push({
+      key,
+      bigLabel: big,
+      subLabel: sub,
+      status,
+      waitMinutes: Math.max(0, ...tix.map((t) => t.elapsed)),
+    });
+  }
+  return merged;
+}
 
 export function CustomerQueueDisplay() {
   const [orders, setOrders] = useState<DisplayQueueOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [clock, setClock] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -45,105 +86,150 @@ export function CustomerQueueDisplay() {
           setError(null);
         }
       } catch (caught) {
-        if (alive) {
-          setError(caught instanceof Error ? caught.message : "Display queue gagal dimuat.");
-        }
+        if (alive) setError(caught instanceof Error ? caught.message : "Display queue gagal dimuat.");
       } finally {
-        if (alive) {
-          setLoading(false);
-        }
+        if (alive) setLoading(false);
       }
     };
-
     void load();
-    const intervalId = window.setInterval(load, 10_000);
+    const intervalId = window.setInterval(load, 8_000);
     return () => {
       alive = false;
       window.clearInterval(intervalId);
     };
   }, []);
 
-  const grouped = useMemo(
-    () => ({
-      ready: orders.filter((order) => order.status === "ready").slice(0, 12),
-      cooking: orders.filter((order) => order.status === "cooking").slice(0, 12),
-      queue: orders.filter((order) => order.status === "queue").slice(0, 12),
-    }),
-    [orders],
-  );
+  useEffect(() => {
+    const tick = () => setClock(new Date().toLocaleTimeString("id-ID"));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const grouped = useMemo(() => {
+    const merged = mergeOrders(orders);
+    return {
+      ready: merged.filter((o) => o.status === "ready").sort((a, b) => b.waitMinutes - a.waitMinutes),
+      cooking: merged.filter((o) => o.status === "cooking").sort((a, b) => b.waitMinutes - a.waitMinutes),
+      queue: merged.filter((o) => o.status === "queue").sort((a, b) => b.waitMinutes - a.waitMinutes),
+    };
+  }, [orders]);
 
   return (
-    <main className="garage-shell min-h-screen overflow-hidden px-5 py-5 text-white sm:px-8">
-      <header className="flex flex-col gap-3 border-b border-[#34343c] pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[#0b0b0f] px-6 py-5 text-white">
+      <header className="flex items-end justify-between border-b border-[#2a2a32] pb-4">
         <div>
-          <p className="garage-mono text-xs uppercase tracking-[0.18em] text-[#b8b8bf]">
-            GARAGE Coffee & Motor
+          <p className="font-mono text-sm uppercase tracking-[0.3em] text-[#f5a742]">
+            GARAGE COFFEE &amp; MOTOR
           </p>
-          <h1 className="garage-display mt-2 text-[clamp(42px,7vw,96px)] leading-none">
-            Order Queue
+          <h1 className="mt-1 text-[clamp(40px,6vw,84px)] font-black leading-none tracking-tight">
+            ANTREAN PESANAN
           </h1>
         </div>
-        <div className="flex items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-2">
-          <RefreshCw className={`size-4 text-[#f5a742] ${loading ? "animate-spin" : ""}`} />
-          <span className="garage-mono text-xs text-[#d6d6dc]">
-            {updatedAt ? updatedAt.toLocaleTimeString("id-ID") : "Memuat"}
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[clamp(20px,2.4vw,34px)] font-bold tabular-nums text-[#d6d6dc]">
+            {clock}
           </span>
+          <RefreshCw className={`size-6 text-[#f5a742] ${loading ? "animate-spin" : ""}`} />
         </div>
       </header>
 
       {error ? (
-        <div className="mt-4 rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-4 text-sm text-[#ffc2c8]">
-          {error}
+        <div className="mt-4 rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-4 text-lg text-[#ffc2c8]">
+          {error} · terakhir sync {updatedAt ? updatedAt.toLocaleTimeString("id-ID") : "-"}
         </div>
       ) : null}
 
-      <section className="mt-5 grid h-[calc(100vh-170px)] min-h-0 gap-4 lg:grid-cols-3">
-        {[
-          ["ready", "Siap Diambil / Diantar", grouped.ready],
-          ["cooking", "Sedang Diproses", grouped.cooking],
-          ["queue", "Masuk Antrean", grouped.queue],
-        ].map(([key, title, rows]) => (
-          <div key={String(key)} className="min-h-0 rounded-md border border-[#34343c] bg-[#111116]/84 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-black text-white">{String(title)}</h2>
-              <span className="garage-mono rounded-md border border-[#4a4a54] px-2 py-1 text-xs text-[#d6d6dc]">
-                {(rows as DisplayQueueOrder[]).length}
-              </span>
-            </div>
-            <div className="mt-4 grid max-h-[calc(100%-48px)] gap-3 overflow-y-auto pr-1">
-              {(rows as DisplayQueueOrder[]).length ? (
-                (rows as DisplayQueueOrder[]).map((order) => (
-                  <article
-                    key={`${order.ticketNo}-${order.status}`}
-                    className="rounded-md border border-[#303038] bg-black/16 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="garage-mono text-xs text-[#8f8f98]">{order.ticketNo}</p>
-                        <p className="mt-1 truncate text-2xl font-black text-white">
-                          {order.orderNo ?? order.tableLabel}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[#d6d6dc]">{order.tableLabel}</p>
-                      </div>
-                      <span className={`rounded-md border px-2 py-1 text-xs font-bold ${statusClass[order.status] ?? statusClass.queue}`}>
-                        {statusLabel[order.status] ?? order.status}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-[#b8b8bf]">
-                      <Clock className="size-3.5 text-[#f5a742]" />
-                      {order.station} - target {order.targetMinutes}m
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="rounded-md border border-dashed border-[#4a4a54] p-4 text-sm text-[#8f8f98]">
-                  Tidak ada order.
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+      <section className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_1fr_0.9fr]">
+        <QueueColumn
+          title="SIAP DIAMBIL / DIANTAR"
+          accent="#22c55e"
+          highlight
+          orders={grouped.ready}
+          emptyText="Belum ada yang siap."
+        />
+        <QueueColumn
+          title="SEDANG DIPROSES"
+          accent="#f5a742"
+          orders={grouped.cooking}
+          emptyText="Dapur & bar kosong."
+        />
+        <QueueColumn
+          title="MENUNGGU"
+          accent="#9696a1"
+          orders={grouped.queue}
+          emptyText="Tidak ada antrean."
+        />
       </section>
     </main>
+  );
+}
+
+function QueueColumn({
+  title,
+  accent,
+  orders,
+  emptyText,
+  highlight,
+}: {
+  title: string;
+  accent: string;
+  orders: MergedOrder[];
+  emptyText: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className="flex min-h-0 flex-col rounded-xl border bg-[#111116]/85 p-4"
+      style={{ borderColor: highlight ? `${accent}66` : "#2a2a32" }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[clamp(18px,1.8vw,26px)] font-black" style={{ color: accent }}>
+          {title}
+        </h2>
+        <span
+          className="rounded-md px-3 py-1 text-lg font-black tabular-nums"
+          style={{ backgroundColor: `${accent}22`, color: accent }}
+        >
+          {orders.length}
+        </span>
+      </div>
+      <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto pr-1">
+        {orders.length ? (
+          orders.map((o) => (
+            <article
+              key={o.key}
+              className="flex items-center justify-between gap-3 rounded-lg border p-3"
+              style={{
+                borderColor: highlight ? `${accent}80` : "#303038",
+                backgroundColor: highlight ? `${accent}18` : "rgba(0,0,0,0.2)",
+              }}
+            >
+              <div className="min-w-0">
+                {o.subLabel ? (
+                  <p
+                    className="font-mono text-[13px] font-bold uppercase tracking-wider"
+                    style={{ color: accent }}
+                  >
+                    {o.subLabel}
+                  </p>
+                ) : null}
+                <p className="text-[clamp(34px,4vw,60px)] font-black leading-none text-white">
+                  {o.bigLabel}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm text-[#9a9aa2]">menunggu</p>
+                <p className="text-2xl font-black tabular-nums text-[#e8e8ec]">{o.waitMinutes}m</p>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-[#3a3a44] p-6 text-center text-lg text-[#7a7a84]">
+            {emptyText}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

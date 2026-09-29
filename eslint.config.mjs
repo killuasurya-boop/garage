@@ -9,12 +9,16 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // Build gladi resik / verifikasi terpisah (NEXT_DIST_DIR=.next-verify).
+    ".next-verify/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
     ".tmp/**",
     "public/franchise-site/**",
-    "*.js",
+    "**/*.js",
+    "**/*.cjs",
+    "warehouse/**",
     "garage-profitmax/**",
     "garage-profitmax-ui/**",
     "outputs/**",

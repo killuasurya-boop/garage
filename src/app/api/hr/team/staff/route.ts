@@ -6,22 +6,7 @@ import { requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
 import { fail } from "@/lib/api-response";
 
-const ROLE_VALUES = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Supervisor Shift",
-  "Delivery Admin",
-] as const;
+const ROLE_VALUES = ["Owner", "Manajer", "Kasir", "Waiter"] as const;
 
 const patchStaffSchema = z.object({
   id: z.string().min(1),

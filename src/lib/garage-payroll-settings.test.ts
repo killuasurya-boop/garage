@@ -62,11 +62,8 @@ describe("isRoleEligibleForFeePool", () => {
   });
 
   it("includes typical staff roles", () => {
-    expect(isRoleEligibleForFeePool("Barista", exclude)).toBe(true);
-    expect(isRoleEligibleForFeePool("Koki", exclude)).toBe(true);
     expect(isRoleEligibleForFeePool("Kasir", exclude)).toBe(true);
-    expect(isRoleEligibleForFeePool("Waiter 1", exclude)).toBe(true);
-    expect(isRoleEligibleForFeePool("Gudang", exclude)).toBe(true);
+    expect(isRoleEligibleForFeePool("Waiter", exclude)).toBe(true);
   });
 
   it("rejects empty role", () => {

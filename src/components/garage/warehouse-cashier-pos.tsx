@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { InventoryItem } from "@/lib/garage-api-types";
+import { unitCostCurrency } from "@/lib/garage-data";
 
 type CashierMode = "supplier_receive" | "request_issue";
 type CartStatus = "draft" | "posting" | "posted" | "failed" | "cancelled";
@@ -393,7 +394,8 @@ export function WarehouseCashierPos({ inventoryItems }: { inventoryItems: Invent
           items: supplierCart.map((line) => ({
             sku: line.sku,
             qty: line.qty,
-            unitCost: Math.max(0, Math.round(line.unitCost || 0)),
+            // HPP per satuan boleh pecahan (Rp/ml, Rp/gr) — 4 desimal.
+            unitCost: Math.max(0, Math.round((line.unitCost || 0) * 10_000) / 10_000),
           })),
         }),
       });
@@ -807,7 +809,7 @@ export function WarehouseCashierPos({ inventoryItems }: { inventoryItems: Invent
                       </div>
                       <p className="font-mono text-[10px] text-white/40">{item.sku}</p>
                       <p className="text-[11px] text-white/60">{item.category} - {item.packageSize}</p>
-                      <p className="text-[11px] font-semibold text-amber-200">{rupiah.format(item.unitCost || 0)} / {item.unit}</p>
+                      <p className="text-[11px] font-semibold text-amber-200">{unitCostCurrency.format(item.unitCost || 0)} / {item.unit}</p>
                     </button>
                   ))}
                 </div>
@@ -859,13 +861,15 @@ export function WarehouseCashierPos({ inventoryItems }: { inventoryItems: Invent
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-white/60">Harga/unit</span>
                         <Input
-                          value={line.unitCost ? String(line.unitCost) : ""}
+                          // Uncontrolled: teks ketikan (mis. "151,3" di tengah mengetik)
+                          // tetap utuh; nilai angka desimal disimpan ke baris cart.
+                          defaultValue={line.unitCost ? String(line.unitCost).replace(".", ",") : ""}
                           onChange={(event) => {
-                            const value = Number(event.target.value.replace(/[^\d]/g, ""));
+                            const value = Number(event.target.value.replace(/,/g, ".").replace(/[^\d.]/g, ""));
                             updateSupplierLine(line.key, { unitCost: Number.isFinite(value) ? value : 0 });
                           }}
                           className="h-8 flex-1 border-[#34343c] bg-black/30 text-sm"
-                          inputMode="numeric"
+                          inputMode="decimal"
                           placeholder="0"
                         />
                         <span className="text-xs font-bold text-emerald-200">{rupiah.format(line.qty * line.unitCost)}</span>

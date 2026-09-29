@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
 AlertTriangle,
@@ -45,6 +45,7 @@ Printer,
 QrCode,
 ReceiptText,
 RefreshCw,
+Scissors,
 Search,
 Settings,
 ShieldAlert,
@@ -190,6 +191,7 @@ Customer,
 CustomerOrder,
 CustomerOrderActionResponse,
 GarageMe,
+KitchenOrder,
 MenuFilter,
 MenuItem,
 MenuVariant,
@@ -200,10 +202,13 @@ PosMemberCreateResponse,
 PosMemberLookupResponse,
 QrControlInsights,
 TableLiveRow,
+TableOrderBill,
 VoucherValidation
 } from "@/lib/garage-api-types";
-import { menuFilterMatches } from "@/lib/garage-api-types";
-import { printThermal } from "@/lib/print-client";
+import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
+import { printKitchenChit, printThermal } from "@/lib/print-client";
+import { productionIdentityName, productionStationLabel } from "@/lib/garage-production-rules";
+import type { KitchenChitItem } from "@/lib/thermal-receipt";
 import {
 currency
 } from "@/lib/garage-data";
@@ -214,6 +219,19 @@ isLocalQrBaseUrl,
 } from "@/lib/garage-qr";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
+import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
+import {
+  PosOrderCancelDialog,
+  type OrderCancelTarget,
+} from "@/components/garage/pos-order-cancel-dialog";
+import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
+import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
+import {
+  PosTableBillSplitDialog,
+  type TableBillSplitResult,
+} from "@/components/garage/pos-table-bill-split-dialog";
+import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
+import { calculateBillingTotals } from "@/lib/garage-billing";
 import { normalizePhone } from "@/lib/member-types";
 
 const PosModuleFallback = () => (
@@ -336,6 +354,15 @@ type CashierShiftHistory = {
   hasMore: boolean;
 };
 
+// Idempotency key untuk anti double-submit. Di module scope supaya bukan impure
+// call saat render (crypto.randomUUID bila ada, fallback Date.now+random).
+function makeIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `pos-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const statusClass: Record<string, string> = {
   ready: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
   safe: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
@@ -421,34 +448,62 @@ function BillRow({
   );
 }
 
+const BILL_STATUS_LABEL: Record<string, string> = {
+  pending: "Menunggu",
+  pending_cashier: "Menunggu kasir",
+  accepted: "Diterima dapur",
+  ready: "Siap",
+  awaiting_payment: "Menunggu bayar",
+  paid: "Lunas",
+  rejected: "Ditolak",
+  voided: "Dibatalkan",
+  cancelled: "Dibatalkan",
+};
+
+function billStatusLabel(status: string) {
+  return BILL_STATUS_LABEL[status] ?? status;
+}
+
+// Label tombol metode bayar (nilai yang dikirim ke server tetap: Cash, QRIS, dst).
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  Cash: "Tunai",
+  QRIS: "QRIS",
+  "Bank Transfer": "Transfer Bank",
+  "E-Wallet": "E-Wallet",
+};
+
+function paymentMethodLabel(method: string) {
+  return PAYMENT_METHOD_LABEL[method] ?? method;
+}
+
 const qrOrderActionGuides = [
   {
-    label: "Accept",
+    label: "Terima",
     tone: "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]",
-    description: "Validasi order dan buat ticket KDS. Order belum dianggap lunas.",
+    description: "Validasi order dan buat tiket dapur (KDS). Order belum dianggap lunas.",
   },
   {
     label: "Terima Pembayaran",
     tone: "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]",
-    description: "Konfirmasi cash, QRIS, atau transfer. Sistem mencatat payment, membuat struk, dan memproses point member bila ada.",
+    description: "Konfirmasi cash, QRIS, atau transfer. Sistem mencatat pembayaran, membuat struk, dan memproses poin member bila ada.",
   },
   {
-    label: "Reject",
+    label: "Tolak",
     tone: "border-[#4a4a54] bg-[#202027] text-[#d6d6dc]",
-    description: "Tolak order agar tidak masuk antrian kitchen.",
+    description: "Tolak order agar tidak masuk antrean dapur.",
   },
 ];
 
 const qrControlStatusFilters = [
   { value: "all", label: "Semua status" },
-  { value: "pending_cashier", label: "Pending" },
-  { value: "accepted", label: "Accepted" },
-  { value: "paid", label: "Paid" },
-  { value: "rejected", label: "Rejected" },
+  { value: "pending_cashier", label: "Menunggu kasir" },
+  { value: "accepted", label: "Diterima" },
+  { value: "paid", label: "Lunas" },
+  { value: "rejected", label: "Ditolak" },
 ];
 
 const qrControlSourceFilters = [
-  { value: "all", label: "Semua source" },
+  { value: "all", label: "Semua sumber" },
   { value: "qr_table", label: "QR meja" },
   { value: "qr_takeaway", label: "QR takeaway" },
   { value: "instagram", label: "Instagram" },
@@ -462,9 +517,31 @@ const qrControlSelectItemClass =
 
 type QrWorkTab = "incoming" | "history" | "table_map" | "qr_control" | "follow_up" | "qr_tables";
 
+// Label + warna status tiket dapur (per station). null = order belum masuk dapur
+// (mis. masih menunggu kasir). Status per item mewarisi status station-nya.
+const kitchenStatusLabels: Record<string, string> = {
+  queue: "Antre",
+  cooking: "Dimasak",
+  ready: "Siap",
+  delivered: "Diantar",
+  completed: "Selesai",
+};
+function kitchenStatusLabel(status: string | null) {
+  if (!status) return "Belum masuk dapur";
+  return kitchenStatusLabels[status] ?? status;
+}
+function kitchenStatusTone(status: string | null) {
+  if (status === "ready") return "border-[#22c55e]/50 bg-[#22c55e]/14 text-[#dcfce7]";
+  if (status === "delivered" || status === "completed")
+    return "border-[#4a4a54] bg-white/[0.06] text-[#b8b8bf]";
+  if (status === "cooking") return "border-[#f5a742]/50 bg-[#f5a742]/14 text-[#ffd08a]";
+  if (status === "queue") return "border-[#d11a2a]/50 bg-[#d11a2a]/14 text-[#ffc2c8]";
+  return "border-[#4a4a54] bg-white/[0.04] text-[#9aa0a6]";
+}
+
 const qrWorkTabs: Array<{ value: QrWorkTab; label: string }> = [
   { value: "incoming", label: "Antrean" },
-  { value: "history", label: "History" },
+  { value: "history", label: "Riwayat" },
   { value: "table_map", label: "Meja" },
   { value: "qr_control", label: "Control" },
   { value: "follow_up", label: "Follow-up" },
@@ -542,6 +619,7 @@ export function PosView({
   const [splitBillOpen, setSplitBillOpen] = useState(false);
   const [splitPeopleCount, setSplitPeopleCount] = useState("2");
   const [manualDiscount, setManualDiscount] = useState<ManualDiscount | null>(null);
+  const [discountPinOpen, setDiscountPinOpen] = useState(false);
   const [manualDiscountOpen, setManualDiscountOpen] = useState(false);
   const [manualDiscountTypeInput, setManualDiscountTypeInput] =
     useState<"amount" | "percent">("amount");
@@ -619,11 +697,7 @@ export function PosView({
   const [expenseError, setExpenseError] = useState<string | null>(null);
   // Quick Count Stok (hanya tampil utk role yg punya inventory:write)
   const canQuickCount =
-    me.role === "Manager Operasional" ||
-    me.role === "Supervisor Shift" ||
-    me.role === "Gudang" ||
-    me.role === "Owner / CEO" ||
-    me.role === "Admin";
+    me.role === "Manajer" || me.role === "Kasir" || me.role === "Owner";
   type QuickCountItem = {
     sku: string;
     name: string;
@@ -738,6 +812,12 @@ export function PosView({
   const [customerOrderCashReceived, setCustomerOrderCashReceived] = useState("");
   const [customerOrderCashDeposited, setCustomerOrderCashDeposited] = useState("");
   const [qrOrdersOpen, setQrOrdersOpen] = useState(false);
+  // Monitor "Status Produksi" (read-only) untuk kasir. READY adalah hak
+  // workstation Bar/Dapur di Production Hub (BR-07/08), bukan kasir.
+  const [kitchenTickets, setKitchenTickets] = useState<KitchenOrder[]>([]);
+  // Waktu sinkron terakhir monitor — dasar hitung lama tunggu (render tetap murni).
+  const [kitchenTicketsAt, setKitchenTicketsAt] = useState(0);
+  const [kitchenPanelOpen, setKitchenPanelOpen] = useState(false);
   const [qrOperationsOpen, setQrOperationsOpen] = useState(false);
   const [qrInsights, setQrInsights] = useState<QrControlInsights | null>(null);
   const [qrInsightsLoading, setQrInsightsLoading] = useState(false);
@@ -754,6 +834,10 @@ export function PosView({
   const previousNeedsCleaningRef = useRef<Set<string> | null>(null);
   const [tableLiveLoading, setTableLiveLoading] = useState(false);
   const [tableLiveError, setTableLiveError] = useState<string | null>(null);
+  // Timestamp sinkron terakhir peta meja (untuk indikator "terakhir update").
+  const [tableLiveUpdatedAt, setTableLiveUpdatedAt] = useState<number | null>(null);
+  // Ticker ringan supaya label "Xs lalu" berjalan walau tidak ada re-render lain.
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [shiftHandoverPending, setShiftHandoverPending] = useState(false);
   const [dismissedQrNoticeKey, setDismissedQrNoticeKey] = useState<string | null>(null);
   const [qrNoticePulseKey, setQrNoticePulseKey] = useState<string | null>(null);
@@ -765,6 +849,39 @@ export function PosView({
   const [selectedTableToReset, setSelectedTableToReset] = useState<TableLiveRow | null>(null);
   // Cek Meja: panel detail saat tap kartu meja + filter status grid.
   const [tableDetail, setTableDetail] = useState<TableLiveRow | null>(null);
+  // Rincian item pesanan meja (lazy-load saat dialog detail dibuka).
+  const [tableOrderBills, setTableOrderBills] = useState<TableOrderBill[] | null>(null);
+  const [tableItemsLoading, setTableItemsLoading] = useState(false);
+  const [tableItemsError, setTableItemsError] = useState<string | null>(null);
+  // Aksi cepat detail meja: cetak bill sementara / tandai siap / siapkan bill.
+  const [provisionalBillBusyId, setProvisionalBillBusyId] = useState<string | null>(null);
+  const [tableActionBusy, setTableActionBusy] = useState<"ready" | "bill" | null>(null);
+  // Order QR: order yang sedang menunggu konfirmasi Reject (dengan alasan) atau
+  // Final Bayar. Aksi susah-dibalik jadi lewat dialog dulu, bukan fire langsung.
+  const [rejectOrderTarget, setRejectOrderTarget] = useState<CustomerOrder | null>(null);
+  const [rejectReasonChoice, setRejectReasonChoice] = useState("Stok habis");
+  const [rejectReasonOther, setRejectReasonOther] = useState("");
+  const [finalizeOrderTarget, setFinalizeOrderTarget] = useState<CustomerOrder | null>(null);
+  // Final Bayar: kasir boleh ganti metode (tiap tamu bill pisahan bisa beda).
+  const [finalizeMethod, setFinalizeMethod] = useState<PaymentMethod>("Cash");
+  const [finalizeCash, setFinalizeCash] = useState("");
+  // Split bill per produk: bill meja (pisah) & keranjang kasir (bayar per tamu).
+  const [tableSplitBill, setTableSplitBill] = useState<TableOrderBill | null>(null);
+  const [cartSplitOpen, setCartSplitOpen] = useState(false);
+  // Dialog konfirmasi/alasan in-app reusable (pengganti window.confirm/prompt) —
+  // berbasis Promise supaya alur async yang ada nyaris tak berubah.
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    message?: string;
+    confirmLabel?: string;
+    needsReason?: boolean;
+    reasonPlaceholder?: string;
+    danger?: boolean;
+  } | null>(null);
+  const [confirmReason, setConfirmReason] = useState("");
+  const confirmResolveRef = useRef<((value: string | boolean) => void) | null>(null);
+  // Percobaan submit order terakhir yang belum sukses — lihat idempotencyAttemptFor.
+  const orderAttemptRef = useRef<IdempotencyAttempt | null>(null);
   const [tableMapFilter, setTableMapFilter] = useState<
     "all" | "empty" | "occupied" | "cleaning"
   >("all");
@@ -806,8 +923,8 @@ export function PosView({
     [setCashierPosSettings],
   );
   const isCashierKiosk = me.role === "Kasir";
-  const canManagePosSettings = me.role === "Owner / CEO" || me.role === "Admin";
-  const canResetAllTablesOnClose = ["Owner / CEO", "Admin", "Manager Operasional"].includes(
+  const canManagePosSettings = me.role === "Owner" || me.role === "Manajer";
+  const canResetAllTablesOnClose = ["Owner", "Manajer"].includes(
     me.role,
   );
   const activeCashierToolOpen =
@@ -949,6 +1066,16 @@ export function PosView({
     return map;
   }, [menuItems]);
 
+  // Nama item (lowercase) → station Dapur/Bar. Dipakai untuk chit dapur pada order
+  // QR/waiter yang itemnya tidak membawa kategori.
+  const stationByItemName = useMemo(() => {
+    const map = new Map<string, "Dapur" | "Bar">();
+    for (const item of menuItems) {
+      map.set(item.name.trim().toLowerCase(), menuGroupForCategory(item.category));
+    }
+    return map;
+  }, [menuItems]);
+
   const cartLines = useMemo(
     () =>
       cart
@@ -1009,9 +1136,10 @@ export function PosView({
   );
   const serviceChargePct = settings.serviceChargePct;
   const taxPct = settings.taxPct;
-  const service = Math.round(subtotal * (serviceChargePct / 100));
-  const tax = Math.round((subtotal + service) * (taxPct / 100));
-  const total = subtotal + service + tax;
+  // Rumus SAMA dengan server (garage-billing): service → PB1 → pembulatan outlet.
+  // Dulu layar tidak membulatkan → "Uang Pas" Rp 34.650 ditolak server (total Rp 34.700).
+  const { service, tax, grossTotal: total } = calculateBillingTotals(subtotal, settings);
+  const roundingAdjustment = total - (subtotal + service + tax);
   const voucher = posVoucherResult?.valid ? posVoucherResult.discount : 0;
   // Manual discount dihitung dari total SETELAH voucher (urutan: voucher → manual)
   const manualDiscountAmount = manualDiscount
@@ -1082,10 +1210,10 @@ export function PosView({
           setManualDiscount((current) =>
             current ? { ...current, approvalStatus: "approved" } : null,
           );
-          setPosNotice("Diskon manual disetujui â€” bisa lanjut bayar.");
+          setPosNotice("Diskon manual disetujui — bisa lanjut bayar.");
         } else if (json.data.status === "rejected") {
           setManualDiscount(null);
-          setPosNotice("Diskon manual ditolak supervisor.");
+          setPosNotice("Diskon manual ditolak Manajer.");
         }
       } catch {
         // ignore poll errors
@@ -1472,6 +1600,26 @@ export function PosView({
     };
   }, [unlockQrNotificationSound]);
 
+  const loadKitchenTickets = useCallback(async () => {
+    try {
+      const rows = await garageApi.get<KitchenOrder[]>("/api/kitchen/orders", {
+        cache: "no-store",
+      });
+      // Monitor kasir: tiket yang belum diantar (waiting/processing/ready),
+      // FIFO — yang pesan duluan di atas.
+      setKitchenTickets(
+        rows
+          .filter((t) => t.status === "queue" || t.status === "cooking" || t.status === "ready")
+          .sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          ),
+      );
+      setKitchenTicketsAt(Date.now());
+    } catch {
+      // diam-diam — monitor produksi bukan alur kritis pembayaran
+    }
+  }, []);
+
   const loadCustomerOrders = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
       setCustomerOrdersLoading(true);
@@ -1535,7 +1683,7 @@ export function PosView({
       }
     } catch (error) {
       setCustomerOrderError(
-        error instanceof Error ? error.message : "QR customer orders gagal dimuat.",
+        error instanceof Error ? error.message : "Order QR pelanggan gagal dimuat.",
       );
     } finally {
       if (!options.silent) {
@@ -1587,10 +1735,13 @@ export function PosView({
         cache: "no-store",
       });
       setTableLiveRows(rows);
+      setTableLiveUpdatedAt(Date.now());
+      return rows;
     } catch (error) {
       setTableLiveError(
-        error instanceof Error ? error.message : "Table map gagal dimuat.",
+        error instanceof Error ? error.message : "Peta meja gagal dimuat.",
       );
+      return null;
     } finally {
       if (!options.silent) {
         setTableLiveLoading(false);
@@ -1653,6 +1804,66 @@ export function PosView({
     }
   }, [loadTableLiveData]);
 
+  // Ticker 10 detik untuk indikator "terakhir update" peta meja.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Buka dialog detail meja + lazy-load rincian item (meja terisi saja).
+  // Fetch dilakukan di handler klik, bukan di useEffect, agar tidak memicu
+  // setState sinkron di dalam effect (lint react-hooks/set-state-in-effect).
+  const openTableDetail = useCallback((table: TableLiveRow) => {
+    setTableDetail(table);
+    setTableItemsError(null);
+    setTableOrderBills(null);
+    if (table.status === "empty" && !tableHasLiveSession(table)) {
+      setTableItemsLoading(false);
+      return;
+    }
+    setTableItemsLoading(true);
+    const tableNumber = table.tableNumber;
+    void (async () => {
+      try {
+        const data = await garageApi.get<{ bills: TableOrderBill[] }>(
+          `/api/tables/${tableNumber}/items`,
+          { cache: "no-store" },
+        );
+        setTableOrderBills(data.bills ?? []);
+      } catch (error) {
+        setTableItemsError(
+          error instanceof Error ? error.message : "Rincian pesanan gagal dimuat.",
+        );
+      } finally {
+        setTableItemsLoading(false);
+      }
+    })();
+  }, []);
+
+  // Buka dialog konfirmasi/alasan; resolve dengan alasan (string) atau true saat
+  // dikonfirmasi, false saat dibatalkan. Pengganti window.confirm/prompt.
+  function askConfirm(opts: {
+    title: string;
+    message?: string;
+    confirmLabel?: string;
+    needsReason?: boolean;
+    reasonPlaceholder?: string;
+    danger?: boolean;
+  }): Promise<string | boolean> {
+    setConfirmReason("");
+    setConfirmState(opts);
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+    });
+  }
+  function resolveConfirm(value: string | boolean) {
+    const resolve = confirmResolveRef.current;
+    confirmResolveRef.current = null;
+    setConfirmState(null);
+    setConfirmReason("");
+    resolve?.(value);
+  }
+
   const refreshCashierData = useCallback(async () => {
     if (cashierRefreshing) {
       return;
@@ -1672,7 +1883,7 @@ export function PosView({
       setPosNotice("Data POS kasir diperbarui.");
     } catch (error) {
       setCustomerOrderError(
-        error instanceof Error ? error.message : "Refresh POS gagal.",
+        error instanceof Error ? error.message : "Muat ulang POS gagal.",
       );
     } finally {
       setCashierRefreshing(false);
@@ -1733,8 +1944,8 @@ export function PosView({
 
   const fullscreenNeedsAttention = fullscreenGuardActive && !isFullscreen;
   const fullscreenActionLabel = fullscreenStarted
-    ? "Masuk Fullscreen Lagi"
-    : "Kunci Fullscreen";
+    ? "Masuk Layar Penuh Lagi"
+    : "Kunci Layar Penuh";
 
   useEffect(() => {
     if (!isCashierKiosk) {
@@ -1847,6 +2058,7 @@ export function PosView({
       void loadCustomerOrders({ silent: true });
       void loadQrControlInsights({ silent: true });
       void loadTableLiveData({ silent: true });
+      void loadKitchenTickets();
     };
 
     const timeoutId = window.setTimeout(tick, 0);
@@ -1862,7 +2074,7 @@ export function PosView({
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, shiftOpen]);
+  }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, loadKitchenTickets, shiftOpen]);
 
   // Voice notification: trigger waiter_clear_table saat meja baru transition
   // ke "needs_cleaning" â€” tidak re-fire setiap polling untuk meja yang udah
@@ -1902,6 +2114,9 @@ export function PosView({
       cashReceived?: number;
       cashDeposited?: number;
       paymentNote?: string;
+      reason?: string;
+      // Metode yang dipilih kasir saat Final Bayar (default: pilihan pelanggan).
+      paymentMethod?: PaymentMethod;
     } = {},
   ) {
     if (customerOrderActionId) {
@@ -1911,27 +2126,55 @@ export function PosView({
     setCustomerOrderActionId(`${order.id}:${action}`);
     setCustomerOrderError(null);
     try {
+      const orderMethod = customerOrderPaymentMethod(order);
+      const payMethod = options.paymentMethod ?? orderMethod;
+      const methodChanged = payMethod !== orderMethod;
       const finalCashReceived =
-        action === "paid" && customerOrderPaymentMethod(order) === "Cash"
+        action === "paid" && payMethod === "Cash"
           ? options.cashReceived ?? order.cashReceived ?? order.cashDeposited ?? order.total
           : options.cashReceived;
       const finalCashDeposited =
-        action === "paid" && customerOrderPaymentMethod(order) === "Cash"
+        action === "paid" && payMethod === "Cash"
           ? options.cashDeposited ?? order.cashDeposited ?? finalCashReceived
           : options.cashDeposited;
       const result = await garageApi.patch<CustomerOrderActionResponse>(
         `/api/customer/orders/${order.id}/status`,
         {
           action,
-          paymentMethod: action === "paid" ? customerOrderPaymentMethod(order) : undefined,
-          paymentProvider: action === "paid" ? customerOrderPaymentProvider(order) : undefined,
-          paymentReference: action === "paid" ? customerOrderPaymentReference(order) : undefined,
+          paymentMethod: action === "paid" ? payMethod : undefined,
+          paymentProvider:
+            action === "paid"
+              ? methodChanged
+                ? defaultPaymentProvider(options.paymentMethod ?? "Cash") || undefined
+                : customerOrderPaymentProvider(order)
+              : undefined,
+          paymentReference:
+            action === "paid" && !methodChanged ? customerOrderPaymentReference(order) : undefined,
           cashReceived: finalCashReceived,
           cashDeposited: finalCashDeposited,
           paymentNote: options.paymentNote,
+          reason: action === "reject" ? options.reason : undefined,
         },
       );
       const ticketLabel = result.ticketNos.length ? result.ticketNos.join(", ") : "tanpa ticket baru";
+      // Chit dapur/bar dicetak saat tiket KDS benar-benar dibuat (accept/final bayar),
+      // supaya tidak dobel bila order sudah pernah di-accept sebelumnya.
+      if ((action === "accept" || action === "paid") && result.ticketNos.length > 0) {
+        void printChitIfEnabled({
+          orderNo: order.orderNo,
+          queueNo: order.queueNo ?? null,
+          tableLabel: order.tableLabel,
+          orderType: order.orderSource,
+          createdAt: order.createdAt,
+          items: order.items.map((item) => ({
+            name: item.itemName,
+            variant: item.variantLabel,
+            qty: item.qty,
+            note: item.note ?? null,
+            station: stationByItemName.get(item.itemName.trim().toLowerCase()) ?? "Dapur",
+          })),
+        });
+      }
       setPosNotice(
         action === "reject"
           ? `${order.orderNo} ditolak.`
@@ -1945,7 +2188,7 @@ export function PosView({
       );
       await loadCustomerOrders({ silent: true });
       await loadQrControlInsights({ silent: true });
-      await loadTableLiveData({ silent: true });
+      refreshOpenTableDetail(await loadTableLiveData({ silent: true }));
       if (action === "accept" || action === "paid") {
         await onOrderCreated();
       }
@@ -1955,11 +2198,97 @@ export function PosView({
       }
     } catch (error) {
       setCustomerOrderError(
-        error instanceof Error ? error.message : "Aksi QR customer order gagal.",
+        error instanceof Error ? error.message : "Aksi order QR pelanggan gagal.",
       );
     } finally {
       setCustomerOrderActionId(null);
     }
+  }
+
+  // Reject & Final Bayar = aksi susah-dibalik → buka dialog konfirmasi dulu.
+  function openRejectDialog(order: CustomerOrder) {
+    setRejectOrderTarget(order);
+    setRejectReasonChoice("Stok habis");
+    setRejectReasonOther("");
+  }
+
+  function confirmRejectOrder() {
+    if (!rejectOrderTarget) return;
+    const reason =
+      rejectReasonChoice === "Lainnya"
+        ? rejectReasonOther.trim()
+        : rejectReasonChoice;
+    if (rejectReasonChoice === "Lainnya" && reason.length < 3) return;
+    const target = rejectOrderTarget;
+    setRejectOrderTarget(null);
+    void decideCustomerOrder(target, "reject", { reason });
+  }
+
+  function openFinalizeDialog(order: CustomerOrder) {
+    const method = customerOrderPaymentMethod(order);
+    setFinalizeMethod(
+      (paymentMethods as readonly string[]).includes(method) ? (method as PaymentMethod) : "Cash",
+    );
+    setFinalizeCash("");
+    setFinalizeOrderTarget(order);
+  }
+
+  const finalizeCashValue = Number(finalizeCash.replace(/[^\d]/g, "")) || 0;
+  const finalizeCashShort =
+    Boolean(finalizeOrderTarget) &&
+    finalizeMethod === "Cash" &&
+    finalizeCash !== "" &&
+    finalizeCashValue < (finalizeOrderTarget?.total ?? 0);
+
+  function confirmFinalizeOrder() {
+    if (!finalizeOrderTarget || finalizeCashShort) return;
+    const target = finalizeOrderTarget;
+    setFinalizeOrderTarget(null);
+    void decideCustomerOrder(target, "paid", {
+      paymentMethod: finalizeMethod,
+      cashReceived: finalizeMethod === "Cash" && finalizeCash !== "" ? finalizeCashValue : undefined,
+    });
+  }
+
+  // Bayar satu bill meja (termasuk bill pisahan) dari detail meja.
+  async function payTableBill(bill: TableOrderBill) {
+    const known = customerOrders.find((order) => order.id === bill.id);
+    if (known) {
+      openFinalizeDialog(known);
+      return;
+    }
+    try {
+      const fresh = await garageApi.get<CustomerOrder[]>("/api/customer/orders", { cache: "no-store" });
+      const order = fresh.find((row) => row.id === bill.id);
+      if (!order) {
+        setPosNotice(`${bill.orderNo} tidak ditemukan di antrean bill. Muat ulang lalu coba lagi.`);
+        return;
+      }
+      openFinalizeDialog(order);
+    } catch (error) {
+      setPosNotice(error instanceof Error ? error.message : "Gagal memuat bill.");
+    }
+  }
+
+  async function handleTableBillSplit(result: TableBillSplitResult) {
+    setTableSplitBill(null);
+    // Bill pisahan bukan pesanan baru — jangan bunyikan notifikasi order QR.
+    previousCustomerOrderIdsRef.current.add(result.child.id);
+    setPosNotice(
+      `Bill dipisah: ${result.child.orderNo} (${result.child.customerName ?? "tamu"}) ${currency.format(result.child.total)} · sisa ${result.source.orderNo} ${currency.format(result.source.total)}.`,
+    );
+    const [, liveRows] = await Promise.all([
+      loadCustomerOrders({ silent: true }),
+      loadTableLiveData({ silent: true }),
+    ]);
+    refreshOpenTableDetail(liveRows);
+  }
+
+  // Detail meja yang sedang terbuka: segarkan ringkasan (baris live) + rincian bill.
+  function refreshOpenTableDetail(liveRows: TableLiveRow[] | null | undefined) {
+    if (!tableDetail) return;
+    const fresh = liveRows?.find((row) => row.tableNumber === tableDetail.tableNumber);
+    openTableDetail(fresh ?? tableDetail);
   }
 
   function cashInputValue(value: string) {
@@ -2107,9 +2436,7 @@ export function PosView({
             : "Bill terparkir");
 
     const itemCount = cart.reduce((sum, line) => sum + line.qty, 0);
-    // ID + timestamp safe di event handler (bukan render body)
-    // eslint-disable-next-line react-hooks/purity -- event handler
-    const idSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const idSuffix = makeIdempotencyKey();
     const parked: ParkedOrder = {
       id: `park_${idSuffix}`,
       label,
@@ -2141,11 +2468,13 @@ export function PosView({
     setParkLabel("");
   }
 
-  function resumeParkedOrder(parked: ParkedOrder) {
+  async function resumeParkedOrder(parked: ParkedOrder) {
     if (cart.length) {
-      const confirm = window.confirm(
-        `Cart aktif punya ${cart.length} item. Mau di-park dulu sebelum resume "${parked.label}"?`,
-      );
+      const confirm = await askConfirm({
+        title: "Parkir keranjang aktif dulu?",
+        message: `Keranjang aktif berisi ${cart.length} item. Parkir dulu sebelum melanjutkan "${parked.label}"?`,
+        confirmLabel: "Parkir & lanjutkan",
+      });
       if (confirm) {
         parkCurrentOrder("Auto-parked saat resume");
       } else {
@@ -2241,11 +2570,11 @@ export function PosView({
         });
         setManualDiscountOpen(false);
         setPosNotice(
-          `Diskon ${currency.format(computed)} diajukan ke Approvals. Tunggu supervisor sebelum bayar.`,
+          `Diskon ${currency.format(computed)} diajukan ke Persetujuan. Tunggu Manajer atau minta setujui dengan PIN.`,
         );
       } catch (error) {
         setManualDiscountError(
-          error instanceof Error ? error.message : "Gagal mengajukan approval diskon.",
+          error instanceof Error ? error.message : "Gagal mengajukan persetujuan diskon.",
         );
       }
       return;
@@ -2344,7 +2673,7 @@ export function PosView({
         error?: { message?: string };
       };
       if (!res.ok) {
-        throw new Error(payload?.error?.message ?? "Upload foto gagal.");
+        throw new Error(payload?.error?.message ?? "Unggah foto gagal.");
       }
       setPosNotice("Foto menu diperbarui.");
       // Refetch MENU supaya foto baru langsung tampil di kartu (bukan reload).
@@ -2424,111 +2753,118 @@ export function PosView({
     }
   }
 
-  function clearReceiptHistory() {
+  async function clearReceiptHistory() {
     if (!receiptHistory.length) return;
-    const confirm = window.confirm(
-      `Hapus ${receiptHistory.length} struk dari riwayat shift?`,
-    );
+    const confirm = await askConfirm({
+      title: "Hapus riwayat struk?",
+      message: `Hapus ${receiptHistory.length} struk dari riwayat shift?`,
+      confirmLabel: "Hapus",
+      danger: true,
+    });
     if (!confirm) return;
     setReceiptHistory([]);
     setPosNotice("Riwayat struk shift dihapus.");
   }
 
-  // Void/refund (cuma manager/finance/owner)
-  const canVoidOrder =
-    me.role === "Manager Operasional" ||
-    me.role === "Supervisor Shift" ||
-    me.role === "Finance / CFO" ||
-    me.role === "Owner / CEO" ||
-    me.role === "Admin";
-  const [voidingReceiptId, setVoidingReceiptId] = useState<string | null>(null);
-  const canRequestVoidApproval =
-    !canVoidOrder &&
-    (me.role === "Kasir" ||
-      me.role === "Waiter 1" ||
-      me.role === "Waiter 2");
-  async function requestVoidReceiptApproval(receipt: OrderReceipt) {
-    const reason = window.prompt(
-      `Minta approval void untuk ${receipt.orderNo}?\n\nTotal: ${currency.format(receipt.total)}\n\nAlasan (min 3 karakter):`,
+  // Batal / refund order: Kasir & Waiter mengajukan (bisa diputus PIN Manajer di
+  // tablet), Manajer/Owner langsung dieksekusi — semua tercatat di Persetujuan.
+  const canCancelOrder = ["Owner", "Manajer", "Kasir", "Waiter"].includes(me.role);
+  const [cancelTarget, setCancelTarget] = useState<OrderCancelTarget | null>(null);
+  // ─── Split per produk (keranjang kasir) ───
+  const cartSplitLines: CartSplitLine[] = useMemo(
+    () =>
+      cartLines.map((line) => ({
+        itemId: line.itemId,
+        variantId: line.variantId,
+        qty: line.qty,
+        note: line.note,
+        price: line.variant.price,
+        name: line.item.name,
+        variantLabel: line.variant.label,
+        category: line.item.category,
+      })),
+    [cartLines],
+  );
+  const cartSplitBlockedReason =
+    posVoucherResult?.valid || manualDiscount
+      ? "Hapus voucher / diskon kasir dulu — split per produk belum mendukung potongan."
+      : posCustomerMode === "member" && selectedMember
+        ? "Mode member aktif: poin tidak bisa dibagi per tamu. Ganti ke mode Tamu, atau bayar sekaligus."
+        : dineInTableMissing
+          ? "Pilih meja dulu: tekan Bayar → isi langkah Meja → di langkah Pembayaran tekan \"Bayar terpisah per tamu\"."
+          : null;
+
+  function handleSplitGuestPaid(
+    result: OrderCreateResponse,
+    guestLines: CartSplitLine[],
+    guestName: string,
+  ) {
+    setReceiptHistory((current) =>
+      [result.receipt, ...current].slice(0, settings.receiptHistoryMax),
     );
-    if (!reason || reason.trim().length < 3) return;
-    setVoidingReceiptId(receipt.invoiceNo);
-    try {
-      const res = await fetch(
-        `/api/orders/${encodeURIComponent(receipt.orderNo)}/void-request`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: reason.trim() }),
-        },
-      );
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: { message?: string };
-        data?: { approvalId?: string };
-      };
-      if (!res.ok) {
-        window.alert(
-          `Pengajuan void gagal: ${data.error?.message ?? "Cek koneksi atau permission."}`,
-        );
-        return;
-      }
-      setPosNotice(
-        `Void ${receipt.orderNo} diajukan ke Approvals (${data.data?.approvalId ?? "pending"}).`,
-      );
-    } catch {
-      window.alert("Pengajuan void gagal: koneksi error.");
-    } finally {
-      setVoidingReceiptId(null);
-    }
-  }
-  async function voidReceiptOrder(receipt: OrderReceipt) {
-    const reason = window.prompt(
-      `Alasan void order ${receipt.orderNo}? (wajib minimal 3 karakter)\n\nTotal: ${currency.format(receipt.total)}\n\nStok bahan baku akan dikembalikan, struk lama harus dihancurkan.`,
-    );
-    if (!reason || reason.trim().length < 3) return;
-    setVoidingReceiptId(receipt.invoiceNo);
-    try {
-      // Order ID tidak ada di OrderReceipt â€” pakai invoiceNo sebagai fallback
-      // melalui endpoint search. Kalau gagal, fall back ke orderNo
-      const idForVoid = receipt.orderNo;
-      const res = await fetch(
-        `/api/orders/${encodeURIComponent(idForVoid)}/void`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: reason.trim() }),
-        },
-      );
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: { message?: string };
-        data?: { stockReversed?: number };
-      };
-      if (!res.ok) {
-        window.alert(
-          `Void gagal: ${data.error?.message ?? "Cek koneksi atau permission."}`,
-        );
-        return;
-      }
-      setReceiptHistory((current) =>
-        current.filter((r) => r.invoiceNo !== receipt.invoiceNo),
-      );
-      setPosNotice(
-        `Order ${receipt.orderNo} void. ${data.data?.stockReversed ?? 0} bahan dikembalikan.`,
-      );
-      // Void mengubah orders/finance/inventory — refresh view terkait.
-      invalidateGarageCache([
-        GARAGE_TAGS.orders,
-        GARAGE_TAGS.finance,
-        GARAGE_TAGS.inventory,
-        GARAGE_TAGS.dashboard,
-      ]);
-    } catch {
-      window.alert("Void gagal: koneksi error.");
-    } finally {
-      setVoidingReceiptId(null);
-    }
+    void printChitIfEnabled({
+      orderNo: result.orderNo,
+      queueNo: result.receipt.queueNo ?? null,
+      tableLabel: result.receipt.tableLabel ?? tableLabel,
+      orderType,
+      createdAt: result.receipt.createdAt ?? new Date().toISOString(),
+      cashierName: result.receipt.cashier?.name ?? null,
+      items: guestLines.map((line) => ({
+        name: line.name,
+        variant: line.variantLabel,
+        qty: line.qty,
+        note: line.note ?? null,
+        station: menuGroupForCategory(line.category as MenuItem["category"]),
+      })),
+    });
+    setPosNotice(`${guestName}: ${result.orderNo} lunas ${currency.format(result.total)}.`);
+    invalidateGarageCache([
+      GARAGE_TAGS.orders,
+      GARAGE_TAGS.finance,
+      GARAGE_TAGS.kitchen,
+      GARAGE_TAGS.inventory,
+      GARAGE_TAGS.dashboard,
+    ]);
   }
 
+  async function handleSplitClose(paidGuests: Set<number>, assignment: SplitAssignment) {
+    setCartSplitOpen(false);
+    if (!paidGuests.size) return;
+    // Porsi yang sudah lunas keluar dari keranjang; sisanya tetap untuk dibayar.
+    const rest = remainingCart(cartSplitLines, assignment, paidGuests).map((line) => ({
+      itemId: line.itemId,
+      variantId: line.variantId,
+      qty: line.qty,
+      ...(line.note ? { note: line.note } : {}),
+    }));
+    setCart(rest);
+    if (!rest.length) {
+      setSelectedTableNumber("");
+      setGuestName("");
+      setGuestPhone("");
+      setPosCustomerMode("guest");
+      setPosNotice(`Split selesai: ${paidGuests.size} tamu lunas.`);
+    } else {
+      setPosNotice(
+        `${paidGuests.size} tamu lunas. ${rest.reduce((sum, line) => sum + line.qty, 0)} porsi tersisa di keranjang.`,
+      );
+    }
+    await onOrderCreated();
+    await loadTableLiveData({ silent: true });
+  }
+
+  function handleCancelFinished(message: string, changed: boolean) {
+    setCancelTarget(null);
+    setPosNotice(message);
+    if (!changed) return;
+    // Void/refund mengubah orders/finance/inventory — refresh view terkait.
+    invalidateGarageCache([
+      GARAGE_TAGS.orders,
+      GARAGE_TAGS.finance,
+      GARAGE_TAGS.inventory,
+      GARAGE_TAGS.dashboard,
+    ]);
+  }
   // â”€â”€â”€ Catat Pengeluaran (kasbon kasir) â”€â”€â”€
   function openExpenseDialog(presetCategory?: string) {
     setExpenseError(null);
@@ -2581,7 +2917,7 @@ export function PosView({
     setQuickCountError(null);
     let success = 0;
     let failed = 0;
-    const baseNote = `Quick count POS oleh ${me.user.name}`;
+    const baseNote = `Hitung cepat POS oleh ${me.user.name}`;
     for (const entry of entries) {
       try {
         const patch = await fetch(
@@ -2619,7 +2955,7 @@ export function PosView({
     setQuickCountSubmitting(false);
     setQuickCountResult({ success, failed });
     if (success > 0) {
-      setPosNotice(`Quick count: ${success} item disimpan.`);
+      setPosNotice(`Hitung cepat: ${success} item disimpan.`);
       await onOrderCreated();
     }
   }
@@ -2651,7 +2987,7 @@ export function PosView({
       });
       setExpenseDialogOpen(false);
       const approvalNote =
-        amount >= 1_000_000 ? " · butuh approval manager" : "";
+        amount >= 1_000_000 ? " · butuh persetujuan Manajer" : "";
       setPosNotice(
         `Pengeluaran ${currency.format(Math.round(amount))} dicatat.${approvalNote}`,
       );
@@ -2870,8 +3206,8 @@ export function PosView({
       setIsFullscreen(true);
       setFullscreenStarted(true);
     } catch {
-      setFullscreenError("Fullscreen tidak tersedia di device/browser ini.");
-      setPosNotice("Fullscreen tidak tersedia di device/browser ini.");
+      setFullscreenError("Layar penuh tidak tersedia di perangkat/browser ini.");
+      setPosNotice("Layar penuh tidak tersedia di perangkat/browser ini.");
     }
   }
 
@@ -2925,6 +3261,150 @@ export function PosView({
     await signOutFromPos();
   }
 
+  // Cetak chit dapur/bar (tanpa harga) ke printer kasir saat kasir konfirmasi
+  // order. Gated oleh setting kitchenChitAutoPrint (default mati). Kegagalan
+  // cetak chit TIDAK boleh mengganggu alur order — cukup diam-diam dilewati.
+  async function printChitIfEnabled(input: {
+    orderNo?: string | null;
+    queueNo?: number | null;
+    tableLabel?: string | null;
+    orderType?: string | null;
+    createdAt?: string | null;
+    cashierName?: string | null;
+    waiterName?: string | null;
+    items: KitchenChitItem[];
+    // force = cetak walau auto-print mati (mis. tombol "cetak ulang chit").
+    force?: boolean;
+  }) {
+    if ((!settings.kitchenChitAutoPrint && !input.force) || input.items.length === 0) return;
+    try {
+      await printKitchenChit({
+        chit: input,
+        printerName: settings.defaultPrinterName || undefined,
+      });
+    } catch {
+      /* chit gagal cetak — abaikan, jangan ganggu order */
+    }
+  }
+
+  // Cetak ulang chit dapur/bar untuk satu bill meja (aksi cepat di dialog detail).
+  // Station diturunkan dari nama item (TableOrderItemLine tak punya station).
+  function reprintTableBillChit(bill: TableOrderBill, tableLabel: string) {
+    void printChitIfEnabled({
+      orderNo: bill.orderNo,
+      tableLabel,
+      orderType: "qr_table",
+      createdAt: bill.createdAt,
+      force: true,
+      items: bill.items.map((item) => ({
+        name: item.itemName,
+        variant: item.variantLabel,
+        qty: item.qty,
+        note: item.note ?? null,
+        station: stationByItemName.get(item.itemName.trim().toLowerCase()) ?? "Dapur",
+      })),
+    });
+    setPosNotice(`Chit ${bill.orderNo} dicetak ulang.`);
+  }
+
+  // Cetak bill sementara (belum dibayar) untuk satu bill meja. Data totals
+  // diambil dari server (/api/orders/{id}/receipt) supaya service/tax akurat,
+  // lalu dipetakan ke format struk thermal tanpa blok pembayaran.
+  async function printProvisionalBill(bill: TableOrderBill) {
+    if (provisionalBillBusyId) return;
+    setProvisionalBillBusyId(bill.id);
+    try {
+      const data = await garageApi.get<{
+        order: {
+          orderNo: string;
+          invoiceNo: string | null;
+          createdAt: string;
+          subtotal: number;
+          service: number;
+          tax: number;
+          discount: number;
+          total: number;
+        };
+        outlet: { code: string; name: string } | null;
+        cashier: { name: string } | null;
+        items: Array<{
+          itemName: string;
+          variantLabel: string;
+          unitPrice: number;
+          qty: number;
+          lineTotal: number;
+        }>;
+      }>(`/api/orders/${bill.id}/receipt`, { cache: "no-store" });
+      const res = await printThermal({
+        receipt: {
+          provisional: true,
+          invoiceNo: data.order.invoiceNo,
+          orderNo: data.order.orderNo,
+          createdAt: data.order.createdAt,
+          outlet: data.outlet,
+          cashier: data.cashier,
+          items: data.items,
+          subtotal: data.order.subtotal,
+          service: data.order.service,
+          tax: data.order.tax,
+          discount: data.order.discount,
+          total: data.order.total,
+          settings: {
+            serviceChargePct: settings.serviceChargePct,
+            taxPct: settings.taxPct,
+            brandName: settings.brandName,
+            brandTagline: settings.brandTagline,
+            outletAddress: settings.outletAddress,
+            outletPhone: settings.outletPhone,
+            npwp: settings.npwp,
+            receiptFooter: settings.receiptFooter,
+          },
+        },
+        printerName: settings.defaultPrinterName || undefined,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: { message?: string };
+          message?: string;
+        };
+        setPosNotice(
+          `Bill sementara gagal dicetak: ${body.error?.message || body.message || "cek printer."}`,
+        );
+        return;
+      }
+      setPosNotice(`Bill sementara ${bill.orderNo} dicetak.`);
+    } catch (error) {
+      setPosNotice(
+        error instanceof Error
+          ? `Bill sementara gagal: ${error.message}`
+          : "Bill sementara gagal dicetak.",
+      );
+    } finally {
+      setProvisionalBillBusyId(null);
+    }
+  }
+
+
+  // Aksi cepat: siapkan bill → order aktif meja jadi "menunggu bayar".
+  // Reuse endpoint minta-bill waiter (resolve order aktif di server).
+  async function requestTableBill() {
+    if (!tableDetail || tableActionBusy) return;
+    const target = tableDetail;
+    setTableActionBusy("bill");
+    try {
+      await garageApi.post(`/api/waiter/tables/${target.tableNumber}/bill`, {});
+      setPosNotice(`${target.tableLabel} ditandai menunggu pembayaran.`);
+      await loadTableLiveData({ silent: true });
+      openTableDetail(target);
+    } catch (error) {
+      setPosNotice(
+        error instanceof Error ? `Siapkan bill gagal: ${error.message}` : "Siapkan bill gagal.",
+      );
+    } finally {
+      setTableActionBusy(null);
+    }
+  }
+
   async function submitOrder(paymentMethod: PaymentMethod) {
     if (dineInTableMissing) {
       setPaymentError("Pilih nomor meja sebelum konfirmasi bayar.");
@@ -2937,7 +3417,7 @@ export function PosView({
     }
 
     if (manualDiscount?.approvalStatus === "pending") {
-      setPaymentError("Diskon manual masih menunggu approval supervisor.");
+      setPaymentError("Diskon manual masih menunggu persetujuan Manajer.");
       return;
     }
 
@@ -2951,42 +3431,40 @@ export function PosView({
     setPaymentResult(null);
     setCompletedReceipt(null);
 
-    // Anti double-submit: generate idempotency key per submission attempt.
-    // Klik dobel kasir / retry network akan kirim key sama → server return order yang sama.
-    const idempotencyKey =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `pos-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const orderBody = {
+      orderType,
+      tableNumber: orderType === "dine-in" ? selectedTableNumber : undefined,
+      tableLabel,
+      paymentMethod,
+      paymentProvider: paymentProviderValue || undefined,
+      paymentReference: paymentReference.trim() || undefined,
+      cashReceived: paymentMethod === "Cash" ? cashReceivedValue : undefined,
+      customerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
+      memberPhone: posCustomerMode === "member" ? selectedMember?.member.phone : undefined,
+      guestName: posCustomerMode === "guest" ? guestName.trim() || undefined : undefined,
+      guestPhone: posCustomerMode === "guest" ? guestPhone.trim() || undefined : undefined,
+      voucherCode: posVoucherResult?.valid ? posVoucherResult.code : undefined,
+      manualDiscount: manualDiscount
+        ? {
+            approvalId: manualDiscount.approvalId,
+            type: manualDiscount.type,
+            rawValue: manualDiscount.rawValue,
+            amount: manualDiscountAmount,
+            reason: manualDiscount.reason,
+          }
+        : undefined,
+      items: cart,
+    };
+    // Anti double-submit: key dipakai ulang selama isi order sama, jadi retry
+    // setelah respons hilang mengembalikan order yang sudah tersimpan.
+    const attempt = idempotencyAttemptFor(orderAttemptRef.current, orderBody, makeIdempotencyKey);
+    orderAttemptRef.current = attempt;
 
     try {
-      const result = await garageApi.post<OrderCreateResponse>(
-        "/api/orders",
-        {
-        orderType,
-        tableNumber: orderType === "dine-in" ? selectedTableNumber : undefined,
-        tableLabel,
-        paymentMethod,
-        paymentProvider: paymentProviderValue || undefined,
-        paymentReference: paymentReference.trim() || undefined,
-        cashReceived: paymentMethod === "Cash" ? cashReceivedValue : undefined,
-        customerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
-        memberPhone: posCustomerMode === "member" ? selectedMember?.member.phone : undefined,
-        guestName: posCustomerMode === "guest" ? guestName.trim() || undefined : undefined,
-        guestPhone: posCustomerMode === "guest" ? guestPhone.trim() || undefined : undefined,
-        voucherCode: posVoucherResult?.valid ? posVoucherResult.code : undefined,
-        manualDiscount: manualDiscount
-          ? {
-              approvalId: manualDiscount.approvalId,
-              type: manualDiscount.type,
-              rawValue: manualDiscount.rawValue,
-              amount: manualDiscountAmount,
-              reason: manualDiscount.reason,
-            }
-          : undefined,
-        items: cart,
-        },
-        { headers: { "X-Idempotency-Key": idempotencyKey } },
-      );
+      const result = await garageApi.post<OrderCreateResponse>("/api/orders", orderBody, {
+        headers: { "X-Idempotency-Key": attempt.key },
+      });
+      orderAttemptRef.current = null;
 
       const kdsTicketLabel =
         result.ticketNos.length > 1 ? result.ticketNos.join(", ") : result.ticketNo;
@@ -3037,6 +3515,22 @@ export function PosView({
       setReceiptHistory((current) =>
         [result.receipt, ...current].slice(0, settings.receiptHistoryMax),
       );
+      // Chit dapur/bar dari cart saat ini (sebelum cart dikosongkan).
+      void printChitIfEnabled({
+        orderNo: result.orderNo,
+        queueNo: result.receipt.queueNo ?? null,
+        tableLabel: result.receipt.tableLabel ?? tableLabel,
+        orderType,
+        createdAt: result.receipt.createdAt ?? new Date().toISOString(),
+        cashierName: result.receipt.cashier?.name ?? null,
+        items: cartLines.map((line) => ({
+          name: line.item.name,
+          variant: line.variant.label,
+          qty: line.qty,
+          note: line.note ?? null,
+          station: menuGroupForCategory(line.item.category),
+        })),
+      });
       setPaymentStep("done");
       setCart([]);
       setSelectedTableNumber("");
@@ -3062,7 +3556,7 @@ export function PosView({
         GARAGE_TAGS.customers,
       ]);
     } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : "Payment failed.");
+      setPaymentError(error instanceof Error ? error.message : "Pembayaran gagal.");
     } finally {
       setPaymentPending(false);
     }
@@ -3249,7 +3743,7 @@ export function PosView({
                 onClick={() => setCashierMenuOpen(false)}
               >
                 <ShoppingCart className="size-4" />
-                Jual / POS
+                Jual / Kasir
               </Button>
               <Button
                 type="button"
@@ -3269,7 +3763,7 @@ export function PosView({
                 ) : (
                   <ShieldAlert className="size-4" />
                 )}
-                {shiftOpen ? "Shift Aktif / Closing" : "Mulai Shift"}
+                {shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift"}
               </Button>
               <Button
                 type="button"
@@ -3298,7 +3792,7 @@ export function PosView({
                 }}
               >
                 <Users className="size-4" />
-                Contacts / Member
+                Kontak / Member
               </Button>
               <Button
                 type="button"
@@ -3310,7 +3804,7 @@ export function PosView({
                 }}
               >
                 <BarChart3 className="size-4" />
-                Reports Shift
+                Laporan Shift
               </Button>
               <Button
                 type="button"
@@ -3334,7 +3828,7 @@ export function PosView({
                 }}
               >
                 <ReceiptText className="size-4" />
-                History Penjualan
+                Riwayat Penjualan
               </Button>
               <Button
                 type="button"
@@ -3416,7 +3910,7 @@ export function PosView({
                   }}
                 >
                   <ClipboardCheck className="size-4" />
-                  Quick Count Stok
+                  Hitung Cepat Stok
                 </Button>
               ) : null}
               {canManagePosSettings ? (
@@ -3430,7 +3924,7 @@ export function PosView({
                   }}
                 >
                   <Settings className="size-4" />
-                  Settings POS
+                  Pengaturan POS
                 </Button>
               ) : null}
               <Button
@@ -3444,7 +3938,7 @@ export function PosView({
                 }}
               >
                 <Mic className="size-4" />
-                Voice Announcement
+                Pengumuman Suara
               </Button>
               <Button
                 type="button"
@@ -3533,7 +4027,7 @@ export function PosView({
                 onClick={prepareShiftDialog}
               >
                 {shiftOpen ? <ShieldCheck className="size-4" /> : <ShieldAlert className="size-4" />}
-                {shiftOpen ? "Shift Aktif / Closing" : "Mulai Shift"}
+                {shiftOpen ? "Shift Aktif / Tutup Shift" : "Mulai Shift"}
               </Button>
               <Button
                 type="button"
@@ -3549,11 +4043,32 @@ export function PosView({
                   {customerOrders.length}
                 </Badge>
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={`garage-press h-11 justify-between px-3 text-sm ${
+                  kitchenTickets.length
+                    ? "border-[#22c55e]/55 bg-[#22c55e]/16 text-[#dcfce7] hover:bg-[#22c55e]/22"
+                    : "border-[#4a4a54] bg-white/[0.055]"
+                }`}
+                onClick={() => {
+                  setKitchenPanelOpen(true);
+                  void loadKitchenTickets();
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <UtensilsCrossed className="size-4" />
+                  Status Produksi
+                </span>
+                <Badge className="border-[#4a4a54] bg-black/30 px-2 text-[10px]">
+                  {kitchenTickets.length}
+                </Badge>
+              </Button>
               {([
-                ["contacts", Users, "Contacts / Member"],
-                ["reports", BarChart3, "Reports Shift"],
+                ["contacts", Users, "Kontak / Member"],
+                ["reports", BarChart3, "Laporan Shift"],
                 ...(canManagePosSettings
-                  ? ([["settings", Settings, "Settings POS"]] as const)
+                  ? ([["settings", Settings, "Pengaturan POS"]] as const)
                   : []),
               ] as const).map(([tool, Icon, label]) => (
                 <Button
@@ -3574,7 +4089,7 @@ export function PosView({
                 onClick={() => window.open("/sales-history", "_blank")}
               >
                 <ReceiptText className="size-4" />
-                History Penjualan
+                Riwayat Penjualan
               </Button>
               <Button
                 type="button"
@@ -3653,7 +4168,7 @@ export function PosView({
                   onClick={() => void openQuickCount()}
                 >
                   <ClipboardCheck className="size-4" />
-                  Quick Count Stok
+                  Hitung Cepat Stok
                 </Button>
               ) : null}
               <Button
@@ -3666,7 +4181,7 @@ export function PosView({
                 }}
               >
                 <Mic className="size-4" />
-                Voice Announcement
+                Pengumuman Suara
               </Button>
               <Button
                 type="button"
@@ -3698,7 +4213,7 @@ export function PosView({
                 disabled={cashierRefreshing}
               >
                 <RefreshCw className={`size-4 ${cashierRefreshing ? "animate-spin" : ""}`} />
-                Refresh POS
+                Muat Ulang POS
               </Button>
               <Button
                 type="button"
@@ -3726,10 +4241,10 @@ export function PosView({
           <DialogHeader>
             <DialogTitle>
               {activeCashierToolOpen === "contacts"
-                ? "Contacts / Member"
+                ? "Kontak / Member"
                 : activeCashierToolOpen === "reports"
-                  ? "Reports Shift"
-                  : "Settings POS"}
+                  ? "Laporan Shift"
+                  : "Pengaturan POS"}
             </DialogTitle>
             <DialogDescription>
               {activeCashierToolOpen === "contacts"
@@ -3806,7 +4321,7 @@ export function PosView({
                     onClick={() => void loadShiftReport()}
                   >
                     <RefreshCw className={`mr-2 size-3.5 ${shiftReportLoading ? "animate-spin" : ""}`} />
-                    Refresh
+                    Muat ulang
                   </Button>
                   {cashSession.id ? (
                     <Button
@@ -3826,7 +4341,7 @@ export function PosView({
               {shiftReportError ? (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                   <AlertTriangle className="size-4" />
-                  <AlertTitle>Report shift gagal</AlertTitle>
+                  <AlertTitle>Laporan shift gagal</AlertTitle>
                   <AlertDescription>{shiftReportError}</AlertDescription>
                 </Alert>
               ) : null}
@@ -3870,7 +4385,7 @@ export function PosView({
                       <p className="text-lg font-black text-[#dcfce7]">
                         {shiftReportSummary?.counts.paid ?? 0}
                       </p>
-                      <p className="text-[10px] text-[#b8b8bf]">Paid</p>
+                      <p className="text-[10px] text-[#b8b8bf]">Lunas</p>
                     </div>
                     <div className="rounded border border-[#f5a742]/35 bg-[#f5a742]/10 p-2">
                       <p className="text-lg font-black text-[#ffd08a]">
@@ -3980,7 +4495,7 @@ export function PosView({
                   <div className="mb-3">
                     <p className="text-sm font-black text-white">Tema Tampilan Kasir</p>
                     <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
-                      Preset kontras khusus POS kasir, tidak mengubah tema Owner/Admin.
+                      Preset kontras khusus POS kasir, tidak mengubah tema Owner/Manajer.
                     </p>
                   </div>
                   <CashierThemePresetGrid
@@ -4125,13 +4640,13 @@ export function PosView({
                     onClick={() => void requestPosFullscreen()}
                   >
                     <Monitor className="mr-2 size-4" />
-                    {isFullscreen ? "Fullscreen Aktif" : "Kunci Fullscreen"}
+                    {isFullscreen ? "Layar Penuh Aktif" : "Kunci Layar Penuh"}
                   </Button>
                 </div>
                 {fullscreenError ? (
                   <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                     <AlertTriangle className="size-4" />
-                    <AlertTitle>Fullscreen gagal</AlertTitle>
+                    <AlertTitle>Layar penuh gagal</AlertTitle>
                     <AlertDescription>{fullscreenError}</AlertDescription>
                   </Alert>
                 ) : null}
@@ -4220,7 +4735,7 @@ export function PosView({
                     onClick={() => void refreshCashierData()}
                   >
                     <RefreshCw className={`mr-2 size-4 ${cashierRefreshing ? "animate-spin" : ""}`} />
-                    {cashierRefreshing ? "Refreshing..." : "Refresh POS"}
+                    {cashierRefreshing ? "Memuat ulang..." : "Muat Ulang POS"}
                   </Button>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs leading-5 text-[#b8b8bf]">
@@ -4253,7 +4768,7 @@ export function PosView({
             >
               <TabsList className="grid w-full grid-cols-3 bg-[#202027]">
                 <TabsTrigger value="single">Satu</TabsTrigger>
-                <TabsTrigger value="range">Range</TabsTrigger>
+                <TabsTrigger value="range">Rentang</TabsTrigger>
                 <TabsTrigger value="all">Semua</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -4418,7 +4933,12 @@ export function PosView({
       <Dialog
         open={Boolean(tableDetail)}
         onOpenChange={(open) => {
-          if (!open) setTableDetail(null);
+          if (!open) {
+            setTableDetail(null);
+            setTableOrderBills(null);
+            setTableItemsError(null);
+            setTableItemsLoading(false);
+          }
         }}
       >
         {tableDetail
@@ -4433,7 +4953,7 @@ export function PosView({
                 setQrOperationsOpen(false);
               };
               return (
-                <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+                <DialogContent className="border-[#34343c] bg-[#111116] max-w-sm sm:max-w-md">
                   <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2">
                       <span
@@ -4460,6 +4980,21 @@ export function PosView({
                           {tableLiveStatusLabel(tableDetail)}
                         </span>
                       </div>
+                      {tableDetail.kitchenStatus ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[#b8b8bf]">Status dapur</span>
+                          <Badge className={`${statusClass[tableDetail.kitchenStatus] ?? statusClass.info} px-2 text-[10px]`}>
+                            {({
+                              queue: "Antre",
+                              cooking: "Dimasak",
+                              ready: "Siap",
+                              delivered: "Diantar",
+                              completed: "Selesai",
+                            } as Record<string, string>)[tableDetail.kitchenStatus] ??
+                              tableDetail.kitchenStatus}
+                          </Badge>
+                        </div>
+                      ) : null}
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[#b8b8bf]">Durasi terisi</span>
                         <span
@@ -4482,7 +5017,7 @@ export function PosView({
                       ) : null}
                       {tableDetail.customerName ? (
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[#b8b8bf]">Customer</span>
+                          <span className="text-[#b8b8bf]">Pelanggan</span>
                           <span className="truncate font-semibold text-white">
                             {tableDetail.customerName}
                           </span>
@@ -4496,28 +5031,208 @@ export function PosView({
                           </span>
                         </div>
                       ) : null}
-                      {tableDetail.bills?.length ? (
-                        <div className="border-t border-[#34343c] pt-2">
-                          <p className="mb-1 text-[10px] uppercase tracking-wide text-[#8f8f98]">
-                            Bill
+                      {/* Ringkasan meja: bill terbuka/lunas + jumlah item. */}
+                      {(tableDetail.openBillCount ?? 0) +
+                        (tableDetail.paidBillCount ?? 0) >
+                        0 || (tableOrderBills?.length ?? 0) > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5 border-t border-[#34343c] pt-2">
+                          <Badge className="border-[#f5a742]/45 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                            {tableDetail.openBillCount ?? 0} bill terbuka
+                          </Badge>
+                          <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[10px] text-[#dcfce7]">
+                            {tableDetail.paidBillCount ?? 0} lunas
+                          </Badge>
+                          {tableOrderBills ? (
+                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d6d6dc]">
+                              {tableOrderBills.reduce(
+                                (sum, bill) =>
+                                  sum +
+                                  bill.items.reduce((s, item) => s + item.qty, 0),
+                                0,
+                              )}{" "}
+                              item
+                            </Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <div className="border-t border-[#34343c] pt-2">
+                        <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#8f8f98]">
+                          Rincian pesanan
+                        </p>
+                        {tableItemsLoading ? (
+                          <div className="flex items-center gap-2 py-3 text-xs text-[#b8b8bf]">
+                            <RefreshCw className="size-3.5 animate-spin" />
+                            Memuat rincian pesanan…
+                          </div>
+                        ) : tableItemsError ? (
+                          <p className="rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-2 text-xs text-[#ffc2c8]">
+                            {tableItemsError}
                           </p>
-                          <div className="space-y-1">
-                            {tableDetail.bills.slice(0, 4).map((bill) => (
+                        ) : tableOrderBills && tableOrderBills.length ? (
+                          <div className="garage-scroll max-h-[42vh] space-y-2 overflow-y-auto pr-0.5">
+                            {tableOrderBills.map((bill) => (
                               <div
                                 key={bill.id}
-                                className="flex items-center justify-between gap-2 text-xs"
+                                className="rounded-md border border-[#303038] bg-black/20 p-2"
                               >
-                                <span className="garage-mono truncate text-[#d6d6dc]">
-                                  {bill.orderNo}
-                                </span>
-                                <span className="shrink-0 text-[#b8b8bf]">
-                                  {bill.status} · {currency.format(bill.total)}
-                                </span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="garage-mono truncate text-xs font-semibold text-[#d6d6dc]">
+                                    {bill.orderNo}
+                                  </span>
+                                  <Badge className={`${statusClass[bill.status] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
+                                    {billStatusLabel(bill.status)}
+                                  </Badge>
+                                </div>
+                                {bill.customerName ? (
+                                  <p className="mt-0.5 truncate text-[11px] text-[#b8b8bf]">
+                                    {bill.customerName}
+                                  </p>
+                                ) : null}
+                                {bill.parentOrderId ? (
+                                  <p className="mt-0.5 text-[11px] font-semibold text-[#ffd79a]">
+                                    Bill pisahan
+                                  </p>
+                                ) : null}
+                                {bill.customerNote ? (
+                                  <p className="mt-1 rounded border border-[#f5a742]/35 bg-[#f5a742]/10 px-1.5 py-1 text-[11px] italic text-[#ffd08a]">
+                                    Catatan: {bill.customerNote}
+                                  </p>
+                                ) : null}
+                                {/* Ringkasan station: jumlah item + status tiket Dapur/Bar. */}
+                                {bill.items.length ? (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {(["Dapur", "Bar"] as const).map((station) => {
+                                      const qty = bill.items
+                                        .filter((item) => item.station === station)
+                                        .reduce((sum, item) => sum + item.qty, 0);
+                                      if (!qty) return null;
+                                      const status =
+                                        bill.stations.find((row) => row.station === station)?.status ??
+                                        null;
+                                      return (
+                                        <span
+                                          key={station}
+                                          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${kitchenStatusTone(status)}`}
+                                        >
+                                          {station} {qty} · {kitchenStatusLabel(status)}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
+                                <div className="mt-1.5 space-y-1">
+                                  {bill.items.length ? (
+                                    bill.items.map((item) => {
+                                      const itemStatus =
+                                        bill.stations.find((row) => row.station === item.station)
+                                          ?.status ?? null;
+                                      return (
+                                      <div key={item.id} className="text-xs">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <span className="min-w-0 text-[#e7e7ea]">
+                                            <span className="garage-mono font-semibold text-white">
+                                              {item.qty}×
+                                            </span>{" "}
+                                            {item.itemName}
+                                            {item.variantLabel ? (
+                                              <span className="text-[#8f8f98]"> · {item.variantLabel}</span>
+                                            ) : null}
+                                          </span>
+                                          <span className="garage-mono shrink-0 text-[#d6d6dc]">
+                                            {currency.format(item.lineTotal)}
+                                          </span>
+                                        </div>
+                                        <div className="mt-0.5 flex items-center gap-1 pl-4">
+                                          <span className="text-[10px] text-[#8f8f98]">{item.station}</span>
+                                          <span
+                                            className={`rounded border px-1 text-[10px] font-semibold ${kitchenStatusTone(itemStatus)}`}
+                                          >
+                                            {kitchenStatusLabel(itemStatus)}
+                                          </span>
+                                        </div>
+                                        {item.note ? (
+                                          <p className="mt-0.5 pl-4 text-[11px] italic text-[#9aa0a6]">
+                                            {item.note}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <p className="text-[11px] text-[#6f6f78]">Tanpa rincian item.</p>
+                                  )}
+                                </div>
+                                <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-[#303038] pt-1.5 text-xs">
+                                  <span className="text-[#8f8f98]">Subtotal bill</span>
+                                  <span className="garage-mono font-bold text-[#ffd08a]">
+                                    {currency.format(bill.total)}
+                                  </span>
+                                </div>
+                                {bill.items.length ? (
+                                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="garage-press h-9 border-[#4a4a54] bg-white/[0.05] px-2 text-[11px]"
+                                      onClick={() =>
+                                        reprintTableBillChit(bill, tableDetail.tableLabel)
+                                      }
+                                    >
+                                      <Printer className="mr-1 size-3.5 shrink-0" />
+                                      Chit dapur
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="garage-press h-9 border-[#f5a742]/45 bg-[#f5a742]/10 px-2 text-[11px] text-[#ffe0ad]"
+                                      disabled={provisionalBillBusyId === bill.id}
+                                      onClick={() => void printProvisionalBill(bill)}
+                                    >
+                                      <FileText className="mr-1 size-3.5 shrink-0" />
+                                      {provisionalBillBusyId === bill.id ? "Mencetak…" : "Bill sementara"}
+                                    </Button>
+                                  </div>
+                                ) : null}
+                                {bill.canSplit || bill.canPay ? (
+                                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                                    {bill.canSplit ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className={`garage-press h-10 border-[#d6d6dc]/40 bg-white/[0.06] px-2 text-xs font-semibold text-white ${
+                                          bill.canPay ? "" : "col-span-2"
+                                        }`}
+                                        onClick={() => setTableSplitBill(bill)}
+                                      >
+                                        <Scissors className="mr-1 size-3.5 shrink-0" />
+                                        Pisah bill
+                                      </Button>
+                                    ) : null}
+                                    {bill.canPay ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        className={`garage-press h-10 bg-[#22c55e] px-2 text-xs font-bold text-black hover:bg-[#34d76b] ${
+                                          bill.canSplit ? "" : "col-span-2"
+                                        }`}
+                                        onClick={() => void payTableBill(bill)}
+                                      >
+                                        <Wallet className="mr-1 size-3.5 shrink-0" />
+                                        Bayar {currency.format(bill.total)}
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </div>
                             ))}
                           </div>
-                        </div>
-                      ) : null}
+                        ) : (
+                          <p className="py-2 text-xs text-[#8f8f98]">Belum ada item.</p>
+                        )}
+                      </div>
                     </div>
                   ) : null}
 
@@ -4531,6 +5246,19 @@ export function PosView({
                         ? "Pilih meja ini untuk order"
                         : "Tambah order ke meja ini"}
                     </Button>
+                    {!detailEmpty &&
+                    tableDetail.currentOrderId &&
+                    ["accepted", "ready", "mixed"].includes(tableDetail.status) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="garage-press h-11 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-sm text-[#ffe0ad]"
+                        disabled={tableActionBusy !== null}
+                        onClick={() => void requestTableBill()}
+                      >
+                        {tableActionBusy === "bill" ? "Memproses…" : "Siapkan bill"}
+                      </Button>
+                    ) : null}
                     {!detailEmpty ? (
                       <Button
                         type="button"
@@ -4571,6 +5299,229 @@ export function PosView({
           : null}
       </Dialog>
 
+      {/* Konfirmasi + alasan Reject order QR (aksi susah-dibalik). */}
+      <Dialog
+        open={Boolean(rejectOrderTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRejectOrderTarget(null);
+        }}
+      >
+        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Tolak order?</DialogTitle>
+            <DialogDescription>
+              {rejectOrderTarget
+                ? `${rejectOrderTarget.tableLabel} · ${rejectOrderTarget.orderNo} · ${currency.format(rejectOrderTarget.total)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8f8f98]">
+              Alasan
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {["Stok habis", "Salah pesan", "Pelanggan batal", "Duplikat", "Lainnya"].map(
+                (option) => (
+                  <Button
+                    key={option}
+                    type="button"
+                    variant="outline"
+                    className={`garage-press h-10 text-xs ${
+                      rejectReasonChoice === option
+                        ? "border-[#d11a2a]/70 bg-[#d11a2a]/18 text-white"
+                        : "border-[#34343c] bg-white/[0.045] text-[#d6d6dc]"
+                    }`}
+                    onClick={() => setRejectReasonChoice(option)}
+                  >
+                    {option}
+                  </Button>
+                ),
+              )}
+            </div>
+            {rejectReasonChoice === "Lainnya" ? (
+              <Input
+                autoFocus
+                value={rejectReasonOther}
+                onChange={(event) => setRejectReasonOther(event.target.value)}
+                placeholder="Tulis alasan (min 3 huruf)"
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button
+              type="button"
+              className="garage-press h-11 flex-1 bg-[#d11a2a] text-sm text-white hover:bg-[#ff2a3a]"
+              disabled={
+                rejectReasonChoice === "Lainnya" &&
+                rejectReasonOther.trim().length < 3
+              }
+              onClick={confirmRejectOrder}
+            >
+              Tolak order
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
+              onClick={() => setRejectOrderTarget(null)}
+            >
+              Batal
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Konfirmasi Final Bayar (menutup pembayaran, susah-dibalik). */}
+      <Dialog
+        open={Boolean(finalizeOrderTarget)}
+        onOpenChange={(open) => {
+          if (!open) setFinalizeOrderTarget(null);
+        }}
+      >
+        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Konfirmasi pembayaran</DialogTitle>
+            <DialogDescription>
+              Final Bayar menutup order ini. Pastikan pembayaran sudah diterima.
+            </DialogDescription>
+          </DialogHeader>
+          {finalizeOrderTarget ? (
+            <div className="space-y-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[#b8b8bf]">Meja / Order</span>
+                <span className="garage-mono font-semibold text-white">
+                  {finalizeOrderTarget.tableLabel} · {finalizeOrderTarget.orderNo}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
+                <span className="text-[#b8b8bf]">Total</span>
+                <span className="garage-mono text-base font-black text-[#ffd08a]">
+                  {currency.format(finalizeOrderTarget.total)}
+                </span>
+              </div>
+            </div>
+          ) : null}
+          {finalizeOrderTarget ? (
+            <div className="space-y-2">
+              <p className="garage-mono text-[11px] uppercase tracking-wide text-[#b8b8bf]">
+                Metode bayar
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {paymentMethods.map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setFinalizeMethod(method)}
+                    disabled={method === "QRIS" && !qrisImageReady}
+                    className={`garage-press h-10 rounded-md border text-sm font-bold disabled:opacity-40 ${
+                      finalizeMethod === method
+                        ? "border-[#f5a742] bg-[#f5a742] text-black"
+                        : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
+                    }`}
+                  >
+                    {method === "Cash" ? "Tunai" : method === "Bank Transfer" ? "Transfer" : method}
+                  </button>
+                ))}
+              </div>
+              {finalizeMethod === "Cash" ? (
+                <div className="space-y-1">
+                  <Input
+                    inputMode="numeric"
+                    value={finalizeCash}
+                    onChange={(event) => setFinalizeCash(event.target.value.replace(/[^\d]/g, ""))}
+                    placeholder={`Uang diterima (kosong = uang pas ${currency.format(finalizeOrderTarget.total)})`}
+                    aria-label="Uang diterima"
+                    className="h-11 border-[#34343c] bg-white/[0.06] text-base font-semibold"
+                  />
+                  {finalizeCashShort ? (
+                    <p className="text-xs font-semibold text-[#ffc2c8]">Uang diterima kurang dari total.</p>
+                  ) : finalizeCashValue > finalizeOrderTarget.total ? (
+                    <p className="text-xs text-[#86efac]">
+                      Kembalian {currency.format(finalizeCashValue - finalizeOrderTarget.total)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button
+              type="button"
+              className="garage-press h-11 flex-1 bg-[#22c55e] text-sm text-white hover:bg-[#16a34a]"
+              onClick={confirmFinalizeOrder}
+              disabled={finalizeCashShort}
+            >
+              Konfirmasi Bayar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
+              onClick={() => setFinalizeOrderTarget(null)}
+            >
+              Batal
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog konfirmasi/alasan in-app reusable (pengganti window.confirm/prompt). */}
+      <Dialog
+        open={Boolean(confirmState)}
+        onOpenChange={(open) => {
+          if (!open) resolveConfirm(false);
+        }}
+      >
+        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>{confirmState?.title}</DialogTitle>
+            {confirmState?.message ? (
+              <DialogDescription>{confirmState.message}</DialogDescription>
+            ) : null}
+          </DialogHeader>
+          {confirmState?.needsReason ? (
+            <Input
+              autoFocus
+              value={confirmReason}
+              onChange={(event) => setConfirmReason(event.target.value)}
+              placeholder={confirmState.reasonPlaceholder ?? "Tulis alasan (min 3 huruf)"}
+              className="h-11 border-[#34343c] bg-white/[0.06]"
+            />
+          ) : null}
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button
+              type="button"
+              className={`garage-press h-11 flex-1 text-sm text-white ${
+                confirmState?.danger
+                  ? "bg-[#d11a2a] hover:bg-[#ff2a3a]"
+                  : "bg-[#22c55e] hover:bg-[#16a34a]"
+              }`}
+              disabled={
+                confirmState?.needsReason
+                  ? confirmReason.trim().length < 3
+                  : false
+              }
+              onClick={() =>
+                resolveConfirm(
+                  confirmState?.needsReason ? confirmReason.trim() : true,
+                )
+              }
+            >
+              {confirmState?.confirmLabel ?? "Konfirmasi"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
+              onClick={() => resolveConfirm(false)}
+            >
+              Batal
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={memberCreateOpen} onOpenChange={setMemberCreateOpen}>
         <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
           <DialogHeader>
@@ -4586,7 +5537,7 @@ export function PosView({
                 value={memberCreateName}
                 onChange={(event) => setMemberCreateName(event.target.value)}
                 className="h-11 border-[#34343c] bg-white/[0.06]"
-                placeholder="Nama customer"
+                placeholder="Nama pelanggan"
                 disabled={memberCreatePending}
               />
             </div>
@@ -4676,22 +5627,18 @@ export function PosView({
         <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
           <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
           <span
-            className={`inline-flex h-10 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold ${
-              settings?.wmsAutoConsume
-                ? "border-[#16A34A]/45 bg-[#16A34A]/12 text-[#7fd7a3]"
-                : "border-[#34343c] bg-white/[0.04] text-[#8f8f99]"
-            }`}
-            title={settings?.wmsAutoConsume ? "Penjualan otomatis memotong bahan di gudang (WMS)" : "Auto-potong bahan gudang mati — aktifkan di Warehouse › Settings"}
+            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#16A34A]/45 bg-[#16A34A]/12 px-2.5 text-[11px] font-semibold text-[#7fd7a3]"
+            title="Penjualan otomatis memotong bahan di gudang sesuai resep"
           >
-            <span className={`size-2 rounded-full ${settings?.wmsAutoConsume ? "bg-[#16A34A]" : "bg-[#8f8f99]"}`} />
-            Gudang {settings?.wmsAutoConsume ? "Auto" : "Manual"}
+            <span className="size-2 rounded-full bg-[#16A34A]" />
+            Gudang Auto
           </span>
           <Button
             type="button"
             variant="outline"
             className="garage-press relative h-10 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/12 px-3 text-xs font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20"
             onClick={() => setChatOpen(true)}
-            aria-label="Chat tamu (customer)"
+            aria-label="Chat tamu"
           >
             <Headset className="size-3.5" />
             Chat Tamu
@@ -4793,7 +5740,27 @@ export function PosView({
           <Button
             type="button"
             variant="outline"
-            aria-label="Refresh POS data"
+            aria-label="Buka monitor Status Produksi"
+            className={`garage-press h-10 gap-1.5 px-2.5 text-xs ${
+              kitchenTickets.length
+                ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#bbf7d0] hover:bg-[#22c55e]/20"
+                : "border-[#4a4a54] bg-white/[0.055] text-[#d4d4d8] hover:bg-white/[0.09]"
+            } ${isCashierKiosk ? "xl:hidden" : ""}`}
+            onClick={() => {
+              setKitchenPanelOpen(true);
+              void loadKitchenTickets();
+            }}
+          >
+            <UtensilsCrossed className="size-3.5" />
+            Siap
+            <Badge className="border-[#4a4a54] bg-black/30 px-1.5 text-[10px]">
+              {kitchenTickets.length}
+            </Badge>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Muat ulang data POS"
             className={`garage-press h-10 gap-1.5 border-[#4a4a54] bg-white/[0.055] px-2.5 text-xs text-[#d4d4d8] hover:bg-white/[0.09] ${
               isCashierKiosk ? "xl:hidden" : ""
             }`}
@@ -4802,7 +5769,7 @@ export function PosView({
           >
             <RefreshCw className={`size-3.5 ${cashierRefreshing ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">
-              {cashierRefreshing ? "Refresh..." : "Refresh"}
+              {cashierRefreshing ? "Memuat..." : "Muat ulang"}
             </span>
           </Button>
           <PosHeaderClock />
@@ -4881,6 +5848,27 @@ export function PosView({
           <Button
             type="button"
             variant="outline"
+            aria-label="Buka monitor Status Produksi"
+            className={`garage-press h-11 gap-2 px-3 text-xs min-[1200px]:h-9 ${
+              kitchenTickets.length
+                ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#bbf7d0] hover:bg-[#22c55e]/20"
+                : "border-[#4a4a54] bg-white/[0.055] text-[#d4d4d8] hover:bg-white/[0.09]"
+            }`}
+            onClick={() => {
+              setKitchenPanelOpen(true);
+              void loadKitchenTickets();
+            }}
+          >
+            <UtensilsCrossed className="size-3.5" />
+            <span className="hidden sm:inline">Status Produksi</span>
+            <span className="sm:hidden">Siap</span>
+            <Badge className="border-[#4a4a54] bg-black/30 px-1.5 text-[10px]">
+              {kitchenTickets.length}
+            </Badge>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
             className="garage-press h-11 gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-xs text-[#d4d4d8] hover:bg-white/[0.09] min-[1200px]:h-9"
             onClick={() => setTablePrintOpen(true)}
           >
@@ -4930,7 +5918,7 @@ export function PosView({
                 variant="outline"
                 size="icon"
                 className="garage-press h-11 w-11 border-[#4a4a54] bg-white/[0.06] min-[1200px]:hidden"
-                aria-label="Open POS actions"
+                aria-label="Buka aksi POS"
               >
                 <MoreHorizontal className="size-4" />
               </Button>
@@ -4962,7 +5950,7 @@ export function PosView({
               )}
               <DropdownMenuItem onClick={() => void onOrderCreated()}>
                 <RefreshCw className="mr-2 size-4" />
-                Refresh POS
+                Muat Ulang POS
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -5041,7 +6029,7 @@ export function PosView({
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void onOrderCreated()}>
                 <RefreshCw className="mr-2 size-4" />
-                Refresh POS
+                Muat Ulang POS
               </DropdownMenuItem>
               {!isCashierKiosk && (
                 <>
@@ -5310,7 +6298,7 @@ export function PosView({
             <SheetHeader className="border-b border-[#34343c] px-4 py-4 text-left sm:px-5">
               <SheetTitle>Order QR Kasir</SheetTitle>
               <SheetDescription>
-                Order QR masuk langsung muncul di daftar. Pilih Accept, Final Bayar, atau Reject.
+                Order QR masuk langsung muncul di daftar. Pilih Terima, Final Bayar, atau Tolak.
               </SheetDescription>
             </SheetHeader>
             <div className="garage-scroll min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
@@ -5328,7 +6316,7 @@ export function PosView({
                 </span>
               </div>
               <p className="mt-1 text-xs text-[#d6d6dc] md:hidden">
-                Accept masuk KDS, Final Bayar menutup pembayaran kasir.
+                Terima = masuk dapur (KDS), Final Bayar = menutup pembayaran kasir.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -5363,7 +6351,7 @@ export function PosView({
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-bold text-white">Print semua QR meja</p>
+                        <p className="text-sm font-bold text-white">Cetak semua QR meja</p>
                         <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[10px] text-[#dcfce7]">
                           QR Tetap
                         </Badge>
@@ -5487,7 +6475,7 @@ export function PosView({
                           className="garage-press h-10 bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
                           onClick={() => void copyQrOrderUrl(selectedQrTable)}
                         >
-                          Copy Link
+                          Salin Link
                         </Button>
                         <Button
                           type="button"
@@ -5516,7 +6504,7 @@ export function PosView({
                 }}
               >
                 <RefreshCw className={`mr-1.5 size-3.5 ${customerOrdersLoading || qrInsightsLoading || tableLiveLoading ? "animate-spin" : ""}`} />
-                Refresh QR
+                Muat Ulang QR
               </Button>
             </div>
           </div>
@@ -5567,7 +6555,7 @@ export function PosView({
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                   {[
                     ["Total", qrInsights ? String(qrInsights.summary.total) : "-"],
-                    ["Paid", qrInsights ? String(qrInsights.summary.paid) : "-"],
+                    ["Lunas", qrInsights ? String(qrInsights.summary.paid) : "-"],
                     [
                       "Avg",
                       qrInsights?.summary.averageProcessingMinutes == null
@@ -5729,7 +6717,7 @@ export function PosView({
           {tableLiveError ? (
             <Alert className="mt-2 border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
               <AlertTriangle className="size-4" />
-              <AlertTitle>Table map gagal</AlertTitle>
+              <AlertTitle>Peta meja gagal dimuat</AlertTitle>
               <AlertDescription>{tableLiveError}</AlertDescription>
             </Alert>
           ) : null}
@@ -5768,7 +6756,7 @@ export function PosView({
                           {order.orderNo}
                         </p>
                         <p className="mt-0.5 truncate text-xs text-[#d0d0d6]">
-                          {order.customerName ?? "Customer"} - {order.customerPhone ?? "No WA"}
+                          {order.customerName ?? "Pelanggan"} - {order.customerPhone ?? "Tanpa WA"}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[10px]`}>
@@ -5824,7 +6812,7 @@ export function PosView({
                           disabled={Boolean(busyAction)}
                           onClick={() => void decideCustomerOrder(order, "accept")}
                         >
-                          Accept
+                          Terima
                         </Button>
                       ) : null}
                       {canFinalize ? (
@@ -5833,7 +6821,7 @@ export function PosView({
                           size="sm"
                           className="garage-press h-9 flex-[1.4] basis-[120px] bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
                           disabled={Boolean(busyAction)}
-                          onClick={() => void decideCustomerOrder(order, "paid")}
+                          onClick={() => openFinalizeDialog(order)}
                         >
                           Final Bayar
                         </Button>
@@ -5845,9 +6833,9 @@ export function PosView({
                           variant="outline"
                           className="garage-press h-9 flex-1 basis-[96px] border-[#4a4a54] px-2 text-[11px]"
                           disabled={Boolean(busyAction)}
-                          onClick={() => void decideCustomerOrder(order, "reject")}
+                          onClick={() => openRejectDialog(order)}
                         >
-                          Reject
+                          Tolak
                         </Button>
                       ) : null}
                     </div>
@@ -5962,7 +6950,7 @@ export function PosView({
                             </Badge>
                           </div>
                           <p className="mt-1 text-xs text-[#b8b8bf]">
-                            {order.customerName ?? "Customer"} - {formatReceiptDate(order.createdAt)}
+                            {order.customerName ?? "Pelanggan"} - {formatReceiptDate(order.createdAt)}
                           </p>
                           <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#d6d6dc]">
                             {itemSummary || "Tidak ada item."}
@@ -5993,7 +6981,7 @@ export function PosView({
                             disabled={Boolean(busyAction)}
                             onClick={() => void decideCustomerOrder(order, "accept")}
                           >
-                            Accept
+                            Terima
                           </Button>
                         ) : null}
                         {canFinalize ? (
@@ -6002,7 +6990,7 @@ export function PosView({
                             size="sm"
                             className="garage-press h-8 flex-1 basis-[104px] bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
                             disabled={Boolean(busyAction)}
-                            onClick={() => void decideCustomerOrder(order, "paid")}
+                            onClick={() => openFinalizeDialog(order)}
                           >
                             Final Bayar
                           </Button>
@@ -6014,9 +7002,9 @@ export function PosView({
                             variant="outline"
                             className="garage-press h-8 flex-1 basis-[88px] border-[#4a4a54] px-2 text-[11px]"
                             disabled={Boolean(busyAction)}
-                            onClick={() => void decideCustomerOrder(order, "reject")}
+                            onClick={() => openRejectDialog(order)}
                           >
-                            Reject
+                            Tolak
                           </Button>
                         ) : null}
                         {order.invoiceWebUrl ? (
@@ -6039,7 +7027,7 @@ export function PosView({
               ) : (
                 <div className="flex min-h-52 items-center justify-between gap-3 rounded-md border border-dashed border-[#4a4a54] bg-[#101016]/60 p-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">History order digital kosong</p>
+                    <p className="text-sm font-semibold text-white">Riwayat order digital kosong</p>
                     <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">
                       History transaksi dari QR/menu digital akan tampil di sini setelah ada order hari ini.
                     </p>
@@ -6060,6 +7048,20 @@ export function PosView({
                   <h3 className="mt-1 text-base font-black text-white">
                     {tableMapRows.length} meja outlet
                   </h3>
+                  {tableLiveUpdatedAt ? (
+                    <p className="mt-0.5 text-[10px] text-[#8f8f98]">
+                      Terakhir update{" "}
+                      {(() => {
+                        const secs = Math.max(
+                          0,
+                          Math.round((nowTick - tableLiveUpdatedAt) / 1000),
+                        );
+                        return secs < 60
+                          ? `${secs}s lalu`
+                          : `${Math.floor(secs / 60)}m lalu`;
+                      })()}
+                    </p>
+                  ) : null}
                 </div>
                 {/* Ringkasan cepat: kosong / terisi / perlu bersih */}
                 <div className="flex flex-wrap gap-1.5">
@@ -6077,6 +7079,21 @@ export function PosView({
                   </span>
                 </div>
               </div>
+
+              {/* Peringatan data belum sinkron: grid sedang pakai fallback 50 meja
+                  kosong, jangan sampai kasir salah kira semua meja benar-benar kosong. */}
+              {!tableLiveDataReady ? (
+                <div className="mt-3 flex items-center gap-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/12 px-3 py-2 text-[11px] font-semibold text-[#ffd08a]">
+                  <RefreshCw
+                    className={`size-3.5 shrink-0 ${tableLiveLoading ? "animate-spin" : ""}`}
+                  />
+                  {tableLiveLoading
+                    ? "Menyinkronkan status meja…"
+                    : tableLiveError
+                      ? "Status meja gagal dimuat — menampilkan data sementara. Tekan Muat Ulang QR."
+                      : "Status meja belum sinkron — menampilkan data sementara."}
+                </div>
+              ) : null}
 
               {/* Filter chips */}
               <div className="garage-scroll-x mt-3 flex gap-1.5 pb-0.5">
@@ -6106,7 +7123,17 @@ export function PosView({
                 })}
               </div>
 
-              <div className="mt-3 grid grid-cols-5 gap-1.5 sm:grid-cols-10 2xl:grid-cols-[repeat(25,minmax(0,1fr))]">
+              {tableLiveLoading && !tableLiveDataReady ? (
+                <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
+                  {Array.from({ length: 50 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="min-h-[76px] w-full animate-pulse rounded-md border border-[#34343c] bg-white/[0.05] sm:min-h-[80px]"
+                    />
+                  ))}
+                </div>
+              ) : (
+              <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
                 {tableMapRows
                   .filter((table) => {
                     if (tableMapFilter === "all") return true;
@@ -6134,7 +7161,14 @@ export function PosView({
                       className={`garage-press relative min-h-[76px] w-full rounded-md border p-2 text-left transition sm:min-h-[80px] ${toneClass} ${
                         isLongOccupied ? "ring-2 ring-[#f5a742]/70" : ""
                       }`}
-                      onClick={() => setTableDetail(table)}
+                      aria-label={`Meja ${table.tableNumber}, ${
+                        isNeedsCleaning
+                          ? "perlu dibersihkan"
+                          : isEmpty
+                            ? "kosong"
+                            : `terisi, ${tableLiveStatusLabel(table)}`
+                      }`}
+                      onClick={() => openTableDetail(table)}
                     >
                       {/* Indicator dot */}
                       <div className="flex items-center justify-between gap-1">
@@ -6159,10 +7193,10 @@ export function PosView({
                         </div>
                       ) : table.orderNo ? (
                         <div className="mt-1.5">
-                          <p className="truncate text-[10px] font-semibold leading-tight text-[#d6d6dc] sm:text-[11px]">
+                          <p className="truncate text-[11px] font-semibold leading-tight text-[#d6d6dc]">
                             {tableLiveStatusLabel(table)}
                           </p>
-                          <p className={`garage-mono mt-0.5 truncate text-[9px] sm:text-[10px] ${
+                          <p className={`garage-mono mt-0.5 truncate text-[10px] ${
                             isLongOccupied ? "font-bold text-[#ffd08a]" : "text-[#8f8f98]"
                           }`}>
                             {table.orderNo} · {table.timerMinutes}m
@@ -6170,11 +7204,8 @@ export function PosView({
                         </div>
                       ) : (
                         <div className="mt-1.5">
-                          <p className="garage-mono text-[10px] font-semibold text-[#d6d6dc] sm:text-[11px]">
+                          <p className="text-[11px] font-semibold text-[#9aa0a6]">
                             {isEmpty ? "Siap" : table.status.replace(/_/g, " ")}
-                          </p>
-                          <p className="garage-mono mt-0.5 text-[9px] text-[#6f6f78] sm:text-[10px]">
-                            {isEmpty ? "Meja kosong" : "Aktif"}
                           </p>
                         </div>
                       )}
@@ -6182,6 +7213,7 @@ export function PosView({
                   );
                 })}
               </div>
+              )}
 
               {/* Legend warna meja */}
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#34343c] pt-2 text-[10px] text-[#8f8f98]">
@@ -6219,7 +7251,7 @@ export function PosView({
               {qrWorkTab === "qr_control" ? (
               <div className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-white">Meja dan issue QR</p>
+                  <p className="text-sm font-semibold text-white">Meja dan kendala QR</p>
                   <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d4d4d8]">
                     {qrInsights.rangeLabel}
                   </Badge>
@@ -6276,11 +7308,11 @@ export function PosView({
                 <div className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-white">Repeat customer</p>
+                      <p className="text-sm font-semibold text-white">Pelanggan kembali</p>
                       <p className="mt-0.5 text-xs text-[#b8b8bf]">Follow-up WhatsApp manual</p>
                     </div>
                     <Badge className={`${statusClass[qrInsights.summary.repeatGuests ? "warning" : "info"]} px-2 text-[10px]`}>
-                      {qrInsights.summary.repeatGuests} repeat guest
+                      {qrInsights.summary.repeatGuests} tamu kembali
                     </Badge>
                   </div>
                   <div className="mt-2 space-y-1.5">
@@ -6378,7 +7410,7 @@ export function PosView({
                 <div className="min-w-0">
                   <AlertTitle>{customerOrders.length} QR order menunggu kasir</AlertTitle>
                   <AlertDescription>
-                    Detail bisa dibuka dari kartu order. Accept untuk masuk KDS.
+                    Detail bisa dibuka dari kartu order. Terima untuk masuk dapur (KDS).
                   </AlertDescription>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -6428,7 +7460,7 @@ export function PosView({
                       Antrean QR kasir
                     </p>
                     <p className="mt-0.5 text-xs leading-5 text-[#b8b8bf]">
-                      Accept masuk KDS, Paid untuk order yang langsung dibayar.
+                      Terima = masuk dapur (KDS), Lunas = order yang langsung dibayar.
                     </p>
                   </div>
                   <Button
@@ -6439,7 +7471,7 @@ export function PosView({
                     onClick={() => void loadCustomerOrders()}
                   >
                     <RefreshCw className={`mr-1.5 size-3.5 ${customerOrdersLoading ? "animate-spin" : ""}`} />
-                    Refresh
+                    Muat ulang
                   </Button>
                 </div>
 
@@ -6491,7 +7523,7 @@ export function PosView({
                                   {order.orderNo}
                                 </p>
                                 <p className="mt-0.5 truncate text-xs text-[#d0d0d6]">
-                                  {order.customerName ?? "Customer"} - {order.customerPhone ?? "No WA"}
+                                  {order.customerName ?? "Pelanggan"} - {order.customerPhone ?? "Tanpa WA"}
                                 </p>
                                 <div className="mt-1 flex flex-wrap gap-1.5">
                                   <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[10px]`}>
@@ -6551,7 +7583,7 @@ export function PosView({
                                   void decideCustomerOrder(order, "accept");
                                 }}
                               >
-                                Accept
+                                Terima
                               </Button>
                               <Button
                                 type="button"
@@ -6560,7 +7592,7 @@ export function PosView({
                                 disabled={Boolean(busyAction)}
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  void decideCustomerOrder(order, "paid");
+                                  openFinalizeDialog(order);
                                 }}
                               >
                                 Terima
@@ -6585,10 +7617,10 @@ export function PosView({
                                   disabled={Boolean(busyAction)}
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    void decideCustomerOrder(order, "reject");
+                                    openRejectDialog(order);
                                   }}
                                 >
-                                  Reject
+                                  Tolak
                                 </Button>
                               )}
                               {order.invoiceWebUrl ? (
@@ -6624,10 +7656,10 @@ export function PosView({
                                 disabled={Boolean(busyAction)}
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  void decideCustomerOrder(order, "reject");
+                                  openRejectDialog(order);
                                 }}
                               >
-                                Reject order
+                                Tolak order
                               </Button>
                             ) : null}
                           </article>
@@ -6681,6 +7713,96 @@ export function PosView({
             </div>
           </SheetContent>
         </Sheet>
+        <Dialog open={kitchenPanelOpen} onOpenChange={setKitchenPanelOpen}>
+          <DialogContent className="flex max-h-[90svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] p-0 sm:max-w-2xl">
+            <DialogHeader className="border-b border-[#34343c] px-4 pb-3 pt-4 sm:px-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <DialogTitle>Status Produksi</DialogTitle>
+                  <DialogDescription>
+                    Pantauan Bar &amp; Dapur (urut pesan duluan). READY ditandai workstation di Production Hub setelah QC — kasir cukup memantau.
+                  </DialogDescription>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Badge className="border-[#4a4a54] bg-black/30 px-2 text-[11px]">
+                    {kitchenTickets.length} aktif
+                  </Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="garage-press h-9 border-[#4a4a54] bg-white/[0.055] px-2 text-xs"
+                    onClick={() => void loadKitchenTickets()}
+                  >
+                    <RefreshCw className="mr-1 size-3.5" /> Muat ulang
+                  </Button>
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="garage-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-4 sm:p-5">
+              {kitchenTickets.length === 0 ? (
+                <p className="py-10 text-center text-sm text-[#b8b8c2]">
+                  Tidak ada pesanan di produksi. Tiket muncul saat order dikonfirmasi kasir.
+                </p>
+              ) : (
+                kitchenTickets.map((ticket) => {
+                  const waitedMinutes = Math.max(
+                    0,
+                    Math.floor(
+                      (kitchenTicketsAt - new Date(ticket.createdAt).getTime()) / 60000,
+                    ),
+                  );
+                  const late = ticket.status !== "ready" && waitedMinutes > ticket.targetMinutes;
+                  const statusLabel =
+                    ticket.status === "ready"
+                      ? ticket.handoverAt
+                        ? `Dipanggil ${ticket.claimedByName ?? "· siapa saja"}`
+                        : "Ready · tunggu helper"
+                      : ticket.status === "cooking"
+                        ? "Processing"
+                        : "Waiting";
+                  return (
+                    <div
+                      key={ticket.id}
+                      className={`rounded-md border p-3 ${late ? "border-[#d11a2a]/50 bg-[#d11a2a]/10" : ticket.status === "ready" ? "border-[#22c55e]/40 bg-[#22c55e]/[0.06]" : "border-[#34343c] bg-white/[0.04]"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-base font-black uppercase leading-tight text-white">
+                            {productionIdentityName(ticket.customerName, ticket.queueNo)}
+                            <span className="ml-2 font-mono text-[#ffd08a]">{ticket.table}</span>
+                          </p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-xs text-[#b8b8c2]">
+                            <span>#{ticket.orderNo ?? ticket.id}</span>
+                            <span>{productionStationLabel(ticket.station)}</span>
+                            <span className={late ? "font-bold text-[#ff6b78]" : ""}>
+                              {late ? `Lewat SLA · ${waitedMinutes}m` : `${waitedMinutes}m`}
+                            </span>
+                          </p>
+                          <div className="mt-1.5 space-y-1">
+                            {ticket.items.map((item, i) => (
+                              <p key={`${ticket.id}-${i}`} className="text-sm font-semibold leading-snug text-[#f4f4f5]">
+                                {item}
+                                {ticket.itemNotes?.[item] ? (
+                                  <span className="ml-1 text-xs font-bold text-[#ffd08a]">({ticket.itemNotes[item]})</span>
+                                ) : null}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-sm border px-2 py-1 text-xs font-black uppercase ${kitchenStatusTone(ticket.status)}`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         <Dialog
           open={Boolean(selectedCustomerOrder)}
           onOpenChange={(open) => {
@@ -6732,7 +7854,7 @@ export function PosView({
 
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  ["Customer", selectedCustomerOrder.customerName ?? "Customer"],
+                  ["Pelanggan", selectedCustomerOrder.customerName ?? "Pelanggan"],
                   ["WhatsApp", selectedCustomerOrder.customerPhone ?? "No WA"],
                   ["Source", selectedCustomerOrder.orderSource],
                   ["Mode", selectedCustomerOrder.customerMode],
@@ -6803,14 +7925,14 @@ export function PosView({
               {selectedCustomerOrder.customerNote ? (
                 <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
                   <Info className="size-4 text-[#f5a742]" />
-                  <AlertTitle>Catatan customer</AlertTitle>
+                  <AlertTitle>Catatan pelanggan</AlertTitle>
                   <AlertDescription>{selectedCustomerOrder.customerNote}</AlertDescription>
                 </Alert>
               ) : null}
 
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
                 <div className="rounded-md border border-[#34343c] bg-[#15151b]/84 p-3">
-                  <p className="text-sm font-semibold text-white">Penjelasan action</p>
+                  <p className="text-sm font-semibold text-white">Penjelasan aksi</p>
                   <div className="mt-3 space-y-2">
                     {qrOrderActionGuides.map((guide) => (
                       <div
@@ -6831,8 +7953,12 @@ export function PosView({
                   <p className="text-sm font-semibold text-white">Rincian tagihan</p>
                   <div className="mt-3 space-y-2 text-sm">
                     <BillRow label="Subtotal" value={currency.format(selectedCustomerOrder.subtotal)} />
-                    <BillRow label="Service" value={currency.format(selectedCustomerOrder.service)} />
-                    <BillRow label="Discount" value={`- ${currency.format(selectedCustomerOrder.discount)}`} />
+                    {selectedCustomerOrder.service > 0 ? (
+                      <BillRow label="Service" value={currency.format(selectedCustomerOrder.service)} />
+                    ) : null}
+                    {selectedCustomerOrder.discount > 0 ? (
+                      <BillRow label="Diskon" value={`- ${currency.format(selectedCustomerOrder.discount)}`} />
+                    ) : null}
                     <Separator className="bg-[#34343c]" />
                     <BillRow label="Total" value={currency.format(selectedCustomerOrder.total)} large />
                   </div>
@@ -6843,7 +7969,7 @@ export function PosView({
                 <div className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-white">Cash meja waiter</p>
+                      <p className="text-sm font-black text-white">Tunai meja (waiter)</p>
                       <p className="mt-1 text-xs leading-5 text-[#ffd08a]">
                         Invoice final hanya terbit setelah kasir konfirmasi setoran.
                       </p>
@@ -6860,7 +7986,7 @@ export function PosView({
                         onChange={(event) => setCustomerOrderCashReceived(event.target.value)}
                         className="h-11 border-[#34343c] bg-[#111116]/72"
                         inputMode="numeric"
-                        placeholder={`Diterima customer: ${currency.format(selectedCustomerOrder.total)}`}
+                        placeholder={`Diterima dari pelanggan: ${currency.format(selectedCustomerOrder.total)}`}
                       />
                       <Button
                         type="button"
@@ -6899,7 +8025,7 @@ export function PosView({
                     disabled={customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`)}
                     onClick={() => void decideCustomerOrder(selectedCustomerOrder, "accept")}
                   >
-                    Accept
+                    Terima
                   </Button>
                 ) : null}
                 {canFinalizeCustomerOrder(selectedCustomerOrder) ? (
@@ -6910,7 +8036,7 @@ export function PosView({
                       customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`) ||
                       !canConfirmCustomerPayment(me.role)
                     }
-                    onClick={() => void decideCustomerOrder(selectedCustomerOrder, "paid")}
+                    onClick={() => openFinalizeDialog(selectedCustomerOrder)}
                   >
                     Finalkan Pembayaran
                   </Button>
@@ -6921,9 +8047,9 @@ export function PosView({
                     variant="outline"
                     className="garage-press h-11 flex-1 basis-[140px] border-[#4a4a54]"
                     disabled={customerOrderActionId?.startsWith(`${selectedCustomerOrder.id}:`)}
-                    onClick={() => void decideCustomerOrder(selectedCustomerOrder, "reject")}
+                    onClick={() => openRejectDialog(selectedCustomerOrder)}
                   >
-                    Reject
+                    Tolak
                   </Button>
                 ) : null}
               </div>
@@ -7201,11 +8327,7 @@ export function PosView({
                             <Badge className="shrink-0 border-0 bg-[#d11a2a] px-1.5 text-[10px] font-black text-white">
                               PROMO
                             </Badge>
-                          ) : (
-                            <Badge className={`${statusClass[item.stock]} shrink-0 px-1.5 text-[10px]`}>
-                              {item.stock}
-                            </Badge>
-                          )}
+                          ) : null}
                         </div>
                         <div className="mt-auto pt-2.5">
                           {hasPromo ? (
@@ -7312,7 +8434,7 @@ export function PosView({
                 {orderType === "dine-in" && selectedTableLiveRow?.currentOrderId ? (
                   <span className="garage-mono mt-1 inline-flex items-center gap-1 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/14 px-2 py-0.5 text-[10px] font-bold uppercase text-[#ffd79a]">
                     <Plus className="size-3" />
-                    Add-On Session
+                    Sesi Tambah Order
                   </span>
                 ) : null}
               </div>
@@ -7353,8 +8475,8 @@ export function PosView({
                       setParkLabel("");
                       setParkDialogOpen(true);
                     }}
-                    aria-label="Park bill saat ini"
-                    title="Park bill (simpan sementara)"
+                    aria-label="Parkir bill saat ini"
+                    title="Parkir bill (simpan sementara)"
                   >
                     <PauseCircle className="size-3.5" />
                   </Button>
@@ -7450,7 +8572,7 @@ export function PosView({
               ) : (
                 <div className="pos-cart-empty relative flex h-full min-h-[180px] flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-[#4a4a54] bg-[#202027]/66 p-5 text-center">
                   <ReceiptText className="size-8 text-[#6e6e76]" />
-                  <p className="mt-3 text-sm font-semibold text-white">Cart kosong</p>
+                  <p className="mt-3 text-sm font-semibold text-white">Keranjang kosong</p>
                   <p className="mt-1 max-w-52 text-xs text-[#b8b8bf]">
                     Tap menu untuk mulai membuat bill.
                   </p>
@@ -7518,14 +8640,14 @@ export function PosView({
                 >
                   <DialogHeader>
                     <DialogTitle>
-                      {paymentStep === "done" ? "Transaksi selesai" : "Checkout POS"}
+                      {paymentStep === "done" ? "Transaksi selesai" : "Pembayaran POS"}
                     </DialogTitle>
                     <DialogDescription>
                       {paymentStep === "done"
                         ? cashierPosSettings.receiptPrintMode === "auto"
                           ? "Struk thermal otomatis dicetak setelah transaksi selesai."
                           : "Transaksi selesai. Cetak struk tersedia dari tombol manual."
-                        : "Selesaikan order kasir dari ringkasan, meja, customer, lalu pembayaran."}
+                        : "Selesaikan order kasir dari ringkasan, meja, pelanggan, lalu pembayaran."}
                     </DialogDescription>
                   </DialogHeader>
                   {paymentStep === "done" && completedReceipt ? (
@@ -7554,6 +8676,7 @@ export function PosView({
                               tax={tax}
                               serviceChargePct={serviceChargePct}
                               taxPct={taxPct}
+                              roundingAdjustment={roundingAdjustment}
                               voucher={voucher}
                               manualDiscount={
                                 manualDiscount && manualDiscountAmount > 0
@@ -7659,18 +8782,64 @@ export function PosView({
                               </div>
                             </div>
 
+                            {manualDiscountAwaitingApproval && manualDiscount?.approvalId ? (
+                              discountPinOpen ? (
+                                <ManagerPinPanel
+                                  approvalId={manualDiscount.approvalId}
+                                  onCancel={() => setDiscountPinOpen(false)}
+                                  onDecided={(status, decidedByName) => {
+                                    setDiscountPinOpen(false);
+                                    const by = decidedByName ? ` oleh ${decidedByName}` : "";
+                                    if (status === "approved") {
+                                      setManualDiscount((current) =>
+                                        current ? { ...current, approvalStatus: "approved" } : null,
+                                      );
+                                      setPosNotice(`Diskon manual disetujui${by} — bisa lanjut bayar.`);
+                                    } else {
+                                      setManualDiscount(null);
+                                      setPosNotice(`Diskon manual ditolak${by}.`);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <Button
+                                  type="button"
+                                  className="garage-press h-11 w-full gap-2 bg-[#f5a742] text-sm font-bold text-black hover:bg-[#ffb85c]"
+                                  onClick={() => setDiscountPinOpen(true)}
+                                >
+                                  <ShieldAlert className="size-4" />
+                                  Manajer ada di sini — setujui dengan PIN
+                                </Button>
+                              )
+                            ) : null}
+
                             {totalDue > 0 && cartLines.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSplitPeopleCount("2");
-                                  setSplitBillOpen(true);
-                                }}
-                                className="pos-split-bill-button garage-press flex w-full items-center justify-center gap-1.5 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 py-2.5 text-xs font-semibold text-[#ffd79a] transition-colors hover:border-[#f5a742]/70 hover:bg-[#f5a742]/18 hover:text-[#ffeac2]"
-                              >
-                                <Users className="size-3.5" />
-                                Bagi rata (split bill)
-                              </button>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPaymentOpen(false);
+                                    setCartSplitOpen(true);
+                                  }}
+                                  disabled={cartItemCount < 2}
+                                  title={cartItemCount < 2 ? "Butuh minimal 2 porsi untuk dipisah" : undefined}
+                                  className="garage-press flex w-full items-center justify-center gap-1.5 rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/14 py-2.5 text-xs font-bold text-[#ffe1e5] transition-colors hover:border-[#d11a2a] hover:bg-[#d11a2a]/22 disabled:opacity-40"
+                                >
+                                  <Scissors className="size-3.5" />
+                                  Split per produk
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSplitPeopleCount("2");
+                                    setSplitBillOpen(true);
+                                  }}
+                                  className="pos-split-bill-button garage-press flex w-full items-center justify-center gap-1.5 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 py-2.5 text-xs font-semibold text-[#ffd79a] transition-colors hover:border-[#f5a742]/70 hover:bg-[#f5a742]/18 hover:text-[#ffeac2]"
+                                >
+                                  <Users className="size-3.5" />
+                                  Bagi rata
+                                </button>
+                              </div>
                             ) : null}
                           </div>
                         ) : null}
@@ -7721,6 +8890,20 @@ export function PosView({
                         ) : null}
                         {paymentStep === "payment" ? (
                           <div className="space-y-3">
+                            {cartItemCount >= 2 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaymentOpen(false);
+                                  setCartSplitOpen(true);
+                                }}
+                                disabled={paymentPending}
+                                className="garage-press flex w-full items-center justify-center gap-1.5 rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/14 py-2.5 text-sm font-bold text-[#ffe1e5] transition-colors hover:border-[#d11a2a] hover:bg-[#d11a2a]/22"
+                              >
+                                <Scissors className="size-4" />
+                                Bayar terpisah per tamu (split per produk)
+                              </button>
+                            ) : null}
                             <div className="grid gap-2 sm:grid-cols-2">
                               {paymentMethods.map((method) => (
                                 <Button
@@ -7735,7 +8918,7 @@ export function PosView({
                                   disabled={paymentPending}
                                   onClick={() => selectPaymentMethod(method)}
                                 >
-                                  {method}
+                                  {paymentMethodLabel(method)}
                                 </Button>
                               ))}
                             </div>
@@ -7785,14 +8968,14 @@ export function PosView({
                         {paymentError && (
                           <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                             <AlertTriangle className="size-4" />
-                            <AlertTitle>Payment gagal</AlertTitle>
+                            <AlertTitle>Pembayaran gagal</AlertTitle>
                             <AlertDescription>{paymentError}</AlertDescription>
                           </Alert>
                         )}
                         {paymentResult && (
                           <Alert className="border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#f4f4f5]">
                             <Check className="size-4" />
-                            <AlertTitle>Payment recorded</AlertTitle>
+                            <AlertTitle>Pembayaran tercatat</AlertTitle>
                             <AlertDescription>{paymentResult}</AlertDescription>
                           </Alert>
                         )}
@@ -7833,7 +9016,7 @@ export function PosView({
                               disabled={dineInTableMissing}
                               onClick={() => setPaymentStep("customer")}
                             >
-                              Lanjut Customer
+                              Lanjut Pelanggan
                             </Button>
                           ) : null}
                           {paymentStep === "customer" ? (
@@ -7946,7 +9129,7 @@ export function PosView({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PauseCircle className="size-5 text-[#f5a742]" />
-              Park Bill Saat Ini
+              Parkir Bill Saat Ini
             </DialogTitle>
             <DialogDescription>
               Cart akan disimpan sementara dan kasir bisa layani customer lain dulu.
@@ -7975,7 +9158,7 @@ export function PosView({
               <Input
                 value={parkLabel}
                 onChange={(event) => setParkLabel(event.target.value)}
-                placeholder={`Misal: Budi T-04, Customer biru, dll`}
+                placeholder={`Misal: Budi T-04, baju biru, dll`}
                 maxLength={60}
                 className="mt-1 h-10 border-[#34343c] bg-white/[0.06]"
                 autoFocus
@@ -7999,7 +9182,7 @@ export function PosView({
                 onClick={() => parkCurrentOrder(parkLabel)}
               >
                 <PauseCircle className="size-4" />
-                Park Sekarang
+                Parkir Sekarang
               </Button>
             </div>
           </div>
@@ -8015,7 +9198,7 @@ export function PosView({
               Parked Orders ({parkedOrders.length})
             </DialogTitle>
             <DialogDescription>
-              Bill yang sedang ditahan. Klik Resume untuk lanjutkan transaksi.
+              Bill yang sedang ditahan. Klik Lanjutkan untuk meneruskan transaksi.
             </DialogDescription>
           </DialogHeader>
           {parkedOrders.length === 0 ? (
@@ -8068,19 +9251,21 @@ export function PosView({
                           onClick={() => resumeParkedOrder(parked)}
                         >
                           <ArrowRight className="size-3" />
-                          Resume
+                          Lanjutkan
                         </Button>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           className="garage-press h-8 border-[#d11a2a]/45 bg-[#d11a2a]/10 px-2 text-[#ffc2c8]"
-                          onClick={() => {
-                            if (
-                              window.confirm(`Hapus parked bill "${parked.label}"?`)
-                            ) {
-                              deleteParkedOrder(parked.id);
-                            }
+                          onClick={async () => {
+                            const ok = await askConfirm({
+                              title: "Hapus parked bill?",
+                              message: `Hapus parked bill "${parked.label}"?`,
+                              confirmLabel: "Hapus",
+                              danger: true,
+                            });
+                            if (ok) deleteParkedOrder(parked.id);
                           }}
                           aria-label="Hapus parked bill"
                         >
@@ -8172,7 +9357,7 @@ export function PosView({
                       {currency.format(roundedPerPerson)}
                     </p>
                     <p className="mt-1 text-[10px] text-[#ffd79a]/80">
-                      Ã— {count} orang = {currency.format(totalRounded)}
+                      × {count} orang = {currency.format(totalRounded)}
                       {extraOverpay > 0 && ` (lebih ${currency.format(extraOverpay)})`}
                     </p>
                   </div>
@@ -8216,7 +9401,7 @@ export function PosView({
                   {fullscreenStarted ? "Layar keluar fullscreen" : "Kunci fullscreen POS"}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-[#d6d6dc]">
-                  Fullscreen menjaga layar kasir tetap fokus saat transaksi berjalan.
+                  Mode layar penuh menjaga layar kasir tetap fokus saat transaksi berjalan.
                   Cetak struk dilakukan manual setelah pembayaran selesai.
                 </p>
               </div>
@@ -8224,7 +9409,7 @@ export function PosView({
             {fullscreenError && (
               <Alert className="mt-4 border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                 <AlertTriangle className="size-4" />
-                <AlertTitle>Fullscreen gagal</AlertTitle>
+                <AlertTitle>Layar penuh gagal</AlertTitle>
                 <AlertDescription>{fullscreenError}</AlertDescription>
               </Alert>
             )}
@@ -8252,7 +9437,7 @@ export function PosView({
                 <LockKeyhole className="size-5" />
               </div>
               <div>
-                <h2 className="garage-display garage-chrome text-2xl">Kasir locked</h2>
+                <h2 className="garage-display garage-chrome text-2xl">Kasir terkunci</h2>
                 <p className="mt-1 text-sm leading-6 text-[#d6d6dc]">
                   Masukkan PIN lock POS untuk membuka kasir.
                 </p>
@@ -8286,7 +9471,7 @@ export function PosView({
               {lockError && (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                   <AlertTriangle className="size-4" />
-                  <AlertTitle>Unlock gagal</AlertTitle>
+                  <AlertTitle>Buka kunci gagal</AlertTitle>
                   <AlertDescription>{lockError}</AlertDescription>
                 </Alert>
               )}
@@ -8609,8 +9794,8 @@ export function PosView({
                     </button>
                     <button
                       type="button"
-                      title={hasPhoto ? "Ganti foto menu" : "Upload foto menu"}
-                      aria-label={`Upload foto ${item.name}`}
+                      title={hasPhoto ? "Ganti foto menu" : "Unggah foto menu"}
+                      aria-label={`Unggah foto ${item.name}`}
                       disabled={menuPhotoUploadingId === item.id}
                       onClick={() => openMenuPhotoPicker(item.id)}
                       className={`garage-press flex size-9 shrink-0 items-center justify-center rounded-md border transition disabled:opacity-60 ${
@@ -8680,7 +9865,7 @@ export function PosView({
             <DialogTitle>Riwayat Struk Shift</DialogTitle>
             <DialogDescription>
               {receiptHistory.length} struk terakhir dari device ini. Untuk
-              riwayat penjualan lengkap, gunakan menu History Penjualan.
+              riwayat penjualan lengkap, gunakan menu Riwayat Penjualan.
             </DialogDescription>
           </DialogHeader>
           {reprintStatus === "error" && reprintError ? (
@@ -8734,45 +9919,21 @@ export function PosView({
                           Terkirim ke printer
                         </span>
                       ) : null}
-                      {canVoidOrder ? (
+                      {canCancelOrder ? (
                         <Button
                           type="button"
                           variant="outline"
                           className="garage-press h-9 border-[#d11a2a]/45 bg-[#d11a2a]/14 px-3 text-xs text-[#ffe1e5] hover:bg-[#d11a2a]/22"
-                          onClick={() => void voidReceiptOrder(receipt)}
-                          disabled={voidingReceiptId === receipt.invoiceNo}
+                          onClick={() =>
+                            setCancelTarget({
+                              orderNo: receipt.orderNo,
+                              tableLabel: receipt.tableLabel,
+                              total: receipt.total,
+                            })
+                          }
                         >
-                          {voidingReceiptId === receipt.invoiceNo ? (
-                            <>
-                              <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
-                              Void...
-                            </>
-                          ) : (
-                            <>
-                              <Ban className="mr-1.5 size-3.5" />
-                              Void
-                            </>
-                          )}
-                        </Button>
-                      ) : canRequestVoidApproval ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="garage-press h-9 border-[#f5a742]/45 bg-[#f5a742]/14 px-3 text-xs text-[#ffd79a] hover:bg-[#f5a742]/22"
-                          onClick={() => void requestVoidReceiptApproval(receipt)}
-                          disabled={voidingReceiptId === receipt.invoiceNo}
-                        >
-                          {voidingReceiptId === receipt.invoiceNo ? (
-                            <>
-                              <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
-                              Mengajukan...
-                            </>
-                          ) : (
-                            <>
-                              <ShieldAlert className="mr-1.5 size-3.5" />
-                              Minta Void
-                            </>
-                          )}
+                          <Ban className="mr-1.5 size-3.5" />
+                          Batal / Refund
                         </Button>
                       ) : null}
                       <Button
@@ -8821,6 +9982,34 @@ export function PosView({
           </div>
         </DialogContent>
       </Dialog>
+
+      <PosOrderCancelDialog
+        target={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onFinished={handleCancelFinished}
+      />
+
+      <PosCartSplitDialog
+        open={cartSplitOpen}
+        lines={cartSplitLines}
+        orderType={orderType}
+        tableNumber={selectedTableNumber || undefined}
+        tableLabel={tableLabel}
+        settings={settings}
+        qrisReady={qrisImageReady}
+        blockedReason={cartSplitBlockedReason}
+        onGuestPaid={handleSplitGuestPaid}
+        onClose={(paid, assignment) => void handleSplitClose(paid, assignment)}
+        onPrintReceipt={(receipt) => void reprintReceipt(receipt)}
+      />
+
+      <PosTableBillSplitDialog
+        bill={tableSplitBill}
+        tableLabel={tableDetail?.tableLabel ?? ""}
+        roundingMode={settings.roundingMode}
+        onClose={() => setTableSplitBill(null)}
+        onSplit={(result) => void handleTableBillSplit(result)}
+      />
 
       {/* Dialog: Catat Pengeluaran (kasbon kasir) */}
       <Dialog
@@ -8926,7 +10115,7 @@ export function PosView({
                       }`}
                       onClick={() => setExpensePaymentMethod(method)}
                     >
-                      {method}
+                      {paymentMethodLabel(method)}
                     </Button>
                   ))}
                 </div>
@@ -8949,7 +10138,7 @@ export function PosView({
             {Number(expenseAmount) >= 1_000_000 ? (
               <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
                 <AlertTriangle className="size-4" />
-                <AlertTitle>Butuh approval manager</AlertTitle>
+                <AlertTitle>Butuh persetujuan Manajer</AlertTitle>
                 <AlertDescription>
                   Pengeluaran â‰¥ Rp 1.000.000 otomatis masuk antrian approval
                   sebelum tercatat permanen.
@@ -9011,7 +10200,7 @@ export function PosView({
           className="flex max-h-[92svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] sm:max-w-3xl"
         >
           <DialogHeader>
-            <DialogTitle>Quick Count Stok</DialogTitle>
+            <DialogTitle>Hitung Cepat Stok</DialogTitle>
             <DialogDescription>
               Hitung cepat stok fisik dari POS. Input qty fisik per item; sistem
               hitung selisih & log movement saat submit.
@@ -9032,7 +10221,7 @@ export function PosView({
                 ) : (
                   <Check className="size-4" />
                 )}
-                <AlertTitle>Quick count selesai</AlertTitle>
+                <AlertTitle>Hitung cepat selesai</AlertTitle>
                 <AlertDescription>
                   {quickCountResult.success} item berhasil diupdate
                   {quickCountResult.failed > 0
@@ -9175,7 +10364,7 @@ export function PosView({
               {quickCountError ? (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                   <AlertTriangle className="size-4" />
-                  <AlertTitle>Quick count</AlertTitle>
+                  <AlertTitle>Hitung cepat</AlertTitle>
                   <AlertDescription>{quickCountError}</AlertDescription>
                 </Alert>
               ) : null}
@@ -9220,7 +10409,7 @@ export function PosView({
                     ) : (
                       <>
                         <Check className="mr-2 size-4" />
-                        Submit
+                        Simpan
                       </>
                     )}
                   </Button>
@@ -9238,7 +10427,7 @@ function PaymentWizardProgress({ step }: { step: PaymentStep }) {
   const steps: Array<{ id: PaymentStep; label: string; shortLabel: string }> = [
     { id: "summary", label: "Ringkasan", shortLabel: "Ringkas" },
     { id: "table", label: "Meja", shortLabel: "Meja" },
-    { id: "customer", label: "Customer", shortLabel: "Cust." },
+    { id: "customer", label: "Pelanggan", shortLabel: "Plg." },
     { id: "payment", label: "Pembayaran", shortLabel: "Bayar" },
     { id: "done", label: "Selesai", shortLabel: "Selesai" },
   ];
@@ -9278,6 +10467,7 @@ function CheckoutSummaryCard({
   tax,
   serviceChargePct,
   taxPct,
+  roundingAdjustment,
   voucher,
   manualDiscount,
   totalDue,
@@ -9289,6 +10479,7 @@ function CheckoutSummaryCard({
   tax: number;
   serviceChargePct: number;
   taxPct: number;
+  roundingAdjustment: number;
   voucher: number;
   manualDiscount: { amount: number; reason: string } | null;
   totalDue: number;
@@ -9303,7 +10494,7 @@ function CheckoutSummaryCard({
           <h3 className="mt-1 text-xl font-black text-white">{cartItemCount} item</h3>
         </div>
         <div className="text-right">
-          <p className="garage-mono text-[10px] text-[#b8b8bf]">Total due</p>
+          <p className="garage-mono text-[10px] text-[#b8b8bf]">Total bayar</p>
           <p className="text-xl font-black text-[#ffd08a]">{currency.format(totalDue)}</p>
         </div>
       </div>
@@ -9327,8 +10518,16 @@ function CheckoutSummaryCard({
       </div>
       <div className="mt-3 grid gap-1 border-t border-[#34343c] pt-3 text-sm sm:grid-cols-2">
         <BillRow label="Subtotal" value={currency.format(subtotal)} />
-        <BillRow label={`Service ${serviceChargePct}%`} value={currency.format(service)} />
-        <BillRow label={`PB1 ${taxPct}%`} value={currency.format(tax)} />
+        {service > 0 ? (
+          <BillRow label={`Service ${serviceChargePct}%`} value={currency.format(service)} />
+        ) : null}
+        {tax > 0 ? <BillRow label={`PB1 ${taxPct}%`} value={currency.format(tax)} /> : null}
+        {roundingAdjustment !== 0 ? (
+          <BillRow
+            label="Pembulatan"
+            value={`${roundingAdjustment > 0 ? "+" : "-"} ${currency.format(Math.abs(roundingAdjustment))}`}
+          />
+        ) : null}
         {voucher > 0 ? (
           <BillRow label="Voucher" value={`- ${currency.format(voucher)}`} accent />
         ) : null}
@@ -9557,7 +10756,7 @@ function TableSessionInfoCard({
 
   // Active session â€” INI inti fitur Add Order
   if (hasActiveOrder) {
-    const customerName = row.customerName?.trim() || "Guest";
+    const customerName = row.customerName?.trim() || "Tamu";
     const customerPhone = row.customerPhone?.trim();
     const kitchenStatus = row.kitchenStatus?.replace(/_/g, " ");
     const totalLabel = row.total > 0 ? currency.format(row.total) : "-";
@@ -9597,13 +10796,13 @@ function TableSessionInfoCard({
           </p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <div>
-              <p className="text-[10px] text-[#8f8f99]">Order No</p>
+              <p className="text-[10px] text-[#8f8f99]">No. Order</p>
               <p className="garage-mono text-sm font-semibold text-white">
                 {row.orderNo ?? "-"}
               </p>
             </div>
             <div>
-              <p className="text-[10px] text-[#8f8f99]">Customer</p>
+              <p className="text-[10px] text-[#8f8f99]">Pelanggan</p>
               <p className="text-sm font-semibold text-white">{customerName}</p>
               {customerPhone && (
                 <p className="font-mono text-[10px] text-[#8f8f99]">{customerPhone}</p>
@@ -9712,7 +10911,7 @@ function CheckoutCustomerStep({
           }`}
           onClick={() => onModeChange("guest")}
         >
-          Guest Customer
+          Tamu (non-member)
         </Button>
         <Button
           type="button"
@@ -9729,16 +10928,18 @@ function CheckoutCustomerStep({
       {mode === "guest" ? (
         <div className="rounded-md border border-[#34343c] bg-[#18181f] p-3">
           <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
-            Guest customer
+            Tamu (non-member)
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
-              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">Nama opsional</p>
+              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+                Nama (tampil di tiket produksi & antar)
+              </p>
               <Input
                 value={guestName}
                 onChange={(event) => onGuestNameChange(event.target.value)}
                 className="h-11 border-[#34343c] bg-white/[0.06]"
-                placeholder="Nama customer"
+                placeholder="Nama pelanggan"
               />
             </div>
             <div>
@@ -9789,13 +10990,13 @@ function CheckoutCustomerStep({
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Points</p>
+                  <p className="garage-mono text-[9px] text-[#8f8f99]">Poin</p>
                   <p className="text-xs font-semibold text-white">
                     {selectedMember.member.totalPoints}
                   </p>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Multiplier</p>
+                  <p className="garage-mono text-[9px] text-[#8f8f99]">Pengali</p>
                   <p className="text-xs font-semibold text-white">
                     x{selectedMember.member.multiplier}
                   </p>
@@ -9999,7 +11200,7 @@ function CashPaymentPanel({
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Banknote className="size-4 text-[#f5a742]" />
-          <p className="garage-mono text-[12px] tracking-wide">UANG DITERIMA DARI CUSTOMER</p>
+          <p className="garage-mono text-[12px] tracking-wide">UANG DITERIMA DARI PELANGGAN</p>
         </div>
         <span className="garage-mono text-[11px] text-[#b8b8bf]">
           Total Tagihan {currency.format(totalDue)}
@@ -10065,7 +11266,7 @@ function CashPaymentPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="garage-mono text-[12px] tracking-wide text-[#d6d6dc]">
-              {cashPaymentReady ? "KEMBALIAN UNTUK CUSTOMER" : "UANG MASIH KURANG"}
+              {cashPaymentReady ? "KEMBALIAN UNTUK PELANGGAN" : "UANG MASIH KURANG"}
             </p>
             <p
               className={`garage-display mt-1 text-4xl font-bold leading-none ${
@@ -10092,7 +11293,7 @@ function CashPaymentPanel({
             value={currency.format(cashReceivedValue)}
           />
           <BillRow
-            label={cashPaymentReady ? "Kembalian customer" : "Sisa kurang"}
+            label={cashPaymentReady ? "Kembalian pelanggan" : "Sisa kurang"}
             value={currency.format(cashPaymentReady ? cashChange : cashShortage)}
             accent
           />
@@ -10197,7 +11398,7 @@ function BankTransferPaymentPanel({
     <div className="garage-surface rounded-md p-3">
       <div className="flex items-center gap-2">
         <Landmark className="size-4 text-[#f5a742]" />
-        <p className="garage-mono">Bank transfer</p>
+        <p className="garage-mono">Transfer bank</p>
       </div>
       <Select value={selectedProvider} onValueChange={onProviderChange}>
         <SelectTrigger className="mt-3 h-10 w-full border-[#34343c] bg-white/[0.06]">
@@ -10449,10 +11650,15 @@ function PaymentCompletePanel({
       )}
 
       {printStatus === "error" && (
-        <div className="flex items-center gap-2 rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/12 p-3">
-          <X className="size-4 text-[#ffc2c8]" />
-          <span className="flex-1 text-sm text-[#ffc2c8]">{printError}</span>
-          <button onClick={handlePrint} className="text-xs text-[#f5a742] underline">Coba lagi</button>
+        <div className="flex items-start gap-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 p-3">
+          <Printer className="mt-0.5 size-4 shrink-0 text-[#f5a742]" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#ffd79a]">
+              Pembayaran sukses — hanya cetak struk yang gagal.
+            </p>
+            <p className="mt-0.5 text-xs text-[#e6c58f]">{printError}</p>
+          </div>
+          <button onClick={handlePrint} className="shrink-0 text-xs text-[#f5a742] underline">Coba lagi</button>
         </div>
       )}
 
@@ -10542,7 +11748,7 @@ function PaymentCompletePanel({
             ) : (
               <>
                 <Copy className="size-4" />
-                Copy Link Invoice
+                Salin Link Invoice
               </>
             )}
           </Button>
@@ -10668,12 +11874,14 @@ function ReceiptPreviewCard({ receipt }: { receipt: OrderReceipt }) {
       </div>
       <div className="mt-4 rounded-md border border-[#4a4a54] bg-[#0f0f14] p-3">
         <BillRow label="Subtotal" value={currency.format(receipt.subtotal)} />
-        <BillRow label={serviceLabel} value={currency.format(receipt.service)} />
+        {receipt.service > 0 ? (
+          <BillRow label={serviceLabel} value={currency.format(receipt.service)} />
+        ) : null}
         {receipt.tax > 0 ? (
           <BillRow label={taxLabel} value={currency.format(receipt.tax)} />
         ) : null}
         {receipt.discount > 0 ? (
-          <BillRow label="Discount" value={`- ${currency.format(receipt.discount)}`} />
+          <BillRow label="Diskon" value={`- ${currency.format(receipt.discount)}`} />
         ) : null}
         <BillRow label="Total" value={currency.format(receipt.total)} large accent />
       </div>
@@ -10745,12 +11953,12 @@ function PrintableReceipt({ receipt }: { receipt: OrderReceipt }) {
       </div>
       <div className="garage-print-totals">
         <ReceiptPrintRow label="Subtotal" value={receipt.subtotal} />
-        <ReceiptPrintRow label={serviceLabel} value={receipt.service} />
+        {receipt.service > 0 ? <ReceiptPrintRow label={serviceLabel} value={receipt.service} /> : null}
         {receipt.tax > 0 ? (
           <ReceiptPrintRow label={taxLabel} value={receipt.tax} />
         ) : null}
         {receipt.discount > 0 ? (
-          <ReceiptPrintRow label="Discount" value={-receipt.discount} />
+          <ReceiptPrintRow label="Diskon" value={-receipt.discount} />
         ) : null}
         <ReceiptPrintRow label="Total" value={receipt.total} strong />
         {receipt.payment.cashReceived !== null && (

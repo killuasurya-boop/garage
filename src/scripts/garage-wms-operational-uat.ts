@@ -16,8 +16,9 @@ const baseUrl = (process.env.UAT_BASE_URL ?? process.env.SMOKE_BASE_URL ?? "http
   /\/+$/,
   "",
 );
-const gudangEmail = process.env.UAT_GUDANG_EMAIL ?? "gudang@garage.local";
-const managerEmail = process.env.UAT_MANAGER_EMAIL ?? "manager@garage.local";
+// Gudang bukan role terpisah lagi — Kasir sekarang pegang tugas warehouse.
+const gudangEmail = process.env.UAT_GUDANG_EMAIL ?? "kasir@garage.id";
+const managerEmail = process.env.UAT_MANAGER_EMAIL ?? "manajer@garage.id";
 const sharedPassword = process.env.UAT_PASSWORD ?? process.env.GARAGE_SEED_PASSWORD ?? "garage12345";
 
 class CookieJar {

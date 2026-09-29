@@ -7,8 +7,6 @@ import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-const OWNER_ROLES = ["Owner / CEO", "Admin", "Finance / CFO"] as const;
-
 const schema = z.object({
   dailyWage: z.number().int().min(0).max(10_000_000),
   overtimeHourly: z.number().int().min(0).max(1_000_000).optional(),
@@ -21,7 +19,8 @@ interface Ctx {
 }
 
 export async function PATCH(request: Request, { params }: Ctx) {
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  // Gaji = wewenang Owner.
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
 
   const { id } = await params;

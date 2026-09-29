@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 interface PayoutRow {
@@ -44,24 +45,8 @@ export function PayoutRequestsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const approve = async (id: string) => {
-    const note = window.prompt("Catatan (opsional)") ?? "";
-    try {
-      const res = await fetch(`/api/payroll/payout-approve/${id}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ note }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? "Gagal approve");
-      void refresh();
-    } catch (err) {
-      alert((err as Error).message);
-    }
-  };
-
   const reject = async (id: string) => {
-    const reason = window.prompt("Alasan tolak (wajib min 3 char)");
+    const reason = window.prompt("Alasan menutup permintaan (min. 3 huruf)", "Dibayar lewat Gajian");
     if (!reason || reason.length < 3) return;
     try {
       const res = await fetch(`/api/payroll/payout-reject/${id}`, {
@@ -79,7 +64,15 @@ export function PayoutRequestsPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
+      <div role="status" className="rounded-xl border border-[var(--garage-amber)] bg-[var(--garage-bg-3)] px-4 py-3 text-base text-[var(--garage-fg)]">
+        Alur payout lama <strong>sudah ditutup</strong> — menyetujuinya bisa membuat gaji terbayar dua kali. Bayar gaji
+        &amp; fee lewat{" "}
+        <Link href="/owner/payroll/pay" className="font-semibold text-[var(--garage-amber)] underline">
+          Gajian &amp; Kasbon
+        </Link>
+        , lalu tutup permintaan lama di bawah dengan tombol <strong>Tutup</strong>.
+      </div>
+      <div className="flex flex-wrap gap-2">
         {(["pending", "approved", "rejected", "paid"] as const).map((s) => (
           <button
             key={s}
@@ -133,20 +126,13 @@ export function PayoutRequestsPanel() {
                   )}
                 </div>
                 {status === "pending" && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => approve(r.id)}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => reject(r.id)}
-                      className="px-3 py-1.5 rounded-lg bg-[var(--garage-red)] text-white text-sm"
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => reject(r.id)}
+                    className="min-h-11 shrink-0 cursor-pointer rounded-lg border border-[var(--garage-line-2)] px-3 text-sm font-semibold text-[var(--garage-fg)] hover:border-[var(--garage-red-bright)]"
+                  >
+                    Tutup
+                  </button>
                 )}
               </div>
             </li>

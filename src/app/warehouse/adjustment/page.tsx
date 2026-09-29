@@ -88,7 +88,7 @@ export default function WmsAdjustmentPage() {
             </select>
             <input value={delta} onChange={(e) => setDelta(e.target.value)} inputMode="decimal" placeholder="Delta (mis. -50 atau +20)" className={input} />
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (rusak, hilang, dll)" className={input} />
-            <p className="text-[11px] text-[#9AA0A6]">Alasan wajib diisi (min 3 karakter) — hanya Owner/Admin/Manager.</p>
+            <p className="text-[11px] text-[#9AA0A6]">Alasan wajib diisi (min 3 karakter) — hanya Owner/Manajer.</p>
             {msg && <p className="text-[12.5px] font-semibold text-[#16A34A]">{msg}</p>}
             <button type="button" disabled={!productId || !Number(delta) || note.trim().length < 3 || busy} onClick={() => void submit()} className="w-full rounded-lg bg-[#C8102E] py-2.5 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
               Simpan Koreksi

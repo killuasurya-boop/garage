@@ -214,8 +214,8 @@ function eventLabel(event: EarningRow["event"]) {
 
 const feeRules = [
   { role: "Kasir", trigger: "Approve / paid order", fee: 200 },
-  { role: "Dapur Pool", trigger: "Ready makanan: Koki 200 + Asisten 200", fee: 400 },
-  { role: "Barista", trigger: "Approve / ready minuman", fee: 200 },
+  { role: "Kasir", trigger: "Ready makanan (KDS dapur)", fee: 200 },
+  { role: "Kasir", trigger: "Ready minuman (KDS bar)", fee: 200 },
   { role: "Waiter", trigger: "Pesanan selesai / delivered", fee: 100 },
 ];
 
@@ -239,7 +239,7 @@ export function EarningsView({ role }: { role: Role }) {
   const [actionPending, setActionPending] = useState<string | null>(null);
   const [adjustAmounts, setAdjustAmounts] = useState<Record<string, string>>({});
   const canManage = canUseApi(role, "earnings:manage");
-  const canOwnerAdjust = role === "Owner / CEO";
+  const canOwnerAdjust = role === "Owner";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -371,24 +371,6 @@ export function EarningsView({ role }: { role: Role }) {
     return data.summary.totalAccrued;
   }, [data]);
 
-  const kitchenPool = useMemo(() => {
-    const kitchenRoles = new Set(["Koki", "Asisten Koki"]);
-    const rows = staffBalances.filter((staff) => kitchenRoles.has(staff.role));
-    const currentCycleAccrued = rows.reduce(
-      (total, staff) => total + staff.currentCycleAccrued,
-      0,
-    );
-    const availableBalance = rows.reduce((total, staff) => total + staff.availableBalance, 0);
-    const lockedBalance = rows.reduce((total, staff) => total + staff.lockedBalance, 0);
-    return {
-      staffCount: rows.length,
-      itemCount: Math.floor(currentCycleAccrued / 400),
-      currentCycleAccrued,
-      availableBalance,
-      lockedBalance,
-    };
-  }, [staffBalances]);
-
   return (
     <section className="space-y-4 px-2 sm:px-3 lg:px-4">
       {/* Header */}
@@ -399,8 +381,8 @@ export function EarningsView({ role }: { role: Role }) {
           </p>
           <h1 className="mt-1 text-xl font-black text-white sm:text-2xl">Saldo &amp; Payout</h1>
           <p className="mt-1 text-xs text-[#b8b8bf]">
-            Kasir Rp 200/item · Makanan ready Rp 400/item dibagi rata: Koki Rp 200 +
-            Asisten Koki Rp 200 · Barista Rp 200/item · Waiter pesanan selesai Rp 100/item.
+            Kasir: order dibayar Rp 200/item, makanan ready Rp 200/item, minuman ready
+            Rp 200/item · Waiter pesanan selesai Rp 100/item.
             Saldo hanya bisa ditarik setelah 5 bulan kerja.
           </p>
         </div>
@@ -581,39 +563,6 @@ export function EarningsView({ role }: { role: Role }) {
                       ? ` ${autoPayout.skippedActive} staff sudah punya payout aktif.`
                       : ""}
                   </p>
-                </div>
-              )}
-              {kitchenPool.currentCycleAccrued > 0 && (
-                <div className="mt-3 grid gap-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 p-3 sm:grid-cols-4">
-                  <div className="sm:col-span-2">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#ffd79a]">
-                      Total Budget Dapur
-                    </p>
-                    <p className="mt-1 text-xs text-[#d6d6dc]">
-                      Makanan dihitung Rp 400/item, otomatis dibagi Koki Rp 200 +
-                      Asisten Koki Rp 200.
-                    </p>
-                  </div>
-                  <div className="rounded-md border border-[#34343c] bg-black/20 p-2 text-right">
-                    <p className="font-mono text-[10px] uppercase text-[#8f8f99]">Cycle</p>
-                    <p className="font-mono text-lg font-black text-[#ffd79a]">
-                      {rupiah.format(kitchenPool.currentCycleAccrued)}
-                    </p>
-                    <p className="font-mono text-[10px] text-[#b8b8bf]">
-                      {kitchenPool.itemCount} item x Rp 400
-                    </p>
-                  </div>
-                  <div className="rounded-md border border-[#34343c] bg-black/20 p-2 text-right">
-                    <p className="font-mono text-[10px] uppercase text-[#8f8f99]">
-                      Split penerima
-                    </p>
-                    <p className="font-mono text-lg font-black text-white">
-                      {kitchenPool.staffCount}/2
-                    </p>
-                    <p className="font-mono text-[10px] text-[#b8b8bf]">
-                      Koki + Asisten Koki
-                    </p>
-                  </div>
                 </div>
               )}
               <div className="mt-3 overflow-x-auto">

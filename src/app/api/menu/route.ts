@@ -18,6 +18,9 @@ const menuProductSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional(),
   promoActive: z.boolean().optional(),
   promoPrice: z.number().int().min(0).max(50_000_000).nullable().optional(),
+  // Production Hub: routing station (null = otomatis dari kategori) & Smart Batch.
+  station: z.enum(["bar", "dapur"]).nullable().optional(),
+  batchEligible: z.boolean().optional(),
   variants: z
     .array(
       z.object({
@@ -54,10 +57,10 @@ export async function GET(request: Request) {
   const includeArchived = url.searchParams.get("includeArchived") === "1";
   if (
     includeArchived &&
-    session.data.profile.role !== "Owner / CEO" &&
-    session.data.profile.role !== "Admin"
+    session.data.profile.role !== "Owner" &&
+    session.data.profile.role !== "Manajer"
   ) {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Admin yang boleh melihat produk arsip.");
+    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer yang boleh melihat produk arsip.");
   }
 
   return ok(
@@ -71,7 +74,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

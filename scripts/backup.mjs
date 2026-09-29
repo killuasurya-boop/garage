@@ -18,9 +18,8 @@
 //   pg_restore --dbname="$DATABASE_URL" --clean --if-exists --no-owner backup.dump
 
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 
 const BACKUP_DIR = process.env.GARAGE_BACKUP_DIR ?? "./backups";
@@ -137,57 +136,68 @@ async function runSqlFallbackBackup(outputPath) {
   }
 }
 
-async function runPgliteSqlBackup(outputPath) {
-  const client = new PGlite(resolve(".garage-db"));
-  await client.waitReady;
+// Backup PGlite = salinan folder data (point-in-time snapshot). PGlite embedded
+// hanya boleh dibuka 1 proses, jadi kita TIDAK membuka DB kedua (akan bentrok
+// dengan server yang jalan) — cukup copy direktori datanya. Aman walau server
+// hidup; ideal dijalankan setelah tutup toko. Restore: stop app, ganti isi
+// folder data dengan salinan ini.
+async function runPgliteDirBackup(backupDir, stamp) {
+  const src =
+    process.env.PGLITE_DATA_DIR?.trim() || resolve(".pglite-data");
   try {
-    const tableResult = await client.query(`
-      SELECT table_schema, table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-        AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `);
-
-    const chunks = [
-      "-- GARAGE PGlite SQL backup",
-      `-- Generated: ${new Date().toISOString()}`,
-      "-- Restore into PostgreSQL/PGlite with psql-compatible tooling.",
-      "BEGIN;",
-      "",
-    ];
-
-    for (const table of tableResult.rows) {
-      const qualified = `${quoteIdent(table.table_schema)}.${quoteIdent(table.table_name)}`;
-      const columnsResult = await client.query(
-        `
-          SELECT column_name
-          FROM information_schema.columns
-          WHERE table_schema = $1 AND table_name = $2
-          ORDER BY ordinal_position
-        `,
-        [table.table_schema, table.table_name],
-      );
-      const columns = columnsResult.rows.map((row) => row.column_name);
-      if (!columns.length) continue;
-
-      const rows = await client.query(`SELECT * FROM ${qualified}`);
-      chunks.push(`-- ${qualified}: ${rows.rows.length} row(s)`);
-      chunks.push(`TRUNCATE TABLE ${qualified} RESTART IDENTITY CASCADE;`);
-      for (const row of rows.rows) {
-        const columnSql = columns.map(quoteIdent).join(", ");
-        const valueSql = columns.map((column) => sqlLiteral(row[column])).join(", ");
-        chunks.push(`INSERT INTO ${qualified} (${columnSql}) VALUES (${valueSql});`);
-      }
-      chunks.push("");
-    }
-
-    chunks.push("COMMIT;");
-    chunks.push("");
-    await writeFile(outputPath, chunks.join("\n"), "utf8");
-  } finally {
-    await client.close();
+    await stat(src);
+  } catch {
+    throw new Error(`Folder data PGlite tidak ditemukan: ${src}`);
   }
+  const dest = join(backupDir, `garage-${stamp}-pglite`);
+  await cp(src, dest, { recursive: true });
+
+  let size = 0;
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else size += (await stat(full)).size;
+    }
+  };
+  await walk(dest);
+  return { dest, size };
+}
+
+// Verifikasi salinan: buka dengan PGlite (di folder salinan, BUKAN folder asli)
+// lalu query kecil. Riwayat .pglite-data pernah korup — backup yang tidak bisa
+// dibuka tidak boleh dianggap aman.
+async function verifyPgliteCopy(dest) {
+  await rm(join(dest, "postmaster.pid"), { force: true });
+  const { PGlite } = await import("@electric-sql/pglite");
+  const db = new PGlite(dest);
+  try {
+    const result = await db.query('select count(*)::int as n from "user"');
+    return Number(result.rows?.[0]?.n ?? 0);
+  } finally {
+    await db.close();
+    await rm(join(dest, "postmaster.pid"), { force: true });
+  }
+}
+
+// Prune folder backup PGlite lama (garage-*-pglite) berdasarkan umur.
+async function cleanupOldPgliteDirs(dir) {
+  const cutoff = Date.now() - RETAIN_DAYS * 24 * 60 * 60 * 1000;
+  let deleted = 0;
+  try {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/-pglite$/.test(entry.name)) continue;
+      const full = join(dir, entry.name);
+      const stats = await stat(full);
+      if (stats.mtimeMs < cutoff) {
+        await rm(full, { recursive: true, force: true });
+        deleted += 1;
+      }
+    }
+  } catch (err) {
+    console.warn(`[backup] Cleanup PGlite dirs failed: ${err.message}`);
+  }
+  return deleted;
 }
 
 async function cleanupOld(dir) {
@@ -264,22 +274,40 @@ async function main() {
   console.log(`[backup] Starting → ${fullPath}`);
 
   if (GARAGE_DB_DRIVER === "pglite" || GARAGE_DB_DRIVER === "local" || !DATABASE_URL) {
-    const fallbackPath = fullPath.replace(/\.dump$/i, ".sql");
-    await runPgliteSqlBackup(fallbackPath);
-    const fallbackStats = await stat(fallbackPath);
-    console.log(`[backup] OK — ${(fallbackStats.size / 1024 / 1024).toFixed(2)} MB PGlite SQL`);
-    const offsiteCopy = await copyToOffsite(fallbackPath);
-    const deleted = await cleanupOld(dir);
+    const stamp = nowStamp();
+    const { dest, size } = await runPgliteDirBackup(dir, stamp);
+    console.log(`[backup] Salinan ${(size / 1024 / 1024).toFixed(2)} MB → ${dest}`);
+    let userCount = 0;
+    try {
+      userCount = await verifyPgliteCopy(dest);
+    } catch (err) {
+      const failed = `${dest}-GAGAL-VERIFIKASI`;
+      await cp(dest, failed, { recursive: true });
+      await rm(dest, { recursive: true, force: true });
+      console.error(`[backup] GAGAL VERIFIKASI: salinan tidak bisa dibuka (${err.message}). Disimpan sebagai ${failed}`);
+      process.exit(3);
+    }
+    console.log(`[backup] OK — salinan terverifikasi (${userCount} akun terbaca).`);
+    let offsiteCopy = null;
+    let offsitePruned = 0;
+    const offsiteDir = process.env.GARAGE_BACKUP_OFFSITE_DIR?.trim();
+    if (offsiteDir) {
+      const destOff = join(resolve(offsiteDir), `garage-${stamp}-pglite`);
+      await cp(dest, destOff, { recursive: true });
+      offsiteCopy = destOff;
+      console.log(`[backup] Offsite copy → ${destOff}`);
+      offsitePruned = await cleanupOldPgliteDirs(resolve(offsiteDir));
+    }
+    const deleted = (await cleanupOldPgliteDirs(dir)) + offsitePruned;
     console.log(
       JSON.stringify({
         ok: true,
-        file: fallbackPath,
-        sizeBytes: fallbackStats.size,
-        s3Key: null,
+        dir: dest,
+        sizeBytes: size,
         offsiteCopy,
         retainDays: RETAIN_DAYS,
         pruned: deleted,
-        fallback: "pglite-sql",
+        mode: "pglite-dir-copy",
         durationMs: Date.now() - startedAt,
       }),
     );

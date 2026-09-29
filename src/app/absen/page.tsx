@@ -5,7 +5,7 @@ import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
 
 export const metadata: Metadata = {
   title: "Absensi | Garage OS",
-  description: "Terminal absensi karyawan Garage OS (PIN + Selfie + GPS).",
+  description: "Absensi karyawan Garage OS: kode karyawan + PIN + Selfie + GPS.",
 };
 
 // Satu route absen kanonis (NAV_ACTION_AUDIT §1.3/§1.8). Menyesuaikan sistem yang
@@ -20,7 +20,7 @@ export default function AbsenPage() {
           <h1 className="text-2xl font-bold text-[var(--garage-fg)] tracking-wide">
             GARAGE OS
           </h1>
-          <p className="text-xs text-[var(--garage-mute)] uppercase tracking-widest mt-1">
+          <p className="text-sm text-[var(--garage-dim)] uppercase tracking-widest mt-1">
             Absensi Karyawan
           </p>
         </div>

@@ -303,7 +303,7 @@ export function GarageTrainingModule() {
                 <ClipboardCheck className="mx-auto size-8 text-zinc-600" />
                 <p className="mt-3 text-sm font-bold text-zinc-300">Checklist SOP belum tersedia untuk role ini.</p>
                 <p className="mt-1 text-xs text-zinc-500">
-                  Hubungi Admin/Owner untuk menambahkan SOP harian sesuai station kerja.
+                  Hubungi Manajer/Owner untuk menambahkan SOP harian sesuai station kerja.
                 </p>
               </div>
             ) : (

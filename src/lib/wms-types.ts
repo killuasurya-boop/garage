@@ -28,7 +28,11 @@ export type WmsProductRow = {
   category: string;
   unit: string;
   minStock: number;
-  hpp: number;
+  hpp: number; // HPP per satuan stok (Rp/ml, Rp/gr, Rp/pcs)
+  // Harga beli per kemasan & isi kemasan (dari katalog bahan). 0 = belum diisi.
+  packPrice: number;
+  packQty: number;
+  packageLabel: string | null; // mis. "botol 760 ml"
   onHand: number; // di warehouse aktif (atau total bila scope semua)
   status: StockStatus;
   imageUrl: string | null;

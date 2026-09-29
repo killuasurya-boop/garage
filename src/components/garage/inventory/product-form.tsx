@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { currency, type MenuCategory } from "@/lib/garage-data";
+import { currency, type MenuCategory, unitCostCurrency } from "@/lib/garage-data";
 import type { InventoryItem } from "@/lib/garage-api-types";
 import {
   Camera,
@@ -24,6 +24,7 @@ import {
 import {
   productVariantDraftId,
   recipeCostForVariantDraft,
+  variantDraftHasRecipe,
   type ProductRecipeDraft,
   type ProductVariantDraft,
 } from "@/components/garage/inventory/product-draft";
@@ -38,10 +39,13 @@ export interface ProductFormPanelProps {
   onPromoActiveChange: (value: boolean) => void;
   promoPrice: string;
   onPromoPriceChange: (value: string) => void;
+  // Production Hub: routing station ("" = otomatis dari kategori) & Smart Batch.
+  station: "" | "bar" | "dapur";
+  onStationChange: (value: "" | "bar" | "dapur") => void;
+  batchEligible: boolean;
+  onBatchEligibleChange: (value: boolean) => void;
   category: MenuCategory;
   onCategoryChange: (value: MenuCategory) => void;
-  section: string;
-  onSectionChange: (value: string) => void;
   prep: string;
   onPrepChange: (value: string) => void;
   stock: "ready" | "limited" | "sold_out";
@@ -91,10 +95,12 @@ export function ProductFormPanel({
   onPromoActiveChange,
   promoPrice,
   onPromoPriceChange,
+  station,
+  onStationChange,
+  batchEligible,
+  onBatchEligibleChange,
   category,
   onCategoryChange,
-  section,
-  onSectionChange,
   prep,
   onPrepChange,
   stock,
@@ -185,6 +191,39 @@ export function ProductFormPanel({
             </div>
           ) : null}
         </div>
+
+        {/* Production Hub: auto routing BAR/DAPUR + Smart Batch (BR-04, BR-14) */}
+        <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
+          <p className="text-sm font-bold text-white">Production Hub</p>
+          <p className="text-[11px] leading-4 text-[#a1a1aa]">
+            Station di bawah menentukan tiket masuk BAR atau DAPUR. Otomatis: Coffee &amp;
+            Non-Coffee ke BAR, Makanan &amp; Cemilan ke DAPUR.
+          </p>
+          <button
+            type="button"
+            onClick={() => onBatchEligibleChange(!batchEligible)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+            aria-pressed={batchEligible}
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#d4d4d8]">Boleh Smart Batch</p>
+              <p className="text-[11px] text-[#a1a1aa]">
+                Porsi produk sama dari beberapa order boleh dibuat sekaligus.
+              </p>
+            </div>
+            <span
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+                batchEligible ? "bg-[#d11a2a]" : "bg-[#34343c]"
+              }`}
+            >
+              <span
+                className={`inline-block size-4 transform rounded-full bg-white transition ${
+                  batchEligible ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </span>
+          </button>
+        </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
           <Input
             value={name}
@@ -206,13 +245,22 @@ export function ProductFormPanel({
               <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={section} onValueChange={onSectionChange}>
-            <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
+          {/* Station produksi (routing tiket Production Hub). */}
+          <Select
+            value={station || "auto"}
+            onValueChange={(value) =>
+              onStationChange(value === "bar" || value === "dapur" ? value : "")
+            }
+          >
+            <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]" aria-label="Station produksi">
               <SelectValue placeholder="Station" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Dapur">Dapur</SelectItem>
-              <SelectItem value="Bar">Bar</SelectItem>
+              <SelectItem value="auto">
+                Otomatis ({category === "Coffee" || category === "Non-Coffee" ? "Bar" : "Dapur"})
+              </SelectItem>
+              <SelectItem value="bar">Bar</SelectItem>
+              <SelectItem value="dapur">Dapur</SelectItem>
             </SelectContent>
           </Select>
           <Input
@@ -269,11 +317,8 @@ export function ProductFormPanel({
           {variants.map((variant, index) => {
             const variantId = productVariantDraftId(variant, index);
             const autoBaseCost = recipeCostForVariantDraft(recipes, inventoryItems, variantId);
-            const manualBaseCost = Number(variant.baseCost);
-            const costDiffPct =
-              autoBaseCost > 0 && Number.isFinite(manualBaseCost) && manualBaseCost > 0
-                ? Math.round((Math.abs(manualBaseCost - autoBaseCost) / autoBaseCost) * 100)
-                : 0;
+            // Varian ber-resep: HPP selalu dari bahan (server menghitung ulang live).
+            const hasRecipe = variantDraftHasRecipe(recipes, variantId);
             return (
               <div key={variant.key} className="space-y-1">
                 <div className="grid gap-2 sm:grid-cols-[1fr_150px_150px_42px]">
@@ -296,12 +341,15 @@ export function ProductFormPanel({
                   />
                   <Input
                     inputMode="numeric"
-                    value={variant.baseCost}
+                    value={hasRecipe ? String(autoBaseCost) : variant.baseCost}
                     onChange={(event) =>
                       onUpdateVariant(variant.key, "baseCost", event.target.value.replace(/[^\d]/g, ""))
                     }
-                    className="h-10 border-[#34343c] bg-white/[0.06]"
-                    placeholder={autoBaseCost ? `HPP auto ${autoBaseCost}` : "Harga dasar/HPP"}
+                    readOnly={hasRecipe}
+                    aria-readonly={hasRecipe}
+                    title={hasRecipe ? "HPP otomatis dari bahan baku resep" : undefined}
+                    className={`h-10 border-[#34343c] ${hasRecipe ? "cursor-not-allowed bg-black/30 text-[#bbf7d0]" : "bg-white/[0.06]"}`}
+                    placeholder="HPP (isi resep agar otomatis)"
                   />
                   <Button
                     type="button"
@@ -315,21 +363,9 @@ export function ProductFormPanel({
                   </Button>
                 </div>
                 <p className="text-[11px] text-[#a1a1aa]">
-                  HPP resep {currency.format(autoBaseCost)}
-                  {costDiffPct > 30 ? (
-                    <span className="ml-2 text-[#ffd08a]">
-                      Manual beda {costDiffPct}% dari resep.
-                    </span>
-                  ) : null}
-                  {autoBaseCost > 0 ? (
-                    <button
-                      type="button"
-                      className="ml-2 font-bold text-[#bbf7d0] underline-offset-2 hover:underline"
-                      onClick={() => onUpdateVariant(variant.key, "baseCost", String(autoBaseCost))}
-                    >
-                      Pakai HPP Auto
-                    </button>
-                  ) : null}
+                  {hasRecipe
+                    ? `HPP dari bahan baku resep ${currency.format(autoBaseCost)} — ikut berubah otomatis saat harga bahan berubah.`
+                    : "Belum ada resep — isi bahan baku di bawah agar HPP dihitung otomatis."}
                 </p>
               </div>
             );
@@ -428,7 +464,7 @@ export function ProductFormPanel({
                         <SelectItem value="__none">Pilih bahan</SelectItem>
                         {inventoryItems.map((item) => (
                           <SelectItem key={item.sku} value={item.sku}>
-                            {item.name} - stok {item.onHand} {item.unit} - HPP {currency.format(Number(item.unitCost ?? 0))}
+                            {item.name} - stok {item.onHand} {item.unit} - HPP {unitCostCurrency.format(Number(item.unitCost ?? 0))}/{item.unit}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -474,7 +510,7 @@ export function ProductFormPanel({
                         <span>
                           Stok {selectedItem.onHand} {selectedItem.unit}
                         </span>
-                        <span>Unit cost {currency.format(Number(selectedItem.unitCost ?? 0))}</span>
+                        <span>Unit cost {unitCostCurrency.format(Number(selectedItem.unitCost ?? 0))}/{selectedItem.unit}</span>
                         <span>Line HPP {currency.format(lineCost)}</span>
                         {Number(selectedItem.unitCost ?? 0) <= 0 && (
                           <span className="font-semibold text-[#ffd08a]">
@@ -574,7 +610,15 @@ export function ProductFormPanel({
                 {name.trim() || "Nama Produk"}
               </p>
               <p className="mt-1 text-xs text-[#d4d4d8]">
-                {category} · {section || "Station"} · {prep || "10m"}
+                {category} ·{" "}
+                {station === "bar"
+                  ? "Bar"
+                  : station === "dapur"
+                    ? "Dapur"
+                    : category === "Coffee" || category === "Non-Coffee"
+                      ? "Bar"
+                      : "Dapur"}{" "}
+                · {prep || "10m"}
               </p>
             </div>
           </div>
@@ -588,7 +632,7 @@ export function ProductFormPanel({
             <div className="rounded border border-[#34343c] bg-white/[0.04] p-2">
               <p className="text-[10px] font-bold uppercase text-[#8f8f99]">HPP</p>
               <p className="mt-1 text-xs font-black text-white">
-                {currency.format(Number(variants[0]?.baseCost || recipeCostPreview || 0))}
+                {currency.format(Number(recipeCostPreview || variants[0]?.baseCost || 0))}
               </p>
             </div>
             <div className="rounded border border-[#34343c] bg-white/[0.04] p-2">
@@ -610,7 +654,7 @@ export function ProductFormPanel({
           </div>
         </div>
         <div className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3 text-xs text-[#ffd08a]">
-          Produk aktif akan tampil di POS kasir dan QR Menu. HPP hanya terlihat Owner/Admin.
+          Produk aktif akan tampil di POS kasir dan QR Menu. HPP hanya terlihat Owner/Manajer.
         </div>
       </aside>
     </div>

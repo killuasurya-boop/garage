@@ -18,11 +18,11 @@ function lanDevOrigins(): string[] {
 }
 
 const nextConfig: NextConfig = {
-  // Standalone output bundles a minimal server (.next/standalone/server.js) plus
-  // only the node_modules actually used — kebutuhan untuk image Docker kecil di
-  // VPS. `next start` tidak dipakai di production container; kita jalankan
-  // `node server.js`.
-  output: "standalone",
+  // Standalone output HANYA untuk build Docker/VPS (set GARAGE_STANDALONE=true).
+  // Di PC kasir lokal (Windows) kita pakai `next build` + `next start`, dan
+  // standalone justru bikin (a) `next start` tidak kompatibel & (b) copy file
+  // tracing gagal karena path spasi / salah deteksi workspace root.
+  output: process.env.GARAGE_STANDALONE === "true" ? "standalone" : undefined,
   // pdfkit dibiarkan eksternal (jangan di-bundle webpack): kalau di-bundle,
   // __dirname-nya jadi path palsu (mis. "D:\ROOT\...") sehingga file font .afm
   // tidak ketemu → invoice PDF 500. Sebagai eksternal, ia di-require dari
@@ -32,8 +32,43 @@ const nextConfig: NextConfig = {
   // (Docker/VPS hanya menyalin .next/standalone). Tanpa ini, file font hilang.
   outputFileTracingIncludes: {
     "/api/orders/[id]/invoice": ["./node_modules/pdfkit/js/data/*.afm"],
+    "/api/payroll/payslips": ["./node_modules/pdfkit/js/data/*.afm", "./public/garage-brand/logo-website.png"],
+    "/api/absen/slip": ["./node_modules/pdfkit/js/data/*.afm", "./public/garage-brand/logo-website.png"],
   },
   allowedDevOrigins: lanDevOrigins(),
+  // Ada package-lock.json nyasar di folder home user → Next menebak root
+  // workspace = C:\Users\<user> dan men-trace puluhan ribu file di luar proyek.
+  // Kunci root ke folder proyek (QA-audit 2026-09-28).
+  turbopack: { root: process.cwd() },
+  outputFileTracingRoot: process.cwd(),
+  // Route yang membaca file lewat path dinamis (process.cwd() + ...) membuat
+  // tracing standalone menyalin SELURUH folder proyek — termasuk DB PGlite asli,
+  // backup, dan salinan uji (terukur 1,7 GB). Data & artefak ini tidak pernah
+  // dibaca aplikasi saat runtime (upload/selfie memakai volume Docker).
+  outputFileTracingExcludes: {
+    "*": [
+      ".pglite-data/**",
+      ".pglite-data.*/**",
+      "pglite-data*/**",
+      "backups/**",
+      ".tmp/**",
+      "tmp/**",
+      ".next-verify/**",
+      "storage/**",
+      "public/uploads/**",
+      "test-artifacts/**",
+      "testsprite_tests/**",
+      "docs/**",
+      "PRD/**",
+      "archive/**",
+      "output/**",
+      "outputs/**",
+      "garage-profitmax/**",
+      "garage-profitmax-ui/**",
+      "*.log",
+      "tsconfig.tsbuildinfo",
+    ],
+  },
   // Google Drive (I:) tidak mendukung junction/symlink yang Turbopack butuhkan.
   // Arahkan build cache ke disk lokal saat dev di Drive.
   distDir: process.env.NEXT_DIST_DIR || ".next",

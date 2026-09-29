@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 const schema = z.object({ pageId: z.string().trim().min(1).max(255) });
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
   const body = await readJson(request, schema);
   if (body.error) return body.error;

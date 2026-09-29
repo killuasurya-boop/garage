@@ -11,28 +11,12 @@ export type AiWhatsappTarget = {
 
 export type AiPhoneGroup = "cashier" | "kitchen" | "inventory" | "management";
 
-const CASHIER_ROLES: Role[] = [
-  "Kasir",
-  "Waiter 1",
-  "Waiter 2",
-  "Supervisor Shift",
-];
+// Kasir sekarang juga pegang KDS dapur/bar dan gudang (lihat role-access.ts),
+// jadi grup notifikasi kitchen/inventory tidak lagi punya role tersendiri —
+// keduanya masuk grup "cashier" bersama Kasir/Waiter.
+const CASHIER_ROLES: Role[] = ["Kasir", "Waiter"];
 
-const KITCHEN_ROLES: Role[] = [
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Kitchen / Barista",
-];
-
-const INVENTORY_ROLES: Role[] = ["Gudang"];
-
-const MANAGEMENT_ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-];
+const MANAGEMENT_ROLES: Role[] = ["Owner", "Manajer"];
 
 export function getJakartaHour(date = new Date()) {
   const hourText = new Intl.DateTimeFormat("en-US", {
@@ -98,14 +82,6 @@ export function parsePhoneList(raw: string) {
 function phoneGroupForRole(role: Role): AiPhoneGroup | null {
   if (CASHIER_ROLES.includes(role)) {
     return "cashier";
-  }
-
-  if (KITCHEN_ROLES.includes(role)) {
-    return "kitchen";
-  }
-
-  if (INVENTORY_ROLES.includes(role)) {
-    return "inventory";
   }
 
   if (MANAGEMENT_ROLES.includes(role)) {

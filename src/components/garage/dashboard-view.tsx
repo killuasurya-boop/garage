@@ -70,12 +70,8 @@ export function DashboardView({
   onNavigateModule?: (module: ModuleId) => void;
 }) {
   const maxSales = Math.max(...data.salesTrend.map((item) => item.sales), 1);
-  const canOpenCeoControl = me.role === "Owner / CEO";
-  const canSeeSnapshot =
-    me.role === "Owner / CEO" ||
-    me.role === "Admin" ||
-    me.role === "Manager Operasional" ||
-    me.role === "Finance / CFO";
+  const canOpenCeoControl = me.role === "Owner";
+  const canSeeSnapshot = me.role === "Owner" || me.role === "Manajer";
 
   return (
     <section className="space-y-4">
@@ -103,7 +99,7 @@ export function DashboardView({
                   GARAGE Company Control Center
                 </CardTitle>
                 <CardDescription className="mt-2">
-                  Dashboard profesional Owner / CEO untuk full control dokumen
+                  Dashboard profesional Owner untuk full control dokumen
                   perusahaan, SOP, training, audit, approval, dan arsip strategis.
                 </CardDescription>
               </div>

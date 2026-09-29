@@ -1,5 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
-import { TicketClaimError, claimKitchenTicket } from "@/lib/garage-service";
+import {
+  HandoverRequiredError,
+  KitchenTransitionError,
+  TicketClaimError,
+  claimKitchenTicket,
+} from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -29,6 +34,12 @@ export async function POST(
   } catch (error) {
     if (error instanceof TicketClaimError) {
       return fail(409, "TICKET_CLAIMED", `Sudah diambil oleh ${error.claimedByName}.`);
+    }
+    if (error instanceof KitchenTransitionError) {
+      return fail(422, "NOT_READY", "Belum READY dari Bar/Dapur — belum bisa diambil.");
+    }
+    if (error instanceof HandoverRequiredError) {
+      return fail(422, "HANDOVER_REQUIRED", error.message);
     }
     throw error;
   }

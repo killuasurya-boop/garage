@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson } from "@/lib/api-response";
+import { ClosingError } from "@/lib/finance-closing";
 import { createExpense, listExpenses } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -50,5 +51,12 @@ export async function POST(request: Request) {
     return body.error;
   }
 
-  return ok(await createExpense(body.data, session.data), { status: 201 });
+  try {
+    return ok(await createExpense(body.data, session.data), { status: 201 });
+  } catch (error) {
+    if (error instanceof ClosingError) {
+      return fail(409, error.code, error.message);
+    }
+    throw error;
+  }
 }

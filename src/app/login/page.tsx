@@ -37,7 +37,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       returnTo={returnTo}
       variant="os"
       includeOwnerPreset={isOwnerControlLogin}
-      initialEmail={isOwnerControlLogin ? "owner@garage.local" : undefined}
+      initialEmail={isOwnerControlLogin ? "owner@garage.id" : undefined}
     />
   );
 }

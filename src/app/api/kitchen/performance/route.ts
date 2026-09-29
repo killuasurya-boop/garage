@@ -14,7 +14,6 @@ export async function GET(request: Request) {
   return ok(
     await getKitchenPerformanceData({
       range: url.searchParams.get("range") ?? undefined,
-      viewerRole: session.data.profile.role,
     }),
   );
 }

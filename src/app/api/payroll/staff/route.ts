@@ -10,31 +10,30 @@ import {
 } from "@/db/schema";
 import { fail, ok } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 export const runtime = "nodejs";
 
-const OWNER_ROLES = ["Owner / CEO", "Admin", "Finance / CFO"] as const;
-
 export async function GET() {
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  const session = await requireGarageSession(MANAGEMENT_ROLES);
   if (session.response) return session.response;
 
   try {
     const db = getDb();
-    // Ringkasan wallet per staff. Join user + staffProfiles + agregat wallets.
+    // Ringkasan wallet karyawan payroll: saldo = gaji/fee yang BELUM dibayar lewat gajian.
     const rows = await db.execute(sql`
       SELECT
         u.id AS user_id,
         u.name AS name,
-        sp.role AS role,
+        COALESCE(sp.position, sp.role) AS role,
         COALESCE(swc.daily_wage, 0) AS daily_wage,
-        (SELECT COALESCE(SUM(sdw.total_credited), 0) FROM ${staffDailyWages} sdw WHERE sdw.staff_user_id = u.id) AS wallet_gaji,
-        (SELECT COALESCE(SUM(fps.amount + fps.bonus_target + fps.bonus_zero_komplain), 0) FROM ${feePoolSplits} fps WHERE fps.staff_user_id = u.id) AS wallet_fee
+        (SELECT COALESCE(SUM(sdw.total_credited), 0) FROM ${staffDailyWages} sdw WHERE sdw.staff_user_id = u.id AND sdw.payout_id IS NULL) AS wallet_gaji,
+        (SELECT COALESCE(SUM(fps.amount + fps.bonus_target + fps.bonus_zero_komplain), 0) FROM ${feePoolSplits} fps WHERE fps.staff_user_id = u.id AND fps.payment_id IS NULL) AS wallet_fee
       FROM ${user} u
       INNER JOIN ${staffProfiles} sp ON sp.user_id = u.id
-      LEFT JOIN ${staffWageConfig} swc ON swc.staff_user_id = u.id
-      WHERE sp.status = 'active'
-      ORDER BY u.name ASC
+      INNER JOIN ${staffWageConfig} swc ON swc.staff_user_id = u.id
+      WHERE sp.status = 'active' AND swc.absen_code IS NOT NULL
+      ORDER BY swc.absen_code ASC
     `);
     return ok({ staff: rows.rows ?? rows });
   } catch (err) {

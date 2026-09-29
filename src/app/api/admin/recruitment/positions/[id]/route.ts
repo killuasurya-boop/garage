@@ -25,7 +25,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 // PATCH update posisi (buka/tutup/edit) — admin only.
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const { id } = await context.params;
@@ -43,7 +43,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 // DELETE hapus posisi — CEO/Admin only.
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const { id } = await context.params;

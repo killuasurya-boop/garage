@@ -51,10 +51,10 @@ export async function PATCH(
   const body = await readJson(request, patchSchema);
   if (body.error) return body.error;
 
-  const isOwner = session.data.profile.role === "Owner / CEO";
+  const isOwner = session.data.profile.role === "Owner";
 
   if (body.data.cardTier === "Ultra" && !isOwner) {
-    return fail(403, "ULTRA_OWNER_ONLY", "Ultra hanya bisa diset oleh Owner / CEO.");
+    return fail(403, "ULTRA_OWNER_ONLY", "Ultra hanya bisa diset oleh Owner.");
   }
 
   if (!isOwner) {
@@ -63,7 +63,7 @@ export async function PATCH(
       return fail(
         403,
         "ULTRA_MEMBER_OWNER_ONLY",
-        "Member tier Ultra hanya bisa diedit oleh Owner / CEO.",
+        "Member tier Ultra hanya bisa diedit oleh Owner.",
       );
     }
   }
@@ -71,13 +71,13 @@ export async function PATCH(
   const passwordChangeRequested = Boolean(body.data.memberPassword?.trim());
   if (
     passwordChangeRequested &&
-    session.data.profile.role !== "Owner / CEO" &&
-    session.data.profile.role !== "Admin"
+    session.data.profile.role !== "Owner" &&
+    session.data.profile.role !== "Manajer"
   ) {
     return fail(
       403,
       "MEMBER_PASSWORD_ADMIN_ONLY",
-      "Password member hanya bisa diubah oleh Admin atau Owner / CEO.",
+      "Password member hanya bisa diubah oleh Manajer atau Owner.",
     );
   }
 
@@ -109,13 +109,13 @@ export async function DELETE(
   if (session.response) return session.response;
 
   const role = session.data.profile.role;
-  const isOwner = role === "Owner / CEO";
-  const isAdmin = role === "Admin";
-  if (!isOwner && !isAdmin) {
+  const isOwner = role === "Owner";
+  const isManajer = role === "Manajer";
+  if (!isOwner && !isManajer) {
     return fail(
       403,
       "MEMBER_DELETE_FORBIDDEN",
-      "Hapus member hanya untuk Owner / CEO atau Admin.",
+      "Hapus member hanya untuk Owner atau Manajer.",
     );
   }
 
@@ -126,7 +126,7 @@ export async function DELETE(
     return fail(
       403,
       "ULTRA_MEMBER_OWNER_ONLY",
-      "Member tier Ultra hanya bisa dihapus oleh Owner / CEO.",
+      "Member tier Ultra hanya bisa dihapus oleh Owner.",
     );
   }
 

@@ -138,8 +138,8 @@ async function getBackupStatus(): Promise<SystemHealth["backup"]> {
   const backupDir = process.env.GARAGE_BACKUP_DIR?.trim();
   const resolvedDir = backupDir
     ? path.resolve(/* turbopackIgnore: true */ backupDir)
-    : path.join(process.cwd(), "backups");
-  const scriptPath = path.join(process.cwd(), "scripts", "backup.mjs");
+    : path.join(/* turbopackIgnore: true */ process.cwd(), "backups");
+  const scriptPath = path.join(/* turbopackIgnore: true */ process.cwd(), "scripts", "backup.mjs");
   const s3Configured = Boolean(
     process.env.GARAGE_BACKUP_S3_BUCKET || process.env.GARAGE_BACKUP_OFFSITE_DIR,
   );
@@ -161,11 +161,17 @@ async function getBackupStatus(): Promise<SystemHealth["backup"]> {
     const entries = await readdir(resolvedDir, { withFileTypes: true });
     const candidates = await Promise.all(
       entries
-        .filter((entry) => entry.isFile() && /\.(dump|sql|backup)$/i.test(entry.name))
+        .filter(
+          (entry) =>
+            (entry.isFile() && /\.(dump|sql|backup)$/i.test(entry.name)) ||
+            // Mode lokal PGlite: scripts/backup.mjs menyalin folder data utuh
+            // menjadi garage-<stamp>-pglite (bukan file dump).
+            (entry.isDirectory() && /^garage-.+-pglite$/i.test(entry.name)),
+        )
         .map(async (entry) => {
           const filePath = path.join(resolvedDir, entry.name);
           const info = await stat(filePath);
-          return { name: entry.name, mtime: info.mtime, size: info.size };
+          return { name: entry.name, mtime: info.mtime, size: entry.isFile() ? info.size : null };
         }),
     );
     const latest = candidates.sort((a, b) => b.mtime.getTime() - a.mtime.getTime())[0];
@@ -356,8 +362,13 @@ export async function getSystemHealth(): Promise<SystemHealth> {
           FROM staff_profiles sp
           JOIN "user" u ON u.id = sp.user_id
           WHERE sp.status = 'active'
-            AND sp.role IN ('Owner / CEO', 'Admin')
+            AND sp.role IN ('Owner', 'Manajer')
             AND coalesce(u.two_factor_enabled, false) = false
+            -- Akun sistem (mis. GarageBot) tanpa kredensial tidak bisa login.
+            AND EXISTS (
+              SELECT 1 FROM account a
+              WHERE a.user_id = u.id AND a.provider_id = 'credential'
+            )
         `,
       );
       activeAdminWithout2fa = Number(admin2fa.rows?.[0]?.c ?? 0);
@@ -482,7 +493,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
       id: "admin-2fa",
       severity: "critical",
       area: "Security",
-      title: `${activeAdminWithout2fa} akun Owner/Admin belum 2FA`,
+      title: `${activeAdminWithout2fa} akun Owner/Manajer belum 2FA`,
       impact: "Akun high privilege lebih mudah diambil alih.",
       action: "Aktifkan 2FA untuk Owner dan Admin sebelum go-live.",
       href: "/control/2fa",

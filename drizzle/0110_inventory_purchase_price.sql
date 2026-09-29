@@ -1,0 +1,2 @@
+ALTER TABLE "inventory_items" ADD COLUMN "purchase_price" numeric(14, 4) DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "inventory_items" ADD COLUMN "package_qty" numeric(14, 4) DEFAULT 0 NOT NULL;

@@ -91,12 +91,12 @@ describe("Recipe / HPP", () => {
     });
     expect(rec.recipeStatus).toBe("draft");
 
-    const actor = { id: "test-user", name: "Test Owner", role: "Owner / CEO" };
+    const actor = { id: "test-user", name: "Test Owner", role: "Owner" };
     await svc.submitRecipeForApproval(rec.id, actor);
     let row = await svc.getWmsRecipe(rec.id);
     expect(row.recipeStatus).toBe("pending_kitchen");
 
-    await svc.approveRecipeStep(rec.id, { ...actor, role: "Koki" });
+    await svc.approveRecipeStep(rec.id, { ...actor, role: "Kasir" });
     row = await svc.getWmsRecipe(rec.id);
     expect(row.recipeStatus).toBe("pending_warehouse");
 

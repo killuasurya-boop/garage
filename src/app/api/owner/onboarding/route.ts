@@ -224,7 +224,7 @@ export async function GET() {
       {
         id: "smart-floor",
         title: "Smart Floor Command",
-        description: "Owner/Admin/Manager melihat floor score dan command queue.",
+        description: "Owner/Manajer melihat floor score dan command queue.",
         items: [
           { id: "smart-panel", label: "Panel Smart Floor aktif di dashboard", target: 1, actual: 1, href: "/os?module=dashboard" },
           { id: "smart-queue", label: "Command queue arahkan ke Waiter/POS", target: 1, actual: 1, href: "/os?module=dashboard" },
@@ -285,7 +285,7 @@ export async function GET() {
         description: "Password seed, 2FA, backup, readiness audit, security audit, route publik.",
         items: [
           { id: "security-readiness", label: "Readiness audit GO", target: 1, actual: readinessGo, href: "/control/health" },
-          { id: "security-2fa", label: "Owner/Admin 2FA siap", target: 1, actual: 0, href: "/control/2fa", manual: true },
+          { id: "security-2fa", label: "Owner/Manajer 2FA siap", target: 1, actual: 0, href: "/control/2fa", manual: true },
           { id: "security-audit", label: "Security audit tidak hang dan findings direview", target: 1, actual: 0, href: "/control/security", manual: true },
         ],
       },

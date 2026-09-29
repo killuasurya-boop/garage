@@ -8,22 +8,7 @@ import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-const ROLE_VALUES: [Role, ...Role[]] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Supervisor Shift",
-  "Delivery Admin",
-];
+const ROLE_VALUES: [Role, ...Role[]] = ["Owner", "Manajer", "Kasir", "Waiter"];
 
 const patchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -33,6 +18,8 @@ const patchSchema = z.object({
   deviceLabel: z.string().optional(),
   division: z.string().nullable().optional(),
   position: z.string().nullable().optional(),
+  // Workstation Production Hub; null = tidak ditugaskan produksi.
+  workstation: z.enum(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all"]).nullable().optional(),
   status: z.enum(["active", "suspended"]).optional(),
   suspendedReason: z.string().nullable().optional(),
   passwordResetRequired: z.boolean().optional(),

@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 function canIssueTransfer(role: string) {
-  return role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 const issueSchema = z
@@ -27,7 +27,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
   if (!canIssueTransfer(session.data.profile.role)) {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Admin/Gudang yang bisa issue request Gudang.");
+    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer/Kasir yang bisa issue request Gudang.");
   }
   const { id } = await context.params;
   let payload: z.infer<typeof issueSchema> = undefined;

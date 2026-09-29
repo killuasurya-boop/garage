@@ -11,7 +11,7 @@ import path from "node:path";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { staffAttendanceV2, staffProfiles, user } from "@/db/schema";
+import { staffAttendanceV2, staffProfiles, staffWageConfig, user } from "@/db/schema";
 import {
   hashPin,
   haversineMeters,
@@ -35,6 +35,8 @@ export interface CheckinInput {
   selfieBase64?: string | null; // "data:image/jpeg;base64,..."
   device?: string | null;
   now?: Date;
+  // Paksa metode tertentu (jalur absen payroll /api/absen). Kosong = ikut peta per-role.
+  method?: AttendanceMethod;
 }
 
 export type CheckoutInput = CheckinInput;
@@ -130,10 +132,126 @@ async function validateGps(lat: number | null | undefined, lng: number | null | 
 
 // ---------- API publik ----------
 
-/** Checkin — buat/update row `staff_attendance_v2` untuk hari ini. */
+const NIGHT_SHIFT_FROM = 12 * 60; // shift mulai >= 12:00 = shift malam (lintas tengah malam)
+export const OPEN_SHIFT_MAX_MS = 20 * 60 * 60 * 1000; // shift terbuka maks 20 jam
+
+function previousDateKey(dateKey: string): string {
+  const d = new Date(`${dateKey}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadShiftStartMinutes(staffUserId: string): Promise<number | null> {
+  const [row] = await getDb()
+    .select({ shiftStartMinutes: staffWageConfig.shiftStartMinutes })
+    .from(staffWageConfig)
+    .where(eq(staffWageConfig.staffUserId, staffUserId))
+    .limit(1);
+  return row?.shiftStartMinutes ?? null;
+}
+
+const dayStartMs = (dateKey: string) => new Date(`${dateKey}T00:00:00+07:00`).getTime();
+
+/** Jam masuk efektif (menit sejak 00:00): shift pribadi atau jam buka toko. */
+export async function resolveShiftStart(staffUserId: string) {
+  const general = (await getPayrollSetting(PAYROLL_KEYS.general)) as { openHour: number };
+  const shiftStart = await loadShiftStartMinutes(staffUserId);
+  return { shiftStart, openMinutes: shiftStart ?? general.openHour * 60 };
+}
+
+/** Menit telat = selisih check-in dengan jam masuk pada tanggal shift (dibulatkan ke bawah). */
+export function lateMinutesFor(dateKey: string, openMinutes: number, checkinAt: Date): number {
+  const startMs = dayStartMs(dateKey) + openMinutes * 60_000;
+  return Math.max(0, Math.floor((checkinAt.getTime() - startMs) / 60_000));
+}
+
+/**
+ * Tanggal shift untuk sebuah check-in: shift malam (mulai >= 12:00) yang
+ * check-in lewat tengah malam milik shift tanggal kemarin.
+ */
+export function shiftDateForCheckin(openMinutes: number, checkinAt: Date): string {
+  const dateKey = jakartaDateKey(checkinAt);
+  return openMinutes >= NIGHT_SHIFT_FROM && jakartaMinutesOfDay(checkinAt) < NIGHT_SHIFT_FROM
+    ? previousDateKey(dateKey)
+    : dateKey;
+}
+
+/** Jam kerja, lembur, dan status saat shift `dateKey` ditutup pada `checkoutAt`. */
+export async function checkoutMetrics(
+  staffUserId: string,
+  dateKey: string,
+  checkinAt: Date,
+  checkoutAt: Date,
+) {
+  const shiftStart = await loadShiftStartMinutes(staffUserId);
+  const general = (await getPayrollSetting(PAYROLL_KEYS.general)) as {
+    minCheckoutHour: number;
+    minCheckoutMinute: number;
+    requireMinCheckout?: boolean; // default true. false = tak ada syarat jam pulang (Garage)
+  };
+  const overtime = (await getPayrollSetting(PAYROLL_KEYS.overtime)) as {
+    enabled: boolean;
+    startHour: number;
+    startMinute: number;
+    maxHoursPerDay: number;
+  };
+
+  // Menit checkout relatif ke 00:00 tanggal shift (lewat tengah malam = > 1440).
+  const punchMinutes = Math.floor((checkoutAt.getTime() - dayStartMs(dateKey)) / 60_000);
+  const workedMinutes = Math.max(0, Math.round((checkoutAt.getTime() - checkinAt.getTime()) / 60_000));
+
+  // Lembur = lewat jam tutup, hanya untuk karyawan jam normal (shift khusus
+  // seperti jaga malam memang bekerja lewat tengah malam).
+  let overtimeMinutes = 0;
+  if (overtime.enabled && shiftStart === null) {
+    const otStart = overtime.startHour * 60 + overtime.startMinute;
+    if (punchMinutes > otStart) {
+      overtimeMinutes = Math.min(punchMinutes - otStart, (overtime.maxHoursPerDay ?? 4) * 60);
+    }
+  }
+
+  // Bila requireMinCheckout=false, valid asal check-in + check-out ada
+  // (potongan hanya dari telat, bukan pulang cepat).
+  const requireMinCheckout = general.requireMinCheckout !== false && shiftStart === null;
+  const minCheckoutMinutes = general.minCheckoutHour * 60 + general.minCheckoutMinute;
+  const status: "valid" | "invalid" =
+    requireMinCheckout && punchMinutes < minCheckoutMinutes ? "invalid" : "valid";
+
+  return { workedMinutes, overtimeMinutes, status };
+}
+
+/**
+ * Shift yang sedang berjalan: baris hari ini, atau baris kemarin yang sudah
+ * check-in tapi belum check-out (shift malam / lembur lewat tengah malam).
+ */
+export async function getCurrentAttendance(staffUserId: string, now = new Date()) {
+  const today = await getTodayAttendance(staffUserId, now);
+  if (today) return today;
+  return findOpenPreviousShift(staffUserId, now);
+}
+
+/** Shift tanggal kemarin yang sudah check-in, belum check-out, dan belum > 20 jam. */
+async function findOpenPreviousShift(staffUserId: string, now: Date) {
+  const [prev] = await getDb()
+    .select()
+    .from(staffAttendanceV2)
+    .where(
+      and(
+        eq(staffAttendanceV2.staffUserId, staffUserId),
+        eq(staffAttendanceV2.date, previousDateKey(jakartaDateKey(now))),
+      ),
+    )
+    .limit(1);
+  const isOpen =
+    prev?.checkinAt &&
+    !prev.checkoutAt &&
+    now.getTime() - prev.checkinAt.getTime() <= OPEN_SHIFT_MAX_MS;
+  return isOpen ? prev : null;
+}
+
+/** Checkin — buat/update row `staff_attendance_v2` untuk tanggal shift. */
 export async function checkinV2(input: CheckinInput) {
   const now = input.now ?? new Date();
-  const dateKey = jakartaDateKey(now);
 
   const staff = await loadStaff(input.staffUserId);
   if (!staff.pinHash) throw new AttendanceError("PIN_REQUIRED", "PIN belum di-set.");
@@ -145,7 +263,7 @@ export async function checkinV2(input: CheckinInput) {
     string,
     string
   >;
-  const method = requiredMethodFor(staff.role, methods);
+  const method = input.method ?? requiredMethodFor(staff.role, methods);
 
   if (method === "pin_selfie_gps" || method === "pin_selfie_gps_multi") {
     if (!input.selfieBase64) throw new AttendanceError("SELFIE_REQUIRED", "Selfie wajib.");
@@ -154,22 +272,19 @@ export async function checkinV2(input: CheckinInput) {
 
   const db = getDb();
 
+  // Hitung telat terhadap jam masuk shift pribadi (bila ada) atau jam buka toko.
+  const { openMinutes } = await resolveShiftStart(input.staffUserId);
+  const dateKey = shiftDateForCheckin(openMinutes, now);
+  const lateMinutes = lateMinutesFor(dateKey, openMinutes, now);
+
   const [existing] = await db
     .select()
     .from(staffAttendanceV2)
     .where(and(eq(staffAttendanceV2.staffUserId, input.staffUserId), eq(staffAttendanceV2.date, dateKey)))
     .limit(1);
   if (existing?.checkinAt) {
-    throw new AttendanceError("ALREADY_CHECKED_IN", "Anda sudah check-in hari ini.");
+    throw new AttendanceError("ALREADY_CHECKED_IN", "Anda sudah check-in untuk shift ini.");
   }
-
-  // Hitung telat berdasarkan jam buka
-  const general = (await getPayrollSetting(PAYROLL_KEYS.general)) as {
-    openHour: number;
-  };
-  const openMinutes = general.openHour * 60;
-  const punchMinutes = jakartaMinutesOfDay(now);
-  const lateMinutes = Math.max(0, punchMinutes - openMinutes);
 
   let selfieUrl: string | null = null;
   if (input.selfieBase64) {
@@ -213,10 +328,9 @@ export async function checkinV2(input: CheckinInput) {
   return { id: created.id, dateKey, lateMinutes, method };
 }
 
-/** Checkout — update row hari ini + tandai status valid/invalid. */
+/** Checkout — tutup shift yang sedang berjalan + tandai status valid/invalid. */
 export async function checkoutV2(input: CheckoutInput) {
   const now = input.now ?? new Date();
-  const dateKey = jakartaDateKey(now);
 
   const staff = await loadStaff(input.staffUserId);
   if (!staff.pinHash) throw new AttendanceError("PIN_REQUIRED", "PIN belum di-set.");
@@ -228,54 +342,33 @@ export async function checkoutV2(input: CheckoutInput) {
     string,
     string
   >;
-  const method = requiredMethodFor(staff.role, methods);
+  const method = input.method ?? requiredMethodFor(staff.role, methods);
   if (method === "pin_selfie_gps" || method === "pin_selfie_gps_multi") {
     if (!input.selfieBase64) throw new AttendanceError("SELFIE_REQUIRED", "Selfie wajib.");
     if (method === "pin_selfie_gps") await validateGps(input.lat, input.lng);
   }
 
   const db = getDb();
-  const [row] = await db
-    .select()
-    .from(staffAttendanceV2)
-    .where(and(eq(staffAttendanceV2.staffUserId, input.staffUserId), eq(staffAttendanceV2.date, dateKey)))
-    .limit(1);
+  // Shift hari ini yang masih terbuka; kalau tidak ada, shift kemarin yang belum
+  // ditutup (shift malam / lembur lewat tengah malam).
+  const today = await getTodayAttendance(input.staffUserId, now);
+  const row =
+    today?.checkinAt && !today.checkoutAt
+      ? today
+      : ((await findOpenPreviousShift(input.staffUserId, now)) ?? today);
   if (!row || !row.checkinAt) {
-    throw new AttendanceError("NOT_CHECKED_IN", "Anda belum check-in hari ini.");
+    throw new AttendanceError("NOT_CHECKED_IN", "Anda belum check-in.");
   }
   if (row.checkoutAt) {
-    throw new AttendanceError("ALREADY_CHECKED_OUT", "Anda sudah check-out hari ini.");
+    throw new AttendanceError("ALREADY_CHECKED_OUT", "Anda sudah check-out untuk shift ini.");
   }
-
-  // Hitung jam kerja + lembur
-  const general = (await getPayrollSetting(PAYROLL_KEYS.general)) as {
-    closeHour: number;
-    minCheckoutHour: number;
-    minCheckoutMinute: number;
-  };
-  const overtime = (await getPayrollSetting(PAYROLL_KEYS.overtime)) as {
-    enabled: boolean;
-    startHour: number;
-    startMinute: number;
-    maxHoursPerDay: number;
-  };
-
-  const punchMinutes = jakartaMinutesOfDay(now);
-  const minCheckoutMinutes = general.minCheckoutHour * 60 + general.minCheckoutMinute;
-  const checkinMinutes = jakartaMinutesOfDay(row.checkinAt);
-  const workedMinutes = Math.max(0, punchMinutes - checkinMinutes);
-
-  let overtimeMinutes = 0;
-  if (overtime.enabled) {
-    const otStart = overtime.startHour * 60 + overtime.startMinute;
-    if (punchMinutes > otStart) {
-      overtimeMinutes = Math.min(punchMinutes - otStart, (overtime.maxHoursPerDay ?? 4) * 60);
-    }
-  }
-
-  // Status final
-  let status: "valid" | "invalid" = "valid";
-  if (punchMinutes < minCheckoutMinutes) status = "invalid";
+  const dateKey = String(row.date);
+  const { workedMinutes, overtimeMinutes, status } = await checkoutMetrics(
+    input.staffUserId,
+    dateKey,
+    row.checkinAt,
+    now,
+  );
 
   let selfieUrl: string | null = null;
   if (input.selfieBase64) {

@@ -11,13 +11,7 @@ const handoverSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-    "Kasir",
-    "Supervisor Shift",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
   if (session.response) {
     return session.response;
   }

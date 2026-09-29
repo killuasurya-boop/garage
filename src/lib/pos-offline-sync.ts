@@ -35,6 +35,7 @@ async function syncOne(): Promise<boolean> {
       headers: {
         "Content-Type": "application/json",
         "X-Idempotency-Key": target.id,
+        "X-Garage-Offline-Sync": "1",
       },
       body: JSON.stringify(target.payload),
     });

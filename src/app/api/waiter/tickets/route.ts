@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 // Waiter butuh lihat ticket lintas station (Bar + Food) tanpa filter role,
 // supaya satu waiter bisa antar item dari kedua station. Permission
-// "orders:read" sudah dimiliki Waiter 1/2 (lihat role-access.ts).
+// "orders:read" sudah dimiliki Waiter/2 (lihat role-access.ts).
 export async function GET(request: Request) {
   const session = await requirePermission("orders:read");
   if (session.response) {

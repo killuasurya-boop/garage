@@ -10,7 +10,7 @@ type RouteContext = {
 };
 
 export async function POST(_request: Request, context: RouteContext) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

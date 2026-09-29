@@ -444,6 +444,99 @@ function HeaderKpi({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
+type CampaignOrdersDto = {
+  days: number;
+  rows: Array<{ campaign: string; orders: number; paidOrders: number; revenue: number }>;
+};
+
+// Label ramah untuk kode campaign yang dipasang di link website/sosmed.
+const CAMPAIGN_LABELS: Record<string, string> = {
+  bio_ig: "Bio Instagram",
+  bio_tiktok: "Bio TikTok",
+  ig: "Instagram",
+  tiktok: "TikTok",
+  landing_menu: "Website · kartu menu",
+  landing_unggulan: "Website · menu unggulan",
+  landing_promo: "Website · promo",
+  landing_table_check: "Website · cek meja",
+  mobile_bar: "Website HP · bar pesan",
+  mobile_bar_takeaway: "Website HP · takeaway saat penuh",
+  "(tanpa sumber)": "Tanpa sumber (QR meja / kasir)",
+};
+
+// Order per sumber: dari mana pelanggan datang memesan (link bio sosmed,
+// kartu menu website, bar pesan HP, QR meja).
+function CampaignOrdersCard() {
+  const [data, setData] = useState<CampaignOrdersDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    garageApi
+      .get<CampaignOrdersDto>("/api/marketing/campaign-orders?days=30", { cache: "no-store" })
+      .then((result) => {
+        if (alive) setData(result);
+      })
+      .catch((err) => {
+        if (alive) setError(describeApiError(err));
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const totalPaid = data?.rows.reduce((sum, row) => sum + row.revenue, 0) ?? 0;
+
+  return (
+    <div className="space-y-3 rounded-lg border border-[#34343c] bg-[#111116] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-lg font-black text-white">Order per sumber (30 hari)</h3>
+        <Badge className="border-[#f5a742]/35 bg-[#f5a742]/12 text-[#ffd08a]">
+          Omzet lunas {currency.format(totalPaid)}
+        </Badge>
+      </div>
+      {error ? <p className="text-sm text-[#ffb4bc]">{error}</p> : null}
+      {!data && !error ? <p className="text-sm text-[#b8b8bf]">Memuat…</p> : null}
+      {data && data.rows.length === 0 ? (
+        <p className="text-sm text-[#b8b8bf]">Belum ada order dalam 30 hari terakhir.</p>
+      ) : null}
+      {data && data.rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-[#b8b8bf]">
+                <th className="py-2 pr-3 font-semibold">Sumber</th>
+                <th className="py-2 pr-3 text-right font-semibold">Order</th>
+                <th className="py-2 pr-3 text-right font-semibold">Lunas</th>
+                <th className="py-2 text-right font-semibold">Omzet</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row) => (
+                <tr key={row.campaign} className="border-t border-[#2a2a31] text-[#f4f4f5]">
+                  <td className="py-2 pr-3">
+                    <span className="font-semibold">{CAMPAIGN_LABELS[row.campaign] ?? row.campaign}</span>
+                    {CAMPAIGN_LABELS[row.campaign] ? (
+                      <span className="ml-2 font-mono text-[11px] text-[#8f8f99]">{row.campaign}</span>
+                    ) : null}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{row.orders}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{row.paidOrders}</td>
+                  <td className="py-2 text-right tabular-nums">{currency.format(row.revenue)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      <p className="text-xs text-[#b8b8bf]">
+        Link bio: Instagram <span className="font-mono">/order?source=instagram&amp;campaign=bio_ig</span> · TikTok{" "}
+        <span className="font-mono">/order?source=campaign&amp;campaign=bio_tiktok</span>
+      </p>
+    </div>
+  );
+}
+
 function MarketingOverview({ settings }: { settings: AppSettings }) {
   const [data, setData] = useState<OverviewDto | null>(null);
   const [loading, setLoading] = useState(false);
@@ -525,6 +618,8 @@ function MarketingOverview({ settings }: { settings: AppSettings }) {
           tone={data && data.performance.roi >= 0 ? "good" : "warn"}
         />
       </div>
+
+      <CampaignOrdersCard />
 
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="space-y-3 rounded-lg border border-[#34343c] bg-[#111116] p-4">

@@ -207,7 +207,7 @@ export function SalesHistoryView() {
           <p className="text-xs uppercase tracking-[0.2em] text-[#d11a2a]">
             Penjualan
           </p>
-          <h1 className="text-2xl font-bold text-white">History Penjualan</h1>
+          <h1 className="text-2xl font-bold text-white">Riwayat Penjualan</h1>
           <p className="text-sm text-zinc-400">
             Cari order lama, cetak struk ulang, kirim invoice ke customer.
           </p>

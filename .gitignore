@@ -111,3 +111,8 @@ testsprite_tests\tmp\config.json
 !/storage/recruitment/.gitkeep
 # Debris/skrip uji sementara
 /test-pglite.mjs
+
+# Salinan database & artefak lokal (berisi data pengguna) — jangan pernah di-commit
+.pglite-data-backup*/
+.next-verify/
+.next-start.err

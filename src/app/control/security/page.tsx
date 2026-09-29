@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function SecurityCenterPage() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     if (session.response.status === 401) {
       redirect("/login?next=%2Fcontrol%2Fsecurity");

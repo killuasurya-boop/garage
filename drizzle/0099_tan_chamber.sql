@@ -1,0 +1,1 @@
+ALTER TABLE "staff_wage_config" ADD COLUMN "monthly_salary" integer;

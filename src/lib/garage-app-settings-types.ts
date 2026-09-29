@@ -2,6 +2,8 @@
 // dari client component tanpa narik server-only deps (db, drizzle) yang ada
 // di garage-service.ts.
 
+import { GARAGE_LOCATION } from "@/lib/garage-location";
+
 export type StaffFeeRates = {
   feeWaiterDeliveredPerItem: number;
   feeKitchenReadyPerItem: number;
@@ -19,6 +21,14 @@ export type AppSettings = {
   receiptHistoryMax: number;
   // Finance approval
   expenseApprovalThreshold: number;
+  // Anggaran biaya tetap harian (IDR/hari) — dipakai panel Alokasi Harian Finance.
+  dailyBudgetElectricity: number; // token listrik
+  dailyBudgetPayroll: number; // gaji karyawan
+  dailyBudgetRent: number; // sewa lapak
+  dailyBudgetSaveMoney: number; // tabungan / save money
+  dailyBudgetInternet: number; // internet
+  dailyBudgetAds: number; // biaya iklan
+  dailyBudgetSystem: number; // biaya sistem/aplikasi
   // Receipt branding
   brandName: string;
   brandTagline: string;
@@ -33,9 +43,17 @@ export type AppSettings = {
   // Printer
   defaultPrinterName: string;
   receiptCopies: number;
+  // Cetak chit dapur/bar otomatis saat kasir konfirmasi order (ke printer kasir).
+  kitchenChitAutoPrint: boolean;
+  // Production Hub: rentang waktu maksimal antar porsi dalam satu Smart Batch
+  // (detik). 0 = tanpa batas. Dokumen §8.4 menyarankan mulai 60–120 detik.
+  productionBatchWindowSec: number;
   // Loyalty
   pointsPerThousand: number;
   voucherMaxDiscountPct: number;
+  // Promo otomatis order QR/online (dulu tertanam di kode: 10% maks Rp25.000).
+  qrPromoPct: number;
+  qrPromoMaxAmount: number;
   // Marketing
   marketingCampaignName: string;
   marketingMonthlyBudget: number;
@@ -71,8 +89,12 @@ export type AppSettings = {
   defaultPaymentMethod: string;
   // Gudang: potong stok bahan otomatis dari resep saat menu terjual.
   inventoryAutoDeduct: boolean;
-  // GARAGE WMS: saat POS jual, kirim ke WMS → baca BOM resep → potong bahan gudang.
+  // USANG (Sep 2026): stok WMS kini selalu dipotong lewat potong stok resep order.
+  // Dipertahankan agar nilai tersimpan lama tetap valid; tidak dibaca POS lagi.
   wmsAutoConsume: boolean;
+  // Auto-habis: menu otomatis HABIS bila bahan utama resepnya tidak cukup di
+  // gudang. Nyalakan setelah stock opname pembukaan (stok awal 0 → semua habis).
+  autoSoldOutFromStock: boolean;
   quickReorderWindowMinutes: number;
   // Receipt extra
   receiptHeaderText: string;
@@ -123,19 +145,32 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   manualDiscountApprovalPct: 10,
   receiptHistoryMax: 20,
   expenseApprovalThreshold: 1_000_000,
+  // Contoh awal biaya tetap harian (bisa diubah owner di Pengaturan → Anggaran Harian).
+  dailyBudgetElectricity: 35_000,
+  dailyBudgetPayroll: 450_000,
+  dailyBudgetRent: 28_000,
+  dailyBudgetSaveMoney: 100_000,
+  dailyBudgetInternet: 14_000,
+  dailyBudgetAds: 30_000,
+  dailyBudgetSystem: 0,
   brandName: "GARAGE",
   brandTagline: "Coffee & Motor",
   receiptFooter: "TERIMA KASIH",
-  outletAddress: "",
-  outletPhone: "",
+  // Default = lokasi resmi Google Maps (garage-location.ts); bisa diubah di Pengaturan.
+  outletAddress: GARAGE_LOCATION.address,
+  outletPhone: GARAGE_LOCATION.phoneDisplay,
   npwp: "",
   approvalPollIntervalSec: 60,
   qrSoundOn: true,
   autoPrintReceipt: true,
   defaultPrinterName: "",
   receiptCopies: 1,
+  kitchenChitAutoPrint: true,
+  productionBatchWindowSec: 120,
   pointsPerThousand: 1,
   voucherMaxDiscountPct: 30,
+  qrPromoPct: 10,
+  qrPromoMaxAmount: 25_000,
   marketingCampaignName: "Garage Repeat Booster",
   marketingMonthlyBudget: 1_500_000,
   marketingDefaultSegment: "atRisk",
@@ -171,9 +206,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultPaymentMethod: "cash",
   inventoryAutoDeduct: true,
   wmsAutoConsume: false,
+  autoSoldOutFromStock: false,
   quickReorderWindowMinutes: 30,
   // Receipt extra
-  receiptHeaderText: "Garage Coffee & Motor\nJl. Contoh No. 1, Jakarta",
+  // Kosong = struk memakai nama brand + tagline + alamat & telepon outlet asli
+  // (dulu berisi alamat contoh "Jl. Contoh No. 1, Jakarta" yang tercetak di struk).
+  receiptHeaderText: "",
   receiptShowLogo: true,
   receiptShowTaxBreakdown: true,
   receiptShowMemberPoints: true,

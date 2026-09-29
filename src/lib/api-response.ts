@@ -1,4 +1,7 @@
-import { ZodError, type ZodSchema } from "zod";
+import { z, ZodError, type ZodSchema } from "zod";
+
+// Pesan validasi bawaan Zod dalam Bahasa Indonesia (pesan custom tetap dipakai).
+z.config(z.locales.id());
 
 export function ok<T>(data: T, init?: ResponseInit) {
   return Response.json({ data }, init);
@@ -34,7 +37,7 @@ export async function readJson<T>(request: Request, schema: ZodSchema<T>) {
 
     return {
       data: null,
-      error: fail(400, "INVALID_JSON", "Request body must be valid JSON."),
+      error: fail(400, "INVALID_JSON", "Data yang dikirim bukan JSON yang valid."),
     };
   }
 }

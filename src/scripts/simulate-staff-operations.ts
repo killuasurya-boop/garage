@@ -7,8 +7,8 @@ async function main() {
   await ensureDatabaseReady();
   const db = await getDb();
 
-  // 1. Dapatkan Barista aktif untuk simulasi
-  const barista = await db
+  // 1. Dapatkan Kasir aktif untuk simulasi
+  const kasirStaff = await db
     .select({
       id: staffProfiles.id,
       userId: staffProfiles.userId,
@@ -17,24 +17,24 @@ async function main() {
     })
     .from(staffProfiles)
     .innerJoin(user, eq(staffProfiles.userId, user.id))
-    .where(eq(staffProfiles.role, "Barista"))
+    .where(eq(staffProfiles.role, "Kasir"))
     .limit(1)
     .then((rows) => rows[0]);
 
-  if (!barista) {
-    console.error("Gagal menjalankan simulasi: Karyawan dengan peran Barista tidak ditemukan.");
+  if (!kasirStaff) {
+    console.error("Gagal menjalankan simulasi: Karyawan dengan peran Kasir tidak ditemukan.");
     process.exit(1);
   }
 
-  console.log(`\n[Simulasi 1] Karyawan terpilih untuk simulasi: ${barista.name} (ID: ${barista.id})`);
+  console.log(`\n[Simulasi 1] Karyawan terpilih untuk simulasi: ${kasirStaff.name} (ID: ${kasirStaff.id})`);
 
   // 2. Simulasikan Absen Masuk (Clock In)
   console.log("\n[Simulasi 2] Mencatat absensi Clock In...");
   const [attendance] = await db
     .insert(employeeAttendances)
     .values({
-      staffId: barista.id,
-      outletId: barista.outletId,
+      staffId: kasirStaff.id,
+      outletId: kasirStaff.outletId,
       action: "in",
     })
     .returning();
@@ -45,7 +45,7 @@ async function main() {
   const [advance] = await db
     .insert(staffAdvances)
     .values({
-      staffId: barista.id,
+      staffId: kasirStaff.id,
       period: "2026-05",
       amount: 150000,
       reason: "Beli oli motor mendesak",
@@ -59,7 +59,7 @@ async function main() {
     .update(staffAdvances)
     .set({
       status: "approved",
-      approvedBy: barista.userId, // Disetujui oleh user bersangkutan sebagai contoh
+      approvedBy: kasirStaff.userId, // Disetujui oleh user bersangkutan sebagai contoh
       updatedAt: new Date(),
     })
     .where(eq(staffAdvances.id, advance.id))
@@ -71,24 +71,24 @@ async function main() {
   const [task] = await db
     .insert(staffTasks)
     .values({
-      targetRole: "Barista",
+      targetRole: "Kasir",
       title: "Bongkar & Dialing Espresso Mesin",
       detail: "Bersihkan sisa bubuk kopi dan kalibrasi ulang grind size espresso.",
       priority: "high",
       status: "open",
       source: "manual",
-      createdBy: barista.userId,
+      createdBy: kasirStaff.userId,
     })
     .returning();
   console.log(`OK: Tugas terdelegasikan dengan status: ${task.status}`);
 
-  console.log("Simulasikan Barista menyelesaikan tugas tersebut...");
+  console.log("Simulasikan Kasir menyelesaikan tugas tersebut...");
   const [completedTask] = await db
     .update(staffTasks)
     .set({
       status: "done",
       completedAt: new Date(),
-      completedBy: barista.userId,
+      completedBy: kasirStaff.userId,
       updatedAt: new Date(),
     })
     .where(eq(staffTasks.id, task.id))
@@ -98,13 +98,13 @@ async function main() {
   // 5. Verifikasi Integrasi Payroll Bulan Mei 2026
   console.log("\n[Simulasi 5] Melakukan kalkulasi integrasi payroll Gaji & Payroll Mei 2026...");
   
-  // Dapatkan seluruh kasbon disetujui untuk barista ini di Mei 2026
+  // Dapatkan seluruh kasbon disetujui untuk kasirStaff ini di Mei 2026
   const advances = await db
     .select()
     .from(staffAdvances)
     .where(
       and(
-        eq(staffAdvances.staffId, barista.id),
+        eq(staffAdvances.staffId, kasirStaff.id),
         eq(staffAdvances.period, "2026-05"),
         eq(staffAdvances.status, "approved")
       )
@@ -118,7 +118,7 @@ async function main() {
   const bonus = 250000; // Bonus performa
   const netSalary = (baseSalary + allowance + bonus) - totalDeductions;
 
-  console.log(`-> Rincian Slip Gaji Mei 2026 untuk ${barista.name}:`);
+  console.log(`-> Rincian Slip Gaji Mei 2026 untuk ${kasirStaff.name}:`);
   console.log(`   Gaji Pokok: Rp${baseSalary.toLocaleString("id-ID")}`);
   console.log(`   Tunjangan : Rp${allowance.toLocaleString("id-ID")}`);
   console.log(`   Bonus KPI : Rp${bonus.toLocaleString("id-ID")}`);
@@ -129,7 +129,7 @@ async function main() {
   const [payroll] = await db
     .insert(staffPayrolls)
     .values({
-      staffId: barista.id,
+      staffId: kasirStaff.id,
       period: "2026-05",
       baseSalary,
       allowance,

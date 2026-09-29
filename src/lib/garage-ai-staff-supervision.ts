@@ -13,55 +13,17 @@ import {
 export type AiStaffSupervisionKind = "mistake" | "correction" | "coaching";
 export type AiStaffSupervisionGroup = "floor" | "kitchen" | "inventory" | "control";
 
-const FLOOR_ROLES: Role[] = [
-  "Kasir",
-  "Waiter 1",
-  "Waiter 2",
-  "Supervisor Shift",
-  "Manager Operasional",
-  "Admin",
-  "Owner / CEO",
-];
+const FLOOR_ROLES: Role[] = ["Kasir", "Waiter", "Manajer", "Owner"];
 
-const KITCHEN_ROLES: Role[] = [
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Kitchen / Barista",
-  "Supervisor Shift",
-  "Manager Operasional",
-  "Admin",
-  "Owner / CEO",
-];
+const KITCHEN_ROLES: Role[] = ["Kasir", "Manajer", "Owner"];
 
-const INVENTORY_ROLES: Role[] = [
-  "Gudang",
-  "Manager Operasional",
-  "Admin",
-  "Owner / CEO",
-];
+const INVENTORY_ROLES: Role[] = ["Kasir", "Manajer", "Owner"];
 
-const SUPERVISOR_ROLES: Role[] = [
-  "Supervisor Shift",
-  "Manager Operasional",
-  "Admin",
-  "Owner / CEO",
-];
+const SUPERVISOR_ROLES: Role[] = ["Manajer", "Owner"];
 
-const MANAGEMENT_ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Supervisor Shift",
-];
+const MANAGEMENT_ROLES: Role[] = ["Owner", "Manajer"];
 
-const FINANCE_ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-];
+const FINANCE_ROLES: Role[] = ["Owner", "Manajer"];
 
 const AUDIT_PROBLEM_STATUSES = new Set([
   "critical",

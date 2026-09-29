@@ -15,11 +15,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const body = await readJson(request, adjustSchema);

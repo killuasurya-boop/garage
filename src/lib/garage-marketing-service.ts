@@ -8,6 +8,7 @@ import {
   customers,
   marketingBroadcasts,
   marketingCampaigns,
+  orders,
   vouchers,
   voucherRedemptions,
 } from "@/db/schema";
@@ -448,6 +449,47 @@ export async function markMarketingBroadcastSent(id: string, sentCount: number) 
     sentAt: new Date().toISOString(),
     sentCount,
   });
+}
+
+export type OrdersByCampaignRow = {
+  campaign: string;
+  orders: number;
+  paidOrders: number;
+  revenue: number;
+};
+
+/**
+ * Order per sumber (`orders.campaign`) dalam N hari terakhir — dari link bio
+ * sosmed (`/order?campaign=bio_ig`, `?src=tiktok`), bar pesan HP, kartu menu
+ * website, dll. Order anak split bill tidak dihitung ganda. Omzet = order lunas.
+ */
+export async function getOrdersByCampaign(days = 30, now: Date = new Date()): Promise<{
+  days: number;
+  rows: OrdersByCampaignRow[];
+}> {
+  const safeDays = Math.max(1, Math.min(365, Math.round(days)));
+  const since = new Date(now.getTime() - safeDays * 24 * 60 * 60 * 1000);
+  const campaignKey = sql<string>`coalesce(nullif(trim(${orders.campaign}), ''), '(tanpa sumber)')`;
+  const rows = await getDb()
+    .select({
+      campaign: campaignKey,
+      orders: count(orders.id),
+      paidOrders: sql<number>`count(*) filter (where ${orders.status} = 'paid')`,
+      revenue: sql<number>`coalesce(sum(${orders.total}) filter (where ${orders.status} = 'paid'), 0)`,
+    })
+    .from(orders)
+    .where(and(gte(orders.createdAt, since), sql`${orders.parentOrderId} is null`))
+    .groupBy(campaignKey)
+    .orderBy(desc(sql`count(*)`));
+  return {
+    days: safeDays,
+    rows: rows.map((row) => ({
+      campaign: String(row.campaign),
+      orders: Number(row.orders),
+      paidOrders: Number(row.paidOrders),
+      revenue: Number(row.revenue),
+    })),
+  };
 }
 
 export async function getMarketingOverview() {

@@ -7,7 +7,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 // Koreksi stok manual = tindakan sensitif → hanya peran elevated + alasan wajib.
-const ADJUST_ROLES = ["Owner / CEO", "Admin", "Manager Operasional"] as const;
+const ADJUST_ROLES = ["Owner", "Manajer"] as const;
 
 const schema = z.object({
   productId: z.string().uuid(),

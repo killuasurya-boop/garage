@@ -3,11 +3,10 @@ import { z } from "zod";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
 import { finalizePayrollDay, finalizeYesterdayIfNeeded } from "@/lib/garage-payroll-cron";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const OWNER_ROLES = ["Owner / CEO", "Admin"] as const;
 
 const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
     return ok(result);
   }
 
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  const session = await requireGarageSession(MANAGEMENT_ROLES);
   if (session.response) return session.response;
 
   const body = await readJson(request, schema);

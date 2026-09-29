@@ -8,6 +8,7 @@
 export interface ThermalReceiptInput {
   invoiceNo?: string | null;
   orderNo?: string | null;
+  queueNo?: number | null;
   createdAt?: string | null;
   outlet?: { name?: string | null; code?: string | null } | null;
   cashier?: { name?: string | null } | null;
@@ -47,6 +48,8 @@ export interface ThermalReceiptInput {
   paymentMethod?: string | null;
   isReprint?: boolean | null;
   reprintAt?: string | null;
+  // Bill sementara (belum dibayar) — dicetak dari detail meja sebelum Final Bayar.
+  provisional?: boolean | null;
   memberReward?: {
     level?: string | null;
     memberName?: string | null;
@@ -54,6 +57,123 @@ export interface ThermalReceiptInput {
     totalPoints?: number | null;
   } | null;
   invoiceWebUrl?: string | null;
+}
+
+// ── Chit dapur/bar (tanpa harga) ────────────────────────────────────────────
+// Struk perintah masak untuk station. Model "kasir pusat kendali": begitu kasir
+// konfirmasi order, chit ini tercetak otomatis ke printer kasir. Dapur & bar
+// tinggal ambil kertas & masak — nol interaksi sistem. Item dikelompokkan per
+// station (DAPUR / BAR) supaya bisa disobek & dibagi meski 1 printer.
+
+export interface KitchenChitItem {
+  name: string;
+  variant?: string | null;
+  qty: number;
+  note?: string | null;
+  station: "Dapur" | "Bar" | string;
+}
+
+export interface KitchenChitInput {
+  orderNo?: string | null;
+  queueNo?: number | null;
+  tableLabel?: string | null;
+  orderType?: string | null;
+  createdAt?: string | null;
+  cashierName?: string | null;
+  waiterName?: string | null;
+  items: KitchenChitItem[];
+}
+
+function orderTypeLabel(raw: string): string {
+  const key = String(raw ?? "").trim().toLowerCase();
+  const map: Record<string, string> = {
+    "dine-in": "Dine-in",
+    dinein: "Dine-in",
+    takeaway: "Takeaway",
+    "take-away": "Takeaway",
+    delivery: "Delivery",
+    qr_table: "QR Meja",
+    qr_takeaway: "QR Takeaway",
+    instagram: "Instagram",
+    campaign: "Campaign",
+  };
+  return map[key] ?? String(raw ?? "").trim();
+}
+
+export function buildKitchenChitContent(input: KitchenChitInput): string {
+  const W = 32;
+  const clean = (value: string | null | undefined) =>
+    String(value ?? "").replace(/\s+/g, " ").trim();
+  const center = (value: string) => {
+    const text = clean(value).slice(0, W);
+    const left = Math.max(0, Math.floor((W - text.length) / 2));
+    return `${" ".repeat(left)}${text}`;
+  };
+  const fmtDate = (iso: string | null | undefined) =>
+    iso
+      ? new Intl.DateTimeFormat("id-ID", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(iso))
+      : "-";
+
+  // Urutan station: Dapur dulu, lalu Bar, lalu lainnya.
+  const order = ["Dapur", "Bar"];
+  const stations = Array.from(new Set(input.items.map((i) => i.station))).sort(
+    (a, b) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    },
+  );
+
+  const blocks: string[] = [];
+  for (const station of stations) {
+    const items = input.items.filter((i) => i.station === station);
+    if (items.length === 0) continue;
+
+    const rows: string[] = [];
+    rows.push("=".repeat(W));
+    rows.push(center(`*** ${clean(station).toUpperCase()} ***`));
+    rows.push("=".repeat(W));
+    if (input.queueNo != null) {
+      rows.push(center(`ANTRIAN  #${input.queueNo}`));
+      rows.push("=".repeat(W));
+    }
+    rows.push(`Meja  : ${clean(input.tableLabel) || "-"}`.slice(0, W));
+    if (input.orderType) {
+      rows.push(`Tipe  : ${orderTypeLabel(input.orderType)}`.slice(0, W));
+    }
+    rows.push(`Order : ${clean(input.orderNo) || "-"}`.slice(0, W));
+    rows.push(`Waktu : ${fmtDate(input.createdAt)}`.slice(0, W));
+    if (input.waiterName) {
+      rows.push(`Waiter: ${clean(input.waiterName)}`.slice(0, W));
+    }
+    rows.push(`Kasir : ${clean(input.cashierName) || "-"}`.slice(0, W));
+    rows.push("-".repeat(W));
+
+    for (const item of items) {
+      const name = clean(item.name).toUpperCase();
+      const variant = clean(item.variant);
+      const variantText =
+        variant && variant.toLowerCase() !== "regular" ? ` (${variant})` : "";
+      const qty = item.qty || 1;
+      // Nama item di baris sendiri, teks tegas untuk juru masak.
+      rows.push(`${qty}x ${name}${variantText}`.slice(0, W));
+      const note = clean(item.note);
+      if (note) {
+        rows.push(`   >> ${note}`.slice(0, W));
+      }
+    }
+
+    rows.push("-".repeat(W));
+    rows.push("");
+    rows.push("");
+    blocks.push(rows.join("\r\n"));
+  }
+
+  if (blocks.length === 0) return "";
+  return blocks.join("\r\n") + "\r\n";
 }
 
 export function buildThermalContent(receipt: ThermalReceiptInput): string {
@@ -77,6 +197,24 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
     const left = Math.max(0, Math.floor((W - text.length) / 2));
     return `${" ".repeat(left)}${text}`;
   };
+  // Teks panjang (mis. alamat outlet) dipecah per kata menjadi beberapa baris
+  // tengah, bukan dipotong di 32 karakter.
+  const centerWrapped = (value: string) => {
+    const lines: string[] = [];
+    let current = "";
+    for (const word of clean(value).split(" ")) {
+      if (!word) continue;
+      const next = current ? `${current} ${word}` : word;
+      if (next.length > W && current) {
+        lines.push(center(current));
+        current = word;
+      } else {
+        current = next;
+      }
+    }
+    if (current) lines.push(center(current));
+    return lines;
+  };
   const row = (left: string, right: string) => {
     const price = clean(right).slice(0, 13);
     const labelWidth = W - price.length;
@@ -96,6 +234,15 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
     rows.push("");
   }
 
+  // BILL SEMENTARA badge — tagihan belum dibayar, bukan bukti pembayaran.
+  if (receipt.provisional) {
+    rows.push("=".repeat(W));
+    rows.push(center("*** BILL SEMENTARA ***"));
+    rows.push(center("BELUM DIBAYAR"));
+    rows.push("=".repeat(W));
+    rows.push("");
+  }
+
   // Custom multi-line header dari settings — kalau di-isi, replace brand + address default.
   const customHeader = (receipt.settings?.receiptHeaderText ?? "").trim();
   if (customHeader) {
@@ -107,7 +254,7 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
     rows.push(center(receipt.settings?.brandName || "GARAGE"));
     rows.push(center(receipt.settings?.brandTagline || "Coffee & Motor"));
     if (receipt.settings?.outletAddress) {
-      rows.push(center(receipt.settings.outletAddress));
+      rows.push(...centerWrapped(receipt.settings.outletAddress));
     }
   }
   if (receipt.settings?.outletPhone) {
@@ -120,6 +267,10 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
     rows.push(center(receipt.outlet.code));
   }
   rows.push(line());
+  if (receipt.queueNo != null) {
+    rows.push(center(`ANTRIAN  #${receipt.queueNo}`));
+    rows.push(line());
+  }
   rows.push(`Order : ${clean(receipt.orderNo) || "-"}`.slice(0, W));
   rows.push(`Inv   : ${clean(receipt.invoiceNo) || "-"}`.slice(0, W));
   rows.push(`Waktu : ${fmtDate(receipt.createdAt)}`.slice(0, W));
@@ -182,6 +333,9 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
   if (receipt.isReprint) {
     rows.push(center("(salinan struk — bukan transaksi baru)"));
   }
+  if (receipt.provisional) {
+    rows.push(center("(bukan bukti pembayaran)"));
+  }
   if (receipt.invoiceWebUrl) {
     rows.push("");
     rows.push(center("Cek invoice online:"));
@@ -197,7 +351,8 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
   const shouldKickDrawer =
     receipt.settings?.cashDrawerOnPayment !== false &&
     (receipt.paymentMethod ?? "").toLowerCase() === "cash" &&
-    !receipt.isReprint;
+    !receipt.isReprint &&
+    !receipt.provisional;
   if (shouldKickDrawer) {
     const drawerKick = "\x1B\x70\x00\x19\xFA";
     output = output + "\r\n" + drawerKick;

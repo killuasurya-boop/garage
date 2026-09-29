@@ -36,11 +36,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ file: string }> },
 ) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const { file } = await context.params;

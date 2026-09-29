@@ -56,12 +56,33 @@ type ItemDraft = {
   packSize: string;
   receivedQty: string;
   hpp: string;
+  // Harga dari nota supplier per kemasan (bantu hitung HPP/unit = harga ÷ isi).
+  packPrice?: string;
   qc: "pass" | "discrepancy" | "reject";
   batchNo: string;
   expiredAt: string;
   discrepancyNote: string;
   putAwayLocation: string;
 };
+
+/** Angka format Indonesia: "115.000" → 115000, "144,74" → 144.74. */
+function parseIdNumber(value: string): number {
+  const v = value.trim().replace(/\s/g, "").replace(/^rp/i, "");
+  if (!v) return NaN;
+  if (v.includes(",")) return Number(v.replace(/\./g, "").replace(",", "."));
+  if (/^\d{1,3}(\.\d{3})+$/.test(v)) return Number(v.replace(/\./g, ""));
+  return Number(v);
+}
+
+/** Isian awal saat produk dipilih: isi kemasan + harga supplier terakhir per unit. */
+function productDefaults(p: WmsProductRow | undefined): Pick<ItemDraft, "packSize" | "hpp"> {
+  if (!p) return { packSize: "", hpp: "" };
+  const hasPack = p.packQty > 0 && p.packPrice > 0;
+  return {
+    packSize: p.packQty > 0 ? String(p.packQty) : "",
+    hpp: String(hasPack ? Math.round((p.packPrice / p.packQty) * 10_000) / 10_000 : p.hpp || ""),
+  };
+}
 
 type PoDraftStorage = {
   poNumber?: string;
@@ -156,7 +177,7 @@ function buildPayloadItems(items: ItemDraft[]) {
       productId: it.productId,
       orderedQty: Number(it.orderedQty) || 0,
       receivedQty: effReceived(it),
-      hpp: Number(it.hpp) || 0,
+      hpp: parseIdNumber(it.hpp) || 0,
       qc: it.qc,
       batchNo: it.batchNo.trim() || undefined,
       expiredAt: it.expiredAt || null,
@@ -332,7 +353,7 @@ export default function WmsReceivingPage() {
         ...emptyItem(),
         productId: p.id,
         receivedQty: "1",
-        hpp: String(p.hpp || ""),
+        hpp: productDefaults(p).hpp,
       };
       if (empty >= 0) return prev.map((it, i) => (i === empty ? row : it));
       return [...prev, row];
@@ -354,7 +375,7 @@ export default function WmsReceivingPage() {
   }
 
   const totalValue =
-    items.reduce((s, it) => s + effReceived(it) * (Number(it.hpp) || 0), 0) + (Number(additionalCost) || 0);
+    items.reduce((s, it) => s + effReceived(it) * (parseIdNumber(it.hpp) || 0), 0) + (parseIdNumber(additionalCost) || 0);
   const valid = items.some((it) => it.productId && effReceived(it) > 0);
 
   function labelItemsFromDraft() {
@@ -404,7 +425,7 @@ export default function WmsReceivingPage() {
       const payload = {
         supplier: supplier.trim() || undefined,
         poNumber: poNumber.trim() || undefined,
-        additionalCost: Number(additionalCost) || 0,
+        additionalCost: parseIdNumber(additionalCost) || 0,
         warehouseId: warehouseId || undefined,
         items: buildPayloadItems(items),
       };
@@ -622,7 +643,7 @@ export default function WmsReceivingPage() {
                   <th className={`py-1.5 px-2 text-right ${stepHighlight(step, 1)}`}>Dipesan</th>
                   <th className={`py-1.5 px-2 text-center ${stepHighlight(step, 1)}`}>Beli (qty × isi)</th>
                   <th className={`py-1.5 px-2 text-right ${stepHighlight(step, 1)}`}>Diterima</th>
-                  <th className={`py-1.5 px-2 text-right ${stepHighlight(step, 1)}`}>HPP/unit</th>
+                  <th className={`py-1.5 px-2 text-right ${stepHighlight(step, 1)}`}>Harga (Rp/kemasan · Rp/unit)</th>
                   <th className={`py-1.5 px-2 ${stepHighlight(step, 2)}`}>QC</th>
                   <th className={`py-1.5 px-2 ${stepHighlight(step, 3)}`}>Batch</th>
                   <th className={`py-1.5 px-2 ${stepHighlight(step, 3)}`}>
@@ -651,7 +672,8 @@ export default function WmsReceivingPage() {
                                   ? {
                                       ...x,
                                       productId: pid,
-                                      hpp: p ? String(p.hpp || "") : x.hpp,
+                                      ...(p ? productDefaults(p) : {}),
+                                      packPrice: p && p.packPrice > 0 ? String(p.packPrice) : "",
                                     }
                                   : x,
                               ),
@@ -743,14 +765,46 @@ export default function WmsReceivingPage() {
                         })()}
                       </td>
                       <td className={`py-1 px-2 ${stepHighlight(step, 1)}`}>
-                        <input
-                          value={it.hpp}
-                          onChange={(e) =>
-                            setItems((p) => p.map((x, i) => (i === idx ? { ...x, hpp: e.target.value } : x)))
-                          }
-                          inputMode="decimal"
-                          className={`${input} w-24 text-right`}
-                        />
+                        <div className="flex flex-col items-end gap-1">
+                          {/* Harga nota per kemasan → Rp/unit = harga ÷ isi kemasan. */}
+                          {Number(it.packSize) > 0 && (
+                            <input
+                              value={it.packPrice ?? ""}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const price = parseIdNumber(raw);
+                                const size = Number(it.packSize);
+                                setItems((p) =>
+                                  p.map((x, i) =>
+                                    i === idx
+                                      ? {
+                                          ...x,
+                                          packPrice: raw,
+                                          ...(Number.isFinite(price) && price >= 0 && size > 0
+                                            ? { hpp: String(Math.round((price / size) * 10_000) / 10_000) }
+                                            : {}),
+                                        }
+                                      : x,
+                                  ),
+                                );
+                              }}
+                              inputMode="decimal"
+                              placeholder="Rp/kemasan"
+                              title={`Harga nota per kemasan (isi ${it.packSize} ${prod?.unit ?? ""})`}
+                              className={`${input} w-28 text-right`}
+                            />
+                          )}
+                          <input
+                            value={it.hpp}
+                            onChange={(e) =>
+                              setItems((p) => p.map((x, i) => (i === idx ? { ...x, hpp: e.target.value } : x)))
+                            }
+                            inputMode="decimal"
+                            placeholder="Rp/unit"
+                            title={`Harga per ${prod?.unit ?? "unit"}`}
+                            className={`${input} w-28 text-right`}
+                          />
+                        </div>
                       </td>
                       <td className={`py-1 px-2 ${stepHighlight(step, 2)}`}>
                         <select
@@ -906,7 +960,7 @@ export default function WmsReceivingPage() {
                     .filter((it) => it.productId && effReceived(it) > 0)
                     .map((it) => {
                       const p = products.find((x) => x.id === it.productId);
-                      return `<tr><td>${escapeHtml(p?.name ?? "-")}</td><td class="c">${escapeHtml(p?.unit ?? "")}</td><td class="r">${effReceived(it)}</td><td class="r">${currency.format(Number(it.hpp) || 0)}</td><td class="c">${escapeHtml(it.batchNo || "-")}</td></tr>`;
+                      return `<tr><td>${escapeHtml(p?.name ?? "-")}</td><td class="c">${escapeHtml(p?.unit ?? "")}</td><td class="r">${effReceived(it)}</td><td class="r">${currency.format(parseIdNumber(it.hpp) || 0)}</td><td class="c">${escapeHtml(it.batchNo || "-")}</td></tr>`;
                     })
                     .join("");
                   printWmsDoc(

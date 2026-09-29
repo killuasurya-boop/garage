@@ -1,0 +1,1 @@
+ALTER TABLE "staff_wage_config" ADD COLUMN "exclude_from_fee" boolean DEFAULT false NOT NULL;

@@ -7,13 +7,7 @@ import { fail } from "@/lib/api-response";
 export const runtime = "nodejs";
 
 // Role yang boleh melihat selfie SEMUA karyawan (audit kehadiran).
-const SUPERVISOR_ROLES = new Set([
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-  "Finance / CFO",
-]);
+const SUPERVISOR_ROLES = new Set(["Owner", "Manajer"]);
 
 interface RouteContext {
   params: Promise<{ date: string; filename: string }>;

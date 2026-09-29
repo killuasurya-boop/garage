@@ -21,7 +21,7 @@ const bulkSchema = z
       data.status !== "rejected" ||
       (data.reasonDecided && data.reasonDecided.length >= 5),
     {
-      message: "Alasan reject wajib diisi minimal 5 karakter.",
+      message: "Alasan menolak wajib diisi minimal 5 karakter.",
       path: ["reasonDecided"],
     },
   );

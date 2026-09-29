@@ -80,7 +80,7 @@ beforeAll(async () => {
 
   await d
     .insert(schema.user)
-    .values({ id: userId, name: "Kasir Test", email: "kasir.itest@garage.local" });
+    .values({ id: userId, name: "Kasir Test", email: "kasir.itest@garage.id" });
 
   await d.insert(schema.menuItems).values([
     { id: "itm-coffee", name: "Kopi Test", category: "Coffee", section: "Coffee", prep: "5m" },
@@ -179,7 +179,7 @@ describe("Kasir — createOrder end-to-end (DB nyata)", () => {
     const d = getDb();
     await d
       .insert(schema.user)
-      .values({ id: "user-itest-noshift", name: "Tanpa Shift", email: "noshift.itest@garage.local" });
+      .values({ id: "user-itest-noshift", name: "Tanpa Shift", email: "noshift.itest@garage.id" });
     await expect(
       createOrder(
         {

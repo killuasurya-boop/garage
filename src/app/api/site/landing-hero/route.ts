@@ -131,7 +131,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

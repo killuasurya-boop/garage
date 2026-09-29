@@ -29,7 +29,7 @@ export const GARAGE_SAMPLE_MEMBERS: GarageSampleMember[] = [
   {
     name: "Sinta Silver",
     phone: "081300001001",
-    email: "sinta.silver@garage.local",
+    email: "sinta.silver@garage.id",
     points: 320,
     visits: 4,
     lastOrder: "Americano",
@@ -42,7 +42,7 @@ export const GARAGE_SAMPLE_MEMBERS: GarageSampleMember[] = [
   {
     name: "Gilang Gold",
     phone: "081300001002",
-    email: "gilang.gold@garage.local",
+    email: "gilang.gold@garage.id",
     points: 2400,
     visits: 21,
     lastOrder: "Sanger Garage",
@@ -55,7 +55,7 @@ export const GARAGE_SAMPLE_MEMBERS: GarageSampleMember[] = [
   {
     name: "Nadia Platinum",
     phone: "081300001003",
-    email: "nadia.platinum@garage.local",
+    email: "nadia.platinum@garage.id",
     points: 6200,
     visits: 58,
     lastOrder: "Octane Affogato",

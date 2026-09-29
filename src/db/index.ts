@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -91,12 +91,12 @@ function pgliteDataDir() {
   if (fromEnv) return fromEnv;
   // Fallback cross-platform: simpan di dalam cwd biar tidak bergantung path
   // hardcoded Windows. Production tetap pakai PGLITE_DATA_DIR atau DATABASE_URL.
-  return path.resolve(process.cwd(), ".pglite-data");
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), ".pglite-data");
 }
 
 function pgliteDataDirFallbacks() {
-  const primary = path.resolve(pgliteDataDir());
-  const localFallback = path.resolve(process.cwd(), ".pglite-data");
+  const primary = path.resolve(/* turbopackIgnore: true */ pgliteDataDir());
+  const localFallback = path.resolve(/* turbopackIgnore: true */ process.cwd(), ".pglite-data");
   return Array.from(new Set([primary, localFallback]));
 }
 

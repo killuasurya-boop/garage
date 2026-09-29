@@ -7,7 +7,10 @@ import {
 } from "@/lib/test-helpers/garage-test-db";
 
 // =============================================================================
-// WMS — Auto-consume POS PER AREA: bahan bar→gudang Bar, dapur→Dapur, umum→utama.
+// WMS — Penjualan POS = KONSUMSI bahan per area: bahan bar diambil dari ruang
+// Bar, bahan dapur dari ruang Dapur, umum mengikuti area mayoritas resep.
+// (Dulu penjualan memakai Internal Order = transfer gudang→outlet sehingga total
+// stok tidak pernah berkurang; test lama mengunci perilaku salah itu.)
 // =============================================================================
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -34,8 +37,14 @@ async function onHandAt(sku: string, whId: string) {
   return (await svc.getWmsProducts({ warehouseId: whId })).find((p: any) => p.sku === sku)?.onHand ?? 0;
 }
 
-describe("processPosSale routing per area", () => {
-  it("menu campur → bahan bar ke gudang Bar, bahan dapur ke gudang Dapur", async () => {
+async function totalOnHand(sku: string) {
+  return onHandAt(sku, "all");
+}
+
+describe("processPosSale — penjualan mengonsumsi stok per area", () => {
+  let before: Record<string, number> = {};
+
+  it("menu campur → total stok berkurang sesuai resep, tidak ada transfer ke outlet", async () => {
     const prods = await svc.getWmsProducts();
     const bean = prods.find((p: any) => p.sku === "BEAN-ARB"); // Bahan Bar → bar
     const rice = prods.find((p: any) => p.sku === "RICE"); // Bahan Dapur → dapur
@@ -52,23 +61,30 @@ describe("processPosSale routing per area", () => {
       ],
     });
 
+    before = {
+      bean: await totalOnHand("BEAN-ARB"),
+      rice: await totalOnHand("RICE"),
+      cup: await totalOnHand("CUP-16"),
+    };
+
     const res = await svc.processPosSale({ ref: "ORDER-AREA-1", items: [{ name: "Menu Campur", qty: 1 }] }, null);
     expect(res.processed.length).toBe(1);
 
-    // Bahan bar (kopi) masuk ke gudang Bar; bahan dapur (beras) ke gudang Dapur.
-    expect(await onHandAt("BEAN-ARB", barWh.id)).toBe(10);
-    expect(await onHandAt("RICE", kitWh.id)).toBe(20);
-    // Beras TIDAK masuk ke Bar; kopi TIDAK masuk ke Dapur.
+    // Total stok benar-benar berkurang (dulu hanya pindah ruang).
+    expect(await totalOnHand("BEAN-ARB")).toBe(before.bean - 10);
+    expect(await totalOnHand("RICE")).toBe(before.rice - 20);
+    expect(await totalOnHand("CUP-16")).toBe(before.cup - 1);
+    // Tidak ada bahan yang "dipindah" ke outlet.
+    expect(await onHandAt("BEAN-ARB", barWh.id)).toBe(0);
+    expect(await onHandAt("RICE", kitWh.id)).toBe(0);
     expect(await onHandAt("RICE", barWh.id)).toBe(0);
     expect(await onHandAt("BEAN-ARB", kitWh.id)).toBe(0);
-    // Kemasan (umum) ikut outlet utama (bar; tie bar>=dapur).
-    expect(await onHandAt("CUP-16", barWh.id)).toBe(1);
   });
 
   it("idempotensi: ulang sale ref sama → tidak dobel potong", async () => {
-    const beanBarBefore = await onHandAt("BEAN-ARB", barWh.id);
+    const beanBefore = await totalOnHand("BEAN-ARB");
     const res = await svc.processPosSale({ ref: "ORDER-AREA-1", items: [{ name: "Menu Campur", qty: 1 }] }, null);
     expect(res.processed.length).toBe(1);
-    expect(await onHandAt("BEAN-ARB", barWh.id)).toBe(beanBarBefore); // tak berubah
+    expect(await totalOnHand("BEAN-ARB")).toBe(beanBefore); // tak berubah
   });
 });

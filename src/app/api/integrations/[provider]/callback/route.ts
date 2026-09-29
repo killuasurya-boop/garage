@@ -16,7 +16,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ provider: string }> },
 ) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
   const { provider } = await context.params;
   if (provider !== "youtube" && provider !== "google_business" && provider !== "threads") {

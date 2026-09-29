@@ -326,7 +326,7 @@ export function HealthDashboard({ initialHealth, backupGuide }: Props) {
           <TabsContent value="security" className="mt-4">
             <MetricGrid
               items={[
-                ["Owner/Admin tanpa 2FA", health.security.activeAdminWithout2fa, health.security.activeAdminWithout2fa > 0 ? "critical" : "healthy"],
+                ["Owner/Manajer tanpa 2FA", health.security.activeAdminWithout2fa, health.security.activeAdminWithout2fa > 0 ? "critical" : "healthy"],
                 ["Login attempts 24h", health.security.loginAttemptsLast24h, health.security.loginAttemptsLast24h >= 1000 ? "critical" : "healthy"],
                 ["Suspended staff", health.security.suspendedStaff, health.security.suspendedStaff > 5 ? "watch" : "healthy"],
                 ["Unresolved errors 24h", health.security.unresolvedErrors24h, health.security.unresolvedErrors24h > 0 ? "critical" : "healthy"],
@@ -462,7 +462,7 @@ export function HealthDashboard({ initialHealth, backupGuide }: Props) {
                   <ChecklistItem ok={health.configuration.nodeEnv === "production"} label="NODE_ENV = production" />
                   <ChecklistItem ok={health.database.latencyMs !== null && health.database.latencyMs < 500} label={`Database latency < 500ms (current: ${health.database.latencyMs ?? "-"}ms)`} />
                   <ChecklistItem ok={health.backup.status !== "critical"} label="Backup terbaru tersedia dan script backup ada" />
-                  <ChecklistItem ok={health.security.activeAdminWithout2fa === 0} label="Owner/Admin sudah aktif 2FA" />
+                  <ChecklistItem ok={health.security.activeAdminWithout2fa === 0} label="Owner/Manajer sudah aktif 2FA" />
                   <ChecklistItem ok={health.operations.failedPrintJobs24h === 0} label="Tidak ada print job gagal 24 jam terakhir" />
                   <ChecklistItem manual label="Monitoring external aktif (Sentry/log aggregator/uptime check)" />
                   <ChecklistItem manual label="HTTPS + certificate auto-renewal" />

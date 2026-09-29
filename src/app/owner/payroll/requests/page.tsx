@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { PayoutRequestsPanel } from "@/components/payroll/payout-requests-panel";
 
 export const metadata: Metadata = {
-  title: "Payout Requests | Garage OS Owner",
+  title: "Payout Lama | Garage OS",
 };
 
 export default function PayoutRequestsPage() {
   return (
     <main className="min-h-screen bg-[var(--garage-bg-0)] py-6 px-4">
       <div className="max-w-4xl mx-auto space-y-4">
-        <h1 className="text-2xl font-bold text-[var(--garage-fg)]">Permintaan Payout</h1>
+        <h1 className="text-2xl font-bold text-[var(--garage-fg)]">Payout Lama (riwayat)</h1>
         <PayoutRequestsPanel />
       </div>
     </main>

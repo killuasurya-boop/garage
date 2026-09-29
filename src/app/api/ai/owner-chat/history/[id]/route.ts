@@ -13,7 +13,7 @@ type RouteContext = {
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }
@@ -28,7 +28,7 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }

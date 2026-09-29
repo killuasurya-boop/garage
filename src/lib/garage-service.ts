@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "crypto";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -8,21 +8,45 @@ import {
   type StaffFeeRates,
 } from "@/lib/garage-app-settings-types";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
+import { GARAGE_LOCATION } from "@/lib/garage-location";
 import {
   type KitchenTargetGroup,
   kitchenTargetMinutes,
+  applyRoundingMode,
   calculateBillingTotals,
   capVoucherDiscountBySettings,
   computeManualDiscountAmount,
+  computeRefundSplit,
   manualDiscountNeedsApproval,
   orderTypeToChannel,
-  kitchenTargetGroupForCategory,
+  qrPromoDiscount,
 } from "@/lib/garage-billing";
+import {
+  canHandoverStation,
+  canOperateStation,
+  productionStationFor,
+  productionStationLabel,
+  type ProductionStation,
+} from "@/lib/garage-production-rules";
+import {
+  cancelProductionForOrder,
+  insertProductionTicketItems,
+  pendingBatchNosForTicket,
+  ProductionBatchPendingError,
+  syncProductionItemsForTicket,
+  type ProductionMenuInfo,
+} from "@/lib/garage-production-tickets";
 import {
   GarageOsThemeSaveError,
   isSavableGarageOsThemePreset,
 } from "@/lib/garage-theme";
 import { getDb } from "@/db";
+import {
+  getExpenseApprovalThreshold,
+  getExpenseOwnerApprovalThreshold,
+  getFinanceEngineSummary,
+} from "@/lib/finance-control";
+import { assertFinanceDayOpen } from "@/lib/finance-closing";
 
 export { DEFAULT_APP_SETTINGS, type AppSettings };
 
@@ -76,6 +100,7 @@ import {
   staffProfiles,
   staffEarnings,
   staffEarningPayouts,
+  session as sessionTable,
   stockOpnameItems,
   stockOpnameSessions,
   stockMovements,
@@ -115,8 +140,27 @@ import {
   PLATINUM_ANNUAL_SPEND,
   POINTS_PER_REDEEM_UNIT,
   REFERRAL_BONUS_POINTS,
+  type MemberLevel,
 } from "@/lib/member-types";
 import { hashPassword } from "@/lib/member-auth";
+import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import {
+  APPROVAL_CATEGORY_LABEL,
+  approvalCategoryOf,
+  composeCancelReason,
+  validateCancelReason,
+  type ApprovalPayload,
+  type RefundPayloadItem,
+} from "@/lib/approval-rules";
+import { hashPin, pinHashEquals } from "@/lib/attendance";
+import {
+  APPROVAL_PIN_OUTLET_POLICY,
+  APPROVAL_PIN_POLICY,
+  guardLockedFor,
+  guardRecordFail,
+  guardReset,
+  lockedMessage,
+} from "@/lib/pin-guard";
 import { canUseApi } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -295,6 +339,9 @@ export type MenuProductInput = {
   sortOrder?: number;
   promoActive?: boolean;
   promoPrice?: number | null;
+  // Production Hub: "bar" | "dapur" | null (otomatis dari kategori).
+  station?: "bar" | "dapur" | null;
+  batchEligible?: boolean;
   variants: Array<{
     id?: string;
     label: string;
@@ -372,20 +419,10 @@ type RecipeInput = {
 };
 
 export const roleDisplayName: Record<Role, string> = {
-  "Owner / CEO": "Owner",
-  Admin: "Admin",
-  "Manager Operasional": "Manager",
-  "Finance / CFO": "Finance",
+  Owner: "Owner",
+  Manajer: "Manajer",
   Kasir: "Kasir",
-  Barista: "Barista",
-  Koki: "Koki",
-  "Asisten Koki": "Asisten Koki",
-  "Waiter 1": "Waiter 1",
-  "Waiter 2": "Waiter 2",
-  "Kitchen / Barista": "Kitchen",
-  Gudang: "Gudang",
-  "Supervisor Shift": "Supervisor",
-  "Delivery Admin": "Delivery",
+  Waiter: "Waiter",
 };
 
 const receiptBrand = {
@@ -447,10 +484,6 @@ function formatIdrShort(value: number) {
   return `Rp ${value}`;
 }
 
-function kitchenStationForTargetGroup(targetGroup: KitchenTargetGroup) {
-  return targetGroup === "drink" ? "Bar" : "Food";
-}
-
 function kitchenItemLabel(line: {
   itemName: string;
   variantLabel: string;
@@ -460,6 +493,43 @@ function kitchenItemLabel(line: {
     line.variantLabel === "Regular" ? line.itemName : `${line.itemName} ${line.variantLabel}`;
 
   return `${line.qty}x ${itemLabel}`;
+}
+
+// Satu tiket per workstation (BAR / DAPUR) per order. Station dari master
+// produk (menu_items.station) dengan fallback kategori — lihat
+// productionStationFor. `items`/`itemNotes` tetap diisi untuk chit & layar lama.
+function productionTicketDrafts(
+  lines: Array<{
+    itemName: string;
+    variantLabel: string;
+    qty: number;
+    note?: string | null;
+    category: string | null;
+    station?: string | null;
+  }>,
+) {
+  const linesByStation = new Map<ProductionStation, typeof lines>();
+  for (const line of lines) {
+    const station = productionStationFor({ station: line.station, category: line.category });
+    linesByStation.set(station, [...(linesByStation.get(station) ?? []), line]);
+  }
+  return Array.from(linesByStation.entries()).map(([station, groupLines]) => {
+    const targetGroup: KitchenTargetGroup = station === "Bar" ? "drink" : "food";
+    const itemNotes: Record<string, string> = {};
+    for (const line of groupLines) {
+      if (line.note && line.note.trim()) {
+        itemNotes[kitchenItemLabel(line)] = line.note.trim();
+      }
+    }
+    return {
+      ticketNo: makeTicketNo(),
+      targetGroup,
+      targetMinutes: kitchenTargetMinutes[targetGroup],
+      station,
+      items: groupLines.map(kitchenItemLabel),
+      itemNotes,
+    };
+  });
 }
 
 function customerOrderSourceLabel(source?: string) {
@@ -764,6 +834,7 @@ function customerOrderResponse(
   return {
     id: row.id,
     orderNo: row.orderNo,
+    queueNo: row.queueNo ?? null,
     tableLabel: row.tableLabel,
     channel: row.channel,
     status: row.status,
@@ -825,17 +896,11 @@ function invoiceNoForOrder(orderNo: string) {
 }
 
 function isWaiterRole(role: Role) {
-  return role === "Waiter 1" || role === "Waiter 2";
+  return role === "Waiter";
 }
 
 function canConfirmCustomerPayment(role: Role) {
-  return (
-    role === "Owner / CEO" ||
-    role === "Admin" ||
-    role === "Manager Operasional" ||
-    role === "Kasir" ||
-    role === "Supervisor Shift"
-  );
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 function numberFromMetadata(metadata: Record<string, unknown>, key: string) {
@@ -967,12 +1032,47 @@ function nowTimeLabel() {
   }).format(new Date());
 }
 
+// Stempel waktu monoton per proses: dua pemanggilan di milidetik yang sama tetap
+// beda (dulu order makanan+minuman bisa dapat nomor tiket kembar → insert gagal
+// karena ticket_no UNIQUE).
+let lastUniqueStamp = 0;
+function uniqueStamp() {
+  const now = Date.now();
+  lastUniqueStamp = now > lastUniqueStamp ? now : lastUniqueStamp + 1;
+  return lastUniqueStamp;
+}
+
 function makeOrderNo() {
-  return `POS-${Date.now().toString().slice(-8)}`;
+  // 10 digit terakhir → baru berulang ±115 hari (8 digit berulang tiap ±27,8 jam).
+  return `POS-${uniqueStamp().toString().slice(-10)}`;
 }
 
 function makeTicketNo() {
-  return `K-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 90 + 10)}`;
+  // Stempel penuh base36 (8 karakter) → tidak pernah berulang, tetap pendek di KDS.
+  return `K-${uniqueStamp().toString(36).toUpperCase()}`;
+}
+
+// Nomor antrian harian (reset tiap hari WIB, per outlet): jumlah order hari ini + 1.
+// Nomor pendek yang mudah dicek — tampil di struk & papan Siap.
+async function nextDailyQueueNo(
+  tx: GarageDb | GarageTx,
+  outletId: string | null,
+  now: Date = new Date(),
+): Promise<number> {
+  const dayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const dayStart = new Date(`${dayKey}T00:00:00+07:00`);
+  const conds = [gte(orders.createdAt, dayStart)];
+  if (outletId) conds.push(eq(orders.outletId, outletId));
+  const [row] = await tx
+    .select({ n: count(orders.id) })
+    .from(orders)
+    .where(and(...conds));
+  return Number(row?.n ?? 0) + 1;
 }
 
 function cashDiscrepancyStatus(discrepancy: number, criticalThreshold?: number) {
@@ -1033,6 +1133,7 @@ export function sessionPayload(garage: GarageSession) {
     outlet: garage.profile.outlet,
     shift: garage.profile.shiftLabel,
     device: garage.profile.deviceLabel,
+    workstation: garage.profile.workstation ?? null,
   };
 }
 
@@ -1280,7 +1381,60 @@ export async function getMenuData(params?: {
     imageUrl: item.imageUrl ?? undefined,
     promoActive: item.promoActive ?? false,
     promoPrice: item.promoPrice ?? undefined,
+    station: (item.station === "bar" || item.station === "dapur" ? item.station : null) as
+      | "bar"
+      | "dapur"
+      | null,
+    batchEligible: item.batchEligible ?? true,
   }));
+
+  // Auto-habis (opsional, setting autoSoldOutFromStock): menu yang tidak bisa
+  // dibuat 1 porsi dari stok bahan utama resepnya ditandai sold_out (badge HABIS
+  // di POS & overlay Habis di menu digital). Override manual sold_out tetap.
+  const [autoSoldOutRow] = await db
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(eq(appSettings.key, "autoSoldOutFromStock"))
+    .orderBy(sql`${appSettings.outletId} IS NULL`)
+    .limit(1);
+  if (autoSoldOutRow?.valueJson === true) {
+    const { deriveSoldOutFromRecipes } = await import("@/lib/garage-coffee-availability");
+    const stockRows = await db
+      .select({
+        itemId: menuRecipes.menuItemId,
+        variantId: menuRecipes.variantId,
+        qty: menuRecipes.qty,
+        wastePct: menuRecipes.wastePct,
+        onHand: inventoryItems.onHand,
+        category: inventoryItems.category,
+      })
+      .from(menuRecipes)
+      .innerJoin(inventoryItems, eq(inventoryItems.sku, menuRecipes.inventorySku))
+      .where(
+        and(
+          eq(menuRecipes.status, "active"),
+          inArray(
+            menuRecipes.menuItemId,
+            baseRows.map((row) => row.id),
+          ),
+        ),
+      );
+    for (const row of baseRows) {
+      if (row.stock === "sold_out") continue;
+      const lines = stockRows
+        .filter((line) => line.itemId === row.id)
+        .map((line) => ({
+          variantId: line.variantId,
+          qty: Number(line.qty),
+          wastePct: Number(line.wastePct ?? 0),
+          onHand: Number(line.onHand),
+          category: line.category,
+        }));
+      if (deriveSoldOutFromRecipes(row.variants.map((variant) => variant.id), lines)) {
+        row.stock = "sold_out";
+      }
+    }
+  }
 
   if (!params?.includeCosting) {
     return baseRows;
@@ -1508,47 +1662,6 @@ function normalizeMenuProductRecipes(
   return recipes;
 }
 
-async function refreshAutoMenuVariantBaseCosts(
-  tx: GarageDb | GarageTx,
-  itemId: string,
-  variantIds: string[],
-) {
-  const uniqueVariantIds = Array.from(new Set(variantIds.filter(Boolean)));
-  if (!uniqueVariantIds.length) return;
-
-  for (const variantId of uniqueVariantIds) {
-    const recipeRows = await tx
-      .select({
-        qty: menuRecipes.qty,
-        wastePct: menuRecipes.wastePct,
-        unitCost: inventoryItems.unitCost,
-      })
-      .from(menuRecipes)
-      .innerJoin(inventoryItems, eq(inventoryItems.sku, menuRecipes.inventorySku))
-      .where(
-        and(
-          eq(menuRecipes.menuItemId, itemId),
-          eq(menuRecipes.status, "active"),
-          or(eq(menuRecipes.variantId, "all"), eq(menuRecipes.variantId, variantId)),
-        ),
-      );
-
-    const recipeCost = Math.round(
-      recipeRows.reduce(
-        (sum, row) =>
-          sum + Number(row.qty) * Number(row.unitCost ?? 0) * (1 + Number(row.wastePct ?? 0) / 100),
-        0,
-      ),
-    );
-    if (recipeCost <= 0) continue;
-
-    await tx
-      .update(menuVariants)
-      .set({ baseCost: recipeCost, updatedAt: new Date() })
-      .where(and(eq(menuVariants.itemId, itemId), eq(menuVariants.variantId, variantId)));
-  }
-}
-
 export async function createMenuProduct(input: MenuProductInput, garage: GarageSession) {
   const db = getDb();
   const name = input.name.trim();
@@ -1604,6 +1717,8 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         tags: input.tags ?? [],
         promoActive: promo.promoActive,
         promoPrice: promo.promoPrice,
+        station: input.station ?? null,
+        batchEligible: input.batchEligible ?? true,
         sortOrder: input.sortOrder ?? 999,
         updatedAt: now,
       })
@@ -1613,13 +1728,7 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
     if (recipes.length) {
       await tx.insert(menuRecipes).values(recipes);
     }
-    await refreshAutoMenuVariantBaseCosts(
-      tx,
-      id,
-      variants
-        .filter((variant) => variant.baseCost <= 0)
-        .map((variant) => variant.variantId),
-    );
+    await syncRecipeBaseCosts(tx, { itemIds: [id] });
 
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
@@ -1759,6 +1868,8 @@ export async function updateMenuProduct(
   if (input.tags !== undefined) update.tags = input.tags;
   if (input.sortOrder !== undefined) update.sortOrder = input.sortOrder;
   if (input.imageUrl !== undefined) update.imageUrl = input.imageUrl?.trim() || null;
+  if (input.station !== undefined) update.station = input.station ?? null;
+  if (input.batchEligible !== undefined) update.batchEligible = input.batchEligible;
   if (input.sku !== undefined) {
     const nextSku = normalizeMenuSku(input.sku);
     if (nextSku) {
@@ -1815,19 +1926,7 @@ export async function updateMenuProduct(
         await tx.insert(menuRecipes).values(recipes);
       }
     }
-    const autoCostVariantIds = variants
-      ? variants
-          .filter((variant) => variant.baseCost <= 0)
-          .map((variant) => variant.variantId)
-      : recipes
-        ? (
-            await tx
-              .select({ variantId: menuVariants.variantId })
-              .from(menuVariants)
-              .where(and(eq(menuVariants.itemId, safeId), lte(menuVariants.baseCost, 0)))
-          ).map((variant) => variant.variantId)
-        : [];
-    await refreshAutoMenuVariantBaseCosts(tx, safeId, autoCostVariantIds);
+    await syncRecipeBaseCosts(tx, { itemIds: [safeId] });
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
@@ -1915,23 +2014,14 @@ export async function deleteMenuProduct(id: string, garage: GarageSession) {
 export async function getKitchenData(params?: {
   status?: string;
   station?: string;
-  viewerRole?: string;
 }) {
   const filters = [];
   if (params?.status && params.status !== "all") {
     filters.push(eq(kitchenTickets.status, params.status));
   }
 
-  const roleStation =
-    params?.viewerRole === "Koki" || params?.viewerRole === "Asisten Koki"
-      ? "Food"
-      : params?.viewerRole === "Barista"
-        ? "Bar"
-        : null;
-  const station = roleStation ?? params?.station;
-
-  if (station && station !== "all") {
-    filters.push(eq(kitchenTickets.station, station));
+  if (params?.station && params.station !== "all") {
+    filters.push(eq(kitchenTickets.station, params.station));
   }
 
   const rows = await getDb()
@@ -1977,6 +2067,22 @@ export async function getKitchenData(params?: {
     });
   }
 
+  // Nomor antrian harian (dari orders) untuk papan Siap — nomor pendek yang mudah
+  // dicek & cocok dengan struk.
+  const orderIds = Array.from(
+    new Set(rows.map((r) => r.orderId).filter((id): id is string => Boolean(id))),
+  );
+  const queueNoByOrderId = new Map<string, number>();
+  if (orderIds.length) {
+    const qRows = await getDb()
+      .select({ id: orders.id, queueNo: orders.queueNo })
+      .from(orders)
+      .where(inArray(orders.id, orderIds));
+    for (const q of qRows) {
+      if (q.queueNo != null) queueNoByOrderId.set(q.id, q.queueNo);
+    }
+  }
+
   return rows.map((row) => ({
     id: row.ticketNo,
     table: row.tableLabel,
@@ -1990,6 +2096,7 @@ export async function getKitchenData(params?: {
     priority: row.priority,
     targetMinutes: row.targetMinutes,
     targetGroup: row.targetGroup,
+    queueNo: row.orderId ? queueNoByOrderId.get(row.orderId) ?? null : null,
     acceptedAt: row.acceptedAt?.toISOString() ?? null,
     acceptedByName: row.acceptedByName,
     readyAt: row.readyAt?.toISOString() ?? null,
@@ -1998,166 +2105,32 @@ export async function getKitchenData(params?: {
     deliveredByName: row.deliveredByName,
     claimedBy: row.claimedBy ?? null,
     claimedByName: row.claimedByName ?? null,
+    claimedAt: row.claimedAt?.toISOString() ?? null,
+    handoverAt: row.handoverAt?.toISOString() ?? null,
+    handoverByName: row.handoverByName ?? null,
+    customerName: row.customerName ?? null,
+    orderNo: row.orderNo ?? null,
+    orderId: row.orderId ?? null,
+    issueReason: row.issueReason ?? null,
     createdAt: row.createdAt.toISOString(),
     // Sequence dalam session meja: 1 = order pertama, 2+ = addon
     addonSequence: row.orderId ? sequenceByOrderId.get(row.orderId) ?? 1 : 1,
   }));
 }
 
-export async function updateKitchenTicketDetails(
-  ticketNo: string,
-  input: {
-    station?: string;
-    priority?: string;
-    itemNotes?: Record<string, unknown>;
-    internalNotes?: string;
-  },
-  garage: GarageSession,
-) {
-  const db = getDb();
-  const [current] = await db
-    .select()
-    .from(kitchenTickets)
-    .where(eq(kitchenTickets.ticketNo, ticketNo))
-    .limit(1);
-
-  if (!current) {
-    return null;
-  }
-
-  const update: Partial<typeof kitchenTickets.$inferInsert> = {
-    updatedAt: new Date(),
-  };
-
-  if (input.station !== undefined) {
-    update.station = input.station;
-  }
-
-  if (input.priority !== undefined) {
-    update.priority = input.priority;
-  }
-
-  if (input.itemNotes !== undefined) {
-    update.itemNotes = input.itemNotes;
-  }
-
-  if (input.internalNotes !== undefined) {
-    update.internalNotes = input.internalNotes;
-  }
-
-  const [ticket] = await db
-    .update(kitchenTickets)
-    .set(update)
-    .where(eq(kitchenTickets.ticketNo, ticketNo))
-    .returning();
-
-  await createAuditLog({
-    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-    action: "Kitchen ticket details updated",
-    object: ticket.ticketNo,
-    device: garage.profile.deviceLabel,
-    metadata: { input },
-  });
-
-  return ticket;
-}
-
-export async function bulkUpdateKitchenStatus(
-  ticketNos: string[],
-  status: string,
-  garage: GarageSession,
-) {
-  const updated: Array<typeof kitchenTickets.$inferSelect> = [];
-  const skipped: Array<{ ticketNo: string; reason: string }> = [];
-
-  for (const ticketNo of ticketNos) {
-    try {
-      const ticket = await updateKitchenStatus(ticketNo, status, garage);
-      if (ticket) {
-        updated.push(ticket);
-      } else {
-        skipped.push({ ticketNo, reason: "not_found" });
-      }
-    } catch (error) {
-      if (error instanceof KitchenTransitionError) {
-        skipped.push({
-          ticketNo,
-          reason: `invalid_transition:${error.from}->${error.to}`,
-        });
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  return { updated, skipped };
-}
-
-export async function recallKitchenTickets(
-  ticketNos: string[],
-  garage: GarageSession,
-) {
-  const db = getDb();
-  const now = new Date();
-
-  // Only recall tickets that are in "delivered" status and delivered within last 30 minutes
-  const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000);
-
-  const rows = await db
-    .update(kitchenTickets)
-    .set({
-      status: "ready",
-      deliveredAt: null,
-      deliveredByName: null,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        inArray(kitchenTickets.ticketNo, ticketNos),
-        eq(kitchenTickets.status, "delivered"),
-        gte(kitchenTickets.deliveredAt ?? thirtyMinAgo, thirtyMinAgo),
-      ),
-    )
-    .returning();
-
-  for (const ticket of rows) {
-    await createAuditLog({
-      actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-      action: "Kitchen ticket recalled",
-      object: ticket.ticketNo,
-      device: garage.profile.deviceLabel,
-    });
-  }
-
-  return rows;
-}
-
 export async function getKitchenPerformanceData(params?: {
   range?: string;
-  viewerRole?: string;
 }) {
   const range = params?.range === "today" ? "today" : "month";
   const { start, end } =
     range === "today" ? getJakartaTodayRange() : getJakartaMonthRange();
   const db = getDb();
-  const roleStation =
-    params?.viewerRole === "Koki" || params?.viewerRole === "Asisten Koki"
-      ? "Food"
-      : params?.viewerRole === "Barista"
-        ? "Bar"
-        : null;
   const completedFilters = [gte(kitchenTickets.readyAt, start), lt(kitchenTickets.readyAt, end)];
-  if (roleStation) {
-    completedFilters.push(eq(kitchenTickets.station, roleStation));
-  }
-  const activeStatusFilter = or(
+  const activeFilters = or(
     eq(kitchenTickets.status, "queue"),
     eq(kitchenTickets.status, "cooking"),
     eq(kitchenTickets.status, "ready"),
   );
-  const activeFilters = roleStation
-    ? and(activeStatusFilter, eq(kitchenTickets.station, roleStation))
-    : activeStatusFilter;
 
   const [completedRows, activeRows] = await Promise.all([
     db
@@ -2388,10 +2361,7 @@ export async function getKitchenShiftReport(params: {
           .groupBy(staffEarnings.role),
       ]);
 
-      const kokiFee =
-        earningRows.find((row) => row.role === "Koki")?.amount ?? 0;
-      const assistantFee =
-        earningRows.find((row) => row.role === "Asisten Koki")?.amount ?? 0;
+      const kitchenFee = earningRows.reduce((sum, row) => sum + row.amount, 0);
       const totalItems = readyTickets.reduce(
         (sum, ticket) =>
           sum + ticket.items.reduce((itemSum, item) => itemSum + kitchenItemQuantity(item), 0),
@@ -2412,9 +2382,8 @@ export async function getKitchenShiftReport(params: {
           ["queue", "cooking", "ready"].includes(ticket.status),
         ).length,
         totalItems,
-        totalFee: kokiFee + assistantFee,
-        kokiFee,
-        assistantFee,
+        totalFee: kitchenFee,
+        kitchenFee,
       };
     }),
   );
@@ -2430,8 +2399,7 @@ export async function getKitchenShiftReport(params: {
       activeTickets: shifts.reduce((sum, row) => sum + row.activeTickets, 0),
       totalItems: shifts.reduce((sum, row) => sum + row.totalItems, 0),
       totalFee: shifts.reduce((sum, row) => sum + row.totalFee, 0),
-      kokiFee: shifts.reduce((sum, row) => sum + row.kokiFee, 0),
-      assistantFee: shifts.reduce((sum, row) => sum + row.assistantFee, 0),
+      kitchenFee: shifts.reduce((sum, row) => sum + row.kitchenFee, 0),
     },
   };
 }
@@ -2782,16 +2750,16 @@ function normalizeInventoryUsageArea(
   return inventoryUsageAreaFor(category, name);
 }
 
-const WAREHOUSE_LOCATION_KEY = "warehouse";
-
-function roleStationArea(role: Role): "bar" | "dapur" | null {
-  if (role === "Barista") return "bar";
-  if (role === "Koki" || role === "Asisten Koki") return "dapur";
-  return null;
+// HPP per satuan stok boleh pecahan (Rp/ml, Rp/gr) — simpan 4 desimal sesuai
+// kolom numeric(14,4); total rupiah (lineTotal/nilai stok) tetap dibulatkan.
+function roundUnitCost(value: number) {
+  return Math.max(0, Math.round(value * 10_000) / 10_000);
 }
 
+const WAREHOUSE_LOCATION_KEY = "warehouse";
+
 function canManageWarehouseFlow(role: Role) {
-  return role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 function outletLocationKey(outletId: string) {
@@ -2876,7 +2844,7 @@ export async function createInventoryItem(input: InventoryItemInput, garage: Gar
   const packageSize = input.packageSize.trim();
   const onHand = Number(input.onHand);
   const min = Number(input.min);
-  const unitCost = Math.max(0, Math.round(Number(input.unitCost ?? 0)));
+  const unitCost = roundUnitCost(Number(input.unitCost ?? 0));
 
   if (!sku || !name || !category || !unit || !packageSize) {
     throw new Error("SKU, nama, kategori, unit, dan package size wajib diisi.");
@@ -3298,15 +3266,9 @@ export async function getFinanceOverview() {
   const dailyOrderCount = Number(todayAgg?.orderCount ?? 0);
   const monthRevenue = Number(monthAgg?.revenue ?? 0);
   const monthDiscounts = Number(monthAgg?.discounts ?? 0);
-  const todayExpenseByCategory = new Map(
-    todayExpenseRows.map((row) => [row.category, Number(row.amount)]),
-  );
-  const monthExpenseByCategory = new Map(
-    monthExpenseRows.map((row) => [row.category, Number(row.amount)]),
-  );
-  const fallbackDailyCogs = Math.round(dailyRevenue * 0.382);
-  const fallbackDailyOpsExpense = Math.round(dailyRevenue * 0.168);
-  const fallbackDailyPayrollAccrual = Math.round(dailyRevenue * 0.055);
+  // P&L dari Financial Engine (finance-control) — tanpa persentase karangan.
+  const engine = await getFinanceEngineSummary();
+  const marketingOf = (lines: Record<string, number>) => (lines["Iklan"] ?? 0) + (lines["Marketing"] ?? 0);
   const recipeCogs = Math.round(
     todayRecipeCostRows.reduce((sum, row) => {
       const unitCost = Number(row.unitCost ?? 0);
@@ -3315,19 +3277,17 @@ export async function getFinanceOverview() {
       return sum + unitCost * qty * wasteMultiplier;
     }, 0),
   );
-  const dailyCogs = recipeCogs || todayExpenseByCategory.get("COGS") || fallbackDailyCogs;
-  const dailyOpsExpense =
-    todayExpenseByCategory.get("Operasional") ?? fallbackDailyOpsExpense;
-  const dailyPayrollAccrual =
-    todayExpenseByCategory.get("Payroll") ?? fallbackDailyPayrollAccrual;
-  const dailyMarketing = todayExpenseByCategory.get("Marketing") ?? Math.round(dailyRevenue * 0.025);
-  const dailyOther = Array.from(todayExpenseByCategory.entries())
-    .filter(([category]) => !["COGS", "Operasional", "Payroll", "Marketing"].includes(category))
-    .reduce((sum, [, amount]) => sum + amount, 0);
+  const dailyCogs = engine.today.cogs;
+  const dailyMarketing = marketingOf(engine.today.costLines);
+  const dailyOpsExpense = engine.today.operatingExpense - dailyMarketing;
+  const dailyPayrollAccrual = engine.today.payroll;
+  const dailyOther = engine.today.nonOperatingExpense;
   const dailyExpense = dailyCogs + dailyOpsExpense + dailyPayrollAccrual + dailyMarketing + dailyOther;
-  const dailyGrossProfit = dailyRevenue - dailyCogs;
-  const dailyNetProfit = dailyRevenue - dailyExpense;
-  const foodCostRatio = dailyRevenue ? Number(((dailyCogs / dailyRevenue) * 100).toFixed(1)) : 0;
+  const dailyGrossProfit = engine.today.grossProfit;
+  const dailyNetProfit = engine.today.netProfit;
+  const foodCostRatio = engine.today.netSales
+    ? Number(((dailyCogs / engine.today.netSales) * 100).toFixed(1))
+    : 0;
   const averageOrderValue = dailyOrderCount ? Math.round(dailyRevenue / dailyOrderCount) : 0;
   const bomCoverage = await getMenuBomCoverage();
   const marginRows = await getMenuMarginReport();
@@ -3336,22 +3296,14 @@ export async function getFinanceOverview() {
   );
   const noBomSelling = marginRows.filter((row) => row.ingredients === 0 && row.price > 0);
 
-  const monthCogs = monthExpenseByCategory.get("COGS") ?? Math.round(monthRevenue * 0.382);
-  const monthPayroll = Math.max(
-    monthExpenseByCategory.get("Payroll") ?? Math.round(monthRevenue * 0.15),
-    Number(accruedRow?.total ?? 0) + Number(approvedRow?.total ?? 0),
-  );
-  const monthOperational =
-    monthExpenseByCategory.get("Operasional") ?? Math.round(monthRevenue * 0.06);
-  const monthMarketing = monthExpenseByCategory.get("Marketing") ?? Math.round(monthRevenue * 0.025);
-  const monthOtherFromRows = Array.from(monthExpenseByCategory.entries())
-    .filter(([category]) => !["COGS", "Operasional", "Payroll", "Marketing"].includes(category))
-    .reduce((sum, [, amount]) => sum + amount, 0);
-  const monthOther = monthOtherFromRows || Math.round(monthRevenue * 0.015);
-  const monthNetRevenue = Math.max(0, monthRevenue - monthDiscounts);
-  const monthGrossProfit = monthNetRevenue - monthCogs;
-  const monthNetProfit =
-    monthGrossProfit - monthPayroll - monthOperational - monthMarketing - monthOther;
+  const monthCogs = engine.month.cogs;
+  const monthPayroll = engine.month.payroll;
+  const monthMarketing = marketingOf(engine.month.costLines);
+  const monthOperational = engine.month.operatingExpense - monthMarketing;
+  const monthOther = engine.month.nonOperatingExpense;
+  const monthNetRevenue = engine.month.netSales;
+  const monthGrossProfit = engine.month.grossProfit;
+  const monthNetProfit = engine.month.netProfit;
 
   const supplierPayables = supplierInvoiceRows.length
     ? supplierInvoiceRows.map((row) => ({
@@ -3374,12 +3326,7 @@ export async function getFinanceOverview() {
                 ? "Partial"
                 : "Belum Bayar",
       }))
-    : [
-        { id: null, supplier: "CV Kopi Nusantara", invoiceNo: "INV-SEED-001", dueDate: "25/05/2026", amount: 3_200_000, status: "Belum Bayar" },
-        { id: null, supplier: "PT Susu Fresh", invoiceNo: "INV-SEED-002", dueDate: "22/05/2026", amount: 850_000, status: "Jatuh Tempo" },
-        { id: null, supplier: "UD Gula Jawa", invoiceNo: "INV-SEED-003", dueDate: "28/05/2026", amount: 420_000, status: "Belum Bayar" },
-        { id: null, supplier: "CV Gas Melon", invoiceNo: "INV-SEED-004", dueDate: "21/05/2026", amount: 180_000, status: "OVERDUE" },
-      ];
+    : [];
   const supplierDue = supplierPayables
     .filter((row) => row.status === "Jatuh Tempo" || row.status === "OVERDUE")
     .reduce((sum, row) => sum + row.amount, 0);
@@ -3390,7 +3337,10 @@ export async function getFinanceOverview() {
   const cashflowWeeks = Array.from({ length: 4 }, (_, index) => {
     const week = index + 1;
     const cashIn = Number(weekRows.find((row) => Number(row.week) === week)?.revenue ?? 0);
-    const cashOut = Math.round(cashIn * 0.42);
+    // Cash out aktual (semua expense) dari engine, dikelompokkan per minggu.
+    const cashOut = engine.monthFigures
+      .filter((day) => Math.min(4, Math.floor((Number(day.date.slice(8, 10)) - 1) / 7) + 1) === week)
+      .reduce((sum, day) => sum + day.cashOut, 0);
     return {
       period: `Week ${week}`,
       cashIn,
@@ -3630,21 +3580,15 @@ export async function getFinanceOverview() {
                   : method === "Card"
                     ? "EDC"
                     : "Cash Drawer";
-          const status =
-            method === "E-Wallet"
-              ? "Pending"
-              : method === "Card"
-                ? "Processing"
-                : method === "Cash"
-                  ? "Verified"
-                  : "Settled";
+          // Belum ada catatan settlement → status jujur "Pending", bukan diasumsikan settled.
+          const status = "Pending";
           return {
             id: null,
             method,
             provider,
             amount,
             expectedAmount: amount,
-            settledAmount: amount,
+            settledAmount: 0,
             feeAmount: 0,
             share: todayPaymentTotal ? Math.round((amount / todayPaymentTotal) * 100) : 0,
             status,
@@ -3702,7 +3646,7 @@ export async function getFinanceOverview() {
       total: supplierPayables.reduce((sum, row) => sum + row.amount, 0),
       due: supplierDue,
       overdue: supplierOverdue,
-      paidThisMonth: Math.round(monthCogs * 0.72),
+      paidThisMonth: engine.month.cashOutByGroup["cogs_purchase"] ?? 0,
       rows: supplierPayables,
     },
     bomCoverage: {
@@ -3736,10 +3680,10 @@ export async function getFinanceOverview() {
     },
     alerts: alerts.slice(0, 6),
     roleAccess: [
-      { role: "Owner/CEO", sales: "Full", expense: "Full", cashflow: "Full", settlement: "Full", pnl: "Full", supplier: "Full", ceoPanel: "Full" },
-      { role: "Finance", sales: "View", expense: "Full", cashflow: "Full", settlement: "Full", pnl: "Full", supplier: "View", ceoPanel: "No" },
-      { role: "Supervisor", sales: "View", expense: "View", cashflow: "View", settlement: "View", pnl: "View", supplier: "No", ceoPanel: "No" },
+      { role: "Owner", sales: "Full", expense: "Full", cashflow: "Full", settlement: "Full", pnl: "Full", supplier: "Full", ceoPanel: "Full" },
+      { role: "Manajer", sales: "Full", expense: "Full", cashflow: "Full", settlement: "Full", pnl: "Full", supplier: "Full", ceoPanel: "Full" },
       { role: "Kasir", sales: "View", expense: "No", cashflow: "No", settlement: "No", pnl: "No", supplier: "No", ceoPanel: "No" },
+      { role: "Waiter", sales: "No", expense: "No", cashflow: "No", settlement: "No", pnl: "No", supplier: "No", ceoPanel: "No" },
     ],
   };
 }
@@ -4458,6 +4402,24 @@ export async function adjustCrmMemberPoints(input: {
   return { data: { points: newPoints, delta: realDelta }, error: null };
 }
 
+// Password/PIN member yang ditebak siapa pun: default lama yang dulu terisi
+// otomatis di form kasir, angka kembar/berurutan, atau nomor HP sendiri.
+export function memberPasswordWeakness(password: string, phone: string): string | null {
+  const value = password.trim();
+  const digitsPhone = phone.replace(/\D/g, "");
+  if (value.length < 6) return "Password/PIN member minimal 6 karakter.";
+  if (value.toLowerCase() === "member12345") {
+    return "Password default tidak boleh dipakai. Minta pelanggan membuat PIN sendiri.";
+  }
+  if (/^(\d)\1+$/.test(value) || "01234567890".includes(value) || "98765432109".includes(value)) {
+    return "PIN terlalu mudah ditebak (angka kembar/berurutan).";
+  }
+  if (digitsPhone && (value === digitsPhone || (value.length >= 6 && digitsPhone.endsWith(value)))) {
+    return "PIN tidak boleh sama dengan nomor HP.";
+  }
+  return null;
+}
+
 export async function createCrmMember(input: {
   name: string;
   phone: string;
@@ -4475,6 +4437,9 @@ export async function createCrmMember(input: {
   const cardTier = normalizeMemberLevel(input.cardTier);
   const memberCode = input.memberCode?.trim().replace(/\s+/g, "").toUpperCase() || null;
   const birthday = input.birthday?.trim() || null;
+
+  const weakPassword = memberPasswordWeakness(input.password, phone);
+  if (weakPassword) return { data: null, error: weakPassword };
 
   const [existingAccount] = await db
     .select()
@@ -4928,12 +4893,13 @@ function formatApprovalAge(createdAt: Date) {
   return `${Math.floor(hours / 24)}h`;
 }
 
-export async function getApprovalById(id: string) {
-  const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
-  if (!row) return null;
+function mapApprovalRow(row: typeof approvals.$inferSelect) {
+  const category = approvalCategoryOf(row);
   return {
     id: row.id,
     type: row.type,
+    category,
+    categoryLabel: APPROVAL_CATEGORY_LABEL[category],
     requester: row.requester,
     requesterPhone: row.requesterPhone,
     amount: row.amount,
@@ -4943,9 +4909,17 @@ export async function getApprovalById(id: string) {
     status: row.status,
     decidedAt: row.decidedAt?.toISOString() ?? null,
     decidedByName: row.decidedByName,
+    decidedVia: row.decidedVia,
     reasonDecided: row.reasonDecided,
+    payload: (row.payload ?? {}) as ApprovalPayload,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+export async function getApprovalById(id: string) {
+  const [row] = await getDb().select().from(approvals).where(eq(approvals.id, id)).limit(1);
+  if (!row) return null;
+  return mapApprovalRow(row);
 }
 
 export async function requestManualDiscountApproval(
@@ -5043,21 +5017,7 @@ export async function getApprovalData(params?: { status?: string }) {
     .where(params?.status ? eq(approvals.status, params.status) : undefined)
     .orderBy(desc(approvals.createdAt));
 
-  return rows.map((row) => ({
-    id: row.id,
-    type: row.type,
-    requester: row.requester,
-    requesterPhone: row.requesterPhone,
-    amount: row.amount,
-    reason: row.reason,
-    risk: row.risk,
-    age: formatApprovalAge(row.createdAt),
-    status: row.status,
-    decidedAt: row.decidedAt?.toISOString() ?? null,
-    decidedByName: row.decidedByName,
-    reasonDecided: row.reasonDecided,
-    createdAt: row.createdAt.toISOString(),
-  }));
+  return rows.map(mapApprovalRow);
 }
 
 // Aggregate stats untuk header bar di Approvals Board.
@@ -5083,7 +5043,8 @@ export async function getApprovalStats() {
   for (const row of allRows) {
     if (row.status === "pending") {
       pending += 1;
-      byType.set(row.type, (byType.get(row.type) ?? 0) + 1);
+      const typeLabel = APPROVAL_CATEGORY_LABEL[approvalCategoryOf(row)];
+      byType.set(typeLabel, (byType.get(typeLabel) ?? 0) + 1);
       if (row.risk === "high" || row.risk === "High") {
         pendingHighRisk += 1;
       }
@@ -5296,7 +5257,7 @@ export async function getBootstrapData(garage: GarageSession) {
   ] = await Promise.all([
     canReadDashboard ? getDashboardData() : Promise.resolve(emptyDashboard),
     canUsePos || canReadKitchen ? getMenuData() : Promise.resolve([]),
-    canReadKitchen ? getKitchenData({ viewerRole: role }) : Promise.resolve([]),
+    canReadKitchen ? getKitchenData() : Promise.resolve([]),
     canReadInventory ? getInventoryData() : Promise.resolve([]),
     canReadInventory ? getStockMovementData() : Promise.resolve([]),
     canReadFinance || canWriteFinance || canUseCashShift
@@ -5929,6 +5890,11 @@ function kitchenStatusForTickets(rows: Array<typeof kitchenTickets.$inferSelect>
   return "queue";
 }
 
+// Order yang tidak lagi menempati meja: di-void, ditolak kasir, atau batal.
+function isDeadTableOrderStatus(status: string | undefined) {
+  return status === "voided" || status === "rejected" || status === "cancelled";
+}
+
 function tableStatusFromOrder(
   order: typeof orders.$inferSelect | undefined,
   kitchenStatus: string | null,
@@ -6104,11 +6070,19 @@ export async function getTableLiveData() {
 
   return tableNumbers.map((tableNumber) => {
     const session = sessionByTable.get(tableNumber);
+    // RESERVED = meja bersih yang dipesan; perlakukan seperti sesi kosong
+    // (bill lama sebelum clean tidak ikut) sampai order baru diterima kasir.
     const sessionCleared =
-      session?.status === "empty" && !session.currentOrderId && !session.needsCleaning;
-    const sessionOrder = session?.currentOrderId
+      (session?.status === "empty" || session?.status === "reserved") &&
+      !session.currentOrderId &&
+      !session.needsCleaning;
+    const sessionOrderRaw = session?.currentOrderId
       ? orderById.get(session.currentOrderId)
       : undefined;
+    // voidOrder / tolak order QR tidak me-reset table_sessions; jangan jadikan
+    // order voided/ditolak/batal sebagai order aktif meja (meja tak nyangkut).
+    const currentVoided = isDeadTableOrderStatus(sessionOrderRaw?.status);
+    const sessionOrder = currentVoided ? undefined : sessionOrderRaw;
 
     // Bill window sesi: hanya order yang dibuat setelah cleanedAt terakhir
     // (atau seluruh hari ini kalau belum pernah di-clean). Sesi yang sudah
@@ -6121,7 +6095,9 @@ export async function getTableLiveData() {
           (o) =>
             o.createdAt >= windowStart &&
             o.status !== "rejected" &&
-            o.status !== "cancelled",
+            o.status !== "cancelled" &&
+            // Order yang sudah di-void tidak lagi menempati meja.
+            o.status !== "voided",
         );
     const paidBillCount = sessionBills.filter((o) => o.status === "paid").length;
     const openBillCount = sessionBills.filter((o) => OPEN_BILL_STATUSES.has(o.status)).length;
@@ -6130,15 +6106,27 @@ export async function getTableLiveData() {
     // Pilih "active" order: prioritaskan yang belum lunas (paling baru),
     // fallback ke yang paling baru terakhir, fallback ke sessionOrder/latest.
     const newestOpen = sessionBills.find((o) => OPEN_BILL_STATUSES.has(o.status));
-    const order = sessionCleared
+    // Order aktif terakhir di-void & tak ada bill hidup lain → meja kosong.
+    const voidedIdle =
+      currentVoided && sessionBills.length === 0 && !session?.needsCleaning;
+    const latestLive = latestByTable.get(tableNumber);
+    const order = sessionCleared || voidedIdle
       ? undefined
-      : newestOpen ?? sessionOrder ?? sessionBills[0] ?? latestByTable.get(tableNumber);
+      : newestOpen ??
+        sessionOrder ??
+        sessionBills[0] ??
+        (isDeadTableOrderStatus(latestLive?.status) ? undefined : latestLive);
     const ticketStatus = kitchenStatusForTickets(order ? ticketsByOrder.get(order.id) ?? [] : []);
     const needsCleaning =
       Boolean(session?.needsCleaning) || session?.status === "needs_cleaning";
 
     let status: string;
-    if (isMixed) {
+    if (voidedIdle) {
+      status = "empty";
+    } else if (session?.status === "cleaning") {
+      // Siklus meja: DIRTY → CLEANING → AVAILABLE (lihat /lifecycle).
+      status = "cleaning";
+    } else if (isMixed) {
       status = "mixed";
     } else if (!order && session?.status && session.status !== "empty") {
       status = session.status;
@@ -6160,7 +6148,7 @@ export async function getTableLiveData() {
       tableNumber,
       tableLabel: session?.tableLabel ?? tableLabelForNumber(tableNumber),
       status,
-      currentOrderId: order?.id ?? session?.currentOrderId ?? null,
+      currentOrderId: order?.id ?? (voidedIdle ? null : session?.currentOrderId ?? null),
       orderNo: order?.orderNo ?? null,
       customerName: order?.customerName ?? null,
       customerPhone: order?.customerPhone ?? null,
@@ -6206,6 +6194,192 @@ export async function getTableHistoryToday(tableNumber: string) {
       createdAt: o.createdAt.toISOString(),
     })),
   };
+}
+
+// Rincian item pesanan untuk satu meja pada sesi berjalan (setelah cleanedAt
+// terakhir). Dipakai kasir untuk cek "apa yang dipesan" per meja — termasuk
+// catatan per item (orderItems.note) yang di-drop mapper lain. Lazy-load saat
+// dialog detail meja dibuka, jadi tidak membebani polling /api/tables/live.
+export async function getTableOrderItems(tableNumber: string) {
+  const db = getDb();
+  const { start, end } = getJakartaTodayRange();
+  const label = tableLabelForNumber(tableNumber);
+
+  const [outlet] = await db
+    .select()
+    .from(outlets)
+    .where(eq(outlets.status, "active"))
+    .orderBy(outlets.code)
+    .limit(1);
+
+  const [session] = await db
+    .select()
+    .from(tableSessions)
+    .where(
+      outlet
+        ? and(
+            eq(tableSessions.outletId, outlet.id),
+            eq(tableSessions.tableNumber, tableNumber),
+          )
+        : eq(tableSessions.tableNumber, tableNumber),
+    )
+    .limit(1);
+
+  const sessionCleared =
+    session?.status === "empty" && !session.currentOrderId && !session.needsCleaning;
+  const windowStart = session?.cleanedAt ?? start;
+
+  const orderRows = sessionCleared
+    ? []
+    : await db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.tableLabel, label),
+            gte(orders.createdAt, start),
+            lt(orders.createdAt, end),
+          ),
+        )
+        .orderBy(desc(orders.createdAt));
+
+  const sessionOrders = orderRows.filter(
+    (o) =>
+      o.createdAt >= windowStart &&
+      o.status !== "rejected" &&
+      o.status !== "cancelled" &&
+      o.status !== "voided",
+  );
+
+  const orderIds = sessionOrders.map((o) => o.id);
+  const itemRows = orderIds.length
+    ? await db.select().from(orderItems).where(inArray(orderItems.orderId, orderIds))
+    : [];
+
+  const itemsByOrder = new Map<string, typeof itemRows>();
+  for (const item of itemRows) {
+    const list = itemsByOrder.get(item.orderId) ?? [];
+    list.push(item);
+    itemsByOrder.set(item.orderId, list);
+  }
+
+  // Station per item: routing master produk yang sama dengan pembuatan tiket
+  // produksi (productionStationFor).
+  const menuItemIds = [
+    ...new Set(itemRows.map((it) => it.menuItemId).filter((id): id is string => Boolean(id))),
+  ];
+  const categoryRows = menuItemIds.length
+    ? await db
+        .select({ id: menuItems.id, category: menuItems.category, station: menuItems.station })
+        .from(menuItems)
+        .where(inArray(menuItems.id, menuItemIds))
+    : [];
+  const menuById = new Map(categoryRows.map((row) => [row.id, row]));
+  const stationForItem = (menuItemId: string | null): "Dapur" | "Bar" => {
+    const menu = menuItemId ? menuById.get(menuItemId) : undefined;
+    return productionStationFor({ station: menu?.station, category: menu?.category ?? "Makanan" }) ===
+      "Bar"
+      ? "Bar"
+      : "Dapur";
+  };
+
+  // Tiket dapur per order per station. Status per item TIDAK ada di data —
+  // granularitas terhalus = per-station-per-order (tiket Food/Bar).
+  const ticketRows = orderIds.length
+    ? await db.select().from(kitchenTickets).where(inArray(kitchenTickets.orderId, orderIds))
+    : [];
+  const ticketsByOrder = new Map<string, typeof ticketRows>();
+  for (const ticket of ticketRows) {
+    if (!ticket.orderId) continue;
+    ticketsByOrder.set(ticket.orderId, [...(ticketsByOrder.get(ticket.orderId) ?? []), ticket]);
+  }
+  // Tiket menyimpan "Food", POS memakai "Dapur".
+  const normalizeStation = (station: string): "Dapur" | "Bar" =>
+    station === "Bar" ? "Bar" : "Dapur";
+
+  return {
+    tableNumber,
+    tableLabel: label,
+    bills: sessionOrders.map((o) => {
+      // Bill pisahan tanpa tiket sendiri menampilkan status dapur order induknya.
+      const ownTickets = ticketsByOrder.get(o.id) ?? [];
+      const orderTickets =
+        ownTickets.length || !o.parentOrderId ? ownTickets : ticketsByOrder.get(o.parentOrderId) ?? [];
+      const billItems = itemsByOrder.get(o.id) ?? [];
+      const isCustomerBill = customerOrderSources.includes(o.orderSource);
+      const stations = (["Dapur", "Bar"] as const)
+        .map((station) => {
+          const subset = orderTickets.filter((t) => normalizeStation(t.station) === station);
+          if (!subset.length) return null;
+          return {
+            station,
+            status: kitchenStatusForTickets(subset),
+            ticketNo: subset[0].ticketNo,
+            ticketNos: subset.map((t) => t.ticketNo),
+            targetMinutes: Math.max(...subset.map((t) => t.targetMinutes)),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null);
+      return {
+        id: o.id,
+        orderNo: o.orderNo,
+        status: o.status,
+        total: o.total,
+        createdAt: o.createdAt.toISOString(),
+        customerName: o.customerName,
+        customerNote: o.customerNote,
+        parentOrderId: o.parentOrderId,
+        // Pisah bill: bill meja yang belum lunas & masih punya ≥2 porsi.
+        canSplit:
+          isCustomerBill &&
+          SPLITTABLE_BILL_STATUSES.includes(o.status) &&
+          billItems.reduce((sum, it) => sum + it.qty, 0) >= 2,
+        // Final Bayar dari detail meja (kasir/manajer/owner).
+        canPay: isCustomerBill && ["pending_cashier", "accepted", "awaiting_payment"].includes(o.status),
+        stations,
+        items: billItems.map((it) => ({
+          id: it.id,
+          itemName: it.itemName,
+          variantLabel: it.variantLabel,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+          note: it.note ?? null,
+          station: stationForItem(it.menuItemId),
+        })),
+      };
+    }),
+  };
+}
+
+/**
+ * Pesanan produksi di sesi meja ini yang belum diantar (antre/diproses/READY).
+ * Meja tidak boleh ditandai "tamu pergi"/bersih selama masih ada — mencegah
+ * produk tertinggal & tiket basi menumpuk di papan Production.
+ */
+export async function getUndeliveredProductionForTable(tableNumber: string) {
+  const { bills } = await getTableOrderItems(tableNumber);
+  return bills.flatMap((bill) =>
+    bill.stations
+      .filter((row) => row.status === "queue" || row.status === "cooking" || row.status === "ready")
+      .map((row) => ({
+        orderNo: bill.orderNo,
+        customerName: bill.customerName,
+        station: row.station,
+        status: row.status,
+      })),
+  );
+}
+
+export function undeliveredProductionMessage(
+  rows: Awaited<ReturnType<typeof getUndeliveredProductionForTable>>,
+) {
+  const label = (status: string | null) =>
+    status === "ready" ? "READY belum diantar" : status === "cooking" ? "sedang dibuat" : "antre";
+  const list = rows
+    .map((row) => `${row.customerName ?? row.orderNo} (${row.station} ${label(row.status)})`)
+    .join(", ");
+  return `Masih ada pesanan belum diantar: ${list}. Antar atau batalkan dulu.`;
 }
 
 export async function getPublicTableLiveData() {
@@ -6491,8 +6665,11 @@ export async function getPublicCustomerOrderStatus(id: string) {
     kitchenStatus: publicKitchenStatus,
     estimatedMinutes,
     stations,
+    // Jalur publik untuk lihat invoice = invoiceWebUrl (token tracking).
+    // whatsappInvoiceUrl (link wa.me) SENGAJA tidak diekspos di endpoint publik
+    // ini — membocorkan nomor WA bisnis ke siapa pun yang tahu order id.
+    // Customer yang membuat order tetap punya link WA dari respons create order.
     invoiceWebUrl: invoiceWebPath(invoiceReadyOrder.invoiceTrackingToken),
-    whatsappInvoiceUrl: invoiceReadyOrder.whatsappInvoiceUrl ?? null,
     message: publicStatusMessage(invoiceReadyOrder.status, kitchenStatus),
     updatedAt: invoiceReadyOrder.updatedAt.toISOString(),
   };
@@ -7561,6 +7738,28 @@ export async function createShiftHandoverReport(
   };
 }
 
+/**
+ * Pengaturan tagihan yang dipakai createCustomerOrder — dikirim ke halaman
+ * pesan QR supaya total yang dilihat pelanggan = total yang ditagih kasir.
+ */
+export async function getCustomerOrderBillingSettings(outletId?: string) {
+  const [settingsOutlet] = await getDb()
+    .select({ id: outlets.id })
+    .from(outlets)
+    .where(outletId ? eq(outlets.id, outletId) : eq(outlets.status, "active"))
+    .orderBy(outlets.code)
+    .limit(1);
+  const settings = await getAppSettings(settingsOutlet?.id ?? null);
+  return {
+    serviceChargePct: settings.serviceChargePct,
+    taxPct: settings.taxPct,
+    roundingMode: settings.roundingMode,
+    voucherMaxDiscountPct: settings.voucherMaxDiscountPct,
+    qrPromoPct: settings.qrPromoPct,
+    qrPromoMaxAmount: settings.qrPromoMaxAmount,
+  };
+}
+
 export async function createCustomerOrder(input: CustomerOrderInput) {
   const db = getDb();
   const itemIds = [...new Set(input.items.map((item) => item.itemId))];
@@ -7614,7 +7813,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
   const { service, tax, grossTotal } = calculateBillingTotals(subtotal, settings);
-  const promoDiscount = Math.min(25000, Math.round(subtotal * 0.1));
+  // Promo QR dari Pengaturan (dulu tertanam: 10% maks Rp25.000).
+  const promoDiscount = qrPromoDiscount(subtotal, settings);
   const voucherValidation = input.voucherCode
     ? await validateVoucher({
         code: input.voucherCode,
@@ -7753,10 +7953,12 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
             .returning();
     }
 
+    const queueNo = await nextDailyQueueNo(tx, outlet.id);
     const [order] = await tx
       .insert(orders)
       .values({
         orderNo,
+        queueNo,
         outletId: outlet.id,
         customerId: customer?.id ?? null,
         tableLabel,
@@ -8030,8 +8232,14 @@ export async function updateCustomerOrderStatus(
       throw new Error("Waiter tidak boleh menjadikan cash meja langsung lunas. Setor ke kasir dulu.");
     }
 
-    if (input.action === "request_bill" && !isWaiterRole(garage.profile.role)) {
-      throw new Error("Hanya waiter yang boleh meminta bill meja ke kasir.");
+    // Minta/siapkan bill: waiter (minta ke kasir) atau kasir/manajer/owner
+    // (siapkan bill dari detail meja POS) → order jadi menunggu bayar.
+    if (
+      input.action === "request_bill" &&
+      !isWaiterRole(garage.profile.role) &&
+      !canConfirmCustomerPayment(garage.profile.role)
+    ) {
+      throw new Error("Role ini tidak boleh menyiapkan bill meja.");
     }
 
     if (input.action === "reject" && !cashierActionStatuses.includes(order.status)) {
@@ -8160,6 +8368,30 @@ export async function updateCustomerOrderStatus(
     }
 
     if (input.action === "reject") {
+      // Order non-tunai bisa ditolak dari "awaiting_payment" SETELAH diterima dapur
+      // (accept → minta bill). Saat itu stok sudah dipotong & tiket produksi jalan:
+      // kembalikan stok (juga ke WMS) dan batalkan tiket yang belum diantar, sama
+      // dengan void. Dicatat sebagai "Refund <orderNo> …" supaya void berikutnya
+      // tidak mengembalikan dua kali.
+      const rejectReason = input.reason?.trim() || "Ditolak kasir";
+      const deductedForReject = await sumMovementsBySku(tx, "recipe_deduct", outletDeductNote(order.orderNo));
+      const refundedBeforeReject = await sumMovementsBySku(tx, "refund_reverse", outletRefundNote(order.orderNo));
+      for (const [sku, qty] of deductedForReject) {
+        const restoreQty = Number((qty - (refundedBeforeReject.get(sku) ?? 0)).toFixed(4));
+        if (restoreQty <= 0) continue;
+        await restoreOutletStock(tx, {
+          sku,
+          qty: restoreQty,
+          outletId: order.outletId ?? garage.profile.outlet.id,
+          type: "refund_reverse",
+          note: `Refund ${order.orderNo} (order ditolak): ${rejectReason}`,
+          movementLabel: `Tolak ${order.orderNo}: stok dikembalikan`,
+          actor,
+          now,
+        });
+      }
+      await cancelProductionForOrder(tx, order.id, `Order ditolak: ${rejectReason}`, now);
+
       const [updated] = await tx
         .update(orders)
         .set({
@@ -8215,46 +8447,30 @@ export async function updateCustomerOrderStatus(
       .from(kitchenTickets)
       .where(eq(kitchenTickets.orderId, order.id));
     let ticketNos = existingTickets.map((ticket) => ticket.ticketNo);
+    // Bill pisahan dari order yang sudah diterima dapur: tiket & potong stok
+    // sudah tercatat di order induk — jangan dibuat ulang.
+    const inheritsKitchen = Boolean(await inheritedLedgerOf(tx, order));
 
-    if (!existingTickets.length) {
+    if (!existingTickets.length && !inheritsKitchen) {
       const menuRows = await tx
         .select({
+          id: orderItems.id,
+          menuItemId: orderItems.menuItemId,
+          variantId: orderItems.variantId,
           itemName: orderItems.itemName,
           variantLabel: orderItems.variantLabel,
           qty: orderItems.qty,
           note: orderItems.note,
           category: menuItems.category,
+          station: menuItems.station,
+          batchEligible: menuItems.batchEligible,
         })
         .from(orderItems)
         .leftJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
         .where(eq(orderItems.orderId, order.id));
-      const linesByTargetGroup = new Map<KitchenTargetGroup, typeof menuRows>();
-      for (const line of menuRows) {
-        const targetGroup = kitchenTargetGroupForCategory(line.category ?? "Makanan");
-        linesByTargetGroup.set(targetGroup, [
-          ...(linesByTargetGroup.get(targetGroup) ?? []),
-          line,
-        ]);
-      }
-      const ticketDrafts = Array.from(linesByTargetGroup.entries()).map(
-        ([targetGroup, groupLines]) => {
-          // Catatan per-item pelanggan → itemNotes tiket (label -> note),
-          // dibaca KDS dapur/bar persis seperti jalur POS.
-          const itemNotes: Record<string, string> = {};
-          for (const line of groupLines) {
-            if (line.note && line.note.trim()) {
-              itemNotes[kitchenItemLabel(line)] = line.note.trim();
-            }
-          }
-          return {
-            ticketNo: makeTicketNo(),
-            targetGroup,
-            targetMinutes: kitchenTargetMinutes[targetGroup],
-            station: kitchenStationForTargetGroup(targetGroup),
-            items: groupLines.map(kitchenItemLabel),
-            itemNotes,
-          };
-        },
+      // Catatan per-item pelanggan ikut ke tiket & porsi produksi.
+      const ticketDrafts = productionTicketDrafts(
+        menuRows.map((line) => ({ ...line, category: line.category ?? "Makanan" })),
       );
 
       const insertedTickets = await tx
@@ -8273,9 +8489,28 @@ export async function updateCustomerOrderStatus(
             targetGroup: ticket.targetGroup,
             items: ticket.items,
             itemNotes: ticket.itemNotes,
+            customerName: order.customerName,
+            orderNo: order.orderNo,
           })),
         )
         .returning();
+      await insertProductionTicketItems(tx, {
+        order,
+        tickets: insertedTickets,
+        lines: menuRows,
+        menuInfo: new Map(
+          menuRows
+            .filter((row): row is typeof row & { menuItemId: string } => Boolean(row.menuItemId))
+            .map((row) => [
+              row.menuItemId,
+              {
+                station: row.station,
+                category: row.category,
+                batchEligible: row.batchEligible ?? true,
+              },
+            ]),
+        ),
+      });
       ticketNos = insertedTickets.map((ticket) => ticket.ticketNo);
     }
 
@@ -8285,13 +8520,14 @@ export async function updateCustomerOrderStatus(
       .where(eq(auditLogs.action, `Recipe stock deducted ${order.orderNo}`))
       .limit(1);
 
-    if (!existingStockAudit.length) {
+    if (!existingStockAudit.length && !inheritsKitchen) {
       const recipeRows = await tx
         .select({
           itemName: orderItems.itemName,
           orderQty: orderItems.qty,
           recipeQty: menuRecipes.qty,
           recipeUnit: menuRecipes.unit,
+          recipeWastePct: menuRecipes.wastePct,
           inventorySku: menuRecipes.inventorySku,
           inventoryName: inventoryItems.name,
           inventoryMin: inventoryItems.min,
@@ -8327,7 +8563,11 @@ export async function updateCustomerOrderStatus(
           min: recipe.inventoryMin ?? 0,
           movement: "Outlet stock initialized",
         });
-        const deductQty = Number((recipe.recipeQty * recipe.orderQty).toFixed(3));
+        // % susut resep ikut dipotong — sama dengan order kasir & HPP laporan
+        // keuangan (dulu order QR/waiter tanpa susut → pemakaian tercatat kurang).
+        const deductQty = Number(
+          (recipe.recipeQty * recipe.orderQty * (1 + (recipe.recipeWastePct ?? 0) / 100)).toFixed(3),
+        );
         const nextOnHand = Number((outletStock.onHand - deductQty).toFixed(4));
         if (nextOnHand < outletStock.min) {
           stockWarnings.push({
@@ -8353,6 +8593,15 @@ export async function updateCustomerOrderStatus(
           qty: -deductQty,
           actor,
         });
+        // Stok fisik tunggal = WMS: bahan yang dikelola WMS ikut terpotong di gudang.
+        const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id);
+        if (wmsResult.shortage > 0) {
+          stockWarnings.push({
+            sku: recipe.inventorySku,
+            name: recipe.inventoryName ?? recipe.itemName,
+            message: `Terjual melebihi stok gudang tercatat (kurang ${wmsResult.shortage} ${recipe.recipeUnit}) — cek receiving/opname.`,
+          });
+        }
       }
 
       if (recipeRows.length) {
@@ -8644,6 +8893,7 @@ export async function updateCustomerOrderStatus(
             await tx.insert(memberTransactions).values({
               customerId: customer.id,
               source: "POS",
+              orderId: order.id,
               amount: order.total,
               pointsEarned,
               levelBefore: beforeLevel,
@@ -8652,61 +8902,12 @@ export async function updateCustomerOrderStatus(
               expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
             });
 
-            if (customer.referredByCode) {
-              const [existingReferralReward] = await tx
-                .select()
-                .from(memberTransactions)
-                .where(and(eq(memberTransactions.customerId, customer.id), eq(memberTransactions.source, "REFERRAL")))
-                .limit(1);
-
-              if (!existingReferralReward) {
-                const [referrer] = await tx
-                  .select()
-                  .from(customers)
-                  .where(eq(customers.referralCode, customer.referredByCode))
-                  .limit(1);
-
-                await tx.insert(memberTransactions).values({
-                  customerId: customer.id,
-                  source: "REFERRAL",
-                  amount: 0,
-                  pointsEarned: REFERRAL_BONUS_POINTS,
-                  levelBefore: afterLevel,
-                  levelAfter: afterLevel,
-                  upgradeNotification: `Bonus referral ${REFERRAL_BONUS_POINTS} poin aktif.`,
-                  expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-                });
-                await tx
-                  .update(customers)
-                  .set({
-                    points: sql`${customers.points} + ${REFERRAL_BONUS_POINTS}`,
-                    flag: `Referral bonus +${REFERRAL_BONUS_POINTS}`,
-                    updatedAt: now,
-                  })
-                  .where(eq(customers.id, customer.id));
-
-                if (referrer) {
-                  await tx.insert(memberTransactions).values({
-                    customerId: referrer.id,
-                    source: "REFERRAL",
-                    amount: 0,
-                    pointsEarned: REFERRAL_BONUS_POINTS,
-                    levelBefore: normalizeMemberLevel(referrer.tier),
-                    levelAfter: normalizeMemberLevel(referrer.tier),
-                    upgradeNotification: `${customer.name} transaksi pertama. Bonus referral ${REFERRAL_BONUS_POINTS} poin.`,
-                    expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-                  });
-                  await tx
-                    .update(customers)
-                    .set({
-                      points: sql`${customers.points} + ${REFERRAL_BONUS_POINTS}`,
-                      flag: `Referral ${customer.name} +${REFERRAL_BONUS_POINTS}`,
-                      updatedAt: now,
-                    })
-                    .where(eq(customers.id, referrer.id));
-                }
-              }
-            }
+            await grantFirstTransactionReferral(tx, {
+              customer,
+              orderId: order.id,
+              level: afterLevel,
+              now,
+            });
           } else {
             await tx
               .update(customers)
@@ -8824,6 +9025,7 @@ export async function updateCustomerOrderStatus(
         invoiceNo: receiptInvoiceNo,
         invoiceStatus: "issued",
         orderNo: order.orderNo,
+        queueNo: order.queueNo ?? null,
         ticketNo: ticketNos[0] ?? makeTicketNo(),
         ticketNos,
         createdAt: order.createdAt.toISOString(),
@@ -9011,6 +9213,8 @@ async function applyRecipeStockDeduction(input: {
     // terpotong konsisten dengan modal yang ditampilkan.
     for (const r of recipeRows) {
       if (!r.inventorySku) continue;
+      // Bahan WMS sudah dipotong lewat potong stok outlet → WMS; jangan dobel.
+      if (await isWmsManaged(db, r.inventorySku)) continue;
       const consume = r.qty * line.qty * (1 + (r.wastePct ?? 0) / 100);
       if (consume <= 0) continue;
       await db
@@ -9031,7 +9235,111 @@ async function applyRecipeStockDeduction(input: {
   }
 }
 
-export async function createOrder(input: OrderInput, garage: GarageSession) {
+// Order yang sudah tersimpan dengan kunci anti-dobel yang sama → kembalikan hasil
+// yang sama persis (struk diambil dari print job receipt) tanpa membuat order baru.
+async function findOrderByRequestKey(requestKey: string) {
+  const [row] = await getDb()
+    .select({ id: orders.id })
+    .from(orders)
+    .where(eq(orders.clientRequestKey, requestKey))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+async function replayCreatedOrder(orderId: string) {
+  const db = getDb();
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  if (!order) throw new Error("Order sebelumnya tidak ditemukan.");
+  const [job] = await db
+    .select({ payload: printJobs.payload })
+    .from(printJobs)
+    .where(and(eq(printJobs.orderId, orderId), eq(printJobs.jobType, "receipt")))
+    .orderBy(asc(printJobs.createdAt))
+    .limit(1);
+  const receipt = ((job?.payload as { receipt?: Record<string, unknown> } | null)?.receipt ??
+    {}) as Record<string, unknown> & {
+    ticketNo?: string | null;
+    ticketNos?: string[];
+    memberReward?: unknown;
+  };
+  let trackingToken = order.invoiceTrackingToken;
+  if (!trackingToken) {
+    trackingToken = makeInvoiceTrackingToken();
+    await db
+      .update(orders)
+      .set({ invoiceTrackingToken: trackingToken, updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+  }
+  const invoicePdfPath = `/api/orders/${order.id}/invoice`;
+  const invoiceWebPathValue = invoiceWebPath(trackingToken);
+  return {
+    orderId: order.id,
+    orderNo: order.orderNo,
+    queueNo: order.queueNo ?? null,
+    ticketNo: receipt.ticketNo ?? null,
+    ticketNos: receipt.ticketNos ?? [],
+    subtotal: order.subtotal,
+    service: order.service,
+    tax: order.tax,
+    discount: order.discount,
+    total: order.total,
+    memberReward: (receipt.memberReward ?? null) as CreatedOrderMemberReward,
+    invoicePdfUrl: invoicePdfPath,
+    invoiceWebUrl: invoiceWebPathValue,
+    whatsappInvoiceUrl: order.whatsappInvoiceUrl,
+    replayed: true as const,
+    receipt: {
+      ...receipt,
+      customer: { name: order.customerName, phone: order.customerPhone },
+      invoicePdfUrl: invoicePdfPath,
+      invoiceWebUrl: invoiceWebPathValue,
+      whatsappInvoiceUrl: order.whatsappInvoiceUrl,
+    },
+  };
+}
+
+type CreatedOrderMemberReward = {
+  memberName: string;
+  level: string;
+  pointsEarned: number;
+  totalPoints: number;
+  upgradeNotification: string | null;
+} | null;
+
+function isRequestKeyConflict(error: unknown) {
+  const text = [error, (error as { cause?: unknown } | null)?.cause]
+    .map((e) => (e instanceof Error ? `${e.message} ${(e as { constraint?: string }).constraint ?? ""}` : String(e ?? "")))
+    .join(" ");
+  return text.includes("orders_client_request_key_idx");
+}
+
+export async function createOrder(
+  input: OrderInput,
+  garage: GarageSession,
+  options: { offlineSync?: boolean; requestKey?: string } = {},
+) {
+  const requestKey = options.requestKey?.trim() || undefined;
+  if (requestKey) {
+    const existingId = await findOrderByRequestKey(requestKey);
+    if (existingId) return replayCreatedOrder(existingId);
+  }
+  try {
+    return await createOrderOnce(input, garage, { ...options, requestKey });
+  } catch (error) {
+    // Dua kiriman kunci sama berbarengan: yang kalah membaca order pemenang.
+    if (requestKey && isRequestKeyConflict(error)) {
+      const existingId = await findOrderByRequestKey(requestKey);
+      if (existingId) return replayCreatedOrder(existingId);
+    }
+    throw error;
+  }
+}
+
+async function createOrderOnce(
+  input: OrderInput,
+  garage: GarageSession,
+  options: { offlineSync?: boolean; requestKey?: string },
+) {
   const db = getDb();
   const [openCashSession] = await db
     .select({ id: cashSessions.id })
@@ -9065,6 +9373,8 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       price: menuVariants.price,
       itemName: menuItems.name,
       category: menuItems.category,
+      station: menuItems.station,
+      batchEligible: menuItems.batchEligible,
       promoActive: menuItems.promoActive,
       promoPrice: menuItems.promoPrice,
     })
@@ -9093,6 +9403,12 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       lineTotal: unitPrice * line.qty,
     };
   });
+  const productionMenuInfo = new Map<string, ProductionMenuInfo>(
+    variantRows.map((row) => [
+      row.itemId,
+      { station: row.station, category: row.category, batchEligible: row.batchEligible },
+    ]),
+  );
   const settings = await getAppSettings(garage.profile.outlet.id);
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const { service, tax, grossTotal } = calculateBillingTotals(subtotal, settings);
@@ -9152,35 +9468,8 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
   const orderNo = makeOrderNo();
   const invoiceNo = invoiceNoForOrder(orderNo);
   const channel = orderTypeToChannel(input.orderType);
-  const linesByTargetGroup = new Map<KitchenTargetGroup, typeof lines>();
-  for (const line of lines) {
-    const targetGroup = kitchenTargetGroupForCategory(line.category);
-    linesByTargetGroup.set(targetGroup, [
-      ...(linesByTargetGroup.get(targetGroup) ?? []),
-      line,
-    ]);
-  }
-  const ticketDrafts = Array.from(linesByTargetGroup.entries()).map(
-    ([targetGroup, groupLines]) => {
-      // Build itemNotes: label -> note string. Hanya line yang ada note
-      // yang masuk ke object. Kitchen UI sudah baca itemNotes per item.
-      const itemNotes: Record<string, string> = {};
-      for (const line of groupLines) {
-        const label = kitchenItemLabel(line);
-        if (line.note && line.note.trim()) {
-          itemNotes[label] = line.note.trim();
-        }
-      }
-      return {
-        ticketNo: makeTicketNo(),
-        targetGroup,
-        targetMinutes: kitchenTargetMinutes[targetGroup],
-        station: kitchenStationForTargetGroup(targetGroup),
-        items: groupLines.map(kitchenItemLabel),
-        itemNotes,
-      };
-    },
-  );
+  // Auto routing (BR-04): station dari master produk, bukan keputusan operator.
+  const ticketDrafts = productionTicketDrafts(lines);
   const paymentMethod = input.paymentMethod ?? "Cash";
   const paymentMetadata: Record<string, unknown> = {
     provider: input.paymentProvider ?? null,
@@ -9222,6 +9511,23 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       );
     }
   }
+  // Layar kasir sudah mencegah, tapi server wajib menolak juga: tanpa ini order
+  // tunai tercatat lunas walau uang kurang (kembalian dihitung 0, kas selisih).
+  // Pengecualian: sinkron order offline — uang sudah diterima fisik & harga bisa
+  // berubah selama offline; menolaknya membuat antrean sinkron macet. Dicatat
+  // sebagai kekurangan tunai supaya kelihatan saat tutup shift.
+  const cashShortfall =
+    !splits && paymentMethod === "Cash" && input.cashReceived !== undefined
+      ? Math.max(0, total - input.cashReceived)
+      : 0;
+  if (cashShortfall > 0 && !options.offlineSync) {
+    throw new Error(
+      `Uang diterima (${idrFormatter.format(input.cashReceived ?? 0)}) kurang dari total ${idrFormatter.format(total)}.`,
+    );
+  }
+  if (cashShortfall > 0) {
+    paymentMetadata.cashShortfall = cashShortfall;
+  }
 
   let memberCustomer: typeof customers.$inferSelect | null = null;
   let memberAccount: typeof memberAccounts.$inferSelect | null = null;
@@ -9231,7 +9537,8 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
   const guestPhone = !input.customerId && !memberPhone && input.guestPhone?.trim()
     ? normalizePhone(input.guestPhone)
     : null;
-  const guestName = guestPhone ? input.guestName?.trim() || "Guest Customer" : null;
+  // Nama tamu dipakai sebagai identitas produksi/antar (BR-02) walau tanpa No WA.
+  const guestName = input.guestName?.trim() || (guestPhone ? "Guest Customer" : null);
 
   if (input.customerId || memberPhone) {
     const [row] = await db
@@ -9262,10 +9569,12 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       upgradeNotification: string | null;
     } | null = null;
 
+    const queueNo = await nextDailyQueueNo(tx, garage.profile.outlet.id);
     const [order] = await tx
       .insert(orders)
       .values({
         orderNo,
+        queueNo,
         outletId: garage.profile.outlet.id,
         customerId: memberCustomer?.id ?? null,
         tableLabel,
@@ -9278,6 +9587,7 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
         customerMode: memberCustomer ? "member" : guestPhone ? "guest" : "cashier",
         customerName: memberCustomer?.name ?? guestName,
         customerPhone: memberCustomer?.phone ?? guestPhone,
+        clientRequestKey: options.requestKey ?? null,
         createdBy: garage.user.id,
       })
       .returning();
@@ -9398,9 +9708,17 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
           targetGroup: ticket.targetGroup,
           items: ticket.items,
           itemNotes: ticket.itemNotes,
+          customerName: order.customerName,
+          orderNo: order.orderNo,
         })),
       )
       .returning();
+    await insertProductionTicketItems(tx, {
+      order,
+      tickets,
+      lines: insertedItems,
+      menuInfo: productionMenuInfo,
+    });
     const ticketNos = tickets.map((ticket) => ticket.ticketNo);
     const ticketNo = ticketNos[0] ?? makeTicketNo();
 
@@ -9480,6 +9798,15 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
         qty: -deductQty,
         actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
       });
+      // Stok fisik tunggal = WMS: bahan yang dikelola WMS ikut terpotong di gudang.
+      const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id);
+      if (wmsResult.shortage > 0) {
+        stockWarnings.push({
+          sku: recipe.inventorySku,
+          name: recipe.inventoryName ?? recipe.itemName,
+          message: `Terjual melebihi stok gudang tercatat (kurang ${wmsResult.shortage} ${recipe.recipeUnit}) — cek receiving/opname.`,
+        });
+      }
     }
 
     if (recipeRows.length) {
@@ -9556,6 +9883,7 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       await tx.insert(memberTransactions).values({
         customerId: memberCustomer.id,
         source: "POS",
+        orderId: order.id,
         amount: total,
         pointsEarned,
         levelBefore: beforeLevel,
@@ -9564,61 +9892,12 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       });
 
-      if (memberCustomer.referredByCode) {
-        const [existingReferralReward] = await tx
-          .select()
-          .from(memberTransactions)
-          .where(and(eq(memberTransactions.customerId, memberCustomer.id), eq(memberTransactions.source, "REFERRAL")))
-          .limit(1);
-
-        if (!existingReferralReward) {
-          const [referrer] = await tx
-            .select()
-            .from(customers)
-            .where(eq(customers.referralCode, memberCustomer.referredByCode))
-            .limit(1);
-
-          await tx.insert(memberTransactions).values({
-            customerId: memberCustomer.id,
-            source: "REFERRAL",
-            amount: 0,
-            pointsEarned: REFERRAL_BONUS_POINTS,
-            levelBefore: afterLevel,
-            levelAfter: afterLevel,
-            upgradeNotification: `Bonus referral ${REFERRAL_BONUS_POINTS} poin aktif.`,
-            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          });
-          await tx
-            .update(customers)
-            .set({
-              points: sql`${customers.points} + ${REFERRAL_BONUS_POINTS}`,
-              flag: `Referral bonus +${REFERRAL_BONUS_POINTS}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(customers.id, memberCustomer.id));
-
-          if (referrer) {
-            await tx.insert(memberTransactions).values({
-              customerId: referrer.id,
-              source: "REFERRAL",
-              amount: 0,
-              pointsEarned: REFERRAL_BONUS_POINTS,
-              levelBefore: normalizeMemberLevel(referrer.tier),
-              levelAfter: normalizeMemberLevel(referrer.tier),
-              upgradeNotification: `${memberCustomer.name} transaksi pertama. Bonus referral ${REFERRAL_BONUS_POINTS} poin.`,
-              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            });
-            await tx
-              .update(customers)
-              .set({
-                points: sql`${customers.points} + ${REFERRAL_BONUS_POINTS}`,
-                flag: `Referral ${memberCustomer.name} +${REFERRAL_BONUS_POINTS}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(customers.id, referrer.id));
-          }
-        }
-      }
+      await grantFirstTransactionReferral(tx, {
+        customer: memberCustomer,
+        orderId: order.id,
+        level: afterLevel,
+        now: new Date(),
+      });
 
       memberReward = {
         memberName: memberCustomer.name,
@@ -9649,6 +9928,7 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
       invoiceNo,
       invoiceStatus: "issued",
       orderNo,
+      queueNo: order.queueNo ?? null,
       ticketNo,
       ticketNos,
       createdAt: order.createdAt.toISOString(),
@@ -9762,29 +10042,9 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     }
   }
 
-  // GARAGE WMS: kirim penjualan ke gudang → potong bahan via BOM resep WMS.
-  // Non-blocking + dynamic import (subsistem independen). Opt-in via setting.
-  if (settings.wmsAutoConsume) {
-    try {
-      const { processPosSale } = await import("@/lib/wms-service");
-      await processPosSale(
-        {
-          items: lines.map((l) => ({
-            name:
-              l.variantLabel === "Regular" ? l.itemName : `${l.itemName} ${l.variantLabel}`,
-            qty: l.qty,
-          })),
-          ref: created.orderRow.id, // idempotensi: retry order sama tak dobel potong
-        },
-        garage.user.id,
-      );
-    } catch (error) {
-      console.warn(
-        "[garage] WMS consume gagal:",
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
+  // Stok WMS tidak lagi dipotong di sini: potong stok resep di dalam transaksi
+  // order (consumeSaleStockInWms) sudah memotong gudang WMS — memanggil
+  // processPosSale lagi akan memotong dua kali.
 
   const invoicePdfPath = `/api/orders/${created.orderRow.id}/invoice`;
 
@@ -9813,10 +10073,22 @@ export async function createOrder(input: OrderInput, garage: GarageSession) {
     })
     .where(eq(orders.id, created.orderRow.id));
 
+  if (cashShortfall > 0) {
+    await createAuditLog({
+      actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+      action: "Kekurangan tunai order offline",
+      object: created.orderNo,
+      device: garage.profile.deviceLabel,
+      status: "warning",
+      metadata: { cashReceived: input.cashReceived, total: created.total, cashShortfall },
+    });
+  }
+
   const invoiceWebPathValue = invoiceWebPath(trackingToken);
   return {
     orderId: created.orderRow.id,
     orderNo: created.orderNo,
+    queueNo: created.receipt.queueNo ?? null,
     ticketNo: created.ticketNo,
     ticketNos: created.ticketNos,
     subtotal: created.subtotal,
@@ -9858,12 +10130,136 @@ export class TicketClaimError extends Error {
   }
 }
 
-const ticketClaimManagerRoles = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-];
+const ticketClaimManagerRoles = ["Owner", "Manajer"];
+
+// Waiter belum boleh mengambil sebelum helper Bar/Dapur ACC serah-terima.
+export class HandoverRequiredError extends Error {
+  constructor() {
+    super("Belum dipanggil helper Bar/Dapur — tunggu panggilan ambil.");
+    this.name = "HandoverRequiredError";
+  }
+}
+
+export class HandoverPermissionError extends Error {
+  constructor(public readonly station: string) {
+    super(
+      `Akun ini bukan helper/workstation ${productionStationLabel(station)} — tidak bisa ACC serah-terima.`,
+    );
+    this.name = "HandoverPermissionError";
+  }
+}
+
+/**
+ * Helper Bar/Dapur ACC produk READY (cek fisik: item, Nama, Meja) lalu
+ * memanggil waiter. waiterUserId = waiter yang ditugaskan (dapat notifikasi &
+ * fee antar); null = siapa saja (waiter pertama yang tap "Saya ambil").
+ * Bisa diulang untuk mengganti waiter selama belum diantar.
+ */
+export async function handoverKitchenTicket(
+  ticketNo: string,
+  waiterUserId: string | null,
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  if (ticket.status !== "ready") {
+    throw new KitchenTransitionError(ticket.status, "handover");
+  }
+  if (!canHandoverStation(garage.profile.role, garage.profile.workstation, ticket.station)) {
+    throw new HandoverPermissionError(ticket.station);
+  }
+
+  let waiter: { id: string; name: string } | null = null;
+  if (waiterUserId) {
+    const [row] = await db
+      .select({ id: user.id, name: user.name, role: staffProfiles.role, status: staffProfiles.status })
+      .from(user)
+      .innerJoin(staffProfiles, eq(staffProfiles.userId, user.id))
+      .where(eq(user.id, waiterUserId))
+      .limit(1);
+    if (!row || row.role !== "Waiter" || row.status !== "active") {
+      throw new HandoverPermissionError(ticket.station);
+    }
+    waiter = { id: row.id, name: row.name };
+  }
+
+  const now = new Date();
+  const [updated] = await db
+    .update(kitchenTickets)
+    .set({
+      handoverAt: now,
+      handoverByName: garage.user.name,
+      claimedBy: waiter?.id ?? null,
+      claimedByName: waiter?.name ?? null,
+      claimedAt: waiter ? now : null,
+      updatedAt: now,
+    })
+    .where(and(eq(kitchenTickets.id, ticket.id), eq(kitchenTickets.status, "ready")))
+    .returning();
+  if (!updated) {
+    throw new KitchenTransitionError(ticket.status, "handover");
+  }
+
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Production ticket handed over",
+    object: updated.ticketNo,
+    device: garage.profile.deviceLabel,
+    status: "handover",
+    metadata: {
+      orderNo: updated.orderNo,
+      customerName: updated.customerName,
+      tableLabel: updated.tableLabel,
+      station: updated.station,
+      waiter: waiter?.name ?? "siapa saja",
+      previousWaiter: ticket.claimedByName ?? null,
+      workstation: garage.profile.workstation ?? null,
+    },
+  });
+  return updated;
+}
+
+/** Waiter aktif (sedang login) + jumlah antaran berjalan — untuk dipanggil helper. */
+export async function listCallableWaiters() {
+  const db = getDb();
+  const now = new Date();
+  const rows = await db
+    .select({ id: user.id, name: user.name })
+    .from(staffProfiles)
+    .innerJoin(user, eq(user.id, staffProfiles.userId))
+    .innerJoin(sessionTable, eq(sessionTable.userId, staffProfiles.userId))
+    .where(
+      and(
+        eq(staffProfiles.role, "Waiter"),
+        eq(staffProfiles.status, "active"),
+        gte(sessionTable.expiresAt, now),
+      ),
+    );
+  const unique = [...new Map(rows.map((row) => [row.id, row])).values()];
+  if (!unique.length) return [];
+  const loads = await db
+    .select({ claimedBy: kitchenTickets.claimedBy, n: count(kitchenTickets.id) })
+    .from(kitchenTickets)
+    .where(
+      and(
+        eq(kitchenTickets.status, "ready"),
+        inArray(
+          kitchenTickets.claimedBy,
+          unique.map((row) => row.id),
+        ),
+      ),
+    )
+    .groupBy(kitchenTickets.claimedBy);
+  const loadById = new Map(loads.map((row) => [row.claimedBy, Number(row.n)]));
+  return unique
+    .map((row) => ({ id: row.id, name: row.name, activeDeliveries: loadById.get(row.id) ?? 0 }))
+    .sort((a, b) => a.activeDeliveries - b.activeDeliveries || a.name.localeCompare(b.name));
+}
 
 // Waiter klaim tiket "Saya antar": kunci tiket ke dirinya supaya waiter lain
 // tidak ikut jalan, dan fee antar nanti jatuh ke pengklaim.
@@ -9875,6 +10271,14 @@ export async function claimKitchenTicket(ticketNo: string, garage: GarageSession
     .where(eq(kitchenTickets.ticketNo, ticketNo))
     .limit(1);
   if (!ticket) return null;
+  // PICKUP hanya setelah Bar/Dapur menyatakan READY (producer owns ready)
+  // dan helper station sudah ACC serah-terima / memanggil waiter.
+  if (ticket.status !== "ready") {
+    throw new KitchenTransitionError(ticket.status, "picked_up");
+  }
+  if (!ticket.handoverAt) {
+    throw new HandoverRequiredError();
+  }
   if (ticket.claimedBy && ticket.claimedBy !== garage.user.id) {
     throw new TicketClaimError(ticket.claimedByName ?? "waiter lain");
   }
@@ -9888,6 +10292,21 @@ export async function claimKitchenTicket(ticketNo: string, garage: GarageSession
     })
     .where(eq(kitchenTickets.ticketNo, ticketNo))
     .returning();
+  if (updated) {
+    await createAuditLog({
+      actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+      action: "Production ticket picked up",
+      object: updated.ticketNo,
+      device: garage.profile.deviceLabel,
+      status: "picked_up",
+      metadata: {
+        orderNo: updated.orderNo,
+        customerName: updated.customerName,
+        tableLabel: updated.tableLabel,
+        station: updated.station,
+      },
+    });
+  }
   return updated ?? null;
 }
 
@@ -9927,6 +10346,12 @@ export async function deliverClaimedTicket(ticketNo: string, garage: GarageSessi
   if (ticket.claimedBy && ticket.claimedBy !== garage.user.id && !isManager) {
     throw new TicketClaimError(ticket.claimedByName ?? "waiter lain");
   }
+  if (ticket.status !== "ready" && ticket.status !== "delivered") {
+    throw new KitchenTransitionError(ticket.status, "delivered");
+  }
+  if (ticket.status === "ready" && !ticket.handoverAt && !isManager) {
+    throw new HandoverRequiredError();
+  }
   if (!ticket.claimedBy) {
     await db
       .update(kitchenTickets)
@@ -9941,10 +10366,38 @@ export async function deliverClaimedTicket(ticketNo: string, garage: GarageSessi
   return updateKitchenStatus(ticketNo, "delivered", garage);
 }
 
+// Production Hub: akun tidak ditugaskan ke workstation tiket ini (BR-07/08).
+export class ProductionPermissionError extends Error {
+  constructor(public readonly station: string) {
+    super(
+      `Akun ini tidak ditugaskan ke workstation ${productionStationLabel(station)}. ` +
+        "READY hanya boleh ditandai oleh Bar/Dapur (atau Manajer).",
+    );
+    this.name = "ProductionPermissionError";
+  }
+}
+
+// READY wajib didahului QC (item, qty, varian, catatan sudah dicek).
+export class ProductionQcRequiredError extends Error {
+  constructor() {
+    super("Konfirmasi QC dulu sebelum menandai READY.");
+    this.name = "ProductionQcRequiredError";
+  }
+}
+
+// Mengembalikan tiket READY ke PROCESSING wajib alasan & belum diambil waiter.
+export class ProductionReopenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProductionReopenError";
+  }
+}
+
 export async function updateKitchenStatus(
   ticketNo: string,
   status: string,
   garage: GarageSession,
+  options: { qcConfirmed?: boolean; reason?: string } = {},
 ) {
   const db = getDb();
   const [current] = await db
@@ -9965,6 +10418,36 @@ export async function updateKitchenStatus(
     throw new KitchenTransitionError(current.status, status);
   }
 
+  // Transisi produksi (MULAI / READY / kembalikan) milik workstation tiket.
+  // Delivered tetap domain waiter (lihat deliverClaimedTicket).
+  const reopening = current.status === "ready" && status === "cooking";
+  if (status === "cooking" || status === "ready") {
+    if (!canOperateStation(garage.profile.role, garage.profile.workstation, current.station)) {
+      throw new ProductionPermissionError(current.station);
+    }
+  }
+  if (status === "ready") {
+    if (options.qcConfirmed !== true) {
+      throw new ProductionQcRequiredError();
+    }
+    // Porsi yang masih di batch aktif belum ter-allocate → tiket belum lengkap.
+    const pendingBatches = await pendingBatchNosForTicket(db, current.id);
+    if (pendingBatches.length) {
+      throw new ProductionBatchPendingError(pendingBatches);
+    }
+  }
+  const reopenReason = options.reason?.trim() ?? "";
+  if (reopening) {
+    if (reopenReason.length < 3) {
+      throw new ProductionReopenError("Alasan wajib diisi untuk mengembalikan tiket ke PROCESSING.");
+    }
+    if (current.claimedBy) {
+      throw new ProductionReopenError(
+        `Tiket sudah diambil ${current.claimedByName ?? "waiter"} — tidak bisa dikembalikan.`,
+      );
+    }
+  }
+
   const now = new Date();
   const actorName = garage.user.name;
   const update: Partial<typeof kitchenTickets.$inferInsert> = {
@@ -9975,6 +10458,16 @@ export async function updateKitchenStatus(
   if (status === "cooking" && !current.acceptedAt) {
     update.acceptedAt = now;
     update.acceptedByName = actorName;
+  }
+
+  if (reopening) {
+    update.readyAt = null;
+    update.readyByName = null;
+    update.issueReason = reopenReason;
+    update.issueAt = now;
+    // Panggilan helper batal: produk kembali diproses.
+    update.handoverAt = null;
+    update.handoverByName = null;
   }
 
   if (status === "ready") {
@@ -10020,6 +10513,13 @@ export async function updateKitchenStatus(
       .where(eq(kitchenTickets.ticketNo, ticketNo))
       .limit(1);
     return latest ?? null;
+  }
+
+  // Status porsi mengikuti tiket (tiket lama tanpa porsi → no-op).
+  if (status === "cooking") {
+    await syncProductionItemsForTicket(db, ticket.id, reopening ? "reopen" : "cooking", now);
+  } else if (status === "ready") {
+    await syncProductionItemsForTicket(db, ticket.id, "ready", now);
   }
 
   // Tarif fee diambil dari Pengaturan (owner bisa atur) saat ada kredit fee.
@@ -10079,11 +10579,23 @@ export async function updateKitchenStatus(
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-    action: `Kitchen ticket marked ${status}`,
+    action: reopening
+      ? "Production ticket reopened"
+      : `Kitchen ticket marked ${status}`,
     object: ticket.ticketNo,
     device: garage.profile.deviceLabel,
+    status: reopening ? "issue" : status,
     metadata: {
       ticketId: ticket.id,
+      orderNo: ticket.orderNo,
+      customerName: ticket.customerName,
+      tableLabel: ticket.tableLabel,
+      station: ticket.station,
+      before: current.status,
+      after: status,
+      reason: reopening ? reopenReason : null,
+      qcConfirmed: status === "ready" ? true : undefined,
+      workstation: garage.profile.workstation ?? null,
       targetMinutes: ticket.targetMinutes,
       targetGroup: ticket.targetGroup,
       acceptedByName: ticket.acceptedByName,
@@ -10188,7 +10700,7 @@ export async function updateInventoryItem(
   }
   if (input.unit !== undefined) setValues.unit = input.unit.trim();
   if (input.packageSize !== undefined) setValues.packageSize = input.packageSize.trim();
-  if (input.unitCost !== undefined) setValues.unitCost = Math.max(0, Math.round(input.unitCost));
+  if (input.unitCost !== undefined) setValues.unitCost = roundUnitCost(input.unitCost);
   if (input.onHand !== undefined) setValues.onHand = input.onHand;
   if (input.min !== undefined) setValues.min = input.min;
   if (input.stage !== undefined) setValues.stage = input.stage;
@@ -10199,6 +10711,11 @@ export async function updateInventoryItem(
     .set(setValues)
     .where(eq(inventoryItems.sku, sku))
     .returning();
+
+  // HPP bahan berubah → HPP semua menu yang memakai bahan ini ikut dihitung ulang.
+  if (input.unitCost !== undefined) {
+    await syncRecipeBaseCosts(db, { skus: [sku] });
+  }
 
   if (input.onHand !== undefined || input.min !== undefined || input.movement !== undefined) {
     await db
@@ -10339,7 +10856,7 @@ export async function createStockMovement(input: MovementInput, garage: GarageSe
 
 export async function createSupplierReceiving(input: SupplierReceivingInput, garage: GarageSession) {
   if (!canManageWarehouseFlow(garage.profile.role)) {
-    throw new Error("Hanya Owner/Admin/Gudang yang bisa posting barang masuk supplier.");
+    throw new Error("Hanya Owner/Manajer/Kasir yang bisa posting barang masuk supplier.");
   }
 
   const db = getDb();
@@ -10355,7 +10872,7 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
     const item = inventoryBySku.get(sku);
     if (!item) throw new Error(`SKU tidak ditemukan: ${sku}`);
     const qty = Number(line.qty);
-    const unitCost = Math.max(0, Math.round(Number(line.unitCost)));
+    const unitCost = roundUnitCost(Number(line.unitCost));
     if (!Number.isFinite(qty) || qty <= 0) throw new Error(`Qty receiving tidak valid untuk ${sku}.`);
     if (!Number.isFinite(unitCost)) throw new Error(`Harga input tidak valid untuk ${sku}.`);
     return {
@@ -10448,6 +10965,8 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
         .set({
           onHand: sql`${inventoryItems.onHand} + ${line.qty}`,
           unitCost: line.unitCost,
+          // Harga beli per kemasan terbaru = harga/satuan × isi kemasan (bila isi diketahui).
+          purchasePrice: sql<number>`case when ${inventoryItems.packageQty} > 0 then round((${line.unitCost} * ${inventoryItems.packageQty})::numeric, 4) else ${inventoryItems.purchasePrice} end`,
           status: sql<string>`case
             when ${inventoryItems.onHand} + ${line.qty} <= ${inventoryItems.min} then 'low'
             when ${inventoryItems.onHand} + ${line.qty} <= (${inventoryItems.min} * 1.25) then 'watch'
@@ -10480,6 +10999,9 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
         items: lines.length,
       },
     });
+
+    // Harga masuk jadi HPP bahan terbaru → HPP menu yang memakainya ikut live.
+    await syncRecipeBaseCosts(tx, { skus: itemSkus });
 
     return { receiving, items: createdItems };
   });
@@ -10515,10 +11037,6 @@ export async function createInventoryTransferRequest(input: InventoryTransferInp
   const db = getDb();
   const outletId = input.outletId || garage.profile.outlet.id;
   const station = input.station === "bar" ? "bar" : "dapur";
-  const restrictedStation = roleStationArea(garage.profile.role);
-  if (restrictedStation && station !== restrictedStation) {
-    throw new Error(`Role ${roleDisplayName[garage.profile.role]} hanya bisa request bahan ${restrictedStation === "bar" ? "Bar" : "Dapur"}.`);
-  }
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const itemSkus = [...new Set(input.items.map((item) => item.sku.trim()).filter(Boolean))];
   if (!itemSkus.length) throw new Error("Minimal 1 SKU wajib di-request.");
@@ -10638,7 +11156,7 @@ export async function decideInventoryTransferRequest(
   options?: { items?: Array<{ itemId: string; issuedQty: number }> },
 ) {
   if (!canManageWarehouseFlow(garage.profile.role)) {
-    throw new Error("Hanya Owner/Admin/Gudang yang bisa approve, reject, atau issue request Gudang.");
+    throw new Error("Hanya Owner/Manajer/Kasir yang bisa approve, reject, atau issue request Gudang.");
   }
 
   const db = getDb();
@@ -10806,7 +11324,7 @@ function stockOpnameStatus(totalDelta: number) {
 }
 
 function stockOpnameCode(outletCode: string) {
-  return `OPN-${outletCode}-${Date.now().toString().slice(-8)}`;
+  return `OPN-${outletCode}-${uniqueStamp().toString().slice(-10)}`;
 }
 
 function serializeStockOpnameSession<T extends { createdAt: Date; updatedAt: Date; approvedAt: Date | null; appliedAt: Date | null; rejectedAt: Date | null }>(
@@ -11218,13 +11736,14 @@ export type BusinessInfo = {
 
 export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
   tagline: "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
-  whatsapp: "6285188983600",
+  // Kontak, alamat & link Maps dari listing Google Maps resmi (garage-location.ts). Buka 24 jam.
+  whatsapp: GARAGE_LOCATION.phone,
   instagram: "",
   email: "garagetebingtinggi@gmail.com",
-  address: "Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi Kota, Sumatera Utara 20631",
-  hoursOpen: "07:00",
-  hoursClose: "23:00",
-  mapsUrl: "",
+  address: GARAGE_LOCATION.address,
+  hoursOpen: "00:00",
+  hoursClose: "23:59",
+  mapsUrl: GARAGE_LOCATION.mapsUrl,
   aboutText:
     "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi.\n\nKami me-roasting dalam batch kecil. Buka pagi, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
 };
@@ -11325,6 +11844,71 @@ export async function saveTestimonials(
     await db
       .insert(appSettings)
       .values({ outletId: null, key: TESTIMONIALS_KEY, valueJson: clean, updatedBy });
+  }
+  return clean;
+}
+
+// ─── Feed sosmed landing ───────────────────────────────────────────────────
+// Owner menempel link postingan/video IG, TikTok, YouTube, Facebook (maks 6)
+// dari modul Website. Landing menampilkan kartu "Tonton di …"; bila kosong,
+// section sosmed memakai tampilan profil statis. Disimpan di app_settings
+// key global 'site.socialPosts'.
+export type SocialPostPlatform = "instagram" | "tiktok" | "youtube" | "facebook";
+export type SocialPost = { platform: SocialPostPlatform; url: string; title: string };
+
+const SOCIAL_POSTS_KEY = "site.socialPosts";
+const SOCIAL_POST_HOSTS: Record<SocialPostPlatform, RegExp> = {
+  instagram: /(^|\.)instagram\.com$/,
+  tiktok: /(^|\.)tiktok\.com$/,
+  youtube: /(^|\.)(youtube\.com|youtu\.be)$/,
+  facebook: /(^|\.)(facebook\.com|fb\.watch)$/,
+};
+
+/** Link valid hanya bila https dan domainnya cocok dengan platform. */
+export function normalizeSocialPost(input: unknown): SocialPost | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+  const platform = String(raw.platform ?? "") as SocialPostPlatform;
+  if (!(platform in SOCIAL_POST_HOSTS)) return null;
+  let url: URL;
+  try {
+    url = new URL(String(raw.url ?? "").trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || !SOCIAL_POST_HOSTS[platform].test(url.hostname.toLowerCase())) return null;
+  return { platform, url: url.toString(), title: String(raw.title ?? "").trim().slice(0, 80) };
+}
+
+export async function getSocialPosts(): Promise<SocialPost[]> {
+  const [row] = await getDb()
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, SOCIAL_POSTS_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  const stored = row?.valueJson;
+  if (!Array.isArray(stored)) return [];
+  return stored.map(normalizeSocialPost).filter((post): post is SocialPost => Boolean(post)).slice(0, 6);
+}
+
+export async function saveSocialPosts(input: unknown[], updatedBy: string | null): Promise<SocialPost[]> {
+  const db = getDb();
+  const clean = (Array.isArray(input) ? input : [])
+    .map(normalizeSocialPost)
+    .filter((post): post is SocialPost => Boolean(post))
+    .slice(0, 6);
+  const [existing] = await db
+    .select({ id: appSettings.id })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, SOCIAL_POSTS_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ valueJson: clean, updatedBy, updatedAt: sql`now()` })
+      .where(eq(appSettings.id, existing.id));
+  } else {
+    await db.insert(appSettings).values({ outletId: null, key: SOCIAL_POSTS_KEY, valueJson: clean, updatedBy });
   }
   return clean;
 }
@@ -11700,119 +12284,922 @@ async function applyCashExpenseToOpenSession(
   return updated;
 }
 
-/**
- * Kasir / waiter mengajukan void — masuk antrian Approvals (belum void order).
- */
-export async function requestOrderVoidApproval(
-  idOrOrderNo: string,
-  reason: string,
-  garage: GarageSession,
-) {
-  const db = getDb();
-  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrOrderNo,
-    );
+const idrFormatter = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  maximumFractionDigits: 0,
+});
 
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function findOutletOrder(db: GarageDb | GarageTx, idOrOrderNo: string, garage: GarageSession) {
   const [order] = await db
     .select()
     .from(orders)
     .where(
       and(
-        isUuid ? eq(orders.id, idOrOrderNo) : eq(orders.orderNo, idOrOrderNo),
+        isUuidLike(idOrOrderNo) ? eq(orders.id, idOrOrderNo) : eq(orders.orderNo, idOrOrderNo),
         eq(orders.outletId, garage.profile.outlet.id),
       ),
     )
     .limit(1);
+  return order ?? null;
+}
 
+/**
+ * Void/refund order dari tanggal yang sudah di-closing akan mengubah angka hari
+ * terkunci → tolak (Owner harus membuka ulang closing dulu). Dipanggil DI LUAR
+ * db.transaction: PGlite satu koneksi, getDb di dalam transaksi = deadlock.
+ */
+async function assertOrderDayOpen(idOrOrderNo: string, garage: GarageSession) {
+  const order = await findOutletOrder(getDb(), idOrOrderNo, garage);
+  if (order) await assertFinanceDayOpen(order.createdAt);
+}
+
+function orderRiskFor(amount: number) {
+  return amount >= 500_000 ? "high" : amount >= 100_000 ? "medium" : "low";
+}
+
+/** Manajer/Owner boleh langsung memutus pengajuannya sendiri (tetap tercatat). */
+function canSelfApprove(garage: GarageSession) {
+  return canUseApi(garage.profile.role, "approvals:decide");
+}
+
+export type OrderCancelRequestInput = {
+  reasonCode: string;
+  note?: string | null;
+};
+
+/**
+ * Pengajuan batal (void) seluruh order. Kasir/Waiter → masuk antrean
+ * Persetujuan. Manajer/Owner → tercatat di antrean lalu langsung disetujui.
+ */
+export async function requestOrderVoidApproval(
+  idOrOrderNo: string,
+  input: OrderCancelRequestInput,
+  garage: GarageSession,
+) {
+  const reasonError = validateCancelReason(input.reasonCode, input.note);
+  if (reasonError) throw new Error(reasonError);
+  const reason = composeCancelReason(input.reasonCode, input.note);
+
+  const db = getDb();
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const order = await findOutletOrder(db, idOrOrderNo, garage);
   if (!order) {
     throw new Error("Order tidak ditemukan.");
   }
   if (order.status === "voided") {
-    throw new Error("Order sudah di-void sebelumnya.");
+    throw new Error("Order ini sudah dibatalkan sebelumnya.");
   }
+  await assertFinanceDayOpen(order.createdAt);
 
-  // Wire: kalau setting requireManagerForVoid=false, langsung void tanpa approval.
-  // Default true (preserve perilaku existing — require approval).
+  // Setting requireManagerForVoid=false → kasir boleh batal langsung tanpa antrean.
   const policy = await getAppSettings(garage.profile.outlet.id);
   if (!policy.requireManagerForVoid) {
-    const result = await voidOrder(idOrOrderNo, reason, garage);
-    return { directVoid: true, ...result };
+    const result = await voidOrder(order.id, reason, garage);
+    return { approvalId: null, status: "approved" as const, directVoid: true, ...result };
   }
 
-  const approvalId = `APP-VOID-${order.id}`;
-  const [existingPending] = await db
+  // Pengajuan pertama = APP-VOID-{orderId} (kompatibel data lama). Pengajuan
+  // ulang setelah ditolak dapat ID baru supaya riwayat penolakan tidak tertimpa.
+  const voidPrefix = `APP-VOID-${order.id}`;
+  const previousVoids = await db
+    .select({ id: approvals.id, status: approvals.status })
+    .from(approvals)
+    .where(ilike(approvals.id, `${voidPrefix}%`));
+
+  if (previousVoids.some((row) => row.status === "pending")) {
+    throw new Error("Pengajuan batal untuk order ini masih menunggu persetujuan.");
+  }
+  const approvalId = previousVoids.length
+    ? `${voidPrefix}-${previousVoids.length + 1}`
+    : voidPrefix;
+  const [pendingRefund] = await db
     .select({ id: approvals.id })
     .from(approvals)
-    .where(and(eq(approvals.id, approvalId), eq(approvals.status, "pending")))
+    .where(
+      and(
+        eq(approvals.status, "pending"),
+        ilike(approvals.id, "APP-RFD-%"),
+        sql`${approvals.payload}->>'orderId' = ${order.id}`,
+      ),
+    )
     .limit(1);
-
-  if (existingPending) {
-    throw new Error("Permintaan void untuk order ini masih menunggu approval.");
+  if (pendingRefund) {
+    throw new Error("Order ini masih punya pengajuan refund yang menunggu persetujuan.");
   }
 
-  const formattedAmount = new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(order.total);
+  const payload: ApprovalPayload = {
+    orderId: order.id,
+    orderNo: order.orderNo,
+    reasonCode: input.reasonCode,
+    note: input.note?.trim() || null,
+    refundAmount: order.total,
+  };
+  const values = {
+    type: "Void transaksi",
+    requester: actor,
+    requesterPhone: null,
+    amount: idrFormatter.format(order.total),
+    reason: `Batalkan ${order.orderNo} (${order.tableLabel}): ${reason}`,
+    risk: orderRiskFor(order.total),
+    age: "baru saja",
+    status: "pending",
+    payload,
+  };
 
-  const risk =
-    order.total >= 500_000 ? "high" : order.total >= 100_000 ? "medium" : "low";
-
-  await db
-    .insert(approvals)
-    .values({
-      id: approvalId,
-      type: "Void transaksi",
-      requester: actor,
-      requesterPhone: null,
-      amount: formattedAmount,
-      reason: `Void ${order.orderNo}: ${reason}`,
-      risk,
-      age: "baru saja",
-      status: "pending",
-    })
-    .onConflictDoUpdate({
-      target: approvals.id,
-      set: {
-        type: "Void transaksi",
-        requester: actor,
-        amount: formattedAmount,
-        reason: `Void ${order.orderNo}: ${reason}`,
-        risk,
-        status: "pending",
-        decidedBy: null,
-        decidedByName: null,
-        decidedAt: null,
-        reasonDecided: null,
-        updatedAt: new Date(),
-      },
-    });
+  await db.insert(approvals).values({ id: approvalId, ...values });
 
   await createAuditLog({
     actor,
-    action: "Void approval requested",
+    action: "Pengajuan batal order",
     object: order.orderNo,
     device: garage.profile.deviceLabel,
     status: "approval_required",
-    metadata: {
-      orderId: order.id,
-      orderNo: order.orderNo,
-      approvalId,
-      reason,
-    },
+    metadata: { orderId: order.id, orderNo: order.orderNo, approvalId, reason },
   });
 
-  return { approvalId, orderId: order.id, orderNo: order.orderNo };
+  if (canSelfApprove(garage)) {
+    await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
+      via: "langsung",
+    });
+    return { approvalId, status: "approved" as const, orderId: order.id, orderNo: order.orderNo };
+  }
+
+  return { approvalId, status: "pending" as const, orderId: order.id, orderNo: order.orderNo };
+}
+
+/** Item order yang masih bisa direfund (qty tersisa > 0). */
+export async function getRefundableOrder(idOrOrderNo: string, garage: GarageSession) {
+  const db = getDb();
+  const order = await findOutletOrder(db, idOrOrderNo, garage);
+  if (!order) return null;
+  const items = await db
+    .select({
+      id: orderItems.id,
+      itemName: orderItems.itemName,
+      variantLabel: orderItems.variantLabel,
+      unitPrice: orderItems.unitPrice,
+      qty: orderItems.qty,
+      lineTotal: orderItems.lineTotal,
+    })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, order.id));
+  const [pending] = await db
+    .select({ id: approvals.id, type: approvals.type, payload: approvals.payload })
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.status, "pending"),
+        or(
+          ilike(approvals.id, `APP-VOID-${order.id}%`),
+          and(ilike(approvals.id, "APP-RFD-%"), sql`${approvals.payload}->>'orderId' = ${order.id}`),
+        ),
+      ),
+    )
+    .limit(1);
+  const pendingPayload = pending?.payload as ApprovalPayload | null | undefined;
+  return {
+    orderId: order.id,
+    orderNo: order.orderNo,
+    tableLabel: order.tableLabel,
+    status: order.status,
+    subtotal: order.subtotal,
+    total: order.total,
+    pendingApprovalId: pending?.id ?? null,
+    // Nominal pengajuan yang menunggu (refund sebagian ≠ total order).
+    pendingAmount: pending ? (pendingPayload?.refundAmount ?? order.total) : null,
+    items: items.filter((item) => item.qty > 0),
+  };
 }
 
 /**
- * Void/refund order yang sudah lunas:
- * - Set orders.status = "voided"
- * - Reverse stock deduction (insert positive stock_movements + restore inventory.onHand)
- * - Log audit
+ * Pengajuan refund sebagian item. Uang kembali dihitung proporsional
+ * (service/pajak/diskon ikut) lewat computeRefundSplit.
+ */
+export async function requestOrderRefundApproval(
+  idOrOrderNo: string,
+  input: OrderCancelRequestInput & { items: Array<{ orderItemId: string; qty: number }> },
+  garage: GarageSession,
+) {
+  const reasonError = validateCancelReason(input.reasonCode, input.note);
+  if (reasonError) throw new Error(reasonError);
+  const reason = composeCancelReason(input.reasonCode, input.note);
+
+  const db = getDb();
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const refundable = await getRefundableOrder(idOrOrderNo, garage);
+  if (!refundable) throw new Error("Order tidak ditemukan.");
+  if (refundable.status !== "paid") {
+    throw new Error("Refund hanya untuk order yang sudah lunas.");
+  }
+  if (refundable.pendingApprovalId) {
+    throw new Error("Order ini masih punya pengajuan batal/refund yang menunggu persetujuan.");
+  }
+  await assertOrderDayOpen(refundable.orderId, garage);
+
+  const payloadItems = resolveRefundItems(refundable.items, input.items);
+  assertPartialRefund(refundable.items, payloadItems);
+  const refundSubtotal = payloadItems.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const { refundAmount } = computeRefundSplit(
+    await getOrderMoney(db, refundable.orderId),
+    refundSubtotal,
+  );
+
+  const approvalId = `APP-RFD-${randomUUID()}`;
+  const payload: ApprovalPayload = {
+    orderId: refundable.orderId,
+    orderNo: refundable.orderNo,
+    reasonCode: input.reasonCode,
+    note: input.note?.trim() || null,
+    refundAmount,
+    items: payloadItems,
+  };
+  const itemSummary = payloadItems
+    .map((item) => `${item.qty}x ${item.itemName}${item.variantLabel ? ` ${item.variantLabel}` : ""}`)
+    .join(", ");
+
+  await db.insert(approvals).values({
+    id: approvalId,
+    type: "Refund item",
+    requester: actor,
+    requesterPhone: null,
+    amount: idrFormatter.format(refundAmount),
+    reason: `Refund ${refundable.orderNo}: ${itemSummary} — ${reason}`,
+    risk: orderRiskFor(refundAmount),
+    age: "baru saja",
+    status: "pending",
+    payload,
+  });
+
+  await createAuditLog({
+    actor,
+    action: "Pengajuan refund item",
+    object: refundable.orderNo,
+    device: garage.profile.deviceLabel,
+    status: "approval_required",
+    metadata: { approvalId, orderId: refundable.orderId, refundAmount, items: payloadItems, reason },
+  });
+
+  if (canSelfApprove(garage)) {
+    await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
+      via: "langsung",
+    });
+    return { approvalId, status: "approved" as const, refundAmount, orderNo: refundable.orderNo };
+  }
+
+  return { approvalId, status: "pending" as const, refundAmount, orderNo: refundable.orderNo };
+}
+
+function resolveRefundItems(
+  available: Array<{ id: string; itemName: string; variantLabel: string; unitPrice: number; qty: number }>,
+  requested: Array<{ orderItemId: string; qty: number }>,
+  purpose: "refund" | "pisah" = "refund",
+): RefundPayloadItem[] {
+  const verb = purpose === "refund" ? "direfund" : "dipisah";
+  const byId = new Map(available.map((item) => [item.id, item]));
+  const merged = new Map<string, number>();
+  for (const line of requested) {
+    if (!Number.isInteger(line.qty) || line.qty <= 0) continue;
+    merged.set(line.orderItemId, (merged.get(line.orderItemId) ?? 0) + line.qty);
+  }
+  if (!merged.size) throw new Error(`Pilih minimal satu item untuk ${verb}.`);
+  return Array.from(merged.entries()).map(([orderItemId, qty]) => {
+    const item = byId.get(orderItemId);
+    if (!item) throw new Error(`Item yang akan ${verb} tidak ditemukan di order ini.`);
+    if (qty > item.qty) {
+      throw new Error(`Qty ${item.itemName} yang ${verb} melebihi sisa (${item.qty}).`);
+    }
+    return {
+      orderItemId,
+      itemName: item.itemName,
+      variantLabel: item.variantLabel,
+      qty,
+      unitPrice: item.unitPrice,
+    };
+  });
+}
+
+function assertPartialRefund(
+  available: Array<{ id: string; qty: number }>,
+  lines: RefundPayloadItem[],
+  message = "Semua item dipilih — gunakan \"Batalkan seluruh order\".",
+) {
+  const refundQty = new Map(lines.map((line) => [line.orderItemId, line.qty]));
+  const everything = available.every((item) => (refundQty.get(item.id) ?? 0) >= item.qty);
+  if (everything) {
+    throw new Error(message);
+  }
+}
+
+async function getOrderMoney(db: GarageDb | GarageTx, orderId: string) {
+  const [row] = await db
+    .select({
+      subtotal: orders.subtotal,
+      service: orders.service,
+      tax: orders.tax,
+      discount: orders.discount,
+      total: orders.total,
+    })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+  if (!row) throw new Error("Order tidak ditemukan.");
+  return row;
+}
+
+/**
+ * Kurangi pembayaran captured sebesar `amount` (terbaru dulu) & kembalikan
+ * total uang tunai yang keluar dari laci. Riwayat asli disimpan di metadata.
+ */
+async function reducePaymentsForRefund(
+  tx: GarageTx,
+  orderId: string,
+  amount: number,
+  mode: "refund" | "void",
+) {
+  const rows = await tx
+    .select()
+    .from(payments)
+    .where(and(eq(payments.orderId, orderId), eq(payments.status, "captured")))
+    .orderBy(desc(payments.createdAt));
+  let remaining = amount;
+  let cashOut = 0;
+  for (const payment of rows) {
+    // Void menutup semua pembayaran; refund berhenti begitu nominalnya terpenuhi.
+    if (mode === "refund" && remaining <= 0) break;
+    const take = mode === "void" ? payment.amount : Math.min(payment.amount, remaining);
+    remaining -= take;
+    if (payment.method.toLowerCase() === "cash") cashOut += take;
+    const metadata = payment.metadata ?? {};
+    const alreadyRefunded = numberFromMetadata(metadata, "refundedAmount") ?? 0;
+    await tx
+      .update(payments)
+      .set({
+        amount: payment.amount - take,
+        status: mode === "void" ? "voided" : payment.status,
+        metadata: {
+          ...metadata,
+          originalAmount: numberFromMetadata(metadata, "originalAmount") ?? payment.amount,
+          refundedAmount: alreadyRefunded + take,
+        },
+      })
+      .where(eq(payments.id, payment.id));
+  }
+  return { cashOut };
+}
+
+// =============================================================================
+// Stok fisik tunggal = WMS. Potong/kembali stok resep order (POS, QR, void,
+// refund, split bill) tetap dihitung oleh logika di bawah, lalu mutasinya
+// diteruskan ke WMS untuk bahan yang terdaftar di WMS. Stok katalog OS
+// (inventory_items.onHand) otomatis jadi cermin total WMS.
+// =============================================================================
+
+async function consumeSaleStockInWms(tx: GarageTx, sku: string, qty: number, orderNo: string, userId: string | null) {
+  const { consumeWmsStockForSale } = await import("@/lib/wms-service");
+  return consumeWmsStockForSale(tx as never, { sku, qty, refDoc: `SALE ${orderNo}`, userId });
+}
+
+async function returnSaleStockInWms(tx: GarageTx, sku: string, qty: number, refDoc: string) {
+  const { returnWmsStockForSale } = await import("@/lib/wms-service");
+  return returnWmsStockForSale(tx as never, { sku, qty, refDoc });
+}
+
+async function isWmsManaged(tx: GarageTx | GarageDb, sku: string) {
+  const { isWmsManagedSku } = await import("@/lib/wms-service");
+  return isWmsManagedSku(tx as never, sku);
+}
+
+async function restoreOutletStock(
+  tx: GarageTx,
+  input: {
+    sku: string;
+    qty: number;
+    outletId: string;
+    type: "void_reverse" | "refund_reverse";
+    note: string;
+    movementLabel: string;
+    actor: string;
+    now: Date;
+  },
+) {
+  // Void/refund: bahan yang dikelola WMS dikembalikan ke gudang WMS juga.
+  await returnSaleStockInWms(tx, input.sku, input.qty, input.movementLabel);
+  const [inventory] = await tx
+    .select({ min: inventoryItems.min })
+    .from(inventoryItems)
+    .where(eq(inventoryItems.sku, input.sku))
+    .limit(1);
+  const outletStock = await ensureLocationStock(tx, {
+    sku: input.sku,
+    locationType: "outlet",
+    locationKey: outletLocationKey(input.outletId),
+    outletId: input.outletId,
+    min: inventory?.min ?? 0,
+    movement: "Outlet stock initialized",
+  });
+  const nextOnHand = Number((outletStock.onHand + input.qty).toFixed(4));
+  await tx
+    .update(inventoryLocationStocks)
+    .set({
+      onHand: nextOnHand,
+      status: inventoryStatusFor(nextOnHand, outletStock.min),
+      movement: input.movementLabel,
+      updatedAt: input.now,
+    })
+    .where(eq(inventoryLocationStocks.id, outletStock.id));
+  await tx.insert(stockMovements).values({
+    itemSku: input.sku,
+    type: input.type,
+    note: input.note,
+    qty: input.qty,
+    actor: input.actor,
+  });
+}
+
+/**
+ * Kembalikan stok inventaris global (inventory_items.onHand) — pasangan dari
+ * applyRecipeStockDeduction (movement "stock_out", aktif bila inventoryAutoDeduct).
+ */
+async function restoreGlobalStock(
+  tx: GarageTx,
+  input: { sku: string; qty: number; type: "void_reverse" | "refund_reverse"; note: string; actor: string },
+) {
+  // Bahan WMS: onHand katalog adalah cermin WMS (dikembalikan lewat restoreOutletStock).
+  if (!(await isWmsManaged(tx, input.sku))) {
+    await tx
+      .update(inventoryItems)
+      .set({ onHand: sql`${inventoryItems.onHand} + ${input.qty}`, updatedAt: new Date() })
+      .where(eq(inventoryItems.sku, input.sku));
+  }
+  await tx.insert(stockMovements).values({
+    itemSku: input.sku,
+    type: input.type,
+    note: input.note,
+    qty: input.qty,
+    actor: input.actor,
+  });
+}
+
+/**
+ * Bonus referral transaksi pertama (member baru + pengajaknya). Baris bonus
+ * menunjuk order pemicunya, sehingga void order ikut menarik bonus kedua pihak
+ * (reverseLoyaltyForOrder) dan transaksi sah berikutnya boleh memicu lagi.
+ * Bonus lama tanpa order (sebelum migrasi 0111) tetap dianggap sudah diberikan.
+ */
+async function grantFirstTransactionReferral(
+  tx: GarageTx,
+  input: {
+    customer: { id: string; name: string; referredByCode: string | null };
+    orderId: string;
+    level: MemberLevel;
+    now: Date;
+  },
+) {
+  const { customer, orderId, level, now } = input;
+  if (!customer.referredByCode) return;
+  const [granted] = await tx
+    .select({ id: memberTransactions.id })
+    .from(memberTransactions)
+    .leftJoin(orders, eq(memberTransactions.orderId, orders.id))
+    .where(
+      and(
+        eq(memberTransactions.customerId, customer.id),
+        eq(memberTransactions.source, "REFERRAL"),
+        or(isNull(memberTransactions.orderId), ne(orders.status, "voided")),
+      ),
+    )
+    .limit(1);
+  if (granted) return;
+
+  const [referrer] = await tx
+    .select()
+    .from(customers)
+    .where(eq(customers.referralCode, customer.referredByCode))
+    .limit(1);
+  const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  await tx.insert(memberTransactions).values({
+    customerId: customer.id,
+    source: "REFERRAL",
+    orderId,
+    amount: 0,
+    pointsEarned: REFERRAL_BONUS_POINTS,
+    levelBefore: level,
+    levelAfter: level,
+    upgradeNotification: `Bonus referral ${REFERRAL_BONUS_POINTS} poin aktif.`,
+    expiresAt,
+  });
+  await tx
+    .update(customers)
+    .set({
+      points: sql`${customers.points} + ${REFERRAL_BONUS_POINTS}`,
+      flag: `Referral bonus +${REFERRAL_BONUS_POINTS}`,
+      updatedAt: now,
+    })
+    .where(eq(customers.id, customer.id));
+
+  if (referrer && referrer.id !== customer.id) {
+    await tx.insert(memberTransactions).values({
+      customerId: referrer.id,
+      source: "REFERRAL",
+      orderId,
+      amount: 0,
+      pointsEarned: REFERRAL_BONUS_POINTS,
+      levelBefore: normalizeMemberLevel(referrer.tier),
+      levelAfter: normalizeMemberLevel(referrer.tier),
+      upgradeNotification: `${customer.name} transaksi pertama. Bonus referral ${REFERRAL_BONUS_POINTS} poin.`,
+      expiresAt,
+    });
+    await tx
+      .update(customers)
+      .set({
+        points: sql`${customers.points} + ${REFERRAL_BONUS_POINTS}`,
+        flag: `Referral ${customer.name} +${REFERRAL_BONUS_POINTS}`,
+        updatedAt: now,
+      })
+      .where(eq(customers.id, referrer.id));
+  }
+}
+
+/**
+ * Tarik loyalitas milik order: poin member yang didapat dari order ini (void =
+ * penuh, refund = proporsional terhadap nilai yang dikembalikan) dan — khusus
+ * void — pemakaian voucher (kuota voucher kembali). Dulu void/refund tidak
+ * menyentuh poin & voucher → poin bisa "dicetak" lewat bayar-lalu-void.
+ * Penarikan sebelumnya ikut dihitung sehingga refund lalu void tidak dobel.
+ */
+async function reverseLoyaltyForOrder(
+  tx: GarageTx,
+  orderId: string,
+  input: { ratio: number; source: "VOID" | "REFUND" },
+) {
+  const rows = await tx.select().from(memberTransactions).where(eq(memberTransactions.orderId, orderId));
+  const customerIds = [...new Set(rows.map((row) => row.customerId))];
+  for (const customerId of customerIds) {
+    const own = rows.filter((row) => row.customerId === customerId);
+    const earned = own.filter((row) => row.pointsEarned > 0).reduce((sum, row) => sum + row.pointsEarned, 0);
+    // Bonus referral (member baru & pengajak) hanya ditarik bila order batal
+    // penuh; refund sebagian menarik poin belanja secara proporsional saja.
+    const earnedFromSpend = own
+      .filter((row) => row.pointsEarned > 0 && row.source !== "REFERRAL")
+      .reduce((sum, row) => sum + row.pointsEarned, 0);
+    const alreadyReversed = -own.filter((row) => row.pointsEarned < 0).reduce((sum, row) => sum + row.pointsEarned, 0);
+    const remaining = Math.max(0, earned - alreadyReversed);
+    const target =
+      input.ratio >= 1 ? remaining : Math.min(remaining, Math.round(earnedFromSpend * input.ratio));
+    if (target <= 0) continue;
+
+    const [customer] = await tx.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+    if (!customer) continue;
+    const newPoints = Math.max(0, customer.points - target);
+    const deducted = customer.points - newPoints;
+    const level = normalizeMemberLevel(customer.cardTier ?? customer.tier);
+    await tx
+      .update(customers)
+      .set({
+        points: newPoints,
+        visits: input.source === "VOID" ? Math.max(0, customer.visits - 1) : customer.visits,
+        updatedAt: new Date(),
+      })
+      .where(eq(customers.id, customerId));
+    await tx.insert(memberTransactions).values({
+      customerId,
+      source: input.source,
+      orderId,
+      amount: 0,
+      // Catat target penuh walau saldo tak cukup, supaya penarikan berikutnya tidak menarik lagi.
+      pointsEarned: -target,
+      levelBefore: level,
+      levelAfter: level,
+      upgradeNotification: deducted < target ? `Poin tersisa kurang dari ${target} — ditarik ${deducted}.` : null,
+    });
+  }
+
+  if (input.source === "VOID") {
+    const redemptions = await tx
+      .update(voucherRedemptions)
+      .set({ status: "reversed" })
+      .where(and(eq(voucherRedemptions.orderId, orderId), eq(voucherRedemptions.status, "redeemed")))
+      .returning({ voucherId: voucherRedemptions.voucherId });
+    for (const redemption of redemptions) {
+      if (!redemption.voucherId) continue;
+      await tx
+        .update(vouchers)
+        .set({ usedCount: sql`greatest(0, ${vouchers.usedCount} - 1)`, updatedAt: new Date() })
+        .where(eq(vouchers.id, redemption.voucherId));
+    }
+  }
+}
+
+// Pola catatan movement per order. Spasi/penutup setelah orderNo mencegah
+// ORD-1 ikut mencocokkan ORD-10.
+const outletDeductNote = (orderNo: string) => `${orderNo} %`;
+const globalDeductNote = (orderNo: string) => `%(order ${orderNo})`;
+const outletRefundNote = (orderNo: string) => `Refund ${orderNo} %`;
+const globalRefundNote = (orderNo: string) => `Refund global ${orderNo} %`;
+
+/** Total qty bahan per SKU dari movement bertipe tertentu yang catatannya cocok pola ILIKE. */
+async function sumMovementsBySku(tx: GarageTx, type: string, notePattern: string) {
+  const rows = await tx
+    .select({ itemSku: stockMovements.itemSku, qty: stockMovements.qty })
+    .from(stockMovements)
+    .where(and(eq(stockMovements.type, type), ilike(stockMovements.note, notePattern)));
+  const bySku = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.itemSku || row.qty == null) continue;
+    bySku.set(row.itemSku, (bySku.get(row.itemSku) ?? 0) + Math.abs(row.qty));
+  }
+  return bySku;
+}
+
+/**
+ * Potong stok semua order memakai waste resep (kasir, QR, waiter). Pengembalian
+ * stok harus mengikuti rumus yang sama.
+ */
+function orderUsesRecipeWaste(order: { orderSource: string }) {
+  // Sejak Sep 2026 semua sumber order (kasir, QR, waiter) memotong dengan susut
+  // resep. Order QR lama (sebelum perubahan) dipotong tanpa susut — tidak ada lagi
+  // di DB setelah reset grand opening.
+  void order;
+  return true;
+}
+
+/** Kebutuhan bahan per SKU untuk sekumpulan item order (dari resep aktif saat ini). */
+async function recipeQtyBySku(
+  tx: GarageTx,
+  items: Array<{ menuItemId: string | null; variantId: string; qty: number }>,
+  withWaste: boolean,
+) {
+  const bySku = new Map<string, number>();
+  for (const item of items) {
+    if (!item.menuItemId || item.qty <= 0) continue;
+    const recipes = await tx
+      .select({ sku: menuRecipes.inventorySku, qty: menuRecipes.qty, wastePct: menuRecipes.wastePct })
+      .from(menuRecipes)
+      .where(
+        and(
+          eq(menuRecipes.menuItemId, item.menuItemId),
+          eq(menuRecipes.status, "active"),
+          or(eq(menuRecipes.variantId, item.variantId), eq(menuRecipes.variantId, "all")),
+        ),
+      );
+    for (const recipe of recipes) {
+      if (!recipe.sku) continue;
+      const waste = withWaste ? 1 + (recipe.wastePct ?? 0) / 100 : 1;
+      const qty = Number((recipe.qty * item.qty * waste).toFixed(3));
+      if (qty > 0) bySku.set(recipe.sku, Number(((bySku.get(recipe.sku) ?? 0) + qty).toFixed(4)));
+    }
+  }
+  return bySku;
+}
+
+const splitBillAuditAction = (orderNo: string) => `Pisah bill ${orderNo}`;
+
+/**
+ * Bill hasil pisah yang dibuat SETELAH order induk diterima dapur tidak punya
+ * tiket/potong stok sendiri — keduanya tercatat di order induk. Mengembalikan
+ * orderNo pemilik catatan stok (induk), atau null bila order punya catatan sendiri.
+ */
+async function inheritedLedgerOf(
+  tx: GarageDb | GarageTx,
+  order: { orderNo: string; parentOrderId: string | null },
+) {
+  if (!order.parentOrderId) return null;
+  const [marker] = await tx
+    .select({ metadata: auditLogs.metadata })
+    .from(auditLogs)
+    .where(eq(auditLogs.action, splitBillAuditAction(order.orderNo)))
+    .limit(1);
+  const metadata = (marker?.metadata ?? {}) as Record<string, unknown>;
+  return metadata.inheritsKitchen === true && typeof metadata.ledgerOrderNo === "string"
+    ? metadata.ledgerOrderNo
+    : null;
+}
+
+/** Kebutuhan bahan bill-bill pisahan yang masih hidup & menumpang catatan stok order ini. */
+async function liveInheritedChildrenQty(tx: GarageTx, order: { id: string; orderSource: string }) {
+  const children = await tx
+    .select({ id: orders.id, orderNo: orders.orderNo, parentOrderId: orders.parentOrderId })
+    .from(orders)
+    .where(and(eq(orders.parentOrderId, order.id), ne(orders.status, "voided")));
+  const items: Array<{ menuItemId: string | null; variantId: string; qty: number }> = [];
+  for (const child of children) {
+    if (!(await inheritedLedgerOf(tx, child))) continue;
+    items.push(
+      ...(await tx
+        .select({ menuItemId: orderItems.menuItemId, variantId: orderItems.variantId, qty: orderItems.qty })
+        .from(orderItems)
+        .where(eq(orderItems.orderId, child.id))),
+    );
+  }
+  return recipeQtyBySku(tx, items, orderUsesRecipeWaste(order));
+}
+
+const SPLITTABLE_BILL_STATUSES = ["pending_cashier", "accepted", "ready", "awaiting_payment"];
+const WAITER_CASH_STATES = ["held_by_waiter", "handed_to_cashier", "cash_discrepancy"];
+
+/**
+ * Pisah bill meja per produk: item milik seorang tamu dipindah ke bill baru
+ * (order anak) di meja yang sama. Service, pajak & diskon ikut dibagi
+ * proporsional. Tiap bill lalu dibayar sendiri lewat Final Bayar (metode bebas).
+ */
+export async function splitCustomerOrder(
+  orderId: string,
+  input: { items: Array<{ orderItemId: string; qty: number }>; guestName?: string | null },
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const now = new Date();
+  // Dibaca SEBELUM transaksi: PGlite satu koneksi — query di luar tx saat tx
+  // terbuka akan saling menunggu (deadlock).
+  const { roundingMode } = await getAppSettings(garage.profile.outlet.id);
+
+  return db.transaction(async (tx) => {
+    const order = await findOutletOrder(tx, orderId, garage);
+    if (!order) throw new Error("Order tidak ditemukan.");
+    if (!customerOrderSources.includes(order.orderSource)) {
+      throw new Error("Pisah bill hanya untuk bill meja (order QR/waiter). Untuk keranjang kasir, pakai Split per produk saat Bayar.");
+    }
+    if (!SPLITTABLE_BILL_STATUSES.includes(order.status)) {
+      throw new Error("Bill ini sudah tidak bisa dipisah (sudah lunas, ditolak, atau dibatalkan).");
+    }
+
+    const paymentRows = await tx.select().from(payments).where(eq(payments.orderId, order.id));
+    if (paymentRows.some((payment) => payment.status === "captured")) {
+      throw new Error("Bill ini sudah punya pembayaran lunas — tidak bisa dipisah.");
+    }
+    const pendingPayment = paymentRows.find((payment) => payment.status !== "captured") ?? null;
+    const cashState =
+      typeof pendingPayment?.metadata?.cashFlowStatus === "string"
+        ? pendingPayment.metadata.cashFlowStatus
+        : null;
+    if (cashState && WAITER_CASH_STATES.includes(cashState)) {
+      throw new Error("Uang tunai meja ini sudah dipegang waiter — selesaikan setoran dulu sebelum pisah bill.");
+    }
+
+    const currentItems = (await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id))).filter(
+      (item) => item.qty > 0,
+    );
+    const lines = resolveRefundItems(currentItems, input.items, "pisah");
+    assertPartialRefund(currentItems, lines, "Semua item dipilih — sisakan minimal satu item di bill asal.");
+    const splitSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
+    const split = computeRefundSplit(order, splitSubtotal);
+    // Bill pisahan ikut aturan pembulatan outlet supaya nominal tunai wajar
+    // (mis. Rp 10.600, bukan Rp 10.567). Bill asal menerima sisanya → jumlah tetap pas.
+    const childTotal = Math.min(
+      order.total,
+      Math.max(0, applyRoundingMode(split.refundAmount, roundingMode)),
+    );
+    split.next.total = order.total - childTotal;
+    const childMoney = {
+      subtotal: order.subtotal - split.next.subtotal,
+      service: order.service - split.next.service,
+      tax: order.tax - split.next.tax,
+      discount: order.discount - split.next.discount,
+      total: childTotal,
+    };
+
+    // Semua pecahan menginduk ke order meja paling awal supaya catatan stok satu pintu.
+    const rootId = order.parentOrderId ?? order.id;
+    const [root] = order.parentOrderId
+      ? await tx.select({ orderNo: orders.orderNo }).from(orders).where(eq(orders.id, rootId)).limit(1)
+      : [{ orderNo: order.orderNo }];
+    const rootNo = root?.orderNo ?? order.orderNo;
+    const siblingNos = new Set(
+      (
+        await tx
+          .select({ orderNo: orders.orderNo })
+          .from(orders)
+          .where(eq(orders.parentOrderId, rootId))
+      ).map((row) => row.orderNo),
+    );
+    let seq = siblingNos.size + 2;
+    while (siblingNos.has(`${rootNo}-${seq}`)) seq += 1;
+    const childNo = `${rootNo}-${seq}`;
+
+    const [existingTicket] = await tx
+      .select({ id: kitchenTickets.id })
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.orderId, order.id))
+      .limit(1);
+    const parentLedger = await inheritedLedgerOf(tx, order);
+    const inheritsKitchen = Boolean(existingTicket) || Boolean(parentLedger);
+    const ledgerOrderNo = parentLedger ?? order.orderNo;
+
+    const guestName = input.guestName?.trim();
+    const [child] = await tx
+      .insert(orders)
+      .values({
+        orderNo: childNo,
+        queueNo: order.queueNo,
+        outletId: order.outletId,
+        customerId: null,
+        tableLabel: order.tableLabel,
+        channel: order.channel,
+        status: order.status,
+        ...childMoney,
+        orderSource: order.orderSource,
+        customerMode: "guest",
+        customerName: guestName || `Tamu (pisah dari ${order.orderNo})`,
+        customerPhone: null,
+        whatsappInvoiceStatus: "not_sent",
+        acceptedBy: order.acceptedBy,
+        acceptedAt: order.acceptedAt,
+        parentOrderId: rootId,
+        createdBy: garage.user.id,
+        // Tetap di jendela sesi meja yang sama dengan bill asal.
+        createdAt: order.createdAt,
+        updatedAt: now,
+      })
+      .returning();
+
+    for (const line of lines) {
+      const item = currentItems.find((row) => row.id === line.orderItemId)!;
+      if (line.qty >= item.qty) {
+        await tx.update(orderItems).set({ orderId: child.id }).where(eq(orderItems.id, item.id));
+        continue;
+      }
+      const keepQty = item.qty - line.qty;
+      await tx
+        .update(orderItems)
+        .set({ qty: keepQty, lineTotal: item.unitPrice * keepQty })
+        .where(eq(orderItems.id, item.id));
+      await tx.insert(orderItems).values({
+        orderId: child.id,
+        menuItemId: item.menuItemId,
+        variantId: item.variantId,
+        itemName: item.itemName,
+        variantLabel: item.variantLabel,
+        unitPrice: item.unitPrice,
+        qty: line.qty,
+        lineTotal: item.unitPrice * line.qty,
+        note: item.note,
+      });
+    }
+
+    await tx
+      .update(orders)
+      .set({ ...split.next, updatedAt: now })
+      .where(eq(orders.id, order.id));
+
+    if (pendingPayment) {
+      await tx
+        .update(payments)
+        .set({ amount: split.next.total })
+        .where(eq(payments.id, pendingPayment.id));
+    }
+    await tx.insert(payments).values({
+      orderId: child.id,
+      method: pendingPayment?.method ?? "Cash",
+      amount: childMoney.total,
+      status: "pending",
+      metadata: {
+        source: "customer_qr",
+        invoiceNo: invoiceNoForOrder(childNo),
+        invoiceStatus: "pending",
+        cashFlowStatus: cashState === "waiting_customer_cash" ? cashState : null,
+        splitFromOrderNo: order.orderNo,
+      },
+    });
+
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor,
+      action: splitBillAuditAction(childNo),
+      object: order.tableLabel,
+      device: garage.profile.deviceLabel,
+      status: "recorded",
+      metadata: {
+        sourceOrderId: order.id,
+        sourceOrderNo: order.orderNo,
+        ledgerOrderNo,
+        inheritsKitchen,
+        items: lines,
+        total: childMoney.total,
+        sourceTotalAfter: split.next.total,
+      },
+    });
+
+    return {
+      source: { id: order.id, orderNo: order.orderNo, total: split.next.total },
+      child: { id: child.id, orderNo: child.orderNo, total: child.total, customerName: child.customerName },
+    };
+  });
+}
+
+/**
+ * Batalkan (void) seluruh order:
+ * - status order → "voided"
+ * - stok bahan dikembalikan (dikurangi bagian yang sudah dikembalikan lewat refund)
+ * - pembayaran captured → "voided"; uang tunai mengurangi kas seharusnya shift aktif
+ * - fee staf dari order ini ditarik kembali
+ * - audit log
  */
 export async function voidOrder(
   idOrOrderNo: string,
@@ -11822,92 +13209,106 @@ export async function voidOrder(
   const db = getDb();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const now = new Date();
-  // Detect UUID vs orderNo
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrOrderNo,
-    );
+  await assertOrderDayOpen(idOrOrderNo, garage);
 
   const result = await db.transaction(async (tx) => {
-    const [order] = await tx
-      .select()
-      .from(orders)
-      .where(
-        and(
-          isUuid ? eq(orders.id, idOrOrderNo) : eq(orders.orderNo, idOrOrderNo),
-          eq(orders.outletId, garage.profile.outlet.id),
-        ),
-      )
-      .limit(1);
-
+    const order = await findOutletOrder(tx, idOrOrderNo, garage);
     if (!order) {
       throw new Error("Order tidak ditemukan.");
     }
     if (order.status === "voided") {
-      throw new Error("Order sudah di-void sebelumnya.");
+      throw new Error("Order ini sudah dibatalkan sebelumnya.");
+    }
+    const outletId = order.outletId ?? garage.profile.outlet.id;
+    let stockReversed = 0;
+
+    // Bill pisahan yang menumpang catatan stok induk: kembalikan sesuai item
+    // miliknya, dicatat di buku induk supaya void induk tidak menghitung dobel.
+    const ledgerOrderNo = await inheritedLedgerOf(tx, order);
+    if (ledgerOrderNo) {
+      const parentDeducted =
+        (await sumMovementsBySku(tx, "recipe_deduct", outletDeductNote(ledgerOrderNo))).size > 0;
+      const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+      const needs = parentDeducted
+        ? await recipeQtyBySku(tx, ownItems, orderUsesRecipeWaste(order))
+        : new Map<string, number>();
+      for (const [sku, qty] of needs) {
+        await restoreOutletStock(tx, {
+          sku,
+          qty,
+          outletId,
+          type: "refund_reverse",
+          note: `Refund ${ledgerOrderNo} (batal ${order.orderNo}): ${reason}`,
+          movementLabel: `Batal ${order.orderNo}: stok dikembalikan`,
+          actor,
+          now,
+        });
+        stockReversed += 1;
+      }
     }
 
-    // Reverse stock deduction: ambil semua deduct movements, lalu insert reversal
-    const deductedMovements = await tx
-      .select({
-        id: stockMovements.id,
-        itemSku: stockMovements.itemSku,
-        qty: stockMovements.qty,
-      })
-      .from(stockMovements)
-      .where(
-        and(
-          eq(stockMovements.type, "recipe_deduct"),
-          ilike(stockMovements.note, `${order.orderNo}%`),
-        ),
+    const deducted = ledgerOrderNo
+      ? new Map<string, number>()
+      : await sumMovementsBySku(tx, "recipe_deduct", outletDeductNote(order.orderNo));
+    const alreadyRefunded = await sumMovementsBySku(tx, "refund_reverse", outletRefundNote(order.orderNo));
+    // Bahan milik bill pisahan yang masih hidup tetap terpakai — jangan dikembalikan.
+    const keptByChildren = deducted.size ? await liveInheritedChildrenQty(tx, order) : new Map<string, number>();
+    for (const [sku, qty] of deducted) {
+      const restoreQty = Number(
+        (qty - (alreadyRefunded.get(sku) ?? 0) - (keptByChildren.get(sku) ?? 0)).toFixed(4),
       );
-
-    for (const movement of deductedMovements) {
-      if (!movement.itemSku || movement.qty == null) continue;
-      const reverseQty = Math.abs(movement.qty);
-      const [inventory] = await tx
-        .select({ min: inventoryItems.min })
-        .from(inventoryItems)
-        .where(eq(inventoryItems.sku, movement.itemSku))
-        .limit(1);
-      const outletStock = await ensureLocationStock(tx, {
-        sku: movement.itemSku,
-        locationType: "outlet",
-        locationKey: outletLocationKey(order.outletId ?? garage.profile.outlet.id),
-        outletId: order.outletId ?? garage.profile.outlet.id,
-        min: inventory?.min ?? 0,
-        movement: "Outlet stock initialized",
-      });
-      const nextOnHand = Number((outletStock.onHand + reverseQty).toFixed(4));
-      await tx
-        .update(inventoryLocationStocks)
-        .set({
-          onHand: nextOnHand,
-          status: inventoryStatusFor(nextOnHand, outletStock.min),
-          movement: `Void ${order.orderNo}: stok dikembalikan`,
-          updatedAt: now,
-        })
-        .where(eq(inventoryLocationStocks.id, outletStock.id));
-      await tx.insert(stockMovements).values({
-        itemSku: movement.itemSku,
+      if (restoreQty <= 0) continue;
+      await restoreOutletStock(tx, {
+        sku,
+        qty: restoreQty,
+        outletId,
         type: "void_reverse",
         note: `Void ${order.orderNo}: ${reason}`,
-        qty: reverseQty,
+        movementLabel: `Batal ${order.orderNo}: stok dikembalikan`,
+        actor,
+        now,
+      });
+      stockReversed += 1;
+    }
+
+    const globalDeducted = await sumMovementsBySku(tx, "stock_out", globalDeductNote(order.orderNo));
+    const globalRefunded = await sumMovementsBySku(tx, "refund_reverse", globalRefundNote(order.orderNo));
+    for (const [sku, qty] of globalDeducted) {
+      const restoreQty = Number((qty - (globalRefunded.get(sku) ?? 0)).toFixed(4));
+      if (restoreQty <= 0) continue;
+      await restoreGlobalStock(tx, {
+        sku,
+        qty: restoreQty,
+        type: "void_reverse",
+        note: `Void global ${order.orderNo}: ${reason}`,
         actor,
       });
     }
 
-    // Update order status
+    const { cashOut } = await reducePaymentsForRefund(tx, order.id, order.total, "void");
+    const cashSession = cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage) : null;
+
+    // Poin member dari order ini ditarik & kuota voucher yang dipakai dikembalikan.
+    await reverseLoyaltyForOrder(tx, order.id, { ratio: 1, source: "VOID" });
+
+    // Production Hub: tiket yang belum diantar ikut batal supaya Bar/Dapur
+    // berhenti membuat & waiter tidak mengantar pesanan yang dibatalkan.
+    const productionCancel = await cancelProductionForOrder(
+      tx,
+      order.id,
+      `Order dibatalkan: ${reason}`,
+      now,
+    );
+
     await tx
       .update(orders)
       .set({ status: "voided", updatedAt: now })
       .where(eq(orders.id, order.id));
 
-    // Audit log
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor,
-      action: `Order voided ${order.orderNo}`,
+      action: `Order dibatalkan ${order.orderNo}`,
       object: order.tableLabel,
       device: garage.profile.deviceLabel,
       status: "voided",
@@ -11916,25 +13317,199 @@ export async function voidOrder(
         orderNo: order.orderNo,
         amount: order.total,
         reason,
-        stockReversed: deductedMovements.length,
+        stockReversed,
+        cashOut,
+        cashSessionId: cashSession?.id ?? null,
+        cancelledTickets: productionCancel.ticketNos,
+        batchesAdjusted: productionCancel.batchesTouched,
       },
     });
 
     return {
       orderId: order.id,
       orderNo: order.orderNo,
-      stockReversed: deductedMovements.length,
+      stockReversed,
       previousTotal: order.total,
+      cashOut,
+      cancelledTickets: productionCancel.ticketNos,
     };
   });
 
+  const reversePayload = { orderId: result.orderId, reason: `Order dibatalkan: ${reason}` };
+  try {
+    await reverseEarningsForOrder(reversePayload);
+  } catch (error) {
+    await enqueueFailedEarning("reverse_order", reversePayload, error);
+  }
+
+  // Payroll V2 — fee produk order yang dibatalkan ikut ditarik. Non-blocking.
+  try {
+    const { reverseFeePoolForOrder } = await import("@/lib/garage-fee-pool");
+    await reverseFeePoolForOrder(result.orderId);
+  } catch (error) {
+    await enqueueFailedEarning("fee_pool_reverse", { orderId: result.orderId }, error);
+  }
+
+  return result;
+}
+
+/**
+ * Jalankan refund sebagian item yang sudah disetujui (dipanggil dari decideApproval).
+ * Qty item dikurangi, total order dihitung ulang, stok bahan item itu dikembalikan,
+ * pembayaran dikurangi, dan uang tunai mengurangi kas seharusnya shift aktif.
+ */
+async function executeOrderRefund(payload: ApprovalPayload, reason: string, garage: GarageSession) {
+  if (!payload.orderId || !payload.items?.length) {
+    throw new Error("Data refund tidak lengkap.");
+  }
+  const orderId = payload.orderId;
+  const refundItems = payload.items;
+  const db = getDb();
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const now = new Date();
+  await assertOrderDayOpen(orderId, garage);
+
+  const refunded = await db.transaction(async (tx) => {
+    const order = await findOutletOrder(tx, orderId, garage);
+    if (!order) throw new Error("Order tidak ditemukan.");
+    if (order.status !== "paid") {
+      throw new Error("Order sudah tidak berstatus lunas — refund dibatalkan.");
+    }
+    const currentItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+    // Validasi ulang terhadap qty terkini (bisa berubah sejak pengajuan).
+    const lines = resolveRefundItems(
+      currentItems,
+      refundItems.map((item) => ({ orderItemId: item.orderItemId, qty: item.qty })),
+    );
+    assertPartialRefund(currentItems.filter((item) => item.qty > 0), lines);
+    const refundSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
+    const split = computeRefundSplit(order, refundSubtotal);
+
+    // Bill pisahan memakai catatan stok induknya (lihat inheritedLedgerOf).
+    const ledgerNo = (await inheritedLedgerOf(tx, order)) ?? order.orderNo;
+    const withWaste = orderUsesRecipeWaste(order);
+    const hadOutletDeduct =
+      (await sumMovementsBySku(tx, "recipe_deduct", outletDeductNote(ledgerNo))).size > 0;
+    const hadGlobalDeduct =
+      (await sumMovementsBySku(tx, "stock_out", globalDeductNote(ledgerNo))).size > 0;
+    const outletId = order.outletId ?? garage.profile.outlet.id;
+
+    for (const line of lines) {
+      const item = currentItems.find((row) => row.id === line.orderItemId)!;
+      const nextQty = item.qty - line.qty;
+      if (nextQty <= 0) {
+        await tx.delete(orderItems).where(eq(orderItems.id, item.id));
+      } else {
+        await tx
+          .update(orderItems)
+          .set({ qty: nextQty, lineTotal: item.unitPrice * nextQty })
+          .where(eq(orderItems.id, item.id));
+      }
+
+      if ((!hadOutletDeduct && !hadGlobalDeduct) || !item.menuItemId) continue;
+      const recipes = await tx
+        .select({ sku: menuRecipes.inventorySku, qty: menuRecipes.qty, wastePct: menuRecipes.wastePct })
+        .from(menuRecipes)
+        .where(
+          and(
+            eq(menuRecipes.menuItemId, item.menuItemId),
+            eq(menuRecipes.status, "active"),
+            or(eq(menuRecipes.variantId, item.variantId), eq(menuRecipes.variantId, "all")),
+          ),
+        );
+      for (const recipe of recipes) {
+        if (!recipe.sku) continue;
+        const waste = withWaste ? 1 + (recipe.wastePct ?? 0) / 100 : 1;
+        const restoreQty = Number((recipe.qty * line.qty * waste).toFixed(3));
+        if (restoreQty <= 0) continue;
+        const source = ledgerNo === order.orderNo ? "" : ` (${order.orderNo})`;
+        if (hadOutletDeduct) {
+          await restoreOutletStock(tx, {
+            sku: recipe.sku,
+            qty: restoreQty,
+            outletId,
+            type: "refund_reverse",
+            note: `Refund ${ledgerNo} ${line.qty}x ${item.itemName}${source}: ${reason}`,
+            movementLabel: `Refund ${order.orderNo}: stok dikembalikan`,
+            actor,
+            now,
+          });
+        }
+        if (hadGlobalDeduct) {
+          await restoreGlobalStock(tx, {
+            sku: recipe.sku,
+            qty: restoreQty,
+            type: "refund_reverse",
+            note: `Refund global ${ledgerNo} ${line.qty}x ${item.itemName}${source}: ${reason}`,
+            actor,
+          });
+        }
+      }
+    }
+
+    await tx
+      .update(orders)
+      .set({ ...split.next, updatedAt: now })
+      .where(eq(orders.id, order.id));
+
+    const { cashOut } = await reducePaymentsForRefund(tx, order.id, split.refundAmount, "refund");
+    const cashSession = cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage) : null;
+
+    // Poin member ditarik proporsional terhadap nilai yang dikembalikan.
+    if (order.total > 0) {
+      await reverseLoyaltyForOrder(tx, order.id, { ratio: split.refundAmount / order.total, source: "REFUND" });
+    }
+
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor,
+      action: `Refund item ${order.orderNo}`,
+      object: order.tableLabel,
+      device: garage.profile.deviceLabel,
+      status: "refunded",
+      metadata: {
+        orderId: order.id,
+        orderNo: order.orderNo,
+        refundAmount: split.refundAmount,
+        previousTotal: order.total,
+        nextTotal: split.next.total,
+        items: lines,
+        reason,
+        cashOut,
+        cashSessionId: cashSession?.id ?? null,
+      },
+    });
+
+    return {
+      orderId: order.id,
+      orderNo: order.orderNo,
+      refundAmount: split.refundAmount,
+      cashOut,
+      feeLines: lines.map((line) => ({ qty: line.qty, unitPrice: line.unitPrice })),
+    };
+  });
+
+  // Payroll V2 — fee produk untuk item yang di-refund ikut ditarik. Non-blocking.
+  try {
+    const { reverseFeePoolForOrder } = await import("@/lib/garage-fee-pool");
+    await reverseFeePoolForOrder(refunded.orderId, refunded.feeLines);
+  } catch (error) {
+    await enqueueFailedEarning("fee_pool_reverse", { orderId: refunded.orderId }, error);
+  }
+  const { feeLines: _feeLines, ...result } = refunded;
+  void _feeLines;
   return result;
 }
 
 export async function createExpense(input: ExpenseInput, garage: GarageSession) {
   const expenseDate = input.expenseDate ? new Date(input.expenseDate) : new Date();
+  // Backdate ke hari yang sudah Daily Closing ditolak (PRD §16 LOCK DAY).
+  if (input.expenseDate) await assertFinanceDayOpen(expenseDate);
   const paymentMethod = input.paymentMethod || "Cash";
-  const status = input.amount >= 1_000_000 ? "pending_approval" : "recorded";
+  // Batas approval configurable di Pengaturan Finance (PRD §46).
+  const approvalThreshold = await getExpenseApprovalThreshold();
+  const ownerApprovalThreshold = await getExpenseOwnerApprovalThreshold();
+  const status = input.amount >= approvalThreshold ? "pending_approval" : "recorded";
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const db = getDb();
   const { expense, cashSession } = await db.transaction(async (tx) => {
@@ -11988,14 +13563,17 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
         .insert(approvals)
         .values({
           id: `APP-EXP-${createdExpense.id}`,
-          type: "Expense",
-          requester: garage.user.name,
+          type: "Pengeluaran",
+          requester: actor,
           requesterPhone: null,
           amount: formattedAmount,
-          reason: `${createdExpense.category}: ${createdExpense.description}`,
-          risk: createdExpense.amount >= 5_000_000 ? "high" : "medium",
+          reason: `${createdExpense.category}: ${createdExpense.description} (${paymentMethod})${
+            createdExpense.amount >= ownerApprovalThreshold ? " · butuh review Manajer + keputusan Owner" : ""
+          }`,
+          risk: createdExpense.amount >= ownerApprovalThreshold ? "high" : "medium",
           age: "baru saja",
           status: "pending",
+          payload: { expenseId: createdExpense.id } satisfies ApprovalPayload,
         })
         .onConflictDoNothing();
     }
@@ -12014,6 +13592,57 @@ export async function rejectExpense(id: string, garage: GarageSession) {
   return decideExpense(id, garage, "rejected");
 }
 
+/**
+ * Approval expense 2 tingkat (PRD Finance §46). Expense ≥ batas Owner: persetujuan
+ * dari non-Owner dicatat sebagai REVIEW Manajer (status tetap pending); keputusan
+ * final ada di Owner. Return baris approval bila keputusan ditahan, null bila boleh final.
+ */
+async function holdExpenseForOwner(expenseId: string, garage: GarageSession) {
+  if (garage.profile.role === "Owner") return null;
+  const db = getDb();
+  const [expense] = await db
+    .select({ amount: expenses.amount, description: expenses.description })
+    .from(expenses)
+    .where(eq(expenses.id, expenseId))
+    .limit(1);
+  if (!expense) return null;
+  const ownerLimit = await getExpenseOwnerApprovalThreshold();
+  if (expense.amount < ownerLimit) return null;
+
+  const limitLabel = idrFormatter.format(ownerLimit);
+  const approvalId = `APP-EXP-${expenseId}`;
+  const [row] = await db.select().from(approvals).where(eq(approvals.id, approvalId)).limit(1);
+  if (!row || row.status !== "pending") {
+    throw new Error(`Pengeluaran ≥ ${limitLabel} wajib diputuskan Owner.`);
+  }
+  const payload = (row.payload ?? {}) as ApprovalPayload;
+  if (payload.managerReview) {
+    throw new Error(`Sudah direview ${payload.managerReview.name}. Keputusan final pengeluaran ≥ ${limitLabel} ada di Owner.`);
+  }
+
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const now = new Date();
+  const [updated] = await db
+    .update(approvals)
+    .set({
+      payload: { ...payload, expenseId, managerReview: { by: garage.user.id, name: actor, at: now.toISOString() } },
+      reason: `[✓ Direview ${garage.user.name} — menunggu Owner] ${row.reason}`,
+      risk: "high",
+      updatedAt: now,
+    })
+    .where(and(eq(approvals.id, approvalId), eq(approvals.status, "pending")))
+    .returning();
+  await createAuditLog({
+    actor,
+    action: "Review Manajer pengeluaran — menunggu Owner",
+    object: expense.description,
+    device: garage.profile.deviceLabel,
+    status: "reviewed",
+    metadata: { module: "finance-approval", approvalId, expenseId, amount: expense.amount, ownerLimit },
+  });
+  return updated ?? row;
+}
+
 async function decideExpense(id: string, garage: GarageSession, decision: "approved" | "rejected") {
   const db = getDb();
   const [current] = await db
@@ -12024,6 +13653,10 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
   if (!current) return null;
   if (current.status !== "pending_approval") {
     throw new Error("Hanya pengeluaran pending approval yang bisa diputuskan.");
+  }
+  if (decision === "approved") {
+    const held = await holdExpenseForOwner(id, garage);
+    if (held) return { expense: current, cashSession: null, pendingOwnerApproval: true, approval: held };
   }
 
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
@@ -12044,10 +13677,23 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
       .where(eq(expenses.id, id))
       .returning();
 
+    // Diputus langsung dari modul Keuangan → tutup juga entri di antrean Persetujuan.
+    await tx
+      .update(approvals)
+      .set({
+        status: decision,
+        decidedBy: garage.user.id,
+        decidedByName: actor,
+        decidedAt: now,
+        decidedVia: "board",
+        updatedAt: now,
+      })
+      .where(and(eq(approvals.id, `APP-EXP-${id}`), eq(approvals.status, "pending")));
+
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor,
-      action: decision === "approved" ? "Expense approved" : "Expense rejected",
+      action: decision === "approved" ? "Pengeluaran disetujui" : "Pengeluaran ditolak",
       object: current.description,
       device: garage.profile.deviceLabel,
       status: decision,
@@ -12059,10 +13705,90 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
       },
     });
 
+    // Payroll V2: gajian/kasbon yang pengeluarannya ditolak ikut dibatalkan
+    // (gaji kembali "belum dibayar", potongan kasbon dikembalikan).
+    if (decision === "rejected") {
+      const { reversePayrollForRejectedExpense } = await import("@/lib/garage-payroll-payments");
+      await reversePayrollForRejectedExpense(tx, current.id, actor, now);
+    }
+
     return { expense: updated, cashSession: affectedCashSession };
   });
 
   return result;
+}
+
+/**
+ * Batalkan pengeluaran dari modul lain (mis. gajian/kasbon salah input), di dalam
+ * transaksi pemanggil. Pending → ditutup tanpa efek kas. Sudah tercatat tunai →
+ * uang dikembalikan ke kas seharusnya bila sesi kasnya masih terbuka; bila sesi
+ * sudah ditutup / hari sudah di-closing, pembatalan ditolak (perlu penyesuaian manual).
+ */
+export async function cancelExpenseInTx(
+  tx: GarageTx,
+  expenseId: string,
+  garage: GarageSession,
+  reason: string,
+) {
+  const [current] = await tx.select().from(expenses).where(eq(expenses.id, expenseId)).limit(1);
+  if (!current || current.status === "rejected" || current.status === "cancelled") return null;
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const now = new Date();
+  let cashSessionId: string | null = null;
+
+  if (current.status !== "pending_approval") {
+    await assertFinanceDayOpen(current.expenseDate);
+    if (current.paymentMethod.toLowerCase() === "cash") {
+      const hitAt = current.approvedAt ?? current.createdAt;
+      const [session] = await tx
+        .select({ id: cashSessions.id, status: cashSessions.status, expectedCash: cashSessions.expectedCash })
+        .from(cashSessions)
+        .where(
+          and(
+            eq(cashSessions.outletId, current.outletId ?? garage.profile.outlet.id),
+            lte(cashSessions.openedAt, hitAt),
+            or(sql`${cashSessions.closedAt} IS NULL`, gte(cashSessions.closedAt, hitAt)),
+          ),
+        )
+        .orderBy(desc(cashSessions.openedAt))
+        .limit(1);
+      if (session && session.status !== "open") {
+        throw new Error(
+          "Sesi kas saat uang keluar sudah ditutup — pembatalan tidak bisa otomatis. Catat penyesuaian di Keuangan.",
+        );
+      }
+      if (session) {
+        await tx
+          .update(cashSessions)
+          .set({ expectedCash: session.expectedCash + current.amount })
+          .where(eq(cashSessions.id, session.id));
+        cashSessionId = session.id;
+      }
+    }
+  }
+
+  await tx.update(expenses).set({ status: "cancelled", updatedAt: now }).where(eq(expenses.id, expenseId));
+  await tx
+    .update(approvals)
+    .set({
+      status: "rejected",
+      decidedBy: garage.user.id,
+      decidedByName: actor,
+      decidedAt: now,
+      decidedVia: "board",
+      updatedAt: now,
+    })
+    .where(and(eq(approvals.id, `APP-EXP-${expenseId}`), eq(approvals.status, "pending")));
+  await tx.insert(auditLogs).values({
+    time: nowTimeLabel(),
+    actor,
+    action: "Pengeluaran dibatalkan",
+    object: current.description,
+    device: garage.profile.deviceLabel,
+    status: "cancelled",
+    metadata: { expenseId, amount: current.amount, previousStatus: current.status, reason, cashSessionId },
+  });
+  return { previousStatus: current.status, cashSessionId };
 }
 
 export async function createSupplierInvoice(input: SupplierInvoiceInput, garage: GarageSession) {
@@ -12110,6 +13836,7 @@ export async function markSupplierInvoicePaid(input: {
   id: string;
   paymentRef?: string;
   amount?: number;
+  paymentMethod?: string;
 }, garage: GarageSession) {
   const db = getDb();
   const [current] = await db
@@ -12119,9 +13846,39 @@ export async function markSupplierInvoicePaid(input: {
     .limit(1);
   if (!current) return null;
 
-  const paidAmount = Math.min(current.amount, input.amount ?? current.amount);
+  // Pembayaran bertahap DIJUMLAH (dulu paidAmount diganti nilai pembayaran
+  // terakhir → cicilan tak pernah lunas), dan tagihan lunas tidak bisa dibayar
+  // lagi (dulu setiap klik membuat pengeluaran baru → uang keluar dobel).
+  const alreadyPaid = Number(current.paidAmount ?? 0);
+  const outstanding = Math.max(0, current.amount - alreadyPaid);
+  if (current.status === "paid" || outstanding <= 0) {
+    throw new Error(`Invoice ${current.invoiceNo} sudah lunas.`);
+  }
+  const payNow = Math.min(outstanding, input.amount ?? outstanding);
+  if (!(payNow > 0)) {
+    throw new Error("Nominal pembayaran harus lebih dari 0.");
+  }
+  const paidAmount = alreadyPaid + payNow;
   const status = paidAmount >= current.amount ? "paid" : "partial";
   const now = new Date();
+
+  // Uang keluar dicatat DULU: bila gagal (mis. hari keuangan sudah di-closing),
+  // invoice tidak ikut berubah jadi lunas tanpa pengeluaran.
+  await createExpense(
+    {
+      supplierId: current.supplierId,
+      supplierInvoiceId: current.id,
+      category: current.category,
+      description: `Bayar invoice ${current.invoiceNo}${status === "partial" ? " (sebagian)" : ""}`,
+      // Hanya pembayaran kali ini yang jadi uang keluar (bukan total terbayar).
+      amount: payNow,
+      paymentMethod: input.paymentMethod?.trim() || "Transfer",
+      expenseDate: now.toISOString(),
+      notes: input.paymentRef,
+    },
+    garage,
+  );
+
   const [invoice] = await db
     .update(supplierInvoices)
     .set({
@@ -12134,20 +13891,6 @@ export async function markSupplierInvoicePaid(input: {
     })
     .where(eq(supplierInvoices.id, input.id))
     .returning();
-
-  await createExpense(
-    {
-      supplierId: invoice.supplierId,
-      supplierInvoiceId: invoice.id,
-      category: invoice.category,
-      description: `Bayar invoice ${invoice.invoiceNo}`,
-      amount: paidAmount,
-      paymentMethod: "Transfer",
-      expenseDate: now.toISOString(),
-      notes: input.paymentRef,
-    },
-    garage,
-  );
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
@@ -12445,7 +14188,8 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
     .where(eq(outlets.id, garage.profile.outlet.id))
     .limit(1);
 
-  const code = `CS-${outlet?.code ?? "OUTLET"}-${Date.now().toString().slice(-6)}`;
+  // 6 digit berulang tiap ±16,7 menit & code UNIQUE → buka shift bisa gagal acak.
+  const code = `CS-${outlet?.code ?? "OUTLET"}-${uniqueStamp().toString().slice(-10)}`;
   const [session] = await db
     .insert(cashSessions)
     .values({
@@ -12520,9 +14264,7 @@ export async function closeCashSession(
 
   const managerSignOffAt = input.managerSignOff ? now : null;
   const resetTableMode = input.resetTableMode ?? (input.resetTables ? "all" : "none");
-  const canResetAllTables = ["Owner / CEO", "Admin", "Manager Operasional"].includes(
-    garage.profile.role,
-  );
+  const canResetAllTables = ["Owner", "Manajer"].includes(garage.profile.role);
   const effectiveResetTableMode =
     resetTableMode === "all" && !canResetAllTables ? "completed" : resetTableMode;
 
@@ -12593,25 +14335,25 @@ export async function closeCashSession(
       },
     });
 
-    // Risk gate (Section 19): selisih kas critical wajib masuk Approval board
-    // untuk oversight owner — terlepas dari sign-off manager inline saat tutup.
-    if (discrepancyStatus === "critical") {
-      const idr = new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        maximumFractionDigits: 0,
-      });
-      await tx.insert(approvals).values({
-        id: `APP-CASH-${randomUUID()}`,
-        type: "Selisih kas closing",
-        requester: actor,
-        requesterPhone: null,
-        amount: idr.format(Math.abs(discrepancy)),
-        reason: `Selisih kas critical tutup shift ${current.code}: expected ${idr.format(current.expectedCash)}, actual ${idr.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${input.managerSignOff ? " · sudah sign-off manager" : ""}`,
-        risk: "high",
-        age: "baru saja",
-        status: "pending",
-      });
+    // Selisih kas di luar toleransi (review/critical) masuk antrean Persetujuan.
+    // Disetujui → sign-off Manajer tercatat di shift. Ditolak → perlu investigasi.
+    if (discrepancyStatus !== "ok") {
+      const direction = discrepancy < 0 ? "kurang" : "lebih";
+      await tx
+        .insert(approvals)
+        .values({
+          id: `APP-CASH-${current.id}`,
+          type: "Selisih kas",
+          requester: actor,
+          requesterPhone: null,
+          amount: idrFormatter.format(Math.abs(discrepancy)),
+          reason: `Kas ${direction} saat tutup shift ${current.code}: seharusnya ${idrFormatter.format(current.expectedCash)}, dihitung ${idrFormatter.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${input.managerSignOff ? " · sudah sign-off Manajer" : ""}`,
+          risk: discrepancyStatus === "critical" ? "high" : "medium",
+          age: "baru saja",
+          status: "pending",
+          payload: { cashSessionId: current.id } satisfies ApprovalPayload,
+        })
+        .onConflictDoNothing();
     }
 
     if (effectiveResetTableMode !== "none") {
@@ -13300,6 +15042,8 @@ async function resolveExpenseIdFromApprovalId(approvalId: string) {
   return prefix?.id ?? null;
 }
 
+export type ApprovalDecisionVia = "board" | "pin" | "langsung" | "auto";
+
 export async function decideApproval(
   id: string,
   input: {
@@ -13307,11 +15051,13 @@ export async function decideApproval(
     reasonDecided?: string;
   },
   garage: GarageSession,
+  options: { via?: ApprovalDecisionVia } = {},
 ) {
+  const via = options.via ?? "board";
   const reasonText = input.reasonDecided?.trim().slice(0, 500) || null;
-  // Reject WAJIB punya reason — guarded di route layer juga
+  // Tolak WAJIB punya alasan — dijaga juga di route layer
   if (input.status === "rejected" && !reasonText) {
-    throw new Error("Alasan wajib diisi saat reject approval.");
+    throw new Error("Alasan wajib diisi saat menolak pengajuan.");
   }
 
   const db = getDb();
@@ -13325,18 +15071,105 @@ export async function decideApproval(
     return null;
   }
   if (current.status !== "pending") {
-    throw new Error("Approval ini sudah diputuskan.");
+    throw new Error("Pengajuan ini sudah diputuskan.");
   }
 
-  if (id.startsWith("APP-VOID-") && input.status === "approved") {
-    const orderId = id.slice("APP-VOID-".length);
-    const voidReason = reasonText || current.reason;
-    await voidOrder(orderId, voidReason, garage);
+  // Approval expense 2 tingkat: di atas batas Owner, persetujuan Manajer = review saja.
+  if (input.status === "approved") {
+    const pendingExpenseId =
+      (current.payload as ApprovalPayload | null)?.expenseId ??
+      (id.startsWith("APP-EXP-") ? id.slice("APP-EXP-".length) : null);
+    if (pendingExpenseId) {
+      const held = await holdExpenseForOwner(pendingExpenseId, garage);
+      if (held) return held;
+    }
   }
 
-  const expenseId = await resolveExpenseIdFromApprovalId(id);
+  const deciderName = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  // Klaim atomik: hanya satu keputusan yang lolos walau dua Manajer klik bersamaan.
+  const [approval] = await db
+    .update(approvals)
+    .set({
+      status: input.status,
+      decidedBy: garage.user.id,
+      decidedByName: via === "auto" ? `${garage.user.name} (otomatis)` : deciderName,
+      decidedAt: new Date(),
+      decidedVia: via,
+      reasonDecided: reasonText,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(approvals.id, id), eq(approvals.status, "pending")))
+    .returning();
+
+  if (!approval) {
+    throw new Error("Pengajuan ini sudah diputuskan.");
+  }
+
+  try {
+    await applyApprovalDecision(id, current, input.status, reasonText, garage);
+  } catch (error) {
+    // Eksekusi gagal → kembalikan ke Menunggu supaya bisa diputus ulang.
+    await db
+      .update(approvals)
+      .set({
+        status: "pending",
+        decidedBy: null,
+        decidedByName: null,
+        decidedAt: null,
+        decidedVia: null,
+        reasonDecided: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(approvals.id, id));
+    throw error;
+  }
+
+  await createAuditLog({
+    actor: deciderName,
+    action: input.status === "approved" ? "Pengajuan disetujui" : "Pengajuan ditolak",
+    object: id,
+    device: garage.profile.deviceLabel,
+    status: input.status,
+    metadata: {
+      approvalType: approval.type,
+      category: approvalCategoryOf(approval),
+      reasonDecided: reasonText,
+      via,
+    },
+  });
+
+  return approval;
+}
+
+/** Efek samping keputusan per kategori (void, refund, pengeluaran, kas, opname). */
+async function applyApprovalDecision(
+  id: string,
+  current: typeof approvals.$inferSelect,
+  status: "approved" | "rejected",
+  reasonText: string | null,
+  garage: GarageSession,
+) {
+  const payload = (current.payload ?? {}) as ApprovalPayload;
+  const requestReason = payload.reasonCode
+    ? composeCancelReason(payload.reasonCode, payload.note)
+    : current.reason;
+
+  if (id.startsWith("APP-VOID-") && status === "approved") {
+    const orderId = payload.orderId ?? id.slice("APP-VOID-".length);
+    await voidOrder(orderId, requestReason, garage);
+  }
+
+  if (id.startsWith("APP-RFD-") && status === "approved") {
+    await executeOrderRefund(payload, requestReason, garage);
+  }
+
+  if (id.startsWith("APP-CASH-") && status === "approved" && payload.cashSessionId) {
+    await approveCashSessionDiscrepancy(payload.cashSessionId, garage, reasonText ?? undefined);
+  }
+
+  const expenseId = payload.expenseId ?? (await resolveExpenseIdFromApprovalId(id));
   if (expenseId) {
-    if (input.status === "approved") {
+    if (status === "approved") {
       await approveExpense(expenseId, garage);
     } else {
       await rejectExpense(expenseId, garage);
@@ -13346,7 +15179,7 @@ export async function decideApproval(
   if (id.startsWith("APP-OPN-")) {
     const opnameId = id.slice("APP-OPN-".length);
     try {
-      if (input.status === "approved") {
+      if (status === "approved") {
         await approveStockOpname(opnameId, garage);
       } else {
         await rejectStockOpname(opnameId, garage);
@@ -13358,35 +15191,89 @@ export async function decideApproval(
       }
     }
   }
+}
 
-  const [approval] = await db
-    .update(approvals)
-    .set({
-      status: input.status,
-      decidedBy: garage.user.id,
-      decidedByName: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-      decidedAt: new Date(),
-      reasonDecided: reasonText,
-      updatedAt: new Date(),
-    })
-    .where(eq(approvals.id, id))
-    .returning();
-
-  if (!approval) {
-    return null;
+/**
+ * Keputusan di tablet POS memakai PIN Manajer/Owner yang hadir di lokasi.
+ * Pemutus tercatat atas nama pemilik PIN, bukan akun kasir yang login.
+ */
+export async function decideApprovalWithPin(
+  id: string,
+  input: { pin: string; status: "approved" | "rejected"; reasonDecided?: string },
+  garage: GarageSession,
+) {
+  // Kunci per akun kasir DAN per outlet: tebak PIN pelan-pelan atau dipecah ke
+  // banyak akun kasir tetap terhenti (PIN 4 digit = hanya 10.000 kombinasi).
+  const limitKey = `approval-pin:user:${garage.user.id}`;
+  const outletKey = `approval-pin:outlet:${garage.profile.outlet.id}`;
+  const lockedFor = guardLockedFor(limitKey) ?? guardLockedFor(outletKey);
+  if (lockedFor) {
+    throw new Error(`${lockedMessage(lockedFor)} Hubungi Manajer/Owner.`);
   }
 
-  await createAuditLog({
-    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-    action: `Approval ${input.status}`,
-    object: id,
-    device: garage.profile.deviceLabel,
-    metadata: {
-      approvalType: approval.type,
-      reasonDecided: reasonText,
-    },
-  });
+  const db = getDb();
+  const candidates = await db
+    .select({
+      profileId: staffProfiles.id,
+      userId: staffProfiles.userId,
+      role: staffProfiles.role,
+      pinHash: staffProfiles.pinHash,
+      name: user.name,
+      email: user.email,
+    })
+    .from(staffProfiles)
+    .innerJoin(user, eq(staffProfiles.userId, user.id))
+    .where(
+      and(
+        eq(staffProfiles.outletId, garage.profile.outlet.id),
+        eq(staffProfiles.status, "active"),
+        isNotNull(staffProfiles.pinHash),
+      ),
+    );
+  const pinHashValue = hashPin(input.pin);
+  const approver = candidates.find(
+    (row) =>
+      row.pinHash &&
+      pinHashEquals(row.pinHash, pinHashValue) &&
+      canUseApi(row.role as Role, "approvals:decide"),
+  );
 
+  if (!approver) {
+    guardRecordFail(limitKey, APPROVAL_PIN_POLICY);
+    guardRecordFail(outletKey, APPROVAL_PIN_OUTLET_POLICY);
+    await createAuditLog({
+      actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+      action: "PIN persetujuan salah",
+      object: id,
+      device: garage.profile.deviceLabel,
+      status: "warning",
+    });
+    throw new Error("PIN salah atau bukan milik Manajer/Owner outlet ini.");
+  }
+  // Hanya hitungan akun ini yang di-reset; hitungan outlet mereda sendiri.
+  guardReset(limitKey);
+
+  const approverSession: GarageSession = {
+    ...garage,
+    user: { ...garage.user, id: approver.userId, name: approver.name, email: approver.email },
+    profile: { ...garage.profile, id: approver.profileId, role: approver.role as Role },
+  };
+  const approval = await decideApproval(
+    id,
+    { status: input.status, reasonDecided: input.reasonDecided },
+    approverSession,
+    { via: "pin" },
+  );
+  if (approval) {
+    await createAuditLog({
+      actor: `${approver.name} / ${roleDisplayName[approver.role as Role] ?? approver.role}`,
+      action: "Keputusan via PIN di POS",
+      object: id,
+      device: garage.profile.deviceLabel,
+      status: input.status,
+      metadata: { cashier: garage.user.name, cashierUserId: garage.user.id },
+    });
+  }
   return approval;
 }
 
@@ -13407,7 +15294,7 @@ export async function decideApprovalsBulk(
       results.push({
         id,
         ok: false,
-        error: err instanceof Error ? err.message : "Gagal decide",
+        error: err instanceof Error ? err.message : "Gagal diputus",
       });
     }
   }
@@ -14385,28 +16272,23 @@ export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoA
     let decision: "auto_approved" | "skipped" = "skipped";
     let reason = "Tipe approval tidak masuk auto-decide.";
 
-    if (row.type === "Expense") {
+    if (approvalCategoryOf(row) === "pengeluaran") {
       if (amount > 0 && amount < expenseThreshold) {
         decision = "auto_approved";
-        reason = `Amount Rp${amount.toLocaleString("id-ID")} < threshold Rp${expenseThreshold.toLocaleString("id-ID")}.`;
+        reason = `Nominal Rp${amount.toLocaleString("id-ID")} di bawah batas Rp${expenseThreshold.toLocaleString("id-ID")}.`;
       } else {
-        reason = `Amount ≥ threshold; perlu review manual.`;
+        reason = `Nominal ≥ batas; perlu dicek manual.`;
       }
     }
 
     if (decision === "auto_approved") {
-      await db
-        .update(approvals)
-        .set({
-          status: "approved",
-          decidedBy: garage.user.id,
-          decidedByName: `${garage.user.name} (auto)`,
-          decidedAt: new Date(),
-          reasonDecided: reason,
-          updatedAt: new Date(),
-        })
-        .where(eq(approvals.id, row.id));
-      autoApproved += 1;
+      try {
+        await decideApproval(row.id, { status: "approved", reasonDecided: reason }, garage, { via: "auto" });
+        autoApproved += 1;
+      } catch (error) {
+        decision = "skipped";
+        reason = error instanceof Error ? error.message : "Gagal disetujui otomatis.";
+      }
     }
 
     decisions.push({ id: row.id, type: row.type, amount, decision, reason });

@@ -7,6 +7,8 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
+import { GARAGE_LOCATION } from "@/lib/garage-location";
+
 const GpsMapPicker = dynamic(() => import("@/components/payroll/gps-map-picker"), {
   ssr: false,
   loading: () => (
@@ -25,7 +27,7 @@ interface GpsValue {
 }
 
 export function GpsSettingsPanel() {
-  const [gps, setGps] = useState<GpsValue>({ lat: 3.316259, lng: 99.148041, radiusMeters: 50 });
+  const [gps, setGps] = useState<GpsValue>({ lat: GARAGE_LOCATION.lat, lng: GARAGE_LOCATION.lng, radiusMeters: 50 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -121,6 +123,21 @@ export function GpsSettingsPanel() {
           className="px-4 py-2 rounded-lg bg-[var(--garage-amber)] text-black text-sm font-semibold disabled:opacity-50"
         >
           {geoLoading ? "Mengambil GPS…" : "📍 Pakai Lokasi Saya (berdiri di toko)"}
+        </button>
+        <button
+          onClick={() => {
+            setGps((g) => ({
+              ...g,
+              lat: GARAGE_LOCATION.lat,
+              lng: GARAGE_LOCATION.lng,
+              name: g.name || GARAGE_LOCATION.name,
+              address: g.address || GARAGE_LOCATION.address,
+            }));
+            setMsg("Titik Google Maps resmi dipasang — klik Simpan untuk menerapkan.");
+          }}
+          className="px-4 py-2 rounded-lg border border-[var(--garage-bg-3)] bg-[var(--garage-bg-0)] text-[var(--garage-fg)] text-sm font-semibold"
+        >
+          🗺️ Pakai Lokasi Google Maps Resmi
         </button>
       </div>
 

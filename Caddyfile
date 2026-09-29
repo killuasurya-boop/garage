@@ -10,3 +10,8 @@
 
 	reverse_proxy app:3000
 }
+
+# www.<domain> → domain utama (DNS www sudah CNAME ke domain utama).
+www.{$GARAGE_DOMAIN} {
+	redir https://{$GARAGE_DOMAIN}{uri} permanent
+}

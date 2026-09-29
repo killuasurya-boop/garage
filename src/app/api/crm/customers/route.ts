@@ -52,8 +52,8 @@ export async function POST(request: Request) {
   const body = await readJson(request, createMemberSchema);
   if (body.error) return body.error;
 
-  if (body.data.cardTier === "Ultra" && session.data.profile.role !== "Owner / CEO") {
-    return fail(403, "ULTRA_OWNER_ONLY", "Ultra hanya bisa diset oleh Owner / CEO.");
+  if (body.data.cardTier === "Ultra" && session.data.profile.role !== "Owner") {
+    return fail(403, "ULTRA_OWNER_ONLY", "Ultra hanya bisa diset oleh Owner.");
   }
 
   const result = await createCrmMember({

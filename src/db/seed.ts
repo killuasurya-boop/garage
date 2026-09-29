@@ -2,10 +2,11 @@ import { config } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 
 import { ensureDatabaseReady, getDb, getPgPool } from "@/db";
 import {
+  appSettings as appSettingsTable,
   approvals as approvalsTable,
   auditLogs as auditLogsTable,
   cashSessions,
@@ -31,6 +32,7 @@ import {
   user,
   vouchers as vouchersTable,
 } from "@/db/schema";
+import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import { landingHeroSlot } from "@/lib/site-assets";
 import { auth } from "@/lib/auth";
 import {
@@ -63,94 +65,40 @@ const staffSeed: Array<{
   deviceLabel: string;
 }> = [
   {
-    role: "Owner / CEO",
-    email: "owner@garage.local",
+    role: "Owner",
+    email: "owner@garage.id",
     name: "Owner Garage",
     deviceLabel: "WEB-OWNER-01",
   },
   {
-    role: "Admin",
-    email: "admin@garage.local",
-    name: "Admin Garage",
-    deviceLabel: "WEB-ADMIN-01",
-  },
-  {
-    role: "Manager Operasional",
-    email: "manager@garage.local",
-    name: "Manager Operasional",
-    deviceLabel: "WEB-OPS-01",
-  },
-  {
-    role: "Finance / CFO",
-    email: "finance@garage.local",
-    name: "Finance Garage",
-    deviceLabel: "WEB-FIN-01",
+    role: "Manajer",
+    email: "manajer@garage.id",
+    name: "Manajer Garage",
+    deviceLabel: "WEB-MGR-01",
   },
   {
     role: "Kasir",
-    email: "kasir@garage.local",
+    email: "kasir@garage.id",
     name: "Kasir Garage",
     deviceLabel: "POS-01",
   },
   {
     role: "Kasir",
-    email: "kasir2@garage.local",
+    email: "kasir2@garage.id",
     name: "Kasir 2 Garage",
     deviceLabel: "POS-02",
   },
   {
-    role: "Barista",
-    email: "barista@garage.local",
-    name: "Barista Garage",
-    deviceLabel: "KDS-BAR-01",
-  },
-  {
-    role: "Koki",
-    email: "koki@garage.local",
-    name: "Koki Garage",
-    deviceLabel: "KDS-KOKI-01",
-  },
-  {
-    role: "Asisten Koki",
-    email: "asisten-koki@garage.local",
-    name: "Asisten Koki Garage",
-    deviceLabel: "KDS-KOKI-02",
-  },
-  {
-    role: "Waiter 1",
-    email: "waiter1@garage.local",
-    name: "Waiter 1 Garage",
+    role: "Waiter",
+    email: "waiter@garage.id",
+    name: "Waiter Garage",
     deviceLabel: "TABLE-WTR-01",
   },
   {
-    role: "Waiter 2",
-    email: "waiter2@garage.local",
+    role: "Waiter",
+    email: "waiter2@garage.id",
     name: "Waiter 2 Garage",
     deviceLabel: "TABLE-WTR-02",
-  },
-  {
-    role: "Kitchen / Barista",
-    email: "kitchen@garage.local",
-    name: "Kitchen Garage",
-    deviceLabel: "KDS-BAR-01",
-  },
-  {
-    role: "Gudang",
-    email: "gudang@garage.local",
-    name: "Gudang Garage",
-    deviceLabel: "WAREHOUSE-02",
-  },
-  {
-    role: "Supervisor Shift",
-    email: "supervisor@garage.local",
-    name: "Supervisor Shift",
-    deviceLabel: "WEB-SPV-01",
-  },
-  {
-    role: "Delivery Admin",
-    email: "delivery@garage.local",
-    name: "Delivery Admin",
-    deviceLabel: "DLV-ADMIN-01",
   },
 ];
 
@@ -190,48 +138,60 @@ async function ensureAuthUser(email: string, name: string) {
   return created;
 }
 
+// Mode seed. Default = HANYA-TAMBAH: data yang sudah ada (nama outlet, role staf,
+// harga/resep menu, HPP & harga beli bahan, kunci POS, gambar hero) TIDAK
+// ditimpa, dan produk buatan owner tidak diarsipkan — aman dijalankan setelah
+// live. `--sync-catalog` = selaraskan penuh katalog ke garage-data.ts (dipakai
+// saat memasukkan data Excel baru sebelum live).
+const syncCatalog = process.argv.includes("--sync-catalog");
+
 async function seedOutletAndStaff() {
   const db = getDb();
-  const [outlet] = await db
-    .insert(outlets)
-    .values({
-      code: "OUTLET-A",
-      name: "Outlet A",
-      timezone: "Asia/Jakarta",
-      status: "active",
-    })
-    .onConflictDoUpdate({
-      target: outlets.code,
-      set: {
-        name: "Outlet A",
-        timezone: "Asia/Jakarta",
-        status: "active",
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
+  const outletValues = {
+    code: "OUTLET-A",
+    name: "Outlet A",
+    timezone: "Asia/Jakarta",
+    status: "active",
+  };
+  if (syncCatalog) {
+    await db
+      .insert(outlets)
+      .values(outletValues)
+      .onConflictDoUpdate({
+        target: outlets.code,
+        set: { name: outletValues.name, timezone: outletValues.timezone, status: "active", updatedAt: new Date() },
+      });
+  } else {
+    await db.insert(outlets).values(outletValues).onConflictDoNothing({ target: outlets.code });
+  }
+  const [outlet] = await db.select().from(outlets).where(eq(outlets.code, outletValues.code)).limit(1);
 
   for (const staff of staffSeed) {
     const seededUser = await ensureAuthUser(staff.email, staff.name);
-    await db
-      .insert(staffProfiles)
-      .values({
-        userId: seededUser.id,
-        outletId: outlet.id,
-        role: staff.role,
-        shiftLabel: "Shift aktif",
-        deviceLabel: staff.deviceLabel,
-      })
-      .onConflictDoUpdate({
-        target: staffProfiles.userId,
-        set: {
-          outletId: outlet.id,
-          role: staff.role,
-          shiftLabel: "Shift aktif",
-          deviceLabel: staff.deviceLabel,
-          updatedAt: new Date(),
-        },
-      });
+    const profile = {
+      userId: seededUser.id,
+      outletId: outlet.id,
+      role: staff.role,
+      shiftLabel: "Shift aktif",
+      deviceLabel: staff.deviceLabel,
+    };
+    if (syncCatalog) {
+      await db
+        .insert(staffProfiles)
+        .values(profile)
+        .onConflictDoUpdate({
+          target: staffProfiles.userId,
+          set: {
+            outletId: outlet.id,
+            role: staff.role,
+            shiftLabel: "Shift aktif",
+            deviceLabel: staff.deviceLabel,
+            updatedAt: new Date(),
+          },
+        });
+    } else {
+      await db.insert(staffProfiles).values(profile).onConflictDoNothing({ target: staffProfiles.userId });
+    }
   }
 
   return outlet;
@@ -241,253 +201,180 @@ async function seedMenu() {
   const db = getDb();
 
   for (const [index, item] of menuItems.entries()) {
-    await db
-      .insert(menuItemsTable)
-      .values({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        section: item.section,
-        stock: item.stock,
-        status: item.status ?? "active",
-        prep: item.prep,
-        tags: item.tags,
-        sortOrder: index,
-      })
-      .onConflictDoUpdate({
-        target: menuItemsTable.id,
-        set: {
-          name: item.name,
-          category: item.category,
-          section: item.section,
-          stock: item.stock,
-          status: item.status ?? "active",
-          prep: item.prep,
-          tags: item.tags,
-          sortOrder: index,
-          updatedAt: new Date(),
-        },
-      });
-
-    for (const [variantIndex, variant] of item.variants.entries()) {
+    const itemValues = {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      section: item.section,
+      stock: item.stock,
+      status: item.status ?? "active",
+      prep: item.prep,
+      tags: item.tags,
+      sortOrder: index,
+    };
+    if (syncCatalog) {
       await db
-        .insert(menuVariants)
-        .values({
-          itemId: item.id,
-          variantId: variant.id,
-          label: variant.label,
-          price: variant.price,
-          baseCost: variant.baseCost ?? 0,
-          sortOrder: variantIndex,
-        })
+        .insert(menuItemsTable)
+        .values(itemValues)
         .onConflictDoUpdate({
-          target: [menuVariants.itemId, menuVariants.variantId],
+          target: menuItemsTable.id,
           set: {
-            label: variant.label,
-            price: variant.price,
-            baseCost: variant.baseCost ?? 0,
-            sortOrder: variantIndex,
+            name: item.name,
+            category: item.category,
+            section: item.section,
+            stock: item.stock,
+            status: item.status ?? "active",
+            prep: item.prep,
+            tags: item.tags,
+            sortOrder: index,
             updatedAt: new Date(),
           },
         });
+    } else {
+      await db.insert(menuItemsTable).values(itemValues).onConflictDoNothing({ target: menuItemsTable.id });
+    }
+
+    for (const [variantIndex, variant] of item.variants.entries()) {
+      const variantValues = {
+        itemId: item.id,
+        variantId: variant.id,
+        label: variant.label,
+        price: variant.price,
+        baseCost: variant.baseCost ?? 0,
+        sortOrder: variantIndex,
+      };
+      if (syncCatalog) {
+        await db
+          .insert(menuVariants)
+          .values(variantValues)
+          .onConflictDoUpdate({
+            target: [menuVariants.itemId, menuVariants.variantId],
+            set: {
+              label: variant.label,
+              price: variant.price,
+              baseCost: variant.baseCost ?? 0,
+              sortOrder: variantIndex,
+              updatedAt: new Date(),
+            },
+          });
+      } else {
+        await db
+          .insert(menuVariants)
+          .values(variantValues)
+          .onConflictDoNothing({ target: [menuVariants.itemId, menuVariants.variantId] });
+      }
     }
   }
 
+  // Penyelarasan (hapus varian lama, arsipkan produk di luar daftar) hanya pada
+  // --sync-catalog — tanpa ini produk yang dibuat owner lewat aplikasi ikut
+  // terarsip setiap kali seed dijalankan.
+  if (!syncCatalog) return;
+
+  // Reconcile against the seed so removed products/variants stop showing in POS
+  // and the digital menu. Variants are deleted (order_items.variant_id is a plain
+  // snapshot, not a foreign key). Items are archived, not deleted, to keep
+  // order_items.menu_item_id history intact.
+  for (const item of menuItems) {
+    const keepVariantIds = item.variants.map((variant) => variant.id);
+    await db.execute(sql`
+      DELETE FROM menu_variants
+      WHERE item_id = ${item.id}
+        AND variant_id NOT IN (${sql.join(
+          keepVariantIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
+    `);
+  }
+
+  // Owner directive (Sep 2026): the menu is exactly the seed list (10 Makanan &
+  // Cemilan products). Everything else — old Coffee, Non-Coffee, Burger, Kebab,
+  // and previous food/snack IDs — is archived here. Rows are kept so order
+  // history stays intact.
+  const seedItemIds = menuItems.map((item) => item.id);
   await db.execute(sql`
     UPDATE menu_items
     SET status = 'archived',
         updated_at = now()
-    WHERE (id LIKE 'burger-%' OR id LIKE 'kebab-%')
-      AND id NOT IN ('burger-garage', 'kebab-garage')
+    WHERE status = 'active'
+      AND id NOT IN (${sql.join(
+        seedItemIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})
   `);
 }
 
 async function seedInventory(seedDemo: boolean) {
   const db = getDb();
-  const unitCostByName = new Map<string, number>([
-    ["Kopi bubuk (espresso)", 120000],
-    ["Kopi bubuk (arabika)", 160000],
-    ["Susu UHT", 18000],
-    ["Gula pasir", 15000],
-    ["Cup plastik", 650],
-    ["Tutup cup", 350],
-    ["Roti burger", 18000],
-    ["Tortilla kebab", 20000],
-    ["Daging kebab slice", 90000],
-    ["Fillet ayam beku", 65000],
-    ["Nugget ayam", 45000],
-    ["Nugget stick", 35000],
-    ["Sosis ayam", 45000],
-    ["Keju slice", 18000],
-    ["Tepung crispy", 13000],
-    ["Kertas burger", 8000],
-    ["Kertas kebab", 8000],
-    ["Kotak burger", 35000],
-    ["Patty burger", 85000],
-    ["Telur ayam", 2200],
-    ["Kentang beku", 32000],
-    ["Minyak goreng", 17000],
-  ]);
-
+  // Katalog gudang = bahan "HPP BAR.xlsx" (area bar, HPP per ml/gr/pcs). Stok nyata
+  // (onHand/status/movement) TIDAK pernah ditimpa. HPP & harga beli hanya ditimpa
+  // pada --sync-catalog (setelah live harganya mengikuti receiving/edit owner).
   for (const item of inventoryItems) {
-    const unitCost = unitCostByName.get(item.name) ?? 0;
-    // Mode normal: katalog di-seed dengan stok awal 0 (diisi via opname nyata).
-    // Status dihitung nyata dari onHand vs min; demo low/watch/safe dibuang.
-    const normalStatus = item.min > 0 ? "low" : "safe";
+    if (!syncCatalog) {
+      await db.insert(inventoryItemsTable).values(item).onConflictDoNothing({ target: inventoryItemsTable.sku });
+      continue;
+    }
     await db
       .insert(inventoryItemsTable)
-      .values({
-        ...item,
-        unitCost,
-        onHand: 0,
-        status: normalStatus,
-        movement: "",
-      })
+      .values(item)
       .onConflictDoUpdate({
         target: inventoryItemsTable.sku,
         set: {
-          // Hanya update field katalog; stok nyata (onHand/status/movement)
-          // TIDAK ditimpa supaya re-seed aman setelah opname.
           name: item.name,
           alternativeName: item.alternativeName,
           category: item.category,
+          usageArea: item.usageArea,
           unit: item.unit,
           packageSize: item.packageSize,
-          unitCost,
+          purchasePrice: item.purchasePrice,
+          packageQty: item.packageQty,
+          unitCost: item.unitCost,
           min: item.min,
           updatedAt: new Date(),
         },
       });
   }
 
-  const skuRows = await db
-    .select({ sku: inventoryItemsTable.sku, name: inventoryItemsTable.name, unit: inventoryItemsTable.unit })
-    .from(inventoryItemsTable);
-  const skuByName = new Map(skuRows.map((row) => [row.name, row]));
-  // Recipe seed: bahan baku per menu item / variant.
-  // Untuk varian Burger+Telur*, kita generate otomatis dari nama menu —
-  // semua butuh roti burger + telur + kertas burger, lalu tambahan ayam,
-  // sosis, nugget, keju, crispy/tepung sesuai komposisi nama.
-  type RecipeRow = readonly [string, string, string, number, string, number];
-  const baseRecipeSeed: RecipeRow[] = [
-    ["coffee-americano", "all", "Kopi bubuk (espresso)", 0.018, "kg", 3],
-    ["coffee-americano", "all", "Cup plastik", 1, "pcs", 0],
-    ["coffee-latte", "all", "Kopi bubuk (espresso)", 0.018, "kg", 3],
-    ["coffee-latte", "all", "Susu UHT", 0.18, "liter", 4],
-    ["coffee-latte", "all", "Cup plastik", 1, "pcs", 0],
-    ["burger-garage", "all", "Roti burger", 0.1, "pack", 0],
-    ["burger-garage", "all", "Telur ayam", 1, "pcs", 0],
-    ["burger-garage", "all", "Kertas burger", 0.01, "pack", 0],
-    ["burger-garage", "telur-keju", "Keju slice", 0.05, "pack", 0],
-    ["burger-garage", "telur-ayam", "Fillet ayam beku", 0.08, "pack", 0],
-    ["burger-garage", "telur-sosis", "Sosis ayam", 0.05, "pack", 0],
-    ["burger-garage", "telur-nugget", "Nugget stick", 0.08, "pack", 0],
-    ["burger-garage", "telur-crispy", "Fillet ayam beku", 0.08, "pack", 0],
-    ["burger-garage", "telur-crispy", "Tepung crispy", 0.03, "kg", 0],
-    ["burger-garage", "telur-keju-crispy", "Keju slice", 0.05, "pack", 0],
-    ["burger-garage", "telur-keju-crispy", "Fillet ayam beku", 0.08, "pack", 0],
-    ["burger-garage", "telur-keju-crispy", "Tepung crispy", 0.03, "kg", 0],
-    ["burger-garage", "spesial-komplit", "Keju slice", 0.05, "pack", 0],
-    ["burger-garage", "spesial-komplit", "Fillet ayam beku", 0.08, "pack", 0],
-    ["burger-garage", "spesial-komplit", "Sosis ayam", 0.05, "pack", 0],
-    ["burger-garage", "spesial-komplit", "Nugget stick", 0.08, "pack", 0],
-    ["burger-garage", "spesial-komplit", "Tepung crispy", 0.03, "kg", 0],
-    ["burger-garage", "spesial-komplit", "Kotak burger", 0.01, "pack", 0],
-    ["kebab-garage", "all", "Tortilla kebab", 0.1, "pack", 0],
-    ["kebab-garage", "all", "Telur ayam", 1, "pcs", 0],
-    ["kebab-garage", "all", "Daging kebab slice", 0.05, "pack", 0],
-    ["kebab-garage", "all", "Kertas kebab", 0.01, "pack", 0],
-    ["kebab-garage", "telur-ayam", "Fillet ayam beku", 0.06, "pack", 0],
-    ["kebab-garage", "telur-sosis", "Sosis ayam", 0.05, "pack", 0],
-    ["kebab-garage", "telur-nugget", "Nugget ayam", 0.08, "pack", 0],
-    ["kebab-garage", "telur-ayam-sosis", "Fillet ayam beku", 0.06, "pack", 0],
-    ["kebab-garage", "telur-ayam-sosis", "Sosis ayam", 0.05, "pack", 0],
-    ["kebab-garage", "telur-ayam-nugget", "Fillet ayam beku", 0.06, "pack", 0],
-    ["kebab-garage", "telur-ayam-nugget", "Nugget ayam", 0.08, "pack", 0],
-    ["kebab-garage", "spesial-komplit", "Fillet ayam beku", 0.06, "pack", 0],
-    ["kebab-garage", "spesial-komplit", "Sosis ayam", 0.05, "pack", 0],
-    ["kebab-garage", "spesial-komplit", "Nugget ayam", 0.08, "pack", 0],
-    ["snack-kentang-goreng", "all", "Kentang beku", 0.18, "kg", 5],
-    ["snack-kentang-goreng", "all", "Minyak goreng", 0.03, "liter", 8],
-    ["snack-sosis", "all", "Sosis ayam", 0.05, "pack", 0],
-    ["snack-sosis", "all", "Minyak goreng", 0.02, "liter", 5],
-    ["snack-nugget", "all", "Nugget ayam", 0.08, "pack", 0],
-    ["snack-nugget", "all", "Minyak goreng", 0.02, "liter", 5],
-  ];
-
-  // Burger variant items (Burger + Telur, Burger + Telur + Ayam, dll) —
-  // semua share base ingredients + tambahan sesuai nama.
-  const burgerVariantIds = [
-    "burger-telur",
-    "burger-telur-ayam",
-    "burger-telur-ayam-sosis",
-    "burger-telur-ayam-nugget-stick",
-    "burger-telur-ayam-sosis-nugget-stick",
-    "burger-telur-sosis",
-    "burger-telur-sosis-nugget",
-    "burger-telur-nugget",
-    "burger-telur-keju",
-    "burger-telur-keju-ayam",
-    "burger-telur-keju-ayam-sosis",
-    "burger-telur-keju-ayam-nugget-stick",
-    "burger-telur-keju-ayam-sosis-nugget-stick",
-    "burger-telur-crispy",
-    "burger-telur-crispy-sosis",
-    "burger-telur-crispy-nugget",
-    "burger-telur-keju-crispy",
-    "burger-telur-crispy-sosis-nugget",
-    "burger-telur-keju-crispy-sosis",
-    "burger-telur-keju-crispy-nugget",
-    "burger-telur-keju-crispy-sosis-nugget",
-    "burger-spesial-komplit",
-  ];
-  const generatedBurgerRecipes: RecipeRow[] = [];
-  for (const id of burgerVariantIds) {
-    // Base untuk semua burger varian
-    generatedBurgerRecipes.push([id, "all", "Roti burger", 0.1, "pack", 0]);
-    generatedBurgerRecipes.push([id, "all", "Telur ayam", 1, "pcs", 0]);
-    generatedBurgerRecipes.push([id, "all", "Kertas burger", 0.01, "pack", 0]);
-    if (id.includes("ayam"))
-      generatedBurgerRecipes.push([id, "all", "Fillet ayam beku", 0.08, "pack", 0]);
-    if (id.includes("sosis"))
-      generatedBurgerRecipes.push([id, "all", "Sosis ayam", 0.05, "pack", 0]);
-    if (id.includes("nugget"))
-      generatedBurgerRecipes.push([id, "all", "Nugget stick", 0.08, "pack", 0]);
-    if (id.includes("keju"))
-      generatedBurgerRecipes.push([id, "all", "Keju slice", 0.05, "pack", 0]);
-    if (id.includes("crispy"))
-      generatedBurgerRecipes.push([id, "all", "Tepung crispy", 0.03, "kg", 0]);
-    if (id.includes("spesial") || id.includes("komplit"))
-      generatedBurgerRecipes.push([id, "all", "Kotak burger", 0.01, "pack", 0]);
-  }
-
-  const recipeSeed: RecipeRow[] = [...baseRecipeSeed, ...generatedBurgerRecipes];
-
-  for (const [menuItemId, variantId, inventoryName, qty, unit, wastePct] of recipeSeed) {
-    const inventory = skuByName.get(inventoryName);
-    if (!inventory) continue;
-    await db
-      .insert(menuRecipes)
-      .values({
-        menuItemId,
-        variantId,
-        inventorySku: inventory.sku,
-        qty,
-        unit,
-        wastePct,
+  // Resep menu dari seed (saat ini hanya minuman bar). Makanan & cemilan belum
+  // punya resep — owner mengisinya sendiri lewat modul Resep.
+  for (const item of menuItems) {
+    for (const recipe of item.recipes ?? []) {
+      const recipeValues = {
+        menuItemId: item.id,
+        variantId: recipe.variantId,
+        inventorySku: recipe.inventorySku,
+        qty: recipe.qty,
+        unit: recipe.unit,
+        wastePct: recipe.wastePct,
         status: "active",
-      })
-      .onConflictDoUpdate({
-        target: [menuRecipes.menuItemId, menuRecipes.variantId, menuRecipes.inventorySku],
-        set: {
-          qty,
-          unit,
-          wastePct,
-          status: "active",
-          updatedAt: new Date(),
-        },
-      });
+      };
+      if (!syncCatalog) {
+        await db
+          .insert(menuRecipes)
+          .values(recipeValues)
+          .onConflictDoNothing({
+            target: [menuRecipes.menuItemId, menuRecipes.variantId, menuRecipes.inventorySku],
+          });
+        continue;
+      }
+      await db
+        .insert(menuRecipes)
+        .values(recipeValues)
+        .onConflictDoUpdate({
+          target: [menuRecipes.menuItemId, menuRecipes.variantId, menuRecipes.inventorySku],
+          set: {
+            qty: recipe.qty,
+            unit: recipe.unit,
+            wastePct: recipe.wastePct,
+            status: "active",
+            updatedAt: new Date(),
+          },
+        });
+    }
   }
+
+  // HPP menu = resep × HPP bahan terkini (bukan angka tertulis / persen).
+  await syncRecipeBaseCosts(db);
 
   if (seedDemo) {
     const [movementCount] = await db.select({ total: count() }).from(stockMovementsTable);
@@ -526,16 +413,46 @@ async function seedCustomers() {
 }
 
 // Struktural: POS terminal selalu di-seed (bukan data demo).
+// Keputusan owner (Sep 2026): pelanggan membayar harga produk bulat apa adanya —
+// tanpa PB1, tanpa service charge, tanpa promo QR otomatis. Status HABIS menu
+// diatur manual oleh kasir ("Atur Stok Habis"), bukan otomatis dari stok.
+// Disimpan sebagai setting global HANYA bila belum ada, supaya perubahan owner
+// di Pengaturan tidak tertimpa seed berikutnya.
+async function seedBusinessSettings() {
+  const db = getDb();
+  const ownerDecisions: Record<string, unknown> = {
+    serviceChargePct: 0,
+    taxPct: 0,
+    qrPromoPct: 0,
+    autoSoldOutFromStock: false,
+  };
+  for (const [key, value] of Object.entries(ownerDecisions)) {
+    const [existing] = await db
+      .select({ id: appSettingsTable.id })
+      .from(appSettingsTable)
+      .where(and(eq(appSettingsTable.key, key), isNull(appSettingsTable.outletId)))
+      .limit(1);
+    if (existing) continue;
+    await db.insert(appSettingsTable).values({ key, valueJson: value, outletId: null, updatedBy: "seed" });
+  }
+}
+
 async function seedPosTerminal() {
   const db = getDb();
+  const terminal = {
+    terminalCode: "GARAGE-POS-01",
+    location: "Main cashier",
+    apiKeyHash: hashPosApiKey(seedPosApiKey),
+    status: "active",
+  };
+  // Kunci API terminal tidak di-reset ke nilai seed kecuali --sync-catalog.
+  if (!syncCatalog) {
+    await db.insert(posTerminals).values(terminal).onConflictDoNothing({ target: posTerminals.terminalCode });
+    return;
+  }
   await db
     .insert(posTerminals)
-    .values({
-      terminalCode: "GARAGE-POS-01",
-      location: "Main cashier",
-      apiKeyHash: hashPosApiKey(seedPosApiKey),
-      status: "active",
-    })
+    .values(terminal)
     .onConflictDoUpdate({
       target: posTerminals.terminalCode,
       set: {
@@ -1025,19 +942,25 @@ async function seedSiteAssets() {
   }
 
   const stat = fs.statSync(heroAbsolute);
+  const heroValues = {
+    slot: landingHeroSlot,
+    publicUrl: heroPublicUrl,
+    width: 1400,
+    height: 933,
+    alt: "Garage Coffee & Motor — hero premium",
+    sizeBytes: stat.size,
+    mimeType: "image/webp",
+    version: "seed-v1",
+    updatedBy: null,
+  };
+  // Gambar hero yang diunggah owner tidak ditimpa kecuali --sync-catalog.
+  if (!syncCatalog) {
+    await getDb().insert(siteAssets).values(heroValues).onConflictDoNothing({ target: siteAssets.slot });
+    return;
+  }
   await getDb()
     .insert(siteAssets)
-    .values({
-      slot: landingHeroSlot,
-      publicUrl: heroPublicUrl,
-      width: 1400,
-      height: 933,
-      alt: "Garage Coffee & Motor — hero premium",
-      sizeBytes: stat.size,
-      mimeType: "image/webp",
-      version: "seed-v1",
-      updatedBy: null,
-    })
+    .values(heroValues)
     .onConflictDoUpdate({
       target: siteAssets.slot,
       set: {
@@ -1079,6 +1002,7 @@ async function main() {
   const outlet = await seedOutletAndStaff();
   await seedMenu();
   await seedInventory(seedDemo);
+  await seedBusinessSettings();
   await seedPosTerminal();
   await seedSiteAssets();
 
@@ -1093,12 +1017,17 @@ async function main() {
   }
 
   const seededEmails = staffSeed.map((staff) => staff.email).join(", ");
-  console.log(`Garage seed completed (mode: ${seedDemo ? "DEMO" : "PRODUCTION/struktural"}).`);
+  console.log(
+    `Garage seed completed (mode: ${seedDemo ? "DEMO" : "PRODUCTION/struktural"}, katalog: ${syncCatalog ? "SELARASKAN PENUH (--sync-catalog)" : "hanya-tambah, data ada tidak ditimpa"}).`,
+  );
   console.log(`Seed users: ${seededEmails}`);
-  console.log(`Seed password: ${seedPassword}`);
-  console.log(`Seed member password: ${seedMemberPassword}`);
+  // Rahasia tidak dicetak ke log — hanya sumbernya.
+  const secretSource = (envKey: string) =>
+    process.env[envKey] ? `dari ${envKey}` : `DEFAULT bawaan kode — set ${envKey} sebelum production`;
+  console.log(`Seed password: (${secretSource("GARAGE_SEED_PASSWORD")})`);
+  console.log(`Seed member password: (${secretSource("GARAGE_MEMBER_SEED_PASSWORD")})`);
   console.log(`Seed POS terminal: GARAGE-POS-01`);
-  console.log(`Seed POS API key: ${seedPosApiKey}`);
+  console.log(`Seed POS API key: (${secretSource("GARAGE_POS_API_KEY")})`);
 }
 
 main()

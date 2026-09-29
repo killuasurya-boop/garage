@@ -27,21 +27,7 @@ import {
   WalletCards,
 } from "lucide-react";
 
-export type Role =
-  | "Owner / CEO"
-  | "Admin"
-  | "Manager Operasional"
-  | "Finance / CFO"
-  | "Kasir"
-  | "Barista"
-  | "Koki"
-  | "Asisten Koki"
-  | "Waiter 1"
-  | "Waiter 2"
-  | "Kitchen / Barista"
-  | "Gudang"
-  | "Supervisor Shift"
-  | "Delivery Admin";
+export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
 
 export type ModuleId =
   | "dashboard"
@@ -69,8 +55,7 @@ export type ModuleId =
   | "absensi-v2"
   | "wallet-gaji"
   | "wallet-fee"
-  | "payroll-owner"
-  | "whatsapp";
+  | "payroll-owner";
 
 export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
 
@@ -93,6 +78,9 @@ export type GarageMenuItem = {
   imageUrl?: string;
   promoActive?: boolean;
   promoPrice?: number;
+  // Production Hub: override station (null = otomatis dari kategori).
+  station?: "bar" | "dapur" | null;
+  batchEligible?: boolean;
   recipeCost?: number;
   recipes?: Array<{
     variantId: string;
@@ -106,38 +94,14 @@ export type GarageMenuItem = {
   }>;
 };
 
-export const roles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Supervisor Shift",
-  "Delivery Admin",
-];
+export const roles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];
 
 export const roleNotes: Record<Role, string> = {
-  "Owner / CEO": "Dashboard penuh, approval akhir, semua laporan",
-  Admin: "Kontrol operasional, POS, KDS, inventory, dan approval shift",
-  "Manager Operasional": "Outlet, shift, SOP, incident, dan queue",
-  "Finance / CFO": "Cash control, refund, void, expense, closing",
-  Kasir: "POS transaksi, membership lookup, dan payment",
-  Barista: "KDS minuman, station queue, dan status order coffee",
-  Koki: "KDS makanan, station queue, dan status order kitchen",
-  "Asisten Koki": "Bantu Koki: prep, plating, dan status ticket dapur",
-  "Waiter 1": "Order meja, table service, dan handoff ke kasir",
-  "Waiter 2": "Order meja, table service, dan handoff ke kasir",
-  "Kitchen / Barista": "KDS, station queue, dan status order",
-  Gudang: "Produk manajemen, stok Gudang, opname, dan reorder",
-  "Supervisor Shift": "Checklist, approval operasional, handover",
-  "Delivery Admin": "Delivery queue, status, dan complaint",
+  Owner: "Dashboard penuh, approval akhir, kontrol sistem, dan semua laporan",
+  Manajer:
+    "Akses operasional setara Owner — POS, KDS, inventory, finance, approval, payroll — kecuali kelola akun Owner dan setting sistem inti",
+  Kasir: "POS transaksi, KDS dapur/bar, stok gudang, payment, dan membership lookup",
+  Waiter: "Order meja, table service, antar pesanan, dan handoff ke kasir",
 };
 
 export const modules = [
@@ -154,7 +118,7 @@ export const modules = [
     description: "Operating intelligence",
     icon: Sparkles,
   },
-  { id: "kitchen", label: "Kitchen", description: "Live KDS", icon: ChefHat },
+  { id: "kitchen", label: "Production", description: "Bar & Dapur", icon: ChefHat },
   {
     id: "waiter",
     label: "Waiter",
@@ -313,635 +277,232 @@ export const operationalSignals = [
   { label: "Fraud alerts", value: "3", status: "Void berulang di shift sore" },
 ];
 
+// Bahan bar dari "HPP BAR.xlsx" + "NON COFFEE.xlsx" (sheet Bahan Baku, owner Sep
+// 2026) — satuan ml/gr/pcs, isi per kemasan (Qty), Harga Beli & Harga HPP sheet.
+// Keputusan owner: HPP bahan = HARGA BELI ASLI ÷ isi kemasan (bukan kolom Harga HPP
+// yang sudah ditambah buffer). Ongkir dicatat sebagai biaya tambahan saat barang
+// masuk; susut lewat % susut di resep. Harga HPP sheet disimpan sebagai referensi
+// dan hanya dipakai bila harga beli kosong (Biang Teh diseduh sendiri).
+// [sku, nama, nama alternatif, kategori, satuan, qty per kemasan, kemasan, harga beli, harga HPP sheet]
+const barIngredientSource = [
+  ["BAR-001", "Drip Strawberry", "Sirup Drip strawberry", "Bar · Syrup & Sauce", "ml", 760, "botol", 110000, 115000],
+  ["BAR-002", "Drip Caramel", "Sirup Drip caramel", "Bar · Syrup & Sauce", "ml", 760, "botol", 110000, 115000],
+  ["BAR-003", "Drip Lychee", "Sirup Drip leci", "Bar · Syrup & Sauce", "ml", 760, "botol", 110000, 115000],
+  ["BAR-004", "Drip Lemon", "Sirup Drip lemon", "Bar · Syrup & Sauce", "ml", 760, "botol", 110000, 115000],
+  ["BAR-005", "Drip Vanilla", "Sirup Drip vanila", "Bar · Syrup & Sauce", "ml", 760, "botol", 110000, 115000],
+  ["BAR-006", "Drip Strawberry Jam", "Selai stroberi Drip", "Bar · Syrup & Sauce", "ml", 760, "botol", 110000, 115000],
+  ["BAR-007", "Delifru Peach", "Sirup Delifru peach", "Bar · Syrup & Sauce", "ml", 1000, "botol", 110000, 115000],
+  ["BAR-008", "Delifru Butterscotch", "Sirup Delifru butterscotch", "Bar · Syrup & Sauce", "ml", 1000, "botol", 110000, 115000],
+  ["BAR-009", "Delifru Aren", "Sirup Delifru gula aren / palm sugar", "Bar · Syrup & Sauce", "ml", 1000, "botol", 110000, 115000],
+  ["BAR-010", "Delifru Hazelnut", "Sirup Delifru hazelnut", "Bar · Syrup & Sauce", "ml", 1000, "botol", 110000, 115000],
+  ["BAR-011", "Delifru Strawberry", "Sirup Delifru strawberry", "Bar · Syrup & Sauce", "ml", 1000, "botol", 110000, 115000],
+  ["BAR-012", "Drip Powder Red Velvet", "Bubuk red velvet Drip", "Bar · Powder & Topping", "gr", 760, "pack", 145000, 150000],
+  ["BAR-013", "Drip Powder Matcha", "Bubuk matcha Drip", "Bar · Powder & Topping", "gr", 760, "pack", 215000, 220000],
+  // Owner: harga dasar powder coklat = Rp220.000 (angka 145.000 di kolom beli keliru).
+  ["BAR-014", "Drip Powder Coklat", "Bubuk cokelat Drip", "Bar · Powder & Topping", "gr", 760, "pack", 220000, 220000],
+  ["BAR-015", "Denali Powder Taro", "Bubuk taro Denali", "Bar · Powder & Topping", "gr", 800, "pack", 100000, 105000],
+  ["BAR-016", "Multibev Creamer", "Krimer bubuk Multibev", "Bar · Susu & Krimer", "gr", 1000, "pack", 60000, 65000],
+  ["BAR-017", "Gula", "Gula cair / simple syrup", "Bar · Syrup & Sauce", "ml", 600, "botol", 11000, 11000],
+  // Owner: 1 dus = 24 pcs × 946 ml = 22.704 ml, harga beli Rp276.500/dus
+  // (Harga HPP sheet Rp23.800/1000 ml tidak dipakai → 0).
+  ["BAR-018", "Fresh Milk", "Susu segar / UHT (dus 24 × 946 ml)", "Bar · Susu & Krimer", "ml", 22704, "dus", 276500, 0],
+  ["BAR-019", "Madu TJ", "Madu Tresno Joyo", "Bar · Syrup & Sauce", "gr", 500, "botol", 50000, 55000],
+  ["BAR-020", "Diamond Juice Cranberry", "Jus cranberry Diamond", "Bar · Jus & Buah", "gr", 946, "botol", 46000, 50000],
+  ["BAR-021", "Gold Label", "Krimer kental manis Gold Label (GL)", "Bar · Susu & Krimer", "gr", 901, "kaleng", 58000, 62000],
+  ["BAR-022", "Biscoff", "Biskuit Lotus Biscoff", "Bar · Powder & Topping", "pcs", 32, "pack", 53000, 55000],
+  ["BAR-023", "Jungle Juice", "Jus Jungle Juice", "Bar · Jus & Buah", "ml", 1000, "botol", 32000, 37000],
+  ["BAR-024", "Skippy", "Selai kacang Skippy", "Bar · Powder & Topping", "gr", 340, "toples", 47000, 52000],
+  ["BAR-025", "Davinci Sauce Caramel", "Saus karamel Davinci", "Bar · Syrup & Sauce", "ml", 2000, "botol", 269000, 274000],
+  ["BAR-026", "Dairy Champ", "Susu kental manis (SKM) Dairy Champ", "Bar · Susu & Krimer", "gr", 1000, "kaleng", 25000, 30000],
+  ["BAR-027", "Espresso Blend", "Biji kopi espresso blend (beans HB)", "Bar · Kopi", "gr", 1000, "pack", 180000, 185000],
+  ["BAR-028", "Espresso Full", "Biji kopi espresso full (beans full)", "Bar · Kopi", "gr", 1000, "pack", 185000, 190000],
+  ["BAR-029", "Prendjak Teh", "Teh celup Prendjak", "Bar · Powder & Topping", "pcs", 25, "box", 6500, 10000],
+  ["BAR-030", "Sedotan", "Sedotan minuman bar", "Bar · Kemasan", "pcs", 150, "pack", 30000, 33000],
+  ["BAR-031", "Cup", "Cup minuman bar", "Bar · Kemasan", "pcs", 50, "pack", 22000, 25000],
+  // Owner: 1 karung (Rp20.000) = es untuk 50 cup minuman coffee / non-coffee.
+  ["BAR-032", "Es Batu", "Es batu — 1 karung untuk 50 cup", "Bar · Es Batu", "cup", 50, "karung", 20000, 20000],
+  ["BAR-033", "Buavita Cranberry", "Jus Buavita cranberry", "Bar · Jus & Buah", "ml", 245, "kotak", 12000, 12000],
+  ["BAR-034", "Buavita Jeruk", "Jus Buavita jeruk", "Bar · Jus & Buah", "ml", 245, "kotak", 12000, 12000],
+  // Tambahan "NON COFFEE.xlsx": biang teh = seduhan Prendjak (Rp3/ml per sheet).
+  ["BAR-035", "Biang Teh Prendjak", "Seduhan teh Prendjak (biang)", "Bar · Powder & Topping", "ml", 1, "seduhan", 0, 3],
+  ["BAR-036", "Longan Sunlee", "Buah longan kaleng Sunlee", "Bar · Jus & Buah", "pcs", 43, "kaleng", 31000, 35000],
+] as const;
+
+// Label kemasan yang lebih jelas dibaca staf saat opname / barang masuk.
+const packageLabelOverride: Partial<Record<(typeof barIngredientSource)[number][0], string>> = {
+  "BAR-018": "dus 24 × 946 ml",
+};
+
+export const inventoryItems = barIngredientSource.map(
+  ([sku, name, alternativeName, category, unit, packQty, packName, buyPrice, sheetHppPrice]) => ({
+    sku,
+    name,
+    alternativeName,
+    category,
+    usageArea: "bar" as const,
+    unit,
+    packageSize: packageLabelOverride[sku] ?? `${packName} ${packQty} ${unit}`,
+    // Harga beli per kemasan + isi kemasan → HPP per satuan (dapat diubah di Inventory).
+    purchasePrice: buyPrice > 0 ? buyPrice : sheetHppPrice,
+    packageQty: packQty,
+    unitCost: Math.round(((buyPrice > 0 ? buyPrice : sheetHppPrice) / packQty) * 10_000) / 10_000,
+    onHand: 0,
+    // Stok minimum awal = 1 kemasan (bisa diubah owner di Gudang).
+    min: packQty,
+    status: "low",
+    movement: "",
+  }),
+);
+
+type BarLine = readonly [sku: (typeof barIngredientSource)[number][0], qty: number];
+
+const barIngredientBySku = new Map(inventoryItems.map((item) => [item.sku, item]));
+// Es batu + cup + sedotan: pelengkap standar minuman dingin di sheet HPP.
+const ICED_PACK: BarLine[] = [["BAR-032", 1], ["BAR-031", 1], ["BAR-030", 1]];
+// Minuman panas di sheet HPP: cup + sedotan, tanpa es.
+const HOT_PACK: BarLine[] = [["BAR-031", 1], ["BAR-030", 1]];
+
+// Harga jual = kolom HARGA JUAL sheet HHP dibulatkan ke Rp500 terdekat; Caramel
+// Macchiato, Mocca Peanut, Biscoff dinaikkan atas permintaan owner (Sep 2026).
+// HPP TIDAK ditulis di sini: dihitung live di DB = Σ(qty resep × HPP bahan terkini)
+// oleh syncRecipeBaseCosts (src/lib/menu-recipe-cost.ts) — sama dengan TOTAL BASIC
+// COST sheet (tanpa OPS & OVERHEAD 40%). Qty resep = kolom ML/GR sheet.
+function barDrink(
+  id: string,
+  name: string,
+  section: string,
+  variants: Array<{ id: "cold" | "hot"; price: number; lines: BarLine[] }>,
+  category: "Coffee" | "Non-Coffee" = "Coffee",
+): GarageMenuItem {
+  const single = variants.length === 1;
+  return {
+    id,
+    name,
+    category,
+    section,
+    variants: variants.map((variant) => ({
+      id: variant.id,
+      label: variant.id === "hot" ? "Hot" : "Cold",
+      price: variant.price,
+    })),
+    stock: "ready",
+    prep: "4m",
+    tags: [category],
+    recipes: variants.flatMap((variant) =>
+      variant.lines.map(([sku, qty]) => ({
+        variantId: single ? "all" : variant.id,
+        inventorySku: sku,
+        qty,
+        unit: barIngredientBySku.get(sku)?.unit ?? "pcs",
+        wastePct: 0,
+      })),
+    ),
+  };
+}
+
+const barMenuItems: GarageMenuItem[] = [
+  barDrink("bar-butterscotch-sea-salt", "Butterscotch Sea Salt", "Kopi Susu", [
+    { id: "cold", price: 28000, lines: [["BAR-002", 18], ["BAR-021", 40], ["BAR-018", 90], ["BAR-008", 5], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-caramel-macchiato", "Caramel Macchiato", "Kopi Susu", [
+    { id: "cold", price: 28000, lines: [["BAR-005", 10], ["BAR-002", 10], ["BAR-021", 40], ["BAR-018", 90], ["BAR-025", 10], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-spanish-latte", "Spanish Latte", "Kopi Susu", [
+    { id: "cold", price: 26000, lines: [["BAR-026", 30], ["BAR-018", 100], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-gula-aren", "Gula Aren", "Kopi Susu", [
+    { id: "cold", price: 23000, lines: [["BAR-009", 15], ["BAR-018", 60], ["BAR-016", 10], ["BAR-021", 20], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-creamy-nutty", "Creamy Nutty", "Kopi Susu", [
+    { id: "cold", price: 28000, lines: [["BAR-024", 15], ["BAR-021", 40], ["BAR-018", 90], ["BAR-010", 18], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-coffee-latte", "Coffee Latte", "Kopi Susu", [
+    { id: "cold", price: 20000, lines: [["BAR-018", 120], ["BAR-028", 18], ...ICED_PACK] },
+    { id: "hot", price: 18000, lines: [["BAR-018", 200], ["BAR-028", 18], ...HOT_PACK] },
+  ]),
+  barDrink("bar-cappuccino", "Cappuccino", "Kopi Susu", [
+    { id: "cold", price: 25000, lines: [["BAR-028", 18], ["BAR-018", 90], ["BAR-021", 40], ...ICED_PACK] },
+    { id: "hot", price: 23000, lines: [["BAR-018", 200], ["BAR-028", 18], ...HOT_PACK] },
+  ]),
+  barDrink("bar-dirty-latte", "Dirty Latte", "Kopi Susu", [
+    { id: "cold", price: 25000, lines: [["BAR-018", 90], ["BAR-021", 30], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-mont-blanc", "Mont Blanc", "Kopi Susu", [
+    { id: "cold", price: 23000, lines: [["BAR-033", 70], ["BAR-021", 20], ["BAR-018", 10], ["BAR-005", 5], ["BAR-028", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-sanger", "Sanger", "Kopi Susu", [
+    { id: "cold", price: 16000, lines: [["BAR-026", 25], ["BAR-016", 10], ["BAR-027", 16], ...ICED_PACK] },
+  ]),
+  barDrink("bar-biscoff", "Biscoff", "Kopi Susu", [
+    { id: "cold", price: 31000, lines: [["BAR-022", 2], ["BAR-021", 40], ["BAR-018", 90], ["BAR-016", 10], ["BAR-025", 15], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-hazelnut-latte", "Hazelnut Latte", "Kopi Susu", [
+    { id: "cold", price: 23000, lines: [["BAR-010", 20], ["BAR-021", 20], ["BAR-018", 90], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-vanilla-latte", "Vanilla Latte", "Kopi Susu", [
+    { id: "cold", price: 23000, lines: [["BAR-005", 20], ["BAR-021", 20], ["BAR-018", 90], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-mocca-peanut", "Mocca Peanut", "Kopi Susu", [
+    { id: "cold", price: 30000, lines: [["BAR-014", 20], ["BAR-010", 20], ["BAR-018", 100], ["BAR-027", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-americano-peach", "Americano Peach", "Americano", [
+    { id: "cold", price: 23000, lines: [["BAR-023", 50], ["BAR-007", 18], ["BAR-028", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-americano-berry", "Americano Berry", "Americano", [
+    { id: "cold", price: 23000, lines: [["BAR-011", 18], ["BAR-017", 10], ["BAR-028", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-americano-cranberry", "Americano Cranberry", "Americano", [
+    { id: "cold", price: 23000, lines: [["BAR-005", 10], ["BAR-020", 50], ["BAR-028", 18], ["BAR-011", 5], ["BAR-021", 30], ...ICED_PACK] },
+  ]),
+  barDrink("bar-americano-pongah", "Americano Pongah", "Americano", [
+    { id: "cold", price: 23000, lines: [["BAR-019", 15], ["BAR-006", 15], ["BAR-028", 18], ...ICED_PACK] },
+  ]),
+  barDrink("bar-americano", "Americano", "Americano", [
+    { id: "cold", price: 15000, lines: [["BAR-028", 18], ...ICED_PACK] },
+    { id: "hot", price: 15000, lines: [["BAR-028", 18], ...HOT_PACK] },
+  ]),
+  // --- Non-Coffee ("NON COFFEE.xlsx", sheet HHP bagian NON COFFEE) ---
+  barDrink("bar-matcha", "Matcha", "Milk Series", [
+    { id: "cold", price: 22000, lines: [["BAR-013", 20], ["BAR-018", 100], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  // Sheet Coklat belum berharga (POWDER/UHT tanpa referensi); disusun sama dengan
+  // Matcha di sebelahnya: Drip Powder Coklat 20 gr + Fresh Milk 100 ml.
+  barDrink("bar-coklat", "Coklat", "Milk Series", [
+    { id: "cold", price: 22000, lines: [["BAR-014", 20], ["BAR-018", 100], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-strawberry-milk", "Strawberry Milk", "Milk Series", [
+    { id: "cold", price: 20000, lines: [["BAR-011", 15], ["BAR-021", 20], ["BAR-018", 80], ["BAR-006", 10], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-choco-cloud", "Choco Cloud", "Milk Series", [
+    { id: "cold", price: 26000, lines: [["BAR-014", 20], ["BAR-018", 100], ["BAR-021", 30], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-matcha-strawberry", "Matcha Strawberry", "Milk Series", [
+    { id: "cold", price: 25000, lines: [["BAR-011", 15], ["BAR-006", 15], ["BAR-013", 20], ["BAR-018", 100], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-matcha-butterscotch", "Matcha Butterscotch", "Milk Series", [
+    { id: "cold", price: 26000, lines: [["BAR-013", 20], ["BAR-018", 100], ["BAR-021", 30], ["BAR-008", 18], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-lychee-tea", "Lychee Tea", "Tea Series", [
+    { id: "cold", price: 15000, lines: [["BAR-003", 20], ["BAR-035", 100], ["BAR-036", 1], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  // Sheet menulis "POWDER" tapi merujuk Drip Lemon (sirup, ml).
+  barDrink("bar-lemon-tea", "Lemon Tea", "Tea Series", [
+    { id: "cold", price: 15000, lines: [["BAR-004", 25], ["BAR-035", 30], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-peach-tea", "Peach Tea", "Tea Series", [
+    { id: "cold", price: 15000, lines: [["BAR-007", 20], ["BAR-035", 100], ["BAR-017", 15], ...ICED_PACK] },
+  ], "Non-Coffee"),
+  barDrink("bar-ice-tea", "Ice Tea", "Tea Series", [
+    { id: "cold", price: 8000, lines: [["BAR-017", 20], ["BAR-035", 130], ...ICED_PACK] },
+  ], "Non-Coffee"),
+];
+
+// Menu aktif (owner, Sep 2026): 10 produk makanan & cemilan + 19 minuman bar.
+// HPP selalu dari bahan baku resep (bukan patokan persen): makanan/cemilan HPP 0
+// sampai owner mengisi resepnya; minuman bar dari resep "HPP BAR.xlsx".
 export const menuItems: GarageMenuItem[] = [
   {
-    id: "snack-kentang-goreng",
-    name: "Kentang Goreng",
-    category: "Cemilan",
-    section: "Cemilan",
-    variants: [{ id: "regular", label: "Regular", price: 10000 }],
-    stock: "ready",
-    prep: "6m",
-    tags: ["Snack", "Bestseller"],
-  },
-  {
-    id: "snack-sosis",
-    name: "Sosis",
-    category: "Cemilan",
-    section: "Cemilan",
-    variants: [{ id: "regular", label: "Regular", price: 10000 }],
-    stock: "ready",
-    prep: "6m",
-    tags: ["Snack"],
-  },
-  {
-    id: "snack-nugget",
-    name: "Nugget",
-    category: "Cemilan",
-    section: "Cemilan",
-    variants: [{ id: "regular", label: "Regular", price: 10000 }],
-    stock: "ready",
-    prep: "6m",
-    tags: ["Snack"],
-  },
-  {
-    id: "burger-garage",
-    name: "Burger Garage",
-    category: "Cemilan",
-    section: "Burger",
-    variants: [
-      { id: "telur", label: "Telur", price: 8000, baseCost: 4080 },
-      { id: "telur-keju", label: "Telur Keju", price: 12000, baseCost: 4980 },
-      { id: "telur-ayam", label: "Telur Ayam", price: 10000, baseCost: 9280 },
-      { id: "telur-sosis", label: "Telur Sosis", price: 15000, baseCost: 6330 },
-      { id: "telur-nugget", label: "Telur Nugget", price: 12000, baseCost: 6880 },
-      { id: "telur-crispy", label: "Telur Crispy", price: 15000, baseCost: 9670 },
-      { id: "telur-keju-crispy", label: "Telur Keju Crispy", price: 18000, baseCost: 10570 },
-      { id: "spesial-komplit", label: "Spesial Komplit", price: 25000, baseCost: 15970 },
-    ],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger", "Garage", "Bestseller"],
-  },
-  {
-    id: "kebab-garage",
-    name: "Kebab Garage",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [
-      { id: "telur", label: "Telur", price: 10000, baseCost: 8780 },
-      { id: "telur-ayam", label: "Telur Ayam", price: 12000, baseCost: 12680 },
-      { id: "telur-sosis", label: "Telur Sosis", price: 17000, baseCost: 11030 },
-      { id: "telur-nugget", label: "Telur Nugget", price: 17000, baseCost: 12380 },
-      { id: "telur-ayam-sosis", label: "Telur Ayam Sosis", price: 20000, baseCost: 14930 },
-      { id: "telur-ayam-nugget", label: "Telur Ayam Nugget", price: 20000, baseCost: 16280 },
-      { id: "spesial-komplit", label: "Spesial Komplit", price: 28000, baseCost: 18530 },
-    ],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Kebab", "Garage", "Bestseller"],
-  },
-  {
-    id: "burger-telur",
-    name: "Burger + Telur",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 8000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Burger", "Bestseller"],
-  },
-  {
-    id: "burger-telur-ayam",
-    name: "Burger + Telur + Ayam",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 10000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-ayam-sosis",
-    name: "Burger + Telur + Ayam + Sosis",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 13000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-ayam-nugget-stick",
-    name: "Burger + Telur + Ayam + Nugget Stick",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 13000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-ayam-sosis-nugget-stick",
-    name: "Burger + Telur + Ayam + Sosis + Nugget Stick",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 16000 }],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-sosis",
-    name: "Burger + Telur + Sosis",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 15000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-sosis-nugget",
-    name: "Burger + Telur + Sosis + Nugget",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 14000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-nugget",
-    name: "Burger + Telur + Nugget",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 12000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju",
-    name: "Burger + Telur + Keju",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 12000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-ayam",
-    name: "Burger + Telur + Keju + Ayam",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 15000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-ayam-sosis",
-    name: "Burger + Telur + Keju + Ayam + Sosis",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 17000 }],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-ayam-nugget-stick",
-    name: "Burger + Telur + Keju + Ayam + Nugget Stick",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 17000 }],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-ayam-sosis-nugget-stick",
-    name: "Burger + Telur + Keju + Ayam + Sosis + Nugget Stick",
-    category: "Cemilan",
-    section: "Burger Telur",
-    variants: [{ id: "regular", label: "Regular", price: 19000 }],
-    stock: "ready",
-    prep: "13m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-crispy",
-    name: "Burger + Telur + Crispy",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 15000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-crispy-sosis",
-    name: "Burger + Telur + Crispy + Sosis",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 17000 }],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-crispy-nugget",
-    name: "Burger + Telur + Crispy + Nugget",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 17000 }],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-crispy",
-    name: "Burger + Telur + Keju + Crispy",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 18000 }],
-    stock: "ready",
-    prep: "12m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-crispy-sosis-nugget",
-    name: "Burger + Telur + Crispy + Sosis + Nugget",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 20000 }],
-    stock: "ready",
-    prep: "13m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-crispy-sosis",
-    name: "Burger + Telur + Keju + Crispy + Sosis",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 19000 }],
-    stock: "ready",
-    prep: "13m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-crispy-nugget",
-    name: "Burger + Telur + Keju + Crispy + Nugget",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 19000 }],
-    stock: "ready",
-    prep: "13m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-telur-keju-crispy-sosis-nugget",
-    name: "Burger + Telur + Keju + Crispy + Sosis + Nugget",
-    category: "Cemilan",
-    section: "Burger Crispy",
-    variants: [{ id: "regular", label: "Regular", price: 22000 }],
-    stock: "ready",
-    prep: "14m",
-    tags: ["Burger"],
-  },
-  {
-    id: "burger-spesial-komplit",
-    name: "Burger Spesial Komplit",
-    category: "Cemilan",
-    section: "Burger Spesial",
-    variants: [{ id: "regular", label: "Regular", price: 25000 }],
-    stock: "limited",
-    prep: "15m",
-    tags: ["Spesial"],
-  },
-  {
-    id: "kebab-telur",
-    name: "Kebab + Telur",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 10000 }],
-    stock: "ready",
-    prep: "9m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-ayam",
-    name: "Kebab + Telur + Ayam",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 12000 }],
-    stock: "ready",
-    prep: "9m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-ayam-sosis",
-    name: "Kebab + Telur + Ayam + Sosis",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 20000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-ayam-nugget",
-    name: "Kebab + Telur + Ayam + Nugget",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 20000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-ayam-sosis-nugget",
-    name: "Kebab + Telur + Ayam + Sosis + Nugget",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 22000 }],
-    stock: "ready",
-    prep: "11m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-sosis",
-    name: "Kebab + Telur + Sosis",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 17000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-sosis-nugget",
-    name: "Kebab + Telur + Sosis + Nugget",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 20000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-telur-nugget",
-    name: "Kebab + Telur + Nugget",
-    category: "Cemilan",
-    section: "Kebab",
-    variants: [{ id: "regular", label: "Regular", price: 17000 }],
-    stock: "ready",
-    prep: "10m",
-    tags: ["Kebab"],
-  },
-  {
-    id: "kebab-spesial-komplit",
-    name: "Kebab Spesial Komplit",
-    category: "Cemilan",
-    section: "Kebab Spesial",
-    variants: [{ id: "regular", label: "Regular", price: 28000 }],
-    stock: "limited",
-    prep: "12m",
-    tags: ["Spesial"],
-  },
-  {
-    id: "coffee-espresso-single",
-    name: "Espresso Single",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [{ id: "hot", label: "Hot", price: 10000 }],
-    stock: "ready",
-    prep: "3m",
-    tags: ["Espresso"],
-  },
-  {
-    id: "coffee-espresso-double",
-    name: "Espresso Double",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [{ id: "hot", label: "Hot", price: 15000 }],
-    stock: "ready",
-    prep: "3m",
-    tags: ["Espresso"],
-  },
-  {
-    id: "coffee-americano",
-    name: "Americano",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 15000 },
-      { id: "hot", label: "Hot", price: 13000 },
-    ],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Coffee", "Bestseller"],
-  },
-  {
-    id: "coffee-americano-honey",
-    name: "Americano Honey",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 20000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Coffee"],
-  },
-  {
-    id: "coffee-v60",
-    name: "V 60",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [{ id: "hot", label: "Hot", price: 25000 }],
-    stock: "ready",
-    prep: "7m",
-    tags: ["Manual brew"],
-  },
-  {
-    id: "coffee-long-black",
-    name: "Long Black",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 17000 },
-      { id: "hot", label: "Hot", price: 14000 },
-    ],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Coffee"],
-  },
-  {
-    id: "coffee-ice-japanese",
-    name: "Ice Japanese",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 25000 }],
-    stock: "ready",
-    prep: "7m",
-    tags: ["Manual brew"],
-  },
-  {
-    id: "coffee-vietnam-drip",
-    name: "Vietnam Drip",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 16000 },
-      { id: "hot", label: "Hot", price: 14000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Coffee"],
-  },
-  {
-    id: "coffee-sanger",
-    name: "Sanger",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 12000 },
-      { id: "hot", label: "Hot", price: 10000 },
-    ],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Coffee"],
-  },
-  {
-    id: "coffee-latte",
-    name: "Coffee Latte",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 17000 },
-      { id: "hot", label: "Hot", price: 15000 },
-    ],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Latte", "Bestseller"],
-  },
-  {
-    id: "coffee-gula-aren",
-    name: "Coffe Gula Aren",
-    category: "Coffee",
-    section: "Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 17000 },
-      { id: "hot", label: "Hot", price: 15000 },
-    ],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Latte"],
-  },
-  {
-    id: "coffee-butterscotch-latte",
-    name: "Butterscotch Coffee Latte",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 23000 },
-      { id: "hot", label: "Hot", price: 20000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-butterscotch-toast",
-    name: "Butterscotch Coffee (TOAST)",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 25000 },
-      { id: "hot", label: "Hot", price: 23000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-vanilla-latte",
-    name: "Vanilla Coffee Latte",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 20000 },
-      { id: "hot", label: "Hot", price: 18000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-caramel-latte",
-    name: "Caramel Coffee Latte",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 20000 },
-      { id: "hot", label: "Hot", price: 18000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-mocca-latte",
-    name: "Mocca Coffee Latte",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 20000 },
-      { id: "hot", label: "Hot", price: 18000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-strawberry-latte",
-    name: "Strawberry Coffee Latte",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 20000 }],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-hazelnut-latte",
-    name: "Hazelnut Coffee Latte",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 20000 },
-      { id: "hot", label: "Hot", price: 18000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-bon-bon",
-    name: "Bon Bon",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [
-      { id: "cold", label: "Cold", price: 18000 },
-      { id: "hot", label: "Hot", price: 16000 },
-    ],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-americano-lemonade",
-    name: "Americano Lemonade",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 19000 }],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "coffee-honey",
-    name: "Coffee Honey",
-    category: "Coffee",
-    section: "Flavor Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 20000 }],
-    stock: "ready",
-    prep: "5m",
-    tags: ["Flavor"],
-  },
-  {
-    id: "food-indomie-kuah",
+    id: "makanan-indomie-kuah",
     name: "Indomie Kuah",
     category: "Makanan",
     section: "Indomie",
@@ -951,7 +512,7 @@ export const menuItems: GarageMenuItem[] = [
     tags: ["Indomie"],
   },
   {
-    id: "food-indomie-goreng",
+    id: "makanan-indomie-goreng",
     name: "Indomie Goreng",
     category: "Makanan",
     section: "Indomie",
@@ -961,229 +522,86 @@ export const menuItems: GarageMenuItem[] = [
     tags: ["Indomie"],
   },
   {
-    id: "food-nasi-goreng-telur",
-    name: "Nasi Goreng Telur",
+    id: "makanan-nasi-goreng",
+    name: "Nasi Goreng",
     category: "Makanan",
     section: "Nasi Goreng",
-    variants: [
-      { id: "sedang", label: "Sedang", price: 12000 },
-      { id: "pedas", label: "Pedas", price: 13000 },
-    ],
+    variants: [{ id: "regular", label: "Regular", price: 15000 }],
     stock: "ready",
     prep: "12m",
     tags: ["Nasi goreng"],
   },
   {
-    id: "food-nasi-goreng-ayam",
-    name: "Nasi Goreng Ayam",
+    id: "makanan-ayam-penyet",
+    name: "Ayam Penyet",
     category: "Makanan",
-    section: "Nasi Goreng",
-    variants: [
-      { id: "sedang", label: "Sedang", price: 15000 },
-      { id: "pedas", label: "Pedas", price: 16000 },
-    ],
+    section: "Ayam Penyet",
+    variants: [{ id: "regular", label: "Regular", price: 18000 }],
     stock: "ready",
-    prep: "12m",
-    tags: ["Nasi goreng"],
+    prep: "15m",
+    tags: ["Ayam"],
   },
   {
-    id: "food-nasi-goreng-kampung",
-    name: "Nasi Goreng Kampung",
+    id: "makanan-nasi",
+    name: "Nasi",
     category: "Makanan",
-    section: "Nasi Goreng",
-    variants: [
-      { id: "sedang", label: "Sedang", price: 17000 },
-      { id: "pedas", label: "Pedas", price: 18000 },
-    ],
+    section: "Nasi",
+    variants: [{ id: "regular", label: "Regular", price: 5000 }],
     stock: "ready",
-    prep: "13m",
-    tags: ["Nasi goreng"],
+    prep: "2m",
+    tags: ["Nasi"],
   },
   {
-    id: "food-nasi-goreng-komplit",
-    name: "Nasi Goreng Komplit",
-    category: "Makanan",
-    section: "Nasi Goreng",
-    variants: [
-      { id: "sedang", label: "Sedang", price: 20000 },
-      { id: "pedas", label: "Pedas", price: 21000 },
-    ],
+    id: "cemilan-nugget",
+    name: "Nugget",
+    category: "Cemilan",
+    section: "Cemilan",
+    variants: [{ id: "regular", label: "Regular", price: 12000 }],
     stock: "ready",
-    prep: "14m",
-    tags: ["Nasi goreng"],
+    prep: "6m",
+    tags: ["Snack"],
   },
   {
-    id: "food-ayam-richeese-utuh",
-    name: "Ayam Richeese Utuh Paket 4 Orang + Nasi",
-    category: "Makanan",
-    section: "Ayam Richeese",
-    variants: [
-      { id: "barbeque", label: "Barbeque", price: 80000 },
-      { id: "balado", label: "Balado", price: 80000 },
-      { id: "campur", label: "Campur", price: 85000 },
-    ],
-    stock: "limited",
-    prep: "18m",
-    tags: ["Paket"],
+    id: "cemilan-sosis",
+    name: "Sosis",
+    category: "Cemilan",
+    section: "Cemilan",
+    variants: [{ id: "regular", label: "Regular", price: 12000 }],
+    stock: "ready",
+    prep: "6m",
+    tags: ["Snack"],
   },
   {
-    id: "food-ayam-richeese-half",
-    name: "Ayam Richeese 1/2 Paket 2 Orang + Nasi",
-    category: "Makanan",
-    section: "Ayam Richeese",
-    variants: [
-      { id: "barbeque", label: "Barbeque", price: 42000 },
-      { id: "balado", label: "Balado", price: 42000 },
-      { id: "campur", label: "Campur", price: 47000 },
-    ],
+    id: "cemilan-kentang-ori",
+    name: "Kentang Ori",
+    category: "Cemilan",
+    section: "Kentang",
+    variants: [{ id: "regular", label: "Regular", price: 12000 }],
     stock: "ready",
-    prep: "16m",
-    tags: ["Paket"],
+    prep: "7m",
+    tags: ["Kentang"],
   },
   {
-    id: "food-ayam-richeese-quarter",
-    name: "Ayam Richeese 1/4 Paket 1 Orang + Nasi",
-    category: "Makanan",
-    section: "Ayam Richeese",
-    variants: [
-      { id: "barbeque", label: "Barbeque", price: 25000 },
-      { id: "balado", label: "Balado", price: 25000 },
-      { id: "campur", label: "Campur", price: 30000 },
-    ],
+    id: "cemilan-kentang-balado",
+    name: "Kentang Balado",
+    category: "Cemilan",
+    section: "Kentang",
+    variants: [{ id: "regular", label: "Regular", price: 14000 }],
     stock: "ready",
-    prep: "14m",
-    tags: ["Paket"],
+    prep: "8m",
+    tags: ["Kentang"],
   },
   {
-    id: "noncoffee-cappucino",
-    name: "Cappucino",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
+    id: "cemilan-mix-plater",
+    name: "Mix Plater",
+    category: "Cemilan",
+    section: "Cemilan",
+    variants: [{ id: "regular", label: "Regular", price: 18000 }],
     stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
+    prep: "10m",
+    tags: ["Snack"],
   },
-  {
-    id: "noncoffee-manggo",
-    name: "Manggo",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-avocado",
-    name: "Avocado",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-milk-tea",
-    name: "Milk Tea",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-taro",
-    name: "Taro",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-cotton-candy",
-    name: "Cotton Candy",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-strawberry",
-    name: "Strawberry",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-lemon-tea",
-    name: "Lemon Tea",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-permen-karet",
-    name: "Permen Karet",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-red-velvet",
-    name: "Red Velvet",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-chocolate",
-    name: "Chocolate",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-cookies-cream",
-    name: "Cookies & Cream",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
-  {
-    id: "noncoffee-matcha-green-tea",
-    name: "Matcha Green Tea",
-    category: "Non-Coffee",
-    section: "Non-Coffee",
-    variants: [{ id: "cold", label: "Cold", price: 12000 }],
-    stock: "ready",
-    prep: "4m",
-    tags: ["Cold"],
-  },
+  ...barMenuItems,
 ];
 
 export const cartSeed: { itemId: string; variantId: string; qty: number }[] = [];
@@ -1216,7 +634,7 @@ export const kitchenOrders = [
     station: "Bar",
     status: "ready",
     elapsed: 8,
-    items: ["Americano Cold", "V 60 Hot"],
+    items: ["Americano Cold", "Cappuccino Hot"],
     priority: "normal",
   },
   {
@@ -1240,184 +658,6 @@ export const kitchenOrders = [
     priority: "normal",
   },
 ] as const;
-
-const inventorySource = [
-  ["Protein/Frozen", "Patty burger", "Daging burger, patty sapi", "pack", "1 kg"],
-  ["Protein/Frozen", "Daging kebab slice", "Daging kebab ayam/sapi", "pack", "1 kg"],
-  ["Protein/Frozen", "Fillet ayam beku", "Ayam crispy", "pack", "1 kg"],
-  ["Protein/Frozen", "Nugget ayam", "Nugget", "pack", "1 kg"],
-  ["Protein/Frozen", "Nugget stick", "-", "pack", "500 g"],
-  ["Protein/Frozen", "Sosis ayam", "Sosis sapi", "pack", "1 kg"],
-  ["Protein/Frozen", "Ayam potong", "Ayam utuh potong 1/2/1/4", "ekor/kg", "1 ekor (~1,2 kg)"],
-  ["Protein/Frozen", "Telur ayam", "-", "pcs", "isi 30"],
-  ["Protein/Frozen", "Ikan teri", "Teri nasi", "kg", "1 kg"],
-  ["Sayuran", "Selada", "Lettuce", "kg", "1 kg"],
-  ["Sayuran", "Kol (kubis)", "-", "kg", "1 kg"],
-  ["Sayuran", "Timun", "Ketimun", "kg", "1 kg"],
-  ["Sayuran", "Tomat", "-", "kg", "1 kg"],
-  ["Sayuran", "Bawang bombay", "-", "kg", "1 kg"],
-  ["Sayuran", "Daun bawang", "Daun prei / scallion", "kg", "0.5 kg"],
-  ["Sayuran", "Cabai rawit", "Cabai kecil", "kg", "0.5 kg"],
-  ["Sayuran", "Bawang merah", "-", "kg", "1 kg"],
-  ["Sayuran", "Bawang putih", "-", "kg", "1 kg"],
-  ["Sayuran", "Acar", "Mentimun, wortel", "pack", "100 g"],
-  ["Bumbu & Saus", "Saus sambal", "Sambal", "botol", "600 ml"],
-  ["Bumbu & Saus", "Saus tomat", "-", "botol", "600 ml"],
-  ["Bumbu & Saus", "Mayones", "-", "stoples", "250 g"],
-  ["Bumbu & Saus", "Saus BBQ", "Saus barbekyu", "stoples", "250 g"],
-  ["Bumbu & Saus", "Saus keju", "-", "sachet", "200 g"],
-  ["Bumbu & Saus", "Kecap manis", "Kecap asin", "botol", "600 ml"],
-  ["Bumbu & Saus", "Minyak goreng", "Minyak sayur", "liter", "2 L"],
-  ["Bumbu & Saus", "Margarin", "Mentega", "pack", "200 g"],
-  ["Bumbu & Saus", "Garam", "Garam dapur", "kg", "1 kg"],
-  ["Bumbu & Saus", "Gula pasir", "Gula", "kg", "1 kg"],
-  ["Bumbu & Saus", "Kaldu bubuk", "Bubuk kaldu ayam", "pack", "100 g"],
-  ["Bumbu & Saus", "Penyedap rasa", "Micin / MSG", "pack", "100 g"],
-  ["Bumbu & Saus", "Bubuk cabe", "Cabe bubuk", "pack", "100 g"],
-  ["Bumbu & Saus", "Lada hitam bubuk", "Merica bubuk", "pack", "100 g"],
-  ["Bumbu & Saus", "Bon Cabe", "Cabe bubuk instan", "pack", "15 g"],
-  ["Karbohidrat & Roti", "Roti burger", "Burger bun", "pack", "10 pcs"],
-  ["Karbohidrat & Roti", "Tortilla kebab", "Roti pita", "pack", "10 pcs"],
-  ["Karbohidrat & Roti", "Nasi", "Beras", "kg", "5 kg"],
-  ["Karbohidrat & Roti", "Indomie goreng", "Mie instan goreng", "pack", "5 pcs"],
-  ["Karbohidrat & Roti", "Indomie kuah", "Mie instan kuah", "pack", "5 pcs"],
-  ["Karbohidrat & Roti", "Kentang beku", "French fries beku", "kg", "1 kg"],
-  ["Karbohidrat & Roti", "Kerupuk", "Krupuk udang", "kg", "0.5 kg"],
-  ["Dairy & Susu", "Susu UHT", "Susu cair", "liter", "1 L"],
-  ["Dairy & Susu", "Susu evaporasi", "Susu kotak / susu kental manis", "kaleng", "370 ml"],
-  ["Dairy & Susu", "Krimer kental manis", "-", "kaleng", "370 g"],
-  ["Dairy & Susu", "Krimer bubuk", "Krimer non-dairy", "pack", "500 g"],
-  ["Dairy & Susu", "Keju slice", "Keju lembaran", "pack", "200 g"],
-  ["Dairy & Susu", "Bubuk keju", "Serbuk keju", "pack", "200 g"],
-  ["Syrup & Flavorings", "Butterscotch syrup", "Sirup butterscotch", "botol", "1 L"],
-  ["Syrup & Flavorings", "Vanilla syrup", "Sirup vanila", "botol", "1 L"],
-  ["Syrup & Flavorings", "Caramel syrup", "Sirup karamel", "botol", "1 L"],
-  ["Syrup & Flavorings", "Mocca syrup", "Sirup moka", "botol", "1 L"],
-  ["Syrup & Flavorings", "Strawberry syrup", "Sirup stroberi", "botol", "1 L"],
-  ["Syrup & Flavorings", "Hazelnut syrup", "Sirup hazelnut", "botol", "1 L"],
-  ["Syrup & Flavorings", "Lemon syrup", "Sirup lemon", "botol", "1 L"],
-  ["Syrup & Flavorings", "Madu", "Madu bunga/lebah", "botol", "500 ml"],
-  ["Dry Goods & Seasonings", "Tepung crispy", "Tepung roti kasar", "kg", "5 kg"],
-  ["Dry Goods & Seasonings", "Tepung bumbu", "Tepung bumbu ayam", "kg", "5 kg"],
-  ["Dry Goods & Seasonings", "Tepung panir", "Tepung roti halus", "kg", "5 kg"],
-  ["Dry Goods & Seasonings", "Bubuk cappuccino", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk mangga", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk alpukat", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk milk tea", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk taro", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk cotton candy", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk strawberry", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk lemon tea", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk permen karet", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk red velvet", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk cokelat", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk cookies & cream", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Bubuk matcha", "-", "pack", "500 g"],
-  ["Dry Goods & Seasonings", "Kopi bubuk (espresso)", "Biji kopi robusta/arabika", "kg", "1 kg"],
-  ["Dry Goods & Seasonings", "Kopi bubuk (arabika)", "Kopi V60", "kg", "1 kg"],
-  ["Dry Goods & Seasonings", "Kopi bubuk Vietnam", "-", "pack", "250 g"],
-  ["Dry Goods & Seasonings", "Bawang goreng", "-", "pack", "100 g"],
-  ["Dry Goods & Seasonings", "Oregano", "-", "pack", "50 g"],
-  ["Dry Goods & Seasonings", "Parsley", "-", "pack", "50 g"],
-  ["Packaging & Consumables", "Kertas burger", "Kertas roti burger", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Kertas kebab", "Kertas roti kebab", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Kotak burger", "Box burger", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Box nasi goreng", "Box nasi", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Cup plastik", "Gelas plastik", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Tutup cup", "Tutup gelas plastik", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Sedotan", "Sedotan plastik", "pack", "500 pcs"],
-  ["Packaging & Consumables", "Plastik take-away", "Plastik kresek", "pack", "100 pcs"],
-  ["Packaging & Consumables", "Tisu", "-", "pack", "200 lembar"],
-  ["Packaging & Consumables", "Sarung tangan plastik", "Sarung tangan sekali pakai", "box", "100 pcs"],
-  ["Packaging & Consumables", "Filter kertas V60", "Kertas saring V60", "pack", "100 pcs"],
-  ["Operasional/Cleaning", "Gas LPG", "Tabung gas", "unit", "3 kg"],
-  ["Operasional/Cleaning", "Sabun cuci piring", "Sabun detergen", "liter", "1 L"],
-  ["Operasional/Cleaning", "Sabun tangan", "Sabun cair", "liter", "500 ml"],
-  ["Operasional/Cleaning", "Spons", "Spons cuci", "pack", "10 pcs"],
-  ["Operasional/Cleaning", "Lap microfiber", "Lap kain", "pack", "5 pcs"],
-  ["Operasional/Cleaning", "Hand sanitizer", "-", "liter", "500 ml"],
-  ["Operasional/Cleaning", "Tisu roll", "Tisu gulung", "roll", "6 roll"],
-  ["Operasional/Cleaning", "Plastik sampah", "Kantong sampah", "roll", "50 pcs"],
-  ["Operasional/Cleaning", "Kertas struk", "Kertas kasir", "roll", "80x80 mm"],
-  ["Operasional/Cleaning", "Stiker logo", "-", "pack", "100 pcs"],
-  ["Operasional/Cleaning", "Air galon", "Galon air mineral", "pcs", "1 galon"],
-  ["Operasional/Cleaning", "Es batu", "-", "kg", "10 kg"],
-] as const;
-
-const inventoryStatusCycle = [
-  "safe",
-  "safe",
-  "watch",
-  "safe",
-  "low",
-  "safe",
-  "watch",
-] as const;
-
-function minimumStockFor(unit: string, index: number) {
-  switch (unit) {
-    case "kg":
-      return Number((3 + (index % 5) * 1.5).toFixed(1));
-    case "liter":
-      return 4 + (index % 4) * 2;
-    case "botol":
-    case "kaleng":
-    case "stoples":
-    case "sachet":
-      return 3 + (index % 5);
-    case "pcs":
-      return 24 + (index % 6) * 12;
-    case "roll":
-    case "unit":
-    case "box":
-      return 2 + (index % 4);
-    case "ekor/kg":
-      return 5 + (index % 3);
-    default:
-      return 6 + (index % 8);
-  }
-}
-
-function stockOnHandFor(min: number, status: (typeof inventoryStatusCycle)[number], unit: string) {
-  const multiplier = status === "low" ? 0.62 : status === "watch" ? 1.08 : 2.35;
-  const raw = min * multiplier;
-  const wholeUnit = ["pcs", "pack", "roll", "unit", "box", "botol", "kaleng", "stoples", "sachet"].includes(unit);
-
-  return Number(raw.toFixed(wholeUnit ? 0 : 1));
-}
-
-function movementFor(name: string, category: string, status: (typeof inventoryStatusCycle)[number], unit: string) {
-  if (status === "low") {
-    return `Low stock: ${name} masuk daftar belanja hari ini`;
-  }
-
-  if (status === "watch") {
-    return `Watch: ${category} mendekati minimum, cek opname shift malam`;
-  }
-
-  return `Auto deduction: pemakaian POS tercatat dalam ${unit}`;
-}
-
-export const inventoryItems = inventorySource.map(
-  ([category, name, alternativeName, unit, packageSize], index) => {
-    const status = inventoryStatusCycle[index % inventoryStatusCycle.length];
-    const min = minimumStockFor(unit, index);
-    const onHand = stockOnHandFor(min, status, unit);
-
-    return {
-      sku: `INV-${String(index + 1).padStart(3, "0")}`,
-      name,
-      alternativeName,
-      category,
-      onHand,
-      min,
-      unit,
-      packageSize,
-      status,
-      movement: movementFor(name, category, status, unit),
-    };
-  },
-);
 
 export const stockMovements = [
   "16:12 Auto deduction: Nasi Goreng Telur paid, -beras, -telur ayam, -bumbu dasar",
@@ -1577,4 +817,12 @@ export const currency = new Intl.NumberFormat("id-ID", {
   style: "currency",
   currency: "IDR",
   maximumFractionDigits: 0,
+});
+
+// HPP per satuan bahan (Rp/ml, Rp/gr) sering pecahan — tampilkan s.d. 2 desimal.
+export const unitCostCurrency = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });

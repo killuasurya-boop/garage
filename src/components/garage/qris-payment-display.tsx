@@ -63,9 +63,9 @@ function prefersReducedMotion() {
 export function QrisPaymentDisplay({
   amount,
   orderNo,
-  merchantName = "GARAGE MINUMAN",
-  nmid = "ID1026525964734",
-  cashierCode = "A01",
+  merchantName = "GARAGE COFFEE",
+  nmid = "ID1026601785003",
+  cashierCode,
   qrisSrc = "/payments/qris-garage.png",
 }: QrisPaymentDisplayProps) {
   const hasAmount = typeof amount === "number" && Number.isFinite(amount) && amount > 0;
@@ -298,9 +298,11 @@ export function QrisPaymentDisplay({
               <span className="qris-meta-pill">
                 NMID: <span>{nmid}</span>
               </span>
-              <span className="qris-meta-pill">
-                Kasir: <span>{cashierCode}</span>
-              </span>
+              {cashierCode ? (
+                <span className="qris-meta-pill">
+                  Kasir: <span>{cashierCode}</span>
+                </span>
+              ) : null}
             </div>
           </div>
 

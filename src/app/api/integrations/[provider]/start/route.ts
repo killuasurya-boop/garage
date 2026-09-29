@@ -12,7 +12,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ provider: string }> },
 ) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
   const { provider } = await context.params;
   const current = new URL(request.url);

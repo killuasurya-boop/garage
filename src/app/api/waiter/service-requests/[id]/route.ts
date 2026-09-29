@@ -8,15 +8,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-    "Kasir",
-    "Waiter 1",
-    "Waiter 2",
-    "Supervisor Shift",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
   if (session.response) {
     return session.response;
   }

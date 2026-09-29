@@ -6,9 +6,11 @@ import {
   calculateBillingTotals,
   capVoucherDiscountBySettings,
   computeManualDiscountAmount,
+  computeRefundSplit,
   manualDiscountNeedsApproval,
   orderTypeToChannel,
   kitchenTargetGroupForCategory,
+  qrPromoDiscount,
 } from "@/lib/garage-billing";
 
 // =============================================================================
@@ -52,6 +54,19 @@ describe("applyRoundingMode", () => {
     ["nearest_1000", 115_540, 116_000],
   ])("%s membulatkan %i → %i", (mode, input, expected) => {
     expect(applyRoundingMode(input as number, mode as string)).toBe(expected);
+  });
+});
+
+describe("qrPromoDiscount (promo otomatis order QR dari Pengaturan)", () => {
+  it("default 10% maks Rp25.000 (sama dengan perilaku lama)", () => {
+    expect(qrPromoDiscount(100_000, DEFAULT_APP_SETTINGS)).toBe(10_000);
+    expect(qrPromoDiscount(400_000, DEFAULT_APP_SETTINGS)).toBe(25_000);
+  });
+  it("0% = tanpa promo", () => {
+    expect(qrPromoDiscount(100_000, { qrPromoPct: 0, qrPromoMaxAmount: 25_000 })).toBe(0);
+  });
+  it("persen & batas bisa diatur owner", () => {
+    expect(qrPromoDiscount(100_000, { qrPromoPct: 5, qrPromoMaxAmount: 3_000 })).toBe(3_000);
   });
 });
 
@@ -124,5 +139,29 @@ describe("kitchenTargetGroupForCategory (routing tiket)", () => {
   it("Makanan & Cemilan → dapur (food)", () => {
     expect(kitchenTargetGroupForCategory("Makanan")).toBe("food");
     expect(kitchenTargetGroupForCategory("Cemilan")).toBe("food");
+  });
+});
+
+describe("computeRefundSplit", () => {
+  const order = { subtotal: 100_000, service: 5_000, tax: 10_500, discount: 0, total: 115_500 };
+
+  it("memotong service & pajak proporsional", () => {
+    const split = computeRefundSplit(order, 25_000);
+    expect(split.next.subtotal).toBe(75_000);
+    expect(split.next.service).toBe(3_750);
+    expect(split.next.tax).toBe(7_875);
+    expect(split.refundAmount).toBe(28_875);
+    expect(split.next.total + split.refundAmount).toBe(order.total);
+  });
+
+  it("refund seluruh subtotal mengembalikan total penuh", () => {
+    const split = computeRefundSplit(order, 100_000);
+    expect(split.refundAmount).toBe(order.total);
+    expect(split.next.total).toBe(0);
+  });
+
+  it("menolak refund melebihi subtotal atau nol", () => {
+    expect(() => computeRefundSplit(order, 100_001)).toThrow();
+    expect(() => computeRefundSplit(order, 0)).toThrow();
   });
 });

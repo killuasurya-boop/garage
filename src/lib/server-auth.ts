@@ -6,21 +6,13 @@ import { outlets, staffProfiles } from "@/db/schema";
 import { fail } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/garage-data";
-import { canUseApi, type Permission } from "@/lib/role-access";
+import { canUseApi, MANAGEMENT_ROLES, type Permission } from "@/lib/role-access";
 import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
 
 export const ACTIVE_OUTLET_COOKIE = "garage_active_outlet";
 
-// Role yang boleh switch outlet via OutletSwitcher.
-// Staff role lain terkunci di outlet dari profile mereka.
-const OUTLET_SWITCH_ALLOWED_ROLES: ReadonlyArray<Role> = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-];
-
 export function canSwitchOutlet(role: Role): boolean {
-  return OUTLET_SWITCH_ALLOWED_ROLES.includes(role);
+  return MANAGEMENT_ROLES.includes(role);
 }
 
 export type GarageSession = {
@@ -32,6 +24,9 @@ export type GarageSession = {
     shiftLabel: string;
     deviceLabel: string;
     passwordResetRequired: boolean;
+    // Workstation Production Hub ("bar" | "dapur" | "all" | null). Lihat
+    // canOperateStation di garage-production-rules.
+    workstation?: string | null;
     outlet: {
       id: string;
       code: string;
@@ -51,7 +46,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
   if (!session?.user) {
     return {
       data: null,
-      response: fail(401, "UNAUTHENTICATED", "Please sign in to Garage OS."),
+      response: fail(401, "UNAUTHENTICATED", "Silakan login ke Garage OS."),
     };
   }
 
@@ -66,6 +61,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
       status: staffProfiles.status,
       lastLoginAt: staffProfiles.lastLoginAt,
       passwordResetRequired: staffProfiles.passwordResetRequired,
+      workstation: staffProfiles.workstation,
       outletId: outlets.id,
       outletCode: outlets.code,
       outletName: outlets.name,
@@ -79,7 +75,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
   if (!row) {
     return {
       data: null,
-      response: fail(403, "STAFF_PROFILE_MISSING", "No Garage staff profile found."),
+      response: fail(403, "STAFF_PROFILE_MISSING", "Profil staf Garage tidak ditemukan."),
     };
   }
 
@@ -106,7 +102,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
   if (allowedRoles?.length && !allowedRoles.includes(row.role as Role)) {
     return {
       data: null,
-      response: fail(403, "FORBIDDEN", "Your role cannot perform this action."),
+      response: fail(403, "FORBIDDEN", "Role Anda tidak punya akses untuk aksi ini."),
     };
   }
 
@@ -159,6 +155,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
         shiftLabel: row.shiftLabel,
         deviceLabel: row.deviceLabel,
         passwordResetRequired: row.passwordResetRequired,
+        workstation: row.workstation ?? null,
         outlet: activeOutlet,
       },
     } satisfies GarageSession,
@@ -175,7 +172,7 @@ export async function requirePermission(permission: Permission) {
   if (!canUseApi(session.data.profile.role, permission)) {
     return {
       data: null,
-      response: fail(403, "FORBIDDEN", "Your role cannot perform this action."),
+      response: fail(403, "FORBIDDEN", "Role Anda tidak punya akses untuk aksi ini."),
     };
   }
 
@@ -191,7 +188,7 @@ export async function requireAnyPermission(permissions: Permission[]) {
   if (!permissions.some((permission) => canUseApi(session.data.profile.role, permission))) {
     return {
       data: null,
-      response: fail(403, "FORBIDDEN", "Your role cannot perform this action."),
+      response: fail(403, "FORBIDDEN", "Role Anda tidak punya akses untuk aksi ini."),
     };
   }
 

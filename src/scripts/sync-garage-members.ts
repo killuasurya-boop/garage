@@ -70,7 +70,7 @@ function normalizePhone(phone: string) {
 }
 
 function emailFromMember(member: CsvMember) {
-  return `${member.code.toLowerCase()}@garage.local`;
+  return `${member.code.toLowerCase()}@garage.id`;
 }
 
 async function readMembers() {

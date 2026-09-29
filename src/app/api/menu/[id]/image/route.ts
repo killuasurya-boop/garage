@@ -53,7 +53,7 @@ async function convertMenuImage(input: Buffer) {
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }

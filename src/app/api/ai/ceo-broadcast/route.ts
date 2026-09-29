@@ -13,7 +13,7 @@ const ceoBroadcastSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const body = await readJson(request, ceoBroadcastSchema);

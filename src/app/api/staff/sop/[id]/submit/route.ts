@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db";
-import { sopLogs, staffProfiles } from "@/db/schema";
+import { sopChecklists, sopLogs, staffProfiles } from "@/db/schema";
+import { jakartaDateKey } from "@/lib/attendance";
 import { requireGarageSession } from "@/lib/server-auth";
 import { fail } from "@/lib/api-response";
 
@@ -26,7 +27,17 @@ export async function POST(
       return fail(400, "STAFF_PROFILE_NOT_FOUND", "Staff profile not found");
     }
 
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const [checklist] = await db
+      .select({ id: sopChecklists.id })
+      .from(sopChecklists)
+      .where(eq(sopChecklists.id, checklistId))
+      .limit(1);
+    if (!checklist) {
+      return fail(404, "SOP_NOT_FOUND", "Checklist SOP tidak ditemukan.");
+    }
+
+    // Tanggal WIB (bukan UTC): setor SOP jam 00.00-07.00 tidak boleh tercatat kemarin.
+    const today = jakartaDateKey();
 
     const existingLog = await db.select().from(sopLogs).where(
       and(

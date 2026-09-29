@@ -16,7 +16,7 @@ const lockSchema = z.object({
 });
 
 function canLockWarehouseReport(role: string) {
-  return role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 export async function GET(request: Request) {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
   if (!canLockWarehouseReport(session.data.profile.role)) {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Admin/Gudang yang bisa kunci laporan harian.");
+    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer/Kasir yang bisa kunci laporan harian.");
   }
 
   const body = await readJson(request, lockSchema);
@@ -64,8 +64,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
-  if (session.data.profile.role !== "Owner / CEO" && session.data.profile.role !== "Admin") {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Admin yang bisa reopen laporan harian.");
+  if (session.data.profile.role !== "Owner" && session.data.profile.role !== "Manajer") {
+    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer yang bisa reopen laporan harian.");
   }
 
   const body = await readJson(request, lockSchema);

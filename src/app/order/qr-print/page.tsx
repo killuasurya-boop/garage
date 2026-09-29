@@ -12,7 +12,7 @@ import {
 export const runtime = "nodejs";
 
 export const metadata: Metadata = {
-  title: "Print QR Meja | GARAGE POS",
+  title: "Manajemen QR Meja | GARAGE POS",
 };
 
 type QrPrintPageProps = {
@@ -24,15 +24,11 @@ type QrPrintPageProps = {
 
 function selectedTables(rawTables?: string | string[]) {
   const rawValue = Array.isArray(rawTables) ? rawTables.join(",") : rawTables;
-  if (!rawValue) {
-    return QR_TABLE_NUMBERS;
-  }
-
+  if (!rawValue) return QR_TABLE_NUMBERS;
   const tables = rawValue
     .split(",")
     .map(normalizeQrTableNumber)
     .filter((table): table is string => Boolean(table));
-
   return tables.length ? Array.from(new Set(tables)) : QR_TABLE_NUMBERS;
 }
 
@@ -47,11 +43,7 @@ function configuredBaseRaw() {
 function publicBaseInfo() {
   const raw = configuredBaseRaw();
   const baseUrl = normalizeGarageBaseUrl(raw || "http://127.0.0.1:3001");
-  return {
-    baseUrl,
-    configured: Boolean(raw),
-    warning: !raw || isLocalQrBaseUrl(baseUrl),
-  };
+  return { baseUrl, configured: Boolean(raw), warning: !raw || isLocalQrBaseUrl(baseUrl) };
 }
 
 function firstParam(value?: string | string[]) {
@@ -64,8 +56,11 @@ function shouldAutoPrint(value?: string | string[]) {
 }
 
 function qrCard(baseUrl: string, table: string) {
-  const url = garageQrOrderUrl(baseUrl, table);
-  return { table, url, imageUrl: `/api/customer/qr?table=${table}` };
+  return {
+    table,
+    url: garageQrOrderUrl(baseUrl, table),
+    cardUrl: `/api/customer/qr-card?table=${table}`,
+  };
 }
 
 export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
@@ -75,410 +70,251 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
   const autoPrint = shouldAutoPrint(params.print);
   const isPilot = tables.length < QR_TABLE_NUMBERS.length;
   const cards = tables.map((table) => qrCard(base.baseUrl, table));
+  const pdfHref = isPilot
+    ? `/api/customer/qr-cards/pdf?tables=${tables.join(",")}`
+    : `/api/customer/qr-cards/pdf`;
 
   return (
-    <main className="qr-print-page">
-      <header className="print-header">
-        <div className="print-title">
-          <div className="brand-row">
-            <img
-              src="/garage-brand/logo-website.png"
-              alt="GARAGE Coffee & Motor"
-              width={1024}
-              height={325}
-              className="brand-logo"
-            />
-            <span className="brand-divider" />
-            <span className="qr-fixed-badge">QR Tetap</span>
-          </div>
-          <h1>{isPilot ? `QR Pilot ${tables.length} Meja` : "QR Menu 50 Meja"}</h1>
-          <p className="base-url">Base URL: {base.baseUrl}</p>
-          <p className="base-url">Payload tetap: /order?table=XX&amp;source=qr_table</p>
-          <p className="base-url">Meja: {tables.join(", ")}</p>
+    <main className="qr-mgr">
+      <header className="mgr-header">
+        <div className="mgr-title">
+          <span className="mgr-eyebrow">GARAGE COFFEE &amp; MOTOR</span>
+          <h1>Manajemen QR Meja</h1>
+          <p className="mgr-sub">
+            {isPilot ? `QR Pilot ${tables.length} Meja` : "Semua 50 meja"} · Kartu siap
+            cetak (logo + nomor meja + QR).
+          </p>
         </div>
         <a className="back-link" href="/pos">
           Kembali ke POS
         </a>
       </header>
-      <div className="print-actions">
-        <button className="print-now" type="button" data-print-now>
-          Cetak sekarang
-        </button>
-      </div>
+
+      <section className="mgr-info">
+        <div className="info-cell">
+          <span className="info-label">Base URL (tujuan scan)</span>
+          <span className="info-value">{base.baseUrl}</span>
+        </div>
+        <div className="info-cell">
+          <span className="info-label">Meja</span>
+          <span className="info-value">{tables.length} kartu</span>
+        </div>
+        <div className="info-cell">
+          <span className="info-label">Payload</span>
+          <span className="info-value">/order?table=XX</span>
+        </div>
+      </section>
 
       {base.warning ? (
         <section className="base-warning">
-          Base URL QR masih fallback/local. Jangan print QR permanen sebelum
-          `GARAGE_PUBLIC_BASE_URL` dan `NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL` memakai URL LAN/outlet tetap.
+          ⚠ Base URL QR masih <b>local/fallback</b> ({base.baseUrl}). QR ini TIDAK bisa
+          discan HP lain. Set <code>GARAGE_PUBLIC_BASE_URL</code> &amp;{" "}
+          <code>NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL</code> ke IP LAN tetap (mis.
+          http://192.168.100.33:3001), rebuild, baru cetak QR permanen.
         </section>
       ) : null}
 
-      <section className="qr-grid" aria-label="QR menu per meja">
+      <div className="mgr-actions">
+        <a className="btn btn-pdf" href={pdfHref} data-pdf>
+          ⬇ Unduh PDF Siap Cetak
+        </a>
+        <button className="btn btn-png" type="button" data-dl-all>
+          ⬇ Unduh Semua PNG
+        </button>
+        <button className="btn btn-print" type="button" data-print-now>
+          🖨 Cetak Langsung
+        </button>
+        <span className="actions-hint">
+          PDF = 1 file untuk percetakan · PNG = gambar kartu per meja (HD)
+        </span>
+      </div>
+
+      <section className="card-grid" aria-label="Kartu QR per meja">
         {cards.map((card) => (
-          <article
-            className="qr-card"
-            key={card.table}
-            aria-label={`QR menu Meja ${card.table}`}
-          >
-            <div className="qr-card-top">
-              <img
-                src="/garage-brand/logo-website.png"
-                alt="GARAGE"
-                width={1024}
-                height={325}
-                className="card-logo"
-              />
-              <span>QR Tetap</span>
-            </div>
-            <div className="table-band">
-              <span>Meja</span>
-              <strong>{card.table}</strong>
-            </div>
-            <p className="scan-label">Scan untuk order</p>
-            <div className="qr-frame">
-              <img
-                src={card.imageUrl}
-                alt={`QR Meja ${card.table}`}
-                width={260}
-                height={260}
-                className="qr-image"
-              />
-            </div>
-            <p className="qr-url">{card.url}</p>
-            <div className="card-footer">
-              <span>GARAGE Coffee & Motor</span>
-              <strong>{card.table}</strong>
-            </div>
+          <article className="card-item" key={card.table}>
+            <img
+              className="card-svg"
+              src={card.cardUrl}
+              alt={`Kartu QR Meja ${card.table}`}
+              data-card
+              data-table={card.table}
+              data-src={card.cardUrl}
+              loading="lazy"
+            />
+            <button
+              className="btn-dl-one"
+              type="button"
+              data-dl-png
+              data-table={card.table}
+              data-src={card.cardUrl}
+            >
+              ⬇ Unduh PNG Meja {card.table}
+            </button>
           </article>
         ))}
       </section>
 
       <style>{`
-        .qr-print-page {
+        .qr-mgr {
           min-height: 100vh;
-          background:
-            radial-gradient(circle at 12% 0%, rgba(209, 26, 42, 0.12), transparent 32%),
-            linear-gradient(180deg, #f7f3ec, #ece4d8);
+          background: linear-gradient(180deg, #f7f3ec, #ece4d8);
           color: #171412;
-          padding: 24px;
           font-family: Arial, Helvetica, sans-serif;
+          padding: 24px;
         }
-
-        .print-header {
+        .mgr-header {
           align-items: center;
           display: flex;
           gap: 16px;
           justify-content: space-between;
-          margin: 0 auto 18px;
+          margin: 0 auto 14px;
           max-width: 1180px;
         }
-
-        .print-title {
-          min-width: 0;
-        }
-
-        .brand-row {
-          align-items: center;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .brand-logo {
-          display: block;
-          height: auto;
-          width: 196px;
-        }
-
-        .brand-divider {
-          background: #d11a2a;
-          display: block;
-          height: 24px;
-          width: 2px;
-        }
-
-        .qr-fixed-badge {
-          border: 1px solid #d11a2a;
+        .mgr-eyebrow {
           color: #d11a2a;
           font-size: 11px;
           font-weight: 900;
-          letter-spacing: 0.18em;
-          padding: 7px 9px;
-          text-transform: uppercase;
+          letter-spacing: 0.22em;
         }
-
-        h1 {
-          font-size: clamp(28px, 4vw, 52px);
+        .mgr-title h1 {
+          font-size: clamp(24px, 3.4vw, 40px);
           letter-spacing: -0.02em;
-          line-height: 0.95;
-          margin: 0;
+          margin: 4px 0 4px;
           text-transform: uppercase;
         }
-
-        .base-url {
-          color: #5f554b;
-          font-size: 13px;
-          font-weight: 700;
-          margin: 8px 0 0;
-          overflow-wrap: anywhere;
-        }
-
-        .base-warning {
-          background: #fff4d6;
-          border: 1px solid #f5a742;
-          color: #5c3d00;
-          font-size: 13px;
-          font-weight: 800;
-          line-height: 1.5;
-          margin: 0 auto 18px;
-          max-width: 1180px;
-          padding: 12px 14px;
-        }
-
+        .mgr-sub { color: #5f554b; font-size: 13px; font-weight: 700; margin: 0; }
         .back-link {
-          align-items: center;
-          background: #171412;
-          color: #ffffff;
-          display: inline-flex;
-          font-size: 13px;
-          font-weight: 800;
-          min-height: 42px;
-          padding: 0 14px;
-          text-decoration: none;
-          text-transform: uppercase;
+          background: #171412; color: #fff; font-size: 13px; font-weight: 800;
+          min-height: 42px; padding: 12px 14px; text-decoration: none; text-transform: uppercase;
           white-space: nowrap;
         }
-
-        .print-actions {
-          display: flex;
-          justify-content: flex-end;
-          margin: -8px auto 18px;
-          max-width: 1180px;
+        .mgr-info {
+          display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          margin: 0 auto 12px; max-width: 1180px;
         }
-
-        .print-now {
-          background: #d11a2a;
-          border: 0;
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 900;
-          min-height: 42px;
-          padding: 0 16px;
-          text-transform: uppercase;
+        .info-cell {
+          background: #fff; border: 1px solid #e0d8cc; border-radius: 8px;
+          display: flex; flex-direction: column; gap: 3px; padding: 10px 12px;
         }
-
-        .qr-grid {
-          display: grid;
-          gap: 14px;
-          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-          margin: 0 auto;
-          max-width: 1180px;
+        .info-label { color: #9a9086; font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+        .info-value { color: #171412; font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+        .base-warning {
+          background: #fff4d6; border: 1px solid #f5a742; border-radius: 8px; color: #5c3d00;
+          font-size: 13px; line-height: 1.5; margin: 0 auto 14px; max-width: 1180px; padding: 12px 14px;
         }
-
-        .qr-card {
-          background: #ffffff;
-          border: 2px solid #151515;
-          box-shadow: 0 18px 36px rgba(0, 0, 0, 0.12);
-          display: flex;
-          flex-direction: column;
-          min-height: 330px;
-          padding: 12px;
-          position: relative;
-          text-align: center;
+        .base-warning code { background: #00000010; padding: 1px 4px; }
+        .mgr-actions {
+          align-items: center; display: flex; flex-wrap: wrap; gap: 10px;
+          margin: 0 auto 18px; max-width: 1180px;
         }
-
-        .qr-card::before {
-          background: linear-gradient(90deg, #d11a2a, #f5a742, #111116);
-          content: "";
-          height: 5px;
-          inset: 0 0 auto;
-          position: absolute;
+        .btn {
+          border: 0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 900;
+          min-height: 46px; padding: 12px 18px; text-decoration: none; text-transform: uppercase;
+          display: inline-flex; align-items: center; gap: 6px;
         }
-
-        .qr-card-top {
-          align-items: center;
-          display: flex;
-          gap: 8px;
-          justify-content: space-between;
-          margin-top: 7px;
-          min-height: 34px;
+        .btn-pdf { background: #d11a2a; color: #fff; }
+        .btn-png { background: #171412; color: #fff; }
+        .btn-print { background: #fff; border: 1px solid #171412; color: #171412; }
+        .btn:hover { filter: brightness(1.08); }
+        .actions-hint { color: #7a7065; font-size: 12px; font-weight: 700; }
+        .card-grid {
+          display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+          margin: 0 auto; max-width: 1180px;
         }
-
-        .card-logo {
-          display: block;
-          height: auto;
-          width: 108px;
+        .card-item { display: flex; flex-direction: column; gap: 8px; }
+        .card-svg {
+          background: #fff; border: 1px solid #e0d8cc; border-radius: 10px;
+          box-shadow: 0 14px 30px rgba(0,0,0,0.10); display: block; height: auto; width: 100%;
         }
-
-        .qr-card-top span,
-        .card-footer span {
-          color: #5f554b;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
+        .btn-dl-one {
+          background: #111116; border: 1px solid #d11a2a; border-radius: 6px; color: #ffd7db;
+          cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.04em;
+          padding: 9px 8px; text-transform: uppercase;
         }
-
-        .table-band {
-          align-items: end;
-          background: #111116;
-          color: #ffffff;
-          display: grid;
-          grid-template-columns: 1fr auto;
-          margin-top: 12px;
-          padding: 10px 12px;
-          text-align: left;
-        }
-
-        .table-band span {
-          color: #b8b8bf;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-        }
-
-        .table-band strong {
-          color: #ffffff;
-          font-size: 42px;
-          line-height: 0.85;
-        }
-
-        .scan-label {
-          color: #d11a2a;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: 0.2em;
-          margin: 12px 0 10px;
-          text-transform: uppercase;
-        }
-
-        .qr-frame {
-          align-items: center;
-          align-self: center;
-          background: #ffffff;
-          border: 1px solid #d8d0c4;
-          display: flex;
-          justify-content: center;
-          padding: 8px;
-        }
-
-        .qr-image {
-          display: block;
-          height: 168px;
-          width: 168px;
-        }
-
-        .qr-url {
-          color: #5f554b;
-          font-size: 9px;
-          font-weight: 700;
-          line-height: 1.25;
-          margin: 10px 0 0;
-          overflow-wrap: anywhere;
-        }
-
-        .card-footer {
-          align-items: center;
-          border-top: 1px solid #d8d0c4;
-          display: flex;
-          justify-content: space-between;
-          margin-top: auto;
-          padding-top: 10px;
-        }
-
-        .card-footer strong {
-          color: #d11a2a;
-          font-size: 18px;
-        }
+        .btn-dl-one:hover { background: #1c1c22; }
 
         @media print {
-          @page {
-            margin: 9mm;
+          @page { margin: 8mm; }
+          .qr-mgr { background: #fff; padding: 0; }
+          .mgr-header, .mgr-info, .base-warning, .mgr-actions, .btn-dl-one, .back-link {
+            display: none !important;
           }
-
-          .qr-print-page {
-            background: #ffffff;
-            padding: 0;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-
-          .print-header {
-            margin-bottom: 7mm;
-            max-width: none;
-          }
-
-          .brand-logo {
-            width: 42mm;
-          }
-
-          h1 {
-            font-size: 24pt;
-          }
-
-          .base-warning {
-            max-width: none;
-          }
-
-          .back-link {
-            display: none;
-          }
-
-          .print-actions {
-            display: none;
-          }
-
-          .qr-grid {
-            gap: 4mm;
-            grid-template-columns: repeat(4, 1fr);
-            max-width: none;
-          }
-
-          .qr-card {
-            break-inside: avoid;
-            box-shadow: none;
-            min-height: 68mm;
-            padding: 3.5mm;
-          }
-
-          .card-logo {
-            width: 29mm;
-          }
-
-          .table-band {
-            margin-top: 3mm;
-            padding: 2.5mm 3mm;
-          }
-
-          .table-band strong {
-            font-size: 28pt;
-          }
-
-          .scan-label {
-            font-size: 8pt;
-            margin: 3mm 0 2mm;
-          }
-
-          .qr-image {
-            height: 36mm;
-            width: 36mm;
-          }
-
-          .qr-url {
-            font-size: 5.8pt;
-          }
+          .card-grid { gap: 6mm; grid-template-columns: repeat(3, 1fr); max-width: none; }
+          .card-item { gap: 0; }
+          .card-svg { border: none; box-shadow: none; break-inside: avoid; }
         }
       `}</style>
+
       <script
         dangerouslySetInnerHTML={{
           __html: `
             (() => {
               const printNow = () => window.print();
               document.querySelector("[data-print-now]")?.addEventListener("click", printNow);
-              ${autoPrint ? "window.setTimeout(printNow, 350);" : ""}
+
+              async function cardToPng(svgUrl, table) {
+                const res = await fetch(svgUrl, { cache: "no-store" });
+                if (!res.ok) throw new Error("gagal ambil kartu");
+                const svgText = await res.text();
+                const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+                const svgObjUrl = URL.createObjectURL(svgBlob);
+                try {
+                  const img = new Image();
+                  img.decoding = "sync";
+                  await new Promise(function (resolve, reject) {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = svgObjUrl;
+                  });
+                  const scale = 2.5; // 540x840 -> 1350x2100 (tajam untuk cetak)
+                  const canvas = document.createElement("canvas");
+                  canvas.width = 540 * scale;
+                  canvas.height = 840 * scale;
+                  const ctx = canvas.getContext("2d");
+                  ctx.fillStyle = "#ffffff";
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  const pngBlob = await new Promise(function (r) { canvas.toBlob(r, "image/png"); });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(pngBlob);
+                  a.download = "GARAGE-QR-Meja-" + table + ".png";
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+                } finally {
+                  URL.revokeObjectURL(svgObjUrl);
+                }
+              }
+
+              document.querySelectorAll("[data-dl-png]").forEach(function (b) {
+                b.addEventListener("click", async function () {
+                  b.disabled = true;
+                  const label = b.textContent;
+                  b.textContent = "Menyiapkan...";
+                  try { await cardToPng(b.getAttribute("data-src"), b.getAttribute("data-table")); }
+                  catch (e) { alert("Gagal unduh PNG meja " + b.getAttribute("data-table")); }
+                  b.textContent = label; b.disabled = false;
+                });
+              });
+
+              const all = document.querySelector("[data-dl-all]");
+              if (all) {
+                all.addEventListener("click", async function () {
+                  const cards = Array.prototype.slice.call(document.querySelectorAll("[data-card]"));
+                  all.disabled = true;
+                  const label = all.textContent;
+                  for (let i = 0; i < cards.length; i++) {
+                    all.textContent = "Mengunduh " + (i + 1) + "/" + cards.length + "...";
+                    try { await cardToPng(cards[i].getAttribute("data-src"), cards[i].getAttribute("data-table")); }
+                    catch (e) { /* lanjut meja berikutnya */ }
+                    await new Promise(function (r) { setTimeout(r, 500); });
+                  }
+                  all.textContent = label; all.disabled = false;
+                });
+              }
+
+              ${autoPrint ? "window.setTimeout(printNow, 500);" : ""}
             })();
           `,
         }}

@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 const paySchema = z.object({
   paymentRef: z.string().trim().max(120).optional(),
   amount: z.number().int().positive().optional(),
+  paymentMethod: z.string().trim().min(2).max(60).optional(),
 });
 
 export async function POST(
@@ -26,10 +27,13 @@ export async function POST(
   }
 
   const { id } = await context.params;
-  const invoice = await markSupplierInvoicePaid({ id, ...body.data }, session.data);
-  if (!invoice) {
-    return fail(404, "NOT_FOUND", "Supplier invoice tidak ditemukan.");
+  try {
+    const invoice = await markSupplierInvoicePaid({ id, ...body.data }, session.data);
+    if (!invoice) {
+      return fail(404, "NOT_FOUND", "Supplier invoice tidak ditemukan.");
+    }
+    return ok(invoice);
+  } catch (error) {
+    return fail(409, "INVOICE_PAYMENT_REJECTED", error instanceof Error ? error.message : "Pembayaran ditolak.");
   }
-
-  return ok(invoice);
 }

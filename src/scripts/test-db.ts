@@ -13,7 +13,7 @@ async function main() {
   }
 
   try {
-    const result = await db.execute(`SELECT 1 FROM ai_provider_configs LIMIT 1`);
+    await db.execute(`SELECT 1 FROM ai_provider_configs LIMIT 1`);
     console.log("SUKSES: Tabel ai_provider_configs terbaca.");
   } catch(e) {
     console.error("ERROR 2 (ai_provider_configs):", e);

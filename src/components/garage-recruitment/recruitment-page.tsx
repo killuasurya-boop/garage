@@ -13,6 +13,7 @@ import {
   FileText,
   ImageIcon,
   Loader2,
+  MapPin,
   MessageCircle,
   Send,
   ShieldCheck,
@@ -22,6 +23,7 @@ import {
   User,
 } from "lucide-react";
 
+import { GARAGE_LOCATION } from "@/lib/garage-location";
 import type { RecruitmentPosition } from "@/lib/garage-recruitment-data";
 import { ApplicantTracker } from "./applicant-tracker";
 
@@ -622,6 +624,18 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                     Cek Status
                   </button>
                 </div>
+                <a
+                  href={GARAGE_LOCATION.directionsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 inline-flex max-w-full items-start gap-2 text-sm text-zinc-300 transition hover:text-white"
+                >
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-[#d11a2a]" />
+                  <span>
+                    Lokasi kerja: Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi{" "}
+                    <span className="font-bold text-[#f59e0b]">· Lihat rute</span>
+                  </span>
+                </a>
               </div>
 
               <div className="self-start rounded-2xl border border-zinc-800 bg-zinc-950/55 p-4 shadow-2xl shadow-black/20">

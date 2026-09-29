@@ -30,12 +30,7 @@ import { canAccessModule } from "@/lib/role-access";
 import { voice } from "@/lib/garage-voice";
 
 const POLL_MS = 45_000;
-const AUTOPILOT_TRIGGER_ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-];
+const AUTOPILOT_TRIGGER_ROLES: Role[] = ["Owner", "Manajer"];
 const AUTOPILOT_STALE_MS = 15 * 60 * 1000;
 const AUTOPILOT_TRIGGER_GUARD_KEY = "garage:ai:autopilot-trigger-at";
 

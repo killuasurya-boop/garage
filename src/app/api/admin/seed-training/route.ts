@@ -11,7 +11,7 @@ import {
 import { requireGarageSession } from "@/lib/server-auth";
 
 export async function GET() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
   }
@@ -68,7 +68,7 @@ export async function GET() {
       slug: "tutorial-kasir",
       title: "Modul Kasir & Front of House",
       category: "Operations",
-      targetRoles: ["Kasir", "Waiter", "Supervisor Shift"],
+      targetRoles: ["Kasir", "Waiter", "Manajer"],
       summary: "Panduan lengkap penggunaan POS, penerimaan pesanan, dan penyelesaian kas.",
       sortOrder: 2,
       status: "active"
@@ -100,7 +100,7 @@ export async function GET() {
       slug: "tutorial-kitchen",
       title: "Modul Dapur & Bar (BOH)",
       category: "Operations",
-      targetRoles: ["Koki", "Barista", "Asisten Koki", "Kitchen / Barista"],
+      targetRoles: ["Kasir"],
       summary: "Panduan lengkap KDS, manajemen resep, dan order prep.",
       sortOrder: 3,
       status: "active"
@@ -124,8 +124,8 @@ export async function GET() {
     const sopSeed = [
       { title: "Opening Shift (Kasir)", description: "Persiapan area kasir sebelum toko buka.", roleTarget: "Kasir", shiftTarget: "morning" },
       { title: "Closing Shift (Kasir)", description: "Pembersihan area kasir dan perhitungan uang.", roleTarget: "Kasir", shiftTarget: "evening" },
-      { title: "Opening Shift (Kitchen/Bar)", description: "Persiapan bahan baku dan kalibrasi mesin.", roleTarget: "Kitchen / Barista", shiftTarget: "morning" },
-      { title: "Stock Opname Harian", description: "Pengecekan stok bahan kritis.", roleTarget: "Gudang", shiftTarget: "evening" }
+      { title: "Opening Shift (Kitchen/Bar)", description: "Persiapan bahan baku dan kalibrasi mesin.", roleTarget: "Kasir", shiftTarget: "morning" },
+      { title: "Stock Opname Harian", description: "Pengecekan stok bahan kritis.", roleTarget: "Kasir", shiftTarget: "evening" }
     ];
 
     for (const sop of sopSeed) {

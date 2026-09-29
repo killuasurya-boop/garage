@@ -131,6 +131,15 @@ export function WmsShell({
     }
   }
 
+  // HP (< 768px): sidebar 240px menutupi isi halaman → otomatis jadi rel ikon
+  // saat dibuka & setiap pindah halaman (tombol di header tetap bisa membuka).
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sinkron lebar layar setelah hidrasi
+      setCollapsed(true);
+    }
+  }, [pathname]);
+
   useEffect(() => {
     let alive = true;
     void garageApi.get<WmsNotification[]>("/api/wms/notifications").then((d) => {

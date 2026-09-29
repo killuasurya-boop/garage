@@ -5,14 +5,14 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 function canRejectTransfer(role: string) {
-  return role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 export async function PATCH(_request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
   if (!canRejectTransfer(session.data.profile.role)) {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Admin/Gudang yang bisa reject request Gudang.");
+    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer/Kasir yang bisa reject request Gudang.");
   }
   const { id } = await context.params;
   try {

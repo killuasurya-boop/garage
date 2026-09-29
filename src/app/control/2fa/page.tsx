@@ -26,8 +26,8 @@ export default async function TwoFactorPage() {
   const policy = await loadSettingsByKeys(["securityRequire2faForOwner"]);
   const policyRequires2fa = Boolean(policy["securityRequire2faForOwner"]);
   const userIsPrivileged =
-    session.data.profile.role === "Owner / CEO" ||
-    session.data.profile.role === "Admin";
+    session.data.profile.role === "Owner" ||
+    session.data.profile.role === "Manajer";
 
   return (
     <AdminShell currentPath="/control/2fa">

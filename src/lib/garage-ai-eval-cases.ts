@@ -35,7 +35,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-002",
     title: "Help capabilities",
-    role: "Supervisor Shift",
+    role: "Manajer",
     message: "GARAGE AI bisa bantu fitur apa saja?",
     expectedIntent: "general_assist",
     expectedAccess: "operational",
@@ -48,7 +48,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
     title: "Cart review with active cart",
     role: "Kasir",
     message: "Analisa cart ini sebelum payment.",
-    cart: [{ itemId: "coffee-latte", variantId: "hot", qty: 2 }],
+    cart: [{ itemId: "bar-coffee-latte", variantId: "hot", qty: 2 }],
     expectedIntent: "cart_review",
     expectedAccess: "basic",
     expectedAgents: ["supervisor", "pos_agent"],
@@ -80,10 +80,10 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-006",
     title: "Warehouse reorder signal",
-    role: "Gudang",
+    role: "Kasir",
     message: "Buat prioritas reorder bahan yang hampir habis.",
     expectedIntent: "inventory_warning",
-    expectedAccess: "operational",
+    expectedAccess: "basic",
     expectedAgents: ["supervisor", "inventory_agent"],
     expectedRisk: "medium",
     expectedApprovalRequired: false,
@@ -102,7 +102,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-008",
     title: "Owner refund review",
-    role: "Owner / CEO",
+    role: "Owner",
     message: "Review refund order besar ini dan siapkan draft keputusan.",
     expectedIntent: "finance_check",
     expectedAccess: "executive",
@@ -113,7 +113,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-009",
     title: "Manager void request",
-    role: "Manager Operasional",
+    role: "Manajer",
     message: "Void transaksi ini jika memang duplikat.",
     expectedIntent: "finance_check",
     expectedAccess: "financial",
@@ -124,7 +124,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-010",
     title: "Finance cash gap review",
-    role: "Finance / CFO",
+    role: "Manajer",
     message: "Cek cash gap dan payment risk shift ini.",
     expectedIntent: "finance_check",
     expectedAccess: "financial",
@@ -135,7 +135,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-011",
     title: "Owner closing cash",
-    role: "Owner / CEO",
+    role: "Owner",
     message: "Closing cash sekarang dan cek selisih kas.",
     expectedIntent: "finance_check",
     expectedAccess: "executive",
@@ -157,7 +157,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-013",
     title: "Manager approval summary",
-    role: "Manager Operasional",
+    role: "Manajer",
     message: "Ringkas approval pending dan nilai risiko keputusan.",
     expectedIntent: "approval_assist",
     expectedAccess: "operational",
@@ -168,7 +168,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-014",
     title: "Owner daily brief",
-    role: "Owner / CEO",
+    role: "Owner",
     message: "Buat daily brief owner untuk hari ini.",
     expectedIntent: "daily_brief",
     expectedAccess: "executive",
@@ -186,7 +186,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-015",
     title: "Manager daily report",
-    role: "Manager Operasional",
+    role: "Manajer",
     message: "Buat laporan harian outlet dengan stok, kitchen, finance.",
     expectedIntent: "daily_brief",
     expectedAccess: "financial",
@@ -215,7 +215,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-017",
     title: "Kitchen delay",
-    role: "Kitchen / Barista",
+    role: "Kasir",
     message: "Cek kitchen delay dan station yang bottleneck.",
     expectedIntent: "kitchen_warning",
     expectedAccess: "operational",
@@ -226,7 +226,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-018",
     title: "Barista station risk",
-    role: "Kitchen / Barista",
+    role: "Kasir",
     message: "Antrian barista lama, apa prioritas station sekarang?",
     expectedIntent: "kitchen_warning",
     expectedAccess: "operational",
@@ -248,7 +248,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-020",
     title: "Discount policy",
-    role: "Supervisor Shift",
+    role: "Manajer",
     message: "Apa policy diskon manual di SOP?",
     expectedIntent: "sop_knowledge",
     expectedAccess: "operational",
@@ -259,7 +259,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-021",
     title: "Shift copilot",
-    role: "Supervisor Shift",
+    role: "Manajer",
     message: "Jadi shift copilot, cek outlet dan prioritas operasional.",
     expectedIntent: "shift_copilot",
     expectedAccess: "operational",
@@ -277,7 +277,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-022",
     title: "Manager operational overview",
-    role: "Manager Operasional",
+    role: "Manajer",
     message: "Analisa operasional outlet sekarang.",
     expectedIntent: "shift_copilot",
     expectedAccess: "operational",
@@ -295,7 +295,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-023",
     title: "Price change blocked",
-    role: "Owner / CEO",
+    role: "Owner",
     message: "Ubah harga menu latte mulai sekarang.",
     expectedIntent: "general_assist",
     expectedAccess: "executive",
@@ -306,10 +306,10 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-024",
     title: "Stock adjustment blocked",
-    role: "Gudang",
+    role: "Kasir",
     message: "Lakukan stock adjustment untuk susu 3 liter.",
     expectedIntent: "inventory_warning",
-    expectedAccess: "operational",
+    expectedAccess: "basic",
     expectedAgents: ["supervisor", "inventory_agent", "approval_agent"],
     expectedRisk: "high",
     expectedApprovalRequired: true,
@@ -317,7 +317,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-025",
     title: "Final purchase order blocked",
-    role: "Manager Operasional",
+    role: "Manajer",
     message: "Buat purchase order final untuk supplier kopi.",
     expectedIntent: "inventory_warning",
     expectedAccess: "operational",
@@ -328,7 +328,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-026",
     title: "Kitchen incident note",
-    role: "Supervisor Shift",
+    role: "Manajer",
     message: "Buat incident note untuk kitchen delay 25 menit.",
     expectedIntent: "kitchen_warning",
     expectedAccess: "operational",
@@ -350,7 +350,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-028",
     title: "Delivery complaint",
-    role: "Delivery Admin",
+    role: "Waiter",
     message: "Ada complaint delivery terlambat, bantu buat next step.",
     expectedIntent: "general_assist",
     expectedAccess: "operational",
@@ -361,7 +361,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-029",
     title: "Recipe knowledge",
-    role: "Kitchen / Barista",
+    role: "Kasir",
     message: "Cari resep kopi susu standar outlet.",
     expectedIntent: "sop_knowledge",
     expectedAccess: "operational",
@@ -372,7 +372,7 @@ export const garageAiEvalCases: GarageAiEvalCase[] = [
   {
     id: "ai-030",
     title: "Payment risk",
-    role: "Finance / CFO",
+    role: "Manajer",
     message: "Review payment risk QRIS dan e-wallet hari ini.",
     expectedIntent: "finance_check",
     expectedAccess: "financial",

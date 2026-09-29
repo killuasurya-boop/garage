@@ -47,6 +47,8 @@ import {
   formatRupiah,
   hasAwaitingPaymentBill,
   hasOpenBill,
+  isCleaningTable,
+  isDirtyTable,
   isPaidOnly,
   isWaiterOperator,
   statusBadge,
@@ -56,6 +58,7 @@ import {
   waitStripe,
   type WaiterBoardTab,
 } from "./waiter-view-helpers";
+import { productionIdentityName, productionStationLabel } from "@/lib/garage-production-rules";
 import { SettingsDrawer } from "./waiter-view-settings-drawer";
 import { TableDetailDrawer } from "./waiter-view-table-detail-drawer";
 import { WaiterOfflineBanner } from "./waiter-offline-banner";
@@ -94,6 +97,10 @@ type ServiceRequest = {
   createdAt: string;
 };
 
+function orderGroupKey(t: KitchenOrder) {
+  return t.orderId ?? t.orderNo ?? `${t.table}::${t.addonSequence ?? 1}`;
+}
+
 function serviceRequestLabel(type: string) {
   if (type === "bill") return "Minta Bill";
   if (type === "water") return "Air / Tisu";
@@ -103,6 +110,7 @@ function serviceRequestLabel(type: string) {
 
 export function WaiterView({ me }: Props) {
   const toast = useGarageToast();
+  const myUserId = me.user.id;
   const [tickets, setTickets] = useState<KitchenOrder[]>([]);
   const [tables, setTables] = useState<TableLiveRow[]>([]);
   const [serviceReqs, setServiceReqs] = useState<ServiceRequest[]>([]);
@@ -126,7 +134,7 @@ export function WaiterView({ me }: Props) {
   const [prefs, setPrefs] = useState<WaiterNotifyPrefs>(() => loadNotifyPrefs());
   const [clock, setClock] = useState(() => new Date());
   const [recentlyCleaned, setRecentlyCleaned] = useState<Set<string>>(new Set());
-  // Track ticket id -> previous status, dipakai utk deteksi transisi ke "ready".
+  // Track ticket id -> signature status|handover|claim, deteksi panggilan helper.
   const prevStatusRef = useRef<Map<string, string>>(new Map());
   // Skip notif pertama kali load (waiter baru buka tab, semua ticket "baru" buat dia).
   const hasInitialLoadRef = useRef(false);
@@ -170,31 +178,35 @@ export function WaiterView({ me }: Props) {
       }
       prevServiceReqIdsRef.current = nextReqIds;
 
-      // Deteksi transisi ke "ready" sejak poll terakhir.
+      // Deteksi panggilan helper Bar/Dapur sejak poll terakhir: tiket yang baru
+      // dipanggil ke SAYA atau ke "siapa saja".
       const next = new Map<string, string>();
-      const newlyReady: KitchenOrder[] = [];
+      const newlyCalled: KitchenOrder[] = [];
       for (const t of tk) {
+        const signature = `${t.status}|${t.handoverAt ?? ""}|${t.claimedBy ?? ""}`;
         const prev = prevStatusRef.current.get(t.id);
-        if (hasInitialLoadRef.current && prev && prev !== "ready" && t.status === "ready") {
-          newlyReady.push(t);
+        const calledForMe =
+          t.status === "ready" && Boolean(t.handoverAt) && (!t.claimedBy || t.claimedBy === myUserId);
+        if (hasInitialLoadRef.current && calledForMe && prev !== signature) {
+          newlyCalled.push(t);
         }
-        next.set(t.id, t.status);
+        next.set(t.id, signature);
       }
       prevStatusRef.current = next;
       hasInitialLoadRef.current = true;
 
-      for (const t of newlyReady) {
-        const title = `Order siap antar - ${t.table}`;
-        const body = `${t.items.length} item - ${t.station}`;
+      for (const t of newlyCalled) {
+        const title = `AMBIL DI ${productionStationLabel(t.station)} · ${productionIdentityName(t.customerName, t.queueNo)} · ${t.table}`;
+        const body = `${t.claimedBy ? "Dipanggil untuk Anda" : "Siapa saja"} · #${t.orderNo ?? t.id} · ${t.items.length} item`;
         notifyOrderReady(prefsRef.current, title, body);
-        toast.push({ tone: "success", title, body, ttl: 5200 });
+        toast.push({ tone: "success", title, body, ttl: 6000 });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal sinkron data waiter.");
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [toast]);
+  }, [toast, myUserId]);
 
   const resolveRequest = useCallback(
     async (id: string) => {
@@ -410,6 +422,40 @@ export function WaiterView({ me }: Props) {
     [loadAll, toast],
   );
 
+  // Siklus meja: Tamu pergi (→ DIRTY), Mulai bersih (→ CLEANING), reservasi.
+  // CLEANING → AVAILABLE tetap lewat handleClean (/clean).
+  const handleLifecycle = useCallback(
+    async (
+      row: TableLiveRow,
+      action: "leave" | "start_cleaning" | "reserve" | "unreserve",
+    ) => {
+      setActingTable(row.tableNumber);
+      try {
+        await fetchJson(`/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/lifecycle`, {
+          method: "POST",
+          body: JSON.stringify({ action }),
+        });
+        const title = {
+          leave: `Meja ${row.tableLabel} DIRTY`,
+          start_cleaning: `Meja ${row.tableLabel} CLEANING`,
+          reserve: `Meja ${row.tableLabel} RESERVED`,
+          unreserve: `Meja ${row.tableLabel} AVAILABLE`,
+        }[action];
+        toast.push({ tone: "success", title, ttl: 2200 });
+        await loadAll(true);
+      } catch (err) {
+        toast.push({
+          tone: "error",
+          title: "Status meja gagal diubah",
+          body: err instanceof Error ? err.message : "Coba lagi.",
+        });
+      } finally {
+        setActingTable(null);
+      }
+    },
+    [loadAll, toast],
+  );
+
   // Skenario "teman datang setelah meja bayar": tutup sesi lama (sudah lunas)
   // dan langsung tandai meja siap pakai tanpa harus jadi NEEDS CLEAR dulu.
   // Backend /clean sudah mengizinkan transisi dari status paid ke empty.
@@ -481,19 +527,31 @@ export function WaiterView({ me }: Props) {
     [loadAll, toast],
   );
 
-  const ready = useMemo(() => tickets.filter((t) => t.status === "ready"), [tickets]);
-  // Kelengkapan per order (table + addonSequence): satu order bisa pecah ke
-  // Bar + Dapur. Waiter perlu tahu apakah SEMUA station order itu sudah ready
-  // supaya tidak antar makanan duluan saat minuman masih dibuat.
+  // Urutan papan Siap: dipanggil untuk SAYA → dipanggil siapa saja → dipanggil
+  // waiter lain → masih dicek helper Bar/Dapur.
+  const ready = useMemo(() => {
+    const rank = (t: KitchenOrder) =>
+      !t.handoverAt ? 3 : t.claimedBy === myUserId ? 0 : !t.claimedBy ? 1 : 2;
+    return tickets
+      .filter((t) => t.status === "ready")
+      .sort((a, b) => rank(a) - rank(b) || (a.handoverAt ?? "").localeCompare(b.handoverAt ?? ""));
+  }, [tickets, myUserId]);
+  // Yang benar-benar harus diantar waiter ini sekarang.
+  const toDeliver = useMemo(
+    () => ready.filter((t) => t.handoverAt && (!t.claimedBy || t.claimedBy === myUserId)),
+    [ready, myUserId],
+  );
+  // Kelengkapan per ORDER (Order ID): satu order bisa pecah ke Bar + Dapur.
+  // Satu meja bisa punya beberapa customer/order — jangan kelompokkan per meja.
   const orderCompletion = useMemo(() => {
     const groups = new Map<string, { pending: string[]; total: number }>();
     for (const t of tickets) {
       if (!["queue", "cooking", "ready"].includes(t.status)) continue;
-      const key = `${t.table}::${t.addonSequence ?? 1}`;
+      const key = orderGroupKey(t);
       const group = groups.get(key) ?? { pending: [], total: 0 };
       group.total += 1;
       if (t.status !== "ready") {
-        const label = t.station === "Food" ? "Dapur" : t.station;
+        const label = productionStationLabel(t.station);
         if (!group.pending.includes(label)) group.pending.push(label);
       }
       groups.set(key, group);
@@ -658,14 +716,16 @@ export function WaiterView({ me }: Props) {
   return (
     <div className="min-h-screen space-y-5 bg-[#080704] px-1 pb-28 pt-2 text-white sm:px-0">
       <WaiterOfflineBanner />
-      <div className="sticky top-2 z-20 rounded-lg border border-[#d4af37]/15 bg-[#080704]/92 px-3.5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-[#080704]/78 sm:px-4">
+      {/* Sticky hanya di layar ≥ sm: di HP header setinggi ±150px menutupi kartu
+          antar saat di-scroll (CLAUDE.md: sticky tidak boleh menutupi konten). */}
+      <div className="relative z-20 rounded-lg border border-[#d4af37]/15 bg-[#080704] px-3.5 py-3.5 sm:sticky sm:top-2 sm:bg-[#080704]/92 sm:px-4 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-[#080704]/78">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#d4af37]/14 text-[#f2ca50] ring-1 ring-[#d4af37]/35">
             <BellRing size={18} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d0c5af]/70">
-              Waiter Floor Board
+              Papan Lantai Waiter
             </p>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="truncate text-base font-black leading-tight text-white">
@@ -686,7 +746,7 @@ export function WaiterView({ me }: Props) {
           <div className="ml-auto flex items-center gap-1.5">
             {/* Stats versi mobile cuma ready & bill kasir bila ada; versi sm+ tampil lengkap */}
             <span className="inline-flex items-center gap-1 rounded-full bg-[#22c55e]/15 px-2.5 py-1 text-[11px] font-semibold text-[#bbf7d0] ring-1 ring-[#22c55e]/35">
-              <Sparkles size={12} /> {ready.length}
+              <Sparkles size={12} /> {toDeliver.length}
               <span className="hidden sm:inline">&nbsp;Siap Antar</span>
             </span>
             <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-medium text-white/75 ring-1 ring-white/15">
@@ -749,7 +809,7 @@ export function WaiterView({ me }: Props) {
                   : "bg-white/[0.04] text-white/55 ring-white/12"
               }`}
               aria-label="Toggle notifikasi browser"
-              title="Aktifkan notifikasi browser saat tab background"
+              title="Aktifkan notifikasi browser saat tab di latar belakang"
             >
               <BellRing size={16} />
             </button>
@@ -764,7 +824,7 @@ export function WaiterView({ me }: Props) {
                   : "bg-white/[0.04] text-white/55 ring-white/12"
               }`}
               aria-label="Pengaturan notifikasi"
-              title="Sound / Getar / Notifikasi"
+              title="Suara / Getar / Notifikasi"
             >
               <Settings size={16} />
             </button>
@@ -774,7 +834,7 @@ export function WaiterView({ me }: Props) {
               onClick={() => void loadAll(false)}
               disabled={loading}
               className="grid h-9 w-9 place-items-center rounded-md bg-white/[0.04] text-white/75 ring-1 ring-white/12 transition hover:bg-white/[0.08] disabled:opacity-50"
-              aria-label="Refresh data"
+              aria-label="Muat ulang data"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             </button>
@@ -836,7 +896,7 @@ export function WaiterView({ me }: Props) {
         {[
           { label: "Meja aktif", value: activeTables, cls: "text-[#f2ca50]" },
           { label: "Panggilan", value: urgentTables.length, cls: "text-[#ffb4ab]" },
-          { label: "Siap antar", value: ready.length, cls: "text-[#bbf7d0]" },
+          { label: "Siap antar", value: toDeliver.length, cls: "text-[#bbf7d0]" },
           { label: "Tagihan", value: billRequests, cls: "text-[#fde68a]" },
         ].map((item) => (
           <div
@@ -857,7 +917,7 @@ export function WaiterView({ me }: Props) {
         {[
           { key: "tables" as const, label: "Meja", icon: <CircleDot size={16} />, count: tables.length },
           { key: "orders" as const, label: "Order", icon: <ChefHat size={16} />, count: upcoming.length },
-          { key: "ready" as const, label: "Siap", icon: <Sparkles size={16} />, count: ready.length },
+          { key: "ready" as const, label: "Siap", icon: <Sparkles size={16} />, count: toDeliver.length },
           { key: "bills" as const, label: "Tagihan", icon: <ReceiptText size={16} />, count: billRequests },
           { key: "more" as const, label: "Lainnya", icon: <Settings size={16} />, count: 0 },
         ].map((item) => (
@@ -914,7 +974,7 @@ export function WaiterView({ me }: Props) {
               },
               {
                 key: "mixed" as const,
-                label: "Mixed",
+                label: "Campuran",
                 count: tableBuckets.mixed,
                 tone: "red",
               },
@@ -932,7 +992,7 @@ export function WaiterView({ me }: Props) {
               },
               {
                 key: "ready" as const,
-                label: "Ready",
+                label: "Siap",
                 count: tableBuckets.ready,
                 tone: "neutral",
               },
@@ -981,7 +1041,8 @@ export function WaiterView({ me }: Props) {
             {filteredTables.map((row) => {
               const tone = tableTone(row);
               const stripe = waitStripe(row);
-              const needs = row.needsCleaning || row.status === "needs_cleaning";
+              const cleaning = isCleaningTable(row);
+              const needs = isDirtyTable(row);
               const isReady = row.status === "empty" && !row.needsCleaning;
               const isPaid = isPaidOnly(row);
               const isMixed = row.status === "mixed";
@@ -1036,7 +1097,9 @@ export function WaiterView({ me }: Props) {
                         {totalBills} bill{openBills > 0 ? ` / ${openBills} open` : ""}
                       </span>
                     ) : null}
-                    {row.timerMinutes > 0 ? (
+                    {/* Timer hanya relevan untuk meja terisi — meja AVAILABLE/RESERVED
+                        dulu menampilkan menit sejak status terakhir (mis. 7643m). */}
+                    {row.timerMinutes > 0 && row.currentOrderId && !isReady ? (
                       <span className="block text-[10px] text-white/45">
                         {row.timerMinutes}m
                       </span>
@@ -1047,22 +1110,37 @@ export function WaiterView({ me }: Props) {
                       </span>
                     ) : null}
                   </div>
-                  {needs && canSeatNext ? (
-                    // PAID & menunggu bersih: kasih dua pilihan jelas.
+                  {cleaning ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleClean(row)}
+                      disabled={actingTable === row.tableNumber}
+                      title="Selesai dibersihkan - meja AVAILABLE"
+                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                    >
+                      {actingTable === row.tableNumber ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={12} />
+                      )}
+                      <span className="hidden sm:inline">Siap pakai</span>
+                    </button>
+                  ) : needs && canSeatNext ? (
+                    // DIRTY pasca-lunas: mulai bersihkan, atau teman gabung.
                     <div className="mt-1 grid grid-cols-2 gap-1">
                       <button
                         type="button"
-                        onClick={() => void handleClean(row)}
+                        onClick={() => void handleLifecycle(row, "start_cleaning")}
                         disabled={actingTable === row.tableNumber}
-                        title="Tamu pergi - bersihkan meja untuk tamu berikutnya"
-                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        title="Mulai bersihkan meja (CLEANING)"
+                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#f5a742] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#241a00] transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
                         ) : (
-                          <CheckCircle2 size={12} />
+                          <Sparkles size={12} />
                         )}
-                        <span className="hidden sm:inline">Bersih</span>
+                        <span className="hidden sm:inline">Bersihkan</span>
                       </button>
                       <button
                         type="button"
@@ -1082,33 +1160,33 @@ export function WaiterView({ me }: Props) {
                   ) : needs ? (
                     <button
                       type="button"
-                      onClick={() => void handleClean(row)}
+                      onClick={() => void handleLifecycle(row, "start_cleaning")}
                       disabled={actingTable === row.tableNumber}
-                      title="Bersihkan meja"
-                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[11px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                      title="Mulai bersihkan meja (CLEANING)"
+                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#f5a742] text-[11px] font-bold uppercase tracking-wide text-[#241a00] transition active:scale-[0.97] disabled:opacity-60"
                     >
                       {actingTable === row.tableNumber ? (
                         <Loader2 size={12} className="animate-spin" />
                       ) : (
-                        <CheckCircle2 size={12} />
+                        <Sparkles size={12} />
                       )}
-                      <span className="hidden sm:inline">Bersih</span>
+                      <span className="hidden sm:inline">Bersihkan</span>
                     </button>
                   ) : isPaid && canSeatNext ? (
                     <div className="mt-1 grid grid-cols-2 gap-1">
                       <button
                         type="button"
-                        onClick={() => void handleClean(row)}
+                        onClick={() => void handleLifecycle(row, "leave")}
                         disabled={actingTable === row.tableNumber}
-                        title="Tamu pergi - bersihkan meja"
-                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        title="Tamu pergi - meja jadi DIRTY"
+                        className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#d11a2a] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-white transition active:scale-[0.97] disabled:opacity-60"
                       >
                         {actingTable === row.tableNumber ? (
                           <Loader2 size={12} className="animate-spin" />
                         ) : (
                           <CheckCircle2 size={12} />
                         )}
-                        <span className="hidden sm:inline">Bersih</span>
+                        <span className="hidden sm:inline">Tamu pergi</span>
                       </button>
                       <button
                         type="button"
@@ -1182,7 +1260,7 @@ export function WaiterView({ me }: Props) {
                   Antrian Order
                 </h2>
                 <p className="text-[11px] text-[#d0c5af]/60">
-                  Queue dan cooking untuk awareness floor.
+                  Antrean dan yang sedang dimasak, untuk pantauan lantai.
                 </p>
               </div>
               <span className="font-mono text-2xl font-black text-[#f2ca50]">
@@ -1192,7 +1270,7 @@ export function WaiterView({ me }: Props) {
             {upcoming.length === 0 ? (
               <EmptyState
                 title="Tidak ada antrian dapur"
-                body="Order baru akan muncul otomatis saat kitchen menerima ticket."
+                body="Order baru muncul otomatis saat dapur menerima tiket."
               />
             ) : (
               <ul className="space-y-2">
@@ -1206,12 +1284,15 @@ export function WaiterView({ me }: Props) {
                         {t.table}
                       </div>
                       <div className="min-w-0 flex-1">
+                        <p className="truncate text-base font-black uppercase text-white">
+                          {productionIdentityName(t.customerName, t.queueNo)}
+                        </p>
                         <div className="flex flex-wrap items-center gap-1.5">
                           {statusBadge(t.status)}
                           <span className={`flex items-center gap-1 text-[11px] ${stationTone(t.station)}`}>
-                            {stationIcon(t.station)} {t.station}
+                            {stationIcon(t.station)} {productionStationLabel(t.station)}
                           </span>
-                          <span className="font-mono text-[10px] text-white/45">#{t.id}</span>
+                          <span className="font-mono text-[11px] text-white/60">#{t.orderNo ?? t.id}</span>
                         </div>
                         <ul className="mt-2 space-y-1 text-[12px] leading-5 text-white/78">
                           {t.items.slice(0, 4).map((item, idx) => (
@@ -1235,22 +1316,28 @@ export function WaiterView({ me }: Props) {
                   Siap Antar
                 </h2>
                 <p className="text-[11px] text-[#d0c5af]/60">
-                  Ticket ready dari Bar dan Food.
+                  Helper Bar/Dapur memanggil — ambil, antar, tap Diantar.
+                  {ready.length > toDeliver.length
+                    ? ` ${ready.length - toDeliver.length} lainnya masih dicek helper / dipanggil waiter lain.`
+                    : ""}
                 </p>
               </div>
-              <span className="font-mono text-2xl font-black text-[#bbf7d0]">
-                {ready.length}
+              <span
+                className="font-mono text-2xl font-black text-[#bbf7d0]"
+                title="Harus diantar oleh Anda sekarang"
+              >
+                {toDeliver.length}
               </span>
             </div>
             {ready.length === 0 ? (
               <EmptyState
                 title="Belum ada order siap antar"
-                body="Notifikasi akan aktif saat kitchen menandai ticket ready."
+                body="Notifikasi aktif saat dapur menandai tiket siap."
               />
             ) : (
               <ul className="space-y-2">
                 {ready.map((t) => {
-                  const group = orderCompletion.get(`${t.table}::${t.addonSequence ?? 1}`);
+                  const group = orderCompletion.get(orderGroupKey(t));
                   const orderComplete = !group || group.pending.length === 0;
                   const multiStation = (group?.total ?? 1) > 1;
                   const claimedByMe = t.claimedBy === me.user.id;
@@ -1263,15 +1350,28 @@ export function WaiterView({ me }: Props) {
                       orderComplete ? "ring-[#22c55e]/30" : "ring-[#f5a742]/45"
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[#22c55e]/14 font-mono text-2xl font-black text-[#bbf7d0] ring-1 ring-[#22c55e]/35">
-                        {t.table}
+                    {t.handoverAt && (claimedByMe || !t.claimedBy) ? (
+                      <p className="mb-2 flex items-center gap-1.5 rounded-md bg-[#d11a2a] px-2.5 py-1.5 text-[12px] font-black uppercase tracking-wide text-white">
+                        <BellRing size={14} /> Ambil di {productionStationLabel(t.station)}
+                        {t.handoverByName ? ` · dipanggil ${t.handoverByName}` : ""}
+                      </p>
+                    ) : null}
+                    {/* Indikator service: NAMA + MEJA (+ Order ID untuk audit). */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-xl font-black uppercase leading-tight text-white">
+                          {productionIdentityName(t.customerName, t.queueNo)}
+                        </p>
+                        <p className="font-mono text-base font-black text-[#bbf7d0]">{t.table}</p>
+                        <p className="font-mono text-xs text-white/70">#{t.orderNo ?? t.id}</p>
                       </div>
+                      {statusBadge(t.status)}
+                    </div>
+                    <div className="mt-2 flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {statusBadge(t.status)}
                           <span className={`flex items-center gap-1 text-[11px] ${stationTone(t.station)}`}>
-                            {stationIcon(t.station)} {t.station}
+                            {stationIcon(t.station)} {productionStationLabel(t.station)}
                           </span>
                           {multiStation && orderComplete ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-[#22c55e]/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#bbf7d0] ring-1 ring-[#22c55e]/40">
@@ -1282,7 +1382,6 @@ export function WaiterView({ me }: Props) {
                               Tunggu {group?.pending.join(", ")}
                             </span>
                           ) : null}
-                          <span className="font-mono text-[10px] text-white/45">#{t.id}</span>
                         </div>
                         <ul className="mt-2 space-y-1 text-[12px] leading-5 text-white/82">
                           {t.items.slice(0, 5).map((item, idx) => (
@@ -1295,12 +1394,20 @@ export function WaiterView({ me }: Props) {
                     </div>
                     {!orderComplete ? (
                       <p className="mt-2 rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-[#ffd79a]">
-                        {group?.pending.join(", ")} masih dibuat. Antar item ini saja atau tunggu agar 1 meja lengkap.
+                        {group?.pending.join(", ")} masih dibuat. Antar item ini saja atau tunggu agar order ini lengkap.
                       </p>
                     ) : null}
-                    {claimedByOther ? (
+                    {!t.handoverAt ? (
+                      // Helper Bar/Dapur belum ACC — waiter tidak perlu apa-apa.
+                      <div className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-3 py-2 text-center text-[13px] font-bold text-white/80">
+                        <Timer size={14} className="shrink-0" />
+                        <span className="min-w-0 leading-tight">
+                          Dicek helper {productionStationLabel(t.station)} — tunggu dipanggil
+                        </span>
+                      </div>
+                    ) : claimedByOther ? (
                       <div className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 text-[12px] font-bold text-[#ffd79a]">
-                        <UserPlus size={14} /> Diambil oleh {t.claimedByName}
+                        <UserPlus size={14} /> Dipanggil: {t.claimedByName}
                       </div>
                     ) : claimedByMe ? (
                       <div className="mt-3 flex gap-2">
@@ -1315,7 +1422,7 @@ export function WaiterView({ me }: Props) {
                           ) : (
                             <CheckCircle2 size={15} />
                           )}
-                          Antar ke {t.table}
+                          Diantar · {t.table}
                         </button>
                         <button
                           type="button"
@@ -1338,7 +1445,7 @@ export function WaiterView({ me }: Props) {
                         ) : (
                           <UserPlus size={15} />
                         )}
-                        Saya Antar
+                        Saya ambil
                       </button>
                     )}
                   </li>
@@ -1422,7 +1529,7 @@ export function WaiterView({ me }: Props) {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-white/85">
-                  Prioritas Floor
+                  Prioritas Lantai
                 </h2>
                 <p className="text-[11px] text-[#d0c5af]/60">
                   Panggilan, siap antar, tagihan, dan meja lama.
@@ -1444,7 +1551,7 @@ export function WaiterView({ me }: Props) {
             </div>
 
             <div className="mt-3 space-y-2">
-              {ready.slice(0, 4).map((t) => (
+              {toDeliver.slice(0, 4).map((t) => (
                 <div
                   key={t.id}
                   className="rounded-lg bg-[#0f140d] p-2.5 ring-1 ring-[#22c55e]/28"
@@ -1454,20 +1561,18 @@ export function WaiterView({ me }: Props) {
                       {t.table}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
+                      <p className="truncate text-base font-black uppercase leading-tight text-white">
+                        {productionIdentityName(t.customerName, t.queueNo)}
+                      </p>
+                      <div className="mt-0.5 flex items-center gap-1.5">
                         {statusBadge(t.status)}
-                        <span className={`flex items-center gap-1 text-[10px] ${stationTone(t.station)}`}>
-                          {stationIcon(t.station)} {t.station}
+                        <span className={`flex items-center gap-1 text-[11px] ${stationTone(t.station)}`}>
+                          {stationIcon(t.station)} {productionStationLabel(t.station)}
                         </span>
                       </div>
-                      <p className="mt-1 truncate text-[12px] font-semibold text-white">
-                        {t.items[0] ?? "Order siap"}
+                      <p className="mt-1 truncate text-[12px] font-semibold text-white/80">
+                        #{t.orderNo ?? t.id} · {t.items.length} item
                       </p>
-                      {t.items.length > 1 ? (
-                        <p className="text-[10px] text-white/45">
-                          +{t.items.length - 1} item lain
-                        </p>
-                      ) : null}
                     </div>
                   </div>
                   <button
@@ -1514,9 +1619,9 @@ export function WaiterView({ me }: Props) {
                 </button>
               ))}
 
-              {ready.length === 0 && urgentTables.length === 0 ? (
+              {toDeliver.length === 0 && urgentTables.length === 0 ? (
                 <EmptyState
-                  title="Floor terkendali"
+                  title="Lantai terkendali"
                   body="Belum ada order siap antar atau meja prioritas."
                 />
               ) : null}
@@ -1568,6 +1673,7 @@ export function WaiterView({ me }: Props) {
           canRequestBillRole={canRequestBillRole}
           onClose={() => setDetailTable(null)}
           onClean={(row) => void handleClean(row)}
+          onLifecycle={(row, action) => void handleLifecycle(row, action)}
           onRequestBill={(row) => void handleRequestBill(row)}
           onSeatNew={(row) => void handleSeatNew(row)}
           onMoved={() => {

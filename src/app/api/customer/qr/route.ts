@@ -47,6 +47,32 @@ export async function GET(request: Request) {
   const baseUrl = configuredPublicOrigin() ?? requestOrigin(request);
   const orderUrl = garageQrOrderUrl(baseUrl, table);
 
+  // Opsi PNG resolusi tinggi untuk cetak (tidak pecah). ?format=png&size=1600
+  // (default 1024, maksimum 3000). SVG tetap default untuk render layar tajam.
+  const format = url.searchParams.get("format")?.toLowerCase();
+  if (format === "png") {
+    const rawSize = Number(url.searchParams.get("size"));
+    const width = Math.min(
+      3000,
+      Math.max(256, Number.isFinite(rawSize) && rawSize > 0 ? Math.floor(rawSize) : 1024),
+    );
+    const png = await QRCode.toBuffer(orderUrl, {
+      type: "png",
+      width,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: { dark: "#0f0f14", light: "#ffffff" },
+    });
+    return new Response(new Uint8Array(png), {
+      headers: {
+        "Content-Type": "image/png",
+        "Cache-Control": "no-store",
+        "Content-Disposition": `inline; filename="qr-meja-${table}.png"`,
+        "X-Garage-Order-Url": orderUrl,
+      },
+    });
+  }
+
   const svg = await QRCode.toString(orderUrl, {
     type: "svg",
     width: 420,

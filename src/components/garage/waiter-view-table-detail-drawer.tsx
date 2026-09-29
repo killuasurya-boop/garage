@@ -13,16 +13,36 @@ import type {
   ApiEnvelope,
   TableHistoryResponse,
   TableLiveRow,
+  TableOrderBill,
+  TableOrderItemsResponse,
 } from "@/lib/garage-api-types";
 
 import {
   billStatusTone,
   formatRupiah,
   hasAwaitingPaymentBill,
+  isCleaningTable,
+  isDirtyTable,
   isPaidOnly,
   relativeFromNow,
   type ToastInput,
 } from "./waiter-view-helpers";
+
+// Status tiket dapur per station. Item mewarisi status station-nya (status
+// per item tidak ada di data). null = order belum masuk dapur.
+function kitchenLabel(status: string | null) {
+  if (!status) return "Belum masuk dapur";
+  return (
+    ({ queue: "Antre", cooking: "Dimasak", ready: "Siap", delivered: "Diantar", completed: "Selesai" } as Record<string, string>)[status] ??
+    status
+  );
+}
+function kitchenTone(status: string | null) {
+  if (status === "ready") return "bg-emerald-500/15 text-emerald-200 ring-emerald-400/30";
+  if (status === "cooking") return "bg-amber-400/15 text-amber-200 ring-amber-400/30";
+  if (status === "queue") return "bg-red-500/15 text-red-200 ring-red-400/30";
+  return "bg-white/[0.05] text-white/60 ring-white/15";
+}
 
 export function TableDetailDrawer({
   row,
@@ -33,6 +53,7 @@ export function TableDetailDrawer({
   canRequestBillRole,
   onClose,
   onClean,
+  onLifecycle,
   onMoved,
   onRequestBill,
   onSeatNew,
@@ -46,6 +67,10 @@ export function TableDetailDrawer({
   canRequestBillRole: boolean;
   onClose: () => void;
   onClean: (row: TableLiveRow) => void;
+  onLifecycle: (
+    row: TableLiveRow,
+    action: "leave" | "start_cleaning" | "reserve" | "unreserve",
+  ) => void;
   onMoved: () => void;
   onRequestBill: (row: TableLiveRow) => void;
   onSeatNew: (row: TableLiveRow) => void;
@@ -61,6 +86,8 @@ export function TableDetailDrawer({
 
   const [history, setHistory] = useState<TableHistoryResponse | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [itemBills, setItemBills] = useState<TableOrderBill[] | null>(null);
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [moveMode, setMoveMode] = useState(false);
   const [moveTarget, setMoveTarget] = useState("");
   const [moving, setMoving] = useState(false);
@@ -73,11 +100,25 @@ export function TableDetailDrawer({
     (row.status === "accepted" || row.status === "ready" || row.status === "mixed") &&
     !billAlreadyRequested;
   const canSeatNext = isPaidOnly(row);
-  const canClean =
-    row.needsCleaning ||
-    row.status === "needs_cleaning" ||
-    isPaidOnly(row) ||
-    (!row.currentOrderId && row.status !== "empty");
+  // Satu aksi siklus meja sesuai state: OCCUPIED(lunas) → DIRTY → CLEANING →
+  // AVAILABLE, dan AVAILABLE ↔ RESERVED.
+  const lifecycleAction: {
+    action: "clean" | "leave" | "start_cleaning" | "reserve" | "unreserve";
+    label: string;
+    cls: string;
+  } | null = isCleaningTable(row)
+    ? { action: "clean", label: "Siap Pakai", cls: "bg-[#22c55e] text-[#052e16]" }
+    : isDirtyTable(row)
+      ? { action: "start_cleaning", label: "Mulai Bersihkan", cls: "bg-[#f5a742] text-[#241a00]" }
+      : isPaidOnly(row)
+        ? { action: "leave", label: "Tamu Pergi", cls: "bg-[#d11a2a] text-white" }
+        : row.status === "reserved"
+          ? { action: "unreserve", label: "Batal Reservasi", cls: "bg-[#d4d4d8] text-[#0b0b0c]" }
+          : row.status === "empty" && !row.currentOrderId
+            ? { action: "reserve", label: "Reservasi", cls: "bg-[#d4d4d8] text-[#0b0b0c]" }
+            : !row.currentOrderId
+              ? { action: "clean", label: "Kosongkan", cls: "bg-[#22c55e] text-[#052e16]" }
+              : null;
   const moveCandidates = useMemo(
     () =>
       allTables.filter(
@@ -122,6 +163,28 @@ export function TableDetailDrawer({
       })
       .finally(() => {
         if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [row.tableNumber]);
+
+  // Fetch rincian item sesi berjalan (apa yang dipesan di meja ini).
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setItemsLoading(true);
+    fetch(`/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/items`)
+      .then((r) => r.json())
+      .then((payload: ApiEnvelope<TableOrderItemsResponse>) => {
+        if (cancelled) return;
+        setItemBills(payload.error ? null : payload.data?.bills ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setItemBills(null);
+      })
+      .finally(() => {
+        if (!cancelled) setItemsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -259,19 +322,23 @@ export function TableDetailDrawer({
               </div>
             ) : null}
 
-            {canClean ? (
+            {lifecycleAction ? (
               <button
                 type="button"
-                onClick={() => onClean(row)}
+                onClick={() =>
+                  lifecycleAction.action === "clean"
+                    ? onClean(row)
+                    : onLifecycle(row, lifecycleAction.action)
+                }
                 disabled={actingCleanTable === row.tableNumber}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#22c55e] px-3 text-[12px] font-black uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[12px] font-black uppercase tracking-wide transition active:scale-[0.97] disabled:opacity-60 ${lifecycleAction.cls}`}
               >
                 {actingCleanTable === row.tableNumber ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : (
                   <CheckCircle2 size={14} />
                 )}
-                Bersihkan
+                {lifecycleAction.label}
               </button>
             ) : null}
 
@@ -388,6 +455,103 @@ export function TableDetailDrawer({
               })}
             </ul>
           )}
+
+          <div className="mt-4">
+            <p className="mb-2 text-[10px] uppercase tracking-wider text-white/55">
+              Rincian Pesanan{itemsLoading ? " (loading...)" : ""}
+            </p>
+            {!itemsLoading && (itemBills?.length ?? 0) === 0 ? (
+              <p className="text-[11px] text-white/45">Belum ada item di sesi ini.</p>
+            ) : null}
+            {itemBills && itemBills.length > 0 ? (
+              <ul className="space-y-2">
+                {itemBills.map((bill) => (
+                  <li
+                    key={bill.id}
+                    className="rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/8"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] font-semibold text-white">
+                        #{bill.orderNo}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ${billStatusTone(bill.status).cls}`}
+                      >
+                        {billStatusTone(bill.status).label}
+                      </span>
+                    </div>
+                    {bill.customerNote ? (
+                      <p className="mb-1 rounded bg-amber-400/10 px-1.5 py-1 text-[11px] italic text-amber-200 ring-1 ring-amber-400/25">
+                        Catatan: {bill.customerNote}
+                      </p>
+                    ) : null}
+                    {/* Ringkasan station: jumlah item + status tiket Dapur/Bar. */}
+                    <div className="mb-1 flex flex-wrap gap-1">
+                      {(["Dapur", "Bar"] as const).map((station) => {
+                        const qty = bill.items
+                          .filter((item) => item.station === station)
+                          .reduce((sum, item) => sum + item.qty, 0);
+                        if (!qty) return null;
+                        const status =
+                          bill.stations.find((row) => row.station === station)?.status ?? null;
+                        return (
+                          <span
+                            key={station}
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ${kitchenTone(status)}`}
+                          >
+                            {station} {qty} · {kitchenLabel(status)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <ul className="space-y-0.5">
+                      {bill.items.map((item) => (
+                        <li key={item.id} className="text-[12px]">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="min-w-0 text-white/90">
+                              <span className="font-mono font-semibold text-white">
+                                {item.qty}×
+                              </span>{" "}
+                              {item.itemName}
+                              {item.variantLabel ? (
+                                <span className="text-white/50">
+                                  {" "}
+                                  · {item.variantLabel}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="shrink-0 font-mono text-white/70">
+                              {formatRupiah(item.lineTotal)}
+                            </span>
+                          </div>
+                          {(() => {
+                            const status =
+                              bill.stations.find((row) => row.station === item.station)?.status ??
+                              null;
+                            return (
+                              <div className="flex items-center gap-1 pl-4">
+                                <span className="text-[10px] text-white/45">{item.station}</span>
+                                <span
+                                  className={`rounded px-1 text-[10px] font-semibold ring-1 ${kitchenTone(status)}`}
+                                >
+                                  {kitchenLabel(status)}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                          {item.note ? (
+                            <p className="pl-4 text-[11px] italic text-white/45">
+                              {item.note}
+                            </p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <div className="mt-4 flex items-center gap-2">
             <History size={12} className="text-white/55" />

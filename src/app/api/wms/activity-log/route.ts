@@ -1,7 +1,7 @@
 // WMS Activity Log — audit siapa melakukan perpindahan stok kapan.
 // Data source: wms_stock_movement (single source of truth per komentar schema).
-// Owner/Admin/Manager Operasional/Gudang bisa akses (Gudang lihat aktivitas
-// sendiri saja; role manajerial lihat semua).
+// Owner/Manajer bisa akses semua; Kasir (pegang tugas gudang) lihat aktivitas
+// sendiri saja.
 
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
@@ -14,26 +14,19 @@ import {
 } from "@/db/schema";
 import { fail, ok } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 export const runtime = "nodejs";
-
-const MANAGER_ROLES = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-  "Finance / CFO",
-] as const;
 
 export async function GET(request: Request) {
   const session = await requireGarageSession();
   if (session.response) return session.response;
 
   const role = session.data!.profile.role;
-  const isManager = (MANAGER_ROLES as readonly string[]).includes(role);
-  const isGudang = role === "Gudang";
+  const isManager = (MANAGEMENT_ROLES as readonly string[]).includes(role);
+  const isKasir = role === "Kasir";
 
-  if (!isManager && !isGudang) {
+  if (!isManager && !isKasir) {
     return fail(403, "FORBIDDEN", "Hanya role warehouse / manajerial yang boleh akses log ini.");
   }
 
@@ -49,8 +42,8 @@ export async function GET(request: Request) {
   const db = getDb();
 
   const conditions = [];
-  // Gudang → hanya lihat aktivitas sendiri (privacy).
-  if (isGudang && !isManager) {
+  // Kasir (bukan manajerial) → hanya lihat aktivitas sendiri (privacy).
+  if (isKasir && !isManager) {
     conditions.push(eq(wmsStockMovement.userId, session.data!.user.id));
   } else if (filterUserId) {
     conditions.push(eq(wmsStockMovement.userId, filterUserId));
@@ -110,7 +103,7 @@ export async function GET(request: Request) {
 
     return ok({
       viewerRole: role,
-      viewerScope: isGudang && !isManager ? "self" : "all",
+      viewerScope: isKasir && !isManager ? "self" : "all",
       count: rows.length,
       rows,
       byStaff: agg,

@@ -11,19 +11,6 @@ const fallbackUrl = "http://localhost:3001";
 function betterAuthSecret() {
   const secret = process.env.BETTER_AUTH_SECRET?.trim();
   if (secret) return secret;
-
-  // Saat `next build`, Next.js mengevaluasi modul ini untuk mengumpulkan data
-  // halaman tapi TIDAK melayani request, sehingga secret asli tidak diperlukan.
-  // Izinkan placeholder agar build production tetap sukses meskipun
-  // BETTER_AUTH_SECRET hanya disediakan saat runtime (umum di host seperti
-  // Hostinger yang memisahkan env build dan runtime).
-  const isBuild =
-    process.env.NEXT_PHASE === "phase-production-build" ||
-    process.env.NEXT_BUILD === "true";
-  if (isBuild) {
-    return "build-placeholder-secret-jangan-dipakai-di-runtime";
-  }
-
   if (process.env.NODE_ENV === "production") {
     throw new Error("BETTER_AUTH_SECRET wajib diisi untuk production.");
   }
@@ -40,8 +27,13 @@ function normalizeOrigin(origin: string | undefined) {
   }
 }
 
+// Origin milik server ini sendiri (semua IPv4 LAN mesin, dibaca saat start).
+// Dulu hanya di development — di production (PC kasir, `next start`) IP LAN
+// berganti tiap DHCP/Wi-Fi berubah sehingga login dari tablet & HP staf
+// ditolak sampai .env.local diedit (QA-audit 2026-09-28). Aman: hanya alamat
+// server ini, bukan situs lain. Matikan dengan GARAGE_TRUST_LAN_ORIGINS=false.
 function localDevOrigins(baseUrl: string) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.GARAGE_TRUST_LAN_ORIGINS?.trim().toLowerCase() === "false") {
     return [];
   }
 

@@ -17,6 +17,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# next.config.ts hanya menghasilkan .next/standalone bila flag ini true —
+# tanpa ini stage runner gagal di `COPY .next/standalone`.
+ENV GARAGE_STANDALONE=true
 # Placeholder build-time only: `next build` (page-data collection) menyentuh
 # modul auth yang mewajibkan secret saat NODE_ENV=production. Nilai ASLI
 # di-inject saat runtime via env_file; placeholder ini tidak pernah dipakai

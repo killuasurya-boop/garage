@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const permission = await requireGarageSession(["Owner / CEO"]);
+    const permission = await requireGarageSession(["Owner"]);
     if (permission.response) return permission.response;
     const user = permission.data.user;
     if (!metaClientConfigured()) {

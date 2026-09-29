@@ -117,10 +117,9 @@ export function TeamAnnouncements() {
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
               >
                 <option value="All">Semua Karyawan</option>
-                <option value="Barista">Khusus Barista</option>
+                <option value="Manajer">Khusus Manajer</option>
                 <option value="Kasir">Khusus Kasir</option>
-                <option value="Koki">Khusus Koki</option>
-                <option value="Mekanik">Khusus Mekanik</option>
+                <option value="Waiter">Khusus Waiter</option>
               </select>
             </div>
           </div>

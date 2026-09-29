@@ -21,6 +21,8 @@ export async function setupGarageTestDb(): Promise<GarageTestDb> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "garage-itest-"));
   process.env.GARAGE_DB_DRIVER = "pglite";
   process.env.PGLITE_DATA_DIR = tmpDir;
+  // Tes tidak boleh menyalin backup ke folder luar sungguhan (Google Drive owner).
+  delete process.env.GARAGE_BACKUP_OFFSITE_DIR;
 
   const db = await import("@/db");
   await db.ensureDatabaseReady();
@@ -79,7 +81,7 @@ export async function seedGarageBasics(t: GarageTestDb, opts?: { userId?: string
 
   await d
     .insert(schema.user)
-    .values({ id: userId, name: "Staff Test", email: `${userId}@garage.local` });
+    .values({ id: userId, name: "Staff Test", email: `${userId}@garage.id` });
 
   await d.insert(schema.menuItems).values([
     { id: "itm-coffee", name: "Kopi Test", category: "Coffee", section: "Coffee", prep: "5m" },

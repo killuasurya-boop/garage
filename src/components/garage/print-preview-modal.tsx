@@ -233,7 +233,7 @@ function ThermalPrintContent({ receipt }: { receipt: OrderReceipt }) {
       {/* Totals */}
       <div className="garage-print-totals">
         <PrintRow label="Subtotal" value={receipt.subtotal} />
-        <PrintRow label="Service" value={receipt.service} />
+        {receipt.service > 0 && <PrintRow label="Service" value={receipt.service} />}
         {receipt.discount > 0 && (
           <PrintRow label="Discount" value={-receipt.discount} />
         )}

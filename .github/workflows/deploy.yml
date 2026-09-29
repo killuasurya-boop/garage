@@ -1,0 +1,73 @@
+name: Deploy VPS
+
+# Setiap perubahan yang masuk ke main: build image di GitHub (bukan di VPS
+# 1 vCPU), kirim lewat SSH, lalu jalankan ulang aplikasi. Migrasi database
+# jalan otomatis lewat service `migrate` di docker-compose.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  VPS_HOST: 201.18.211.55
+  VPS_USER: root
+  APP_DIR: /root/garage
+  # Kunci host VPS (informasi publik) — mencegah sambungan ke server palsu.
+  VPS_HOST_KEY: "201.18.211.55 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOO6lqbnNI86okZIyf1XgoF5Rr+D8JWg4RkMurApKZwj"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image app & migrate
+        run: |
+          docker buildx build --target runner   --load -t garage-app:${{ github.sha }}     -t garage-app:latest     .
+          docker buildx build --target migrator --load -t garage-migrate:${{ github.sha }} -t garage-migrate:latest .
+
+      - name: Siapkan SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+
+      - name: Kirim image ke VPS
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST"
+          # Simpan versi sebelumnya untuk rollback cepat.
+          $SSH 'docker tag garage-app:latest garage-app:previous 2>/dev/null || true; docker tag garage-migrate:latest garage-migrate:previous 2>/dev/null || true'
+          docker save garage-app:latest garage-migrate:latest | gzip | $SSH 'gunzip | docker load'
+          scp -i ~/.ssh/deploy_key docker-compose.yml Caddyfile $VPS_USER@$VPS_HOST:$APP_DIR/
+
+      - name: Jalankan ulang (migrasi lalu aplikasi)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST "
+            set -e
+            cd $APP_DIR
+            docker compose --env-file .env.production up -d --no-build db
+            docker compose --env-file .env.production run --rm migrate
+            docker compose --env-file .env.production up -d --no-build app caddy
+            docker image prune -f >/dev/null
+          "
+
+      - name: Cek kesehatan (rollback bila gagal)
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST"
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://garagecoffee.id/api/health || true)
+            [ "$code" = "200" ] && echo "Sehat (HTTP 200)" && exit 0
+            sleep 6
+          done
+          echo "Kesehatan gagal — rollback ke versi sebelumnya"
+          $SSH "cd $APP_DIR && docker tag garage-app:previous garage-app:latest && docker compose --env-file .env.production up -d --no-build app"
+          exit 1

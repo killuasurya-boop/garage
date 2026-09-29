@@ -82,12 +82,14 @@ const cleanupOrders = process.env.SECURITY_AUDIT_CLEANUP !== "0";
 const strictExit = process.env.SECURITY_AUDIT_STRICT === "1";
 const requestTimeoutMs = Number(process.env.SECURITY_AUDIT_REQUEST_TIMEOUT_MS ?? 15_000);
 
+// Kitchen & Finance bukan role terpisah lagi — Kasir pegang KDS dapur/bar,
+// Manajer pegang finance. Slot session tetap dipertahankan untuk cek boundary.
 const roleEmails = {
-  owner: process.env.SECURITY_AUDIT_OWNER_EMAIL ?? "owner@garage.local",
-  cashier: process.env.SECURITY_AUDIT_CASHIER_EMAIL ?? "kasir@garage.local",
-  waiter: process.env.SECURITY_AUDIT_WAITER_EMAIL ?? "waiter1@garage.local",
-  kitchen: process.env.SECURITY_AUDIT_KITCHEN_EMAIL ?? "koki@garage.local",
-  finance: process.env.SECURITY_AUDIT_FINANCE_EMAIL ?? "finance@garage.local",
+  owner: process.env.SECURITY_AUDIT_OWNER_EMAIL ?? "owner@garage.id",
+  cashier: process.env.SECURITY_AUDIT_CASHIER_EMAIL ?? "kasir@garage.id",
+  waiter: process.env.SECURITY_AUDIT_WAITER_EMAIL ?? "waiter@garage.id",
+  kitchen: process.env.SECURITY_AUDIT_KITCHEN_EMAIL ?? "kasir2@garage.id",
+  finance: process.env.SECURITY_AUDIT_FINANCE_EMAIL ?? "manajer@garage.id",
 };
 
 const severityRank: Record<FindingSeverity, number> = {
@@ -385,13 +387,26 @@ function routeRecon(results: AuditResult[]) {
   // - /api/dev/demo-login: gated NODE_ENV !== production
   // - /api/errors: client error reporting, rate-limited
   // - /api/hr/attendance + /check: kiosk PIN-based auth, rate-limited
+  // - /api/customer/chat + /service-requests: interaksi customer dari scan QR meja
+  //   (publik by design, rate-limited)
+  // - /api/recruitment/*: alur lamaran kerja publik (apply/parse-cv/upload/track)
+  // - /api/webhooks/meta + /whatsapp: inbound webhook provider (verifikasi signature
+  //   di handler, bukan session)
   const PUBLIC_MUTATION_ALLOWLIST = new Set([
     "/api/customer/orders",
+    "/api/customer/chat",
+    "/api/customer/service-requests",
     "/api/vouchers/validate",
     "/api/dev/demo-login",
     "/api/errors",
     "/api/hr/attendance",
     "/api/hr/attendance/check",
+    "/api/recruitment/apply",
+    "/api/recruitment/parse-cv",
+    "/api/recruitment/track-status",
+    "/api/recruitment/upload",
+    "/api/webhooks/meta",
+    "/api/webhooks/whatsapp",
   ]);
   const unauthenticatedMutations = publicMutations
     .filter(
@@ -695,7 +710,7 @@ async function runAuthBoundaryTests(results: AuditResult[], jars: Record<string,
     cashierProviders,
     403,
     "critical",
-    "Batasi route /api/ai/providers ke Owner / CEO.",
+    "Batasi route /api/ai/providers ke Owner.",
   );
 
   const cashierOwnerHistory = await request("/api/ai/owner-chat/history", {}, jars.cashier);

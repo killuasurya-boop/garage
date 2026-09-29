@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
-import { Coffee, Sparkles, Snowflake, UtensilsCrossed, Sandwich, Cookie } from "lucide-react";
+import { Coffee, Sparkles, Snowflake } from "lucide-react";
 
 import {
   Sheet,
@@ -16,13 +16,22 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-const WHATSAPP_PHONE = "6285188983600";
+import { GARAGE_LOCATION, formatBusinessHours, formatIdPhone, isOpen24h, openStatus } from "@/lib/garage-location";
+const WHATSAPP_PHONE = GARAGE_LOCATION.phone;
 const BUSINESS_EMAIL = "garagetebingtinggi@gmail.com";
-const BUSINESS_ADDRESS = "Jl. Mayjen Sutoyo, Rambung, Kec. Tebing Tinggi Kota, Kota Tebing Tinggi, Sumatera Utara 20631";
+const BUSINESS_ADDRESS = GARAGE_LOCATION.address;
 const WHATSAPP_DEFAULT_MESSAGE = "Halo GARAGE, saya lihat status meja di website. Saya mau reservasi/order.";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_DEFAULT_MESSAGE)}`;
-const MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS_ADDRESS)}`;
+const MAPS_URL = GARAGE_LOCATION.mapsUrl;
+const DEFAULT_HOURS_OPEN = "00:00";
+const DEFAULT_HOURS_CLOSE = "23:59";
+// Label jam ringkas: "24 JAM" bila buka 24 jam, selain itu "HH:MM–HH:MM".
+// Baris jalan dari alamat lengkap: "Jl. Mayjen Sutoyo, Rambung, Kec. …" → "Jl. Mayjen Sutoyo, Rambung".
+const streetLine = (address) => String(address || BUSINESS_ADDRESS).split(",").slice(0, 2).join(",").trim();
+const hoursShort = (biz) => (isOpen24h(biz.hoursOpen, biz.hoursClose) ? "24 JAM" : `${biz.hoursOpen}–${biz.hoursClose}`);
 
+// Link Maps selalu ke profil bisnis resmi (Place ID), tidak memakai mapsUrl dari DB —
+// URL tempelan manual sering hanya membuka pin/pencarian, bukan profil Google.
 // Info bisnis editable (C10) lewat context — default = konstanta hardcoded di atas
 // supaya komponen yang belum di-wire tetap aman & tanpa regresi.
 const BizContext = React.createContext(null);
@@ -32,8 +41,8 @@ const useBiz = () => {
     whatsapp: ctx?.whatsapp || WHATSAPP_PHONE,
     email: ctx?.email || BUSINESS_EMAIL,
     address: ctx?.address || BUSINESS_ADDRESS,
-    hoursOpen: ctx?.hoursOpen || "07:00",
-    hoursClose: ctx?.hoursClose || "23:00",
+    hoursOpen: ctx?.hoursOpen || DEFAULT_HOURS_OPEN,
+    hoursClose: ctx?.hoursClose || DEFAULT_HOURS_CLOSE,
     instagram: ctx?.instagram || "",
     mapsUrl: ctx?.mapsUrl || "",
     aboutText: ctx?.aboutText || "",
@@ -106,11 +115,14 @@ const digitalMenuItemUrl = (itemName) => ({
   pathname: "/order",
   query: { source: "qr_takeaway", campaign: "landing_menu", q: itemName },
 });
-const reservationWhatsAppUrl = (tableLabel) => {
+// Versi string (untuk <a> biasa) dengan campaign per-section agar sumber order terlacak.
+const digitalMenuItemHref = (itemName, campaign = "landing_menu") =>
+  `/order?${new URLSearchParams({ source: "qr_takeaway", campaign, q: itemName }).toString()}`;
+const reservationWhatsAppUrl = (tableLabel, phone = WHATSAPP_PHONE) => {
   const message = tableLabel
     ? `Halo GARAGE, saya mau reservasi ${tableLabel}. Mohon info ketersediaan jamnya.`
     : WHATSAPP_DEFAULT_MESSAGE;
-  return `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 };
 const requestTablePanelOpen = () => {
   if (typeof window === "undefined") return;
@@ -253,6 +265,62 @@ function liveVisitRecommendation(totalTables, availableTables, activeOrders) {
     advice: "Aman datang sekarang. Pilih meja dan lanjut order digital.",
     tone: "calm",
   };
+}
+
+// Bar pesan bawah khusus HP (≤700px). Label tombol utama mengikuti kondisi live
+// outlet: saat meja penuh/padat mengarahkan ke takeaway, saat longgar ke pesan
+// dari meja. Data dari /api/site/live-visit, di-refresh 30 dtk HANYA di HP.
+function MobileOrderBar() {
+  const biz = useBiz();
+  const [tone, setTone] = useState("calm");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const live = await getPublicLiveVisit();
+        const rows = live.tables ?? [];
+        const available = rows.filter((row) => row.available).length;
+        const rec = liveVisitRecommendation(rows.length, available, live.orderPulse?.active ?? 0);
+        if (!cancelled) setTone(rec.tone);
+      } catch {
+        // Tetap tampil dengan label default bila data live gagal dimuat.
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const busy = tone === "full" || tone === "busy";
+  const href = busy
+    ? `/order?${new URLSearchParams({ source: "qr_takeaway", campaign: "mobile_bar_takeaway" }).toString()}`
+    : `/order?${new URLSearchParams({ source: "qr_takeaway", campaign: "mobile_bar" }).toString()}`;
+
+  return (
+    <div className="mobile-order-bar" role="navigation" aria-label="Pesan cepat">
+      <a href={href} className="mob-order-primary">
+        <span>
+          {busy ? "Meja Penuh? Pesan Takeaway" : "Menu & Pesan"}
+          <small>{busy ? "Ambil tanpa antre" : "Pesan dari meja atau takeaway"}</small>
+        </span>
+        <ArrowRight size={16} />
+      </a>
+      <a
+        href={bizWaUrl(biz.whatsapp)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mob-order-wa"
+        aria-label="Chat WhatsApp GARAGE"
+      >
+        WA
+      </a>
+    </div>
+  );
 }
 
 function liveOrderEta(orderPulse, recommendation) {
@@ -879,12 +947,10 @@ function Loader({ onDone }) {
 
 // ---------------- NAV ----------------
 const MEGA_CATS = [
-{ Icon: Coffee, name: "Coffee", desc: "Espresso · V60 · Sanger · Vietnam Drip", count: "11 menu" },
-{ Icon: Sparkles, name: "Flavor Coffee", desc: "Butterscotch · Caramel · Mocca", count: "10 varian" },
-{ Icon: Snowflake, name: "Non-Coffee", desc: "12 varian dingin — semua Rp 12K", count: "12 menu" },
-{ Icon: UtensilsCrossed, name: "Makanan", desc: "Nasi Goreng · Indomie · Ayam Richeese", count: "9 menu" },
-{ Icon: Sandwich, name: "Burger & Kebab", desc: "30+ kombinasi mulai Rp 8K", count: "30+ varian" },
-{ Icon: Cookie, name: "Cemilan", desc: "Kentang · Sosis · Nugget — Rp 10K", count: "3 menu" }];
+{ Icon: Coffee, name: "Signature", desc: "Spanish Latte · Biscoffe · Caramel Macchiato", count: "Bar utama" },
+{ Icon: Sparkles, name: "Latte & Susu", desc: "Coklat · Matcha · Red Velvet · Taro", count: "Cold & Hot" },
+{ Icon: Snowflake, name: "Americano Series", desc: "Berry · Cranberry · Double Peach", count: "5 varian" },
+{ Icon: Coffee, name: "Klasik", desc: "Americano · Sanger · Latte · Cappuccino", count: "Cold & Hot" }];
 
 
 function Nav() {
@@ -961,6 +1027,7 @@ function Nav() {
     <>
       <nav
         className="site-nav"
+        data-condensed={condensed ? "true" : "false"}
         style={{
           position: "fixed", top: condensed ? 46 : 52, left: "50%",
           transform: "translateX(-50%)",
@@ -1012,10 +1079,15 @@ function Nav() {
             )}
           </ul>
 
-          <div className="site-nav-status" aria-label="Garage outlet status">
+          <div
+            className="site-nav-status"
+            aria-label="Garage outlet status"
+            data-open={openStatus(biz.hoursOpen, biz.hoursClose).isOpen ? "true" : "false"}
+            suppressHydrationWarning
+          >
             <span />
-            <strong>OPEN</strong>
-            <em>{`${biz.hoursOpen}–${biz.hoursClose}`}</em>
+            <strong suppressHydrationWarning>{openStatus(biz.hoursOpen, biz.hoursClose).isOpen ? "OPEN" : "TUTUP"}</strong>
+            <em>{hoursShort(biz)}</em>
           </div>
 
           <div className="site-nav-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1097,7 +1169,7 @@ function Nav() {
           
           <div style={{ padding: "32px 28px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
-              <span className="mono" style={{ color: "var(--red)" }}>MENU GARAGE - 90+ ITEM</span>
+              <span className="mono" style={{ color: "var(--red)" }}>MENU GARAGE - 30 MENU KOPI</span>
               <span className="mono">PILIH KATEGORI</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }} className="mega-grid">
@@ -1413,7 +1485,7 @@ function Nav() {
                 Menu Digital
               </Link>
               <a
-                href={reservationWhatsAppUrl(selectedTable?.tableLabel)}
+                href={reservationWhatsAppUrl(selectedTable?.tableLabel, biz.whatsapp)}
                 target="_blank"
                 rel="noreferrer"
                 aria-disabled={!selectedTable}
@@ -1502,6 +1574,18 @@ function Nav() {
           flex: 1 1 auto;
           min-width: 0;
           justify-content: center;
+        }
+        /* Menu tidak boleh menyusut lebih kecil dari teksnya — dulu saat navbar
+           mengecil ke 980px (scroll), "RECRUITMENT"/"LOKASI" dkk saling tumpuk. */
+        .nav-desktop li {
+          flex-shrink: 0;
+        }
+        /* Mode ringkas (setelah scroll): lepas status jam buka & tahun berdiri
+           supaya menu + tombol tetap muat di navbar 980px. */
+        .site-nav[data-condensed="true"] .site-nav-status,
+        .site-nav[data-condensed="true"] .brand-year,
+        .site-nav[data-condensed="true"] .brand-divider {
+          display: none !important;
         }
         .site-nav-status {
           position: relative;
@@ -1975,7 +2059,7 @@ function Nav() {
 function Hero({ landingHero }) {
   const y = useScrollY();
   const biz = useBiz();
-  const hoursLabel = `${biz.hoursOpen}–${biz.hoursClose}`;
+  const hoursLabel = hoursShort(biz);
   const parallax = Math.min(y * 0.3, 200);
 
   // floating particles
@@ -3239,6 +3323,7 @@ function LiveVisitBoard() {
 }
 
 function LiveTrackingSystem() {
+  const biz = useBiz();
   const [trackingData, setTrackingData] = useState(null);
   const [status, setStatus] = useState("sync");
   const [updatedAt, setUpdatedAt] = useState(null);
@@ -3374,7 +3459,7 @@ function LiveTrackingSystem() {
                 <p>{nextEvent?.available ?? "-"}/{nextEvent?.capacity ?? "-"} slot tersedia. Simpan tempatmu lebih cepat lewat WhatsApp.</p>
               </div>
               <a
-                href={`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(`Halo GARAGE, saya mau RSVP event ${nextEvent?.title ?? "GARAGE"}.`)}`}
+                href={bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau RSVP event ${nextEvent?.title ?? "GARAGE"}.`)}
                 className="btn btn-primary"
               >
                 <span>RSVP Event</span><ArrowRight />
@@ -3932,179 +4017,40 @@ function FloatingWA() {
 const MENU = {
   "Coffee": {
     eyebrow: "Bar utama",
-    summary: "Espresso, manual brew, dan klasik Nusantara — diseduh dari biji single-origin yang di-roasting in-house.",
+    summary: "30 signature coffee — dari Americano ringan sampai Spanish Latte, Biscoffe, dan Caramel Macchiato. Cold atau Hot.",
     pricingHeader: ["Cold", "Hot"],
     groups: [{
       items: [
-        { name: "Espresso Single",   prices: ["—",  "10"] },
-        { name: "Espresso Double",   prices: ["—",  "15"] },
-        { name: "Americano",         prices: ["15", "13"], badge: "Terlaris" },
-        { name: "Americano Honey",   prices: ["20", "—"] },
-        { name: "V60",               prices: ["—",  "25"], badge: "Manual Brew" },
-        { name: "Long Black",        prices: ["17", "14"] },
-        { name: "Ice Japanese",      prices: ["25", "—"], badge: "Rekomendasi" },
-        { name: "Vietnam Drip",      prices: ["16", "14"] },
-        { name: "Sanger",            prices: ["12", "10"], badge: "Klasik" },
-        { name: "Coffee Latte",      prices: ["17", "15"] },
-        { name: "Coffee Gula Aren",  prices: ["17", "15"], badge: "Lokal" },
-      ]
-    }],
-  },
-
-  "Flavor Coffee": {
-    eyebrow: "Susu & rasa",
-    summary: "Latte dengan sirup rumahan. Manis seimbang, espresso tetap terasa.",
-    pricingHeader: ["Cold", "Hot"],
-    groups: [{
-      items: [
-        { name: "Butterscotch Coffee Latte",  prices: ["23", "20"], badge: "Terlaris" },
-        { name: "Butterscotch Coffee (Toast)", prices: ["25", "23"], badge: "Baru" },
-        { name: "Vanilla Coffee Latte",        prices: ["20", "18"] },
-        { name: "Caramel Coffee Latte",        prices: ["20", "18"] },
-        { name: "Mocca Coffee Latte",          prices: ["20", "18"] },
-        { name: "Strawberry Coffee Latte",     prices: ["20", "—"] },
-        { name: "Hazelnut Coffee Latte",       prices: ["20", "18"] },
-        { name: "Bon Bon",                     prices: ["18", "16"] },
-        { name: "Americano Lemonade",          prices: ["19", "—"], badge: "Refreshing" },
-        { name: "Coffee Honey",                prices: ["20", "—"] },
-      ]
-    }],
-  },
-
-  "Non-Coffee": {
-    eyebrow: "Tanpa kopi",
-    summary: "12 varian es kekinian. Satu harga: Rp 12K — semua dingin, semua kenyang rasa.",
-    pricingHeader: ["Cold"],
-    groups: [{
-      items: [
-        { name: "Cappucino",        prices: ["12"] },
-        { name: "Mango",            prices: ["12"] },
-        { name: "Avocado",          prices: ["12"] },
-        { name: "Milk Tea",         prices: ["12"], badge: "Terlaris" },
-        { name: "Taro",             prices: ["12"] },
-        { name: "Cotton Candy",     prices: ["12"], badge: "Baru" },
-        { name: "Strawberry",       prices: ["12"] },
-        { name: "Lemon Tea",        prices: ["12"] },
-        { name: "Permen Karet",     prices: ["12"] },
-        { name: "Red Velvet",       prices: ["12"], badge: "Rekomendasi" },
-        { name: "Chocolate",        prices: ["12"] },
-        { name: "Cookies & Cream",  prices: ["12"] },
-        { name: "Matcha Green Tea", prices: ["12"] },
-      ]
-    }],
-  },
-
-  "Makanan": {
-    eyebrow: "Berat & ngenyangin",
-    summary: "Indomie spesial, nasi goreng level pedas, dan paket Ayam Richeese untuk yang lapar besar.",
-    groups: [
-      {
-        sub: "Indomie",
-        pricingHeader: ["Harga"],
-        items: [
-          { name: "Indomie Kuah",   prices: ["12"] },
-          { name: "Indomie Goreng", prices: ["12"] },
-        ]
-      },
-      {
-        sub: "Nasi Goreng",
-        pricingHeader: ["Sedang", "Pedas"],
-        items: [
-          { name: "Nasi Goreng Telur",    prices: ["12", "13"] },
-          { name: "Nasi Goreng Ayam",     prices: ["15", "16"], badge: "Terlaris" },
-          { name: "Nasi Goreng Kampung",  prices: ["17", "18"] },
-          { name: "Nasi Goreng Komplit",  prices: ["20", "21"], badge: "Rekomendasi" },
-        ]
-      },
-      {
-        sub: "Ayam Richeese",
-        pricingHeader: ["BBQ", "Balado", "Campur"],
-        items: [
-          { name: "Ayam Richeese 1/4 · Paket 1 Orang + Nasi",  prices: ["25", "25", "30"] },
-          { name: "Ayam Richeese 1/2 · Paket 2 Orang + Nasi",  prices: ["42", "42", "47"], badge: "Hemat" },
-          { name: "Ayam Richeese Utuh · Paket 4 Orang + Nasi", prices: ["80", "80", "85"], badge: "Family" },
-        ]
-      },
-    ],
-  },
-
-  "Burger & Kebab": {
-    eyebrow: "Tangan terbaik di Tebing Tinggi",
-    summary: "30+ kombinasi mulai Rp 8K. Burger telur, crispy, kebab, sampai paket spesial komplit.",
-    groups: [
-      {
-        sub: "Burger Telur",
-        pricingHeader: ["Harga"],
-        items: [
-          { name: "Burger + Telur",                                    prices: ["8"] },
-          { name: "Burger + Telur + Ayam",                             prices: ["10"] },
-          { name: "Burger + Telur + Ayam + Sosis",                     prices: ["13"] },
-          { name: "Burger + Telur + Ayam + Nugget Stick",              prices: ["13"] },
-          { name: "Burger + Telur + Ayam + Sosis + Nugget Stick",      prices: ["16"], badge: "Komplit" },
-          { name: "Burger + Telur + Sosis",                            prices: ["15"] },
-          { name: "Burger + Telur + Sosis + Nugget",                   prices: ["14"] },
-          { name: "Burger + Telur + Nugget",                           prices: ["12"] },
-          { name: "Burger + Telur + Keju",                             prices: ["12"] },
-          { name: "Burger + Telur + Keju + Ayam",                      prices: ["15"] },
-          { name: "Burger + Telur + Keju + Ayam + Sosis",              prices: ["17"] },
-          { name: "Burger + Telur + Keju + Ayam + Nugget Stick",       prices: ["17"] },
-          { name: "Burger + Telur + Keju + Ayam + Sosis + Nugget",     prices: ["19"], badge: "Komplit" },
-        ]
-      },
-      {
-        sub: "Burger Crispy",
-        pricingHeader: ["Harga"],
-        items: [
-          { name: "Burger + Telur + Crispy",                            prices: ["15"], badge: "Terlaris" },
-          { name: "Burger + Telur + Crispy + Sosis",                    prices: ["17"] },
-          { name: "Burger + Telur + Crispy + Nugget",                   prices: ["17"] },
-          { name: "Burger + Telur + Keju + Crispy",                     prices: ["18"] },
-          { name: "Burger + Telur + Crispy + Sosis + Nugget",           prices: ["20"] },
-          { name: "Burger + Telur + Keju + Crispy + Sosis",             prices: ["19"] },
-          { name: "Burger + Telur + Keju + Crispy + Nugget",            prices: ["19"] },
-          { name: "Burger + Telur + Keju + Crispy + Sosis + Nugget",    prices: ["22"], badge: "Komplit" },
-        ]
-      },
-      {
-        sub: "Burger Spesial",
-        pricingHeader: ["Harga"],
-        items: [
-          { name: "Burger Spesial Komplit", prices: ["25"], badge: "Signature" },
-        ]
-      },
-      {
-        sub: "Kebab",
-        pricingHeader: ["Harga"],
-        items: [
-          { name: "Kebab + Telur",                            prices: ["10"] },
-          { name: "Kebab + Telur + Ayam",                     prices: ["12"], badge: "Terlaris" },
-          { name: "Kebab + Telur + Ayam + Sosis",             prices: ["20"] },
-          { name: "Kebab + Telur + Ayam + Nugget",            prices: ["20"] },
-          { name: "Kebab + Telur + Ayam + Sosis + Nugget",    prices: ["22"], badge: "Komplit" },
-          { name: "Kebab + Telur + Sosis",                    prices: ["17"] },
-          { name: "Kebab + Telur + Sosis + Nugget",           prices: ["20"] },
-          { name: "Kebab + Telur + Nugget",                   prices: ["17"] },
-        ]
-      },
-      {
-        sub: "Kebab Spesial",
-        pricingHeader: ["Harga"],
-        items: [
-          { name: "Kebab Spesial Komplit", prices: ["28"], badge: "Signature" },
-        ]
-      },
-    ]
-  },
-
-  "Cemilan": {
-    eyebrow: "Pelengkap ngopi",
-    summary: "Goreng-gorengan klasik, satu harga Rp 10K. Pas buat nemenin pour over yang lama.",
-    pricingHeader: ["Harga"],
-    groups: [{
-      items: [
-        { name: "Kentang Goreng", prices: ["10"], badge: "Terlaris" },
-        { name: "Sosis",          prices: ["10"] },
-        { name: "Nugget",         prices: ["10"] },
+        { name: "Americano",              prices: ["15", "14"], badge: "Terlaris" },
+        { name: "Cappuccino",             prices: ["25", "23"], badge: "Terlaris" },
+        { name: "Latte",                  prices: ["20", "18"], badge: "Terlaris" },
+        { name: "Sanger",                 prices: ["16", "15"], badge: "Klasik" },
+        { name: "Coklat Latte",           prices: ["22", "20"] },
+        { name: "Matcha Latte",           prices: ["22", "20"] },
+        { name: "Red Velvet Latte",       prices: ["22", "20"] },
+        { name: "Spanish Latte",          prices: ["26", "—"], badge: "Rekomendasi" },
+        { name: "Caramel Macchiato",      prices: ["28", "—"], badge: "Signature" },
+        { name: "Butterscotch Sea Salt",  prices: ["28", "—"] },
+        { name: "Creamy Nutty",           prices: ["28", "—"] },
+        { name: "Biscoffe",               prices: ["28", "—"], badge: "Baru" },
+        { name: "Dirty Blanc",            prices: ["26", "—"] },
+        { name: "Choco Cloud",            prices: ["26", "—"] },
+        { name: "Mocha Peanut",           prices: ["25", "—"] },
+        { name: "Matcha Strawberry",      prices: ["25", "—"] },
+        { name: "Matcha Butterscotch",    prices: ["25", "—"] },
+        { name: "Hazelnut Latte",         prices: ["23", "—"] },
+        { name: "Vanilla Latte",          prices: ["23", "—"] },
+        { name: "Caramel Latte",          prices: ["23", "—"] },
+        { name: "Dirty Latte",            prices: ["23", "—"] },
+        { name: "Mont Blanc",             prices: ["23", "—"] },
+        { name: "Palm Sugar",             prices: ["23", "—"] },
+        { name: "Double Peach Americano", prices: ["23", "—"] },
+        { name: "Americano Berry",        prices: ["23", "—"] },
+        { name: "Americano Pongah",       prices: ["23", "—"] },
+        { name: "Americano Cranberry",    prices: ["23", "—"] },
+        { name: "Taro Latte",             prices: ["20", "—"], badge: "Lokal" },
+        { name: "Strawberry Milk",        prices: ["20", "—"] },
+        { name: "Lecy Tea",               prices: ["15", "—"] },
       ]
     }],
   },
@@ -4139,7 +4085,7 @@ function menuDisplayPrice(item) {
 
 function Menu() {
   const biz = useBiz();
-  const hoursLabel = `${biz.hoursOpen}–${biz.hoursClose}`;
+  const hoursLabel = hoursShort(biz);
   const cats = Object.keys(MENU);
   const [cat, setCat] = useState(cats[0]);
   const data = MENU[cat];
@@ -4451,8 +4397,8 @@ function Menu() {
           </div>
           <Reveal delay={400} style={{ maxWidth: 380 }}>
             <p style={{ fontSize: 15, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-              90+ menu dari kopi single-origin, manual brew, sampai burger & kebab yang dimasak fresh.
-              Mulai dari Rp 8K — selalu ada yang pas untuk semua mood.
+              30 signature coffee — dari Americano ringan sampai Spanish Latte, Biscoffe, dan Caramel Macchiato.
+              Mulai dari Rp 15K — Cold atau Hot, selalu ada yang pas untuk semua mood.
             </p>
             <div style={{ display: "flex", gap: 18, marginTop: 18, flexWrap: "wrap" }}>
               <MenuStat n="90+" l="Total menu" />
@@ -4911,11 +4857,9 @@ function AboutStat({ n, l }) {
 function Atmosphere({ landingHero = null }) {
   const tiles = [
     { src: "/garage-website/showcase/sanger.webp",       l: "Sanger — Hot & Iced", h: 360 },
-    { src: "/garage-website/showcase/v60.webp",          l: "V60 Manual Brew",     h: 460 },
-    { src: "/garage-website/showcase/taro-milk.webp",    l: "Taro Milk",           h: 400 },
-    { src: "/garage-website/showcase/burger.webp",       l: "Burger Garage",       h: 340 },
+    { src: "/garage-website/showcase/v60.webp",          l: "Slow Bar",            h: 460 },
+    { src: "/garage-website/showcase/taro-milk.webp",    l: "Taro Latte",          h: 400 },
     { src: "/garage-website/showcase/coffee-latte.webp", l: "Coffee Latte",        h: 420 },
-    { src: "/garage-website/showcase/kebab.webp",        l: "Kebab Garage",        h: 360 },
   ];
   const renderTile = (tile, idx) => {
     // Tile tengah (idx 1) pakai foto hero editable bila tersedia.
@@ -4958,7 +4902,7 @@ function Atmosphere({ landingHero = null }) {
           </div>
           <Reveal delay={400} style={{ maxWidth: 340 }}>
             <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-              Sanger panas-dingin, V60 manual brew, taro creamy, sampai burger &amp; kebab khas Garage.
+              Sanger panas-dingin, Spanish Latte, Matcha, taro creamy, sampai Caramel Macchiato khas Garage.
               Diracik dengan jiwa otomotif — siap nemenin nongkrong sampai larut.
             </p>
           </Reveal>
@@ -5028,7 +4972,28 @@ function SocialMark({ id }) {
   );
 }
 
+// Label & CTA per platform untuk kartu feed sosmed (link diisi owner di modul Website).
+const SOCIAL_POST_META = {
+  instagram: { label: "Instagram", cta: "Lihat di Instagram" },
+  tiktok: { label: "TikTok", cta: "Tonton di TikTok" },
+  youtube: { label: "YouTube", cta: "Tonton di YouTube" },
+  facebook: { label: "Facebook", cta: "Lihat di Facebook" },
+};
+
 function SocialPortfolio() {
+  const [posts, setPosts] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site/social-posts", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && Array.isArray(json?.data)) setPosts(json.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return (
     <section id="social-portfolio" className="section-pad social-portfolio" style={{
       borderTop: "1px solid var(--line)",
@@ -5048,6 +5013,44 @@ function SocialPortfolio() {
             Lihat bukti suasana, menu, promo, dan aktivitas komunitas GARAGE langsung dari channel resmi sebelum kamu datang.
           </Reveal>
         </div>
+
+        {posts.length > 0 ? (
+          <>
+            <p className="mono" style={{ marginBottom: 14, color: "var(--amber)" }}>TERBARU DARI SOSMED GARAGE</p>
+            <div className="social-portfolio-grid" style={{ marginBottom: 28 }}>
+              {posts.map((post, idx) => {
+                const meta = SOCIAL_POST_META[post.platform] ?? SOCIAL_POST_META.instagram;
+                return (
+                  <Reveal key={`${post.url}-${idx}`} delay={idx * 80}>
+                    <a
+                      href={post.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${meta.cta}: ${post.title || "postingan GARAGE"} (tab baru)`}
+                      className={`social-portfolio-card social-portfolio-card-${post.platform}`}
+                      style={{ minHeight: 220 }}
+                    >
+                      <div className="social-card-top">
+                        <div className="social-mark">
+                          <SocialMark id={post.platform} />
+                        </div>
+                        <span className="mono">TERBARU</span>
+                      </div>
+                      <div>
+                        <p className="social-proof">{meta.label}</p>
+                        <h3 style={{ fontSize: 22, lineHeight: 1.2 }}>{post.title || `Postingan ${meta.label} GARAGE`}</h3>
+                      </div>
+                      <div className="social-card-cta">
+                        <span>{meta.cta}</span>
+                        <ArrowRight size={12} />
+                      </div>
+                    </a>
+                  </Reveal>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
 
         <div className="social-portfolio-grid">
           {SOCIAL_LINKS.map((social, idx) => (
@@ -5710,7 +5713,8 @@ function MembershipMasterPro() {
 }
 
 function EventRow({ e, i, hover, setHover }) {
-  const rsvpUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(`Halo GARAGE, saya mau RSVP event ${e.title} (${e.date} ${e.time}).`)}`;
+  const biz = useBiz();
+  const rsvpUrl = bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau RSVP event ${e.title} (${e.date} ${e.time}).`);
   const seats = eventSeatInfo(e, i);
   return (
     <div
@@ -5913,7 +5917,7 @@ function Location() {
                 <InfoBlock label="Alamat" mainline={biz.address} sub="Tebing Tinggi Kota, Sumatera Utara" />
               </Reveal>
               <Reveal delay={500}>
-                <InfoBlock label="Jam Buka" mainline={`${biz.hoursOpen} — ${biz.hoursClose}`} sub="Buka setiap hari · Dapur tutup 30 menit sebelum closing" />
+                <InfoBlock label="Jam Buka" mainline={formatBusinessHours(biz.hoursOpen, biz.hoursClose)} sub="Buka setiap hari" />
               </Reveal>
               <Reveal delay={600}>
                 <InfoBlock label="Kontak" mainline={`+${biz.whatsapp}`} sub={biz.email} />
@@ -5921,7 +5925,7 @@ function Location() {
               <Reveal delay={700}>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
                   <a className="btn btn-primary" href={bizWaUrl(biz.whatsapp)}><span>WhatsApp</span><ArrowRight /></a>
-                  <a className="btn" href={biz.mapsUrl || MAPS_URL} target="_blank" rel="noreferrer"><span>Buka di Maps</span><ArrowRight /></a>
+                  <a className="btn" href={MAPS_URL} target="_blank" rel="noreferrer"><span>Buka di Maps</span><ArrowRight /></a>
                 </div>
               </Reveal>
             </div>
@@ -5930,7 +5934,7 @@ function Location() {
           {/* right — Google Maps embed */}
           <div style={{ position: "relative", minHeight: 520, borderLeft: "1px solid var(--line)" }} className="loc-map">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3982.123456789!2d98.876543!3d3.612345!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMxCU2Ny41ODc0OTk4OTA1NywzLjEyMzQ1NjY5NjE1MDQzIlc.KpABCD"
+              src={GARAGE_LOCATION.embedUrl}
               width="100%"
               height="100%"
               style={{ border: 0, position: "absolute", inset: 0, filter: "grayscale(80%) contrast(1.2) invert(92%) hue-rotate(180deg)" }}
@@ -5972,46 +5976,51 @@ function LocationMvp() {
               <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
             </Reveal>
             <Reveal delay={260} as="p" className="location-mvp-copy">
-              Maps resmi sedang disiapkan karena area GARAGE masih dalam tahap pembangunan.
-              Untuk arah paling akurat, hubungi tim kami via WhatsApp.
+              Jl. Mayjen Sutoyo, Rambung — dekat jalur kereta api, area outdoor bisa lihat kereta lewat.
+              Tekan <strong>Rute ke GARAGE</strong> untuk navigasi langsung dari Google Maps.
             </Reveal>
             <Reveal delay={360} as="div" className="location-mvp-cta-row">
-              <a className="btn btn-primary" href={bizWaUrl(biz.whatsapp, directionMessage)}><span>Tanya Arah via WhatsApp</span><ArrowRight /></a>
+              <a className="btn btn-primary" href={GARAGE_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer"><span>Rute ke GARAGE</span><ArrowRight /></a>
+              <a className="btn" href={`tel:+${biz.whatsapp}`}><span>Telepon</span><ArrowRight /></a>
+              <a className="btn" href={bizWaUrl(biz.whatsapp, directionMessage)}><span>WhatsApp</span><ArrowRight /></a>
               <a className="btn" href={bizWaUrl(biz.whatsapp, reservationMessage)}><span>Reservasi</span><ArrowRight /></a>
-              <span className="location-mvp-status">Maps segera hadir</span>
+            </Reveal>
+            <Reveal delay={420} as="div" className="location-mvp-rating">
+              <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" className="location-mvp-rating-link">
+                <span className="location-mvp-stars" aria-hidden="true">★★★★★</span>
+                <strong>{GARAGE_LOCATION.rating.toFixed(1).replace(".", ",")}</strong>
+                <span>· {GARAGE_LOCATION.reviewCount} ulasan Google</span>
+              </a>
+              <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" className="location-mvp-review-cta">Lihat profil Google →</a>
+              <a href={GARAGE_LOCATION.reviewUrl} target="_blank" rel="noopener noreferrer" className="location-mvp-review-cta">Tulis ulasan →</a>
             </Reveal>
             <div className="location-mvp-cards">
               <Reveal delay={460}>
-                <InfoBlock label="Alamat" mainline="Jl. Mayjen Sutoyo, Rambung" sub="Tebing Tinggi Kota, Sumatera Utara 20631" />
+                <InfoBlock label="Alamat" mainline={streetLine(biz.address)} sub={`Tebing Tinggi Kota, Sumatera Utara 20631 · Plus Code ${GARAGE_LOCATION.plusCode.split(",")[0]}`} />
               </Reveal>
               <Reveal delay={540}>
-                <InfoBlock label="Jam Buka" mainline={`${biz.hoursOpen} - ${biz.hoursClose}`} sub="Buka setiap hari. Dapur tutup 30 menit sebelum closing." />
+                <InfoBlock label="Jam Buka" mainline={formatBusinessHours(biz.hoursOpen, biz.hoursClose)} sub={isOpen24h(biz.hoursOpen, biz.hoursClose) ? "Buka setiap hari, 24 jam." : "Buka setiap hari. Dapur tutup 30 menit sebelum closing."} />
               </Reveal>
               <Reveal delay={620}>
-                <InfoBlock label="Kontak" mainline={`+${biz.whatsapp}`} sub={biz.email} />
+                <InfoBlock label="Telepon & WhatsApp" mainline={formatIdPhone(biz.whatsapp)} sub={biz.email} />
               </Reveal>
             </div>
           </div>
           <Reveal delay={260} className="location-mvp-map">
-            <div className="dummy-map" aria-label="Dummy map GARAGE, maps resmi segera hadir" role="img">
-              <div className="dummy-map-grid" />
-              <div className="dummy-road dummy-road-a" />
-              <div className="dummy-road dummy-road-b" />
-              <div className="dummy-road dummy-road-c" />
-              <svg className="dummy-route" viewBox="0 0 640 520" aria-hidden="true" preserveAspectRatio="none">
-                <path d="M42 422 C160 350 210 384 286 302 S392 168 594 108" />
-                <path d="M42 422 C160 350 210 384 286 302 S392 168 594 108" className="dummy-route-glow" />
-              </svg>
-              <div className="dummy-pin"><span /></div>
-              <div className="dummy-map-label">
-                <strong>GARAGE Coffee &amp; Motor</strong>
-                <small>Jl. Mayjen Sutoyo, Rambung</small>
-              </div>
-              <div className="dummy-map-badge">MAPS SEGERA HADIR</div>
-              <div className="dummy-map-note">
-                <span className="mono">PATOKAN LOKASI</span>
-                <p>Hubungi WhatsApp untuk update akses masuk dan titik temu paling akurat.</p>
-              </div>
+            <div className="location-mvp-frame">
+              <iframe
+                src={GARAGE_LOCATION.embedUrl}
+                width="100%"
+                height="100%"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Peta lokasi GARAGE Coffee Tebing Tinggi"
+              />
+              <a className="location-mvp-map-label" href={GARAGE_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer">
+                <strong>GARAGE Coffee Tebing Tinggi</strong>
+                <small>Tap untuk rute dari lokasimu →</small>
+              </a>
             </div>
           </Reveal>
         </div>
@@ -6022,36 +6031,31 @@ function LocationMvp() {
         .location-mvp-info { padding: 56px; display: flex; flex-direction: column; }
         .location-mvp-copy { color: var(--fg-dim); font-size: 16px; line-height: 1.7; margin-top: 26px; max-width: 560px; }
         .location-mvp-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 28px; }
-        .location-mvp-status { border: 1px solid rgba(244,244,245,0.14); color: var(--fg-dim); display: inline-flex; align-items: center; min-height: 52px; padding: 0 18px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+        .location-mvp-rating { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; margin-top: 22px; }
+        .location-mvp-rating-link { display: inline-flex; align-items: center; gap: 8px; color: var(--fg); font-size: 15px; text-decoration: none; }
+        .location-mvp-rating-link strong { font-size: 18px; }
+        .location-mvp-rating-link span:last-child { color: var(--fg-dim); }
+        .location-mvp-stars { color: #f59e0b; letter-spacing: 2px; font-size: 16px; }
+        .location-mvp-review-cta { color: #f59e0b; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; border-bottom: 1px solid rgba(245,158,11,0.4); padding-bottom: 2px; }
+        .location-mvp-review-cta:hover { color: #fbbf24; }
         .location-mvp-cards { display: grid; gap: 28px; margin-top: 44px; }
         .location-mvp-map { min-height: 560px; border-left: 1px solid var(--line); }
-        .dummy-map { position: relative; min-height: 560px; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 48%, rgba(245,158,11,0.12), transparent 18%), radial-gradient(circle at 60% 24%, rgba(209,26,42,0.12), transparent 24%), linear-gradient(135deg, #111116, #08080b 70%); }
-        .dummy-map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(244,244,245,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(244,244,245,0.055) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(circle at 50% 45%, rgba(0,0,0,0.95), transparent 78%); opacity: 0.55; }
-        .dummy-road { position: absolute; height: 1px; width: 96%; left: 2%; background: rgba(244,244,245,0.12); transform-origin: center; }
-        .dummy-road-a { top: 31%; transform: rotate(-19deg); }
-        .dummy-road-b { top: 58%; transform: rotate(14deg); }
-        .dummy-road-c { top: 76%; transform: rotate(-7deg); opacity: 0.7; }
-        .dummy-route { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; }
-        .dummy-route path { stroke: var(--red); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 16 12; opacity: 0.95; }
-        .dummy-route .dummy-route-glow { stroke-width: 16; opacity: 0.12; stroke-dasharray: none; }
-        .dummy-pin { position: absolute; left: 50%; top: 48%; width: 74px; height: 74px; transform: translate(-50%, -50%); border: 1px solid rgba(245,158,11,0.55); border-radius: 999px; display: grid; place-items: center; box-shadow: 0 0 42px rgba(245,158,11,0.22); }
-        .dummy-pin::before, .dummy-pin::after { content: ""; position: absolute; border: 1px solid rgba(245,158,11,0.22); border-radius: 999px; inset: -16px; }
-        .dummy-pin::after { inset: -32px; opacity: 0.55; }
-        .dummy-pin span { width: 18px; height: 18px; border-radius: 999px; background: var(--red); box-shadow: 0 0 0 8px rgba(209,26,42,0.22), 0 0 28px rgba(209,26,42,0.5); }
-        .dummy-map-label { position: absolute; left: 50%; top: calc(48% + 62px); transform: translateX(-50%); border: 1px solid rgba(244,244,245,0.14); background: rgba(8,8,11,0.78); backdrop-filter: blur(12px); min-width: min(320px, 82%); padding: 16px 18px; text-align: center; }
-        .dummy-map-label strong { color: var(--fg); display: block; font-family: var(--font-display); font-size: 22px; line-height: 1; text-transform: uppercase; }
-        .dummy-map-label small { color: var(--fg-dim); display: block; font-size: 13px; margin-top: 8px; }
-        .dummy-map-badge { position: absolute; right: 24px; top: 24px; background: var(--red); color: #fff; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; padding: 10px 12px; text-transform: uppercase; }
-        .dummy-map-note { position: absolute; left: 24px; bottom: 24px; max-width: 300px; border-left: 2px solid var(--red); padding-left: 16px; }
-        .dummy-map-note p { color: var(--fg-dim); font-size: 13px; line-height: 1.55; margin-top: 8px; }
-        @media (max-width: 960px) { .location-mvp-grid { grid-template-columns: 1fr; } .location-mvp-map { border-left: 0; border-top: 1px solid var(--line); min-height: 340px; } .dummy-map { min-height: 340px; } }
-        @media (max-width: 560px) { .location-mvp-info { padding: 32px 24px; } .location-mvp-cta-row .btn, .location-mvp-status { width: 100%; justify-content: center; } .dummy-map-badge { left: 18px; right: auto; top: 18px; } .dummy-map-note { left: 18px; right: 18px; bottom: 18px; max-width: none; } }
+        .location-mvp-frame { position: relative; min-height: 560px; height: 100%; overflow: hidden; background: #111116; }
+        .location-mvp-frame iframe { position: absolute; inset: 0; border: 0; filter: grayscale(55%) contrast(1.1) invert(90%) hue-rotate(180deg); }
+        .location-mvp-map-label { position: absolute; left: 20px; bottom: 20px; right: auto; max-width: calc(100% - 40px); border: 1px solid rgba(244,244,245,0.18); border-left: 3px solid var(--red); background: rgba(8,8,11,0.88); padding: 14px 18px; text-decoration: none; transition: transform 0.2s var(--ease-out); }
+        .location-mvp-map-label:hover { transform: translateY(-2px); }
+        .location-mvp-map-label strong { color: var(--fg); display: block; font-family: var(--font-display); font-size: 20px; line-height: 1.05; text-transform: uppercase; }
+        .location-mvp-map-label small { color: #f59e0b; display: block; font-size: 13px; margin-top: 6px; }
+        @media (prefers-reduced-motion: reduce) { .location-mvp-map-label { transition: none; } .location-mvp-map-label:hover { transform: none; } }
+        @media (max-width: 960px) { .location-mvp-grid { grid-template-columns: 1fr; } .location-mvp-map { border-left: 0; border-top: 1px solid var(--line); min-height: 360px; } .location-mvp-frame { min-height: 360px; } }
+        @media (max-width: 560px) { .location-mvp-info { padding: 32px 24px; } .location-mvp-cta-row .btn { width: 100%; justify-content: center; } .location-mvp-map-label { left: 12px; bottom: 12px; max-width: calc(100% - 24px); } }
       `}</style>
     </section>
   );
 }
 
 function LocalSeoBlock() {
+  const biz = useBiz();
   return (
     <section id="local-seo" className="local-seo-band">
       <div className="shell">
@@ -6064,8 +6068,8 @@ function LocalSeoBlock() {
             </p>
           </div>
           <div className="local-seo-list">
-            <InfoBlock label="Alamat" mainline="Jl. Mayjen Sutoyo, Rambung" sub="Kec. Tebing Tinggi Kota, Kota Tebing Tinggi, Sumatera Utara 20631" />
-            <InfoBlock label="Reservasi" mainline="+62 851 8898 3600" sub="WhatsApp bisnis GARAGE" />
+            <InfoBlock label="Alamat" mainline={streetLine(biz.address)} sub="Kec. Tebing Tinggi Kota, Kota Tebing Tinggi, Sumatera Utara 20631" />
+            <InfoBlock label="Reservasi" mainline={formatIdPhone(biz.whatsapp)} sub="Telepon & WhatsApp bisnis GARAGE" />
             <InfoBlock label="Akses cepat" mainline="Menu digital & reservasi" sub="Pesan takeaway, cek tempat, dan ikuti progres order" />
           </div>
         </Reveal>
@@ -6183,7 +6187,7 @@ function FinalCTA() {
 
         {/* horizontal text */}
         <div style={{ marginTop: 100, opacity: 0.4 }}>
-          <div className="mono">{`${biz.address.split(",")[0].toUpperCase()} / ${biz.hoursOpen}–${biz.hoursClose} SETIAP HARI`}</div>
+          <div className="mono">{`${biz.address.split(",")[0].toUpperCase()} / ${hoursShort(biz)} SETIAP HARI`}</div>
         </div>
       </div>
     </section>);
@@ -6194,7 +6198,7 @@ function FinalCTA() {
 function Footer() {
   const biz = useBiz();
   const waUrl = bizWaUrl(biz.whatsapp);
-  const mapsUrl = biz.mapsUrl || MAPS_URL;
+  const mapsUrl = MAPS_URL;
   const cols = [
   {
     h: "Jelajahi",
@@ -6249,7 +6253,7 @@ function Footer() {
             </div>
             <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 8, height: 8, background: "#0db86c", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(13,184,108,0.2)" }} />
-              <span className="mono" style={{ color: "var(--fg)" }}>BUKA {biz.hoursOpen} · TUTUP {biz.hoursClose}</span>
+              <span className="mono" style={{ color: "var(--fg)" }}>{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "BUKA 24 JAM" : `BUKA ${biz.hoursOpen} · TUTUP ${biz.hoursClose}`}</span>
             </div>
           </div>
           {cols.map((c) =>
@@ -6372,8 +6376,8 @@ function Footer() {
 function FooterMvp() {
   const biz = useBiz();
   const waUrl = bizWaUrl(biz.whatsapp);
-  const mapsUrl = biz.mapsUrl || MAPS_URL;
-  const shortAddress = "Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi";
+  const mapsUrl = MAPS_URL;
+  const shortAddress = `${streetLine(biz.address)}, Tebing Tinggi`;
   const quickLinks = [
     ["Menu", "#menu"],
     ["Cek Meja", "#live-status"],
@@ -6419,8 +6423,9 @@ function FooterMvp() {
             <p className="footer-mvp-address">{shortAddress}</p>
             <div className="footer-mvp-open">
               <span className="footer-mvp-open-dot" />
-              <span className="mono">OPEN {biz.hoursOpen} - {biz.hoursClose}</span>
+              <span className="mono">{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "OPEN 24 JAM" : `OPEN ${biz.hoursOpen} - ${biz.hoursClose}`}</span>
             </div>
+            <p className="footer-mvp-meta"><a href={`tel:+${biz.whatsapp}`} style={{ color: "inherit" }}>{formatIdPhone(biz.whatsapp)}</a></p>
             <p className="footer-mvp-meta">{biz.email}</p>
           </div>
 
@@ -6431,8 +6436,12 @@ function FooterMvp() {
                 <span>Reservasi WhatsApp</span>
                 <ArrowRight size={12} />
               </a>
+              <a href={GARAGE_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" className="footer-mvp-cta">
+                <span>Rute ke GARAGE</span>
+                <ArrowRight size={12} />
+              </a>
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="footer-mvp-cta">
-                <span>Buka Maps</span>
+                <span>Profil Google ★ {GARAGE_LOCATION.rating.toFixed(1).replace(".", ",")}</span>
                 <ArrowRight size={12} />
               </a>
             </div>
@@ -6700,6 +6709,7 @@ const formatRupiah = (value) =>
   }).format(Number(value) || 0);
 
 function PromoProducts() {
+  const biz = useBiz();
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -6760,12 +6770,15 @@ function PromoProducts() {
             const off = Math.round(
               ((it.basePrice - Number(it.promoPrice)) / it.basePrice) * 100,
             );
-            const waUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
-              `Halo GARAGE, saya mau pesan ${it.name} (promo ${formatRupiah(it.promoPrice)}).`,
-            )}`;
+            // Kartu promo langsung membuka menu digital di item ini (bisa langsung
+            // pesan & terlacak campaign); WhatsApp jadi opsi sekunder di bawah kartu.
+            const waUrl = bizWaUrl(
+              biz.whatsapp,
+              `Halo GARAGE, saya mau tanya promo ${it.name} (${formatRupiah(it.promoPrice)}).`,
+            );
             return (
               <Reveal key={it.id || idx} delay={idx * 60}>
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="promo-card" style={{
+                <a href={digitalMenuItemHref(it.name, "landing_promo")} className="promo-card" style={{
                   display: "block",
                   borderRadius: 14,
                   overflow: "hidden",
@@ -6803,8 +6816,12 @@ function PromoProducts() {
                       <span style={{ color: "var(--fg-mute)", textDecoration: "line-through", fontSize: 13 }}>
                         {formatRupiah(it.basePrice)}
                       </span>
+                      <span className="card-order-pill" style={{ marginLeft: "auto" }}>Pesan</span>
                     </div>
                   </div>
+                </a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="card-wa-link">
+                  Tanya via WhatsApp
                 </a>
               </Reveal>
             );
@@ -6868,10 +6885,10 @@ function FeaturedMenu() {
         </div>
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
           {items.map((it, idx) => {
-            const waUrl = bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau pesan ${it.name}.`);
+            const waUrl = bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau tanya menu ${it.name}.`);
             return (
               <Reveal key={idx} delay={idx * 60}>
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{
+                <a href={digitalMenuItemHref(it.name, "landing_unggulan")} style={{
                   display: "block", borderRadius: 14, overflow: "hidden",
                   border: "1px solid var(--line)", background: "var(--bg-2, #18181f)",
                   textDecoration: "none", color: "inherit",
@@ -6890,8 +6907,14 @@ function FeaturedMenu() {
                   <div style={{ padding: 14 }}>
                     <p style={{ fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.3 }}>{it.name}</p>
                     <p className="mono" style={{ margin: "4px 0 8px", color: "var(--fg-mute)", fontSize: 11 }}>{it.category}</p>
-                    {it.price ? <span style={{ color: "var(--fg)", fontWeight: 800, fontSize: 16 }}>{fmt(it.price)}</span> : null}
+                    <div className="card-order-row">
+                      {it.price ? <span style={{ color: "var(--fg)", fontWeight: 800, fontSize: 16 }}>{fmt(it.price)}</span> : <span />}
+                      <span className="card-order-pill">Pesan</span>
+                    </div>
                   </div>
+                </a>
+                <a href={waUrl} target="_blank" rel="noopener noreferrer" className="card-wa-link">
+                  Tanya via WhatsApp
                 </a>
               </Reveal>
             );
@@ -7054,8 +7077,8 @@ function GarageWebsiteRoot({
     whatsapp: businessInfo?.whatsapp || WHATSAPP_PHONE,
     email: businessInfo?.email || BUSINESS_EMAIL,
     address: businessInfo?.address || BUSINESS_ADDRESS,
-    hoursOpen: businessInfo?.hoursOpen || "07:00",
-    hoursClose: businessInfo?.hoursClose || "23:00",
+    hoursOpen: businessInfo?.hoursOpen || DEFAULT_HOURS_OPEN,
+    hoursClose: businessInfo?.hoursClose || DEFAULT_HOURS_CLOSE,
     instagram: businessInfo?.instagram || "",
     mapsUrl: businessInfo?.mapsUrl || "",
     tagline: businessInfo?.tagline || "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
@@ -7066,11 +7089,28 @@ function GarageWebsiteRoot({
     "@context": "https://schema.org",
     "@type": "CafeOrCoffeeShop",
     name: "GARAGE Coffee & Motor",
+    alternateName: GARAGE_LOCATION.name,
     description:
       "GARAGE Coffee & Motor Tebing Tinggi. Cafe, coffee shop, tempat nongkrong, menu digital, takeaway, reservasi WhatsApp, membership, dan event komunitas.",
+    // Domain publik (https) dari env bila sudah ada; alamat LAN (http://192.168…) tidak dipakai untuk Google.
+    url: process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.startsWith("https://")
+      ? process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL
+      : "https://garagecoffee.id",
     telephone: `+${biz.whatsapp}`,
     email: biz.email,
     priceRange: "Rp 8K - Rp 100K",
+    hasMap: MAPS_URL,
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: GARAGE_LOCATION.lat,
+      longitude: GARAGE_LOCATION.lng,
+    },
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: GARAGE_LOCATION.rating,
+      reviewCount: GARAGE_LOCATION.reviewCount,
+      bestRating: 5,
+    },
     address: {
       "@type": "PostalAddress",
       streetAddress: biz.address,
@@ -7122,6 +7162,7 @@ function GarageWebsiteRoot({
       <FinalCTA />
       <FooterMvp />
       <FloatingWA />
+      <MobileOrderBar />
     </main>
     </BizContext.Provider>
   );

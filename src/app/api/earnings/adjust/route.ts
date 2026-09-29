@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const limited = rateLimit(request, "earnings-adjust", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
 
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }

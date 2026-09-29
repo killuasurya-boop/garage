@@ -14,7 +14,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }

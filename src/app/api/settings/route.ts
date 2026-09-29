@@ -20,6 +20,13 @@ const patchSchema = z.object({
   manualDiscountApprovalPct: z.number().min(0).max(100).optional(),
   receiptHistoryMax: z.number().int().min(5).max(200).optional(),
   expenseApprovalThreshold: z.number().int().min(0).max(1_000_000_000).optional(),
+  dailyBudgetElectricity: z.number().int().min(0).max(100_000_000).optional(),
+  dailyBudgetPayroll: z.number().int().min(0).max(100_000_000).optional(),
+  dailyBudgetRent: z.number().int().min(0).max(100_000_000).optional(),
+  dailyBudgetSaveMoney: z.number().int().min(0).max(100_000_000).optional(),
+  dailyBudgetInternet: z.number().int().min(0).max(100_000_000).optional(),
+  dailyBudgetAds: z.number().int().min(0).max(100_000_000).optional(),
+  dailyBudgetSystem: z.number().int().min(0).max(100_000_000).optional(),
   brandName: z.string().trim().min(1).max(40).optional(),
   brandTagline: z.string().trim().max(60).optional(),
   receiptFooter: z.string().trim().max(120).optional(),
@@ -31,8 +38,13 @@ const patchSchema = z.object({
   autoPrintReceipt: z.boolean().optional(),
   defaultPrinterName: z.string().trim().max(80).optional(),
   receiptCopies: z.number().int().min(1).max(5).optional(),
+  kitchenChitAutoPrint: z.boolean().optional(),
+  productionBatchWindowSec: z.number().int().min(0).max(900).optional(),
   pointsPerThousand: z.number().min(0).max(10).optional(),
   voucherMaxDiscountPct: z.number().min(0).max(100).optional(),
+  qrPromoPct: z.number().min(0).max(100).optional(),
+  qrPromoMaxAmount: z.number().int().min(0).max(10_000_000).optional(),
+  autoSoldOutFromStock: z.boolean().optional(),
   marketingCampaignName: z.string().trim().min(1).max(80).optional(),
   marketingMonthlyBudget: z.number().int().min(0).max(100_000_000).optional(),
   marketingDefaultSegment: z
@@ -96,12 +108,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   // Update setting OS boleh untuk role yang memang ditampilkan canWrite di UI.
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-    "Finance / CFO",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const body = await readJson(request, patchSchema);

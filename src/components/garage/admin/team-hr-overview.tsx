@@ -47,7 +47,7 @@ export function TeamHrOverview({ onNavigate }: { onNavigate: (tab: string) => vo
     const fetchOverview = async () => {
       setLoading(true);
       const period = currentPeriod();
-      const todayKey = new Date().toISOString().slice(0, 10);
+      const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 
       // Fetch in parallel; tolerate individual failures (no permission, network).
       const [staffRes, logsRes, advRes, tasksRes, kpiRes] = await Promise.all([

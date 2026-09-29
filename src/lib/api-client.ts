@@ -22,7 +22,7 @@ async function parseEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   try {
     return JSON.parse(text) as ApiEnvelope<T>;
   } catch {
-    throw new GarageApiError("API returned an invalid JSON response.", {
+    throw new GarageApiError("Respons server tidak valid.", {
       code: "INVALID_JSON_RESPONSE",
       status: response.status,
     });
@@ -37,16 +37,28 @@ async function request<T>(path: string, init: RequestInit = {}) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(path, {
-    ...init,
-    credentials: init.credentials ?? "same-origin",
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      credentials: init.credentials ?? "same-origin",
+      headers,
+    });
+  } catch (error) {
+    // "Failed to fetch": server mati / WiFi putus. Request mungkin sudah
+    // sampai & diproses server sebelum koneksi putus — pemanggil yang mengubah
+    // data harus mengulang dengan idempotency key yang sama.
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new GarageApiError(
+      "Koneksi ke server terputus. Pastikan server kasir menyala & WiFi tersambung, lalu coba lagi.",
+      { code: "NETWORK_ERROR", status: 0 },
+    );
+  }
   const envelope = await parseEnvelope<T>(response);
 
   if (!response.ok || envelope.error) {
     throw new GarageApiError(
-      envelope.error?.message ?? `Garage API request failed: ${response.status}`,
+      envelope.error?.message ?? `Permintaan ke server gagal (${response.status}).`,
       {
         code: envelope.error?.code,
         status: response.status,
@@ -55,7 +67,7 @@ async function request<T>(path: string, init: RequestInit = {}) {
   }
 
   if (!("data" in envelope)) {
-    throw new GarageApiError("Garage API response is missing data.", {
+    throw new GarageApiError("Respons server tidak berisi data.", {
       code: "MISSING_DATA",
       status: response.status,
     });

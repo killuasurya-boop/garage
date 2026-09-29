@@ -11,8 +11,10 @@ import {
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { hashPin } from "@/lib/attendance";
+import { validateApprovalPin } from "@/lib/pin-rules";
 import type { Role } from "@/lib/garage-data";
-import { permissionsForRole } from "@/lib/role-access";
+import { normalizeWorkstation } from "@/lib/garage-production-rules";
+import { permissionsForRole, protectedRoleRank } from "@/lib/role-access";
 import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
 
 export type AdminAuditContext = {
@@ -22,26 +24,9 @@ export type AdminAuditContext = {
   deviceLabel?: string;
 };
 
-const protectedRoleRank: Record<Role, number> = {
-  "Owner / CEO": 100,
-  Admin: 90,
-  "Manager Operasional": 70,
-  "Finance / CFO": 60,
-  "Supervisor Shift": 50,
-  Kasir: 30,
-  Barista: 30,
-  Koki: 30,
-  "Asisten Koki": 20,
-  "Waiter 1": 20,
-  "Waiter 2": 20,
-  "Kitchen / Barista": 30,
-  Gudang: 30,
-  "Delivery Admin": 20,
-};
-
 function canManageRole(actorRole: Role | undefined, targetRole: Role) {
   if (!actorRole) return true;
-  if (actorRole === "Owner / CEO") return true;
+  if (actorRole === "Owner") return true;
   return protectedRoleRank[targetRole] < protectedRoleRank[actorRole];
 }
 
@@ -49,7 +34,7 @@ async function countOwners() {
   const [row] = await getDb()
     .select({ c: sql<number>`count(*)::int` })
     .from(staffProfiles)
-    .where(eq(staffProfiles.role, "Owner / CEO"));
+    .where(eq(staffProfiles.role, "Owner"));
   return Number(row?.c ?? 0);
 }
 
@@ -95,6 +80,8 @@ export type AdminUserRow = {
   passwordResetRequired: boolean;
   division: string | null;
   position: string | null;
+  // Workstation Production Hub ("bar" | "dapur" | "all" | null).
+  workstation: string | null;
   pinConfigured: boolean;
   outletId: string;
   outletCode: string;
@@ -153,6 +140,7 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
       passwordResetRequired: staffProfiles.passwordResetRequired,
       division: staffProfiles.division,
       position: staffProfiles.position,
+      workstation: staffProfiles.workstation,
       pinHash: staffProfiles.pinHash,
       pinCode: staffProfiles.pinCode,
       outletId: outlets.id,
@@ -208,6 +196,7 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
     passwordResetRequired: row.passwordResetRequired,
     division: row.division,
     position: row.position,
+    workstation: row.workstation ?? null,
     pinConfigured: Boolean(row.pinHash || row.pinCode),
     outletId: row.outletId,
     outletCode: row.outletCode,
@@ -230,6 +219,7 @@ export async function createAdminUser(
     deviceLabel?: string;
     division?: string;
     position?: string;
+    workstation?: string | null;
     requirePasswordChange?: boolean;
   },
   audit?: AdminAuditContext,
@@ -283,6 +273,7 @@ export async function createAdminUser(
       deviceLabel: input.deviceLabel ?? "POS-01",
       division: input.division || null,
       position: input.position || null,
+      workstation: normalizeWorkstation(input.workstation),
       passwordResetRequired: input.requirePasswordChange ?? true,
     });
     await writeAdminAudit(audit, "user.create", input.email, {
@@ -300,6 +291,7 @@ export async function createAdminUser(
     deviceLabel: input.deviceLabel ?? "POS-01",
     division: input.division || null,
     position: input.position || null,
+    workstation: normalizeWorkstation(input.workstation),
     passwordResetRequired: input.requirePasswordChange ?? true,
   });
   await writeAdminAudit(audit, "user.create", input.email, {
@@ -319,6 +311,7 @@ export async function updateAdminUser(
     deviceLabel?: string;
     division?: string | null;
     position?: string | null;
+    workstation?: string | null;
     status?: AdminUserStatus;
     suspendedReason?: string | null;
     passwordResetRequired?: boolean;
@@ -342,15 +335,15 @@ export async function updateAdminUser(
     return { error: "Role anda tidak boleh memberikan level akses ini." };
   }
   if (
-    currentRole === "Owner / CEO" &&
+    currentRole === "Owner" &&
     patch.role &&
-    patch.role !== "Owner / CEO" &&
+    patch.role !== "Owner" &&
     (await countOwners()) <= 1
   ) {
     return { error: "Tidak bisa mengubah Owner terakhir." };
   }
   if (
-    currentRole === "Owner / CEO" &&
+    currentRole === "Owner" &&
     patch.status === "suspended" &&
     (await countOwners()) <= 1
   ) {
@@ -371,6 +364,9 @@ export async function updateAdminUser(
   if (patch.deviceLabel !== undefined) profileUpdate.deviceLabel = patch.deviceLabel;
   if (patch.division !== undefined) profileUpdate.division = patch.division || null;
   if (patch.position !== undefined) profileUpdate.position = patch.position || null;
+  if (patch.workstation !== undefined) {
+    profileUpdate.workstation = normalizeWorkstation(patch.workstation);
+  }
   if (patch.passwordResetRequired !== undefined) {
     profileUpdate.passwordResetRequired = patch.passwordResetRequired;
   }
@@ -423,7 +419,7 @@ export async function deleteAdminUser(
     throw new Error("Role anda tidak boleh menghapus user ini.");
   }
   if (
-    currentProfile?.role === "Owner / CEO" &&
+    currentProfile?.role === "Owner" &&
     (await countOwners()) <= 1
   ) {
     throw new Error("Tidak bisa menghapus Owner terakhir.");
@@ -497,7 +493,7 @@ export async function resetUserPassword(
     return { error: "Akun credential tidak ditemukan untuk user ini." };
   }
 
-  // Better Auth tidak expose admin-reset langsung — pakai context internal.
+  // Better Auth tidak expose admin-reset langsung â€” pakai context internal.
   const ctx = await auth.$context;
   const hash = await ctx.password.hash(newPassword);
   await db
@@ -505,7 +501,7 @@ export async function resetUserPassword(
     .set({ password: hash, updatedAt: new Date() })
     .where(eq(account.id, credential.id));
 
-  // Invalidate semua session — user harus login ulang dengan password baru.
+  // Invalidate semua session â€” user harus login ulang dengan password baru.
   await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
   await db
     .update(staffProfiles)
@@ -516,6 +512,8 @@ export async function resetUserPassword(
 
   return { ok: true };
 }
+
+const PIN_TAKEN_MESSAGE = "PIN sudah dipakai staf lain. Pilih kombinasi lain.";
 
 export async function setStaffPin(
   userId: string,
@@ -534,6 +532,10 @@ export async function setStaffPin(
   if (!canManageRole(audit?.actorRole, target.role as Role)) {
     return { error: "Role anda tidak boleh mengubah PIN user ini." };
   }
+  if (pinCode && (await pinTakenByOther(pinCode, userId))) {
+    await writeAdminAudit(audit, "user.pin_conflict", userId);
+    return { error: PIN_TAKEN_MESSAGE };
+  }
 
   await db
     .update(staffProfiles)
@@ -544,6 +546,62 @@ export async function setStaffPin(
     })
     .where(eq(staffProfiles.userId, userId));
   await writeAdminAudit(audit, pinCode ? "user.set_pin" : "user.clear_pin", userId);
+  return { ok: true };
+}
+
+/**
+ * PIN dipakai absensi & persetujuan untuk mengenali staf BY pin â†’ harus unik,
+ * kalau tidak keputusan/absen bisa tercatat atas nama orang lain.
+ */
+async function pinTakenByOther(pinCode: string, exceptUserId: string) {
+  const [row] = await getDb()
+    .select({ userId: staffProfiles.userId })
+    .from(staffProfiles)
+    .where(
+      and(
+        eq(staffProfiles.pinHash, hashPin(pinCode)),
+        sql`${staffProfiles.userId} <> ${exceptUserId}`,
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/** Status PIN persetujuan milik user sendiri. */
+export async function getOwnPinStatus(userId: string) {
+  const [row] = await getDb()
+    .select({ pinHash: staffProfiles.pinHash, pinCode: staffProfiles.pinCode })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1);
+  return { pinConfigured: Boolean(row?.pinHash || row?.pinCode) };
+}
+
+/**
+ * Owner/Manajer mengatur PIN persetujuannya sendiri (password akun sudah
+ * diverifikasi di route). Aturan format & PIN lemah di `pin-rules`.
+ */
+export async function setOwnApprovalPin(
+  userId: string,
+  pinCode: string,
+  audit: AdminAuditContext,
+): Promise<{ ok: true } | { error: string }> {
+  if (audit.actorRole !== "Owner" && audit.actorRole !== "Manajer") {
+    return { error: "Hanya Owner dan Manajer yang memakai PIN persetujuan." };
+  }
+  const formatError = validateApprovalPin(pinCode);
+  if (formatError) return { error: formatError };
+  if (await pinTakenByOther(pinCode, userId)) {
+    // Jejak untuk Owner: percobaan berulang = indikasi mencari PIN orang lain.
+    await writeAdminAudit(audit, "user.pin_conflict", userId);
+    return { error: PIN_TAKEN_MESSAGE };
+  }
+
+  await getDb()
+    .update(staffProfiles)
+    .set({ pinHash: hashPin(pinCode), pinCode: null, updatedAt: new Date() })
+    .where(eq(staffProfiles.userId, userId));
+  await writeAdminAudit(audit, "user.set_own_pin", userId);
   return { ok: true };
 }
 
@@ -566,7 +624,7 @@ export async function bulkAction(
       return { affected: 0, error: "Role anda tidak boleh melakukan bulk action ke salah satu user." };
     }
   }
-  const ownerTargets = targetProfiles.filter((target) => target.role === "Owner / CEO").length;
+  const ownerTargets = targetProfiles.filter((target) => target.role === "Owner").length;
   if (
     ownerTargets > 0 &&
     ["delete", "suspend"].includes(input.action) &&

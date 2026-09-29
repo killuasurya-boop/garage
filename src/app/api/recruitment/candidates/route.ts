@@ -7,11 +7,7 @@ export const dynamic = "force-dynamic";
 
 // Daftar kandidat + statistik untuk admin/HR/CEO. Data tidak boleh publik.
 export async function GET(request: Request) {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
 
   const url = new URL(request.url);

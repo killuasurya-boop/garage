@@ -16,11 +16,12 @@ const baseUrl = (process.env.UAT_BASE_URL ?? process.env.SMOKE_BASE_URL ?? "http
   /\/+$/,
   "",
 );
-const kasirEmail = process.env.UAT_KASIR_EMAIL ?? "kasir@garage.local";
+const kasirEmail = process.env.UAT_KASIR_EMAIL ?? "kasir@garage.id";
 const kasirPassword = process.env.UAT_KASIR_PASSWORD ?? process.env.GARAGE_SEED_PASSWORD ?? "garage12345";
-const financeEmail = process.env.UAT_FINANCE_EMAIL ?? "finance@garage.local";
-const managerEmail = process.env.UAT_MANAGER_EMAIL ?? "manager@garage.local";
-const gudangEmail = process.env.UAT_GUDANG_EMAIL ?? "gudang@garage.local";
+// Finance & Gudang bukan role terpisah lagi — Manajer pegang finance, Kasir pegang gudang.
+const financeEmail = process.env.UAT_FINANCE_EMAIL ?? "manajer@garage.id";
+const managerEmail = process.env.UAT_MANAGER_EMAIL ?? "manajer@garage.id";
+const gudangEmail = process.env.UAT_GUDANG_EMAIL ?? "kasir@garage.id";
 const sharedPassword = process.env.UAT_PASSWORD ?? kasirPassword;
 const memberPhone = process.env.SMOKE_MEMBER_IDENTIFIER ?? GARAGE_SMOKE_MEMBER_PHONE;
 const roleLoginIps = new Map<string, string>();

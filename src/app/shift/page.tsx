@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 
 import { CashierShiftReport } from "@/components/garage/cashier-shift-report";
 import { requireGarageSession } from "@/lib/server-auth";
+import { staffViewport } from "@/lib/staff-viewport";
+
+// Layar staf: zoom dua jari dikunci (lihat src/lib/staff-viewport.ts).
+export const viewport = staffViewport;
 
 export const metadata: Metadata = {
   title: "Riwayat Shift Kasir | Garage",
@@ -13,13 +17,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function ShiftPage() {
-  const session = await requireGarageSession([
-    "Owner / CEO",
-    "Admin",
-    "Manager Operasional",
-    "Supervisor Shift",
-    "Kasir",
-  ]);
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
   if (session.response) {
     redirect("/login");
   }

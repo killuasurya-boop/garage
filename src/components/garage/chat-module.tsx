@@ -10,7 +10,6 @@ import {
   Clock,
   Eye,
   Handshake,
-  Hash,
   Italic,
   List,
   ListChecks,
@@ -104,7 +103,7 @@ const orderStatusSteps: Array<{ id: OrderRelayStatus; label: string }> = [
   { id: "served", label: "Served" },
 ];
 
-const customerFacingRoles: Role[] = ["Kasir", "Waiter 1", "Waiter 2", "Supervisor Shift"];
+const customerFacingRoles: Role[] = ["Kasir", "Waiter", "Waiter", "Manajer"];
 
 const initialRelayOrders: OrderRelayItem[] = [
   {
@@ -747,7 +746,7 @@ export function ChatModule({
   const [ceoBroadcastFocus, setCeoBroadcastFocus] = useState("");
 
   const canBroadcastCeo =
-    currentUserRole === "Owner / CEO" || currentUserRole === "Admin";
+    currentUserRole === "Owner" || currentUserRole === "Manajer";
 
   const runCeoBroadcast = useCallback(async () => {
     if (ceoBroadcasting) return;
@@ -1237,7 +1236,7 @@ export function ChatModule({
                       onChange={(event) => setBroadcastRole(event.target.value as Role)}
                       className="h-10 w-full rounded-md border border-[#34343c] bg-[#18181f] px-2 text-sm text-white"
                     >
-                      {["Owner / CEO", "Admin", "Manager Operasional", "Kasir", "Barista", "Koki", "Waiter 1", "Waiter 2", "Supervisor Shift"].map((role) => (
+                      {["Owner", "Manajer", "Kasir", "Waiter"].map((role) => (
                         <option key={role} value={role}>
                           {role}
                         </option>

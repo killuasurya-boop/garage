@@ -34,7 +34,7 @@ const REQUIRED_PUBLISHING_PROVIDERS = [
 export const MANUAL_ACTIVATION_CHECKS = [
   {
     id: "developer-callbacks",
-    label: "Callback developer app sudah diarahkan ke app.garagecoffee.id",
+    label: "Callback developer app sudah diarahkan ke garagecoffee.id",
     description: "Meta, TikTok, Google, dan Threads memakai callback GARAGE OS, bukan worker lama.",
   },
   {

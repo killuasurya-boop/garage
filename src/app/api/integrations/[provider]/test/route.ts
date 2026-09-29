@@ -13,7 +13,7 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ provider: string }> },
 ) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
   const { provider } = await context.params;
   if (!INTEGRATION_PROVIDERS.includes(provider as IntegrationProvider)) {

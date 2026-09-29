@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 
 import type { ModuleId } from "@/lib/garage-data";
-import { canAccessModule, firstModuleForRole } from "@/lib/role-access";
+import { loadSettingsByKeys } from "@/lib/garage-settings-service";
+import { canAccessModule, homeModuleFor } from "@/lib/role-access";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export async function requireModulePageAccess(moduleId: ModuleId) {
@@ -20,8 +21,20 @@ export async function requireModulePageAccess(moduleId: ModuleId) {
     redirect("/account/password?required=1");
   }
 
+  // Kebijakan 2FA wajib (Pengaturan → Keamanan): Owner/Manajer tanpa 2FA
+  // diarahkan ke setup sebelum bisa memakai modul mana pun — dulu hanya
+  // ditegakkan di Control Center. Halaman /control/2fa tidak memakai
+  // helper ini, jadi tidak terjadi redirect berulang.
+  if (role === "Owner" || role === "Manajer") {
+    const policy = await loadSettingsByKeys(["securityRequire2faForOwner"]);
+    const has2fa = Boolean((session.data.user as { twoFactorEnabled?: boolean }).twoFactorEnabled);
+    if (policy["securityRequire2faForOwner"] && !has2fa) {
+      redirect("/control/2fa?enforced=1");
+    }
+  }
+
   if (!canAccessModule(role, moduleId)) {
-    redirect(`/os?module=${firstModuleForRole(role)}`);
+    redirect(`/os?module=${homeModuleFor(role, session.data.profile.workstation)}`);
   }
 
   return session.data;

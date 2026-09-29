@@ -25,7 +25,7 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://app.garagecoffee.id";
+  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://garagecoffee.id";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -51,11 +51,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Halaman pelanggan (website, /order, invoice) boleh di-zoom dua jari —
+// pelanggan sepuh perlu memperbesar menu & harga (WCAG 1.4.4). Layar staf
+// (/pos, /os) tetap mengunci zoom lewat `staffViewport` di page masing-masing.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   themeColor: "#08080b",
   colorScheme: "dark",
 };
@@ -67,7 +70,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="id"
       className={`${anton.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">

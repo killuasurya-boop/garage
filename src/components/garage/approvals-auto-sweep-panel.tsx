@@ -33,7 +33,7 @@ export function ApprovalsAutoSweepPanel({ onSwept }: { onSwept?: () => void }) {
       setResult(res);
       onSwept?.();
     } catch (err) {
-      setError(err instanceof GarageApiError ? err.message : "Gagal menjalankan sweep.");
+      setError(err instanceof GarageApiError ? err.message : "Gagal menjalankan persetujuan otomatis.");
     } finally {
       setLoading(false);
     }
@@ -44,10 +44,10 @@ export function ApprovalsAutoSweepPanel({ onSwept }: { onSwept?: () => void }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Zap className="h-4 w-4 text-[#ffd08a]" />
-          Auto-approval sweep
+          Persetujuan otomatis
         </CardTitle>
         <CardDescription className="text-xs text-[#b8b8bf]">
-          Approve otomatis expense di bawah threshold yang dikonfigurasi di Settings.
+          Setujui otomatis pengeluaran di bawah batas nominal yang diatur di Pengaturan.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -60,7 +60,7 @@ export function ApprovalsAutoSweepPanel({ onSwept }: { onSwept?: () => void }) {
           variant="outline"
         >
           <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
-          {loading ? "Memproses…" : "Jalankan sweep sekarang"}
+          {loading ? "Memproses…" : "Jalankan sekarang"}
         </Button>
         {error ? (
           <p className="text-[11px] text-[#ff8a93]">{error}</p>
@@ -68,15 +68,15 @@ export function ApprovalsAutoSweepPanel({ onSwept }: { onSwept?: () => void }) {
         {result ? (
           <div className="grid grid-cols-3 gap-1.5">
             <div className="rounded-md border border-[#34343c] bg-[#0f0f14] p-2">
-              <p className="garage-mono text-[9px] uppercase text-[#b8b8bf]">Pending</p>
+              <p className="garage-mono text-[9px] uppercase text-[#b8b8bf]">Menunggu</p>
               <p className="mt-1 text-lg font-black text-white">{result.total}</p>
             </div>
             <div className="rounded-md border border-[#22c55e]/30 bg-[#22c55e]/10 p-2">
-              <p className="garage-mono text-[9px] uppercase text-[#bbf7d0]">Auto-approved</p>
+              <p className="garage-mono text-[9px] uppercase text-[#bbf7d0]">Disetujui</p>
               <p className="mt-1 text-lg font-black text-white">{result.autoApproved}</p>
             </div>
             <div className="rounded-md border border-[#f5a742]/30 bg-[#f5a742]/10 p-2">
-              <p className="garage-mono text-[9px] uppercase text-[#ffd08a]">Skipped</p>
+              <p className="garage-mono text-[9px] uppercase text-[#ffd08a]">Dilewati</p>
               <p className="mt-1 text-lg font-black text-white">{result.skipped}</p>
             </div>
           </div>

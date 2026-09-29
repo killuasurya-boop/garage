@@ -183,12 +183,12 @@ async function main() {
       fails.push(`Kasir bisa akses ${e.method} ${e.httpPath} (butuh finance:write)`);
     }
     // Waiter TIDAK boleh akses endpoint inventory:write murni
-    if (e.required.includes("inventory:write") && canAccess("Waiter 1", e)) {
-      fails.push(`Waiter 1 bisa akses ${e.method} ${e.httpPath} (butuh inventory:write)`);
+    if (e.required.includes("inventory:write") && canAccess("Waiter", e)) {
+      fails.push(`Waiter bisa akses ${e.method} ${e.httpPath} (butuh inventory:write)`);
     }
-    // Barista/Koki TIDAK boleh akses endpoint finance:read murni
-    if (e.required.includes("finance:read") && canAccess("Barista", e)) {
-      fails.push(`Barista bisa akses ${e.method} ${e.httpPath} (butuh finance:read)`);
+    // Kasir TIDAK boleh akses endpoint finance:read murni
+    if (e.required.includes("finance:read") && canAccess("Kasir", e)) {
+      fails.push(`Kasir bisa akses ${e.method} ${e.httpPath} (butuh finance:read)`);
     }
   }
 

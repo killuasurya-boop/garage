@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
 import { fail } from "@/lib/api-response";
+import { jakartaDateKey } from "@/lib/attendance";
 
 export async function GET() {
   try {
@@ -74,7 +75,7 @@ export async function GET() {
     });
 
     // Ambil SOP
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const today = jakartaDateKey(); // YYYY-MM-DD (WIB)
     
     let applicableSops: unknown[] = [];
     if (outletId && staffProfile) {

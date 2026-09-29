@@ -12,6 +12,7 @@ Bell,
 Check,
 Clock,
 Fingerprint,
+KeyRound,
 Database,
 Eye,
 EyeOff,
@@ -186,7 +187,8 @@ type Role
 import {
 canAccessModule,
 canUseApi,
-firstModuleForRole,
+homeModuleFor,
+MANAGEMENT_ROLES,
 modulesForRole,
 } from "@/lib/role-access";
 // First-paint / selalu tampil / kecil → tetap statis (cepat).
@@ -209,7 +211,7 @@ import { voice } from "@/lib/garage-voice";
 // awal shell sehingga login + POS/Dashboard terasa cepat (anti-lelet). Setiap
 // modul punya fallback skeleton kecil saat chunk-nya dimuat.
 const ModuleChunkFallback = () => (
-  <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat modulâ€¦</div>
+  <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat modul…</div>
 );
 
 const EarningsView = dynamic(
@@ -296,8 +298,8 @@ const WmsAlertWidget = dynamic(
   () => import("@/components/garage/wms-alert-widget").then((m) => m.WmsAlertWidget),
   { ssr: false },
 );
-const KitchenView = dynamic(
-  () => import("@/components/garage/kitchen-view").then((m) => m.KitchenView),
+const ProductionView = dynamic(
+  () => import("@/components/garage/production-view").then((m) => m.ProductionView),
   { loading: ModuleChunkFallback },
 );
 const SopTutorialWidget = dynamic(
@@ -571,9 +573,6 @@ function GarageWorkspace({
   // Voice low-stock tracking â€” announce hanya saat SKU baru transition jadi "low",
   // bukan setiap fetch refresh (yang akan re-trigger untuk item yang udah lama low).
   const previousLowStockRef = useRef<Set<string> | null>(null);
-  const [kitchenSyncing, setKitchenSyncing] = useState(false);
-  const [kitchenSyncError, setKitchenSyncError] = useState<string | null>(null);
-  const [kitchenLastSyncedAt, setKitchenLastSyncedAt] = useState<Date | null>(null);
   const [kitchenPerformance, setKitchenPerformance] =
     useState<KitchenPerformanceData | null>(null);
   const [kitchenPerformanceLoading, setKitchenPerformanceLoading] = useState(false);
@@ -671,9 +670,8 @@ function GarageWorkspace({
       setActiveModule((current) =>
         canAccessModule(nextData.me.role, current)
           ? current
-          : firstModuleForRole(nextData.me.role),
+          : homeModuleFor(nextData.me.role, nextData.me.workstation),
       );
-      setKitchenLastSyncedAt(new Date());
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Unable to load Garage data.");
     } finally {
@@ -681,26 +679,16 @@ function GarageWorkspace({
     }
   }
 
-  const loadKitchenOrders = useCallback(async (options: { silent?: boolean } = {}) => {
-    if (!options.silent) {
-      setKitchenSyncing(true);
-    }
-    setKitchenSyncError(null);
-
+  // Snapshot tiket untuk modul lain (dashboard, notifikasi). Production Hub
+  // mem-poll papannya sendiri via /api/production.
+  const loadKitchenOrders = useCallback(async () => {
     try {
       const kitchenOrders = await garageApi.get<KitchenOrder[]>("/api/kitchen/orders", {
         cache: "no-store",
       });
       setData((current) => (current ? { ...current, kitchenOrders } : current));
-      setKitchenLastSyncedAt(new Date());
-    } catch (error) {
-      setKitchenSyncError(
-        error instanceof Error ? error.message : "Sinkron pesanan dapur gagal.",
-      );
-    } finally {
-      if (!options.silent) {
-        setKitchenSyncing(false);
-      }
+    } catch {
+      // Non-blocking: data tiket lama tetap dipakai sampai sinkron berikutnya.
     }
   }, []);
 
@@ -788,9 +776,8 @@ function GarageWorkspace({
           setActiveModule((current) =>
             canAccessModule(payload.me.role, current)
               ? current
-              : firstModuleForRole(payload.me.role),
+              : homeModuleFor(payload.me.role, payload.me.workstation),
           );
-          setKitchenLastSyncedAt(new Date());
         }
       })
       .catch((error) => {
@@ -816,33 +803,12 @@ function GarageWorkspace({
     window.localStorage.setItem(GARAGE_CASHIER_THEME_STORAGE_KEY, cashierTheme);
   }, [cashierTheme]);
 
-  useEffect(() => {
-    if (activeModule !== "kitchen") {
-      return;
-    }
-
-    const tick = () => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      void loadKitchenOrders({ silent: true });
-    };
-    const intervalId = window.setInterval(tick, 5000);
-    const onVisible = () => {
-      if (!document.hidden) tick();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [activeModule, loadKitchenOrders]);
-
   // Cross-module cache invalidation: saat mutation di modul lain (mis. POS submit/
   // void) memanggil invalidateGarageCache(tag), refetch data hub yang relevan
   // secara instan (tanpa nunggu polling). Idempoten — refetch ringan.
   useEffect(() => {
     const unsubKitchen = subscribeGarageCache(GARAGE_TAGS.kitchen, () => {
-      void loadKitchenOrders({ silent: true });
+      void loadKitchenOrders();
     });
     const unsubInventory = subscribeGarageCache(GARAGE_TAGS.inventory, () => {
       void loadInventoryForNotifications();
@@ -1026,7 +992,7 @@ function GarageWorkspace({
   }
 
   const allowedModules = modulesForRole(data.me.role);
-  const roleHomeModule = firstModuleForRole(data.me.role);
+  const roleHomeModule = homeModuleFor(data.me.role, data.me.workstation);
   const safeActiveModule = allowedModules.includes(activeModule)
     ? activeModule
     : roleHomeModule;
@@ -1283,6 +1249,12 @@ function GarageWorkspace({
                         Tinjau approval
                       </DropdownMenuItem>
                     )}
+                    {(data.me.role === "Owner" || data.me.role === "Manajer") && (
+                      <DropdownMenuItem onClick={() => window.location.assign("/account/pin")}>
+                        <KeyRound className="mr-2 size-4" />
+                        PIN persetujuan
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => void loadBootstrap()}>
                       Muat ulang data
                     </DropdownMenuItem>
@@ -1484,31 +1456,17 @@ function GarageWorkspace({
             )}
             {safeActiveModule === "ai-agent" && <AiPosAgentView me={data.me} />}
             {safeActiveModule === "kitchen" && (
-              <DateFilterProvider>
-                <div className="space-y-3">
-                  <DateFilterBar />
-                  <WmsAlertWidget variant="banner" />
-                  <KitchenView
-                    kitchenOrders={data.kitchenOrders}
-                    role={data.me.role}
-                    isSyncing={kitchenSyncing}
-                    lastSyncedAt={kitchenLastSyncedAt}
-                    syncError={kitchenSyncError}
-                    performance={kitchenPerformance}
-                    performanceLoading={kitchenPerformanceLoading}
-                    performanceError={kitchenPerformanceError}
-                    canViewPerformance={canSeeKitchenPerformance}
-                    onRefresh={() => loadKitchenOrders()}
-                    onRefreshPerformance={() => loadKitchenPerformance()}
-                    onChanged={async () => {
-                      await loadKitchenOrders();
-                      if (canSeeKitchenPerformance) {
-                        await loadKitchenPerformance({ silent: true });
-                      }
-                    }}
-                  />
-                </div>
-              </DateFilterProvider>
+              <div className="space-y-3">
+                <WmsAlertWidget variant="banner" />
+                <ProductionView
+                  me={data.me}
+                  performance={kitchenPerformance}
+                  performanceLoading={kitchenPerformanceLoading}
+                  performanceError={kitchenPerformanceError}
+                  canViewPerformance={canSeeKitchenPerformance}
+                  onRefreshPerformance={() => loadKitchenPerformance()}
+                />
+              </div>
             )}
             {safeActiveModule === "waiter" && <WaiterView me={data.me} />}
             {safeActiveModule === "produk" && (
@@ -1715,85 +1673,49 @@ type LoginRolePreset = {
 
 const loginRolePresets: LoginRolePreset[] = [
   {
-    role: "Owner / CEO",
+    role: "Owner",
     label: "Owner",
-    email: "owner@garage.local",
+    email: "owner@garage.id",
     station: "Command center",
     summary: "Dashboard lengkap, approval, laporan, dan Owner Brain.",
     icon: ShieldCheck,
     tone: "border-[#d11a2a]/60 bg-[#d11a2a]/16 text-[#ffb0b8]",
   },
   {
-    role: "Admin",
-    label: "Admin",
-    email: "admin@garage.local",
+    role: "Manajer",
+    label: "Manajer",
+    email: "manajer@garage.id",
     station: "Ops control",
-    summary: "POS, KDS, inventory, finance review, and shift approval.",
+    summary: "POS, KDS, inventory, finance review, dan approval shift.",
     icon: Wrench,
     tone: "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]",
   },
   {
     role: "Kasir",
     label: "Kasir",
-    email: "kasir@garage.local",
+    email: "kasir@garage.id",
     station: "POS counter",
-    summary: "Transaksi, payment, cash session, and receipt flow.",
+    summary: "Transaksi, KDS dapur/bar, stok gudang, dan payment.",
     icon: ReceiptText,
     tone: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-white",
   },
   {
-    role: "Barista",
-    label: "Barista",
-    email: "barista@garage.local",
-    station: "Coffee bar",
-    summary: "Queue minuman, status station, and handoff service.",
-    icon: Gauge,
-    tone: "border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffd08a]",
-  },
-  {
-    role: "Koki",
-    label: "Koki",
-    email: "koki@garage.local",
-    station: "Kitchen line",
-    summary: "Queue makanan, timing dapur, and ticket status.",
-    icon: Activity,
-    tone: "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]",
-  },
-  {
-    role: "Asisten Koki",
-    label: "Asisten Koki",
-    email: "asisten-koki@garage.local",
-    station: "Kitchen prep",
-    summary: "Bantu Koki: prep, plating, dan timing dapur.",
-    icon: Activity,
-    tone: "border-[#f5a742]/40 bg-[#f5a742]/10 text-[#ffd79a]",
-  },
-  {
-    role: "Waiter 1",
-    label: "Waiter 1",
-    email: "waiter1@garage.local",
-    station: "Floor A",
-    summary: "Order meja, service handoff, and table flow.",
+    role: "Waiter",
+    label: "Waiter",
+    email: "waiter@garage.id",
+    station: "Floor service",
+    summary: "Order meja, service handoff, dan table flow.",
     icon: Bell,
-    tone: "border-[#4a4a54] bg-white/[0.07] text-[#e8e8ec]",
-  },
-  {
-    role: "Waiter 2",
-    label: "Waiter 2",
-    email: "waiter2@garage.local",
-    station: "Floor B",
-    summary: "Order meja, service handoff, and table flow.",
-    icon: Signal,
     tone: "border-[#4a4a54] bg-white/[0.07] text-[#e8e8ec]",
   },
 ];
 
 const visibleLoginRolePresets = loginRolePresets.filter(
-  (preset) => preset.role !== "Owner / CEO",
+  (preset) => preset.role !== "Owner",
 );
 
 const posLoginRolePresets = loginRolePresets.filter((preset) =>
-  ["Kasir", "Waiter 1", "Waiter 2"].includes(preset.role),
+  ["Kasir", "Waiter"].includes(preset.role),
 );
 
 const devLoginPassword =
@@ -1840,8 +1762,8 @@ function LoginScreen({
       ]
     : [
         ["POS ready", "Kasir dan waiter"],
-        ["KDS live", "Barista dan koki"],
-        ["Owner control", "Admin dan owner"],
+        ["KDS live", "Kasir dapur & bar"],
+        ["Owner control", "Owner dan manajer"],
       ];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2096,7 +2018,7 @@ function LoginScreen({
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="nama@garage.local"
+                  placeholder="nama@garage.id"
                   className="h-11 border-[#34343c] bg-white/[0.06] text-base"
                   autoComplete="email"
                   required
@@ -2166,7 +2088,7 @@ function LoginScreen({
               </Button>
 
               <p className="text-center text-xs text-[#9696a1]">
-                Lupa password? Hubungi Owner atau Admin untuk reset akun.
+                Lupa password? Hubungi Owner atau Manajer untuk reset akun.
               </p>
             </form>
 
@@ -2184,11 +2106,7 @@ function LoginScreen({
 type BrandBlockMode = "sidebar" | "compact" | "loading";
 
 // Role yang boleh switch outlet â€” sinkron dengan server-side canSwitchOutlet
-const OUTLET_SWITCH_ROLES: ReadonlyArray<Role> = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-];
+const OUTLET_SWITCH_ROLES: ReadonlyArray<Role> = MANAGEMENT_ROLES;
 
 function OutletSwitcher({
   activeOutlet,
@@ -2322,7 +2240,7 @@ function OutletSwitcher({
                   </TooltipTrigger>
                   {!isActive && !canSwitch ? (
                     <TooltipContent side="right">
-                      Switch outlet butuh role Owner / Admin / Manager Ops.
+                      Switch outlet butuh role Owner / Manajer.
                       Hubungi atasan untuk akses.
                     </TooltipContent>
                   ) : null}
@@ -2484,7 +2402,7 @@ function ModuleNav({
       "absensi-v2": "/absen",
       "wallet-gaji": "/staff/wallet-gaji",
       "wallet-fee": "/staff/wallet-fee",
-      "payroll-owner": "/owner/payroll",
+      "payroll-owner": "/owner/payroll/today",
     };
     const externalRoute = PAYROLL_V2_ROUTES[module.id];
     return (
@@ -3080,7 +2998,7 @@ const ownerCeoQuickPrompts: Array<{
 type AiAutopilotMode = "assist" | "watch" | "draft" | "safe";
 type AiVoiceMode = "mute" | "push" | "standby";
 type AiAutopilotAlertTone = "ready" | "watch" | "warning" | "error";
-type StaffMonitorGroup = "control" | "floor" | "production" | "inventory";
+type StaffMonitorGroup = "control" | "floor";
 type StaffMonitorFilter = "all" | StaffMonitorGroup;
 
 type StaffRoleAgentConfig = {
@@ -3167,8 +3085,6 @@ const staffMonitorFilterOptions: Array<{
   { value: "all", label: "Semua role" },
   { value: "control", label: "Control" },
   { value: "floor", label: "Floor" },
-  { value: "production", label: "Kitchen/Bar" },
-  { value: "inventory", label: "Gudang" },
 ];
 
 const staffMonitorGroupMeta: Record<
@@ -3177,27 +3093,19 @@ const staffMonitorGroupMeta: Record<
 > = {
   control: {
     label: "Control",
-    detail: "Owner, admin, manager, finance, supervisor.",
+    detail: "Owner dan Manajer.",
   },
   floor: {
     label: "Floor",
-    detail: "Kasir, waiter, delivery, dan pelayanan tamu.",
-  },
-  production: {
-    label: "Kitchen/Bar",
-    detail: "KDS makanan, minuman, delay, dan station queue.",
-  },
-  inventory: {
-    label: "Gudang",
-    detail: "Stok, opname, receiving, transfer, dan reorder.",
+    detail: "Kasir (POS, KDS dapur/bar, gudang) dan Waiter (meja, delivery).",
   },
 };
 
 const staffRoleAgentConfigs: StaffRoleAgentConfig[] = [
   {
-    role: "Owner / CEO",
+    role: "Owner",
     label: "GARAGE Owner Brain",
-    agentId: "role-owner-ceo",
+    agentId: "role-owner",
     tool: "report_builder",
     focus: "Keputusan strategis, approval, risiko, profit, dan efisiensi operasional.",
     scope: "Semua modul; aksi kritis tetap approval manusia di sistem.",
@@ -3208,148 +3116,40 @@ const staffRoleAgentConfigs: StaffRoleAgentConfig[] = [
       "Bertindak sebagai GARAGE Owner Brain. Analisa kondisi outlet dari data live. Untuk keputusan bisnis gunakan format STATUS/APPROVED/REJECTED/NEED REVIEW. Jangan setuju jika tidak logis atau tidak ada data.",
   },
   {
-    role: "Admin",
-    label: "Admin Ops Agent",
-    agentId: "role-admin-ops",
-    tool: "pos_agent",
-    focus: "Operasional harian, POS, shift, kasir, dan koordinasi outlet.",
-    scope: "Bantu admin membaca kondisi dan membuat draft instruksi shift.",
-    autopilot: "Pantau antrian operasional, log, dan draft tindakan admin.",
-    voiceBrief: "Admin Ops aktif. Saya bantu koordinasi operasional harian.",
-    prompt:
-      "Bertindak sebagai Admin Ops. Prioritaskan masalah shift, POS, kasir, order, dan koordinasi outlet tanpa eksekusi kritis.",
-  },
-  {
-    role: "Manager Operasional",
-    label: "Ops Manager Agent",
-    agentId: "role-ops-manager",
+    role: "Manajer",
+    label: "Manajer Ops Agent",
+    agentId: "role-manajer",
     tool: "report_builder",
-    focus: "SOP, bottleneck, shift handover, incident, dan target outlet.",
-    scope: "Buat keputusan operasional berbasis data dan draft eskalasi.",
-    autopilot: "Pantau issue lintas modul dan buat action plan shift.",
-    voiceBrief: "Ops Manager aktif. Saya pantau bottleneck dan prioritas shift.",
+    focus: "SOP, bottleneck, shift handover, incident, finance guard, dan approval operasional.",
+    scope: "Buat keputusan operasional & finance berbasis data dan draft eskalasi.",
+    autopilot: "Pantau issue lintas modul, anomali finance, dan buat action plan shift.",
+    voiceBrief: "Manajer Ops aktif. Saya pantau bottleneck, finance, dan prioritas shift.",
     prompt:
-      "Bertindak sebagai Manager Operasional. Susun prioritas operasional, bottleneck, SOP, incident, dan handover berikutnya.",
-  },
-  {
-    role: "Finance / CFO",
-    label: "Finance Guard Agent",
-    agentId: "role-finance-cfo",
-    tool: "finance_guard_agent",
-    focus: "Cash gap, refund, void, discount, expense, dan closing.",
-    scope: "Baca risiko finance dan siapkan draft approval finance.",
-    autopilot: "Pantau anomali finance dan cash control.",
-    voiceBrief: "Finance Guard aktif. Saya pantau kas dan transaksi berisiko.",
-    prompt:
-      "Bertindak sebagai Finance Guard. Cek cash gap, refund, void, discount abnormal, closing, dan draft keputusan aman.",
+      "Bertindak sebagai Manajer Ops. Susun prioritas operasional, bottleneck, SOP, incident, cash gap/refund/void, handover, dan draft approval berikutnya.",
   },
   {
     role: "Kasir",
-    label: "Cashier Copilot",
-    agentId: "role-cashier",
+    label: "Kasir Ops Agent",
+    agentId: "role-kasir",
     tool: "pos_agent",
-    focus: "POS, pembayaran, receipt, table payment, dan member lookup.",
-    scope: "Bantu kasir cepat, tetapi void/refund tetap approval.",
-    autopilot: "Pantau transaksi tertunda, payment risk, dan antrian bayar.",
-    voiceBrief: "Cashier Copilot aktif. Saya bantu transaksi dan pembayaran.",
+    focus: "POS, pembayaran, receipt, table payment, KDS dapur/bar, dan stok gudang.",
+    scope: "Bantu kasir cepat lintas POS/KDS/inventory, tetapi void/refund tetap approval.",
+    autopilot: "Pantau transaksi tertunda, delay dapur/bar, dan stok kritis.",
+    voiceBrief: "Kasir Ops aktif. Saya bantu transaksi, dapur/bar, dan stok gudang.",
     prompt:
-      "Bertindak sebagai Cashier Copilot. Fokus POS, pembayaran, receipt, meja belum bayar, dan eskalasi void/refund.",
+      "Bertindak sebagai Kasir Ops. Fokus POS, pembayaran, receipt, KDS dapur/bar (delay & antrian), stok gudang, dan eskalasi void/refund.",
   },
   {
-    role: "Barista",
-    label: "Barista Station Agent",
-    agentId: "role-barista",
-    tool: "kitchen_agent",
-    focus: "KDS minuman, queue coffee, stock bahan minuman, dan timing.",
-    scope: "Bantu prioritas station dan peringatan stok minuman.",
-    autopilot: "Pantau delay minuman dan item coffee berisiko.",
-    voiceBrief: "Barista Station aktif. Saya pantau queue dan stok minuman.",
-    prompt:
-      "Bertindak sebagai Barista Station Agent. Fokus queue minuman, delay, item coffee, dan stok bahan minuman.",
-  },
-  {
-    role: "Koki",
-    label: "Kitchen Station Agent",
-    agentId: "role-koki",
-    tool: "kitchen_agent",
-    focus: "KDS makanan, station kitchen, prep time, dan bahan makanan.",
-    scope: "Bantu prioritas masak dan eskalasi bottleneck dapur.",
-    autopilot: "Pantau delay kitchen dan order yang perlu diprioritaskan.",
-    voiceBrief: "Kitchen Station aktif. Saya pantau order makanan dan delay.",
-    prompt:
-      "Bertindak sebagai Kitchen Station Agent. Fokus KDS makanan, delay dapur, prep time, dan prioritas order.",
-  },
-  {
-    role: "Waiter 1",
+    role: "Waiter",
     label: "Waiter Floor Agent",
-    agentId: "role-waiter-1",
+    agentId: "role-waiter",
     tool: "pos_agent",
-    focus: "Meja, order tamu, handoff kasir, dan service issue.",
-    scope: "Bantu waiter membaca meja aktif dan eskalasi komplain.",
-    autopilot: "Pantau meja pending, order delay, dan service follow-up.",
-    voiceBrief: "Waiter Floor aktif. Saya bantu pantau meja dan order tamu.",
+    focus: "Meja, order tamu, delivery, handoff kasir, dan service issue.",
+    scope: "Bantu waiter membaca meja aktif, order delivery, dan eskalasi komplain.",
+    autopilot: "Pantau meja pending, order delay, delivery, dan service follow-up.",
+    voiceBrief: "Waiter Floor aktif. Saya bantu pantau meja, delivery, dan order tamu.",
     prompt:
-      "Bertindak sebagai Waiter Floor Agent. Fokus meja aktif, order tamu, service issue, dan handoff ke kasir.",
-  },
-  {
-    role: "Waiter 2",
-    label: "Waiter Floor Agent",
-    agentId: "role-waiter-2",
-    tool: "pos_agent",
-    focus: "Meja, order tamu, handoff kasir, dan service issue.",
-    scope: "Bantu waiter membaca meja aktif dan eskalasi komplain.",
-    autopilot: "Pantau meja pending, order delay, dan service follow-up.",
-    voiceBrief: "Waiter Floor aktif. Saya bantu pantau meja dan order tamu.",
-    prompt:
-      "Bertindak sebagai Waiter Floor Agent. Fokus meja aktif, order tamu, service issue, dan handoff ke kasir.",
-  },
-  {
-    role: "Kitchen / Barista",
-    label: "Station Hybrid Agent",
-    agentId: "role-kitchen-barista",
-    tool: "kitchen_agent",
-    focus: "KDS gabungan, station queue, stok bahan, dan handoff order.",
-    scope: "Bantu station hybrid menjaga timing dan prioritas order.",
-    autopilot: "Pantau bottleneck station makanan/minuman.",
-    voiceBrief: "Station Hybrid aktif. Saya pantau queue makanan dan minuman.",
-    prompt:
-      "Bertindak sebagai Station Hybrid Agent. Fokus KDS makanan/minuman, queue, stok station, dan order prioritas.",
-  },
-  {
-    role: "Gudang",
-    label: "Inventory Guard Agent",
-    agentId: "role-gudang",
-    tool: "inventory_agent",
-    focus: "Stok, opname, receiving, transfer, waste, dan reorder.",
-    scope: "Bantu gudang membaca stok kritis dan draft reorder.",
-    autopilot: "Pantau stok rendah, selisih opname, dan waste risk.",
-    voiceBrief: "Inventory Guard aktif. Saya pantau stok dan reorder.",
-    prompt:
-      "Bertindak sebagai Inventory Guard. Fokus stok kritis, opname, receiving, waste, dan draft reorder aman.",
-  },
-  {
-    role: "Supervisor Shift",
-    label: "Shift Supervisor Agent",
-    agentId: "role-supervisor-shift",
-    tool: "approval_agent",
-    focus: "Checklist shift, approval operasional, handover, dan incident.",
-    scope: "Bantu supervisor memutuskan prioritas dan draft approval.",
-    autopilot: "Pantau checklist, action pending, dan handover shift.",
-    voiceBrief: "Shift Supervisor aktif. Saya pantau checklist dan approval.",
-    prompt:
-      "Bertindak sebagai Shift Supervisor. Fokus checklist shift, approval operasional, handover, incident, dan eskalasi aman.",
-  },
-  {
-    role: "Delivery Admin",
-    label: "Delivery Ops Agent",
-    agentId: "role-delivery-admin",
-    tool: "pos_agent",
-    focus: "Delivery queue, status order, complaint, dan dispatch.",
-    scope: "Bantu delivery admin memantau order luar dan komplain.",
-    autopilot: "Pantau delivery pending, delay, dan follow-up komplain.",
-    voiceBrief: "Delivery Ops aktif. Saya pantau delivery dan komplain.",
-    prompt:
-      "Bertindak sebagai Delivery Ops Agent. Fokus delivery queue, status order, complaint, dan dispatch follow-up.",
+      "Bertindak sebagai Waiter Floor Agent. Fokus meja aktif, order tamu, delivery, service issue, dan handoff ke kasir.",
   },
 ];
 
@@ -3425,15 +3225,7 @@ function readSpeechTranscript(event: SpeechRecognitionEventLike) {
 }
 
 function staffMonitorGroupFor(role: Role): StaffMonitorGroup {
-  if (["Barista", "Koki", "Kitchen / Barista"].includes(role)) {
-    return "production";
-  }
-
-  if (role === "Gudang") {
-    return "inventory";
-  }
-
-  if (["Kasir", "Waiter 1", "Waiter 2", "Delivery Admin"].includes(role)) {
+  if (role === "Kasir" || role === "Waiter") {
     return "floor";
   }
 
@@ -3442,20 +3234,10 @@ function staffMonitorGroupFor(role: Role): StaffMonitorGroup {
 
 function staffMonitorActionAgents(role: Role) {
   const mapping: Record<Role, string[]> = {
-    "Owner / CEO": ["supervisor", "daily_brief_agent", "approval_agent"],
-    Admin: ["supervisor", "pos_agent", "approval_agent"],
-    "Manager Operasional": ["supervisor", "approval_agent", "daily_brief_agent"],
-    "Finance / CFO": ["finance_guard_agent", "approval_agent"],
-    Kasir: ["pos_agent", "approval_agent"],
-    Barista: ["kitchen_agent"],
-    Koki: ["kitchen_agent"],
-    "Asisten Koki": ["kitchen_agent"],
-    "Waiter 1": ["pos_agent"],
-    "Waiter 2": ["pos_agent"],
-    "Kitchen / Barista": ["kitchen_agent"],
-    Gudang: ["inventory_agent"],
-    "Supervisor Shift": ["supervisor", "approval_agent"],
-    "Delivery Admin": ["pos_agent"],
+    Owner: ["supervisor", "daily_brief_agent", "approval_agent"],
+    Manajer: ["supervisor", "approval_agent", "daily_brief_agent", "finance_guard_agent"],
+    Kasir: ["pos_agent", "kitchen_agent", "inventory_agent", "approval_agent"],
+    Waiter: ["pos_agent"],
   };
 
   return mapping[role];
@@ -3679,11 +3461,10 @@ function ScrollJumpControls({
 }
 
 function AiPosAgentView({ me }: { me: GarageMe }) {
-  const canManageProviders = me.role === "Owner / CEO";
+  const canManageProviders = me.role === "Owner";
   const canManageSetup = canManageProviders;
-  const canUseOwnerFreeChat = me.role === "Owner / CEO";
-  const canManageAgents =
-    me.role === "Owner / CEO" || me.role === "Admin" || me.role === "Manager Operasional";
+  const canUseOwnerFreeChat = me.role === "Owner";
+  const canManageAgents = MANAGEMENT_ROLES.includes(me.role);
   const useSimpleAiHome = !canManageAgents && !canUseOwnerFreeChat;
   const [activeTab, setActiveTab] = useState<AiAgentTab>("chat");
   const [showAdvancedChat, setShowAdvancedChat] = useState(false);
@@ -4172,7 +3953,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
       setVoiceStatus(
         options?.executive
           ? "Owner Brain sedang berbicara..."
-          : "GARAGE AI sedang berbicaraâ€¦",
+          : "GARAGE AI sedang berbicara…",
       );
       void voice.speakExecutive(cleanText).then(() => {
         setVoiceStatus(
@@ -5625,7 +5406,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
               GARAGE AI
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#d6d6dc]">
-              Pengawasan tim, tanya data, dan review approval â€” {me.outlet.name}
+              Pengawasan tim, tanya data, dan review approval — {me.outlet.name}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -5718,7 +5499,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                   <DialogTitle>Provider AI dikunci Owner</DialogTitle>
                   <DialogDescription>
                     Menu provider sekarang terlihat, tetapi setup API key hanya boleh
-                    dilakukan oleh role Owner / CEO.
+                    dilakukan oleh role Owner.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
@@ -5735,7 +5516,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
                       Cara membuka Provider AI
                     </p>
                     <p className="mt-2 text-xs leading-5 text-[#d6d6dc]">
-                      Keluar dari sesi ini lalu masuk memakai akun Owner / CEO.
+                      Keluar dari sesi ini lalu masuk memakai akun Owner.
                       Setelah itu buka GARAGE AI, klik Manage, lalu pilih Provider AI.
                     </p>
                   </div>
@@ -9953,7 +9734,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
           </p>
           <Separator className="my-4 bg-[#34343c]" />
           <ul className="space-y-2 text-xs leading-5 text-[#d6d6dc]">
-            <li>&middot; Void/refund/diskon besar butuh approval</li>
+            <li>&middot; Batal order, refund, dan diskon besar butuh persetujuan Manajer</li>
             <li>&middot; AI tidak mengubah transaksi sendiri</li>
             <li>&middot; Data mengikuti role login</li>
           </ul>
@@ -9968,10 +9749,10 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
 // punya: filter tabs, stats bar, detail modal, required reject reason,
 // bulk decide, WA notify requester, saved reason templates.
 
-const websiteManagerRoles = new Set<Role>(["Owner / CEO", "Admin"]);
+const websiteManagerRoles = new Set<Role>(["Owner", "Manajer"]);
 
 function CompanyControlBridge({ me }: { me: GarageMe }) {
-  if (me.role !== "Owner / CEO") {
+  if (me.role !== "Owner") {
     return (
       <section className="space-y-4">
         <Card className="garage-panel garage-animate-in">
@@ -9981,7 +9762,7 @@ function CompanyControlBridge({ me }: { me: GarageMe }) {
             </Badge>
             <CardTitle className="mt-4 text-2xl">CEO Control Only</CardTitle>
             <CardDescription>
-              Pusat kontrol perusahaan hanya tersedia untuk akun Owner / CEO.
+              Pusat kontrol perusahaan hanya tersedia untuk akun Owner.
               Silakan kembali ke modul kerja role Anda.
             </CardDescription>
           </CardHeader>
@@ -10140,6 +9921,42 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
     }
   }
 
+  // Feed sosmed landing — owner tempel link postingan/video terbaru (maks 6).
+  type SocialPostForm = { platform: "instagram" | "tiktok" | "youtube" | "facebook"; url: string; title: string };
+  const [socialPosts, setSocialPosts] = useState<SocialPostForm[]>([]);
+  const [spSaving, setSpSaving] = useState(false);
+  const [spError, setSpError] = useState<string | null>(null);
+  const [spSuccess, setSpSuccess] = useState<string | null>(null);
+
+  const loadSocialPosts = useCallback(async () => {
+    try {
+      const rows = await garageApi.get<SocialPostForm[]>("/api/site/social-posts", { cache: "no-store" });
+      setSocialPosts(Array.isArray(rows) ? rows : []);
+    } catch {
+      // diam
+    }
+  }, []);
+
+  async function submitSocialPosts() {
+    if (!canManageWebsite) {
+      setSpError("Role ini hanya bisa melihat preview website.");
+      return;
+    }
+    const items = socialPosts.filter((post) => post.url.trim());
+    setSpSaving(true);
+    setSpError(null);
+    setSpSuccess(null);
+    try {
+      const saved = await garageApi.put<SocialPostForm[]>("/api/site/social-posts", { items });
+      setSocialPosts(Array.isArray(saved) ? saved : []);
+      setSpSuccess(`${items.length} postingan tersimpan & tampil di landing.`);
+    } catch (error) {
+      setSpError(error instanceof Error ? error.message : "Feed sosmed gagal disimpan.");
+    } finally {
+      setSpSaving(false);
+    }
+  }
+
   const loadHero = useCallback(async () => {
     setHeroLoading(true);
     setHeroError(null);
@@ -10167,12 +9984,13 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
       void loadHero();
       void loadBizInfo();
       void loadTestimonials();
+      void loadSocialPosts();
     }, 0);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [loadHero, loadBizInfo, loadTestimonials]);
+  }, [loadHero, loadBizInfo, loadTestimonials, loadSocialPosts]);
 
   function handleFileChange(fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -10338,7 +10156,7 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 <Info className="size-4" />
                 <AlertTitle>Read-only</AlertTitle>
                 <AlertDescription>
-                  Upload hanya tersedia untuk Owner / CEO dan Admin.
+                  Upload hanya tersedia untuk Owner dan Manajer.
                 </AlertDescription>
               </Alert>
             )}
@@ -10439,12 +10257,12 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 />
               </label>
               <label className="grid gap-1">
-                <span className="text-xs font-semibold text-[#d4d4d8]">WhatsApp (62…)</span>
+                <span className="text-xs font-semibold text-[#d4d4d8]">Telepon & WhatsApp (62…)</span>
                 <Input
                   value={bizInfo.whatsapp}
                   onChange={(e) => setBizInfo({ ...bizInfo, whatsapp: e.target.value.replace(/[^\d]/g, "") })}
                   className="border-[#34343c] bg-white/[0.06] font-mono"
-                  placeholder="6285188983600"
+                  placeholder="6285121552341"
                 />
               </label>
               <label className="grid gap-1">
@@ -10466,12 +10284,12 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 />
               </label>
               <label className="grid gap-1">
-                <span className="text-xs font-semibold text-[#d4d4d8]">Jam buka</span>
+                <span className="text-xs font-semibold text-[#d4d4d8]">Jam buka (00:00–23:59 = 24 jam)</span>
                 <Input
                   value={bizInfo.hoursOpen}
                   onChange={(e) => setBizInfo({ ...bizInfo, hoursOpen: e.target.value })}
                   className="border-[#34343c] bg-white/[0.06] font-mono"
-                  placeholder="07:00"
+                  placeholder="00:00"
                 />
               </label>
               <label className="grid gap-1">
@@ -10480,7 +10298,7 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                   value={bizInfo.hoursClose}
                   onChange={(e) => setBizInfo({ ...bizInfo, hoursClose: e.target.value })}
                   className="border-[#34343c] bg-white/[0.06] font-mono"
-                  placeholder="23:00"
+                  placeholder="23:59"
                 />
               </label>
               <label className="grid gap-1 sm:col-span-2">
@@ -10493,12 +10311,12 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 />
               </label>
               <label className="grid gap-1 sm:col-span-2">
-                <span className="text-xs font-semibold text-[#d4d4d8]">Google Maps URL</span>
+                <span className="text-xs font-semibold text-[#d4d4d8]">Google Maps URL (catatan — website selalu memakai profil Google resmi)</span>
                 <Input
                   value={bizInfo.mapsUrl}
                   onChange={(e) => setBizInfo({ ...bizInfo, mapsUrl: e.target.value })}
                   className="border-[#34343c] bg-white/[0.06]"
-                  placeholder="https://maps.google.com/…"
+                  placeholder="Otomatis: profil Google resmi (Place ID)"
                 />
               </label>
               <label className="grid gap-1 sm:col-span-2">
@@ -10613,6 +10431,89 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 onClick={() => void submitTestimonials()}
               >
                 {tstSaving ? "Menyimpan…" : "Simpan Testimoni"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Feed sosmed landing — link postingan/video terbaru, owner-managed */}
+      <Card className="garage-panel garage-animate-in">
+        <CardHeader>
+          <CardTitle>Feed Sosmed Landing</CardTitle>
+          <CardDescription>
+            Tempel link postingan/video terbaru Instagram, TikTok, YouTube, atau Facebook (maks 6).
+            Tampil di section sosmed landing; bila kosong, landing memakai profil sosmed biasa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {socialPosts.length === 0 ? (
+            <p className="text-sm text-[#b8b8bf]">Belum ada postingan. Tambah link video/foto terbaru di bawah.</p>
+          ) : (
+            socialPosts.map((post, idx) => (
+              <div key={idx} className="grid gap-2 rounded-md border border-[#34343c] bg-black/15 p-3 sm:grid-cols-[140px_1fr_1fr_40px]">
+                <Select
+                  value={post.platform}
+                  onValueChange={(value) =>
+                    setSocialPosts(socialPosts.map((x, i) => (i === idx ? { ...x, platform: value as SocialPostForm["platform"] } : x)))
+                  }
+                >
+                  <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={post.url}
+                  onChange={(e) => setSocialPosts(socialPosts.map((x, i) => (i === idx ? { ...x, url: e.target.value } : x)))}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="https://www.tiktok.com/@garage_tbt.id/video/…"
+                  inputMode="url"
+                />
+                <Input
+                  value={post.title}
+                  onChange={(e) => setSocialPosts(socialPosts.map((x, i) => (i === idx ? { ...x, title: e.target.value } : x)))}
+                  className="border-[#34343c] bg-white/[0.06]"
+                  placeholder="Judul singkat, mis. Latte art malam minggu"
+                  maxLength={80}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="garage-press border-[#34343c] bg-white/[0.04] px-0"
+                  onClick={() => setSocialPosts(socialPosts.filter((_, i) => i !== idx))}
+                  aria-label="Hapus postingan"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))
+          )}
+          {spError && <p className="text-sm text-[#ffb4bd]">{spError}</p>}
+          {spSuccess && <p className="text-sm text-[#bbf7d0]">{spSuccess}</p>}
+          {canManageWebsite && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press border-[#34343c] bg-white/[0.04]"
+                disabled={socialPosts.length >= 6}
+                onClick={() => setSocialPosts([...socialPosts, { platform: "tiktok", url: "", title: "" }])}
+              >
+                + Tambah Postingan
+              </Button>
+              <Button
+                type="button"
+                disabled={spSaving}
+                className="garage-press bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+                onClick={() => void submitSocialPosts()}
+              >
+                {spSaving ? "Menyimpan…" : "Simpan Feed Sosmed"}
               </Button>
             </div>
           )}

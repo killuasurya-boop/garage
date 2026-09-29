@@ -4,9 +4,9 @@ import { syncOsToWms } from "@/lib/wms-bridge";
 
 export const runtime = "nodejs";
 
-/** Sinkron manual Garage OS → WMS (produk + resep). Owner/Admin/Manager only. */
+/** Sinkron manual Garage OS → WMS (produk + resep). Owner/Manajer only. */
 export async function POST() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
   const result = await syncOsToWms({ bootstrapStock: false });
   return ok(result);

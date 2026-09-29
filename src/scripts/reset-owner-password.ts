@@ -9,7 +9,7 @@ import { resetUserPassword } from "@/lib/admin-user-service";
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
 
-const ownerEmail = process.env.OWNER_EMAIL?.trim() || "owner@garage.local";
+const ownerEmail = process.env.OWNER_EMAIL?.trim() || "owner@garage.id";
 const providedPassword = process.env.OWNER_NEW_PASSWORD?.trim();
 
 function generatePassword() {
@@ -36,8 +36,8 @@ async function main() {
     throw new Error(`Owner account not found: ${ownerEmail}`);
   }
 
-  if (owner.role !== "Owner / CEO") {
-    throw new Error(`Account ${ownerEmail} is not Owner / CEO. Current role: ${owner.role}`);
+  if (owner.role !== "Owner") {
+    throw new Error(`Account ${ownerEmail} is not Owner. Current role: ${owner.role}`);
   }
 
   const newPassword = providedPassword || generatePassword();

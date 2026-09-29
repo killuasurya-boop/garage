@@ -46,7 +46,7 @@ export async function runShiftCopilotJob(
   const supervisorDecision = buildSupervisorDecision({
     intent: "shift_copilot",
     dataAccessLevel: "operational",
-    role: "Owner / CEO" as Role,
+    role: "Owner" as Role,
     message: SHIFT_COPILOT_PROMPT,
     actionDrafts: [],
   });
@@ -58,7 +58,7 @@ export async function runShiftCopilotJob(
     dataAccessLevel: "operational",
     provider: "system",
     model: "staff_supervision_rules",
-    role: "Owner / CEO",
+    role: "Owner",
     status: "completed",
     fallbackUsed: false,
     latencyMs: Date.now() - startedAt,

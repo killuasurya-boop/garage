@@ -92,7 +92,8 @@ const emptyAddForm: AddMemberForm = {
   name: "",
   phone: "",
   email: "",
-  password: "member12345",
+  // Kosong: PIN member dibuat pelanggan sendiri (default lama bisa ditebak).
+  password: "",
   birthday: "",
   memberCode: "",
   cardTier: "Silver",
@@ -214,9 +215,9 @@ export function MembershipAdminView({
   const [lastCreated, setLastCreated] = useState<LastCreatedMember>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [csvPreview, setCsvPreview] = useState<{ name: string; rows: number; sample: string[] } | null>(null);
-  const isOwner = role === "Owner / CEO";
-  const canChangeMemberPassword = role === "Owner / CEO" || role === "Admin";
-  const canDeleteMember = role === "Owner / CEO" || role === "Admin";
+  const isOwner = role === "Owner";
+  const canChangeMemberPassword = role === "Owner" || role === "Manajer";
+  const canDeleteMember = role === "Owner" || role === "Manajer";
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -877,7 +878,7 @@ export function MembershipAdminView({
                   </button>
                   {selected.tierLevel === "Ultra" && !isOwner ? (
                     <span
-                      title="Member tier Ultra hanya bisa diedit oleh Owner / CEO."
+                      title="Member tier Ultra hanya bisa diedit oleh Owner."
                       className="inline-flex items-center gap-1 border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-[#5d5d66]"
                     >
                       <Pencil size={12} />
@@ -1194,7 +1195,7 @@ export function MembershipAdminView({
                 <h2 className="garage-display text-3xl">Add Member</h2>
                 <p className="mt-1 max-w-xl text-sm text-[#9696a1]">
                   Buat akun member aktif, pilih tier kartu, dan siapkan PIN sementara.
-                  Ultra hanya bisa dibuat oleh Owner / CEO.
+                  Ultra hanya bisa dibuat oleh Owner.
                 </p>
               </div>
               <button
@@ -1242,7 +1243,7 @@ export function MembershipAdminView({
                     value={addForm.password}
                     onChange={(event) => updateAddForm("password", event.target.value)}
                     className="h-11 border border-[#34343c] bg-white/[0.055] px-3 text-sm text-white outline-none focus:border-[#f5a742]"
-                    placeholder="Minimal 6 karakter"
+                    placeholder="Tanya pelanggan — min. 6 karakter"
                   />
                 </label>
                 <label className="grid gap-1.5">
@@ -1289,7 +1290,7 @@ export function MembershipAdminView({
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="garage-mono">Pilih tier kartu</p>
                   {!isOwner ? (
-                    <p className="text-xs text-[#9696a1]">Ultra dikunci untuk Owner / CEO.</p>
+                    <p className="text-xs text-[#9696a1]">Ultra dikunci untuk Owner.</p>
                   ) : null}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -1584,7 +1585,7 @@ export function MembershipAdminView({
                       autoComplete="new-password"
                     />
                     <span className="text-xs text-[#d0d0d6]">
-                      Khusus Admin dan Owner. Minimal 8 karakter jika diisi.
+                      Khusus Manajer dan Owner. Minimal 8 karakter jika diisi.
                     </span>
                   </label>
                 </div>
@@ -1594,7 +1595,7 @@ export function MembershipAdminView({
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="garage-mono">Tier member</p>
                   {!isOwner ? (
-                    <p className="text-xs text-[#9696a1]">Ultra hanya Owner / CEO.</p>
+                    <p className="text-xs text-[#9696a1]">Ultra hanya Owner.</p>
                   ) : null}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

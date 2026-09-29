@@ -15,6 +15,12 @@ const TAB_DEFS: Array<{ key: string; label: string; hint: string }> = [
   { key: "payout", label: "Payout", hint: "Manual approve / auto tanggal" },
   { key: "slip", label: "Slip Gaji PDF", hint: "" },
   { key: "security", label: "Keamanan", hint: "PIN & foto retensi" },
+  { key: "umk", label: "UMK", hint: "Upah minimum resmi yang berlaku (amount = Rupiah/bulan)" },
+  {
+    key: "backup",
+    label: "Salinan Backup",
+    hint: 'Folder Google Drive/flashdisk (alamat lengkap, pakai garis miring "/"), mis. {"copyToDir": "G:/My Drive/Garage Backup"}',
+  },
 ];
 
 export function PayrollSettingsPanel() {

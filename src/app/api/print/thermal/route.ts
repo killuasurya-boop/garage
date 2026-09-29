@@ -6,7 +6,7 @@ import { execFile } from "child_process";
 
 import { readJson } from "@/lib/api-response";
 import { requirePermission } from "@/lib/server-auth";
-import { buildThermalContent } from "@/lib/thermal-receipt";
+import { buildKitchenChitContent, buildThermalContent } from "@/lib/thermal-receipt";
 
 export const runtime = "nodejs";
 
@@ -14,7 +14,26 @@ const fallbackPrinterName = "RPP02N_Thermal";
 const optionalString = z.string().nullish();
 const optionalNumber = z.number().nullish();
 
+const chitSchema = z.object({
+  orderNo: optionalString,
+  tableLabel: optionalString,
+  orderType: optionalString,
+  createdAt: optionalString,
+  cashierName: optionalString,
+  waiterName: optionalString,
+  items: z.array(
+    z.object({
+      name: z.string(),
+      variant: optionalString,
+      qty: z.number(),
+      note: optionalString,
+      station: z.string(),
+    }),
+  ),
+});
+
 const thermalSchema = z.object({
+  chit: chitSchema.nullish(),
   receipt: z.object({
     invoiceNo: optionalString,
     orderNo: optionalString,
@@ -74,7 +93,7 @@ const thermalSchema = z.object({
       totalPoints: optionalNumber,
     }).nullish(),
     invoiceWebUrl: optionalString,
-  }),
+  }).nullish(),
   printerName: optionalString,
   copies: z.number().int().min(1).max(5).nullish(),
 });
@@ -91,15 +110,26 @@ export async function POST(request: Request) {
   }
 
   const receipt = body.data.receipt;
+  const chit = body.data.chit;
+  if (!receipt && !chit) {
+    return new Response(
+      JSON.stringify({ error: { code: "PRINT_EMPTY", message: "Tidak ada konten untuk dicetak." } }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const detectedPrinters = await listWindowsPrinters();
   const printerName = resolvePrinterName(
     body.data.printerName || process.env.DEFAULT_PRINTER_NAME,
     detectedPrinters,
   );
 
-  // Build print content (sumber tunggal, dipakai juga oleh jalur agen lokal)
-  const content = buildThermalContent(receipt);
-  const copies = body.data.copies ?? receipt.settings?.receiptCopies ?? 1;
+  // Build print content (sumber tunggal, dipakai juga oleh jalur agen lokal).
+  // Chit dapur/bar (tanpa harga) diprioritaskan bila ada; kalau tidak, struk.
+  const content = chit
+    ? buildKitchenChitContent(chit)
+    : buildThermalContent(receipt!);
+  const copies = chit ? 1 : body.data.copies ?? receipt!.settings?.receiptCopies ?? 1;
 
   // Save to temp file
   const tmpPath = join(tmpdir(), `garage-print-${Date.now()}.txt`);
@@ -116,7 +146,7 @@ export async function POST(request: Request) {
       return new Response(JSON.stringify({
         success: true,
         printer: result.printer,
-        invoiceNo: receipt.invoiceNo,
+        invoiceNo: receipt?.invoiceNo ?? null,
         method: "windows-print",
       }), {
         status: 200,

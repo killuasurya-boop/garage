@@ -96,17 +96,36 @@ Scroll direction:
 
 - POS must stay fast for cashier/tablet use.
 - Product/menu area stays primary; cart/payment remains reachable.
-- Preserve menu variant pricing:
-  - single-price items
-  - Coffee `Cold` / `Hot`
-  - Nasi Goreng `Sedang` / `Pedas`
-  - Ayam Richeese `Barbeque` / `Balado` / `Campur`
+- Active menu (owner, Sep 2026) lives in `src/lib/garage-data.ts`: 10 single-price
+  Makanan & Cemilan items (no recipes yet → HPP 0) plus 19 Coffee drinks from
+  `HPP BAR.xlsx` and 10 Non-Coffee drinks from `NON COFFEE.xlsx` (`bar-*` ids,
+  recipes on `BAR-###` bar ingredients). Coffee Latte /
+  Cappuccino / Americano have `Cold` / `Hot` variants with per-variant recipes.
+- HPP is never a percentage or typed guess: a variant with recipe lines always gets
+  `baseCost` = Σ(recipe qty × current ingredient unit cost) via
+  `syncRecipeBaseCosts` (`src/lib/menu-recipe-cost.ts`), re-run on product save,
+  ingredient cost edit, supplier receiving and WMS receiving/production.
 - Cart lines must include item + variant + quantity.
 - Totals must calculate from selected variant price.
 
 ## Inventory Rules
 
-- Inventory is raw-material and consumable stock, based on the PDF-derived mock data.
+- Inventory is raw-material and consumable stock. The old PDF-derived mock catalog
+  (INV-###) was deleted Sep 2026; the seeded catalog is the 36 bar ingredients from
+  `HPP BAR.xlsx` + `NON COFFEE.xlsx` (`BAR-###`, units ml/gr/pcs, `unit_cost` =
+  real purchase price (Harga Beli) ÷ package contents, NOT the sheet's buffered
+  "Harga HPP"; freight goes in as receiving additional cost, spoilage as recipe
+  waste %). Unit cost is Rp per ml/gr/pcs as
+  numeric(14,4) — keep 4-decimal precision, do not round unit costs to integers).
+- WMS is the single physical stock ledger. Order recipe deductions (POS, QR,
+  void, refund, split bill) are forwarded to WMS via `consumeWmsStockForSale` /
+  `returnWmsStockForSale` (outlet room first, then main room of the same area;
+  sales may go negative instead of silently skipping). `inventory_items.onHand`
+  is a mirror of the WMS total (set in `recordStockMovement`) — never write it
+  directly for WMS-managed SKUs.
+- `npm run db:seed` is insert-only (safe after go-live); `npm run db:seed:catalog`
+  (`--sync-catalog`) overwrites catalog/prices/recipes/unit costs from
+  `garage-data.ts` and archives menu items not in the seed.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

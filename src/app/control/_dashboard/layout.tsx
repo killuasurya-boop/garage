@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ControlDashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     if (session.response.status === 401) {
       redirect("/login?next=%2Fcontrol");

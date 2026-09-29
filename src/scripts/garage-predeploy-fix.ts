@@ -14,21 +14,12 @@ loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
 
 const seededEmails = [
-  "owner@garage.local",
-  "admin@garage.local",
-  "manager@garage.local",
-  "finance@garage.local",
-  "kasir@garage.local",
-  "kasir2@garage.local",
-  "barista@garage.local",
-  "koki@garage.local",
-  "asisten-koki@garage.local",
-  "waiter1@garage.local",
-  "waiter2@garage.local",
-  "kitchen@garage.local",
-  "gudang@garage.local",
-  "supervisor@garage.local",
-  "delivery@garage.local",
+  "owner@garage.id",
+  "manajer@garage.id",
+  "kasir@garage.id",
+  "kasir2@garage.id",
+  "waiter@garage.id",
+  "waiter2@garage.id",
 ] as const;
 
 function generatePassword() {
@@ -105,7 +96,7 @@ async function bootstrapAdminTwoFactor() {
     .where(
       and(
         eq(staffProfiles.status, "active"),
-        inArray(staffProfiles.role, ["Owner / CEO", "Admin"]),
+        inArray(staffProfiles.role, ["Owner", "Manajer"]),
       ),
     );
 

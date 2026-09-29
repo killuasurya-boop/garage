@@ -46,45 +46,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AdminUserRow, AdminUserStatus } from "@/lib/admin-user-service";
-import type { Role } from "@/lib/garage-data";
-import { permissionsForRole } from "@/lib/role-access";
-
-const ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Supervisor Shift",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Delivery Admin",
-];
-
-const roleRank: Record<Role, number> = {
-  "Owner / CEO": 100,
-  Admin: 90,
-  "Manager Operasional": 70,
-  "Finance / CFO": 60,
-  "Supervisor Shift": 50,
-  Kasir: 30,
-  Barista: 30,
-  Koki: 30,
-  "Asisten Koki": 20,
-  "Waiter 1": 20,
-  "Waiter 2": 20,
-  "Kitchen / Barista": 30,
-  Gudang: 30,
-  "Delivery Admin": 20,
-};
+import { roles as ROLES, type Role } from "@/lib/garage-data";
+import { WORKSTATION_OPTIONS } from "@/lib/garage-production-rules";
+import { permissionsForRole, protectedRoleRank as roleRank } from "@/lib/role-access";
 
 function manageableRoles(currentUserRole: Role) {
-  if (currentUserRole === "Owner / CEO") return ROLES;
+  if (currentUserRole === "Owner") return ROLES;
   return ROLES.filter((role) => roleRank[role] < roleRank[currentUserRole]);
 }
 
@@ -108,8 +75,46 @@ type CreateForm = {
   deviceLabel: string;
   division: string;
   position: string;
+  workstation: string;
   requirePasswordChange: boolean;
 };
+
+// Penugasan workstation Production Hub. Hanya relevan untuk Kasir: Owner &
+// Manajer selalu boleh override, Waiter tidak pernah boleh menandai READY.
+function WorkstationField({
+  role,
+  value,
+  onChange,
+}: {
+  role: Role;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (role !== "Kasir") {
+    return (
+      <p className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
+        Workstation produksi:{" "}
+        {role === "Waiter" ? "tidak berlaku (Waiter tidak menandai READY)." : "semua station (override manajemen)."}
+      </p>
+    );
+  }
+  return (
+    <Field label="Workstation produksi (Bar/Dapur)">
+      <Select value={value || "none"} onValueChange={(next) => onChange(next === "none" ? "" : next)}>
+        <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {WORKSTATION_OPTIONS.map((option) => (
+            <SelectItem key={option.value || "none"} value={option.value || "none"}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
 
 type SessionRow = {
   id: string;
@@ -469,6 +474,13 @@ export function UserManagement({
                                   {[row.division, row.position].filter(Boolean).join(" - ")}
                                 </div>
                               ) : null}
+                              {row.role === "Kasir" ? (
+                                <div className="text-[11px] text-zinc-400">
+                                  Workstation:{" "}
+                                  {WORKSTATION_OPTIONS.find((o) => o.value === (row.workstation ?? ""))?.label ??
+                                    "Tidak ditugaskan produksi"}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </TableCell>
@@ -634,6 +646,7 @@ function CreateUserDialog({
     deviceLabel: "POS-01",
     division: "",
     position: "",
+    workstation: "",
     requirePasswordChange: true,
   });
   const [submitting, setSubmitting] = useState(false);
@@ -646,7 +659,10 @@ function CreateUserDialog({
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        workstation: form.role === "Kasir" && form.workstation ? form.workstation : null,
+      }),
     });
     const json = await res.json();
     setSubmitting(false);
@@ -758,6 +774,11 @@ function CreateUserDialog({
               />
             </Field>
           </div>
+          <WorkstationField
+            role={form.role}
+            value={form.workstation}
+            onChange={(workstation) => setForm({ ...form, workstation })}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Shift label">
               <Input
@@ -841,6 +862,7 @@ function EditUserDialog({
     deviceLabel: row.deviceLabel,
     division: row.division ?? "",
     position: row.position ?? "",
+    workstation: row.workstation ?? "",
     status: row.status,
     suspendedReason: row.suspendedReason ?? "",
     passwordResetRequired: row.passwordResetRequired,
@@ -856,6 +878,7 @@ function EditUserDialog({
     setError(null);
     const payload = {
       ...form,
+      workstation: form.role === "Kasir" && form.workstation ? form.workstation : null,
       newPassword: form.newPassword.trim() ? form.newPassword : null,
       pinCode: undefined,
       suspendedReason:
@@ -976,6 +999,11 @@ function EditUserDialog({
               />
             </Field>
           </div>
+          <WorkstationField
+            role={form.role}
+            value={form.workstation}
+            onChange={(workstation) => setForm({ ...form, workstation })}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Shift">
               <Input

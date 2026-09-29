@@ -28,6 +28,9 @@ export type ProductDraftState = {
   sku?: string;
   promoActive?: boolean;
   promoPrice?: string;
+  // Production Hub: "" = otomatis dari kategori.
+  station?: "" | "bar" | "dapur";
+  batchEligible?: boolean;
   category: MenuCategory;
   section: string;
   prep: string;
@@ -62,9 +65,21 @@ export function recipeDraftLineCost(
   const wastePct = Number(recipe.wastePct || 0);
   if (!item || !Number.isFinite(qty) || qty <= 0) return 0;
 
-  return Math.round(
-    qty * Number(item.unitCost ?? 0) * (1 + Math.max(0, wastePct) / 100),
-  );
+  // Tidak dibulatkan per baris (HPP bahan bisa Rp/ml pecahan); total dibulatkan
+  // sekali — sama dengan syncRecipeBaseCosts di server.
+  return qty * Number(item.unitCost ?? 0) * (1 + Math.max(0, wastePct) / 100);
+}
+
+function recipeLinesForVariantDraft(recipes: ProductRecipeDraft[], variantId: string) {
+  return recipes.filter((recipe) => {
+    const recipeVariantId = recipe.variantId || "all";
+    return Boolean(recipe.inventorySku) && (recipeVariantId === "all" || recipeVariantId === variantId);
+  });
+}
+
+/** True bila varian punya baris resep → HPP-nya otomatis dari bahan (bukan manual). */
+export function variantDraftHasRecipe(recipes: ProductRecipeDraft[], variantId: string) {
+  return recipeLinesForVariantDraft(recipes, variantId).length > 0;
 }
 
 export function recipeCostForVariantDraft(
@@ -72,10 +87,10 @@ export function recipeCostForVariantDraft(
   inventoryItems: InventoryItem[],
   variantId: string,
 ) {
-  return recipes
-    .filter((recipe) => {
-      const recipeVariantId = recipe.variantId || "all";
-      return recipeVariantId === "all" || recipeVariantId === variantId;
-    })
-    .reduce((sum, recipe) => sum + recipeDraftLineCost(recipe, inventoryItems), 0);
+  return Math.round(
+    recipeLinesForVariantDraft(recipes, variantId).reduce(
+      (sum, recipe) => sum + recipeDraftLineCost(recipe, inventoryItems),
+      0,
+    ),
+  );
 }

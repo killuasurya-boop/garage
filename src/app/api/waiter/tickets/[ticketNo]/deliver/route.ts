@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import {
+  HandoverRequiredError,
   KitchenTransitionError,
   TicketClaimError,
   deliverClaimedTicket,
@@ -9,7 +10,7 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 // Endpoint waiter-only untuk transisi ticket → "delivered".
-// Memakai permission "orders:manage" (dimiliki Waiter 1/2, Kasir, Manager+)
+// Memakai permission "orders:manage" (dimiliki Waiter/2, Kasir, Manager+)
 // bukan "kitchen:write" supaya waiter tidak punya kontrol penuh atas KDS.
 export async function POST(
   _request: Request,
@@ -34,6 +35,9 @@ export async function POST(
   } catch (error) {
     if (error instanceof TicketClaimError) {
       return fail(409, "TICKET_CLAIMED", `Tiket sudah diambil oleh ${error.claimedByName}.`);
+    }
+    if (error instanceof HandoverRequiredError) {
+      return fail(422, "HANDOVER_REQUIRED", error.message);
     }
     if (error instanceof KitchenTransitionError) {
       return fail(

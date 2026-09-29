@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -104,7 +104,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("pos");
   const [settingsQuery, setSettingsQuery] = useState("");
   // Scope toggle: "operational" (per outlet, default) vs "global" (sistem,
-  // Owner/Admin only). Initial value bisa di-deep-link via ?scope=global.
+  // Owner/Manajer only). Initial value bisa di-deep-link via ?scope=global.
   const [settingsScope, setSettingsScope] = useState<
     "operational" | "global" | "integrations"
   >(
@@ -115,12 +115,8 @@ export function SettingsView({ me }: { me: GarageMe }) {
     },
   );
 
-  const canWrite =
-    me.role === "Owner / CEO" ||
-    me.role === "Admin" ||
-    me.role === "Manager Operasional" ||
-    me.role === "Finance / CFO";
-  const canSeeGlobalScope = me.role === "Owner / CEO" || me.role === "Admin";
+  const canWrite = me.role === "Owner" || me.role === "Manajer";
+  const canSeeGlobalScope = me.role === "Owner" || me.role === "Manajer";
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -447,7 +443,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
           <h1 className="garage-display garage-chrome text-2xl">Pengaturan</h1>
           <p className="mt-1 text-sm text-[#b8b8bf]">
             {settingsScope === "global"
-              ? "Konfigurasi sistem global Garage OS â€” POS, receipt, tax, security, AI, shift, dll. Owner / Admin only."
+              ? "Konfigurasi sistem global Garage OS — POS, receipt, tax, security, AI, shift, dll. Owner / Manajer only."
               : "Konfigurasi billing, branding, notifikasi, GARAGE AI, printer, loyalty, dan marketing per outlet. Perubahan tersimpan langsung ke DB."}
           </p>
         </div>
@@ -489,7 +485,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
           <p className="text-[11px] font-medium uppercase tracking-wide text-[#8a8a93]">
             Cakupan pengaturan
           </p>
-          <div className={`grid gap-1 rounded-lg border border-[#34343c] bg-white/[0.04] p-1 ${me.role === "Owner / CEO" ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid gap-1 rounded-lg border border-[#34343c] bg-white/[0.04] p-1 ${me.role === "Owner" ? "grid-cols-3" : "grid-cols-2"}`}>
             <button
               type="button"
               onClick={() => setSettingsScope("operational")}
@@ -516,7 +512,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
               <ShieldCheck className="size-3.5 shrink-0" />
               <span className="truncate">Global Sistem</span>
             </button>
-            {me.role === "Owner / CEO" ? (
+            {me.role === "Owner" ? (
               <button
                 type="button"
                 onClick={() => setSettingsScope("integrations")}
@@ -546,7 +542,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
 
       {settingsScope === "global" ? (
         <GlobalSettingsPanel />
-      ) : settingsScope === "integrations" && me.role === "Owner / CEO" ? (
+      ) : settingsScope === "integrations" && me.role === "Owner" ? (
         <IntegrationControlCenter />
       ) : (
         <>
@@ -570,7 +566,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
           <AlertTitle>Read-only</AlertTitle>
           <AlertDescription>
             Role kamu cuma bisa lihat pengaturan. Untuk ubah, butuh Owner /
-            Admin / Manager Ops / Finance.
+            Manajer.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -593,7 +589,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                 if (firstMatch) setActiveTab(firstMatch.id);
               }
             }}
-            placeholder="Cari pengaturanâ€¦ (pajak, diskon, struk, tema)"
+            placeholder="Cari pengaturan… (pajak, diskon, struk, tema)"
             className="h-10 border-[#34343c] bg-white/[0.06] pl-9 pr-9"
           />
           {settingsQuery ? (
@@ -702,7 +698,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                         : "border-[#22c55e]/35 bg-[#22c55e]/12 text-[#dcfce7]"
                     }`}
                   >
-                    {themeDirty ? "Preview â€” belum disimpan" : "Tersimpan"}
+                    {themeDirty ? "Preview — belum disimpan" : "Tersimpan"}
                   </Badge>
                 </div>
                 <p className="text-xs leading-5 text-[#b8b8bf]">
@@ -844,7 +840,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
               </SettingsField>
               <SettingsField
                 label="PB1 / Pajak Restoran (%)"
-                description="Pajak Pembangunan I â€” dihitung dari (subtotal + service)."
+                description="Pajak Pembangunan I — dihitung dari (subtotal + service)."
                 defaultValue={defaults.taxPct}
                 currentValue={merged.taxPct}
                 onReset={() => resetField("taxPct")}
@@ -992,7 +988,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                   [
                     "feeWaiterDeliveredPerItem",
                     "Fee Waiter (antar) / item",
-                    "Untuk Waiter 1/2 saat menandai pesanan diantar. Masuk ke yang klaim & antar.",
+                    "Untuk Waiter/2 saat menandai pesanan diantar. Masuk ke yang klaim & antar.",
                   ],
                   [
                     "feeKitchenReadyPerItem",
@@ -1314,7 +1310,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                 />
               </SettingsField>
               <SettingsField
-                label="HP Kasir / Waiter / Supervisor"
+                label="HP Kasir / Waiter"
                 description="Pisahkan dengan koma. Contoh: 081300000001,081300000002"
                 defaultValue={defaults.aiWhatsappPhonesCashier || "(kosong)"}
                 currentValue={merged.aiWhatsappPhonesCashier || "(kosong)"}
@@ -1332,7 +1328,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                 />
               </SettingsField>
               <SettingsField
-                label="HP Kitchen / Barista / Koki"
+                label="HP Kasir / Koki"
                 description="Nomor untuk alert delay dapur."
                 defaultValue={defaults.aiWhatsappPhonesKitchen || "(kosong)"}
                 currentValue={merged.aiWhatsappPhonesKitchen || "(kosong)"}
@@ -1710,7 +1706,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
               </SettingsField>
               <SettingsField
                 label="Voucher Default Value"
-                description="Nilai default voucher saat buat promo baru â€” angka rupiah jika fixed, persen jika percent."
+                description="Nilai default voucher saat buat promo baru — angka rupiah jika fixed, persen jika percent."
                 defaultValue={defaults.marketingDefaultVoucherValue}
                 currentValue={merged.marketingDefaultVoucherValue}
                 onReset={() => resetField("marketingDefaultVoucherValue")}
@@ -1797,11 +1793,11 @@ export function SettingsView({ me }: { me: GarageMe }) {
 
       <p className="text-[11px] text-[#8f8f99]">
         Outlet aktif: <span className="garage-mono text-[#ffd08a]">{me.outlet.code}</span> ·{" "}
-        {me.outlet.name}. Pengaturan disimpan per outlet â€” switch outlet untuk
+        {me.outlet.name}. Pengaturan disimpan per outlet — switch outlet untuk
         edit setting outlet lain.
       </p>
 
-      {(me.role === "Owner / CEO" || me.role === "Admin") && <DatabasePurgePanel />}
+      {me.role === "Owner" && <DatabasePurgePanel />}
 
       {dirty && canWrite ? (
         <div className="sticky bottom-3 z-20 garage-animate-in">

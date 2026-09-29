@@ -54,8 +54,8 @@ describe('Garage OS Data Layer', () => {
       }
     });
 
-    it('should Owner / CEO have all modules (except staff-only Payroll V2)', () => {
-      const ownerMods = roleModules['Owner / CEO'] as string[];
+    it('should Owner have all modules (except staff-only Payroll V2)', () => {
+      const ownerMods = roleModules['Owner'] as string[];
       const definedIds = modules.map((m) => m.id);
       // Payroll V2: absensi & wallet staff-only — Owner tidak absen (design doc).
       const staffOnly = new Set(['absensi-v2', 'wallet-gaji', 'wallet-fee']);
@@ -75,8 +75,8 @@ describe('Garage OS Data Layer', () => {
       }
     });
 
-    it('should Owner / CEO have maximum permissions', () => {
-      const ownerPerms = rolePermissions['Owner / CEO'];
+    it('should Owner have maximum permissions', () => {
+      const ownerPerms = rolePermissions['Owner'];
       const kioskPerms = rolePermissions['Kasir'];
       // Owner should have more permissions than Kasir
       expect(ownerPerms.length).toBeGreaterThan(kioskPerms.length);
@@ -94,46 +94,48 @@ describe('Garage OS Data Layer', () => {
       expect(kasirPerms).not.toContain('company:read');
     });
 
-    it('should Admin not have ai:manage or company:manage', () => {
-      const adminPerms = rolePermissions['Admin'];
-      expect(adminPerms).not.toContain('ai:manage');
-      expect(adminPerms).not.toContain('company:manage');
+    it('should Manajer not have ai:manage or company:manage', () => {
+      const managerPerms = rolePermissions['Manajer'];
+      expect(managerPerms).not.toContain('ai:manage');
+      expect(managerPerms).not.toContain('company:manage');
     });
   });
 
   describe('canAccessModule', () => {
     it('should return true for modules a role has access to', () => {
-      expect(canAccessModule('Owner / CEO', 'dashboard')).toBe(true);
-      expect(canAccessModule('Owner / CEO', 'pos')).toBe(true);
-      expect(canAccessModule('Owner / CEO', 'inventory')).toBe(true);
+      expect(canAccessModule('Owner', 'dashboard')).toBe(true);
+      expect(canAccessModule('Owner', 'pos')).toBe(true);
+      expect(canAccessModule('Owner', 'inventory')).toBe(true);
     });
 
     it('should return false for modules a role does NOT have', () => {
-      // Kasir only has pos, earnings, and auto-injected modules
+      // Kasir has pos, kitchen, inventory (absorbs Barista/Koki/Gudang), earnings,
+      // and auto-injected modules — but NOT finance/audit.
       expect(canAccessModule('Kasir', 'finance')).toBe(false);
-      expect(canAccessModule('Kasir', 'inventory')).toBe(false);
       expect(canAccessModule('Kasir', 'audit')).toBe(false);
+      expect(canAccessModule('Waiter', 'finance')).toBe(false);
+      expect(canAccessModule('Waiter', 'pos')).toBe(false);
     });
 
     it('should return true for auto-injected chat and training', () => {
       expect(canAccessModule('Kasir', 'chat')).toBe(true);
       expect(canAccessModule('Kasir', 'training')).toBe(true);
-      expect(canAccessModule('Barista', 'chat')).toBe(true);
-      expect(canAccessModule('Barista', 'training')).toBe(true);
+      expect(canAccessModule('Waiter', 'chat')).toBe(true);
+      expect(canAccessModule('Waiter', 'training')).toBe(true);
     });
   });
 
   describe('canUseApi', () => {
     it('should return true for permissions the role has', () => {
-      expect(canUseApi('Owner / CEO', 'dashboard:read')).toBe(true);
-      expect(canUseApi('Owner / CEO', 'pos:use')).toBe(true);
-      expect(canUseApi('Owner / CEO', 'finance:write')).toBe(true);
+      expect(canUseApi('Owner', 'dashboard:read')).toBe(true);
+      expect(canUseApi('Owner', 'pos:use')).toBe(true);
+      expect(canUseApi('Owner', 'finance:write')).toBe(true);
     });
 
     it('should return false for permissions the role does NOT have', () => {
       expect(canUseApi('Kasir', 'finance:write')).toBe(false);
-      expect(canUseApi('Barista', 'finance:read')).toBe(false);
-      expect(canUseApi('Gudang', 'pos:use')).toBe(false);
+      expect(canUseApi('Kasir', 'finance:read')).toBe(false);
+      expect(canUseApi('Waiter', 'kitchen:write')).toBe(false);
     });
   });
 
@@ -146,15 +148,13 @@ describe('Garage OS Data Layer', () => {
     });
 
     it('should return correct first module for each role', () => {
-      // Dashboard owner hanya untuk Owner & Manager. Admin SENGAJA tanpa
-      // dashboard owner (Admin = operasional) → landing-nya POS.
-      expect(firstModuleForRole('Owner / CEO')).toBe('dashboard');
-      expect(firstModuleForRole('Manager Operasional')).toBe('dashboard');
-      expect(firstModuleForRole('Admin')).toBe('pos');
+      // Dashboard owner hanya untuk Owner & Manajer.
+      expect(firstModuleForRole('Owner')).toBe('dashboard');
+      expect(firstModuleForRole('Manajer')).toBe('dashboard');
       // Kasir first module should be pos
       expect(firstModuleForRole('Kasir')).toBe('pos');
-      // Barista first module should be kitchen
-      expect(firstModuleForRole('Barista')).toBe('kitchen');
+      // Waiter first module should be waiter
+      expect(firstModuleForRole('Waiter')).toBe('waiter');
     });
   });
 

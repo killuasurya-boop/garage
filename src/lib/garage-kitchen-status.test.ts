@@ -16,6 +16,7 @@ describe("alur status tiket KDS yang sah", () => {
     ["queue", "ready"], // item cepat langsung siap
     ["cooking", "ready"], // selesai dimasak
     ["ready", "delivered"], // waiter antar ke meja
+    ["ready", "cooking"], // dikembalikan ke PROCESSING (alasan wajib, dicek service)
   ])("%s → %s diizinkan", (from, to) => {
     expect(canTransitionKitchenStatus(from, to)).toBe(true);
   });
@@ -25,7 +26,6 @@ describe("transisi tidak sah ditolak (cegah lompat/mundur status)", () => {
   it.each([
     ["queue", "delivered"], // tak boleh lompat lewati ready
     ["cooking", "queue"], // tak boleh mundur
-    ["ready", "cooking"], // tak boleh mundur
     ["delivered", "ready"], // sudah final
     ["delivered", "cooking"],
     ["ready", "queue"],

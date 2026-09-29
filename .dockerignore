@@ -8,8 +8,19 @@ node_modules
 
 # Data & artefak lokal PGlite (production pakai Postgres)
 .pglite-data
+.pglite-data.*
 pglite-data-*
 *.pglite
+
+# Salinan DB gladi/QA (berisi kredensial uji), backup, build verifikasi, dan
+# unggahan runtime (selfie absensi, CV pelamar) — data pribadi, bukan source.
+.tmp
+.next-verify
+backups
+storage
+public/uploads
+public/garage-uploads
+coverage
 
 # Tooling & dokumentasi yang tidak perlu di image
 .claude

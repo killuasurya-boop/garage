@@ -15,9 +15,15 @@ const schema = z.object({
   reason: z.string().max(200).optional().nullable(),
 });
 
+// Pengajuan payout lama DITUTUP — gaji & fee dibayar manajer lewat Gajian.
+const PAYOUT_RETIRED = true;
+
 export async function POST(request: Request) {
   const session = await requireGarageSession();
   if (session.response) return session.response;
+  if (PAYOUT_RETIRED) {
+    return fail(410, "PAYOUT_RETIRED", "Pengajuan payout sudah tidak dipakai. Gaji & fee dibayar manajer saat gajian.");
+  }
 
   const body = await readJson(request, schema);
   if (body.error) return body.error;

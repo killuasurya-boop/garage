@@ -13,6 +13,10 @@ const patchSchema = z.object({
   unit: z.string().trim().min(1).max(24).optional(),
   minStock: z.number().nonnegative().max(10_000_000).optional(),
   hpp: z.number().nonnegative().max(100_000_000).optional(),
+  // Harga beli per kemasan + isi kemasan (satuan stok) → HPP per satuan otomatis.
+  packPrice: z.number().nonnegative().max(1_000_000_000).optional(),
+  packQty: z.number().positive().max(100_000_000).optional(),
+  packName: z.string().trim().max(40).optional(),
   imageUrl: z.string().trim().max(400).nullable().optional(),
   barcode: z.string().trim().max(64).nullable().optional(),
   restore: z.boolean().optional(), // true = pulihkan dari arsip

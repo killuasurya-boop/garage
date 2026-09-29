@@ -8,6 +8,8 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { payrollSettings } from "@/db/schema";
+import { GARAGE_LOCATION } from "@/lib/garage-location";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 // ---------- Kunci settings & bentuk default ----------
 
@@ -24,18 +26,14 @@ export const PAYROLL_KEYS = {
   payout: "payout", // { mode: manual|auto, autoDay, minBalance, cutoffHour }
   slip: "slip", // { headerNote, footerNote, includeSignature }
   security: "security", // { pinLength, maxPinAttempts, lockMinutes, photoRetentionDays }
+  umk: "umk", // { amount, region, year } — upah minimum yang berlaku (diisi Owner)
+  backup: "backup", // { copyToDir } — folder salinan backup di luar laptop (Drive/flashdisk)
 } as const;
 
 export type PayrollKey = (typeof PAYROLL_KEYS)[keyof typeof PAYROLL_KEYS];
 
-// Peran yang TIDAK ikut fee pool (manajer, admin, owner, finance).
-export const MANAGER_ROLES = new Set<string>([
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Supervisor Shift",
-]);
+// Peran yang TIDAK ikut fee pool (Owner & Manajer).
+export const MANAGER_ROLES = new Set<string>(MANAGEMENT_ROLES);
 
 // Default settings — dipakai kalau row belum ada di DB. Sinkron dengan design doc.
 export const PAYROLL_DEFAULTS: Record<string, unknown> = {
@@ -48,17 +46,15 @@ export const PAYROLL_DEFAULTS: Record<string, unknown> = {
     timezone: "Asia/Jakarta",
   },
   [PAYROLL_KEYS.gps]: {
-    lat: 3.328, // placeholder — owner update
-    lng: 99.161,
+    lat: GARAGE_LOCATION.lat, // titik resmi Google Maps; owner tetap bisa ubah dari UI
+    lng: GARAGE_LOCATION.lng,
     radiusMeters: 50,
   },
   [PAYROLL_KEYS.attendanceMethods]: {
     // per role name; fallback "default"
     default: "pin_selfie_gps",
     Kasir: "pin",
-    "Waiter 1": "pin_selfie_gps_multi",
-    "Waiter 2": "pin_selfie_gps_multi",
-    "Delivery Admin": "pin_selfie_gps_multi",
+    Waiter: "pin_selfie_gps_multi",
   },
   [PAYROLL_KEYS.lateBrackets]: [
     { maxMinutes: 15, percent: 100 },
@@ -77,8 +73,8 @@ export const PAYROLL_DEFAULTS: Record<string, unknown> = {
   },
   [PAYROLL_KEYS.feePool]: {
     enabled: true,
-    perProduct: 200,
-    splitMode: "proportional_hours", // proportional_hours | equal
+    perProduct: 1000,
+    splitMode: "equal", // proportional_hours | equal — owner: fee dibagi rata ke karyawan
     fallbackMode: "hangus", // hangus | kas
     minMinutes: 60,
     excludePromo: true,
@@ -114,6 +110,16 @@ export const PAYROLL_DEFAULTS: Record<string, unknown> = {
     maxPinAttempts: 5,
     lockMinutes: 15,
     photoRetentionDays: 90,
+  },
+  // amount 0 = belum diisi. Isi dengan UMK resmi yang berlaku (SK Gubernur/Disnaker).
+  [PAYROLL_KEYS.umk]: {
+    amount: 0,
+    region: "Kota Tebing Tinggi",
+    year: 2026,
+  },
+  // Kosong = tidak disalin. Contoh: "G:\\My Drive\\Garage Backup" atau "E:\\GarageBackup".
+  [PAYROLL_KEYS.backup]: {
+    copyToDir: "",
   },
 };
 

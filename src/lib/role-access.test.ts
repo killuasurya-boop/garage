@@ -7,6 +7,7 @@ import {
   modulesForRole,
   permissionsForRole,
   firstModuleForRole,
+  homeModuleFor,
   rolePermissions,
 } from "@/lib/role-access";
 
@@ -15,6 +16,8 @@ import {
 // Mengunci matriks akses role sesuai mandat: setiap perubahan policy yang tak
 // sengaja membocorkan modul sensitif (finance/earnings/owner control) akan
 // langsung gagal di sini. Pure-logic (tanpa DB/server) → cepat & deterministik.
+//
+// 4 role: Owner, Manajer, Kasir, Waiter.
 // =============================================================================
 
 const ALL_ROLES = Object.keys(rolePermissions) as Role[];
@@ -33,6 +36,17 @@ describe("role-access: invariants", () => {
     }
   });
 
+  it("homeModuleFor: stasiun produksi langsung ke Production, kasir biasa ke POS", () => {
+    for (const ws of ["bar", "dapur", "helper_bar", "helper_dapur", "helper_all"]) {
+      expect(homeModuleFor("Kasir", ws), ws).toBe("kitchen");
+      expect(canAccessModule("Kasir", homeModuleFor("Kasir", ws))).toBe(true);
+    }
+    expect(homeModuleFor("Kasir", null)).toBe("pos");
+    expect(homeModuleFor("Kasir", "all")).toBe("pos");
+    expect(homeModuleFor("Waiter", "bar")).toBe("waiter");
+    expect(homeModuleFor("Owner", "dapur")).toBe("dashboard");
+  });
+
   it("chat & training tersedia untuk semua role internal", () => {
     for (const role of ALL_ROLES) {
       expect(canUseApi(role, "chat:use"), `${role} chat:use`).toBe(true);
@@ -43,8 +57,8 @@ describe("role-access: invariants", () => {
 });
 
 describe("role-access: Owner punya akses penuh", () => {
-  it("Owner / CEO memegang semua permission & modul monitoring", () => {
-    const owner: Role = "Owner / CEO";
+  it("Owner memegang semua permission & modul monitoring", () => {
+    const owner: Role = "Owner";
     for (const p of [
       "dashboard:read",
       "finance:read",
@@ -74,8 +88,8 @@ describe("role-access: Owner punya akses penuh", () => {
 });
 
 describe("role-access: isolasi modul sensitif (mandat keamanan)", () => {
-  // Kasir TIDAK boleh lihat dashboard owner / finance / earnings orang lain /
-  // company control / audit.
+  // Kasir sekarang juga pegang KDS dapur/bar & gudang, tapi TETAP tidak boleh
+  // lihat dashboard owner / finance / company control / audit / kelola staff.
   it("Kasir tidak bisa akses dashboard owner, finance, company, audit", () => {
     expect(canAccessModule("Kasir", "dashboard")).toBe(false);
     expect(canAccessModule("Kasir", "finance")).toBe(false);
@@ -86,66 +100,45 @@ describe("role-access: isolasi modul sensitif (mandat keamanan)", () => {
     expect(canUseApi("Kasir", "staff:manage")).toBe(false);
   });
 
-  // Barista & Koki: hanya station dapur/bar + inventory baca. TANPA finance.
-  it("Barista & Koki tidak bisa akses finance / POS / company", () => {
-    for (const role of ["Barista", "Koki", "Asisten Koki", "Kitchen / Barista"] as Role[]) {
-      expect(canUseApi(role, "finance:read"), `${role} finance:read`).toBe(false);
-      expect(canUseApi(role, "pos:use"), `${role} pos:use`).toBe(false);
-      expect(canUseApi(role, "company:manage"), `${role} company:manage`).toBe(false);
-      expect(canAccessModule(role, "finance"), `${role} finance module`).toBe(false);
-      expect(canAccessModule(role, "company-control"), `${role} company module`).toBe(false);
-    }
+  it("Kasir bisa akses KDS dapur/bar dan inventory (tugas Barista/Koki/Gudang lama)", () => {
+    expect(canUseApi("Kasir", "kitchen:read")).toBe(true);
+    expect(canUseApi("Kasir", "kitchen:write")).toBe(true);
+    expect(canUseApi("Kasir", "inventory:read")).toBe(true);
+    expect(canUseApi("Kasir", "inventory:write")).toBe(true);
+    expect(canAccessModule("Kasir", "kitchen")).toBe(true);
+    expect(canAccessModule("Kasir", "inventory")).toBe(true);
   });
 
-  // Waiter: pelayanan meja. Tanpa finance / cash / company / audit.
-  it("Waiter tidak bisa akses data sensitif (finance/company/audit/cash)", () => {
-    for (const role of ["Waiter 1", "Waiter 2"] as Role[]) {
-      expect(canUseApi(role, "finance:read"), `${role} finance:read`).toBe(false);
-      expect(canUseApi(role, "shift:cash"), `${role} shift:cash`).toBe(false);
-      expect(canUseApi(role, "company:manage"), `${role} company:manage`).toBe(false);
-      expect(canAccessModule(role, "finance"), `${role} finance module`).toBe(false);
-      expect(canAccessModule(role, "audit"), `${role} audit module`).toBe(false);
-      expect(canAccessModule(role, "company-control"), `${role} company module`).toBe(false);
-    }
+  // Waiter: pelayanan meja + delivery. Tanpa finance / cash / company / audit / kitchen.
+  it("Waiter tidak bisa akses data sensitif (finance/company/audit/cash/kitchen)", () => {
+    const role: Role = "Waiter";
+    expect(canUseApi(role, "finance:read"), `${role} finance:read`).toBe(false);
+    expect(canUseApi(role, "shift:cash"), `${role} shift:cash`).toBe(false);
+    expect(canUseApi(role, "company:manage"), `${role} company:manage`).toBe(false);
+    expect(canUseApi(role, "kitchen:write"), `${role} kitchen:write`).toBe(false);
+    expect(canAccessModule(role, "finance"), `${role} finance module`).toBe(false);
+    expect(canAccessModule(role, "audit"), `${role} audit module`).toBe(false);
+    expect(canAccessModule(role, "company-control"), `${role} company module`).toBe(false);
+    expect(canAccessModule(role, "pos"), `${role} pos module`).toBe(false);
   });
 
-  // Finance / CFO (Admin Finance pada mandat): boleh finance & earnings, TAPI
-  // tidak boleh ubah sistem owner (company:manage) atau kelola staff.
-  it("Finance / CFO tidak bisa ubah sistem owner atau kelola staff", () => {
-    const fin: Role = "Finance / CFO";
-    expect(canUseApi(fin, "finance:read")).toBe(true);
-    expect(canUseApi(fin, "finance:write")).toBe(true);
-    expect(canUseApi(fin, "company:manage")).toBe(false);
-    expect(canUseApi(fin, "staff:manage")).toBe(false);
-    expect(canUseApi(fin, "pos:use")).toBe(false);
-    expect(canAccessModule(fin, "company-control")).toBe(false);
-    expect(canAccessModule(fin, "team-management")).toBe(false);
-  });
-
-  // Manager: operasional + monitoring, TANPA kontrol perusahaan owner.
-  it("Manager Operasional tidak memegang company:manage", () => {
-    const mgr: Role = "Manager Operasional";
-    expect(canUseApi(mgr, "company:manage")).toBe(false);
-    expect(canAccessModule(mgr, "company-control")).toBe(false);
+  // Manajer: hampir setara Owner (POS, KDS, inventory, finance, approval,
+  // payroll), TAPI tidak boleh ubah sistem owner (company:manage/ai:manage).
+  it("Manajer punya akses operasional & finance luas, TAPI tidak company:manage/ai:manage", () => {
+    const mgr: Role = "Manajer";
     expect(canUseApi(mgr, "dashboard:read")).toBe(true);
-  });
-
-  // F-01 (keputusan owner): Finance & Earnings disembunyikan dari Manager —
-  // operasional murni. Modul tak boleh muncul tanpa permission baca.
-  it("Manager Operasional tidak melihat modul Finance & Earnings", () => {
-    const mgr: Role = "Manager Operasional";
-    expect(canAccessModule(mgr, "finance")).toBe(false);
-    expect(canAccessModule(mgr, "earnings")).toBe(false);
-    expect(canUseApi(mgr, "finance:read")).toBe(false);
-    expect(canUseApi(mgr, "earnings:read")).toBe(false);
-  });
-
-  // Gudang: hanya inventory.
-  it("Gudang hanya akses inventory (tanpa pos/finance/kitchen-write umum)", () => {
-    expect(canUseApi("Gudang", "inventory:read")).toBe(true);
-    expect(canUseApi("Gudang", "inventory:write")).toBe(true);
-    expect(canUseApi("Gudang", "finance:read")).toBe(false);
-    expect(canUseApi("Gudang", "pos:use")).toBe(false);
+    expect(canUseApi(mgr, "finance:read")).toBe(true);
+    expect(canUseApi(mgr, "finance:write")).toBe(true);
+    expect(canUseApi(mgr, "earnings:read")).toBe(true);
+    expect(canUseApi(mgr, "staff:manage")).toBe(true);
+    expect(canUseApi(mgr, "audit:read")).toBe(true);
+    expect(canAccessModule(mgr, "finance")).toBe(true);
+    expect(canAccessModule(mgr, "earnings")).toBe(true);
+    expect(canAccessModule(mgr, "team-management")).toBe(true);
+    // Setting sistem inti tetap Owner-only:
+    expect(canUseApi(mgr, "company:manage")).toBe(false);
+    expect(canUseApi(mgr, "ai:manage")).toBe(false);
+    expect(canAccessModule(mgr, "company-control")).toBe(false);
   });
 });
 
@@ -160,7 +153,6 @@ describe("role-access: konsistensi modul ↔ permission data", () => {
     approvals: "approvals:read",
     audit: "audit:read",
     "team-management": "staff:manage",
-    // Setelah F-01 diselesaikan, finance & earnings juga konsisten:
     finance: "finance:read",
     earnings: "earnings:read",
   } as const;

@@ -32,8 +32,7 @@ export type Permission =
   | "shift:handover"
   | "earnings:read"
   | "earnings:manage"
-  | "chat:use"
-  | "whatsapp:use";
+  | "chat:use";
 
 const ownerPermissions: Permission[] = [
   "dashboard:read",
@@ -68,15 +67,16 @@ const ownerPermissions: Permission[] = [
   "earnings:read",
   "earnings:manage",
   "chat:use",
-  "whatsapp:use",
 ];
 
 export const rolePermissions: Record<Role, Permission[]> = {
-  "Owner / CEO": ownerPermissions,
-  // Admin = operasional saja. DILARANG (owner-only): dashboard owner, Garage AI,
-  // Finance, Earnings/payroll, CEO Control (company), Audit. Definisi eksplisit
-  // supaya tidak bocor saat ownerPermissions bertambah di kemudian hari.
-  Admin: [
+  Owner: ownerPermissions,
+  // Manajer = union Admin + Manager Operasional + Finance/CFO + Supervisor
+  // Shift lama. Hampir setara Owner, KECUALI ai:manage & company:* (setting
+  // sistem inti/provider AI — tetap Owner-only, sesuai keputusan konsolidasi
+  // role). Proteksi akun Owner sendiri ada di protectedRoleRank.
+  Manajer: [
+    "dashboard:read",
     "pos:use",
     "orders:read",
     "orders:manage",
@@ -84,13 +84,17 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "kitchen:write",
     "inventory:read",
     "inventory:write",
+    "finance:read",
+    "finance:write",
     "crm:read",
     "crm:write",
     "marketing:read",
     "marketing:write",
     "approvals:read",
     "approvals:decide",
+    "audit:read",
     "staff:manage",
+    "ai:use",
     "website:manage",
     "tables:read",
     "tables:write",
@@ -98,110 +102,45 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "print:write",
     "shift:cash",
     "shift:handover",
-    "chat:use",
-    "whatsapp:use",
-  ],
-  "Manager Operasional": [
-    "dashboard:read",
-    "pos:use",
-    "orders:read",
-    "orders:manage",
-    "kitchen:read",
-    "kitchen:write",
-    "inventory:read",
-    "inventory:write",
-    "crm:read",
-    "crm:write",
-    "marketing:read",
-    "marketing:write",
-    "approvals:read",
-    "approvals:decide",
-    "audit:read",
-    "staff:manage",
-    "ai:use",
-    "tables:read",
-    "tables:write",
-    "print:read",
-    "print:write",
-    "shift:cash",
-    "shift:handover",
-    "whatsapp:use",
-  ],
-  "Finance / CFO": [
-    "dashboard:read",
-    "orders:read",
-    "finance:read",
-    "finance:write",
-    "approvals:read",
-    "audit:read",
-    "ai:use",
-    "print:read",
     "earnings:read",
     "earnings:manage",
   ],
+  // Kasir = union Kasir + Barista + Koki + Asisten Koki + Kitchen/Barista +
+  // Gudang lama — kasir sekarang juga pegang KDS dapur/bar dan stok gudang.
   Kasir: [
     "pos:use",
     "orders:read",
     "orders:manage",
-    "ai:use",
-    "tables:read",
-    "tables:write",
-    "print:read",
-    "print:write",
-    "shift:cash",
-    "earnings:read",
-  ],
-  Barista: ["kitchen:read", "kitchen:write", "inventory:read", "ai:use", "earnings:read"],
-  Koki: ["kitchen:read", "kitchen:write", "inventory:read", "ai:use", "earnings:read"],
-  "Asisten Koki": ["kitchen:read", "kitchen:write", "inventory:read", "ai:use", "earnings:read"],
-  "Waiter 1": [
-    "pos:use",
-    "orders:read",
-    "orders:manage",
-    "tables:read",
-    "tables:write",
-    "ai:use",
-    "earnings:read",
-  ],
-  "Waiter 2": [
-    "pos:use",
-    "orders:read",
-    "orders:manage",
-    "tables:read",
-    "tables:write",
-    "ai:use",
-    "earnings:read",
-  ],
-  "Kitchen / Barista": ["kitchen:read", "kitchen:write", "inventory:read", "ai:use", "earnings:read"],
-  Gudang: ["inventory:read", "inventory:write", "ai:use"],
-  "Supervisor Shift": [
-    "dashboard:read",
-    "pos:use",
-    "orders:read",
-    "orders:manage",
     "kitchen:read",
     "kitchen:write",
     "inventory:read",
     "inventory:write",
-    "approvals:read",
-    "approvals:decide",
     "tables:read",
     "tables:write",
     "print:read",
     "print:write",
     "shift:cash",
-    "shift:handover",
+    "earnings:read",
     "ai:use",
   ],
-  "Delivery Admin": ["orders:read", "orders:manage", "ai:use"],
+  // Waiter = union Waiter 1 + Waiter 2 + Delivery Admin lama.
+  Waiter: [
+    "pos:use",
+    "orders:read",
+    "orders:manage",
+    "tables:read",
+    "tables:write",
+    "ai:use",
+    "earnings:read",
+  ],
 };
 
 export const roleModules: Record<Role, ModuleId[]> = {
-  "Owner / CEO": [
+  Owner: [
     "dashboard",
     "pos",
-    "ai-agent",
     "kitchen",
+    "ai-agent",
     "waiter",
     "produk",
     "inventory",
@@ -217,68 +156,38 @@ export const roleModules: Record<Role, ModuleId[]> = {
     "team-management",
     "settings",
     "recruitment",
-    "whatsapp",
   ],
-  // Admin = operasional. Tanpa dashboard owner, ai-agent, finance, earnings,
-  // audit, company-control (sesuai keputusan owner).
-  Admin: [
+  // Manajer = union modul Admin/Manager Operasional/Finance-CFO/Supervisor
+  // Shift lama. TIDAK termasuk "company-control" — setting sistem inti tetap
+  // Owner-only (lihat CompanyControlBridge di garage-app.tsx).
+  Manajer: [
+    "dashboard",
     "pos",
     "kitchen",
+    "ai-agent",
     "waiter",
     "produk",
     "inventory",
+    "finance",
     "crm",
     "membership",
     "marketing",
     "approvals",
     "website",
-    "team-management",
-    "settings",
-    "recruitment",
-    "whatsapp",
-  ],
-  // Manager = operasional murni. Finance & Earnings (payroll) DISEMBUNYIKAN
-  // (eksklusif Owner & Finance/CFO) agar sidebar cocok dengan permission —
-  // sebelumnya modul muncul tapi datanya 403 (keputusan owner, temuan F-01).
-  "Manager Operasional": [
-    "dashboard",
-    "pos",
-    "ai-agent",
-    "kitchen",
-    "waiter",
-    "inventory",
-    "crm",
-    "membership",
-    "marketing",
-    "approvals",
+    "earnings",
     "audit",
     "team-management",
     "settings",
     "recruitment",
-    "whatsapp",
   ],
-  "Finance / CFO": ["dashboard", "ai-agent", "finance", "earnings", "approvals", "audit"],
-  Kasir: ["pos", "earnings"],
-  Barista: ["kitchen", "inventory", "earnings", "ai-agent"],
-  Koki: ["kitchen", "inventory", "earnings", "ai-agent"],
-  "Asisten Koki": ["kitchen", "inventory", "earnings", "ai-agent"],
+  // Kasir = union modul Kasir + Barista/Koki/Asisten Koki/Kitchen-Barista +
+  // Gudang lama. "kitchen" ditambahkan supaya kasir bisa buka KDS langsung
+  // (sebelumnya modul ini tidak dimiliki role manapun).
+  Kasir: ["pos", "kitchen", "inventory", "earnings", "ai-agent"],
   // Waiter bukan kasir — TIDAK boleh kena shift gate / cash control.
   // Modul "waiter" sudah cukup utk tugas operasional mereka (antar, bersih meja,
-  // notifikasi order ready). POS dihilangkan dari sidebar mereka.
-  "Waiter 1": ["waiter", "earnings", "ai-agent"],
-  "Waiter 2": ["waiter", "earnings", "ai-agent"],
-  "Kitchen / Barista": ["kitchen", "inventory", "earnings", "ai-agent"],
-  Gudang: ["inventory", "ai-agent"],
-  "Supervisor Shift": [
-    "dashboard",
-    "pos",
-    "ai-agent",
-    "kitchen",
-    "waiter",
-    "inventory",
-    "approvals",
-  ],
-  "Delivery Admin": ["ai-agent"],
+  // notifikasi order ready, delivery). POS dihilangkan dari sidebar mereka.
+  Waiter: ["waiter", "earnings", "ai-agent"],
 };
 
 // Chat tersedia untuk semua role internal — comms internal antar shift/owner.
@@ -297,22 +206,9 @@ for (const role of Object.keys(roleModules) as Role[]) {
 }
 
 // Smart Notification Center — semua role yang punya station kerja real-time
-// butuh akses. Owner/Admin/Manager untuk konfigurasi, kasir/dapur/bar/waiter
-// untuk monitor trigger di station mereka.
-const SMART_NOTIF_ROLES: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-];
+// butuh akses. Owner/Manajer untuk konfigurasi, kasir/waiter untuk monitor
+// trigger di station mereka.
+const SMART_NOTIF_ROLES: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];
 for (const role of SMART_NOTIF_ROLES) {
   if (roleModules[role] && !roleModules[role].includes("smart-notif")) {
     roleModules[role].push("smart-notif");
@@ -320,22 +216,13 @@ for (const role of SMART_NOTIF_ROLES) {
 }
 
 // --- Payroll V2 role gating ---
-// Semua role staff (bukan manajer & owner-back-office) dapat: absensi + wallet-gaji + wallet-fee.
+// Staff (Kasir/Waiter) dapat: absensi + wallet-gaji + wallet-fee.
 // Manajer dapat absensi + wallet-gaji (gaji tetap), tapi TIDAK wallet-fee.
-// Owner/Admin/Finance dapat payroll-owner (settings + payout + laporan).
-const PAYROLL_V2_STAFF_ROLES: Role[] = [
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Delivery Admin",
-];
-const PAYROLL_V2_MANAGER_ROLES: Role[] = ["Manager Operasional", "Supervisor Shift"];
-const PAYROLL_V2_OWNER_ROLES: Role[] = ["Owner / CEO", "Admin", "Finance / CFO"];
+// Owner & Manajer dapat payroll-owner (settings + payout + laporan) — Manajer
+// setara Owner untuk urusan payroll sesuai keputusan konsolidasi role.
+const PAYROLL_V2_STAFF_ROLES: Role[] = ["Kasir", "Waiter"];
+const PAYROLL_V2_MANAGER_ROLES: Role[] = ["Manajer"];
+const PAYROLL_V2_OWNER_ROLES: Role[] = ["Owner", "Manajer"];
 
 for (const role of PAYROLL_V2_STAFF_ROLES) {
   if (roleModules[role]) {
@@ -376,3 +263,34 @@ export function canAccessModule(role: Role, moduleId: ModuleId) {
 export function firstModuleForRole(role: Role): ModuleId {
   return modulesForRole(role)[0] ?? "dashboard";
 }
+
+// Workstation khusus produksi (tablet Bar/Dapur, HP helper) — bukan kasir.
+const PRODUCTION_ONLY_WORKSTATIONS = new Set(["bar", "dapur", "helper_bar", "helper_dapur", "helper_all"]);
+
+/**
+ * Modul awal setelah login. Akun Kasir yang ditugaskan ke stasiun produksi
+ * langsung ke papan Production — bukan ke POS yang terkunci "Shift Belum
+ * Dibuka" (barista/koki tidak membuka shift kas). Temuan QA-audit 2026-09-28.
+ */
+export function homeModuleFor(role: Role, workstation?: string | null): ModuleId {
+  if (role === "Kasir" && workstation && PRODUCTION_ONLY_WORKSTATIONS.has(workstation)) {
+    return "kitchen";
+  }
+  return firstModuleForRole(role);
+}
+
+// Role manajemen (Owner + Manajer) — dipakai di banyak route/lib untuk gate
+// aksi sensitif (outlet switch, payroll admin, warehouse management, dsb).
+// Diekspor dari sini (client-safe, tidak menarik drizzle/better-auth) supaya
+// bisa diimpor langsung dari komponen client seperti user-management.tsx.
+export const MANAGEMENT_ROLES: Role[] = ["Owner", "Manajer"];
+
+// Hierarki proteksi akun: dipakai untuk menentukan siapa boleh mengelola
+// (edit/hapus/ganti role) akun siapa. Owner tertinggi (tidak bisa dikelola
+// role lain); Manajer tidak bisa mengelola Owner atau Manajer lain.
+export const protectedRoleRank: Record<Role, number> = {
+  Owner: 100,
+  Manajer: 70,
+  Kasir: 30,
+  Waiter: 20,
+};

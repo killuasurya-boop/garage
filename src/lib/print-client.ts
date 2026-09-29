@@ -12,12 +12,22 @@
 // Fungsi ini mengembalikan `Response` agar jadi pengganti drop-in untuk
 // `fetch("/api/print/thermal", ...)` di seluruh pemanggil lama.
 
-import { buildThermalContent, type ThermalReceiptInput } from "@/lib/thermal-receipt";
+import {
+  buildKitchenChitContent,
+  buildThermalContent,
+  type KitchenChitInput,
+  type ThermalReceiptInput,
+} from "@/lib/thermal-receipt";
 
 export interface PrintThermalPayload {
   receipt: ThermalReceiptInput;
   printerName?: string;
   copies?: number | null;
+}
+
+export interface PrintKitchenChitPayload {
+  chit: KitchenChitInput;
+  printerName?: string;
 }
 
 function agentBaseUrl() {
@@ -59,6 +69,58 @@ const AGENT_DOWN_ERROR = {
  * server (berguna di dev saat server == PC warung). Selalu resolve dengan
  * Response — pemanggil cukup baca res.ok / res.json() seperti biasa.
  */
+/**
+ * Cetak chit dapur/bar (tanpa harga) ke printer kasir. Sama seperti printThermal:
+ * konten dibentuk di browser lalu dikirim ke agen cetak lokal; fallback ke route
+ * server. Selalu resolve dengan Response. Bila tak ada item, tidak mencetak.
+ */
+export async function printKitchenChit(
+  payload: PrintKitchenChitPayload,
+): Promise<Response> {
+  const content = buildKitchenChitContent(payload.chit);
+  if (!content.trim()) {
+    return jsonResponse({ success: true, skipped: true }, 200);
+  }
+
+  // 1) Agen cetak lokal di PC kasir.
+  try {
+    const res = await fetch(`${agentBaseUrl()}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, copies: 1, printerName: payload.printerName }),
+    });
+    if (res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { printer?: string };
+      return jsonResponse(
+        { success: true, printer: data.printer ?? "local-agent", method: "local-agent" },
+        200,
+      );
+    }
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return jsonResponse(
+      { error: { code: "PRINT_FAILED", message: data.error || "Gagal mencetak chit", detail: data.error || "" } },
+      502,
+    );
+  } catch {
+    // 2) Fallback ke route server (dev / server == PC warung).
+    try {
+      const res = await fetch("/api/print/thermal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ chit: payload.chit, printerName: payload.printerName }),
+      });
+      const text = await res.text();
+      return new Response(text, {
+        status: res.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch {
+      return jsonResponse(AGENT_DOWN_ERROR, 503);
+    }
+  }
+}
+
 export async function printThermal(payload: PrintThermalPayload): Promise<Response> {
   const content = buildThermalContent(payload.receipt);
   const copies = payload.copies ?? 1;

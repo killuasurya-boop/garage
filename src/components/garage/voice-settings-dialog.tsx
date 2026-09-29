@@ -435,7 +435,7 @@ export function VoiceSettingsDialog({
                 <p className="mt-1 text-sm text-[#f4f4f5]">
                   {settings.enabled
                     ? "Smart notification aktif dan siap menerima event operasional."
-                    : "Smart notification standby. Aktifkan Voice ON sebelum jam operasional."}
+                    : "Smart notification standby. Aktifkan Suara sebelum jam operasional."}
                 </p>
               </div>
               <Button
@@ -513,11 +513,11 @@ export function VoiceSettingsDialog({
                 >
                   {settings.enabled ? (
                     <>
-                      <Mic className="mr-2 size-4" /> Voice ON
+                      <Mic className="mr-2 size-4" /> Suara Aktif
                     </>
                   ) : (
                     <>
-                      <MicOff className="mr-2 size-4" /> Voice OFF
+                      <MicOff className="mr-2 size-4" /> Suara Mati
                     </>
                   )}
                 </Button>
@@ -751,7 +751,7 @@ export function VoiceSettingsDialog({
               </div>
             ) : (
               <p className="mt-3 text-xs text-[#9a9aa0]">
-                Status Gemini TTS hanya untuk Owner / Admin / Manager (login diperlukan).
+                Status Gemini TTS hanya untuk Owner / Manajer (login diperlukan).
               </p>
             )}
 
@@ -1141,11 +1141,11 @@ export function VoiceStatusBadge({ onOpen, compact = false }: VoiceStatusBadgePr
           ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#86efac] hover:bg-[#22c55e]/22"
           : "border-[#4a4a54] bg-white/[0.05] text-[#9a9aa0] hover:bg-white/[0.08]"
       }`}
-      aria-label={enabled ? "Voice ON" : "Voice OFF"}
+      aria-label={enabled ? "Suara aktif" : "Suara mati"}
       title={
         enabled
           ? "Voice announcement aktif. Klik untuk settings."
-          : "Voice OFF. Klik untuk aktifkan."
+          : "Suara mati. Klik untuk mengaktifkan."
       }
     >
       <span className="relative inline-flex">
@@ -1159,7 +1159,7 @@ export function VoiceStatusBadge({ onOpen, compact = false }: VoiceStatusBadgePr
         )}
       </span>
       {!compact && (
-        <span className="hidden sm:inline">{enabled ? "Voice ON" : "Voice"}</span>
+        <span className="hidden sm:inline">{enabled ? "Suara Aktif" : "Suara"}</span>
       )}
     </button>
   );

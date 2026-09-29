@@ -439,3 +439,194 @@ html { scroll-behavior: smooth; }
   opacity: 1 !important;
   background: radial-gradient(ellipse at center, transparent 8%, rgba(0,0,0,0.92) 100%) !important;
 }
+
+/* =============================================================================
+   Kenyamanan HP (QA website 2026-09-28)
+   1. Urutan fokus penjualan: Hero → Menu → Cek Meja → Lokasi & Jam → Unggulan …
+      (dulu alamat & jam buka baru muncul di ±21.000px / 25× geser layar).
+   2. Teks minimum 11px (dulu 159 label 10px & 13 label 9px di HP).
+   3. Target sentuh minimum 44px (standar Apple/Google) untuk tombol kecil.
+   ============================================================================= */
+@media (max-width: 700px) {
+  main.garage-website { display: flex; flex-direction: column; }
+  main.garage-website > section#top { order: 1; }
+  main.garage-website > section#menu { order: 2; }
+  main.garage-website > section#live-status { order: 3; }
+  main.garage-website > section#location { order: 4; }
+  main.garage-website > section#unggulan { order: 5; }
+  main.garage-website > section#live-tracking-system { order: 6; }
+  main.garage-website > section.s3-strip { order: 7; }
+  main.garage-website > section#events { order: 8; }
+  main.garage-website > section#membership { order: 9; }
+  main.garage-website > section#about { order: 10; }
+  main.garage-website > section#atmosphere { order: 11; }
+  main.garage-website > section#social-portfolio { order: 12; }
+  main.garage-website > section#experience { order: 13; }
+  main.garage-website > section#local-seo { order: 14; }
+  main.garage-website > section.section-pad:not([id]) { order: 15; }
+  main.garage-website > footer { order: 16; }
+
+  .garage-website .mono,
+  .garage-website .tag,
+  .garage-website .img-label,
+  .garage-website .hero-kicker { font-size: 11px; }
+  .garage-website [style*="font-size: 8px"],
+  .garage-website [style*="font-size: 9px"],
+  .garage-website [style*="font-size: 10px"] { font-size: 11px !important; }
+  /* Label kecil di kartu live/member (angka besarnya <strong>, tidak ikut berubah). */
+  .garage-website .promo-bar span,
+  .garage-website .live-metrics > div > span,
+  .garage-website .live-stepper > div > span,
+  .garage-website .membership-flow > div > span,
+  .garage-website .live-system-card > span,
+  .garage-website .order-pulse span,
+  .garage-website .live-sync,
+  .garage-website .live-status-label,
+  .garage-website .live-card-top button,
+  .garage-website .tracking-form button,
+  .garage-website .tracking-empty a,
+  .garage-website .membership-tier-badge,
+  .garage-website .membership-tier-link { font-size: 11px !important; }
+  .garage-website .menu-card-order span { font-size: 12px !important; }
+  .garage-website .site-nav-brand { min-height: 44px; }
+  .garage-website #live-tracking-system .mono,
+  .garage-website .social-card-top .mono { font-size: 11px !important; }
+  /* Link rating/ulasan Google & nomor WA di footer: mudah disentuh. */
+  .garage-website .location-mvp-rating-link,
+  .garage-website .location-mvp-review-cta,
+  .garage-website .footer-mvp-meta a {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center;
+  }
+
+  .garage-website .promo-bar__close,
+  .garage-website .mob-toggle {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+  .garage-website #live-status button,
+  .garage-website .live-mini-table { min-height: 44px !important; }
+  .garage-website .membership-tier-link,
+  .garage-website #events a {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center;
+  }
+  .garage-website .footer-mvp-social-link {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+  .garage-website .footer-mvp-cta { min-height: 48px !important; }
+  .garage-website .footer-mvp-link {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center;
+  }
+}
+/* =============================================================================
+   CTA menu digital & status buka (website 2026-09-28)
+   ============================================================================= */
+.garage-website .site-nav-status[data-open="false"] {
+  border-color: rgba(209,26,42,0.4);
+  background: rgba(209,26,42,0.1);
+  color: #ffd0d4;
+}
+.garage-website .site-nav-status[data-open="false"] span {
+  background: #d11a2a;
+  box-shadow: 0 0 0 4px rgba(209,26,42,0.16);
+}
+/* Kartu Unggulan/Promo: pill "Pesan" (ke menu digital) + link WA sekunder. */
+.garage-website .card-order-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.garage-website .card-order-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.garage-website .card-wa-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: 6px;
+  color: #9fe8bf;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.garage-website .card-wa-link:hover { color: #25d366; }
+
+/* Bar pesan bawah (HP): Menu & Pesan + WhatsApp, selalu satu ketukan. */
+.garage-website .mobile-order-bar { display: none; }
+@media (max-width: 700px) {
+  .garage-website .mobile-order-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 48;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(8,8,11,0.82), rgba(8,8,11,0.97));
+    border-top: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .garage-website .mobile-order-bar a {
+    min-height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .garage-website .mobile-order-bar .mob-order-primary {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 10px 28px rgba(209,26,42,0.35);
+  }
+  .garage-website .mobile-order-bar .mob-order-wa {
+    padding: 0 16px;
+    background: #25d366;
+    color: #062b14;
+  }
+  .garage-website .mobile-order-bar small {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    opacity: 0.85;
+  }
+  /* Tombol WA melayang digantikan bar ini di HP; footer tidak tertutup bar. */
+  .garage-website .floating-wa { display: none !important; }
+  main.garage-website { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+}

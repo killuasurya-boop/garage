@@ -20,6 +20,7 @@ import {
   getMenuData,
   getStockMovementData,
 } from "@/lib/garage-service";
+import { getFinanceControlAiSummary } from "@/lib/finance-intelligence";
 import type {
   AiAgentIntent,
   AiBusinessFreshness,
@@ -103,6 +104,19 @@ const financeWords = [
   "diskon",
   "payment",
   "closing",
+  // Pertanyaan CEO — Garage Financial Control (PRD V2.0 §1).
+  "bep",
+  "break even",
+  "balik modal",
+  "modal",
+  "laba",
+  "rugi",
+  "profit",
+  "omzet",
+  "hpp",
+  "cashflow",
+  "arus kas",
+  "margin",
 ];
 const approvalWords = ["approval", "approve", "persetujuan", "otorisasi", "izin"];
 const sopWords = ["sop", "prd", "policy", "kebijakan", "resep", "standar"];
@@ -174,31 +188,17 @@ export function classifyGarageAiIntent(message: string, cart: CartLine[]): AiAge
 }
 
 export function accessForRole(role: Role, intent: AiAgentIntent): AiDataAccessLevel {
-  if (role === "Owner / CEO") {
+  if (role === "Owner") {
     return "executive";
   }
 
-  if (role === "Admin") {
+  if (role === "Manajer") {
     return intent === "finance_check" || intent === "daily_brief"
       ? "financial"
       : "operational";
   }
 
-  if (role === "Manager Operasional") {
-    return intent === "finance_check" || intent === "daily_brief"
-      ? "financial"
-      : "operational";
-  }
-
-  if (role === "Finance / CFO") {
-    return "financial";
-  }
-
-  if (role === "Kasir" || role === "Waiter 1" || role === "Waiter 2") {
-    return "basic";
-  }
-
-  return "operational";
+  return "basic";
 }
 
 export function profileForIntent(
@@ -221,16 +221,11 @@ export function profileForIntent(
 }
 
 function canAccessFinance(role: Role) {
-  return (
-    role === "Owner / CEO" ||
-    role === "Admin" ||
-    role === "Manager Operasional" ||
-    role === "Finance / CFO"
-  );
+  return role === "Owner" || role === "Manajer";
 }
 
 function canAccessApprovals(role: Role) {
-  return role === "Owner / CEO" || role === "Admin" || role === "Manager Operasional";
+  return role === "Owner" || role === "Manajer";
 }
 
 function requestedModules(intent: AiAgentIntent, role: Role, cart: CartLine[]) {
@@ -609,6 +604,7 @@ export async function buildGarageOwnerCeoContext({
     customers,
     reportAudit,
     aiTelemetry,
+    financialControl,
   ] = await Promise.all([
     getOrCreateSnapshot(session, intent, dataAccessLevel),
     getDashboardData(),
@@ -621,6 +617,7 @@ export async function buildGarageOwnerCeoContext({
     getCustomerData(),
     getAuditData({ module: "report" }),
     getOwnerAiTelemetry(),
+    getFinanceControlAiSummary(),
   ]);
 
   const lastReportGeneratedAt = reportAudit.rows[0]?.time ?? null;
@@ -742,6 +739,8 @@ export async function buildGarageOwnerCeoContext({
           paymentSettlement: finance.paymentSettlement,
           alerts: finance.alerts,
         },
+        // Garage Financial Control (BEP, capital recovery, health, forecast PROYEKSI).
+        financialControl,
         pendingApprovals: approvals.slice(0, 10),
         customers: summarizeCustomers(customers),
         aiActivity: aiTelemetry,
@@ -929,10 +928,12 @@ export async function buildGarageAiContext({
   }
 
   if (modules.has("finance") && !modules.has("snapshot")) {
-    const [finance, brief] = await Promise.all([
+    const [finance, brief, financialControl] = await Promise.all([
       getFinanceGuardSummary(),
       getFinanceBrief(),
+      canAccessFinance(session.profile.role) ? getFinanceControlAiSummary() : Promise.resolve(null),
     ]);
+    context.financialControl = financialControl;
     context.finance = {
       cashSession: finance.cashSession,
       guard: finance.guard,

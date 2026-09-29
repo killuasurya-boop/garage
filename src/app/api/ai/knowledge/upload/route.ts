@@ -190,7 +190,7 @@ function validateFile(file: File): string | null {
 }
 
 export async function POST(request: Request) {
-  const session = await requireGarageSession(["Owner / CEO"]);
+  const session = await requireGarageSession(["Owner"]);
   if (session.response) {
     return session.response;
   }

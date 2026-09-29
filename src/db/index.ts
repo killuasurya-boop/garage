@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -45,16 +45,10 @@ function preferPglite() {
 function postgresSsl(connectionString: string) {
   const sslEnv = process.env.DATABASE_SSL?.trim().toLowerCase();
   if (sslEnv === "false") return false;
-  // Managed Postgres cloud providers (Supabase/Neon/RDS) sering pakai cert
-  // signed oleh CA yang tidak selalu di root store Node. Pakai
-  // `rejectUnauthorized: false` untuk skip cert-chain verify — koneksi tetap
-  // TLS-encrypted (bukan plaintext), cuma verifikasi identitas cert di-skip.
   if (sslEnv === "true") return { rejectUnauthorized: false } as const;
   if (
     connectionString.includes("sslmode=require") ||
-    connectionString.includes("neon.tech") ||
-    connectionString.includes("supabase.co") ||
-    connectionString.includes("supabase.com")
+    connectionString.includes("neon.tech")
   ) {
     return { rejectUnauthorized: false } as const;
   }
@@ -97,12 +91,12 @@ function pgliteDataDir() {
   if (fromEnv) return fromEnv;
   // Fallback cross-platform: simpan di dalam cwd biar tidak bergantung path
   // hardcoded Windows. Production tetap pakai PGLITE_DATA_DIR atau DATABASE_URL.
-  return path.resolve(process.cwd(), ".pglite-data");
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), ".pglite-data");
 }
 
 function pgliteDataDirFallbacks() {
-  const primary = path.resolve(pgliteDataDir());
-  const localFallback = path.resolve(process.cwd(), ".pglite-data");
+  const primary = path.resolve(/* turbopackIgnore: true */ pgliteDataDir());
+  const localFallback = path.resolve(/* turbopackIgnore: true */ process.cwd(), ".pglite-data");
   return Array.from(new Set([primary, localFallback]));
 }
 

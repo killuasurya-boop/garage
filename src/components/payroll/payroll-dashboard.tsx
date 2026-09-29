@@ -71,15 +71,15 @@ export function PayrollDashboard() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-2xl border border-[var(--garage-bg-3)] bg-[var(--garage-bg-1)] p-4">
-          <div className="text-xs uppercase text-[var(--garage-mute)]">Total Wallet Gaji</div>
+          <div className="text-xs uppercase text-[var(--garage-mute)]">Gaji belum dibayar</div>
           <div className="mt-1 text-xl font-bold text-[var(--garage-silver)]">{rp(totalGaji)}</div>
         </div>
         <div className="rounded-2xl border border-[var(--garage-bg-3)] bg-[var(--garage-bg-1)] p-4">
-          <div className="text-xs uppercase text-[var(--garage-mute)]">Total Wallet Fee</div>
+          <div className="text-xs uppercase text-[var(--garage-mute)]">Fee belum dibayar</div>
           <div className="mt-1 text-xl font-bold text-[var(--garage-amber)]">{rp(totalFee)}</div>
         </div>
         <div className="rounded-2xl border border-[var(--garage-bg-3)] bg-[var(--garage-bg-1)] p-4">
-          <div className="text-xs uppercase text-[var(--garage-mute)]">Staff Aktif</div>
+          <div className="text-xs uppercase text-[var(--garage-mute)]">Karyawan aktif</div>
           <div className="mt-1 text-xl font-bold text-[var(--garage-fg)]">{staff.length}</div>
         </div>
       </div>
@@ -92,10 +92,10 @@ export function PayrollDashboard() {
           Pengaturan
         </Link>
         <Link
-          href="/owner/payroll/requests"
+          href="/owner/payroll/pay"
           className="px-4 py-2 rounded-lg bg-[var(--garage-bg-2)] text-[var(--garage-fg)] text-sm hover:bg-[var(--garage-bg-3)]"
         >
-          Payout Requests
+          Gajian &amp; Kasbon
         </Link>
         <button
           onClick={runFinalize}
@@ -111,10 +111,10 @@ export function PayrollDashboard() {
           <thead className="bg-[var(--garage-bg-2)] text-[var(--garage-mute)] uppercase text-xs">
             <tr>
               <th className="text-left px-3 py-2">Nama</th>
-              <th className="text-left px-3 py-2">Role</th>
+              <th className="text-left px-3 py-2">Jabatan</th>
               <th className="text-right px-3 py-2">Upah/Hari</th>
-              <th className="text-right px-3 py-2">Wallet Gaji</th>
-              <th className="text-right px-3 py-2">Wallet Fee</th>
+              <th className="text-right px-3 py-2">Gaji belum dibayar</th>
+              <th className="text-right px-3 py-2">Fee belum dibayar</th>
             </tr>
           </thead>
           <tbody>

@@ -94,7 +94,7 @@ export function GlobalSettingsPanel() {
           <p className="text-sm font-semibold">Tidak bisa memuat pengaturan sistem</p>
           <p className="mt-1 text-xs text-[#d0d0d6]">{error}</p>
           <p className="mt-2 text-[11px] text-[#8f8f99]">
-            Cek role akun kamu — Pengaturan Sistem hanya untuk Owner / Admin.
+            Cek role akun kamu — Pengaturan Sistem hanya untuk Owner / Manajer.
           </p>
         </div>
       </div>

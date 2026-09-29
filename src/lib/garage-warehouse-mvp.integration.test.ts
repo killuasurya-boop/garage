@@ -26,7 +26,7 @@ function session(): GarageSession {
     user: { id: KASIR, name: "Kasir Test" },
     profile: {
       id: "sp",
-      role: "Owner / CEO" as Role,
+      role: "Owner" as Role,
       shiftLabel: "Pagi",
       deviceLabel: "Dev",
       passwordResetRequired: false,

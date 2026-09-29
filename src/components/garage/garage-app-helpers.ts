@@ -132,42 +132,28 @@ export function tableAvailabilityState(
 }
 
 export function tableAvailabilityLabel(availability: TableAvailability) {
-  if (availability === "ready") return "Ready";
+  if (availability === "ready") return "Kosong";
   if (availability === "bill") return "Belum bayar";
   if (availability === "paid") return "Lunas";
-  if (availability === "cleaning") return "Cleaning";
+  if (availability === "cleaning") return "Dibersihkan";
   if (availability === "full") return "Penuh";
   return "Belum sinkron";
 }
 
 // --- Role-based capability checks -----------------------------------------
 
-const kitchenPerformanceRoles = new Set<Role>([
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-  "Barista",
-  "Koki",
-  "Kitchen / Barista",
-]);
+const kitchenPerformanceRoles = new Set<Role>(["Owner", "Manajer", "Kasir"]);
 
 export function canViewKitchenPerformance(role: Role) {
   return kitchenPerformanceRoles.has(role);
 }
 
 export function isWaiterRole(role: Role) {
-  return role === "Waiter 1" || role === "Waiter 2";
+  return role === "Waiter";
 }
 
 export function canConfirmCustomerPayment(role: Role) {
-  return (
-    role === "Owner / CEO" ||
-    role === "Admin" ||
-    role === "Manager Operasional" ||
-    role === "Kasir" ||
-    role === "Supervisor Shift"
-  );
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 // --- Customer order payment/invoice helpers --------------------------------

@@ -415,9 +415,10 @@ export function TeamSopManager() {
                       className="w-full text-sm px-3 py-2 rounded border bg-background text-foreground"
                     >
                       <option value="All">Semua</option>
-                      <option value="Barista">Barista</option>
+                      <option value="Owner">Owner</option>
+                      <option value="Manajer">Manajer</option>
                       <option value="Kasir">Kasir</option>
-                      <option value="Koki">Koki</option>
+                      <option value="Waiter">Waiter</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">

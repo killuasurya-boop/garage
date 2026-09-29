@@ -26,8 +26,17 @@ export async function POST(request: Request) {
     );
   }
 
+  let formData: FormData;
   try {
-    const formData = await request.formData();
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Request harus multipart/form-data dengan field file." },
+      { status: 400 },
+    );
+  }
+
+  try {
     const file = formData.get("file") as File | null;
     if (!file) {
       return NextResponse.json({ ok: false, error: "File tidak ditemukan." }, { status: 400 });

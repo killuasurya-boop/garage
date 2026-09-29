@@ -58,7 +58,7 @@ beforeAll(async () => {
   await t
     .getDb()
     .insert(t.schema.user)
-    .values({ id: OWNER, name: "Owner Test", email: `${OWNER}@garage.local` });
+    .values({ id: OWNER, name: "Owner Test", email: `${OWNER}@garage.id` });
 
   const svc = await import("@/lib/garage-service");
   createOrder = svc.createOrder;
@@ -75,7 +75,7 @@ describe("Settings → POS: service charge & PB1 mengontrol total transaksi", ()
     await updateAppSettings(
       outletId,
       { serviceChargePct: 10, taxPct: 12 },
-      sess(OWNER, "Owner Test", "Owner / CEO"),
+      sess(OWNER, "Owner Test", "Owner"),
     );
     const s = await getAppSettings(outletId);
     expect(s.serviceChargePct).toBe(10);
@@ -98,7 +98,7 @@ describe("Settings → POS: service charge & PB1 mengontrol total transaksi", ()
     await updateAppSettings(
       outletId,
       { serviceChargePct: 0, taxPct: 0 },
-      sess(OWNER, "Owner Test", "Owner / CEO"),
+      sess(OWNER, "Owner Test", "Owner"),
     );
     const res = await orderOneCoffee();
     expect(res.service).toBe(0);

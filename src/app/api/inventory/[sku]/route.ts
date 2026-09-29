@@ -20,7 +20,7 @@ const inventoryPatchSchema = z.object({
   usageArea: z.enum(["bar", "dapur", "general"]).optional(),
   unit: z.string().trim().min(1).max(32).optional(),
   packageSize: z.string().trim().min(1).max(80).optional(),
-  unitCost: z.number().int().min(0).max(100_000_000).optional(),
+  unitCost: z.number().min(0).max(100_000_000).optional(),
   onHand: z.number().nonnegative().optional(),
   min: z.number().nonnegative().optional(),
   status: z.enum(["safe", "watch", "low"]).optional(),

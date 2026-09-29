@@ -66,7 +66,7 @@ async function seedTrainingAndSop() {
     slug: "tutorial-kasir",
     title: "Modul Kasir & Front of House",
     category: "Operations",
-    targetRoles: ["Kasir", "Waiter", "Supervisor Shift"],
+    targetRoles: ["Kasir", "Waiter", "Manajer"],
     summary: "Panduan lengkap penggunaan POS, penerimaan pesanan, dan penyelesaian kas.",
     sortOrder: 2,
     status: "active"
@@ -98,7 +98,7 @@ async function seedTrainingAndSop() {
     slug: "tutorial-kitchen",
     title: "Modul Dapur & Bar (BOH)",
     category: "Operations",
-    targetRoles: ["Koki", "Barista", "Asisten Koki", "Kitchen / Barista"],
+    targetRoles: ["Kasir"],
     summary: "Panduan lengkap KDS, manajemen resep, dan order prep.",
     sortOrder: 3,
     status: "active"
@@ -276,14 +276,14 @@ async function seedTrainingAndSop() {
       title: "Admin Ops Control",
       description:
         "Cek dashboard operasional, user aktif, order bermasalah, approval tertunda, stok kritis, dan follow-up lintas divisi.",
-      roleTarget: "Admin",
+      roleTarget: "Manajer",
       shiftTarget: "all"
     },
     {
       title: "Owner Command Review",
       description:
         "Review omzet, margin, kas, approval besar, risiko operasional, dan laporan shift sebelum memberi keputusan strategis.",
-      roleTarget: "Owner / CEO",
+      roleTarget: "Owner",
       shiftTarget: "all"
     },
     {
@@ -325,35 +325,35 @@ async function seedTrainingAndSop() {
       title: "Barista Machine & Bar Setup",
       description:
         "Cek grinder, espresso machine, ice bin, milk, syrup, garnish, cup/lid, dan daftar menu kosong sebelum order pertama.",
-      roleTarget: "Barista",
+      roleTarget: "Kasir",
       shiftTarget: "morning"
     },
     {
       title: "Barista KDS Production",
       description:
         "Baca tiket KDS, kerjakan FIFO dengan prioritas dine-in/takeaway, update ready, dan laporkan delay atau bahan kosong.",
-      roleTarget: "Barista",
+      roleTarget: "Kasir",
       shiftTarget: "all"
     },
     {
       title: "Kitchen Prep & Safety",
       description:
         "Cek mise en place, suhu penyimpanan, alat masak, bahan prep, label tanggal, dan kebersihan area sebelum produksi.",
-      roleTarget: "Koki",
+      roleTarget: "Kasir",
       shiftTarget: "morning"
     },
     {
       title: "Kitchen KDS Production",
       description:
         "Baca tiket, ikuti resep dan catatan khusus, update status tepat waktu, jaga plating, dan eskalasi item terlambat.",
-      roleTarget: "Koki",
+      roleTarget: "Kasir",
       shiftTarget: "all"
     },
     {
       title: "Asisten Koki Prep Support",
       description:
         "Siapkan bahan, bantu produksi, refill station, cuci alat, catat waste, dan laporkan stok menipis ke Koki/Supervisor.",
-      roleTarget: "Asisten Koki",
+      roleTarget: "Kasir",
       shiftTarget: "all"
     }
   ];

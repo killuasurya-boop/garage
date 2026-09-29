@@ -19,15 +19,15 @@ let outletId = "";
 let finalizePayrollDay: any;
 
 const DATE = "2026-07-06";
-const A = "user-barista-a";
-const B = "user-barista-b";
+const A = "user-kasir-a";
+const B = "user-kasir-b";
 const M = "user-manager";
-const C = "user-barista-c"; // absen invalid
+const C = "user-kasir-c"; // absen invalid
 
 async function addStaff(userId: string, name: string, role: string) {
   const d = t.getDb();
   const { schema } = t;
-  await d.insert(schema.user).values({ id: userId, name, email: `${userId}@garage.local` });
+  await d.insert(schema.user).values({ id: userId, name, email: `${userId}@garage.id` });
   await d.insert(schema.staffProfiles).values({ userId, outletId, role, status: "active" });
   await d.insert(schema.staffWageConfig).values({ staffUserId: userId, dailyWage: 80_000 });
 }
@@ -58,10 +58,10 @@ beforeAll(async () => {
   const seeded = await seedGarageBasics(t, { userId: "user-seed" });
   outletId = seeded.outletId;
 
-  await addStaff(A, "Barista A", "Barista");
-  await addStaff(B, "Barista B", "Barista");
-  await addStaff(M, "Manajer", "Manager Operasional");
-  await addStaff(C, "Barista C", "Barista");
+  await addStaff(A, "Kasir A", "Kasir");
+  await addStaff(B, "Kasir B", "Kasir");
+  await addStaff(M, "Manajer", "Manajer");
+  await addStaff(C, "Kasir C", "Kasir");
 
   // A 14 jam valid, B 7 jam valid, M 14 jam valid, C invalid (lupa checkout).
   await addAttendance(A, 840, "valid");
@@ -75,6 +75,14 @@ beforeAll(async () => {
     poolAmount: 60_000,
     productCount: 300,
     feePerProduct: 200,
+  });
+
+  // Test ini khusus mode split proporsional jam — set eksplisit supaya tidak
+  // bergantung pada default settings (default owner saat ini: "equal").
+  const settings = await import("@/lib/garage-payroll-settings");
+  await settings.setPayrollSetting(settings.PAYROLL_KEYS.feePool, {
+    ...(settings.PAYROLL_DEFAULTS[settings.PAYROLL_KEYS.feePool] as Record<string, unknown>),
+    splitMode: "proportional_hours",
   });
 
   const cron = await import("@/lib/garage-payroll-cron");

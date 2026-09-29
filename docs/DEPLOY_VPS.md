@@ -85,6 +85,27 @@ gunzip -c backup-YYYY-MM-DD.sql.gz | \
   docker compose --env-file .env.production exec -T db psql -U garage garage
 ```
 
+## Cron wajib di VPS (padanan `vercel.json` + Task Scheduler PC lokal)
+
+`vercel.json` hanya berlaku di Vercel. Di VPS, pasang di `crontab -e` host
+(zona waktu server = Asia/Jakarta, atau sesuaikan jam UTC). `$S` = nilai
+`CRON_SECRET` dari `.env.production`, `$D` = `https://<domain>`.
+
+| Jadwal (WIB) | Job | Perintah |
+|---|---|---|
+| 23:59 tiap hari | Finalisasi payroll/fee pool (WAJIB) | `curl -fsS -X POST -H "x-cron-secret: $S" -H "content-type: application/json" -d "{\"date\":\"$(date +%F)\"}" $D/api/payroll/cron/finalize` |
+| 00:30 tiap hari | Susulan finalisasi kemarin (bila 23:59 terlewat) | `curl -fsS -X POST -H "x-cron-secret: $S" -H "content-type: application/json" -d "{}" $D/api/payroll/cron/finalize` |
+| 02:00 tiap hari | Backup DB | lihat "Backup database" di atas |
+| */5 menit | Antrean WhatsApp (bila dipakai) | `curl -fsS -H "authorization: Bearer $S" $D/api/jobs/whatsapp-messaging` |
+| 03:00 tgl 1 | Bersihkan chat internal lama | `curl -fsS -H "authorization: Bearer $S" "$D/api/admin/purge/cron?retentionDays=90"` |
+
+Job AI (`/api/ai/jobs/*`) & publikasi sosial opsional — aktifkan hanya bila
+provider sudah dikonfigurasi. **Purge tidak pernah menghapus order/pembayaran**
+(sejak QA-audit 2026-09-28 hanya chat internal; persetujuan hanya bila retensi ≥ 365 hari).
+
+Build image: `Dockerfile` men-set `GARAGE_STANDALONE=true` (wajib — tanpa itu
+`.next/standalone` tidak terbentuk dan stage runner gagal).
+
 ## Printer thermal saat app di VPS (PENTING)
 
 App di VPS (Linux) **tidak bisa** menyentuh printer fisik di warung. Karena itu

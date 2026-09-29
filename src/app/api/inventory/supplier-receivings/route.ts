@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 function canPostSupplierReceiving(role: string) {
-  return role === "Owner / CEO" || role === "Admin" || role === "Gudang";
+  return role === "Owner" || role === "Manajer" || role === "Kasir";
 }
 
 const receivingSchema = z.object({
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
   if (!canPostSupplierReceiving(session.data.profile.role)) {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Admin/Gudang yang bisa posting barang masuk supplier.");
+    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer/Kasir yang bisa posting barang masuk supplier.");
   }
 
   const body = await readJson(request, receivingSchema);

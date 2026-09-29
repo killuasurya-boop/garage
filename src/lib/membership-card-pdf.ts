@@ -134,7 +134,7 @@ export async function generateMembershipCardPdf(data: MembershipCardPdfData): Pr
       doc.font("Helvetica").fontSize(9).fillColor("#666666").text("Single member card export · front and back print layout", 34, 52);
       drawCardFace(doc, data, 42, 92, "FRONT");
       drawCardFace(doc, data, 430, 92, "BACK");
-      doc.font("Helvetica").fontSize(8).fillColor("#666666").text("Ultra activation requires Owner / CEO approval.", 42, 340);
+      doc.font("Helvetica").fontSize(8).fillColor("#666666").text("Ultra activation requires Owner approval.", 42, 340);
       doc.end();
     } catch (error) {
       reject(error);

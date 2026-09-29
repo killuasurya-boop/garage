@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 
+import { GARAGE_LOCATION } from "./garage-location";
 import type { OrderReceiptData } from "./garage-service";
 
 const fmtRp = (n: number) =>
@@ -58,6 +59,11 @@ export async function generateInvoicePdf(data: OrderReceiptData): Promise<Buffer
       if (outlet?.code) {
         doc.fillColor("#999").text(`Kode: ${outlet.code}`, 48, doc.y);
       }
+      doc
+        .fillColor("#666")
+        .text("Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi, Sumut 20631", 48, doc.y, { width: 330 })
+        .text(`Telp/WA ${GARAGE_LOCATION.phoneDisplay} · garagecoffee.id`, 48, doc.y, { width: 330 });
+      const headerLeftBottom = doc.y;
 
       // Invoice label (right side)
       doc
@@ -80,6 +86,8 @@ export async function generateInvoicePdf(data: OrderReceiptData): Promise<Buffer
         });
 
       doc.x = 48;
+      // Kolom kiri (alamat/telepon) bisa lebih tinggi dari kolom kanan.
+      doc.y = Math.max(doc.y, headerLeftBottom);
       doc.moveDown(1.5);
       doc
         .strokeColor("#d11a2a")
@@ -198,10 +206,8 @@ export async function generateInvoicePdf(data: OrderReceiptData): Promise<Buffer
       doc.moveDown(0.5);
 
       // ─── Totals (right-aligned) ─────────────────────────
-      const totalRows: Array<[string, string]> = [
-        ["Subtotal", fmtRp(order.subtotal)],
-        ["Service Charge", fmtRp(order.service)],
-      ];
+      const totalRows: Array<[string, string]> = [["Subtotal", fmtRp(order.subtotal)]];
+      if (order.service > 0) totalRows.push(["Service Charge", fmtRp(order.service)]);
       if (order.tax > 0) totalRows.push(["Pajak", fmtRp(order.tax)]);
       if (order.discount > 0)
         totalRows.push(["Diskon / Promo", `- ${fmtRp(order.discount)}`]);

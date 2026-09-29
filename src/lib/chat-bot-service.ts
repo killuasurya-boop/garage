@@ -62,7 +62,7 @@ export async function ensureBotUser(): Promise<string> {
       .values({
         userId: BOT_USER_ID,
         outletId: outlet.id,
-        role: "Admin",
+        role: "Manajer",
         shiftLabel: "Auto",
         deviceLabel: "Bot",
       })
@@ -176,13 +176,9 @@ const TARGETS: Array<{
   role: Role;
   topics: Array<"reorder" | "anomaly" | "suspicious" | "kitchen">;
 }> = [
-  { role: "Owner / CEO", topics: ["reorder", "anomaly", "suspicious", "kitchen"] },
-  { role: "Admin", topics: ["reorder", "anomaly", "suspicious", "kitchen"] },
-  { role: "Gudang", topics: ["reorder"] },
-  { role: "Finance / CFO", topics: ["anomaly", "suspicious"] },
-  { role: "Manager Operasional", topics: ["anomaly", "suspicious", "kitchen"] },
-  { role: "Koki", topics: ["kitchen"] },
-  { role: "Kitchen / Barista", topics: ["kitchen"] },
+  { role: "Owner", topics: ["reorder", "anomaly", "suspicious", "kitchen"] },
+  { role: "Manajer", topics: ["reorder", "anomaly", "suspicious", "kitchen"] },
+  { role: "Kasir", topics: ["reorder", "kitchen"] },
 ];
 
 function rupiah(n: number) {

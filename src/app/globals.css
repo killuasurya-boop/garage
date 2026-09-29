@@ -39,6 +39,20 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Alias token Garage untuk utilitas Tailwind (bg-garage-red/15, text-garage-dim, dst). */
+  --color-garage-bg-0: var(--garage-bg-0);
+  --color-garage-bg-1: var(--garage-bg-1);
+  --color-garage-bg-2: var(--garage-bg-2);
+  --color-garage-bg-3: var(--garage-bg-3);
+  --color-garage-line: var(--garage-line);
+  --color-garage-line-2: var(--garage-line-2);
+  --color-garage-fg: var(--garage-fg);
+  --color-garage-dim: var(--garage-dim);
+  --color-garage-mute: var(--garage-mute);
+  --color-garage-red: var(--garage-red);
+  --color-garage-red-bright: var(--garage-red-bright);
+  --color-garage-amber: var(--garage-amber);
+  --color-garage-success: var(--garage-success);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

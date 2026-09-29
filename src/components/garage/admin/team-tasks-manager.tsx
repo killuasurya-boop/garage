@@ -34,7 +34,7 @@ export function TeamTasksManager() {
   // Form states
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
-  const [targetRole, setTargetRole] = useState("Barista");
+  const [targetRole, setTargetRole] = useState("Kasir");
   const [priority, setPriority] = useState("medium");
   const [dueAt, setDueAt] = useState("");
   const [assigneeUserId, setAssigneeUserId] = useState("");
@@ -114,7 +114,7 @@ export function TeamTasksManager() {
 
   async function handleSyncFromSop() {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
       const res = await fetch(`/api/hr/team/sop?date=${today}`);
       const data = await res.json();
       if (data.checklists) {
@@ -199,12 +199,10 @@ export function TeamTasksManager() {
                 onChange={(e) => setTargetRole(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
               >
-                <option value="Barista">Barista</option>
+                <option value="Owner">Owner</option>
+                <option value="Manajer">Manajer</option>
                 <option value="Kasir">Kasir</option>
-                <option value="Koki">Koki</option>
-                <option value="Waiter 1">Waiter</option>
-                <option value="Mekanik">Mekanik</option>
-                <option value="Gudang">Staf Gudang</option>
+                <option value="Waiter">Waiter</option>
               </select>
             </div>
 

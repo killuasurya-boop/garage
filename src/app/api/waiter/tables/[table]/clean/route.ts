@@ -1,5 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
-import { getTableLiveData, updateTableStatus } from "@/lib/garage-service";
+import {
+  getTableLiveData,
+  getUndeliveredProductionForTable,
+  undeliveredProductionMessage,
+  updateTableStatus,
+} from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -11,7 +16,8 @@ function normalizeTable(table: string) {
   return String(Number(table)).padStart(2, "0");
 }
 
-// Tandai meja sudah dibersihkan ke status "empty" + needsCleaning=false.
+// Tandai meja sudah dibersihkan ke status "empty" (AVAILABLE) + needsCleaning=false.
+// Dipakai dari DIRTY/CLEANING (atau meja lunas) — siklus lengkap di /lifecycle.
 // Sesuai pola updateTableStatus: status="empty" otomatis set cleanedAt=now
 // dan currentOrderId=null.
 export async function POST(
@@ -39,6 +45,7 @@ export async function POST(
     row.status === "paid" ||
     row.status === "rejected" ||
     row.status === "needs_cleaning" ||
+    row.status === "cleaning" ||
     !row.currentOrderId;
   if (!canClear) {
     return fail(
@@ -46,6 +53,10 @@ export async function POST(
       "TABLE_HAS_ACTIVE_ORDER",
       "Meja masih punya order aktif. Selesaikan bill sebelum ditandai bersih.",
     );
+  }
+  const undelivered = await getUndeliveredProductionForTable(tableNumber);
+  if (undelivered.length) {
+    return fail(409, "TABLE_HAS_UNDELIVERED", undeliveredProductionMessage(undelivered));
   }
 
   const updated = await updateTableStatus(

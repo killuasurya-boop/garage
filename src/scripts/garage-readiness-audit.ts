@@ -39,7 +39,7 @@ const lanBaseUrl = (
   process.env.BETTER_AUTH_URL ??
   "http://192.168.110.142:3001"
 ).replace(/\/+$/, "");
-const staffEmail = process.env.READINESS_STAFF_EMAIL ?? process.env.SMOKE_STAFF_EMAIL ?? "kasir@garage.local";
+const staffEmail = process.env.READINESS_STAFF_EMAIL ?? process.env.SMOKE_STAFF_EMAIL ?? "kasir@garage.id";
 const staffPassword =
   process.env.READINESS_STAFF_PASSWORD ??
   process.env.SMOKE_STAFF_PASSWORD ??

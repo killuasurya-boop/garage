@@ -980,7 +980,7 @@ function CustomerDetailModal({
                           ))}
                         </select>
                         <p className="mt-1 text-[10px] text-[#8f8f99]">
-                          Ultra akan ditolak API kecuali login sebagai Owner / CEO.
+                          Ultra akan ditolak API kecuali login sebagai Owner.
                         </p>
                       </div>
                       <div>
@@ -1689,7 +1689,8 @@ function AddMemberModal({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("member12345");
+  // Kosong: PIN member dibuat pelanggan sendiri (default lama bisa ditebak).
+  const [password, setPassword] = useState("");
   const [birthday, setBirthday] = useState("");
   const [memberCode, setMemberCode] = useState("");
   const [cardTier, setCardTier] = useState("Silver");
@@ -1711,7 +1712,7 @@ function AddMemberModal({
       setName("");
       setPhone("");
       setEmail("");
-      setPassword("member12345");
+      setPassword("");
       setBirthday("");
       setMemberCode("");
       setCardTier("Silver");
@@ -1733,7 +1734,7 @@ function AddMemberModal({
             Add Member Master Pro
           </DialogTitle>
           <DialogDescription>
-            Buat akun member aktif dan pilih tier kartu. Ultra hanya diterima saat login sebagai Owner / CEO.
+            Buat akun member aktif dan pilih tier kartu. Ultra hanya diterima saat login sebagai Owner.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
@@ -1752,7 +1753,7 @@ function AddMemberModal({
             </label>
             <label className="grid gap-1.5">
               <span className="text-xs text-[#b8b8bf]">PIN Sementara</span>
-              <Input value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 border-[#34343c] bg-white/[0.06]" />
+              <Input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Tanya pelanggan — min. 6 karakter" className="h-10 border-[#34343c] bg-white/[0.06]" />
             </label>
             <label className="grid gap-1.5">
               <span className="text-xs text-[#b8b8bf]">Member Code</span>

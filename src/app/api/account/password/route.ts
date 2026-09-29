@@ -5,6 +5,7 @@ import { getDb, isDatabaseConfigured } from "@/db";
 import { account, staffProfiles } from "@/db/schema";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
+import { staffPasswordWeakness } from "@/lib/password-policy";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -27,6 +28,10 @@ export async function POST(request: Request) {
   if (parsed.error) return parsed.error;
   if (parsed.data.currentPassword === parsed.data.newPassword) {
     return fail(400, "PASSWORD_REUSED", "Password baru harus berbeda dari password lama.");
+  }
+  const weakness = staffPasswordWeakness(parsed.data.newPassword, { email: session.data.user.email });
+  if (weakness) {
+    return fail(400, "PASSWORD_WEAK", weakness);
   }
 
   const db = getDb();

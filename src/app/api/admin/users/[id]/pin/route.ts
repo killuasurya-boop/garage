@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isDatabaseConfigured } from "@/db";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { setStaffPin } from "@/lib/admin-user-service";
+import { guardLockedFor, guardRecordFail, lockedMessage, PIN_CHANGE_POLICY } from "@/lib/pin-guard";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -30,6 +31,11 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = await readJson(request, schema);
   if (parsed.error) return parsed.error;
 
+  // Pesan "PIN sudah dipakai" bisa dipakai menebak PIN staf lain → batasi.
+  const guardKey = `pin-change:${session.data.user.id}`;
+  const lockedFor = guardLockedFor(guardKey);
+  if (lockedFor) return fail(429, "PIN_CHANGE_LOCKED", lockedMessage(lockedFor));
+
   const result = await setStaffPin(id, parsed.data.pinCode, {
     actorUserId: session.data.user.id,
     actorName: session.data.user.name,
@@ -37,6 +43,7 @@ export async function POST(request: Request, context: RouteContext) {
     deviceLabel: session.data.profile.deviceLabel,
   });
   if ("error" in result) {
+    guardRecordFail(guardKey, PIN_CHANGE_POLICY);
     return fail(400, "SET_PIN_FAILED", result.error);
   }
 

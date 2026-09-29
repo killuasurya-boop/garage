@@ -6,13 +6,12 @@ import {
   getAllPayrollSettings,
   setPayrollSetting,
 } from "@/lib/garage-payroll-settings";
+import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
 export const runtime = "nodejs";
 
-const OWNER_ROLES = ["Owner / CEO", "Admin", "Finance / CFO"] as const;
-
 export async function GET() {
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  const session = await requireGarageSession(MANAGEMENT_ROLES);
   if (session.response) return session.response;
   const all = await getAllPayrollSettings();
   return ok({ settings: all });
@@ -23,12 +22,31 @@ const patchSchema = z.object({
   value: z.unknown(),
 });
 
+// Aturan yang menyangkut uang hanya boleh diubah Owner; manajer boleh mengatur
+// hal operasional (GPS toko, catatan slip, metode absen, keamanan PIN).
+const OWNER_ONLY_KEYS = new Set([
+  "general",
+  "late.brackets",
+  "late.penalty",
+  "overtime",
+  "fee.pool",
+  "bonus.target",
+  "bonus.zeroKomplain",
+  "bonus.attendance",
+  "payout",
+  "umk",
+  "backup", // menentukan ke mana salinan data ditulis
+]);
+
 export async function PATCH(request: Request) {
-  const session = await requireGarageSession([...OWNER_ROLES]);
+  const session = await requireGarageSession(MANAGEMENT_ROLES);
   if (session.response) return session.response;
 
   const body = await readJson(request, patchSchema);
   if (body.error) return body.error;
+  if (OWNER_ONLY_KEYS.has(body.data.key) && session.data!.profile.role !== "Owner") {
+    return fail(403, "OWNER_ONLY", "Aturan gaji hanya bisa diubah Owner.");
+  }
 
   try {
     const value = await setPayrollSetting(body.data.key, body.data.value, session.data!.user.id);

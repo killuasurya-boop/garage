@@ -7,6 +7,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { jakartaDateKey } from "@/lib/attendance";
 import {
   companyDocumentVersions,
   companyDocuments,
@@ -50,23 +51,9 @@ export const documentUploadMimeTypes = new Set([
 
 const documentUploadExtensions = new Set([".pdf", ".docx", ".md", ".txt", ".html"]);
 
-const managementRoles = new Set<Role>(["Owner / CEO"]);
+const managementRoles = new Set<Role>(["Owner"]);
 
-const allInternalRoles: Role[] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Supervisor Shift",
-  "Delivery Admin",
-];
+const allInternalRoles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];
 
 export const createCompanyDocumentSchema = z.object({
   title: z.string().trim().min(3).max(160),
@@ -201,7 +188,7 @@ const seedDocuments: SeedDocument[] = [
       "Paket dasar manajemen: profil perusahaan, struktur direksi, struktur operasional, alur komando, KPI, Teams, dan dashboard owner.",
     ownerRole: "CEO / CTO / CIO",
     confidentiality: "confidential",
-    allowedRoles: ["Owner / CEO", "Admin", "Manager Operasional", "Finance / CFO"],
+    allowedRoles: ["Owner", "Manajer"],
     sourcePath: "C:\\Users\\killu\\Downloads\\MASTER_BUSINESS_PACKAGE_GARAGE_DIGITAL_ECOSYSTEM.docx",
   },
   {
@@ -235,7 +222,7 @@ const seedDocuments: SeedDocument[] = [
       "Kerangka PT operasional, kontrol kas/stok, KPI minimum owner, roadmap 90 hari, dan dokumen yang harus disiapkan.",
     ownerRole: "CEO / CTO / CIO",
     confidentiality: "confidential",
-    allowedRoles: ["Owner / CEO", "Admin", "Manager Operasional", "Finance / CFO"],
+    allowedRoles: ["Owner", "Manajer"],
     sourcePath:
       "C:\\Users\\killu\\Downloads\\Kerangka_Perusahaan_Siap_Diterapkan_Garage_Digital_Ecosystem.docx",
   },
@@ -259,7 +246,7 @@ const seedDocuments: SeedDocument[] = [
       "PRD GARAGE OS: visi produk, personas, MVP, acceptance criteria, risiko, dan kriteria launch.",
     ownerRole: "CEO / CTO / CIO",
     confidentiality: "confidential",
-    allowedRoles: ["Owner / CEO", "Admin", "Manager Operasional"],
+    allowedRoles: ["Owner", "Manajer"],
     sourcePath: "H:\\My Drive\\DOKUMENT\\GARAGE_DOC1_PRD.md",
   },
   {
@@ -270,7 +257,7 @@ const seedDocuments: SeedDocument[] = [
       "Struktur database GARAGE OS: tenant, outlet, user, customer, menu, order, payment, inventory, loyalty, dan audit log.",
     ownerRole: "CEO / CTO / CIO",
     confidentiality: "confidential",
-    allowedRoles: ["Owner / CEO", "Admin", "Manager Operasional"],
+    allowedRoles: ["Owner", "Manajer"],
     sourcePath: "H:\\My Drive\\DOKUMENT\\GARAGE_DOC2_ERD.md",
   },
   {
@@ -292,7 +279,7 @@ const seedDocuments: SeedDocument[] = [
       "Strategi marketing GARAGE: buyer persona B2C/B2B, pilar konten, platform, kalender, copywriting, workflow, dan KPI.",
     ownerRole: "CMO",
     confidentiality: "confidential",
-    allowedRoles: ["Owner / CEO", "Admin", "Manager Operasional"],
+    allowedRoles: ["Owner", "Manajer"],
     sourcePath: "H:\\My Drive\\DOKUMENT\\GARAGE_DOC5_Digital_Marketing_Master.md",
   },
   {
@@ -303,7 +290,7 @@ const seedDocuments: SeedDocument[] = [
       "Playbook perusahaan terintegrasi dari ide ke produksi: corporate structure, product, SOP, finance, brand, scaling, legal.",
     ownerRole: "CEO / CTO / CIO",
     confidentiality: "confidential",
-    allowedRoles: ["Owner / CEO", "Admin", "Manager Operasional", "Finance / CFO"],
+    allowedRoles: ["Owner", "Manajer"],
     sourcePath: "H:\\My Drive\\DOKUMENT\\GARAGE_Complete_Playbook_Final_Integrated.pdf",
   },
 ];
@@ -400,7 +387,7 @@ const seedOrgRoles: Array<Omit<CompanyOrgRoleDto, "id">> = [
     sortOrder: 90,
   },
   {
-    roleTitle: "Waiter 1",
+    roleTitle: "Waiter",
     personName: null,
     reportsTo: "Manajer Operasional / Admin Gudang",
     division: "Service",
@@ -410,7 +397,7 @@ const seedOrgRoles: Array<Omit<CompanyOrgRoleDto, "id">> = [
     sortOrder: 100,
   },
   {
-    roleTitle: "Waiter 2",
+    roleTitle: "Waiter",
     personName: null,
     reportsTo: "Manajer Operasional / Admin Gudang",
     division: "Service",
@@ -436,7 +423,7 @@ const seedCourses = [
     slug: "executive-command-training",
     title: "Executive Command Training",
     category: "Management",
-    targetRoles: ["Owner / CEO", "Admin", "Manager Operasional", "Finance / CFO"],
+    targetRoles: ["Owner", "Manajer"],
     summary:
       "Materi direksi untuk alur komando, approval, KPI owner, roadmap 90 hari, dan kontrol bisnis.",
     sortOrder: 10,
@@ -459,7 +446,7 @@ const seedCourses = [
     slug: "cashier-sop-training",
     title: "Kasir: POS, Membership, dan Cash Control",
     category: "Outlet",
-    targetRoles: ["Kasir", "Supervisor Shift", "Manager Operasional", "Admin"],
+    targetRoles: ["Kasir", "Manajer"],
     summary: "Training kasir untuk order, pembayaran, member, refund/void, dan closing kas.",
     sortOrder: 20,
     lessons: [
@@ -481,7 +468,7 @@ const seedCourses = [
     slug: "kitchen-service-training",
     title: "Kitchen, Barista, dan Service Flow",
     category: "Production",
-    targetRoles: ["Barista", "Koki", "Kitchen / Barista", "Waiter 1", "Waiter 2", "Supervisor Shift"],
+    targetRoles: ["Kasir", "Waiter", "Manajer"],
     summary: "Training produksi dan service: antrean KDS, resep, kualitas, handoff, dan komplain.",
     sortOrder: 30,
     lessons: [
@@ -503,7 +490,7 @@ const seedCourses = [
     slug: "inventory-control-training",
     title: "Gudang: Stock, Opname, dan Waste Control",
     category: "Inventory",
-    targetRoles: ["Gudang", "Manager Operasional", "Supervisor Shift", "Admin"],
+    targetRoles: ["Kasir", "Manajer"],
     summary: "Training gudang untuk barang masuk/keluar, stock out, opname, waste, dan laporan stok.",
     sortOrder: 40,
     lessons: [
@@ -1085,7 +1072,7 @@ export async function getCompanyControlData(garage: GarageSession): Promise<Comp
   const db = getDb();
   
   // Hitung SOP Compliance hari ini
-  const today = new Date().toISOString().split("T")[0];
+  const today = jakartaDateKey(); // WIB, bukan UTC
   const allStaffCountResult = await db.execute(sql`SELECT count(*) FROM staff_profiles`);
   const allStaffCount = Number(allStaffCountResult.rows[0].count) || 1;
   const sopLogsToday = await db.execute(sql`SELECT count(distinct staff_id) FROM sop_logs WHERE date = ${today} AND status = 'done'`);

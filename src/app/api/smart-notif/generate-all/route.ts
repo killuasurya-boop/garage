@@ -3,8 +3,8 @@ import { requireGarageSession } from "@/lib/server-auth";
 
 export async function POST() {
   try {
-    // 1. Auth check (only Owner/Admin)
-    const session = await requireGarageSession(["Owner / CEO", "Admin"]);
+    // 1. Auth check (only Owner/Manajer)
+    const session = await requireGarageSession(["Owner", "Manajer"]);
     if (session.response) return session.response;
 
     return NextResponse.json({

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
-import { currency } from "@/lib/garage-data";
+import { currency, unitCostCurrency } from "@/lib/garage-data";
 import { ScanModal } from "@/components/wms/scan-modal";
 import { WMS_STATUS_COLOR, type WmsProductRow, type WmsWarehouse } from "@/lib/wms-types";
 
@@ -333,7 +333,7 @@ export default function WmsInventoryPage() {
               <th className="px-3 py-2.5">Kategori</th>
               <th className="px-3 py-2.5 text-right">Min</th>
               <th className="px-3 py-2.5">Stok / Status</th>
-              <th className="px-3 py-2.5 text-right">HPP</th>
+              <th className="px-3 py-2.5 text-right">Harga beli / HPP</th>
               <th className="px-3 py-2.5">Ditambahkan</th>
               <th className="w-20 px-3 py-2.5 text-center">Aksi</th>
             </tr>
@@ -407,7 +407,17 @@ export default function WmsInventoryPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-[#111111]">{currency.format(Math.round(r.hpp))}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      {r.packPrice > 0 && r.packQty > 0 ? (
+                        <>
+                          <p className="whitespace-nowrap font-mono font-bold text-[#111111]">{currency.format(r.packPrice)}</p>
+                          <p className="whitespace-nowrap text-[11px] text-[#6B7280]">/ {r.packageLabel ?? `${r.packQty} ${r.unit}`}</p>
+                        </>
+                      ) : null}
+                      <p className="whitespace-nowrap font-mono text-[11.5px] font-semibold text-[#C8102E]">
+                        {unitCostCurrency.format(r.hpp)}/{r.unit}
+                      </p>
+                    </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-[#6B7280]">{fmtDate(r.createdAt)}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center justify-center gap-1">
@@ -517,8 +527,78 @@ export default function WmsInventoryPage() {
   );
 }
 
-const UNIT_OPTIONS = ["gram", "kg", "ml", "liter", "pcs", "pack", "sachet", "botol"];
+const UNIT_OPTIONS = ["gram", "gr", "kg", "ml", "liter", "pcs", "cup", "pack", "sachet", "botol"];
 const CUSTOM = "__custom__";
+
+/** Angka format Indonesia: "110.000" → 110000, "151,32" → 151.32, "946" → 946. */
+function parseIdNumber(value: string): number {
+  const v = value.trim().replace(/\s/g, "").replace(/^rp/i, "");
+  if (!v) return NaN;
+  if (v.includes(",")) return Number(v.replace(/\./g, "").replace(",", "."));
+  if (/^\d{1,3}(\.\d{3})+$/.test(v)) return Number(v.replace(/\./g, ""));
+  return Number(v);
+}
+
+/** Nama kemasan dari label, mis. "botol 760 ml" → "botol". */
+function packNameFromLabel(label: string | null): string {
+  return (label ?? "").split(/\d/)[0].trim();
+}
+
+type PackDraft = { packName: string; packQty: string; packPrice: string };
+
+/** HPP per satuan = harga beli per kemasan ÷ isi kemasan (null bila belum lengkap). */
+function packUnitCost(d: PackDraft): number | null {
+  const price = parseIdNumber(d.packPrice);
+  const qty = parseIdNumber(d.packQty);
+  if (!Number.isFinite(price) || !Number.isFinite(qty) || price < 0 || qty <= 0) return null;
+  return price / qty;
+}
+
+/** Blok harga supplier: kemasan + isi + harga beli → HPP per satuan otomatis. */
+function PackPriceFields({ draft, unit, onChange, manualHpp, onManualHpp }: {
+  draft: PackDraft;
+  unit: string;
+  onChange: (next: PackDraft) => void;
+  manualHpp: string;
+  onManualHpp: (value: string) => void;
+}) {
+  const perUnit = packUnitCost(draft);
+  const u = unit || "satuan";
+  const input = "h-9 w-full rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+  const label = "mb-1 block text-[11px] font-semibold text-[#6B7280]";
+  return (
+    <div className="rounded-lg border border-[#E8E8E8] bg-[#F8F9FB] p-3 sm:col-span-2">
+      <p className="text-[12.5px] font-bold text-[#111111]">Harga beli dari supplier</p>
+      <p className="mb-2 text-[11px] text-[#6B7280]">
+        Harga naik/turun? Ubah harga beli di sini — HPP per {u} dan HPP semua menu yang memakai bahan ini dihitung ulang otomatis.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div>
+          <label className={label}>Kemasan</label>
+          <input value={draft.packName} onChange={(e) => onChange({ ...draft, packName: e.target.value })} placeholder="botol / dus / pack" className={input} />
+        </div>
+        <div>
+          <label className={label}>Isi per kemasan ({u})</label>
+          <input value={draft.packQty} onChange={(e) => onChange({ ...draft, packQty: e.target.value })} inputMode="decimal" placeholder="mis. 760" className={`${input} text-right`} />
+        </div>
+        <div>
+          <label className={label}>Harga beli / kemasan (Rp)</label>
+          <input value={draft.packPrice} onChange={(e) => onChange({ ...draft, packPrice: e.target.value })} inputMode="decimal" placeholder="mis. 110.000" className={`${input} text-right`} />
+        </div>
+      </div>
+      {perUnit !== null ? (
+        <p className="mt-2 text-[12.5px] text-[#111111]">
+          HPP per {u}: <b className="text-[#C8102E]">{unitCostCurrency.format(perUnit)}</b>
+        </p>
+      ) : (
+        <div className="mt-2">
+          <label className={label}>Belum ada harga kemasan — atau isi HPP per {u} langsung (Rp)</label>
+          <input value={manualHpp} onChange={(e) => onManualHpp(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} sm:w-1/3`} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Dropdown kategori dari master + "+ Kategori baru" (dengan area bar/dapur/umum). */
 function CategoryPicker({ cats, value, onChange, onCatAdded }: {
@@ -594,6 +674,7 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
   const [manualSku, setManualSku] = useState("");
   const [minStock, setMinStock] = useState("");
   const [hpp, setHpp] = useState("");
+  const [pack, setPack] = useState<PackDraft>({ packName: "", packQty: "", packPrice: "" });
   const [initialStock, setInitialStock] = useState("");
   const [barcode, setBarcode] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -616,10 +697,16 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
         name: name.trim(),
         category,
         unit: unit || "pcs",
-        minStock: Number(minStock) || 0,
-        hpp: Number(hpp) || 0,
+        minStock: parseIdNumber(minStock) || 0,
+        ...(packUnitCost(pack) !== null
+          ? {
+              packPrice: parseIdNumber(pack.packPrice),
+              packQty: parseIdNumber(pack.packQty),
+              packName: pack.packName.trim() || undefined,
+            }
+          : { hpp: parseIdNumber(hpp) || 0 }),
         barcode: barcode.trim() || null,
-        initialStock: Number(initialStock) || 0,
+        initialStock: parseIdNumber(initialStock) || 0,
       });
       // Upload foto (bila dipilih) setelah produk dibuat — butuh id produk.
       if (photo && created?.id) {
@@ -684,15 +771,14 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
           />
         </div>
 
-        {/* Min & HPP */}
-        <div>
-          <label className={label}>Min stok</label>
-          <input value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} w-full`} />
+        {/* Min stok */}
+        <div className="sm:col-span-2">
+          <label className={label}>Min stok ({unit || "satuan"})</label>
+          <input value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} w-full sm:w-1/2`} />
         </div>
-        <div>
-          <label className={label}>HPP / satuan (Rp)</label>
-          <input value={hpp} onChange={(e) => setHpp(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} w-full`} />
-        </div>
+
+        {/* Harga beli per kemasan → HPP per satuan */}
+        <PackPriceFields draft={pack} unit={unit} onChange={setPack} manualHpp={hpp} onManualHpp={setHpp} />
 
         {/* Stok awal (opsional) → masuk ruang sesuai area kategori */}
         <div className="sm:col-span-2">
@@ -743,6 +829,12 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
   const [customUnit, setCustomUnit] = useState(knownUnit ? "" : product.unit);
   const [minStock, setMinStock] = useState(String(product.minStock));
   const [hpp, setHpp] = useState(String(product.hpp));
+  const initialPack: PackDraft = {
+    packName: packNameFromLabel(product.packageLabel),
+    packQty: product.packQty > 0 ? String(product.packQty) : "",
+    packPrice: product.packPrice > 0 ? String(product.packPrice) : "",
+  };
+  const [pack, setPack] = useState<PackDraft>(initialPack);
   const [barcode, setBarcode] = useState(product.barcode ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(product.imageUrl);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -806,12 +898,27 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
     setBusy(true);
     setErr(null);
     try {
+      // Harga kemasan hanya dikirim bila diubah, supaya HPP rata-rata hasil
+      // receiving tidak tertimpa saat owner sekadar mengedit nama/min stok.
+      const packChanged =
+        pack.packName.trim() !== initialPack.packName ||
+        pack.packQty !== initialPack.packQty ||
+        pack.packPrice !== initialPack.packPrice;
+      const hasPack = packUnitCost(pack) !== null;
+      const manualHpp = parseIdNumber(hpp);
       await garageApi.patch(`/api/wms/products/${product.id}`, {
         name: name.trim(),
         category,
         unit: unit || "pcs",
-        minStock: Number(minStock) || 0,
-        hpp: Number(hpp) || 0,
+        minStock: parseIdNumber(minStock) || 0,
+        ...(hasPack && packChanged
+          ? {
+              packPrice: parseIdNumber(pack.packPrice),
+              packQty: parseIdNumber(pack.packQty),
+              packName: pack.packName.trim() || undefined,
+            }
+          : {}),
+        ...(!hasPack && Number.isFinite(manualHpp) && manualHpp !== product.hpp ? { hpp: manualHpp } : {}),
         barcode: barcode.trim() || null,
       });
       onDone();
@@ -886,14 +993,16 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
             </select>
             {unitSel === CUSTOM && <input value={customUnit} onChange={(e) => setCustomUnit(e.target.value)} placeholder="mis. lusin" className={`${input} mt-2 w-full`} />}
           </div>
-          <div>
-            <label className={label}>Min stok</label>
-            <input value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" className={`${input} w-full`} />
+          <div className="sm:col-span-2">
+            <label className={label}>Min stok ({unit || "satuan"})</label>
+            <input value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" className={`${input} w-full sm:w-1/2`} />
           </div>
-          <div>
-            <label className={label}>HPP / satuan (Rp)</label>
-            <input value={hpp} onChange={(e) => setHpp(e.target.value)} inputMode="decimal" className={`${input} w-full`} />
-          </div>
+          <PackPriceFields draft={pack} unit={unit} onChange={setPack} manualHpp={hpp} onManualHpp={setHpp} />
+          {product.packPrice > 0 && product.packQty > 0 && Math.abs(product.hpp - product.packPrice / product.packQty) > 0.01 && (
+            <p className="text-[11px] text-[#6B7280] sm:col-span-2">
+              HPP sekarang {unitCostCurrency.format(product.hpp)}/{product.unit} adalah rata-rata dari barang masuk (Receiving); harga beli di atas adalah harga supplier terakhir.
+            </p>
+          )}
           <div className="sm:col-span-2">
             <label className={label}>Barcode kemasan <span className="font-normal text-[#9CA3AF]">· opsional (EAN/UPC supplier)</span></label>
             <input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan/ketik barcode fisik" className={`${input} w-full font-mono`} />

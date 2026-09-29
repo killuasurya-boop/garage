@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://app.garagecoffee.id";
+  process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL ?? "https://garagecoffee.id";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

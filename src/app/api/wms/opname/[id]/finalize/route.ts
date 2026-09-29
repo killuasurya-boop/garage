@@ -5,7 +5,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 // Finalisasi opname mengubah stok resmi → hanya peran elevated.
-const OPNAME_ROLES = ["Owner / CEO", "Admin", "Manager Operasional"] as const;
+const OPNAME_ROLES = ["Owner", "Manajer"] as const;
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requireGarageSession([...OPNAME_ROLES]);

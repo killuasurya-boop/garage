@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     doc.text(`Actor: ${session.data.user.name} / ${session.data.profile.role}`);
     doc.moveDown(2);
     doc.fillColor("#111").text("Paraf Gudang: ____________________", { continued: true });
-    doc.text("Paraf Owner/Admin: ____________________", { align: "right" });
+    doc.text("Paraf Owner/Manajer: ____________________", { align: "right" });
     doc.end();
 
     const pdf = await done;

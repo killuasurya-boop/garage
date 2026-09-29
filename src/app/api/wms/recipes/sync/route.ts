@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /** Tarik resep/BOM dari Produk Manajemen OS → wms_recipe (produk bahan disinkron dulu). */
 export async function POST() {
-  const session = await requireGarageSession(["Owner / CEO", "Admin", "Manager Operasional"]);
+  const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) return session.response;
   const products = await syncOsInventoryToWms({ bootstrapStock: false });
   const recipes = await syncOsRecipesToWms();

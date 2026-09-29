@@ -46,6 +46,17 @@ export function calculateBillingTotals(subtotal: number, settings: AppSettings) 
   return { service, tax, grossTotal };
 }
 
+/** Promo otomatis order QR/online dari Pengaturan (qrPromoPct, maks qrPromoMaxAmount). */
+export function qrPromoDiscount(
+  subtotal: number,
+  settings: Pick<AppSettings, "qrPromoPct" | "qrPromoMaxAmount">,
+) {
+  const pct = Math.max(0, Number(settings.qrPromoPct) || 0);
+  if (pct <= 0 || subtotal <= 0) return 0;
+  const cap = Math.max(0, Number(settings.qrPromoMaxAmount) || 0);
+  return Math.min(cap, Math.round(subtotal * (pct / 100)));
+}
+
 export function capVoucherDiscountBySettings(
   discount: number,
   subtotal: number,
@@ -80,6 +91,39 @@ export function manualDiscountNeedsApproval(
   if (base <= 0) return true;
   const pct = (amount / base) * 100;
   return pct > settings.manualDiscountApprovalPct;
+}
+
+/**
+ * Refund sebagian item: service, pajak, dan diskon ikut dipotong proporsional
+ * terhadap subtotal item yang dikembalikan. Total baru = total lama − refund,
+ * jadi pembulatan bill asli tetap konsisten dengan uang yang dikembalikan.
+ */
+export function computeRefundSplit(
+  order: { subtotal: number; service: number; tax: number; discount: number; total: number },
+  refundSubtotal: number,
+) {
+  if (order.subtotal <= 0 || refundSubtotal <= 0) {
+    throw new Error("Tidak ada nilai item yang bisa direfund.");
+  }
+  if (refundSubtotal > order.subtotal) {
+    throw new Error("Nilai refund melebihi subtotal order.");
+  }
+  const keepRatio = (order.subtotal - refundSubtotal) / order.subtotal;
+  const nextSubtotal = order.subtotal - refundSubtotal;
+  const nextService = Math.round(order.service * keepRatio);
+  const nextTax = Math.round(order.tax * keepRatio);
+  const nextDiscount = Math.round(order.discount * keepRatio);
+  const nextTotal = Math.max(0, Math.round(order.total * keepRatio));
+  return {
+    refundAmount: order.total - nextTotal,
+    next: {
+      subtotal: nextSubtotal,
+      service: nextService,
+      tax: nextTax,
+      discount: nextDiscount,
+      total: nextTotal,
+    },
+  };
 }
 
 export function orderTypeToChannel(orderType: OrderType) {

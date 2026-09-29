@@ -9,22 +9,7 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ROLE_VALUES: [Role, ...Role[]] = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Finance / CFO",
-  "Kasir",
-  "Barista",
-  "Koki",
-  "Asisten Koki",
-  "Waiter 1",
-  "Waiter 2",
-  "Kitchen / Barista",
-  "Gudang",
-  "Supervisor Shift",
-  "Delivery Admin",
-];
+const ROLE_VALUES: [Role, ...Role[]] = ["Owner", "Manajer", "Kasir", "Waiter"];
 
 const createSchema = z.object({
   email: z.string().email("Email tidak valid"),
@@ -36,6 +21,8 @@ const createSchema = z.object({
   deviceLabel: z.string().optional(),
   division: z.string().optional(),
   position: z.string().optional(),
+  // Workstation Production Hub; kosong/null = tidak ditugaskan produksi.
+  workstation: z.enum(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all"]).nullable().optional(),
   requirePasswordChange: z.boolean().optional(),
 });
 

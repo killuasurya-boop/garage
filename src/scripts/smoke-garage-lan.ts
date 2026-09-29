@@ -27,7 +27,7 @@ type MenuItem = {
 };
 
 const baseUrl = (process.env.SMOKE_BASE_URL ?? "http://127.0.0.1:3001").replace(/\/+$/, "");
-const staffEmail = process.env.SMOKE_STAFF_EMAIL ?? "kasir@garage.local";
+const staffEmail = process.env.SMOKE_STAFF_EMAIL ?? "kasir@garage.id";
 const staffPassword = process.env.SMOKE_STAFF_PASSWORD ?? "garage12345";
 const memberIdentifier =
   process.env.SMOKE_MEMBER_IDENTIFIER ?? GARAGE_SMOKE_MEMBER_PHONE;

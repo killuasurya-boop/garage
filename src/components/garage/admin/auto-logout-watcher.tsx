@@ -45,13 +45,13 @@ export function AutoLogoutWatcher() {
     let checkInterval: ReturnType<typeof setInterval> | null = null;
     lastActivityRef.current = Date.now();
 
-    // Fetch idle timeout setting dari server. Endpoint /api/admin/settings
-    // butuh staff:manage permission — fallback ke default 30 menit kalau gagal.
+    // Fetch idle timeout setting dari server. /api/settings (GET) terbaca semua
+    // staff login — termasuk Kasir/Waiter di tablet bersama, yang paling butuh
+    // auto-logout. (Dulu /api/admin/settings → 403 untuk Kasir → tidak pernah aktif.)
     async function loadTimeout() {
       try {
-        const res = await fetch("/api/admin/settings", { cache: "no-store" });
+        const res = await fetch("/api/settings", { cache: "no-store" });
         if (!res.ok) {
-          // user gak punya staff:manage — skip auto-logout
           timeoutMsRef.current = 0;
           return;
         }
@@ -79,7 +79,9 @@ export function AutoLogoutWatcher() {
         } catch {
           // ignore network error
         }
-        router.replace("/login?reason=idle_timeout");
+        // Tablet kasir kembali ke login POS, bukan login dashboard.
+        const loginPath = pathname?.startsWith("/pos") ? "/pos-login" : "/login";
+        router.replace(`${loginPath}?reason=idle_timeout`);
       }
     }
 

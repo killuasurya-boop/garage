@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { GARAGE_LOCATION } from "@/lib/garage-location";
 import { getInvoiceLiveStatus, getPublicInvoiceTracking } from "@/lib/garage-service";
 import { InvoiceLiveTracker } from "./invoice-live-tracker";
 import { InvoicePrintButton } from "./invoice-print-button";
@@ -177,6 +178,13 @@ export default async function InvoiceTrackingPage({
   });
 
   const orderTime = dateTime(invoice.createdAt);
+  // Lunas = order berstatus paid, atau pembayaran tercatat captured/paid, atau
+  // invoice terbit. (Dulu hanya dicek "paid" pada payment → pembayaran sukses
+  // yang tercatat "captured" dianggap belum lunas & panel QRIS tetap muncul.)
+  const isPaid =
+    invoice.orderStatus === "paid" ||
+    ["paid", "captured"].includes((invoice.payment.status ?? "").toString().toLowerCase()) ||
+    (invoice.invoiceStatus ?? "").toString().toLowerCase() === "issued";
 
   return (
     <main className="invoice-web-print min-h-screen bg-[#08080a] text-[#f4f4f5]">
@@ -447,13 +455,25 @@ export default async function InvoiceTrackingPage({
                     <span>{invoice.tableLabel}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-xs text-[#b8b8bf]">
+                <a
+                  href={GARAGE_LOCATION.directionsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs text-[#b8b8bf] hover:text-white"
+                >
+                  <MapPin className="mt-0.5 size-3 shrink-0 text-[#f5a742]" />
+                  <span>Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi <span className="no-print text-[#f5a742]">· Rute</span></span>
+                </a>
+                <a
+                  href={`tel:+${GARAGE_LOCATION.phone}`}
+                  className="flex items-center gap-2 text-xs text-[#b8b8bf] hover:text-white"
+                >
                   <Phone className="size-3 shrink-0 text-[#f5a742]" />
-                  <span>0812-xxxx-xxxx</span>
-                </div>
+                  <span>{GARAGE_LOCATION.phoneDisplay}</span>
+                </a>
                 <div className="flex items-center gap-2 text-xs text-[#b8b8bf]">
                   <Smartphone className="size-3 shrink-0 text-[#f5a742]" />
-                  <span>www.garage.id</span>
+                  <span>garagecoffee.id</span>
                 </div>
               </div>
 
@@ -524,13 +544,38 @@ export default async function InvoiceTrackingPage({
             </div>
           </div>
 
+          {/* Ajakan ulasan Google — hanya saat LUNAS (momen pelanggan paling puas). Web-only. */}
+          {isPaid ? (
+            <div className="mt-4 rounded-md border border-[#f5a742]/40 bg-gradient-to-r from-[#1a1510] to-[#161616] p-4 print:hidden">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1 text-[#f5a742]">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className="size-4 fill-[#f5a742]" />
+                    ))}
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-white">Puas dengan GARAGE? Beri bintang 5 di Google</p>
+                  <p className="mt-0.5 text-xs text-[#b8b8bf]">
+                    Cuma 10 detik — sangat membantu kami. Rating sekarang {GARAGE_LOCATION.rating.toFixed(1)} dari{" "}
+                    {GARAGE_LOCATION.reviewCount} ulasan.
+                  </p>
+                </div>
+                <a
+                  href={GARAGE_LOCATION.reviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-[#f5a742] px-4 py-2 text-sm font-bold uppercase tracking-wider text-[#1a1208] transition hover:bg-[#ffb95c]"
+                >
+                  <Star className="size-4" />
+                  Tulis Ulasan
+                </a>
+              </div>
+            </div>
+          ) : null}
+
           {/* QRIS pay panel — hanya tampil saat BELUM lunas. Web-only (hidden di print). */}
           {(() => {
-            const paid =
-              (invoice.payment.status ?? invoice.invoiceStatus ?? "")
-                .toString()
-                .toLowerCase() === "paid";
-            if (paid) return null;
+            if (isPaid) return null;
             const fullScreenHref =
               `/display/payment?amount=${encodeURIComponent(String(invoice.total))}` +
               `&order=${encodeURIComponent(invoice.orderNo ?? "")}`;
@@ -747,14 +792,12 @@ export default async function InvoiceTrackingPage({
                 label="Subtotal"
                 value={`${rupiah.format(invoice.subtotal)}`}
               />
-              <TotalRow
-                label="Service (5%)"
-                value={`${rupiah.format(invoice.service)}`}
-              />
-              <TotalRow
-                label="Ppn (11%)"
-                value={`${rupiah.format(invoice.tax)}`}
-              />
+              {/* Dulu label tertulis tetap "Service (5%)" & "Ppn (11%)" (salah: yang
+                  dipakai PB1). Baris hanya tampil bila nilainya ada. */}
+              {invoice.service > 0 && (
+                <TotalRow label="Service" value={`${rupiah.format(invoice.service)}`} />
+              )}
+              {invoice.tax > 0 && <TotalRow label="PB1" value={`${rupiah.format(invoice.tax)}`} />}
               {invoice.discount > 0 && (
                 <TotalRow
                   label="Diskon"
@@ -841,7 +884,7 @@ export default async function InvoiceTrackingPage({
               Terima kasih atas kunjungan Anda!
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              www.garage.id &nbsp;|&nbsp; GARAGE Coffee &amp; Motor
+              garagecoffee.id &nbsp;|&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;|&nbsp; Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi
             </p>
           </div>
 
@@ -853,11 +896,20 @@ export default async function InvoiceTrackingPage({
               </span>
               <Star className="size-3 text-[#f5a742]" />
             </div>
-            <p className="text-xs text-[#8f8f99]">
-              Terima kasih atas kunjungan Anda. Jika puas, silakan tinggalkan review di Google. 🙏
+            <p className="text-xs text-[#b8b8bf]">
+              Terima kasih atas kunjungan Anda. Jika puas,{" "}
+              <a
+                href={GARAGE_LOCATION.reviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#f5a742] underline underline-offset-2"
+              >
+                tinggalkan review di Google
+              </a>
+              . 🙏
             </p>
-            <p className="mt-1 text-[10px] text-[#8f8f99]">
-              www.garage.id &nbsp;&bull;&nbsp; Pesanan yang sudah dibuat tidak dapat dikembalikan.
+            <p className="mt-1 text-[11px] text-[#8f8f99]">
+              garagecoffee.id &nbsp;&bull;&nbsp; {GARAGE_LOCATION.phoneDisplay} &nbsp;&bull;&nbsp; Pesanan yang sudah dibuat tidak dapat dikembalikan.
             </p>
           </div>
         </div>

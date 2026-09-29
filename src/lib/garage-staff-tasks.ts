@@ -131,12 +131,7 @@ export type UpdateStaffTaskInput = {
   cancellationReason?: string;
 };
 
-const ELEVATED_ROLES: ReadonlyArray<Role> = [
-  "Owner / CEO",
-  "Admin",
-  "Manager Operasional",
-  "Supervisor Shift",
-];
+const ELEVATED_ROLES: ReadonlyArray<Role> = ["Owner", "Manajer"];
 
 export type UpdateStaffTaskResult =
   | { ok: true; task: StaffTaskRow }
@@ -159,7 +154,7 @@ export async function updateStaffTaskStatus(input: UpdateStaffTaskInput): Promis
   const isAssignee = existing.assigneeUserId === input.actorUserId;
   const isTargetRole = existing.targetRole === input.actorRole;
 
-  // Cancel hanya boleh oleh elevated role (Owner/Admin/Manager/Supervisor).
+  // Cancel hanya boleh oleh elevated role (Owner/Manajer).
   // Acknowledge & complete boleh oleh assignee, target role, atau elevated.
   if (input.action === "cancel") {
     if (!isElevated) return { ok: false, reason: "forbidden" };

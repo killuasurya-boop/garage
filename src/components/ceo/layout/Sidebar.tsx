@@ -15,7 +15,6 @@ import {
   Rocket,
   Lock,
   LogOut,
-  MessageSquare,
   PiggyBank,
   ReceiptText,
   Settings,
@@ -48,7 +47,6 @@ const nav = [
   { href: "/control/customers", label: "Pelanggan", icon: Users },
   { href: "/control/risk", label: "Risiko", icon: ShieldAlert },
   { href: "/control/compliance", label: "Compliance", icon: ClipboardCheck },
-  { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },
 ];
 
 export function Sidebar() {

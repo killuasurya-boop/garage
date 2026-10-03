@@ -26,6 +26,7 @@ ExternalLink,
 Fingerprint,
 FileText,
 History,
+KeyRound,
 Info,
 Landmark,
 Headset,
@@ -179,7 +180,7 @@ TableRow,
 } from "@/components/ui/table";
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { garageApi } from "@/lib/api-client";
+import { GarageApiError, garageApi } from "@/lib/api-client";
 import { canAccessModule } from "@/lib/role-access";
 import { GARAGE_TAGS, invalidateGarageCache } from "@/lib/garage-cache";
 import type {
@@ -768,9 +769,10 @@ export function PosView({
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
   const [openingShiftNumber, setOpeningShiftNumber] = useState<1 | 2>(1);
-  const [actualCash, setActualCash] = useState(() =>
-    String(cashSession.expectedCash ?? cashSession.openingCash ?? 0),
-  );
+  // Blind count: kasir menghitung laci tanpa diberi angka sistem.
+  const [actualCash, setActualCash] = useState("");
+  const [shiftManagerPin, setShiftManagerPin] = useState("");
+  const [shiftSignOffRequired, setShiftSignOffRequired] = useState(false);
   const [shiftClosingNote, setShiftClosingNote] = useState("");
   const [shiftResetTableMode, setShiftResetTableMode] =
     useState<ShiftResetTableMode>("completed");
@@ -994,13 +996,11 @@ export function PosView({
     if (shiftAutoPromptedRef.current) return;
     shiftAutoPromptedRef.current = true;
     setShiftError(null);
-    setActualCash(String(cashSession.expectedCash ?? cashSession.openingCash ?? 0));
+    setActualCash("");
     setShiftClosingNote(cashSession.closingNote ?? "");
     setShiftChecklist(cashSession.checklist);
   }, [
     shiftOpen,
-    cashSession.expectedCash,
-    cashSession.openingCash,
     cashSession.closingNote,
     cashSession.checklist,
   ]);
@@ -1180,12 +1180,6 @@ export function PosView({
     manualDiscount?.approvalStatus === "pending";
   const checkoutReady =
     paymentReady && !dineInTableMissing && !manualDiscountAwaitingApproval;
-  const actualCashValue = Number(actualCash || 0);
-  const actualCashReady =
-    Number.isFinite(actualCashValue) && actualCashValue >= 0;
-  const shiftDiscrepancyPreview = actualCashReady
-    ? Math.round(actualCashValue) - cashSession.expectedCash
-    : 0;
   const quickCashAmounts = useMemo(
     () =>
       [10000, 20000, 50000, 100000].filter((amount) => amount >= totalDue),
@@ -3081,7 +3075,9 @@ export function PosView({
 
   function prepareShiftDialog() {
     setShiftError(null);
-    setActualCash(String(cashSession.expectedCash ?? cashSession.openingCash ?? 0));
+    setActualCash("");
+    setShiftManagerPin("");
+    setShiftSignOffRequired(false);
     setShiftClosingNote(cashSession.closingNote ?? "");
     setShiftResetTableMode("completed");
     setShiftChecklist(cashSession.checklist);
@@ -3159,6 +3155,11 @@ export function PosView({
     if (!shiftChecklistReady()) {
       return;
     }
+    const managerPin = shiftManagerPin.trim();
+    if (shiftSignOffRequired && !/^\d{4,8}$/.test(managerPin)) {
+      setShiftError("PIN Manajer/Owner wajib 4–8 digit angka.");
+      return;
+    }
 
     setShiftPending(true);
     setShiftError(null);
@@ -3170,14 +3171,21 @@ export function PosView({
           checklist: shiftChecklist,
           closingNote: shiftClosingNote,
           resetTableMode: shiftResetTableMode,
+          ...(managerPin ? { managerPin } : {}),
         },
       );
       await onCashSessionOpened();
       setShiftDialogOpen(false);
+      setShiftManagerPin("");
+      setShiftSignOffRequired(false);
+      const discrepancyLabel =
+        closedSession.discrepancy === 0
+          ? "Kas sesuai."
+          : `Selisih kas ${closedSession.discrepancy > 0 ? "+" : "-"}${currency.format(Math.abs(closedSession.discrepancy))} (seharusnya ${currency.format(closedSession.expectedCash)}).`;
       setPosNotice(
         closedSession.resetTables?.requested
-          ? `Shift ditutup. ${closedSession.resetTables.count} meja direset ke kosong.`
-          : "Shift ditutup tanpa reset meja.",
+          ? `Shift ditutup. ${discrepancyLabel} ${closedSession.resetTables.count} meja direset ke kosong.`
+          : `Shift ditutup tanpa reset meja. ${discrepancyLabel}`,
       );
       // Voice notification: bunyi kalau ada selisih kas (lebih atau kurang
       // dari expected) sehingga Manager langsung tahu untuk verifikasi.
@@ -3188,6 +3196,10 @@ export function PosView({
         });
       }
     } catch (error) {
+      if (error instanceof GarageApiError && error.code === "MANAGER_SIGNOFF_REQUIRED") {
+        setShiftSignOffRequired(true);
+      }
+      setShiftManagerPin("");
       setShiftError(error instanceof Error ? error.message : "Tutup shift gagal.");
     } finally {
       setShiftPending(false);
@@ -6064,30 +6076,15 @@ export function PosView({
             </DialogTitle>
             <DialogDescription>
               {shiftOpen
-                ? "Isi uang aktual, checklist, lalu pilih aksi."
+                ? "Hitung uang di laci, isi checklist, lalu tutup shift."
                 : "Pilih shift dan isi uang modal awal."}
             </DialogDescription>
           </DialogHeader>
           {shiftOpen ? (
             <form onSubmit={(event) => void closeShift(event)} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                  <p className="garage-mono text-[10px] text-[#b8b8bf]">Kas seharusnya</p>
-                  <p className="mt-1 text-lg font-semibold text-white">
-                    {currency.format(cashSession.expectedCash)}
-                  </p>
-                </div>
-                <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                  <p className="garage-mono text-[10px] text-[#b8b8bf]">Selisih</p>
-                  <p
-                    className={`mt-1 text-lg font-semibold ${
-                      shiftDiscrepancyPreview === 0 ? "text-[#dcfce7]" : "text-[#ffd08a]"
-                    }`}
-                  >
-                    {shiftDiscrepancyPreview >= 0 ? "+" : ""}
-                    {currency.format(shiftDiscrepancyPreview)}
-                  </p>
-                </div>
+              <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs text-[#d6d6dc]">
+                Hitung semua uang tunai di laci, termasuk modal awal. Kas seharusnya dan selisih
+                ditampilkan setelah shift ditutup.
               </div>
               {(closeShiftActiveTables.length > 0 || customerOrders.length > 0) && (
                 <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffe0ad]">
@@ -6107,10 +6104,34 @@ export function PosView({
                   inputMode="numeric"
                   min={0}
                   value={actualCash}
+                  placeholder="Hasil hitung fisik"
                   onChange={(event) => setActualCash(event.target.value)}
                   className="h-11 border-[#34343c] bg-white/[0.06]"
                 />
               </div>
+              {shiftSignOffRequired && (
+                <div className="space-y-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/8 p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <KeyRound className="size-4 text-[#f5a742]" />
+                    PIN Manajer / Owner
+                  </p>
+                  <p className="text-xs text-[#d6d6dc]">
+                    Serahkan tablet ke Manajer. Sign-off tercatat atas nama pemilik PIN.
+                  </p>
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={8}
+                    value={shiftManagerPin}
+                    onChange={(event) =>
+                      setShiftManagerPin(event.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="4–8 digit"
+                    className="h-11 border-[#34343c] bg-white/[0.06]"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <p className="garage-mono text-[10px] text-[#b8b8bf]">Checklist tutup shift</p>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -6192,7 +6213,11 @@ export function PosView({
                 </Alert>
               )}
               <Button type="submit" className="garage-press h-11 w-full" disabled={shiftPending}>
-                {shiftPending ? "Memproses..." : "Tutup Shift"}
+                {shiftPending
+                  ? "Memproses..."
+                  : shiftSignOffRequired
+                    ? "Sign-off & Tutup Shift"
+                    : "Tutup Shift"}
               </Button>
             </form>
           ) : (

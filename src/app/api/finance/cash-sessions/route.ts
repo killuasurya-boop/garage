@@ -21,7 +21,6 @@ const cashSessionSchema = z.object({
     .refine((value) => value % 50000 === 0, {
       message: "Opening cash harus kelipatan Rp 50.000.",
     }),
-  expectedCash: z.number().int().nonnegative().optional(),
   shiftNumber: z.union([z.literal(1), z.literal(2)]).optional(),
 });
 

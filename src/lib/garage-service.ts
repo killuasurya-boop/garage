@@ -301,7 +301,6 @@ type InventoryTransferInput = {
 
 type CashSessionInput = {
   openingCash: number;
-  expectedCash?: number;
   shiftNumber?: 1 | 2;
 };
 
@@ -311,6 +310,7 @@ type CloseCashSessionInput = {
   checklist?: Array<{ label: string; done: boolean }>;
   closingNote?: string;
   managerSignOff?: boolean;
+  managerPin?: string;
   resetTableMode?: "none" | "completed" | "all";
   resetTables?: boolean;
 };
@@ -8270,7 +8270,8 @@ export async function updateCustomerOrderStatus(
             eq(cashSessions.openedBy, garage.user.id),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("no key update");
       cashierOpenSession = session ?? null;
       if (!cashierOpenSession) {
         throw new Error("Open shift wajib dilakukan sebelum proses order QR.");
@@ -9561,6 +9562,19 @@ async function createOrderOnce(
   }
 
   const created = await db.transaction(async (tx) => {
+    // Kunci sesi kas sampai transaksi commit: tutup shift memakai FOR UPDATE,
+    // jadi tidak bisa menyelip sebelum kas order ini tercatat. Bukan FOR SHARE:
+    // order lain kasir yang sama akan UPDATE baris ini juga → upgrade kunci deadlock.
+    const [lockedCashSession] = await tx
+      .select({ id: cashSessions.id })
+      .from(cashSessions)
+      .where(and(eq(cashSessions.id, openCashSession.id), eq(cashSessions.status, "open")))
+      .limit(1)
+      .for("no key update");
+    if (!lockedCashSession) {
+      throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
+    }
+
     let memberReward: {
       memberName: string;
       level: string;
@@ -12276,12 +12290,14 @@ async function applyCashExpenseToOpenSession(
 
   if (!openSession) return null;
 
+  // Atomik di SQL: menulis nilai hasil hitung JS menimpa penjualan tunai yang
+  // masuk bersamaan. Tidak di-clamp ke 0 — kas minus harus terlihat sebagai selisih.
   const [updated] = await tx
     .update(cashSessions)
-    .set({ expectedCash: Math.max(0, openSession.expectedCash - amount) })
-    .where(eq(cashSessions.id, openSession.id))
+    .set({ expectedCash: sql`${cashSessions.expectedCash} - ${amount}` })
+    .where(and(eq(cashSessions.id, openSession.id), eq(cashSessions.status, "open")))
     .returning({ id: cashSessions.id, code: cashSessions.code, expectedCash: cashSessions.expectedCash });
-  return updated;
+  return updated ?? null;
 }
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
@@ -13760,8 +13776,8 @@ export async function cancelExpenseInTx(
       if (session) {
         await tx
           .update(cashSessions)
-          .set({ expectedCash: session.expectedCash + current.amount })
-          .where(eq(cashSessions.id, session.id));
+          .set({ expectedCash: sql`${cashSessions.expectedCash} + ${current.amount}` })
+          .where(and(eq(cashSessions.id, session.id), eq(cashSessions.status, "open")));
         cashSessionId = session.id;
       }
     }
@@ -14118,94 +14134,130 @@ export class CashSessionShiftMismatchError extends Error {
   }
 }
 
+export class CashSessionForbiddenError extends Error {
+  constructor() {
+    super("Shift ini dibuka kasir lain. Hanya kasir pembuka atau Manajer/Owner yang boleh menutupnya.");
+    this.name = "CashSessionForbiddenError";
+  }
+}
+
+export class CashSessionAlreadyClosedError extends Error {
+  constructor() {
+    super("Cash session sudah ditutup sebelumnya — tidak bisa ditutup lagi.");
+    this.name = "CashSessionAlreadyClosedError";
+  }
+}
+
+export class CashSessionSignOffRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CashSessionSignOffRequiredError";
+  }
+}
+
+/** Manajer/Owner boleh menutup shift kasir lain dan sign-off atas nama sendiri. */
+function canSuperviseCashSession(role: Role) {
+  return role === "Owner" || role === "Manajer";
+}
+
 export async function createCashSession(input: CashSessionInput, garage: GarageSession) {
   const db = getDb();
+  const outletId = garage.profile.outlet.id;
   let shiftNumber = input.shiftNumber;
 
-  // Guard: 1 kasir = 1 sesi terbuka pada satu waktu.
-  const [existingOpen] = await db
-    .select({ id: cashSessions.id, code: cashSessions.code })
-    .from(cashSessions)
-    .where(
-      and(
-        eq(cashSessions.openedBy, garage.user.id),
-        eq(cashSessions.status, "open"),
-      ),
-    )
-    .limit(1);
-  if (existingOpen) {
-    throw new CashSessionAlreadyOpenError(existingOpen.code);
-  }
+  const session = await db.transaction(async (tx) => {
+    // Serialisasi buka shift per outlet: tanpa kunci ini dua tap/tablet yang
+    // hampir bersamaan sama-sama lolos cek di bawah dan membuat dua sesi open.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`cash-session-open:${outletId}`}))`);
 
-  if (garage.profile.role === "Kasir") {
-    const [outletOpen] = await db
+    // Guard: 1 kasir = 1 sesi terbuka pada satu waktu.
+    const [existingOpen] = await tx
       .select({ id: cashSessions.id, code: cashSessions.code })
       .from(cashSessions)
-      .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
       .where(
         and(
-          eq(cashSessions.outletId, garage.profile.outlet.id),
+          eq(cashSessions.openedBy, garage.user.id),
           eq(cashSessions.status, "open"),
-          eq(staffProfiles.role, "Kasir"),
         ),
       )
       .limit(1);
-
-    if (outletOpen) {
-      throw new CashSessionOutletAlreadyOpenError(outletOpen.code);
+    if (existingOpen) {
+      throw new CashSessionAlreadyOpenError(existingOpen.code);
     }
 
-    const todayKey = jakartaDateKey(new Date());
-    const { start, end } = jakartaDayRange(todayKey);
-    const [dailyCount] = await db
-      .select({ total: count(cashSessions.id) })
-      .from(cashSessions)
-      .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
-      .where(
-        and(
-          eq(cashSessions.outletId, garage.profile.outlet.id),
-          eq(staffProfiles.role, "Kasir"),
-          gte(cashSessions.openedAt, start),
-          lt(cashSessions.openedAt, end),
-        ),
-      );
+    if (garage.profile.role === "Kasir") {
+      const [outletOpen] = await tx
+        .select({ id: cashSessions.id, code: cashSessions.code })
+        .from(cashSessions)
+        .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
+        .where(
+          and(
+            eq(cashSessions.outletId, outletId),
+            eq(cashSessions.status, "open"),
+            eq(staffProfiles.role, "Kasir"),
+          ),
+        )
+        .limit(1);
 
-    const existingShiftCount = Number(dailyCount?.total ?? 0);
-    if (existingShiftCount >= 2) {
-      throw new CashSessionDailyLimitError();
+      if (outletOpen) {
+        throw new CashSessionOutletAlreadyOpenError(outletOpen.code);
+      }
+
+      const todayKey = jakartaDateKey(new Date());
+      const { start, end } = jakartaDayRange(todayKey);
+      const [dailyCount] = await tx
+        .select({ total: count(cashSessions.id) })
+        .from(cashSessions)
+        .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
+        .where(
+          and(
+            eq(cashSessions.outletId, outletId),
+            eq(staffProfiles.role, "Kasir"),
+            gte(cashSessions.openedAt, start),
+            lt(cashSessions.openedAt, end),
+          ),
+        );
+
+      const existingShiftCount = Number(dailyCount?.total ?? 0);
+      if (existingShiftCount >= 2) {
+        throw new CashSessionDailyLimitError();
+      }
+
+      const nextShiftNumber = existingShiftCount + 1;
+      if (shiftNumber !== undefined && shiftNumber !== nextShiftNumber) {
+        throw new CashSessionShiftMismatchError(nextShiftNumber, shiftNumber);
+      }
+      shiftNumber = nextShiftNumber as 1 | 2;
     }
 
-    const nextShiftNumber = existingShiftCount + 1;
-    if (shiftNumber !== undefined && shiftNumber !== nextShiftNumber) {
-      throw new CashSessionShiftMismatchError(nextShiftNumber, shiftNumber);
-    }
-    shiftNumber = nextShiftNumber as 1 | 2;
-  }
+    const [outlet] = await tx
+      .select()
+      .from(outlets)
+      .where(eq(outlets.id, outletId))
+      .limit(1);
 
-  const [outlet] = await db
-    .select()
-    .from(outlets)
-    .where(eq(outlets.id, garage.profile.outlet.id))
-    .limit(1);
+    // 6 digit berulang tiap ±16,7 menit & code UNIQUE → buka shift bisa gagal acak.
+    const code = `CS-${outlet?.code ?? "OUTLET"}-${uniqueStamp().toString().slice(-10)}`;
+    const [created] = await tx
+      .insert(cashSessions)
+      .values({
+        code,
+        outletId,
+        openingCash: input.openingCash,
+        // Kas seharusnya selalu mulai dari modal awal; tidak diterima dari client.
+        expectedCash: input.openingCash,
+        checklist: fallbackClosingChecklist,
+        openedBy: garage.user.id,
+      })
+      .returning();
 
-  // 6 digit berulang tiap ±16,7 menit & code UNIQUE → buka shift bisa gagal acak.
-  const code = `CS-${outlet?.code ?? "OUTLET"}-${uniqueStamp().toString().slice(-10)}`;
-  const [session] = await db
-    .insert(cashSessions)
-    .values({
-      code,
-      outletId: garage.profile.outlet.id,
-      openingCash: input.openingCash,
-      expectedCash: input.expectedCash ?? input.openingCash,
-      checklist: fallbackClosingChecklist,
-      openedBy: garage.user.id,
-    })
-    .returning();
+    return created;
+  });
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
     action: "Cash session opened",
-    object: code,
+    object: session.code,
     device: garage.profile.deviceLabel,
     metadata: {
       shiftNumber: shiftNumber ?? null,
@@ -14222,53 +14274,77 @@ export async function closeCashSession(
   garage: GarageSession,
 ) {
   const db = getDb();
-  const [current] = await db
-    .select()
-    .from(cashSessions)
-    .where(eq(cashSessions.id, id))
-    .limit(1);
+  const isSupervisor = canSuperviseCashSession(garage.profile.role);
 
-  if (!current) {
-    return null;
+  // Sign-off hanya sah dari Manajer/Owner: yang login sendiri, atau yang
+  // hadir dan memasukkan PIN di tablet kasir. Checkbox dari kasir tidak cukup.
+  let signer: { userId: string; name: string } | null = null;
+  const managerPin = input.managerPin?.trim();
+  if (managerPin) {
+    const approver = await resolveApproverByPin(managerPin, garage, `cash-session:${id}`);
+    signer = { userId: approver.userId, name: approver.name };
+  } else if (input.managerSignOff) {
+    if (!isSupervisor) {
+      throw new CashSessionSignOffRequiredError(
+        "Sign-off manajer wajib dengan PIN Manajer/Owner yang hadir.",
+      );
+    }
+    signer = { userId: garage.user.id, name: garage.user.name };
   }
 
-  // Anti close ganda: kalau session sudah closed, tolak — kasir/manager harus tahu.
-  if (current.status === "closed") {
-    throw new Error("Cash session sudah ditutup sebelumnya — tidak bisa ditutup lagi.");
-  }
-
+  // Wire: shiftDiscrepancyThreshold & shiftRequireManagerSignoff dari
+  // /control/settings → Shift & Cash
+  const policy = await getAppSettings(garage.profile.outlet.id);
   const countedCash = countedCashFromDenominations(input.denominations);
   const actualCash = countedCash ?? input.actualCash;
-  const discrepancy = actualCash - current.expectedCash;
-  // Wire: shiftDiscrepancyThreshold dari /control/settings → Shift & Cash
-  const policy = await getAppSettings(garage.profile.outlet.id);
-  const discrepancyStatus = cashDiscrepancyStatus(
-    discrepancy,
-    Number(policy.shiftDiscrepancyThreshold) || 50_000,
-  );
   const now = new Date();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
 
-  // Wire: shiftRequireManagerSignoff dari /control/settings → Shift & Cash
-  // Kalau policy on AND ada discrepancy (status critical), tutup shift WAJIB
-  // disertai manager signoff. Selain itu, signoff optional sesuai input.
-  if (
-    policy.shiftRequireManagerSignoff &&
-    discrepancyStatus === "critical" &&
-    !input.managerSignOff
-  ) {
-    throw new Error(
-      "Shift dengan discrepancy critical wajib sign-off manager. Aktifkan checkbox sign-off atau panggil manager.",
-    );
-  }
-
-  const managerSignOffAt = input.managerSignOff ? now : null;
   const resetTableMode = input.resetTableMode ?? (input.resetTables ? "all" : "none");
-  const canResetAllTables = ["Owner", "Manajer"].includes(garage.profile.role);
   const effectiveResetTableMode =
-    resetTableMode === "all" && !canResetAllTables ? "completed" : resetTableMode;
+    resetTableMode === "all" && !isSupervisor ? "completed" : resetTableMode;
 
-  const { closed } = await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
+    // FOR UPDATE: transaksi POS/QR yang sedang berjalan memegang kunci baris
+    // sesi ini, jadi tutup shift menunggu sampai kas mereka masuk ke expectedCash.
+    const [current] = await tx
+      .select()
+      .from(cashSessions)
+      .where(eq(cashSessions.id, id))
+      .limit(1)
+      .for("update");
+
+    if (!current) {
+      return null;
+    }
+
+    const ownSession = current.openedBy === garage.user.id;
+    const supervisorInScope =
+      isSupervisor &&
+      (garage.profile.role === "Owner" || current.outletId === garage.profile.outlet.id);
+    if (!ownSession && !supervisorInScope) {
+      throw new CashSessionForbiddenError();
+    }
+
+    // Anti close ganda: kalau session sudah closed, tolak — kasir/manager harus tahu.
+    if (current.status === "closed") {
+      throw new CashSessionAlreadyClosedError();
+    }
+
+    const discrepancy = actualCash - current.expectedCash;
+    const discrepancyStatus = cashDiscrepancyStatus(
+      discrepancy,
+      Number(policy.shiftDiscrepancyThreshold) || 50_000,
+    );
+
+    // Kalau policy on AND discrepancy critical, tutup shift WAJIB disertai
+    // sign-off Manajer/Owner. Selain itu, sign-off optional.
+    if (policy.shiftRequireManagerSignoff && discrepancyStatus === "critical" && !signer) {
+      throw new CashSessionSignOffRequiredError(
+        "Selisih kas melewati batas. Minta Manajer/Owner memasukkan PIN untuk sign-off tutup shift.",
+      );
+    }
+
     const [closedSession] = await tx
       .update(cashSessions)
       .set({
@@ -14281,11 +14357,15 @@ export async function closeCashSession(
         status: "closed",
         closedBy: garage.user.id,
         closedAt: now,
-        managerSignOffBy: input.managerSignOff ? garage.user.id : null,
-        managerSignOffAt,
+        managerSignOffBy: signer?.userId ?? null,
+        managerSignOffAt: signer ? now : null,
       })
-      .where(eq(cashSessions.id, id))
+      .where(and(eq(cashSessions.id, id), eq(cashSessions.status, "open")))
       .returning();
+
+    if (!closedSession) {
+      throw new CashSessionAlreadyClosedError();
+    }
 
     const resetTableSet = {
       status: "empty",
@@ -14330,7 +14410,10 @@ export async function closeCashSession(
         discrepancyStatus,
         countedCash,
         actualCash,
-        managerSignOff: Boolean(input.managerSignOff),
+        managerSignOff: Boolean(signer),
+        managerSignOffBy: signer?.userId ?? null,
+        managerSignOffVia: managerPin ? "pin" : signer ? "session" : null,
+        closedOtherCashier: !ownSession,
         resetTableMode: effectiveResetTableMode,
       },
     });
@@ -14347,7 +14430,7 @@ export async function closeCashSession(
           requester: actor,
           requesterPhone: null,
           amount: idrFormatter.format(Math.abs(discrepancy)),
-          reason: `Kas ${direction} saat tutup shift ${current.code}: seharusnya ${idrFormatter.format(current.expectedCash)}, dihitung ${idrFormatter.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${input.managerSignOff ? " · sudah sign-off Manajer" : ""}`,
+          reason: `Kas ${direction} saat tutup shift ${current.code}: seharusnya ${idrFormatter.format(current.expectedCash)}, dihitung ${idrFormatter.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${signer ? ` · sudah sign-off ${signer.name}` : ""}`,
           risk: discrepancyStatus === "critical" ? "high" : "medium",
           age: "baru saja",
           status: "pending",
@@ -14378,18 +14461,14 @@ export async function closeCashSession(
     }
 
     return {
-      closed: {
-        ...closedSession,
-        resetTables: {
-          requested: effectiveResetTableMode !== "none",
-          mode: effectiveResetTableMode,
-          count: resetTables.length,
-        },
+      ...closedSession,
+      resetTables: {
+        requested: effectiveResetTableMode !== "none",
+        mode: effectiveResetTableMode,
+        count: resetTables.length,
       },
     };
   });
-
-  return closed;
 }
 
 // ─── Cashier shift history & reporting ─────────────────
@@ -15202,6 +15281,37 @@ export async function decideApprovalWithPin(
   input: { pin: string; status: "approved" | "rejected"; reasonDecided?: string },
   garage: GarageSession,
 ) {
+  const approver = await resolveApproverByPin(input.pin, garage, id);
+
+  const approverSession: GarageSession = {
+    ...garage,
+    user: { ...garage.user, id: approver.userId, name: approver.name, email: approver.email },
+    profile: { ...garage.profile, id: approver.profileId, role: approver.role as Role },
+  };
+  const approval = await decideApproval(
+    id,
+    { status: input.status, reasonDecided: input.reasonDecided },
+    approverSession,
+    { via: "pin" },
+  );
+  if (approval) {
+    await createAuditLog({
+      actor: `${approver.name} / ${roleDisplayName[approver.role as Role] ?? approver.role}`,
+      action: "Keputusan via PIN di POS",
+      object: id,
+      device: garage.profile.deviceLabel,
+      status: input.status,
+      metadata: { cashier: garage.user.name, cashierUserId: garage.user.id },
+    });
+  }
+  return approval;
+}
+
+/**
+ * Cocokkan PIN dengan Manajer/Owner aktif di outlet kasir yang login.
+ * Dipakai untuk keputusan approval dan sign-off tutup shift di tablet POS.
+ */
+async function resolveApproverByPin(pin: string, garage: GarageSession, auditObject: string) {
   // Kunci per akun kasir DAN per outlet: tebak PIN pelan-pelan atau dipecah ke
   // banyak akun kasir tetap terhenti (PIN 4 digit = hanya 10.000 kombinasi).
   const limitKey = `approval-pin:user:${garage.user.id}`;
@@ -15230,7 +15340,7 @@ export async function decideApprovalWithPin(
         isNotNull(staffProfiles.pinHash),
       ),
     );
-  const pinHashValue = hashPin(input.pin);
+  const pinHashValue = hashPin(pin);
   const approver = candidates.find(
     (row) =>
       row.pinHash &&
@@ -15244,7 +15354,7 @@ export async function decideApprovalWithPin(
     await createAuditLog({
       actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
       action: "PIN persetujuan salah",
-      object: id,
+      object: auditObject,
       device: garage.profile.deviceLabel,
       status: "warning",
     });
@@ -15252,29 +15362,7 @@ export async function decideApprovalWithPin(
   }
   // Hanya hitungan akun ini yang di-reset; hitungan outlet mereda sendiri.
   guardReset(limitKey);
-
-  const approverSession: GarageSession = {
-    ...garage,
-    user: { ...garage.user, id: approver.userId, name: approver.name, email: approver.email },
-    profile: { ...garage.profile, id: approver.profileId, role: approver.role as Role },
-  };
-  const approval = await decideApproval(
-    id,
-    { status: input.status, reasonDecided: input.reasonDecided },
-    approverSession,
-    { via: "pin" },
-  );
-  if (approval) {
-    await createAuditLog({
-      actor: `${approver.name} / ${roleDisplayName[approver.role as Role] ?? approver.role}`,
-      action: "Keputusan via PIN di POS",
-      object: id,
-      device: garage.profile.deviceLabel,
-      status: input.status,
-      metadata: { cashier: garage.user.name, cashierUserId: garage.user.id },
-    });
-  }
-  return approval;
+  return approver;
 }
 
 export async function decideApprovalsBulk(

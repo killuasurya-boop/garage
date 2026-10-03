@@ -78,6 +78,7 @@ import { DigitalMenuManager } from "@/components/garage/inventory/digital-menu-m
 import {
   productVariantDraftId,
   recipeCostForVariantDraft,
+  type ProductAddonDraft,
   type ProductDraftState,
   type ProductRecipeDraft,
   type ProductVariantDraft,
@@ -586,6 +587,7 @@ export function InventoryView({
   const [productShowInDigitalMenu, setProductShowInDigitalMenu] = useState(true);
   const [productFeatured, setProductFeatured] = useState(false);
   const [productDescription, setProductDescription] = useState("");
+  const [productAddons, setProductAddons] = useState<ProductAddonDraft[]>([]);
   const [productCategory, setProductCategory] = useState<MenuCategory>("Cemilan");
   const [productSection, setProductSection] = useState("Dapur");
   const [productPrep, setProductPrep] = useState("10m");
@@ -1824,6 +1826,7 @@ export function InventoryView({
     setProductShowInDigitalMenu(true);
     setProductFeatured(false);
     setProductDescription("");
+    setProductAddons([]);
     setProductCategory("Cemilan");
     setProductSection("Dapur");
     setProductPrep("10m");
@@ -1869,6 +1872,7 @@ export function InventoryView({
       showInDigitalMenu: productShowInDigitalMenu,
       featured: productFeatured,
       description: productDescription,
+      addons: productAddons,
       category: productCategory,
       section: productSection,
       prep: productPrep,
@@ -1922,6 +1926,7 @@ export function InventoryView({
       setProductShowInDigitalMenu(draft.showInDigitalMenu !== false);
       setProductFeatured(Boolean(draft.featured));
       setProductDescription(typeof draft.description === "string" ? draft.description : "");
+      setProductAddons(Array.isArray(draft.addons) ? draft.addons : []);
       setProductCategory(validCategory);
       setProductSection(typeof draft.section === "string" ? draft.section : "Dapur");
       setProductPrep(typeof draft.prep === "string" ? draft.prep : "10m");
@@ -2124,6 +2129,9 @@ export function InventoryView({
     setProductShowInDigitalMenu(product.showInDigitalMenu !== false);
     setProductFeatured(Boolean(product.featured));
     setProductDescription(product.description ?? "");
+    setProductAddons(
+      (product.addons ?? []).map((addon) => ({ id: addon.id, label: addon.label, price: String(addon.price) })),
+    );
     setProductCategory(product.category);
     setProductSection(product.section || (product.category === "Coffee" || product.category === "Non-Coffee" ? "Bar" : "Dapur"));
     setProductPrep(product.prep || "10m");
@@ -2230,6 +2238,13 @@ export function InventoryView({
         showInDigitalMenu: productShowInDigitalMenu,
         featured: productFeatured,
         description: productDescription.trim() || null,
+        addons: productAddons
+          .filter((addon) => addon.label.trim())
+          .map((addon) => ({
+            id: addon.id,
+            label: addon.label.trim(),
+            price: Math.max(0, Math.round(Number(addon.price) || 0)),
+          })),
         category: productCategory,
         section: productSection.trim() || (productCategory === "Coffee" || productCategory === "Non-Coffee" ? "Bar" : "Dapur"),
         stock: productStock,
@@ -2884,6 +2899,8 @@ export function InventoryView({
                   onFeaturedChange={setProductFeatured}
                   description={productDescription}
                   onDescriptionChange={setProductDescription}
+                  addons={productAddons}
+                  onAddonsChange={setProductAddons}
                   prep={productPrep}
                   onPrepChange={setProductPrep}
                   stock={productStock}

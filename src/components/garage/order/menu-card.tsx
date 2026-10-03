@@ -27,6 +27,7 @@ export function MenuPhoto({
   iconClassName = "size-9",
   eager = false,
   placeholderAlign = "center",
+  hideLabel = false,
 }: {
   item: MenuItem;
   className?: string;
@@ -34,6 +35,8 @@ export function MenuPhoto({
   eager?: boolean;
   /** "top": ikon placeholder di pojok kanan atas (banner yang bawahnya tertutup teks). */
   placeholderAlign?: "center" | "top";
+  /** Thumbnail kecil: tampilkan ikon saja tanpa nama kategori. */
+  hideLabel?: boolean;
 }) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
@@ -85,7 +88,9 @@ export function MenuPhoto({
       aria-hidden
     >
       {categoryIcon(item.category, `${iconClassName} text-garage-amber/70`)}
-      <span className="text-[11px] font-semibold tracking-wide text-garage-mute">{item.category}</span>
+      {hideLabel ? null : (
+        <span className="text-[11px] font-semibold tracking-wide text-garage-mute">{item.category}</span>
+      )}
     </span>
   );
 }
@@ -127,7 +132,14 @@ function CardBadge({ item, popular }: { item: MenuItem; popular: boolean }) {
 export function menuSubtitle(item: MenuItem) {
   if (item.description) return item.description;
   if (item.variants.length > 1) return item.variants.map((variant) => variant.label).join(" · ");
+  if (item.addons?.length) return "Bisa pilih tambahan";
   return "";
+}
+
+// Item dengan beberapa varian atau pilihan tambahan dipilih lewat sheet detail,
+// bukan langsung masuk keranjang.
+export function needsDetailSheet(item: MenuItem) {
+  return item.variants.length > 1 || (item.addons?.length ?? 0) > 0;
 }
 
 // Kartu menu grid "Showroom": foto 1:1, satu badge di atas foto, tombol + merah di pojok
@@ -146,7 +158,7 @@ export function MenuCard({
   onOpen: () => void;
 }) {
   const soldOut = item.stock === "sold_out";
-  const multiVariant = item.variants.length > 1;
+  const multiVariant = needsDetailSheet(item);
   const singleVariantId = item.variants[0]?.id;
   const subtitle = menuSubtitle(item);
 

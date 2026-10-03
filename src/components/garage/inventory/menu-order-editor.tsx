@@ -145,7 +145,7 @@ export function MenuOrderEditor({
                       {itemIndex + 1}
                     </span>
                     <span className="size-10 shrink-0 overflow-hidden rounded-md bg-black/30">
-                      <MenuPhoto item={item} iconClassName="size-4" />
+                      <MenuPhoto item={item} iconClassName="size-4" hideLabel />
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
                       {item.name}

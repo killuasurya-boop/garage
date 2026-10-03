@@ -25,6 +25,7 @@ import {
   productVariantDraftId,
   recipeCostForVariantDraft,
   variantDraftHasRecipe,
+  type ProductAddonDraft,
   type ProductRecipeDraft,
   type ProductVariantDraft,
 } from "@/components/garage/inventory/product-draft";
@@ -51,6 +52,8 @@ export interface ProductFormPanelProps {
   onFeaturedChange: (value: boolean) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
+  addons: ProductAddonDraft[];
+  onAddonsChange: (value: ProductAddonDraft[]) => void;
   category: MenuCategory;
   onCategoryChange: (value: MenuCategory) => void;
   prep: string;
@@ -112,6 +115,8 @@ export function ProductFormPanel({
   onFeaturedChange,
   description,
   onDescriptionChange,
+  addons,
+  onAddonsChange,
   category,
   onCategoryChange,
   prep,
@@ -265,6 +270,7 @@ export function ProductFormPanel({
               Tampil 1 baris di kartu menu pelanggan. {description.length}/120
             </span>
           </label>
+          <AddonEditor value={addons} onChange={onAddonsChange} />
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
           <Input
@@ -737,5 +743,65 @@ function FormToggle({
         />
       </span>
     </button>
+  );
+}
+
+// Editor pilihan tambahan (add-on) pelanggan: nama + harga (0 = gratis), maks 8.
+function AddonEditor({
+  value,
+  onChange,
+}: {
+  value: ProductAddonDraft[];
+  onChange: (value: ProductAddonDraft[]) => void;
+}) {
+  function update(index: number, patch: Partial<ProductAddonDraft>) {
+    onChange(value.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
+  }
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-[#d4d4d8]">Pilihan tambahan (opsional)</p>
+      {value.map((addon, index) => (
+        <div key={addon.id ?? `new-${index}`} className="flex items-center gap-2">
+          <Input
+            value={addon.label}
+            onChange={(event) => update(index, { label: event.target.value })}
+            maxLength={40}
+            className="h-10 min-w-0 flex-1 border-[#34343c] bg-white/[0.06]"
+            placeholder="Mis. Extra shot"
+            aria-label={`Nama tambahan ${index + 1}`}
+          />
+          <Input
+            value={addon.price}
+            onChange={(event) => update(index, { price: event.target.value.replace(/[^0-9]/g, "") })}
+            inputMode="numeric"
+            className="h-10 w-28 shrink-0 border-[#34343c] bg-white/[0.06] font-mono"
+            placeholder="0"
+            aria-label={`Harga tambahan ${index + 1}`}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-10 shrink-0 border-[#34343c] bg-white/[0.04] p-0"
+            onClick={() => onChange(value.filter((_, i) => i !== index))}
+            aria-label={`Hapus tambahan ${addon.label || index + 1}`}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      ))}
+      {value.length < 8 ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 gap-1.5 border-[#34343c] bg-white/[0.04] px-3 text-xs"
+          onClick={() => onChange([...value, { label: "", price: "" }])}
+        >
+          <Plus className="size-3.5" /> Tambah pilihan
+        </Button>
+      ) : null}
+      <p className="text-[11px] text-[#a1a1aa]">
+        Mis. Extra shot (5000), Less sugar (0). Harga ditambahkan per porsi; tampil di tiket dapur & struk.
+      </p>
+    </div>
   );
 }

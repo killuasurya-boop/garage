@@ -5,7 +5,7 @@ import { Flame, Plus, Star, TicketPercent } from "lucide-react";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
-import { MenuPhoto, MenuPrice } from "./menu-card";
+import { MenuPhoto, MenuPrice, needsDetailSheet } from "./menu-card";
 import { itemCartQty } from "./order-ui";
 
 export type HeroKind = "featured" | "promo" | "best";
@@ -124,7 +124,7 @@ export function HeroRail({
                 type="button"
                 onClick={() => onQuickAdd(item)}
                 className="garage-press absolute bottom-3.5 right-3.5 flex size-11 cursor-pointer items-center justify-center rounded-md bg-garage-red text-white shadow-[0_8px_20px_rgba(0,0,0,0.5)] transition-colors hover:bg-garage-red-bright"
-                aria-label={item.variants.length > 1 ? `Pilih varian ${item.name}` : `Tambah ${item.name}`}
+                aria-label={needsDetailSheet(item) ? `Pilih varian ${item.name}` : `Tambah ${item.name}`}
               >
                 <Plus className="size-5" strokeWidth={2.5} />
                 {qty > 0 ? (

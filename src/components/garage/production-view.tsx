@@ -70,6 +70,10 @@ const COLUMN_META: Record<StatusColumn, { label: string; hint: string; tone: str
   ready: { label: "Ready", hint: "Helper ACC & panggil waiter", tone: "text-[#bbf7d0]" },
 };
 
+// Pesanan READY yang sudah dipanggil tapi belum diambil waiter setelah sekian menit →
+// kartu merah + pengumuman ulang tiap menit.
+const PICKUP_REMIND_MINUTES = 3;
+
 function fmtElapsed(fromIso: string, now: number, untilIso?: string | null) {
   const end = untilIso ? new Date(untilIso).getTime() : now;
   const sec = Math.max(0, Math.floor((end - new Date(fromIso).getTime()) / 1000));
@@ -132,7 +136,6 @@ export function ProductionView({
   );
   // Helper fokus ke kolom Ready (serah-terima) di mobile.
   const [mobileColumn, setMobileColumn] = useState<StatusColumn>(isHelper ? "ready" : "queue");
-  const [handoverTicket, setHandoverTicket] = useState<ProductionTicketView | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [qcTicket, setQcTicket] = useState<ProductionTicketView | null>(null);
@@ -303,6 +306,24 @@ export function ProductionView({
     prevLateRef.current = lateIds;
   }, [lateIds, playTone]);
 
+  // Pengingat: tiket READY yang dipanggil ≥3 menit belum diambil → umumkan ulang tiap
+  // menit di layar station-nya (waiter cukup mendengar, tidak perlu melihat HP).
+  const remindRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    for (const t of tickets) {
+      if (t.status !== "ready" || !t.handoverAt) continue;
+      if (station !== "all" && station !== t.station) continue;
+      const minutes = Math.floor(elapsedMinutes(t.handoverAt, now));
+      if (minutes < PICKUP_REMIND_MINUTES) continue;
+      if (remindRef.current.get(t.ticketNo) === minutes) continue;
+      remindRef.current.set(t.ticketNo, minutes);
+      void voice.announce("order_ready_deliver", {
+        table: t.table,
+        dedupKey: `${t.ticketNo}:remind:${minutes}`,
+      });
+    }
+  }, [now, tickets, station]);
+
   const inStation = useCallback(
     (s: "Bar" | "Food") => station === "all" || station === s,
     [station],
@@ -392,7 +413,8 @@ export function ProductionView({
     const ticket = qcTicket;
     const ok = await runAction(`ready:${ticket.ticketNo}`, () =>
       garageApi.post(`/api/production/tickets/${encodeURIComponent(ticket.ticketNo)}`, {
-        action: "ready",
+        // READY + panggil semua waiter dalam satu langkah.
+        action: "ready_call",
         qcConfirmed: true,
       }),
     );
@@ -414,17 +436,24 @@ export function ProductionView({
     }
   }
 
-  // Helper ACC serah-terima lalu panggil waiter (null = siapa saja).
-  async function callWaiter(waiterUserId: string | null) {
-    if (!handoverTicket) return;
-    const ticket = handoverTicket;
-    const ok = await runAction(`handover:${ticket.ticketNo}`, () =>
+  // Panggil (ulang) semua waiter untuk tiket READY yang belum dipanggil.
+  function callWaiters(ticket: ProductionTicketView) {
+    void runAction(`call:${ticket.ticketNo}`, () =>
       garageApi.post(`/api/production/tickets/${encodeURIComponent(ticket.ticketNo)}`, {
-        action: "handover",
+        action: "ready_call",
+      }),
+    );
+  }
+
+  // Helper tap nama waiter yang mengambil pesanan di meja saji → tiket selesai
+  // (delivered) atas nama waiter itu. Waiter tidak menekan apa pun.
+  function pickupBy(ticket: ProductionTicketView, waiterUserId: string) {
+    void runAction(`pickup:${ticket.ticketNo}`, () =>
+      garageApi.post(`/api/production/tickets/${encodeURIComponent(ticket.ticketNo)}`, {
+        action: "pickup",
         waiterUserId,
       }),
     );
-    if (ok) setHandoverTicket(null);
   }
 
   function startBatch(suggestion: ProductionBatchSuggestionView) {
@@ -587,50 +616,89 @@ export function ProductionView({
             className="garage-press mt-2 h-12 w-full bg-[#22c55e] text-sm font-black uppercase tracking-wide text-[#052e16] hover:bg-[#34d77f] disabled:opacity-60"
           >
             <CheckCircle2 className="mr-2 size-4" />
-            {lock ?? (waitingBatch ? `Menunggu ${ticket.pendingBatchNos.join(", ")}` : "QC · Ready / Pickup")}
+            {lock ?? (waitingBatch ? `Menunggu ${ticket.pendingBatchNos.join(", ")}` : "QC · Siap · Panggil")}
           </Button>
         ) : (
-          <div className="mt-2 flex items-center gap-2">
-            {ticket.handoverAt ? (
-              <button
-                type="button"
-                disabled={!canHandover[ticket.station]}
-                onClick={() => setHandoverTicket(ticket)}
-                title="Ganti waiter yang dipanggil"
-                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-center text-xs font-black uppercase text-[#bbf7d0] transition-colors hover:bg-[#22c55e]/20 disabled:cursor-default disabled:hover:bg-[#22c55e]/12"
-              >
-                <BellRing className="size-4 shrink-0" />
-                {ticket.claimedByName
-                  ? `Dipanggil: ${ticket.claimedByName}`
-                  : "Dipanggil: siapa saja"}
-              </button>
-            ) : (
-              <Button
-                type="button"
-                disabled={!canHandover[ticket.station]}
-                onClick={() => setHandoverTicket(ticket)}
-                className="garage-press h-12 flex-1 bg-[#f5a742] text-sm font-black uppercase tracking-wide text-[#241a00] hover:bg-[#ffb85c] disabled:opacity-60"
-              >
-                <BellRing className="mr-2 size-4" />
-                {canHandover[ticket.station]
-                  ? "ACC · Panggil waiter"
-                  : `Menunggu helper ${productionStationLabel(ticket.station)}`}
-              </Button>
-            )}
-            {!ticket.claimedByName && !lock ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setReopenTicket(ticket);
-                  setReopenReason("");
-                }}
-                className="garage-press h-11 shrink-0 border-[#4a4a54] bg-white/[0.04] px-3 text-xs font-bold text-[#e4e4e7]"
-                aria-label="Kembalikan ke processing"
-              >
-                <Undo2 className="mr-1 size-4" /> Kembalikan
-              </Button>
-            ) : null}
+          <div className="mt-2 space-y-2">
+            {(() => {
+              const calledMin = ticket.handoverAt ? elapsedMinutes(ticket.handoverAt, now) : 0;
+              const overdue = Boolean(ticket.handoverAt) && calledMin >= PICKUP_REMIND_MINUTES;
+              const canCall = canHandover[ticket.station];
+              const busyPickup = busyKey === `pickup:${ticket.ticketNo}`;
+              return (
+                <>
+                  {ticket.handoverAt ? (
+                    <div
+                      className={`flex min-h-10 items-center justify-between gap-2 rounded-md border px-3 text-xs font-black uppercase ${
+                        overdue
+                          ? "border-[#ff6b78]/70 bg-[#ff6b78]/15 text-[#ffb3b3]"
+                          : "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#bbf7d0]"
+                      }`}
+                      role="status"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <BellRing className="size-4 shrink-0" />
+                        {overdue ? "Belum diambil" : "Waiter dipanggil"}
+                      </span>
+                      <span className="font-mono text-sm tabular-nums">
+                        {fmtElapsed(ticket.handoverAt, now)}
+                      </span>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      disabled={!canCall || busyKey === `call:${ticket.ticketNo}`}
+                      onClick={() => callWaiters(ticket)}
+                      className="garage-press h-12 w-full bg-[#f5a742] text-sm font-black uppercase tracking-wide text-[#241a00] hover:bg-[#ffb85c] disabled:opacity-60"
+                    >
+                      <BellRing className="mr-2 size-4" />
+                      {canCall ? "Panggil waiter" : `Menunggu helper ${productionStationLabel(ticket.station)}`}
+                    </Button>
+                  )}
+
+                  {canCall ? (
+                    <div>
+                      <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#c4c4cc]">
+                        Diambil oleh:
+                      </p>
+                      {waiters.length ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {waiters.map((w) => (
+                            <button
+                              key={w.id}
+                              type="button"
+                              disabled={busyPickup}
+                              onClick={() => pickupBy(ticket, w.id)}
+                              className="garage-press inline-flex min-h-11 min-w-[88px] items-center justify-center gap-1 rounded-md border border-[#4a4a54] bg-white/[0.06] px-3 text-sm font-bold text-white transition-colors hover:border-[#22c55e]/70 hover:bg-[#22c55e]/15 disabled:opacity-60"
+                            >
+                              {busyPickup ? <Loader2 className="size-4 animate-spin" /> : null}
+                              {w.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#c4c4cc]">Belum ada akun waiter aktif.</p>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {!lock ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setReopenTicket(ticket);
+                        setReopenReason("");
+                      }}
+                      className="garage-press h-10 w-full border-[#4a4a54] bg-white/[0.04] px-3 text-xs font-bold text-[#e4e4e7]"
+                      aria-label="Kembalikan ke processing"
+                    >
+                      <Undo2 className="mr-1 size-4" /> Kembalikan ke proses
+                    </Button>
+                  ) : null}
+                </>
+              );
+            })()}
           </div>
         )}
       </article>
@@ -925,7 +993,7 @@ export function ProductionView({
           Sinkron produksi: {loadError}
         </p>
       ) : null}
-      {actionError && !qcTicket && !reopenTicket && !allocBatch && !handoverTicket ? (
+      {actionError && !qcTicket && !reopenTicket && !allocBatch ? (
         <p className="flex items-center gap-2 rounded-md border border-[#d11a2a]/50 bg-[#d11a2a]/12 p-3 text-sm font-semibold text-[#ffc2c8]">
           <AlertTriangle className="size-4 shrink-0" /> {actionError}
         </p>
@@ -993,7 +1061,7 @@ export function ProductionView({
                   ) : (
                     <Check className="mr-2 size-4" />
                   )}
-                  QC OK · Ready
+                  QC OK · Siap · Panggil
                 </Button>
               </div>
             </div>
@@ -1002,68 +1070,6 @@ export function ProductionView({
       </Dialog>
 
       {/* Serah-terima: helper ACC produk lalu panggil waiter */}
-      <Dialog open={Boolean(handoverTicket)} onOpenChange={(open) => !open && setHandoverTicket(null)}>
-        <DialogContent className="max-h-[90svh] overflow-y-auto border-[#34343c] bg-[#111116] text-white sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase">ACC serah-terima</DialogTitle>
-            <DialogDescription className="text-[#d0d0d6]">
-              Cek fisik produk cocok dengan Nama + Meja, lalu tap waiter yang dipanggil untuk mengantar.
-            </DialogDescription>
-          </DialogHeader>
-          {handoverTicket ? (
-            <div className="space-y-3">
-              <div className="rounded-md border border-[#34343c] bg-black/25 p-3">
-                <p className="text-xl font-black uppercase text-white">{handoverTicket.identity}</p>
-                <p className="font-mono text-base font-black text-[#ffd08a]">
-                  {tableLabel(handoverTicket.table)} · #{handoverTicket.orderNo ?? handoverTicket.ticketNo}
-                </p>
-                <ul className="mt-2 space-y-1">
-                  {handoverTicket.items.map((item) => (
-                    <li key={item.id} className="text-base font-bold text-white">
-                      <span className="font-mono text-[#ffd08a]">{item.qty}×</span> {item.label}
-                      {item.note ? <span className="ml-1 text-sm text-[#ffe0aa]">({item.note})</span> : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <p className="text-sm font-semibold text-[#d0d0d6]">Panggil waiter</p>
-              {waiters.length ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {waiters.map((w) => (
-                    <Button
-                      key={w.id}
-                      type="button"
-                      aria-label={`Panggil ${w.name} (${w.activeDeliveries} antaran berjalan)`}
-                      onClick={() => void callWaiter(w.id)}
-                      disabled={busyKey === `handover:${handoverTicket.ticketNo}`}
-                      className="garage-press h-14 justify-between bg-[#d11a2a] px-3 text-left font-black text-white hover:bg-[#e83030]"
-                    >
-                      <span className="truncate text-base">{w.name}</span>
-                      <span className="shrink-0 rounded-sm bg-black/30 px-1.5 py-0.5 font-mono text-xs">
-                        {w.activeDeliveries} antar
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-md border border-[#34343c] bg-black/20 p-3 text-sm text-[#d0d0d6]">
-                  Tidak ada waiter yang sedang login. Panggil siapa saja — semua HP waiter mendapat notifikasi.
-                </p>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void callWaiter(null)}
-                disabled={busyKey === `handover:${handoverTicket.ticketNo}`}
-                className="h-12 w-full border-[#f5a742]/60 bg-[#f5a742]/10 font-black uppercase text-[#ffd79a]"
-              >
-                <BellRing className="mr-2 size-4" /> Panggil siapa saja
-              </Button>
-              {actionError ? <p className="text-sm font-semibold text-[#ffc2c8]">{actionError}</p> : null}
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
 
       {/* READY → PROCESSING (alasan wajib) */}
       <Dialog open={Boolean(reopenTicket)} onOpenChange={(open) => !open && setReopenTicket(null)}>

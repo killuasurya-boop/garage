@@ -4804,3 +4804,68 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Menu digital (/order): latar shimmer saat foto dimuat & "bump" badge keranjang. */
+.garage-photo-shimmer {
+  background-color: var(--garage-bg-1);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: garage-photo-shimmer 1.4s linear infinite;
+}
+
+@keyframes garage-photo-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.garage-cart-bump {
+  animation: garage-cart-bump 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes garage-cart-bump {
+  0% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.35);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes garage-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.garage-toast-in {
+  animation: garage-toast-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .garage-photo-shimmer,
+  .garage-cart-bump,
+  .garage-toast-in {
+    animation: none;
+  }
+}

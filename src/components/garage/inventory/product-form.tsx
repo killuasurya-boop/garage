@@ -49,6 +49,8 @@ export interface ProductFormPanelProps {
   onShowInDigitalMenuChange: (value: boolean) => void;
   featured: boolean;
   onFeaturedChange: (value: boolean) => void;
+  description: string;
+  onDescriptionChange: (value: string) => void;
   category: MenuCategory;
   onCategoryChange: (value: MenuCategory) => void;
   prep: string;
@@ -108,6 +110,8 @@ export function ProductFormPanel({
   onShowInDigitalMenuChange,
   featured,
   onFeaturedChange,
+  description,
+  onDescriptionChange,
   category,
   onCategoryChange,
   prep,
@@ -248,6 +252,19 @@ export function ProductFormPanel({
             value={featured}
             onChange={onFeaturedChange}
           />
+          <label className="block space-y-1">
+            <span className="text-xs font-semibold text-[#d4d4d8]">Deskripsi singkat (opsional)</span>
+            <Input
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              maxLength={120}
+              className="h-10 border-[#34343c] bg-white/[0.06]"
+              placeholder="Mis. Espresso, susu segar, gula aren"
+            />
+            <span className="block text-[11px] text-[#a1a1aa]">
+              Tampil 1 baris di kartu menu pelanggan. {description.length}/120
+            </span>
+          </label>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
           <Input

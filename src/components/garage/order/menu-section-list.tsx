@@ -73,7 +73,7 @@ export function MenuSectionList({
             ).map((section) => (
               <div key={section.name} role="group" aria-label={showSubheads ? section.name : undefined}>
                 {showSubheads ? (
-                  <p aria-hidden className="mb-2.5 mt-5 font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
+                  <p aria-hidden className="mb-2.5 mt-5 text-[13px] font-semibold uppercase tracking-wider text-garage-dim">
                     {section.name}
                   </p>
                 ) : null}

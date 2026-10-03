@@ -585,6 +585,7 @@ export function InventoryView({
   const [productBatchEligible, setProductBatchEligible] = useState(true);
   const [productShowInDigitalMenu, setProductShowInDigitalMenu] = useState(true);
   const [productFeatured, setProductFeatured] = useState(false);
+  const [productDescription, setProductDescription] = useState("");
   const [productCategory, setProductCategory] = useState<MenuCategory>("Cemilan");
   const [productSection, setProductSection] = useState("Dapur");
   const [productPrep, setProductPrep] = useState("10m");
@@ -1822,6 +1823,7 @@ export function InventoryView({
     setProductBatchEligible(true);
     setProductShowInDigitalMenu(true);
     setProductFeatured(false);
+    setProductDescription("");
     setProductCategory("Cemilan");
     setProductSection("Dapur");
     setProductPrep("10m");
@@ -1866,6 +1868,7 @@ export function InventoryView({
       batchEligible: productBatchEligible,
       showInDigitalMenu: productShowInDigitalMenu,
       featured: productFeatured,
+      description: productDescription,
       category: productCategory,
       section: productSection,
       prep: productPrep,
@@ -1918,6 +1921,7 @@ export function InventoryView({
       setProductBatchEligible(draft.batchEligible !== false);
       setProductShowInDigitalMenu(draft.showInDigitalMenu !== false);
       setProductFeatured(Boolean(draft.featured));
+      setProductDescription(typeof draft.description === "string" ? draft.description : "");
       setProductCategory(validCategory);
       setProductSection(typeof draft.section === "string" ? draft.section : "Dapur");
       setProductPrep(typeof draft.prep === "string" ? draft.prep : "10m");
@@ -2119,6 +2123,7 @@ export function InventoryView({
     setProductBatchEligible(product.batchEligible !== false);
     setProductShowInDigitalMenu(product.showInDigitalMenu !== false);
     setProductFeatured(Boolean(product.featured));
+    setProductDescription(product.description ?? "");
     setProductCategory(product.category);
     setProductSection(product.section || (product.category === "Coffee" || product.category === "Non-Coffee" ? "Bar" : "Dapur"));
     setProductPrep(product.prep || "10m");
@@ -2224,6 +2229,7 @@ export function InventoryView({
         batchEligible: productBatchEligible,
         showInDigitalMenu: productShowInDigitalMenu,
         featured: productFeatured,
+        description: productDescription.trim() || null,
         category: productCategory,
         section: productSection.trim() || (productCategory === "Coffee" || productCategory === "Non-Coffee" ? "Bar" : "Dapur"),
         stock: productStock,
@@ -2876,6 +2882,8 @@ export function InventoryView({
                   onShowInDigitalMenuChange={setProductShowInDigitalMenu}
                   featured={productFeatured}
                   onFeaturedChange={setProductFeatured}
+                  description={productDescription}
+                  onDescriptionChange={setProductDescription}
                   prep={productPrep}
                   onPrepChange={setProductPrep}
                   stock={productStock}
@@ -3001,7 +3009,7 @@ export function InventoryView({
                     className={`rounded px-3 py-1.5 text-xs font-black transition ${
                       productListMode === mode
                         ? "bg-[#d11a2a] text-white"
-                        : "text-[#888] hover:text-white"
+                        : "text-garage-dim hover:text-white"
                     }`}
                   >
                     {mode === "active" ? "Produk Aktif" : mode === "archived" ? "Produk Arsip" : "Menu Digital"}

@@ -67,6 +67,16 @@ describe("Menu digital — tampil/sembunyi & unggulan", () => {
     );
   });
 
+  it("deskripsi singkat terbaca; kosong/spasi dianggap tidak ada", async () => {
+    await setItem("itm-coffee", { description: "  Espresso, susu, gula aren  " });
+    let menu = await svc.getMenuData({ channel: "digital" });
+    expect(menu.find((m: any) => m.id === "itm-coffee")?.description).toBe("Espresso, susu, gula aren");
+
+    await setItem("itm-coffee", { description: "   " });
+    menu = await svc.getMenuData({ channel: "digital" });
+    expect(menu.find((m: any) => m.id === "itm-coffee")?.description).toBeUndefined();
+  });
+
   it("flag unggulan terbaca di menu digital", async () => {
     await setItem("itm-coffee", { featured: true });
     const menu = await svc.getMenuData({ channel: "digital" });

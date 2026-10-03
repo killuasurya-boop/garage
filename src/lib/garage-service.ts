@@ -345,6 +345,7 @@ export type MenuProductInput = {
   batchEligible?: boolean;
   showInDigitalMenu?: boolean;
   featured?: boolean;
+  description?: string | null;
   variants: Array<{
     id?: string;
     label: string;
@@ -1378,6 +1379,7 @@ export async function getMenuData(params?: {
     prep: item.prep,
     tags: item.tags,
     imageUrl: item.imageUrl ?? undefined,
+    description: item.description?.trim() || undefined,
     promoActive: item.promoActive ?? false,
     promoPrice: item.promoPrice ?? undefined,
     station: (item.station === "bar" || item.station === "dapur" ? item.station : null) as
@@ -1727,6 +1729,7 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         batchEligible: input.batchEligible ?? true,
         showInDigitalMenu: input.showInDigitalMenu ?? true,
         featured: input.featured ?? false,
+        description: input.description?.trim() || null,
         sortOrder: input.sortOrder ?? 999,
         updatedAt: now,
       })
@@ -1880,6 +1883,7 @@ export async function updateMenuProduct(
   if (input.batchEligible !== undefined) update.batchEligible = input.batchEligible;
   if (input.showInDigitalMenu !== undefined) update.showInDigitalMenu = input.showInDigitalMenu;
   if (input.featured !== undefined) update.featured = input.featured;
+  if (input.description !== undefined) update.description = input.description?.trim() || null;
   if (input.sku !== undefined) {
     const nextSku = normalizeMenuSku(input.sku);
     if (nextSku) {

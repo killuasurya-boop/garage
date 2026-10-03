@@ -1772,6 +1772,44 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
   return product ?? null;
 }
 
+// Simpan urutan tampil menu (POS & menu digital). `ids` = SEMUA produk aktif dalam urutan
+// baru (kategori demi kategori), jadi urutan kategori ikut terjaga. sortOrder ditulis
+// ulang berjarak 10 (0, 10, 20, …) supaya nilai ganda (mis. banyak 999) ikut rapi.
+export async function reorderMenuProducts(ids: string[], garage: GarageSession) {
+  const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  if (unique.length !== ids.length) {
+    throw new Error("Daftar urutan berisi produk duplikat.");
+  }
+  const db = getDb();
+  const existing = await db
+    .select({ id: menuItems.id })
+    .from(menuItems)
+    .where(inArray(menuItems.id, unique));
+  if (existing.length !== unique.length) {
+    throw new Error("Ada produk yang tidak ditemukan. Muat ulang daftar lalu coba lagi.");
+  }
+
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    for (const [index, id] of unique.entries()) {
+      await tx
+        .update(menuItems)
+        .set({ sortOrder: index * 10, updatedAt: now })
+        .where(eq(menuItems.id, id));
+    }
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+      action: "Menu order updated",
+      object: `${unique.length} produk`,
+      device: garage.profile.deviceLabel,
+      status: "updated",
+      metadata: { order: unique },
+    });
+  });
+  return { count: unique.length };
+}
+
 export async function updateMenuProductStock(
   id: string,
   stock: "ready" | "limited" | "sold_out",

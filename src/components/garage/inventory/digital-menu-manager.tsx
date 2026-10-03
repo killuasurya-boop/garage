@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  ArrowUpDown,
   Camera,
   ExternalLink,
   Eye,
@@ -13,6 +14,7 @@ import {
   Star,
 } from "lucide-react";
 
+import { MenuOrderEditor } from "@/components/garage/inventory/menu-order-editor";
 import { MenuPhoto } from "@/components/garage/order/menu-card";
 import { itemHasPromo, itemMinPrice, rupiah } from "@/components/garage/order/order-ui";
 import { Input } from "@/components/ui/input";
@@ -55,6 +57,8 @@ export function DigitalMenuManager({
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Mode "Atur urutan" menggantikan grid kartu sementara.
+  const [ordering, setOrdering] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetRef = useRef<string | null>(null);
 
@@ -213,9 +217,35 @@ export function DigitalMenuManager({
           >
             <QrCode className="size-3.5" /> Cetak QR meja
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setNotice(null);
+              setOrdering((current) => !current);
+            }}
+            aria-pressed={ordering}
+            className={`garage-press inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-bold text-white ${
+              ordering ? "border-garage-amber bg-garage-amber/15" : "border-garage-line bg-white/[0.04] hover:border-white/40"
+            }`}
+          >
+            <ArrowUpDown className="size-3.5" /> Atur urutan
+          </button>
         </div>
       </div>
 
+      {ordering ? (
+        <MenuOrderEditor
+          items={merged}
+          onCancel={() => setOrdering(false)}
+          onSaved={async () => {
+            await onChanged();
+            setOrdering(false);
+            setNotice("Urutan menu tersimpan. Berlaku di menu digital & POS.");
+          }}
+        />
+      ) : (
+      <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-garage-dim" />
@@ -381,6 +411,8 @@ export function DigitalMenuManager({
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );

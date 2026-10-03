@@ -149,3 +149,28 @@ describe("Status buka/tutup outlet untuk menu digital", () => {
     );
   });
 });
+
+describe("Atur urutan menu (reorderMenuProducts)", () => {
+  const owner = {
+    user: { id: "user-itest", name: "Owner Test" },
+    profile: { id: "sp", role: "Owner", shiftLabel: "Pagi", deviceLabel: "Dev", passwordResetRequired: false },
+  } as any;
+
+  it("urutan baru tersimpan dan dipakai menu digital & POS", async () => {
+    await svc.reorderMenuProducts(["itm-food", "itm-coffee"], owner);
+    const pos = await svc.getMenuData();
+    const ids = pos.map((m: any) => m.id).filter((id: string) => id === "itm-food" || id === "itm-coffee");
+    expect(ids).toEqual(["itm-food", "itm-coffee"]);
+
+    await svc.reorderMenuProducts(["itm-coffee", "itm-food"], owner);
+    const again = (await svc.getMenuData())
+      .map((m: any) => m.id)
+      .filter((id: string) => id === "itm-food" || id === "itm-coffee");
+    expect(again).toEqual(["itm-coffee", "itm-food"]);
+  });
+
+  it("menolak id duplikat atau produk yang tidak ada", async () => {
+    await expect(svc.reorderMenuProducts(["itm-coffee", "itm-coffee"], owner)).rejects.toThrow(/duplikat/);
+    await expect(svc.reorderMenuProducts(["itm-coffee", "tidak-ada"], owner)).rejects.toThrow(/tidak ditemukan/);
+  });
+});

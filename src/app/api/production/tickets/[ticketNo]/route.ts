@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { productionHandover, productionTicketAction } from "@/lib/garage-production";
+import {
+  productionHandover,
+  productionPickup,
+  productionReadyAndCall,
+  productionTicketAction,
+} from "@/lib/garage-production";
 import { productionErrorResponse } from "@/lib/garage-production-http";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -19,6 +24,16 @@ const actionSchema = z.discriminatedUnion("action", [
     // Helper Bar/Dapur ACC serah-terima & panggil waiter (null = siapa saja).
     action: z.literal("handover"),
     waiterUserId: z.string().trim().min(1).max(80).nullable(),
+  }),
+  z.object({
+    // Satu tombol: READY (QC) + panggil semua waiter.
+    action: z.literal("ready_call"),
+    qcConfirmed: z.boolean().optional(),
+  }),
+  z.object({
+    // Helper tap nama waiter yang mengambil di meja saji → tiket delivered.
+    action: z.literal("pickup"),
+    waiterUserId: z.string().trim().min(1).max(80),
   }),
 ]);
 
@@ -38,13 +53,18 @@ export async function POST(
 
   const { ticketNo } = await context.params;
   try {
+    const data = body.data;
     const ticket =
-      body.data.action === "handover"
-        ? await productionHandover(ticketNo, body.data.waiterUserId, session.data)
-        : await productionTicketAction(ticketNo, body.data.action, session.data, {
-            qcConfirmed: body.data.qcConfirmed,
-            reason: body.data.reason,
-          });
+      data.action === "handover"
+        ? await productionHandover(ticketNo, data.waiterUserId, session.data)
+        : data.action === "ready_call"
+          ? await productionReadyAndCall(ticketNo, session.data, { qcConfirmed: data.qcConfirmed })
+          : data.action === "pickup"
+            ? await productionPickup(ticketNo, data.waiterUserId, session.data)
+            : await productionTicketAction(ticketNo, data.action, session.data, {
+                qcConfirmed: data.qcConfirmed,
+                reason: data.reason,
+              });
     if (!ticket) {
       return fail(404, "TICKET_NOT_FOUND", "Tiket produksi tidak ditemukan.");
     }

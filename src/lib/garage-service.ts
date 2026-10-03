@@ -1445,6 +1445,11 @@ export async function getMenuData(params?: {
     }
   }
 
+  if (params?.channel === "digital") {
+    // Item tanpa varian tidak bisa dipesan (harga kosong) — jangan tampil ke pelanggan.
+    return baseRows.filter((row) => row.variants.length > 0);
+  }
+
   if (!params?.includeCosting) {
     return baseRows;
   }

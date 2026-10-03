@@ -95,12 +95,18 @@ export function DigitalMenuManager({
     setOverrides((current) => ({ ...current, [itemId]: { ...(current[itemId] ?? {}), ...patch } }));
     try {
       await action();
-      await onChanged();
-      setOverrides((current) => {
-        const next = { ...current };
-        delete next[itemId];
-        return next;
-      });
+      // Perubahan sudah tersimpan di server; gagal refresh daftar tidak boleh
+      // membatalkan tampilan optimistic (override tetap dipakai sampai refresh berikutnya).
+      try {
+        await onChanged();
+        setOverrides((current) => {
+          const next = { ...current };
+          delete next[itemId];
+          return next;
+        });
+      } catch {
+        setNotice("Tersimpan. Daftar belum ter-refresh — tekan Refresh bila perlu.");
+      }
     } catch (err) {
       setOverrides((current) => {
         const next = { ...current };

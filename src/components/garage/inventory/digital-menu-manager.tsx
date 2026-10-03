@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  ArrowUpDown,
   Camera,
   ExternalLink,
   Eye,
@@ -13,6 +14,7 @@ import {
   Star,
 } from "lucide-react";
 
+import { MenuOrderEditor } from "@/components/garage/inventory/menu-order-editor";
 import { MenuPhoto } from "@/components/garage/order/menu-card";
 import { itemHasPromo, itemMinPrice, rupiah } from "@/components/garage/order/order-ui";
 import { Input } from "@/components/ui/input";
@@ -55,6 +57,8 @@ export function DigitalMenuManager({
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Mode "Atur urutan" menggantikan grid kartu sementara.
+  const [ordering, setOrdering] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetRef = useRef<string | null>(null);
 
@@ -189,7 +193,7 @@ export function DigitalMenuManager({
         onChange={(event) => onFileChosen(event.target.files?.[0])}
       />
 
-      <div className="flex flex-col gap-3 rounded-md border border-[#34343c] bg-white/[0.03] p-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-md border border-garage-line bg-white/[0.03] p-3 lg:flex-row lg:items-center lg:justify-between">
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:gap-5">
           <Stat label="Tampil di QR" value={stats.visible} />
           <Stat label="Disembunyikan" value={stats.hidden} tone={stats.hidden ? "amber" : undefined} />
@@ -201,7 +205,7 @@ export function DigitalMenuManager({
             href="/order"
             target="_blank"
             rel="noreferrer"
-            className="garage-press inline-flex h-9 items-center gap-1.5 rounded-md bg-[#d11a2a] px-3 text-xs font-bold text-white hover:bg-[#b91524]"
+            className="garage-press inline-flex h-9 items-center gap-1.5 rounded-md bg-garage-red px-3 text-xs font-bold text-white hover:bg-garage-red-bright"
           >
             <ExternalLink className="size-3.5" /> Lihat menu digital
           </a>
@@ -209,31 +213,57 @@ export function DigitalMenuManager({
             href="/order/qr-print"
             target="_blank"
             rel="noreferrer"
-            className="garage-press inline-flex h-9 items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.04] px-3 text-xs font-bold text-white hover:border-white/40"
+            className="garage-press inline-flex h-9 items-center gap-1.5 rounded-md border border-garage-line bg-white/[0.04] px-3 text-xs font-bold text-white hover:border-white/40"
           >
             <QrCode className="size-3.5" /> Cetak QR meja
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setNotice(null);
+              setOrdering((current) => !current);
+            }}
+            aria-pressed={ordering}
+            className={`garage-press inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-bold text-white ${
+              ordering ? "border-garage-amber bg-garage-amber/15" : "border-garage-line bg-white/[0.04] hover:border-white/40"
+            }`}
+          >
+            <ArrowUpDown className="size-3.5" /> Atur urutan
+          </button>
         </div>
       </div>
 
+      {ordering ? (
+        <MenuOrderEditor
+          items={merged}
+          onCancel={() => setOrdering(false)}
+          onSaved={async () => {
+            await onChanged();
+            setOrdering(false);
+            setNotice("Urutan menu tersimpan. Berlaku di menu digital & POS.");
+          }}
+        />
+      ) : (
+      <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative sm:w-64">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#a1a1aa]" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-garage-dim" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Cari menu…"
-            className="h-9 border-[#34343c] bg-black/20 pl-8 text-sm"
+            className="h-9 border-garage-line bg-black/20 pl-8 text-sm"
           />
         </div>
-        <div className="garage-scroll-x flex gap-1 rounded-md border border-[#34343c] bg-white/[0.04] p-1">
+        <div className="garage-scroll-x flex gap-1 rounded-md border border-garage-line bg-white/[0.04] p-1">
           {FILTERS.map((entry) => (
             <button
               key={entry.id}
               type="button"
               onClick={() => setFilter(entry.id)}
               className={`shrink-0 rounded px-3 py-1.5 text-xs font-bold transition ${
-                filter === entry.id ? "bg-[#d11a2a] text-white" : "text-[#d0d0d6] hover:text-white"
+                filter === entry.id ? "bg-garage-red text-white" : "text-garage-dim hover:text-white"
               }`}
             >
               {entry.label}
@@ -243,18 +273,18 @@ export function DigitalMenuManager({
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-md border border-[#e83030]/50 bg-[#e83030]/10 px-3 py-2 text-sm text-[#ffb3b3]">
+        <p role="alert" className="rounded-md border border-garage-red-bright/50 bg-garage-red-bright/10 px-3 py-2 text-sm text-[#ffb3b3]">
           {error}
         </p>
       ) : null}
       {notice ? (
-        <p role="status" className="rounded-md border border-[#22c55e]/40 bg-[#22c55e]/10 px-3 py-2 text-sm text-[#bbf7d0]">
+        <p role="status" className="rounded-md border border-garage-success/40 bg-garage-success/10 px-3 py-2 text-sm text-[#bbf7d0]">
           {notice}
         </p>
       ) : null}
 
       {visibleItems.length === 0 ? (
-        <div className="rounded-md border border-dashed border-[#34343c] p-6 text-center text-sm text-[#a1a1aa]">
+        <div className="rounded-md border border-dashed border-garage-line p-6 text-center text-sm text-garage-dim">
           Tidak ada menu yang cocok dengan filter.
         </div>
       ) : (
@@ -265,8 +295,8 @@ export function DigitalMenuManager({
             return (
               <article
                 key={item.id}
-                className={`flex min-w-0 overflow-hidden rounded-md border bg-[#1f1717] min-[520px]:flex-col ${
-                  hidden ? "border-[#34343c] opacity-70" : item.featured ? "border-[#e8883a]/70" : "border-[#34343c]"
+                className={`flex min-w-0 overflow-hidden rounded-md border bg-garage-bg-2 min-[520px]:flex-col ${
+                  hidden ? "border-garage-line opacity-70" : item.featured ? "border-garage-amber/70" : "border-garage-line"
                 }`}
               >
                 <div className="relative aspect-square w-32 shrink-0 self-start overflow-hidden bg-black/30 min-[520px]:w-full">
@@ -292,7 +322,7 @@ export function DigitalMenuManager({
                       </span>
                     ) : null}
                     {!item.imageUrl ? (
-                      <span className="inline-flex items-center gap-1 rounded-sm bg-black/80 px-1.5 py-0.5 text-[11px] font-bold uppercase text-[#d0d0d6]">
+                      <span className="inline-flex items-center gap-1 rounded-sm bg-black/80 px-1.5 py-0.5 text-[11px] font-bold uppercase text-garage-dim">
                         <ImageOff className="size-3" /> No foto
                       </span>
                     ) : null}
@@ -302,7 +332,7 @@ export function DigitalMenuManager({
                 <div className="flex min-w-0 flex-1 flex-col gap-2 p-2.5">
                   <div className="min-w-0">
                     <p className="line-clamp-2 text-sm font-bold leading-snug text-white">{item.name}</p>
-                    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-xs text-[#a1a1aa]">
+                    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-xs text-garage-dim">
                       <span>{item.category}</span>
                       <span className={`font-mono font-bold tabular-nums ${itemHasPromo(item) ? "text-[#ff8a8a]" : "text-white"}`}>
                         {rupiah.format(itemMinPrice(item))}
@@ -318,7 +348,7 @@ export function DigitalMenuManager({
                       aria-pressed={!hidden}
                       className={`garage-press inline-flex h-9 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border px-1 text-[11px] font-bold transition disabled:opacity-60 min-[380px]:text-xs ${
                         hidden
-                          ? "border-[#34343c] bg-white/[0.04] text-[#d0d0d6] hover:text-white"
+                          ? "border-garage-line bg-white/[0.04] text-garage-dim hover:text-white"
                           : "border-[#d4d4d8]/40 bg-[#d4d4d8]/10 text-white"
                       }`}
                     >
@@ -338,8 +368,8 @@ export function DigitalMenuManager({
                       aria-pressed={Boolean(item.featured)}
                       className={`garage-press inline-flex h-9 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border px-1 text-[11px] font-bold transition disabled:opacity-60 min-[380px]:text-xs ${
                         item.featured
-                          ? "border-[#e8883a]/70 bg-[#e8883a]/15 text-[#ffd08a]"
-                          : "border-[#34343c] bg-white/[0.04] text-[#d0d0d6] hover:text-white"
+                          ? "border-garage-amber/70 bg-garage-amber/15 text-[#ffd08a]"
+                          : "border-garage-line bg-white/[0.04] text-garage-dim hover:text-white"
                       }`}
                     >
                       {working === "featured" ? (
@@ -351,7 +381,7 @@ export function DigitalMenuManager({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1 rounded-md border border-[#34343c] bg-black/20 p-0.5" role="group" aria-label={`Stok ${item.name}`}>
+                  <div className="grid grid-cols-3 gap-1 rounded-md border border-garage-line bg-black/20 p-0.5" role="group" aria-label={`Stok ${item.name}`}>
                     {STOCK_OPTIONS.map((option) => {
                       const active = item.stock === option.id;
                       return (
@@ -364,11 +394,11 @@ export function DigitalMenuManager({
                           className={`h-8 min-w-0 truncate rounded px-1 text-[11px] font-bold transition disabled:opacity-60 ${
                             active
                               ? option.id === "sold_out"
-                                ? "bg-[#e83030] text-white"
+                                ? "bg-garage-red-bright text-white"
                                 : option.id === "limited"
-                                  ? "bg-[#e8883a] text-black"
+                                  ? "bg-garage-amber text-black"
                                   : "bg-[#d4d4d8] text-black"
-                              : "text-[#d0d0d6] hover:text-white"
+                              : "text-garage-dim hover:text-white"
                           }`}
                         >
                           {option.label}
@@ -382,6 +412,8 @@ export function DigitalMenuManager({
           })}
         </div>
       )}
+      </>
+      )}
     </div>
   );
 }
@@ -389,7 +421,7 @@ export function DigitalMenuManager({
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "amber" }) {
   return (
     <div className="min-w-0">
-      <dt className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#a1a1aa]">{label}</dt>
+      <dt className="truncate text-[11px] font-semibold uppercase tracking-wide text-garage-dim">{label}</dt>
       <dd className={`font-mono text-lg font-bold tabular-nums ${tone === "amber" ? "text-[#ffd08a]" : "text-white"}`}>
         {value}
       </dd>

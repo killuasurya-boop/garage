@@ -299,6 +299,8 @@ export const menuItems = pgTable(
     tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     // URL foto menu untuk tampilan menu digital (opsional). Kosong = pakai ikon kategori.
     imageUrl: text("image_url"),
+    // Deskripsi singkat 1 baris untuk menu digital (mis. "Espresso, susu, gula aren").
+    description: text("description"),
     // Promo per produk (harga tetap, toggle on/off). Aktif bila promoActive=true
     // dan promoPrice > 0; promoPrice meng-override harga varian saat POS/menu.
     promoActive: boolean("promo_active").notNull().default(false),

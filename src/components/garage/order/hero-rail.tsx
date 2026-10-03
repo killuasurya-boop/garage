@@ -104,7 +104,7 @@ export function HeroRail({
                 aria-label={`Lihat detail ${item.name}`}
               >
                 <span className="relative block aspect-[16/9] w-full overflow-hidden bg-garage-bg-1">
-                  <MenuPhoto item={item} iconClassName="size-14" eager={index === 0} />
+                  <MenuPhoto item={item} iconClassName="size-10" eager={index === 0} placeholderAlign="top" />
                   <span
                     className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent"
                     aria-hidden
@@ -113,6 +113,9 @@ export function HeroRail({
                     <span className="line-clamp-2 text-lg font-bold leading-snug text-white drop-shadow">
                       {item.name}
                     </span>
+                    {item.description ? (
+                      <span className="line-clamp-1 text-[13px] text-white/80">{item.description}</span>
+                    ) : null}
                     <MenuPrice item={item} size="lg" />
                   </span>
                 </span>

@@ -34,6 +34,7 @@ export type ProductDraftState = {
   // Menu digital (QR): tampil ke pelanggan & banner unggulan.
   showInDigitalMenu?: boolean;
   featured?: boolean;
+  description?: string;
   category: MenuCategory;
   section: string;
   prep: string;

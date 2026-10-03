@@ -76,6 +76,8 @@ export type GarageMenuItem = {
   prep: string;
   tags: string[];
   imageUrl?: string;
+  // Deskripsi singkat untuk menu digital (opsional).
+  description?: string;
   promoActive?: boolean;
   promoPrice?: number;
   // Production Hub: override station (null = otomatis dari kategori).

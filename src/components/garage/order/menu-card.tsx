@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, Clock, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
@@ -17,40 +18,79 @@ import {
   rupiah,
 } from "./order-ui";
 
-// Foto menu atau placeholder kategori (tanpa kotak kosong). Dipakai kartu grid & banner.
+// Foto menu atau placeholder kategori (tanpa kotak kosong). Dipakai kartu grid, banner,
+// detail sheet & panel admin. Foto muncul halus (fade-in) di atas latar shimmer, jadi
+// tidak ada kedipan/lompatan saat gambar selesai dimuat.
 export function MenuPhoto({
   item,
   className = "",
-  iconClassName = "size-10",
+  iconClassName = "size-9",
   eager = false,
+  placeholderAlign = "center",
+  hideLabel = false,
 }: {
   item: MenuItem;
   className?: string;
   iconClassName?: string;
   eager?: boolean;
+  /** "top": ikon placeholder di pojok kanan atas (banner yang bawahnya tertutup teks). */
+  placeholderAlign?: "center" | "top";
+  /** Thumbnail kecil: tampilkan ikon saja tanpa nama kategori. */
+  hideLabel?: boolean;
 }) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const loaded = Boolean(item.imageUrl) && loadedSrc === item.imageUrl;
+
+  // Gambar dari cache bisa selesai sebelum hydration (onLoad tidak terpanggil).
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth > 0 && item.imageUrl) {
+      setLoadedSrc(item.imageUrl);
+    }
+  }, [item.imageUrl]);
+
   if (item.imageUrl) {
     return (
-      // Foto menu dari URL bebas (di-set admin) — <img> biasa agar tidak terikat remotePatterns.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={item.imageUrl}
-        alt={item.name}
-        loading={eager ? "eager" : "lazy"}
-        decoding="async"
-        className={`h-full w-full object-cover ${className}`}
-      />
+      <span
+        className={`relative block h-full w-full overflow-hidden ${loaded ? "bg-garage-bg-1" : "garage-photo-shimmer"}`}
+      >
+        {/* Foto menu dari URL bebas (di-set admin) — <img> biasa agar tidak terikat remotePatterns. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          ref={imgRef}
+          src={item.imageUrl}
+          alt={item.name}
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          onLoad={() => setLoadedSrc(item.imageUrl ?? null)}
+          className={`h-full w-full object-cover transition-[opacity,transform] duration-300 ${
+            loaded ? "opacity-100" : "opacity-0"
+          } ${className}`}
+        />
+      </span>
+    );
+  }
+  if (placeholderAlign === "top") {
+    // Banner: bagian bawah tertutup nama & harga → ikon kecil di pojok kanan atas saja.
+    return (
+      <span
+        className={`flex h-full w-full items-start justify-end bg-[radial-gradient(circle_at_80%_20%,var(--garage-bg-3),var(--garage-bg-1))] p-4 ${className}`}
+        aria-hidden
+      >
+        {categoryIcon(item.category, `${iconClassName} text-garage-amber/60`)}
+      </span>
     );
   }
   return (
     <span
-      className={`flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_50%_35%,var(--garage-bg-3),var(--garage-bg-1))] ${className}`}
+      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 bg-[radial-gradient(circle_at_50%_40%,var(--garage-bg-3),var(--garage-bg-1))] ${className}`}
       aria-hidden
     >
-      {categoryIcon(item.category, `${iconClassName} text-garage-amber/80`)}
-      <span className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-garage-dim">
-        {item.category}
-      </span>
+      {categoryIcon(item.category, `${iconClassName} text-garage-amber/70`)}
+      {hideLabel ? null : (
+        <span className="text-[11px] font-semibold tracking-wide text-garage-mute">{item.category}</span>
+      )}
     </span>
   );
 }
@@ -60,9 +100,9 @@ export function MenuPrice({ item, size = "base" }: { item: MenuItem; size?: "bas
   const multiVariant = item.variants.length > 1;
   return (
     <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-      {multiVariant ? <span className="text-xs text-garage-dim">mulai</span> : null}
+      {multiVariant ? <span className="text-xs font-medium text-garage-dim">mulai</span> : null}
       <span
-        className={`font-mono font-bold tabular-nums ${size === "lg" ? "text-lg" : "text-[15px]"} ${
+        className={`font-mono font-bold tabular-nums ${size === "lg" ? "text-lg" : "text-base"} ${
           promo ? "text-[#ff8a8a]" : "text-white"
         }`}
       >
@@ -77,8 +117,26 @@ export function MenuPrice({ item, size = "base" }: { item: MenuItem; size?: "bas
   );
 }
 
-// Kartu menu grid "Showroom": foto 1:1, badge di atas foto, tombol + merah di pojok foto.
-// Varian tunggal → langsung tambah/stepper; multi-varian → buka sheet detail.
+// Satu badge per kartu supaya foto tetap bersih. Prioritas: Promo > Unggulan > Terlaris >
+// Stok terbatas. (Habis punya overlay sendiri.)
+function CardBadge({ item, popular }: { item: MenuItem; popular: boolean }) {
+  if (item.stock === "sold_out") return null;
+  if (itemHasPromo(item)) return <PromoBadge />;
+  if (item.featured) return <FeaturedBadge />;
+  if (popular) return <PopularBadge />;
+  if (item.stock === "limited") return <StockBadge stock={item.stock} />;
+  return null;
+}
+
+// Baris kecil di bawah nama: deskripsi singkat (admin) → pilihan varian → kosong.
+export function menuSubtitle(item: MenuItem) {
+  if (item.description) return item.description;
+  if (item.variants.length > 1) return item.variants.map((variant) => variant.label).join(" · ");
+  return "";
+}
+
+// Kartu menu grid "Showroom": foto 1:1, satu badge di atas foto, tombol + merah di pojok
+// foto. Varian tunggal → langsung tambah/stepper; multi-varian → buka sheet detail.
 export function MenuCard({
   item,
   cartQty,
@@ -95,7 +153,7 @@ export function MenuCard({
   const soldOut = item.stock === "sold_out";
   const multiVariant = item.variants.length > 1;
   const singleVariantId = item.variants[0]?.id;
-  const promo = itemHasPromo(item);
+  const subtitle = menuSubtitle(item);
 
   return (
     <article
@@ -113,22 +171,17 @@ export function MenuCard({
         >
           <MenuPhoto
             item={item}
-            className={`transition-transform duration-300 motion-safe:group-hover:scale-[1.03] ${
-              soldOut ? "grayscale" : ""
-            }`}
+            className={`duration-300 motion-safe:group-hover:scale-[1.03] ${soldOut ? "grayscale" : ""}`}
           />
         </button>
 
-        <span className="pointer-events-none absolute left-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
-          {promo && !soldOut ? <PromoBadge /> : null}
-          {item.featured && !soldOut && !promo ? <FeaturedBadge /> : null}
-          {popular && !soldOut && !promo && !item.featured ? <PopularBadge /> : null}
-          {item.stock === "limited" ? <StockBadge stock={item.stock} /> : null}
+        <span className="pointer-events-none absolute left-2 top-2 flex max-w-[calc(100%-1rem)]">
+          <CardBadge item={item} popular={popular} />
         </span>
 
         {soldOut ? (
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-garage-bg-0/55">
-            <span className="rounded-md border border-garage-line-2 bg-garage-bg-0/90 px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-widest text-white">
+            <span className="rounded-md border border-garage-line-2 bg-garage-bg-0/90 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white">
               Habis
             </span>
           </span>
@@ -163,27 +216,14 @@ export function MenuCard({
         type="button"
         onClick={onOpen}
         disabled={soldOut}
-        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 p-2.5 text-left disabled:cursor-not-allowed sm:p-3"
+        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 p-3 text-left disabled:cursor-not-allowed"
       >
-        <h3 className="line-clamp-2 min-h-[2.6em] text-sm font-bold leading-snug text-garage-fg sm:text-[15px]">
+        <h3 className="line-clamp-2 min-h-[2.5em] text-[15px] font-bold leading-tight text-white">
           {item.name}
         </h3>
-        <span className="flex min-w-0 items-center gap-1 truncate text-xs text-garage-dim">
-          {multiVariant ? (
-            <>
-              <span className="truncate">{item.variants.map((variant) => variant.label).join(" · ")}</span>
-              <ChevronRight className="size-3 shrink-0" aria-hidden />
-            </>
-          ) : item.prep ? (
-            <>
-              <Clock className="size-3 shrink-0" aria-hidden />
-              <span className="truncate">{item.prep.replace(/m$/, " mnt")}</span>
-            </>
-          ) : (
-            <span className="truncate">{item.section}</span>
-          )}
-        </span>
-        <span className="mt-auto pt-0.5">
+        {/* Selalu 1 baris (walau kosong) supaya tinggi kartu dalam satu baris grid sama. */}
+        <p className="min-h-[1.25rem] truncate text-[13px] leading-5 text-garage-dim">{subtitle}</p>
+        <span className="mt-auto pt-1">
           <MenuPrice item={item} />
         </span>
       </button>
@@ -193,8 +233,8 @@ export function MenuCard({
 
 export function MenuCardSkeleton() {
   return (
-    <div className="flex animate-pulse flex-col overflow-hidden rounded-lg border border-garage-line bg-garage-bg-2" aria-hidden>
-      <div className="aspect-square w-full bg-white/[0.06]" />
+    <div className="flex flex-col overflow-hidden rounded-lg border border-garage-line bg-garage-bg-2" aria-hidden>
+      <div className="garage-photo-shimmer aspect-square w-full" />
       <div className="space-y-2 p-3">
         <div className="h-3.5 w-4/5 rounded-sm bg-white/10" />
         <div className="h-3 w-2/5 rounded-sm bg-white/10" />

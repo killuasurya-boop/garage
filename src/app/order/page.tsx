@@ -9,6 +9,7 @@ import { resolveOrderCampaign } from "@/lib/order-campaign";
 import {
   getBestSellerMenuItemIds,
   getCustomerOrderBillingSettings,
+  getCustomerOrderingStatus,
   getMenuData,
 } from "@/lib/garage-service";
 
@@ -87,12 +88,14 @@ export default async function OrderPage({
 }) {
   const params = await searchParams;
   const qrContext = buildQrContext(params);
-  const [initialMenuItems, bestSellerIds, billing] = await Promise.all([
+  const [initialMenuItems, bestSellerIds, billing, ordering] = await Promise.all([
     getInitialMenuItems(),
     getBestSellerMenuItemIds().catch(() => [] as string[]),
     // Pengaturan tagihan outlet (service/PB1/pembulatan) → total di HP pelanggan
     // sama dengan yang ditagih kasir.
     getCustomerOrderBillingSettings(qrContext.outletId).catch(() => undefined),
+    // Shift kasir buka? → banner "Belum buka" sejak awal, bukan baru saat checkout.
+    getCustomerOrderingStatus(qrContext.outletId).catch(() => undefined),
   ]);
   return (
     <MemberOrderPage
@@ -102,6 +105,7 @@ export default async function OrderPage({
       initialMenuItems={initialMenuItems}
       bestSellerIds={bestSellerIds}
       billing={billing}
+      initialOrderingOpen={ordering?.open}
     />
   );
 }

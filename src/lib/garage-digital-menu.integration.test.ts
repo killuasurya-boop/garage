@@ -67,6 +67,16 @@ describe("Menu digital — tampil/sembunyi & unggulan", () => {
     );
   });
 
+  it("deskripsi singkat terbaca; kosong/spasi dianggap tidak ada", async () => {
+    await setItem("itm-coffee", { description: "  Espresso, susu, gula aren  " });
+    let menu = await svc.getMenuData({ channel: "digital" });
+    expect(menu.find((m: any) => m.id === "itm-coffee")?.description).toBe("Espresso, susu, gula aren");
+
+    await setItem("itm-coffee", { description: "   " });
+    menu = await svc.getMenuData({ channel: "digital" });
+    expect(menu.find((m: any) => m.id === "itm-coffee")?.description).toBeUndefined();
+  });
+
   it("flag unggulan terbaca di menu digital", async () => {
     await setItem("itm-coffee", { featured: true });
     const menu = await svc.getMenuData({ channel: "digital" });
@@ -119,5 +129,48 @@ describe("variantPrice / itemMinPrice (rumus sama dengan effectiveMenuPrice serv
     expect(variantPrice({ ...base, promoActive: true, promoPrice: 0 }, base.variants[0])).toBe(18_000);
     expect(variantPrice({ ...base, promoActive: true, promoPrice: 19_000 }, base.variants[0])).toBe(18_000);
     expect(variantPrice({ ...base, promoActive: true, promoPrice: 19_000 }, base.variants[1])).toBe(19_000);
+  });
+});
+
+describe("Status buka/tutup outlet untuk menu digital", () => {
+  it("buka bila ada shift kasir open; tutup bila tidak ada (dan order ditolak)", async () => {
+    expect((await svc.getCustomerOrderingStatus()).open).toBe(true);
+
+    const { eq } = await import("drizzle-orm");
+    await t
+      .getDb()
+      .update(t.schema.cashSessions)
+      .set({ status: "closed" })
+      .where(eq(t.schema.cashSessions.status, "open"));
+
+    expect((await svc.getCustomerOrderingStatus()).open).toBe(false);
+    await expect(guestOrder([{ itemId: "itm-coffee", variantId: "reg", qty: 1 }])).rejects.toThrow(
+      /belum open shift/,
+    );
+  });
+});
+
+describe("Atur urutan menu (reorderMenuProducts)", () => {
+  const owner = {
+    user: { id: "user-itest", name: "Owner Test" },
+    profile: { id: "sp", role: "Owner", shiftLabel: "Pagi", deviceLabel: "Dev", passwordResetRequired: false },
+  } as any;
+
+  it("urutan baru tersimpan dan dipakai menu digital & POS", async () => {
+    await svc.reorderMenuProducts(["itm-food", "itm-coffee"], owner);
+    const pos = await svc.getMenuData();
+    const ids = pos.map((m: any) => m.id).filter((id: string) => id === "itm-food" || id === "itm-coffee");
+    expect(ids).toEqual(["itm-food", "itm-coffee"]);
+
+    await svc.reorderMenuProducts(["itm-coffee", "itm-food"], owner);
+    const again = (await svc.getMenuData())
+      .map((m: any) => m.id)
+      .filter((id: string) => id === "itm-food" || id === "itm-coffee");
+    expect(again).toEqual(["itm-coffee", "itm-food"]);
+  });
+
+  it("menolak id duplikat atau produk yang tidak ada", async () => {
+    await expect(svc.reorderMenuProducts(["itm-coffee", "itm-coffee"], owner)).rejects.toThrow(/duplikat/);
+    await expect(svc.reorderMenuProducts(["itm-coffee", "tidak-ada"], owner)).rejects.toThrow(/tidak ditemukan/);
   });
 });

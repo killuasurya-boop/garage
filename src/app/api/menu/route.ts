@@ -24,6 +24,8 @@ const menuProductSchema = z.object({
   // Menu digital: tampil di QR order & banner unggulan.
   showInDigitalMenu: z.boolean().optional(),
   featured: z.boolean().optional(),
+  // Deskripsi singkat menu digital; string kosong/null = hapus.
+  description: z.string().trim().max(120).nullable().optional(),
   variants: z
     .array(
       z.object({

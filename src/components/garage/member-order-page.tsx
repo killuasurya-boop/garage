@@ -40,7 +40,7 @@ import {
   buildMenuGroups,
   categorySectionId,
 } from "@/components/garage/order/menu-section-list";
-import { OrderCartBar } from "@/components/garage/order/order-cart-bar";
+import { OrderCartBar, type LastAdded } from "@/components/garage/order/order-cart-bar";
 import { OrderHeader } from "@/components/garage/order/order-header";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
@@ -330,7 +330,7 @@ function CustomerChatPanel({ tableLabel }: { tableLabel: string }) {
           className="flex h-[80vh] flex-col gap-0 border-garage-line bg-garage-bg-1 p-0"
         >
           <SheetHeader className="border-b border-garage-line p-4 text-left">
-            <SheetTitle className="flex items-center gap-2 text-white">
+            <SheetTitle className="flex items-center gap-2 font-sans text-white">
               <MessageCircle className="size-4 text-garage-amber" /> Chat Kasir
             </SheetTitle>
             <SheetDescription className="text-garage-dim">
@@ -595,15 +595,20 @@ function MenuDetailSheet({
             <SheetHeader className="border-b border-garage-line px-4 pb-4 pt-2 text-left">
               <div className="flex items-center gap-2 pr-8">
                 {categoryIcon(item.category, "size-4 text-garage-amber")}
-                <span className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
+                <span className="text-[13px] font-semibold text-garage-dim">
                   {item.category} · {item.section}
                 </span>
               </div>
-              <SheetTitle className="mt-1 text-xl font-bold leading-snug text-white">{item.name}</SheetTitle>
+              <SheetTitle className="mt-1 font-sans text-xl font-bold leading-snug text-white">{item.name}</SheetTitle>
+              {item.description ? (
+                <p className="text-sm leading-6 text-garage-dim">{item.description}</p>
+              ) : null}
               <SheetDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-garage-dim">
-                <span className="font-mono text-base font-bold tabular-nums text-white">
-                  {multiVariant ? "mulai " : ""}
-                  {rupiah.format(itemMinPrice(item))}
+                <span className="flex items-baseline gap-1.5">
+                  {multiVariant ? <span className="text-xs font-medium text-garage-dim">mulai</span> : null}
+                  <span className="font-mono text-lg font-bold tabular-nums text-white">
+                    {rupiah.format(itemMinPrice(item))}
+                  </span>
                 </span>
                 {item.prep ? (
                   <span className="inline-flex items-center gap-1">
@@ -856,6 +861,7 @@ export function MemberOrderPage({
   initialMenuItems,
   bestSellerIds,
   billing,
+  initialOrderingOpen,
 }: {
   initialQrContext?: QrContext;
   initialReturnPath?: string;
@@ -867,6 +873,8 @@ export function MemberOrderPage({
     AppSettings,
     "serviceChargePct" | "taxPct" | "roundingMode" | "voucherMaxDiscountPct" | "qrPromoPct" | "qrPromoMaxAmount"
   >;
+  // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
+  initialOrderingOpen?: boolean;
 }) {
   const hasInitialMenuItems = Boolean(initialMenuItems?.length);
   const bestSellerSet = useMemo(() => new Set(bestSellerIds ?? []), [bestSellerIds]);
@@ -878,6 +886,17 @@ export function MemberOrderPage({
   const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
   // Item yang dibuka di sheet detail (pilih varian + qty).
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
+  // false = kasir belum buka shift → menu tetap bisa dilihat, tapi order belum bisa dikirim.
+  const [orderingOpen, setOrderingOpen] = useState(initialOrderingOpen !== false);
+  // Konfirmasi singkat "X masuk keranjang" di bar keranjang mobile (hilang setelah 2,2 dtk).
+  const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
+  const lastAddedTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
+    },
+    [],
+  );
   const [query, setQuery] = useState(() =>
     (initialSearchQuery ?? readInitialSearchQuery()).trim().slice(0, 80),
   );
@@ -975,6 +994,23 @@ export function MemberOrderPage({
       window.clearTimeout(menuTimeoutId);
     };
   }, [hasInitialMenuItems, loadProfile]);
+
+  // Cek ulang status buka/tutup outlet: tiap 60 dtk + saat checkout dibuka, supaya banner
+  // "Belum buka" hilang sendiri begitu kasir membuka shift (tanpa refresh halaman).
+  const refreshOrderingStatus = useCallback(async () => {
+    try {
+      const query = qrContext.outletId ? `?outletId=${encodeURIComponent(qrContext.outletId)}` : "";
+      const status = await getJson<{ open: boolean }>(`/api/customer/ordering-status${query}`);
+      setOrderingOpen(status.open);
+    } catch {
+      /* jaringan gagal → pertahankan status terakhir; server tetap memvalidasi saat kirim */
+    }
+  }, [qrContext.outletId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => void refreshOrderingStatus(), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [refreshOrderingStatus]);
 
   useEffect(() => {
     const updateScrollState = () => setShowScrollTop(window.scrollY > 520);
@@ -1079,6 +1115,7 @@ export function MemberOrderPage({
           item.name,
           item.category,
           item.section,
+          item.description ?? "",
           item.tags.join(" "),
           item.variants.map((variant) => variant.label).join(" "),
         ]
@@ -1141,8 +1178,11 @@ export function MemberOrderPage({
     !busy &&
     !guestNameMissing &&
     !memberMissing &&
-    !soldOutCartLine;
-  const checkoutBlockReason = memberMissing
+    !soldOutCartLine &&
+    orderingOpen;
+  const checkoutBlockReason = !orderingOpen
+    ? "Kasir belum buka. Order bisa dikirim setelah outlet buka."
+    : memberMissing
     ? "Login member untuk lanjut."
     : soldOutCartLine
       ? `${soldOutCartLine.item.name} sedang habis. Hapus dari keranjang.`
@@ -1163,6 +1203,14 @@ export function MemberOrderPage({
     if (item?.stock === "sold_out") {
       setMessage(`${item.name} sedang habis.`);
       return;
+    }
+
+    if (delta > 0 && item) {
+      const variant = item.variants.find((entry) => entry.id === variantId);
+      const name = variant && item.variants.length > 1 ? `${item.name} (${variant.label})` : item.name;
+      setLastAdded({ name, stamp: Date.now() });
+      if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
+      lastAddedTimerRef.current = window.setTimeout(() => setLastAdded(null), 2200);
     }
 
     const key = cartKey(itemId, variantId);
@@ -1198,6 +1246,7 @@ export function MemberOrderPage({
       return;
     }
     setCheckoutOpen(true);
+    void refreshOrderingStatus();
   }
 
   async function checkVoucher() {
@@ -1630,12 +1679,12 @@ export function MemberOrderPage({
           <p className="truncate font-mono text-xl font-bold tabular-nums text-white">{rupiah.format(total)}</p>
         </div>
         <button
-          className="garage-press flex h-12 min-w-[168px] cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"
+          className="garage-press flex h-12 min-w-[168px] cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-[15px] font-bold text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"
           onClick={checkout}
           disabled={!canCheckout}
         >
           <Send className="size-4" aria-hidden />
-          {busy ? "Mengirim…" : "Kirim ke Kasir"}
+          {busy ? "Mengirim…" : "Kirim ke kasir"}
         </button>
       </div>
       {!canCheckout && checkoutBlockReason ? (
@@ -1675,9 +1724,25 @@ export function MemberOrderPage({
           </div>
         ) : null}
 
-        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
-            {message && !checkoutOpen ? (
+            {!orderingOpen ? (
+              <div
+                className="mb-4 flex items-start gap-3 rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3.5 py-3"
+                role="status"
+              >
+                <Clock className="mt-0.5 size-5 shrink-0 text-garage-amber" aria-hidden />
+                <div className="min-w-0 text-sm leading-6">
+                  <p className="font-bold text-white">Outlet belum buka</p>
+                  <p className="text-garage-dim">
+                    Menu tetap bisa dilihat dan dipilih. Pesanan bisa dikirim setelah kasir membuka shift
+                    &mdash; halaman ini menyesuaikan otomatis.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+                        {message && !checkoutOpen ? (
               <div
                 className="mb-4 rounded-md border border-garage-amber/40 bg-garage-amber/10 p-3.5 text-sm leading-6 text-garage-fg"
                 role="status"
@@ -1891,7 +1956,7 @@ export function MemberOrderPage({
               ) : null}
 
               <button
-                className="garage-press mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"
+                className="garage-press mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-[15px] font-bold text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={openCheckout}
                 disabled={!cartLines.length}
               >
@@ -1908,7 +1973,7 @@ export function MemberOrderPage({
         </div>
       </div>
 
-      {cartLines.length ? <OrderCartBar itemCount={itemCount} total={total} onOpen={openCheckout} /> : null}
+      {cartLines.length ? <OrderCartBar itemCount={itemCount} total={total} onOpen={openCheckout} lastAdded={lastAdded} /> : null}
 
       {showScrollTop ? (
         <button
@@ -1954,7 +2019,7 @@ export function MemberOrderPage({
           className="inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[92svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-xl sm:border"
         >
           <SheetHeader className="border-b border-garage-line p-4 text-left">
-            <SheetTitle className="pr-8 text-xl font-bold text-white">Checkout · {qrContext.tableLabel}</SheetTitle>
+            <SheetTitle className="pr-8 font-sans text-xl font-bold text-white">Checkout · {qrContext.tableLabel}</SheetTitle>
             <SheetDescription className="text-sm text-garage-dim">
               Cek pesanan, isi nama, pilih pembayaran, lalu kirim ke kasir.
             </SheetDescription>

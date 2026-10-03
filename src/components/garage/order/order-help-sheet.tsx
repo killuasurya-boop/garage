@@ -45,7 +45,7 @@ export function OrderHelpSheet({
         className="inset-x-0 bottom-0 z-[95] mx-auto w-full max-w-lg rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:bottom-4 sm:rounded-xl sm:border"
       >
         <SheetHeader className="border-b border-garage-line p-4 text-left">
-          <SheetTitle className="text-lg font-bold text-white">Bantuan {tableLabel}</SheetTitle>
+          <SheetTitle className="font-sans text-lg font-bold text-white">Bantuan {tableLabel}</SheetTitle>
           <SheetDescription className="text-sm text-garage-dim">
             Pilih bantuan, staf GARAGE akan segera datang.
           </SheetDescription>

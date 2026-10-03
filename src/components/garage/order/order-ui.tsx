@@ -1,6 +1,6 @@
 "use client";
 
-import { Coffee, Cookie, CupSoda, Flame, Minus, Plus, UtensilsCrossed } from "lucide-react";
+import { Coffee, Cookie, CupSoda, Flame, Minus, Plus, Star, UtensilsCrossed } from "lucide-react";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
@@ -17,7 +17,24 @@ export function cartKey(itemId: string, variantId: string) {
   return `${itemId}::${variantId}`;
 }
 
+// Harga efektif varian — SAMA dengan server (effectiveMenuPrice di garage-service):
+// promo per produk aktif bila promoPrice > 0 dan lebih murah dari harga varian.
+export function variantPrice(item: MenuItem, variant: MenuItem["variants"][number]) {
+  const promo = item.promoPrice;
+  if (item.promoActive && promo != null && promo > 0 && promo < variant.price) return promo;
+  return variant.price;
+}
+
+export function itemHasPromo(item: MenuItem) {
+  return item.variants.some((variant) => variantPrice(item, variant) < variant.price);
+}
+
 export function itemMinPrice(item: MenuItem) {
+  return Math.min(...item.variants.map((variant) => variantPrice(item, variant)));
+}
+
+// Harga normal termurah (untuk harga coret saat promo).
+export function itemMinBasePrice(item: MenuItem) {
   return Math.min(...item.variants.map((variant) => variant.price));
 }
 
@@ -118,4 +135,20 @@ export function StockBadge({ stock }: { stock: MenuItem["stock"] }) {
     );
   }
   return null;
+}
+
+export function PromoBadge() {
+  return (
+    <span className="inline-flex items-center rounded-sm bg-garage-red px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+      Promo
+    </span>
+  );
+}
+
+export function FeaturedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-sm bg-garage-amber px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-garage-bg-0">
+      <Star className="size-3" aria-hidden /> Unggulan
+    </span>
+  );
 }

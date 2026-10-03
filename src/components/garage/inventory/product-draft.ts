@@ -31,6 +31,9 @@ export type ProductDraftState = {
   // Production Hub: "" = otomatis dari kategori.
   station?: "" | "bar" | "dapur";
   batchEligible?: boolean;
+  // Menu digital (QR): tampil ke pelanggan & banner unggulan.
+  showInDigitalMenu?: boolean;
+  featured?: boolean;
   category: MenuCategory;
   section: string;
   prep: string;

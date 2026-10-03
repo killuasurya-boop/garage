@@ -74,7 +74,7 @@ function buildInitialSearchQuery(params: SearchParams) {
 
 async function getInitialMenuItems(): Promise<MenuItem[] | undefined> {
   try {
-    return await getMenuData();
+    return await getMenuData({ channel: "digital" });
   } catch {
     return undefined;
   }

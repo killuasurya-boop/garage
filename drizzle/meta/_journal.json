@@ -792,6 +792,13 @@
       "when": 1790656141497,
       "tag": "0112_order_client_request_key",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1791048072378,
+      "tag": "0113_menu_digital_flags",
+      "breakpoints": true
     }
   ]
 }

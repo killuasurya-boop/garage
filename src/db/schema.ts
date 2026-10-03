@@ -308,6 +308,10 @@ export const menuItems = pgTable(
     station: text("station"),
     // Boleh digabung Smart Batch dengan porsi produk sama dari order lain.
     batchEligible: boolean("batch_eligible").notNull().default(true),
+    // Menu digital (QR /order): false = disembunyikan dari pelanggan, tetap jual di POS.
+    showInDigitalMenu: boolean("show_in_digital_menu").notNull().default(true),
+    // Menu unggulan → banner besar di atas menu digital.
+    featured: boolean("featured").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

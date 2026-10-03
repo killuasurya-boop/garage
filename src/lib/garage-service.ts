@@ -101,7 +101,6 @@ import {
   staffProfiles,
   staffEarnings,
   staffEarningPayouts,
-  session as sessionTable,
   stockOpnameItems,
   stockOpnameSessions,
   stockMovements,
@@ -10321,21 +10320,15 @@ export async function handoverKitchenTicket(
 }
 
 /** Waiter aktif (sedang login) + jumlah antaran berjalan — untuk dipanggil helper. */
+// Semua waiter aktif (tidak harus sedang login): waiter cukup mengambil pesanan di meja
+// saji, helper Bar/Dapur yang tap nama mereka saat "Diambil".
 export async function listCallableWaiters() {
   const db = getDb();
-  const now = new Date();
   const rows = await db
     .select({ id: user.id, name: user.name })
     .from(staffProfiles)
     .innerJoin(user, eq(user.id, staffProfiles.userId))
-    .innerJoin(sessionTable, eq(sessionTable.userId, staffProfiles.userId))
-    .where(
-      and(
-        eq(staffProfiles.role, "Waiter"),
-        eq(staffProfiles.status, "active"),
-        gte(sessionTable.expiresAt, now),
-      ),
-    );
+    .where(and(eq(staffProfiles.role, "Waiter"), eq(staffProfiles.status, "active")));
   const unique = [...new Map(rows.map((row) => [row.id, row])).values()];
   if (!unique.length) return [];
   const loads = await db

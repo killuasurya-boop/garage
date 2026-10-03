@@ -26,6 +26,7 @@ ExternalLink,
 Fingerprint,
 FileText,
 History,
+KeyRound,
 Info,
 Landmark,
 Headset,
@@ -179,7 +180,8 @@ TableRow,
 } from "@/components/ui/table";
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { garageApi } from "@/lib/api-client";
+import { GarageApiError, garageApi } from "@/lib/api-client";
+import { IDR_CASH_DENOMINATIONS, sumDenominations } from "@/lib/cash-denominations";
 import { canAccessModule } from "@/lib/role-access";
 import { GARAGE_TAGS, invalidateGarageCache } from "@/lib/garage-cache";
 import type {
@@ -768,9 +770,19 @@ export function PosView({
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
   const [openingShiftNumber, setOpeningShiftNumber] = useState<1 | 2>(1);
-  const [actualCash, setActualCash] = useState(() =>
-    String(cashSession.expectedCash ?? cashSession.openingCash ?? 0),
-  );
+  // Blind count: kasir menghitung laci per pecahan tanpa diberi angka sistem.
+  const [shiftDenominationCounts, setShiftDenominationCounts] = useState<Record<string, string>>({});
+  const [shiftManagerPin, setShiftManagerPin] = useState("");
+  const [shiftSignOffRequired, setShiftSignOffRequired] = useState(false);
+  // Hasil hitung tutup shift; POS langsung terkunci setelah tutup, jadi hasilnya
+  // ditampilkan di kartu "Shift Belum Dibuka", bukan di notice POS.
+  const [lastShiftCloseResult, setLastShiftCloseResult] = useState<{
+    code: string;
+    discrepancy: number;
+    expectedCash: number;
+    actualCash: number;
+    resetTableCount: number | null;
+  } | null>(null);
   const [shiftClosingNote, setShiftClosingNote] = useState("");
   const [shiftResetTableMode, setShiftResetTableMode] =
     useState<ShiftResetTableMode>("completed");
@@ -963,6 +975,10 @@ export function PosView({
     [customers],
   );
   const shiftOpen = cashSession.status === "open";
+  // Blind count: selama shift berjalan Kasir tidak diberi angka kas sistem
+  // (omzet, kas seharusnya, rincian cash/non-cash) — baru tampil setelah tutup shift.
+  const hideShiftCashFigures = isCashierKiosk && shiftOpen;
+  const hiddenUntilCloseLabel = "Tampil setelah tutup";
   const shiftReportCashTotal =
     shiftReportSummary?.byMethod
       .filter((method) => method.method.toLowerCase().includes("cash"))
@@ -994,13 +1010,11 @@ export function PosView({
     if (shiftAutoPromptedRef.current) return;
     shiftAutoPromptedRef.current = true;
     setShiftError(null);
-    setActualCash(String(cashSession.expectedCash ?? cashSession.openingCash ?? 0));
+    setShiftDenominationCounts({});
     setShiftClosingNote(cashSession.closingNote ?? "");
     setShiftChecklist(cashSession.checklist);
   }, [
     shiftOpen,
-    cashSession.expectedCash,
-    cashSession.openingCash,
     cashSession.closingNote,
     cashSession.checklist,
   ]);
@@ -1180,12 +1194,11 @@ export function PosView({
     manualDiscount?.approvalStatus === "pending";
   const checkoutReady =
     paymentReady && !dineInTableMissing && !manualDiscountAwaitingApproval;
-  const actualCashValue = Number(actualCash || 0);
-  const actualCashReady =
-    Number.isFinite(actualCashValue) && actualCashValue >= 0;
-  const shiftDiscrepancyPreview = actualCashReady
-    ? Math.round(actualCashValue) - cashSession.expectedCash
-    : 0;
+  const shiftCountedCash = sumDenominations(
+    Object.fromEntries(
+      Object.entries(shiftDenominationCounts).map(([key, raw]) => [key, Number(raw) || 0]),
+    ),
+  );
   const quickCashAmounts = useMemo(
     () =>
       [10000, 20000, 50000, 100000].filter((amount) => amount >= totalDue),
@@ -3081,7 +3094,9 @@ export function PosView({
 
   function prepareShiftDialog() {
     setShiftError(null);
-    setActualCash(String(cashSession.expectedCash ?? cashSession.openingCash ?? 0));
+    setShiftDenominationCounts({});
+    setShiftManagerPin("");
+    setShiftSignOffRequired(false);
     setShiftClosingNote(cashSession.closingNote ?? "");
     setShiftResetTableMode("completed");
     setShiftChecklist(cashSession.checklist);
@@ -3143,6 +3158,7 @@ export function PosView({
       });
       await onCashSessionOpened();
       setShiftDialogOpen(false);
+      setLastShiftCloseResult(null);
     } catch (error) {
       setShiftError(error instanceof Error ? error.message : "Mulai shift gagal.");
     } finally {
@@ -3152,11 +3168,27 @@ export function PosView({
 
   async function closeShift(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const actualCashInput = parseCashAmount(actualCash, "Uang aktual di laci", { required: true });
-    if (actualCashInput === null) {
+    const denominations: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(shiftDenominationCounts)) {
+      if (raw.trim() === "") continue;
+      const qty = Number(raw);
+      if (!Number.isInteger(qty) || qty < 0) {
+        setShiftError(`Jumlah pecahan ${currency.format(Number(key))} harus angka bulat.`);
+        return;
+      }
+      denominations[key] = qty;
+    }
+    if (!Object.keys(denominations).length) {
+      setShiftError("Isi jumlah lembar/keping uang di laci (isi 0 bila laci kosong).");
       return;
     }
+    const actualCashInput = sumDenominations(denominations);
     if (!shiftChecklistReady()) {
+      return;
+    }
+    const managerPin = shiftManagerPin.trim();
+    if (shiftSignOffRequired && !/^\d{4,8}$/.test(managerPin)) {
+      setShiftError("PIN Manajer/Owner wajib 4–8 digit angka.");
       return;
     }
 
@@ -3167,18 +3199,26 @@ export function PosView({
         `/api/finance/cash-sessions/${cashSession.id}/close`,
         {
           actualCash: actualCashInput,
+          denominations,
           checklist: shiftChecklist,
           closingNote: shiftClosingNote,
           resetTableMode: shiftResetTableMode,
+          ...(managerPin ? { managerPin } : {}),
         },
       );
       await onCashSessionOpened();
       setShiftDialogOpen(false);
-      setPosNotice(
-        closedSession.resetTables?.requested
-          ? `Shift ditutup. ${closedSession.resetTables.count} meja direset ke kosong.`
-          : "Shift ditutup tanpa reset meja.",
-      );
+      setShiftManagerPin("");
+      setShiftSignOffRequired(false);
+      setLastShiftCloseResult({
+        code: closedSession.code,
+        discrepancy: closedSession.discrepancy,
+        expectedCash: closedSession.expectedCash,
+        actualCash: closedSession.actualCash ?? actualCashInput,
+        resetTableCount: closedSession.resetTables?.requested
+          ? closedSession.resetTables.count
+          : null,
+      });
       // Voice notification: bunyi kalau ada selisih kas (lebih atau kurang
       // dari expected) sehingga Manager langsung tahu untuk verifikasi.
       if (closedSession.discrepancy !== 0) {
@@ -3188,6 +3228,10 @@ export function PosView({
         });
       }
     } catch (error) {
+      if (error instanceof GarageApiError && error.code === "MANAGER_SIGNOFF_REQUIRED") {
+        setShiftSignOffRequired(true);
+      }
+      setShiftManagerPin("");
       setShiftError(error instanceof Error ? error.message : "Tutup shift gagal.");
     } finally {
       setShiftPending(false);
@@ -3566,7 +3610,7 @@ export function PosView({
     return (
       <section className="flex h-full min-h-0 items-center justify-center p-3">
         <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
-          <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-lg">
+          <DialogContent className="max-h-[90vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Mulai Shift Kasir</DialogTitle>
               <DialogDescription>
@@ -3611,6 +3655,47 @@ export function PosView({
               </p>
             </div>
           </div>
+          {lastShiftCloseResult && (
+            <div
+              role="status"
+              className={`mt-4 rounded-md border p-3 text-sm ${
+                lastShiftCloseResult.discrepancy === 0
+                  ? "border-[#4a4a54] bg-white/[0.06] text-[#f4f4f5]"
+                  : "border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffe0ad]"
+              }`}
+            >
+              <p className="font-semibold text-white">
+                Shift {lastShiftCloseResult.code} ditutup
+              </p>
+              <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <dt className="text-[#b8b8bf]">Kas seharusnya</dt>
+                  <dd className="font-semibold text-white">
+                    {currency.format(lastShiftCloseResult.expectedCash)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[#b8b8bf]">Dihitung</dt>
+                  <dd className="font-semibold text-white">
+                    {currency.format(lastShiftCloseResult.actualCash)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[#b8b8bf]">Selisih</dt>
+                  <dd className="font-semibold">
+                    {lastShiftCloseResult.discrepancy === 0
+                      ? "Sesuai"
+                      : `${lastShiftCloseResult.discrepancy > 0 ? "+" : "-"}${currency.format(Math.abs(lastShiftCloseResult.discrepancy))}`}
+                  </dd>
+                </div>
+              </dl>
+              {lastShiftCloseResult.resetTableCount !== null && (
+                <p className="mt-2 text-xs text-[#d6d6dc]">
+                  {lastShiftCloseResult.resetTableCount} meja direset ke kosong.
+                </p>
+              )}
+            </div>
+          )}
           <Button
             type="button"
             className="garage-press mt-5 h-11 w-full"
@@ -4323,7 +4408,7 @@ export function PosView({
                     <RefreshCw className={`mr-2 size-3.5 ${shiftReportLoading ? "animate-spin" : ""}`} />
                     Muat ulang
                   </Button>
-                  {cashSession.id ? (
+                  {cashSession.id && !hideShiftCashFigures ? (
                     <Button
                       type="button"
                       className="garage-press h-9 px-3 text-xs"
@@ -4348,11 +4433,29 @@ export function PosView({
 
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  ["Gross sales", currency.format(shiftReportSummary?.sales.gross ?? 0)],
-                  ["Cash", currency.format(shiftReportCashTotal)],
-                  ["Non-cash", currency.format(shiftReportNonCashTotal)],
+                  [
+                    "Gross sales",
+                    hideShiftCashFigures
+                      ? hiddenUntilCloseLabel
+                      : currency.format(shiftReportSummary?.sales.gross ?? 0),
+                  ],
+                  [
+                    "Cash",
+                    hideShiftCashFigures ? hiddenUntilCloseLabel : currency.format(shiftReportCashTotal),
+                  ],
+                  [
+                    "Non-cash",
+                    hideShiftCashFigures
+                      ? hiddenUntilCloseLabel
+                      : currency.format(shiftReportNonCashTotal),
+                  ],
                   ["Modal awal", currency.format(cashSession.openingCash)],
-                  ["Kas seharusnya", currency.format(cashSession.expectedCash)],
+                  [
+                    "Kas seharusnya",
+                    hideShiftCashFigures
+                      ? hiddenUntilCloseLabel
+                      : currency.format(cashSession.expectedCash),
+                  ],
                   [
                     "Selisih kas",
                     shiftReportDiscrepancy === null
@@ -4410,7 +4513,7 @@ export function PosView({
                             {method.method} ({method.count})
                           </span>
                           <span className="font-semibold text-white">
-                            {currency.format(method.total)}
+                            {hideShiftCashFigures ? "—" : currency.format(method.total)}
                           </span>
                         </div>
                       ))}
@@ -4460,7 +4563,9 @@ export function PosView({
                           {session.status}
                         </Badge>
                         <p className="mt-1 font-semibold text-white">
-                          {currency.format(session.expectedCash)}
+                          {isCashierKiosk && session.status === "open"
+                            ? "—"
+                            : currency.format(session.expectedCash)}
                         </p>
                       </div>
                     </div>
@@ -6057,37 +6162,22 @@ export function PosView({
       )}
 
       <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
-        <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto border-[#34343c] bg-[#111116] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {shiftOpen ? "Tutup / Ganti Shift Kasir" : "Mulai Shift Kasir"}
             </DialogTitle>
             <DialogDescription>
               {shiftOpen
-                ? "Isi uang aktual, checklist, lalu pilih aksi."
+                ? "Hitung uang di laci, isi checklist, lalu tutup shift."
                 : "Pilih shift dan isi uang modal awal."}
             </DialogDescription>
           </DialogHeader>
           {shiftOpen ? (
             <form onSubmit={(event) => void closeShift(event)} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                  <p className="garage-mono text-[10px] text-[#b8b8bf]">Kas seharusnya</p>
-                  <p className="mt-1 text-lg font-semibold text-white">
-                    {currency.format(cashSession.expectedCash)}
-                  </p>
-                </div>
-                <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
-                  <p className="garage-mono text-[10px] text-[#b8b8bf]">Selisih</p>
-                  <p
-                    className={`mt-1 text-lg font-semibold ${
-                      shiftDiscrepancyPreview === 0 ? "text-[#dcfce7]" : "text-[#ffd08a]"
-                    }`}
-                  >
-                    {shiftDiscrepancyPreview >= 0 ? "+" : ""}
-                    {currency.format(shiftDiscrepancyPreview)}
-                  </p>
-                </div>
+              <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs text-[#d6d6dc]">
+                Hitung semua uang tunai di laci, termasuk modal awal. Kas seharusnya dan selisih
+                ditampilkan setelah shift ditutup.
               </div>
               {(closeShiftActiveTables.length > 0 || customerOrders.length > 0) && (
                 <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffe0ad]">
@@ -6100,17 +6190,66 @@ export function PosView({
               )}
               <div>
                 <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                  Uang aktual di laci saat ini
+                  Jumlah lembar / keping di laci
                 </p>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={actualCash}
-                  onChange={(event) => setActualCash(event.target.value)}
-                  className="h-11 border-[#34343c] bg-white/[0.06]"
-                />
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  {IDR_CASH_DENOMINATIONS.map((denomination) => {
+                    const key = String(denomination);
+                    return (
+                      <label key={key} className="space-y-1">
+                        <span className="block text-[11px] font-semibold text-[#d6d6dc]">
+                          {currency.format(denomination)}
+                        </span>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
+                          value={shiftDenominationCounts[key] ?? ""}
+                          placeholder="0"
+                          aria-label={`Jumlah pecahan ${currency.format(denomination)}`}
+                          onChange={(event) =>
+                            setShiftDenominationCounts((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          className="h-10 border-[#34343c] bg-white/[0.06]"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex items-center justify-between rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-2">
+                  <span className="text-xs text-[#d6d6dc]">Total hitungan fisik</span>
+                  <span className="text-base font-semibold text-white">
+                    {currency.format(shiftCountedCash)}
+                  </span>
+                </div>
               </div>
+              {shiftSignOffRequired && (
+                <div className="space-y-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/8 p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <KeyRound className="size-4 text-[#f5a742]" />
+                    PIN Manajer / Owner
+                  </p>
+                  <p className="text-xs text-[#d6d6dc]">
+                    Serahkan tablet ke Manajer. Sign-off tercatat atas nama pemilik PIN.
+                  </p>
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={8}
+                    value={shiftManagerPin}
+                    onChange={(event) =>
+                      setShiftManagerPin(event.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="4–8 digit"
+                    className="h-11 border-[#34343c] bg-white/[0.06]"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <p className="garage-mono text-[10px] text-[#b8b8bf]">Checklist tutup shift</p>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -6192,7 +6331,11 @@ export function PosView({
                 </Alert>
               )}
               <Button type="submit" className="garage-press h-11 w-full" disabled={shiftPending}>
-                {shiftPending ? "Memproses..." : "Tutup Shift"}
+                {shiftPending
+                  ? "Memproses..."
+                  : shiftSignOffRequired
+                    ? "Sign-off & Tutup Shift"
+                    : "Tutup Shift"}
               </Button>
             </form>
           ) : (

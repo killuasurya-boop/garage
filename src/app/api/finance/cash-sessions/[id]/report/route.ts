@@ -33,6 +33,16 @@ export async function GET(
     );
   }
 
+  // Blind count: PDF memuat kas seharusnya, jadi Kasir baru bisa mengunduhnya
+  // setelah shift ditutup.
+  if (session.data.profile.role === "Kasir" && summary.session.status === "open") {
+    return fail(
+      409,
+      "CASH_SESSION_STILL_OPEN",
+      "Laporan PDF shift tersedia setelah shift ditutup.",
+    );
+  }
+
   const pdf = await generateShiftReportPdf(summary, transactions);
   const filename = `shift-${summary.session.code}.pdf`;
 

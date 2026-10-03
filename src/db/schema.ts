@@ -1058,6 +1058,11 @@ export const cashSessions = pgTable(
   },
   (table) => ({
     statusIdx: index("cash_sessions_status_idx").on(table.status),
+    // Pengaman terakhir: 1 pengguna = 1 sesi kas terbuka, walau dua request
+    // buka shift lolos cek aplikasi secara bersamaan.
+    openPerUserIdx: uniqueIndex("cash_sessions_open_per_user_idx")
+      .on(table.openedBy)
+      .where(sql`${table.status} = 'open'`),
   }),
 );
 

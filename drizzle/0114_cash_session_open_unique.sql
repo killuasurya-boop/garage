@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "cash_sessions_open_per_user_idx" ON "cash_sessions" USING btree ("opened_by") WHERE "cash_sessions"."status" = 'open';

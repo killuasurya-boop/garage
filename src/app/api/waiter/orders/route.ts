@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { createCustomerOrder, updateCustomerOrderStatus } from "@/lib/garage-service";
+import { createCustomerOrder } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { requireGarageSession } from "@/lib/server-auth";
 
@@ -24,14 +24,11 @@ const waiterOrderSchema = z.object({
     .max(40),
 });
 
-type WaiterOrderResult = Awaited<ReturnType<typeof createCustomerOrder>> & {
-  acceptedDirectly: boolean;
-  acceptMessage: string | null;
-};
+type WaiterOrderResult = Awaited<ReturnType<typeof createCustomerOrder>>;
 
-// "Pesankan" dari aplikasi waiter: order meja dibuat lewat menu digital lalu LANGSUNG
-// diterima (tiket Bar/Dapur + potong stok) tanpa menunggu kasir. Pembayaran tetap
-// di kasir saat bill (status order "accepted", belum lunas).
+// "Pesankan" dari aplikasi waiter: order meja dibuat lewat menu digital dengan nama
+// pemesan otomatis ("Meja 5 · Andi"). Order WAJIB divalidasi kasir dulu (status
+// menunggu kasir), sama seperti order QR pelanggan — kasir accept baru ke Bar/Dapur.
 export async function POST(request: Request) {
   const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
   if (session.response) {
@@ -63,22 +60,8 @@ export async function POST(request: Request) {
       paymentMethod: "Cash",
       items: body.data.items,
     });
-    // Order sudah tersimpan. Kalau auto-terima gagal (mis. shift kas baru ditutup), jangan
-    // laporkan gagal — waiter bisa kirim ulang dan order jadi dobel. Kembalikan sukses
-    // dengan status menunggu kasir supaya kasir yang menerima.
-    let acceptedDirectly = true;
-    let acceptMessage: string | null = null;
-    try {
-      await updateCustomerOrderStatus(created.order.id, { action: "accept" }, session.data, {
-        acceptWithOutletShift: true,
-      });
-    } catch (error) {
-      acceptedDirectly = false;
-      acceptMessage = error instanceof Error ? error.message : "Menunggu kasir.";
-    }
-    const result = { ...created, acceptedDirectly, acceptMessage };
-    if (cache?.kind === "miss") cache.commit(result);
-    return ok(result, { status: 201 });
+    if (cache?.kind === "miss") cache.commit(created);
+    return ok(created, { status: 201 });
   } catch (error) {
     if (cache?.kind === "miss") cache.abandon();
     return fail(

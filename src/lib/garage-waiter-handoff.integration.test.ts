@@ -10,8 +10,8 @@ import {
 } from "@/lib/test-helpers/garage-test-db";
 
 // =============================================================================
-// Alur waiter ringkas: (1) waiter "Pesankan" → order langsung diterima tanpa kasir
-// (tiket Bar/Dapur dibuat), (2) Bar/Dapur "Siap · Panggil" (READY + panggil semua),
+// Alur waiter ringkas: (1) waiter "Pesankan" → order menunggu kasir; kasir accept →
+// tiket Bar/Dapur, (2) Bar/Dapur "Siap · Panggil" (READY + panggil semua),
 // (3) helper tap nama waiter "Diambil" → tiket delivered atas nama waiter + fee antar.
 // Waiter tidak menekan apa pun untuk antaran.
 // =============================================================================
@@ -43,6 +43,7 @@ function makeSession(userId: string, name: string, role: Role, workstation: stri
 }
 
 const waiter = () => makeSession(WAITER, "Andi Waiter", "Waiter");
+const kasir = () => makeSession(KASIR, "Kasir Test", "Kasir");
 const helperBar = () => makeSession(HELPER, "Helper Bar", "Kasir", "helper_bar");
 const bar = () => makeSession(BAR, "Barista", "Kasir", "bar");
 
@@ -85,10 +86,10 @@ afterAll(async () => {
   await teardownGarageTestDb(t);
 });
 
-describe("Waiter Pesankan → langsung ke Bar/Dapur", () => {
+describe("Waiter Pesankan → kasir → Bar/Dapur", () => {
   let orderId = "";
 
-  it("order waiter diterima tanpa kasir (shift kas outlet milik kasir lain)", async () => {
+  it("order waiter menunggu kasir; setelah kasir accept masuk Bar/Dapur", async () => {
     const created = await svc.createCustomerOrder({
       orderType: "dine-in",
       tableLabel: "Meja 4",
@@ -99,17 +100,18 @@ describe("Waiter Pesankan → langsung ke Bar/Dapur", () => {
       items: [{ itemId: "itm-coffee", variantId: "reg", qty: 2 }],
     });
     orderId = created.order.id;
-    await svc.updateCustomerOrderStatus(orderId, { action: "accept" }, waiter(), {
-      acceptWithOutletShift: true,
-    });
-
     const { eq } = await import("drizzle-orm");
+    const [pending] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, orderId));
+    expect(pending.status).toBe("pending_cashier");
+    expect(await barTicketOf(orderId)).toBeUndefined();
+
+    await svc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir());
     const [row] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, orderId));
     expect(row.status).toBe("accepted");
     expect(await barTicketOf(orderId)).toBeTruthy();
   });
 
-  it("tanpa opsi, waiter tetap tidak bisa accept (aturan kasir lama utuh)", async () => {
+  it("waiter tidak bisa accept order sendiri (wajib kasir)", async () => {
     const created = await svc.createCustomerOrder({
       orderType: "dine-in",
       tableLabel: "Meja 5",
@@ -168,9 +170,7 @@ describe("Waiter Pesankan → langsung ke Bar/Dapur", () => {
       paymentMethod: "Cash",
       items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
     });
-    await svc.updateCustomerOrderStatus(created.order.id, { action: "accept" }, waiter(), {
-      acceptWithOutletShift: true,
-    });
+    await svc.updateCustomerOrderStatus(created.order.id, { action: "accept" }, kasir());
     const ticket = await barTicketOf(created.order.id);
     await prod.productionReadyAndCall(ticket.ticketNo, bar(), { qcConfirmed: true });
     await expect(prod.productionPickup(ticket.ticketNo, BAR, helperBar())).rejects.toThrow();

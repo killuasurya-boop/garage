@@ -8248,11 +8248,6 @@ export async function updateCustomerOrderStatus(
   id: string,
   input: CustomerOrderActionInput,
   garage: GarageSession,
-  options: {
-    // Order dari waiter (Pesankan) langsung diterima tanpa kasir: cukup ada shift kas
-    // yang buka di outlet (milik kasir mana pun). Pembayaran tetap di kasir saat bill.
-    acceptWithOutletShift?: boolean;
-  } = {},
 ) {
   const db = getDb();
   const result = await db.transaction(async (tx) => {
@@ -8335,7 +8330,6 @@ export async function updateCustomerOrderStatus(
 
     let cashierOpenSession: { id: string } | null = null;
     if (input.action === "accept" || input.action === "paid") {
-      const outletShiftOnly = input.action === "accept" && options.acceptWithOutletShift;
       const [session] = await tx
         .select({ id: cashSessions.id })
         .from(cashSessions)
@@ -8343,7 +8337,7 @@ export async function updateCustomerOrderStatus(
           and(
             eq(cashSessions.status, "open"),
             eq(cashSessions.outletId, garage.profile.outlet.id),
-            outletShiftOnly ? undefined : eq(cashSessions.openedBy, garage.user.id),
+            eq(cashSessions.openedBy, garage.user.id),
           ),
         )
         .limit(1)

@@ -27,9 +27,14 @@ import {
   User,
 } from "lucide-react";
 
-import { BestSellerRail } from "@/components/garage/order/best-seller-rail";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
-import { MenuRow, MenuRowSkeleton } from "@/components/garage/order/menu-row";
+import { HeroRail, type HeroKind } from "@/components/garage/order/hero-rail";
+import {
+  MENU_GRID_CLASS,
+  MenuCard,
+  MenuCardSkeleton,
+  MenuPhoto,
+} from "@/components/garage/order/menu-card";
 import {
   MenuSectionList,
   buildMenuGroups,
@@ -43,8 +48,10 @@ import {
   cartKey,
   categoryIcon,
   itemCartQty,
+  itemHasPromo,
   itemMinPrice,
   rupiah,
+  variantPrice,
 } from "@/components/garage/order/order-ui";
 import {
   Sheet,
@@ -120,7 +127,7 @@ function customerWhatsappInvoiceUrl(
   return orderStatus?.whatsappInvoiceUrl ?? lastOrder?.whatsapp.url ?? null;
 }
 
-const BEST_SELLER_SECTION_ID = "menu-terlaris";
+const HERO_SECTION_ID = "menu-unggulan";
 
 const number = new Intl.NumberFormat("id-ID");
 
@@ -464,7 +471,7 @@ function CartRow({
           <p className="mt-0.5 text-sm text-garage-dim">
             {line.item.variants.length > 1 ? `${line.variant.label} · ` : ""}
             <span className="font-mono tabular-nums text-white">
-              {rupiah.format(line.variant.price * line.qty)}
+              {rupiah.format(variantPrice(line.item, line.variant) * line.qty)}
             </span>
           </p>
         </div>
@@ -559,7 +566,7 @@ function MenuDetailSheet({
   const totalInCart = item ? itemCartQty(item, cart) : 0;
   const totalValue = item
     ? item.variants.reduce(
-        (sum, variant) => sum + variant.price * (cart[cartKey(item.id, variant.id)] ?? 0),
+        (sum, variant) => sum + variantPrice(item, variant) * (cart[cartKey(item.id, variant.id)] ?? 0),
         0,
       )
     : 0;
@@ -573,13 +580,19 @@ function MenuDetailSheet({
       >
         {item ? (
           <>
-            {item.imageUrl ? (
-              <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-garage-bg-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.imageUrl} alt={item.name} className="absolute inset-0 h-full w-full object-cover" />
-              </div>
-            ) : null}
-            <SheetHeader className="border-b border-garage-line px-4 pb-4 pt-4 text-left">
+            <div className="relative aspect-[4/3] max-h-[42svh] w-full shrink-0 overflow-hidden bg-garage-bg-2">
+              <MenuPhoto item={item} iconClassName="size-16" eager />
+              <span
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-garage-bg-1 to-transparent"
+                aria-hidden
+              />
+              {itemHasPromo(item) ? (
+                <span className="absolute left-3 top-3 rounded-sm bg-garage-red px-2 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                  Promo
+                </span>
+              ) : null}
+            </div>
+            <SheetHeader className="border-b border-garage-line px-4 pb-4 pt-2 text-left">
               <div className="flex items-center gap-2 pr-8">
                 {categoryIcon(item.category, "size-4 text-garage-amber")}
                 <span className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
@@ -617,8 +630,17 @@ function MenuDetailSheet({
                         <p className="line-clamp-1 text-base font-bold text-white">
                           {multiVariant ? variant.label : item.name}
                         </p>
-                        <p className="mt-0.5 font-mono text-sm font-bold tabular-nums text-garage-dim">
-                          {rupiah.format(variant.price)}
+                        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-sm font-bold tabular-nums text-garage-dim">
+                          {variantPrice(item, variant) < variant.price ? (
+                            <>
+                              <span className="text-[#ff8a8a]">{rupiah.format(variantPrice(item, variant))}</span>
+                              <span className="text-xs font-semibold text-garage-mute line-through">
+                                {rupiah.format(variant.price)}
+                              </span>
+                            </>
+                          ) : (
+                            rupiah.format(variant.price)
+                          )}
                         </p>
                       </div>
                       <QuantityControl
@@ -1080,7 +1102,8 @@ export function MemberOrderPage({
     [cart, menuItems, cartNotes],
   );
 
-  const subtotal = cartLines.reduce((sum, line) => sum + line.variant.price * line.qty, 0);
+  // Harga promo per produk ikut dihitung (sama dengan effectiveMenuPrice di server).
+  const subtotal = cartLines.reduce((sum, line) => sum + variantPrice(line.item, line.variant) * line.qty, 0);
   // Rumus SAMA dengan server (createCustomerOrder): service → PB1 → pembulatan
   // outlet, lalu promo QR (Pengaturan qrPromoPct/qrPromoMaxAmount) & voucher.
   // Dulu PB1 & pembulatan tidak dihitung → total di HP lebih murah dari tagihan kasir.
@@ -1287,20 +1310,26 @@ export function MemberOrderPage({
 
   const searching = normalizedQuery.length > 0;
   const menuGroups = useMemo(() => buildMenuGroups(menuItems), [menuItems]);
-  const bestSellerItems = useMemo(
-    () =>
-      (bestSellerIds ?? [])
-        .map((id) => menuItems.find((item) => item.id === id))
-        .filter((item): item is MenuItem => Boolean(item && item.stock !== "sold_out"))
-        .slice(0, 6),
-    [bestSellerIds, menuItems],
-  );
+  // Banner atas: item "Unggulan" pilihan admin → kalau belum ada, item promo → Terlaris.
+  const hero = useMemo<{ kind: HeroKind; items: MenuItem[] }>(() => {
+    const available = menuItems.filter((item) => item.stock !== "sold_out");
+    const featured = available.filter((item) => item.featured);
+    if (featured.length) return { kind: "featured", items: featured.slice(0, 8) };
+    const promo = available.filter(itemHasPromo);
+    if (promo.length) return { kind: "promo", items: promo.slice(0, 8) };
+    const best = (bestSellerIds ?? [])
+      .map((id) => available.find((item) => item.id === id))
+      .filter((item): item is MenuItem => Boolean(item))
+      .slice(0, 6);
+    return { kind: "best", items: best };
+  }, [bestSellerIds, menuItems]);
+  const heroLabel = hero.kind === "featured" ? "Unggulan" : hero.kind === "promo" ? "Promo" : "Terlaris";
   const categoryTabs = useMemo<CategoryTab[]>(
     () => [
-      ...(bestSellerItems.length ? [{ id: BEST_SELLER_SECTION_ID, label: "Terlaris" }] : []),
+      ...(hero.items.length ? [{ id: HERO_SECTION_ID, label: heroLabel }] : []),
       ...menuGroups.map((group) => ({ id: categorySectionId(group.category), label: group.category })),
     ],
-    [bestSellerItems.length, menuGroups],
+    [hero.items.length, heroLabel, menuGroups],
   );
 
   function quickAdd(item: MenuItem) {
@@ -1620,7 +1649,7 @@ export function MemberOrderPage({
 
   return (
     <main
-      className={`garage-shell min-h-screen overflow-x-hidden text-white ${
+      className={`garage-shell min-h-screen overflow-x-clip text-white ${
         cartLines.length ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12" : "pb-12"
       }`}
     >
@@ -1770,16 +1799,16 @@ export function MemberOrderPage({
             />
 
             {loading ? (
-              <div className="pt-4">
+              <div className={`${MENU_GRID_CLASS} pt-5`}>
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <MenuRowSkeleton key={index} />
+                  <MenuCardSkeleton key={index} />
                 ))}
               </div>
             ) : searching ? (
               filteredMenu.length ? (
-                <div className="pt-2">
+                <div className={`${MENU_GRID_CLASS} pt-4`}>
                   {filteredMenu.map((item) => (
-                    <MenuRow
+                    <MenuCard
                       key={item.id}
                       item={item}
                       popular={bestSellerSet.has(item.id)}
@@ -1805,9 +1834,10 @@ export function MemberOrderPage({
               )
             ) : menuGroups.length ? (
               <>
-                <BestSellerRail
-                  id={BEST_SELLER_SECTION_ID}
-                  items={bestSellerItems}
+                <HeroRail
+                  id={HERO_SECTION_ID}
+                  kind={hero.kind}
+                  items={hero.items}
                   cart={cart}
                   onQuickAdd={quickAdd}
                   onOpen={setDetailItem}

@@ -44,6 +44,11 @@ export interface ProductFormPanelProps {
   onStationChange: (value: "" | "bar" | "dapur") => void;
   batchEligible: boolean;
   onBatchEligibleChange: (value: boolean) => void;
+  // Menu digital (QR /order).
+  showInDigitalMenu: boolean;
+  onShowInDigitalMenuChange: (value: boolean) => void;
+  featured: boolean;
+  onFeaturedChange: (value: boolean) => void;
   category: MenuCategory;
   onCategoryChange: (value: MenuCategory) => void;
   prep: string;
@@ -99,6 +104,10 @@ export function ProductFormPanel({
   onStationChange,
   batchEligible,
   onBatchEligibleChange,
+  showInDigitalMenu,
+  onShowInDigitalMenuChange,
+  featured,
+  onFeaturedChange,
   category,
   onCategoryChange,
   prep,
@@ -223,6 +232,22 @@ export function ProductFormPanel({
               />
             </span>
           </button>
+        </div>
+        {/* Menu digital pelanggan (/order): tampil/sembunyi & banner unggulan */}
+        <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
+          <p className="text-sm font-bold text-white">Menu Digital (QR)</p>
+          <FormToggle
+            label="Tampil di menu digital"
+            hint="Matikan untuk menyembunyikan dari pelanggan QR. Tetap bisa dijual di POS."
+            value={showInDigitalMenu}
+            onChange={onShowInDigitalMenuChange}
+          />
+          <FormToggle
+            label="Menu unggulan"
+            hint="Tampil di banner foto besar paling atas menu digital."
+            value={featured}
+            onChange={onFeaturedChange}
+          />
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
           <Input
@@ -658,5 +683,42 @@ export function ProductFormPanel({
         </div>
       </aside>
     </div>
+  );
+}
+
+function FormToggle({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="flex w-full items-center justify-between gap-3 text-left"
+      aria-pressed={value}
+    >
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-[#d4d4d8]">{label}</p>
+        <p className="text-[11px] text-[#a1a1aa]">{hint}</p>
+      </div>
+      <span
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+          value ? "bg-[#d11a2a]" : "bg-[#34343c]"
+        }`}
+      >
+        <span
+          className={`inline-block size-4 transform rounded-full bg-white transition ${
+            value ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </span>
+    </button>
   );
 }

@@ -81,6 +81,9 @@ export type GarageMenuItem = {
   // Production Hub: override station (null = otomatis dari kategori).
   station?: "bar" | "dapur" | null;
   batchEligible?: boolean;
+  // Menu digital: false = disembunyikan dari QR order; featured = banner unggulan.
+  showInDigitalMenu?: boolean;
+  featured?: boolean;
   recipeCost?: number;
   recipes?: Array<{
     variantId: string;

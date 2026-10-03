@@ -22,9 +22,6 @@ export type ProductRecipeDraft = {
   wastePct: string;
 };
 
-// Pilihan tambahan (add-on) di form produk; harga masih string input.
-export type ProductAddonDraft = { id?: string; label: string; price: string };
-
 export type ProductDraftState = {
   editId: string;
   name: string;
@@ -38,7 +35,6 @@ export type ProductDraftState = {
   showInDigitalMenu?: boolean;
   featured?: boolean;
   description?: string;
-  addons?: ProductAddonDraft[];
   category: MenuCategory;
   section: string;
   prep: string;

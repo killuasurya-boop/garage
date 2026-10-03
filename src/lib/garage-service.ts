@@ -204,8 +204,6 @@ type OrderInput = {
     variantId: string;
     qty: number;
     note?: string;
-    // Add-on pilihan pelanggan menu digital (id dari menu_items.addons).
-    addonIds?: string[];
   }>;
 };
 
@@ -348,7 +346,6 @@ export type MenuProductInput = {
   showInDigitalMenu?: boolean;
   featured?: boolean;
   description?: string | null;
-  addons?: Array<{ id?: string; label: string; price: number }>;
   variants: Array<{
     id?: string;
     label: string;
@@ -1383,7 +1380,6 @@ export async function getMenuData(params?: {
     tags: item.tags,
     imageUrl: item.imageUrl ?? undefined,
     description: item.description?.trim() || undefined,
-    addons: Array.isArray(item.addons) ? item.addons : [],
     promoActive: item.promoActive ?? false,
     promoPrice: item.promoPrice ?? undefined,
     station: (item.station === "bar" || item.station === "dapur" ? item.station : null) as
@@ -1558,36 +1554,6 @@ async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
 }
 
 // Normalisasi SKU manual: uppercase, hanya huruf/angka/dash. Kosong → null.
-export type MenuAddon = { id: string; label: string; price: number };
-
-// Rapikan daftar add-on dari form: label 1-40 huruf, harga bulat 0..1.000.000, maks 8,
-// id slug unik dari label (dipakai sebagai kunci pilihan pelanggan).
-function normalizeMenuAddons(input: Array<{ id?: string; label: string; price: number }> | undefined) {
-  const result: MenuAddon[] = [];
-  for (const raw of input ?? []) {
-    const label = raw.label.trim().replace(/\s+/g, " ").slice(0, 40);
-    if (!label) continue;
-    const price = Math.round(Number(raw.price));
-    if (!Number.isFinite(price) || price < 0 || price > 1_000_000) {
-      throw new Error(`Harga tambahan "${label}" harus 0 sampai 1.000.000.`);
-    }
-    if (result.some((entry) => entry.label.toLowerCase() === label.toLowerCase())) {
-      throw new Error(`Tambahan "${label}" tercantum dua kali.`);
-    }
-    const base =
-      (raw.id?.trim() || label)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 32) || "addon";
-    let id = base;
-    for (let n = 2; result.some((entry) => entry.id === id); n += 1) id = `${base}-${n}`;
-    result.push({ id, label, price });
-  }
-  if (result.length > 8) throw new Error("Maksimal 8 pilihan tambahan per menu.");
-  return result;
-}
-
 function normalizeMenuSku(raw: string | undefined | null) {
   const trimmed = (raw ?? "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
   return trimmed || null;
@@ -1764,7 +1730,6 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         showInDigitalMenu: input.showInDigitalMenu ?? true,
         featured: input.featured ?? false,
         description: input.description?.trim() || null,
-        addons: normalizeMenuAddons(input.addons),
         sortOrder: input.sortOrder ?? 999,
         updatedAt: now,
       })
@@ -1957,7 +1922,6 @@ export async function updateMenuProduct(
   if (input.showInDigitalMenu !== undefined) update.showInDigitalMenu = input.showInDigitalMenu;
   if (input.featured !== undefined) update.featured = input.featured;
   if (input.description !== undefined) update.description = input.description?.trim() || null;
-  if (input.addons !== undefined) update.addons = normalizeMenuAddons(input.addons);
   if (input.sku !== undefined) {
     const nextSku = normalizeMenuSku(input.sku);
     if (nextSku) {
@@ -7889,7 +7853,6 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       promoActive: menuItems.promoActive,
       promoPrice: menuItems.promoPrice,
       showInDigitalMenu: menuItems.showInDigitalMenu,
-      menuAddons: menuItems.addons,
     })
     .from(menuVariants)
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
@@ -7910,27 +7873,14 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       throw new Error(`${variant.itemName} sedang habis dan tidak bisa dipesan.`);
     }
 
-    // Add-on: harus ada di daftar menu saat ini (harga diambil dari server, bukan klien).
-    const { menuAddons, ...variantInfo } = variant;
-    const available = Array.isArray(menuAddons) ? menuAddons : [];
-    const addons = [...new Set(line.addonIds ?? [])].map((id) => {
-      const addon = available.find((entry) => entry.id === id);
-      if (!addon) {
-        throw new Error(`Pilihan tambahan untuk ${variant.itemName} sudah berubah. Muat ulang menu.`);
-      }
-      return addon;
-    });
-    const addonTotal = addons.reduce((sum, addon) => sum + addon.price, 0);
-    const unitPrice =
-      effectiveMenuPrice(variant.price, variant.promoActive, variant.promoPrice) + addonTotal;
+    const unitPrice = effectiveMenuPrice(
+      variant.price,
+      variant.promoActive,
+      variant.promoPrice,
+    );
     return {
       ...line,
-      ...variantInfo,
-      // "Cold + Extra shot, Less sugar" → tampil di tiket dapur, POS & struk.
-      variantLabel: addons.length
-        ? `${variant.variantLabel} + ${addons.map((addon) => addon.label).join(", ")}`
-        : variant.variantLabel,
-      addons,
+      ...variant,
       price: unitPrice,
       lineTotal: unitPrice * line.qty,
     };
@@ -8114,7 +8064,6 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
           qty: line.qty,
           lineTotal: line.lineTotal,
           note: line.note?.trim() || null,
-          addons: line.addons,
         })),
       )
       .returning();
@@ -13300,7 +13249,6 @@ export async function splitCustomerOrder(
         qty: line.qty,
         lineTotal: item.unitPrice * line.qty,
         note: item.note,
-        addons: item.addons,
       });
     }
 

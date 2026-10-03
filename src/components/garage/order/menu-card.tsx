@@ -132,14 +132,7 @@ function CardBadge({ item, popular }: { item: MenuItem; popular: boolean }) {
 export function menuSubtitle(item: MenuItem) {
   if (item.description) return item.description;
   if (item.variants.length > 1) return item.variants.map((variant) => variant.label).join(" · ");
-  if (item.addons?.length) return "Bisa pilih tambahan";
   return "";
-}
-
-// Item dengan beberapa varian atau pilihan tambahan dipilih lewat sheet detail,
-// bukan langsung masuk keranjang.
-export function needsDetailSheet(item: MenuItem) {
-  return item.variants.length > 1 || (item.addons?.length ?? 0) > 0;
 }
 
 // Kartu menu grid "Showroom": foto 1:1, satu badge di atas foto, tombol + merah di pojok
@@ -158,7 +151,7 @@ export function MenuCard({
   onOpen: () => void;
 }) {
   const soldOut = item.stock === "sold_out";
-  const multiVariant = needsDetailSheet(item);
+  const multiVariant = item.variants.length > 1;
   const singleVariantId = item.variants[0]?.id;
   const subtitle = menuSubtitle(item);
 

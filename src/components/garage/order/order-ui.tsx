@@ -13,30 +13,8 @@ export const rupiah = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 });
 
-// Kunci baris keranjang: item::varian[::addon1+addon2]. Add-on diurutkan supaya pilihan
-// yang sama selalu jadi baris yang sama.
-export function cartKey(itemId: string, variantId: string, addonIds: string[] = []) {
-  const addons = [...new Set(addonIds)].sort().join("+");
-  return addons ? `${itemId}::${variantId}::${addons}` : `${itemId}::${variantId}`;
-}
-
-export function parseCartKey(key: string) {
-  const [itemId = "", variantId = "", addons = ""] = key.split("::");
-  return { itemId, variantId, addonIds: addons ? addons.split("+") : [] };
-}
-
-export type MenuAddon = NonNullable<MenuItem["addons"]>[number];
-
-// Add-on terpilih yang masih ada di menu (pilihan yang sudah dihapus admin diabaikan).
-export function resolveAddons(item: MenuItem, addonIds: string[]): MenuAddon[] {
-  return addonIds
-    .map((id) => item.addons?.find((addon) => addon.id === id))
-    .filter((addon): addon is MenuAddon => Boolean(addon));
-}
-
-// Harga per porsi = harga efektif varian (promo) + total add-on. Sama dengan server.
-export function lineUnitPrice(item: MenuItem, variant: MenuItem["variants"][number], addons: MenuAddon[]) {
-  return variantPrice(item, variant) + addons.reduce((sum, addon) => sum + addon.price, 0);
+export function cartKey(itemId: string, variantId: string) {
+  return `${itemId}::${variantId}`;
 }
 
 // Harga efektif varian — SAMA dengan server (effectiveMenuPrice di garage-service):
@@ -60,10 +38,8 @@ export function itemMinBasePrice(item: MenuItem) {
   return Math.min(...item.variants.map((variant) => variant.price));
 }
 
-// Total porsi item di keranjang (semua varian & kombinasi add-on).
 export function itemCartQty(item: MenuItem, cart: Record<string, number>) {
-  const prefix = `${item.id}::`;
-  return Object.entries(cart).reduce((sum, [key, qty]) => (key.startsWith(prefix) ? sum + qty : sum), 0);
+  return item.variants.reduce((sum, variant) => sum + (cart[cartKey(item.id, variant.id)] ?? 0), 0);
 }
 
 export function categoryIcon(category: string, className: string) {

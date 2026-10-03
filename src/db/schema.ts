@@ -301,12 +301,6 @@ export const menuItems = pgTable(
     imageUrl: text("image_url"),
     // Deskripsi singkat 1 baris untuk menu digital (mis. "Espresso, susu, gula aren").
     description: text("description"),
-    // Pilihan tambahan opsional (add-on) untuk pelanggan, mis. Extra shot +5.000,
-    // Less sugar +0. Harga add-on ditambahkan ke harga varian per porsi.
-    addons: jsonb("addons")
-      .$type<Array<{ id: string; label: string; price: number }>>()
-      .notNull()
-      .default(sql`'[]'::jsonb`),
     // Promo per produk (harga tetap, toggle on/off). Aktif bila promoActive=true
     // dan promoPrice > 0; promoPrice meng-override harga varian saat POS/menu.
     promoActive: boolean("promo_active").notNull().default(false),
@@ -591,12 +585,6 @@ export const orderItems = pgTable(
     // Catatan per-item dari pelanggan (mis. "less ice", "tanpa bawang").
     // Diteruskan ke itemNotes tiket dapur saat order diterima kasir.
     note: text("note"),
-    // Add-on yang dipilih (snapshot label & harga). Label juga ditempel ke variantLabel
-    // ("Cold + Extra shot") supaya tampil di tiket dapur, POS & struk tanpa perubahan lain.
-    addons: jsonb("addons")
-      .$type<Array<{ id: string; label: string; price: number }>>()
-      .notNull()
-      .default(sql`'[]'::jsonb`),
   },
   (table) => ({
     orderIdx: index("order_items_order_id_idx").on(table.orderId),

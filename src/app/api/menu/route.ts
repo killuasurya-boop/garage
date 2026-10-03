@@ -26,17 +26,6 @@ const menuProductSchema = z.object({
   featured: z.boolean().optional(),
   // Deskripsi singkat menu digital; string kosong/null = hapus.
   description: z.string().trim().max(120).nullable().optional(),
-  // Pilihan tambahan (add-on) untuk menu digital; [] = hapus semua.
-  addons: z
-    .array(
-      z.object({
-        id: z.string().trim().max(40).optional(),
-        label: z.string().trim().min(1).max(40),
-        price: z.number().int().min(0).max(1_000_000),
-      }),
-    )
-    .max(8)
-    .optional(),
   variants: z
     .array(
       z.object({

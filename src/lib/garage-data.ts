@@ -78,8 +78,6 @@ export type GarageMenuItem = {
   imageUrl?: string;
   // Deskripsi singkat untuk menu digital (opsional).
   description?: string;
-  // Pilihan tambahan (add-on) opsional; harga ditambahkan ke harga varian per porsi.
-  addons?: Array<{ id: string; label: string; price: number }>;
   promoActive?: boolean;
   promoPrice?: number;
   // Production Hub: override station (null = otomatis dari kategori).

@@ -7,7 +7,6 @@ import {
   Banknote,
   ChefHat,
   ChevronUp,
-  Check,
   CheckCircle2,
   Clock,
   Coffee,
@@ -35,7 +34,6 @@ import {
   MenuCard,
   MenuCardSkeleton,
   MenuPhoto,
-  needsDetailSheet,
 } from "@/components/garage/order/menu-card";
 import {
   MenuSectionList,
@@ -52,12 +50,8 @@ import {
   itemCartQty,
   itemHasPromo,
   itemMinPrice,
-  lineUnitPrice,
-  parseCartKey,
-  resolveAddons,
   rupiah,
   variantPrice,
-  type MenuAddon,
 } from "@/components/garage/order/order-ui";
 import {
   Sheet,
@@ -103,10 +97,6 @@ type QrContext = {
 type CartLine = {
   item: MenuItem;
   variant: MenuItem["variants"][number];
-  // Add-on terpilih (sudah divalidasi terhadap menu saat ini).
-  addons: MenuAddon[];
-  // Harga per porsi = varian (promo) + add-on.
-  unitPrice: number;
   qty: number;
   key: string;
   note: string;
@@ -466,8 +456,8 @@ function CartRow({
   onNote,
 }: {
   line: CartLine;
-  onAdjust?: (key: string, delta: number) => void;
-  onNote?: (key: string, value: string) => void;
+  onAdjust?: (itemId: string, variantId: string, delta: number) => void;
+  onNote?: (itemId: string, variantId: string, value: string) => void;
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const hasNote = line.note.trim().length > 0;
@@ -478,15 +468,10 @@ function CartRow({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-bold leading-snug text-white">{line.item.name}</p>
-          {line.addons.length ? (
-            <p className="mt-0.5 text-[13px] leading-5 text-garage-dim">
-              + {line.addons.map((addon) => addon.label).join(", ")}
-            </p>
-          ) : null}
           <p className="mt-0.5 text-sm text-garage-dim">
             {line.item.variants.length > 1 ? `${line.variant.label} · ` : ""}
             <span className="font-mono tabular-nums text-white">
-              {rupiah.format(line.unitPrice * line.qty)}
+              {rupiah.format(variantPrice(line.item, line.variant) * line.qty)}
             </span>
           </p>
         </div>
@@ -494,8 +479,8 @@ function CartRow({
           <QuantityControl
             label={`${line.item.name} ${line.variant.label}`}
             qty={line.qty}
-            onMinus={() => onAdjust(line.key, -1)}
-            onPlus={() => onAdjust(line.key, 1)}
+            onMinus={() => onAdjust(line.item.id, line.variant.id, -1)}
+            onPlus={() => onAdjust(line.item.id, line.variant.id, 1)}
           />
         ) : (
           <p className="shrink-0 font-mono text-sm font-bold tabular-nums text-white">{line.qty}x</p>
@@ -505,7 +490,7 @@ function CartRow({
         showNote ? (
           <input
             value={line.note}
-            onChange={(event) => onNote(line.key, event.target.value)}
+            onChange={(event) => onNote(line.item.id, line.variant.id, event.target.value)}
             maxLength={160}
             autoFocus={noteOpen && !hasNote}
             placeholder="Catatan item (mis. less ice, tanpa bawang)"
@@ -532,8 +517,8 @@ function CartList({
   onNote,
 }: {
   lines: CartLine[];
-  onAdjust?: (key: string, delta: number) => void;
-  onNote?: (key: string, value: string) => void;
+  onAdjust?: (itemId: string, variantId: string, delta: number) => void;
+  onNote?: (itemId: string, variantId: string, value: string) => void;
 }) {
   if (!lines.length) {
     return (
@@ -575,33 +560,15 @@ function MenuDetailSheet({
 }: {
   item: MenuItem | null;
   cart: Record<string, number>;
-  onAdjust: (itemId: string, variantId: string, delta: number, addonIds?: string[]) => void;
+  onAdjust: (itemId: string, variantId: string, delta: number) => void;
   onClose: () => void;
 }) {
-  // Add-on terpilih untuk item yang sedang dibuka (otomatis kosong lagi saat ganti item).
-  const [addonState, setAddonState] = useState<{ itemId: string; ids: string[] }>({ itemId: "", ids: [] });
-  const selectedAddonIds = item && addonState.itemId === item.id ? addonState.ids : [];
-  const selectedAddons = item ? resolveAddons(item, selectedAddonIds) : [];
-  const itemAddons = item?.addons ?? [];
-
-  function toggleAddon(id: string) {
-    if (!item) return;
-    const next = selectedAddonIds.includes(id)
-      ? selectedAddonIds.filter((entry) => entry !== id)
-      : [...selectedAddonIds, id];
-    setAddonState({ itemId: item.id, ids: next });
-  }
-
   const totalInCart = item ? itemCartQty(item, cart) : 0;
-  // Nilai semua baris item ini di keranjang (semua varian & kombinasi add-on).
   const totalValue = item
-    ? Object.entries(cart).reduce((sum, [key, qty]) => {
-        const parsed = parseCartKey(key);
-        if (parsed.itemId !== item.id) return sum;
-        const variant = item.variants.find((entry) => entry.id === parsed.variantId);
-        if (!variant) return sum;
-        return sum + lineUnitPrice(item, variant, resolveAddons(item, parsed.addonIds)) * qty;
-      }, 0)
+    ? item.variants.reduce(
+        (sum, variant) => sum + variantPrice(item, variant) * (cart[cartKey(item.id, variant.id)] ?? 0),
+        0,
+      )
     : 0;
   const multiVariant = (item?.variants.length ?? 0) > 1;
 
@@ -651,44 +618,12 @@ function MenuDetailSheet({
               </SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {itemAddons.length ? (
-                <fieldset className="mb-4">
-                  <legend className="mb-2.5 text-sm font-bold text-garage-dim">
-                    Tambahan <span className="font-medium">(opsional, pilih dulu)</span>
-                  </legend>
-                  <div className="flex flex-wrap gap-2">
-                    {itemAddons.map((addon) => {
-                      const active = selectedAddonIds.includes(addon.id);
-                      return (
-                        <button
-                          key={addon.id}
-                          type="button"
-                          aria-pressed={active}
-                          onClick={() => toggleAddon(addon.id)}
-                          className={`garage-press inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm font-semibold transition-colors ${
-                            active
-                              ? "border-garage-red bg-garage-red/15 text-white"
-                              : "border-garage-line-2 bg-garage-bg-2 text-garage-fg hover:border-garage-amber/60"
-                          }`}
-                        >
-                          {active ? <Check className="size-4 text-garage-red-bright" aria-hidden /> : null}
-                          {addon.label}
-                          <span className="font-mono text-xs tabular-nums text-garage-dim">
-                            {addon.price > 0 ? `+${rupiah.format(addon.price)}` : "Gratis"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ) : null}
               <p className="mb-2.5 text-sm font-bold text-garage-dim">
                 {multiVariant ? "Pilih varian" : "Jumlah pesanan"}
               </p>
               <div className="space-y-2">
                 {item.variants.map((variant) => {
-                  const qty = cart[cartKey(item.id, variant.id, selectedAddonIds)] ?? 0;
-                  const addonExtra = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
+                  const qty = cart[cartKey(item.id, variant.id)] ?? 0;
                   return (
                     <div
                       key={variant.id}
@@ -703,23 +638,21 @@ function MenuDetailSheet({
                         <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-sm font-bold tabular-nums text-garage-dim">
                           {variantPrice(item, variant) < variant.price ? (
                             <>
-                              <span className="text-[#ff8a8a]">
-                                {rupiah.format(variantPrice(item, variant) + addonExtra)}
-                              </span>
+                              <span className="text-[#ff8a8a]">{rupiah.format(variantPrice(item, variant))}</span>
                               <span className="text-xs font-semibold text-garage-mute line-through">
-                                {rupiah.format(variant.price + addonExtra)}
+                                {rupiah.format(variant.price)}
                               </span>
                             </>
                           ) : (
-                            rupiah.format(variant.price + addonExtra)
+                            rupiah.format(variant.price)
                           )}
                         </p>
                       </div>
                       <QuantityControl
                         label={`${item.name} ${variant.label}`}
                         qty={qty}
-                        onMinus={() => onAdjust(item.id, variant.id, -1, selectedAddonIds)}
-                        onPlus={() => onAdjust(item.id, variant.id, 1, selectedAddonIds)}
+                        onMinus={() => onAdjust(item.id, variant.id, -1)}
+                        onPlus={() => onAdjust(item.id, variant.id, 1)}
                         disabled={item.stock === "sold_out"}
                       />
                     </div>
@@ -958,8 +891,6 @@ export function MemberOrderPage({
   // Konfirmasi singkat "X masuk keranjang" di bar keranjang mobile (hilang setelah 2,2 dtk).
   const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
   const lastAddedTimerRef = useRef<number | null>(null);
-  // Penanda unik tiap penambahan (key animasi notifikasi) — counter, bukan jam.
-  const lastAddedStampRef = useRef(0);
   useEffect(
     () => () => {
       if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
@@ -1198,28 +1129,18 @@ export function MemberOrderPage({
     () =>
       Object.entries(cart)
         .map(([key, qty]) => {
-          const { itemId, variantId, addonIds } = parseCartKey(key);
+          const [itemId, variantId] = key.split("::");
           const item = menuItems.find((entry) => entry.id === itemId);
           const variant = item?.variants.find((entry) => entry.id === variantId);
           if (!item || !variant || qty <= 0) return null;
-          const addons = resolveAddons(item, addonIds);
-          return {
-            item,
-            variant,
-            addons,
-            unitPrice: lineUnitPrice(item, variant, addons),
-            qty,
-            key,
-            note: cartNotes[key] ?? "",
-          };
+          return { item, variant, qty, key, note: cartNotes[key] ?? "" };
         })
         .filter((line): line is CartLine => Boolean(line)),
     [cart, menuItems, cartNotes],
   );
 
   // Harga promo per produk ikut dihitung (sama dengan effectiveMenuPrice di server).
-  // Harga add-on juga ikut (sama dengan createCustomerOrder).
-  const subtotal = cartLines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
+  const subtotal = cartLines.reduce((sum, line) => sum + variantPrice(line.item, line.variant) * line.qty, 0);
   // Rumus SAMA dengan server (createCustomerOrder): service → PB1 → pembulatan
   // outlet, lalu promo QR (Pengaturan qrPromoPct/qrPromoMaxAmount) & voucher.
   // Dulu PB1 & pembulatan tidak dihitung → total di HP lebih murah dari tagihan kasir.
@@ -1277,29 +1198,22 @@ export function MemberOrderPage({
   const etaLabel =
     qrContext.orderType === "takeaway" ? "Siap ambil 15–20 menit" : "Diantar ke meja";
 
-  // Ubah qty satu baris keranjang (kunci item::varian[::add-on]).
-  function adjustKey(key: string, delta: number) {
-    const { itemId, variantId, addonIds } = parseCartKey(key);
+  function add(itemId: string, variantId: string, delta: number) {
     const item = menuItems.find((entry) => entry.id === itemId);
-    if (item?.stock === "sold_out" && delta > 0) {
+    if (item?.stock === "sold_out") {
       setMessage(`${item.name} sedang habis.`);
       return;
     }
 
     if (delta > 0 && item) {
       const variant = item.variants.find((entry) => entry.id === variantId);
-      const addons = resolveAddons(item, addonIds);
-      const detail = [
-        variant && item.variants.length > 1 ? variant.label : "",
-        ...addons.map((addon) => addon.label),
-      ].filter(Boolean);
-      const name = detail.length ? `${item.name} (${detail.join(", ")})` : item.name;
-      lastAddedStampRef.current += 1;
-      setLastAdded({ name, stamp: lastAddedStampRef.current });
+      const name = variant && item.variants.length > 1 ? `${item.name} (${variant.label})` : item.name;
+      setLastAdded({ name, stamp: Date.now() });
       if (lastAddedTimerRef.current) window.clearTimeout(lastAddedTimerRef.current);
       lastAddedTimerRef.current = window.setTimeout(() => setLastAdded(null), 2200);
     }
 
+    const key = cartKey(itemId, variantId);
     setCart((current) => {
       const nextQty = Math.max(0, (current[key] ?? 0) + delta);
       const next = { ...current };
@@ -1318,11 +1232,8 @@ export function MemberOrderPage({
     });
   }
 
-  function add(itemId: string, variantId: string, delta: number, addonIds: string[] = []) {
-    adjustKey(cartKey(itemId, variantId, addonIds), delta);
-  }
-
-  function setLineNote(key: string, value: string) {
+  function setLineNote(itemId: string, variantId: string, value: string) {
+    const key = cartKey(itemId, variantId);
     setCartNotes((notes) => ({ ...notes, [key]: value.slice(0, 160) }));
   }
 
@@ -1420,7 +1331,6 @@ export function MemberOrderPage({
           variantId: line.variant.id,
           qty: line.qty,
           note: line.note.trim() || undefined,
-          addonIds: line.addons.length ? line.addons.map((addon) => addon.id) : undefined,
         })),
       });
 
@@ -1472,7 +1382,7 @@ export function MemberOrderPage({
   );
 
   function quickAdd(item: MenuItem) {
-    if (!needsDetailSheet(item)) add(item.id, item.variants[0].id, 1);
+    if (item.variants.length === 1) add(item.id, item.variants[0].id, 1);
     else setDetailItem(item);
   }
 
@@ -1509,7 +1419,7 @@ export function MemberOrderPage({
           }
         />
         <div className="mt-2">
-          <CartList lines={cartLines} onAdjust={adjustKey} onNote={setLineNote} />
+          <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
         </div>
         <div className="mt-2 space-y-1.5 border-t border-garage-line pt-3 text-sm">{billLines}</div>
       </section>
@@ -2030,7 +1940,7 @@ export function MemberOrderPage({
               </div>
 
               <div className="mt-3 max-h-[40vh] overflow-y-auto pr-1">
-                <CartList lines={cartLines} onAdjust={adjustKey} onNote={setLineNote} />
+                <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
               </div>
 
               {cartLines.length ? (

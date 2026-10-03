@@ -20,8 +20,6 @@ const itemSchema = z.object({
   qty: z.number().int().positive().max(25),
   // Catatan per-item opsional (mis. "less ice", "tanpa bawang").
   note: z.string().trim().max(160).optional(),
-  // Add-on pilihan pelanggan; harga & validitas dicek ulang di server.
-  addonIds: z.array(z.string().trim().min(1).max(40)).max(8).optional(),
 });
 
 const customerOrderSchema = z.object({

@@ -132,45 +132,6 @@ describe("variantPrice / itemMinPrice (rumus sama dengan effectiveMenuPrice serv
   });
 });
 
-describe("Add-on (pilihan tambahan) menu digital", () => {
-  it("harga add-on ditambahkan ke harga per porsi dan label ikut ke item order", async () => {
-    await setItem("itm-coffee", {
-      promoActive: false,
-      addons: [
-        { id: "extra-shot", label: "Extra shot", price: 5_000 },
-        { id: "less-sugar", label: "Less sugar", price: 0 },
-      ],
-    });
-    const created = await guestOrder([
-      { itemId: "itm-coffee", variantId: "reg", qty: 2, addonIds: ["extra-shot", "less-sugar"] } as any,
-    ]);
-    const order = created.order ?? created;
-    expect(order.subtotal).toBe((20_000 + 5_000) * 2);
-
-    const { eq } = await import("drizzle-orm");
-    const [line] = await t
-      .getDb()
-      .select()
-      .from(t.schema.orderItems)
-      .where(eq(t.schema.orderItems.orderId, order.id));
-    expect(line.unitPrice).toBe(25_000);
-    expect(line.variantLabel).toContain("Extra shot");
-    expect(line.variantLabel).toContain("Less sugar");
-    expect(line.addons.map((addon: any) => addon.id)).toEqual(["extra-shot", "less-sugar"]);
-  });
-
-  it("add-on yang tidak ada di menu ditolak (harga tidak bisa dimanipulasi klien)", async () => {
-    await expect(
-      guestOrder([{ itemId: "itm-coffee", variantId: "reg", qty: 1, addonIds: ["gratis-palsu"] } as any]),
-    ).rejects.toThrow(/sudah berubah/);
-  });
-
-  it("menu digital memuat daftar add-on", async () => {
-    const menu = await svc.getMenuData({ channel: "digital" });
-    expect(menu.find((m: any) => m.id === "itm-coffee")?.addons).toHaveLength(2);
-  });
-});
-
 describe("Status buka/tutup outlet untuk menu digital", () => {
   it("buka bila ada shift kasir open; tutup bila tidak ada (dan order ditolak)", async () => {
     expect((await svc.getCustomerOrderingStatus()).open).toBe(true);

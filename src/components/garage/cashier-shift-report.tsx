@@ -186,7 +186,14 @@ function discrepancyBadge(status: string, value: number) {
   );
 }
 
-export function CashierShiftReport() {
+const HIDDEN_UNTIL_CLOSE = "Tampil setelah tutup";
+
+/**
+ * `blindOpenShift`: untuk Kasir, angka kas sistem (diharapkan, nominal per
+ * metode bayar) disembunyikan selama shift masih open supaya hitungan laci
+ * saat tutup shift tidak dicocok-cocokkan dengan angka sistem.
+ */
+export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?: boolean }) {
   const [active, setActive] = useState<SessionListItem | null>(null);
   const [history, setHistory] = useState<SessionListItem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -275,6 +282,7 @@ export function CashierShiftReport() {
     return (
       <ShiftDetailView
         sessionId={selectedId}
+        blindOpenShift={blindOpenShift}
         onBack={() => {
           setSelectedId(null);
           void loadList();
@@ -338,6 +346,7 @@ export function CashierShiftReport() {
           ) : (
             <SessionCard
               session={active}
+              blindOpenShift={blindOpenShift}
               onOpen={() => setSelectedId(active.id)}
             />
           )}
@@ -359,7 +368,12 @@ export function CashierShiftReport() {
             </Card>
           ) : (
             history.map((s) => (
-              <SessionCard key={s.id} session={s} onOpen={() => setSelectedId(s.id)} />
+              <SessionCard
+                key={s.id}
+                session={s}
+                blindOpenShift={blindOpenShift}
+                onOpen={() => setSelectedId(s.id)}
+              />
             ))
           )}
         </TabsContent>
@@ -386,11 +400,14 @@ export function CashierShiftReport() {
 
 function SessionCard({
   session,
+  blindOpenShift,
   onOpen,
 }: {
   session: SessionListItem;
+  blindOpenShift: boolean;
   onOpen: () => void;
 }) {
+  const hideCashFigures = blindOpenShift && session.status === "open";
   return (
     <Card
       className="cursor-pointer border-zinc-700 bg-zinc-900/40 transition-colors hover:border-[#d11a2a]/60 hover:bg-zinc-900/60"
@@ -421,7 +438,7 @@ function SessionCard({
           </p>
           <p className="text-xs text-zinc-500">
             Modal {fmtRp(session.openingCash)} · Diharapkan{" "}
-            {fmtRp(session.expectedCash)}
+            {hideCashFigures ? HIDDEN_UNTIL_CLOSE : fmtRp(session.expectedCash)}
           </p>
         </div>
         <Button size="sm" variant="outline">
@@ -435,9 +452,11 @@ function SessionCard({
 
 function ShiftDetailView({
   sessionId,
+  blindOpenShift,
   onBack,
 }: {
   sessionId: string;
+  blindOpenShift: boolean;
   onBack: () => void;
 }) {
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -492,7 +511,14 @@ function ShiftDetailView({
         <Button
           size="sm"
           className="bg-[#d11a2a] hover:bg-[#b8131f]"
-          disabled={loading || !summary}
+          disabled={
+            loading || !summary || (blindOpenShift && summary.session.status === "open")
+          }
+          title={
+            blindOpenShift && summary?.session.status === "open"
+              ? "Laporan PDF tersedia setelah shift ditutup."
+              : undefined
+          }
           onClick={() => window.open(pdfUrl, "_blank")}
         >
           <Download className="h-4 w-4" />
@@ -542,7 +568,11 @@ function ShiftDetailView({
               <Stat label="Order Lunas" value={String(summary.counts.paid)} />
               <Stat
                 label="Penjualan Bruto"
-                value={fmtRp(summary.sales.gross)}
+                value={
+                  blindOpenShift && summary.session.status === "open"
+                    ? HIDDEN_UNTIL_CLOSE
+                    : fmtRp(summary.sales.gross)
+                }
                 accent
               />
               <Stat
@@ -567,7 +597,11 @@ function ShiftDetailView({
                 />
                 <Row
                   label="Diharapkan"
-                  value={fmtRp(summary.session.expectedCash)}
+                  value={
+                    blindOpenShift && summary.session.status === "open"
+                      ? HIDDEN_UNTIL_CLOSE
+                      : fmtRp(summary.session.expectedCash)
+                  }
                 />
                 <Row
                   label="Aktual"
@@ -614,7 +648,11 @@ function ShiftDetailView({
                     <Row
                       key={m.method}
                       label={`${labelForMethod(m.method)} (${m.count}x)`}
-                      value={fmtRp(m.total)}
+                      value={
+                        blindOpenShift && summary.session.status === "open"
+                          ? "—"
+                          : fmtRp(m.total)
+                      }
                     />
                   ))
                 )}

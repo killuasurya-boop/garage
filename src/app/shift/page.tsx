@@ -25,7 +25,7 @@ export default async function ShiftPage() {
   return (
     <main className="min-h-screen bg-[#08080b] py-6">
       <div className="mx-auto max-w-5xl px-4">
-        <CashierShiftReport />
+        <CashierShiftReport blindOpenShift={session.data.profile.role === "Kasir"} />
       </div>
     </main>
   );

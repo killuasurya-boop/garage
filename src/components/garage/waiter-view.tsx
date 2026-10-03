@@ -696,7 +696,7 @@ export function WaiterView({ me }: Props) {
 
       {pickerOpen ? (
         <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Pilih nomor meja"

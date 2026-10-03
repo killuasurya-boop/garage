@@ -67,7 +67,7 @@ const RUSH_WAITING_THRESHOLD = 8;
 const COLUMN_META: Record<StatusColumn, { label: string; hint: string; tone: string }> = {
   queue: { label: "Waiting", hint: "Belum dimulai", tone: "text-[#e4e4e7]" },
   cooking: { label: "Processing", hint: "Sedang dibuat", tone: "text-[#ffd08a]" },
-  ready: { label: "Ready", hint: "Helper ACC & panggil waiter", tone: "text-[#bbf7d0]" },
+  ready: { label: "Ready", hint: "Tap nama waiter saat diambil", tone: "text-[#bbf7d0]" },
 };
 
 // Pesanan READY yang sudah dipanggil tapi belum diambil waiter setelah sekian menit →

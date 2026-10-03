@@ -2094,7 +2094,9 @@ export function MemberOrderPage({
           <SheetHeader className="border-b border-garage-line p-4 text-left">
             <SheetTitle className="pr-8 font-sans text-xl font-bold text-white">Checkout · {qrContext.tableLabel}</SheetTitle>
             <SheetDescription className="text-sm text-garage-dim">
-              Cek pesanan, isi nama, pilih pembayaran, lalu kirim ke kasir.
+              {staffOrder
+                ? "Cek pesanan lalu kirim ke kasir."
+                : "Cek pesanan, isi nama, pilih pembayaran, lalu kirim ke kasir."}
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">

@@ -7,6 +7,7 @@ import {
   type AppSettings,
   type StaffFeeRates,
 } from "@/lib/garage-app-settings-types";
+import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import { GARAGE_LOCATION } from "@/lib/garage-location";
 import {
@@ -1086,19 +1087,10 @@ function cashDiscrepancyStatus(discrepancy: number, criticalThreshold?: number) 
 }
 
 function countedCashFromDenominations(denominations?: Record<string, number>) {
-  if (!denominations) return null;
-
-  const total = Object.entries(denominations).reduce((sum, [denomination, count]) => {
-    const value = Number(denomination);
-    const qty = Number(count);
-    if (!Number.isFinite(value) || !Number.isFinite(qty) || value <= 0 || qty <= 0) {
-      return sum;
-    }
-
-    return sum + value * qty;
-  }, 0);
-
-  return total > 0 ? Math.round(total) : null;
+  // Ada pecahan yang dihitung → total pecahan menjadi kas aktual (boleh 0 =
+  // laci kosong). Tanpa pecahan → pakai actualCash yang diketik.
+  if (!denominations || !Object.keys(denominations).some(isValidDenominationKey)) return null;
+  return sumDenominations(denominations);
 }
 
 export async function createAuditLog(input: {
@@ -12276,19 +12268,40 @@ export async function listExpenses(
   }));
 }
 
+export class CashSessionRequiredForCashOutError extends Error {
+  constructor() {
+    super("Uang tunai keluar wajib dari laci shift yang terbuka. Buka shift kasir dulu, lalu ulangi.");
+    this.name = "CashSessionRequiredForCashOutError";
+  }
+}
+
+/**
+ * Kurangi kas seharusnya untuk uang tunai yang keluar dari laci.
+ * Laci yang dipilih: sesi milik pengguna sendiri → sesi Kasir outlet → sesi
+ * open lain terbaru. Dengan `required`, tanpa sesi open transaksi ditolak
+ * (uang keluar yang tidak tercatat di laci mana pun jadi selisih misterius).
+ */
 async function applyCashExpenseToOpenSession(
   tx: GarageDb | GarageTx,
   amount: number,
   garage: GarageSession,
+  options: { required?: boolean } = {},
 ) {
   const [openSession] = await tx
     .select({ id: cashSessions.id, expectedCash: cashSessions.expectedCash, code: cashSessions.code })
     .from(cashSessions)
+    .leftJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
     .where(and(eq(cashSessions.outletId, garage.profile.outlet.id), eq(cashSessions.status, "open")))
-    .orderBy(desc(cashSessions.openedAt))
+    .orderBy(
+      sql`case when ${cashSessions.openedBy} = ${garage.user.id} then 0 when ${staffProfiles.role} = 'Kasir' then 1 else 2 end`,
+      desc(cashSessions.openedAt),
+    )
     .limit(1);
 
-  if (!openSession) return null;
+  if (!openSession) {
+    if (options.required) throw new CashSessionRequiredForCashOutError();
+    return null;
+  }
 
   // Atomik di SQL: menulis nilai hasil hitung JS menimpa penjualan tunai yang
   // masuk bersamaan. Tidak di-clamp ke 0 — kas minus harus terlihat sebagai selisih.
@@ -12297,6 +12310,7 @@ async function applyCashExpenseToOpenSession(
     .set({ expectedCash: sql`${cashSessions.expectedCash} - ${amount}` })
     .where(and(eq(cashSessions.id, openSession.id), eq(cashSessions.status, "open")))
     .returning({ id: cashSessions.id, code: cashSessions.code, expectedCash: cashSessions.expectedCash });
+  if (!updated && options.required) throw new CashSessionRequiredForCashOutError();
   return updated ?? null;
 }
 
@@ -13302,7 +13316,8 @@ export async function voidOrder(
     }
 
     const { cashOut } = await reducePaymentsForRefund(tx, order.id, order.total, "void");
-    const cashSession = cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage) : null;
+    const cashSession =
+      cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true }) : null;
 
     // Poin member dari order ini ditarik & kuota voucher yang dipakai dikembalikan.
     await reverseLoyaltyForOrder(tx, order.id, { ratio: 1, source: "VOID" });
@@ -13469,7 +13484,8 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       .where(eq(orders.id, order.id));
 
     const { cashOut } = await reducePaymentsForRefund(tx, order.id, split.refundAmount, "refund");
-    const cashSession = cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage) : null;
+    const cashSession =
+      cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true }) : null;
 
     // Poin member ditarik proporsional terhadap nilai yang dikembalikan.
     if (order.total > 0) {

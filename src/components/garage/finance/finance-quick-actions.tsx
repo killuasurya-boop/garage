@@ -233,7 +233,6 @@ function ActionForm({
     }
     await garageApi.patch(`/api/finance/cash-sessions/${sessionId}/close`, {
       actualCash: Math.round(actual),
-      denominations: { "1": Math.round(actual) },
       closingNote: closingNote.trim() || undefined,
       managerSignOff,
     });

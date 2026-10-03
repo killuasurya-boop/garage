@@ -181,6 +181,7 @@ TableRow,
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { GarageApiError, garageApi } from "@/lib/api-client";
+import { IDR_CASH_DENOMINATIONS, sumDenominations } from "@/lib/cash-denominations";
 import { canAccessModule } from "@/lib/role-access";
 import { GARAGE_TAGS, invalidateGarageCache } from "@/lib/garage-cache";
 import type {
@@ -769,8 +770,8 @@ export function PosView({
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
   const [openingShiftNumber, setOpeningShiftNumber] = useState<1 | 2>(1);
-  // Blind count: kasir menghitung laci tanpa diberi angka sistem.
-  const [actualCash, setActualCash] = useState("");
+  // Blind count: kasir menghitung laci per pecahan tanpa diberi angka sistem.
+  const [shiftDenominationCounts, setShiftDenominationCounts] = useState<Record<string, string>>({});
   const [shiftManagerPin, setShiftManagerPin] = useState("");
   const [shiftSignOffRequired, setShiftSignOffRequired] = useState(false);
   const [shiftClosingNote, setShiftClosingNote] = useState("");
@@ -996,7 +997,7 @@ export function PosView({
     if (shiftAutoPromptedRef.current) return;
     shiftAutoPromptedRef.current = true;
     setShiftError(null);
-    setActualCash("");
+    setShiftDenominationCounts({});
     setShiftClosingNote(cashSession.closingNote ?? "");
     setShiftChecklist(cashSession.checklist);
   }, [
@@ -1180,6 +1181,11 @@ export function PosView({
     manualDiscount?.approvalStatus === "pending";
   const checkoutReady =
     paymentReady && !dineInTableMissing && !manualDiscountAwaitingApproval;
+  const shiftCountedCash = sumDenominations(
+    Object.fromEntries(
+      Object.entries(shiftDenominationCounts).map(([key, raw]) => [key, Number(raw) || 0]),
+    ),
+  );
   const quickCashAmounts = useMemo(
     () =>
       [10000, 20000, 50000, 100000].filter((amount) => amount >= totalDue),
@@ -3075,7 +3081,7 @@ export function PosView({
 
   function prepareShiftDialog() {
     setShiftError(null);
-    setActualCash("");
+    setShiftDenominationCounts({});
     setShiftManagerPin("");
     setShiftSignOffRequired(false);
     setShiftClosingNote(cashSession.closingNote ?? "");
@@ -3148,10 +3154,21 @@ export function PosView({
 
   async function closeShift(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const actualCashInput = parseCashAmount(actualCash, "Uang aktual di laci", { required: true });
-    if (actualCashInput === null) {
+    const denominations: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(shiftDenominationCounts)) {
+      if (raw.trim() === "") continue;
+      const qty = Number(raw);
+      if (!Number.isInteger(qty) || qty < 0) {
+        setShiftError(`Jumlah pecahan ${currency.format(Number(key))} harus angka bulat.`);
+        return;
+      }
+      denominations[key] = qty;
+    }
+    if (!Object.keys(denominations).length) {
+      setShiftError("Isi jumlah lembar/keping uang di laci (isi 0 bila laci kosong).");
       return;
     }
+    const actualCashInput = sumDenominations(denominations);
     if (!shiftChecklistReady()) {
       return;
     }
@@ -3168,6 +3185,7 @@ export function PosView({
         `/api/finance/cash-sessions/${cashSession.id}/close`,
         {
           actualCash: actualCashInput,
+          denominations,
           checklist: shiftChecklist,
           closingNote: shiftClosingNote,
           resetTableMode: shiftResetTableMode,
@@ -6097,17 +6115,42 @@ export function PosView({
               )}
               <div>
                 <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                  Uang aktual di laci saat ini
+                  Jumlah lembar / keping di laci
                 </p>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={actualCash}
-                  placeholder="Hasil hitung fisik"
-                  onChange={(event) => setActualCash(event.target.value)}
-                  className="h-11 border-[#34343c] bg-white/[0.06]"
-                />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {IDR_CASH_DENOMINATIONS.map((denomination) => {
+                    const key = String(denomination);
+                    return (
+                      <label key={key} className="space-y-1">
+                        <span className="block text-[11px] font-semibold text-[#d6d6dc]">
+                          {currency.format(denomination)}
+                        </span>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
+                          value={shiftDenominationCounts[key] ?? ""}
+                          placeholder="0"
+                          aria-label={`Jumlah pecahan ${currency.format(denomination)}`}
+                          onChange={(event) =>
+                            setShiftDenominationCounts((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          className="h-10 border-[#34343c] bg-white/[0.06]"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex items-center justify-between rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-2">
+                  <span className="text-xs text-[#d6d6dc]">Total hitungan fisik</span>
+                  <span className="text-base font-semibold text-white">
+                    {currency.format(shiftCountedCash)}
+                  </span>
+                </div>
               </div>
               {shiftSignOffRequired && (
                 <div className="space-y-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/8 p-3">

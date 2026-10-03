@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { isValidDenominationKey } from "@/lib/cash-denominations";
 import { createDbBackup } from "@/lib/garage-db-backup";
 import {
   CashSessionAlreadyClosedError,
@@ -15,7 +16,12 @@ export const runtime = "nodejs";
 
 const closeSchema = z.object({
   actualCash: z.number().int().nonnegative(),
-  denominations: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  denominations: z
+    .record(
+      z.string().refine(isValidDenominationKey, "Pecahan uang tidak dikenal."),
+      z.number().int().nonnegative().max(100_000),
+    )
+    .optional(),
   checklist: z.array(z.object({ label: z.string().trim().min(1), done: z.boolean() })).optional(),
   closingNote: z.string().trim().max(500).optional(),
   managerSignOff: z.boolean().optional(),

@@ -6,7 +6,7 @@ import { rupiah } from "./order-ui";
 
 export type LastAdded = { name: string; stamp: number };
 
-// Bar keranjang mobile (fixed bawah, < lg). Angka item "memantul" tiap kali bertambah
+// Bar keranjang mobile (fixed bawah, < lg). Teks jumlah item "memantul" tiap kali berubah
 // (key berganti → animasi diputar ulang) dan item terakhir yang ditambahkan tampil
 // sebentar di atas bar sebagai konfirmasi.
 export function OrderCartBar({
@@ -40,17 +40,15 @@ export function OrderCartBar({
         className="garage-press mx-auto flex h-14 w-full max-w-lg cursor-pointer items-center justify-between gap-3 rounded-lg bg-garage-red px-4 text-white shadow-[0_12px_32px_rgba(0,0,0,0.45)] transition-colors hover:bg-garage-red-bright"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <span className="relative">
+          {/* Ikon tanpa badge angka: jumlah item sudah tertulis di sebelahnya
+              (badge di atas ikon menimpa gambar tas di layar kecil). */}
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-white/15">
             <ShoppingBag className="size-5" aria-hidden />
-            <span
-              key={itemCount}
-              className="garage-cart-bump absolute -right-2.5 -top-2 flex min-w-5 items-center justify-center rounded-sm bg-white px-1 text-[11px] font-bold tabular-nums text-garage-bg-0"
-            >
-              {itemCount}
-            </span>
           </span>
           <span className="flex min-w-0 flex-col items-start leading-tight">
-            <span className="text-xs font-medium text-white/90">{itemCount} item</span>
+            <span key={itemCount} className="garage-cart-bump origin-left text-xs font-semibold text-white">
+              {itemCount} item
+            </span>
             <span className="truncate font-mono text-lg font-bold tabular-nums">{rupiah.format(total)}</span>
           </span>
         </span>

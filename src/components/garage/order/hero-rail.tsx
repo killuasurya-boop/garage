@@ -66,6 +66,8 @@ export function HeroRail({
   }, [items.length]);
 
   if (!items.length) return null;
+  // Jumlah item bisa berkurang (mis. item jadi habis) → jaga titik aktif tetap valid.
+  const activeIndex = Math.min(active, items.length - 1);
   const copy = HERO_COPY[kind];
   const Icon = copy.icon;
 
@@ -144,7 +146,7 @@ export function HeroRail({
             >
               <span
                 className={`block h-1.5 rounded-sm transition-all duration-200 ${
-                  index === active ? "w-5 bg-garage-red" : "w-1.5 bg-garage-line-2"
+                  index === activeIndex ? "w-5 bg-garage-red" : "w-1.5 bg-garage-line-2"
                 }`}
               />
             </button>

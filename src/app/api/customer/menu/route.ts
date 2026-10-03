@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const data = await getMenuData({
     category: url.searchParams.get("category") ?? undefined,
     q: url.searchParams.get("q") ?? undefined,
+    channel: "digital",
   });
   return okWithEtag(request, data);
 }

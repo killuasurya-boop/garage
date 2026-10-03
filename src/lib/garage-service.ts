@@ -343,6 +343,8 @@ export type MenuProductInput = {
   // Production Hub: "bar" | "dapur" | null (otomatis dari kategori).
   station?: "bar" | "dapur" | null;
   batchEligible?: boolean;
+  showInDigitalMenu?: boolean;
+  featured?: boolean;
   variants: Array<{
     id?: string;
     label: string;
@@ -1302,11 +1304,16 @@ export async function getMenuData(params?: {
   q?: string;
   includeArchived?: boolean;
   includeCosting?: boolean;
+  // "digital" = menu pelanggan (QR /order): hanya item yang ditandai tampil.
+  channel?: "digital";
 }) {
   const db = getDb();
   const filters = [];
   if (!params?.includeArchived) {
     filters.push(eq(menuItems.status, "active"));
+  }
+  if (params?.channel === "digital") {
+    filters.push(eq(menuItems.showInDigitalMenu, true));
   }
   if (params?.category && params.category !== "All") {
     filters.push(eq(menuItems.category, params.category));
@@ -1378,6 +1385,8 @@ export async function getMenuData(params?: {
       | "dapur"
       | null,
     batchEligible: item.batchEligible ?? true,
+    showInDigitalMenu: item.showInDigitalMenu ?? true,
+    featured: item.featured ?? false,
   }));
 
   // Auto-habis (opsional, setting autoSoldOutFromStock): menu yang tidak bisa
@@ -1711,6 +1720,8 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         promoPrice: promo.promoPrice,
         station: input.station ?? null,
         batchEligible: input.batchEligible ?? true,
+        showInDigitalMenu: input.showInDigitalMenu ?? true,
+        featured: input.featured ?? false,
         sortOrder: input.sortOrder ?? 999,
         updatedAt: now,
       })
@@ -1862,6 +1873,8 @@ export async function updateMenuProduct(
   if (input.imageUrl !== undefined) update.imageUrl = input.imageUrl?.trim() || null;
   if (input.station !== undefined) update.station = input.station ?? null;
   if (input.batchEligible !== undefined) update.batchEligible = input.batchEligible;
+  if (input.showInDigitalMenu !== undefined) update.showInDigitalMenu = input.showInDigitalMenu;
+  if (input.featured !== undefined) update.featured = input.featured;
   if (input.sku !== undefined) {
     const nextSku = normalizeMenuSku(input.sku);
     if (nextSku) {
@@ -7766,6 +7779,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       stock: menuItems.stock,
       promoActive: menuItems.promoActive,
       promoPrice: menuItems.promoPrice,
+      showInDigitalMenu: menuItems.showInDigitalMenu,
     })
     .from(menuVariants)
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
@@ -7778,6 +7792,9 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
 
     if (!variant) {
       throw new Error(`Menu variant not found: ${line.itemId}/${line.variantId}`);
+    }
+    if (!variant.showInDigitalMenu) {
+      throw new Error(`${variant.itemName} tidak tersedia di menu digital. Silakan pesan ke kasir.`);
     }
     if (variant.stock === "sold_out") {
       throw new Error(`${variant.itemName} sedang habis dan tidak bisa dipesan.`);

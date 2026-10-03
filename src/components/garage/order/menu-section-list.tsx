@@ -2,7 +2,7 @@
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
-import { MenuRow } from "./menu-row";
+import { MENU_GRID_CLASS, MenuCard } from "./menu-card";
 import { categoryIcon, itemCartQty } from "./order-ui";
 
 export type MenuGroup = {
@@ -65,16 +65,21 @@ export function MenuSectionList({
                 {group.count} menu
               </span>
             </div>
-            {group.sections.map((section) => (
+            {/* Tanpa sub-judul: semua item kategori dalam SATU grid (bukan grid per
+                sub-seksi, yang membuat kartu tampil satu per baris). */}
+            {(showSubheads
+              ? group.sections
+              : [{ name: group.category, items: group.sections.flatMap((section) => section.items) }]
+            ).map((section) => (
               <div key={section.name} role="group" aria-label={showSubheads ? section.name : undefined}>
                 {showSubheads ? (
-                  <p aria-hidden className="mt-4 font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
+                  <p aria-hidden className="mb-2.5 mt-5 font-mono text-xs font-bold uppercase tracking-[0.16em] text-garage-dim">
                     {section.name}
                   </p>
                 ) : null}
-                <div>
+                <div className={`${MENU_GRID_CLASS} ${showSubheads ? "" : "mt-4"}`}>
                   {section.items.map((item) => (
-                    <MenuRow
+                    <MenuCard
                       key={item.id}
                       item={item}
                       popular={bestSellerSet.has(item.id)}

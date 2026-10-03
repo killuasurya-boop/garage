@@ -21,6 +21,9 @@ const menuProductSchema = z.object({
   // Production Hub: routing station (null = otomatis dari kategori) & Smart Batch.
   station: z.enum(["bar", "dapur"]).nullable().optional(),
   batchEligible: z.boolean().optional(),
+  // Menu digital: tampil di QR order & banner unggulan.
+  showInDigitalMenu: z.boolean().optional(),
+  featured: z.boolean().optional(),
   variants: z
     .array(
       z.object({

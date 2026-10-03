@@ -1,5 +1,5 @@
 {
-  "id": "4704d899-b821-46ba-8eb8-5dd77feffd9b",
+  "id": "8a60c328-0e3f-43b7-b205-c39f5681ab5f",
   "prevId": "6637eada-1db0-4f38-bc1d-2e47b63792cf",
   "version": "7",
   "dialect": "postgresql",
@@ -2595,22 +2595,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "cash_sessions_open_per_user_idx": {
-          "name": "cash_sessions_open_per_user_idx",
-          "columns": [
-            {
-              "expression": "opened_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"cash_sessions\".\"status\" = 'open'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -8894,6 +8878,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "show_in_digital_menu": {
+          "name": "show_in_digital_menu",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "featured": {
+          "name": "featured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "sort_order": {
           "name": "sort_order",

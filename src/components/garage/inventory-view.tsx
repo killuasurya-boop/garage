@@ -74,6 +74,7 @@ import {
 import type { InventoryItem, MenuItem } from "@/lib/garage-api-types";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
 import { ProductFormPanel } from "@/components/garage/inventory/product-form";
+import { DigitalMenuManager } from "@/components/garage/inventory/digital-menu-manager";
 import {
   productVariantDraftId,
   recipeCostForVariantDraft,
@@ -567,7 +568,7 @@ export function InventoryView({
   const [productItems, setProductItems] = useState<ManagedProductItem[]>(
     menuItems as ManagedProductItem[],
   );
-  const [productListMode, setProductListMode] = useState<"active" | "archived">("active");
+  const [productListMode, setProductListMode] = useState<"active" | "archived" | "digital">("active");
   // Filter & sort daftar produk (B2). Default urut A-Z by nama.
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState<"all" | MenuCategory>("all");
@@ -582,6 +583,8 @@ export function InventoryView({
   // Production Hub: "" = station otomatis dari kategori.
   const [productStation, setProductStation] = useState<"" | "bar" | "dapur">("");
   const [productBatchEligible, setProductBatchEligible] = useState(true);
+  const [productShowInDigitalMenu, setProductShowInDigitalMenu] = useState(true);
+  const [productFeatured, setProductFeatured] = useState(false);
   const [productCategory, setProductCategory] = useState<MenuCategory>("Cemilan");
   const [productSection, setProductSection] = useState("Dapur");
   const [productPrep, setProductPrep] = useState("10m");
@@ -1703,7 +1706,7 @@ export function InventoryView({
     [productItems],
   );
   const baseProductItems =
-    productListMode === "active" ? activeProductItems : archivedProductItems;
+    productListMode === "archived" ? archivedProductItems : activeProductItems;
   const visibleProductItems = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
     const lowestPrice = (item: ManagedProductItem) =>
@@ -1817,6 +1820,8 @@ export function InventoryView({
     setProductPromoPrice("");
     setProductStation("");
     setProductBatchEligible(true);
+    setProductShowInDigitalMenu(true);
+    setProductFeatured(false);
     setProductCategory("Cemilan");
     setProductSection("Dapur");
     setProductPrep("10m");
@@ -1859,6 +1864,8 @@ export function InventoryView({
       promoPrice: productPromoPrice,
       station: productStation,
       batchEligible: productBatchEligible,
+      showInDigitalMenu: productShowInDigitalMenu,
+      featured: productFeatured,
       category: productCategory,
       section: productSection,
       prep: productPrep,
@@ -1909,6 +1916,8 @@ export function InventoryView({
       setProductPromoPrice(typeof draft.promoPrice === "string" ? draft.promoPrice : "");
       setProductStation(draft.station === "bar" || draft.station === "dapur" ? draft.station : "");
       setProductBatchEligible(draft.batchEligible !== false);
+      setProductShowInDigitalMenu(draft.showInDigitalMenu !== false);
+      setProductFeatured(Boolean(draft.featured));
       setProductCategory(validCategory);
       setProductSection(typeof draft.section === "string" ? draft.section : "Dapur");
       setProductPrep(typeof draft.prep === "string" ? draft.prep : "10m");
@@ -2108,6 +2117,8 @@ export function InventoryView({
     setProductPromoPrice(product.promoPrice ? String(product.promoPrice) : "");
     setProductStation(product.station === "bar" || product.station === "dapur" ? product.station : "");
     setProductBatchEligible(product.batchEligible !== false);
+    setProductShowInDigitalMenu(product.showInDigitalMenu !== false);
+    setProductFeatured(Boolean(product.featured));
     setProductCategory(product.category);
     setProductSection(product.section || (product.category === "Coffee" || product.category === "Non-Coffee" ? "Bar" : "Dapur"));
     setProductPrep(product.prep || "10m");
@@ -2211,6 +2222,8 @@ export function InventoryView({
             : null,
         station: productStation || null,
         batchEligible: productBatchEligible,
+        showInDigitalMenu: productShowInDigitalMenu,
+        featured: productFeatured,
         category: productCategory,
         section: productSection.trim() || (productCategory === "Coffee" || productCategory === "Non-Coffee" ? "Bar" : "Dapur"),
         stock: productStock,
@@ -2859,6 +2872,10 @@ export function InventoryView({
                   onStationChange={setProductStation}
                   batchEligible={productBatchEligible}
                   onBatchEligibleChange={setProductBatchEligible}
+                  showInDigitalMenu={productShowInDigitalMenu}
+                  onShowInDigitalMenuChange={setProductShowInDigitalMenu}
+                  featured={productFeatured}
+                  onFeaturedChange={setProductFeatured}
                   prep={productPrep}
                   onPrepChange={setProductPrep}
                   stock={productStock}
@@ -2976,7 +2993,7 @@ export function InventoryView({
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex gap-1 rounded-md border border-[#34343c] bg-white/[0.04] p-1">
-                {(["active", "archived"] as const).map((mode) => (
+                {(["active", "archived", "digital"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -2987,7 +3004,7 @@ export function InventoryView({
                         : "text-[#888] hover:text-white"
                     }`}
                   >
-                    {mode === "active" ? "Produk Aktif" : "Produk Arsip"}
+                    {mode === "active" ? "Produk Aktif" : mode === "archived" ? "Produk Arsip" : "Menu Digital"}
                   </button>
                 ))}
               </div>
@@ -3003,6 +3020,16 @@ export function InventoryView({
               </Button>
             </div>
 
+            {productListMode === "digital" ? (
+              <DigitalMenuManager
+                items={activeProductItems}
+                onChanged={async () => {
+                  await loadProductItems();
+                  await onMenuChanged();
+                }}
+              />
+            ) : (
+            <>
             {/* Toolbar filter & sort produk (B2) */}
             <div className="grid gap-2 rounded-md border border-[#34343c] bg-white/[0.03] p-2 sm:grid-cols-2 lg:grid-cols-[1fr_150px_140px_160px]">
               <Input
@@ -3255,6 +3282,8 @@ export function InventoryView({
                 </div>
               )}
             </div>
+            </>
+            )}
           </CardContent>
         </Card>
       )}

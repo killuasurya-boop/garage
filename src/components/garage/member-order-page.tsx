@@ -861,6 +861,7 @@ export function MemberOrderPage({
   initialMenuItems,
   bestSellerIds,
   billing,
+  initialOrderingOpen,
 }: {
   initialQrContext?: QrContext;
   initialReturnPath?: string;
@@ -872,6 +873,8 @@ export function MemberOrderPage({
     AppSettings,
     "serviceChargePct" | "taxPct" | "roundingMode" | "voucherMaxDiscountPct" | "qrPromoPct" | "qrPromoMaxAmount"
   >;
+  // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
+  initialOrderingOpen?: boolean;
 }) {
   const hasInitialMenuItems = Boolean(initialMenuItems?.length);
   const bestSellerSet = useMemo(() => new Set(bestSellerIds ?? []), [bestSellerIds]);
@@ -883,6 +886,8 @@ export function MemberOrderPage({
   const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
   // Item yang dibuka di sheet detail (pilih varian + qty).
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
+  // false = kasir belum buka shift → menu tetap bisa dilihat, tapi order belum bisa dikirim.
+  const [orderingOpen, setOrderingOpen] = useState(initialOrderingOpen !== false);
   // Konfirmasi singkat "X masuk keranjang" di bar keranjang mobile (hilang setelah 2,2 dtk).
   const [lastAdded, setLastAdded] = useState<LastAdded | null>(null);
   const lastAddedTimerRef = useRef<number | null>(null);
@@ -989,6 +994,23 @@ export function MemberOrderPage({
       window.clearTimeout(menuTimeoutId);
     };
   }, [hasInitialMenuItems, loadProfile]);
+
+  // Cek ulang status buka/tutup outlet: tiap 60 dtk + saat checkout dibuka, supaya banner
+  // "Belum buka" hilang sendiri begitu kasir membuka shift (tanpa refresh halaman).
+  const refreshOrderingStatus = useCallback(async () => {
+    try {
+      const query = qrContext.outletId ? `?outletId=${encodeURIComponent(qrContext.outletId)}` : "";
+      const status = await getJson<{ open: boolean }>(`/api/customer/ordering-status${query}`);
+      setOrderingOpen(status.open);
+    } catch {
+      /* jaringan gagal → pertahankan status terakhir; server tetap memvalidasi saat kirim */
+    }
+  }, [qrContext.outletId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => void refreshOrderingStatus(), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [refreshOrderingStatus]);
 
   useEffect(() => {
     const updateScrollState = () => setShowScrollTop(window.scrollY > 520);
@@ -1156,8 +1178,11 @@ export function MemberOrderPage({
     !busy &&
     !guestNameMissing &&
     !memberMissing &&
-    !soldOutCartLine;
-  const checkoutBlockReason = memberMissing
+    !soldOutCartLine &&
+    orderingOpen;
+  const checkoutBlockReason = !orderingOpen
+    ? "Kasir belum buka. Order bisa dikirim setelah outlet buka."
+    : memberMissing
     ? "Login member untuk lanjut."
     : soldOutCartLine
       ? `${soldOutCartLine.item.name} sedang habis. Hapus dari keranjang.`
@@ -1221,6 +1246,7 @@ export function MemberOrderPage({
       return;
     }
     setCheckoutOpen(true);
+    void refreshOrderingStatus();
   }
 
   async function checkVoucher() {
@@ -1700,7 +1726,23 @@ export function MemberOrderPage({
 
         <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
-            {message && !checkoutOpen ? (
+            {!orderingOpen ? (
+              <div
+                className="mb-4 flex items-start gap-3 rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3.5 py-3"
+                role="status"
+              >
+                <Clock className="mt-0.5 size-5 shrink-0 text-garage-amber" aria-hidden />
+                <div className="min-w-0 text-sm leading-6">
+                  <p className="font-bold text-white">Outlet belum buka</p>
+                  <p className="text-garage-dim">
+                    Menu tetap bisa dilihat dan dipilih. Pesanan bisa dikirim setelah kasir membuka shift
+                    &mdash; halaman ini menyesuaikan otomatis.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+                        {message && !checkoutOpen ? (
               <div
                 className="mb-4 rounded-md border border-garage-amber/40 bg-garage-amber/10 p-3.5 text-sm leading-6 text-garage-fg"
                 role="status"

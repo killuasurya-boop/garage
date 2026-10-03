@@ -7774,6 +7774,32 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
   };
 }
 
+// Outlet tujuan QR order (outletId dari QR, atau outlet aktif pertama) + apakah ada shift
+// kasir yang sedang buka. Dipakai createCustomerOrder (validasi) dan halaman /order
+// (banner "Belum buka" sebelum pelanggan memilih menu).
+async function resolveQrOutletShift(outletId?: string) {
+  const db = getDb();
+  const [outlet] = await db
+    .select()
+    .from(outlets)
+    .where(outletId ? eq(outlets.id, outletId) : eq(outlets.status, "active"))
+    .orderBy(outlets.code)
+    .limit(1);
+  if (!outlet) return { outlet: null, open: false };
+
+  const [openShift] = await db
+    .select({ id: cashSessions.id })
+    .from(cashSessions)
+    .where(and(eq(cashSessions.outletId, outlet.id), eq(cashSessions.status, "open")))
+    .limit(1);
+  return { outlet, open: Boolean(openShift) };
+}
+
+export async function getCustomerOrderingStatus(outletId?: string) {
+  const { outlet, open } = await resolveQrOutletShift(outletId);
+  return { open: Boolean(outlet) && open };
+}
+
 export async function createCustomerOrder(input: CustomerOrderInput) {
   const db = getDb();
   const itemIds = [...new Set(input.items.map((item) => item.itemId))];
@@ -7859,24 +7885,13 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   const paymentReference = input.paymentReference?.trim() || null;
   const initialOrderStatus = paymentMethod === "Cash" ? "pending_cashier" : "awaiting_payment";
 
-  const [outlet] = await db
-    .select()
-    .from(outlets)
-    .where(input.outletId ? eq(outlets.id, input.outletId) : eq(outlets.status, "active"))
-    .orderBy(outlets.code)
-    .limit(1);
+  const { outlet, open } = await resolveQrOutletShift(input.outletId);
 
   if (!outlet) {
     throw new Error("Outlet untuk QR order tidak ditemukan.");
   }
 
-  const [openShift] = await db
-    .select({ id: cashSessions.id })
-    .from(cashSessions)
-    .where(and(eq(cashSessions.outletId, outlet.id), eq(cashSessions.status, "open")))
-    .limit(1);
-
-  if (!openShift) {
+  if (!open) {
     throw new Error("Outlet belum open shift. Silakan hubungi kasir.");
   }
 

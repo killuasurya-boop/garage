@@ -131,3 +131,21 @@ describe("variantPrice / itemMinPrice (rumus sama dengan effectiveMenuPrice serv
     expect(variantPrice({ ...base, promoActive: true, promoPrice: 19_000 }, base.variants[1])).toBe(19_000);
   });
 });
+
+describe("Status buka/tutup outlet untuk menu digital", () => {
+  it("buka bila ada shift kasir open; tutup bila tidak ada (dan order ditolak)", async () => {
+    expect((await svc.getCustomerOrderingStatus()).open).toBe(true);
+
+    const { eq } = await import("drizzle-orm");
+    await t
+      .getDb()
+      .update(t.schema.cashSessions)
+      .set({ status: "closed" })
+      .where(eq(t.schema.cashSessions.status, "open"));
+
+    expect((await svc.getCustomerOrderingStatus()).open).toBe(false);
+    await expect(guestOrder([{ itemId: "itm-coffee", variantId: "reg", qty: 1 }])).rejects.toThrow(
+      /belum open shift/,
+    );
+  });
+});

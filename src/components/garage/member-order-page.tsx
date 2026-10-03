@@ -862,6 +862,7 @@ export function MemberOrderPage({
   bestSellerIds,
   billing,
   initialOrderingOpen,
+  staffOrder,
 }: {
   initialQrContext?: QrContext;
   initialReturnPath?: string;
@@ -875,6 +876,9 @@ export function MemberOrderPage({
   >;
   // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
   initialOrderingOpen?: boolean;
+  // Mode waiter (/order?mode=waiter, sesi staf dicek server): nama pemesan otomatis,
+  // order dikirim ke /api/waiter/orders (menunggu kasir), lalu kembali ke daftar meja.
+  staffOrder?: { name: string; backHref: string } | null;
 }) {
   const hasInitialMenuItems = Boolean(initialMenuItems?.length);
   const bestSellerSet = useMemo(() => new Set(bestSellerIds ?? []), [bestSellerIds]);
@@ -904,6 +908,8 @@ export function MemberOrderPage({
   const [guestName, setGuestName] = useState("");
   // Pesan error nama baru tampil setelah kolom disentuh (bukan saat dialog baru dibuka).
   const [guestNameTouched, setGuestNameTouched] = useState(false);
+  // Mode waiter: nomor order terakhir yang terkirim ke kasir (panel sukses).
+  const [staffSentOrderNo, setStaffSentOrderNo] = useState<string | null>(null);
   const [customerNote, setCustomerNote] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherResult, setVoucherResult] = useState<VoucherValidation | null>(null);
@@ -1156,7 +1162,7 @@ export function MemberOrderPage({
   const itemCount = cartLines.reduce((sum, line) => sum + line.qty, 0);
   const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
-  const guestNameMissing = mode === "guest" && !guestName.trim();
+  const guestNameMissing = !staffOrder && mode === "guest" && !guestName.trim();
   const showGuestNameError = guestNameMissing && guestNameTouched;
   // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
@@ -1302,6 +1308,27 @@ export function MemberOrderPage({
         throw new Error("Nama customer wajib diisi.");
       }
 
+      if (staffOrder) {
+        const sent = await postJson<CustomerOrderCreateResponse>("/api/waiter/orders", {
+          tableLabel: qrContext.tableLabel,
+          outletId: qrContext.outletId,
+          customerNote: customerNote.trim() || undefined,
+          items: cartLines.map((line) => ({
+            itemId: line.item.id,
+            variantId: line.variant.id,
+            qty: line.qty,
+            note: line.note.trim() || undefined,
+          })),
+        });
+        setCart({});
+        setCartNotes({});
+        setCustomerNote("");
+        setCheckoutOpen(false);
+        setStaffSentOrderNo(sent.order.orderNo);
+        setMessage("");
+        return;
+      }
+
       const existingChatToken =
         typeof window !== "undefined"
           ? (() => {
@@ -1424,6 +1451,14 @@ export function MemberOrderPage({
         <div className="mt-2 space-y-1.5 border-t border-garage-line pt-3 text-sm">{billLines}</div>
       </section>
 
+      {staffOrder ? (
+        <section className="rounded-lg border border-garage-line bg-garage-bg-2/60 p-3.5 text-sm leading-6 text-garage-dim">
+          Dipesan oleh <strong className="text-white">{staffOrder.name}</strong> untuk{" "}
+          <strong className="text-white">{qrContext.tableLabel}</strong>. Pesanan masuk ke kasir untuk
+          divalidasi; pembayaran di kasir saat bill.
+        </section>
+      ) : (
+        <>
       {/* 2. DATA PEMESAN */}
       <section className="rounded-lg border border-garage-line bg-garage-bg-2/60 p-3.5">
         <StepHeading step={2} title="Data pemesan" />
@@ -1663,6 +1698,9 @@ export function MemberOrderPage({
         ) : null}
       </section>
 
+        </>
+      )}
+
       {message ? (
         <p className="rounded-md border border-garage-red/45 bg-garage-red/12 p-3 text-sm leading-6 text-[#ffd6d6]" role="alert">
           {message}
@@ -1712,6 +1750,7 @@ export function MemberOrderPage({
           loginHref={loginHref}
           memberName={member?.name}
           onHelp={() => setHelpOpen(true)}
+          staff={staffOrder}
         />
 
         {!voucherResult?.valid && qrContext.campaign === "landing_menu" ? (
@@ -1751,7 +1790,41 @@ export function MemberOrderPage({
               </div>
             ) : null}
 
-            {!lastOrder && trackedOrderId && orderStatus ? (
+            {staffOrder && staffSentOrderNo ? (
+              <section
+                className="mb-5 rounded-lg border border-garage-success/35 bg-garage-bg-1 p-4"
+                role="status"
+              >
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#86efac]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold text-white">
+                      <span className="font-mono tabular-nums">{staffSentOrderNo}</span> terkirim ke kasir
+                    </p>
+                    <p className="mt-1 text-sm text-garage-dim">
+                      {qrContext.tableLabel} · menunggu validasi kasir, lalu masuk Bar/Dapur.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Link
+                    href={staffOrder.backHref}
+                    className="garage-press inline-flex h-11 items-center justify-center rounded-md bg-garage-red text-sm font-bold text-white hover:bg-garage-red-bright"
+                  >
+                    Kembali ke meja
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setStaffSentOrderNo(null)}
+                    className="garage-press inline-flex h-11 items-center justify-center rounded-md border border-garage-line-2 text-sm font-bold text-white hover:bg-garage-bg-3"
+                  >
+                    Tambah pesanan
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
+            {!staffOrder && !lastOrder && trackedOrderId && orderStatus ? (
               <section className="mb-5 rounded-lg border border-garage-success/35 bg-garage-bg-1 p-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#86efac]" />
@@ -1778,7 +1851,7 @@ export function MemberOrderPage({
               </section>
             ) : null}
 
-            {lastOrder ? (
+            {!staffOrder && lastOrder ? (
               <section className="mb-5 rounded-lg border border-garage-success/35 bg-garage-bg-1 p-4">
                 {(() => {
                   const invoicePdfUrl = customerInvoicePdfUrl(orderStatus, lastOrder);
@@ -2000,7 +2073,7 @@ export function MemberOrderPage({
         onClose={() => setDetailItem(null)}
       />
 
-      {qrContext.orderType === "dine-in" ? (
+      {qrContext.orderType === "dine-in" && !staffOrder ? (
         <OrderHelpSheet
           open={helpOpen}
           onOpenChange={setHelpOpen}

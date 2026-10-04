@@ -7628,12 +7628,8 @@ export async function getDisplayCustomerQueue() {
   }));
 }
 
-const publicLiveTrackingEvents = [
-  { date: "16 MEI", time: "19:00", title: "Cafe Racer Night", tag: "Kopdar Motor", capacity: 60 },
-  { date: "24 MEI", time: "20:00", title: "Slow Bar Live Set", tag: "Live Musik", capacity: 40 },
-  { date: "04 JUN", time: "18:30", title: "Workshop Manual Brew", tag: "Workshop", capacity: 12 },
-  { date: "13 JUN", time: "19:00", title: "Creative Supper Club", tag: "Komunitas", capacity: 30 },
-];
+// Event publik: belum ada modul event — jangan tampilkan event/slot karangan.
+const publicLiveTrackingEvents: Array<{ date: string; time: string; title: string; tag: string; capacity: number }> = [];
 
 function publicEtaRange(baseMinutes: number, activeCount: number) {
   const start = Math.max(5, Math.min(45, Math.round(baseMinutes)));
@@ -7714,13 +7710,6 @@ function publicVisitMood(totalTables: number, availableTables: number, activeOrd
   };
 }
 
-function publicEventCapacity(event: { capacity: number }, index: number) {
-  const reserved = Math.min(event.capacity - 1, Math.round(event.capacity * (0.34 + index * 0.11)));
-  const available = Math.max(0, event.capacity - reserved);
-  const tone = available <= 3 ? "full" : available <= Math.ceil(event.capacity * 0.35) ? "busy" : "ready";
-  return { reserved, available, tone };
-}
-
 export async function getPublicLiveTrackingData() {
   const db = getDb();
   const [tables, ticketRows] = await Promise.all([
@@ -7760,15 +7749,12 @@ export async function getPublicLiveTrackingData() {
   const takeawayPulse = publicTicketPulse(takeawayTickets.length ? takeawayTickets : ticketRows, "8-12 menit");
   const availableTables = tables.filter((table) => table.available).length;
   const visitMood = publicVisitMood(tables.length, availableTables, orderPulse.active);
-  const events = publicLiveTrackingEvents.map((event, index) => {
-    const capacity = publicEventCapacity(event, index);
-    return {
-      ...event,
-      reserved: capacity.reserved,
-      available: capacity.available,
-      tone: capacity.tone,
-    };
-  });
+  const events = publicLiveTrackingEvents.map((event) => ({
+    ...event,
+    reserved: 0,
+    available: event.capacity,
+    tone: "ready" as const,
+  }));
 
   return {
     generatedAt: new Date().toISOString(),

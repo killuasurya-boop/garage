@@ -6,7 +6,26 @@ import Link from "next/link";
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
-import { Coffee, Sparkles, Snowflake } from "lucide-react";
+import {
+  Award,
+  ChevronDown,
+  Coffee,
+  Bike,
+  Clock,
+  ConciergeBell,
+  Cookie,
+  CreditCard,
+  LayoutGrid,
+  MessageCircle,
+  QrCode,
+  ShoppingBag,
+  Snowflake,
+  Sparkles,
+  Timer,
+  TrainFront,
+  Trees,
+  UtensilsCrossed,
+} from "lucide-react";
 
 import {
   Sheet,
@@ -16,6 +35,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  GOLD_ANNUAL_SPEND,
+  PLATINUM_ANNUAL_SPEND,
+  POINT_EARN_AMOUNT,
+  memberLevelRules,
+} from "@/lib/member-types";
 import { GARAGE_LOCATION, formatBusinessHours, formatIdPhone, isOpen24h, openStatus } from "@/lib/garage-location";
 const WHATSAPP_PHONE = GARAGE_LOCATION.phone;
 const BUSINESS_EMAIL = "garagetebingtinggi@gmail.com";
@@ -71,7 +96,7 @@ const SOCIAL_LINKS = [
     handle: "@GarageId",
     proof: "Video suasana & menu",
     description: "Lihat suasana GARAGE, menu favorit, dan cerita komunitas dalam format video.",
-    cta: "Review di YouTube",
+    cta: "Tonton di YouTube",
   },
   {
     id: "instagram",
@@ -80,7 +105,7 @@ const SOCIAL_LINKS = [
     handle: "@garage_tbt.id",
     proof: "Foto menu, story, promo",
     description: "Cek foto menu, promo aktif, story harian, dan vibe tempat sebelum datang.",
-    cta: "Review di Instagram",
+    cta: "Follow Instagram",
   },
   {
     id: "tiktok",
@@ -89,7 +114,7 @@ const SOCIAL_LINKS = [
     handle: "@garage_tbt.id",
     proof: "Short video & vibe harian",
     description: "Tonton video pendek tentang menu, suasana malam, dan momen customer GARAGE.",
-    cta: "Review di TikTok",
+    cta: "Follow TikTok",
   },
   {
     id: "facebook",
@@ -98,7 +123,7 @@ const SOCIAL_LINKS = [
     handle: "garagetbt.id",
     proof: "Update komunitas & info",
     description: "Ikuti update komunitas, info event, dan pengumuman GARAGE Tebing Tinggi.",
-    cta: "Review di Facebook",
+    cta: "Ikuti Facebook",
   },
 ];
 const LOGIN_OPTIONS = [
@@ -351,9 +376,10 @@ function liveOrderEta(orderPulse, recommendation) {
 
 function eventSeatInfo(event, index) {
   const capacity = Number(String(event?.capacity ?? "").match(/\d+/)?.[0] ?? 0);
-  const reserved = capacity ? Math.min(capacity - 1, Math.round(capacity * (0.34 + index * 0.11))) : 0;
-  const available = Math.max(0, capacity - reserved);
-  const tone = available <= 3 ? "full" : available <= Math.ceil(capacity * 0.35) ? "busy" : "ready";
+  // Belum ada data RSVP nyata → jangan karang jumlah kursi terisi.
+  const reserved = 0;
+  const available = capacity;
+  const tone = "ready";
   return { capacity, reserved, available, tone };
 }
 
@@ -947,24 +973,32 @@ function Loader({ onDone }) {
 
 // ---------------- NAV ----------------
 const MEGA_CATS = [
-{ Icon: Coffee, name: "Signature", desc: "Spanish Latte · Biscoffe · Caramel Macchiato", count: "Bar utama" },
-{ Icon: Sparkles, name: "Latte & Susu", desc: "Coklat · Matcha · Red Velvet · Taro", count: "Cold & Hot" },
-{ Icon: Snowflake, name: "Americano Series", desc: "Berry · Cranberry · Double Peach", count: "5 varian" },
-{ Icon: Coffee, name: "Klasik", desc: "Americano · Sanger · Latte · Cappuccino", count: "Cold & Hot" }];
+{ Icon: Coffee, name: "Kopi Susu", desc: "Spanish Latte · Caramel Macchiato · Gula Aren · Biscoff", count: "Coffee" },
+{ Icon: Snowflake, name: "Americano", desc: "Americano · Peach · Berry · Cranberry · Pongah", count: "Coffee" },
+{ Icon: Sparkles, name: "Milk Series", desc: "Matcha · Coklat · Strawberry Milk · Choco Cloud", count: "Non-Coffee" },
+{ Icon: Sparkles, name: "Tea Series", desc: "Lychee Tea · Lemon Tea · Peach Tea · Ice Tea", count: "Non-Coffee" },
+{ Icon: UtensilsCrossed, name: "Makanan", desc: "Menu makan untuk nongkrong lama", count: "Dapur" },
+{ Icon: Cookie, name: "Cemilan", desc: "Teman ngopi & sharing bareng", count: "Dapur" }];
 
 
 function Nav() {
   const y = useScrollY();
   const biz = useBiz();
   const condensed = y > 80;
+  // Desktop: 5 tujuan utama saja agar nav tidak sesak. Halaman sekunder
+  // (Franchise, Karier) ada di drawer HP & footer.
   const items = [
-  ["Live", "#live-status"],
   ["Menu", "#menu", true],
-  ["Tracking", "#live-tracking-system"],
+  ["Cara Pesan", "#cara-pesan"],
   ["Event", "#events"],
-  ["Franchise", "/franchise"],
-  ["Recruitment", "/recruitment"],
+  ["Member", "#membership"],
   ["Lokasi", "#location"]];
+  const mobileItems = [
+  ...items,
+  ["Status Meja", "#live-status"],
+  ["Lacak Pesanan", "#live-tracking-system"],
+  ["Franchise", "/franchise"],
+  ["Karier", "/recruitment"]];
 
   const [mobOpen, setMobOpen] = useState(false);
   const [megaOpen, setMegaOpen] = useState(false);
@@ -1055,7 +1089,7 @@ function Nav() {
           <a className="site-nav-brand" href="#top" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <LogoImage variant="wordmark" height={condensed ? 24 : 28} preload />
             <span className="brand-divider" style={{ width: 1, height: 18, background: "var(--line-2)" }} />
-            <span className="mono brand-year" style={{ fontSize: 9 }}>EST. 2026</span>
+            <span className="mono brand-year" style={{ fontSize: 9 }}>TEBING TINGGI</span>
           </a>
 
           <ul style={{ display: "flex", gap: 20, listStyle: "none" }} className="nav-desktop">
@@ -1072,7 +1106,7 @@ function Nav() {
                   </Link>
                 ) : (
                   <a href={href} className="navlink">
-                    <span>{label}{hasMega && <span style={{ marginLeft: 6, opacity: 0.6 }}>v</span>}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{label}{hasMega && <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.75 }} />}</span>
                   </a>
                 )}
               </li>
@@ -1101,10 +1135,10 @@ function Nav() {
                 aria-haspopup="menu"
                 aria-expanded={loginOpen}
                 onClick={() => setLoginOpen((open) => !open)}
-                className="btn btn-primary"
+                className="btn"
                 style={{ padding: "9px 12px", fontSize: 10 }}
               >
-                <span>Login</span><span style={{ marginLeft: 2, opacity: 0.72 }}>v</span>
+                <span>Login</span><ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.8, transform: loginOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
               </button>
               <div className="login-menu" data-open={loginOpen ? "true" : "false"} role="menu">
                 {LOGIN_OPTIONS.map((item) => (
@@ -1137,7 +1171,7 @@ function Nav() {
               className="btn btn-primary"
               style={{ padding: "9px 14px", fontSize: 10 }}
             >
-              <span>Order</span><ArrowRight size={12} />
+              <span>Pesan</span><ArrowRight size={12} />
             </Link>
             <button
               className="mob-toggle"
@@ -1169,7 +1203,7 @@ function Nav() {
           
           <div style={{ padding: "32px 28px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
-              <span className="mono" style={{ color: "var(--red)" }}>MENU GARAGE - 30 MENU KOPI</span>
+              <span className="mono" style={{ color: "var(--red)" }}>MENU GARAGE · COFFEE · NON-COFFEE · MAKANAN</span>
               <span className="mono">PILIH KATEGORI</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }} className="mega-grid">
@@ -1252,7 +1286,7 @@ function Nav() {
           Navigasi Garage
         </div>
         <ul className="mob-nav-list" style={{ listStyle: "none", display: "grid", gap: 8 }}>
-          {items.map(([label, href], i) =>
+          {mobileItems.map(([label, href], i) =>
           <li key={href}>
               {href.startsWith("/") ? (
                 <Link
@@ -1272,7 +1306,7 @@ function Nav() {
                   }}>
 
                   {label}
-                  <span className="mono">0{i + 1}</span>
+                  <span className="mono">{String(i + 1).padStart(2, "0")}</span>
                 </Link>
               ) : (
                 <a
@@ -1292,7 +1326,7 @@ function Nav() {
                 }}>
 
                   {label}
-                  <span className="mono">0{i + 1}</span>
+                  <span className="mono">{String(i + 1).padStart(2, "0")}</span>
                 </a>
               )}
             </li>
@@ -1594,10 +1628,10 @@ function Nav() {
           min-height: 34px;
           align-items: center;
           gap: 7px;
-          border: 1px solid rgba(13,184,108,0.28);
-          background: rgba(13,184,108,0.08);
+          border: 1px solid rgba(228,228,231,0.28);
+          background: rgba(228,228,231,0.08);
           padding: 0 10px;
-          color: #c7ffdf;
+          color: #e4e4e7;
           font-family: var(--font-mono);
           font-size: 9px;
           font-weight: 900;
@@ -1609,11 +1643,11 @@ function Nav() {
           width: 7px;
           height: 7px;
           border-radius: 999px;
-          background: #0db86c;
-          box-shadow: 0 0 0 4px rgba(13,184,108,0.16), 0 0 18px rgba(13,184,108,0.44);
+          background: #e4e4e7;
+          box-shadow: 0 0 0 4px rgba(228,228,231,0.16), 0 0 18px rgba(228,228,231,0.44);
         }
         .site-nav-status em {
-          color: rgba(199,255,223,0.66);
+          color: rgba(228,228,231,0.66);
           font-style: normal;
         }
         .site-nav-actions {
@@ -1821,10 +1855,10 @@ function Nav() {
         }
         .garage-table-indicator[data-state="ready"] {
           animation: garageTableReadyPulse 2s ease-in-out infinite;
-          background: #0db86c;
+          background: #e4e4e7;
           box-shadow:
-            0 0 0 1px rgba(13,184,108,0.36),
-            0 0 16px rgba(13,184,108,0.3);
+            0 0 0 1px rgba(228,228,231,0.36),
+            0 0 16px rgba(228,228,231,0.3);
         }
         .garage-table-indicator[data-state="full"] {
           animation: garageTableFullPulse 1.12s ease-in-out infinite;
@@ -1840,20 +1874,20 @@ function Nav() {
         }
         .garage-table-card[data-available="true"] {
           cursor: pointer;
-          background: rgba(13,184,108,0.08);
-          border-color: rgba(13,184,108,0.34);
+          background: rgba(228,228,231,0.08);
+          border-color: rgba(228,228,231,0.34);
         }
         .garage-table-card[data-available="true"] .garage-table-state {
-          border-color: rgba(13,184,108,0.38);
-          color: #9af0bf;
+          border-color: rgba(228,228,231,0.38);
+          color: #d4d4d8;
         }
         .garage-table-card[data-available="true"] .garage-table-number {
-          color: #f5fff9;
+          color: #fafafa;
         }
         .garage-table-card[data-available="true"]:hover,
         .garage-table-card[data-selected="true"] {
-          background: rgba(13,184,108,0.14);
-          border-color: rgba(13,184,108,0.74);
+          background: rgba(228,228,231,0.14);
+          border-color: rgba(228,228,231,0.74);
           transform: translateY(-1px);
         }
         .garage-table-card[data-availability="full"] {
@@ -1939,15 +1973,15 @@ function Nav() {
             opacity: 0.78;
             transform: scale(1);
             box-shadow:
-              0 0 0 1px rgba(13,184,108,0.26),
-              0 0 10px rgba(13,184,108,0.2);
+              0 0 0 1px rgba(228,228,231,0.26),
+              0 0 10px rgba(228,228,231,0.2);
           }
           50% {
             opacity: 1;
             transform: scale(1.14);
             box-shadow:
-              0 0 0 3px rgba(13,184,108,0.18),
-              0 0 20px rgba(13,184,108,0.36);
+              0 0 0 3px rgba(228,228,231,0.18),
+              0 0 20px rgba(228,228,231,0.36);
           }
         }
         @keyframes garageTableFullPulse {
@@ -2120,7 +2154,7 @@ function Hero({ landingHero }) {
         <div className="shell hero-image-shell" style={{ position: "relative", zIndex: 3, paddingTop: 150, paddingBottom: 58 }}>
           <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 42 }}>
             <Reveal as="div" className="mono" delay={900}>
-              BUKA SEKARANG / EST. 2024
+              GARAGE COFFEE & MOTOR · TEBING TINGGI
             </Reveal>
             <Reveal as="div" className="mono" delay={1000} style={{ textAlign: "right" }}>
               {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
@@ -2135,35 +2169,35 @@ function Hero({ landingHero }) {
                 <span className="garage-steam garage-steam-2" />
                 <span className="garage-steam garage-steam-3" />
               </div>
-              <h1 className="display hero-image-title" aria-label="Lebih dari sekedar kopi.">
+              <h1 className="display hero-image-title" aria-label="Lebih dari sekadar kopi.">
                 <span className="hero-title-line hero-title-top">LEBIH DARI</span>
                 <span className="hero-title-line hero-title-bottom">
-                  <span>SEKED</span><span className="hero-title-red">A</span><span>R KOPI.</span>
+                  <span>SEKAD</span><span className="hero-title-red">A</span><span>R KOPI.</span>
                 </span>
               </h1>
               <p className="hero-image-lead">
                 Ngopi, makan, dan nongkrong di GARAGE sekarang lebih gampang. Cek tempat sebelum datang, pesan dari website, lalu ambil atau duduk santai.
               </p>
               <div className="hero-image-actions">
-                <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Jelajahi Menu</span><ArrowRight /></Link>
-                <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Reservasi Meja</span><ArrowRight /></button>
+                <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
+                <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
               </div>
             </Reveal>
           </div>
 
           <Reveal delay={760} className="hero-image-stats">
-            <Stat n="14" l="Menu signature" />
-            <Stat n="48jam" l="Roasting segar" />
-            <Stat n="4.9" l="Rating pelanggan" />
+            <Stat n={hoursLabel} l="Buka setiap hari" />
+            <Stat n="QR" l="Pesan dari meja" />
+            <Stat n={GARAGE_LOCATION.rating.toFixed(1)} l={`Google · ${GARAGE_LOCATION.reviewCount} ulasan`} />
           </Reveal>
         </div>
 
         <Reveal delay={940} className="marquee" style={{ marginTop: 0 }}>
           <div className="marquee-track">
             {Array.from({ length: 4 }).flatMap((_, k) => [
-            <span key={`a${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>SINGLE ORIGIN</span>,
+            <span key={`a${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>NGOPI & MAKAN</span>,
             <span key={`b${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
-            <span key={`c${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>SLOW BAR</span>,
+            <span key={`c${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>PESAN VIA QR</span>,
             <span key={`d${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
             <span key={`e${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>GARAGE SPESIAL</span>,
             <span key={`f${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
@@ -2451,7 +2485,7 @@ function Hero({ landingHero }) {
         {/* top mono row */}
         <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 60 }}>
           <Reveal as="div" className="mono" delay={1200}>
-            ● BUKA — MENYAJIKAN SEKARANG / EST. 2024
+            ● GARAGE COFFEE & MOTOR · TEBING TINGGI
           </Reveal>
           <Reveal as="div" className="mono" delay={1300} style={{ textAlign: "right" }}>
             {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
@@ -2477,7 +2511,7 @@ function Hero({ landingHero }) {
             <span className="garage-steam garage-steam-2" />
             <span className="garage-steam garage-steam-3" />
           </div>
-          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Lebih dari sekedar kopi."
+          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Lebih dari sekadar kopi."
           style={{ marginBottom: 8 }}>
             <span className="chrome hero-title-kicker" style={{
               display: "block",
@@ -2496,7 +2530,7 @@ function Hero({ landingHero }) {
               <span className="chrome" style={{
                 background: "linear-gradient(180deg, #f4f4f5 0%, #c8c8cc 30%, #6a6a72 55%, #c8c8cc 78%, #f4f4f5 100%)",
                 WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent"
-              }}>SEKED</span>
+              }}>SEKAD</span>
               <span className="red-a" style={{
                 background: "linear-gradient(180deg, #ff5a6a 0%, var(--red) 50%, #6a0a14 100%)",
                 WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
@@ -2515,24 +2549,24 @@ function Hero({ landingHero }) {
           <Reveal delay={900} className="hero-bottom-left">
             <div className="eyebrow" style={{ marginBottom: 18 }}>Tentang kami</div>
             <p style={{ fontSize: 18, lineHeight: 1.5, color: "var(--fg-dim)", maxWidth: 360 }}>
-              Kopi premium dengan jiwa otomotif. Sebuah bengkel rasa untuk mereka yang masih bertahan duduk
+              Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif — untuk mereka yang betah duduk
               lama setelah seruputan terakhir.
             </p>
           </Reveal>
 
           <Reveal delay={1100} className="hero-bottom-mid">
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-              <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Jelajahi Menu</span><ArrowRight /></Link>
-              <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Reservasi Meja</span><ArrowRight /></button>
+              <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
+              <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Cek Meja Kosong</span><ArrowRight /></button>
             </div>
           </Reveal>
 
           <Reveal delay={1300} className="hero-bottom-right" style={{ textAlign: "right" }}>
             <div className="eyebrow" style={{ marginBottom: 18, justifyContent: "flex-end" }}>Sedang diseduh</div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, flexWrap: "wrap" }}>
-              <Stat n="14" l="Menu signature" />
-              <Stat n="48jam" l="Roasting segar" />
-              <Stat n="4.9" l="Rating pelanggan" />
+              <Stat n={hoursLabel} l="Buka setiap hari" />
+              <Stat n="QR" l="Pesan dari meja" />
+              <Stat n={GARAGE_LOCATION.rating.toFixed(1)} l={`Google · ${GARAGE_LOCATION.reviewCount} ulasan`} />
             </div>
           </Reveal>
         </div>
@@ -2556,9 +2590,9 @@ function Hero({ landingHero }) {
       <Reveal delay={1400} className="marquee" style={{ marginTop: 40 }}>
         <div className="marquee-track">
           {Array.from({ length: 4 }).flatMap((_, k) => [
-          <span key={`a${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>SINGLE ORIGIN</span>,
+          <span key={`a${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>NGOPI & MAKAN</span>,
           <span key={`b${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
-          <span key={`c${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>SLOW BAR</span>,
+          <span key={`c${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>PESAN VIA QR</span>,
           <span key={`d${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
           <span key={`e${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>GARAGE SPESIAL</span>,
           <span key={`f${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
@@ -2813,7 +2847,7 @@ function LiveVisitBoard() {
       <div className="shell">
         <div className="live-visit-head">
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>01 / Sebelum datang</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Sebelum datang</Reveal>
             <Reveal mask as="h2" delay={100} className="display live-visit-title" aria-label="Cek suasana Garage.">
               <span style={{ display: "block" }}>Cek suasana</span>
               <span style={{ display: "block", color: "var(--red)" }}>Garage.</span>
@@ -2824,7 +2858,7 @@ function LiveVisitBoard() {
               Lihat gambaran kursi, suasana, estimasi tunggu, dan status pesanan sebelum kamu berangkat ke GARAGE.
             </p>
             <div className="live-visit-actions">
-              <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Order Sekarang</span><ArrowRight /></Link>
+              <Link href={DIGITAL_MENU_URL} className="btn btn-primary"><span>Pesan Sekarang</span><ArrowRight /></Link>
               <button type="button" onClick={requestTablePanelOpen} className="btn"><span>Pilih Meja</span><ArrowRight /></button>
             </div>
           </Reveal>
@@ -2932,7 +2966,7 @@ function LiveVisitBoard() {
               <div className="tracking-empty">
                 <strong>Belum punya order?</strong>
                 <p>Pesan dari menu digital, simpan nomor order, lalu cek progresnya kapan saja.</p>
-                <Link href={DIGITAL_MENU_URL}>Order Sekarang</Link>
+                <Link href={DIGITAL_MENU_URL}>Pesan Sekarang</Link>
               </div>
             )}
             {trackingError ? <div className="live-alert">{trackingError}</div> : null}
@@ -3033,8 +3067,8 @@ function LiveVisitBoard() {
           width: 18px;
           height: 18px;
           border-radius: 999px;
-          background: #0db86c;
-          box-shadow: 0 0 0 8px rgba(13,184,108,0.12), 0 0 32px rgba(13,184,108,0.36);
+          background: #e4e4e7;
+          box-shadow: 0 0 0 8px rgba(228,228,231,0.12), 0 0 32px rgba(228,228,231,0.36);
           animation: garageLiveDot 2.2s ease-in-out infinite;
         }
         .live-dot[data-tone="busy"],
@@ -3141,9 +3175,9 @@ function LiveVisitBoard() {
           transition: transform 0.2s var(--ease-out), border-color 0.2s var(--ease-out), background 0.2s var(--ease-out);
         }
         .live-mini-table[data-state="ready"] {
-          border-color: rgba(13,184,108,0.52);
-          background: rgba(13,184,108,0.11);
-          color: #dfffee;
+          border-color: rgba(228,228,231,0.52);
+          background: rgba(228,228,231,0.11);
+          color: #f4f4f5;
         }
         .live-mini-table[data-state="full"] {
           border-color: rgba(209,26,42,0.48);
@@ -3184,7 +3218,7 @@ function LiveVisitBoard() {
           border-radius: 999px;
           background: #8f8f98;
         }
-        .live-legend i[data-state="ready"] { background: #0db86c; }
+        .live-legend i[data-state="ready"] { background: #e4e4e7; }
         .live-legend i[data-state="full"] { background: var(--red); }
         .live-legend i[data-state="unknown"] {
           background: #8f8f98;
@@ -3349,7 +3383,7 @@ function LiveTrackingSystem() {
   const barPulse = trackingData?.stationPulse?.bar ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "5-8 menit", status: "Minuman siap dipesan", unit: "minuman" };
   const kitchenPulse = trackingData?.stationPulse?.kitchen ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "12-18 menit", status: "Dapur siap memasak", unit: "makanan" };
   const takeawayPulse = trackingData?.takeaway ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "8-12 menit", recommendation: "Pesan sekarang, ambil saat sudah siap." };
-  const eventList = trackingData?.events?.length ? trackingData.events : EVENTS.map((event, index) => {
+  const eventList = trackingData?.events?.length ? trackingData.events : upcomingEvents().map((event, index) => {
     const seats = eventSeatInfo(event, index);
     return {
       title: event.title,
@@ -3410,7 +3444,7 @@ function LiveTrackingSystem() {
         <div className="live-system-shell">
           <Reveal className="live-system-head">
             <div>
-              <div className="eyebrow" style={{ marginBottom: 16 }}>02 / Pesan lebih tenang</div>
+              <div className="eyebrow" style={{ marginBottom: 16 }}>Pesan lebih tenang</div>
               <h2 className="display live-system-title">
                 Tahu estimasi<br /><span>sebelum pesan.</span>
               </h2>
@@ -3454,15 +3488,26 @@ function LiveTrackingSystem() {
             </div>
             <div className="event-live-capacity">
               <div>
-                <span className="mono">Slot event</span>
-                <h3>{nextEvent?.title ?? "Event GARAGE"}</h3>
-                <p>{nextEvent?.available ?? "-"}/{nextEvent?.capacity ?? "-"} slot tersedia. Simpan tempatmu lebih cepat lewat WhatsApp.</p>
+                <span className="mono">{nextEvent ? "Event terdekat" : "Rombongan & acara"}</span>
+                <h3>{nextEvent?.title ?? "Datang rame-rame?"}</h3>
+                <p>
+                  {nextEvent
+                    ? `${nextEvent.date} · ${nextEvent.time}. Simpan tempatmu lebih cepat lewat WhatsApp.`
+                    : "Kabari jumlah orang & jam datang lewat WhatsApp — meja dan menu bisa disiapkan lebih dulu."}
+                </p>
               </div>
               <a
-                href={bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau RSVP event ${nextEvent?.title ?? "GARAGE"}.`)}
+                href={bizWaUrl(
+                  biz.whatsapp,
+                  nextEvent
+                    ? `Halo GARAGE, saya mau RSVP event ${nextEvent.title}.`
+                    : "Halo GARAGE, saya mau booking tempat untuk rombongan. Mohon info ketersediaannya.",
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="btn btn-primary"
               >
-                <span>RSVP Event</span><ArrowRight />
+                <span>{nextEvent ? "RSVP Event" : "Booking Rombongan"}</span><ArrowRight />
               </a>
             </div>
           </Reveal>
@@ -3557,16 +3602,16 @@ function LiveTrackingSystem() {
           width: 10px;
           height: 10px;
           border-radius: 999px;
-          background: #0db86c;
-          box-shadow: 0 0 0 6px rgba(13,184,108,0.12), 0 0 22px rgba(13,184,108,0.28);
+          background: #e4e4e7;
+          box-shadow: 0 0 0 6px rgba(228,228,231,0.12), 0 0 22px rgba(228,228,231,0.28);
         }
         .live-system-card-top i[data-tone="busy"] {
           background: var(--amber);
           box-shadow: 0 0 0 6px rgba(245,167,66,0.12), 0 0 22px rgba(245,167,66,0.28);
         }
         .live-system-card-top i[data-tone="normal"] {
-          background: #60b4e8;
-          box-shadow: 0 0 0 6px rgba(96,180,232,0.12), 0 0 22px rgba(96,180,232,0.28);
+          background: #a1a1aa;
+          box-shadow: 0 0 0 6px rgba(161,161,170,0.12), 0 0 22px rgba(161,161,170,0.24);
         }
         .live-system-card strong {
           display: block;
@@ -3705,102 +3750,197 @@ function LiveTrackingSystem() {
   );
 }
 
-function S3MvpStrip() {
-  const items = [
+// ---------------- CARA PESAN & TEKNOLOGI ----------------
+// Marketing: semua cara pesan yang benar-benar didukung sistem (QR meja, takeaway
+// online, waiter, WhatsApp) + teknologi pendukungnya (status meja, lacak pesanan,
+// pembayaran, poin member).
+function HowToOrder() {
+  const biz = useBiz();
+  const ways = [
     {
-      label: "Status",
-      title: "Cek suasana dulu",
-      body: "Lihat kursi kosong, suasana, dan estimasi tunggu sebelum kamu berangkat.",
+      Icon: QrCode,
+      step: "Dine-in",
+      title: "Scan QR di meja",
+      body: "Duduk, scan QR di mejamu, pilih menu. Pesanan langsung masuk ke kasir, bar, dan dapur — tanpa antre.",
+      cta: { label: "Cek meja kosong", onClick: requestTablePanelOpen },
     },
     {
-      label: "Serve",
-      title: "Pesan tanpa ribet",
-      body: "Pilih menu dari website, pesan takeaway, atau reservasi meja lewat WhatsApp.",
+      Icon: ShoppingBag,
+      step: "Takeaway",
+      title: "Pesan online, ambil sendiri",
+      body: "Pesan dari HP sebelum berangkat. Pantau statusnya, datang saat pesanan siap diambil.",
+      cta: { label: "Pesan takeaway", href: DIGITAL_MENU_URL },
     },
     {
-      label: "Stay",
-      title: "Balik lagi lebih seru",
-      body: "Ikut event, kumpul komunitas, dan nikmati benefit member setiap kali datang.",
+      Icon: ConciergeBell,
+      step: "Dibantu",
+      title: "Pesan lewat waiter",
+      body: "Tidak mau repot? Panggil waiter — pesananmu dicatat di tablet dan langsung terkirim ke kasir.",
     },
+    {
+      Icon: MessageCircle,
+      step: "Rombongan",
+      title: "Reservasi via WhatsApp",
+      body: "Datang rame-rame atau mau bikin acara? Kabari jumlah orang & jam datang, kami siapkan tempatnya.",
+      cta: {
+        label: "Chat WhatsApp",
+        href: bizWaUrl(biz.whatsapp, "Halo GARAGE, saya mau reservasi meja. Mohon info ketersediaannya."),
+        external: true,
+      },
+    },
+  ];
+  const tech = [
+    { Icon: LayoutGrid, title: "Status meja live", body: "Lihat meja kosong sebelum berangkat.", href: "#live-status" },
+    { Icon: Timer, title: "Lacak pesanan", body: "Antre, diracik, siap — terpantau dari HP.", href: "#live-tracking-system" },
+    { Icon: CreditCard, title: "Tunai · QRIS · Transfer", body: "Bayar dengan cara yang kamu suka." },
+    { Icon: Award, title: "Poin member otomatis", body: "Tiap belanja jadi poin & naik level.", href: "#membership" },
   ];
 
   return (
-    <section className="s3-strip" aria-label="GARAGE MVP S3">
+    <section id="cara-pesan" className="section-pad how-order" aria-labelledby="cara-pesan-title">
       <div className="shell">
-        <Reveal className="s3-strip-grid">
-          {items.map((item, index) => (
-            <div key={item.label} className="s3-strip-card">
-              <span className="mono">S{index + 1} / {item.label}</span>
-              <h3>{item.title}</h3>
-              <p>{item.body}</p>
-            </div>
+        <div className="how-order-head">
+          <div>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Cara pesan</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Pesan tanpa antre." style={{ fontSize: "clamp(44px, 7vw, 112px)" }}>
+              <span id="cara-pesan-title" style={{ display: "block" }}>Pesan</span>
+              <span style={{ display: "block", color: "var(--red)" }}>tanpa antre.</span>
+            </Reveal>
+          </div>
+          <Reveal delay={300} as="p" className="how-order-lead">
+            GARAGE memakai sistem pemesanan digital sendiri: dari meja, dari rumah, atau lewat waiter —
+            semua pesanan masuk ke satu antrean yang sama di kasir, bar, dan dapur.
+          </Reveal>
+        </div>
+
+        <ol className="how-order-grid">
+          {ways.map((way, index) => (
+            <Reveal as="li" key={way.title} delay={index * 80} className="how-order-card">
+              <div className="how-order-card-top">
+                <span className="how-order-icon"><way.Icon size={22} strokeWidth={1.8} aria-hidden="true" /></span>
+                <span className="mono">{String(index + 1).padStart(2, "0")} · {way.step}</span>
+              </div>
+              <h3>{way.title}</h3>
+              <p>{way.body}</p>
+              {way.cta ? (
+                way.cta.onClick ? (
+                  <button type="button" className="how-order-link" onClick={way.cta.onClick}>
+                    {way.cta.label} <ArrowRight size={12} />
+                  </button>
+                ) : way.cta.external ? (
+                  <a className="how-order-link" href={way.cta.href} target="_blank" rel="noopener noreferrer">
+                    {way.cta.label} <ArrowRight size={12} />
+                  </a>
+                ) : (
+                  <Link className="how-order-link" href={way.cta.href}>
+                    {way.cta.label} <ArrowRight size={12} />
+                  </Link>
+                )
+              ) : null}
+            </Reveal>
           ))}
+        </ol>
+
+        <Reveal className="how-order-tech" aria-label="Teknologi GARAGE">
+          <div className="how-order-tech-label mono">Teknologi GARAGE</div>
+          <ul>
+            {tech.map((item) => {
+              const body = (
+                <>
+                  <item.Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.body}</small>
+                  </span>
+                </>
+              );
+              return (
+                <li key={item.title}>
+                  {item.href ? <a href={item.href}>{body}</a> : <div>{body}</div>}
+                </li>
+              );
+            })}
+          </ul>
         </Reveal>
       </div>
       <style>{`
-        .s3-strip {
+        .how-order {
           border-top: 1px solid var(--line);
-          border-bottom: 1px solid var(--line);
           background:
-            linear-gradient(90deg, rgba(209,26,42,0.08), transparent 26%, rgba(245,167,66,0.045), transparent 78%),
-            var(--bg-0);
-          padding: 28px 0;
+            radial-gradient(circle at 12% 0%, rgba(209,26,42,0.12), transparent 34%),
+            linear-gradient(180deg, var(--bg-1), var(--bg-0));
         }
-        .s3-strip-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
+        .how-order-head {
+          display: flex; justify-content: space-between; align-items: end;
+          gap: 24px 48px; flex-wrap: wrap; margin-bottom: 48px;
         }
-        .s3-strip-card {
-          min-width: 0;
-          position: relative;
-          overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.09);
-          background: rgba(255,255,255,0.025);
-          padding: 18px;
-          transition: transform 0.24s var(--ease-out), border-color 0.24s var(--ease-out), background 0.24s var(--ease-out);
+        .how-order-lead { max-width: 440px; color: var(--fg-dim); font-size: 16px; line-height: 1.65; }
+        .how-order-grid {
+          list-style: none; margin: 0; padding: 0;
+          display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
         }
-        .s3-strip-card::before {
-          content: "";
-          position: absolute;
-          left: 0;
-          top: -20%;
-          bottom: -20%;
-          width: 2px;
-          background: linear-gradient(180deg, transparent, var(--red), transparent);
-          opacity: 0.55;
-          animation: garageEdgeSignal 3.8s ease-in-out infinite;
+        .how-order-card {
+          display: flex; flex-direction: column; gap: 12px; height: 100%;
+          padding: 24px; border: 1px solid var(--line);
+          background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+          transition: border-color 0.25s var(--ease-out), transform 0.25s var(--ease-out);
         }
-        .s3-strip-card:nth-child(2)::before { animation-delay: 0.7s; }
-        .s3-strip-card:nth-child(3)::before { animation-delay: 1.4s; }
-        .s3-strip-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(209,26,42,0.38);
-          background: rgba(209,26,42,0.055);
+        .how-order-card:hover { border-color: rgba(209,26,42,0.6); transform: translateY(-3px); }
+        .how-order-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .how-order-card-top .mono { color: var(--amber, #f5a742); }
+        .how-order-icon {
+          display: inline-grid; place-items: center; width: 44px; height: 44px;
+          border: 1px solid rgba(209,26,42,0.5); background: rgba(209,26,42,0.12); color: #ff5a6a;
         }
-        .s3-strip-card h3 {
-          margin-top: 10px;
-          color: var(--fg);
-          font-family: var(--font-display);
-          font-size: clamp(24px, 2.6vw, 36px);
-          line-height: 0.96;
-          text-transform: uppercase;
+        .how-order-card h3 {
+          font-family: var(--font-display); font-size: 26px; line-height: 1;
+          letter-spacing: 0.02em; text-transform: uppercase; color: var(--fg);
         }
-        .s3-strip-card p {
-          margin-top: 12px;
-          color: var(--fg-dim);
-          font-size: 13px;
-          line-height: 1.55;
+        .how-order-card p { color: var(--fg-dim); font-size: 14px; line-height: 1.6; flex: 1; }
+        .how-order .how-order-link {
+          align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+          min-height: 44px; padding: 0; background: none; border: 0; cursor: pointer;
+          color: var(--fg); font-family: var(--font-mono); font-size: 12px;
+          letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none;
+          border-bottom: 1px solid var(--red);
         }
-        @keyframes garageEdgeSignal {
-          0%, 100% { opacity: 0.2; transform: translateY(-12%); }
-          50% { opacity: 0.9; transform: translateY(12%); }
+        .how-order .how-order-link:hover { color: #ff5a6a; }
+        .how-order-tech {
+          margin-top: 16px; border: 1px solid var(--line); background: rgba(10,10,12,0.6);
+          display: grid; grid-template-columns: auto 1fr; align-items: stretch;
         }
-        @media (max-width: 760px) {
-          .s3-strip-grid { grid-template-columns: 1fr; }
+        .how-order-tech-label {
+          display: flex; align-items: center; padding: 18px 22px;
+          border-right: 1px solid var(--line); color: var(--red); white-space: nowrap;
+        }
+        .how-order-tech ul {
+          list-style: none; margin: 0; padding: 0;
+          display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .how-order-tech li + li { border-left: 1px solid var(--line); }
+        .how-order-tech li > a, .how-order-tech li > div {
+          display: flex; align-items: flex-start; gap: 10px; padding: 16px 18px; height: 100%;
+          color: var(--silver, #d4d4d8); text-decoration: none;
+        }
+        .how-order-tech li > a:hover { background: rgba(209,26,42,0.08); }
+        .how-order-tech strong { display: block; color: var(--fg); font-size: 14px; line-height: 1.3; }
+        .how-order-tech small { display: block; color: var(--fg-dim); font-size: 12px; line-height: 1.45; margin-top: 2px; }
+        @media (max-width: 1100px) {
+          .how-order-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .how-order-tech { grid-template-columns: 1fr; }
+          .how-order-tech-label { border-right: 0; border-bottom: 1px solid var(--line); }
+          .how-order-tech ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .how-order-tech li:nth-child(3) { border-left: 0; }
+          .how-order-tech li:nth-child(n+3) { border-top: 1px solid var(--line); }
+        }
+        @media (max-width: 600px) {
+          .how-order-grid { grid-template-columns: 1fr; }
+          .how-order-tech ul { grid-template-columns: 1fr; }
+          .how-order-tech li + li { border-left: 0; border-top: 1px solid var(--line); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .s3-strip-card::before { animation: none !important; }
+          .how-order-card { transition: none; }
+          .how-order-card:hover { transform: none; }
         }
       `}</style>
     </section>
@@ -3996,14 +4136,14 @@ function FloatingWA() {
       <span style={{
         position: "absolute", top: 8, right: 8,
         width: 10, height: 10, borderRadius: "50%",
-        background: "#0db86c",
+        background: "#ffffff",
         border: "2px solid #25D366",
         animation: "waPulse 2s ease-in-out infinite"
       }} />
       <style>{`
         @keyframes waPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(13,184,108,0.6); }
-          50% { box-shadow: 0 0 0 10px rgba(13,184,108,0); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(228,228,231,0.6); }
+          50% { box-shadow: 0 0 0 10px rgba(228,228,231,0); }
         }
       `}</style>
     </a>);
@@ -4017,7 +4157,7 @@ function FloatingWA() {
 const MENU = {
   "Coffee": {
     eyebrow: "Bar utama",
-    summary: "30 signature coffee — dari Americano ringan sampai Spanish Latte, Biscoffe, dan Caramel Macchiato. Cold atau Hot.",
+    summary: "Kopi susu, Americano series, dan klasik — dari Americano sampai Spanish Latte & Caramel Macchiato.",
     pricingHeader: ["Cold", "Hot"],
     groups: [{
       items: [
@@ -4057,14 +4197,94 @@ const MENU = {
 };
 
 // ---------------- MENU SECTION ----------------
+// Satu fetch menu live dipakai bersama semua section (Menu, Unggulan, Galeri)
+// agar harga & nama di website selalu sama dengan menu digital/POS.
+let liveMenuPromise = null;
+function fetchLiveMenu() {
+  if (!liveMenuPromise) {
+    liveMenuPromise = fetch("/api/customer/menu", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const rows = json?.data ?? json;
+        return Array.isArray(rows) ? rows : [];
+      })
+      .catch(() => {
+        liveMenuPromise = null;
+        return [];
+      });
+  }
+  return liveMenuPromise;
+}
+function useLiveMenu() {
+  const [state, setState] = useState({ rows: [], loaded: false });
+  useEffect(() => {
+    let cancelled = false;
+    fetchLiveMenu().then((rows) => {
+      if (!cancelled) setState({ rows, loaded: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return state;
+}
+const LIVE_MENU_ORDER = ["Coffee", "Non-Coffee", "Makanan", "Cemilan"];
+const LIVE_MENU_EYEBROW = { Coffee: "Bar · Kopi", "Non-Coffee": "Bar · Non-Kopi", Makanan: "Dapur", Cemilan: "Dapur · Cemilan" };
+const liveItemPrice = (item) => {
+  const prices = (item.variants || []).map((v) => Number(v.price) || 0).filter((v) => v > 0);
+  const base = prices.length ? Math.min(...prices) : 0;
+  return item.promoActive && Number(item.promoPrice) > 0 ? Math.min(base || Infinity, Number(item.promoPrice)) : base;
+};
+const formatRupiahK = (value) =>
+  value >= 1000 ? `Rp ${Math.round(value / 100) / 10}K`.replace(".", ",") : `Rp ${value}`;
+const liveItemBadge = (item) => {
+  if (item.promoActive) return "Promo";
+  const tag = (item.tags || []).find((t) => /bestseller|terlaris|unggulan|signature|favorit|baru/i.test(String(t)));
+  if (tag) return String(tag);
+  return item.featured ? "Unggulan" : null;
+};
+// Ubah baris menu live → struktur MENU (kategori → item) yang dipakai section Menu.
+function liveMenuToCategories(rows) {
+  const byCat = new Map();
+  for (const item of rows) {
+    if (!item?.name || item.stock === "sold_out") continue;
+    const price = liveItemPrice(item);
+    if (!price) continue;
+    const list = byCat.get(item.category) || [];
+    list.push({
+      name: item.name,
+      priceLabel: formatRupiahK(price),
+      price,
+      badge: liveItemBadge(item),
+      featured: Boolean(item.featured),
+      sub: item.section || null,
+    });
+    byCat.set(item.category, list);
+  }
+  const ordered = [...byCat.keys()].sort(
+    (a, b) => (LIVE_MENU_ORDER.indexOf(a) + 99) % 99 - (LIVE_MENU_ORDER.indexOf(b) + 99) % 99
+  );
+  const result = {};
+  for (const cat of ordered) {
+    const items = byCat.get(cat);
+    const minPrice = Math.min(...items.map((it) => it.price));
+    result[cat] = {
+      eyebrow: LIVE_MENU_EYEBROW[cat] || cat,
+      summary: `${items.length} pilihan ${cat.toLowerCase()} — mulai ${formatRupiahK(minPrice)}.`,
+      groups: [{ items: items.map(({ sub, ...it }) => ({ ...it, groupSub: sub })) }],
+      minPrice,
+    };
+  }
+  return result;
+}
 function menuSpotlightItems(data) {
   const allItems = data.groups.flatMap((group) =>
     group.items.map((item) => ({
       ...item,
-      groupLabel: group.sub ?? data.eyebrow,
+      groupLabel: item.groupSub ?? group.sub ?? data.eyebrow,
     }))
   );
-  const priority = ["Signature", "Terlaris", "Rekomendasi", "Manual Brew", "Komplit", "Baru", "Klasik", "Lokal"];
+  const priority = ["Promo", "Unggulan", "Bestseller", "Signature", "Terlaris", "Rekomendasi", "Manual Brew", "Komplit", "Baru", "Klasik", "Lokal"];
   const picked = [];
   for (const label of priority) {
     const found = allItems.find((item) => item.badge === label && !picked.some((pickedItem) => pickedItem.name === item.name));
@@ -4079,6 +4299,7 @@ function menuSpotlightItems(data) {
 }
 
 function menuDisplayPrice(item) {
+  if (item.priceLabel) return item.priceLabel;
   const firstAvailable = item.prices.find((price) => price && price !== "—" && price !== "â€”");
   return firstAvailable ? `Rp ${firstAvailable}K` : "Cek menu";
 }
@@ -4086,11 +4307,22 @@ function menuDisplayPrice(item) {
 function Menu() {
   const biz = useBiz();
   const hoursLabel = hoursShort(biz);
-  const cats = Object.keys(MENU);
-  const [cat, setCat] = useState(cats[0]);
-  const data = MENU[cat];
+  const { rows: liveRows } = useLiveMenu();
+  // Menu live dari database bila tersedia; data statis hanya cadangan offline.
+  const source = useMemo(() => {
+    const live = liveMenuToCategories(liveRows);
+    return Object.keys(live).length ? live : MENU;
+  }, [liveRows]);
+  const cats = Object.keys(source);
+  const [pickedCat, setCat] = useState(null);
+  const cat = pickedCat && source[pickedCat] ? pickedCat : cats[0];
+  const data = source[cat];
   const spotlightItems = menuSpotlightItems(data);
   const totalItems = data.groups.reduce((sum, group) => sum + group.items.length, 0);
+  const allMinPrices = Object.values(source).map((c) => c.minPrice).filter(Boolean);
+  const startFrom = allMinPrices.length ? formatRupiahK(Math.min(...allMinPrices)).replace("Rp ", "") : "8K";
+  const menuCount = Object.values(source).reduce(
+    (sum, c) => sum + c.groups.reduce((n, g) => n + g.items.length, 0), 0);
 
   return (
     <section id="menu" className="section-pad" style={{
@@ -4100,7 +4332,7 @@ function Menu() {
       <div className="shell">
         <div className="menu-compact-head">
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>02 / Menu</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Menu</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Menu pilihan." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
               <span style={{ display: "block" }}>Menu</span>
               <span style={{ display: "block", color: "var(--red)" }}>pilihan.</span>
@@ -4111,8 +4343,8 @@ function Menu() {
               Lagi lapar, butuh kopi, atau mau takeaway? Pilih favorit GARAGE di sini, lalu buka menu digital untuk order lengkap.
             </p>
             <div className="menu-compact-stats">
-              <MenuStat n="4" l="Pilihan cepat" />
-              <MenuStat n="8K" l="Mulai dari" />
+              <MenuStat n={String(menuCount)} l="Menu aktif" />
+              <MenuStat n={startFrom} l="Mulai dari" />
               <MenuStat n={hoursLabel} l="Tersedia" />
             </div>
           </Reveal>
@@ -4124,7 +4356,7 @@ function Menu() {
             return (
               <button key={category} onClick={() => setCat(category)} className={`menu-tab ${active ? "active" : ""}`}>
                 <div className="mono" style={{ marginBottom: 8, color: active ? "var(--red)" : "var(--fg-mute)" }}>
-                  0{index + 1} / Kategori
+                  {String(index + 1).padStart(2, "0")} / Kategori
                 </div>
                 <div className="menu-tab-name">{category}</div>
                 <span className="menu-tab-underline" />
@@ -4169,8 +4401,7 @@ function Menu() {
             <h3>Pesan dari website, tinggal tunggu panggilan.</h3>
           </div>
           <div className="menu-compact-actions">
-            <Link className="btn btn-primary" href={DIGITAL_MENU_URL}><span>Lihat Menu Digital</span><ArrowRight /></Link>
-            <Link className="btn" href={DIGITAL_MENU_URL}><span>Order Sekarang</span><ArrowRight /></Link>
+            <Link className="btn btn-primary" href={DIGITAL_MENU_URL}><span>Pesan Sekarang</span><ArrowRight /></Link>
             <a className="btn" href={WHATSAPP_URL}><span>Reservasi via WhatsApp</span><ArrowRight /></a>
           </div>
         </Reveal>
@@ -4378,149 +4609,6 @@ function Menu() {
     </section>
   );
 
-  const headerCols = data.pricingHeader || (data.groups[0]?.pricingHeader);
-
-  return (
-    <section id="menu" className="section-pad" style={{
-      borderTop: "1px solid var(--line)",
-      background: "linear-gradient(180deg, var(--bg-0), var(--bg-1))",
-    }}>
-      <div className="shell">
-        {/* head */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 56, flexWrap: "wrap", gap: 24 }}>
-          <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>02 / Bar</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Menu lengkap." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
-              <span style={{ display: "block" }}>Menu</span>
-              <span style={{ display: "block", color: "var(--red)" }}>lengkap.</span>
-            </Reveal>
-          </div>
-          <Reveal delay={400} style={{ maxWidth: 380 }}>
-            <p style={{ fontSize: 15, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-              30 signature coffee — dari Americano ringan sampai Spanish Latte, Biscoffe, dan Caramel Macchiato.
-              Mulai dari Rp 15K — Cold atau Hot, selalu ada yang pas untuk semua mood.
-            </p>
-            <div style={{ display: "flex", gap: 18, marginTop: 18, flexWrap: "wrap" }}>
-              <MenuStat n="90+" l="Total menu" />
-              <MenuStat n="8K" l="Mulai dari" />
-              <MenuStat n={hoursLabel} l="Tersedia" />
-            </div>
-          </Reveal>
-        </div>
-
-        {/* tabs */}
-        <div className="menu-tabs">
-          {cats.map((c, i) => {
-            const active = cat === c;
-            return (
-              <button key={c} onClick={() => setCat(c)} className={`menu-tab ${active ? "active" : ""}`}>
-                <div className="mono" style={{ marginBottom: 8, color: active ? "var(--red)" : "var(--fg-mute)" }}>
-                  0{i+1} · Kategori
-                </div>
-                <div className="menu-tab-name">{c}</div>
-                <span className="menu-tab-underline" />
-              </button>
-            );
-          })}
-        </div>
-
-        {/* category intro */}
-        <div key={cat + "-intro"} style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40,
-          padding: "32px 0",
-          borderBottom: "1px solid var(--line)",
-          alignItems: "end",
-        }} className="cat-intro">
-          <div>
-            <div className="mono" style={{ color: "var(--red)", marginBottom: 8 }}>— {data.eyebrow}</div>
-            <h3 style={{
-              fontFamily: "var(--font-display)", fontSize: "clamp(28px, 3vw, 40px)",
-              letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--fg)",
-              maxWidth: 500,
-            }}>{data.summary}</h3>
-          </div>
-          {headerCols && (
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 0 }}>
-              <div className="mono" style={{ marginRight: 32, alignSelf: "end", color: "var(--fg-mute)" }}>
-                {data.groups.reduce((sum, g) => sum + g.items.length, 0)} item
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* groups */}
-        <div key={cat}>
-          {data.groups.map((g, gi) => (
-            <MenuGroup key={gi} group={g} />
-          ))}
-        </div>
-
-        {/* footer cta */}
-        <Reveal as="div" style={{
-          marginTop: 56, padding: "32px 36px",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          gap: 24, flexWrap: "wrap",
-          border: "1px solid var(--line)",
-          background: "linear-gradient(135deg, rgba(209,26,42,0.08), transparent)",
-        }}>
-          <div>
-            <div className="mono" style={{ marginBottom: 8, color: "var(--red)" }}>✶ ORDER LANGSUNG</div>
-            <h3 style={{ fontFamily: "var(--font-display)", fontSize: 28, letterSpacing: "0.02em", textTransform: "uppercase" }}>
-              Buka menu digital, pilih item, lalu kirim ke kasir.
-            </h3>
-          </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link className="btn btn-primary" href={DIGITAL_MENU_URL}><span>Menu Digital</span><ArrowRight /></Link>
-            <a className="btn" href={WHATSAPP_URL}><span>WhatsApp Order</span><ArrowRight /></a>
-            <a className="btn" href={WHATSAPP_URL}><span>GoFood / Grab</span><ArrowRight /></a>
-          </div>
-        </Reveal>
-      </div>
-
-      <style>{`
-        .menu-tabs {
-          display: flex; gap: 0;
-          border-top: 1px solid var(--line);
-          overflow-x: auto;
-          scrollbar-width: none;
-        }
-        .menu-tabs::-webkit-scrollbar { display: none; }
-        .menu-tab {
-          position: relative;
-          padding: 22px 24px;
-          border-right: 1px solid var(--line);
-          flex: 1 1 0;
-          min-width: 160px;
-          text-align: left;
-          background: transparent;
-          transition: background 0.4s var(--ease-out);
-          cursor: pointer;
-        }
-        .menu-tab:last-child { border-right: 0; }
-        .menu-tab.active { background: rgba(209,26,42,0.08); }
-        .menu-tab-name {
-          font-family: var(--font-display);
-          font-size: 20px; letter-spacing: 0.02em;
-          text-transform: uppercase;
-          color: var(--fg-dim);
-          transition: color 0.4s var(--ease-out);
-          line-height: 1;
-        }
-        .menu-tab.active .menu-tab-name { color: var(--fg); }
-        .menu-tab:hover .menu-tab-name { color: var(--fg); }
-        .menu-tab-underline {
-          position: absolute; left: 0; bottom: -1px;
-          width: 0; height: 2px;
-          background: var(--red);
-          transition: width 0.5s var(--ease-out);
-        }
-        .menu-tab.active .menu-tab-underline { width: 100%; }
-        @media (max-width: 700px) {
-          .cat-intro { grid-template-columns: 1fr !important; gap: 16px !important; }
-        }
-      `}</style>
-    </section>
-  );
 }
 
 function MenuStat({ n, l }) {
@@ -4571,7 +4659,7 @@ function MenuGroup({ group }) {
               className="mono"
               style={{
                 textAlign: "right",
-                color: c === "Hot" ? "#ff6b75" : c === "Cold" ? "#5bb8ff" : c === "Pedas" ? "var(--red)" : c === "Sedang" ? "#0db86c" : c === "BBQ" ? "#b08858" : c === "Balado" ? "var(--red)" : c === "Campur" ? "#7a8cff" : "var(--fg-mute)",
+                color: c === "Hot" ? "#ff6b75" : c === "Cold" ? "#d4d4d8" : c === "Pedas" ? "var(--red)" : c === "Sedang" ? "#e4e4e7" : c === "BBQ" ? "#b08858" : c === "Balado" ? "var(--red)" : c === "Campur" ? "#f5a742" : "var(--fg-mute)",
               }}
             >
               {c}
@@ -4715,7 +4803,7 @@ function About() {
       <div className="shell">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 80 }} className="about-grid">
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 28 }}>01 / Identitas</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 28 }}>Identitas</Reveal>
             <Reveal as="div" delay={100} className="mono" style={{ marginBottom: 8 }}>SIAPA KAMI</Reveal>
             <Reveal mask as="h2" delay={200} className="display" aria-label="Tempat kopi bertemu budaya otomotif." style={{ fontSize: "clamp(40px, 5vw, 78px)" }}>
               <span style={{ display: "block" }}>Tempat kopi</span>
@@ -4726,7 +4814,7 @@ function About() {
             <Reveal delay={700} as="div" style={{ marginTop: 40, display: "flex", flexDirection: "column", gap: 24, maxWidth: 460 }}>
               {(aboutParas.length ? aboutParas : [
                 "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi, dan setiap kunjungan terasa seperti pulang ke garasi favoritmu.",
-                "Kami me-roasting dalam batch kecil. Buka pagi, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
+                "Kopi, non-kopi, makanan, dan cemilan dalam satu tempat. Pesan dari meja lewat QR, pantau pesananmu secara live, dan nikmati suasana garasi di Tebing Tinggi — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
               ]).map((para, i) => (
                 <p key={i} style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
                   {para}
@@ -4735,9 +4823,9 @@ function About() {
             </Reveal>
 
             <Reveal delay={900} as="div" style={{ marginTop: 48, display: "flex", gap: 36, flexWrap: "wrap" }}>
-              <AboutStat n="240+" l="Cangkir per hari" />
-              <AboutStat n="6" l="Origin di bar" />
-              <AboutStat n="12" l="Event komunitas" />
+              <AboutStat n={hoursShort(biz)} l="Buka setiap hari" />
+              <AboutStat n="4" l="Kategori menu" />
+              <AboutStat n="Live" l="Status meja & pesanan" />
             </Reveal>
           </div>
 
@@ -4830,7 +4918,7 @@ function About() {
               letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}>
-              EST. 2024 ◢ TEBING TINGGI
+              GARAGE ◢ TEBING TINGGI
             </Reveal>
           </div>
         </div>
@@ -4856,9 +4944,9 @@ function AboutStat({ n, l }) {
 // ---------------- ATMOSPHERE ----------------
 function Atmosphere({ landingHero = null }) {
   const tiles = [
-    { src: "/garage-website/showcase/sanger.webp",       l: "Sanger — Hot & Iced", h: 360 },
-    { src: "/garage-website/showcase/v60.webp",          l: "Slow Bar",            h: 460 },
-    { src: "/garage-website/showcase/taro-milk.webp",    l: "Taro Latte",          h: 400 },
+    { src: "/garage-website/showcase/sanger.webp",       l: "Sanger", h: 360 },
+    { src: "/garage-website/showcase/v60.webp",          l: "Racikan bar GARAGE", h: 460 },
+    { src: "/garage-website/showcase/taro-milk.webp",    l: "Milk Series",         h: 400 },
     { src: "/garage-website/showcase/coffee-latte.webp", l: "Coffee Latte",        h: 420 },
   ];
   const renderTile = (tile, idx) => {
@@ -4894,7 +4982,7 @@ function Atmosphere({ landingHero = null }) {
       <div className="shell">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 64, flexWrap: "wrap", gap: 24 }}>
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>03 / Signature</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Signature</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Yang wajib dicoba." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
               <span style={{ display: "block" }}>Yang wajib</span>
               <span style={{ display: "block" }}><span style={{ color: "var(--red)" }}>dicoba.</span></span>
@@ -4902,7 +4990,7 @@ function Atmosphere({ landingHero = null }) {
           </div>
           <Reveal delay={400} style={{ maxWidth: 340 }}>
             <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-              Sanger panas-dingin, Spanish Latte, Matcha, taro creamy, sampai Caramel Macchiato khas Garage.
+              Sanger, Spanish Latte, Matcha, Coffee Latte, sampai Caramel Macchiato khas Garage.
               Diracik dengan jiwa otomotif — siap nemenin nongkrong sampai larut.
             </p>
           </Reveal>
@@ -4910,8 +4998,9 @@ function Atmosphere({ landingHero = null }) {
 
         <div style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1.4fr 1fr",
+          gridTemplateColumns: "1fr 1.3fr 1fr 1.1fr",
           gridAutoRows: "minmax(0, auto)",
+          alignItems: "end",
           gap: 16,
         }} className="gallery-grid">
           {tiles.map((tile, idx) => (
@@ -4920,7 +5009,10 @@ function Atmosphere({ landingHero = null }) {
         </div>
       </div>
       <style>{`
-        @media (max-width: 900px) {
+        @media (max-width: 1100px) {
+          .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        @media (max-width: 600px) {
           .gallery-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
@@ -5003,14 +5095,14 @@ function SocialPortfolio() {
       <div className="shell">
         <div className="social-portfolio-head">
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>04 / Social Proof</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Review GARAGE dari social media." style={{ fontSize: "clamp(44px, 7vw, 116px)" }}>
-              <span style={{ display: "block" }}>Review GARAGE</span>
-              <span style={{ display: "block" }}>dari <span style={{ color: "var(--red)" }}>social media.</span></span>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Media Sosial</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Ikuti GARAGE di media sosial." style={{ fontSize: "clamp(44px, 7vw, 116px)" }}>
+              <span style={{ display: "block" }}>Ikuti GARAGE</span>
+              <span style={{ display: "block" }}>di <span style={{ color: "var(--red)" }}>media sosial.</span></span>
             </Reveal>
           </div>
           <Reveal delay={320} as="p" className="social-portfolio-copy">
-            Lihat bukti suasana, menu, promo, dan aktivitas komunitas GARAGE langsung dari channel resmi sebelum kamu datang.
+            Promo terbaru, menu baru, info event, dan suasana GARAGE setiap hari — langsung dari akun resmi kami.
           </Reveal>
         </div>
 
@@ -5059,7 +5151,7 @@ function SocialPortfolio() {
                 href={social.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`Review GARAGE di ${social.label} resmi, buka di tab baru`}
+                aria-label={`${social.cta} GARAGE (${social.handle}), buka di tab baru`}
                 className={`social-portfolio-card social-portfolio-card-${social.id}`}
               >
                 <div className="social-card-top">
@@ -5082,9 +5174,34 @@ function SocialPortfolio() {
             </Reveal>
           ))}
         </div>
+
+        <Reveal className="social-tag-strip">
+          <div>
+            <span className="mono">Mampir & posting</span>
+            <h3>Tag <a href={SOCIAL_LINKS.find((x) => x.id === "instagram")?.href} target="_blank" rel="noopener noreferrer">@garage_tbt.id</a> di story & postinganmu.</h3>
+            <p>Momen terbaikmu di GARAGE bisa tampil di akun resmi kami.</p>
+          </div>
+          <a className="btn" href={GARAGE_LOCATION.reviewUrl} target="_blank" rel="noopener noreferrer">
+            <span>Tulis Ulasan Google</span><ArrowRight />
+          </a>
+        </Reveal>
       </div>
 
       <style>{`
+        .social-tag-strip {
+          margin-top: 16px; padding: 22px 24px;
+          display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap;
+          border: 1px solid var(--line); border-left: 3px solid var(--red);
+          background: rgba(255,255,255,0.03);
+        }
+        .social-tag-strip .mono { color: var(--amber, #f5a742); }
+        .social-tag-strip h3 {
+          margin-top: 6px; font-family: var(--font-display); font-size: clamp(22px, 2.6vw, 32px);
+          line-height: 1.05; letter-spacing: 0.02em; text-transform: uppercase; color: var(--fg);
+        }
+        .social-tag-strip h3 a { color: #ff5a6a; text-decoration: none; border-bottom: 1px solid currentColor; }
+        .social-tag-strip p { margin-top: 6px; color: var(--fg-dim); font-size: 14px; }
+        @media (max-width: 600px) { .social-tag-strip .btn { width: 100%; justify-content: center; } }
         .social-portfolio-head {
           display: grid;
           grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
@@ -5226,35 +5343,36 @@ function SocialPortfolio() {
 
 // ---------------- EXPERIENCE ----------------
 function Experience() {
+  const biz = useBiz();
   const props = [
     {
       n: "01",
-      t: "Kopi premium",
-      d: "Biji specialty grade, di-roasting maksimal 48 jam sebelum diseduh. Setiap batch dicicipi sebelum tampil di bar.",
+      t: "Diracik di bar",
+      d: "Coffee & non-coffee diracik barista dengan resep tetap — rasanya sama setiap kali kamu pesan. Cold atau Hot.",
       i: <PromoIcon kind="cup" />,
     },
     {
       n: "02",
       t: "Nyaman ditinggali lama",
-      d: "Meja panjang. Kursi empuk. Colokan di setiap tempat duduk. Ruang yang dirancang untuk obrolan empat jam.",
+      d: "Area duduk santai untuk ngobrol berjam-jam — sendiri, bareng teman, atau satu rombongan motor.",
       i: <PromoIcon kind="chair" />,
     },
     {
       n: "03",
-      t: "Pas buat kerja",
-      d: "Wi-Fi kencang, zona tenang, dan bar yang siap refill sebelum kamu minta.",
+      t: "Pesan tanpa antre",
+      d: "Scan QR di meja, pilih menu, bayar tunai/QRIS/transfer, lalu pantau status pesanan secara live.",
       i: <PromoIcon kind="wifi" />,
     },
     {
       n: "04",
       t: "Garasi komunitas",
-      d: "Kopdar motor, supper club, malam kreatif. Pintu selalu terbuka untuk yang suka berkarya.",
+      d: "Kopdar motor dan acara komunitas. Info event terbaru selalu diumumkan di Instagram GARAGE.",
       i: <PromoIcon kind="cog" />,
     },
     {
       n: "05",
-      t: "Pelayanan tulus",
-      d: "Barista terlatih, regular yang dipanggil namanya, tanpa basa-basi. Visualnya industrial — sambutannya hangat.",
+      t: "Buka setiap hari",
+      d: `Jam buka ${hoursShort(biz) === "24 JAM" ? "24 jam" : hoursShort(biz)} setiap hari. Mampir kapan pun — cek status meja dulu dari website.`,
       i: <PromoIcon kind="hand" />,
     },
   ];
@@ -5263,10 +5381,10 @@ function Experience() {
     <section id="experience" className="section-pad" style={{ borderTop: "1px solid var(--line)" }}>
       <div className="shell">
         <div style={{ marginBottom: 64 }}>
-          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>04 / Pengalaman</Reveal>
-          <Reveal mask as="h2" delay={100} className="display" aria-label="Lima alasan untuk mampir akhir pekan ini." style={{ fontSize: "clamp(48px, 7vw, 116px)", maxWidth: 1100 }}>
+          <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Pengalaman</Reveal>
+          <Reveal mask as="h2" delay={100} className="display" aria-label="Lima alasan untuk mampir hari ini." style={{ fontSize: "clamp(48px, 7vw, 116px)", maxWidth: 1100 }}>
             <span style={{ display: "block" }}>Lima alasan untuk</span>
-            <span style={{ display: "block" }}>mampir <span style={{ color: "var(--red)" }}>akhir pekan ini.</span></span>
+            <span style={{ display: "block" }}>mampir <span style={{ color: "var(--red)" }}>hari ini.</span></span>
           </Reveal>
         </div>
 
@@ -5294,7 +5412,7 @@ function Experience() {
                   letterSpacing: "0.02em", textTransform: "uppercase",
                   lineHeight: 0.9, marginBottom: 16,
                 }}>
-                  Datang dan temukan<br/>alasan kelimamu.
+                  Datang dan temukan<br/>alasan keenammu.
                 </div>
                 <a href="#location" className="btn" style={{ background: "rgba(0,0,0,0.2)", borderColor: "rgba(255,255,255,0.4)", color: "#fff" }}>
                   <span>Kunjungi Garage</span><ArrowRight />
@@ -5395,72 +5513,147 @@ function PromoIcon({ kind }) {
 // Source: garage-website/project/sections-2.jsx
 
 // ---------------- EVENTS ----------------
-const EVENTS = [
-{ d: "JUM", date: "16 MEI", time: "19:00", title: "Cafe Racer Night", tag: "Kopdar Motor", desc: "Garage Coffee + Sunday Steel Riders — motor vintage, espresso flight, buka sampai larut.", capacity: "60 KURSI" },
-{ d: "SAB", date: "24 MEI", time: "20:00", title: "Slow Bar — Live Set", tag: "Live Musik", desc: "Trio akustik. Dua kopi. Satu malam panjang. Hanya untuk yang reservasi.", capacity: "40 KURSI" },
-{ d: "RAB", date: "04 JUN", time: "18:30", title: "Workshop Manual Brew", tag: "Workshop", desc: "V60, Aeropress, dan sains di balik ekstraksi. Dipandu Head Barista Ardi.", capacity: "12 KURSI" },
-{ d: "JUM", date: "13 JUN", time: "19:00", title: "Creative Supper Club", tag: "Komunitas", desc: "Desainer, builder, dan satu meja panjang. Kopi, makanan, dan kerja bareng.", capacity: "30 KURSI" }];
-
+// Jadwal event: isi dengan event NYATA saja (iso = waktu mulai WIB). Event yang
+// sudah lewat otomatis disembunyikan; bila kosong tampil ajakan follow & booking.
+// Contoh: { iso: "2026-10-18T19:00:00+07:00", title: "Kopdar Malam Minggu", tag: "Kopdar Motor",
+//           desc: "…", capacity: "40 KURSI" }
+const EVENTS = [];
+const EVENT_DAY = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
+const EVENT_MONTH = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
+function upcomingEvents(now = Date.now()) {
+  return EVENTS
+    .map((e) => ({ ...e, start: new Date(e.iso) }))
+    .filter((e) => !Number.isNaN(e.start.getTime()) && e.start.getTime() + 3 * 3600_000 > now)
+    .sort((a, b) => a.start - b.start)
+    .map((e) => {
+      const wib = new Date(e.start.getTime() + 7 * 3600_000);
+      return {
+        ...e,
+        d: EVENT_DAY[wib.getUTCDay()],
+        date: `${String(wib.getUTCDate()).padStart(2, "0")} ${EVENT_MONTH[wib.getUTCMonth()]}`,
+        time: `${String(wib.getUTCHours()).padStart(2, "0")}:${String(wib.getUTCMinutes()).padStart(2, "0")}`,
+      };
+    });
+}
+const EVENT_IDEAS = [
+  { title: "Kopdar & touring", desc: "Kumpul bareng rombongan motor — pesan meja & menu untuk satu rombongan sekaligus." },
+  { title: "Ulang tahun & syukuran", desc: "Booking area dan atur menu lebih dulu lewat WhatsApp." },
+  { title: "Meeting & komunitas", desc: "Rapat santai, nobar, atau kumpul komunitas sambil ngopi." },
+];
 
 function Events() {
+  const biz = useBiz();
   const [hover, setHover] = useState(-1);
+  // Dihitung di klien (setelah mount) agar tidak beda antara render server & browser.
+  const [events, setEvents] = useState([]);
+  useEffect(() => {
+    setEvents(upcomingEvents());
+  }, []);
+  const instagram = SOCIAL_LINKS.find((s) => s.id === "instagram");
+  const bookingUrl = bizWaUrl(biz.whatsapp, "Halo GARAGE, saya mau booking tempat untuk acara/rombongan. Mohon info ketersediaannya.");
   return (
     <section id="events" className="section-pad" style={{ borderTop: "1px solid var(--line)", background: "var(--bg-1)" }}>
       <div className="shell">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, marginBottom: 64, alignItems: "end" }} className="events-head">
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>06 / Event</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Event minggu ini." style={{ fontSize: "clamp(48px, 7vw, 116px)" }}>
-              <span style={{ display: "block" }}>Event</span>
-              <span style={{ display: "block" }}>minggu <span style={{ color: "var(--red)" }}>ini.</span></span>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Event</Reveal>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Event & komunitas." style={{ fontSize: "clamp(48px, 7vw, 116px)" }}>
+              <span style={{ display: "block" }}>Event &</span>
+              <span style={{ display: "block", color: "var(--red)" }}>komunitas.</span>
             </Reveal>
           </div>
           <Reveal delay={400}>
             <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)", maxWidth: 480 }}>
-              Kopdar motor, live set, workshop manual brew, dan komunitas GARAGE. Cek kapasitas, lalu RSVP langsung via WhatsApp.
+              Kopdar motor, acara komunitas, dan kumpul rombongan di GARAGE. Jadwal event diumumkan di Instagram — mau bikin acara sendiri? Booking tempat lewat WhatsApp.
             </p>
-            <a href={WHATSAPP_URL} className="btn" style={{ marginTop: 28 }}>
-              <span>RSVP WhatsApp</span><ArrowRight />
-            </a>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
+              <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+                <span>Booking Acara</span><ArrowRight />
+              </a>
+              {instagram ? (
+                <a href={instagram.href} target="_blank" rel="noopener noreferrer" className="btn">
+                  <span>Info Event di Instagram</span><ArrowRight />
+                </a>
+              ) : null}
+            </div>
           </Reveal>
         </div>
 
         <div style={{ borderTop: "1px solid var(--line)" }}>
-          {EVENTS.map((e, i) =>
-          <Reveal key={i} delay={i * 100}>
+          {events.map((e, i) =>
+          <Reveal key={e.iso} delay={i * 100}>
               <EventRow e={e} i={i} hover={hover === i} setHover={(v) => setHover(v ? i : -1)} />
             </Reveal>
           )}
+          {events.length === 0 ? (
+            <div className="events-empty">
+              <p className="mono events-empty-note">Belum ada jadwal event terdekat — pantau Instagram untuk pengumuman berikutnya.</p>
+              <div className="events-ideas">
+                {EVENT_IDEAS.map((idea) => (
+                  <div key={idea.title} className="events-idea">
+                    <strong>{idea.title}</strong>
+                    <span>{idea.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
       <style>{`
-        @media (max-width: 900px) { .events-head { grid-template-columns: 1fr !important; gap: 40px !important; } }
+        .events-empty { padding: 28px 0 4px; }
+        .events-empty-note { color: var(--amber, #f5a742); margin-bottom: 18px; letter-spacing: 0.08em; }
+        .events-ideas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+        .events-idea {
+          display: flex; flex-direction: column; gap: 8px; padding: 20px;
+          border: 1px solid var(--line); background: rgba(255,255,255,0.03);
+        }
+        .events-idea strong {
+          font-family: var(--font-display); font-size: 22px; letter-spacing: 0.02em;
+          text-transform: uppercase; color: var(--fg);
+        }
+        .events-idea span { color: var(--fg-dim); font-size: 14px; line-height: 1.55; }
+        @media (max-width: 900px) {
+          .events-head { grid-template-columns: 1fr !important; gap: 40px !important; }
+          .events-ideas { grid-template-columns: 1fr; }
+        }
       `}</style>
     </section>);
 
 }
 
+// Tier sama persis dengan sistem member (member-types.ts): Silver → Gold → Platinum
+// berdasarkan belanja 12 bulan terakhir. Ultra (owner approval) tidak dipasarkan.
+const rupiahShort = (value) =>
+  value >= 1_000_000 ? `Rp ${String(value / 1_000_000).replace(".", ",")} jt` : `Rp ${Math.round(value / 1000)}rb`;
+const MEMBER_TIER_META = {
+  Silver: { meta: "Daftar gratis", badge: "Mulai" },
+  Gold: { meta: `Belanja ${rupiahShort(GOLD_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,2"}x` },
+  Platinum: { meta: `Belanja ${rupiahShort(PLATINUM_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,5"}x` },
+};
+const MEMBER_PERK_LABEL = {
+  "Earn normal point": `1 poin tiap Rp ${POINT_EARN_AMOUNT.toLocaleString("id-ID")}`,
+  "Akses promo umum": "Akses promo umum",
+  "Welcome reward": "Welcome reward",
+  "Point 1.2x": "Poin 1,2x lebih cepat",
+  "Birthday reward": "Hadiah ulang tahun",
+  "Priority promo": "Promo prioritas",
+  "Early access seasonal drink": "Duluan coba minuman musiman",
+  "Point 1.5x": "Poin 1,5x lebih cepat",
+  "Free monthly drink": "Gratis minuman tiap bulan",
+  "Exclusive event": "Event eksklusif member",
+  "Faster redeem": "Tukar poin lebih cepat",
+};
+
 function MembershipMasterPro() {
-  const memberTiers = [
-    {
-      name: "Starter",
-      meta: "Daftar gratis",
-      badge: "Basic",
-      benefits: ["Riwayat order tersimpan", "Info promo basic", "Akses login member", "Lebih cepat repeat order"],
-    },
-    {
-      name: "Rider",
-      meta: "Pelanggan aktif",
-      badge: "Popular",
-      benefits: ["Poin transaksi", "Diskon menu pilihan", "Prioritas info event", "Benefit reservasi tertentu"],
-    },
-    {
-      name: "Garage Pro",
-      meta: "Member loyal",
-      badge: "Best",
-      benefits: ["Prioritas reservasi", "Birthday treat", "Promo eksklusif", "Akses komunitas/event"],
-    },
-  ];
+  const memberTiers = memberLevelRules
+    .filter((rule) => !rule.requiresApproval)
+    .map((rule) => ({
+      name: rule.level,
+      meta: MEMBER_TIER_META[rule.level]?.meta ?? "",
+      badge: MEMBER_TIER_META[rule.level]?.badge ?? "",
+      benefits: rule.perks.map((perk) => MEMBER_PERK_LABEL[perk] ?? perk),
+    }));
 
   return (
     <section id="membership" className="section-pad" style={{
@@ -5471,7 +5664,7 @@ function MembershipMasterPro() {
         <div className="membership-master">
           <Reveal>
             <div>
-              <div className="eyebrow" style={{ marginBottom: 20 }}>05 / Membership Master Pro</div>
+              <div className="eyebrow" style={{ marginBottom: 20 }}>Membership</div>
               <h2 className="display" style={{ fontSize: "clamp(48px, 7vw, 104px)", lineHeight: 0.88 }}>
                 Member<br /><span style={{ color: "var(--red)" }}>Garage.</span>
               </h2>
@@ -5494,7 +5687,7 @@ function MembershipMasterPro() {
             <div className="membership-flow">
               <div><span>01</span><strong>Daftar</strong><p>Buat akun member dari website.</p></div>
               <div><span>02</span><strong>Datang</strong><p>Pesan menu favoritmu seperti biasa.</p></div>
-              <div><span>03</span><strong>Nikmati</strong><p>Dapatkan info promo, event, dan benefit lebih dulu.</p></div>
+              <div><span>03</span><strong>Naik level</strong><p>Kumpulkan poin tiap belanja — level naik otomatis ke Gold & Platinum.</p></div>
             </div>
           </Reveal>
         </div>
@@ -5511,7 +5704,7 @@ function MembershipMasterPro() {
                 {tier.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}
               </ul>
               <Link href={`${MEMBER_LOGIN_URL}?mode=register`} className="membership-tier-link">
-                Daftar tier <ArrowRight size={12} />
+                {index === 0 ? "Daftar gratis" : "Mulai dari Silver"} <ArrowRight size={12} />
               </Link>
             </Reveal>
           ))}
@@ -5522,7 +5715,7 @@ function MembershipMasterPro() {
             <div className="mono" style={{ color: "var(--red)", marginBottom: 8 }}>Untuk pelanggan tetap</div>
             <h3>Datang sekali boleh. Balik lagi lebih enak.</h3>
             <p style={{ marginTop: 12, maxWidth: 620, color: "var(--fg-dim)", fontSize: 13, lineHeight: 1.55 }}>
-              Benefit mengikuti promo aktif outlet. Member mendapat info lebih cepat, akses event lebih mudah, dan pengalaman pesan yang lebih praktis.
+              Level dihitung otomatis dari total belanja 12 bulan terakhir. Poin yang terkumpul bisa ditukar potongan harga.
             </p>
           </div>
           <div className="membership-bottom-actions">
@@ -5530,7 +5723,7 @@ function MembershipMasterPro() {
               <span>Daftar Member</span><ArrowRight />
             </Link>
             <Link href={DIGITAL_MENU_URL} className="btn">
-              <span>Order Dulu</span><ArrowRight />
+              <span>Pesan Sekarang</span><ArrowRight />
             </Link>
           </div>
         </Reveal>
@@ -5612,7 +5805,7 @@ function MembershipMasterPro() {
           border-color: rgba(245,167,66,0.32);
         }
         .membership-tier-card--2 {
-          border-color: rgba(96,180,232,0.32);
+          border-color: rgba(212,212,216,0.42);
         }
         .membership-tier-top {
           display: flex;
@@ -5777,7 +5970,7 @@ function EventRow({ e, i, hover, setHover }) {
         .event-seat-meter span {
           display: block;
           height: 100%;
-          background: #0db86c;
+          background: #e4e4e7;
         }
         .event-seat-meter[data-tone="busy"] span { background: var(--amber); }
         .event-seat-meter[data-tone="full"] span { background: var(--red); }
@@ -5812,7 +6005,7 @@ function Testimonials() {
       <div className="shell">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 60, flexWrap: "wrap", gap: 24 }}>
           <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>06 / Suara Mereka</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Suara Mereka</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Cerita dari dalam garasi." style={{ fontSize: "clamp(48px, 7vw, 116px)" }}>
               <span style={{ display: "block" }}>Cerita dari</span>
               <span style={{ display: "block" }}>dalam <span style={{ color: "var(--red)" }}>garasi.</span></span>
@@ -5906,7 +6099,7 @@ function Location() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid var(--line)" }} className="loc-grid">
           {/* left — info */}
           <div style={{ padding: 56 }}>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>08 / Temukan kami</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Temukan kami</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Mampir saja. Kami menunggu." style={{ fontSize: "clamp(40px, 5vw, 76px)" }}>
               <span style={{ display: "block" }}>Mampir saja.</span>
               <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
@@ -5963,14 +6156,13 @@ function Location() {
 
 function LocationMvp() {
   const biz = useBiz();
-  const directionMessage = "Halo GARAGE, saya mau tanya arah ke lokasi GARAGE. Mohon info patokan dan akses masuknya.";
   const reservationMessage = "Halo GARAGE, saya mau reservasi. Mohon info ketersediaan meja dan jamnya.";
   return (
     <section id="location" className="section-pad location-mvp">
       <div className="shell">
         <div className="location-mvp-grid">
           <div className="location-mvp-info">
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>08 / Temukan kami</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Temukan kami</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Mampir saja. Kami menunggu." style={{ fontSize: "clamp(40px, 5vw, 76px)" }}>
               <span style={{ display: "block" }}>Mampir saja.</span>
               <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
@@ -5979,11 +6171,16 @@ function LocationMvp() {
               Jl. Mayjen Sutoyo, Rambung — dekat jalur kereta api, area outdoor bisa lihat kereta lewat.
               Tekan <strong>Rute ke GARAGE</strong> untuk navigasi langsung dari Google Maps.
             </Reveal>
+            <Reveal delay={300} as="ul" className="location-mvp-perks" aria-label="Keunggulan lokasi">
+              <li><TrainFront size={16} aria-hidden="true" /> Dekat jalur kereta api</li>
+              <li><Trees size={16} aria-hidden="true" /> Area outdoor — lihat kereta lewat</li>
+              <li><Clock size={16} aria-hidden="true" /> {isOpen24h(biz.hoursOpen, biz.hoursClose) ? "Buka 24 jam, setiap hari" : `Buka ${hoursShort(biz)} setiap hari`}</li>
+              <li><Bike size={16} aria-hidden="true" /> Ramah komunitas motor</li>
+            </Reveal>
             <Reveal delay={360} as="div" className="location-mvp-cta-row">
               <a className="btn btn-primary" href={GARAGE_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer"><span>Rute ke GARAGE</span><ArrowRight /></a>
               <a className="btn" href={`tel:+${biz.whatsapp}`}><span>Telepon</span><ArrowRight /></a>
-              <a className="btn" href={bizWaUrl(biz.whatsapp, directionMessage)}><span>WhatsApp</span><ArrowRight /></a>
-              <a className="btn" href={bizWaUrl(biz.whatsapp, reservationMessage)}><span>Reservasi</span><ArrowRight /></a>
+              <a className="btn" href={bizWaUrl(biz.whatsapp, reservationMessage)} target="_blank" rel="noopener noreferrer"><span>Reservasi via WhatsApp</span><ArrowRight /></a>
             </Reveal>
             <Reveal delay={420} as="div" className="location-mvp-rating">
               <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" className="location-mvp-rating-link">
@@ -6030,6 +6227,10 @@ function LocationMvp() {
         .location-mvp-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr); border: 1px solid var(--line); min-height: 560px; }
         .location-mvp-info { padding: 56px; display: flex; flex-direction: column; }
         .location-mvp-copy { color: var(--fg-dim); font-size: 16px; line-height: 1.7; margin-top: 26px; max-width: 560px; }
+        .location-mvp-perks { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .location-mvp-perks li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.035); color: var(--fg); font-size: 14px; line-height: 1.35; }
+        .location-mvp-perks svg { flex-shrink: 0; color: #f5a742; }
+        @media (max-width: 560px) { .location-mvp-perks { grid-template-columns: 1fr; } }
         .location-mvp-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 28px; }
         .location-mvp-rating { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; margin-top: 22px; }
         .location-mvp-rating-link { display: inline-flex; align-items: center; gap: 8px; color: var(--fg); font-size: 15px; text-decoration: none; }
@@ -6061,7 +6262,7 @@ function LocalSeoBlock() {
       <div className="shell">
         <Reveal className="local-seo-grid">
           <div>
-            <div className="eyebrow" style={{ marginBottom: 18 }}>07 / Local SEO</div>
+            <div className="eyebrow" style={{ marginBottom: 18 }}>Tebing Tinggi</div>
             <h2>GARAGE Coffee & Motor Tebing Tinggi</h2>
             <p>
               Cafe dan coffee shop di Tebing Tinggi untuk ngopi, makan, nongkrong, pesan takeaway, reservasi WhatsApp, ikut event komunitas, dan jadi member GARAGE.
@@ -6172,7 +6373,7 @@ function FinalCTA() {
 
         <Reveal delay={600} as="div" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 40 }}>
           <button type="button" onClick={requestTablePanelOpen} className="btn btn-primary" style={{ padding: "22px 36px" }}><span>Cek Meja</span><ArrowRight /></button>
-          <Link href={DIGITAL_MENU_URL} className="btn" style={{ padding: "22px 36px" }}><span>Order Sekarang</span><ArrowRight /></Link>
+          <Link href={DIGITAL_MENU_URL} className="btn" style={{ padding: "22px 36px" }}><span>Pesan Sekarang</span><ArrowRight /></Link>
           <a href={WHATSAPP_URL} className="btn" style={{ padding: "22px 36px" }}><span>Reservasi WhatsApp</span><ArrowRight /></a>
         </Reveal>
 
@@ -6219,9 +6420,9 @@ function Footer() {
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 60 }} className="foot-grid">
           <div>
             <LogoImage variant="wordmark" height={56} />
-            <div className="mono" style={{ marginTop: 8 }}>COFFEE & MOTOR · EST. 2026</div>
+            <div className="mono" style={{ marginTop: 8 }}>COFFEE & MOTOR · TEBING TINGGI</div>
             <p style={{ marginTop: 28, color: "var(--fg-dim)", maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
-              Kopi premium dengan jiwa otomotif. Buka tujuh hari seminggu, sampai larut malam.
+              Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Buka setiap hari.
             </p>
             <p style={{ marginTop: 16, color: "var(--fg-dim)", maxWidth: 420, fontSize: 13, lineHeight: 1.55 }}>
               {biz.address}
@@ -6252,7 +6453,7 @@ function Footer() {
               </div>
             </div>
             <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
-              <span style={{ width: 8, height: 8, background: "#0db86c", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(13,184,108,0.2)" }} />
+              <span style={{ width: 8, height: 8, background: "#e4e4e7", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(228,228,231,0.2)" }} />
               <span className="mono" style={{ color: "var(--fg)" }}>{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "BUKA 24 JAM" : `BUKA ${biz.hoursOpen} · TUTUP ${biz.hoursClose}`}</span>
             </div>
           </div>
@@ -6380,10 +6581,13 @@ function FooterMvp() {
   const shortAddress = `${streetLine(biz.address)}, Tebing Tinggi`;
   const quickLinks = [
     ["Menu", "#menu"],
+    ["Cara Pesan", "#cara-pesan"],
     ["Cek Meja", "#live-status"],
+    ["Event", "#events"],
     ["Member", MEMBER_LOGIN_URL],
-    ["Login Karyawan", LOGIN_URL],
     ["Franchise", "/franchise"],
+    ["Karier", "/recruitment"],
+    ["Login Karyawan", LOGIN_URL],
   ];
 
   return (
@@ -6392,10 +6596,10 @@ function FooterMvp() {
         <div className="footer-mvp-grid">
           <div className="footer-mvp-brand">
             <LogoImage variant="wordmark" height={56} />
-            <div className="mono footer-mvp-est">COFFEE & MOTOR · EST. 2026</div>
+            <div className="mono footer-mvp-est">COFFEE & MOTOR · TEBING TINGGI</div>
             <p className="footer-mvp-copy">
-              Kopi premium dengan jiwa otomotif. Menu digital, reservasi meja,
-              takeaway, dan event komunitas dalam satu tempat.
+              Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Pesan via QR,
+              takeaway, reservasi meja, dan event komunitas dalam satu tempat.
             </p>
             <div className="footer-mvp-social">
               <div className="mono footer-mvp-label">FOLLOW THE GARAGE</div>
@@ -6571,8 +6775,8 @@ function FooterMvp() {
           width: 8px;
           height: 8px;
           border-radius: 999px;
-          background: #0db86c;
-          box-shadow: 0 0 0 4px rgba(13,184,108,0.16);
+          background: #e4e4e7;
+          box-shadow: 0 0 0 4px rgba(228,228,231,0.16);
         }
         .footer-mvp-meta {
           margin-top: 16px;
@@ -6710,34 +6914,16 @@ const formatRupiah = (value) =>
 
 function PromoProducts() {
   const biz = useBiz();
-  const [items, setItems] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/customer/menu", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((rows) => {
-        if (cancelled || !Array.isArray(rows)) return;
-        const promos = rows
-          .filter((it) => it && it.promoActive && Number(it.promoPrice) > 0)
-          .map((it) => {
-            const base = Array.isArray(it.variants) && it.variants.length
-              ? Math.min(...it.variants.map((v) => Number(v.price) || 0))
-              : 0;
-            return { ...it, basePrice: base };
-          })
-          .filter((it) => it.basePrice > Number(it.promoPrice));
-        setItems(promos);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { rows, loaded } = useLiveMenu();
+  const items = useMemo(() => rows
+    .filter((it) => it && it.promoActive && Number(it.promoPrice) > 0)
+    .map((it) => {
+      const base = Array.isArray(it.variants) && it.variants.length
+        ? Math.min(...it.variants.map((v) => Number(v.price) || 0))
+        : 0;
+      return { ...it, basePrice: base };
+    })
+    .filter((it) => it.basePrice > Number(it.promoPrice)), [rows]);
 
   if (!loaded || items.length === 0) return null;
 
@@ -6836,38 +7022,17 @@ function PromoProducts() {
 // Owner kontrol via tag di Produk Manajemen. Additive, tampil bila ada isi.
 function FeaturedMenu() {
   const biz = useBiz();
-  const [items, setItems] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/customer/menu", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (cancelled) return;
-        const rows = json?.data ?? json;
-        if (!Array.isArray(rows)) return;
-        const featured = rows
-          .filter((it) => Array.isArray(it?.tags) && it.tags.some((t) =>
-            /bestseller|unggulan|favorit|signature/i.test(String(t))))
-          .map((it) => ({
-            name: it.name,
-            imageUrl: it.imageUrl,
-            category: it.category,
-            price: Array.isArray(it.variants) && it.variants.length
-              ? Math.min(...it.variants.map((v) => Number(v.price) || 0))
-              : 0,
-          }))
-          .slice(0, 8);
-        setItems(featured);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { rows, loaded } = useLiveMenu();
+  const items = useMemo(() => rows
+    .filter((it) => it?.featured || (Array.isArray(it?.tags) && it.tags.some((t) =>
+      /bestseller|unggulan|favorit|signature/i.test(String(t)))))
+    .map((it) => ({
+      name: it.name,
+      imageUrl: it.imageUrl,
+      category: it.category,
+      price: liveItemPrice(it),
+    }))
+    .slice(0, 8), [rows]);
   if (!loaded || items.length === 0) return null;
   const fmt = (v) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(v) || 0);
   return (
@@ -6928,30 +7093,11 @@ function FeaturedMenu() {
 // Section Galeri (C5) — foto produk asli dari DB (/api/customer/menu). Additive,
 // tampil hanya bila ada foto. Tidak butuh upload terpisah.
 function MenuGallery() {
-  const [photos, setPhotos] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/customer/menu", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (cancelled) return;
-        const rows = json?.data ?? json;
-        if (!Array.isArray(rows)) return;
-        const withPhoto = rows
-          .filter((it) => it && it.imageUrl)
-          .map((it) => ({ name: it.name, imageUrl: it.imageUrl }))
-          .slice(0, 12);
-        setPhotos(withPhoto);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { rows, loaded } = useLiveMenu();
+  const photos = useMemo(() => rows
+    .filter((it) => it && it.imageUrl)
+    .map((it) => ({ name: it.name, imageUrl: it.imageUrl }))
+    .slice(0, 12), [rows]);
   if (!loaded || photos.length < 3) return null;
   return (
     <section id="galeri" className="section-pad" style={{
@@ -7143,12 +7289,12 @@ function GarageWebsiteRoot({
       <PromoBar />
       <Nav />
       <Hero landingHero={landingHero} />
-      <LiveVisitBoard />
-      <LiveTrackingSystem />
-      <S3MvpStrip />
       <Menu />
-      <FeaturedMenu />
+      <HowToOrder />
+      <LiveVisitBoard />
       <PromoProducts />
+      <FeaturedMenu />
+      <LiveTrackingSystem />
       <LiveTestimonials />
       <About />
       <MenuGallery />

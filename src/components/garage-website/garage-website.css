@@ -32,6 +32,16 @@ html { scroll-behavior: smooth; }
 .garage-website { overflow-x: hidden; -webkit-font-smoothing: antialiased; font-feature-settings: "ss01", "cv11"; line-height: 1.5; }
 .garage-website img, .garage-website svg { display: block; max-width: 100%; }
 .garage-website button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+/* Reset di atas lebih spesifik dari .btn → tombol <button class="btn"> kehilangan
+   bingkai & font. Kembalikan gaya .btn untuk elemen <button>. */
+.garage-website button.btn {
+  font-family: var(--font-mono); font-size: 12px;
+  border: 1px solid var(--line-2);
+  background: rgba(255,255,255,0.02);
+}
+.garage-website button.btn-primary { background: var(--red); border-color: var(--red); color: #fff; }
+.garage-website button.btn:hover { border-color: var(--red); color: #fff; }
+.garage-website button.btn-primary:hover { color: var(--red); }
 .garage-website a { color: inherit; text-decoration: none; }
 
 .garage-website ::selection { background: var(--red); color: #fff; }
@@ -442,29 +452,34 @@ html { scroll-behavior: smooth; }
 
 /* =============================================================================
    Kenyamanan HP (QA website 2026-09-28)
-   1. Urutan fokus penjualan: Hero → Menu → Cek Meja → Lokasi & Jam → Unggulan …
+   1. Urutan fokus penjualan: Hero → Menu → Cara Pesan → Cek Meja → Lokasi & Jam → Promo …
       (dulu alamat & jam buka baru muncul di ±21.000px / 25× geser layar).
    2. Teks minimum 11px (dulu 159 label 10px & 13 label 9px di HP).
    3. Target sentuh minimum 44px (standar Apple/Google) untuk tombol kecil.
    ============================================================================= */
 @media (max-width: 700px) {
   main.garage-website { display: flex; flex-direction: column; }
+  /* Section baru tanpa aturan urutan tidak boleh lompat ke atas hero. */
+  main.garage-website > section { order: 40; }
   main.garage-website > section#top { order: 1; }
   main.garage-website > section#menu { order: 2; }
-  main.garage-website > section#live-status { order: 3; }
-  main.garage-website > section#location { order: 4; }
-  main.garage-website > section#unggulan { order: 5; }
-  main.garage-website > section#live-tracking-system { order: 6; }
-  main.garage-website > section.s3-strip { order: 7; }
-  main.garage-website > section#events { order: 8; }
-  main.garage-website > section#membership { order: 9; }
-  main.garage-website > section#about { order: 10; }
-  main.garage-website > section#atmosphere { order: 11; }
-  main.garage-website > section#social-portfolio { order: 12; }
-  main.garage-website > section#experience { order: 13; }
-  main.garage-website > section#local-seo { order: 14; }
-  main.garage-website > section.section-pad:not([id]) { order: 15; }
-  main.garage-website > footer { order: 16; }
+  main.garage-website > section#cara-pesan { order: 3; }
+  main.garage-website > section#live-status { order: 4; }
+  main.garage-website > section#location { order: 5; }
+  main.garage-website > section#promo { order: 6; }
+  main.garage-website > section#unggulan { order: 7; }
+  main.garage-website > section#live-tracking-system { order: 8; }
+  main.garage-website > section#events { order: 9; }
+  main.garage-website > section#membership { order: 10; }
+  main.garage-website > section#testimoni { order: 11; }
+  main.garage-website > section#about { order: 12; }
+  main.garage-website > section#galeri { order: 13; }
+  main.garage-website > section#atmosphere { order: 14; }
+  main.garage-website > section#social-portfolio { order: 15; }
+  main.garage-website > section#experience { order: 16; }
+  main.garage-website > section#local-seo { order: 17; }
+  main.garage-website > section.section-pad:not([id]) { order: 18; }
+  main.garage-website > footer { order: 19; }
 
   .garage-website .mono,
   .garage-website .tag,

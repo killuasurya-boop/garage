@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok } from "@/lib/api-response";
 import { moveTable } from "@/lib/garage-service";
+import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -9,13 +10,6 @@ export const runtime = "nodejs";
 const bodySchema = z.object({
   to: z.string().regex(/^\d{1,2}$/, "Nomor meja tujuan harus 01-50"),
 });
-
-function normalizeTable(table: string) {
-  if (!/^\d{1,2}$/.test(table) || Number(table) < 1 || Number(table) > 50) {
-    return null;
-  }
-  return String(Number(table)).padStart(2, "0");
-}
 
 // Pindahkan bill aktif meja sumber ke meja tujuan (mis. tamu pindah meja).
 export async function POST(
@@ -28,9 +22,9 @@ export async function POST(
   }
 
   const { table } = await context.params;
-  const fromNumber = normalizeTable(table);
+  const fromNumber = parseTableNumber(table);
   if (!fromNumber) {
-    return fail(400, "TABLE_INVALID", "Nomor meja sumber harus 01 sampai 50.");
+    return fail(400, "TABLE_INVALID", `Meja sumber tidak valid. ${TABLE_NUMBER_RANGE_MESSAGE}`);
   }
 
   const raw = await request.json().catch(() => ({}));
@@ -38,9 +32,9 @@ export async function POST(
   if (!parsed.success) {
     return fail(400, "BODY_INVALID", parsed.error.issues[0]?.message ?? "Body invalid");
   }
-  const toNumber = normalizeTable(parsed.data.to);
+  const toNumber = parseTableNumber(parsed.data.to);
   if (!toNumber) {
-    return fail(400, "TABLE_INVALID", "Nomor meja tujuan harus 01 sampai 50.");
+    return fail(400, "TABLE_INVALID", `Meja tujuan tidak valid. ${TABLE_NUMBER_RANGE_MESSAGE}`);
   }
 
   try {

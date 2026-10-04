@@ -3,6 +3,7 @@ import { z } from "zod";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { createOrder, getOrderData } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
+import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
 import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -15,10 +16,7 @@ const orderSchema = z.object({
   tableNumber: z
     .string()
     .trim()
-    .regex(/^\d{1,2}$/, "Nomor meja harus 01 sampai 50.")
-    .refine((value) => Number(value) >= 1 && Number(value) <= 50, {
-      message: "Nomor meja harus 01 sampai 50.",
-    })
+    .refine((value) => parseTableNumber(value) !== null, { message: TABLE_NUMBER_RANGE_MESSAGE })
     .optional(),
   tableLabel: z.string().min(1).optional(),
   paymentMethod: z.string().min(1).optional(),

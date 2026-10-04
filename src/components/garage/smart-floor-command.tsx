@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -17,6 +17,7 @@ import {
 import { garageApi } from "@/lib/api-client";
 import { currency, type ModuleId } from "@/lib/garage-data";
 import type { KitchenOrder, TableLiveRow } from "@/lib/garage-api-types";
+import { formatTableDuration, parseTableNumber, tableLabelFor } from "@/lib/garage-tables";
 
 type SmartFloorCommandProps = {
   onNavigateModule?: (module: ModuleId) => void;
@@ -55,14 +56,24 @@ function isNeedsClean(row: TableLiveRow) {
   return row.needsCleaning || row.status === "needs_cleaning";
 }
 
-function shortTableLabel(value: string | null | undefined) {
-  return value?.replace(/^Meja\s+/i, "M") ?? "M-";
+// Label meja seragam "Meja 06" di semua modul (tiket lama bisa "Meja 6").
+function tableLabelText(value: string | null | undefined) {
+  const tableNumber = parseTableNumber(value ?? null);
+  return tableNumber ? tableLabelFor(tableNumber) : value?.trim() || "Meja ?";
 }
+
+const tableStatusLabel: Record<string, string> = {
+  pending: "menunggu kasir",
+  accepted: "belum bayar",
+  ready: "siap antar",
+  mixed: "sebagian lunas",
+  awaiting_payment: "di kasir",
+};
 
 function commandToneClass(tone: CommandItem["tone"]) {
   if (tone === "danger") return "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
   if (tone === "warning") return "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]";
-  if (tone === "success") return "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#bbf7d0]";
+  if (tone === "success") return "border-[#d4d4d8]/40 bg-white/[0.07] text-[#f4f4f5]";
   return "border-white/10 bg-white/[0.04] text-white/70";
 }
 
@@ -80,8 +91,8 @@ function buildCommandItems(tables: TableLiveRow[], tickets: KitchenOrder[]): Com
     .slice(0, 4)
     .map((ticket): CommandItem => ({
       id: `ready-${ticket.id}`,
-      label: `${shortTableLabel(ticket.table)} siap antar`,
-      detail: `${ticket.items.length} item - ${ticket.elapsed}m di ${ticket.station}`,
+      label: `${tableLabelText(ticket.table)} siap antar`,
+      detail: `${ticket.items.length} item · ${formatTableDuration(ticket.elapsed)} di ${ticket.station}`,
       tone: ticket.elapsed >= Math.max(ticket.targetMinutes, 12) ? "danger" : "success",
       module: "waiter",
       icon: "ready",
@@ -93,8 +104,8 @@ function buildCommandItems(tables: TableLiveRow[], tickets: KitchenOrder[]): Com
     .slice(0, 4)
     .map((table): CommandItem => ({
       id: `bill-${table.tableNumber}`,
-      label: `${table.tableLabel} tagihan kasir`,
-      detail: `${currency.format(table.total)} - tunggu ${table.timerMinutes}m`,
+      label: `${table.tableLabel} tagihan di kasir`,
+      detail: `${currency.format(table.total)} · menunggu ${formatTableDuration(table.timerMinutes)}`,
       tone: table.timerMinutes >= 15 ? "danger" : "warning",
       module: "pos",
       icon: "bill",
@@ -114,13 +125,20 @@ function buildCommandItems(tables: TableLiveRow[], tickets: KitchenOrder[]): Com
     }));
 
   const lateTables = tables
-    .filter((table) => hasOpenBill(table) && !hasAwaitingPaymentBill(table) && table.timerMinutes >= 20)
+    .filter(
+      (table) =>
+        hasOpenBill(table) &&
+        !hasAwaitingPaymentBill(table) &&
+        (table.timerMinutes >= 20 || Boolean(table.staleFromPreviousDay)),
+    )
     .sort((a, b) => b.timerMinutes - a.timerMinutes)
     .slice(0, 4)
     .map((table): CommandItem => ({
       id: `late-${table.tableNumber}`,
-      label: `${table.tableLabel} overdue`,
-      detail: `${table.status.replace(/_/g, " ")} - ${table.timerMinutes}m`,
+      label: table.staleFromPreviousDay ? `${table.tableLabel} bill kemarin` : `${table.tableLabel} menunggu lama`,
+      detail: table.staleFromPreviousDay
+        ? "Cek kasir: bayar atau batalkan"
+        : `${tableStatusLabel[table.status] ?? "belum bayar"} · ${formatTableDuration(table.timerMinutes)}`,
       tone: table.timerMinutes >= 35 ? "danger" : "warning",
       module: "waiter",
       icon: "late",
@@ -137,9 +155,10 @@ export function SmartFloorCommand({ onNavigateModule }: SmartFloorCommandProps) 
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
+  const inFlightRef = useRef(false);
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setSyncing(true);
-    setError(null);
+    inFlightRef.current = true;
     try {
       const [tableRows, ticketRows] = await Promise.all([
         garageApi.get<TableLiveRow[]>("/api/tables/live", { cache: "no-store" }),
@@ -148,9 +167,12 @@ export function SmartFloorCommand({ onNavigateModule }: SmartFloorCommandProps) 
       setTables(tableRows);
       setTickets(ticketRows);
       setLastSyncedAt(new Date());
+      // Error dihapus hanya setelah sukses (tidak berkedip tiap refresh).
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat Smart Floor Command.");
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
       setSyncing(false);
     }
@@ -159,10 +181,20 @@ export function SmartFloorCommand({ onNavigateModule }: SmartFloorCommandProps) 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
-    const id = window.setInterval(() => {
+    // Berhenti saat tab tersembunyi, tidak menumpuk request, sinkron saat kembali.
+    const tick = () => {
+      if (document.hidden || inFlightRef.current) return;
       void refresh(true);
-    }, REFRESH_MS);
-    return () => window.clearInterval(id);
+    };
+    const id = window.setInterval(tick, REFRESH_MS);
+    const onVisible = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refresh]);
 
   const stats = useMemo(() => {

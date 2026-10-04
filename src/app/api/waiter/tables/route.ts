@@ -11,5 +11,5 @@ export async function GET() {
   if (session.response) {
     return session.response;
   }
-  return ok(await getTableLiveData());
+  return ok(await getTableLiveData({ outletId: session.data.profile.outlet.id }));
 }

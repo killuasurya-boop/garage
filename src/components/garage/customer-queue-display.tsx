@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 import type { ApiEnvelope, DisplayQueueOrder } from "@/lib/garage-api-types";
+import { formatTableDuration } from "@/lib/garage-tables";
 
 async function getQueue() {
   const response = await fetch("/api/display/customer-queue", { cache: "no-store" });
@@ -29,11 +30,12 @@ type MergedOrder = {
 function displayLabel(order: DisplayQueueOrder): { big: string; sub: string } {
   const table = (order.tableLabel ?? "").trim();
   const mejaMatch = table.match(/meja\s*0*(\d+)/i);
-  if (mejaMatch) {
-    return { big: mejaMatch[1].padStart(2, "0"), sub: "MEJA" };
-  }
   const digits = (order.orderNo ?? order.ticketNo ?? "").replace(/\D/g, "");
   const code = digits.slice(-3) || "--";
+  if (mejaMatch) {
+    // Kode order kecil membedakan dua pesanan dari meja yang sama.
+    return { big: mejaMatch[1].padStart(2, "0"), sub: `MEJA · #${code}` };
+  }
   if (/take|bawa/i.test(table)) return { big: code, sub: "TAKE AWAY" };
   if (/deliver|antar/i.test(table)) return { big: code, sub: "DELIVERY" };
   return { big: table || code, sub: "" };
@@ -116,7 +118,9 @@ export function CustomerQueueDisplay() {
   }, [orders]);
 
   return (
-    <main className="min-h-screen bg-[#0b0b0f] px-6 py-5 text-white">
+    // Layar TV: tinggi pas layar, setiap kolom scroll sendiri (kartu tidak hilang
+    // di bawah). Layar kecil: halaman biasa yang bisa di-scroll.
+    <main className="flex min-h-screen flex-col bg-[#0b0b0f] px-6 py-5 text-white lg:h-[100svh] lg:overflow-hidden">
       <header className="flex items-end justify-between border-b border-[#2a2a32] pb-4">
         <div>
           <p className="font-mono text-sm uppercase tracking-[0.3em] text-[#f5a742]">
@@ -140,17 +144,17 @@ export function CustomerQueueDisplay() {
         </div>
       ) : null}
 
-      <section className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_1fr_0.9fr]">
+      <section className="mt-5 grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.15fr_1fr_0.9fr]">
         <QueueColumn
           title="SIAP DIAMBIL / DIANTAR"
-          accent="#22c55e"
+          accent="#f5a742"
           highlight
           orders={grouped.ready}
           emptyText="Belum ada yang siap."
         />
         <QueueColumn
           title="SEDANG DIPROSES"
-          accent="#f5a742"
+          accent="#d4d4d8"
           orders={grouped.cooking}
           emptyText="Dapur & bar kosong."
         />
@@ -220,7 +224,7 @@ function QueueColumn({
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-sm text-[#9a9aa2]">menunggu</p>
-                <p className="text-2xl font-black tabular-nums text-[#e8e8ec]">{o.waitMinutes}m</p>
+                <p className="text-2xl font-black tabular-nums text-[#e8e8ec]">{formatTableDuration(o.waitMinutes)}</p>
               </div>
             </article>
           ))

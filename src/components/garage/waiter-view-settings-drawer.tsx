@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   BellRing,
   Vibrate,
@@ -66,9 +67,9 @@ export function SettingsDrawer({
     },
   ];
 
-  return (
+  const drawer = (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[1100] flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -106,7 +107,7 @@ export function SettingsDrawer({
                   <span
                     className={`grid h-11 w-11 place-items-center rounded-lg ring-1 ${
                       row.on
-                        ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
+                        ? "bg-white/12 text-white ring-white/35"
                         : "bg-white/[0.04] text-white/55 ring-white/12"
                     }`}
                   >
@@ -114,26 +115,29 @@ export function SettingsDrawer({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-white">{row.label}</p>
-                    <p className="text-[11px] text-white/55">{row.desc}</p>
+                    <p className="text-[12px] text-garage-dim">{row.desc}</p>
                   </div>
                   <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${
                       row.on
-                        ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
+                        ? "bg-white/12 text-white ring-white/35"
                         : "bg-white/[0.04] text-white/55 ring-white/12"
                     }`}
                   >
-                    {row.on ? "ON" : "OFF"}
+                    {row.on ? "Aktif" : "Mati"}
                   </span>
                 </button>
               </li>
             );
           })}
         </ul>
-        <div className="px-4 py-3 text-[10px] text-white/45">
+        <div className="px-4 py-3 text-[12px] text-garage-dim">
           Pengaturan tersimpan di perangkat ini.
         </div>
       </div>
     </div>
   );
+
+  // Portal ke <body> agar tidak tertutup tombol chat (stacking context konten OS).
+  return typeof document === "undefined" ? drawer : createPortal(drawer, document.body);
 }

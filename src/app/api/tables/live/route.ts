@@ -10,6 +10,6 @@ export async function GET(request: Request) {
     return session.response;
   }
 
-  const data = await getTableLiveData();
+  const data = await getTableLiveData({ outletId: session.data.profile.outlet.id });
   return okWithEtag(request, data);
 }

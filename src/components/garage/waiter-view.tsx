@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  AlertTriangle,
   BellRing,
   CheckCircle2,
   CircleDot,
@@ -16,9 +17,6 @@ import {
   RefreshCw,
   ReceiptText,
   Settings,
-  X,
-  Timer,
-  UserPlus,
   Volume2,
   VolumeX,
   Vibrate,
@@ -49,10 +47,12 @@ import {
   isDirtyTable,
   isPaidOnly,
   isWaiterOperator,
+  TABLE_LEGEND,
   tableTone,
-  waitStripe,
+  waitLevel,
   type WaiterBoardTab,
 } from "./waiter-view-helpers";
+import { TablePicker } from "./waiter-table-picker";
 import { SettingsDrawer } from "./waiter-view-settings-drawer";
 import { TableDetailDrawer } from "./waiter-view-table-detail-drawer";
 import { WaiterOfflineBanner } from "./waiter-offline-banner";
@@ -60,7 +60,19 @@ import {
   startSyncWorker,
   stopSyncWorker,
 } from "@/lib/waiter-offline-sync";
-import { QR_TABLE_NUMBERS } from "@/lib/garage-qr";
+import { formatTableDuration } from "@/lib/garage-tables";
+
+// Grid peta meja: HP 4 kolom, tablet 6, desktop 8 (6 saat ada panel prioritas).
+const TABLE_GRID =
+  "grid grid-cols-4 gap-2 min-[480px]:grid-cols-5 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-6 2xl:grid-cols-8";
+
+function urgentReason(row: TableLiveRow) {
+  if (row.staleFromPreviousDay) return "Cek kasir — bill kemarin";
+  if (hasAwaitingPaymentBill(row)) return "Tagihan di kasir";
+  if (row.status === "cleaning") return "Sedang dibersihkan";
+  if (row.needsCleaning || row.status === "needs_cleaning") return "Perlu dibersihkan";
+  return "Menunggu lama";
+}
 
 type Props = {
   me: GarageMe;
@@ -118,9 +130,10 @@ export function WaiterView({ me }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Sheet "Pesankan": pilih nomor meja lalu buka menu digital mode waiter.
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Meja yang sedang dibuka menu digitalnya (navigasi berjalan) → cegah tap ganda.
+  const [openingTable, setOpeningTable] = useState<string | null>(null);
   // Lazy initial state - baca localStorage 1x saat mount, tanpa effect.
   const [prefs, setPrefs] = useState<WaiterNotifyPrefs>(() => loadNotifyPrefs());
-  const [clock, setClock] = useState(() => new Date());
   const [recentlyCleaned, setRecentlyCleaned] = useState<Set<string>>(new Set());
   // Skip notif pertama kali load (waiter baru buka tab, semua ticket "baru" buat dia).
   const hasInitialLoadRef = useRef(false);
@@ -132,13 +145,10 @@ export function WaiterView({ me }: Props) {
     saveNotifyPrefs(prefs);
   }, [prefs]);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setClock(new Date()), 30000);
-    return () => window.clearInterval(id);
-  }, []);
-
+  const inFlightRef = useRef(false);
   const loadAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    inFlightRef.current = true;
     try {
       // Antaran diurus Bar/Dapur (helper tap "Diambil oleh"), jadi waiter tidak
       // lagi memuat tiket siap antar — cukup meja & panggilan pelanggan.
@@ -168,6 +178,7 @@ export function WaiterView({ me }: Props) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal sinkron data waiter.");
     } finally {
+      inFlightRef.current = false;
       if (!silent) setLoading(false);
     }
   }, [toast]);
@@ -198,18 +209,31 @@ export function WaiterView({ me }: Props) {
 
   // Polling - fetch eksternal yang memang harus update state. Rule
   // set-state-in-effect false-positive untuk subscribe pattern seperti ini.
+  // Polling berhenti saat layar/tab tidak terlihat (hemat baterai & server),
+  // langsung sinkron lagi saat kembali dibuka. Tidak menumpuk request.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAll(false);
-    const id = window.setInterval(() => {
+    const tick = () => {
+      if (document.hidden || inFlightRef.current) return;
       void loadAll(true);
-    }, POLL_MS);
-    return () => window.clearInterval(id);
+    };
+    const id = window.setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [loadAll]);
 
   // Pesankan: buka menu digital (tampilan pelanggan) untuk meja ini di tab yang sama,
   // mode waiter → nama pemesan otomatis, order masuk ke kasir untuk divalidasi.
   function openWaiterOrder(tableNumber: string) {
+    if (openingTable) return;
+    setOpeningTable(tableNumber);
     window.location.assign(`/order?table=${encodeURIComponent(tableNumber)}&mode=waiter`);
   }
 
@@ -222,8 +246,8 @@ export function WaiterView({ me }: Props) {
         });
         toast.push({
           tone: "success",
-          title: `Meja ${row.tableLabel} READY`,
-          body: "Meja siap menerima tamu baru.",
+          title: `${row.tableLabel} siap dipakai`,
+          body: "Meja bersih dan siap menerima tamu baru.",
           ttl: 2400,
         });
         if (!reducedMotionPreferred()) {
@@ -268,10 +292,10 @@ export function WaiterView({ me }: Props) {
           body: JSON.stringify({ action }),
         });
         const title = {
-          leave: `Meja ${row.tableLabel} DIRTY`,
-          start_cleaning: `Meja ${row.tableLabel} CLEANING`,
-          reserve: `Meja ${row.tableLabel} RESERVED`,
-          unreserve: `Meja ${row.tableLabel} AVAILABLE`,
+          leave: `${row.tableLabel} perlu dibersihkan`,
+          start_cleaning: `${row.tableLabel} sedang dibersihkan`,
+          reserve: `${row.tableLabel} ditandai dipesan`,
+          unreserve: `${row.tableLabel} kembali kosong`,
         }[action];
         toast.push({ tone: "success", title, ttl: 2200 });
         await loadAll(true);
@@ -300,8 +324,8 @@ export function WaiterView({ me }: Props) {
         });
         toast.push({
           tone: "success",
-          title: `Meja ${row.tableLabel} siap tamu baru`,
-          body: "Bill lunas disimpan. Order baru akan muncul sebagai MIXED bersama bill lama.",
+          title: `${row.tableLabel}: teman gabung`,
+          body: "Bill lunas tetap tersimpan. Pesanan baru tampil sebagai Sebagian lunas.",
           ttl: 3200,
         });
         if (!reducedMotionPreferred()) {
@@ -366,24 +390,8 @@ export function WaiterView({ me }: Props) {
       ),
     [tables],
   );
-  const readyTables = useMemo(
-    () => tables.filter((t) => t.status === "empty" && !t.needsCleaning).length,
-    [tables],
-  );
   const billRequests = useMemo(
     () => tables.filter((t) => hasAwaitingPaymentBill(t)).length,
-    [tables],
-  );
-  const activeTables = useMemo(
-    () =>
-      tables.filter(
-        (t) =>
-          t.status !== "empty" ||
-          t.needsCleaning ||
-          Boolean(t.currentOrderId) ||
-          (t.openBillCount ?? 0) > 0 ||
-          (t.paidBillCount ?? 0) > 0,
-      ).length,
     [tables],
   );
   // Bucket tiap meja ke salah satu kategori filter. Tujuannya: walau kartu
@@ -435,35 +443,26 @@ export function WaiterView({ me }: Props) {
     });
   }, [tables, tableFilter]);
 
-  // Meja dengan bill open paling lama untuk peringatan urgensi di header.
-  const stalest = useMemo(() => {
-    let best: TableLiveRow | null = null;
-    for (const row of tables) {
-      const hasOpen = (row.openBillCount ?? 0) > 0 || row.status === "accepted" || row.status === "ready" || row.status === "mixed" || row.status === "awaiting_payment";
-      if (!hasOpen) continue;
-      if (!best || row.timerMinutes > best.timerMinutes) best = row;
-    }
-    return best;
-  }, [tables]);
-
   const urgentTables = useMemo(
     () =>
       tables
         .filter(
           (t) =>
+            t.staleFromPreviousDay ||
             t.needsCleaning ||
             t.status === "needs_cleaning" ||
+            t.status === "cleaning" ||
             hasAwaitingPaymentBill(t) ||
-            t.timerMinutes >= 15,
+            waitLevel(t) !== "ok",
         )
         .sort((a, b) => {
           const score = (row: TableLiveRow) =>
-            (hasAwaitingPaymentBill(row) ? 40 : 0) +
-            (row.needsCleaning || row.status === "needs_cleaning" ? 30 : 0) +
-            row.timerMinutes;
+            (row.staleFromPreviousDay ? 1000 : 0) +
+            (hasAwaitingPaymentBill(row) ? 400 : 0) +
+            (row.needsCleaning || row.status === "needs_cleaning" ? 300 : 0) +
+            Math.min(row.timerMinutes, 240);
           return score(b) - score(a);
-        })
-        .slice(0, 4),
+        }),
     [tables],
   );
 
@@ -510,173 +509,115 @@ export function WaiterView({ me }: Props) {
     [detailTable, tables],
   );
 
+  const syncLabel = lastSyncedAt
+    ? lastSyncedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : null;
+  const filterChips = [
+    { key: "all" as const, label: "Semua", count: tableBuckets.all },
+    { key: "unpaid" as const, label: "Belum bayar", count: tableBuckets.unpaid },
+    { key: "mixed" as const, label: "Sebagian lunas", count: tableBuckets.mixed },
+    { key: "paid" as const, label: "Lunas", count: tableBuckets.paid },
+    { key: "needs_clean" as const, label: "Perlu bersih", count: tableBuckets.needs_clean },
+    { key: "ready" as const, label: "Kosong", count: tableBuckets.ready },
+  ];
+  const activeFilterLabel = filterChips.find((chip) => chip.key === tableFilter)?.label ?? "Semua";
+  const iconButton =
+    "grid size-11 shrink-0 place-items-center rounded-md ring-1 transition disabled:opacity-50";
+  const toggleTone = (on: boolean) =>
+    on ? "bg-white/10 text-white ring-white/30" : "bg-white/[0.03] text-garage-dim ring-white/12";
+
   return (
-    <div className="min-h-screen space-y-5 bg-[#080704] px-1 pb-28 pt-2 text-white sm:px-0">
+    <div className="space-y-4 pb-28 pt-1 text-white">
       <WaiterOfflineBanner />
-      {/* Sticky hanya di layar ≥ sm: di HP header setinggi ±150px menutupi kartu
-          antar saat di-scroll (CLAUDE.md: sticky tidak boleh menutupi konten). */}
-      <div className="relative z-20 rounded-lg border border-[#d4af37]/15 bg-[#080704] px-3.5 py-3.5 sm:sticky sm:top-2 sm:bg-[#080704]/92 sm:px-4 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-[#080704]/78">
+
+      {/* Header ringkas: nama + status sinkron + kontrol notifikasi. */}
+      <div className="rounded-lg border border-garage-line bg-garage-bg-1 px-3 py-2.5 sm:px-4">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#d4af37]/14 text-[#f2ca50] ring-1 ring-[#d4af37]/35">
-            <BellRing size={18} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d0c5af]/70">
-              Papan Lantai Waiter
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-bold leading-tight text-white">{me.user.name}</p>
+            <p className={`mt-0.5 text-[12px] ${error ? "text-[#ffb3b3]" : "text-garage-dim"}`} role={error ? "alert" : undefined}>
+              {error
+                ? `Gagal sinkron: ${error}`
+                : syncLabel
+                  ? `Tersinkron ${syncLabel} · ${tableBuckets.ready} meja kosong`
+                  : "Menyinkronkan meja…"}
             </p>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="truncate text-base font-black leading-tight text-white">
-                {me.user.name}
-              </p>
-              <span className="rounded-sm bg-[#22c55e]/12 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#bbf7d0] ring-1 ring-[#22c55e]/30">
-                Shift aktif
-              </span>
-              <span className="font-mono text-[11px] text-[#d0c5af]/70">
-                {clock.toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
           </div>
-
-          <div className="ml-auto flex items-center gap-1.5">
-            {/* Stats versi mobile cuma ready & bill kasir bila ada; versi sm+ tampil lengkap */}
-            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-medium text-white/75 ring-1 ring-white/15">
-              {readyTables} meja kosong
-            </span>
-            {billRequests > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#fbbf24]/15 px-2.5 py-1 text-[11px] font-semibold text-[#fde68a] ring-1 ring-[#fbbf24]/35">
-                <ReceiptText size={12} /> {billRequests}
-                <span className="hidden sm:inline">&nbsp;bill kasir</span>
-              </span>
-            ) : null}
-            {stalest && stalest.timerMinutes >= 15 ? (
-              <button
-                type="button"
-                onClick={() => setDetailTable(stalest.tableNumber)}
-                title={`Bill terlama di ${stalest.tableLabel} sudah ${stalest.timerMinutes}m`}
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 transition active:scale-[0.97] ${
-                  stalest.timerMinutes >= 30
-                    ? "bg-[#d11a2a]/18 text-[#ffd6da] ring-[#d11a2a]/40 motion-safe:animate-pulse"
-                    : "bg-[#e8883a]/15 text-[#ffd08a] ring-[#e8883a]/35"
-                }`}
-              >
-                <Timer size={12} /> M{stalest.tableNumber} {stalest.timerMinutes}m
-              </button>
-            ) : null}
-
-            {/* Toggle bar lengkap hanya di sm+; mobile pakai 1 tombol Settings */}
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={handleEnableSound}
-              className={`hidden sm:grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
-                prefs.sound
-                  ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
-                  : "bg-white/[0.04] text-white/55 ring-white/12"
-              }`}
-              aria-label="Toggle suara notifikasi"
-              title={prefs.sound ? "Suara: ON" : "Suara: OFF"}
+              className={`hidden sm:grid ${iconButton} ${toggleTone(prefs.sound)}`}
+              aria-label={prefs.sound ? "Matikan suara notifikasi" : "Nyalakan suara notifikasi"}
+              aria-pressed={prefs.sound}
             >
-              {prefs.sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              {prefs.sound ? <Volume2 size={17} /> : <VolumeX size={17} />}
             </button>
             <button
               type="button"
               onClick={handleEnableVibe}
-              className={`hidden sm:grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
-                prefs.vibrate
-                  ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
-                  : "bg-white/[0.04] text-white/55 ring-white/12"
-              }`}
-              aria-label="Toggle getar"
-              title={prefs.vibrate ? "Getar: ON" : "Getar: OFF"}
+              className={`hidden sm:grid ${iconButton} ${toggleTone(prefs.vibrate)}`}
+              aria-label={prefs.vibrate ? "Matikan getar" : "Nyalakan getar"}
+              aria-pressed={prefs.vibrate}
             >
-              {prefs.vibrate ? <Vibrate size={16} /> : <VibrateOff size={16} />}
+              {prefs.vibrate ? <Vibrate size={17} /> : <VibrateOff size={17} />}
             </button>
             <button
               type="button"
               onClick={handleEnableNotif}
-              className={`hidden sm:grid h-9 w-9 place-items-center rounded-md ring-1 transition ${
-                prefs.browserNotif
-                  ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
-                  : "bg-white/[0.04] text-white/55 ring-white/12"
-              }`}
-              aria-label="Toggle notifikasi browser"
-              title="Aktifkan notifikasi browser saat tab di latar belakang"
+              className={`hidden sm:grid ${iconButton} ${toggleTone(prefs.browserNotif)}`}
+              aria-label="Aktifkan notifikasi browser"
+              aria-pressed={prefs.browserNotif}
             >
-              <BellRing size={16} />
+              <BellRing size={17} />
             </button>
-
-            {/* Mobile-only: 1 tombol untuk buka settings drawer */}
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
-              className={`grid h-9 w-9 place-items-center rounded-md ring-1 transition sm:hidden ${
-                prefs.sound || prefs.vibrate || prefs.browserNotif
-                  ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/35"
-                  : "bg-white/[0.04] text-white/55 ring-white/12"
-              }`}
+              className={`sm:hidden ${iconButton} ${toggleTone(prefs.sound || prefs.vibrate || prefs.browserNotif)}`}
               aria-label="Pengaturan notifikasi"
-              title="Suara / Getar / Notifikasi"
             >
-              <Settings size={16} />
+              <Settings size={17} />
             </button>
-
             <button
               type="button"
               onClick={() => void loadAll(false)}
               disabled={loading}
-              className="grid h-9 w-9 place-items-center rounded-md bg-white/[0.04] text-white/75 ring-1 ring-white/12 transition hover:bg-white/[0.08] disabled:opacity-50"
-              aria-label="Muat ulang data"
+              className={`${iconButton} bg-white/[0.03] text-white ring-white/12 hover:bg-white/10`}
+              aria-label="Muat ulang meja"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              {loading ? <Loader2 size={17} className="animate-spin" /> : <RefreshCw size={17} />}
             </button>
           </div>
         </div>
-        {error ? (
-          <p className="mt-1 text-[11px] text-[#ffb4ba]">{error}</p>
-        ) : lastSyncedAt ? (
-          <p className="mt-1 text-[10px] text-white/45">
-            Sinkron {lastSyncedAt.toLocaleTimeString("id-ID")}
-          </p>
-        ) : null}
       </div>
 
       {serviceReqs.length > 0 ? (
-        <section className="space-y-2 rounded-xl border border-[#ffb4ab]/40 bg-[#2a1116] p-3">
-          <div className="flex items-center gap-2">
-            <BellRing size={16} className="text-[#ffb4ab]" />
-            <p className="text-sm font-black uppercase tracking-wide text-[#ffd7da]">
-              Panggilan Meja ({serviceReqs.length})
-            </p>
-          </div>
+        <section className="space-y-2 rounded-lg border border-[#ff2a3a]/45 bg-[#d11a2a]/10 p-3" aria-label="Panggilan meja">
+          <p className="flex items-center gap-2 text-[13px] font-bold text-white">
+            <BellRing size={16} className="text-[#ff8a8a]" aria-hidden />
+            Panggilan meja ({serviceReqs.length})
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {serviceReqs.map((req) => (
-              <div
-                key={req.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-[#d11a2a]/40 bg-[#1c0e11] p-2.5"
-              >
+              <div key={req.id} className="flex items-center justify-between gap-3 rounded-md border border-[#ff2a3a]/30 bg-garage-bg-1 p-2.5">
                 <div className="min-w-0">
-                  <p className="text-sm font-black text-white">{req.tableLabel}</p>
-                  <p className="truncate text-xs font-semibold text-[#ffb4ab]">
+                  <p className="text-[14px] font-bold text-white">{req.tableLabel}</p>
+                  <p className="truncate text-[12px] font-semibold text-[#ffb3b3]">
                     {serviceRequestLabel(req.type)}
-                    {req.note ? ` - ${req.note}` : ""}
+                    {req.note ? ` · ${req.note}` : ""}
                   </p>
-                  <p className="text-[10px] text-white/45">
-                    {new Date(req.createdAt).toLocaleTimeString("id-ID")}
+                  <p className="text-[11px] text-garage-dim">
+                    {new Date(req.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
                 <button
                   type="button"
                   disabled={resolvingReq === req.id}
                   onClick={() => void resolveRequest(req.id)}
-                  className="garage-press flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-[#22c55e] px-3 text-xs font-black text-[#04140a] transition hover:bg-[#34d77f] disabled:opacity-50"
+                  className="garage-press flex min-h-11 shrink-0 items-center gap-1.5 rounded-md bg-[#f4f4f5] px-3 text-[13px] font-bold text-[#0a0a0c] transition hover:bg-white disabled:opacity-50"
                 >
-                  {resolvingReq === req.id ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={14} />
-                  )}
+                  {resolvingReq === req.id ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
                   Selesai
                 </button>
               </div>
@@ -688,376 +629,200 @@ export function WaiterView({ me }: Props) {
       <button
         type="button"
         onClick={() => setPickerOpen(true)}
-        className="garage-press flex h-16 w-full items-center justify-center gap-3 rounded-xl bg-[#d11a2a] text-lg font-black text-white shadow-[0_10px_28px_rgba(209,26,42,0.35)] transition hover:bg-[#ff2a3a] active:scale-[0.99]"
+        className="garage-press flex min-h-14 w-full items-center justify-center gap-3 rounded-lg bg-[#d11a2a] text-[17px] font-black text-white shadow-[0_10px_28px_rgba(209,26,42,0.3)] transition hover:bg-[#ff2a3a]"
       >
-        <NotebookPen size={22} /> Pesankan
-        <span className="text-sm font-semibold text-white/80">pilih meja</span>
+        <NotebookPen size={21} aria-hidden /> Pesankan
+        <span className="text-[13px] font-semibold text-white/85">pilih meja</span>
       </button>
 
-      {pickerOpen ? (
-        <div
-          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Pilih nomor meja"
-          onClick={() => setPickerOpen(false)}
-        >
-          <div
-            className="max-h-[85svh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-[#15120c] p-4 ring-1 ring-[#d4af37]/20 sm:rounded-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-black text-white">Pesankan untuk meja</h2>
-              <button
-                type="button"
-                onClick={() => setPickerOpen(false)}
-                className="grid size-11 place-items-center rounded-md text-white/80 hover:bg-white/10"
-                aria-label="Tutup"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {(tables.length
-                ? tables
-                : QR_TABLE_NUMBERS.map((n) => ({ tableNumber: String(n) }) as TableLiveRow)
-              ).map((row) => {
-                const busy = Boolean(row.currentOrderId);
-                return (
-                  <button
-                    key={row.tableNumber}
-                    type="button"
-                    onClick={() => openWaiterOrder(row.tableNumber)}
-                    className={`grid h-14 place-items-center rounded-lg font-mono text-lg font-black ring-1 transition active:scale-[0.97] ${
-                      busy
-                        ? "bg-[#f2ca50]/15 text-[#fde68a] ring-[#f2ca50]/40"
-                        : "bg-white/[0.06] text-white ring-white/15 hover:bg-white/[0.1]"
-                    }`}
-                    aria-label={`Meja ${row.tableNumber}${busy ? " (terisi)" : ""}`}
-                  >
-                    {row.tableNumber}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-3 text-[12px] text-[#d0c5af]/70">
-              Kuning = meja terisi (pesanan tambahan). Pesanan masuk ke kasir untuk divalidasi.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Tab ringkas: peta meja / tagihan. Pengaturan lewat ikon di header. */}
+      <div className="grid grid-cols-2 gap-1 rounded-lg border border-garage-line bg-garage-bg-1 p-1" role="tablist" aria-label="Tampilan waiter">
         {[
-          { label: "Meja aktif", value: activeTables, cls: "text-[#f2ca50]" },
-          { label: "Panggilan", value: urgentTables.length, cls: "text-[#ffb4ab]" },
-          { label: "Perlu bersih", value: tablesNeedingCleaning.length, cls: "text-[#bbf7d0]" },
-          { label: "Tagihan", value: billRequests, cls: "text-[#fde68a]" },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="rounded-lg bg-[#15120c] px-3 py-3 ring-1 ring-[#d4af37]/12"
-          >
-            <p className={`font-mono text-xl font-black leading-none ${item.cls}`}>
-              {item.value}
-            </p>
-            <p className="mt-1 text-[10px] font-semibold leading-tight text-[#d0c5af]/70">
-              {item.label}
-            </p>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid grid-cols-3 gap-2 rounded-xl border border-[#d4af37]/12 bg-[#0b0906] p-2">
-        {[
-          { key: "tables" as const, label: "Meja", icon: <CircleDot size={16} />, count: tables.length },
+          { key: "tables" as const, label: "Peta meja", icon: <CircleDot size={16} />, count: null },
           { key: "bills" as const, label: "Tagihan", icon: <ReceiptText size={16} />, count: billRequests },
-          { key: "more" as const, label: "Lainnya", icon: <Settings size={16} />, count: 0 },
         ].map((item) => (
           <button
             key={item.key}
             type="button"
-            onClick={() => {
-              setActiveBoard(item.key);
-              if (item.key === "more") setSettingsOpen(true);
-            }}
-            className={`flex h-14 min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-bold transition active:scale-[0.97] ${
-              activeBoard === item.key
-                ? "bg-[#d4af37] text-[#241a00]"
-                : "text-[#d0c5af]/68 hover:bg-white/[0.05]"
+            role="tab"
+            aria-selected={activeBoard === item.key}
+            onClick={() => setActiveBoard(item.key)}
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-md text-[13px] font-bold transition ${
+              activeBoard === item.key ? "bg-white/12 text-white ring-1 ring-white/25" : "text-garage-dim hover:bg-white/[0.05] hover:text-white"
             }`}
-            aria-pressed={activeBoard === item.key}
           >
-            <span className="relative">
-              {item.icon}
-              {item.count > 0 && item.key !== "tables" ? (
-                <span className="absolute -right-2 -top-1 grid min-w-4 place-items-center rounded-sm bg-[#d11a2a] px-1 text-[8px] leading-4 text-white">
-                  {item.count}
-                </span>
-              ) : null}
-            </span>
-            <span className="max-w-full truncate">{item.label}</span>
+            {item.icon}
+            {item.label}
+            {item.count ? (
+              <span className="grid min-w-5 place-items-center rounded-sm bg-[#f5a742] px-1 font-mono text-[11px] leading-5 text-[#1a1000]">
+                {item.count}
+              </span>
+            ) : null}
           </button>
         ))}
-      </section>
+      </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.8fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         {activeBoard === "tables" ? (
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">
-              Peta Meja
-            </h2>
-            <p className="text-[11px] text-[#d0c5af]/60">
-              {tablesNeedingCleaning.length} perlu bersih - {readyTables} ready
-            </p>
-          </div>
-
-          {/* Filter chips: bantu staff cek cepat siapa yang sudah/belum
-              bayar, terutama untuk meja MIXED & PERLU BERSIH yang masih
-              punya open bill. Mobile: horizontal scroll 1 baris. */}
-          <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {[
-              { key: "all" as const, label: "Semua", count: tableBuckets.all, tone: "neutral" },
-              {
-                key: "unpaid" as const,
-                label: "Belum Bayar",
-                count: tableBuckets.unpaid,
-                tone: "amber",
-              },
-              {
-                key: "mixed" as const,
-                label: "Campuran",
-                count: tableBuckets.mixed,
-                tone: "red",
-              },
-              {
-                key: "paid" as const,
-                label: "Sudah Bayar",
-                count: tableBuckets.paid,
-                tone: "green",
-              },
-              {
-                key: "needs_clean" as const,
-                label: "Perlu Bersih",
-                count: tableBuckets.needs_clean,
-                tone: "red",
-              },
-              {
-                key: "ready" as const,
-                label: "Siap",
-                count: tableBuckets.ready,
-                tone: "neutral",
-              },
-            ].map((chip) => {
-              const active = tableFilter === chip.key;
-              const toneCls = active
-                ? chip.tone === "amber"
-                  ? "bg-[#e8883a]/20 text-[#ffd08a] ring-[#e8883a]/55"
-                  : chip.tone === "red"
-                    ? "bg-[#d11a2a]/20 text-[#ffd6da] ring-[#d11a2a]/55"
-                    : chip.tone === "green"
-                      ? "bg-[#22c55e]/15 text-[#bbf7d0] ring-[#22c55e]/45"
-                      : "bg-white/[0.12] text-white ring-white/30"
-                : "bg-white/[0.04] text-white/70 ring-white/12 hover:bg-white/[0.08]";
-              return (
-                <button
-                  key={chip.key}
-                  type="button"
-                  onClick={() => setTableFilter(chip.key)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ring-1 transition active:scale-[0.97] ${toneCls}`}
-                  aria-pressed={active}
-                >
-                  {chip.label}
-                  <span className="rounded-full bg-black/40 px-1.5 py-0.5 font-mono text-[10px] text-white/85">
-                    {chip.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {tablesNeedingCleaning.length > 0 ? (
-            <div className="rounded-lg border border-[#d11a2a]/35 bg-[#d11a2a]/8 px-3 py-2 text-[12px] text-[#ffd6da]">
-              Prioritaskan bersihkan {tablesNeedingCleaning.length} meja agar tamu baru bisa duduk.
+          <section className="min-w-0 space-y-3" aria-label="Peta meja">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <h2 className="text-[13px] font-bold uppercase tracking-[0.14em] text-white">Peta meja</h2>
+              {/* Keterangan warna: setiap kartu juga menulis statusnya. */}
+              <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-garage-dim" aria-label="Keterangan warna meja">
+                {TABLE_LEGEND.map((item) => (
+                  <li key={item.label} className="inline-flex items-center gap-1.5">
+                    <span className={`size-3 rounded-[3px] ${item.swatch}`} aria-hidden />
+                    {item.label}
+                  </li>
+                ))}
+              </ul>
             </div>
-          ) : null}
 
-          {filteredTables.length === 0 ? (
-            <EmptyState
-              title={`Tidak ada meja di kategori "${tableFilter}"`}
-              body="Coba pilih filter lain atau tap Semua."
-            />
-          ) : null}
+            {/* Filter: HP digeser ke samping (bayangan kanan = masih ada), desktop 1 baris. */}
+            <div className="relative">
+              <div className="flex gap-2 overflow-x-auto pb-1 pr-6 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pr-0 [&::-webkit-scrollbar]:hidden">
+                {filterChips.map((chip) => {
+                  const active = tableFilter === chip.key;
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={() => setTableFilter(chip.key)}
+                      className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold ring-1 transition ${
+                        active ? "bg-white/12 text-white ring-white/35" : "bg-white/[0.03] text-garage-dim ring-white/12 hover:bg-white/[0.07] hover:text-white"
+                      }`}
+                      aria-pressed={active}
+                    >
+                      {chip.label}
+                      <span className="rounded-sm bg-black/40 px-1.5 py-0.5 font-mono text-[11px] text-white">{chip.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-garage-bg-0 to-transparent sm:hidden" aria-hidden />
+            </div>
 
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5">
-            {filteredTables.map((row) => {
-              const tone = tableTone(row);
-              const stripe = waitStripe(row);
-              const cleaning = isCleaningTable(row);
-              const needs = isDirtyTable(row);
-              const isReady = row.status === "empty" && !row.needsCleaning;
-              const isPaid = isPaidOnly(row);
-              const isMixed = row.status === "mixed";
-              // Tombol "Tamu Baru" relevan saat ada minimal 1 bill lunas dan
-              // tidak ada open bill aktif (PAID atau NEEDS CLEAR pasca-payment).
-              const canSeatNext = isPaidOnly(row);
-              const billAlreadyRequested = hasAwaitingPaymentBill(row);
-              const canRequestBill =
-                canRequestBillRole &&
-                Boolean(row.currentOrderId) &&
-                (row.status === "accepted" || row.status === "ready" || row.status === "mixed") &&
-                !billAlreadyRequested;
-              const paidBills = row.paidBillCount ?? 0;
-              const openBills = row.openBillCount ?? 0;
-              const totalBills = paidBills + openBills;
-              const glow = recentlyCleaned.has(row.tableNumber);
-              return (
-                <div
-                  key={row.tableNumber}
-                  className={`group relative flex min-h-[112px] sm:min-h-[128px] md:min-h-[142px] flex-col overflow-hidden rounded-lg border border-white/5 ${tone.bg} ring-1 ${tone.ring} p-2 sm:p-2.5 transition ${stripe} ${
-                    glow ? "motion-safe:animate-[waiterGlow_1300ms_ease-out]" : ""
-                  }`}
+            {tablesNeedingCleaning.length > 0 && tableFilter === "all" ? (
+              <button
+                type="button"
+                onClick={() => setTableFilter("needs_clean")}
+                className="flex min-h-11 w-full items-center gap-2 rounded-md border border-[#ff2a3a]/40 bg-[#d11a2a]/10 px-3 text-left text-[13px] text-[#ffd6da]"
+              >
+                <AlertTriangle size={15} className="shrink-0" aria-hidden />
+                {tablesNeedingCleaning.length} meja perlu dibersihkan — tap untuk lihat.
+              </button>
+            ) : null}
+
+            {loading && tables.length === 0 ? (
+              <div className={TABLE_GRID} aria-busy="true" aria-label="Memuat meja">
+                {Array.from({ length: 12 }).map((_, index) => (
+                  <div key={index} className="h-[92px] animate-pulse rounded-lg border border-garage-line bg-garage-bg-2 motion-reduce:animate-none" />
+                ))}
+              </div>
+            ) : error && tables.length === 0 ? (
+              <div className="rounded-lg border border-[#ff2a3a]/40 bg-[#d11a2a]/10 px-4 py-6 text-center" role="alert">
+                <p className="text-[14px] font-bold text-white">Peta meja belum bisa dimuat</p>
+                <p className="mt-1 text-[13px] text-garage-dim">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadAll(false)}
+                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-md bg-white/10 px-4 text-[13px] font-semibold text-white ring-1 ring-white/25 hover:bg-white/15"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setDetailTable(row.tableNumber)}
-                    className="text-left transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-                    title="Lihat detail bill meja ini"
-                  >
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.14em] text-[#d0c5af]/55">
-                        Meja
-                      </span>
-                      <span
-                        aria-label={tone.label}
-                        title={tone.label}
-                        className={`h-2 w-2 shrink-0 rounded-full ${tone.dotBg} ring-1 ${tone.dotRing}`}
-                      />
-                    </div>
-                    <span className="mt-0.5 block font-mono text-[28px] sm:text-3xl md:text-4xl font-black leading-none text-white">
-                      {row.tableNumber}
-                    </span>
-                  </button>
-                  <div className="mt-1 min-h-[28px] sm:min-h-[40px] flex-1 text-[10px] sm:text-[11px] leading-tight text-white/65">
-                    {row.orderNo ? (
-                      <span className="block truncate">#{row.orderNo}</span>
-                    ) : isReady ? null : (
-                      <span className="block text-white/45">-</span>
-                    )}
-                    {totalBills > 1 || isMixed ? (
-                      <span className="block text-[10px] sm:text-[9px] text-[#fde68a]">
-                        {totalBills} bill{openBills > 0 ? ` / ${openBills} open` : ""}
-                      </span>
-                    ) : null}
-                    {/* Timer hanya relevan untuk meja terisi — meja AVAILABLE/RESERVED
-                        dulu menampilkan menit sejak status terakhir (mis. 7643m). */}
-                    {row.timerMinutes > 0 && row.currentOrderId && !isReady ? (
-                      <span className="block text-[10px] text-white/45">
-                        {row.timerMinutes}m
-                      </span>
-                    ) : null}
-                    {row.total > 0 ? (
-                      <span className="block truncate font-mono text-[10px] text-[#f2ca50]/80">
-                        {formatRupiah(row.total)}
-                      </span>
-                    ) : null}
-                  </div>
-                  {cleaning || needs || isPaid ? (
-                    // Satu tombol "Sudah bersih" (dulu: Tamu pergi → Bersihkan → Siap pakai).
-                    // Meja lunas/kotor/sedang dibersihkan langsung jadi AVAILABLE.
-                    <div className={`mt-1 grid gap-1 ${canSeatNext ? "grid-cols-2" : "grid-cols-1"}`}>
+                  <RefreshCw size={15} /> Coba lagi
+                </button>
+              </div>
+            ) : filteredTables.length === 0 ? (
+              <EmptyState
+                title={`Tidak ada meja "${activeFilterLabel}"`}
+                body="Pilih filter lain atau tap Semua."
+              />
+            ) : (
+              <div className={TABLE_GRID}>
+                {filteredTables.map((row) => {
+                  const tone = tableTone(row);
+                  const level = waitLevel(row);
+                  const dirty = isDirtyTable(row) || isCleaningTable(row);
+                  const paidOnly = isPaidOnly(row);
+                  const acting = actingTable === row.tableNumber;
+                  const glow = recentlyCleaned.has(row.tableNumber);
+                  const showDuration = Boolean(row.currentOrderId) && row.timerMinutes > 0 && !row.staleFromPreviousDay;
+                  return (
+                    <div
+                      key={row.tableNumber}
+                      className={`relative flex flex-col overflow-hidden rounded-lg border ${tone.card} ${
+                        glow ? "motion-safe:animate-[waiterGlow_1300ms_ease-out]" : ""
+                      }`}
+                    >
                       <button
                         type="button"
-                        onClick={() => void handleClean(row)}
-                        disabled={actingTable === row.tableNumber}
-                        title="Sudah bersih - meja siap dipakai tamu baru"
-                        className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#22c55e] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#052e16] transition active:scale-[0.97] disabled:opacity-60"
+                        onClick={() => setDetailTable(row.tableNumber)}
+                        className="flex min-h-[84px] flex-1 flex-col p-2 text-left transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
+                        aria-label={`${row.tableLabel}, ${tone.label}${row.total > 0 ? `, ${formatRupiah(row.total)}` : ""}. Buka detail.`}
                       >
-                        {actingTable === row.tableNumber ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <CheckCircle2 size={12} />
-                        )}
-                        <span className="hidden sm:inline">Sudah bersih</span>
+                        <span className="font-mono text-[24px] font-black leading-none text-white sm:text-[26px]">
+                          {row.tableNumber}
+                        </span>
+                        <span className={`mt-1.5 line-clamp-2 text-[11px] font-bold leading-tight ${tone.labelColor}`}>
+                          {tone.label}
+                        </span>
+                        {row.total > 0 ? (
+                          <span className="truncate font-mono text-[11px] leading-tight text-white/85">
+                            {formatRupiah(row.total)}
+                          </span>
+                        ) : row.area ? (
+                          <span className="truncate text-[11px] leading-tight text-garage-dim">{row.area}</span>
+                        ) : null}
+                        {row.staleFromPreviousDay ? (
+                          <span className="mt-1 self-start rounded-sm bg-[#d11a2a] px-1 py-0.5 text-[10px] font-bold leading-none text-white">
+                            Cek kasir
+                          </span>
+                        ) : showDuration ? (
+                          <span
+                            className={`mt-1 self-start rounded-sm px-1 py-0.5 font-mono text-[11px] font-bold leading-none ${
+                              level === "late"
+                                ? "bg-[#d11a2a] text-white"
+                                : level === "watch"
+                                  ? "bg-[#f5a742] text-[#1a1000]"
+                                  : "bg-black/35 text-white/85"
+                            }`}
+                          >
+                            {formatTableDuration(row.timerMinutes)}
+                          </span>
+                        ) : null}
                       </button>
-                      {canSeatNext ? (
+                      {dirty || paidOnly ? (
                         <button
                           type="button"
-                          onClick={() => void handleSeatNew(row)}
-                          disabled={actingSeatTable === row.tableNumber}
-                          title="Teman gabung - buka order baru, history lunas dipertahankan"
-                          className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#e2e8f0] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
+                          onClick={() => (dirty ? void handleClean(row) : void handleLifecycle(row, "leave"))}
+                          disabled={acting}
+                          className={`flex min-h-11 items-center justify-center gap-1 border-t text-[12px] font-bold transition disabled:opacity-60 ${
+                            dirty
+                              ? "border-[#ff2a3a]/40 bg-[#f4f4f5] text-[#0a0a0c] hover:bg-white"
+                              : "border-[#d4d4d8]/30 bg-white/[0.06] text-white hover:bg-white/12"
+                          }`}
+                          aria-label={dirty ? `${row.tableLabel} sudah bersih` : `Tamu ${row.tableLabel} sudah pergi`}
                         >
-                          {actingSeatTable === row.tableNumber ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <UserPlus size={12} />
-                          )}
-                          <span className="hidden sm:inline">Tamu+</span>
+                          {acting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                          {dirty ? "Bersih" : "Pergi"}
                         </button>
                       ) : null}
                     </div>
-                  ) : canRequestBill ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleRequestBill(row)}
-                      disabled={actingBillTable === row.tableNumber}
-                      title="Minta bill"
-                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-[#fbbf24] text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
-                    >
-                      {actingBillTable === row.tableNumber ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <ReceiptText size={12} />
-                      )}
-                      <span className="hidden sm:inline">Bill</span>
-                    </button>
-                  ) : billAlreadyRequested ? (
-                    <div
-                      title="Menunggu kasir"
-                      className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 text-[11px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#fde68a]"
-                    >
-                      <ReceiptText size={12} />
-                      <span className="hidden sm:inline">Kasir</span>
-                    </div>
-                  ) : (
-                    <div className="mt-1 h-9" aria-hidden />
-                  )}
-                  {/* Pesankan: waiter ambil pesanan langsung untuk meja ini.
-                      Buka menu digital prefill meja (tab baru) -> order masuk
-                      sebagai pending_cashier untuk divalidasi kasir. */}
-                  <button
-                    type="button"
-                    onClick={() => openWaiterOrder(row.tableNumber)}
-                    title={`Pesankan order untuk meja ${row.tableNumber}`}
-                    className="mt-1 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/15 text-[11px] sm:text-[10px] font-bold uppercase tracking-wide text-[#ffb4bd] transition hover:bg-[#d11a2a]/25 active:scale-[0.97]"
-                  >
-                    <NotebookPen size={12} />
-                    <span>Pesankan</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-        ) : activeBoard === "bills" ? (
-          <section className="space-y-3 rounded-xl bg-[#15120c] p-3 ring-1 ring-[#fbbf24]/25">
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="space-y-3 rounded-lg border border-garage-line bg-garage-bg-1 p-3" aria-label="Tagihan meja">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">
-                  Tagihan Meja
-                </h2>
-                <p className="text-[11px] text-[#d0c5af]/60">
-                  Handoff kasir: waiter hanya request bill dan pantau status.
-                </p>
+                <h2 className="text-[13px] font-bold uppercase tracking-[0.14em] text-white">Tagihan meja</h2>
+                <p className="text-[12px] text-garage-dim">Waiter minta tagihan, kasir yang memproses pembayaran.</p>
               </div>
-              <span className="font-mono text-2xl font-black text-[#fde68a]">
-                {billRequests}
-              </span>
+              <span className="font-mono text-2xl font-black text-[#ffd08a]">{billRequests}</span>
             </div>
             {billedTables.length === 0 ? (
-              <EmptyState title="Belum ada tagihan" body="Meja aktif akan tampil di sini saat ada bill." />
+              <EmptyState title="Belum ada tagihan" body="Meja yang punya bill akan tampil di sini." />
             ) : (
               <ul className="space-y-2">
                 {billedTables.map((row) => {
@@ -1065,28 +830,20 @@ export function WaiterView({ me }: Props) {
                   const open = row.openBillCount ?? 0;
                   const paid = row.paidBillCount ?? 0;
                   return (
-                    <li
-                      key={`bill-${row.tableNumber}`}
-                      className="rounded-lg bg-[#11100b] p-3 ring-1 ring-white/10"
-                    >
+                    <li key={`bill-${row.tableNumber}`}>
                       <button
                         type="button"
                         onClick={() => setDetailTable(row.tableNumber)}
-                        className="flex w-full items-center gap-3 text-left"
+                        className={`flex min-h-14 w-full items-center gap-3 rounded-lg border p-2.5 text-left transition hover:bg-white/[0.04] ${tone.card}`}
                       >
-                        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[#fbbf24]/12 font-mono text-lg font-black text-[#fde68a] ring-1 ring-[#fbbf24]/28">
+                        <span className="grid size-11 shrink-0 place-items-center rounded-md bg-black/30 font-mono text-[17px] font-black text-white">
                           {row.tableNumber}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-black text-white">
-                            {row.tableLabel}
+                          <span className={`block text-[13px] font-bold ${tone.labelColor}`}>{tone.label}</span>
+                          <span className="block truncate text-[12px] text-garage-dim">
+                            {open} belum bayar · {paid} lunas{row.total > 0 ? ` · ${formatRupiah(row.total)}` : ""}
                           </span>
-                          <span className="block text-[11px] text-[#d0c5af]/60">
-                            {open} open - {paid} lunas {row.total > 0 ? `- ${formatRupiah(row.total)}` : ""}
-                          </span>
-                        </span>
-                        <span className={`shrink-0 rounded-sm bg-black/35 px-2 py-1 text-[9px] font-black uppercase tracking-wide ${tone.labelColor}`}>
-                          {tone.label}
                         </span>
                       </button>
                     </li>
@@ -1095,85 +852,54 @@ export function WaiterView({ me }: Props) {
               </ul>
             )}
           </section>
-        ) : (
-          <section className="space-y-3 rounded-xl bg-[#15120c] p-3 ring-1 ring-[#d4af37]/12">
-            <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">
-              Lainnya
-            </h2>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#d4af37] text-[12px] font-black uppercase tracking-wide text-[#241a00]"
-            >
-              <Settings size={16} />
-              Pengaturan Notifikasi
-            </button>
-          </section>
         )}
 
-        <aside className="space-y-3">
-          <section className="rounded-xl bg-[#15120c] p-3 ring-1 ring-[#d4af37]/12">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-white/85">
-                  Prioritas Lantai
-                </h2>
-                <p className="text-[11px] text-[#d0c5af]/60">
-                  Panggilan, tagihan, meja kotor, dan meja lama.
-                </p>
-              </div>
-              {stalest && stalest.timerMinutes >= 15 ? (
-                <button
-                  type="button"
-                  onClick={() => setDetailTable(stalest.tableNumber)}
-                  className={`inline-flex h-9 items-center gap-1 rounded-md px-2.5 text-[11px] font-bold ring-1 ${
-                    stalest.timerMinutes >= 30
-                      ? "bg-[#d11a2a]/18 text-[#ffd6da] ring-[#d11a2a]/45"
-                      : "bg-[#e8883a]/15 text-[#ffd08a] ring-[#e8883a]/35"
-                  }`}
-                >
-                  <Timer size={13} /> M{stalest.tableNumber} {stalest.timerMinutes}m
-                </button>
-              ) : null}
-            </div>
-
+        <aside className="space-y-3" aria-label="Prioritas lantai">
+          <section className="rounded-lg border border-garage-line bg-garage-bg-1 p-3">
+            <h2 className="text-[13px] font-bold uppercase tracking-[0.14em] text-white">Prioritas lantai</h2>
+            <p className="text-[12px] text-garage-dim">Tagihan, meja kotor, dan meja yang menunggu lama.</p>
             <div className="mt-3 space-y-2">
-              {urgentTables.map((row) => (
+              {urgentTables.slice(0, 6).map((row) => (
                 <button
                   key={`urgent-${row.tableNumber}`}
                   type="button"
                   onClick={() => setDetailTable(row.tableNumber)}
-                  className="flex w-full items-center gap-2 rounded-lg bg-[#1d1610] p-2.5 text-left ring-1 ring-[#e8883a]/20 transition active:scale-[0.99]"
+                  className="flex min-h-14 w-full items-center gap-2.5 rounded-md bg-garage-bg-2 p-2 text-left ring-1 ring-garage-line transition hover:ring-white/35"
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[#e8883a]/12 font-mono text-sm font-black text-[#ffd08a] ring-1 ring-[#e8883a]/25">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-md bg-black/30 font-mono text-[15px] font-black text-white">
                     {row.tableNumber}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] font-semibold text-white">
-                      {row.status === "awaiting_payment"
-                        ? "Tagihan ke kasir"
-                        : row.needsCleaning || row.status === "needs_cleaning"
-                          ? "Perlu bersih"
-                          : "Durasi meja tinggi"}
+                    <span className="block truncate text-[13px] font-semibold text-white">{urgentReason(row)}</span>
+                    <span className="block truncate text-[12px] text-garage-dim">
+                      {row.staleFromPreviousDay
+                        ? "Bill dari hari sebelumnya"
+                        : row.timerMinutes > 0 && row.currentOrderId
+                          ? `Duduk ${formatTableDuration(row.timerMinutes)}`
+                          : row.tableLabel}
                     </span>
-                    <span className="block text-[10px] text-[#d0c5af]/60">
-                      {row.orderNo ? `#${row.orderNo}` : row.tableLabel} {row.timerMinutes > 0 ? `- ${row.timerMinutes}m` : ""}
-                    </span>
-                  </span>
-                  <span className="text-[10px] font-bold uppercase text-[#f2ca50]">
-                    Buka
                   </span>
                 </button>
               ))}
-
+              {urgentTables.length > 6 ? (
+                <p className="text-[12px] text-garage-dim">+{urgentTables.length - 6} meja lain perlu perhatian.</p>
+              ) : null}
               {urgentTables.length === 0 ? (
-                <EmptyState title="Lantai terkendali" body="Belum ada meja prioritas." />
+                <EmptyState title="Lantai terkendali" body="Belum ada meja yang perlu prioritas." />
               ) : null}
             </div>
           </section>
-
         </aside>
       </div>
+
+      {pickerOpen ? (
+        <TablePicker
+          tables={tables}
+          pendingTable={openingTable}
+          onPick={openWaiterOrder}
+          onClose={() => setPickerOpen(false)}
+        />
+      ) : null}
 
       {settingsOpen ? (
         <SettingsDrawer
@@ -1196,6 +922,7 @@ export function WaiterView({ me }: Props) {
           onClose={() => setDetailTable(null)}
           onClean={(row) => void handleClean(row)}
           onLifecycle={(row, action) => void handleLifecycle(row, action)}
+          onOrder={openWaiterOrder}
           onRequestBill={(row) => void handleRequestBill(row)}
           onSeatNew={(row) => void handleSeatNew(row)}
           onMoved={() => {
@@ -1207,25 +934,15 @@ export function WaiterView({ me }: Props) {
       ) : null}
 
       <style jsx>{`
-        @keyframes waiterFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
         @keyframes waiterGlow {
           0% {
-            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            box-shadow: 0 0 0 0 rgba(244, 244, 245, 0);
           }
           25% {
-            box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.45);
+            box-shadow: 0 0 0 5px rgba(244, 244, 245, 0.45);
           }
           100% {
-            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            box-shadow: 0 0 0 0 rgba(244, 244, 245, 0);
           }
         }
       `}</style>

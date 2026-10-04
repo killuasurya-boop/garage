@@ -32,7 +32,7 @@ export const KEEP_TABLES = [
   // akun & akses
   "user", "account", "session", "verification", "two_factor", "staff_profiles", "push_subscriptions",
   // outlet & pengaturan
-  "outlets", "app_settings", "pos_terminals", "site_assets", "operation_locations", "operation_glossary",
+  "outlets", "dining_tables", "app_settings", "pos_terminals", "site_assets", "operation_locations", "operation_glossary",
   // menu, resep, katalog
   "menu_items", "menu_variants", "menu_recipes", "menu_research",
   // pelanggan & member (poin dipertahankan kecuali --reset-member-points)

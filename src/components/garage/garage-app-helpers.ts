@@ -135,8 +135,8 @@ export function tableAvailabilityLabel(availability: TableAvailability) {
   if (availability === "ready") return "Kosong";
   if (availability === "bill") return "Belum bayar";
   if (availability === "paid") return "Lunas";
-  if (availability === "cleaning") return "Dibersihkan";
-  if (availability === "full") return "Penuh";
+  if (availability === "cleaning") return "Perlu bersih";
+  if (availability === "full") return "Terisi";
   return "Belum sinkron";
 }
 
@@ -301,11 +301,13 @@ export function tableLiveStatusLabel(table: TableLiveRow | null | undefined) {
 
 export function tableLiveStatusTone(table: TableLiveRow | null | undefined) {
   if (!table) return "border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8]";
-  // Binary occupancy: kosong = hijau, terisi (order/bill/lunas/perlu bersih) = merah.
-  const isEmpty = table.status === "empty" && !tableHasLiveSession(table);
-  return isEmpty
-    ? "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#dcfce7]"
-    : "border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#ffc2c8]";
+  // Palet peta meja: kosong = silver netral, belum bayar = amber, lunas = silver,
+  // perlu bersih = merah (sama dengan peta meja waiter & POS).
+  const state = tableAvailabilityState(table, true);
+  if (state === "cleaning") return "border-[#ff2a3a]/50 bg-[#d11a2a]/12 text-[#ffc2c8]";
+  if (state === "bill" || state === "full") return "border-[#f5a742]/50 bg-[#f5a742]/12 text-[#ffd08a]";
+  if (state === "paid") return "border-[#d4d4d8]/45 bg-white/[0.08] text-white";
+  return "border-[#4a4a54] bg-white/[0.06] text-[#e4e4e7]";
 }
 
 // --- Auth session check ---------------------------------------------------

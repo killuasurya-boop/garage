@@ -11,6 +11,7 @@ import {
   Megaphone,
   Palette,
   Printer,
+  Table2,
   PlugZap,
   RefreshCw,
   Search,
@@ -25,6 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { TableManager } from "@/components/garage/table-manager";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,7 +91,8 @@ type SettingsTab =
   | "ai"
   | "printer"
   | "loyalty"
-  | "marketing";
+  | "marketing"
+  | "tables";
 
 export function SettingsView({ me }: { me: GarageMe }) {
   const { theme: activeOsTheme, setPreset: setOsThemePreset } = useGarageTheme();
@@ -388,6 +391,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
     { id: "fee", label: "Fee Staf", icon: Wallet, group: "Transaksi", keywords: "fee tarif insentif bonus gaji waiter koki barista kasir antar earning" },
     { id: "loyalty", label: "Loyalty", icon: Users, group: "Transaksi", keywords: "loyalty poin member reward point" },
     { id: "notif", label: "Notifikasi", icon: Bell, group: "Operasional", keywords: "notifikasi alert suara sound bell pemberitahuan" },
+    { id: "tables", label: "Meja & QR", icon: Table2, group: "Operasional", keywords: "meja table jumlah meja area kapasitas kursi qr cetak qr nonaktif" },
     { id: "printer", label: "Printer", icon: Printer, group: "Operasional", keywords: "printer cetak struk auto-print kertas" },
     { id: "ai", label: "GARAGE AI", icon: Sparkles, group: "Operasional", keywords: "garage ai autopilot whatsapp agent kecerdasan" },
     { id: "theme", label: "Tema OS", icon: Palette, group: "Brand & Tampilan", keywords: "tema warna preset tampilan os palette" },
@@ -404,6 +408,8 @@ export function SettingsView({ me }: { me: GarageMe }) {
   // Peta field→tab untuk indikator "perubahan belum disimpan" per kategori.
   const tabFieldKeys: Record<SettingsTab, Array<keyof AppSettingsClient>> = {
     theme: ["garageOsThemePreset"],
+    // Meja & QR punya tombol Simpan sendiri (master meja, bukan app_settings).
+    tables: [],
     pos: ["serviceChargePct", "taxPct", "manualDiscountMaxPct", "manualDiscountApprovalPct", "receiptHistoryMax"],
     approval: ["expenseApprovalThreshold"],
     fee: [
@@ -1380,6 +1386,8 @@ export function SettingsView({ me }: { me: GarageMe }) {
               </SettingsField>
             </>
           ) : null}
+
+          {activeTab === "tables" ? <TableManager canWrite={canWrite} /> : null}
 
           {activeTab === "printer" ? (
             <>

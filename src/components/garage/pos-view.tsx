@@ -111,6 +111,7 @@ persistSoldOutIds,
 tableAvailabilityLabel,
 tableAvailabilityState,
 tableHasLiveSession,
+hasOpenTableBill,
 tableLiveStatusLabel,
 tableLiveStatusTone,
 tableNeedsCleaning,
@@ -219,6 +220,7 @@ garageQrOrderPath,
 garageQrOrderUrl,
 isLocalQrBaseUrl,
 } from "@/lib/garage-qr";
+import { formatTableDuration } from "@/lib/garage-tables";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
@@ -859,6 +861,8 @@ export function PosView({
   const [qrPreviewLoading, setQrPreviewLoading] = useState(false);
   const [resetTableDialogOpen, setResetTableDialogOpen] = useState(false);
   const [selectedTableToReset, setSelectedTableToReset] = useState<TableLiveRow | null>(null);
+  const [resetTableBusy, setResetTableBusy] = useState(false);
+  const [resetTableError, setResetTableError] = useState<string | null>(null);
   // Cek Meja: panel detail saat tap kartu meja + filter status grid.
   const [tableDetail, setTableDetail] = useState<TableLiveRow | null>(null);
   // Rincian item pesanan meja (lazy-load saat dialog detail dibuka).
@@ -942,13 +946,13 @@ export function PosView({
   const activeCashierToolOpen =
     cashierToolOpen === "settings" && !canManagePosSettings ? null : cashierToolOpen;
 
+  // Pilihan meja checkout = meja aktif outlet (menu Atur Meja). Sebelum data
+  // live tersinkron, tampilkan 01–50 sebagai fallback.
   const tablePickerRows = useMemo(
     () =>
-      tableNumbers.map(
-        (table) =>
-          tableLiveRows.find((row) => row.tableNumber === table) ??
-          fallbackTableLiveRow(table),
-      ),
+      tableLiveRows.length
+        ? tableLiveRows.filter((row) => row.active !== false)
+        : tableNumbers.map((table) => fallbackTableLiveRow(table)),
     [tableLiveRows],
   );
   const selectedTableLiveRow = useMemo(
@@ -1797,9 +1801,11 @@ export function PosView({
     return { empty, occupied, cleaning };
   }, [tableMapRows]);
 
+  // Dialog tetap terbuka sampai server menjawab: sukses → tutup + notice,
+  // gagal (mis. masih ada bill/produksi) → pesan tampil di dalam dialog.
   const resetTableCleaning = useCallback(async (tableNumber: string) => {
-    setTableLiveLoading(true);
-    setResetTableDialogOpen(false);
+    setResetTableBusy(true);
+    setResetTableError(null);
     try {
       await garageApi.patch(`/api/tables/${tableNumber}/status`, {
         status: "empty",
@@ -1807,13 +1813,12 @@ export function PosView({
       });
       await loadTableLiveData({ silent: true });
       setPosNotice(`Meja ${tableNumber} siap digunakan.`);
-    } catch (error) {
-      setTableLiveError(
-        error instanceof Error ? error.message : "Gagal reset meja.",
-      );
-    } finally {
-      setTableLiveLoading(false);
+      setResetTableDialogOpen(false);
       setSelectedTableToReset(null);
+    } catch (error) {
+      setResetTableError(error instanceof Error ? error.message : "Gagal menandai meja bersih.");
+    } finally {
+      setResetTableBusy(false);
     }
   }, [loadTableLiveData]);
 
@@ -4985,34 +4990,50 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
-      {/* Dialog konfirmasi reset meja ke kosong/hijau */}
-      <Dialog open={resetTableDialogOpen} onOpenChange={setResetTableDialogOpen}>
-        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+      {/* Dialog konfirmasi tandai meja bersih. Meja dengan bill belum lunas
+          diblokir (server juga menolak) — bayar/batalkan bill dulu. */}
+      <Dialog
+        open={resetTableDialogOpen}
+        onOpenChange={(open) => {
+          if (resetTableBusy) return;
+          setResetTableDialogOpen(open);
+          if (!open) {
+            setSelectedTableToReset(null);
+            setResetTableError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xs border-[#34343c] bg-[#111116] sm:max-w-sm">
           <DialogHeader className="text-left">
-            <DialogTitle>Reset Meja {selectedTableToReset?.tableNumber}</DialogTitle>
+            <DialogTitle>Tandai Meja {selectedTableToReset?.tableNumber} bersih?</DialogTitle>
             <DialogDescription>
-              Meja akan ditandai bersih dan siap digunakan. Status berubah menjadi hijau.
+              Sesi meja ditutup dan meja siap dipakai tamu baru.
             </DialogDescription>
           </DialogHeader>
-          {selectedTableToReset?.orderNo && (
-            <div className="rounded-md border border-[#d11a2a]/35 bg-[#d11a2a]/10 p-3">
-              <p className="text-sm text-[#ffc2c8]">
-                <span className="font-semibold">Order aktif: </span>
-                {selectedTableToReset.orderNo} ({selectedTableToReset.timerMinutes}m)
-              </p>
-              <p className="mt-1 text-xs text-[#b8b8bf]">
-                Order belum close. Reset meja akan menghilangkan referensi order.
+          {selectedTableToReset && hasOpenTableBill(selectedTableToReset) ? (
+            <div className="rounded-md border border-[#ff2a3a]/45 bg-[#d11a2a]/12 p-3" role="alert">
+              <p className="text-sm font-semibold text-white">Masih ada bill belum lunas</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#ffc2c8]">
+                {selectedTableToReset.orderNo ? `${selectedTableToReset.orderNo} · ` : ""}
+                Bayar atau batalkan bill dulu sebelum meja dikosongkan.
               </p>
             </div>
-          )}
+          ) : null}
+          {resetTableError ? (
+            <p className="rounded-md border border-[#ff2a3a]/45 bg-[#d11a2a]/12 p-3 text-[13px] text-[#ffc2c8]" role="alert">
+              {resetTableError}
+            </p>
+          ) : null}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
               className="garage-press h-11 border-[#4a4a54] bg-white/[0.055] text-sm"
+              disabled={resetTableBusy}
               onClick={() => {
                 setResetTableDialogOpen(false);
                 setSelectedTableToReset(null);
+                setResetTableError(null);
               }}
             >
               Batal
@@ -5020,15 +5041,19 @@ export function PosView({
             <Button
               type="button"
               className="garage-press h-11 text-sm"
-              disabled={tableLiveLoading}
+              disabled={
+                resetTableBusy ||
+                !selectedTableToReset ||
+                hasOpenTableBill(selectedTableToReset)
+              }
               onClick={() => {
                 if (selectedTableToReset) {
                   void resetTableCleaning(selectedTableToReset.tableNumber);
                 }
               }}
             >
-              <span className="mr-1.5 size-2 rounded-full bg-white/70" />
-              {tableLiveLoading ? "Resetting..." : "Tandai Bersih"}
+              {resetTableBusy ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
+              {resetTableBusy ? "Menyimpan…" : "Ya, tandai bersih"}
             </Button>
           </div>
         </DialogContent>
@@ -7253,11 +7278,12 @@ export function PosView({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className={`garage-press h-8 shrink-0 px-3 text-xs ${
+                      className={`garage-press min-h-11 shrink-0 px-3 text-[13px] ${
                         active
-                          ? "border-[#d11a2a]/70 bg-[#d11a2a]/18 text-white"
+                          ? "border-white/45 bg-white/12 text-white"
                           : "border-[#34343c] bg-white/[0.045] text-[#d6d6dc]"
                       }`}
+                      aria-pressed={active}
                       onClick={() => setTableMapFilter(chip.value)}
                     >
                       {chip.label}
@@ -7268,10 +7294,10 @@ export function PosView({
 
               {tableLiveLoading && !tableLiveDataReady ? (
                 <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
-                  {Array.from({ length: 50 }).map((_, index) => (
+                  {Array.from({ length: 20 }).map((_, index) => (
                     <div
                       key={index}
-                      className="min-h-[76px] w-full animate-pulse rounded-md border border-[#34343c] bg-white/[0.05] sm:min-h-[80px]"
+                      className="min-h-[76px] w-full animate-pulse rounded-md border border-[#34343c] bg-white/[0.05] motion-reduce:animate-none sm:min-h-[80px]"
                     />
                   ))}
                 </div>
@@ -7288,86 +7314,88 @@ export function PosView({
                     return !empty && !cleaning;
                   })
                   .map((table) => {
-                  const isNeedsCleaning = tableNeedsCleaning(table);
-                  // Binary occupancy: meja kosong = hijau, meja terisi (ada order /
-                  // bill / lunas belum di-clear / perlu bersih) = merah.
-                  const isEmpty = table.status === "empty" && !tableHasLiveSession(table);
-                  // Meja terisi > 90 menit ditandai amber (perlu perhatian).
-                  const isLongOccupied = !isEmpty && table.timerMinutes >= 90;
-                  const toneClass = isEmpty
-                    ? "border-[#22c55e]/55 bg-[#22c55e]/14"
-                    : "border-[#d11a2a]/55 bg-[#d11a2a]/14";
+                  const availability = tableAvailabilityState(table, tableLiveDataReady);
+                  const isEmpty = availability === "ready" || (!tableLiveDataReady && table.status === "empty");
+                  // Bill belum lunas lama: amber ≥30 menit, merah ≥60 menit.
+                  const openBill = availability === "bill" || availability === "full";
+                  const waitTone =
+                    table.staleFromPreviousDay || (openBill && table.timerMinutes >= 60)
+                      ? "late"
+                      : openBill && table.timerMinutes >= 30
+                        ? "watch"
+                        : "ok";
+                  const toneClass =
+                    availability === "cleaning"
+                      ? "border-[#ff2a3a]/65 bg-[#d11a2a]/14"
+                      : availability === "paid"
+                        ? "border-[#d4d4d8]/55 bg-white/[0.07]"
+                        : openBill
+                          ? "border-[#f5a742]/65 bg-[#f5a742]/10"
+                          : "border-[#4a4a54] bg-white/[0.035]";
+                  const statusText = table.staleFromPreviousDay
+                    ? "Cek kasir · bill kemarin"
+                    : tableAvailabilityLabel(availability);
                   return (
                     <button
                       key={table.tableNumber}
                       type="button"
-                      className={`garage-press relative min-h-[76px] w-full rounded-md border p-2 text-left transition sm:min-h-[80px] ${toneClass} ${
-                        isLongOccupied ? "ring-2 ring-[#f5a742]/70" : ""
-                      }`}
-                      aria-label={`Meja ${table.tableNumber}, ${
-                        isNeedsCleaning
-                          ? "perlu dibersihkan"
-                          : isEmpty
-                            ? "kosong"
-                            : `terisi, ${tableLiveStatusLabel(table)}`
-                      }`}
+                      className={`garage-press relative min-h-[76px] w-full rounded-md border p-2 text-left transition hover:brightness-125 sm:min-h-[80px] ${toneClass}`}
+                      aria-label={`Meja ${table.tableNumber}, ${statusText}${
+                        table.total > 0 ? `, ${currency.format(table.total)}` : ""
+                      }. Buka detail.`}
                       onClick={() => openTableDetail(table)}
                     >
-                      {/* Indicator dot */}
                       <div className="flex items-center justify-between gap-1">
                         <span className="garage-mono text-base font-black text-white sm:text-lg">
                           {table.tableNumber}
                         </span>
-                        <span className={`size-2 shrink-0 rounded-full ${
-                          isEmpty ? "bg-[#22c55e]" : "bg-[#d11a2a]"
-                        }`} />
+                        <span className="pos-table-indicator" data-state={availability} aria-hidden="true" />
                       </div>
-
-                      {/* Show Bersihkan button for needs_cleaning tables */}
-                      {isNeedsCleaning ? (
-                        <div className="mt-2 flex flex-col gap-1">
-                          <span className="break-normal text-center text-[10px] font-bold uppercase tracking-wide text-[#ffc2c8] sm:text-xs">
-                            Perlu Bersih
-                          </span>
-                          <span className="flex items-center justify-center gap-1 rounded border border-[#22c55e]/55 bg-[#22c55e]/20 px-1 py-0.5 text-[9px] font-bold text-[#dcfce7] sm:text-[10px]">
-                            <span className="size-1.5 shrink-0 rounded-full bg-[#22c55e] sm:size-2" />
-                            Tap Bersihkan
-                          </span>
-                        </div>
-                      ) : table.orderNo ? (
-                        <div className="mt-1.5">
-                          <p className="truncate text-[11px] font-semibold leading-tight text-[#d6d6dc]">
-                            {tableLiveStatusLabel(table)}
-                          </p>
-                          <p className={`garage-mono mt-0.5 truncate text-[10px] ${
-                            isLongOccupied ? "font-bold text-[#ffd08a]" : "text-[#8f8f98]"
-                          }`}>
-                            {table.orderNo} · {table.timerMinutes}m
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="mt-1.5">
-                          <p className="text-[11px] font-semibold text-[#9aa0a6]">
-                            {isEmpty ? "Siap" : table.status.replace(/_/g, " ")}
-                          </p>
-                        </div>
-                      )}
+                      <p
+                        className={`mt-1 line-clamp-2 text-[11px] font-semibold leading-tight ${
+                          table.staleFromPreviousDay
+                            ? "text-[#ffb3b3]"
+                            : availability === "cleaning"
+                              ? "text-[#ffc2c8]"
+                              : openBill
+                                ? "text-[#ffd08a]"
+                                : isEmpty
+                                  ? "text-[#a1a1aa]"
+                                  : "text-[#e4e4e7]"
+                        }`}
+                      >
+                        {statusText}
+                      </p>
+                      {table.currentOrderId && table.timerMinutes > 0 && !table.staleFromPreviousDay ? (
+                        <span
+                          className={`garage-mono mt-1 inline-block rounded-sm px-1 py-0.5 text-[11px] font-bold leading-none ${
+                            waitTone === "late"
+                              ? "bg-[#d11a2a] text-white"
+                              : waitTone === "watch"
+                                ? "bg-[#f5a742] text-[#1a1000]"
+                                : "bg-black/35 text-white/85"
+                          }`}
+                        >
+                          {formatTableDuration(table.timerMinutes)}
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
               </div>
               )}
 
-              {/* Legend warna meja */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#34343c] pt-2 text-[10px] text-[#8f8f98]">
-                <span className="inline-flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-[#22c55e]" /> Kosong
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-[#d11a2a]" /> Terisi
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="size-2 rounded-sm bg-[#d11a2a] ring-2 ring-[#f5a742]/70" /> Terisi &gt; 90 menit
+              {/* Keterangan warna meja (sama dengan peta meja waiter). */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#34343c] pt-2 text-[11px] text-[#b8b8bf]">
+                {(["ready", "bill", "paid", "cleaning"] as const).map((state) => (
+                  <span key={state} className="inline-flex items-center gap-1.5">
+                    <span className="pos-table-indicator" data-state={state} aria-hidden="true" />
+                    {tableAvailabilityLabel(state)}
+                  </span>
+                ))}
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="garage-mono rounded-sm bg-[#d11a2a] px-1 text-[10px] font-bold text-white">1j</span>
+                  Belum bayar &gt; 60 menit
                 </span>
                 <span className="ml-auto hidden sm:inline">Tap meja untuk detail &amp; aksi</span>
               </div>
@@ -10785,7 +10813,15 @@ function CheckoutOrderStep({
             </Badge>
           </div>
 
-          <div className="garage-scroll mt-3 grid max-h-52 grid-cols-5 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-10">
+          <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#b8b8bf]" aria-label="Keterangan status meja">
+            {(["ready", "bill", "paid", "cleaning"] as const).map((state) => (
+              <li key={state} className="inline-flex items-center gap-1.5">
+                <span className="pos-table-indicator" data-state={state} aria-hidden="true" />
+                {tableAvailabilityLabel(state)}
+              </li>
+            ))}
+          </ul>
+          <div className="garage-scroll mt-2 grid max-h-[min(50svh,420px)] grid-cols-5 gap-1.5 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-8">
             {tablePickerRows.map((table) => {
               const selected = table.tableNumber === selectedTableNumber;
               const availability = tableAvailabilityState(table, tableLiveDataReady);
@@ -10794,26 +10830,33 @@ function CheckoutOrderStep({
                 <button
                   key={table.tableNumber}
                   type="button"
-                  className={`garage-press min-h-14 rounded-md border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5a742]/70 ${
+                  className={`garage-press relative min-h-14 rounded-md border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
                     selected
-                      ? "border-[#f5a742]/80 bg-[#f5a742]/12 text-white ring-2 ring-[#f5a742]/55"
+                      ? "border-white bg-white/15 text-white ring-2 ring-white"
                       : availability === "ready"
-                        ? "border-[#22c55e]/50 bg-[#22c55e]/10 text-[#dcfce7]"
-                        : availability === "bill"
-                          ? "border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffd08a]"
-                        : availability === "cleaning" || availability === "full" || availability === "paid"
-                          ? "border-[#d11a2a]/55 bg-[#d11a2a]/12 text-[#ffc2c8]"
-                          : "border-[#303038] bg-black/16 text-[#d4d4d8]"
+                        ? "border-[#4a4a54] bg-white/[0.04] text-white hover:border-white/50"
+                        : availability === "bill" || availability === "full"
+                          ? "border-[#f5a742]/60 bg-[#f5a742]/10 text-[#ffd08a]"
+                          : availability === "paid"
+                            ? "border-[#d4d4d8]/55 bg-white/[0.07] text-white"
+                            : availability === "cleaning"
+                              ? "border-[#ff2a3a]/60 bg-[#d11a2a]/12 text-[#ffc2c8]"
+                              : "border-[#303038] bg-black/16 text-[#d4d4d8]"
                   }`}
                   disabled={paymentPending}
                   onClick={() => onTableChange(table.tableNumber)}
-                  aria-label={`Pilih Meja ${table.tableNumber}`}
+                  aria-pressed={selected}
+                  aria-label={`Meja ${table.tableNumber}, ${tableAvailabilityLabel(availability)}${selected ? ", dipilih" : ""}`}
                 >
                   <span className="flex items-center justify-between gap-1">
-                    <span className="garage-mono text-sm font-black">{table.tableNumber}</span>
-                    <span className="pos-table-indicator" data-state={availability} aria-hidden="true" />
+                    <span className="garage-mono text-[15px] font-black">{table.tableNumber}</span>
+                    {selected ? (
+                      <Check className="size-4 text-white" aria-hidden />
+                    ) : (
+                      <span className="pos-table-indicator" data-state={availability} aria-hidden="true" />
+                    )}
                   </span>
-                  <span className="mt-1 block truncate text-[9px] font-semibold leading-3">
+                  <span className="mt-1 block truncate text-[11px] font-semibold leading-tight">
                     {tableAvailabilityLabel(availability)}
                   </span>
                 </button>
@@ -10863,17 +10906,17 @@ function TableSessionInfoCard({
   const status = row.status;
   const hasActiveOrder = Boolean(row.currentOrderId);
 
-  // Status "empty" + tidak butuh cleaning → green ready card
+  // Status "empty" + tidak butuh cleaning → kartu netral "siap dipakai"
   if (status === "empty" && !row.needsCleaning) {
     return (
-      <div className="mt-3 rounded-md border border-[#22c55e]/40 bg-[#22c55e]/10 p-3">
+      <div className="mt-3 rounded-md border border-white/20 bg-white/[0.05] p-3">
         <div className="flex items-center gap-2">
-          <Check className="size-4 text-[#86efac]" />
-          <p className="garage-mono text-[11px] uppercase tracking-wide text-[#86efac]">
+          <Check className="size-4 text-white" />
+          <p className="garage-mono text-[11px] uppercase tracking-wide text-white">
             {tableLabel} siap dipakai
           </p>
         </div>
-        <p className="mt-1 text-xs text-[#dcfce7]">
+        <p className="mt-1 text-xs text-[#d4d4d8]">
           Meja kosong dan bersih. Lanjut ke step berikutnya.
         </p>
       </div>

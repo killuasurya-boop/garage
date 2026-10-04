@@ -4030,7 +4030,9 @@ export async function getWmsColdChain() {
       for (let i = 11; i >= 0; i--) {
         seed.push({
           unitCode: code,
-          tempC: Math.round((base + (Math.random() * 2 - 1)) * 10) / 10,
+          // Variasi ±0,8°C: CHILLER-02 (9°C) selalu tetap di luar zona aman 0–8°C
+          // (±1 bisa membulat ke 8,0 sehingga contoh alert kadang hilang).
+          tempC: Math.round((base + (Math.random() * 1.6 - 0.8)) * 10) / 10,
           recordedAt: new Date(now - i * 60 * 60 * 1000),
         });
       }

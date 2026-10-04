@@ -7,7 +7,9 @@ import {
 import type { MenuItem } from "@/lib/garage-api-types";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { requireGarageSession } from "@/lib/server-auth";
+import { parseTableNumber, tableLabelFor } from "@/lib/garage-tables";
 import {
+  getActiveTableNumbers,
   getBestSellerMenuItemIds,
   getCustomerOrderBillingSettings,
   getCustomerOrderingStatus,
@@ -40,13 +42,21 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
       ? rawSource
       : "qr_table";
   const orderType = source === "qr_takeaway" ? "takeaway" : "dine-in";
-  const tableLabel = rawTable
-    ? rawTable.toLowerCase().startsWith("meja")
+  // Dine-in: nomor meja dirapikan ("6" → "Meja 06"). Nomor tidak valid/tidak ada
+  // ditandai sejak halaman dibuka (bukan baru ditolak saat checkout).
+  const tableNumber = orderType === "dine-in" ? parseTableNumber(rawTable ?? null) : null;
+  const tableLabel =
+    orderType !== "dine-in"
+      ? "Take away"
+      : tableNumber
+        ? tableLabelFor(tableNumber)
+        : "Meja ?";
+  const tableIssue =
+    orderType === "dine-in" && !tableNumber
       ? rawTable
-      : `Meja ${rawTable}`
-    : orderType === "dine-in"
-      ? "Meja QR"
-      : "Take away";
+        ? `Nomor meja "${rawTable.slice(0, 12)}" tidak dikenali. Scan ulang QR di meja Anda atau minta bantuan kasir.`
+        : "QR ini tidak menyertakan nomor meja. Scan QR yang menempel di meja Anda atau minta bantuan kasir."
+      : undefined;
 
   return {
     tableLabel,
@@ -54,7 +64,27 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
     source,
     outletId: uuidOrUndefined(firstParam(params, "outletId")),
     campaign: resolveOrderCampaign((key) => firstParam(params, key)),
+    tableIssue,
   };
+}
+
+// Meja valid tapi dinonaktifkan di Atur Meja → beri tahu sebelum pelanggan memilih menu.
+async function withActiveTableCheck(context: CustomerOrderQrContext): Promise<CustomerOrderQrContext> {
+  if (context.orderType !== "dine-in" || context.tableIssue) return context;
+  const tableNumber = parseTableNumber(context.tableLabel);
+  if (!tableNumber) return context;
+  try {
+    const active = await getActiveTableNumbers(context.outletId);
+    if (!active.includes(tableNumber)) {
+      return {
+        ...context,
+        tableIssue: `${context.tableLabel} sedang tidak dipakai. Silakan pindah ke meja lain atau minta bantuan kasir.`,
+      };
+    }
+  } catch {
+    // DB tidak terjangkau → validasi tetap terjadi di server saat checkout.
+  }
+  return context;
 }
 
 function buildReturnPath(params: SearchParams) {
@@ -101,7 +131,7 @@ export default async function OrderPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const qrContext = buildQrContext(params);
+  const qrContext = await withActiveTableCheck(buildQrContext(params));
   const [initialMenuItems, bestSellerIds, billing, ordering, staffOrder] = await Promise.all([
     getInitialMenuItems(),
     getBestSellerMenuItemIds().catch(() => [] as string[]),

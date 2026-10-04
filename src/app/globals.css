@@ -64,22 +64,23 @@
 
 :root,
 .dark {
-  --garage-bg-0: #100808;
-  --garage-bg-1: #1a1111;
-  --garage-bg-2: #221818;
-  --garage-bg-3: #2e2020;
-  --garage-line: #443434;
-  --garage-line-2: #5a4040;
+  /* Palet = website Garage: hitam pekat netral + merah tegas (sinkron preset industrial-garage). */
+  --garage-bg-0: #0a0a0c;
+  --garage-bg-1: #121216;
+  --garage-bg-2: #19191e;
+  --garage-bg-3: #232329;
+  --garage-line: #34343c;
+  --garage-line-2: #4a4a54;
   --garage-fg: #f4f4f5;
   --garage-dim: #d0d0d6;
-  --garage-mute: #9696a1;
+  --garage-mute: #9a9aa4;
   --garage-silver: #d4d4d8;
-  --garage-red: #c41a1a;
-  --garage-red-bright: #e83030;
-  --garage-red-deep: #7a0f0f;
-  --garage-amber: #e8883a;
-  --garage-panel: #1e1414;
-  --garage-panel-soft: #2a1e1e;
+  --garage-red: #d11a2a;
+  --garage-red-bright: #ff2a3a;
+  --garage-red-deep: #8b0f1a;
+  --garage-amber: #f5a742;
+  --garage-panel: #16161b;
+  --garage-panel-soft: #202026;
   --garage-surface: var(--garage-bg-1);
   --garage-surface-raised: var(--garage-bg-2);
   --garage-surface-soft: var(--garage-bg-3);
@@ -94,7 +95,7 @@
     radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--garage-red) 38%, transparent), transparent 32rem),
     radial-gradient(circle at 15% 95%, color-mix(in srgb, var(--garage-red-deep) 28%, transparent), transparent 30rem),
     radial-gradient(circle at 12% 100%, color-mix(in srgb, var(--garage-amber) 20%, transparent), transparent 28rem),
-    linear-gradient(150deg, var(--garage-bg-0), var(--garage-bg-1) 40%, #1a0d0d 80%, var(--garage-bg-0));
+    linear-gradient(150deg, var(--garage-bg-0), var(--garage-bg-1) 40%, #111114 80%, var(--garage-bg-0));
   --garage-panel-bg:
     linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.026)),
     color-mix(in srgb, var(--garage-bg-2) 92%, transparent);

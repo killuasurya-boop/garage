@@ -90,7 +90,7 @@ export function Topbar() {
           className="hidden rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-xs text-zinc-100 lg:block"
         >
           {depts.map((d) => (
-            <option key={d.id} value={d.id} className="bg-[#1a1111]">
+            <option key={d.id} value={d.id} className="bg-[#121216]">
               {d.label}
             </option>
           ))}
@@ -134,7 +134,7 @@ export function Topbar() {
         </button>
 
         <div className="hidden items-center gap-2 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-2 py-1 lg:flex">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#c41a1a] to-[#7a0f0f] text-[10px] font-bold text-white">CE</div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#d11a2a] to-[#8b0f1a] text-[10px] font-bold text-white">CE</div>
           <div className="leading-tight">
             <p className="text-[11px] font-semibold text-zinc-100">CEO</p>
             <p className="text-[9px] uppercase text-zinc-400">Owner</p>

@@ -65,7 +65,7 @@ export function ControlFilterPanel() {
                 className="w-full rounded-md border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-xs text-zinc-100 focus:border-amber-400/50 focus:outline-none"
               >
                 {depts.map((d) => (
-                  <option key={d.id} value={d.id} className="bg-[#1a1111]">
+                  <option key={d.id} value={d.id} className="bg-[#121216]">
                     {d.label}
                   </option>
                 ))}
@@ -79,7 +79,7 @@ export function ControlFilterPanel() {
                 className="w-full rounded-md border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-xs text-zinc-100 focus:border-amber-400/50 focus:outline-none"
               >
                 {["all", "Jakarta", "Depok", "Bogor"].map((r) => (
-                  <option key={r} value={r.toLowerCase()} className="bg-[#1a1111]">
+                  <option key={r} value={r.toLowerCase()} className="bg-[#121216]">
                     {r === "all" ? "Semua" : r}
                   </option>
                 ))}
@@ -93,7 +93,7 @@ export function ControlFilterPanel() {
                 className="w-full rounded-md border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-xs text-zinc-100 focus:border-amber-400/50 focus:outline-none"
               >
                 {["all", "Kopi", "Makanan", "Catering"].map((p) => (
-                  <option key={p} value={p.toLowerCase()} className="bg-[#1a1111]">
+                  <option key={p} value={p.toLowerCase()} className="bg-[#121216]">
                     {p === "all" ? "Semua" : p}
                   </option>
                 ))}

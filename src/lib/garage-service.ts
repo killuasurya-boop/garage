@@ -101,7 +101,6 @@ import {
   staffProfiles,
   staffEarnings,
   staffEarningPayouts,
-  session as sessionTable,
   stockOpnameItems,
   stockOpnameSessions,
   stockMovements,
@@ -10240,6 +10239,17 @@ export class HandoverPermissionError extends Error {
  * fee antar); null = siapa saja (waiter pertama yang tap "Saya ambil").
  * Bisa diulang untuk mengganti waiter selama belum diantar.
  */
+async function findActiveWaiter(waiterUserId: string) {
+  const [row] = await getDb()
+    .select({ id: user.id, name: user.name, role: staffProfiles.role, status: staffProfiles.status })
+    .from(user)
+    .innerJoin(staffProfiles, eq(staffProfiles.userId, user.id))
+    .where(eq(user.id, waiterUserId))
+    .limit(1);
+  if (!row || row.role !== "Waiter" || row.status !== "active") return null;
+  return { id: row.id, name: row.name };
+}
+
 export async function handoverKitchenTicket(
   ticketNo: string,
   waiterUserId: string | null,
@@ -10261,16 +10271,10 @@ export async function handoverKitchenTicket(
 
   let waiter: { id: string; name: string } | null = null;
   if (waiterUserId) {
-    const [row] = await db
-      .select({ id: user.id, name: user.name, role: staffProfiles.role, status: staffProfiles.status })
-      .from(user)
-      .innerJoin(staffProfiles, eq(staffProfiles.userId, user.id))
-      .where(eq(user.id, waiterUserId))
-      .limit(1);
-    if (!row || row.role !== "Waiter" || row.status !== "active") {
+    waiter = await findActiveWaiter(waiterUserId);
+    if (!waiter) {
       throw new HandoverPermissionError(ticket.station);
     }
-    waiter = { id: row.id, name: row.name };
   }
 
   const now = new Date();
@@ -10310,21 +10314,15 @@ export async function handoverKitchenTicket(
 }
 
 /** Waiter aktif (sedang login) + jumlah antaran berjalan — untuk dipanggil helper. */
+// Semua waiter aktif (tidak harus sedang login): waiter cukup mengambil pesanan di meja
+// saji, helper Bar/Dapur yang tap nama mereka saat "Diambil".
 export async function listCallableWaiters() {
   const db = getDb();
-  const now = new Date();
   const rows = await db
     .select({ id: user.id, name: user.name })
     .from(staffProfiles)
     .innerJoin(user, eq(user.id, staffProfiles.userId))
-    .innerJoin(sessionTable, eq(sessionTable.userId, staffProfiles.userId))
-    .where(
-      and(
-        eq(staffProfiles.role, "Waiter"),
-        eq(staffProfiles.status, "active"),
-        gte(sessionTable.expiresAt, now),
-      ),
-    );
+    .where(and(eq(staffProfiles.role, "Waiter"), eq(staffProfiles.status, "active")));
   const unique = [...new Map(rows.map((row) => [row.id, row])).values()];
   if (!unique.length) return [];
   const loads = await db
@@ -10419,6 +10417,65 @@ export async function releaseKitchenTicket(ticketNo: string, garage: GarageSessi
 // Antar tiket: hanya pengklaim (atau manager) yang boleh. Kalau belum diklaim,
 // auto-klaim ke yang mengantar supaya fee jelas. Fee delivered dikredit ke
 // garage.user di updateKitchenStatus → otomatis ke pengklaim.
+// Helper Bar/Dapur tap nama waiter yang mengambil pesanan di meja saji → tiket langsung
+// "delivered" atas nama waiter itu (fee antar ke waiter). Waiter tidak menekan apa pun.
+export async function pickupKitchenTicket(
+  ticketNo: string,
+  waiterUserId: string,
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  if (ticket.status === "delivered") return ticket;
+  if (ticket.status !== "ready") {
+    throw new KitchenTransitionError(ticket.status, "delivered");
+  }
+  if (!canHandoverStation(garage.profile.role, garage.profile.workstation, ticket.station)) {
+    throw new HandoverPermissionError(ticket.station);
+  }
+  const waiter = await findActiveWaiter(waiterUserId);
+  if (!waiter) {
+    throw new HandoverPermissionError(ticket.station);
+  }
+
+  const now = new Date();
+  await db
+    .update(kitchenTickets)
+    .set({
+      handoverAt: ticket.handoverAt ?? now,
+      handoverByName: ticket.handoverByName ?? garage.user.name,
+      claimedBy: waiter.id,
+      claimedByName: waiter.name,
+      claimedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(kitchenTickets.id, ticket.id), eq(kitchenTickets.status, "ready")));
+
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Production ticket picked up",
+    object: ticket.ticketNo,
+    device: garage.profile.deviceLabel,
+    status: "picked_up",
+    metadata: {
+      orderNo: ticket.orderNo,
+      tableLabel: ticket.tableLabel,
+      station: ticket.station,
+      waiter: waiter.name,
+      workstation: garage.profile.workstation ?? null,
+    },
+  });
+
+  return updateKitchenStatus(ticketNo, "delivered", garage, {
+    deliveredBy: { userId: waiter.id, name: waiter.name },
+  });
+}
+
 export async function deliverClaimedTicket(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db
@@ -10482,7 +10539,13 @@ export async function updateKitchenStatus(
   ticketNo: string,
   status: string,
   garage: GarageSession,
-  options: { qcConfirmed?: boolean; reason?: string } = {},
+  options: {
+    qcConfirmed?: boolean;
+    reason?: string;
+    // Helper Bar/Dapur menandai "Diambil" atas nama waiter: nama pengantar & fee
+    // antar dicatat untuk waiter ini, bukan untuk akun helper yang menekan.
+    deliveredBy?: { userId: string; name: string };
+  } = {},
 ) {
   const db = getDb();
   const [current] = await db
@@ -10572,7 +10635,7 @@ export async function updateKitchenStatus(
 
   if (status === "delivered") {
     update.deliveredAt = now;
-    update.deliveredByName = actorName;
+    update.deliveredByName = options.deliveredBy?.name ?? actorName;
   }
 
   // Optimistic lock: hanya update kalau status DB masih sama dgn yg kita baca.
@@ -10635,8 +10698,8 @@ export async function updateKitchenStatus(
   if (status === "delivered" && current.status !== "delivered") {
     const deliveredPayload = {
       ticketId: ticket.id,
-      staffUserId: garage.user.id,
-      staffRole: garage.profile.role,
+      staffUserId: options.deliveredBy?.userId ?? garage.user.id,
+      staffRole: options.deliveredBy ? ("Waiter" as const) : garage.profile.role,
       outletId: garage.profile.outlet.id,
       earnedAt: now.toISOString(),
     };

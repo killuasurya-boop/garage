@@ -6,6 +6,7 @@ import {
 } from "@/components/garage/member-order-page";
 import type { MenuItem } from "@/lib/garage-api-types";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
+import { requireGarageSession } from "@/lib/server-auth";
 import {
   getBestSellerMenuItemIds,
   getCustomerOrderBillingSettings,
@@ -73,6 +74,19 @@ function buildInitialSearchQuery(params: SearchParams) {
   return (firstParam(params, "q") ?? firstParam(params, "item") ?? "").trim().slice(0, 80);
 }
 
+// Mode waiter (/order?table=5&mode=waiter dari aplikasi waiter): hanya aktif bila ada
+// sesi staf yang sah. Tanpa sesi → halaman tetap menu pelanggan biasa.
+async function getStaffOrder(params: SearchParams) {
+  if (firstParam(params, "mode") !== "waiter") return null;
+  try {
+    const session = await requireGarageSession(["Owner", "Manajer", "Kasir", "Waiter"]);
+    if (!session.data) return null;
+    return { name: session.data.user.name, backHref: "/os?module=waiter" };
+  } catch {
+    return null;
+  }
+}
+
 async function getInitialMenuItems(): Promise<MenuItem[] | undefined> {
   try {
     return await getMenuData({ channel: "digital" });
@@ -88,7 +102,7 @@ export default async function OrderPage({
 }) {
   const params = await searchParams;
   const qrContext = buildQrContext(params);
-  const [initialMenuItems, bestSellerIds, billing, ordering] = await Promise.all([
+  const [initialMenuItems, bestSellerIds, billing, ordering, staffOrder] = await Promise.all([
     getInitialMenuItems(),
     getBestSellerMenuItemIds().catch(() => [] as string[]),
     // Pengaturan tagihan outlet (service/PB1/pembulatan) → total di HP pelanggan
@@ -96,6 +110,7 @@ export default async function OrderPage({
     getCustomerOrderBillingSettings(qrContext.outletId).catch(() => undefined),
     // Shift kasir buka? → banner "Belum buka" sejak awal, bukan baru saat checkout.
     getCustomerOrderingStatus(qrContext.outletId).catch(() => undefined),
+    getStaffOrder(params),
   ]);
   return (
     <MemberOrderPage
@@ -106,6 +121,7 @@ export default async function OrderPage({
       bestSellerIds={bestSellerIds}
       billing={billing}
       initialOrderingOpen={ordering?.open}
+      staffOrder={staffOrder}
     />
   );
 }

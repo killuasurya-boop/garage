@@ -17,7 +17,8 @@ export type ToastInput = {
   ttl?: number;
 };
 
-export type WaiterBoardTab = "tables" | "orders" | "ready" | "bills" | "more";
+// Waiter tidak lagi mengurus antaran (Bar/Dapur yang memanggil & mencatat "Diambil").
+export type WaiterBoardTab = "tables" | "bills" | "more";
 
 export function stationTone(station: string): string {
   if (station?.toLowerCase().includes("bar")) return "text-[#fbbf24]";

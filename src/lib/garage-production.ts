@@ -39,6 +39,7 @@ import {
   createAuditLog,
   getAppSettings,
   handoverKitchenTicket,
+  pickupKitchenTicket,
   KitchenTransitionError,
   listCallableWaiters,
   ProductionPermissionError,
@@ -385,6 +386,35 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       items: ticket.items,
     })),
   };
+}
+
+/**
+ * Satu tombol "Siap · Panggil": tandai READY (QC) lalu langsung panggil semua waiter.
+ * Tiket yang sudah READY cukup dipanggil ulang.
+ */
+export async function productionReadyAndCall(
+  ticketNo: string,
+  garage: GarageSession,
+  options: { qcConfirmed?: boolean } = {},
+) {
+  const [ticket] = await getDb()
+    .select({ status: kitchenTickets.status })
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  if (ticket.status !== "ready") {
+    const ready = await updateKitchenStatus(ticketNo, "ready", garage, {
+      qcConfirmed: options.qcConfirmed,
+    });
+    if (!ready) return null;
+  }
+  return handoverKitchenTicket(ticketNo, null, garage);
+}
+
+/** Helper tap nama waiter yang mengambil pesanan → tiket delivered atas nama waiter. */
+export async function productionPickup(ticketNo: string, waiterUserId: string, garage: GarageSession) {
+  return pickupKitchenTicket(ticketNo, waiterUserId, garage);
 }
 
 /** Helper ACC serah-terima + panggil waiter (null = siapa saja). */

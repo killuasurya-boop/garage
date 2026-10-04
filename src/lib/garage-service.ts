@@ -7640,8 +7640,6 @@ export async function getDisplayCustomerQueue() {
   }));
 }
 
-// Event publik: belum ada modul event — jangan tampilkan event/slot karangan.
-const publicLiveTrackingEvents: Array<{ date: string; time: string; title: string; tag: string; capacity: number }> = [];
 
 function publicEtaRange(baseMinutes: number, activeCount: number) {
   const start = Math.max(5, Math.min(45, Math.round(baseMinutes)));
@@ -7761,12 +7759,21 @@ export async function getPublicLiveTrackingData() {
   const takeawayPulse = publicTicketPulse(takeawayTickets.length ? takeawayTickets : ticketRows, "8-12 menit");
   const availableTables = tables.filter((table) => table.available).length;
   const visitMood = publicVisitMood(tables.length, availableTables, orderPulse.active);
-  const events = publicLiveTrackingEvents.map((event) => ({
-    ...event,
-    reserved: 0,
-    available: event.capacity,
-    tone: "ready" as const,
-  }));
+  // Event dari modul Website (bukan data karangan). Belum ada data RSVP → slot = kapasitas.
+  const eventMonths = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
+  const events = (await getSiteEvents({ upcomingOnly: true })).slice(0, 4).map((event) => {
+    const [, month, day] = event.date.split("-");
+    return {
+      date: `${day} ${eventMonths[Number(month) - 1] ?? ""}`.trim(),
+      time: event.time,
+      title: event.title,
+      tag: event.tag,
+      capacity: event.capacity ?? 0,
+      reserved: 0,
+      available: event.capacity ?? 0,
+      tone: "ready" as const,
+    };
+  });
 
   return {
     generatedAt: new Date().toISOString(),
@@ -12215,6 +12222,86 @@ export async function saveTestimonials(
     await db
       .insert(appSettings)
       .values({ outletId: null, key: TESTIMONIALS_KEY, valueJson: clean, updatedBy });
+  }
+  return clean;
+}
+
+// ─── Event website ─────────────────────────────────────────────────────────
+// Owner/Manajer mengatur jadwal event dari modul Website (bisa berubah-ubah).
+// Disimpan di app_settings key global 'site.events'. Landing hanya menampilkan
+// event yang belum lewat (masih tampil sampai 3 jam setelah jam mulai).
+export type SiteEvent = {
+  id: string;
+  title: string;
+  tag: string;
+  date: string; // YYYY-MM-DD (WIB)
+  time: string; // HH:MM (WIB)
+  desc: string;
+  capacity: number | null;
+};
+
+const SITE_EVENTS_KEY = "site.events";
+const SITE_EVENT_GRACE_MS = 3 * 60 * 60 * 1000;
+
+export function siteEventStart(event: Pick<SiteEvent, "date" | "time">) {
+  return new Date(`${event.date}T${event.time}:00+07:00`);
+}
+
+function cleanSiteEvent(raw: unknown): SiteEvent | null {
+  if (!raw || typeof raw !== "object") return null;
+  const e = raw as Record<string, unknown>;
+  const title = String(e.title ?? "").trim().slice(0, 80);
+  const date = String(e.date ?? "").trim();
+  const time = String(e.time ?? "").trim();
+  if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return null;
+  if (Number.isNaN(siteEventStart({ date, time }).getTime())) return null;
+  const capacity = Math.round(Number(e.capacity));
+  return {
+    id: String(e.id ?? "").trim().slice(0, 40) || randomUUID(),
+    title,
+    tag: String(e.tag ?? "").trim().slice(0, 40) || "Event",
+    date,
+    time,
+    desc: String(e.desc ?? "").trim().slice(0, 400),
+    capacity: Number.isFinite(capacity) && capacity > 0 ? Math.min(capacity, 5000) : null,
+  };
+}
+
+/** Semua event tersimpan (urut waktu). `upcomingOnly` untuk landing publik. */
+export async function getSiteEvents(options: { upcomingOnly?: boolean } = {}): Promise<SiteEvent[]> {
+  const [row] = await getDb()
+    .select({ valueJson: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, SITE_EVENTS_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  const stored = Array.isArray(row?.valueJson) ? row.valueJson : [];
+  const now = Date.now();
+  return stored
+    .map(cleanSiteEvent)
+    .filter((event): event is SiteEvent => event !== null)
+    .filter((event) => !options.upcomingOnly || siteEventStart(event).getTime() + SITE_EVENT_GRACE_MS > now)
+    .sort((a, b) => siteEventStart(a).getTime() - siteEventStart(b).getTime());
+}
+
+export async function saveSiteEvents(input: unknown[], updatedBy: string | null): Promise<SiteEvent[]> {
+  const db = getDb();
+  const clean = (Array.isArray(input) ? input : [])
+    .map(cleanSiteEvent)
+    .filter((event): event is SiteEvent => event !== null)
+    .slice(0, 30)
+    .sort((a, b) => siteEventStart(a).getTime() - siteEventStart(b).getTime());
+  const [existing] = await db
+    .select({ id: appSettings.id })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, SITE_EVENTS_KEY), sql`${appSettings.outletId} IS NULL`))
+    .limit(1);
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ valueJson: clean, updatedBy, updatedAt: sql`now()` })
+      .where(eq(appSettings.id, existing.id));
+  } else {
+    await db.insert(appSettings).values({ outletId: null, key: SITE_EVENTS_KEY, valueJson: clean, updatedBy });
   }
   return clean;
 }

@@ -374,15 +374,6 @@ function liveOrderEta(orderPulse, recommendation) {
   };
 }
 
-function eventSeatInfo(event, index) {
-  const capacity = Number(String(event?.capacity ?? "").match(/\d+/)?.[0] ?? 0);
-  // Belum ada data RSVP nyata → jangan karang jumlah kursi terisi.
-  const reserved = 0;
-  const available = capacity;
-  const tone = "ready";
-  return { capacity, reserved, available, tone };
-}
-
 function publicOrderStageLabel(status) {
   const labels = {
     waiting_cashier: "Menunggu validasi kasir",
@@ -1089,7 +1080,7 @@ function Nav() {
           <a className="site-nav-brand" href="#top" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <LogoImage variant="wordmark" height={condensed ? 24 : 28} preload />
             <span className="brand-divider" style={{ width: 1, height: 18, background: "var(--line-2)" }} />
-            <span className="mono brand-year" style={{ fontSize: 9 }}>TEBING TINGGI</span>
+            <span className="mono brand-year" style={{ fontSize: 9 }}>EST. 2026</span>
           </a>
 
           <ul style={{ display: "flex", gap: 20, listStyle: "none" }} className="nav-desktop">
@@ -2154,7 +2145,7 @@ function Hero({ landingHero }) {
         <div className="shell hero-image-shell" style={{ position: "relative", zIndex: 3, paddingTop: 150, paddingBottom: 58 }}>
           <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 42 }}>
             <Reveal as="div" className="mono" delay={900}>
-              GARAGE COFFEE & MOTOR · TEBING TINGGI
+              GARAGE COFFEE & MOTOR · TEBING TINGGI · EST. 2026
             </Reveal>
             <Reveal as="div" className="mono" delay={1000} style={{ textAlign: "right" }}>
               {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
@@ -2485,7 +2476,7 @@ function Hero({ landingHero }) {
         {/* top mono row */}
         <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 60 }}>
           <Reveal as="div" className="mono" delay={1200}>
-            ● GARAGE COFFEE & MOTOR · TEBING TINGGI
+            ● GARAGE COFFEE & MOTOR · TEBING TINGGI · EST. 2026
           </Reveal>
           <Reveal as="div" className="mono" delay={1300} style={{ textAlign: "right" }}>
             {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
@@ -3383,19 +3374,7 @@ function LiveTrackingSystem() {
   const barPulse = trackingData?.stationPulse?.bar ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "5-8 menit", status: "Minuman siap dipesan", unit: "minuman" };
   const kitchenPulse = trackingData?.stationPulse?.kitchen ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "12-18 menit", status: "Dapur siap memasak", unit: "makanan" };
   const takeawayPulse = trackingData?.takeaway ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "8-12 menit", recommendation: "Pesan sekarang, ambil saat sudah siap." };
-  const eventList = trackingData?.events?.length ? trackingData.events : upcomingEvents().map((event, index) => {
-    const seats = eventSeatInfo(event, index);
-    return {
-      title: event.title,
-      date: event.date,
-      time: event.time,
-      tag: event.tag,
-      capacity: seats.capacity,
-      available: seats.available,
-      reserved: seats.reserved,
-      tone: seats.tone,
-    };
-  });
+  const eventList = trackingData?.events ?? [];
   const activeOrders = Number(orderPulse.active ?? 0);
   const queuedOrders = Number(orderPulse.queue ?? 0);
   const cookingOrders = Number(orderPulse.cooking ?? 0);
@@ -4918,7 +4897,7 @@ function About() {
               letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}>
-              GARAGE ◢ TEBING TINGGI
+              EST. 2026 ◢ TEBING TINGGI
             </Reveal>
           </div>
         </div>
@@ -5513,27 +5492,23 @@ function PromoIcon({ kind }) {
 // Source: garage-website/project/sections-2.jsx
 
 // ---------------- EVENTS ----------------
-// Jadwal event: isi dengan event NYATA saja (iso = waktu mulai WIB). Event yang
-// sudah lewat otomatis disembunyikan; bila kosong tampil ajakan follow & booking.
-// Contoh: { iso: "2026-10-18T19:00:00+07:00", title: "Kopdar Malam Minggu", tag: "Kopdar Motor",
-//           desc: "…", capacity: "40 KURSI" }
-const EVENTS = [];
+// Jadwal event diatur Owner/Manajer di OS → Website → "Event Website"
+// (/api/site/events, hanya event yang belum lewat). Bila kosong tampil ajakan
+// follow Instagram & booking acara.
 const EVENT_DAY = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
 const EVENT_MONTH = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
-function upcomingEvents(now = Date.now()) {
-  return EVENTS
-    .map((e) => ({ ...e, start: new Date(e.iso) }))
-    .filter((e) => !Number.isNaN(e.start.getTime()) && e.start.getTime() + 3 * 3600_000 > now)
-    .sort((a, b) => a.start - b.start)
-    .map((e) => {
-      const wib = new Date(e.start.getTime() + 7 * 3600_000);
-      return {
-        ...e,
-        d: EVENT_DAY[wib.getUTCDay()],
-        date: `${String(wib.getUTCDate()).padStart(2, "0")} ${EVENT_MONTH[wib.getUTCMonth()]}`,
-        time: `${String(wib.getUTCHours()).padStart(2, "0")}:${String(wib.getUTCMinutes()).padStart(2, "0")}`,
-      };
-    });
+function toEventRows(list) {
+  return (Array.isArray(list) ? list : []).map((e) => {
+    const [y, m, dd] = String(e.date || "").split("-").map(Number);
+    const weekday = new Date(Date.UTC(y, (m || 1) - 1, dd || 1)).getUTCDay();
+    return {
+      ...e,
+      key: e.id || `${e.date}-${e.time}-${e.title}`,
+      d: EVENT_DAY[weekday] ?? "",
+      date: `${String(dd || "").padStart(2, "0")} ${EVENT_MONTH[(m || 1) - 1] ?? ""}`,
+      capacity: e.capacity ? `${e.capacity} ORANG` : "",
+    };
+  });
 }
 const EVENT_IDEAS = [
   { title: "Kopdar & touring", desc: "Kumpul bareng rombongan motor — pesan meja & menu untuk satu rombongan sekaligus." },
@@ -5544,10 +5519,18 @@ const EVENT_IDEAS = [
 function Events() {
   const biz = useBiz();
   const [hover, setHover] = useState(-1);
-  // Dihitung di klien (setelah mount) agar tidak beda antara render server & browser.
   const [events, setEvents] = useState([]);
   useEffect(() => {
-    setEvents(upcomingEvents());
+    let cancelled = false;
+    fetch("/api/site/events", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled) setEvents(toEventRows(json?.data));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const instagram = SOCIAL_LINKS.find((s) => s.id === "instagram");
   const bookingUrl = bizWaUrl(biz.whatsapp, "Halo GARAGE, saya mau booking tempat untuk acara/rombongan. Mohon info ketersediaannya.");
@@ -5581,7 +5564,7 @@ function Events() {
 
         <div style={{ borderTop: "1px solid var(--line)" }}>
           {events.map((e, i) =>
-          <Reveal key={e.iso} delay={i * 100}>
+          <Reveal key={e.key} delay={i * 100}>
               <EventRow e={e} i={i} hover={hover === i} setHover={(v) => setHover(v ? i : -1)} />
             </Reveal>
           )}
@@ -5908,7 +5891,6 @@ function MembershipMasterPro() {
 function EventRow({ e, i, hover, setHover }) {
   const biz = useBiz();
   const rsvpUrl = bizWaUrl(biz.whatsapp, `Halo GARAGE, saya mau RSVP event ${e.title} (${e.date} ${e.time}).`);
-  const seats = eventSeatInfo(e, i);
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -5951,11 +5933,8 @@ function EventRow({ e, i, hover, setHover }) {
         {e.desc}
       </p>
       <div style={{ textAlign: "right" }} className="event-cap">
-        <div className="mono" style={{ marginBottom: 6 }}>{seats.available}/{seats.capacity || "-"} SLOT</div>
-        <div className="event-seat-meter" data-tone={seats.tone} aria-label={`Slot event tersedia ${seats.available} dari ${seats.capacity || 0}`}>
-          <span style={{ width: seats.capacity ? `${Math.max(4, Math.round((seats.available / seats.capacity) * 100))}%` : "0%" }} />
-        </div>
-        <a href={rsvpUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, color: hover ? "var(--red)" : "var(--fg-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+        {e.capacity ? <div className="mono" style={{ marginBottom: 10 }}>KAPASITAS {e.capacity}</div> : null}
+        <a href={rsvpUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: hover ? "var(--red)" : "var(--fg-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
           RSVP <ArrowRight size={11} />
         </a>
       </div>
@@ -6420,7 +6399,7 @@ function Footer() {
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 60 }} className="foot-grid">
           <div>
             <LogoImage variant="wordmark" height={56} />
-            <div className="mono" style={{ marginTop: 8 }}>COFFEE & MOTOR · TEBING TINGGI</div>
+            <div className="mono" style={{ marginTop: 8 }}>COFFEE & MOTOR · EST. 2026</div>
             <p style={{ marginTop: 28, color: "var(--fg-dim)", maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
               Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Buka setiap hari.
             </p>
@@ -6596,7 +6575,7 @@ function FooterMvp() {
         <div className="footer-mvp-grid">
           <div className="footer-mvp-brand">
             <LogoImage variant="wordmark" height={56} />
-            <div className="mono footer-mvp-est">COFFEE & MOTOR · TEBING TINGGI</div>
+            <div className="mono footer-mvp-est">COFFEE & MOTOR · EST. 2026</div>
             <p className="footer-mvp-copy">
               Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Pesan via QR,
               takeaway, reservasi meja, dan event komunitas dalam satu tempat.

@@ -1,7 +1,13 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { getTableLiveData, updateTableStatus } from "@/lib/garage-service";
+import {
+  getTableLiveRow,
+  getUndeliveredProductionForTable,
+  undeliveredProductionMessage,
+  updateTableStatus,
+} from "@/lib/garage-service";
+import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -12,40 +18,25 @@ const tableStatusSchema = z.object({
   needsCleaning: z.boolean().optional(),
 });
 
-function normalizeRouteTable(table: string) {
-  if (!/^\d{1,2}$/.test(table) || Number(table) < 1 || Number(table) > 50) {
-    return null;
-  }
-
-  return String(Number(table)).padStart(2, "0");
-}
-
-async function requireTableSession() {
-  const session = await requirePermission("tables:read");
-  if (session.response) {
-    return session.response;
-  }
-
-  return session.data;
-}
+// Status yang diturunkan dari order — hanya sah bila menunjuk order milik meja ini.
+const ORDER_DERIVED_STATUSES = new Set(["pending", "accepted", "paid", "ready", "rejected"]);
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ table: string }> },
 ) {
-  const session = await requireTableSession();
-  if (session instanceof Response) {
-    return session;
+  const session = await requirePermission("tables:read");
+  if (session.response) {
+    return session.response;
   }
 
   const { table } = await context.params;
-  const tableNumber = normalizeRouteTable(table);
+  const tableNumber = parseTableNumber(table);
   if (!tableNumber) {
-    return fail(400, "TABLE_INVALID", "Nomor meja harus 01 sampai 50.");
+    return fail(400, "TABLE_INVALID", TABLE_NUMBER_RANGE_MESSAGE);
   }
 
-  const rows = await getTableLiveData();
-  const row = rows.find((item) => item.tableNumber === tableNumber);
+  const row = await getTableLiveRow(tableNumber, session.data.profile.outlet.id);
   if (!row) {
     return fail(404, "TABLE_NOT_FOUND", "Meja tidak ditemukan.");
   }
@@ -53,6 +44,9 @@ export async function GET(
   return ok(row);
 }
 
+// Ubah status meja manual (mis. "Tandai Bersih" di POS). Memakai guard yang sama
+// dengan siklus waiter: meja dengan bill belum lunas / produksi belum diantar
+// tidak boleh dikosongkan, dan order yang dirujuk harus milik meja ini.
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ table: string }> },
@@ -68,9 +62,42 @@ export async function PATCH(
   }
 
   const { table } = await context.params;
-  const tableNumber = normalizeRouteTable(table);
+  const tableNumber = parseTableNumber(table);
   if (!tableNumber) {
-    return fail(400, "TABLE_INVALID", "Nomor meja harus 01 sampai 50.");
+    return fail(400, "TABLE_INVALID", TABLE_NUMBER_RANGE_MESSAGE);
+  }
+
+  const outletId = session.data.profile.outlet.id;
+  const row = await getTableLiveRow(tableNumber, outletId);
+  if (!row) {
+    return fail(404, "TABLE_NOT_FOUND", "Meja tidak ditemukan.");
+  }
+
+  const { status, currentOrderId } = body.data;
+  if (status === "empty" || status === "needs_cleaning") {
+    if (row.openBillCount > 0) {
+      return fail(
+        409,
+        "TABLE_HAS_OPEN_BILL",
+        `${row.tableLabel} masih punya ${row.openBillCount} bill belum lunas. Bayar atau batalkan dulu.`,
+      );
+    }
+    if (status === "empty") {
+      const undelivered = await getUndeliveredProductionForTable(tableNumber, outletId);
+      if (undelivered.length) {
+        return fail(409, "TABLE_HAS_UNDELIVERED", undeliveredProductionMessage(undelivered));
+      }
+    }
+  }
+
+  if (ORDER_DERIVED_STATUSES.has(status)) {
+    if (!currentOrderId || !row.bills.some((bill) => bill.id === currentOrderId)) {
+      return fail(
+        400,
+        "TABLE_ORDER_MISMATCH",
+        "Order tidak ditemukan di sesi meja ini. Muat ulang peta meja lalu coba lagi.",
+      );
+    }
   }
 
   return ok(await updateTableStatus(tableNumber, body.data, session.data));

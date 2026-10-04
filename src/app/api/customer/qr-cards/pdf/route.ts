@@ -100,6 +100,12 @@ function drawCard(doc: any, x: number, y: number, w: number, h: number, table: s
     .text(table, x + w - 44, y + h - 24, { width: 32, align: "right", lineBreak: false });
 }
 
+// Outlet opsional di link QR (multi-outlet). Hanya UUID valid yang diteruskan.
+function qrOutletId(url: URL) {
+  const raw = url.searchParams.get("outletId");
+  return raw && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null;
+}
+
 export async function GET(request: Request) {
   const limited = rateLimit(request, "customer-qr-pdf", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
@@ -112,7 +118,7 @@ export async function GET(request: Request) {
   // Pra-generate QR PNG hi-res per meja.
   const qrByTable = new Map<string, Buffer>();
   for (const table of tables) {
-    const orderUrl = garageQrOrderUrl(baseUrl, table);
+    const orderUrl = garageQrOrderUrl(baseUrl, table, qrOutletId(url));
     const buf = await QRCode.toBuffer(orderUrl, {
       type: "png",
       width: 600,

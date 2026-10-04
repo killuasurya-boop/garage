@@ -31,6 +31,12 @@ function configuredPublicOrigin() {
   return raw ? normalizeGarageBaseUrl(raw) : null;
 }
 
+// Outlet opsional di link QR (multi-outlet). Hanya UUID valid yang diteruskan.
+function qrOutletId(url: URL) {
+  const raw = url.searchParams.get("outletId");
+  return raw && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null;
+}
+
 export async function GET(request: Request) {
   const limited = rateLimit(request, "customer-qr", { limit: 180, windowMs: 60_000 });
   if (limited) return limited;
@@ -39,13 +45,13 @@ export async function GET(request: Request) {
   const table = normalizeQrTableNumber(url.searchParams.get("table"));
   if (!table) {
     return Response.json(
-      { error: { code: "INVALID_TABLE", message: "Nomor meja harus 1 sampai 50." } },
+      { error: { code: "INVALID_TABLE", message: "Nomor meja harus 01 sampai 50." } },
       { status: 400 },
     );
   }
 
   const baseUrl = configuredPublicOrigin() ?? requestOrigin(request);
-  const orderUrl = garageQrOrderUrl(baseUrl, table);
+  const orderUrl = garageQrOrderUrl(baseUrl, table, qrOutletId(url));
 
   // Opsi PNG resolusi tinggi untuk cetak (tidak pecah). ?format=png&size=1600
   // (default 1024, maksimum 3000). SVG tetap default untuk render layar tajam.

@@ -1,15 +1,9 @@
 import { fail, ok } from "@/lib/api-response";
-import { getTableLiveData, updateCustomerOrderStatus } from "@/lib/garage-service";
+import { getTableLiveRow, updateCustomerOrderStatus } from "@/lib/garage-service";
+import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
-
-function normalizeTable(table: string) {
-  if (!/^\d{1,2}$/.test(table) || Number(table) < 1 || Number(table) > 50) {
-    return null;
-  }
-  return String(Number(table)).padStart(2, "0");
-}
 
 export async function POST(
   _request: Request,
@@ -21,13 +15,12 @@ export async function POST(
   }
 
   const { table } = await context.params;
-  const tableNumber = normalizeTable(table);
+  const tableNumber = parseTableNumber(table);
   if (!tableNumber) {
-    return fail(400, "TABLE_INVALID", "Nomor meja harus 01 sampai 50.");
+    return fail(400, "TABLE_INVALID", TABLE_NUMBER_RANGE_MESSAGE);
   }
 
-  const rows = await getTableLiveData();
-  const row = rows.find((item) => item.tableNumber === tableNumber);
+  const row = await getTableLiveRow(tableNumber, session.data.profile.outlet.id);
   if (!row?.currentOrderId) {
     return fail(409, "TABLE_HAS_NO_ACTIVE_ORDER", "Meja belum punya order aktif.");
   }

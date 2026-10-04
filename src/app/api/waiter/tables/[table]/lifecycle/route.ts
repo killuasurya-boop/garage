@@ -2,11 +2,12 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import {
-  getTableLiveData,
+  getTableLiveRow,
   getUndeliveredProductionForTable,
   undeliveredProductionMessage,
   updateTableStatus,
 } from "@/lib/garage-service";
+import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -18,13 +19,6 @@ export const runtime = "nodejs";
 const lifecycleSchema = z.object({
   action: z.enum(["leave", "start_cleaning", "reserve", "unreserve"]),
 });
-
-function normalizeTable(table: string) {
-  if (!/^\d{1,2}$/.test(table) || Number(table) < 1 || Number(table) > 50) {
-    return null;
-  }
-  return String(Number(table)).padStart(2, "0");
-}
 
 export async function POST(
   request: Request,
@@ -41,13 +35,12 @@ export async function POST(
   }
 
   const { table } = await context.params;
-  const tableNumber = normalizeTable(table);
+  const tableNumber = parseTableNumber(table);
   if (!tableNumber) {
-    return fail(400, "TABLE_INVALID", "Nomor meja harus 01 sampai 50.");
+    return fail(400, "TABLE_INVALID", TABLE_NUMBER_RANGE_MESSAGE);
   }
 
-  const rows = await getTableLiveData();
-  const row = rows.find((item) => item.tableNumber === tableNumber);
+  const row = await getTableLiveRow(tableNumber, session.data.profile.outlet.id);
   if (!row) {
     return fail(404, "TABLE_NOT_FOUND", "Meja tidak ditemukan.");
   }
@@ -64,7 +57,7 @@ export async function POST(
       if (row.status === "empty" || row.status === "reserved") {
         return fail(409, "TABLE_NOT_OCCUPIED", "Meja tidak sedang terisi.");
       }
-      const undelivered = await getUndeliveredProductionForTable(tableNumber);
+      const undelivered = await getUndeliveredProductionForTable(tableNumber, session.data.profile.outlet.id);
       if (undelivered.length) {
         return fail(409, "TABLE_HAS_UNDELIVERED", undeliveredProductionMessage(undelivered));
       }

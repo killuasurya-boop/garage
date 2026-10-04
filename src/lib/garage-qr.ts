@@ -1,18 +1,9 @@
-export const QR_TABLE_NUMBERS = Array.from({ length: 50 }, (_, index) =>
-  String(index + 1).padStart(2, "0"),
-);
+import { ALL_TABLE_NUMBERS, TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
+
+export const QR_TABLE_NUMBERS = ALL_TABLE_NUMBERS;
 
 export function normalizeQrTableNumber(value: string | number | null | undefined) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  const parsed = Number(String(value).trim());
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 50) {
-    return null;
-  }
-
-  return String(parsed).padStart(2, "0");
+  return parseTableNumber(value);
 }
 
 export function normalizeGarageBaseUrl(raw: string) {
@@ -24,20 +15,22 @@ export function normalizeGarageBaseUrl(raw: string) {
   }
 }
 
-export function garageQrOrderPath(table: string) {
+export function garageQrOrderPath(table: string, outletId?: string | null) {
   const normalizedTable = normalizeQrTableNumber(table);
   if (!normalizedTable) {
-    throw new Error("Nomor meja harus 01 sampai 50.");
+    throw new Error(TABLE_NUMBER_RANGE_MESSAGE);
   }
 
   const params = new URLSearchParams();
   params.set("table", normalizedTable);
   params.set("source", "qr_table");
+  // Multi-outlet: QR membawa outlet supaya order masuk ke outlet yang benar.
+  if (outletId) params.set("outletId", outletId);
   return `/order?${params.toString()}`;
 }
 
-export function garageQrOrderUrl(baseUrl: string, table: string) {
-  return new URL(garageQrOrderPath(table), normalizeGarageBaseUrl(baseUrl)).toString();
+export function garageQrOrderUrl(baseUrl: string, table: string, outletId?: string | null) {
+  return new URL(garageQrOrderPath(table, outletId), normalizeGarageBaseUrl(baseUrl)).toString();
 }
 
 export function isLocalQrBaseUrl(baseUrl: string) {

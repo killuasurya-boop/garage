@@ -9,6 +9,14 @@ import {
 } from "@/lib/garage-app-settings-types";
 import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
+import {
+  ALL_TABLE_NUMBERS,
+  MAX_TABLE_NUMBER,
+  TABLE_NUMBER_RANGE_MESSAGE,
+  parseTableNumber,
+  tableLabelFor,
+  tableNumberFromLabel,
+} from "@/lib/garage-tables";
 import { GARAGE_LOCATION } from "@/lib/garage-location";
 import {
   type KitchenTargetGroup,
@@ -88,6 +96,7 @@ import {
   orderItems,
   orders,
   outlets,
+  diningTables,
   payments,
   paymentSettlements,
   printJobs,
@@ -5897,37 +5906,52 @@ export async function getQrControlInsights(params?: {
   };
 }
 
+// Nomor meja dari input/route. Ketat: "123" atau teks bebas → error (tidak pernah
+// dipotong jadi meja lain). Lihat src/lib/garage-tables.ts.
 function normalizeTableNumber(value: string) {
-  const match = value.match(/\d+/);
-  return match ? match[0].padStart(2, "0").slice(-2) : value.trim().slice(0, 20);
+  const parsed = parseTableNumber(value);
+  if (!parsed) {
+    throw new Error(TABLE_NUMBER_RANGE_MESSAGE);
+  }
+  return parsed;
 }
 
 function normalizeDiningTableNumber(value: string) {
-  const raw = value.trim();
-  const match = raw.match(/\d+/);
-  if (!match) {
+  if (!value.trim()) {
     throw new Error("Nomor meja wajib dipilih untuk dine-in.");
   }
-
-  const tableValue = Number(match[0]);
-  if (!Number.isInteger(tableValue) || tableValue < 1 || tableValue > 50) {
-    throw new Error("Nomor meja harus 01 sampai 50.");
-  }
-
-  return String(tableValue).padStart(2, "0");
+  return normalizeTableNumber(value);
 }
 
 function tableNumberFromOrderLabel(value: string | null | undefined) {
-  if (!value) return null;
-  const match = value.match(/\d+/);
-  if (!match) return null;
-  const tableValue = Number(match[0]);
-  if (!Number.isInteger(tableValue) || tableValue < 1 || tableValue > 50) return null;
-  return String(tableValue).padStart(2, "0");
+  return tableNumberFromLabel(value);
 }
 
 function tableLabelForNumber(tableNumber: string) {
-  return `Meja ${normalizeTableNumber(tableNumber)}`;
+  return tableLabelFor(tableNumber);
+}
+
+type TableSessionReader = Pick<ReturnType<typeof getDb>, "select">;
+
+/**
+ * Tamu baru duduk di meja yang masih ditandai kotor/sedang dibersihkan → bill
+ * window dimulai dari order baru (bill rombongan sebelumnya tidak ikut lagi).
+ * Meja yang masih dipakai rombongan yang sama → window tidak diubah (undefined).
+ */
+async function newPartyWindowStart(
+  db: TableSessionReader,
+  outletId: string,
+  tableNumber: string,
+  orderCreatedAt: Date,
+) {
+  const [existing] = await db
+    .select({ status: tableSessions.status, needsCleaning: tableSessions.needsCleaning })
+    .from(tableSessions)
+    .where(and(eq(tableSessions.outletId, outletId), eq(tableSessions.tableNumber, tableNumber)))
+    .limit(1);
+  if (!existing) return undefined;
+  const dirty = existing.needsCleaning || ["needs_cleaning", "cleaning"].includes(existing.status);
+  return dirty ? new Date(orderCreatedAt.getTime() - 1) : undefined;
 }
 
 function kitchenStatusForTickets(rows: Array<typeof kitchenTickets.$inferSelect>) {
@@ -6031,22 +6055,165 @@ async function annualPaidSpendForCustomer(
   return Number(row?.total ?? 0) + extraPaidAmount;
 }
 
-export async function getTableLiveData() {
-  const db = getDb();
-  const { start, end } = getJakartaTodayRange();
-  const tableNumbers = Array.from({ length: 50 }, (_, index) => String(index + 1).padStart(2, "0"));
+// ---------------------------------------------------------------------------
+// Master meja per outlet (menu Atur Meja) + resolusi outlet untuk data meja.
+// ---------------------------------------------------------------------------
 
+export type OutletTableConfig = {
+  tableNumber: string;
+  tableLabel: string;
+  area: string;
+  capacity: number;
+  active: boolean;
+};
+
+/** Outlet untuk data meja: outlet sesi staf, atau outlet aktif pertama (publik/QR). */
+async function resolveTableOutletId(outletId?: string | null) {
+  if (outletId) return outletId;
+  const db = getDb();
   const [outlet] = await db
-    .select()
+    .select({ id: outlets.id })
     .from(outlets)
     .where(eq(outlets.status, "active"))
     .orderBy(outlets.code)
     .limit(1);
+  return outlet?.id ?? null;
+}
+
+/**
+ * Daftar meja outlet (urut nomor). Outlet yang belum pernah diatur → semua
+ * meja 01–50 aktif (perilaku lama), supaya tidak ada outlet yang kehilangan meja.
+ */
+export async function getOutletTables(outletId?: string | null): Promise<{
+  outletId: string | null;
+  configured: boolean;
+  maxTableNumber: number;
+  tables: OutletTableConfig[];
+}> {
+  const resolved = await resolveTableOutletId(outletId);
+  const rows = resolved
+    ? await getDb().select().from(diningTables).where(eq(diningTables.outletId, resolved))
+    : [];
+  const byNumber = new Map(rows.map((row) => [row.tableNumber, row]));
+  const tables = ALL_TABLE_NUMBERS.map((tableNumber) => {
+    const row = byNumber.get(tableNumber);
+    return {
+      tableNumber,
+      tableLabel: tableLabelForNumber(tableNumber),
+      area: row?.area ?? "",
+      capacity: row?.capacity ?? 4,
+      // Belum dikonfigurasi sama sekali → semua aktif; kalau sudah, nomor tanpa
+      // baris berarti tidak dipakai.
+      active: rows.length ? Boolean(row?.active) : true,
+    };
+  });
+  return { outletId: resolved, configured: rows.length > 0, maxTableNumber: MAX_TABLE_NUMBER, tables };
+}
+
+export async function getActiveTableNumbers(outletId?: string | null) {
+  const { tables } = await getOutletTables(outletId);
+  return tables.filter((table) => table.active).map((table) => table.tableNumber);
+}
+
+/** Tolak order dine-in ke meja yang tidak dipakai outlet (dinonaktifkan di Atur Meja). */
+async function assertTableActive(tableNumber: string, outletId?: string | null) {
+  const active = await getActiveTableNumbers(outletId);
+  if (!active.includes(tableNumber)) {
+    throw new Error(`${tableLabelForNumber(tableNumber)} tidak aktif di outlet ini. Pilih meja lain.`);
+  }
+}
+
+export async function saveOutletTables(
+  input: {
+    tables: Array<{ tableNumber: string; area?: string; capacity?: number; active: boolean }>;
+  },
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const outletId = garage.profile.outlet.id;
+  const now = new Date();
+  const normalized = new Map<string, { area: string; capacity: number; active: boolean }>();
+  for (const row of input.tables) {
+    const tableNumber = parseTableNumber(row.tableNumber);
+    if (!tableNumber) throw new Error(TABLE_NUMBER_RANGE_MESSAGE);
+    normalized.set(tableNumber, {
+      area: (row.area ?? "").trim().slice(0, 40),
+      capacity: Math.min(30, Math.max(1, Math.round(row.capacity ?? 4))),
+      active: Boolean(row.active),
+    });
+  }
+  if (![...normalized.values()].some((row) => row.active)) {
+    throw new Error("Minimal satu meja harus aktif.");
+  }
+
+  // Meja yang masih dipakai tamu tidak boleh dinonaktifkan.
+  const live = await getTableLiveData({ outletId });
+  const busy = live
+    .filter((row) => normalized.get(row.tableNumber)?.active === false)
+    .filter((row) => row.openBillCount > 0 || (row.status !== "empty" && row.status !== "reserved"))
+    .map((row) => row.tableNumber);
+  if (busy.length) {
+    throw new Error(
+      `Meja ${busy.join(", ")} masih dipakai. Selesaikan atau bersihkan dulu sebelum dinonaktifkan.`,
+    );
+  }
+
+  await db.transaction(async (tx) => {
+    for (const tableNumber of ALL_TABLE_NUMBERS) {
+      const row = normalized.get(tableNumber) ?? { area: "", capacity: 4, active: false };
+      await tx
+        .insert(diningTables)
+        .values({ outletId, tableNumber, ...row, updatedAt: now })
+        .onConflictDoUpdate({
+          target: [diningTables.outletId, diningTables.tableNumber],
+          set: { ...row, updatedAt: now },
+        });
+    }
+  });
+
+  const activeCount = [...normalized.values()].filter((row) => row.active).length;
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Update master meja",
+    object: garage.profile.outlet.name,
+    device: garage.profile.deviceLabel,
+    status: `${activeCount} meja aktif`,
+    metadata: { activeCount },
+  });
+
+  return getOutletTables(outletId);
+}
+
+const OPEN_TABLE_BILL_STATUSES = new Set([
+  "pending",
+  "pending_cashier",
+  "accepted",
+  "awaiting_payment",
+  "ready",
+]);
+
+function orderOutletFilter(outletId: string | null) {
+  // Order lama tanpa outletId tetap ikut (data sebelum multi-outlet).
+  return outletId ? or(eq(orders.outletId, outletId), isNull(orders.outletId)) : undefined;
+}
+
+export async function getTableLiveData(options: { outletId?: string | null; tableNumber?: string } = {}) {
+  const db = getDb();
+  const { start, end } = getJakartaTodayRange();
+  const outletId = await resolveTableOutletId(options.outletId);
+  const onlyTable = options.tableNumber ? normalizeTableNumber(options.tableNumber) : null;
+  const config = await getOutletTables(outletId);
+  const configByNumber = new Map(config.tables.map((table) => [table.tableNumber, table]));
 
   const sessionRows = await db
     .select()
     .from(tableSessions)
-    .where(outlet ? eq(tableSessions.outletId, outlet.id) : undefined)
+    .where(
+      and(
+        outletId ? eq(tableSessions.outletId, outletId) : undefined,
+        onlyTable ? eq(tableSessions.tableNumber, onlyTable) : undefined,
+      ),
+    )
     .orderBy(desc(tableSessions.updatedAt));
 
   const sessionOrderIds = [
@@ -6057,26 +6224,27 @@ export async function getTableLiveData() {
     ),
   ];
   const liveTableOrderSources = [...customerOrderSources, "pos"];
-  const liveOrderWhere = sessionOrderIds.length
-    ? or(
-        and(
-          inArray(orders.orderSource, liveTableOrderSources),
-          gte(orders.createdAt, start),
-          lt(orders.createdAt, end),
-        ),
-        inArray(orders.id, sessionOrderIds),
-      )
-    : and(
+  // Hanya order dine-in ("Meja xx") hari ini — tanpa limit, supaya hari ramai
+  // (ratusan takeaway) tidak memotong bill meja yang masih terbuka.
+  const todayTableOrders = await db
+    .select()
+    .from(orders)
+    .where(
+      and(
         inArray(orders.orderSource, liveTableOrderSources),
         gte(orders.createdAt, start),
         lt(orders.createdAt, end),
-      );
-  const latestOrders = await db
-    .select()
-    .from(orders)
-    .where(liveOrderWhere)
-    .orderBy(desc(orders.createdAt))
-    .limit(300);
+        onlyTable ? eq(orders.tableLabel, tableLabelForNumber(onlyTable)) : ilike(orders.tableLabel, "meja %"),
+        orderOutletFilter(outletId),
+      ),
+    )
+    .orderBy(desc(orders.createdAt));
+  const knownIds = new Set(todayTableOrders.map((order) => order.id));
+  const missingSessionIds = sessionOrderIds.filter((id) => !knownIds.has(id));
+  const sessionOnlyOrders = missingSessionIds.length
+    ? await db.select().from(orders).where(inArray(orders.id, missingSessionIds))
+    : [];
+  const latestOrders = [...todayTableOrders, ...sessionOnlyOrders];
 
   const orderIds = latestOrders.map((order) => order.id);
   const ticketRows = orderIds.length
@@ -6088,22 +6256,13 @@ export async function getTableLiveData() {
     ticketsByOrder.set(ticket.orderId, [...(ticketsByOrder.get(ticket.orderId) ?? []), ticket]);
   }
 
-  const latestByTable = new Map<string, typeof latestOrders[number]>();
-  for (const order of latestOrders) {
-    const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
-    if (!tableNumber) continue;
-    if (!latestByTable.has(tableNumber)) {
-      latestByTable.set(tableNumber, order);
-    }
-  }
-
   const sessionByTable = new Map(sessionRows.map((row) => [row.tableNumber, row]));
   const orderById = new Map(latestOrders.map((order) => [order.id, order]));
   const now = new Date();
 
-  // Group ALL today's orders per table (untuk hitung multi-bill dalam sesi).
-  const ordersByTable = new Map<string, typeof latestOrders>();
-  for (const order of latestOrders) {
+  // Semua order meja hari ini per meja (untuk multi-bill dalam satu sesi).
+  const ordersByTable = new Map<string, typeof todayTableOrders>();
+  for (const order of todayTableOrders) {
     const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
     if (!tableNumber) continue;
     const list = ordersByTable.get(tableNumber) ?? [];
@@ -6111,81 +6270,78 @@ export async function getTableLiveData() {
     ordersByTable.set(tableNumber, list);
   }
 
-  const OPEN_BILL_STATUSES = new Set([
-    "pending",
-    "pending_cashier",
-    "accepted",
-    "awaiting_payment",
-    "ready",
-  ]);
+  // Meja yang ditampilkan: meja aktif outlet + meja nonaktif yang masih punya
+  // sesi/order (agar bill tidak "hilang" setelah meja dinonaktifkan).
+  const tableNumbers = onlyTable
+    ? [onlyTable]
+    : config.tables
+        .filter(
+          (table) =>
+            table.active ||
+            ordersByTable.has(table.tableNumber) ||
+            (sessionByTable.get(table.tableNumber)?.status ?? "empty") !== "empty",
+        )
+        .map((table) => table.tableNumber);
 
   return tableNumbers.map((tableNumber) => {
     const session = sessionByTable.get(tableNumber);
-    // RESERVED = meja bersih yang dipesan; perlakukan seperti sesi kosong
-    // (bill lama sebelum clean tidak ikut) sampai order baru diterima kasir.
-    const sessionCleared =
-      (session?.status === "empty" || session?.status === "reserved") &&
-      !session.currentOrderId &&
-      !session.needsCleaning;
     const sessionOrderRaw = session?.currentOrderId
       ? orderById.get(session.currentOrderId)
       : undefined;
     // voidOrder / tolak order QR tidak me-reset table_sessions; jangan jadikan
     // order voided/ditolak/batal sebagai order aktif meja (meja tak nyangkut).
-    const currentVoided = isDeadTableOrderStatus(sessionOrderRaw?.status);
-    const sessionOrder = currentVoided ? undefined : sessionOrderRaw;
+    const currentDead = isDeadTableOrderStatus(sessionOrderRaw?.status);
+    // Order sesi dari hari sebelumnya: lunas → meja dianggap selesai; belum
+    // lunas → tetap tampil dengan tanda "Cek kasir" (tidak dibatalkan otomatis).
+    const fromPreviousDay = Boolean(sessionOrderRaw && sessionOrderRaw.createdAt < start);
+    const previousDayPaid = fromPreviousDay && sessionOrderRaw?.status === "paid";
+    const sessionOrder = currentDead || previousDayPaid ? undefined : sessionOrderRaw;
+    const staleOrder = fromPreviousDay && sessionOrder ? sessionOrder : undefined;
 
     // Bill window sesi: hanya order yang dibuat setelah cleanedAt terakhir
-    // (atau seluruh hari ini kalau belum pernah di-clean). Sesi yang sudah
-    // benar-benar di-clean (sessionCleared) → window kosong.
-    const windowStart = session?.cleanedAt ?? start;
+    // (atau seluruh hari ini kalau belum pernah di-clean). Order QR baru yang
+    // masuk setelah meja dibersihkan tetap tampil (belum punya sesi sendiri).
+    const windowStart = session?.cleanedAt && session.cleanedAt > start ? session.cleanedAt : start;
     const allOrdersToday = ordersByTable.get(tableNumber) ?? [];
-    const sessionBills = sessionCleared
-      ? []
-      : allOrdersToday.filter(
-          (o) =>
-            o.createdAt >= windowStart &&
-            o.status !== "rejected" &&
-            o.status !== "cancelled" &&
-            // Order yang sudah di-void tidak lagi menempati meja.
-            o.status !== "voided",
-        );
+    const sessionBills = [
+      ...(staleOrder ? [staleOrder] : []),
+      ...allOrdersToday.filter((o) => o.createdAt >= windowStart && !isDeadTableOrderStatus(o.status)),
+    ];
     const paidBillCount = sessionBills.filter((o) => o.status === "paid").length;
-    const openBillCount = sessionBills.filter((o) => OPEN_BILL_STATUSES.has(o.status)).length;
+    const openBillCount = sessionBills.filter((o) => OPEN_TABLE_BILL_STATUSES.has(o.status)).length;
     const isMixed = paidBillCount > 0 && openBillCount > 0;
 
-    // Pilih "active" order: prioritaskan yang belum lunas (paling baru),
-    // fallback ke yang paling baru terakhir, fallback ke sessionOrder/latest.
-    const newestOpen = sessionBills.find((o) => OPEN_BILL_STATUSES.has(o.status));
-    // Order aktif terakhir di-void & tak ada bill hidup lain → meja kosong.
-    const voidedIdle =
-      currentVoided && sessionBills.length === 0 && !session?.needsCleaning;
-    const latestLive = latestByTable.get(tableNumber);
-    const order = sessionCleared || voidedIdle
-      ? undefined
-      : newestOpen ??
-        sessionOrder ??
-        sessionBills[0] ??
-        (isDeadTableOrderStatus(latestLive?.status) ? undefined : latestLive);
+    // Order aktif: yang belum lunas (paling baru) → order sesi → bill terbaru.
+    const newestOpen = sessionBills.find((o) => OPEN_TABLE_BILL_STATUSES.has(o.status));
+    const idle =
+      (currentDead || previousDayPaid) && sessionBills.length === 0 && !session?.needsCleaning;
+    const order = idle ? undefined : newestOpen ?? sessionOrder ?? sessionBills[0];
     const ticketStatus = kitchenStatusForTickets(order ? ticketsByOrder.get(order.id) ?? [] : []);
     const needsCleaning =
       Boolean(session?.needsCleaning) || session?.status === "needs_cleaning";
 
     let status: string;
-    if (voidedIdle) {
-      status = "empty";
+    if (idle) {
+      status = needsCleaning ? "needs_cleaning" : "empty";
     } else if (session?.status === "cleaning") {
       // Siklus meja: DIRTY → CLEANING → AVAILABLE (lihat /lifecycle).
       status = "cleaning";
     } else if (isMixed) {
       status = "mixed";
     } else if (!order && session?.status && session.status !== "empty") {
-      status = session.status;
+      // Sesi tanpa order hidup (mis. reserved / needs_cleaning). Status order lama
+      // (paid/accepted kemarin) tidak dipertahankan tanpa order.
+      status = ["reserved", "needs_cleaning", "cleaning"].includes(session.status)
+        ? session.status
+        : needsCleaning
+          ? "needs_cleaning"
+          : "empty";
     } else {
       status = tableStatusFromOrder(order, ticketStatus, needsCleaning);
     }
 
     const lastStatusAt = session?.lastStatusAt ?? order?.updatedAt ?? order?.createdAt ?? null;
+    const tableConfig = configByNumber.get(tableNumber);
 
     const bills = sessionBills.map((o) => ({
       id: o.id,
@@ -6197,16 +6353,22 @@ export async function getTableLiveData() {
 
     return {
       tableNumber,
-      tableLabel: session?.tableLabel ?? tableLabelForNumber(tableNumber),
+      tableLabel: tableLabelForNumber(tableNumber),
+      area: tableConfig?.area ?? "",
+      capacity: tableConfig?.capacity ?? 4,
+      active: tableConfig?.active ?? true,
       status,
-      currentOrderId: order?.id ?? (voidedIdle ? null : session?.currentOrderId ?? null),
+      currentOrderId: order?.id ?? null,
       orderNo: order?.orderNo ?? null,
       customerName: order?.customerName ?? null,
       customerPhone: order?.customerPhone ?? null,
       total: order?.total ?? 0,
-      timerMinutes: minutesBetween(order?.createdAt ?? lastStatusAt, now) ?? 0,
+      timerMinutes:
+        status === "empty" ? 0 : minutesBetween(order?.createdAt ?? lastStatusAt, now) ?? 0,
       kitchenStatus: ticketStatus,
       needsCleaning,
+      // Order belum lunas dari hari sebelumnya → kasir perlu cek (bayar/void).
+      staleFromPreviousDay: Boolean(staleOrder),
       lastStatusAt: lastStatusAt?.toISOString() ?? null,
       bills,
       paidBillCount,
@@ -6215,12 +6377,21 @@ export async function getTableLiveData() {
   });
 }
 
+export type TableLiveRowData = Awaited<ReturnType<typeof getTableLiveData>>[number];
+
+/** Satu meja (untuk validasi aksi) — query hanya untuk meja itu, bukan seluruh peta. */
+export async function getTableLiveRow(tableNumber: string, outletId?: string | null) {
+  const [row] = await getTableLiveData({ outletId, tableNumber });
+  return row ?? null;
+}
+
 // Semua order di meja ini hari ini (lintas sesi/clean). Dipakai untuk
 // drawer "Riwayat Hari Ini" & handover shift.
-export async function getTableHistoryToday(tableNumber: string) {
+export async function getTableHistoryToday(tableNumber: string, outletId?: string | null) {
   const db = getDb();
   const { start, end } = getJakartaTodayRange();
   const label = tableLabelForNumber(tableNumber);
+  const resolvedOutletId = await resolveTableOutletId(outletId);
   const rows = await db
     .select()
     .from(orders)
@@ -6229,6 +6400,7 @@ export async function getTableHistoryToday(tableNumber: string) {
         eq(orders.tableLabel, label),
         gte(orders.createdAt, start),
         lt(orders.createdAt, end),
+        orderOutletFilter(resolvedOutletId),
       ),
     )
     .orderBy(desc(orders.createdAt));
@@ -6247,60 +6419,20 @@ export async function getTableHistoryToday(tableNumber: string) {
   };
 }
 
-// Rincian item pesanan untuk satu meja pada sesi berjalan (setelah cleanedAt
-// terakhir). Dipakai kasir untuk cek "apa yang dipesan" per meja — termasuk
-// catatan per item (orderItems.note) yang di-drop mapper lain. Lazy-load saat
-// dialog detail meja dibuka, jadi tidak membebani polling /api/tables/live.
-export async function getTableOrderItems(tableNumber: string) {
+// Rincian item pesanan untuk satu meja pada sesi berjalan (bill yang sama
+// dengan peta meja). Dipakai kasir/waiter untuk cek "apa yang dipesan" per meja
+// — termasuk catatan per item. Lazy-load saat detail meja dibuka.
+export async function getTableOrderItems(tableNumber: string, outletId?: string | null) {
   const db = getDb();
-  const { start, end } = getJakartaTodayRange();
-  const label = tableLabelForNumber(tableNumber);
-
-  const [outlet] = await db
-    .select()
-    .from(outlets)
-    .where(eq(outlets.status, "active"))
-    .orderBy(outlets.code)
-    .limit(1);
-
-  const [session] = await db
-    .select()
-    .from(tableSessions)
-    .where(
-      outlet
-        ? and(
-            eq(tableSessions.outletId, outlet.id),
-            eq(tableSessions.tableNumber, tableNumber),
-          )
-        : eq(tableSessions.tableNumber, tableNumber),
-    )
-    .limit(1);
-
-  const sessionCleared =
-    session?.status === "empty" && !session.currentOrderId && !session.needsCleaning;
-  const windowStart = session?.cleanedAt ?? start;
-
-  const orderRows = sessionCleared
-    ? []
-    : await db
-        .select()
-        .from(orders)
-        .where(
-          and(
-            eq(orders.tableLabel, label),
-            gte(orders.createdAt, start),
-            lt(orders.createdAt, end),
-          ),
-        )
-        .orderBy(desc(orders.createdAt));
-
-  const sessionOrders = orderRows.filter(
-    (o) =>
-      o.createdAt >= windowStart &&
-      o.status !== "rejected" &&
-      o.status !== "cancelled" &&
-      o.status !== "voided",
-  );
+  const normalizedTable = normalizeTableNumber(tableNumber);
+  const label = tableLabelForNumber(normalizedTable);
+  const row = await getTableLiveRow(normalizedTable, outletId);
+  const billIds = row?.bills.map((bill) => bill.id) ?? [];
+  const sessionOrders = billIds.length
+    ? (await db.select().from(orders).where(inArray(orders.id, billIds))).sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      )
+    : [];
 
   const orderIds = sessionOrders.map((o) => o.id);
   const itemRows = orderIds.length
@@ -6408,8 +6540,8 @@ export async function getTableOrderItems(tableNumber: string) {
  * Meja tidak boleh ditandai "tamu pergi"/bersih selama masih ada — mencegah
  * produk tertinggal & tiket basi menumpuk di papan Production.
  */
-export async function getUndeliveredProductionForTable(tableNumber: string) {
-  const { bills } = await getTableOrderItems(tableNumber);
+export async function getUndeliveredProductionForTable(tableNumber: string, outletId?: string | null) {
+  const { bills } = await getTableOrderItems(tableNumber, outletId);
   return bills.flatMap((bill) =>
     bill.stations
       .filter((row) => row.status === "queue" || row.status === "cooking" || row.status === "ready")
@@ -6433,8 +6565,8 @@ export function undeliveredProductionMessage(
   return `Masih ada pesanan belum diantar: ${list}. Antar atau batalkan dulu.`;
 }
 
-export async function getPublicTableLiveData() {
-  const rows = await getTableLiveData();
+export async function getPublicTableLiveData(outletId?: string | null) {
+  const rows = await getTableLiveData({ outletId });
 
   return rows.map((row) => {
     const needsCleaning = Boolean(row.needsCleaning || row.status === "needs_cleaning");
@@ -6476,6 +6608,7 @@ export async function updateTableStatus(
   const tableNumber = normalizeTableNumber(table);
   const now = new Date();
   const status = input.status.trim();
+  const resetsWindow = status === "empty" && !input.preserveCleanedAt;
   const insertValues = {
     outletId: garage.profile.outlet.id,
     tableNumber,
@@ -6483,14 +6616,15 @@ export async function updateTableStatus(
     status,
     currentOrderId: status === "empty" ? null : input.currentOrderId ?? null,
     needsCleaning: status === "needs_cleaning" ? true : Boolean(input.needsCleaning),
-    cleanedAt: status === "empty" && !input.preserveCleanedAt ? now : null,
+    cleanedAt: resetsWindow ? now : null,
     lastStatusAt: now,
     updatedAt: now,
   };
-  // Untuk update path, hilangkan cleanedAt dari set bila preserveCleanedAt
-  // agar nilai existing tidak di-overwrite jadi null.
+  // cleanedAt hanya ditulis saat meja benar-benar dikosongkan. Status lain
+  // (reserved, cleaning, needs_cleaning, …) mempertahankan nilai lama supaya
+  // bill tamu sebelumnya tidak muncul lagi di meja yang sudah dibersihkan.
   const updateSet: Record<string, unknown> = { ...insertValues };
-  if (input.preserveCleanedAt) {
+  if (!resetsWindow) {
     delete updateSet.cleanedAt;
   }
 
@@ -6525,120 +6659,168 @@ export async function updateTableStatus(
   };
 }
 
-// Pindahkan bill aktif dari meja sumber ke meja tujuan. Update label di
-// orders + reset sesi sumber (cleanedAt diset agar bill window di sumber
-// tertutup) + isi sesi tujuan dengan order tsb. Throws kalau tujuan
-// punya open bill aktif.
+// Pindahkan SEMUA bill sesi aktif (termasuk bill hasil pisah) dari meja sumber
+// ke meja tujuan dalam satu transaksi: label order, tiket produksi & panggilan
+// pelanggan ikut pindah (dapur/waiter melihat meja baru), sesi sumber ditutup,
+// sesi tujuan diisi. Baris sesi kedua meja dikunci (FOR UPDATE) supaya dua
+// waiter yang memindahkan ke meja yang sama tidak sama-sama lolos.
 export async function moveTable(
   from: string,
   to: string,
   garage: GarageSession,
 ) {
   const db = getDb();
+  const outletId = garage.profile.outlet.id;
   const fromNumber = normalizeTableNumber(from);
   const toNumber = normalizeTableNumber(to);
   if (fromNumber === toNumber) {
     throw new Error("Meja sumber dan tujuan sama.");
   }
-  const now = new Date();
-
-  const live = await getTableLiveData();
-  const fromRow = live.find((r) => r.tableNumber === fromNumber);
-  const toRow = live.find((r) => r.tableNumber === toNumber);
-  if (!fromRow || !fromRow.currentOrderId) {
-    throw new Error("Meja sumber tidak punya bill aktif.");
-  }
-  if (toRow && (toRow.openBillCount ?? 0) > 0) {
-    throw new Error("Meja tujuan masih punya bill aktif. Selesaikan dulu.");
-  }
-  if (
-    toRow &&
-    (toRow.status !== "empty" ||
-      Boolean(toRow.currentOrderId) ||
-      (toRow.paidBillCount ?? 0) > 0)
-  ) {
-    throw new Error("Meja tujuan belum kosong. Bersihkan atau tutup sesi meja tujuan dulu.");
-  }
-  if (toRow?.needsCleaning) {
-    throw new Error("Meja tujuan perlu dibersihkan dulu.");
-  }
-
-  const orderId = fromRow.currentOrderId;
+  await assertTableActive(toNumber, outletId);
   const toLabel = tableLabelForNumber(toNumber);
   const fromLabel = tableLabelForNumber(fromNumber);
 
-  await db
-    .update(orders)
-    .set({ tableLabel: toLabel, updatedAt: now })
-    .where(eq(orders.id, orderId));
+  // Validasi ramah-pengguna di luar transaksi…
+  const [fromRow, toRow] = await Promise.all([
+    getTableLiveRow(fromNumber, outletId),
+    getTableLiveRow(toNumber, outletId),
+  ]);
+  const moveBills = (fromRow?.bills ?? []).filter((bill) => !isDeadTableOrderStatus(bill.status));
+  if (!fromRow || !moveBills.length) {
+    throw new Error("Meja sumber tidak punya bill aktif.");
+  }
+  if (toRow && toRow.openBillCount > 0) {
+    throw new Error("Meja tujuan masih punya bill aktif. Selesaikan dulu.");
+  }
+  if (toRow?.needsCleaning || toRow?.status === "needs_cleaning" || toRow?.status === "cleaning") {
+    throw new Error("Meja tujuan perlu dibersihkan dulu.");
+  }
+  if (toRow && (toRow.status !== "empty" || toRow.paidBillCount > 0)) {
+    throw new Error("Meja tujuan belum kosong. Bersihkan atau tutup sesi meja tujuan dulu.");
+  }
+  const { start } = getJakartaTodayRange();
 
-  // Reset sesi sumber: status empty + cleanedAt=now (sesi sumber selesai).
-  await db
-    .insert(tableSessions)
-    .values({
-      outletId: garage.profile.outlet.id,
-      tableNumber: fromNumber,
-      tableLabel: fromLabel,
-      status: "empty",
-      currentOrderId: null,
-      needsCleaning: false,
-      cleanedAt: now,
-      lastStatusAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [tableSessions.outletId, tableSessions.tableNumber],
-      set: {
+  // …lalu kunci & validasi ulang di dalam transaksi (cegah dua pemindahan
+  // bersamaan ke meja yang sama). Semua query di sini lewat `tx`.
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    for (const tableNumber of [fromNumber, toNumber].sort()) {
+      await tx
+        .insert(tableSessions)
+        .values({
+          outletId,
+          tableNumber,
+          tableLabel: tableLabelForNumber(tableNumber),
+          status: "empty",
+          lastStatusAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing({ target: [tableSessions.outletId, tableSessions.tableNumber] });
+    }
+    const locked = await tx
+      .select()
+      .from(tableSessions)
+      .where(
+        and(
+          eq(tableSessions.outletId, outletId),
+          inArray(tableSessions.tableNumber, [fromNumber, toNumber]),
+        ),
+      )
+      .for("update");
+    const targetSession = locked.find((row) => row.tableNumber === toNumber);
+    if (targetSession?.needsCleaning || ["needs_cleaning", "cleaning"].includes(targetSession?.status ?? "")) {
+      throw new Error("Meja tujuan perlu dibersihkan dulu.");
+    }
+    const targetWindow =
+      targetSession?.cleanedAt && targetSession.cleanedAt > start ? targetSession.cleanedAt : start;
+    const targetBusy = await tx
+      .select({ id: orders.id })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.tableLabel, toLabel),
+          gte(orders.createdAt, targetWindow),
+          inArray(orders.status, [...OPEN_TABLE_BILL_STATUSES]),
+          orderOutletFilter(outletId),
+        ),
+      )
+      .limit(1);
+    if (targetBusy.length) {
+      throw new Error("Meja tujuan baru saja terisi. Pilih meja lain.");
+    }
+
+    const orderIds = moveBills.map((bill) => bill.id);
+    await tx
+      .update(orders)
+      .set({ tableLabel: toLabel, updatedAt: now })
+      .where(inArray(orders.id, orderIds));
+    await tx
+      .update(kitchenTickets)
+      .set({ tableLabel: toLabel })
+      .where(inArray(kitchenTickets.orderId, orderIds));
+    // Panggilan pelanggan yang masih terbuka ikut pindah ke meja baru.
+    await tx
+      .update(serviceRequests)
+      .set({ tableLabel: toLabel })
+      .where(
+        and(
+          eq(serviceRequests.tableLabel, fromLabel),
+          eq(serviceRequests.status, "open"),
+          or(eq(serviceRequests.outletId, outletId), isNull(serviceRequests.outletId)),
+        ),
+      );
+
+    // Tutup sesi sumber: kosong + cleanedAt=now (bill window sumber selesai).
+    await tx
+      .update(tableSessions)
+      .set({
         status: "empty",
         currentOrderId: null,
         needsCleaning: false,
         cleanedAt: now,
         lastStatusAt: now,
         updatedAt: now,
-      },
-    });
+      })
+      .where(and(eq(tableSessions.outletId, outletId), eq(tableSessions.tableNumber, fromNumber)));
 
-  // Set sesi tujuan dengan status sesuai order.
-  const targetStatus = fromRow.status === "paid" ? "paid" : fromRow.status;
-  await db
-    .insert(tableSessions)
-    .values({
-      outletId: garage.profile.outlet.id,
-      tableNumber: toNumber,
-      tableLabel: toLabel,
-      status: targetStatus,
-      currentOrderId: orderId,
-      needsCleaning: false,
-      lastStatusAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [tableSessions.outletId, tableSessions.tableNumber],
-      set: {
+    // Sesi tujuan: window dimulai dari bill tertua yang dipindah supaya semua
+    // bill (termasuk yang sudah lunas di sesi ini) ikut terhitung.
+    const oldestBill = moveBills.reduce((oldest, bill) =>
+      bill.createdAt < oldest.createdAt ? bill : oldest,
+    );
+    const currentOrderId = fromRow.currentOrderId ?? moveBills[0].id;
+    const targetStatus = fromRow.status === "mixed" ? "accepted" : fromRow.status;
+    await tx
+      .update(tableSessions)
+      .set({
         tableLabel: toLabel,
         status: targetStatus,
-        currentOrderId: orderId,
+        currentOrderId,
         needsCleaning: false,
+        cleanedAt: new Date(new Date(oldestBill.createdAt).getTime() - 1),
         lastStatusAt: now,
         updatedAt: now,
-      },
+      })
+      .where(and(eq(tableSessions.outletId, outletId), eq(tableSessions.tableNumber, toNumber)));
+
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+      action: `Move ${fromLabel} → ${toLabel}`,
+      object: fromRow.orderNo ?? currentOrderId,
+      device: garage.profile.deviceLabel,
+      status: targetStatus,
+      metadata: { orderIds, from: fromNumber, to: toNumber },
     });
 
-  await createAuditLog({
-    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
-    action: `Move ${fromLabel} → ${toLabel}`,
-    object: fromRow.orderNo ?? orderId,
-    device: garage.profile.deviceLabel,
-    status: targetStatus,
-    metadata: { orderId, from: fromNumber, to: toNumber },
+    return {
+      from: fromNumber,
+      to: toNumber,
+      orderId: currentOrderId,
+      orderIds,
+      orderNo: fromRow.orderNo,
+    };
   });
-
-  return {
-    from: fromNumber,
-    to: toNumber,
-    orderId,
-    orderNo: fromRow.orderNo,
-  };
 }
 
 export async function getPublicCustomerOrderStatus(id: string) {
@@ -7963,9 +8145,19 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     throw new Error("Nomor WhatsApp member tidak valid.");
   }
 
-  const tableLabel =
-    input.tableLabel?.trim() ||
-    (input.orderType === "dine-in" ? "Meja QR" : orderTypeToChannel(input.orderType));
+  // Dine-in wajib nomor meja valid & aktif; label disimpan kanonik "Meja 06" supaya
+  // peta meja, rincian item & cek "belum diantar" mencocokkan label yang sama.
+  let tableLabel: string;
+  if (input.orderType === "dine-in") {
+    const qrTableNumber = parseTableNumber(input.tableLabel ?? null);
+    if (!qrTableNumber) {
+      throw new Error("Nomor meja tidak dikenali. Scan ulang QR di meja atau minta bantuan kasir.");
+    }
+    await assertTableActive(qrTableNumber, input.outletId);
+    tableLabel = tableLabelForNumber(qrTableNumber);
+  } else {
+    tableLabel = input.tableLabel?.trim() || orderTypeToChannel(input.orderType);
+  }
   const initialWhatsappInvoiceInput = customerPhone
     ? {
         phone: customerPhone,
@@ -8410,8 +8602,9 @@ export async function updateCustomerOrderStatus(
         },
       });
 
-      const tableNumber = normalizeTableNumber(order.tableLabel);
-      await tx
+      // Order non-meja (Take away / tanpa nomor) tidak punya sesi meja.
+      const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
+      if (tableNumber) await tx
         .insert(tableSessions)
         .values({
           outletId: order.outletId ?? garage.profile.outlet.id,
@@ -8485,8 +8678,9 @@ export async function updateCustomerOrderStatus(
         metadata: { orderId: order.id, reason: input.reason ?? null },
       });
 
-      const tableNumber = normalizeTableNumber(order.tableLabel);
-      await tx
+      // Order non-meja (Take away / tanpa nomor) tidak punya sesi meja.
+      const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
+      if (tableNumber) await tx
         .insert(tableSessions)
         .values({
           outletId: order.outletId ?? garage.profile.outlet.id,
@@ -9025,12 +9219,16 @@ export async function updateCustomerOrderStatus(
       },
     });
 
-    const tableNumber = normalizeTableNumber(order.tableLabel);
+    const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
+    const sessionOutletId = order.outletId ?? garage.profile.outlet.id;
+    const newPartyStart = tableNumber
+      ? await newPartyWindowStart(tx, sessionOutletId, tableNumber, order.createdAt)
+      : undefined;
     // needsCleaning sengaja TIDAK di-auto-set walau payment paid: chip "PAID"
     // (chrome) seharusnya tampil dulu, supaya waiter dapat memilih "Bersih"
     // (tamu pergi) atau "Tamu+" (teman gabung — buka bill kedua). Mark
     // needs_cleaning hanya saat waiter eksplisit memilih clear path.
-    await tx
+    if (tableNumber) await tx
       .insert(tableSessions)
       .values({
         outletId: order.outletId ?? garage.profile.outlet.id,
@@ -9049,6 +9247,7 @@ export async function updateCustomerOrderStatus(
           status: updated.status === "paid" ? "paid" : "accepted",
           currentOrderId: order.id,
           needsCleaning: false,
+          ...(newPartyStart ? { cleanedAt: newPartyStart } : {}),
           lastStatusAt: now,
           updatedAt: now,
         },
@@ -9432,6 +9631,9 @@ async function createOrderOnce(
     input.orderType === "dine-in"
       ? normalizeDiningTableNumber(input.tableNumber ?? input.tableLabel ?? "")
       : null;
+  if (tableNumber) {
+    await assertTableActive(tableNumber, garage.profile.outlet.id);
+  }
   const tableLabel = tableNumber
     ? tableLabelForNumber(tableNumber)
     : orderTypeToChannel(input.orderType);
@@ -9911,6 +10113,14 @@ async function createOrderOnce(
     }
 
     if (tableNumber) {
+      // Jangan reset cleanedAt ke null: itu membuat bill rombongan sebelumnya
+      // (sudah dibersihkan) muncul lagi. Tamu baru di meja kotor → window baru.
+      const newPartyStart = await newPartyWindowStart(
+        tx,
+        garage.profile.outlet.id,
+        tableNumber,
+        order.createdAt,
+      );
       const tableSessionValues = {
         outletId: garage.profile.outlet.id,
         tableNumber,
@@ -9918,7 +10128,7 @@ async function createOrderOnce(
         status: "paid",
         currentOrderId: order.id,
         needsCleaning: false,
-        cleanedAt: null,
+        ...(newPartyStart ? { cleanedAt: newPartyStart } : {}),
         lastStatusAt: new Date(),
         updatedAt: new Date(),
       };

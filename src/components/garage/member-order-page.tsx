@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  AlertTriangle,
   Banknote,
   ChefHat,
   ChevronUp,
@@ -92,6 +93,8 @@ type QrContext = {
   source: "qr_table" | "qr_takeaway" | "instagram" | "campaign";
   outletId?: string;
   campaign?: string;
+  /** Nomor meja QR tidak valid / meja nonaktif → checkout diblokir dengan pesan ini. */
+  tableIssue?: string;
 };
 
 type CartLine = {
@@ -1185,8 +1188,11 @@ export function MemberOrderPage({
     !guestNameMissing &&
     !memberMissing &&
     !soldOutCartLine &&
-    orderingOpen;
-  const checkoutBlockReason = !orderingOpen
+    orderingOpen &&
+    !qrContext.tableIssue;
+  const checkoutBlockReason = qrContext.tableIssue
+    ? qrContext.tableIssue
+    : !orderingOpen
     ? "Kasir belum buka. Order bisa dikirim setelah outlet buka."
     : memberMissing
     ? "Login member untuk lanjut."
@@ -1765,6 +1771,18 @@ export function MemberOrderPage({
 
         <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
+            {qrContext.tableIssue ? (
+              <div
+                className="mb-4 flex items-start gap-3 rounded-md border border-garage-red-bright/55 bg-garage-red/12 px-3.5 py-3"
+                role="alert"
+              >
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[#ff8a8a]" aria-hidden />
+                <div className="min-w-0 text-sm leading-6">
+                  <p className="font-bold text-white">Meja belum dikenali</p>
+                  <p className="text-garage-dim">{qrContext.tableIssue}</p>
+                </div>
+              </div>
+            ) : null}
             {!orderingOpen ? (
               <div
                 className="mb-4 flex items-start gap-3 rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3.5 py-3"

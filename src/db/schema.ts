@@ -1277,6 +1277,27 @@ export const tableSessions = pgTable(
   }),
 );
 
+// Master meja per outlet (menu Atur Meja). Tanpa baris untuk outlet → semua
+// meja 01–50 dianggap aktif (lihat getOutletTables). Nomor meja 2 digit ("06").
+export const diningTables = pgTable(
+  "dining_tables",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "cascade" }),
+    tableNumber: text("table_number").notNull(),
+    area: text("area").notNull().default(""),
+    capacity: integer("capacity").notNull().default(4),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletTableIdx: uniqueIndex("dining_tables_outlet_table_idx").on(table.outletId, table.tableNumber),
+  }),
+);
+
 export const vouchers = pgTable(
   "vouchers",
   {

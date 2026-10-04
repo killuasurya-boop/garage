@@ -21,6 +21,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GarageApiError, garageApi } from "@/lib/api-client";
@@ -104,8 +111,29 @@ type SessionSummary = {
   byMethod: Array<{ method: string; count: number; total: number }>;
 };
 
+type StaleOpenShift = {
+  id: string;
+  code: string;
+  cashierName: string;
+  openingCash: number;
+  expectedCash: number;
+  openedAt: string;
+};
+
+/** Shift yang bisa ditutup Manajer/Owner dari rekap (hari ini / tertinggal). */
+type ClosableShift = {
+  id: string;
+  code: string;
+  cashierName: string;
+  openingCash: number;
+  expectedCash: number;
+  openedAt: string;
+  shiftLabel?: string;
+};
+
 type DailyShiftReport = {
   date: string;
+  staleOpen?: StaleOpenShift[];
   rows: Array<
     SessionListItem & {
       cashierName: string;
@@ -278,6 +306,8 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
     [loadDailyReport],
   );
 
+  const [closingRow, setClosingRow] = useState<ClosableShift | null>(null);
+
   if (selectedId) {
     return (
       <ShiftDetailView
@@ -390,10 +420,20 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
               onOpenSession={setSelectedId}
               onApproveShift={(sessionId) => void approveShift(sessionId)}
               approvingShiftId={approvingShiftId}
+              onCloseShift={setClosingRow}
             />
           </TabsContent>
         )}
       </Tabs>
+      <SupervisorCloseShiftDialog
+        row={closingRow}
+        onClose={() => setClosingRow(null)}
+        onClosed={() => {
+          setClosingRow(null);
+          void loadDailyReport();
+          void loadList();
+        }}
+      />
     </div>
   );
 }
@@ -732,6 +772,7 @@ function DailyShiftReportPanel({
   onOpenSession,
   onApproveShift,
   approvingShiftId,
+  onCloseShift,
 }: {
   date: string;
   onDateChange: (value: string) => void;
@@ -742,6 +783,7 @@ function DailyShiftReportPanel({
   onOpenSession: (sessionId: string) => void;
   onApproveShift: (sessionId: string) => void;
   approvingShiftId: string | null;
+  onCloseShift: (row: ClosableShift) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -786,6 +828,41 @@ function DailyShiftReportPanel({
         </Card>
       ) : report ? (
         <>
+          {report.staleOpen?.length ? (
+            <Card className="border-[#f5a742]/55 bg-[#f5a742]/10">
+              <CardContent className="space-y-2 p-4">
+                <p className="text-sm font-semibold text-white">
+                  Shift dari hari sebelumnya masih terbuka
+                </p>
+                <p className="text-xs leading-5 text-[#d6d6dc]">
+                  Kasir lupa tutup shift → kasir berikutnya tidak bisa mulai shift. Hitung uang laci
+                  lalu tutup di sini.
+                </p>
+                {report.staleOpen.map((row) => (
+                  <div
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#f5a742]/35 bg-black/25 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-semibold text-white">{row.code}</p>
+                      <p className="text-xs text-[#d6d6dc]">
+                        {row.cashierName} · buka {fmtDateTime(row.openedAt)}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-[#f5a742]/60 text-[#ffd08a] hover:bg-[#f5a742]/15"
+                      onClick={() => onCloseShift(row)}
+                    >
+                      Tutup shift
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat label="Jumlah Shift" value={String(report.totals.shifts)} />
             <Stat label="Order Lunas" value={String(report.totals.paidOrders)} />
@@ -867,6 +944,20 @@ function DailyShiftReportPanel({
                           {approvingShiftId === row.id ? "Approve..." : "Approve Selisih"}
                         </Button>
                       ) : null}
+                      {row.status === "open" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-[#f5a742]/60 text-[#ffd08a] hover:bg-[#f5a742]/15"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onCloseShift(row);
+                          }}
+                        >
+                          Tutup shift
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -924,5 +1015,120 @@ function Row({
       <span className="text-zinc-400">{label}</span>
       <span className={`font-semibold ${valueColor}`}>{value}</span>
     </div>
+  );
+}
+
+// Manajer/Owner menutup shift kasir yang tertinggal terbuka (kasir lupa tutup,
+// pulang, atau salah buka) supaya kasir berikutnya bisa mulai shift.
+function SupervisorCloseShiftDialog({
+  row,
+  onClose,
+  onClosed,
+}: {
+  row: ClosableShift | null;
+  onClose: () => void;
+  onClosed: () => void;
+}) {
+  const [actualCash, setActualCash] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRowId, setLastRowId] = useState<string | null>(null);
+
+  // Reset form saat baris lain dipilih (tanpa effect).
+  if (row && row.id !== lastRowId) {
+    setLastRowId(row.id);
+    setActualCash("");
+    setNote("");
+    setError(null);
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!row) return;
+    const counted = Number(actualCash);
+    if (actualCash.trim() === "" || !Number.isFinite(counted) || counted < 0) {
+      setError("Isi uang tunai yang dihitung di laci (angka, boleh 0).");
+      return;
+    }
+    if (note.trim().length < 5) {
+      setError("Tulis alasan singkat (min. 5 huruf), mis. kasir lupa tutup shift.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await garageApi.patch(`/api/finance/cash-sessions/${row.id}/close`, {
+        actualCash: Math.round(counted),
+        closingNote: `Ditutup Manajer/Owner: ${note.trim()}`,
+        managerSignOff: true,
+        resetTableMode: "none",
+      });
+      onClosed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Tutup shift gagal.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={row !== null} onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Tutup shift kasir</DialogTitle>
+          <DialogDescription>
+            {row
+              ? `${row.shiftLabel ? `${row.shiftLabel} · ` : ""}${row.code} · ${row.cashierName}, buka ${fmtDateTime(row.openedAt)}.`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {row ? (
+          <form onSubmit={(event) => void submit(event)} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <Row label="Modal awal" value={fmtRp(row.openingCash)} />
+              <Row label="Kas seharusnya" value={fmtRp(row.expectedCash)} />
+            </div>
+            <label className="block space-y-1 text-sm">
+              <span className="text-xs font-semibold text-[#d6d6dc]">Uang tunai dihitung di laci</span>
+              <Input
+                inputMode="numeric"
+                value={actualCash}
+                onChange={(event) => setActualCash(event.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
+                placeholder="mis. 350000"
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="text-xs font-semibold text-[#d6d6dc]">Alasan</span>
+              <Input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Kasir lupa tutup shift / salah buka shift"
+                maxLength={300}
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </label>
+            <p className="text-xs leading-5 text-[#b8b8bf]">
+              Selisih dihitung otomatis dan tercatat atas nama Anda di audit. Meja tidak direset.
+            </p>
+            {error ? (
+              <p className="text-sm text-[#ffb3b3]" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="h-11 flex-1" onClick={onClose}>
+                Batal
+              </Button>
+              <Button type="submit" className="h-11 flex-1 bg-[#d11a2a] hover:bg-[#b8131f]" disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Tutup shift
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,8 +1,25 @@
+"use client"
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+// "020" → "20", "007" → "7", "00.5" → "0.5"; "0" dan "0.5" tetap.
+function stripLeadingZeros(raw: string) {
+  return raw.replace(/^(-?)0+(?=\d)/, "$1")
+}
+
+function Input({ className, type, value, onChange, onBlur, ...props }: React.ComponentProps<"input">) {
+  // Kolom angka terkontrol (value={number}) punya dua masalah bawaan React:
+  // 1) "020" tidak dirapikan karena nilainya sama dengan 20 → nol depan tertinggal;
+  // 2) setelah dihapus, induk biasanya menyimpan Number("") = 0 → "0" langsung
+  //    muncul lagi dan ketikan berikutnya jadi "056".
+  // Simpan teks ketikan sementara selama nilainya masih setara dengan value induk.
+  const isNumber = type === "number" && value !== undefined
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const shown =
+    isNumber && draft !== null && Number(draft || 0) === Number(value ?? 0) ? draft : value
+
   return (
     <input
       type={type}
@@ -11,6 +28,25 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         className
       )}
+      value={shown}
+      onChange={
+        isNumber
+          ? (event) => {
+              const cleaned = stripLeadingZeros(event.target.value)
+              if (cleaned !== event.target.value) event.target.value = cleaned
+              setDraft(cleaned)
+              onChange?.(event)
+            }
+          : onChange
+      }
+      onBlur={
+        isNumber
+          ? (event) => {
+              setDraft(null)
+              onBlur?.(event)
+            }
+          : onBlur
+      }
       {...props}
     />
   )

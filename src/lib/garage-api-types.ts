@@ -466,6 +466,8 @@ export type GarageBootstrapData = {
   stockMovements: string[];
   paymentBreakdown: PaymentBreakdown[];
   cashSession: CashSession;
+  /** Shift milik user yang login di outlet ini (POS). Owner/Manajer: bukan shift terbaru outlet. */
+  posCashSession?: CashSession;
   closingChecklist: ClosingChecklistItem[];
   customers: Customer[];
   approvals: Approval[];

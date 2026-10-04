@@ -310,7 +310,9 @@ type InventoryTransferInput = {
 
 type CashSessionInput = {
   openingCash: number;
-  shiftNumber?: 1 | 2;
+  shiftNumber?: number;
+  /** PIN Manajer/Owner yang hadir: izinkan shift tambahan setelah Shift 1 & 2 terpakai. */
+  managerPin?: string;
 };
 
 type CloseCashSessionInput = {
@@ -5333,6 +5335,15 @@ export async function getBootstrapData(garage: GarageSession) {
     getAppSettings(garage.profile.outlet.id),
   ]);
 
+  // POS selalu memakai shift milik user sendiri di outlet ini. Pembaca finance
+  // (Owner/Manajer) mendapat shift terbaru outlet mana pun di `cashSession`,
+  // yang bisa milik kasir lain → POS minta "Mulai Shift" padahal shift sendiri
+  // masih terbuka ("Kasir masih punya sesi terbuka").
+  const posFinance =
+    canUseCashShift && canReadFinance
+      ? await getFinanceSummary({ outletId: garage.profile.outlet.id, openedBy: garage.user.id })
+      : finance;
+
   return {
     me: sessionPayload(garage),
     dashboard,
@@ -5343,6 +5354,7 @@ export async function getBootstrapData(garage: GarageSession) {
     stockMovements: movements,
     paymentBreakdown: canReadFinance ? finance.paymentBreakdown : [],
     cashSession: finance.cashSession,
+    posCashSession: posFinance.cashSession,
     closingChecklist: finance.cashSession.checklist,
     customers: customerRows,
     approvals: approvalRows,
@@ -14472,23 +14484,65 @@ export async function createMenuRecipe(input: RecipeInput, garage: GarageSession
   return recipe;
 }
 
+const shiftClock = (date: Date) =>
+  new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+const shiftDateClock = (date: Date) =>
+  new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+
 export class CashSessionAlreadyOpenError extends Error {
-  constructor(public readonly existingCode: string) {
-    super(`Kasir masih punya sesi terbuka: ${existingCode}`);
+  constructor(
+    public readonly existingCode: string,
+    detail?: { openedAt: Date; outletName: string | null; sameOutlet: boolean },
+  ) {
+    super(
+      detail
+        ? `Anda masih punya shift terbuka ${existingCode} sejak ${shiftDateClock(detail.openedAt)}` +
+            (detail.sameOutlet
+              ? ". Tekan \"Lanjutkan shift saya\" untuk kembali ke shift itu, lalu tutup shift bila sudah selesai."
+              : ` di ${detail.outletName ?? "outlet lain"}. Tutup shift itu dulu atau minta Manajer/Owner menutupnya.`)
+        : `Kasir masih punya sesi terbuka: ${existingCode}`,
+    );
     this.name = "CashSessionAlreadyOpenError";
   }
 }
 
 export class CashSessionOutletAlreadyOpenError extends Error {
-  constructor(public readonly existingCode: string) {
-    super(`Shift kasir outlet masih terbuka: ${existingCode}. Tutup shift aktif sebelum buka shift berikutnya.`);
+  constructor(
+    public readonly existingCode: string,
+    detail?: { cashierName: string; openedAt: Date },
+  ) {
+    super(
+      detail
+        ? `Shift ${existingCode} masih dibuka oleh ${detail.cashierName} sejak ${shiftClock(detail.openedAt)}. ` +
+            `${detail.cashierName} harus tutup shift dulu, atau Manajer/Owner menutupnya di halaman Riwayat Shift (/shift) → Rekap Harian.`
+        : `Shift kasir outlet masih terbuka: ${existingCode}. Tutup shift aktif sebelum buka shift berikutnya.`,
+    );
     this.name = "CashSessionOutletAlreadyOpenError";
   }
 }
 
 export class CashSessionDailyLimitError extends Error {
-  constructor() {
-    super("Shift kasir harian sudah penuh. Maksimal hanya Shift 1 dan Shift 2.");
+  constructor(usedShifts: Array<{ cashierName: string; openedAt: Date; closedAt: Date | null }> = []) {
+    const used = usedShifts
+      .map(
+        (row, index) =>
+          `Shift ${index + 1}: ${row.cashierName} ${shiftClock(row.openedAt)}–${row.closedAt ? shiftClock(row.closedAt) : "sekarang"}`,
+      )
+      .join("; ");
+    super(
+      `Shift 1 dan Shift 2 hari ini sudah terpakai${used ? ` (${used})` : ""}. ` +
+        "Untuk shift tambahan, minta Manajer/Owner memasukkan PIN.",
+    );
     this.name = "CashSessionDailyLimitError";
   }
 }
@@ -14529,10 +14583,117 @@ function canSuperviseCashSession(role: Role) {
   return role === "Owner" || role === "Manajer";
 }
 
+type KasirShiftRow = {
+  id: string;
+  code: string;
+  status: string;
+  openedAt: Date;
+  closedAt: Date | null;
+  openedBy: string | null;
+  cashierName: string;
+};
+
+/** Shift kasir (role Kasir) di outlet pada hari ini (WIB), urut jam buka. */
+async function listTodayKasirShifts(
+  db: Pick<ReturnType<typeof getDb>, "select">,
+  outletId: string,
+): Promise<KasirShiftRow[]> {
+  const { start, end } = jakartaDayRange(jakartaDateKey(new Date()));
+  return db
+    .select({
+      id: cashSessions.id,
+      code: cashSessions.code,
+      status: cashSessions.status,
+      openedAt: cashSessions.openedAt,
+      closedAt: cashSessions.closedAt,
+      openedBy: cashSessions.openedBy,
+      cashierName: user.name,
+    })
+    .from(cashSessions)
+    .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
+    .innerJoin(user, eq(user.id, cashSessions.openedBy))
+    .where(
+      and(
+        eq(cashSessions.outletId, outletId),
+        eq(staffProfiles.role, "Kasir"),
+        gte(cashSessions.openedAt, start),
+        lt(cashSessions.openedAt, end),
+      ),
+    )
+    .orderBy(asc(cashSessions.openedAt));
+}
+
+/**
+ * Status shift hari ini untuk dialog "Mulai Shift": siapa memakai Shift 1/2,
+ * shift kasir yang masih terbuka, dan shift terbuka milik user sendiri.
+ */
+export async function getTodayCashShiftStatus(garage: GarageSession) {
+  const db = getDb();
+  const outletId = garage.profile.outlet.id;
+  const [shifts, [myOpen]] = await Promise.all([
+    listTodayKasirShifts(db, outletId),
+    db
+      .select({
+        id: cashSessions.id,
+        code: cashSessions.code,
+        openedAt: cashSessions.openedAt,
+        outletId: cashSessions.outletId,
+        outletName: outlets.name,
+      })
+      .from(cashSessions)
+      .leftJoin(outlets, eq(outlets.id, cashSessions.outletId))
+      .where(and(eq(cashSessions.openedBy, garage.user.id), eq(cashSessions.status, "open")))
+      .orderBy(desc(cashSessions.openedAt))
+      .limit(1),
+  ]);
+  const isKasir = garage.profile.role === "Kasir";
+  const openByOther = shifts.find((row) => row.status === "open" && row.openedBy !== garage.user.id);
+  return {
+    shifts: shifts.map((row, index) => ({
+      shiftNumber: index + 1,
+      id: row.id,
+      code: row.code,
+      status: row.status,
+      cashierName: row.cashierName,
+      openedAt: row.openedAt.toISOString(),
+      closedAt: row.closedAt ? row.closedAt.toISOString() : null,
+      mine: row.openedBy === garage.user.id,
+    })),
+    // Batas Shift 1/2 dan "1 shift kasir terbuka per outlet" hanya untuk role Kasir.
+    appliesLimit: isKasir,
+    nextShiftNumber: shifts.length + 1,
+    limitReached: isKasir && shifts.length >= 2,
+    openByOther:
+      isKasir && openByOther
+        ? {
+            code: openByOther.code,
+            cashierName: openByOther.cashierName,
+            openedAt: openByOther.openedAt.toISOString(),
+          }
+        : null,
+    myOpenSession: myOpen
+      ? {
+          id: myOpen.id,
+          code: myOpen.code,
+          openedAt: myOpen.openedAt.toISOString(),
+          outletName: myOpen.outletName ?? null,
+          sameOutlet: myOpen.outletId === outletId,
+        }
+      : null,
+  };
+}
+
 export async function createCashSession(input: CashSessionInput, garage: GarageSession) {
   const db = getDb();
   const outletId = garage.profile.outlet.id;
   let shiftNumber = input.shiftNumber;
+  // Objek (bukan let) supaya TS tidak menyempitkan ke null setelah closure transaksi.
+  const extra: { approver: { userId: string; name: string } | null } = { approver: null };
+  // PIN dicek sebelum transaksi (lookup memakai koneksi DB terpisah).
+  const managerPin = garage.profile.role === "Kasir" ? input.managerPin?.trim() : undefined;
+  const pinApprover = managerPin
+    ? await resolveApproverByPin(managerPin, garage, `cash-session-extra:${outletId}`)
+    : null;
 
   const session = await db.transaction(async (tx) => {
     // Serialisasi buka shift per outlet: tanpa kunci ini dua tap/tablet yang
@@ -14541,8 +14702,15 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
 
     // Guard: 1 kasir = 1 sesi terbuka pada satu waktu.
     const [existingOpen] = await tx
-      .select({ id: cashSessions.id, code: cashSessions.code })
+      .select({
+        id: cashSessions.id,
+        code: cashSessions.code,
+        openedAt: cashSessions.openedAt,
+        outletId: cashSessions.outletId,
+        outletName: outlets.name,
+      })
       .from(cashSessions)
+      .leftJoin(outlets, eq(outlets.id, cashSessions.outletId))
       .where(
         and(
           eq(cashSessions.openedBy, garage.user.id),
@@ -14551,52 +14719,63 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
       )
       .limit(1);
     if (existingOpen) {
-      throw new CashSessionAlreadyOpenError(existingOpen.code);
+      throw new CashSessionAlreadyOpenError(existingOpen.code, {
+        openedAt: existingOpen.openedAt,
+        outletName: existingOpen.outletName ?? null,
+        sameOutlet: existingOpen.outletId === outletId,
+      });
     }
 
     if (garage.profile.role === "Kasir") {
-      const [outletOpen] = await tx
-        .select({ id: cashSessions.id, code: cashSessions.code })
-        .from(cashSessions)
-        .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
-        .where(
-          and(
-            eq(cashSessions.outletId, outletId),
-            eq(cashSessions.status, "open"),
-            eq(staffProfiles.role, "Kasir"),
-          ),
-        )
-        .limit(1);
-
-      if (outletOpen) {
-        throw new CashSessionOutletAlreadyOpenError(outletOpen.code);
+      const todayShifts = await listTodayKasirShifts(tx, outletId);
+      const outletOpen = todayShifts.find((row) => row.status === "open");
+      // Shift kasir terbuka dari hari sebelumnya juga menahan laci yang sama.
+      const [olderOpen] = outletOpen
+        ? []
+        : await tx
+            .select({
+              code: cashSessions.code,
+              openedAt: cashSessions.openedAt,
+              cashierName: user.name,
+            })
+            .from(cashSessions)
+            .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
+            .innerJoin(user, eq(user.id, cashSessions.openedBy))
+            .where(
+              and(
+                eq(cashSessions.outletId, outletId),
+                eq(cashSessions.status, "open"),
+                eq(staffProfiles.role, "Kasir"),
+              ),
+            )
+            .limit(1);
+      const blocking = outletOpen ?? olderOpen;
+      if (blocking) {
+        throw new CashSessionOutletAlreadyOpenError(blocking.code, {
+          cashierName: blocking.cashierName,
+          openedAt: blocking.openedAt,
+        });
       }
 
-      const todayKey = jakartaDateKey(new Date());
-      const { start, end } = jakartaDayRange(todayKey);
-      const [dailyCount] = await tx
-        .select({ total: count(cashSessions.id) })
-        .from(cashSessions)
-        .innerJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
-        .where(
-          and(
-            eq(cashSessions.outletId, outletId),
-            eq(staffProfiles.role, "Kasir"),
-            gte(cashSessions.openedAt, start),
-            lt(cashSessions.openedAt, end),
-          ),
-        );
-
-      const existingShiftCount = Number(dailyCount?.total ?? 0);
+      const existingShiftCount = todayShifts.length;
       if (existingShiftCount >= 2) {
-        throw new CashSessionDailyLimitError();
+        // Shift tambahan (mis. kasir salah buka/tutup shift) hanya dengan PIN
+        // Manajer/Owner yang hadir; tercatat di audit atas nama penyetuju.
+        if (!pinApprover) {
+          throw new CashSessionDailyLimitError(todayShifts);
+        }
+        extra.approver = { userId: pinApprover.userId, name: pinApprover.name };
       }
 
       const nextShiftNumber = existingShiftCount + 1;
-      if (shiftNumber !== undefined && shiftNumber !== nextShiftNumber) {
+      if (
+        !extra.approver &&
+        shiftNumber !== undefined &&
+        shiftNumber !== nextShiftNumber
+      ) {
         throw new CashSessionShiftMismatchError(nextShiftNumber, shiftNumber);
       }
-      shiftNumber = nextShiftNumber as 1 | 2;
+      shiftNumber = nextShiftNumber;
     }
 
     const [outlet] = await tx
@@ -14631,8 +14810,21 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
     metadata: {
       shiftNumber: shiftNumber ?? null,
       openingCash: input.openingCash,
+      ...(extra.approver
+        ? { extraShiftApprovedBy: extra.approver.name, extraShiftApproverId: extra.approver.userId }
+        : {}),
     },
   });
+  if (extra.approver) {
+    await createAuditLog({
+      actor: `${extra.approver.name} / PIN persetujuan`,
+      action: "Shift kasir tambahan disetujui",
+      object: session.code,
+      device: garage.profile.deviceLabel,
+      status: "warning",
+      metadata: { cashier: garage.user.name, shiftNumber },
+    });
+  }
 
   return session;
 }
@@ -15335,9 +15527,42 @@ export async function getDailyCashSessionReport(params: {
     }),
   );
 
+  // Shift yang masih terbuka dari hari sebelumnya (kasir lupa tutup) tidak masuk
+  // rekap tanggal ini, tapi harus terlihat agar Manajer/Owner bisa menutupnya.
+  const staleOpenRows =
+    params.date === jakartaDateKey(new Date())
+      ? await db
+          .select({
+            id: cashSessions.id,
+            code: cashSessions.code,
+            openingCash: cashSessions.openingCash,
+            expectedCash: cashSessions.expectedCash,
+            openedAt: cashSessions.openedAt,
+            openedByName: user.name,
+          })
+          .from(cashSessions)
+          .leftJoin(user, eq(user.id, cashSessions.openedBy))
+          .where(
+            and(
+              eq(cashSessions.outletId, params.outletId),
+              eq(cashSessions.status, "open"),
+              lt(cashSessions.openedAt, start),
+            ),
+          )
+          .orderBy(asc(cashSessions.openedAt))
+      : [];
+
   return {
     date: params.date,
     rows: detailRows,
+    staleOpen: staleOpenRows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      cashierName: row.openedByName ?? "Kasir",
+      openingCash: row.openingCash,
+      expectedCash: row.expectedCash,
+      openedAt: row.openedAt.toISOString(),
+    })),
     totals: {
       shifts: detailRows.length,
       orders: detailRows.reduce((sum, row) => sum + row.counts.total, 0),

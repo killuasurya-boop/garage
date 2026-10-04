@@ -1353,7 +1353,7 @@ function GarageWorkspace({
                   menuItems={data.menuItems}
                   customers={data.customers}
                   cartSeed={data.cartSeed}
-                  cashSession={data.cashSession}
+                  cashSession={data.posCashSession ?? data.cashSession}
                   settings={data.settings}
                   onCashSessionOpened={() => loadBootstrap()}
                   onExit={() => handleModuleChange("dashboard")}

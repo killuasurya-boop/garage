@@ -133,9 +133,9 @@ import {
 CashierThemePresetGrid,
 OpeningCashPresetPicker,
 SettingsChoiceGroup,
-ShiftNumberPicker,
 type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
+import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -771,7 +771,9 @@ export function PosView({
     return Math.round(capped / 50000) * 50000;
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
-  const [openingShiftNumber, setOpeningShiftNumber] = useState<1 | 2>(1);
+  const [openingShiftNumber, setOpeningShiftNumber] = useState<number>(1);
+  const [openShiftManagerPin, setOpenShiftManagerPin] = useState("");
+  const [shiftStatusRefresh, setShiftStatusRefresh] = useState(0);
   // Blind count: kasir menghitung laci per pecahan tanpa diberi angka sistem.
   const [shiftDenominationCounts, setShiftDenominationCounts] = useState<Record<string, string>>({});
   const [shiftManagerPin, setShiftManagerPin] = useState("");
@@ -3106,6 +3108,7 @@ export function PosView({
     setShiftResetTableMode("completed");
     setShiftChecklist(cashSession.checklist);
     setOpeningShiftNumber(shiftOpen ? 2 : 1);
+    setOpenShiftManagerPin("");
     setShiftDialogOpen(true);
   }
 
@@ -3160,15 +3163,27 @@ export function PosView({
       await garageApi.post<CashSession>("/api/finance/cash-sessions", {
         openingCash: openingCashValue,
         shiftNumber: openingShiftNumber,
+        ...(openShiftManagerPin ? { managerPin: openShiftManagerPin } : {}),
       });
       await onCashSessionOpened();
       setShiftDialogOpen(false);
       setLastShiftCloseResult(null);
+      setOpenShiftManagerPin("");
     } catch (error) {
       setShiftError(error instanceof Error ? error.message : "Mulai shift gagal.");
+      // Status Shift 1/2 bisa berubah (kasir lain baru buka/tutup) → muat ulang.
+      setShiftStatusRefresh((value) => value + 1);
     } finally {
       setShiftPending(false);
     }
+  }
+
+  // Shift sendiri masih terbuka (mis. dibuka di tablet lain): muat ulang data POS
+  // agar shift itu dipakai lagi, tanpa membuka shift baru.
+  async function resumeOwnShift() {
+    setShiftError(null);
+    await onCashSessionOpened();
+    setShiftDialogOpen(false);
   }
 
   async function closeShift(event: FormEvent<HTMLFormElement>) {
@@ -3623,9 +3638,12 @@ export function PosView({
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={(event) => void openShift(event)} className="space-y-4">
-              <ShiftNumberPicker
-                value={openingShiftNumber}
-                onChange={setOpeningShiftNumber}
+              <ShiftStartStatus
+                onShiftNumber={setOpeningShiftNumber}
+                managerPin={openShiftManagerPin}
+                onManagerPinChange={setOpenShiftManagerPin}
+                onResume={resumeOwnShift}
+                refreshKey={shiftStatusRefresh}
               />
               <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
               {shiftError && (
@@ -6365,9 +6383,12 @@ export function PosView({
             </form>
           ) : (
             <form onSubmit={(event) => void openShift(event)} className="space-y-4">
-              <ShiftNumberPicker
-                value={openingShiftNumber}
-                onChange={setOpeningShiftNumber}
+              <ShiftStartStatus
+                onShiftNumber={setOpeningShiftNumber}
+                managerPin={openShiftManagerPin}
+                onManagerPinChange={setOpenShiftManagerPin}
+                onResume={resumeOwnShift}
+                refreshKey={shiftStatusRefresh}
               />
               <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
               {shiftError && (

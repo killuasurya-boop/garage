@@ -8,14 +8,11 @@ ArrowRight,
 Home,
 ArrowUp,
 BadgeCheck,
-Bell,
 Check,
 Clock,
 Fingerprint,
 KeyRound,
 Database,
-Eye,
-EyeOff,
 FileText,
 Gauge,
 Info,
@@ -41,8 +38,7 @@ Terminal,
 Trash2,
 Users,
 Volume2,
-Wrench,
-type LucideIcon
+Wrench
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -394,11 +390,13 @@ export function GarageApp({
   const [health, setHealth] = useState<{
     pending: boolean;
     configured: boolean;
+    unreachable: boolean;
     message: string;
   }>({
     pending: true,
     configured: false,
-    message: "Checking Garage backend...",
+    unreachable: false,
+    message: "Memeriksa server Garage…",
   });
 
   useEffect(() => {
@@ -417,6 +415,7 @@ export function GarageApp({
         setHealth({
           pending: false,
           configured: healthData.database.configured,
+          unreachable: false,
           message: healthData.database.status,
         });
       } catch (error) {
@@ -427,7 +426,10 @@ export function GarageApp({
         setHealth({
           pending: false,
           configured: false,
-          message: error instanceof Error ? error.message : "Backend unavailable.",
+          // Jaringan putus / server 5xx ≠ "belum dikonfigurasi": jangan tampilkan
+          // layar setup teknis ke karyawan.
+          unreachable: true,
+          message: error instanceof Error ? error.message : "Server tidak bisa dihubungi.",
         });
       }
     }
@@ -440,7 +442,17 @@ export function GarageApp({
   }, []);
 
   if (health.pending) {
-    return <GarageLoading title="Starting Garage backend" detail={health.message} />;
+    return <GarageLoading title="Membuka Garage OS" detail="Menghubungkan ke server Garage." />;
+  }
+
+  if (health.unreachable) {
+    return (
+      <GarageErrorScreen
+        title="Koneksi ke server terputus"
+        detail="Periksa Wi-Fi atau data seluler perangkat ini, lalu coba lagi."
+        onRetry={() => window.location.reload()}
+      />
+    );
   }
 
   if (!health.configured) {
@@ -450,99 +462,14 @@ export function GarageApp({
   return <AuthenticatedGarageApp initialModule={initialModule} />;
 }
 
-type GaragePosLoginProps = {
-  returnTo?: string;
-  variant?: "os" | "pos";
-  initialEmail?: string;
-  includeOwnerPreset?: boolean;
-};
-
-export function GaragePosLogin({
-  returnTo = "/os",
-  variant = "pos",
-  initialEmail,
-  includeOwnerPreset = false,
-}: GaragePosLoginProps) {
-  const [health, setHealth] = useState<{
-    pending: boolean;
-    configured: boolean;
-    message: string;
-  }>({
-    pending: true,
-    configured: false,
-    message: "Checking Garage backend...",
-  });
-  const session = authClient.useSession();
-  const isSignedIn = Boolean(session.data?.user);
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadHealth() {
-      try {
-        const healthData = await garageApi.get<HealthData>("/api/health", {
-          cache: "no-store",
-        });
-        if (mounted) {
-          setHealth({
-            pending: false,
-            configured: healthData.database.configured,
-            message: healthData.database.status,
-          });
-        }
-      } catch (error) {
-        if (mounted) {
-          setHealth({
-            pending: false,
-            configured: false,
-            message: error instanceof Error ? error.message : "Backend unavailable.",
-          });
-        }
-      }
-    }
-
-    void loadHealth();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isSignedIn && session.data?.user?.id) {
-      window.location.assign(returnTo);
-    }
-  }, [isSignedIn, returnTo, session.data?.user?.id]);
-
-  if (health.pending || session.isPending) {
-    return <GarageLoading title="Starting login" detail="Memuat sesi dan backend Garage." />;
-  }
-
-  if (!health.configured) {
-    return <BackendSetupScreen message={health.message} />;
-  }
-
-  if (isSignedIn) {
-    return <GarageLoading title="Opening Garage" detail="Mengalihkan ke area kerja." />;
-  }
-
-  return (
-    <LoginScreen
-      variant={variant}
-      initialEmail={initialEmail}
-      includeOwnerPreset={includeOwnerPreset}
-      onSignedIn={async () => {
-        await session.refetch();
-        window.location.assign(returnTo);
-      }}
-    />
-  );
-}
+export { GarageLogin as GaragePosLogin } from "./login/garage-login";
+import { LoginScreen } from "./login/garage-login";
 
 function AuthenticatedGarageApp({ initialModule }: { initialModule: ModuleId }) {
   const session = authClient.useSession();
 
   if (session.isPending) {
-    return <GarageLoading title="Checking session" detail="Memuat sesi Better Auth." />;
+    return <GarageLoading title="Memeriksa sesi" detail="Memuat akun Anda." />;
   }
 
   if (!session.data?.user) {
@@ -953,7 +880,10 @@ function GarageWorkspace({
       }
 
       redirected = true;
-      window.location.replace("/pos-login");
+      // Tablet POS kembali ke login POS; OS/dashboard ke login Garage OS.
+      window.location.replace(
+        window.location.pathname.startsWith("/pos") ? "/pos-login" : "/login",
+      );
     } catch {
       setSignOutError("Keluar gagal, coba lagi.");
     } finally {
@@ -1602,6 +1532,17 @@ function GarageLoading({ title, detail }: { title: string; detail: string }) {
 }
 
 function BackendSetupScreen({ message }: { message: string }) {
+  // Detail env & perintah npm hanya untuk developer; karyawan di production cukup
+  // diberi tahu server belum siap.
+  if (process.env.NODE_ENV === "production") {
+    return (
+      <GarageErrorScreen
+        title="Server Garage belum siap"
+        detail="Hubungi Owner atau admin sistem. Coba lagi beberapa saat lagi."
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
   return (
     <div className="garage-shell dark flex min-h-screen items-center justify-center p-4 text-foreground">
       <Card className="garage-panel garage-animate-in w-full max-w-xl">
@@ -1653,351 +1594,10 @@ function GarageErrorScreen({
         <CardContent>
           <Button onClick={onRetry} className="garage-press">
             <RefreshCw className="mr-2 size-4" />
-            Retry
+            Coba lagi
           </Button>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-type LoginRolePreset = {
-  role: Role;
-  label: string;
-  email: string;
-  station: string;
-  summary: string;
-  icon: LucideIcon;
-  tone: string;
-};
-
-const loginRolePresets: LoginRolePreset[] = [
-  {
-    role: "Owner",
-    label: "Owner",
-    email: "owner@garage.id",
-    station: "Command center",
-    summary: "Dashboard lengkap, approval, laporan, dan Owner Brain.",
-    icon: ShieldCheck,
-    tone: "border-[#d11a2a]/60 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  },
-  {
-    role: "Manajer",
-    label: "Manajer",
-    email: "manajer@garage.id",
-    station: "Ops control",
-    summary: "POS, KDS, inventory, finance review, dan approval shift.",
-    icon: Wrench,
-    tone: "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]",
-  },
-  {
-    role: "Kasir",
-    label: "Kasir",
-    email: "kasir@garage.id",
-    station: "POS counter",
-    summary: "Transaksi, KDS dapur/bar, stok gudang, dan payment.",
-    icon: ReceiptText,
-    tone: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-white",
-  },
-  {
-    role: "Waiter",
-    label: "Waiter",
-    email: "waiter@garage.id",
-    station: "Floor service",
-    summary: "Order meja, service handoff, dan table flow.",
-    icon: Bell,
-    tone: "border-[#4a4a54] bg-white/[0.07] text-[#e8e8ec]",
-  },
-];
-
-const visibleLoginRolePresets = loginRolePresets.filter(
-  (preset) => preset.role !== "Owner",
-);
-
-const posLoginRolePresets = loginRolePresets.filter((preset) =>
-  ["Kasir", "Waiter"].includes(preset.role),
-);
-
-const devLoginPassword =
-  process.env.NODE_ENV === "production" ? null : "garage12345";
-
-function LoginScreen({
-  onSignedIn,
-  variant = "os",
-  initialEmail,
-  includeOwnerPreset = false,
-}: {
-  onSignedIn: () => void;
-  variant?: "os" | "pos";
-  initialEmail?: string;
-  includeOwnerPreset?: boolean;
-}) {
-  const isPosLogin = variant === "pos";
-  // Helper preset/demo hanya untuk non-production. Di VPS/production layar login
-  // bersih: cukup email + password, tanpa membocorkan akun internal.
-  const showDemoHelpers = process.env.NODE_ENV !== "production";
-  const rolePresets = isPosLogin
-    ? posLoginRolePresets
-    : includeOwnerPreset
-      ? loginRolePresets
-      : visibleLoginRolePresets;
-  const [email, setEmail] = useState(
-    initialEmail ?? (showDemoHelpers ? rolePresets[0]?.email ?? "" : ""),
-  );
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const selectedPreset =
-    rolePresets.find((preset) => preset.email === email) ??
-    loginRolePresets.find((preset) => preset.email === email) ??
-    rolePresets[0] ??
-    loginRolePresets[2];
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!password) {
-      setError("Masukkan password akun Garage.");
-      return;
-    }
-
-    setPending(true);
-    setError(null);
-
-    try {
-      async function signInWithPassword(nextPassword: string) {
-        const response = await fetch("/api/auth/sign-in/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            password: nextPassword,
-          }),
-        });
-        const data = (await response.json().catch(() => null)) as
-          | { twoFactorRedirect?: boolean; message?: string; error?: { message?: string } }
-          | null;
-        return {
-          ok: response.ok,
-          status: response.status,
-          data,
-          message:
-            data?.message ??
-            data?.error?.message ??
-            (response.ok ? null : "Login gagal."),
-        };
-      }
-
-      async function signInWithLocalDemo() {
-        const response = await fetch("/api/dev/demo-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-          }),
-        });
-        const data = (await response.json().catch(() => null)) as
-          | { twoFactorRedirect?: boolean; message?: string; error?: { message?: string } }
-          | null;
-        return {
-          ok: response.ok,
-          status: response.status,
-          data,
-          message:
-            data?.message ??
-            data?.error?.message ??
-            (response.ok ? null : "Login demo gagal."),
-        };
-      }
-
-      let result = await signInWithPassword(password);
-      if (!result.ok && devLoginPassword && password === devLoginPassword) {
-        result = await signInWithLocalDemo();
-      }
-
-      if (!result.ok) {
-        const message = result.message ?? "Login gagal.";
-        setError(
-          devLoginPassword
-            ? `${message}. Demo lokal: klik Isi demo atau pakai ${devLoginPassword}.`
-            : message,
-        );
-        return;
-      }
-
-      // Better Auth twoFactor plugin: kalau user punya 2FA aktif, response
-      // balikin twoFactorRedirect=true (session belum dibuat). Redirect ke
-      // page TOTP challenge untuk complete login.
-      const responseData = result.data;
-      if (responseData?.twoFactorRedirect) {
-        const next = typeof window !== "undefined" ? window.location.search : "";
-        window.location.href = `/login/2fa${next}`;
-        return;
-      }
-
-      onSignedIn();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Login gagal.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <div className="garage-shell dark flex min-h-[100svh] flex-col bg-[radial-gradient(ellipse_at_top,#2a1414_0%,#100808_55%)] text-foreground">
-      <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center px-4 py-8 sm:py-12">
-        {/* Kartu login ringkas: logo → judul → form. Langsung terlihat di HP tanpa scroll. */}
-        <div className="flex justify-center">
-          <Image
-            src="/garage-brand/logo-website.png"
-            alt="Garage Coffee & Motor"
-            width={1024}
-            height={325}
-            priority
-            sizes="240px"
-            className="h-auto w-[220px] object-contain sm:w-[240px]"
-          />
-        </div>
-
-        <div className="garage-animate-in mt-6 rounded-xl border border-garage-line bg-garage-bg-1/95 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.45)] sm:p-6">
-          <h1 className="text-xl font-bold text-white">
-            {isPosLogin ? "Masuk ke POS Garage" : "Masuk ke Garage OS"}
-          </h1>
-          <p className="mt-1 text-sm text-garage-dim">
-            {isPosLogin
-              ? "Khusus tablet kasir. Setelah masuk, POS langsung terbuka."
-              : "Gunakan akun karyawan yang didaftarkan owner."}
-          </p>
-
-          {showDemoHelpers ? (
-            <details className="mt-4 rounded-md border border-dashed border-garage-line-2 bg-white/[0.03] p-2.5">
-              <summary className="cursor-pointer text-xs font-semibold text-garage-dim">
-                Akun demo (hanya mode pengembangan) · {selectedPreset.label}
-              </summary>
-              <div className="mt-2 grid grid-cols-2 gap-1.5">
-                {rolePresets.map((preset) => {
-                  const RoleIcon = preset.icon;
-                  const active = email === preset.email;
-                  return (
-                    <button
-                      key={preset.email}
-                      type="button"
-                      onClick={() => {
-                        setEmail(preset.email);
-                        setError(null);
-                      }}
-                      className={`garage-press flex min-h-10 items-center gap-2 rounded-md border px-2.5 text-left text-xs font-semibold transition ${
-                        active
-                          ? "border-garage-red/70 bg-garage-red/15 text-white"
-                          : "border-garage-line bg-garage-bg-2 text-garage-dim hover:text-white"
-                      }`}
-                      aria-pressed={active}
-                    >
-                      <RoleIcon className="size-4 shrink-0 text-garage-amber" />
-                      <span className="truncate">{preset.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </details>
-          ) : null}
-
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="garage-login-email" className="block text-sm font-semibold text-white">
-                Email
-              </label>
-              <Input
-                id="garage-login-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="nama@garage.id"
-                className="h-12 border-garage-line bg-garage-bg-2 text-base"
-                autoComplete="email"
-                inputMode="email"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label htmlFor="garage-login-password" className="block text-sm font-semibold text-white">
-                  Password
-                </label>
-                {devLoginPassword ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPassword(devLoginPassword);
-                      setError(null);
-                    }}
-                    className="rounded border border-garage-line-2 px-2 py-1 text-[11px] font-semibold text-garage-dim transition hover:text-white"
-                  >
-                    Isi demo
-                  </button>
-                ) : null}
-              </div>
-              <div className="relative">
-                <Input
-                  id="garage-login-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Masukkan password"
-                  className="h-12 border-garage-line bg-garage-bg-2 pr-12 text-base"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-                  className="absolute right-0.5 top-0.5 inline-flex size-11 items-center justify-center rounded-md text-garage-dim transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <Alert className="border-garage-red/45 bg-garage-red/12 text-[#f4f4f5]">
-                <AlertTriangle className="size-4" />
-                <AlertTitle>Login gagal</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button
-              disabled={pending}
-              className="garage-press h-12 w-full bg-garage-red text-base font-bold text-white hover:bg-garage-red-bright"
-            >
-              {pending ? (
-                <RefreshCw className="mr-2 size-4 animate-spin" />
-              ) : (
-                <LockKeyhole className="mr-2 size-4" />
-              )}
-              <span className="truncate whitespace-nowrap">
-                {pending ? "Memverifikasi…" : "Masuk"}
-              </span>
-            </Button>
-
-            <p className="text-center text-xs leading-5 text-garage-dim">
-              Lupa password? Hubungi Owner atau Manajer untuk reset akun.
-            </p>
-          </form>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between gap-2 text-xs text-garage-mute">
-          <Link href="/" className="inline-flex min-h-11 items-center gap-1.5 hover:text-white">
-            <ArrowRight className="size-3.5 rotate-180" />
-            Halaman utama
-          </Link>
-          <span className="text-right">© 2026 Killua Surya · 081396186251</span>
-        </div>
-      </main>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LazyGaragePosLogin } from "@/components/garage/garage-app-loader";
 
 export const metadata: Metadata = {
-  title: "Login GARAGE OS",
+  title: "Masuk · Garage OS",
   description:
     "Login karyawan Garage Coffee & Motor untuk masuk ke GARAGE OS.",
 };
@@ -37,7 +37,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       returnTo={returnTo}
       variant="os"
       includeOwnerPreset={isOwnerControlLogin}
-      initialEmail={isOwnerControlLogin ? "owner@garage.id" : undefined}
+      // Prefill email owner hanya di mode pengembangan — production tidak membocorkan akun.
+      initialEmail={
+        isOwnerControlLogin && process.env.NODE_ENV !== "production" ? "owner@garage.id" : undefined
+      }
     />
   );
 }

@@ -6,10 +6,11 @@ import { staffViewport } from "@/lib/staff-viewport";
 export const viewport = staffViewport;
 
 export const metadata: Metadata = {
-  title: "Garage POS Login",
+  title: "Masuk · POS Garage",
   description: "Halaman khusus login tablet POS Garage Coffee & Motor.",
 };
 
 export default function PosLoginPage() {
-  return <LazyGaragePosLogin />;
+  // Kasir langsung ke POS setelah masuk (sesuai teks di kartu login).
+  return <LazyGaragePosLogin returnTo="/pos" />;
 }

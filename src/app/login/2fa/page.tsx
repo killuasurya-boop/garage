@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { TwoFactorChallenge } from "@/components/garage/admin/two-factor-challenge";
 
 export const metadata: Metadata = {
-  title: "Garage OS — Two-Factor Challenge",
+  title: "Verifikasi 2FA · Garage OS",
   description: "Verifikasi 2FA untuk lanjut login ke Garage OS.",
 };
 

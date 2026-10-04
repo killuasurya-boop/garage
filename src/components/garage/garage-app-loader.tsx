@@ -15,6 +15,22 @@ type GarageLoginProps = {
   includeOwnerPreset?: boolean;
 };
 
+// Kerangka sewarna halaman login (hitam + strip merah) supaya tidak ada kedipan saat modul dimuat.
+function LoginLoadingFallback() {
+  return (
+    <main className="flex min-h-[100svh] items-center justify-center border-t-4 border-[#d11a2a] bg-[#08080a] px-4 text-white">
+      <div className="w-full max-w-[388px] overflow-hidden rounded-md border border-[#2a2a30] bg-[#0d0d10]">
+        <div className="h-[76px] bg-[linear-gradient(110deg,#d11a2a_0%,#a3141f_60%,#8b0f1a_100%)]" />
+        <div className="space-y-3 p-5" role="status" aria-label="Memuat halaman masuk">
+          <div className="h-12 animate-pulse rounded-md bg-white/[0.06]" />
+          <div className="h-12 animate-pulse rounded-md bg-white/[0.06]" />
+          <div className="h-12 rounded-md bg-[#d11a2a]/60" />
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function GarageShellFallback({ title }: { title: string }) {
   return (
     <main className="min-h-screen bg-[#08080b] text-white">
@@ -44,11 +60,12 @@ const GarageAppDynamic = dynamic<GarageAppProps>(
   },
 );
 
+// Login memuat modul ringan sendiri (bukan seluruh garage-app) supaya form cepat tampil di HP.
 const GaragePosLoginDynamic = dynamic<GarageLoginProps>(
-  () => import("./garage-app").then((module) => module.GaragePosLogin),
+  () => import("./login/garage-login").then((module) => module.GarageLogin),
   {
     ssr: false,
-    loading: () => <GarageShellFallback title="Membuka login POS" />,
+    loading: () => <LoginLoadingFallback />,
   },
 );
 

@@ -5,6 +5,7 @@ AlertTriangle,
 Archive,
 ArrowLeft,
 ArrowRight,
+ArrowRightLeft,
 Ban,
 Banknote,
 Camera,
@@ -136,6 +137,7 @@ SettingsChoiceGroup,
 type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
 import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
+import { PaymentMethodCorrectionDialog } from "@/components/garage/pos-payment-method-correction";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -786,7 +788,11 @@ export function PosView({
     expectedCash: number;
     actualCash: number;
     resetTableCount: number | null;
+    qrisRecorded: number | null;
+    qrisDiscrepancy: number | null;
   } | null>(null);
+  const [shiftQrisCounted, setShiftQrisCounted] = useState("");
+  const [paymentCorrectionOpen, setPaymentCorrectionOpen] = useState(false);
   const [shiftClosingNote, setShiftClosingNote] = useState("");
   const [shiftResetTableMode, setShiftResetTableMode] =
     useState<ShiftResetTableMode>("completed");
@@ -3109,6 +3115,7 @@ export function PosView({
     setShiftChecklist(cashSession.checklist);
     setOpeningShiftNumber(shiftOpen ? 2 : 1);
     setOpenShiftManagerPin("");
+    setShiftQrisCounted("");
     setShiftDialogOpen(true);
   }
 
@@ -3224,6 +3231,7 @@ export function PosView({
           closingNote: shiftClosingNote,
           resetTableMode: shiftResetTableMode,
           ...(managerPin ? { managerPin } : {}),
+          ...(shiftQrisCounted.trim() !== "" ? { qrisCounted: Math.round(Number(shiftQrisCounted)) } : {}),
         },
       );
       await onCashSessionOpened();
@@ -3238,6 +3246,8 @@ export function PosView({
         resetTableCount: closedSession.resetTables?.requested
           ? closedSession.resetTables.count
           : null,
+        qrisRecorded: closedSession.qrisRecorded ?? null,
+        qrisDiscrepancy: closedSession.qrisDiscrepancy ?? null,
       });
       // Voice notification: bunyi kalau ada selisih kas (lebih atau kurang
       // dari expected) sehingga Manager langsung tahu untuk verifikasi.
@@ -3717,6 +3727,16 @@ export function PosView({
                   {lastShiftCloseResult.resetTableCount} meja direset ke kosong.
                 </p>
               )}
+              {lastShiftCloseResult.qrisRecorded ? (
+                <p className="mt-2 text-xs text-[#d6d6dc]">
+                  QRIS tercatat {currency.format(lastShiftCloseResult.qrisRecorded)}
+                  {lastShiftCloseResult.qrisDiscrepancy === null
+                    ? " · belum dicocokkan dengan BNI (Owner/Manajer cocokkan di Rekap Harian)."
+                    : lastShiftCloseResult.qrisDiscrepancy === 0
+                      ? " · cocok dengan BNI."
+                      : ` · selisih QRIS ${lastShiftCloseResult.qrisDiscrepancy > 0 ? "+" : "-"}${currency.format(Math.abs(lastShiftCloseResult.qrisDiscrepancy))} (dicatat terpisah dari laci).`}
+                </p>
+              ) : null}
             </div>
           )}
           <Button
@@ -6221,6 +6241,42 @@ export function PosView({
               <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs text-[#d6d6dc]">
                 Hitung semua uang tunai di laci, termasuk modal awal. Kas seharusnya dan selisih
                 ditampilkan setelah shift ditutup.
+              </div>
+              <div className="space-y-2 rounded-md border border-[#4a4a54] bg-white/[0.04] p-3">
+                <p className="text-xs leading-5 text-[#d6d6dc]">
+                  <strong className="text-white">QRIS &amp; transfer tidak dihitung di laci.</strong> Salah
+                  pilih Tunai/QRIS saat bayar? Koreksi dulu supaya selisih laci tidak salah.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="garage-press h-10 w-full gap-2 border-[#f5a742]/55 bg-[#f5a742]/10 text-[#ffd08a] hover:bg-[#f5a742]/18"
+                  onClick={() => {
+                    setShiftDialogOpen(false);
+                    setPaymentCorrectionOpen(true);
+                  }}
+                >
+                  <ArrowRightLeft className="size-4" />
+                  Koreksi metode bayar
+                </Button>
+                <label className="block space-y-1">
+                  <span className="text-[11px] font-semibold text-[#d6d6dc]">
+                    Total QRIS di aplikasi / notifikasi BNI shift ini (opsional)
+                  </span>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={shiftQrisCounted}
+                    onChange={(event) => setShiftQrisCounted(event.target.value)}
+                    placeholder="Kosongkan bila tidak pegang aplikasi BNI"
+                    className="h-10 border-[#34343c] bg-white/[0.06]"
+                    aria-label="Total QRIS di aplikasi BNI"
+                  />
+                  <span className="block text-[11px] text-[#9b9ba6]">
+                    Dicocokkan otomatis dengan QRIS tercatat; selisih QRIS dicatat terpisah dari laci.
+                  </span>
+                </label>
               </div>
               {(closeShiftActiveTables.length > 0 || customerOrders.length > 0) && (
                 <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffe0ad]">
@@ -10175,6 +10231,17 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
+      <PaymentMethodCorrectionDialog
+        open={paymentCorrectionOpen}
+        onOpenChange={(open) => {
+          setPaymentCorrectionOpen(open);
+          // Kembali ke form tutup shift (isian pecahan uang tetap tersimpan).
+          if (!open && shiftOpen) setShiftDialogOpen(true);
+        }}
+        cashSessionId={cashSession.id}
+        requiresPin={me.role === "Kasir"}
+        onCorrected={() => void onCashSessionOpened()}
+      />
       <PosOrderCancelDialog
         target={cancelTarget}
         onClose={() => setCancelTarget(null)}

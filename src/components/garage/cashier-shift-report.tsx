@@ -142,6 +142,9 @@ type DailyShiftReport = {
       byMethod: SessionSummary["byMethod"];
       cashTotal: number;
       nonCashTotal: number;
+      qrisTotal?: number;
+      qrisCounted?: number | null;
+      qrisDiscrepancy?: number | null;
     }
   >;
   totals: {
@@ -307,6 +310,7 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
   );
 
   const [closingRow, setClosingRow] = useState<ClosableShift | null>(null);
+  const [qrisRow, setQrisRow] = useState<DailyShiftReport["rows"][number] | null>(null);
 
   if (selectedId) {
     return (
@@ -421,10 +425,19 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
               onApproveShift={(sessionId) => void approveShift(sessionId)}
               approvingShiftId={approvingShiftId}
               onCloseShift={setClosingRow}
+              onReconcileQris={setQrisRow}
             />
           </TabsContent>
         )}
       </Tabs>
+      <QrisReconcileDialog
+        row={qrisRow}
+        onClose={() => setQrisRow(null)}
+        onSaved={() => {
+          setQrisRow(null);
+          void loadDailyReport();
+        }}
+      />
       <SupervisorCloseShiftDialog
         row={closingRow}
         onClose={() => setClosingRow(null)}
@@ -773,6 +786,7 @@ function DailyShiftReportPanel({
   onApproveShift,
   approvingShiftId,
   onCloseShift,
+  onReconcileQris,
 }: {
   date: string;
   onDateChange: (value: string) => void;
@@ -784,6 +798,7 @@ function DailyShiftReportPanel({
   onApproveShift: (sessionId: string) => void;
   approvingShiftId: string | null;
   onCloseShift: (row: ClosableShift) => void;
+  onReconcileQris: (row: DailyShiftReport["rows"][number]) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -926,6 +941,19 @@ function DailyShiftReportPanel({
                           value={`${row.discrepancy >= 0 ? "+" : ""}${fmtRp(row.discrepancy)}`}
                           tone={row.discrepancy === 0 ? "ok" : row.discrepancy < 0 ? "bad" : "warn"}
                         />
+                        {row.qrisTotal ? (
+                          <Row
+                            label="QRIS"
+                            value={
+                              row.qrisCounted == null
+                                ? `${fmtRp(row.qrisTotal)} · belum dicek`
+                                : row.qrisDiscrepancy === 0
+                                  ? `${fmtRp(row.qrisTotal)} · cocok BNI`
+                                  : `selisih ${(row.qrisDiscrepancy ?? 0) > 0 ? "+" : ""}${fmtRp(row.qrisDiscrepancy ?? 0)}`
+                            }
+                            tone={row.qrisCounted == null ? "warn" : row.qrisDiscrepancy === 0 ? "ok" : "bad"}
+                          />
+                        ) : null}
                       </div>
                       {row.status === "closed" &&
                       row.actualCash != null &&
@@ -942,6 +970,20 @@ function DailyShiftReportPanel({
                           }}
                         >
                           {approvingShiftId === row.id ? "Approve..." : "Approve Selisih"}
+                        </Button>
+                      ) : null}
+                      {row.status === "closed" && row.qrisTotal ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-[#4a4a54] text-[#f4f4f5] hover:bg-white/10"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onReconcileQris(row);
+                          }}
+                        >
+                          {row.qrisCounted == null ? "Cocokkan QRIS" : "Ubah cek QRIS"}
                         </Button>
                       ) : null}
                       {row.status === "open" ? (
@@ -1124,6 +1166,119 @@ function SupervisorCloseShiftDialog({
               <Button type="submit" className="h-11 flex-1 bg-[#d11a2a] hover:bg-[#b8131f]" disabled={saving}>
                 {saving ? <Loader2 className="size-4 animate-spin" /> : null}
                 Tutup shift
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Owner/Manajer mencocokkan total QRIS shift dengan mutasi / aplikasi BNI.
+function QrisReconcileDialog({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: DailyShiftReport["rows"][number] | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [counted, setCounted] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRowId, setLastRowId] = useState<string | null>(null);
+
+  if (row && row.id !== lastRowId) {
+    setLastRowId(row.id);
+    setCounted(row.qrisCounted != null ? String(row.qrisCounted) : "");
+    setNote("");
+    setError(null);
+  }
+
+  const countedValue = counted.trim() === "" ? null : Number(counted);
+  const diff = row && countedValue !== null && Number.isFinite(countedValue) ? countedValue - (row.qrisTotal ?? 0) : null;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!row) return;
+    if (countedValue === null || !Number.isFinite(countedValue) || countedValue < 0) {
+      setError("Isi total QRIS sesuai mutasi / aplikasi BNI (angka, boleh 0).");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await garageApi.patch(`/api/finance/cash-sessions/${row.id}/qris`, {
+        qrisCounted: Math.round(countedValue),
+        ...(note.trim() ? { note: note.trim() } : {}),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pencocokan QRIS gagal disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={row !== null} onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Cocokkan QRIS dengan BNI</DialogTitle>
+          <DialogDescription>
+            {row ? `${row.shiftLabel} · ${row.code} · ${row.cashierName}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {row ? (
+          <form onSubmit={(event) => void submit(event)} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <Row label="QRIS tercatat sistem" value={fmtRp(row.qrisTotal ?? 0)} />
+              <Row
+                label="Selisih"
+                value={diff === null ? "—" : `${diff > 0 ? "+" : ""}${fmtRp(diff)}`}
+                tone={diff === null ? undefined : diff === 0 ? "ok" : "bad"}
+              />
+            </div>
+            <label className="block space-y-1 text-sm">
+              <span className="text-xs font-semibold text-[#d6d6dc]">Total QRIS masuk di mutasi / aplikasi BNI</span>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={counted}
+                onChange={(event) => setCounted(event.target.value)}
+                placeholder="mis. 450000"
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="text-xs font-semibold text-[#d6d6dc]">Catatan (opsional)</span>
+              <Input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="mis. 1 transaksi QRIS gagal, pelanggan bayar tunai"
+                maxLength={300}
+                className="h-11 border-[#34343c] bg-white/[0.06]"
+              />
+            </label>
+            <p className="text-xs leading-5 text-[#b8b8bf]">
+              Selisih QRIS dicatat terpisah dari selisih laci tunai dan masuk audit atas nama Anda.
+            </p>
+            {error ? (
+              <p className="text-sm text-[#ffb3b3]" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="h-11 flex-1" onClick={onClose}>
+                Batal
+              </Button>
+              <Button type="submit" className="h-11 flex-1 bg-[#d11a2a] hover:bg-[#b8131f]" disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Simpan
               </Button>
             </div>
           </form>

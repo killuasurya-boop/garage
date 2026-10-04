@@ -11,6 +11,7 @@ import type {
   TableLiveRow,
 } from "@/lib/garage-api-types";
 import type { Role } from "@/lib/garage-data";
+import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 
 // --- POS customer mode ----------------------------------------------------
 
@@ -22,7 +23,7 @@ export const paymentMethods = ["Cash", "QRIS", "Bank Transfer", "E-Wallet"] as c
 export type PaymentMethod = (typeof paymentMethods)[number];
 
 export const paymentBrandConfig = {
-  qrisImagePath: "/payments/qris-garage.png",
+  qrisImagePath: QRIS_IMAGE_SRC,
   deliveryWhatsapp: "081396186251",
   social: {
     instagram: "GARAGE Coffee & Motor",

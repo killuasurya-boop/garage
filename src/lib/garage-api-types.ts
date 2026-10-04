@@ -430,6 +430,9 @@ export type CashSession = {
   denominations?: Record<string, number>;
   closingNote?: string | null;
   managerSignOffAt?: string | null;
+  qrisRecorded?: number | null;
+  qrisCounted?: number | null;
+  qrisDiscrepancy?: number | null;
   resetTables?: {
     requested: boolean;
     mode?: "none" | "completed" | "all";

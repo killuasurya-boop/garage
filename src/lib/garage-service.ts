@@ -324,6 +324,8 @@ type CloseCashSessionInput = {
   managerPin?: string;
   resetTableMode?: "none" | "completed" | "all";
   resetTables?: boolean;
+  /** Total QRIS di aplikasi/notifikasi BNI untuk shift ini (opsional, pencocokan). */
+  qrisCounted?: number;
 };
 
 type ExpenseInput = {
@@ -14665,6 +14667,60 @@ export class CashSessionSignOffRequiredError extends Error {
   }
 }
 
+/** Total pembayaran QRIS (lunas) yang tercatat pada satu shift kasir. */
+async function qrisRecordedForSession(
+  db: Pick<ReturnType<typeof getDb>, "select">,
+  cashSessionId: string,
+) {
+  const rows = await db
+    .select({ method: payments.method, amount: payments.amount })
+    .from(payments)
+    .where(and(eq(payments.cashSessionId, cashSessionId), eq(payments.status, "captured")));
+  return rows
+    .filter((row) => normalizePaymentMethod(row.method) === "qris")
+    .reduce((sum, row) => sum + row.amount, 0);
+}
+
+/**
+ * Owner/Manajer mencocokkan QRIS shift yang sudah ditutup dengan mutasi BNI
+ * (kasir sering tidak memegang aplikasi merchant). Selisih QRIS dicatat
+ * terpisah dari selisih laci tunai.
+ */
+export async function reconcileCashSessionQris(
+  id: string,
+  input: { qrisCounted: number; note?: string },
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const [current] = await db.select().from(cashSessions).where(eq(cashSessions.id, id)).limit(1);
+  if (!current) return null;
+  if (garage.profile.role !== "Owner" && current.outletId !== garage.profile.outlet.id) {
+    throw new CashSessionForbiddenError();
+  }
+  const qrisRecorded = await qrisRecordedForSession(db, id);
+  const qrisDiscrepancy = input.qrisCounted - qrisRecorded;
+  const [updated] = await db
+    .update(cashSessions)
+    .set({
+      qrisRecorded,
+      qrisCounted: input.qrisCounted,
+      qrisDiscrepancy,
+      qrisCheckedBy: garage.user.id,
+      qrisCheckedAt: new Date(),
+    })
+    .where(eq(cashSessions.id, id))
+    .returning();
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Pencocokan QRIS shift",
+    object: current.code,
+    device: garage.profile.deviceLabel,
+    status: qrisDiscrepancy === 0 ? "recorded" : "warning",
+    metadata: { qrisRecorded, qrisCounted: input.qrisCounted, qrisDiscrepancy, note: input.note ?? null },
+  });
+  return updated;
+}
+
 /** Manajer/Owner boleh menutup shift kasir lain dan sign-off atas nama sendiri. */
 function canSuperviseCashSession(role: Role) {
   return role === "Owner" || role === "Manajer";
@@ -14916,6 +14972,162 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
   return session;
 }
 
+// ─── Koreksi metode bayar ──────────────────────────────────────────────────
+// Kasir salah tekan (pelanggan bayar QRIS tapi tercatat Cash, atau sebaliknya)
+// membuat selisih laci palsu. Selama shift pembayaran itu masih terbuka, metode
+// bisa dikoreksi: kas seharusnya ikut disesuaikan dan tercatat di audit.
+// Kasir wajib PIN Manajer/Owner yang hadir; Manajer/Owner langsung.
+export const CORRECTABLE_PAYMENT_METHODS = ["Cash", "QRIS", "Bank Transfer", "E-Wallet"] as const;
+export type CorrectablePaymentMethod = (typeof CORRECTABLE_PAYMENT_METHODS)[number];
+
+export class PaymentCorrectionError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly status = 409,
+  ) {
+    super(message);
+    this.name = "PaymentCorrectionError";
+  }
+}
+
+export async function correctPaymentMethod(
+  orderId: string,
+  input: { paymentId?: string; method: CorrectablePaymentMethod; reason: string; managerPin?: string },
+  garage: GarageSession,
+) {
+  const db = getDb();
+  const isSupervisor = canSuperviseCashSession(garage.profile.role);
+  const reason = input.reason.trim();
+  if (reason.length < 3) {
+    throw new PaymentCorrectionError("Tulis alasan koreksi (min. 3 huruf).", "REASON_REQUIRED", 400);
+  }
+  // PIN dicek sebelum transaksi (lookup memakai koneksi DB terpisah).
+  let approver: { userId: string; name: string } | null = isSupervisor
+    ? { userId: garage.user.id, name: garage.user.name }
+    : null;
+  if (!isSupervisor) {
+    const pin = input.managerPin?.trim();
+    if (!pin) {
+      throw new PaymentCorrectionError(
+        "Koreksi metode bayar oleh kasir wajib PIN Manajer/Owner yang hadir.",
+        "MANAGER_PIN_REQUIRED",
+        403,
+      );
+    }
+    const found = await resolveApproverByPin(pin, garage, `payment-method:${orderId}`);
+    approver = { userId: found.userId, name: found.name };
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const orderPayments = await tx
+      .select()
+      .from(payments)
+      .where(and(eq(payments.orderId, orderId), eq(payments.status, "captured")))
+      .orderBy(asc(payments.createdAt));
+    if (!orderPayments.length) {
+      throw new PaymentCorrectionError("Order ini belum punya pembayaran lunas.", "NO_PAYMENT", 404);
+    }
+    const target = input.paymentId
+      ? orderPayments.find((row) => row.id === input.paymentId)
+      : orderPayments.length === 1
+        ? orderPayments[0]
+        : null;
+    if (!target) {
+      throw new PaymentCorrectionError(
+        "Order ini dibayar split — pilih bagian pembayaran yang ingin dikoreksi.",
+        "PAYMENT_REQUIRED",
+        400,
+      );
+    }
+    const fromGroup = normalizePaymentMethod(target.method);
+    const toGroup = normalizePaymentMethod(input.method);
+    if (fromGroup === toGroup) {
+      throw new PaymentCorrectionError(`Metode sudah ${target.method}.`, "SAME_METHOD", 400);
+    }
+    if (!target.cashSessionId) {
+      throw new PaymentCorrectionError(
+        "Pembayaran ini tidak terikat shift kasir — koreksi lewat Keuangan.",
+        "NO_SESSION",
+      );
+    }
+    const [session] = await tx
+      .select()
+      .from(cashSessions)
+      .where(eq(cashSessions.id, target.cashSessionId))
+      .limit(1)
+      .for("update");
+    if (!session || session.status !== "open") {
+      throw new PaymentCorrectionError(
+        "Shift pembayaran ini sudah ditutup. Koreksi setelah tutup shift dilakukan Owner/Manajer di Keuangan.",
+        "SESSION_CLOSED",
+      );
+    }
+    const inScope =
+      session.openedBy === garage.user.id ||
+      (isSupervisor && (garage.profile.role === "Owner" || session.outletId === garage.profile.outlet.id));
+    if (!inScope) {
+      throw new PaymentCorrectionError(
+        "Pembayaran ini milik shift kasir lain. Minta kasir tersebut atau Manajer/Owner.",
+        "FORBIDDEN",
+        403,
+      );
+    }
+
+    // Laci: keluar dari Cash → kas seharusnya berkurang; masuk ke Cash → bertambah.
+    const cashDelta = (toGroup === "cash" ? target.amount : 0) - (fromGroup === "cash" ? target.amount : 0);
+    if (cashDelta !== 0) {
+      await tx
+        .update(cashSessions)
+        .set({ expectedCash: sql`${cashSessions.expectedCash} + ${cashDelta}` })
+        .where(eq(cashSessions.id, session.id));
+    }
+    const correction = {
+      from: target.method,
+      to: input.method,
+      reason,
+      by: garage.user.name,
+      approvedBy: approver?.name ?? null,
+      at: new Date().toISOString(),
+    };
+    const previous = Array.isArray(target.metadata?.methodCorrections)
+      ? (target.metadata.methodCorrections as unknown[])
+      : [];
+    await tx
+      .update(payments)
+      .set({
+        method: input.method,
+        metadata: { ...target.metadata, methodCorrections: [...previous, correction] },
+      })
+      .where(eq(payments.id, target.id));
+    const [order] = await tx
+      .select({ orderNo: orders.orderNo })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    // Kas seharusnya tidak dikembalikan: kasir tutup shift secara "blind".
+    return {
+      orderNo: order?.orderNo ?? orderId,
+      paymentId: target.id,
+      amount: target.amount,
+      from: target.method,
+      to: input.method,
+      cashDelta,
+      sessionCode: session.code,
+    };
+  });
+
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Koreksi metode bayar",
+    object: result.orderNo,
+    device: garage.profile.deviceLabel,
+    status: "warning",
+    metadata: { ...result, reason, approvedBy: approver?.name ?? null, approverId: approver?.userId ?? null },
+  });
+  return result;
+}
+
 export async function closeCashSession(
   id: string,
   input: CloseCashSessionInput,
@@ -14993,12 +15205,20 @@ export async function closeCashSession(
       );
     }
 
+    const qrisRecorded = await qrisRecordedForSession(tx, id);
+    const qrisCounted = input.qrisCounted ?? null;
+
     const [closedSession] = await tx
       .update(cashSessions)
       .set({
         actualCash,
         discrepancy,
         discrepancyStatus,
+        qrisRecorded,
+        qrisCounted,
+        qrisDiscrepancy: qrisCounted === null ? null : qrisCounted - qrisRecorded,
+        qrisCheckedBy: qrisCounted === null ? null : garage.user.id,
+        qrisCheckedAt: qrisCounted === null ? null : now,
         checklist: input.checklist?.length ? input.checklist : current.checklist,
         denominations: input.denominations ?? {},
         closingNote: input.closingNote?.trim() || null,
@@ -15063,6 +15283,8 @@ export async function closeCashSession(
         managerSignOffVia: managerPin ? "pin" : signer ? "session" : null,
         closedOtherCashier: !ownSession,
         resetTableMode: effectiveResetTableMode,
+        qrisRecorded,
+        qrisCounted,
       },
     });
 
@@ -15429,22 +15651,24 @@ export async function getCashSessionTransactions(
   const orderIds = orderRows.map((o) => o.id);
   const paymentMap = new Map<
     string,
-    Array<{ method: string; amount: number; status: string }>
+    Array<{ id: string; method: string; amount: number; status: string; cashSessionId: string | null }>
   >();
   if (orderIds.length) {
     const paymentRows = await db
       .select({
+        id: payments.id,
         orderId: payments.orderId,
         method: payments.method,
         amount: payments.amount,
         status: payments.status,
+        cashSessionId: payments.cashSessionId,
       })
       .from(payments)
       .where(inArray(payments.orderId, orderIds));
     for (const p of paymentRows) {
       if (!p.orderId) continue;
       const list = paymentMap.get(p.orderId) ?? [];
-      list.push({ method: p.method, amount: p.amount, status: p.status });
+      list.push({ id: p.id, method: p.method, amount: p.amount, status: p.status, cashSessionId: p.cashSessionId });
       paymentMap.set(p.orderId, list);
     }
   }
@@ -15552,6 +15776,7 @@ export async function getDailyCashSessionReport(params: {
       outletCode: outlets.code,
       openedBy: cashSessions.openedBy,
       openedByName: user.name,
+      qrisCounted: cashSessions.qrisCounted,
     })
     .from(cashSessions)
     .leftJoin(outlets, eq(outlets.id, cashSessions.outletId))
@@ -15580,6 +15805,10 @@ export async function getDailyCashSessionReport(params: {
       const nonCashTotal =
         summary?.byMethod
           .filter((method) => normalizePaymentMethod(method.method) !== "cash")
+          .reduce((sum, method) => sum + method.total, 0) ?? 0;
+      const qrisTotal =
+        summary?.byMethod
+          .filter((method) => normalizePaymentMethod(method.method) === "qris")
           .reduce((sum, method) => sum + method.total, 0) ?? 0;
 
       return {
@@ -15610,6 +15839,10 @@ export async function getDailyCashSessionReport(params: {
         byMethod: summary?.byMethod ?? [],
         cashTotal,
         nonCashTotal,
+        // Pencocokan QRIS: tercatat dihitung dari pembayaran (selalu terbaru).
+        qrisTotal,
+        qrisCounted: row.qrisCounted,
+        qrisDiscrepancy: row.qrisCounted === null ? null : row.qrisCounted - qrisTotal,
       };
     }),
   );

@@ -820,6 +820,13 @@
       "when": 1791126093083,
       "tag": "0116_dining_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1791147531742,
+      "tag": "0117_cash_session_qris",
+      "breakpoints": true
     }
   ]
 }

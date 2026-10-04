@@ -17,6 +17,8 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
+import { QRIS_IMAGE_SRC, QRIS_MERCHANT } from "@/lib/garage-qris";
+
 type QrisPaymentDisplayProps = {
   /** Nominal yang harus dibayar (rupiah). Opsional. */
   amount?: number | null;
@@ -63,10 +65,10 @@ function prefersReducedMotion() {
 export function QrisPaymentDisplay({
   amount,
   orderNo,
-  merchantName = "GARAGE COFFEE",
-  nmid = "ID1026601785003",
+  merchantName = QRIS_MERCHANT.name,
+  nmid = QRIS_MERCHANT.nmid,
   cashierCode,
-  qrisSrc = "/payments/qris-garage.png",
+  qrisSrc = QRIS_IMAGE_SRC,
 }: QrisPaymentDisplayProps) {
   const hasAmount = typeof amount === "number" && Number.isFinite(amount) && amount > 0;
 

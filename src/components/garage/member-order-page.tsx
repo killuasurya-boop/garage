@@ -72,6 +72,7 @@ import type { MemberLevel } from "@/lib/member-types";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-settings-types";
 import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
+import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 
 type ApiEnvelope<T> =
   | { data: T; error?: never }
@@ -142,7 +143,7 @@ const customerBankAccounts = [
   { id: "BANK SUMUT", label: "BANK SUMUT - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
 ];
 const qrisProvider = "QRIS GARAGE";
-const qrisImagePath = "/payments/qris-garage.png";
+const qrisImagePath = QRIS_IMAGE_SRC;
 
 function uuidOrUndefined(value: string | null) {
   return value &&

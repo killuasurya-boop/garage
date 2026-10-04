@@ -1055,6 +1055,13 @@ export const cashSessions = pgTable(
       onDelete: "set null",
     }),
     managerSignOffAt: timestamp("manager_sign_off_at", { withTimezone: true }),
+    // Pencocokan QRIS (terpisah dari selisih laci tunai): total QRIS tercatat
+    // sistem vs total di aplikasi/mutasi BNI. counted null = belum dicocokkan.
+    qrisRecorded: integer("qris_recorded"),
+    qrisCounted: integer("qris_counted"),
+    qrisDiscrepancy: integer("qris_discrepancy"),
+    qrisCheckedBy: text("qris_checked_by").references(() => user.id, { onDelete: "set null" }),
+    qrisCheckedAt: timestamp("qris_checked_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },

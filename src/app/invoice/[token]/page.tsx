@@ -25,6 +25,7 @@ import { getInvoiceLiveStatus, getPublicInvoiceTracking } from "@/lib/garage-ser
 import { InvoiceLiveTracker } from "./invoice-live-tracker";
 import { InvoicePrintButton } from "./invoice-print-button";
 import { InvoiceQrCode } from "./invoice-qr";
+import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 
 export const metadata: Metadata = {
   title: "Invoice Tracking - GARAGE Coffee & Motor",
@@ -585,7 +586,7 @@ export default async function InvoiceTrackingPage({
                   <div className="hidden h-24 w-24 shrink-0 overflow-hidden rounded-md border border-[#34343c] bg-white p-1 sm:block">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/payments/qris-garage.png"
+                      src={QRIS_IMAGE_SRC}
                       alt="QRIS Garage"
                       className="h-full w-full object-contain"
                     />

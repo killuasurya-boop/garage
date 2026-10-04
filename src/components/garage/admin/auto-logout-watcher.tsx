@@ -81,7 +81,13 @@ export function AutoLogoutWatcher() {
         }
         // Tablet kasir kembali ke login POS, bukan login dashboard.
         const loginPath = pathname?.startsWith("/pos") ? "/pos-login" : "/login";
-        router.replace(`${loginPath}?reason=idle_timeout`);
+        // Login OS membawa halaman terakhir (next) supaya karyawan kembali ke modul yang
+        // sama; /login memvalidasi target lewat safeReturnTo.
+        const next =
+          loginPath === "/login"
+            ? `&next=${encodeURIComponent(window.location.pathname + window.location.search)}`
+            : "";
+        router.replace(`${loginPath}?reason=idle_timeout${next}`);
       }
     }
 

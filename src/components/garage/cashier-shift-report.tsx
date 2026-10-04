@@ -145,6 +145,8 @@ type DailyShiftReport = {
       qrisTotal?: number;
       qrisCounted?: number | null;
       qrisDiscrepancy?: number | null;
+      floatLeft?: number | null;
+      depositAmount?: number | null;
     }
   >;
   totals: {
@@ -941,6 +943,12 @@ function DailyShiftReportPanel({
                           value={`${row.discrepancy >= 0 ? "+" : ""}${fmtRp(row.discrepancy)}`}
                           tone={row.discrepancy === 0 ? "ok" : row.discrepancy < 0 ? "bad" : "warn"}
                         />
+                        {row.depositAmount != null ? (
+                          <Row label="Disetor" value={fmtRp(row.depositAmount)} />
+                        ) : null}
+                        {row.floatLeft != null ? (
+                          <Row label="Tinggal di laci" value={fmtRp(row.floatLeft)} />
+                        ) : null}
                         {row.qrisTotal ? (
                           <Row
                             label="QRIS"

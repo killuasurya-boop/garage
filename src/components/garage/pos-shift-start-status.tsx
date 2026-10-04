@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, KeyRound, Loader2, PlayCircle, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export type TodayShiftStatus = {
   nextShiftNumber: number;
   limitReached: boolean;
   openByOther: { code: string; cashierName: string; openedAt: string } | null;
+  previousFloat: { amount: number; code: string; closedAt: string | null } | null;
   myOpenSession: {
     id: string;
     code: string;
@@ -57,12 +58,15 @@ const dateClock = (iso: string) =>
  */
 export function ShiftStartStatus({
   onShiftNumber,
+  onSuggestOpeningCash,
   managerPin,
   onManagerPinChange,
   onResume,
   refreshKey = 0,
 }: {
   onShiftNumber: (value: number) => void;
+  /** Modal yang ditinggal shift sebelumnya (kelipatan Rp 50.000) → isi otomatis modal awal. */
+  onSuggestOpeningCash?: (amount: number) => void;
   managerPin: string;
   onManagerPinChange: (value: string) => void;
   onResume: () => Promise<void> | void;
@@ -72,6 +76,11 @@ export function ShiftStartStatus({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resuming, setResuming] = useState(false);
+  // Callback dari induk biasanya inline → simpan di ref agar fetch tidak berulang.
+  const callbacksRef = useRef({ onShiftNumber, onSuggestOpeningCash });
+  useEffect(() => {
+    callbacksRef.current = { onShiftNumber, onSuggestOpeningCash };
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,13 +90,18 @@ export function ShiftStartStatus({
         cache: "no-store",
       });
       setStatus(data);
-      onShiftNumber(data.nextShiftNumber);
+      const { onShiftNumber: setShift, onSuggestOpeningCash: suggest } = callbacksRef.current;
+      setShift(data.nextShiftNumber);
+      const float = data.previousFloat?.amount ?? 0;
+      if (suggest && float >= 50_000 && float <= 500_000 && float % 50_000 === 0) {
+        suggest(float);
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Status shift gagal dimuat.");
     } finally {
       setLoading(false);
     }
-  }, [onShiftNumber]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch status shift saat dialog dibuka/diminta ulang
@@ -194,6 +208,18 @@ export function ShiftStartStatus({
                 </li>
               ))}
             </ul>
+          ) : null}
+
+          {status.previousFloat && !status.myOpenSession ? (
+            <p className="rounded-md border border-[#4a4a54] bg-white/[0.055] px-3 py-2 text-xs leading-5 text-[#d6d6dc]">
+              Shift sebelumnya ({status.previousFloat.code}) meninggalkan{" "}
+              <strong className="text-white">
+                {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(
+                  status.previousFloat.amount,
+                )}
+              </strong>{" "}
+              di laci. Hitung ulang sebelum mulai; isi modal awal sesuai uang yang benar-benar ada.
+            </p>
           ) : null}
 
           {status.myOpenSession ? (

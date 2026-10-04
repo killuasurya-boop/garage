@@ -101,6 +101,10 @@ export type TableTone = {
   labelColor: string;
   /** Kotak kecil untuk keterangan warna / chip. */
   swatch: string;
+  /** Garis aksen status di sisi kiri kartu meja. */
+  bar: string;
+  /** Titik status di pil label. */
+  dot: string;
 };
 
 // Palet Garage (hitam · silver · merah · amber). Setiap status punya LABEL teks,
@@ -114,6 +118,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-dashed border-[#ff2a3a]/70 bg-[#d11a2a]/10",
       label: "Dibersihkan",
+      bar: "bg-[repeating-linear-gradient(180deg,#ff2a3a_0_6px,transparent_6px_10px)]",
+      dot: "bg-[#ff2a3a]",
       short: "Kotor",
       labelColor: "text-[#ffb3b3]",
       swatch: "border border-dashed border-[#ff2a3a] bg-[#d11a2a]/20",
@@ -123,6 +129,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-[#ff2a3a]/75 bg-[#d11a2a]/14",
       label: "Perlu bersih",
+      bar: "bg-[#ff2a3a]",
+      dot: "bg-[#ff2a3a]",
       short: "Kotor",
       labelColor: "text-[#ffb3b3]",
       swatch: "border border-[#ff2a3a] bg-[#d11a2a]/35",
@@ -132,6 +140,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-dashed border-[#d4d4d8]/70 bg-white/[0.04]",
       label: "Dipesan",
+      bar: "bg-[repeating-linear-gradient(180deg,#d4d4d8_0_6px,transparent_6px_10px)]",
+      dot: "bg-[#d4d4d8]",
       short: "Dipesan",
       labelColor: "text-[#e4e4e7]",
       swatch: "border border-dashed border-[#d4d4d8] bg-white/10",
@@ -141,6 +151,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-[#f5a742] bg-[#f5a742]/18",
       label: "Di kasir",
+      bar: "bg-[#f5a742]",
+      dot: "bg-[#f5a742]",
       short: "Di kasir",
       labelColor: "text-[#ffd08a]",
       swatch: "border border-[#f5a742] bg-[#f5a742]/45",
@@ -150,6 +162,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-[#f5a742]/70 bg-[linear-gradient(135deg,rgba(245,167,66,0.14),rgba(212,212,216,0.08))]",
       label: "Sebagian lunas",
+      bar: "bg-[linear-gradient(180deg,#f5a742,#d4d4d8)]",
+      dot: "bg-[#f5a742]",
       short: "Sebagian",
       labelColor: "text-[#ffd08a]",
       swatch: "border border-[#f5a742] bg-[linear-gradient(135deg,rgba(245,167,66,0.5),rgba(212,212,216,0.35))]",
@@ -159,6 +173,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-[#d4d4d8]/60 bg-white/[0.07]",
       label: "Lunas",
+      bar: "bg-[#d4d4d8]",
+      dot: "bg-[#e4e4e7]",
       short: "Lunas",
       labelColor: "text-[#f4f4f5]",
       swatch: "border border-[#d4d4d8] bg-white/25",
@@ -168,6 +184,8 @@ export function tableTone(row: TableLiveRow): TableTone {
     return {
       card: "border-[#f5a742]/70 bg-[#f5a742]/10",
       label: row.status === "pending" ? "Menunggu kasir" : "Belum bayar",
+      bar: "bg-[#f5a742]",
+      dot: "bg-[#f5a742]",
       short: "Terisi",
       labelColor: "text-[#ffd08a]",
       swatch: "border border-[#f5a742]/80 bg-[#f5a742]/25",
@@ -176,6 +194,8 @@ export function tableTone(row: TableLiveRow): TableTone {
   return {
     card: "border-garage-line bg-garage-bg-2",
     label: "Kosong",
+    bar: "bg-[#4a4a54]",
+    dot: "bg-[#8f8f99]",
     short: "Kosong",
     labelColor: "text-garage-dim",
     swatch: "border border-garage-line-2 bg-garage-bg-2",

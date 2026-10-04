@@ -132,6 +132,24 @@ describe("Shift 1 & 2 kasir", () => {
     expect(closed).toMatchObject({ status: "closed", closedBy: MANAJER });
   });
 
+  it("tutup shift mencatat uang ditinggal & disetor; ditinggal > dihitung ditolak", async () => {
+    const shift: any = await svc.createCashSession(
+      { openingCash: 100_000, managerPin: MANAGER_PIN },
+      kasirB(),
+    );
+    await expect(
+      svc.closeCashSession(shift.id, { actualCash: 150_000, floatLeft: 200_000 }, kasirB()),
+    ).rejects.toThrow(/tidak boleh lebih besar/);
+    const closed: any = await svc.closeCashSession(
+      shift.id,
+      { actualCash: 150_000, floatLeft: 100_000 },
+      kasirB(),
+    );
+    expect(closed).toMatchObject({ floatLeft: 100_000, depositAmount: 50_000 });
+    const status = await svc.getTodayCashShiftStatus(kasirA());
+    expect(status.previousFloat).toMatchObject({ amount: 100_000, code: shift.code });
+  });
+
   it("POS Manajer memakai shift miliknya sendiri, bukan shift terbaru kasir", async () => {
     const own: any = await svc.createCashSession({ openingCash: 50_000 }, manajer());
     // Shift kasir lain dibuka setelahnya → jadi shift "terbaru" outlet.

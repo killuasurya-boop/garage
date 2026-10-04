@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 
 import type { ApiEnvelope, DisplayQueueOrder } from "@/lib/garage-api-types";
 import { formatTableDuration } from "@/lib/garage-tables";
+import { TablePlate } from "@/components/garage/table-plate";
 
 async function getQueue() {
   const response = await fetch("/api/display/customer-queue", { cache: "no-store" });
@@ -21,20 +22,22 @@ type MergedOrder = {
   key: string;
   bigLabel: string;
   subLabel: string;
+  /** Dine-in: tampil sebagai plat nomor meja. */
+  isTable: boolean;
   status: QueueStatus;
   waitMinutes: number;
 };
 
 // Identitas ramah-layar: dine-in tampil NOMOR MEJA, takeaway/delivery tampil
 // kode antrean ringkas dari orderNo (3 digit terakhir) supaya mudah dipanggil.
-function displayLabel(order: DisplayQueueOrder): { big: string; sub: string } {
+function displayLabel(order: DisplayQueueOrder): { big: string; sub: string; isTable?: boolean } {
   const table = (order.tableLabel ?? "").trim();
   const mejaMatch = table.match(/meja\s*0*(\d+)/i);
   const digits = (order.orderNo ?? order.ticketNo ?? "").replace(/\D/g, "");
   const code = digits.slice(-3) || "--";
   if (mejaMatch) {
     // Kode order kecil membedakan dua pesanan dari meja yang sama.
-    return { big: mejaMatch[1].padStart(2, "0"), sub: `MEJA · #${code}` };
+    return { big: mejaMatch[1].padStart(2, "0"), sub: `#${code}`, isTable: true };
   }
   if (/take|bawa/i.test(table)) return { big: code, sub: "TAKE AWAY" };
   if (/deliver|antar/i.test(table)) return { big: code, sub: "DELIVERY" };
@@ -58,11 +61,12 @@ function mergeOrders(orders: DisplayQueueOrder[]): MergedOrder[] {
     const anyQueue = tix.some((t) => t.status === "queue");
     const allDone = tix.every((t) => t.status === "ready" || t.status === "delivered");
     const status: QueueStatus = allDone ? "ready" : anyCooking ? "cooking" : anyQueue ? "queue" : "queue";
-    const { big, sub } = displayLabel(tix[0]);
+    const { big, sub, isTable } = displayLabel(tix[0]);
     merged.push({
       key,
       bigLabel: big,
       subLabel: sub,
+      isTable: Boolean(isTable),
       status,
       waitMinutes: Math.max(0, ...tix.map((t) => t.elapsed)),
     });
@@ -209,6 +213,14 @@ function QueueColumn({
                 backgroundColor: highlight ? `${accent}18` : "rgba(0,0,0,0.2)",
               }}
             >
+              {o.isTable ? (
+                <div className="flex min-w-0 items-center gap-3">
+                  <TablePlate number={o.bigLabel} size="lg" numberClassName="text-[clamp(34px,4vw,56px)]" />
+                  <p className="font-mono text-[13px] font-bold uppercase tracking-wider" style={{ color: accent }}>
+                    {o.subLabel}
+                  </p>
+                </div>
+              ) : (
               <div className="min-w-0">
                 {o.subLabel ? (
                   <p
@@ -222,6 +234,7 @@ function QueueColumn({
                   {o.bigLabel}
                 </p>
               </div>
+              )}
               <div className="shrink-0 text-right">
                 <p className="text-sm text-[#9a9aa2]">menunggu</p>
                 <p className="text-2xl font-black tabular-nums text-[#e8e8ec]">{formatTableDuration(o.waitMinutes)}</p>

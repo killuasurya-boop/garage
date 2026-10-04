@@ -433,6 +433,8 @@ export type CashSession = {
   qrisRecorded?: number | null;
   qrisCounted?: number | null;
   qrisDiscrepancy?: number | null;
+  floatLeft?: number | null;
+  depositAmount?: number | null;
   resetTables?: {
     requested: boolean;
     mode?: "none" | "completed" | "all";

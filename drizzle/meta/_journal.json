@@ -827,6 +827,13 @@
       "when": 1791147531742,
       "tag": "0117_cash_session_qris",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1791148936735,
+      "tag": "0118_cash_session_deposit",
+      "breakpoints": true
     }
   ]
 }

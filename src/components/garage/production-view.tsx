@@ -20,6 +20,8 @@ import {
   X,
 } from "lucide-react";
 
+import { TablePlate } from "@/components/garage/table-plate";
+import { parseTableNumber, tableNumberFromLabel } from "@/lib/garage-tables";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -84,10 +86,16 @@ function elapsedMinutes(fromIso: string, now: number) {
   return Math.max(0, (now - new Date(fromIso).getTime()) / 60000);
 }
 
-function tableLabel(table: string) {
+function tableNumberOf(table: string) {
   const t = table.trim();
-  if (/^(meja|take|delivery|bawa)/i.test(t)) return t.toUpperCase();
-  return `MEJA ${t.replace(/^T-?/i, "")}`;
+  if (/^(take|delivery|bawa)/i.test(t)) return null;
+  return tableNumberFromLabel(t) ?? parseTableNumber(t.replace(/^T-?/i, ""));
+}
+
+function tableLabel(table: string) {
+  // "Meja 6", "T-6", "6" → "MEJA 06" (sama dengan plat nomor meja di layar lain).
+  const number = tableNumberOf(table);
+  return number ? `MEJA ${number}` : table.trim().toUpperCase();
 }
 
 function StationChip({ station }: { station: "Bar" | "Food" }) {
@@ -538,9 +546,13 @@ export function ProductionView({
             <p className="break-words text-xl font-black uppercase leading-tight text-white">
               {ticket.identity}
             </p>
-            <p className="mt-0.5 font-mono text-lg font-black leading-tight text-[#ffd08a]">
-              {tableLabel(ticket.table)}
-            </p>
+            {tableNumberOf(ticket.table) ? (
+              <TablePlate number={tableNumberOf(ticket.table)!} size="sm" className="mt-1.5" />
+            ) : (
+              <p className="mt-0.5 font-mono text-lg font-black leading-tight text-[#ffd08a]">
+                {tableLabel(ticket.table)}
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <StationChip station={ticket.station} />

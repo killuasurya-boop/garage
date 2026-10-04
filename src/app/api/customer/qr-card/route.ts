@@ -56,15 +56,15 @@ function escapeXml(value: string) {
 }
 
 /**
- * Rakit KARTU QR meja lengkap sebagai SVG mandiri (vektor):
- * aksen Garage + logo + nomor meja besar + QR + instruksi + footer + garis potong.
- * Body putih untuk cetak hemat tinta & scan paling andal.
+ * Rakit KARTU QR meja (SVG vektor, 540×840 — sama dengan tata letak PDF):
+ * header hitam + logo di chip putih, nomor meja raksasa, QR dengan bingkai
+ * bidik merah, 3 langkah bernomor, footer hitam + nomor meja di blok merah.
+ * Badan kartu putih agar hemat tinta & QR paling mudah discan.
  */
 export async function buildQrCardSvg(table: string, orderUrl: string): Promise<string> {
   const W = 540;
   const H = 840;
 
-  // QR sebagai SVG (tanpa margin sendiri — quiet-zone diatur manual di kartu).
   const qrSvg = await QRCode.toString(orderUrl, {
     type: "svg",
     margin: 0,
@@ -75,56 +75,82 @@ export async function buildQrCardSvg(table: string, orderUrl: string): Promise<s
   const qrN = vbMatch ? parseFloat(vbMatch[1]) : 25;
   const qrPaths = (qrSvg.match(/<path[\s\S]*?\/>/g) ?? []).join("");
 
-  // Area QR di kartu.
-  const qrBox = 300;
+  const qrBox = 250;
   const qrX = (W - qrBox) / 2;
-  const qrY = 300;
+  const qrY = 326;
   const qrScale = qrBox / qrN;
+  const pad = 18; // jarak bingkai bidik dari QR
+  const arm = 34; // panjang lengan sudut bingkai
+  const bx0 = qrX - pad;
+  const by0 = qrY - pad;
+  const bx1 = qrX + qrBox + pad;
+  const by1 = qrY + qrBox + pad;
+  const corner = (x: number, y: number, dx: number, dy: number) =>
+    `<path d="M${x} ${y + dy * arm} L${x} ${y} L${x + dx * arm} ${y}" fill="none" stroke="#d11a2a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  const steps = [
+    { x: 120, label: "Scan QR" },
+    { x: 270, label: "Pilih menu" },
+    { x: 420, label: "Kirim pesanan" },
+  ];
 
   const logo = logoDataUri();
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">
   <defs>
-    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#d11a2a"/>
-      <stop offset="0.6" stop-color="#f5a742"/>
-      <stop offset="1" stop-color="#111116"/>
-    </linearGradient>
+    <clipPath id="card"><rect x="14" y="14" width="${W - 28}" height="${H - 28}" rx="22"/></clipPath>
   </defs>
 
-  <rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>
-  <rect x="10" y="10" width="${W - 20}" height="${H - 20}" fill="none" stroke="#d8d0c4" stroke-width="2" stroke-dasharray="8 7"/>
+  <!-- Garis potong -->
+  <rect x="4" y="4" width="${W - 8}" height="${H - 8}" rx="28" fill="none" stroke="#cfc8bc" stroke-width="2" stroke-dasharray="9 7"/>
 
-  <rect x="22" y="24" width="${W - 44}" height="12" fill="url(#acc)"/>
+  <g clip-path="url(#card)">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>
 
-  ${
-    logo
-      ? `<image href="${logo}" x="${(W - 210) / 2}" y="52" width="210" height="70" preserveAspectRatio="xMidYMid meet"/>`
-      : `<text x="${W / 2}" y="104" text-anchor="middle" font-size="40" font-weight="900" fill="#111116">GARAGE</text>`
-  }
+    <!-- Header -->
+    <rect x="0" y="0" width="${W}" height="128" fill="#111116"/>
+    <rect x="0" y="128" width="${W}" height="8" fill="#d11a2a"/>
+    <rect x="${(W - 248) / 2}" y="30" width="248" height="76" rx="14" fill="#f4f4f5"/>
+    ${
+      logo
+        ? `<image href="${logo}" x="${(W - 220) / 2}" y="36" width="220" height="64" preserveAspectRatio="xMidYMid meet"/>`
+        : `<text x="${W / 2}" y="82" text-anchor="middle" font-size="38" font-weight="900" fill="#111116">GARAGE</text>`
+    }
 
-  <!-- Band nomor meja -->
-  <rect x="34" y="150" width="${W - 68}" height="120" rx="10" fill="#111116"/>
-  <text x="58" y="196" font-size="20" font-weight="800" letter-spacing="4" fill="#f5a742">MEJA</text>
-  <text x="58" y="238" font-size="22" font-weight="800" fill="#ffffff">SCAN UNTUK PESAN</text>
-  <text x="${W - 58}" y="252" text-anchor="end" font-size="118" font-weight="900" fill="#ffffff">${escapeXml(table)}</text>
+    <!-- Nomor meja -->
+    <text x="${W / 2}" y="178" text-anchor="middle" font-size="20" font-weight="800" letter-spacing="12" fill="#d11a2a">MEJA</text>
+    <text x="${W / 2}" y="294" text-anchor="middle" font-size="140" font-weight="900" letter-spacing="-3" fill="#111116">${escapeXml(table)}</text>
 
-  <!-- QR -->
-  <rect x="${qrX - 16}" y="${qrY - 16}" width="${qrBox + 32}" height="${qrBox + 32}" rx="8" fill="#ffffff" stroke="#e3ddd2" stroke-width="2"/>
-  <g transform="translate(${qrX}, ${qrY}) scale(${qrScale})">${qrPaths}</g>
+    <!-- QR + bingkai bidik -->
+    <g transform="translate(${qrX}, ${qrY}) scale(${qrScale})">${qrPaths}</g>
+    ${corner(bx0, by0, 1, 1)}
+    ${corner(bx1, by0, -1, 1)}
+    ${corner(bx0, by1, 1, -1)}
+    ${corner(bx1, by1, -1, -1)}
 
-  <!-- Instruksi 3 langkah -->
-  <text x="${W / 2}" y="${qrY + qrBox + 58}" text-anchor="middle" font-size="26" font-weight="900" fill="#d11a2a" letter-spacing="1">SCAN DENGAN KAMERA HP</text>
-  <text x="${W / 2}" y="${qrY + qrBox + 90}" text-anchor="middle" font-size="17" font-weight="700" fill="#5f554b">1. Scan  ·  2. Pilih menu  ·  3. Kirim ke kasir</text>
+    <!-- Ajakan + 3 langkah -->
+    <text x="${W / 2}" y="${by1 + 42}" text-anchor="middle" font-size="23" font-weight="900" letter-spacing="1" fill="#111116">SCAN &amp; PESAN DARI MEJA</text>
+    ${steps
+      .map(
+        (step, index) => `<circle cx="${step.x}" cy="${by1 + 74}" r="16" fill="#d11a2a"/>
+    <text x="${step.x}" y="${by1 + 80}" text-anchor="middle" font-size="17" font-weight="900" fill="#ffffff">${index + 1}</text>
+    <text x="${step.x}" y="${by1 + 108}" text-anchor="middle" font-size="15" font-weight="700" fill="#3a332c">${step.label}</text>`,
+      )
+      .join("\n    ")}
+    <line x1="${steps[0].x + 26}" y1="${by1 + 74}" x2="${steps[1].x - 26}" y2="${by1 + 74}" stroke="#e3ddd2" stroke-width="3" stroke-dasharray="4 5"/>
+    <line x1="${steps[1].x + 26}" y1="${by1 + 74}" x2="${steps[2].x - 26}" y2="${by1 + 74}" stroke="#e3ddd2" stroke-width="3" stroke-dasharray="4 5"/>
 
-  <!-- URL fallback -->
-  <text x="${W / 2}" y="${qrY + qrBox + 118}" text-anchor="middle" font-size="11" fill="#9a9086">${escapeXml(orderUrl)}</text>
+    <!-- Footer -->
+    <rect x="0" y="${H - 96}" width="${W}" height="96" fill="#111116"/>
+    <text x="40" y="${H - 54}" font-size="17" font-weight="900" letter-spacing="1.5" fill="#ffffff">GARAGE COFFEE &amp; MOTOR</text>
+    <text x="40" y="${H - 30}" font-size="13" font-weight="700" fill="#f5a742">Butuh bantuan? Panggil pelayan.</text>
+    <rect x="${W - 150}" y="${H - 96}" width="150" height="96" fill="#d11a2a"/>
+    <text x="${W - 75}" y="${H - 62}" text-anchor="middle" font-size="12" font-weight="800" letter-spacing="4" fill="#ffd7dc">MEJA</text>
+    <text x="${W - 75}" y="${H - 24}" text-anchor="middle" font-size="40" font-weight="900" fill="#ffffff">${escapeXml(table)}</text>
+  </g>
 
-  <!-- Footer -->
-  <line x1="34" y1="${H - 70}" x2="${W - 34}" y2="${H - 70}" stroke="#e3ddd2" stroke-width="2"/>
-  <text x="34" y="${H - 42}" font-size="15" font-weight="800" letter-spacing="1" fill="#5f554b">GARAGE COFFEE &amp; MOTOR</text>
-  <text x="34" y="${H - 24}" font-size="11" fill="#9a9086">Butuh bantuan? Panggil pelayan.</text>
-  <text x="${W - 34}" y="${H - 30}" text-anchor="end" font-size="30" font-weight="900" fill="#d11a2a">${escapeXml(table)}</text>
+  <!-- URL cadangan (di luar area potong bawah tetap terbaca di cetakan) -->
+  <text x="${W / 2}" y="${H - 110}" text-anchor="middle" font-size="10" fill="#9a9086">${escapeXml(orderUrl)}</text>
 </svg>`;
 }
 

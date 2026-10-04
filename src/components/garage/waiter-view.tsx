@@ -17,6 +17,7 @@ import {
   RefreshCw,
   ReceiptText,
   Settings,
+  Users,
   Volume2,
   VolumeX,
   Vibrate,
@@ -37,6 +38,7 @@ import {
   type WaiterNotifyPrefs,
 } from "@/lib/waiter-notify";
 import { useGarageToast } from "@/components/garage/garage-toast";
+import { TablePlate } from "@/components/garage/table-plate";
 import {
   EmptyState,
   POLL_MS,
@@ -753,20 +755,28 @@ export function WaiterView({ me }: Props) {
                         glow ? "motion-safe:animate-[waiterGlow_1300ms_ease-out]" : ""
                       }`}
                     >
+                      <span className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${tone.bar}`} aria-hidden />
                       <button
                         type="button"
                         onClick={() => setDetailTable(row.tableNumber)}
-                        className="flex min-h-[84px] flex-1 flex-col p-2 text-left transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
+                        className="flex min-h-[104px] flex-1 flex-col gap-1.5 p-2 pl-2.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
                         aria-label={`${row.tableLabel}, ${tone.label}${row.total > 0 ? `, ${formatRupiah(row.total)}` : ""}. Buka detail.`}
                       >
-                        <span className="font-mono text-[24px] font-black leading-none text-white sm:text-[26px]">
-                          {row.tableNumber}
+                        <span className="flex items-start justify-between gap-1">
+                          <TablePlate number={row.tableNumber} size="sm" />
+                          {row.capacity ? (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-garage-dim" title={`${row.capacity} kursi`}>
+                              <Users size={10} aria-hidden />
+                              {row.capacity}
+                            </span>
+                          ) : null}
                         </span>
-                        <span className={`mt-1.5 line-clamp-2 text-[11px] font-bold leading-tight ${tone.labelColor}`}>
-                          {tone.label}
+                        <span className={`inline-flex max-w-full items-center gap-1 text-[11px] font-bold leading-tight ${tone.labelColor}`}>
+                          <span className={`size-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
+                          <span className="line-clamp-2">{tone.label}</span>
                         </span>
                         {row.total > 0 ? (
-                          <span className="truncate font-mono text-[11px] leading-tight text-white/85">
+                          <span className="truncate font-mono text-[11px] font-semibold leading-tight text-white">
                             {formatRupiah(row.total)}
                           </span>
                         ) : row.area ? (
@@ -836,9 +846,7 @@ export function WaiterView({ me }: Props) {
                         onClick={() => setDetailTable(row.tableNumber)}
                         className={`flex min-h-14 w-full items-center gap-3 rounded-lg border p-2.5 text-left transition hover:bg-white/[0.04] ${tone.card}`}
                       >
-                        <span className="grid size-11 shrink-0 place-items-center rounded-md bg-black/30 font-mono text-[17px] font-black text-white">
-                          {row.tableNumber}
-                        </span>
+                        <TablePlate number={row.tableNumber} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className={`block text-[13px] font-bold ${tone.labelColor}`}>{tone.label}</span>
                           <span className="block truncate text-[12px] text-garage-dim">
@@ -866,9 +874,7 @@ export function WaiterView({ me }: Props) {
                   onClick={() => setDetailTable(row.tableNumber)}
                   className="flex min-h-14 w-full items-center gap-2.5 rounded-md bg-garage-bg-2 p-2 text-left ring-1 ring-garage-line transition hover:ring-white/35"
                 >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-md bg-black/30 font-mono text-[15px] font-black text-white">
-                    {row.tableNumber}
-                  </span>
+                  <TablePlate number={row.tableNumber} size="sm" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold text-white">{urgentReason(row)}</span>
                     <span className="block truncate text-[12px] text-garage-dim">

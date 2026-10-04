@@ -1062,6 +1062,10 @@ export const cashSessions = pgTable(
     qrisDiscrepancy: integer("qris_discrepancy"),
     qrisCheckedBy: text("qris_checked_by").references(() => user.id, { onDelete: "set null" }),
     qrisCheckedAt: timestamp("qris_checked_at", { withTimezone: true }),
+    // Serah terima uang laci saat tutup: ditinggal untuk modal shift berikutnya
+    // dan disetor ke Owner/brankas (= uang dihitung − ditinggal).
+    floatLeft: integer("float_left"),
+    depositAmount: integer("deposit_amount"),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },

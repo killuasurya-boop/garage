@@ -326,6 +326,8 @@ type CloseCashSessionInput = {
   resetTables?: boolean;
   /** Total QRIS di aplikasi/notifikasi BNI untuk shift ini (opsional, pencocokan). */
   qrisCounted?: number;
+  /** Uang yang ditinggal di laci untuk modal shift berikutnya (sisanya disetor). */
+  floatLeft?: number;
 };
 
 type ExpenseInput = {
@@ -14660,6 +14662,13 @@ export class CashSessionAlreadyClosedError extends Error {
   }
 }
 
+export class CashSessionInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CashSessionInputError";
+  }
+}
+
 export class CashSessionSignOffRequiredError extends Error {
   constructor(message: string) {
     super(message);
@@ -14789,6 +14798,12 @@ export async function getTodayCashShiftStatus(garage: GarageSession) {
       .orderBy(desc(cashSessions.openedAt))
       .limit(1),
   ]);
+  const [lastClosed] = await db
+    .select({ floatLeft: cashSessions.floatLeft, code: cashSessions.code, closedAt: cashSessions.closedAt })
+    .from(cashSessions)
+    .where(and(eq(cashSessions.outletId, outletId), eq(cashSessions.status, "closed"), isNotNull(cashSessions.floatLeft)))
+    .orderBy(desc(cashSessions.closedAt))
+    .limit(1);
   const isKasir = garage.profile.role === "Kasir";
   const openByOther = shifts.find((row) => row.status === "open" && row.openedBy !== garage.user.id);
   return {
@@ -14814,6 +14829,10 @@ export async function getTodayCashShiftStatus(garage: GarageSession) {
             openedAt: openByOther.openedAt.toISOString(),
           }
         : null,
+    // Modal yang ditinggal shift sebelumnya → saran modal awal shift ini.
+    previousFloat: lastClosed
+      ? { amount: lastClosed.floatLeft ?? 0, code: lastClosed.code, closedAt: lastClosed.closedAt?.toISOString() ?? null }
+      : null,
     myOpenSession: myOpen
       ? {
           id: myOpen.id,
@@ -15207,6 +15226,12 @@ export async function closeCashSession(
 
     const qrisRecorded = await qrisRecordedForSession(tx, id);
     const qrisCounted = input.qrisCounted ?? null;
+    if (input.floatLeft !== undefined && input.floatLeft > actualCash) {
+      throw new CashSessionInputError(
+        "Uang yang ditinggal di laci tidak boleh lebih besar dari uang yang dihitung.",
+      );
+    }
+    const floatLeft = input.floatLeft ?? null;
 
     const [closedSession] = await tx
       .update(cashSessions)
@@ -15219,6 +15244,8 @@ export async function closeCashSession(
         qrisDiscrepancy: qrisCounted === null ? null : qrisCounted - qrisRecorded,
         qrisCheckedBy: qrisCounted === null ? null : garage.user.id,
         qrisCheckedAt: qrisCounted === null ? null : now,
+        floatLeft,
+        depositAmount: floatLeft === null ? null : actualCash - floatLeft,
         checklist: input.checklist?.length ? input.checklist : current.checklist,
         denominations: input.denominations ?? {},
         closingNote: input.closingNote?.trim() || null,
@@ -15285,6 +15312,8 @@ export async function closeCashSession(
         resetTableMode: effectiveResetTableMode,
         qrisRecorded,
         qrisCounted,
+        floatLeft,
+        depositAmount: floatLeft === null ? null : actualCash - floatLeft,
       },
     });
 
@@ -15777,6 +15806,8 @@ export async function getDailyCashSessionReport(params: {
       openedBy: cashSessions.openedBy,
       openedByName: user.name,
       qrisCounted: cashSessions.qrisCounted,
+      floatLeft: cashSessions.floatLeft,
+      depositAmount: cashSessions.depositAmount,
     })
     .from(cashSessions)
     .leftJoin(outlets, eq(outlets.id, cashSessions.outletId))
@@ -15843,6 +15874,8 @@ export async function getDailyCashSessionReport(params: {
         qrisTotal,
         qrisCounted: row.qrisCounted,
         qrisDiscrepancy: row.qrisCounted === null ? null : row.qrisCounted - qrisTotal,
+        floatLeft: row.floatLeft,
+        depositAmount: row.depositAmount,
       };
     }),
   );

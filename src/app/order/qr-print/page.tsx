@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
+import { AlertTriangle, ArrowLeft, Download, FileDown, Printer } from "lucide-react";
 
 import {
   QR_TABLE_NUMBERS,
@@ -8,11 +9,12 @@ import {
   normalizeGarageBaseUrl,
   normalizeQrTableNumber,
 } from "@/lib/garage-qr";
+import { getActiveTableNumbers } from "@/lib/garage-service";
 
 export const runtime = "nodejs";
 
 export const metadata: Metadata = {
-  title: "Manajemen QR Meja | GARAGE POS",
+  title: "Cetak QR Meja | GARAGE OS",
 };
 
 type QrPrintPageProps = {
@@ -22,14 +24,33 @@ type QrPrintPageProps = {
   }>;
 };
 
-function selectedTables(rawTables?: string | string[]) {
+// "?tables=01,02,05-08" → daftar meja unik. Tanpa parameter → semua meja aktif.
+function parseTableSelection(rawTables?: string | string[]) {
   const rawValue = Array.isArray(rawTables) ? rawTables.join(",") : rawTables;
-  if (!rawValue) return QR_TABLE_NUMBERS;
-  const tables = rawValue
-    .split(",")
-    .map(normalizeQrTableNumber)
-    .filter((table): table is string => Boolean(table));
-  return tables.length ? Array.from(new Set(tables)) : QR_TABLE_NUMBERS;
+  if (!rawValue?.trim()) return null;
+  const tables: string[] = [];
+  for (const part of rawValue.split(",")) {
+    const range = part.trim().match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+    if (range) {
+      const [from, to] = [Number(range[1]), Number(range[2])].sort((a, b) => a - b);
+      for (let value = from; value <= to; value += 1) {
+        const table = normalizeQrTableNumber(value);
+        if (table) tables.push(table);
+      }
+      continue;
+    }
+    const table = normalizeQrTableNumber(part);
+    if (table) tables.push(table);
+  }
+  return tables.length ? Array.from(new Set(tables)).sort() : null;
+}
+
+async function activeTablesOrAll() {
+  try {
+    return await getActiveTableNumbers();
+  } catch {
+    return QR_TABLE_NUMBERS;
+  }
 }
 
 function configuredBaseRaw() {
@@ -66,72 +87,94 @@ function qrCard(baseUrl: string, table: string) {
 export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
   const params = await searchParams;
   const base = publicBaseInfo();
-  const tables = selectedTables(params.tables);
+  const requested = parseTableSelection(params.tables);
+  const activeTables = await activeTablesOrAll();
+  const tables = requested ?? activeTables;
   const autoPrint = shouldAutoPrint(params.print);
-  const isPilot = tables.length < QR_TABLE_NUMBERS.length;
   const cards = tables.map((table) => qrCard(base.baseUrl, table));
-  const pdfHref = isPilot
-    ? `/api/customer/qr-cards/pdf?tables=${tables.join(",")}`
-    : `/api/customer/qr-cards/pdf`;
+  const pdfHref = `/api/customer/qr-cards/pdf?tables=${tables.join(",")}`;
+  const selectionValue = Array.isArray(params.tables) ? params.tables.join(",") : params.tables ?? "";
 
   return (
     <main className="qr-mgr">
       <header className="mgr-header">
         <div className="mgr-title">
           <span className="mgr-eyebrow">GARAGE COFFEE &amp; MOTOR</span>
-          <h1>Manajemen QR Meja</h1>
+          <h1>Cetak QR Meja</h1>
           <p className="mgr-sub">
-            {isPilot ? `QR Pilot ${tables.length} Meja` : "Semua 50 meja"} · Kartu siap
-            cetak (logo + nomor meja + QR).
+            {requested ? `${tables.length} meja dipilih` : `${tables.length} meja aktif`} · kartu siap cetak
+            (logo + nomor meja + QR).
           </p>
         </div>
-        <a className="back-link" href="/pos">
-          Kembali ke POS
-        </a>
+        <div className="mgr-nav">
+          <a className="back-link" href="/os?module=settings">
+            <ArrowLeft size={16} aria-hidden /> Atur meja
+          </a>
+          <a className="back-link" href="/pos">
+            Kembali ke POS
+          </a>
+        </div>
       </header>
 
       <section className="mgr-info">
         <div className="info-cell">
-          <span className="info-label">Base URL (tujuan scan)</span>
-          <span className="info-value">{base.baseUrl}</span>
+          <span className="info-label">Tujuan scan</span>
+          <span className="info-value">{base.baseUrl}/order?table=XX</span>
         </div>
         <div className="info-cell">
-          <span className="info-label">Meja</span>
+          <span className="info-label">Jumlah kartu</span>
           <span className="info-value">{tables.length} kartu</span>
         </div>
-        <div className="info-cell">
-          <span className="info-label">Payload</span>
-          <span className="info-value">/order?table=XX</span>
-        </div>
+        <form className="info-cell select-form" method="get">
+          <label className="info-label" htmlFor="qr-tables">
+            Pilih meja (mis. 01,05,10-12)
+          </label>
+          <div className="select-row">
+            <input
+              id="qr-tables"
+              name="tables"
+              defaultValue={selectionValue}
+              placeholder={`Kosong = ${activeTables.length} meja aktif`}
+              inputMode="numeric"
+              autoComplete="off"
+            />
+            <button className="qr-btn qr-btn-ghost" type="submit">
+              Tampilkan
+            </button>
+          </div>
+        </form>
       </section>
 
       {base.warning ? (
-        <section className="base-warning">
-          ⚠ Base URL QR masih <b>local/fallback</b> ({base.baseUrl}). QR ini TIDAK bisa
-          discan HP lain. Set <code>GARAGE_PUBLIC_BASE_URL</code> &amp;{" "}
-          <code>NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL</code> ke IP LAN tetap (mis.
-          http://192.168.100.33:3001), rebuild, baru cetak QR permanen.
+        <section className="base-warning" role="alert">
+          <AlertTriangle size={18} aria-hidden />
+          <span>
+            Alamat QR masih <b>lokal/fallback</b> ({base.baseUrl}) — QR ini <b>tidak bisa</b> discan HP lain.
+            Set <code>GARAGE_PUBLIC_BASE_URL</code> &amp; <code>NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL</code> ke alamat
+            outlet (mis. https://garagecoffee.id), lalu cetak ulang.
+          </span>
         </section>
       ) : null}
 
       <div className="mgr-actions">
-        <a className="btn btn-pdf" href={pdfHref} data-pdf>
-          ⬇ Unduh PDF Siap Cetak
+        <a className="qr-btn qr-btn-pdf" href={pdfHref}>
+          <FileDown size={17} aria-hidden /> Unduh PDF siap cetak
         </a>
-        <button className="btn btn-png" type="button" data-dl-all>
-          ⬇ Unduh Semua PNG
+        <button className="qr-btn qr-btn-ghost" type="button" data-print-now>
+          <Printer size={17} aria-hidden /> Cetak langsung
         </button>
-        <button className="btn btn-print" type="button" data-print-now>
-          🖨 Cetak Langsung
+        <button className="qr-btn qr-btn-ghost" type="button" data-dl-all>
+          <Download size={17} aria-hidden /> Unduh semua PNG
         </button>
-        <span className="actions-hint">
-          PDF = 1 file untuk percetakan · PNG = gambar kartu per meja (HD)
+        <span className="actions-hint" data-status role="status">
+          Untuk percetakan: pakai PDF. PNG cocok untuk 1–5 meja (HP bisa memblokir banyak unduhan).
         </span>
       </div>
 
       <section className="card-grid" aria-label="Kartu QR per meja">
         {cards.map((card) => (
           <article className="card-item" key={card.table}>
+            {/* Tanpa lazy-load: "Cetak langsung" mencetak semua kartu sekaligus. */}
             <img
               className="card-svg"
               src={card.cardUrl}
@@ -139,7 +182,7 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
               data-card
               data-table={card.table}
               data-src={card.cardUrl}
-              loading="lazy"
+              decoding="async"
             />
             <button
               className="btn-dl-one"
@@ -148,7 +191,7 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
               data-table={card.table}
               data-src={card.cardUrl}
             >
-              ⬇ Unduh PNG Meja {card.table}
+              <Download size={14} aria-hidden /> PNG Meja {card.table}
             </button>
           </article>
         ))}
@@ -157,85 +200,84 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
       <style>{`
         .qr-mgr {
           min-height: 100vh;
-          background: linear-gradient(180deg, #f7f3ec, #ece4d8);
-          color: #171412;
-          font-family: Arial, Helvetica, sans-serif;
-          padding: 24px;
+          background: #08080a;
+          border-top: 4px solid #d11a2a;
+          color: #f4f4f5;
+          font-family: var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
+          padding: 24px 16px;
         }
         .mgr-header {
-          align-items: center;
-          display: flex;
-          gap: 16px;
-          justify-content: space-between;
-          margin: 0 auto 14px;
-          max-width: 1180px;
+          align-items: flex-end; display: flex; flex-wrap: wrap; gap: 16px;
+          justify-content: space-between; margin: 0 auto 16px; max-width: 1180px;
         }
-        .mgr-eyebrow {
-          color: #d11a2a;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: 0.22em;
-        }
-        .mgr-title h1 {
-          font-size: clamp(24px, 3.4vw, 40px);
-          letter-spacing: -0.02em;
-          margin: 4px 0 4px;
-          text-transform: uppercase;
-        }
-        .mgr-sub { color: #5f554b; font-size: 13px; font-weight: 700; margin: 0; }
+        .mgr-eyebrow { color: #ff5a66; font-size: 11px; font-weight: 800; letter-spacing: 0.22em; }
+        .mgr-title h1 { font-size: clamp(26px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.01em; margin: 4px 0; }
+        .mgr-sub { color: #b8b8bf; font-size: 14px; margin: 0; }
+        .mgr-nav { display: flex; flex-wrap: wrap; gap: 8px; }
         .back-link {
-          background: #171412; color: #fff; font-size: 13px; font-weight: 800;
-          min-height: 42px; padding: 12px 14px; text-decoration: none; text-transform: uppercase;
-          white-space: nowrap;
+          align-items: center; background: #19191e; border: 1px solid #34343c; border-radius: 8px;
+          color: #f4f4f5; display: inline-flex; font-size: 14px; font-weight: 700; gap: 6px;
+          min-height: 44px; padding: 0 14px; text-decoration: none;
         }
+        .back-link:hover { border-color: #f4f4f5; }
         .mgr-info {
-          display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
           margin: 0 auto 12px; max-width: 1180px;
         }
         .info-cell {
-          background: #fff; border: 1px solid #e0d8cc; border-radius: 8px;
-          display: flex; flex-direction: column; gap: 3px; padding: 10px 12px;
+          background: #121216; border: 1px solid #2a2a30; border-radius: 8px;
+          display: flex; flex-direction: column; gap: 4px; padding: 10px 12px;
         }
-        .info-label { color: #9a9086; font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
-        .info-value { color: #171412; font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+        .info-label { color: #b8b8bf; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+        .info-value { color: #f4f4f5; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+        .select-row { display: flex; gap: 8px; }
+        .select-row input {
+          background: #08080a; border: 1px solid #3a3a42; border-radius: 6px; color: #f4f4f5;
+          flex: 1; font-family: var(--font-jetbrains-mono), monospace; font-size: 14px; min-height: 44px;
+          min-width: 0; padding: 0 10px;
+        }
+        .select-row input:focus { border-color: #f4f4f5; outline: none; }
         .base-warning {
-          background: #fff4d6; border: 1px solid #f5a742; border-radius: 8px; color: #5c3d00;
-          font-size: 13px; line-height: 1.5; margin: 0 auto 14px; max-width: 1180px; padding: 12px 14px;
+          align-items: flex-start; background: rgba(245, 167, 66, 0.12); border: 1px solid rgba(245, 167, 66, 0.55);
+          border-radius: 8px; color: #ffd08a; display: flex; font-size: 13px; gap: 10px; line-height: 1.5;
+          margin: 0 auto 14px; max-width: 1180px; padding: 12px 14px;
         }
-        .base-warning code { background: #00000010; padding: 1px 4px; }
+        .base-warning code { background: rgba(255,255,255,0.08); border-radius: 4px; color: #fff; padding: 1px 4px; }
         .mgr-actions {
           align-items: center; display: flex; flex-wrap: wrap; gap: 10px;
           margin: 0 auto 18px; max-width: 1180px;
         }
-        .btn {
-          border: 0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 900;
-          min-height: 46px; padding: 12px 18px; text-decoration: none; text-transform: uppercase;
-          display: inline-flex; align-items: center; gap: 6px;
+        .qr-btn {
+          align-items: center; border: 1px solid transparent; border-radius: 8px; cursor: pointer;
+          display: inline-flex; font-size: 14px; font-weight: 700; gap: 8px; min-height: 46px;
+          letter-spacing: normal; padding: 0 16px; text-decoration: none; text-transform: none;
         }
-        .btn-pdf { background: #d11a2a; color: #fff; }
-        .btn-png { background: #171412; color: #fff; }
-        .btn-print { background: #fff; border: 1px solid #171412; color: #171412; }
-        .btn:hover { filter: brightness(1.08); }
-        .actions-hint { color: #7a7065; font-size: 12px; font-weight: 700; }
+        .qr-btn:disabled { cursor: wait; opacity: 0.6; }
+        .qr-btn-pdf { background: #d11a2a; color: #fff; }
+        .qr-btn-pdf:hover { background: #ff2a3a; }
+        .qr-btn-ghost { background: #19191e; border-color: #3a3a42; color: #f4f4f5; }
+        .qr-btn-ghost:hover { border-color: #f4f4f5; }
+        .actions-hint { color: #b8b8bf; font-size: 13px; }
+        .actions-hint[data-tone="error"] { color: #ffb3b3; }
         .card-grid {
-          display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+          display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
           margin: 0 auto; max-width: 1180px;
         }
         .card-item { display: flex; flex-direction: column; gap: 8px; }
         .card-svg {
-          background: #fff; border: 1px solid #e0d8cc; border-radius: 10px;
-          box-shadow: 0 14px 30px rgba(0,0,0,0.10); display: block; height: auto; width: 100%;
+          aspect-ratio: 540 / 840; background: #fff; border-radius: 10px; display: block;
+          height: auto; width: 100%;
         }
         .btn-dl-one {
-          background: #111116; border: 1px solid #d11a2a; border-radius: 6px; color: #ffd7db;
-          cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.04em;
-          padding: 9px 8px; text-transform: uppercase;
+          align-items: center; background: #19191e; border: 1px solid #3a3a42; border-radius: 6px;
+          color: #f4f4f5; cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 700;
+          gap: 6px; justify-content: center; min-height: 44px; padding: 0 8px;
         }
-        .btn-dl-one:hover { background: #1c1c22; }
+        .btn-dl-one:hover { border-color: #f4f4f5; }
 
         @media print {
           @page { margin: 8mm; }
-          .qr-mgr { background: #fff; padding: 0; }
+          .qr-mgr { background: #fff; border: 0; color: #111; padding: 0; }
           .mgr-header, .mgr-info, .base-warning, .mgr-actions, .btn-dl-one, .back-link {
             display: none !important;
           }
@@ -249,8 +291,28 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
         dangerouslySetInnerHTML={{
           __html: `
             (() => {
-              const printNow = () => window.print();
-              document.querySelector("[data-print-now]")?.addEventListener("click", printNow);
+              const status = document.querySelector("[data-status]");
+              const setStatus = (text, tone) => {
+                if (!status) return;
+                status.textContent = text;
+                if (tone) status.setAttribute("data-tone", tone); else status.removeAttribute("data-tone");
+              };
+              // Cetak hanya setelah SEMUA kartu termuat (kalau tidak, kartu kosong ikut tercetak).
+              async function printNow() {
+                const imgs = Array.prototype.slice.call(document.querySelectorAll("[data-card]"));
+                setStatus("Menyiapkan " + imgs.length + " kartu untuk dicetak…");
+                await Promise.all(imgs.map(function (img) {
+                  return img.decode ? img.decode().catch(function () {}) : Promise.resolve();
+                }));
+                const broken = imgs.filter(function (img) { return !img.complete || img.naturalWidth === 0; });
+                if (broken.length) {
+                  setStatus("Kartu meja " + broken.map(function (img) { return img.getAttribute("data-table"); }).join(", ") + " gagal dimuat. Muat ulang halaman lalu coba lagi.", "error");
+                  return;
+                }
+                setStatus("Siap dicetak.");
+                window.print();
+              }
+              document.querySelector("[data-print-now]")?.addEventListener("click", function () { void printNow(); });
 
               async function cardToPng(svgUrl, table) {
                 const res = await fetch(svgUrl, { cache: "no-store" });
@@ -290,11 +352,11 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
               document.querySelectorAll("[data-dl-png]").forEach(function (b) {
                 b.addEventListener("click", async function () {
                   b.disabled = true;
-                  const label = b.textContent;
-                  b.textContent = "Menyiapkan...";
+                  const label = b.innerHTML;
+                  b.textContent = "Menyiapkan…";
                   try { await cardToPng(b.getAttribute("data-src"), b.getAttribute("data-table")); }
-                  catch (e) { alert("Gagal unduh PNG meja " + b.getAttribute("data-table")); }
-                  b.textContent = label; b.disabled = false;
+                  catch (e) { setStatus("Gagal unduh PNG meja " + b.getAttribute("data-table") + ". Coba lagi.", "error"); }
+                  b.innerHTML = label; b.disabled = false;
                 });
               });
 
@@ -303,18 +365,23 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
                 all.addEventListener("click", async function () {
                   const cards = Array.prototype.slice.call(document.querySelectorAll("[data-card]"));
                   all.disabled = true;
-                  const label = all.textContent;
+                  const failed = [];
                   for (let i = 0; i < cards.length; i++) {
-                    all.textContent = "Mengunduh " + (i + 1) + "/" + cards.length + "...";
+                    setStatus("Mengunduh PNG " + (i + 1) + "/" + cards.length + "…");
                     try { await cardToPng(cards[i].getAttribute("data-src"), cards[i].getAttribute("data-table")); }
-                    catch (e) { /* lanjut meja berikutnya */ }
+                    catch (e) { failed.push(cards[i].getAttribute("data-table")); }
                     await new Promise(function (r) { setTimeout(r, 500); });
                   }
-                  all.textContent = label; all.disabled = false;
+                  all.disabled = false;
+                  if (failed.length) {
+                    setStatus("Selesai, tapi meja " + failed.join(", ") + " gagal. Untuk banyak meja pakai Unduh PDF.", "error");
+                  } else {
+                    setStatus(cards.length + " PNG selesai diunduh. Jika browser memblokir sebagian, pakai Unduh PDF.");
+                  }
                 });
               }
 
-              ${autoPrint ? "window.setTimeout(printNow, 500);" : ""}
+              ${autoPrint ? "void printNow();" : ""}
             })();
           `,
         }}

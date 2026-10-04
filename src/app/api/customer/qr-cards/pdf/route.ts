@@ -10,6 +10,7 @@ import {
   normalizeGarageBaseUrl,
   normalizeQrTableNumber,
 } from "@/lib/garage-qr";
+import { getActiveTableNumbers } from "@/lib/garage-service";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -111,7 +112,10 @@ export async function GET(request: Request) {
   if (limited) return limited;
 
   const url = new URL(request.url);
-  const tables = selectedTables(url.searchParams.get("tables"));
+  // Tanpa ?tables → meja aktif outlet (menu Atur Meja), bukan selalu 50 kartu.
+  const tables = url.searchParams.get("tables")
+    ? selectedTables(url.searchParams.get("tables"))
+    : await getActiveTableNumbers().catch(() => QR_TABLE_NUMBERS);
   const baseUrl = configuredPublicOrigin() ?? requestOrigin(request);
   const logoBuf = logoBuffer();
 

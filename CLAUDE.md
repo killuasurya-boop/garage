@@ -130,6 +130,22 @@ Scroll direction:
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.
 
+## Table (Meja) Rules
+
+- Table numbers/labels go through `src/lib/garage-tables.ts` only: `parseTableNumber`
+  (strict, never truncates "123" → "23"), `tableLabelFor` → canonical "Meja 06".
+  Max 50 (`MAX_TABLE_NUMBER`, matches table-call voice assets & QR cards).
+- Tables in use per outlet live in `dining_tables` (Pengaturan → Meja & QR,
+  `/api/tables/config`). No rows for an outlet → all 01–50 active. Inactive tables
+  are hidden from waiter/POS maps and rejected for dine-in orders.
+- Live table state = `getTableLiveData({ outletId })` / `getTableLiveRow` (always pass
+  the staff outlet). Bill window = orders since `table_sessions.cleanedAt`; only
+  "empty" resets `cleanedAt`. Previous-day unpaid bills surface as
+  `staleFromPreviousDay` ("Cek kasir"), never auto-cancelled.
+- `moveTable` moves every open bill + kitchen tickets + open service requests in one
+  transaction. Table UI colours: kosong graphite, belum bayar amber, lunas silver,
+  perlu bersih red — always with a text label.
+
 ## Verification
 
 After app code changes, run:

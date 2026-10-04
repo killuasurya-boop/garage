@@ -1966,47 +1966,29 @@ body {
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   }
 
+  /* Titik status meja POS — statis (tanpa animasi berulang: puluhan titik
+     berkedip berat di tablet & melanggar aturan motion). Palet sama dengan
+     peta meja waiter: kosong = cincin silver, belum bayar/terisi = amber,
+     lunas = silver, perlu bersih = merah. */
   .pos-table-indicator[data-state="ready"] {
-    animation: garage-pos-table-ready-pulse 2s ease-in-out infinite;
-    background: #22c55e;
-    box-shadow:
-      0 0 0 1px rgba(34, 197, 94, 0.3),
-      0 0 14px rgba(34, 197, 94, 0.28);
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px #a1a1aa;
   }
 
-  .pos-table-indicator[data-state="full"] {
-    animation: garage-pos-table-full-pulse 1.12s ease-in-out infinite;
-    background: #d11a2a;
-    box-shadow:
-      0 0 0 1px rgba(209, 26, 42, 0.34),
-      0 0 16px rgba(209, 26, 42, 0.34);
-  }
-
+  .pos-table-indicator[data-state="full"],
   .pos-table-indicator[data-state="bill"] {
-    animation: garage-pos-table-bill-pulse 1.24s ease-in-out infinite;
     background: #f5a742;
-    box-shadow:
-      0 0 0 1px rgba(245, 167, 66, 0.36),
-      0 0 16px rgba(245, 167, 66, 0.34);
+    box-shadow: 0 0 0 1px rgba(245, 167, 66, 0.4);
   }
 
   .pos-table-indicator[data-state="paid"] {
-    /* Lunas tetap "terisi": meja sudah di-order, belum di-clear → merah,
-       konsisten dengan binary occupancy (tableLiveStatusTone). Pulse lebih
-       lambat dari "full" supaya kasir tetap bisa bedakan settled vs open. */
-    animation: garage-pos-table-full-pulse 2.2s ease-in-out infinite;
-    background: #d11a2a;
-    box-shadow:
-      0 0 0 1px rgba(209, 26, 42, 0.3),
-      0 0 14px rgba(209, 26, 42, 0.3);
+    background: #d4d4d8;
+    box-shadow: 0 0 0 1px rgba(212, 212, 216, 0.4);
   }
 
   .pos-table-indicator[data-state="cleaning"] {
-    animation: garage-pos-table-full-pulse 1.05s ease-in-out infinite;
-    background: #d11a2a;
-    box-shadow:
-      0 0 0 1px rgba(209, 26, 42, 0.36),
-      0 0 18px rgba(209, 26, 42, 0.38);
+    background: #ff2a3a;
+    box-shadow: 0 0 0 1px rgba(255, 42, 58, 0.45);
   }
 
   .pos-table-indicator[data-state="unknown"] {

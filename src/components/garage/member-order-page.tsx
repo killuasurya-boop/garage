@@ -430,6 +430,7 @@ function readInitialSearchQuery() {
 function compactTableNumber(tableLabel: string) {
   const match = tableLabel.match(/\d+/);
   if (match) return match[0].padStart(2, "0");
+  if (tableLabel.includes("?")) return "?";
   const label = tableLabel.trim();
   if (/take/i.test(label)) return "TA";
   if (/qr/i.test(label)) return "QR";

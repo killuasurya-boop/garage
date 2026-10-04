@@ -6192,6 +6192,16 @@ const OPEN_TABLE_BILL_STATUSES = new Set([
   "ready",
 ]);
 
+// Label order untuk satu meja. Order lama bisa berlabel "Meja 7" (sebelum label
+// kanonik "Meja 07"), jadi keduanya dicocokkan (tanpa peduli huruf besar/kecil).
+function orderTableLabelMatch(tableNumber: string) {
+  const padded = normalizeTableNumber(tableNumber);
+  const plain = String(Number(padded));
+  return padded === plain
+    ? ilike(orders.tableLabel, `meja ${padded}`)
+    : or(ilike(orders.tableLabel, `meja ${padded}`), ilike(orders.tableLabel, `meja ${plain}`));
+}
+
 function orderOutletFilter(outletId: string | null) {
   // Order lama tanpa outletId tetap ikut (data sebelum multi-outlet).
   return outletId ? or(eq(orders.outletId, outletId), isNull(orders.outletId)) : undefined;
@@ -6234,7 +6244,7 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
         inArray(orders.orderSource, liveTableOrderSources),
         gte(orders.createdAt, start),
         lt(orders.createdAt, end),
-        onlyTable ? eq(orders.tableLabel, tableLabelForNumber(onlyTable)) : ilike(orders.tableLabel, "meja %"),
+        onlyTable ? orderTableLabelMatch(onlyTable) : ilike(orders.tableLabel, "meja %"),
         orderOutletFilter(outletId),
       ),
     )
@@ -6397,7 +6407,7 @@ export async function getTableHistoryToday(tableNumber: string, outletId?: strin
     .from(orders)
     .where(
       and(
-        eq(orders.tableLabel, label),
+        orderTableLabelMatch(tableNumber),
         gte(orders.createdAt, start),
         lt(orders.createdAt, end),
         orderOutletFilter(resolvedOutletId),
@@ -6738,7 +6748,7 @@ export async function moveTable(
       .from(orders)
       .where(
         and(
-          eq(orders.tableLabel, toLabel),
+          orderTableLabelMatch(toNumber),
           gte(orders.createdAt, targetWindow),
           inArray(orders.status, [...OPEN_TABLE_BILL_STATUSES]),
           orderOutletFilter(outletId),
@@ -6764,7 +6774,10 @@ export async function moveTable(
       .set({ tableLabel: toLabel })
       .where(
         and(
-          eq(serviceRequests.tableLabel, fromLabel),
+          or(
+            ilike(serviceRequests.tableLabel, `meja ${fromNumber}`),
+            ilike(serviceRequests.tableLabel, `meja ${Number(fromNumber)}`),
+          ),
           eq(serviceRequests.status, "open"),
           or(eq(serviceRequests.outletId, outletId), isNull(serviceRequests.outletId)),
         ),
@@ -6921,7 +6934,9 @@ export async function createServiceRequest(input: {
   note?: string;
 }) {
   const db = getDb();
-  const tableLabel = input.tableLabel.trim();
+  // Label kanonik "Meja 06" supaya panggilan ikut pindah saat meja dipindah.
+  const requestedTable = parseTableNumber(input.tableLabel);
+  const tableLabel = requestedTable ? tableLabelForNumber(requestedTable) : input.tableLabel.trim();
   const type: ServiceRequestType = serviceRequestTypes.includes(input.type as ServiceRequestType)
     ? (input.type as ServiceRequestType)
     : "call";

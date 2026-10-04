@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
+  AlertTriangle,
   ArrowRightLeft,
   CheckCircle2,
   History,
   Loader2,
+  NotebookPen,
   ReceiptText,
+  RefreshCw,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
 
@@ -16,32 +21,100 @@ import type {
   TableOrderBill,
   TableOrderItemsResponse,
 } from "@/lib/garage-api-types";
+import { formatTableDuration } from "@/lib/garage-tables";
 
 import {
   billStatusTone,
   formatRupiah,
   hasAwaitingPaymentBill,
+  hasOpenBill,
   isCleaningTable,
   isDirtyTable,
   isPaidOnly,
   relativeFromNow,
+  tableTone,
   type ToastInput,
 } from "./waiter-view-helpers";
 
-// Status tiket dapur per station. Item mewarisi status station-nya (status
-// per item tidak ada di data). null = order belum masuk dapur.
+// Status tiket produksi per station. Item mewarisi status station-nya (status
+// per item tidak ada di data). null = order belum masuk dapur/bar.
 function kitchenLabel(status: string | null) {
-  if (!status) return "Belum masuk dapur";
+  if (!status) return "Belum masuk produksi";
   return (
-    ({ queue: "Antre", cooking: "Dimasak", ready: "Siap", delivered: "Diantar", completed: "Selesai" } as Record<string, string>)[status] ??
+    ({ queue: "Antre", cooking: "Diproses", ready: "Siap antar", delivered: "Diantar", completed: "Selesai" } as Record<string, string>)[status] ??
     status
   );
 }
 function kitchenTone(status: string | null) {
-  if (status === "ready") return "bg-emerald-500/15 text-emerald-200 ring-emerald-400/30";
-  if (status === "cooking") return "bg-amber-400/15 text-amber-200 ring-amber-400/30";
-  if (status === "queue") return "bg-red-500/15 text-red-200 ring-red-400/30";
-  return "bg-white/[0.05] text-white/60 ring-white/15";
+  if (status === "ready") return "bg-[#f5a742]/20 text-[#ffd08a] ring-[#f5a742]/45";
+  if (status === "cooking") return "bg-[#f5a742]/10 text-[#ffd08a] ring-[#f5a742]/30";
+  if (status === "queue") return "bg-[#d11a2a]/15 text-[#ffb3b3] ring-[#ff2a3a]/35";
+  return "bg-white/[0.05] text-garage-dim ring-white/15";
+}
+
+type LifecycleAction = "clean" | "leave" | "start_cleaning" | "reserve" | "unreserve";
+
+type PendingConfirm =
+  | { kind: "lifecycle"; action: LifecycleAction; title: string; body: string; cta: string }
+  | { kind: "move"; to: string; title: string; body: string; cta: string };
+
+// Hook kecil: GET JSON dengan status loading/error + reload. `reloadKey`
+// berubah (total/bill/status meja berubah dari polling) → data diambil ulang.
+function useTableFetch<T>(url: string, reloadKey: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Fetch-on-change: loading + hasil di-set dari effect, dijaga cancelled-guard.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    fetch(url, { cache: "no-store" })
+      .then(async (res) => {
+        const payload = (await res.json().catch(() => ({}))) as ApiEnvelope<T>;
+        if (!res.ok || payload.error) {
+          throw new Error(payload.error?.message ?? `Gagal memuat (${res.status}).`);
+        }
+        if (!cancelled) {
+          setData(payload.data ?? null);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Gagal memuat.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url, reloadKey, attempt]);
+
+  return { data, loading, error, reload: () => setAttempt((value) => value + 1) };
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-garage-dim">{children}</p>
+  );
+}
+
+function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-[#ff2a3a]/40 bg-[#d11a2a]/10 px-3 py-2 text-[12px] text-[#ffb3b3]" role="alert">
+      <span className="min-w-0">{message}</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-2 font-semibold text-white hover:bg-white/10"
+      >
+        <RefreshCw size={13} aria-hidden /> Coba lagi
+      </button>
+    </div>
+  );
 }
 
 export function TableDetailDrawer({
@@ -55,6 +128,7 @@ export function TableDetailDrawer({
   onClean,
   onLifecycle,
   onMoved,
+  onOrder,
   onRequestBill,
   onSeatNew,
   onToast,
@@ -67,32 +141,38 @@ export function TableDetailDrawer({
   canRequestBillRole: boolean;
   onClose: () => void;
   onClean: (row: TableLiveRow) => void;
-  onLifecycle: (
-    row: TableLiveRow,
-    action: "leave" | "start_cleaning" | "reserve" | "unreserve",
-  ) => void;
+  onLifecycle: (row: TableLiveRow, action: Exclude<LifecycleAction, "clean">) => void;
   onMoved: () => void;
+  onOrder: (tableNumber: string) => void;
   onRequestBill: (row: TableLiveRow) => void;
   onSeatNew: (row: TableLiveRow) => void;
   onToast: (t: ToastInput) => void;
 }) {
   const bills = useMemo(() => row.bills ?? [], [row.bills]);
-  const paidTotal = bills
-    .filter((b) => b.status === "paid")
-    .reduce((sum, b) => sum + b.total, 0);
+  const paidTotal = bills.filter((b) => b.status === "paid").reduce((sum, b) => sum + b.total, 0);
   const openTotal = bills
     .filter((b) => b.status !== "paid" && b.status !== "rejected")
     .reduce((sum, b) => sum + b.total, 0);
+  const tone = tableTone(row);
 
-  const [history, setHistory] = useState<TableHistoryResponse | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [itemBills, setItemBills] = useState<TableOrderBill[] | null>(null);
-  const [itemsLoading, setItemsLoading] = useState(false);
+  // Data detail diambil ulang setiap kali ringkasan meja berubah (polling 6 dtk).
+  const reloadKey = `${row.total}|${row.openBillCount ?? 0}|${row.paidBillCount ?? 0}|${row.lastStatusAt ?? ""}|${row.status}`;
+  const items = useTableFetch<TableOrderItemsResponse>(
+    `/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/items`,
+    reloadKey,
+  );
+  const history = useTableFetch<TableHistoryResponse>(
+    `/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/history`,
+    reloadKey,
+  );
+  const itemBills: TableOrderBill[] = items.data?.bills ?? [];
+
   const [moveMode, setMoveMode] = useState(false);
-  const [moveTarget, setMoveTarget] = useState("");
   const [moving, setMoving] = useState(false);
+  const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
-  const canMove = Boolean(row.currentOrderId) && (row.openBillCount ?? 0) > 0;
+  const canMove = (row.openBillCount ?? 0) > 0 || bills.length > 0;
   const billAlreadyRequested = hasAwaitingPaymentBill(row);
   const canRequestBill =
     canRequestBillRole &&
@@ -100,25 +180,55 @@ export function TableDetailDrawer({
     (row.status === "accepted" || row.status === "ready" || row.status === "mixed") &&
     !billAlreadyRequested;
   const canSeatNext = isPaidOnly(row);
-  // Satu aksi siklus meja sesuai state: OCCUPIED(lunas) → DIRTY → CLEANING →
-  // AVAILABLE, dan AVAILABLE ↔ RESERVED.
+
+  // Satu aksi siklus meja sesuai keadaan: Lunas → Perlu bersih → Dibersihkan →
+  // Kosong, dan Kosong ↔ Dipesan. Aksi yang menutup sesi minta konfirmasi.
   const lifecycleAction: {
-    action: "clean" | "leave" | "start_cleaning" | "reserve" | "unreserve";
+    action: LifecycleAction;
     label: string;
     cls: string;
+    confirm?: { title: string; body: string; cta: string };
   } | null = isCleaningTable(row)
-    ? { action: "clean", label: "Siap Pakai", cls: "bg-[#22c55e] text-[#052e16]" }
+    ? { action: "clean", label: "Sudah bersih", cls: "bg-[#f4f4f5] text-[#0a0a0c] hover:bg-white" }
     : isDirtyTable(row)
-      ? { action: "start_cleaning", label: "Mulai Bersihkan", cls: "bg-[#f5a742] text-[#241a00]" }
+      ? { action: "start_cleaning", label: "Mulai bersihkan", cls: "bg-[#f5a742] text-[#1a1000] hover:bg-[#ffb85c]" }
       : isPaidOnly(row)
-        ? { action: "leave", label: "Tamu Pergi", cls: "bg-[#d11a2a] text-white" }
+        ? {
+            action: "leave",
+            label: "Tamu pergi",
+            cls: "bg-[#d11a2a] text-white hover:bg-[#ff2a3a]",
+            confirm: {
+              title: `Tamu ${row.tableLabel} sudah pergi?`,
+              body: "Meja ditandai perlu dibersihkan. Bill lunas tetap tersimpan di riwayat.",
+              cta: "Ya, tamu pergi",
+            },
+          }
         : row.status === "reserved"
-          ? { action: "unreserve", label: "Batal Reservasi", cls: "bg-[#d4d4d8] text-[#0b0b0c]" }
+          ? {
+              action: "unreserve",
+              label: "Batal reservasi",
+              cls: "bg-white/10 text-white ring-1 ring-white/25 hover:bg-white/15",
+              confirm: {
+                title: `Batalkan reservasi ${row.tableLabel}?`,
+                body: "Meja kembali kosong dan bisa dipakai tamu lain.",
+                cta: "Ya, batalkan",
+              },
+            }
           : row.status === "empty" && !row.currentOrderId
-            ? { action: "reserve", label: "Reservasi", cls: "bg-[#d4d4d8] text-[#0b0b0c]" }
-            : !row.currentOrderId
-              ? { action: "clean", label: "Kosongkan", cls: "bg-[#22c55e] text-[#052e16]" }
+            ? { action: "reserve", label: "Tandai dipesan", cls: "bg-white/10 text-white ring-1 ring-white/25 hover:bg-white/15" }
+            : !row.currentOrderId && !hasOpenBill(row)
+              ? {
+                  action: "clean",
+                  label: "Kosongkan meja",
+                  cls: "bg-white/10 text-white ring-1 ring-white/25 hover:bg-white/15",
+                  confirm: {
+                    title: `Kosongkan ${row.tableLabel}?`,
+                    body: "Sesi meja ditutup dan meja siap dipakai tamu baru.",
+                    cta: "Ya, kosongkan",
+                  },
+                }
               : null;
+
   const moveCandidates = useMemo(
     () =>
       allTables.filter(
@@ -128,477 +238,440 @@ export function TableDetailDrawer({
           !t.currentOrderId &&
           (t.openBillCount ?? 0) === 0 &&
           (t.paidBillCount ?? 0) === 0 &&
-          !t.needsCleaning,
+          !t.needsCleaning &&
+          t.active !== false,
       ),
     [allTables, row.tableNumber],
   );
 
+  const confirmRef = useRef<PendingConfirm | null>(null);
   useEffect(() => {
+    confirmRef.current = confirm;
+  }, [confirm]);
+
+  useEffect(() => {
+    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // Escape menutup konfirmasi dulu, baru laci.
+      if (confirmRef.current) setConfirm(null);
+      else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Fetch history hari ini (lintas sesi). Pattern fetch-on-mount: setState
-  // dipanggil di effect untuk loading + hasil. Aman karena dibungkus
-  // cancelled-guard dan tidak loop.
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHistoryLoading(true);
-    fetch(`/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/history`)
-      .then((r) => r.json())
-      .then((payload: ApiEnvelope<TableHistoryResponse>) => {
-        if (cancelled) return;
-        if (payload.error) {
-          setHistory(null);
-        } else {
-          setHistory(payload.data ?? null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setHistory(null);
-      })
-      .finally(() => {
-        if (!cancelled) setHistoryLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [row.tableNumber]);
-
-  // Fetch rincian item sesi berjalan (apa yang dipesan di meja ini).
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setItemsLoading(true);
-    fetch(`/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/items`)
-      .then((r) => r.json())
-      .then((payload: ApiEnvelope<TableOrderItemsResponse>) => {
-        if (cancelled) return;
-        setItemBills(payload.error ? null : payload.data?.bills ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setItemBills(null);
-      })
-      .finally(() => {
-        if (!cancelled) setItemsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [row.tableNumber]);
-
   const sessionBillIds = useMemo(() => new Set(bills.map((b) => b.id)), [bills]);
   const previousBills = useMemo(
-    () => (history?.bills ?? []).filter((b) => !sessionBillIds.has(b.id)),
-    [history, sessionBillIds],
+    () => (history.data?.bills ?? []).filter((b) => !sessionBillIds.has(b.id)),
+    [history.data, sessionBillIds],
   );
 
-  const handleMove = useCallback(async () => {
-    if (!moveTarget) return;
-    setMoving(true);
-    try {
-      const res = await fetch(
-        `/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/move`,
-        {
+  const runLifecycle = useCallback(
+    (action: LifecycleAction) => {
+      if (action === "clean") onClean(row);
+      else onLifecycle(row, action);
+    },
+    [onClean, onLifecycle, row],
+  );
+
+  const handleMove = useCallback(
+    async (target: string) => {
+      setMoving(true);
+      try {
+        const res = await fetch(`/api/waiter/tables/${encodeURIComponent(row.tableNumber)}/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: moveTarget }),
-        },
-      );
-      const payload: ApiEnvelope<{ to: string }> = await res.json().catch(() => ({}));
-      if (!res.ok || payload.error) {
-        throw new Error(payload.error?.message ?? "Gagal pindah meja.");
+          body: JSON.stringify({ to: target }),
+        });
+        const payload: ApiEnvelope<{ to: string }> = await res.json().catch(() => ({}));
+        if (!res.ok || payload.error) {
+          throw new Error(payload.error?.message ?? "Gagal pindah meja.");
+        }
+        onToast({
+          tone: "success",
+          title: `Pindah ke Meja ${target}`,
+          body: `Semua bill & pesanan dapur/bar sekarang tercatat di Meja ${target}.`,
+          ttl: 3200,
+        });
+        onMoved();
+      } catch (err) {
+        onToast({
+          tone: "error",
+          title: "Gagal pindah meja",
+          body: err instanceof Error ? err.message : "Coba lagi.",
+        });
+      } finally {
+        setMoving(false);
+        setConfirm(null);
       }
-      onToast({
-        tone: "success",
-        title: `Pindah ke Meja ${moveTarget}`,
-        body: `Bill aktif sekarang di Meja ${moveTarget}.`,
-        ttl: 2800,
-      });
-      onMoved();
-    } catch (err) {
-      onToast({
-        tone: "error",
-        title: "Gagal pindah meja",
-        body: err instanceof Error ? err.message : "Coba lagi.",
-      });
-    } finally {
-      setMoving(false);
-    }
-  }, [moveTarget, onMoved, onToast, row.tableNumber]);
+    },
+    [onMoved, onToast, row.tableNumber],
+  );
 
-  return (
+  const actionButton =
+    "garage-press inline-flex min-h-12 items-center justify-center gap-2 rounded-md px-3 text-[13px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60";
+
+  const drawer = (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[1100] flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={`Detail meja ${row.tableLabel}`}
+      aria-label={`Detail ${row.tableLabel}`}
     >
       <div
-        className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0e0e10] shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)] sm:max-h-[85vh] sm:rounded-2xl"
+        className="relative flex max-h-[92svh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-garage-line bg-garage-bg-1 shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.85)] sm:max-h-[86svh] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden />
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/8 bg-gradient-to-br from-[#1a1a1d] to-[#0e0e10] px-4 py-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-white/55">Detail Sesi</p>
-            <p className="text-lg font-bold text-white">{row.tableLabel}</p>
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/20 sm:hidden" aria-hidden />
+        <header className="flex items-start justify-between gap-3 border-b border-garage-line px-4 py-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-mono text-2xl font-black leading-none text-white">{row.tableLabel}</h2>
+              <span className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] font-bold ${tone.labelColor} bg-black/30`}>
+                <span className={`size-2.5 rounded-[3px] ${tone.swatch}`} aria-hidden />
+                {tone.label}
+              </span>
+            </div>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-garage-dim">
+              {row.area ? <span>{row.area}</span> : null}
+              {row.capacity ? (
+                <span className="inline-flex items-center gap-1">
+                  <Users size={12} aria-hidden /> {row.capacity} kursi
+                </span>
+              ) : null}
+              {row.currentOrderId && row.timerMinutes > 0 ? (
+                <span>Duduk {formatTableDuration(row.timerMinutes)}</span>
+              ) : null}
+            </p>
           </div>
           <button
+            ref={closeRef}
             type="button"
             onClick={onClose}
-            className="grid h-11 w-11 place-items-center rounded-md bg-white/[0.05] text-white/75 ring-1 ring-white/12 transition active:scale-[0.97]"
-            aria-label="Tutup detail"
+            className="grid size-11 shrink-0 place-items-center rounded-md bg-white/[0.05] text-white ring-1 ring-white/12 transition hover:bg-white/10"
+            aria-label="Tutup detail meja"
           >
             <X size={18} />
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="garage-scroll flex-1 overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {row.staleFromPreviousDay ? (
+            <div className="mx-4 mt-3 flex items-start gap-2 rounded-md border border-[#ff2a3a]/50 bg-[#d11a2a]/12 px-3 py-2.5 text-[13px] text-[#ffd6da]" role="alert">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+              <span>
+                Ada bill belum lunas dari <strong className="text-white">hari sebelumnya</strong>. Minta kasir
+                cek: bayar atau batalkan, supaya meja bisa dipakai lagi.
+              </span>
+            </div>
+          ) : null}
 
-        <div className="grid grid-cols-2 gap-2 px-4 py-3">
-          <div className="rounded-lg bg-[#22c55e]/10 px-3 py-2 ring-1 ring-[#22c55e]/28">
-            <p className="text-[10px] uppercase tracking-wider text-[#bbf7d0]/80">Terbayar</p>
-            <p className="font-mono text-sm font-bold text-[#bbf7d0]">{formatRupiah(paidTotal)}</p>
-            <p className="text-[10px] text-white/55">
-              {row.paidBillCount ?? 0} bill lunas
-            </p>
-          </div>
-          <div
-            className={`rounded-lg px-3 py-2 ring-1 ${
-              openTotal > 0
-                ? "bg-[#e8883a]/10 ring-[#e8883a]/35"
-                : "bg-white/[0.03] ring-white/12"
-            }`}
-          >
-            <p
-              className={`text-[10px] uppercase tracking-wider ${
-                openTotal > 0 ? "text-[#ffd08a]" : "text-white/55"
+          <div className="grid grid-cols-2 gap-2 px-4 py-3">
+            <div className="rounded-lg bg-white/[0.05] px-3 py-2 ring-1 ring-[#d4d4d8]/30">
+              <p className="text-[11px] font-semibold text-garage-dim">Lunas</p>
+              <p className="font-mono text-base font-bold text-white">{formatRupiah(paidTotal)}</p>
+              <p className="text-[11px] text-garage-dim">{row.paidBillCount ?? 0} bill</p>
+            </div>
+            <div
+              className={`rounded-lg px-3 py-2 ring-1 ${
+                openTotal > 0 ? "bg-[#f5a742]/10 ring-[#f5a742]/40" : "bg-white/[0.03] ring-white/12"
               }`}
             >
-              Open
-            </p>
-            <p
-              className={`font-mono text-sm font-bold ${
-                openTotal > 0 ? "text-[#ffd08a]" : "text-white/70"
-              }`}
-            >
-              {formatRupiah(openTotal)}
-            </p>
-            <p className="text-[10px] text-white/55">
-              {row.openBillCount ?? 0} bill aktif
-            </p>
+              <p className={`text-[11px] font-semibold ${openTotal > 0 ? "text-[#ffd08a]" : "text-garage-dim"}`}>
+                Belum bayar
+              </p>
+              <p className={`font-mono text-base font-bold ${openTotal > 0 ? "text-[#ffd08a]" : "text-white"}`}>
+                {formatRupiah(openTotal)}
+              </p>
+              <p className="text-[11px] text-garage-dim">{row.openBillCount ?? 0} bill</p>
+            </div>
           </div>
-        </div>
 
-        <div className="border-t border-white/8 bg-[#15120c]/70 px-4 py-3">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#d0c5af]/70">
-            Tindakan
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {canRequestBill ? (
-              <button
-                type="button"
-                onClick={() => onRequestBill(row)}
-                disabled={actingBillTable === row.tableNumber}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#fbbf24] px-3 text-[12px] font-black uppercase tracking-wide text-[#422006] transition active:scale-[0.97] disabled:opacity-60"
-              >
-                {actingBillTable === row.tableNumber ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <ReceiptText size={14} />
-                )}
-                Minta Tagihan
-              </button>
-            ) : billAlreadyRequested ? (
-              <div className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#fbbf24]/35 bg-[#fbbf24]/10 px-3 text-[12px] font-bold uppercase tracking-wide text-[#fde68a]">
-                <ReceiptText size={14} />
-                Tagihan ke Kasir
-              </div>
-            ) : null}
-
-            {lifecycleAction ? (
-              <button
-                type="button"
-                onClick={() =>
-                  lifecycleAction.action === "clean"
-                    ? onClean(row)
-                    : onLifecycle(row, lifecycleAction.action)
-                }
-                disabled={actingCleanTable === row.tableNumber}
-                className={`inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[12px] font-black uppercase tracking-wide transition active:scale-[0.97] disabled:opacity-60 ${lifecycleAction.cls}`}
-              >
-                {actingCleanTable === row.tableNumber ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={14} />
-                )}
-                {lifecycleAction.label}
-              </button>
-            ) : null}
-
-            {canSeatNext ? (
-              <button
-                type="button"
-                onClick={() => onSeatNew(row)}
-                disabled={actingSeatTable === row.tableNumber}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#e2e8f0] px-3 text-[12px] font-black uppercase tracking-wide text-[#0b0b0c] transition active:scale-[0.97] disabled:opacity-60"
-              >
-                {actingSeatTable === row.tableNumber ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <UserPlus size={14} />
-                )}
-                Tamu Baru
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {canMove ? (
-          <div className="border-t border-white/8 bg-white/[0.02] px-4 py-2">
-            {!moveMode ? (
-              <button
-                type="button"
-                onClick={() => setMoveMode(true)}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-white/[0.05] text-[12px] font-semibold text-white/85 ring-1 ring-white/15 transition hover:bg-white/[0.1]"
-              >
-                <ArrowRightLeft size={14} /> Pindah ke meja lain
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-wider text-white/55">
-                  Pilih meja tujuan
-                </label>
-                <select
-                  value={moveTarget}
-                  onChange={(e) => setMoveTarget(e.target.value)}
-                  className="h-9 w-full rounded-md bg-[#0b0b0c] px-2 text-[12px] text-white ring-1 ring-white/15 focus:outline-none focus:ring-[#d11a2a]/50"
-                >
-                  <option value="">- pilih meja -</option>
-                  {moveCandidates.map((t) => (
-                    <option key={t.tableNumber} value={t.tableNumber}>
-                      Meja {t.tableNumber} ({t.status})
-                    </option>
-                  ))}
-                </select>
-                <div className="grid grid-cols-2 gap-2">
+          <div className="border-t border-garage-line px-4 py-3">
+            <SectionTitle>Tindakan</SectionTitle>
+            {confirm ? (
+              <div className="rounded-lg border border-[#f5a742]/45 bg-[#f5a742]/10 p-3" role="alertdialog" aria-label={confirm.title}>
+                <p className="text-[14px] font-bold text-white">{confirm.title}</p>
+                <p className="mt-1 text-[12px] leading-5 text-garage-dim">{confirm.body}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setMoveMode(false);
-                      setMoveTarget("");
-                    }}
-                    className="h-9 rounded-md bg-white/[0.04] text-[11px] font-semibold uppercase tracking-wide text-white/70 ring-1 ring-white/12 transition hover:bg-white/[0.08]"
+                    onClick={() => setConfirm(null)}
+                    disabled={moving}
+                    className={`${actionButton} bg-white/[0.06] text-white ring-1 ring-white/15 hover:bg-white/10`}
                   >
                     Batal
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleMove()}
-                    disabled={!moveTarget || moving}
-                    className="inline-flex h-9 items-center justify-center gap-1 rounded-md bg-[#d11a2a] text-[11px] font-bold uppercase tracking-wide text-white transition active:scale-[0.97] disabled:opacity-50"
+                    disabled={moving}
+                    onClick={() => {
+                      if (confirm.kind === "move") {
+                        void handleMove(confirm.to);
+                      } else {
+                        runLifecycle(confirm.action);
+                        setConfirm(null);
+                      }
+                    }}
+                    className={`${actionButton} bg-[#d11a2a] text-white hover:bg-[#ff2a3a]`}
                   >
-                    {moving ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <ArrowRightLeft size={12} />
-                    )}
-                    Pindahkan
+                    {moving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                    {confirm.cta}
                   </button>
                 </div>
               </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => onOrder(row.tableNumber)}
+                  disabled={row.active === false}
+                  className={`${actionButton} bg-[#d11a2a] text-white hover:bg-[#ff2a3a] sm:col-span-2`}
+                >
+                  <NotebookPen size={16} />
+                  {row.currentOrderId ? "Tambah pesanan" : "Pesankan"}
+                </button>
+
+                {canRequestBill ? (
+                  <button
+                    type="button"
+                    onClick={() => onRequestBill(row)}
+                    disabled={actingBillTable === row.tableNumber}
+                    className={`${actionButton} bg-[#f5a742] text-[#1a1000] hover:bg-[#ffb85c]`}
+                  >
+                    {actingBillTable === row.tableNumber ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <ReceiptText size={15} />
+                    )}
+                    Minta tagihan
+                  </button>
+                ) : billAlreadyRequested ? (
+                  <div className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 px-3 text-[13px] font-semibold text-[#ffd08a]">
+                    <ReceiptText size={15} />
+                    Tagihan di kasir
+                  </div>
+                ) : null}
+
+                {lifecycleAction ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      lifecycleAction.confirm
+                        ? setConfirm({ kind: "lifecycle", action: lifecycleAction.action, ...lifecycleAction.confirm })
+                        : runLifecycle(lifecycleAction.action)
+                    }
+                    disabled={actingCleanTable === row.tableNumber}
+                    className={`${actionButton} ${lifecycleAction.cls}`}
+                  >
+                    {actingCleanTable === row.tableNumber ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={15} />
+                    )}
+                    {lifecycleAction.label}
+                  </button>
+                ) : null}
+
+                {canSeatNext ? (
+                  <button
+                    type="button"
+                    onClick={() => onSeatNew(row)}
+                    disabled={actingSeatTable === row.tableNumber}
+                    className={`${actionButton} bg-white/10 text-white ring-1 ring-white/25 hover:bg-white/15`}
+                  >
+                    {actingSeatTable === row.tableNumber ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <UserPlus size={15} />
+                    )}
+                    Teman gabung
+                  </button>
+                ) : null}
+
+                {canMove && !moveMode ? (
+                  <button
+                    type="button"
+                    onClick={() => setMoveMode(true)}
+                    className={`${actionButton} bg-white/[0.06] text-white ring-1 ring-white/15 hover:bg-white/10`}
+                  >
+                    <ArrowRightLeft size={15} /> Pindah meja
+                  </button>
+                ) : null}
+              </div>
+            )}
+
+            {canMove && moveMode && !confirm ? (
+              <div className="mt-3 rounded-lg border border-garage-line bg-black/20 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[13px] font-semibold text-white">Pindah ke meja kosong</p>
+                  <button
+                    type="button"
+                    onClick={() => setMoveMode(false)}
+                    className="min-h-11 rounded-md px-2 text-[12px] font-semibold text-garage-dim hover:text-white"
+                  >
+                    Batal
+                  </button>
+                </div>
+                {moveCandidates.length === 0 ? (
+                  <p className="text-[12px] text-garage-dim">Tidak ada meja kosong yang siap dipakai.</p>
+                ) : (
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {moveCandidates.map((t) => (
+                      <button
+                        key={t.tableNumber}
+                        type="button"
+                        onClick={() =>
+                          setConfirm({
+                            kind: "move",
+                            to: t.tableNumber,
+                            title: `Pindah ${row.tableLabel} → ${t.tableLabel}?`,
+                            body: "Semua bill, pesanan dapur/bar, dan panggilan tamu ikut pindah ke meja baru.",
+                            cta: "Ya, pindahkan",
+                          })
+                        }
+                        className="min-h-11 rounded-md bg-garage-bg-2 font-mono text-[15px] font-bold text-white ring-1 ring-garage-line-2 transition hover:ring-white/50"
+                        aria-label={`Pindah ke ${t.tableLabel}`}
+                      >
+                        {t.tableNumber}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="border-t border-garage-line px-4 py-3">
+            <SectionTitle>Bill sesi ini</SectionTitle>
+            {bills.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-white/12 px-3 py-5 text-center text-[13px] text-garage-dim">
+                Belum ada bill di sesi ini.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {bills.map((bill) => {
+                  const billTone = billStatusTone(bill.status);
+                  return (
+                    <li key={bill.id} className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/8">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-white">#{bill.orderNo}</p>
+                        <p className="text-[11px] text-garage-dim">{relativeFromNow(bill.createdAt)}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-sm px-2 py-0.5 text-[11px] font-semibold ring-1 ${billTone.cls}`}>
+                        {billTone.label}
+                      </span>
+                      <span className="shrink-0 font-mono text-[13px] font-bold text-white">{formatRupiah(bill.total)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
-        ) : null}
 
-        <div className="px-4 pb-4">
-          <p className="mb-2 text-[10px] uppercase tracking-wider text-white/55">
-            Bill Sesi Ini
-          </p>
-          {bills.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-white/12 bg-white/[0.02] px-3 py-6 text-center text-[12px] text-white/55">
-              Belum ada bill di sesi ini.
-            </div>
-          ) : (
-            <ul className="space-y-1.5">
-              {bills.map((bill) => {
-                const tone = billStatusTone(bill.status);
-                return (
-                  <li
-                    key={bill.id}
-                    className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/8"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12px] font-semibold text-white">
-                        #{bill.orderNo}
-                      </p>
-                      <p className="text-[10px] text-white/55">
-                        {relativeFromNow(bill.createdAt)}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ${tone.cls}`}
-                    >
-                      {tone.label}
-                    </span>
-                    <span className="font-mono text-[12px] font-bold text-white">
-                      {formatRupiah(bill.total)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          <div className="mt-4">
-            <p className="mb-2 text-[10px] uppercase tracking-wider text-white/55">
-              Rincian Pesanan{itemsLoading ? " (loading...)" : ""}
-            </p>
-            {!itemsLoading && (itemBills?.length ?? 0) === 0 ? (
-              <p className="text-[11px] text-white/45">Belum ada item di sesi ini.</p>
-            ) : null}
-            {itemBills && itemBills.length > 0 ? (
+          <div className="border-t border-garage-line px-4 py-3">
+            <SectionTitle>Rincian pesanan</SectionTitle>
+            {items.loading && !items.data ? (
+              <p className="flex items-center gap-2 text-[13px] text-garage-dim" role="status">
+                <Loader2 size={14} className="animate-spin" /> Memuat pesanan…
+              </p>
+            ) : items.error ? (
+              <InlineError message={items.error} onRetry={items.reload} />
+            ) : itemBills.length === 0 ? (
+              <p className="text-[13px] text-garage-dim">Belum ada item di sesi ini.</p>
+            ) : (
               <ul className="space-y-2">
                 {itemBills.map((bill) => (
-                  <li
-                    key={bill.id}
-                    className="rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/8"
-                  >
+                  <li key={bill.id} className="rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/8">
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="truncate text-[11px] font-semibold text-white">
-                        #{bill.orderNo}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ${billStatusTone(bill.status).cls}`}
-                      >
+                      <span className="truncate text-[12px] font-semibold text-white">#{bill.orderNo}</span>
+                      <span className={`shrink-0 rounded-sm px-2 py-0.5 text-[11px] font-semibold ring-1 ${billStatusTone(bill.status).cls}`}>
                         {billStatusTone(bill.status).label}
                       </span>
                     </div>
                     {bill.customerNote ? (
-                      <p className="mb-1 rounded bg-amber-400/10 px-1.5 py-1 text-[11px] italic text-amber-200 ring-1 ring-amber-400/25">
+                      <p className="mb-1 rounded bg-[#f5a742]/10 px-2 py-1 text-[12px] italic text-[#ffd08a] ring-1 ring-[#f5a742]/25">
                         Catatan: {bill.customerNote}
                       </p>
                     ) : null}
-                    {/* Ringkasan station: jumlah item + status tiket Dapur/Bar. */}
                     <div className="mb-1 flex flex-wrap gap-1">
                       {(["Dapur", "Bar"] as const).map((station) => {
                         const qty = bill.items
                           .filter((item) => item.station === station)
                           .reduce((sum, item) => sum + item.qty, 0);
                         if (!qty) return null;
-                        const status =
-                          bill.stations.find((row) => row.station === station)?.status ?? null;
+                        const status = bill.stations.find((entry) => entry.station === station)?.status ?? null;
                         return (
-                          <span
-                            key={station}
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ${kitchenTone(status)}`}
-                          >
+                          <span key={station} className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${kitchenTone(status)}`}>
                             {station} {qty} · {kitchenLabel(status)}
                           </span>
                         );
                       })}
                     </div>
-                    <ul className="space-y-0.5">
+                    <ul className="space-y-1">
                       {bill.items.map((item) => (
-                        <li key={item.id} className="text-[12px]">
+                        <li key={item.id} className="text-[13px]">
                           <div className="flex items-start justify-between gap-2">
                             <span className="min-w-0 text-white/90">
-                              <span className="font-mono font-semibold text-white">
-                                {item.qty}×
-                              </span>{" "}
-                              {item.itemName}
-                              {item.variantLabel ? (
-                                <span className="text-white/50">
-                                  {" "}
-                                  · {item.variantLabel}
-                                </span>
-                              ) : null}
+                              <span className="font-mono font-semibold text-white">{item.qty}×</span> {item.itemName}
+                              {item.variantLabel ? <span className="text-garage-dim"> · {item.variantLabel}</span> : null}
                             </span>
-                            <span className="shrink-0 font-mono text-white/70">
-                              {formatRupiah(item.lineTotal)}
-                            </span>
+                            <span className="shrink-0 font-mono text-garage-dim">{formatRupiah(item.lineTotal)}</span>
                           </div>
-                          {(() => {
-                            const status =
-                              bill.stations.find((row) => row.station === item.station)?.status ??
-                              null;
-                            return (
-                              <div className="flex items-center gap-1 pl-4">
-                                <span className="text-[10px] text-white/45">{item.station}</span>
-                                <span
-                                  className={`rounded px-1 text-[10px] font-semibold ring-1 ${kitchenTone(status)}`}
-                                >
-                                  {kitchenLabel(status)}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                          {item.note ? (
-                            <p className="pl-4 text-[11px] italic text-white/45">
-                              {item.note}
-                            </p>
-                          ) : null}
+                          {item.note ? <p className="pl-5 text-[12px] italic text-garage-dim">{item.note}</p> : null}
                         </li>
                       ))}
                     </ul>
                   </li>
                 ))}
               </ul>
-            ) : null}
+            )}
           </div>
 
-          <div className="mt-4 flex items-center gap-2">
-            <History size={12} className="text-white/55" />
-            <p className="text-[10px] uppercase tracking-wider text-white/55">
-              Sesi sebelumnya hari ini
-              {historyLoading ? " (loading...)" : ""}
-            </p>
+          <div className="border-t border-garage-line px-4 py-3">
+            <div className="mb-2 flex items-center gap-2">
+              <History size={13} className="text-garage-dim" aria-hidden />
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-garage-dim">Sesi sebelumnya hari ini</p>
+            </div>
+            {history.loading && !history.data ? (
+              <p className="flex items-center gap-2 text-[13px] text-garage-dim" role="status">
+                <Loader2 size={14} className="animate-spin" /> Memuat riwayat…
+              </p>
+            ) : history.error ? (
+              <InlineError message={history.error} onRetry={history.reload} />
+            ) : previousBills.length === 0 ? (
+              <p className="text-[13px] text-garage-dim">Belum ada sesi lain hari ini.</p>
+            ) : (
+              <ul className="space-y-1">
+                {previousBills.map((bill) => {
+                  const billTone = billStatusTone(bill.status);
+                  return (
+                    <li key={bill.id} className="flex items-center gap-2 rounded-md bg-white/[0.02] px-3 py-1.5 ring-1 ring-white/6">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] text-white/85">
+                          #{bill.orderNo}
+                          {bill.customerName ? <span className="ml-1 text-garage-dim">· {bill.customerName}</span> : null}
+                        </p>
+                        <p className="text-[11px] text-garage-dim">{relativeFromNow(bill.createdAt)}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${billTone.cls}`}>
+                        {billTone.label}
+                      </span>
+                      <span className="shrink-0 font-mono text-[12px] text-white/85">{formatRupiah(bill.total)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
-          {!historyLoading && previousBills.length === 0 ? (
-            <p className="mt-1 text-[11px] text-white/45">Tidak ada.</p>
-          ) : null}
-          {previousBills.length > 0 ? (
-            <ul className="mt-2 space-y-1">
-              {previousBills.map((bill) => {
-                const tone = billStatusTone(bill.status);
-                return (
-                  <li
-                    key={bill.id}
-                    className="flex items-center gap-2 rounded-md bg-white/[0.02] px-3 py-1.5 ring-1 ring-white/6"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] text-white/75">
-                        #{bill.orderNo}
-                        {bill.customerName ? (
-                          <span className="ml-1 text-white/45">/ {bill.customerName}</span>
-                        ) : null}
-                      </p>
-                      <p className="text-[9px] text-white/45">
-                        {relativeFromNow(bill.createdAt)}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase ring-1 ${tone.cls}`}
-                    >
-                      {tone.label}
-                    </span>
-                    <span className="font-mono text-[11px] text-white/85">
-                      {formatRupiah(bill.total)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </div>
         </div>
       </div>
     </div>
   );
+
+  // Portal ke <body>: konten OS berada di stacking context `.garage-shell > *`
+  // (z-index 1), sehingga laci di dalamnya tertutup tombol chat (z-40).
+  return typeof document === "undefined" ? drawer : createPortal(drawer, document.body);
 }

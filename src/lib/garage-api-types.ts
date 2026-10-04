@@ -750,6 +750,27 @@ export type TableLiveRow = {
   bills?: TableLiveBill[];
   paidBillCount?: number;
   openBillCount?: number;
+  /** Area dari menu Atur Meja (mis. "Indoor"). Kosong bila belum diatur. */
+  area?: string;
+  capacity?: number;
+  active?: boolean;
+  /** Bill belum lunas dari hari sebelumnya → perlu dicek kasir. */
+  staleFromPreviousDay?: boolean;
+};
+
+export type OutletTableConfig = {
+  tableNumber: string;
+  tableLabel: string;
+  area: string;
+  capacity: number;
+  active: boolean;
+};
+
+export type OutletTablesData = {
+  outletId: string | null;
+  configured: boolean;
+  maxTableNumber: number;
+  tables: OutletTableConfig[];
 };
 
 export type PublicTableLiveRow = {

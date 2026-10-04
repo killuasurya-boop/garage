@@ -127,7 +127,7 @@ export const modules = [
   {
     id: "waiter",
     label: "Waiter",
-    description: "Pesankan meja & status meja",
+    description: "Meja & pesanan",
     icon: BellRing,
   },
   { id: "produk", label: "Produk", description: "Menu & harga jual", icon: Coffee },

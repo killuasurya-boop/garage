@@ -688,7 +688,7 @@ export function WaiterView({ me }: Props) {
       <button
         type="button"
         onClick={() => setPickerOpen(true)}
-        className="garage-press flex h-16 w-full items-center justify-center gap-3 rounded-xl bg-[#d11a2a] text-lg font-black text-white shadow-[0_10px_28px_rgba(209,26,42,0.35)] transition hover:bg-[#e83030] active:scale-[0.99]"
+        className="garage-press flex h-16 w-full items-center justify-center gap-3 rounded-xl bg-[#d11a2a] text-lg font-black text-white shadow-[0_10px_28px_rgba(209,26,42,0.35)] transition hover:bg-[#ff2a3a] active:scale-[0.99]"
       >
         <NotebookPen size={22} /> Pesankan
         <span className="text-sm font-semibold text-white/80">pilih meja</span>

@@ -603,7 +603,7 @@ export function ProductionView({
             type="button"
             disabled={Boolean(lock) || busy}
             onClick={() => startTicket(ticket)}
-            className="garage-press mt-2 h-12 w-full bg-[#d11a2a] text-sm font-black uppercase tracking-wide text-white hover:bg-[#e83030] disabled:opacity-60"
+            className="garage-press mt-2 h-12 w-full bg-[#d11a2a] text-sm font-black uppercase tracking-wide text-white hover:bg-[#ff2a3a] disabled:opacity-60"
           >
             {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
             {lock ?? "Mulai"}
@@ -1100,7 +1100,7 @@ export function ProductionView({
                 type="button"
                 onClick={() => void confirmReopen()}
                 disabled={reopenReason.trim().length < 3 || busyKey === `reopen:${reopenTicket.ticketNo}`}
-                className="garage-press h-12 w-full bg-[#d11a2a] font-black uppercase text-white hover:bg-[#e83030]"
+                className="garage-press h-12 w-full bg-[#d11a2a] font-black uppercase text-white hover:bg-[#ff2a3a]"
               >
                 <Undo2 className="mr-2 size-4" /> Kembalikan
               </Button>

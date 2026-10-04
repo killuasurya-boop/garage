@@ -1001,24 +1001,32 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "industrial-garage",
     label: "Industrial Garage",
-    description: "Asphalt gelap dengan gradasi merah hangat. Default house style Garage.",
+    // Palet = website Garage (garage-website.css): hitam pekat netral + merah tegas.
+    description: "Hitam pekat dengan aksen merah tegas, selaras website Garage. Default house style.",
     vibe: "industrial",
     colors: {
-      bg0: "#100808",
-      bg1: "#1a1111",
-      bg2: "#221818",
-      bg3: "#2e2020",
-      line: "#443434",
+      bg0: "#0a0a0c",
+      bg1: "#121216",
+      bg2: "#19191e",
+      bg3: "#232329",
+      line: "#34343c",
       fg: "#f4f4f5",
       dim: "#d0d0d6",
-      mute: "#9696a1",
-      primary: "#c41a1a",
-      primaryBright: "#e83030",
-      primaryDeep: "#7a0f0f",
-      accent: "#e8883a",
+      mute: "#9a9aa4",
+      primary: "#d11a2a",
+      primaryBright: "#ff2a3a",
+      primaryDeep: "#8b0f1a",
+      accent: "#f5a742",
       silver: "#d4d4d8",
     },
     ui: baseUI,
+    effects: {
+      // Latar hitam netral + satu cahaya merah tipis di pojok (tanpa gradasi cokelat/amber).
+      shellGlow: [
+        "radial-gradient(circle at 82% 4%, color-mix(in srgb, #d11a2a 18%, transparent), transparent 28rem)",
+        "linear-gradient(160deg, #0a0a0c, #101013 55%, #0a0a0c)",
+      ].join(", "),
+    },
   },
   {
     id: "luxury-black-gold",

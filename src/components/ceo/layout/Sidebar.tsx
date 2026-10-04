@@ -135,7 +135,7 @@ export function Sidebar() {
           {!sidebarCollapsed && "Sembunyikan"}
         </button>
         <div className={`mt-2 flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] p-2 ${sidebarCollapsed ? "justify-center" : ""}`}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#c41a1a] to-[#7a0f0f] text-[11px] font-bold text-white">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#d11a2a] to-[#8b0f1a] text-[11px] font-bold text-white">
             CE
           </div>
           {!sidebarCollapsed && (

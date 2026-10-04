@@ -1753,18 +1753,6 @@ function LoginScreen({
     loginRolePresets.find((preset) => preset.email === email) ??
     rolePresets[0] ??
     loginRolePresets[2];
-  const SelectedPresetIcon = selectedPreset.icon;
-  const loginStats = isPosLogin
-    ? [
-        ["POS ready", "Kasir counter"],
-        ["Payment flow", "Cash / QRIS / transfer"],
-        ["Receipt safe", "Thermal dan invoice"],
-      ]
-    : [
-        ["POS ready", "Kasir dan waiter"],
-        ["KDS live", "Kasir dapur & bar"],
-        ["Owner control", "Owner dan manajer"],
-      ];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1858,246 +1846,157 @@ function LoginScreen({
   }
 
   return (
-    <div className="garage-shell garage-login-shell dark flex min-h-screen flex-col text-foreground">
-      <div className="garage-login-ambient" aria-hidden="true">
-        <span className="garage-login-neon-rail garage-login-neon-rail-top" />
-        <span className="garage-login-neon-rail garage-login-neon-rail-bottom" />
-        <span className="garage-login-scanline" />
-        <span className="garage-login-ember ember-1" />
-        <span className="garage-login-ember ember-2" />
-        <span className="garage-login-ember ember-3" />
-        <span className="garage-login-ember ember-4" />
-        <span className="garage-login-ember ember-5" />
-        <span className="garage-login-ember ember-6" />
-        <span className="garage-login-ember ember-7" />
-        <span className="garage-login-ember ember-8" />
-      </div>
-      <header className="garage-login-grid mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pt-4 sm:px-6 lg:px-8">
-        <div className="min-w-0">
-          <p className="garage-mono">Garage staff portal</p>
-          <p className="mt-1 truncate text-sm font-semibold text-white">
-            Login karyawan Garage
-          </p>
+    <div className="garage-shell dark flex min-h-[100svh] flex-col bg-[radial-gradient(ellipse_at_top,#2a1414_0%,#100808_55%)] text-foreground">
+      <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center px-4 py-8 sm:py-12">
+        {/* Kartu login ringkas: logo → judul → form. Langsung terlihat di HP tanpa scroll. */}
+        <div className="flex justify-center">
+          <Image
+            src="/garage-brand/logo-website.png"
+            alt="Garage Coffee & Motor"
+            width={1024}
+            height={325}
+            priority
+            sizes="240px"
+            className="h-auto w-[220px] object-contain sm:w-[240px]"
+          />
         </div>
-        <Button
-          asChild
-          variant="outline"
-          className="garage-press h-10 shrink-0 whitespace-nowrap border-[#4a4a54] bg-white/[0.06] px-3 text-xs"
-        >
-          <Link href="/">
-            <ArrowRight className="mr-2 size-3.5 rotate-180" />
-            Halaman Utama
-          </Link>
-        </Button>
-      </header>
-      <main className="garage-login-grid mx-auto grid min-h-[calc(100vh-64px)] w-full max-w-7xl flex-1 items-center gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:px-8">
-        <section className="garage-login-hero garage-animate-in flex min-h-[520px] flex-col justify-between gap-8 rounded-md border border-[#34343c] bg-black/24 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)] sm:p-7 lg:p-8">
-          <div className="max-w-[360px]">
-            <BrandBlock mode="loading" compact className="garage-login-logo-crop mx-0" />
-          </div>
 
-          <div className="max-w-2xl space-y-5">
-            <div className="garage-login-chip inline-flex items-center gap-2 rounded-full border border-[#d11a2a]/45 bg-[#d11a2a]/14 px-3 py-1 text-xs font-medium text-[#ffb0b8]">
-              <Sparkles className="size-3.5" />
-              Garage Coffee & Motor OS
-            </div>
-            <div className="space-y-3">
-              <h1 className="garage-display garage-chrome max-w-[760px] text-5xl sm:text-6xl lg:text-7xl">
-                {isPosLogin ? "Garage POS Login" : "Garage Command Login"}
-              </h1>
-              <p className="max-w-2xl text-base leading-7 text-[#d0d0d6] sm:text-lg">
-                {isPosLogin
-                  ? "Halaman khusus tablet kasir Garage untuk masuk langsung ke POS, membuka shift, memproses transaksi, payment, dan cetak struk."
-                  : "Aplikasi point of sale dan pusat kendali operasional Garage untuk transaksi kasir, kitchen display, inventory, finance, approval, audit, dan dashboard owner."}
-              </p>
-            </div>
+        <div className="garage-animate-in mt-6 rounded-xl border border-garage-line bg-garage-bg-1/95 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.45)] sm:p-6">
+          <h1 className="text-xl font-bold text-white">
+            {isPosLogin ? "Masuk ke POS Garage" : "Masuk ke Garage OS"}
+          </h1>
+          <p className="mt-1 text-sm text-garage-dim">
+            {isPosLogin
+              ? "Khusus tablet kasir. Setelah masuk, POS langsung terbuka."
+              : "Gunakan akun karyawan yang didaftarkan owner."}
+          </p>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              {loginStats.map(([value, label]) => (
-                <div key={value} className="garage-login-stat garage-surface rounded-md p-3">
-                  <p className="text-sm font-semibold text-white">{value}</p>
-                  <p className="garage-mono mt-2">{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-3 border-t border-[#34343c] pt-4 text-sm text-[#d0d0d6] sm:grid-cols-3">
-            <div>
-              <p className="garage-mono">Pembuat aplikasi</p>
-              <p className="mt-1 font-semibold text-white">Killua Surya</p>
-            </div>
-            <div>
-              <p className="garage-mono">Info pembuatan program</p>
-              <p className="mt-1 font-semibold text-white">081396186251</p>
-            </div>
-            <div>
-              <p className="garage-mono">Copyright</p>
-              <p className="mt-1 font-semibold text-white">Killua Surya 2026</p>
-            </div>
-          </div>
-        </section>
-
-        <Card className="garage-login-card garage-panel garage-animate-in w-full">
-          <CardHeader className="space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle>Staff access</CardTitle>
-                <CardDescription className="mt-2">
-                  {isPosLogin
-                    ? "Login khusus staf POS. Setelah berhasil masuk, sistem langsung membuka tablet kasir."
-                    : "Better Auth session untuk struktur kerja Garage."}
-                </CardDescription>
-              </div>
-              {showDemoHelpers ? (
-                <Badge className={selectedPreset.tone}>{selectedPreset.label}</Badge>
-              ) : null}
-            </div>
-            {showDemoHelpers ? (
-              <div className="garage-surface rounded-md p-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <SelectedPresetIcon className="size-5 shrink-0 text-[#f5a742]" />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-white">
-                      {selectedPreset.role}
-                    </p>
-                    <p className="truncate text-sm text-[#d0d0d6]">{selectedPreset.station}</p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {showDemoHelpers ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {rolePresets.map((preset) => {
-                const RoleIcon = preset.icon;
-                const active = email === preset.email;
-
-                return (
-                  <button
-                    key={preset.email}
-                    type="button"
-                    onClick={() => {
-                      setEmail(preset.email);
-                      setError(null);
-                    }}
-                    className={`garage-login-role-card garage-press min-h-11 w-full rounded-md border px-3 py-2 text-left transition ${
-                      active
-                        ? "garage-login-role-card-active garage-red-glow border-[#d11a2a]/70 bg-[#d11a2a]/18"
-                        : "border-[#34343c] bg-[#202027] hover:border-[#4a4a54] hover:bg-white/[0.08]"
-                    }`}
-                    aria-pressed={active}
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className={`flex size-8 shrink-0 items-center justify-center rounded-md border ${preset.tone}`}>
-                        <RoleIcon className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate whitespace-nowrap text-sm font-semibold text-white">
-                          {preset.label}
-                        </span>
-                        <span className="garage-mono mt-0.5 block truncate whitespace-nowrap">
-                          {preset.station}
-                        </span>
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            ) : null}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="garage-login-email" className="block text-sm font-semibold text-white">
-                  Email Karyawan
-                </label>
-                <Input
-                  id="garage-login-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="nama@garage.id"
-                  className="h-11 border-[#34343c] bg-white/[0.06] text-base"
-                  autoComplete="email"
-                  required
-                />
-                <p className="text-xs text-[#9696a1]">
-                  Gunakan email akun staff yang sudah didaftarkan owner.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <label htmlFor="garage-login-password" className="block text-sm font-semibold text-white">
-                    Password
-                  </label>
-                  {devLoginPassword ? (
+          {showDemoHelpers ? (
+            <details className="mt-4 rounded-md border border-dashed border-garage-line-2 bg-white/[0.03] p-2.5">
+              <summary className="cursor-pointer text-xs font-semibold text-garage-dim">
+                Akun demo (hanya mode pengembangan) · {selectedPreset.label}
+              </summary>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {rolePresets.map((preset) => {
+                  const RoleIcon = preset.icon;
+                  const active = email === preset.email;
+                  return (
                     <button
+                      key={preset.email}
                       type="button"
                       onClick={() => {
-                        setPassword(devLoginPassword);
+                        setEmail(preset.email);
                         setError(null);
                       }}
-                      className="garage-mono rounded border border-[#4a4a54] px-2 py-1 text-[10px] text-[#d4d4d8] transition hover:border-[#d11a2a]/70 hover:text-white"
+                      className={`garage-press flex min-h-10 items-center gap-2 rounded-md border px-2.5 text-left text-xs font-semibold transition ${
+                        active
+                          ? "border-garage-red/70 bg-garage-red/15 text-white"
+                          : "border-garage-line bg-garage-bg-2 text-garage-dim hover:text-white"
+                      }`}
+                      aria-pressed={active}
                     >
-                      Isi demo
+                      <RoleIcon className="size-4 shrink-0 text-garage-amber" />
+                      <span className="truncate">{preset.label}</span>
                     </button>
-                  ) : null}
-                </div>
-                <div className="relative">
-                  <Input
-                    id="garage-login-password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Masukkan password"
-                    className="h-11 border-[#34343c] bg-white/[0.06] pr-11 text-base"
-                    autoComplete="current-password"
-                    required
-                  />
+                  );
+                })}
+              </div>
+            </details>
+          ) : null}
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="garage-login-email" className="block text-sm font-semibold text-white">
+                Email
+              </label>
+              <Input
+                id="garage-login-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="nama@garage.id"
+                className="h-12 border-garage-line bg-garage-bg-2 text-base"
+                autoComplete="email"
+                inputMode="email"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="garage-login-password" className="block text-sm font-semibold text-white">
+                  Password
+                </label>
+                {devLoginPassword ? (
                   <button
                     type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-                    className="absolute right-1 top-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-[#9696a1] transition hover:bg-white/[0.06] hover:text-white"
+                    onClick={() => {
+                      setPassword(devLoginPassword);
+                      setError(null);
+                    }}
+                    className="rounded border border-garage-line-2 px-2 py-1 text-[11px] font-semibold text-garage-dim transition hover:text-white"
                   >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    Isi demo
                   </button>
-                </div>
+                ) : null}
               </div>
-
-              {error && (
-                <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
-                  <AlertTriangle className="size-4" />
-                  <AlertTitle>Login gagal</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button disabled={pending} className="garage-login-submit garage-press h-12 w-full text-base font-semibold">
-                {pending ? (
-                  <RefreshCw className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <LockKeyhole className="mr-2 size-4" />
-                )}
-                <span className="truncate whitespace-nowrap">
-                  {pending ? "Memverifikasi…" : isPosLogin ? "Masuk POS" : "Masuk Garage OS"}
-                </span>
-              </Button>
-
-              <p className="text-center text-xs text-[#9696a1]">
-                Lupa password? Hubungi Owner atau Manajer untuk reset akun.
-              </p>
-            </form>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#34343c] pt-4 text-xs text-[#9696a1]">
-              <span className="whitespace-nowrap">Copyright Killua Surya 2026</span>
-              <span className="whitespace-nowrap">Program info: 081396186251</span>
+              <div className="relative">
+                <Input
+                  id="garage-login-password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Masukkan password"
+                  className="h-12 border-garage-line bg-garage-bg-2 pr-12 text-base"
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  className="absolute right-0.5 top-0.5 inline-flex size-11 items-center justify-center rounded-md text-garage-dim transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+
+            {error && (
+              <Alert className="border-garage-red/45 bg-garage-red/12 text-[#f4f4f5]">
+                <AlertTriangle className="size-4" />
+                <AlertTitle>Login gagal</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              disabled={pending}
+              className="garage-press h-12 w-full bg-garage-red text-base font-bold text-white hover:bg-garage-red-bright"
+            >
+              {pending ? (
+                <RefreshCw className="mr-2 size-4 animate-spin" />
+              ) : (
+                <LockKeyhole className="mr-2 size-4" />
+              )}
+              <span className="truncate whitespace-nowrap">
+                {pending ? "Memverifikasi…" : "Masuk"}
+              </span>
+            </Button>
+
+            <p className="text-center text-xs leading-5 text-garage-dim">
+              Lupa password? Hubungi Owner atau Manajer untuk reset akun.
+            </p>
+          </form>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between gap-2 text-xs text-garage-mute">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-1.5 hover:text-white">
+            <ArrowRight className="size-3.5 rotate-180" />
+            Halaman utama
+          </Link>
+          <span className="text-right">© 2026 Killua Surya · 081396186251</span>
+        </div>
       </main>
     </div>
   );

@@ -147,10 +147,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   expenseApprovalThreshold: 1_000_000,
   // Contoh awal biaya tetap harian (bisa diubah owner di Pengaturan → Anggaran Harian).
   dailyBudgetElectricity: 35_000,
-  dailyBudgetPayroll: 450_000,
-  dailyBudgetRent: 28_000,
+  dailyBudgetPayroll: 544_000,
+  dailyBudgetRent: 25_000,
   dailyBudgetSaveMoney: 100_000,
-  dailyBudgetInternet: 14_000,
+  dailyBudgetInternet: 10_000,
   dailyBudgetAds: 30_000,
   dailyBudgetSystem: 0,
   brandName: "GARAGE",

@@ -6,6 +6,7 @@ import {
   computeCapitalRecovery,
   computeDayFigure,
   computePayrollRecon,
+  dayRecoveryValue,
   fixedCostDaily,
   resolvePeriod,
   sumFigures,
@@ -131,15 +132,21 @@ describe("computeBep", () => {
     const figure = computeDayFigure(raw({ netSales: 2_000_000, cogs: 800_000 }), config);
     const totals = sumFigures([figure]);
     const fixedDaily = fixedCostDaily(config);
-    // Payroll master 16,2jt ÷ 30 = 540rb + akru 63rb.
-    expect(fixedDaily).toBe(603_000);
+    // Upah harian dari item GAJI (450rb) + akru 63rb. Save Money tidak ikut.
+    expect(fixedDaily).toBe(513_000);
     const bep = computeBep({ totals, trailing: totals, fixedDaily, monthDays: 30 });
     expect(bep.available).toBe(true);
     if (!bep.available) return;
     expect(bep.contributionMarginPct).toBe(60);
-    expect(bep.dailyTarget).toBe(1_005_000);
-    expect(bep.periodAchievementPct).toBe(199);
+    expect(bep.dailyTarget).toBe(855_000);
+    expect(bep.periodAchievementPct).toBe(233.9);
     expect(bep.periodStatus).toBe("ABOVE");
+  });
+
+  it("tanpa item GAJI, upah harian jatuh ke Payroll Master ÷ 30", () => {
+    const noWage = { ...config, costItems: config.costItems.filter((item) => item.code !== "GAJI") };
+    // Payroll master 16,2jt ÷ 30 = 540rb + akru 63rb.
+    expect(fixedCostDaily(noWage)).toBe(603_000);
   });
 
   it("tidak mengarang BEP bila belum ada penjualan", () => {
@@ -188,6 +195,48 @@ describe("computeCapitalRecovery", () => {
     });
     expect(result.recoveryPct).toBe(0);
     expect(result.estimatedPaybackMonths).toBeNull();
+    expect(result.roiPct).toBeLessThan(0);
+  });
+
+  it("contoh owner: modal 500jt, kembali 100jt, laba 10jt/bulan → 20%, sisa 400jt, ± 40 bulan, ROI 20%", () => {
+    const result = computeCapitalRecovery({
+      capital: [{ date: "2026-01-01", type: "injection", amount: 500_000_000 }],
+      cumulativeNetProfit: 100_000_000,
+      recentNetProfits: Array(30).fill(10_000_000 / 30),
+      startDate: "2026-01-01",
+      todayKey: "2026-10-01",
+      method: "net_profit",
+    });
+    expect(result.recoveryPct).toBe(20);
+    expect(result.remaining).toBe(400_000_000);
+    expect(result.roiPct).toBe(20);
+    expect(result.avgMonthlyNetProfit).toBeCloseTo(10_000_000, -2);
+    expect(result.estimatedPaybackMonths).toBeCloseTo(40, 0);
+    expect(result.methodLabel).toBe("Laba bersih");
+  });
+});
+
+describe("dayRecoveryValue (metode balik modal)", () => {
+  const day = {
+    date: "2026-10-01",
+    netProfit: 500_000,
+    reserveAllocation: 100_000,
+    cashIn: 3_000_000 + 10_000_000, // penjualan + setoran modal
+    cashOut: 2_000_000 + 1_000_000, // operasional + penarikan modal
+    channels: { Cash: 3_000_000, Modal: 10_000_000 },
+  };
+  const withdrawals = new Map([["2026-10-01", 1_000_000]]);
+
+  it("laba bersih = net profit apa adanya", () => {
+    expect(dayRecoveryValue(day, "net_profit", withdrawals)).toBe(500_000);
+  });
+
+  it("laba bersih setelah Save Money dikurangi cadangan", () => {
+    expect(dayRecoveryValue(day, "net_profit_after_reserve", withdrawals)).toBe(400_000);
+  });
+
+  it("cashflow operasional tidak menghitung modal masuk/keluar", () => {
+    expect(dayRecoveryValue(day, "operating_cashflow", withdrawals)).toBe(1_000_000);
   });
 });
 

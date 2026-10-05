@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
@@ -240,43 +242,95 @@ export function CapitalRecoveryCard({ data }: { data: FinanceControlDashboard })
   const capital = data.capital;
   const animated = useCountUp(capital.recoveryPct);
   const done = capital.initialCapital > 0 && capital.remaining === 0;
+  const months = capital.estimatedPaybackMonths;
 
   return (
-    <FinanceCard title="Capital Recovery" subtitle={`Sejak ${capital.startDate} · ${capital.daysRunning} hari berjalan`}>
+    <FinanceCard
+      title="Balik Modal"
+      subtitle={`Metode: ${capital.methodLabel} · sejak ${capital.startDate} · ${capital.daysRunning} hari berjalan`}
+      actions={
+        <Link
+          href="/control/financial/settings"
+          className="inline-flex min-h-9 items-center rounded-lg bg-white/10 px-3 text-xs font-bold uppercase text-zinc-100 hover:bg-white/15"
+        >
+          Ubah metode
+        </Link>
+      }
+    >
       {capital.initialCapital <= 0 ? (
         <EmptyNote text="Modal awal belum dicatat. Tambahkan capital injection di Pengaturan Finance." />
       ) : (
         <div className="space-y-4">
           {done ? (
             <p className="rounded-xl bg-[color-mix(in_srgb,var(--garage-success)_14%,transparent)] px-3 py-2 text-sm font-bold uppercase text-[#a8f0c4]">
-              Capital recovered · {rupiah(capital.initialCapital)}
+              Modal sudah kembali · {rupiah(capital.initialCapital)}
             </p>
           ) : null}
           <div className="flex items-end justify-between gap-3">
-            <p className="text-xs font-semibold uppercase text-zinc-400">Modal kembali</p>
-            <p className="font-mono text-3xl font-bold tabular-nums text-zinc-50">{percent(animated)}</p>
+            <div>
+              <p className="text-xs font-semibold uppercase text-zinc-400">Modal awal</p>
+              <p className="font-mono text-xl font-bold tabular-nums text-zinc-50">{rupiah(capital.initialCapital)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase text-zinc-400">Progress</p>
+              <p className="font-mono text-3xl font-bold tabular-nums text-zinc-50">{percent(animated)}</p>
+            </div>
           </div>
           <ProgressBar pct={capital.recoveryPct} tone={done ? "ok" : "warn"} label="Pengembalian modal" />
-          <div className="grid grid-cols-2 gap-3">
-            <Stat label="Modal awal" value={rupiah(capital.initialCapital)} />
-            <Stat label="Recovered" value={<span className={capital.recovered < 0 ? toneText.bad : ""}>{rupiah(capital.recovered)}</span>} />
-            <Stat label="Sisa" value={rupiah(capital.remaining)} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Stat
-              label="Estimasi payback"
+              label="Modal kembali"
+              value={<span className={capital.recovered < 0 ? toneText.bad : ""}>{rupiah(capital.recovered)}</span>}
+            />
+            <Stat label="Sisa balik modal" value={rupiah(capital.remaining)} />
+            <Stat
+              label="ROI"
               value={
-                capital.estimatedPaybackMonths === null
-                  ? "Belum bisa diproyeksi"
-                  : capital.estimatedPaybackMonths === 0
-                    ? "Lunas"
-                    : `± ${new Intl.NumberFormat("id-ID").format(capital.estimatedPaybackMonths)} bulan`
+                <span className={capital.roiPct !== null && capital.roiPct < 0 ? toneText.bad : ""}>
+                  {capital.roiPct === null ? "—" : percent(capital.roiPct)}
+                </span>
               }
             />
+            <Stat
+              label="Rata-rata / bulan"
+              value={
+                capital.avgMonthlyNetProfit === null ? (
+                  "Belum ada data"
+                ) : (
+                  <span className={capital.avgMonthlyNetProfit < 0 ? toneText.bad : ""}>{rupiah(capital.avgMonthlyNetProfit)}</span>
+                )
+              }
+            />
+            <Stat
+              label="Estimasi balik modal"
+              value={
+                months === null
+                  ? "Belum bisa diproyeksi"
+                  : months === 0
+                    ? "Lunas"
+                    : `± ${new Intl.NumberFormat("id-ID").format(months)} bulan`
+              }
+            />
+            <Stat label="Perkiraan tanggal" value={capital.estimatedPaybackDate ?? "—"} />
           </div>
           <p className="text-xs text-zinc-400">
-            Recovered = kumulatif net profit. Estimasi berlabel <span className="font-bold text-zinc-200">PROYEKSI</span>, dari rata-rata laba bersih
-            30 hari ({rupiah(capital.avgDailyNetProfit)}/hari)
-            {capital.estimatedPaybackDate ? `, perkiraan balik modal ${capital.estimatedPaybackDate}` : ""}.
+            Modal kembali = akumulasi <span className="font-bold text-zinc-200">{capital.methodLabel.toLowerCase()}</span> sejak mulai bisnis.
+            ROI = modal kembali ÷ modal awal. Estimasi = sisa ÷ rata-rata aktual 30 hari terakhir ({rupiah(capital.avgDailyNetProfit)}/hari),
+            diperbarui setiap hari{months === null && !done ? " — muncul setelah rata-rata bernilai positif" : ""}.
           </p>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-xs font-bold uppercase text-zinc-300">Bukan modal kembali (pembanding)</p>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <Stat
+                label="Saldo kas saat ini"
+                value={capital.cashBalanceIsSet ? rupiah(capital.cashBalance) : "Saldo awal belum diatur"}
+              />
+              <Stat label="Aset stok bahan" value={rupiah(capital.inventoryValue)} />
+            </div>
+            <p className="mt-2 text-xs text-zinc-400">
+              Kas &amp; aset tidak dihitung sebagai modal kembali. Peralatan, furnitur &amp; mesin belum tercatat (modul aset belum tersedia).
+            </p>
+          </div>
         </div>
       )}
     </FinanceCard>

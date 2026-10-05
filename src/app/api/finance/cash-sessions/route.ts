@@ -21,7 +21,8 @@ const cashSessionSchema = z.object({
     .refine((value) => value % 50000 === 0, {
       message: "Opening cash harus kelipatan Rp 50.000.",
     }),
-  shiftNumber: z.union([z.literal(1), z.literal(2)]).optional(),
+  shiftNumber: z.number().int().min(1).max(9).optional(),
+  managerPin: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4–8 digit angka.").optional(),
 });
 
 export async function POST(request: Request) {
@@ -49,6 +50,9 @@ export async function POST(request: Request) {
     }
     if (error instanceof CashSessionShiftMismatchError) {
       return fail(409, "CASH_SESSION_SHIFT_MISMATCH", error.message);
+    }
+    if (error instanceof Error && /^PIN salah|Terlalu banyak|terkunci/i.test(error.message)) {
+      return fail(403, "MANAGER_PIN_INVALID", error.message);
     }
     throw error;
   }

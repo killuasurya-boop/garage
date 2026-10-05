@@ -35,6 +35,7 @@ import {
   tableTone,
   type ToastInput,
 } from "./waiter-view-helpers";
+import { TablePlate } from "@/components/garage/table-plate";
 
 // Status tiket produksi per station. Item mewarisi status station-nya (status
 // per item tidak ada di data). null = order belum masuk dapur/bar.
@@ -326,15 +327,15 @@ export function TableDetailDrawer({
       >
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/20 sm:hidden" aria-hidden />
         <header className="flex items-start justify-between gap-3 border-b border-garage-line px-4 py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-mono text-2xl font-black leading-none text-white">{row.tableLabel}</h2>
-              <span className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] font-bold ${tone.labelColor} bg-black/30`}>
-                <span className={`size-2.5 rounded-[3px] ${tone.swatch}`} aria-hidden />
-                {tone.label}
-              </span>
-            </div>
-            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-garage-dim">
+          <div className="flex min-w-0 items-center gap-3">
+            <TablePlate number={row.tableNumber} size="lg" />
+            <div className="min-w-0">
+            <h2 className="sr-only">{row.tableLabel}</h2>
+            <span className={`inline-flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1 text-[12px] font-bold ring-1 ring-white/10 ${tone.labelColor}`}>
+              <span className={`size-2 rounded-full ${tone.dot}`} aria-hidden />
+              {tone.label}
+            </span>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-garage-dim">
               {row.area ? <span>{row.area}</span> : null}
               {row.capacity ? (
                 <span className="inline-flex items-center gap-1">
@@ -345,6 +346,7 @@ export function TableDetailDrawer({
                 <span>Duduk {formatTableDuration(row.timerMinutes)}</span>
               ) : null}
             </p>
+            </div>
           </div>
           <button
             ref={closeRef}

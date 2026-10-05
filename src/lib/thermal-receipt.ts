@@ -5,9 +5,13 @@
 // (print-client.ts → agen cetak lokal saat app dijalankan di VPS). Satu sumber
 // format struk supaya tampilan tidak pernah beda antar jalur cetak.
 
+import { parseTableNumber } from "@/lib/garage-tables";
+
 export interface ThermalReceiptInput {
   invoiceNo?: string | null;
   orderNo?: string | null;
+  /** "Meja 06" untuk dine-in; takeaway/delivery tidak dicetak sebagai meja. */
+  tableLabel?: string | null;
   queueNo?: number | null;
   createdAt?: string | null;
   outlet?: { name?: string | null; code?: string | null } | null;
@@ -140,7 +144,14 @@ export function buildKitchenChitContent(input: KitchenChitInput): string {
       rows.push(center(`ANTRIAN  #${input.queueNo}`));
       rows.push("=".repeat(W));
     }
-    rows.push(`Meja  : ${clean(input.tableLabel) || "-"}`.slice(0, W));
+    // Nomor meja dibuat banner besar agar dapur/bar langsung tahu tujuan antar.
+    const chitTable = parseTableNumber(input.tableLabel ?? null);
+    if (chitTable) {
+      rows.push(center(`>>> MEJA ${chitTable} <<<`));
+      rows.push("-".repeat(W));
+    } else {
+      rows.push(`Meja  : ${clean(input.tableLabel) || "-"}`.slice(0, W));
+    }
     if (input.orderType) {
       rows.push(`Tipe  : ${orderTypeLabel(input.orderType)}`.slice(0, W));
     }
@@ -269,6 +280,11 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
   rows.push(line());
   if (receipt.queueNo != null) {
     rows.push(center(`ANTRIAN  #${receipt.queueNo}`));
+    rows.push(line());
+  }
+  const receiptTable = parseTableNumber(receipt.tableLabel ?? null);
+  if (receiptTable) {
+    rows.push(center(`MEJA ${receiptTable}`));
     rows.push(line());
   }
   rows.push(`Order : ${clean(receipt.orderNo) || "-"}`.slice(0, W));

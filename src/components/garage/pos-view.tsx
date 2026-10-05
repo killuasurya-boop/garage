@@ -26,7 +26,6 @@ ExternalLink,
 Fingerprint,
 FileText,
 History,
-KeyRound,
 Info,
 Landmark,
 Headset,
@@ -133,9 +132,11 @@ import {
 CashierThemePresetGrid,
 OpeningCashPresetPicker,
 SettingsChoiceGroup,
-ShiftNumberPicker,
 type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
+import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
+import { CloseShiftForm, type CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
+import { TablePlate } from "@/components/garage/table-plate";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -180,16 +181,13 @@ TableHeader,
 TableRow,
 } from "@/components/ui/table";
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { GarageApiError, garageApi } from "@/lib/api-client";
-import { IDR_CASH_DENOMINATIONS, sumDenominations } from "@/lib/cash-denominations";
 import { canAccessModule } from "@/lib/role-access";
 import { GARAGE_TAGS, invalidateGarageCache } from "@/lib/garage-cache";
 import type {
 AppSettings,
 CartLine,
 CashSession,
-ClosingChecklistItem,
 Customer,
 CustomerOrder,
 CustomerOrderActionResponse,
@@ -320,7 +318,6 @@ const initialVisibleProducts = 40;
 const productLoadStep = 20;
 
 type PaymentStep = "summary" | "table" | "customer" | "payment" | "done";
-type ShiftResetTableMode = "none" | "completed" | "all";
 type CashierShiftSummary = {
   session: CashSession & {
     openedAt: string;
@@ -771,10 +768,11 @@ export function PosView({
     return Math.round(capped / 50000) * 50000;
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
-  const [openingShiftNumber, setOpeningShiftNumber] = useState<1 | 2>(1);
-  // Blind count: kasir menghitung laci per pecahan tanpa diberi angka sistem.
-  const [shiftDenominationCounts, setShiftDenominationCounts] = useState<Record<string, string>>({});
-  const [shiftManagerPin, setShiftManagerPin] = useState("");
+  const [openingShiftNumber, setOpeningShiftNumber] = useState<number>(1);
+  const [openShiftManagerPin, setOpenShiftManagerPin] = useState("");
+  const [shiftStatusRefresh, setShiftStatusRefresh] = useState(0);
+  // Blind count: kasir menghitung laci per pecahan tanpa diberi angka sistem
+  // (form ada di CloseShiftForm; di sini hanya status sign-off & hasil tutup).
   const [shiftSignOffRequired, setShiftSignOffRequired] = useState(false);
   // Hasil hitung tutup shift; POS langsung terkunci setelah tutup, jadi hasilnya
   // ditampilkan di kartu "Shift Belum Dibuka", bukan di notice POS.
@@ -784,13 +782,14 @@ export function PosView({
     expectedCash: number;
     actualCash: number;
     resetTableCount: number | null;
+    qrisRecorded: number | null;
+    qrisDiscrepancy: number | null;
+    floatLeft: number | null;
+    depositAmount: number | null;
+    sessionId: string | null;
   } | null>(null);
-  const [shiftClosingNote, setShiftClosingNote] = useState("");
-  const [shiftResetTableMode, setShiftResetTableMode] =
-    useState<ShiftResetTableMode>("completed");
-  const [shiftChecklist, setShiftChecklist] = useState<ClosingChecklistItem[]>(
-    cashSession.checklist,
-  );
+  // Kunci ulang form tutup shift setiap dialog dibuka (state form di dalamnya).
+  const [closeFormKey, setCloseFormKey] = useState(0);
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
@@ -1014,14 +1013,7 @@ export function PosView({
     if (shiftAutoPromptedRef.current) return;
     shiftAutoPromptedRef.current = true;
     setShiftError(null);
-    setShiftDenominationCounts({});
-    setShiftClosingNote(cashSession.closingNote ?? "");
-    setShiftChecklist(cashSession.checklist);
-  }, [
-    shiftOpen,
-    cashSession.closingNote,
-    cashSession.checklist,
-  ]);
+  }, [shiftOpen]);
   const profileInitials = initialsForProfile(me.user.name ?? "", me.user.email);
   const themeButtonLabel =
     themeMode === "bright" ? "Gunakan tema gelap" : "Gunakan tema cerah";
@@ -1198,11 +1190,6 @@ export function PosView({
     manualDiscount?.approvalStatus === "pending";
   const checkoutReady =
     paymentReady && !dineInTableMissing && !manualDiscountAwaitingApproval;
-  const shiftCountedCash = sumDenominations(
-    Object.fromEntries(
-      Object.entries(shiftDenominationCounts).map(([key, raw]) => [key, Number(raw) || 0]),
-    ),
-  );
   const quickCashAmounts = useMemo(
     () =>
       [10000, 20000, 50000, 100000].filter((amount) => amount >= totalDue),
@@ -3099,13 +3086,10 @@ export function PosView({
 
   function prepareShiftDialog() {
     setShiftError(null);
-    setShiftDenominationCounts({});
-    setShiftManagerPin("");
     setShiftSignOffRequired(false);
-    setShiftClosingNote(cashSession.closingNote ?? "");
-    setShiftResetTableMode("completed");
-    setShiftChecklist(cashSession.checklist);
+    setCloseFormKey((value) => value + 1);
     setOpeningShiftNumber(shiftOpen ? 2 : 1);
+    setOpenShiftManagerPin("");
     setShiftDialogOpen(true);
   }
 
@@ -3138,15 +3122,6 @@ export function PosView({
     return amount;
   }
 
-  function shiftChecklistReady() {
-    if (!shiftChecklist.length || shiftChecklist.some((item) => !item.done)) {
-      setShiftError("Checklist tutup shift wajib dicentang semua sebelum close.");
-      return false;
-    }
-
-    return true;
-  }
-
   async function openShift(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const openingCashValue = parseOpeningCashAmount();
@@ -3160,69 +3135,53 @@ export function PosView({
       await garageApi.post<CashSession>("/api/finance/cash-sessions", {
         openingCash: openingCashValue,
         shiftNumber: openingShiftNumber,
+        ...(openShiftManagerPin ? { managerPin: openShiftManagerPin } : {}),
       });
       await onCashSessionOpened();
       setShiftDialogOpen(false);
       setLastShiftCloseResult(null);
+      setOpenShiftManagerPin("");
     } catch (error) {
       setShiftError(error instanceof Error ? error.message : "Mulai shift gagal.");
+      // Status Shift 1/2 bisa berubah (kasir lain baru buka/tutup) → muat ulang.
+      setShiftStatusRefresh((value) => value + 1);
     } finally {
       setShiftPending(false);
     }
   }
 
-  async function closeShift(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const denominations: Record<string, number> = {};
-    for (const [key, raw] of Object.entries(shiftDenominationCounts)) {
-      if (raw.trim() === "") continue;
-      const qty = Number(raw);
-      if (!Number.isInteger(qty) || qty < 0) {
-        setShiftError(`Jumlah pecahan ${currency.format(Number(key))} harus angka bulat.`);
-        return;
-      }
-      denominations[key] = qty;
-    }
-    if (!Object.keys(denominations).length) {
-      setShiftError("Isi jumlah lembar/keping uang di laci (isi 0 bila laci kosong).");
-      return;
-    }
-    const actualCashInput = sumDenominations(denominations);
-    if (!shiftChecklistReady()) {
-      return;
-    }
-    const managerPin = shiftManagerPin.trim();
-    if (shiftSignOffRequired && !/^\d{4,8}$/.test(managerPin)) {
-      setShiftError("PIN Manajer/Owner wajib 4–8 digit angka.");
-      return;
-    }
+  // Shift sendiri masih terbuka (mis. dibuka di tablet lain): muat ulang data POS
+  // agar shift itu dipakai lagi, tanpa membuka shift baru.
+  async function resumeOwnShift() {
+    setShiftError(null);
+    await onCashSessionOpened();
+    setShiftDialogOpen(false);
+  }
 
+  async function closeShift(payload: CloseShiftPayload) {
     setShiftPending(true);
     setShiftError(null);
     try {
       const closedSession = await garageApi.patch<CashSession>(
         `/api/finance/cash-sessions/${cashSession.id}/close`,
-        {
-          actualCash: actualCashInput,
-          denominations,
-          checklist: shiftChecklist,
-          closingNote: shiftClosingNote,
-          resetTableMode: shiftResetTableMode,
-          ...(managerPin ? { managerPin } : {}),
-        },
+        payload,
       );
       await onCashSessionOpened();
       setShiftDialogOpen(false);
-      setShiftManagerPin("");
       setShiftSignOffRequired(false);
       setLastShiftCloseResult({
         code: closedSession.code,
         discrepancy: closedSession.discrepancy,
         expectedCash: closedSession.expectedCash,
-        actualCash: closedSession.actualCash ?? actualCashInput,
+        actualCash: closedSession.actualCash ?? payload.actualCash,
         resetTableCount: closedSession.resetTables?.requested
           ? closedSession.resetTables.count
           : null,
+        qrisRecorded: closedSession.qrisRecorded ?? null,
+        qrisDiscrepancy: closedSession.qrisDiscrepancy ?? null,
+        floatLeft: closedSession.floatLeft ?? null,
+        depositAmount: closedSession.depositAmount ?? null,
+        sessionId: closedSession.id,
       });
       // Voice notification: bunyi kalau ada selisih kas (lebih atau kurang
       // dari expected) sehingga Manager langsung tahu untuk verifikasi.
@@ -3236,7 +3195,6 @@ export function PosView({
       if (error instanceof GarageApiError && error.code === "MANAGER_SIGNOFF_REQUIRED") {
         setShiftSignOffRequired(true);
       }
-      setShiftManagerPin("");
       setShiftError(error instanceof Error ? error.message : "Tutup shift gagal.");
     } finally {
       setShiftPending(false);
@@ -3623,9 +3581,13 @@ export function PosView({
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={(event) => void openShift(event)} className="space-y-4">
-              <ShiftNumberPicker
-                value={openingShiftNumber}
-                onChange={setOpeningShiftNumber}
+              <ShiftStartStatus
+                onShiftNumber={setOpeningShiftNumber}
+                onSuggestOpeningCash={(amount) => setOpeningCash(String(amount))}
+                managerPin={openShiftManagerPin}
+                onManagerPinChange={setOpenShiftManagerPin}
+                onResume={resumeOwnShift}
+                refreshKey={shiftStatusRefresh}
               />
               <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
               {shiftError && (
@@ -3686,8 +3648,22 @@ export function PosView({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[#b8b8bf]">Selisih</dt>
-                  <dd className="font-semibold">
+                  <dt className="text-[#b8b8bf]">
+                    {lastShiftCloseResult.discrepancy > 0
+                      ? "Selisih (lebih)"
+                      : lastShiftCloseResult.discrepancy < 0
+                        ? "Selisih (kurang)"
+                        : "Selisih"}
+                  </dt>
+                  <dd
+                    className={`font-bold ${
+                      lastShiftCloseResult.discrepancy === 0
+                        ? "text-white"
+                        : lastShiftCloseResult.discrepancy > 0
+                          ? "text-[#ffd08a]"
+                          : "text-[#ff8a95]"
+                    }`}
+                  >
                     {lastShiftCloseResult.discrepancy === 0
                       ? "Sesuai"
                       : `${lastShiftCloseResult.discrepancy > 0 ? "+" : "-"}${currency.format(Math.abs(lastShiftCloseResult.discrepancy))}`}
@@ -3699,6 +3675,42 @@ export function PosView({
                   {lastShiftCloseResult.resetTableCount} meja direset ke kosong.
                 </p>
               )}
+              {lastShiftCloseResult.depositAmount !== null ? (
+                <dl className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <dt className="text-[#b8b8bf]">Ditinggal di laci</dt>
+                    <dd className="font-semibold text-white">
+                      {currency.format(lastShiftCloseResult.floatLeft ?? 0)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#b8b8bf]">Disetor ke Owner</dt>
+                    <dd className="font-semibold text-[#ffd08a]">
+                      {currency.format(lastShiftCloseResult.depositAmount)}
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
+              {lastShiftCloseResult.sessionId ? (
+                <a
+                  href={`/api/finance/cash-sessions/${lastShiftCloseResult.sessionId}/report`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-[#4a4a54] bg-white/[0.06] px-3 text-xs font-semibold text-white hover:bg-white/10"
+                >
+                  <Printer className="size-3.5" /> Cetak laporan tutup shift
+                </a>
+              ) : null}
+              {lastShiftCloseResult.qrisRecorded ? (
+                <p className="mt-2 text-xs text-[#d6d6dc]">
+                  QRIS tercatat {currency.format(lastShiftCloseResult.qrisRecorded)}
+                  {lastShiftCloseResult.qrisDiscrepancy === null
+                    ? " · belum dicocokkan dengan BNI (Owner/Manajer cocokkan di Rekap Harian)."
+                    : lastShiftCloseResult.qrisDiscrepancy === 0
+                      ? " · cocok dengan BNI."
+                      : ` · selisih QRIS ${lastShiftCloseResult.qrisDiscrepancy > 0 ? "+" : "-"}${currency.format(Math.abs(lastShiftCloseResult.qrisDiscrepancy))} (dicatat terpisah dari laci).`}
+                </p>
+              ) : null}
             </div>
           )}
           <Button
@@ -6199,175 +6211,31 @@ export function PosView({
             </DialogDescription>
           </DialogHeader>
           {shiftOpen ? (
-            <form onSubmit={(event) => void closeShift(event)} className="space-y-4">
-              <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-xs text-[#d6d6dc]">
-                Hitung semua uang tunai di laci, termasuk modal awal. Kas seharusnya dan selisih
-                ditampilkan setelah shift ditutup.
-              </div>
-              {(closeShiftActiveTables.length > 0 || customerOrders.length > 0) && (
-                <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffe0ad]">
-                  <AlertTriangle className="size-4" />
-                  <AlertTitle>Cek handover</AlertTitle>
-                  <AlertDescription>
-                    {closeShiftActiveTables.length} meja aktif, {customerOrders.length} QR pending.
-                  </AlertDescription>
-                </Alert>
-              )}
-              <div>
-                <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                  Jumlah lembar / keping di laci
-                </p>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                  {IDR_CASH_DENOMINATIONS.map((denomination) => {
-                    const key = String(denomination);
-                    return (
-                      <label key={key} className="space-y-1">
-                        <span className="block text-[11px] font-semibold text-[#d6d6dc]">
-                          {currency.format(denomination)}
-                        </span>
-                        <Input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          step={1}
-                          value={shiftDenominationCounts[key] ?? ""}
-                          placeholder="0"
-                          aria-label={`Jumlah pecahan ${currency.format(denomination)}`}
-                          onChange={(event) =>
-                            setShiftDenominationCounts((current) => ({
-                              ...current,
-                              [key]: event.target.value,
-                            }))
-                          }
-                          className="h-10 border-[#34343c] bg-white/[0.06]"
-                        />
-                      </label>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 flex items-center justify-between rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-2">
-                  <span className="text-xs text-[#d6d6dc]">Total hitungan fisik</span>
-                  <span className="text-base font-semibold text-white">
-                    {currency.format(shiftCountedCash)}
-                  </span>
-                </div>
-              </div>
-              {shiftSignOffRequired && (
-                <div className="space-y-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/8 p-3">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-white">
-                    <KeyRound className="size-4 text-[#f5a742]" />
-                    PIN Manajer / Owner
-                  </p>
-                  <p className="text-xs text-[#d6d6dc]">
-                    Serahkan tablet ke Manajer. Sign-off tercatat atas nama pemilik PIN.
-                  </p>
-                  <Input
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={8}
-                    value={shiftManagerPin}
-                    onChange={(event) =>
-                      setShiftManagerPin(event.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder="4–8 digit"
-                    className="h-11 border-[#34343c] bg-white/[0.06]"
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <p className="garage-mono text-[10px] text-[#b8b8bf]">Checklist tutup shift</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {shiftChecklist.map((item, index) => (
-                    <label
-                      key={`${item.label}-${index}`}
-                      className="flex items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-2 text-xs text-[#f4f4f5]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.done}
-                        onChange={(event) =>
-                          setShiftChecklist((current) =>
-                            current.map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, done: event.target.checked }
-                                : entry,
-                            ),
-                          )
-                        }
-                      />
-                      <span>{item.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">Catatan kasir</p>
-                <Textarea
-                  value={shiftClosingNote}
-                  onChange={(event) => setShiftClosingNote(event.target.value)}
-                  maxLength={500}
-                  placeholder="Contoh: cash kurang Rp 5.000 karena pembulatan kembalian."
-                  className="min-h-20 border-[#34343c] bg-white/[0.06]"
-                />
-              </div>
-              <div className="space-y-2">
-                <p className="garage-mono text-[10px] text-[#b8b8bf]">Reset meja</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    {
-                      mode: "none" as const,
-                      label: "Tidak",
-                    },
-                    {
-                      mode: "completed" as const,
-                      label: "Selesai",
-                    },
-                    {
-                      mode: "all" as const,
-                      label: "Semua",
-                    },
-                  ].map((option) => {
-                    const disabled = option.mode === "all" && !canResetAllTablesOnClose;
-                    const active = shiftResetTableMode === option.mode;
-                    return (
-                      <button
-                        key={option.mode}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setShiftResetTableMode(option.mode)}
-                        className={`garage-press h-10 rounded-md border px-2 text-center text-xs font-semibold transition ${
-                          active
-                            ? "border-[#f5a742] bg-[#f5a742]/18 text-[#fff0cf]"
-                            : "border-[#34343c] bg-black/15 text-[#d6d6dc]"
-                        } ${disabled ? "cursor-not-allowed opacity-45" : "hover:border-[#f5a742]/70"}`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {shiftError && (
-                <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
-                  <AlertTriangle className="size-4" />
-                  <AlertTitle>Shift gagal</AlertTitle>
-                  <AlertDescription>{shiftError}</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" className="garage-press h-11 w-full" disabled={shiftPending}>
-                {shiftPending
-                  ? "Memproses..."
-                  : shiftSignOffRequired
-                    ? "Sign-off & Tutup Shift"
-                    : "Tutup Shift"}
-              </Button>
-            </form>
+            <CloseShiftForm
+              key={closeFormKey}
+              sessionCode={cashSession.code}
+              cashSessionId={cashSession.id}
+              openingCash={cashSession.openingCash}
+              isKasir={me.role === "Kasir"}
+              isSupervisor={me.role === "Owner" || me.role === "Manajer"}
+              activeTableCount={closeShiftActiveTables.length}
+              pendingQrCount={customerOrders.length}
+              canResetAllTables={canResetAllTablesOnClose}
+              signOffRequired={shiftSignOffRequired}
+              pending={shiftPending}
+              error={shiftError}
+              onSubmit={closeShift}
+              onCorrected={() => void onCashSessionOpened()}
+            />
           ) : (
             <form onSubmit={(event) => void openShift(event)} className="space-y-4">
-              <ShiftNumberPicker
-                value={openingShiftNumber}
-                onChange={setOpeningShiftNumber}
+              <ShiftStartStatus
+                onShiftNumber={setOpeningShiftNumber}
+                onSuggestOpeningCash={(amount) => setOpeningCash(String(amount))}
+                managerPin={openShiftManagerPin}
+                onManagerPinChange={setOpenShiftManagerPin}
+                onResume={resumeOwnShift}
+                refreshKey={shiftStatusRefresh}
               />
               <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
               {shiftError && (
@@ -7335,21 +7203,28 @@ export function PosView({
                   const statusText = table.staleFromPreviousDay
                     ? "Cek kasir · bill kemarin"
                     : tableAvailabilityLabel(availability);
+                  const barClass =
+                    availability === "cleaning"
+                      ? "bg-[#ff2a3a]"
+                      : availability === "paid"
+                        ? "bg-[#d4d4d8]"
+                        : openBill
+                          ? "bg-[#f5a742]"
+                          : "bg-[#4a4a54]";
                   return (
                     <button
                       key={table.tableNumber}
                       type="button"
-                      className={`garage-press relative min-h-[76px] w-full rounded-md border p-2 text-left transition hover:brightness-125 sm:min-h-[80px] ${toneClass}`}
+                      className={`garage-press relative min-h-[96px] w-full overflow-hidden rounded-md border p-2 pl-2.5 text-left transition hover:brightness-125 ${toneClass}`}
                       aria-label={`Meja ${table.tableNumber}, ${statusText}${
                         table.total > 0 ? `, ${currency.format(table.total)}` : ""
                       }. Buka detail.`}
                       onClick={() => openTableDetail(table)}
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="garage-mono text-base font-black text-white sm:text-lg">
-                          {table.tableNumber}
-                        </span>
-                        <span className="pos-table-indicator" data-state={availability} aria-hidden="true" />
+                      <span className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${barClass}`} aria-hidden />
+                      <div className="flex items-start justify-between gap-1">
+                        <TablePlate number={table.tableNumber} size="sm" />
+                        <span className="pos-table-indicator mt-1" data-state={availability} aria-hidden="true" />
                       </div>
                       <p
                         className={`mt-1 line-clamp-2 text-[11px] font-semibold leading-tight ${
@@ -10849,7 +10724,7 @@ function CheckoutOrderStep({
                   aria-label={`Meja ${table.tableNumber}, ${tableAvailabilityLabel(availability)}${selected ? ", dipilih" : ""}`}
                 >
                   <span className="flex items-center justify-between gap-1">
-                    <span className="garage-mono text-[15px] font-black">{table.tableNumber}</span>
+                    <span className="garage-mono text-[18px] font-black tabular-nums leading-none">{table.tableNumber}</span>
                     {selected ? (
                       <Check className="size-4 text-white" aria-hidden />
                     ) : (

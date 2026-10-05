@@ -1,3 +1,4 @@
+import { freshClosingChecklist } from "@/lib/cash-closing";
 import {
   Activity,
   BadgeCheck,
@@ -679,13 +680,8 @@ export const paymentBreakdown = [
   { method: "Card", amount: 2750000, share: 15 },
 ];
 
-export const closingChecklist = [
-  { label: "Opening cash verified", done: true },
-  { label: "Cash in/out approved", done: true },
-  { label: "Payment settlement matched", done: true },
-  { label: "Cash drawer counted", done: false },
-  { label: "Manager sign off", done: false },
-];
+// Checklist tutup shift (lihat src/lib/cash-closing.ts).
+export const closingChecklist = freshClosingChecklist();
 
 export const customers = [
   {

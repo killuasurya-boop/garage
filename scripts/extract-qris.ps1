@@ -1,5 +1,7 @@
 param(
-  [string]$Src = 'G:\My Drive\QRIS Statis G A R A G E MINUMAN - 2026529121510.pdf',
+  # Wajib diisi: PDF QRIS statis TERBARU (BNI). Default lama menunjuk QRIS
+  # "G A R A G E MINUMAN" (SpeedCash) yang sudah tidak dipakai.
+  [Parameter(Mandatory = $true)][string]$Src,
   [string]$Dst = 'D:\GARAGEFIX\G A R A G E\public\payments\qris-garage.png',
   [int]$Page = 0,
   [int]$Width = 1400

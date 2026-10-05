@@ -134,11 +134,12 @@ export function TablePicker({
                 type="button"
                 disabled={busy}
                 onClick={() => onPick(row.tableNumber)}
-                className={`relative flex min-h-14 flex-col items-center justify-center rounded-md border font-mono text-[18px] font-black text-white transition hover:brightness-125 disabled:cursor-wait ${tone.card} ${
+                className={`relative flex min-h-16 flex-col items-center justify-center gap-1 overflow-hidden rounded-md border pl-1 font-mono text-[20px] font-black tabular-nums text-white transition hover:brightness-125 disabled:cursor-wait ${tone.card} ${
                   busy && !opening ? "opacity-50" : ""
                 }`}
                 aria-label={`${row.tableLabel}, ${tone.label}${warn ? " — cek dulu sebelum mendudukkan tamu" : ""}`}
               >
+                <span className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${tone.bar}`} aria-hidden />
                 {opening ? <Loader2 size={18} className="animate-spin" aria-hidden /> : row.tableNumber}
                 <span className={`max-w-full truncate px-0.5 font-sans text-[10px] font-semibold leading-tight ${tone.labelColor}`}>
                   {tone.short}

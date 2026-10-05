@@ -430,6 +430,11 @@ export type CashSession = {
   denominations?: Record<string, number>;
   closingNote?: string | null;
   managerSignOffAt?: string | null;
+  qrisRecorded?: number | null;
+  qrisCounted?: number | null;
+  qrisDiscrepancy?: number | null;
+  floatLeft?: number | null;
+  depositAmount?: number | null;
   resetTables?: {
     requested: boolean;
     mode?: "none" | "completed" | "all";
@@ -466,6 +471,8 @@ export type GarageBootstrapData = {
   stockMovements: string[];
   paymentBreakdown: PaymentBreakdown[];
   cashSession: CashSession;
+  /** Shift milik user yang login di outlet ini (POS). Owner/Manajer: bukan shift terbaru outlet. */
+  posCashSession?: CashSession;
   closingChecklist: ClosingChecklistItem[];
   customers: Customer[];
   approvals: Approval[];

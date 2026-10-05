@@ -151,44 +151,6 @@ export function OpeningCashPresetPicker({
   );
 }
 
-// --- Shift number picker --------------------------------------------------
-
-export function ShiftNumberPicker({
-  value,
-  onChange,
-}: {
-  value: 1 | 2;
-  onChange: (value: 1 | 2) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="garage-mono text-[10px] text-[#b8b8bf]">Nomor shift hari ini</p>
-      <div className="grid grid-cols-2 gap-2">
-        {([1, 2] as const).map((shift) => {
-          const active = value === shift;
-          return (
-            <button
-              key={shift}
-              type="button"
-              onClick={() => onChange(shift)}
-              className={`garage-press rounded-md border px-3 py-3 text-left transition ${
-                active
-                  ? "border-[#f5a742] bg-[#f5a742] text-[#111116]"
-                  : "border-[#4a4a54] bg-white/[0.055] text-[#f4f4f5] hover:border-[#f5a742]/70"
-              }`}
-            >
-              <span className="block text-sm font-black">Shift {shift}</span>
-              <span className="mt-1 block text-xs opacity-80">
-                {shift === 1 ? "Pembuka" : "Lanjutan"}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // --- Settings choice group (generic radio-as-button) ---------------------
 
 export function SettingsChoiceGroup<T extends string>({

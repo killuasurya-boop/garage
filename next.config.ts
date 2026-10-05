@@ -36,6 +36,11 @@ const nextConfig: NextConfig = {
     "/api/absen/slip": ["./node_modules/pdfkit/js/data/*.afm", "./public/garage-brand/logo-website.png"],
   },
   allowedDevOrigins: lanDevOrigins(),
+  // next/image lokal menolak query string kecuali diizinkan. QRIS memakai
+  // ?v=<versi> (src/lib/garage-qris.ts) agar gambar QRIS baru tidak tertahan cache.
+  images: {
+    localPatterns: [{ pathname: "/**", search: "" }, { pathname: "/payments/**" }],
+  },
   // Ada package-lock.json nyasar di folder home user → Next menebak root
   // workspace = C:\Users\<user> dan men-trace puluhan ribu file di luar proyek.
   // Kunci root ke folder proyek (QA-audit 2026-09-28).

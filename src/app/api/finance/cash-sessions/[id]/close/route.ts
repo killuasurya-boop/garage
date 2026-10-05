@@ -6,6 +6,7 @@ import { createDbBackup } from "@/lib/garage-db-backup";
 import {
   CashSessionAlreadyClosedError,
   CashSessionForbiddenError,
+  CashSessionInputError,
   CashSessionSignOffRequiredError,
   closeCashSession,
 } from "@/lib/garage-service";
@@ -28,6 +29,8 @@ const closeSchema = z.object({
   managerPin: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4–8 digit angka.").optional(),
   resetTableMode: z.enum(["none", "completed", "all"]).optional(),
   resetTables: z.boolean().optional(),
+  qrisCounted: z.number().int().nonnegative().max(1_000_000_000).optional(),
+  floatLeft: z.number().int().nonnegative().max(100_000_000).optional(),
 });
 
 export async function PATCH(
@@ -57,6 +60,9 @@ export async function PATCH(
     void createDbBackup("tutupkasir").catch((err) => console.error("[backup] tutup kasir gagal", err));
     return ok(cashSession);
   } catch (error) {
+    if (error instanceof CashSessionInputError) {
+      return fail(400, "CASH_SESSION_INVALID_INPUT", error.message);
+    }
     if (error instanceof CashSessionForbiddenError) {
       return fail(403, "CASH_SESSION_FORBIDDEN", error.message);
     }

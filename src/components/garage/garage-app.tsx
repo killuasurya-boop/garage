@@ -1353,7 +1353,7 @@ function GarageWorkspace({
                   menuItems={data.menuItems}
                   customers={data.customers}
                   cartSeed={data.cartSeed}
-                  cashSession={data.cashSession}
+                  cashSession={data.posCashSession ?? data.cashSession}
                   settings={data.settings}
                   onCashSessionOpened={() => loadBootstrap()}
                   onExit={() => handleModuleChange("dashboard")}
@@ -9420,6 +9420,79 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
     }
   }
 
+  // Event website — jadwal berubah-ubah, diatur Owner/Manajer (maks 30).
+  type SiteEventForm = {
+    id?: string;
+    title: string;
+    tag: string;
+    date: string;
+    time: string;
+    desc: string;
+    capacity: string;
+  };
+  const [siteEvents, setSiteEvents] = useState<SiteEventForm[]>([]);
+  const [evSaving, setEvSaving] = useState(false);
+  const [evError, setEvError] = useState<string | null>(null);
+  const [evSuccess, setEvSuccess] = useState<string | null>(null);
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+
+  const loadSiteEvents = useCallback(async () => {
+    try {
+      const rows = await garageApi.get<Array<Omit<SiteEventForm, "capacity"> & { capacity: number | null }>>(
+        "/api/site/events?all=1",
+        { cache: "no-store" },
+      );
+      setSiteEvents(
+        (Array.isArray(rows) ? rows : []).map((row) => ({
+          ...row,
+          capacity: row.capacity ? String(row.capacity) : "",
+        })),
+      );
+    } catch {
+      // diam — role tanpa website:manage
+    }
+  }, []);
+
+  async function submitSiteEvents() {
+    if (!canManageWebsite) {
+      setEvError("Role ini hanya bisa melihat preview website.");
+      return;
+    }
+    const filled = siteEvents.filter((e) => e.title.trim() || e.date || e.desc.trim());
+    const incomplete = filled.find((e) => !e.title.trim() || !e.date || !e.time);
+    if (incomplete) {
+      setEvError("Setiap event wajib punya judul, tanggal, dan jam.");
+      return;
+    }
+    setEvSaving(true);
+    setEvError(null);
+    setEvSuccess(null);
+    try {
+      const saved = await garageApi.put<Array<Omit<SiteEventForm, "capacity"> & { capacity: number | null }>>(
+        "/api/site/events",
+        {
+          items: filled.map((e) => ({
+            ...(e.id ? { id: e.id } : {}),
+            title: e.title.trim(),
+            tag: e.tag.trim() || "Event",
+            date: e.date,
+            time: e.time,
+            desc: e.desc.trim(),
+            capacity: e.capacity ? Number(e.capacity) : null,
+          })),
+        },
+      );
+      const rows = Array.isArray(saved) ? saved : [];
+      setSiteEvents(rows.map((row) => ({ ...row, capacity: row.capacity ? String(row.capacity) : "" })));
+      const upcoming = rows.filter((row) => row.date >= todayKey).length;
+      setEvSuccess(`${rows.length} event tersimpan · ${upcoming} tampil di website (yang sudah lewat otomatis disembunyikan).`);
+    } catch (error) {
+      setEvError(error instanceof Error ? error.message : "Event gagal disimpan.");
+    } finally {
+      setEvSaving(false);
+    }
+  }
+
   // Feed sosmed landing — owner tempel link postingan/video terbaru (maks 6).
   type SocialPostForm = { platform: "instagram" | "tiktok" | "youtube" | "facebook"; url: string; title: string };
   const [socialPosts, setSocialPosts] = useState<SocialPostForm[]>([]);
@@ -9483,13 +9556,14 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
       void loadHero();
       void loadBizInfo();
       void loadTestimonials();
+      void loadSiteEvents();
       void loadSocialPosts();
     }, 0);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [loadHero, loadBizInfo, loadTestimonials, loadSocialPosts]);
+  }, [loadHero, loadBizInfo, loadTestimonials, loadSiteEvents, loadSocialPosts]);
 
   function handleFileChange(fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -9930,6 +10004,129 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                 onClick={() => void submitTestimonials()}
               >
                 {tstSaving ? "Menyimpan…" : "Simpan Testimoni"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Event website — jadwal berubah-ubah, owner-managed */}
+      <Card className="garage-panel garage-animate-in">
+        <CardHeader>
+          <CardTitle>Event Website</CardTitle>
+          <CardDescription>
+            Jadwal event di section &ldquo;Event &amp; komunitas&rdquo; landing. Event yang sudah lewat
+            otomatis disembunyikan dari website (tetap tersimpan di sini). Bila tidak ada event,
+            landing menampilkan ajakan booking acara &amp; Instagram. Maks 30.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {siteEvents.length === 0 ? (
+            <p className="text-sm text-[#9696a1]">Belum ada event. Tambah event di bawah.</p>
+          ) : (
+            siteEvents.map((ev, idx) => {
+              const past = Boolean(ev.date) && ev.date < todayKey;
+              const update = (patch: Partial<SiteEventForm>) =>
+                setSiteEvents(siteEvents.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
+              return (
+                <div
+                  key={ev.id ?? `new-${idx}`}
+                  className={`grid gap-2 rounded-md border p-3 sm:grid-cols-[1.4fr_1fr_150px_110px_40px] ${
+                    past ? "border-[#34343c] bg-black/30 opacity-75" : "border-[#34343c] bg-black/15"
+                  }`}
+                >
+                  <Input
+                    value={ev.title}
+                    onChange={(e) => update({ title: e.target.value })}
+                    className="border-[#34343c] bg-white/[0.06]"
+                    placeholder="Judul event, mis. Kopdar Malam Minggu"
+                    maxLength={80}
+                    aria-label="Judul event"
+                  />
+                  <Input
+                    value={ev.tag}
+                    onChange={(e) => update({ tag: e.target.value })}
+                    className="border-[#34343c] bg-white/[0.06]"
+                    placeholder="Kategori, mis. Kopdar Motor"
+                    maxLength={40}
+                    aria-label="Kategori event"
+                  />
+                  <Input
+                    type="date"
+                    value={ev.date}
+                    onChange={(e) => update({ date: e.target.value })}
+                    className="border-[#34343c] bg-white/[0.06]"
+                    aria-label="Tanggal event"
+                  />
+                  <Input
+                    type="time"
+                    value={ev.time}
+                    onChange={(e) => update({ time: e.target.value })}
+                    className="border-[#34343c] bg-white/[0.06]"
+                    aria-label="Jam mulai"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="garage-press border-[#34343c] bg-white/[0.04] px-0"
+                    onClick={() => setSiteEvents(siteEvents.filter((_, i) => i !== idx))}
+                    aria-label="Hapus event"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                  <textarea
+                    value={ev.desc}
+                    onChange={(e) => update({ desc: e.target.value })}
+                    className="garage-scroll min-h-[56px] rounded-md border border-[#34343c] bg-white/[0.06] p-2 text-sm text-white sm:col-span-3"
+                    placeholder="Deskripsi singkat event…"
+                    maxLength={400}
+                    aria-label="Deskripsi event"
+                  />
+                  <div className="space-y-1 sm:col-span-2">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={5000}
+                      value={ev.capacity}
+                      onChange={(e) => update({ capacity: e.target.value })}
+                      className="border-[#34343c] bg-white/[0.06]"
+                      placeholder="Kapasitas (opsional)"
+                      aria-label="Kapasitas orang"
+                    />
+                    {past ? (
+                      <p className="text-[11px] font-semibold text-[#ffd08a]">Sudah lewat · tidak tampil</p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })
+          )}
+          {evError && <p className="text-sm text-[#ffb4bd]">{evError}</p>}
+          {evSuccess && <p className="text-sm text-[#e4e4e7]">{evSuccess}</p>}
+          {canManageWebsite && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press border-[#34343c] bg-white/[0.04]"
+                disabled={siteEvents.length >= 30}
+                onClick={() =>
+                  setSiteEvents([
+                    ...siteEvents,
+                    { title: "", tag: "", date: todayKey, time: "19:00", desc: "", capacity: "" },
+                  ])
+                }
+              >
+                + Tambah Event
+              </Button>
+              <Button
+                type="button"
+                disabled={evSaving}
+                className="garage-press bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+                onClick={() => void submitSiteEvents()}
+              >
+                {evSaving ? "Menyimpan…" : "Simpan Event"}
               </Button>
             </div>
           )}

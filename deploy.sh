@@ -32,7 +32,10 @@ fi
 echo ">> git pull..."
 git pull --ff-only
 
-# --- 2. Build & jalankan (db -> migrate -> app -> caddy) ----------------------
+# --- 2. Build & jalankan (db -> backup -> migrate -> app -> caddy) -------------
+${COMPOSE} up -d db
+echo ">> backup sebelum migrasi (./backups)..."
+${COMPOSE} run --rm backup once pre-deploy
 echo ">> build & up (migrasi DB jalan otomatis)..."
 ${COMPOSE} up -d --build
 

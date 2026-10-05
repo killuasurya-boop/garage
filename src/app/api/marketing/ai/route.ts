@@ -2,12 +2,28 @@ import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/server-auth";
 import { runGarageAiAgent } from "@/lib/garage-ai-providers";
 import { resolveBrand } from "@/lib/garage-social-brands";
+import { z } from "zod";
+import { readJson } from "@/lib/api-response";
+
+const field = z.string().trim().max(300).optional();
+const bodySchema = z.object({
+  type: z.enum(["campaign-idea", "broadcast-copy", "social-media-content"]),
+  segmentKey: field,
+  objective: field,
+  channel: field,
+  campaignName: field,
+  brandKey: z.string().trim().max(60).optional(),
+  contentPillar: field,
+  topic: z.string().trim().max(1000).optional(),
+});
 
 export async function POST(req: Request) {
   try {
     const session = await requirePermission("marketing:write");
     if (session.response) return session.response;
-    const body = await req.json();
+    const parsed = await readJson(req, bodySchema);
+    if (parsed.error) return parsed.error;
+    const body = parsed.data;
     const { type, segmentKey, objective, channel, campaignName, brandKey, contentPillar, topic } = body;
 
     let systemPrompt = "";

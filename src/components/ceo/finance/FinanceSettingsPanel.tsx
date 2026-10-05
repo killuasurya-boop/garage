@@ -96,6 +96,7 @@ export function FinanceSettingsPanel() {
     const items = draft?.costItems.filter((item) => item.active) ?? [];
     return {
       accrue: items.filter((item) => item.treatment === "accrue").reduce((sum, item) => sum + item.dailyAmount, 0),
+      wage: items.find((item) => item.code === "GAJI" && item.treatment === "budget_only")?.dailyAmount ?? 0,
       reserve: items.filter((item) => item.treatment === "reserve").reduce((sum, item) => sum + item.dailyAmount, 0),
     };
   }, [draft]);
@@ -284,7 +285,7 @@ export function FinanceSettingsPanel() {
 
       <FinanceCard
         title="Biaya harian (operating cost master)"
-        subtitle={`Akru ke P&L ${rupiah(dailyTotals.accrue)}/hari · cadangan ${rupiah(dailyTotals.reserve)}/hari`}
+        subtitle={`Total ${rupiah(dailyTotals.accrue + dailyTotals.wage + dailyTotals.reserve)}/hari · operasional ${rupiah(dailyTotals.accrue + dailyTotals.wage)} (akru ${rupiah(dailyTotals.accrue)} + upah ${rupiah(dailyTotals.wage)}) · Save Money ${rupiah(dailyTotals.reserve)}`}
         actions={
           <button
             type="button"
@@ -349,9 +350,69 @@ export function FinanceSettingsPanel() {
           </table>
         </div>
         <p className="mt-3 text-xs text-zinc-400">
-          Kode <span className="font-mono text-zinc-200">GAJI</span> dipakai untuk rekonsiliasi payroll (input harian × 30 vs payroll master). Payroll aktual selalu dari Payroll V2.
+          Kode <span className="font-mono text-zinc-200">GAJI</span> = upah karyawan per hari: dipakai sebagai biaya tetap upah untuk BEP
+          (bila kosong, dipakai payroll master ÷ 30). Payroll aktual di laba-rugi selalu dari Payroll V2. Save Money adalah cadangan laba —
+          tidak mengurangi laba bersih maupun target BEP.
         </p>
       </FinanceCard>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <FinanceCard
+          title="Biaya tidak tetap (bahan baku)"
+          subtitle="Pemakaian dihitung otomatis dari resep setiap penjualan; anggaran ini jadi acuan harian"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {(
+              [
+                ["barMin", "Belanja Bar — minimal"],
+                ["barMax", "Belanja Bar — maksimal"],
+                ["dapurMin", "Belanja Dapur — minimal"],
+                ["dapurMax", "Belanja Dapur — maksimal"],
+              ] as const
+            ).map(([key, label]) => (
+              <Field key={key} label={label}>
+                <NumberInput
+                  label={label}
+                  value={draft.settings.variableBudget[key]}
+                  onChange={(value) => setSettings({ variableBudget: { ...draft.settings.variableBudget, [key]: value } })}
+                />
+              </Field>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-zinc-400">
+            Total anggaran {rupiah(draft.settings.variableBudget.barMin + draft.settings.variableBudget.dapurMin)} –{" "}
+            {rupiah(draft.settings.variableBudget.barMax + draft.settings.variableBudget.dapurMax)} / hari. Daftar belanja otomatis
+            (stok habis/menipis) tampil di Finance → Biaya Harian &amp; Belanja.
+          </p>
+        </FinanceCard>
+
+        <FinanceCard title="Metode balik modal (BEP/Payback)" subtitle="Menentukan cara menghitung modal kembali, ROI, dan estimasi balik modal">
+          <Field label="Metode perhitungan">
+            <select
+              className={input}
+              value={draft.settings.capitalRecoveryMethod}
+              onChange={(e) => setSettings({ capitalRecoveryMethod: e.target.value as Draft["settings"]["capitalRecoveryMethod"] })}
+            >
+              {draft.capitalRecoveryMethods.map((method) => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <ul className="mt-3 space-y-1.5 text-xs text-zinc-300">
+            {draft.capitalRecoveryMethods.map((method) => (
+              <li key={method.value}>
+                <span className="font-bold text-zinc-100">{method.label}:</span> {method.hint}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-zinc-400">
+            Saldo kas tidak pernah dihitung sebagai &quot;modal kembali&quot;. Estimasi balik modal memakai rata-rata 30 hari terakhir
+            (aktual) dan diperbarui setiap hari.
+          </p>
+        </FinanceCard>
+      </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <FinanceCard

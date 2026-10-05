@@ -40,8 +40,13 @@ import {
   changePct,
   computeBep,
   computeBudgets,
+  CAPITAL_RECOVERY_METHODS,
+  DEFAULT_VARIABLE_BUDGET,
   computeCapitalRecovery,
   computeDayFigure,
+  dayRecoveryValue,
+  type CapitalRecoveryMethod,
+  type VariableBudget,
   computeHealth,
   computePayrollRecon,
   daysInMonth,
@@ -76,15 +81,17 @@ type Db = ReturnType<typeof getDb>;
 
 // ─── Default master data dari PRD (§5, §6, §7) ──────────────────────────────
 
+// Biaya tetap harian versi owner (Okt 2026): total Rp799.000/hari =
+// operasional Rp699.000 + Save Money Rp100.000 (cadangan laba, bukan beban).
 const DEFAULT_COST_ITEMS: FinanceCostItem[] = [
-  { code: "LISTRIK", name: "Token listrik", dailyAmount: 35_000, costClass: "semi_variable", treatment: "accrue", active: true, sortOrder: 1 },
-  { code: "GAJI", name: "Gaji karyawan", dailyAmount: 450_000, costClass: "fixed", treatment: "budget_only", active: true, sortOrder: 2 },
-  { code: "SEWA", name: "Sewa lapak", dailyAmount: 28_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 3 },
-  { code: "SAVE", name: "Save Money", dailyAmount: 100_000, costClass: "reserve", treatment: "reserve", active: true, sortOrder: 4 },
-  { code: "INTERNET", name: "Internet", dailyAmount: 14_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 5 },
-  { code: "IKLAN", name: "Iklan", dailyAmount: 30_000, costClass: "variable", treatment: "accrue", active: true, sortOrder: 6 },
-  { code: "SISTEM", name: "Sistem", dailyAmount: 12_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 7 },
-  { code: "OVERHEAD", name: "Overhead mesin", dailyAmount: 30_000, costClass: "semi_variable", treatment: "accrue", active: true, sortOrder: 8 },
+  { code: "GAJI", name: "Upah karyawan", dailyAmount: 544_000, costClass: "fixed", treatment: "budget_only", active: true, sortOrder: 1 },
+  { code: "LISTRIK", name: "Listrik", dailyAmount: 35_000, costClass: "semi_variable", treatment: "accrue", active: true, sortOrder: 2 },
+  { code: "INTERNET", name: "Internet", dailyAmount: 10_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 3 },
+  { code: "IKLAN", name: "Iklan", dailyAmount: 30_000, costClass: "variable", treatment: "accrue", active: true, sortOrder: 4 },
+  { code: "SAVE", name: "Save Money", dailyAmount: 100_000, costClass: "reserve", treatment: "reserve", active: true, sortOrder: 5 },
+  { code: "SEWA", name: "Sewa lapak", dailyAmount: 25_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 6 },
+  { code: "OVERHEAD", name: "Overhead mesin", dailyAmount: 55_000, costClass: "semi_variable", treatment: "accrue", active: true, sortOrder: 7 },
+  { code: "SISTEM", name: "Sistem", dailyAmount: 0, costClass: "fixed", treatment: "accrue", active: false, sortOrder: 8 },
 ];
 
 const DEFAULT_PAYROLL: Array<Omit<FinancePayrollPosition, "active">> = [
@@ -137,6 +144,10 @@ type SettingsShape = {
   expenseApprovalThreshold: number;
   /** Expense ≥ nilai ini: review Manajer lalu keputusan final Owner (approval 2 tingkat). */
   expenseOwnerApprovalThreshold: number;
+  /** Metode hitung modal kembali / payback (dipilih Owner). */
+  capitalRecoveryMethod: CapitalRecoveryMethod;
+  /** Anggaran belanja bahan baku per hari (Bar & Dapur). */
+  variableBudget: VariableBudget;
 };
 
 export const DEFAULT_EXPENSE_APPROVAL_THRESHOLD = 1_000_000;
@@ -234,6 +245,10 @@ function readSettings(rows: Array<{ key: string; value: unknown }>): SettingsSha
       typeof map.get("expenseOwnerApprovalThreshold") === "number" && (map.get("expenseOwnerApprovalThreshold") as number) > 0
         ? (map.get("expenseOwnerApprovalThreshold") as number)
         : DEFAULT_EXPENSE_OWNER_APPROVAL_THRESHOLD,
+    capitalRecoveryMethod: CAPITAL_RECOVERY_METHODS.some((row) => row.value === map.get("capitalRecoveryMethod"))
+      ? (map.get("capitalRecoveryMethod") as CapitalRecoveryMethod)
+      : "net_profit",
+    variableBudget: { ...DEFAULT_VARIABLE_BUDGET, ...((map.get("variableBudget") ?? {}) as Partial<VariableBudget>) },
   };
 }
 
@@ -896,15 +911,35 @@ export async function getFinanceControlDashboard(input: {
         ? "PERHATIAN"
         : "KRITIS";
 
-  // Capital recovery: kumulatif net profit sejak mulai bisnis.
+  // Capital recovery: akumulasi sejak mulai bisnis sesuai metode pilihan Owner
+  // (default laba bersih). Rata-rata = performa aktual 30 hari terakhir.
+  const recoveryMethod = config.capitalRecoveryMethod ?? "net_profit";
+  const capitalOutByDate = new Map<string, number>();
+  for (const tx of config.capital) {
+    if (tx.type === "withdrawal") capitalOutByDate.set(tx.date, (capitalOutByDate.get(tx.date) ?? 0) + tx.amount);
+  }
+  const recoveryOf = (day: DayFigure) => dayRecoveryValue(day, recoveryMethod, capitalOutByDate);
   const sinceStart = range(config.businessStartDate, todayKey);
   const capital = computeCapitalRecovery({
     capital: config.capital,
-    cumulativeNetProfit: sinceStart.reduce((sum, day) => sum + day.netProfit, 0),
-    recentNetProfits: range(max(config.businessStartDate, addDays(todayKey, -29)), todayKey).map((day) => day.netProfit),
+    cumulativeNetProfit: sinceStart.reduce((sum, day) => sum + recoveryOf(day), 0),
+    recentNetProfits: range(max(config.businessStartDate, addDays(todayKey, -29)), todayKey).map(recoveryOf),
     startDate: config.businessStartDate,
     todayKey,
+    method: recoveryMethod,
   });
+  // Pembeda untuk Owner: kas & aset BUKAN "modal kembali".
+  const [inventoryAsset] = await getDb()
+    .select({
+      value: sql<string>`coalesce(sum(greatest(${inventoryItems.onHand}, 0) * coalesce(${inventoryItems.unitCost}, 0)), 0)::float8`,
+    })
+    .from(inventoryItems);
+  const capitalView = {
+    ...capital,
+    cashBalance: currentCash,
+    cashBalanceIsSet: config.openingCash.isSet,
+    inventoryValue: Math.round(Number(inventoryAsset?.value ?? 0)),
+  };
 
   const budgets = computeBudgets({ config, monthToDate, monthDays });
   const payrollRecon = computePayrollRecon({
@@ -1131,7 +1166,7 @@ export async function getFinanceControlDashboard(input: {
       amount,
       share: channelTotal ? Math.round((amount / channelTotal) * 1000) / 10 : 0,
     })),
-    capital,
+    capital: capitalView,
     payrollRecon,
     health,
     insights,
@@ -1193,7 +1228,10 @@ export async function getFinanceSettingsBundle() {
       thresholds: config.thresholds,
       expenseApprovalThreshold,
       expenseOwnerApprovalThreshold,
+      capitalRecoveryMethod: config.capitalRecoveryMethod ?? "net_profit",
+      variableBudget: config.variableBudget ?? DEFAULT_VARIABLE_BUDGET,
     },
+    capitalRecoveryMethods: CAPITAL_RECOVERY_METHODS,
     costItems: config.costItems,
     payrollPositions: config.payrollPositions,
     payrollMasterMonthly: payrollMasterMonthly(config),
@@ -1233,6 +1271,8 @@ export async function updateFinanceSettings(input: FinanceSettingsUpdate, garage
         ...input.settings,
         openingCash: { ...before.settings.openingCash, ...(input.settings.openingCash ?? {}) },
         thresholds: { ...before.settings.thresholds, ...(input.settings.thresholds ?? {}) },
+        capitalRecoveryMethod: input.settings.capitalRecoveryMethod ?? before.settings.capitalRecoveryMethod,
+        variableBudget: { ...before.settings.variableBudget, ...(input.settings.variableBudget ?? {}) },
       };
       for (const [key, raw] of Object.entries(merged)) {
         if (JSON.stringify(raw) === JSON.stringify(before.settings[key as keyof SettingsShape])) continue;
@@ -1337,6 +1377,8 @@ function pick(source: Record<string, unknown>, changed: string[]) {
     "thresholds",
     "expenseApprovalThreshold",
     "expenseOwnerApprovalThreshold",
+    "capitalRecoveryMethod",
+    "variableBudget",
   ];
   const out: Record<string, unknown> = {};
   for (const key of changed) {

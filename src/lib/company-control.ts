@@ -1087,7 +1087,7 @@ export async function getCompanyControlData(garage: GarageSession): Promise<Comp
   const trainingCompliance = Math.round((completedProgress / totalExpectedCompletions) * 100);
 
   // Hitung Attendance Compliance (Clock In hari ini)
-  const presentStaffTodayResult = await db.execute(sql`SELECT count(distinct staff_id) FROM employee_attendances WHERE timestamp >= ${today + "T00:00:00Z"} AND action = 'in'`);
+  const presentStaffTodayResult = await db.execute(sql`SELECT count(distinct staff_id) FROM employee_attendances WHERE timestamp >= ${today + "T00:00:00+07:00"} AND action = 'in'`);
   const presentStaffToday = Number(presentStaffTodayResult.rows[0].count) || 0;
   const attendanceCompliance = Math.round((presentStaffToday / allStaffCount) * 100);
 

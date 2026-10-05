@@ -17,11 +17,11 @@ const fmtRp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(n)}`;
 
 const fmtDateTime = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })
+    ? new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" })
     : "—";
 
 const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
 const PAYMENT_LABELS: Record<string, string> = {
   cash: "Tunai",
@@ -333,7 +333,7 @@ export async function generateShiftReportPdf(
           .fontSize(8)
           .fillColor("#888")
           .text(
-            `Dicetak ${new Date().toLocaleString("id-ID")} · Halaman ${i + 1} dari ${range.count}`,
+            `Dicetak ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} · Halaman ${i + 1} dari ${range.count}`,
             48,
             812,
             { width: 499, align: "center" },

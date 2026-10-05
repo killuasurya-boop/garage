@@ -70,8 +70,8 @@ describe("Financial engine (DB nyata)", () => {
     expect(dashboard.pnl.netSales).toBe(totalNet);
     expect(dashboard.capital.initialCapital).toBe(500_000_000);
     expect(dashboard.kpis.revenue.value).toBe(totalNet);
-    // Biaya harian ter-akru: listrik+sewa+internet+iklan+sistem+overhead = 149rb.
-    expect(dashboard.pnl.operatingExpense).toBe(149_000);
+    // Akru biaya harian owner: listrik 35 + internet 10 + iklan 30 + sewa 25 + overhead 55 rb.
+    expect(dashboard.pnl.operatingExpense).toBe(155_000);
   });
 
   it("HPP aktual memasukkan susut opname outlet + waste gudang WMS (PRD §11)", async () => {

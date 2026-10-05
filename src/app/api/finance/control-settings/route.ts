@@ -20,6 +20,11 @@ const updateSchema = z.object({
       revenueTargetDaily: rupiah.nullable().optional(),
       expenseApprovalThreshold: z.number().int().min(1_000).max(1_000_000_000).optional(),
       expenseOwnerApprovalThreshold: z.number().int().min(1_000).max(1_000_000_000).optional(),
+      capitalRecoveryMethod: z.enum(["net_profit", "operating_cashflow", "net_profit_after_reserve"]).optional(),
+      variableBudget: z
+        .object({ barMin: rupiah, barMax: rupiah, dapurMin: rupiah, dapurMax: rupiah })
+        .refine((v) => v.barMin <= v.barMax && v.dapurMin <= v.dapurMax, "Anggaran minimal tidak boleh melebihi maksimal.")
+        .optional(),
       thresholds: z
         .object({
           hppRatioMax: z.number().min(1).max(100),

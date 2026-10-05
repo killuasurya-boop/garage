@@ -30,7 +30,7 @@ function canManageRole(actorRole: Role | undefined, targetRole: Role) {
   return protectedRoleRank[targetRole] < protectedRoleRank[actorRole];
 }
 
-async function countOwners() {
+export async function countOwners() {
   const [row] = await getDb()
     .select({ c: sql<number>`count(*)::int` })
     .from(staffProfiles)
@@ -553,7 +553,7 @@ export async function setStaffPin(
  * PIN dipakai absensi & persetujuan untuk mengenali staf BY pin â†’ harus unik,
  * kalau tidak keputusan/absen bisa tercatat atas nama orang lain.
  */
-async function pinTakenByOther(pinCode: string, exceptUserId: string) {
+export async function pinTakenByOther(pinCode: string, exceptUserId: string) {
   const [row] = await getDb()
     .select({ userId: staffProfiles.userId })
     .from(staffProfiles)

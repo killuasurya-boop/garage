@@ -3,7 +3,37 @@ import { getDb } from "@/db";
 import { sopChecklists, sopLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { and, eq } from "drizzle-orm";
-import { fail } from "@/lib/api-response";
+import { z } from "zod";
+import { fail, readJson } from "@/lib/api-response";
+
+const idSchema = z.string().trim().min(1).max(64);
+const text = (max: number) => z.string().trim().min(1).max(max);
+const optionalText = (max: number) => z.string().max(max).nullish();
+
+const sopBodySchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("manage_template"),
+    template: z.object({
+      id: idSchema.nullish(),
+      title: text(200),
+      description: optionalText(2000),
+      roleTarget: text(60),
+      shiftTarget: text(60),
+      outletId: idSchema,
+      status: z.string().trim().max(30).nullish(),
+    }),
+  }),
+  z.object({
+    action: z.literal("log_task"),
+    log: z.object({
+      checklistId: idSchema,
+      staffId: idSchema,
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date harus YYYY-MM-DD"),
+      status: text(30),
+      notes: optionalText(2000),
+    }),
+  }),
+]);
 
 export async function GET(req: Request) {
   try {
@@ -43,7 +73,9 @@ export async function POST(req: Request) {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;
 
-    const body = await req.json();
+    const parsed = await readJson(req, sopBodySchema);
+    if (parsed.error) return parsed.error;
+    const body = parsed.data;
     const { action } = body;
 
     const db = await getDb();

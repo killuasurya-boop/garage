@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { fail } from "@/lib/api-response";
+import { fail, ok } from "@/lib/api-response";
 import {
   trainingCourses,
   trainingLessons,
@@ -10,7 +9,8 @@ import {
 } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
 
-export async function GET() {
+// POST (bukan GET): menulis data — tidak boleh terpicu prefetch/tautan.
+export async function POST() {
   const session = await requireGarageSession(["Owner", "Manajer"]);
   if (session.response) {
     return session.response;
@@ -149,8 +149,9 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, message: "Data training dan SOP berhasil di-seed" });
+    return ok({ seeded: true, message: "Data training dan SOP berhasil di-seed" });
   } catch (error) {
-    return fail(500, "INTERNAL_ERROR", String(error));
+    console.error("[seed-training] failed:", error);
+    return fail(500, "INTERNAL_ERROR", "Seed training gagal.");
   }
 }

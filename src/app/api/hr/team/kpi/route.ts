@@ -45,8 +45,9 @@ export async function GET(req: Request) {
     const lastDay = new Date(year, monthNum, 0).getDate(); // 28/29/30/31
     const startDate = `${period}-01`;
     const endDate = `${period}-${String(lastDay).padStart(2, "0")}`;
-    const startTs = new Date(`${startDate}T00:00:00.000Z`);
-    const endExclusiveTs = new Date(Date.UTC(year, monthNum, 1)); // awal bulan berikutnya
+    // Batas bulan WIB (Asia/Jakarta = UTC+7, tanpa DST).
+    const startTs = new Date(`${startDate}T00:00:00.000+07:00`);
+    const endExclusiveTs = new Date(Date.UTC(year, monthNum, 1) - 7 * 60 * 60 * 1000); // awal bulan berikutnya (WIB)
 
     // Fetch all attendance logs in this period (timestamp: pakai batas eksklusif
     // awal bulan berikutnya agar punch sepanjang hari terakhir tetap terhitung)

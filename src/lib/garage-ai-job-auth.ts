@@ -1,4 +1,5 @@
 import { fail } from "@/lib/api-response";
+import { secretsMatch } from "@/lib/secret-compare";
 
 export function requireGarageAiJobAuthorization(request: Request) {
   const expectedSecret =
@@ -12,7 +13,7 @@ export function requireGarageAiJobAuthorization(request: Request) {
     );
   }
 
-  if (request.headers.get("authorization") !== `Bearer ${expectedSecret}`) {
+  if (!secretsMatch(request.headers.get("authorization"), `Bearer ${expectedSecret}`)) {
     return fail(401, "UNAUTHORIZED", "Job GARAGE AI tidak terotorisasi.");
   }
 

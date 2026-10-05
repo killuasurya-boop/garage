@@ -48,15 +48,19 @@ jobs:
           $SSH 'docker tag garage-app:latest garage-app:previous 2>/dev/null || true; docker tag garage-migrate:latest garage-migrate:previous 2>/dev/null || true'
           docker save garage-app:latest garage-migrate:latest | gzip | $SSH 'gunzip | docker load'
           scp -i ~/.ssh/deploy_key docker-compose.yml Caddyfile $VPS_USER@$VPS_HOST:$APP_DIR/
+          $SSH "mkdir -p $APP_DIR/scripts $APP_DIR/backups"
+          scp -i ~/.ssh/deploy_key scripts/pg-backup.sh $VPS_USER@$VPS_HOST:$APP_DIR/scripts/
 
-      - name: Jalankan ulang (migrasi lalu aplikasi)
+      - name: Jalankan ulang (backup, migrasi, lalu aplikasi)
         run: |
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST "
             set -e
             cd $APP_DIR
             docker compose --env-file .env.production up -d --no-build db
+            # Backup sebelum migrasi — deploy berhenti bila backup gagal.
+            docker compose --env-file .env.production run --rm backup once pre-deploy
             docker compose --env-file .env.production run --rm migrate
-            docker compose --env-file .env.production up -d --no-build app caddy
+            docker compose --env-file .env.production up -d --no-build app caddy backup
             docker image prune -f >/dev/null
           "
 

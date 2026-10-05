@@ -58,11 +58,38 @@ export type FinanceThresholds = {
 
 export type CapitalTx = { date: string; type: "injection" | "withdrawal"; amount: number };
 
+/**
+ * Metode "modal kembali" (dipilih Owner di Pengaturan Keuangan):
+ * - net_profit: akumulasi laba bersih akrual (default, PRD §27)
+ * - operating_cashflow: akumulasi arus kas operasional (kas masuk penjualan −
+ *   kas keluar operasional; modal masuk/keluar tidak dihitung)
+ * - net_profit_after_reserve: laba bersih dikurangi Save Money (konservatif)
+ */
+export type CapitalRecoveryMethod = "net_profit" | "operating_cashflow" | "net_profit_after_reserve";
+
+export const CAPITAL_RECOVERY_METHODS: Array<{ value: CapitalRecoveryMethod; label: string; hint: string }> = [
+  { value: "net_profit", label: "Laba bersih", hint: "Akumulasi laba bersih (akrual) sejak mulai bisnis." },
+  { value: "operating_cashflow", label: "Cashflow operasional", hint: "Kas masuk penjualan − kas keluar operasional (tanpa modal masuk/keluar)." },
+  { value: "net_profit_after_reserve", label: "Laba bersih setelah Save Money", hint: "Laba bersih dikurangi cadangan Save Money harian (paling konservatif)." },
+];
+
+/** Anggaran biaya tidak tetap (belanja bahan baku) per hari, Rp. */
+export type VariableBudget = { barMin: number; barMax: number; dapurMin: number; dapurMax: number };
+
+export const DEFAULT_VARIABLE_BUDGET: VariableBudget = {
+  barMin: 300_000,
+  barMax: 800_000,
+  dapurMin: 300_000,
+  dapurMax: 500_000,
+};
+
 export type FinanceConfig = {
   businessStartDate: string;
   openingCash: { amount: number; date: string; isSet: boolean };
   revenueTargetDaily: number | null;
   thresholds: FinanceThresholds;
+  capitalRecoveryMethod?: CapitalRecoveryMethod;
+  variableBudget?: VariableBudget;
   costItems: FinanceCostItem[];
   payrollPositions: FinancePayrollPosition[];
   categories: FinanceExpenseCategory[];
@@ -344,9 +371,23 @@ export function payrollMasterMonthly(config: Pick<FinanceConfig, "payrollPositio
     .reduce((sum, row) => sum + row.monthlySalary * Math.max(0, row.headcount), 0);
 }
 
-/** Payroll budget harian dari Payroll Master (bulanan ÷ 30). */
-export function payrollBudgetDaily(config: Pick<FinanceConfig, "payrollPositions">) {
+/**
+ * Payroll budget harian. Sumber utama = item biaya "GAJI" (Upah karyawan per
+ * hari, diisi owner). Bila tidak ada/0, jatuh ke Payroll Master (bulanan ÷ 30).
+ */
+export function payrollBudgetDaily(config: Pick<FinanceConfig, "payrollPositions"> & Partial<Pick<FinanceConfig, "costItems">>) {
+  const wageItem = config.costItems?.find(
+    (item) => item.code === "GAJI" && item.active && item.treatment === "budget_only" && item.dailyAmount > 0,
+  );
+  if (wageItem) return wageItem.dailyAmount;
   return Math.round(payrollMasterMonthly(config) / 30);
+}
+
+/** Cadangan harian (Save Money) — bukan beban, tidak masuk laba/BEP. */
+export function reserveDaily(config: Pick<FinanceConfig, "costItems">) {
+  return config.costItems
+    .filter((item) => item.active && item.treatment === "reserve")
+    .reduce((sum, item) => sum + item.dailyAmount, 0);
 }
 
 export function accruedDailyOpex(config: Pick<FinanceConfig, "costItems">) {
@@ -583,12 +624,18 @@ export function computeBep(input: {
 // ─── Capital recovery (PRD §27) ─────────────────────────────────────────────
 
 export type CapitalRecovery = {
+  method: CapitalRecoveryMethod;
+  methodLabel: string;
   initialCapital: number;
   withdrawn: number;
   recovered: number;
   remaining: number;
   recoveryPct: number;
+  /** ROI = akumulasi (metode terpilih) ÷ modal awal × 100 — boleh negatif. */
+  roiPct: number | null;
   avgDailyNetProfit: number | null;
+  /** Rata-rata per bulan dari performa aktual 30 hari terakhir (× 30). */
+  avgMonthlyNetProfit: number | null;
   estimatedPaybackMonths: number | null;
   estimatedPaybackDate: string | null;
   startDate: string;
@@ -601,7 +648,9 @@ export function computeCapitalRecovery(input: {
   recentNetProfits: number[];
   startDate: string;
   todayKey: string;
+  method?: CapitalRecoveryMethod;
 }): CapitalRecovery {
+  const method = input.method ?? "net_profit";
   const initialCapital = input.capital
     .filter((tx) => tx.type === "injection")
     .reduce((sum, tx) => sum + tx.amount, 0);
@@ -621,17 +670,36 @@ export function computeCapitalRecovery(input: {
   const paybackDays = payable ? Math.ceil(remaining / avgDailyNetProfit!) : null;
 
   return {
+    method,
+    methodLabel: CAPITAL_RECOVERY_METHODS.find((row) => row.value === method)?.label ?? "Laba bersih",
     initialCapital,
     withdrawn,
     recovered,
     remaining,
     recoveryPct,
+    roiPct: initialCapital > 0 ? Math.round((recovered / initialCapital) * 1000) / 10 : null,
     avgDailyNetProfit,
+    avgMonthlyNetProfit: avgDailyNetProfit !== null ? avgDailyNetProfit * 30 : null,
     estimatedPaybackMonths: paybackDays !== null ? Math.round((paybackDays / 30) * 10) / 10 : remaining === 0 && initialCapital > 0 ? 0 : null,
     estimatedPaybackDate: paybackDays !== null ? addDays(input.todayKey, paybackDays) : null,
     startDate: input.startDate,
     daysRunning: Math.max(0, diffDays(input.startDate, input.todayKey) + 1),
   };
+}
+
+/** Nilai "modal kembali" satu hari sesuai metode. capitalOutByDate = penarikan modal per tanggal. */
+export function dayRecoveryValue(
+  day: Pick<DayFigure, "date" | "netProfit" | "reserveAllocation" | "cashIn" | "cashOut" | "channels">,
+  method: CapitalRecoveryMethod,
+  capitalOutByDate: Map<string, number>,
+) {
+  if (method === "operating_cashflow") {
+    const capitalIn = day.channels.Modal ?? 0;
+    const capitalOut = capitalOutByDate.get(day.date) ?? 0;
+    return day.cashIn - capitalIn - (day.cashOut - capitalOut);
+  }
+  if (method === "net_profit_after_reserve") return day.netProfit - day.reserveAllocation;
+  return day.netProfit;
 }
 
 // ─── Health, insight, alert (PRD §30, §31, §41) ─────────────────────────────

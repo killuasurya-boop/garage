@@ -4,6 +4,7 @@ import { fail, ok, readJson } from "@/lib/api-response";
 import { requireGarageSession } from "@/lib/server-auth";
 import { finalizePayrollDay, finalizeYesterdayIfNeeded } from "@/lib/garage-payroll-cron";
 import { MANAGEMENT_ROLES } from "@/lib/role-access";
+import { secretsMatch } from "@/lib/secret-compare";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,7 +17,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   // Systemd secret bypass:
   const secret = request.headers.get("x-cron-secret");
-  if (secret && secret === process.env.CRON_SECRET) {
+  if (secretsMatch(secret, process.env.CRON_SECRET?.trim())) {
     const body = await readJson(request, schema);
     if (body.error) return body.error;
     const result = body.data.date

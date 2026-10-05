@@ -1,417 +1,288 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  Check,
-  Megaphone,
-  PiggyBank,
-  RefreshCw,
-  Settings2,
-  Store,
-  Users,
-  Wifi,
-  Wrench,
-  Zap,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ChefHat, Coffee, PackageSearch, PiggyBank, RefreshCw, Settings2, ShoppingCart } from "lucide-react";
+
 import { currency } from "@/lib/garage-data";
 import type { FinanceOverview } from "@/lib/finance-types";
+import type { BudgetStatus, DailyCosts } from "@/lib/finance-daily-costs";
 import { garageApi } from "@/lib/api-client";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 
-// Key AppSettings biaya tetap harian + label + icon untuk UI.
-const FIXED_FIELDS = [
-  { key: "dailyBudgetElectricity", label: "Token listrik", icon: Zap },
-  { key: "dailyBudgetPayroll", label: "Gaji karyawan", icon: Users },
-  { key: "dailyBudgetRent", label: "Sewa lapak", icon: Store },
-  { key: "dailyBudgetSaveMoney", label: "Save money", icon: PiggyBank },
-  { key: "dailyBudgetInternet", label: "Internet", icon: Wifi },
-  { key: "dailyBudgetAds", label: "Biaya iklan", icon: Megaphone },
-  { key: "dailyBudgetSystem", label: "Biaya sistem", icon: Wrench },
-] as const;
-
-type FixedKey = (typeof FIXED_FIELDS)[number]["key"];
-
-type DailyBudgetSettings = Record<FixedKey, number>;
-
-const EMPTY_BUDGET: DailyBudgetSettings = {
-  dailyBudgetElectricity: 0,
-  dailyBudgetPayroll: 0,
-  dailyBudgetRent: 0,
-  dailyBudgetSaveMoney: 0,
-  dailyBudgetInternet: 0,
-  dailyBudgetAds: 0,
-  dailyBudgetSystem: 0,
+const STATUS_STYLE: Record<BudgetStatus, { label: string; className: string }> = {
+  kosong: { label: "Belum ada pemakaian", className: "border-[#4a4a54] bg-white/[0.06] text-[#d6d6dc]" },
+  di_bawah: { label: "Di bawah anggaran", className: "border-[#c0c0c8]/40 bg-white/[0.08] text-[#e4e4e7]" },
+  sesuai: { label: "Sesuai anggaran", className: "border-[#f5a742]/50 bg-[#f5a742]/14 text-[#ffd08a]" },
+  melebihi: { label: "Melebihi anggaran", className: "border-[#d11a2a]/55 bg-[#d11a2a]/16 text-[#ffb3b3]" },
 };
 
-function pickBudget(settings: Record<string, unknown>): DailyBudgetSettings {
-  const next = { ...EMPTY_BUDGET };
-  for (const field of FIXED_FIELDS) {
-    const raw = settings[field.key];
-    next[field.key] = typeof raw === "number" ? raw : Number(raw) || 0;
-  }
-  return next;
-}
+const shortRp = (value: number) =>
+  value >= 1_000_000
+    ? `Rp${(value / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt`
+    : `Rp${Math.round(value / 1_000).toLocaleString("id-ID")} rb`;
 
-function Row({
-  icon: Icon,
-  label,
-  value,
-  strong,
-  tone,
-}: {
-  icon?: LucideIcon;
-  label: string;
-  value: number;
-  strong?: boolean;
-  tone?: "in" | "out" | "neutral";
-}) {
-  const valueColor =
+function Tile({ label, value, hint, tone }: { label: string; value: number; hint?: string; tone: "in" | "out" | "result" }) {
+  const negative = tone === "result" && value < 0;
+  const box =
     tone === "in"
-      ? "text-[#86efac]"
+      ? "border-[#c0c0c8]/30 bg-white/[0.06]"
       : tone === "out"
-        ? "text-[#ffc2c8]"
-        : "text-white";
+        ? "border-[#f5a742]/35 bg-[#f5a742]/10"
+        : negative
+          ? "border-[#d11a2a]/45 bg-[#d11a2a]/12"
+          : "border-[#c0c0c8]/30 bg-white/[0.06]";
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-[#23232a] py-2 last:border-0">
-      <span className="flex items-center gap-2 text-sm text-[#d6d6dc]">
-        {Icon ? <Icon className="size-3.5 text-[#8f8f99]" /> : null}
-        {label}
-      </span>
-      <span
-        className={`garage-mono tabular-nums ${
-          strong ? "text-base font-black" : "text-sm font-semibold"
-        } ${valueColor}`}
-      >
+    <div className={`rounded-md border p-3 ${box}`}>
+      <p className="garage-mono text-[10px] text-[#d6d6dc]">{label}</p>
+      <p className={`mt-1 break-words text-lg font-black tabular-nums ${negative ? "text-[#ffc2c8]" : "text-white"}`}>
         {currency.format(value)}
-      </span>
+      </p>
+      {hint ? <p className="mt-0.5 text-[11px] text-[#b8b8bf]">{hint}</p> : null}
     </div>
   );
 }
 
 /**
- * Panel Anggaran & Alokasi Harian: gabungkan biaya tetap (input owner, tersimpan
- * di AppSettings) dengan angka otomatis (omzet, profit, belanja dapur/bar dari
- * transaksi) supaya owner bisa lihat pembagian uang harian dalam satu layar.
+ * Biaya Harian & Belanja (Finance):
+ * - biaya tetap dari master Pengaturan Keuangan (satu sumber, Owner);
+ * - biaya tidak tetap OTOMATIS dari bahan baku yang terpakai penjualan hari ini
+ *   (resep × harga beli), dipisah Bar/Dapur dan dibandingkan dengan anggaran;
+ * - daftar belanja otomatis dari stok gudang yang habis/menipis.
  */
-export function FinanceDailyBudget({
-  overview,
-}: {
-  overview: FinanceOverview | null;
-}) {
-  const [budget, setBudget] = useState<DailyBudgetSettings>(EMPTY_BUDGET);
+export function FinanceDailyBudget({ overview }: { overview: FinanceOverview | null }) {
+  const [data, setData] = useState<DailyCosts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
 
-  // Muat biaya tetap dari settings (inline, setState setelah await).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await garageApi.get<{ settings: Record<string, unknown> }>(
-          "/api/settings",
-        );
-        if (!cancelled) setBudget(pickBudget(data.settings));
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Gagal memuat anggaran harian.",
-          );
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await garageApi.get<DailyCosts>("/api/finance/daily-costs", { cache: "no-store" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat biaya harian.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const categories = overview?.expenseAnalysis.categories ?? [];
-  const findCat = (name: string) =>
-    categories.find((c) => c.category.toLowerCase() === name.toLowerCase())?.amount ?? 0;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- muat biaya harian saat panel tampil
+    void load();
+  }, [load]);
 
   const omzet = overview?.today.revenue ?? 0;
-  const profit = overview?.today.netProfit ?? 0;
-  const belanjaDapur = findCat("Belanja Dapur");
-  const belanjaBar = findCat("Belanja Bar");
-
-  const fixedTotal = FIXED_FIELDS.reduce((sum, f) => sum + (budget[f.key] || 0), 0);
-  const variableTotal = belanjaDapur + belanjaBar;
-  const totalAlokasi = fixedTotal + variableTotal;
-  const sisa = omzet - totalAlokasi;
+  const fixedTotal = data?.fixed.total ?? 0;
+  const variableTotal = data?.variable.total ?? 0;
+  const sisa = omzet - fixedTotal - variableTotal;
 
   return (
     <Card className="garage-panel garage-animate-in">
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle>Anggaran &amp; Alokasi Harian</CardTitle>
+          <div className="min-w-0">
+            <CardTitle>Biaya Harian &amp; Belanja</CardTitle>
             <CardDescription>
-              Biaya tetap diatur manual; omzet, profit, dan belanja dapur/bar
-              terisi otomatis dari transaksi hari ini.
+              Biaya tetap dari Pengaturan Keuangan. Biaya bahan baku terhitung otomatis dari resep setiap
+              penjualan lunas, dipisah Bar &amp; Dapur.
             </CardDescription>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="garage-press h-9 shrink-0 border-[#4a4a54] text-white"
-            onClick={() => setEditOpen(true)}
-          >
-            <Settings2 className="mr-2 size-3.5" />
-            Atur biaya tetap
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-9 border-[#4a4a54] text-white"
+              onClick={() => void load()}
+              aria-label="Muat ulang biaya harian"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+            <Button asChild variant="outline" className="garage-press h-9 border-[#4a4a54] text-white">
+              <Link href="/control/financial/settings">
+                <Settings2 className="mr-2 size-3.5" />
+                Atur biaya
+              </Link>
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
-          <p className="text-xs text-[#ffc2c8]">{error}</p>
+          <p role="alert" className="rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 px-3 py-2 text-sm text-[#ffc2c8]">
+            {error}
+          </p>
         ) : null}
+        {loading && !data ? <p className="text-sm text-[#b8b8bf]">Memuat biaya harian…</p> : null}
 
-        {/* Ringkasan alokasi */}
-        <div className="grid gap-2 sm:grid-cols-4">
-          <div className="rounded-md border border-[#22c55e]/35 bg-[#22c55e]/10 p-3">
-            <p className="garage-mono text-[10px] text-[#86efac]">Omzet hari ini</p>
-            <p className="mt-1 break-words text-lg font-black tabular-nums text-white">
-              {currency.format(omzet)}
-            </p>
-          </div>
-          <div className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3">
-            <p className="garage-mono text-[10px] text-[#ffd08a]">Biaya tetap</p>
-            <p className="mt-1 break-words text-lg font-black tabular-nums text-white">
-              {currency.format(fixedTotal)}
-            </p>
-          </div>
-          <div className="rounded-md border border-[#f5a742]/35 bg-[#f5a742]/10 p-3">
-            <p className="garage-mono text-[10px] text-[#ffd08a]">Belanja dapur+bar</p>
-            <p className="mt-1 break-words text-lg font-black tabular-nums text-white">
-              {currency.format(variableTotal)}
-            </p>
-          </div>
-          <div
-            className={`rounded-md border p-3 ${
-              sisa < 0
-                ? "border-[#d11a2a]/45 bg-[#d11a2a]/12"
-                : "border-[#22c55e]/35 bg-[#22c55e]/10"
-            }`}
-          >
-            <p className="garage-mono text-[10px] text-[#b8b8bf]">
-              Sisa (omzet − alokasi)
-            </p>
-            <p
-              className={`mt-1 break-words text-lg font-black tabular-nums ${
-                sisa < 0 ? "text-[#ffc2c8]" : "text-[#86efac]"
-              }`}
-            >
-              {currency.format(sisa)}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* Biaya tetap */}
-          <div className="garage-surface rounded-md p-3">
-            <p className="mb-1 text-sm font-semibold text-white">
-              Biaya tetap / hari
-            </p>
-            <p className="mb-2 text-[10px] text-[#8f8f99]">
-              {loading ? "Memuat..." : "Diatur manual di tombol Atur biaya tetap"}
-            </p>
-            {FIXED_FIELDS.map((f) => (
-              <Row
-                key={f.key}
-                icon={f.icon}
-                label={f.label}
-                value={budget[f.key] || 0}
+        {data ? (
+          <>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <Tile label="Omzet hari ini" value={omzet} tone="in" />
+              <Tile
+                label="Biaya tetap / hari"
+                value={fixedTotal}
+                tone="out"
+                hint={`Operasional ${shortRp(data.fixed.operational)} + Save Money ${shortRp(data.fixed.reserve)}`}
               />
-            ))}
-            <div className="mt-1 border-t border-[#34343c] pt-1">
-              <Row label="Subtotal biaya tetap" value={fixedTotal} strong tone="out" />
-            </div>
-          </div>
-
-          {/* Otomatis dari transaksi */}
-          <div className="garage-surface rounded-md p-3">
-            <p className="mb-1 text-sm font-semibold text-white">
-              Otomatis hari ini
-            </p>
-            <p className="mb-2 text-[10px] text-[#8f8f99]">
-              Dari POS &amp; pengeluaran kategori Belanja Dapur / Belanja Bar
-            </p>
-            <Row label="Omzet (penjualan)" value={omzet} tone="in" />
-            <Row label="Belanja dapur" value={belanjaDapur} tone="out" />
-            <Row label="Belanja bar" value={belanjaBar} tone="out" />
-            <div className="mt-1 border-t border-[#34343c] pt-1">
-              <Row
-                label="Laba bersih (sistem)"
-                value={profit}
-                strong
-                tone={profit < 0 ? "out" : "in"}
+              <Tile
+                label="Bahan baku terpakai (otomatis)"
+                value={variableTotal}
+                tone="out"
+                hint={`Anggaran ${shortRp(data.variable.budgetMin)}–${shortRp(data.variable.budgetMax)}`}
               />
+              <Tile label="Sisa (omzet − biaya)" value={sisa} tone="result" />
             </div>
-          </div>
-        </div>
 
-        <p className="text-[11px] leading-5 text-[#8f8f99]">
-          Catatan: <span className="text-[#d6d6dc]">Sisa</span> = Omzet − (biaya
-          tetap + belanja dapur/bar). Untuk memisahkan belanja dapur &amp; bar
-          otomatis, catat pengeluaran memakai kategori{" "}
-          <span className="text-[#ffd08a]">Belanja Dapur</span> atau{" "}
-          <span className="text-[#ffd08a]">Belanja Bar</span> di menu Pengeluaran.
-        </p>
-      </CardContent>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="garage-surface rounded-md p-3">
+                <p className="text-sm font-semibold text-white">Biaya tetap / hari</p>
+                <ul className="mt-2">
+                  {data.fixed.items.map((item) => (
+                    <li
+                      key={item.code}
+                      className="flex items-center justify-between gap-3 border-b border-[#23232a] py-2 text-sm last:border-0"
+                    >
+                      <span className="flex items-center gap-2 text-[#d6d6dc]">
+                        {item.isReserve ? <PiggyBank className="size-3.5 text-[#ffd08a]" /> : null}
+                        {item.name}
+                        {item.isReserve ? <span className="text-[11px] text-[#b8b8bf]">(cadangan laba)</span> : null}
+                      </span>
+                      <span className="garage-mono font-semibold tabular-nums text-white">
+                        {currency.format(item.dailyAmount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-1 flex items-center justify-between border-t border-[#34343c] pt-2 text-sm">
+                  <span className="font-semibold text-white">Total</span>
+                  <span className="garage-mono font-black tabular-nums text-[#ffd08a]">
+                    {currency.format(data.fixed.total)}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-[#b8b8bf]">
+                  Save Money disisihkan dari laba — tidak mengurangi laba bersih maupun target BEP.
+                </p>
+              </div>
 
-      <FinanceBudgetEditDialog
-        open={editOpen}
-        initial={budget}
-        onOpenChange={setEditOpen}
-        onSaved={(next) => setBudget(next)}
-      />
-    </Card>
-  );
-}
+              <div className="garage-surface rounded-md p-3">
+                <p className="text-sm font-semibold text-white">Biaya tidak tetap — bahan baku terpakai hari ini</p>
+                <div className="mt-2 space-y-3">
+                  {data.variable.areas.map((area) => {
+                    const status = STATUS_STYLE[area.status];
+                    const pct = area.budgetMax > 0 ? Math.min(100, (area.actual / area.budgetMax) * 100) : 0;
+                    const Icon = area.area === "bar" ? Coffee : ChefHat;
+                    return (
+                      <div key={area.area} className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                            <Icon className="size-4 text-[#ffd08a]" /> {area.label}
+                          </span>
+                          <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${status.className}`}>
+                            {status.label}
+                          </span>
+                        </div>
+                        <p className="garage-mono mt-1 text-lg font-black tabular-nums text-white">
+                          {currency.format(area.actual)}
+                        </p>
+                        <div className="mt-1.5 h-2 overflow-hidden rounded bg-white/10" aria-hidden>
+                          <div
+                            className={`h-full ${area.status === "melebihi" ? "bg-[#d11a2a]" : "bg-[#f5a742]"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-[11px] text-[#b8b8bf]">
+                          Anggaran {currency.format(area.budgetMin)} – {currency.format(area.budgetMax)} / hari
+                        </p>
+                        {area.linesWithoutRecipe > 0 ? (
+                          <p className="mt-1 text-[11px] text-[#ffd08a]">
+                            {area.linesWithoutRecipe} item terjual belum punya resep — bahan bakunya belum
+                            terhitung. Lengkapi resep di menu Produk.
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
-function FinanceBudgetEditDialog({
-  open,
-  initial,
-  onOpenChange,
-  onSaved,
-}: {
-  open: boolean;
-  initial: DailyBudgetSettings;
-  onOpenChange: (open: boolean) => void;
-  onSaved: (next: DailyBudgetSettings) => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
-        {open ? (
-          <BudgetForm
-            initial={initial}
-            onClose={() => onOpenChange(false)}
-            onSaved={onSaved}
-          />
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function BudgetForm({
-  initial,
-  onClose,
-  onSaved,
-}: {
-  initial: DailyBudgetSettings;
-  onClose: () => void;
-  onSaved: (next: DailyBudgetSettings) => void;
-}) {
-  const [values, setValues] = useState<Record<FixedKey, string>>(() => {
-    const next = {} as Record<FixedKey, string>;
-    for (const f of FIXED_FIELDS) next[f.key] = String(initial[f.key] ?? 0);
-    return next;
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const patch = {} as DailyBudgetSettings;
-    for (const f of FIXED_FIELDS) {
-      const n = Number(values[f.key]);
-      if (!Number.isFinite(n) || n < 0) {
-        setError(`Nilai ${f.label} tidak valid.`);
-        return;
-      }
-      patch[f.key] = Math.round(n);
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await garageApi.patch("/api/settings", patch);
-      onSaved(patch);
-      onClose();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Gagal menyimpan biaya tetap.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Atur biaya tetap harian</DialogTitle>
-        <DialogDescription>
-          Nilai per hari. Tersimpan di pengaturan dan dipakai panel Alokasi Harian.
-        </DialogDescription>
-      </DialogHeader>
-      <form className="space-y-3" onSubmit={handleSubmit}>
-        <div className="grid grid-cols-2 gap-2">
-          {FIXED_FIELDS.map((f) => (
-            <div key={f.key}>
-              <p className="garage-mono mb-1 flex items-center gap-1.5 text-[10px] text-[#b8b8bf]">
-                <f.icon className="size-3" />
-                {f.label}
+            <div className="garage-surface rounded-md p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <ShoppingCart className="size-4 text-[#ffd08a]" /> Daftar belanja otomatis
+                </p>
+                <span className="garage-mono text-sm font-bold text-[#ffd08a]">
+                  Estimasi {currency.format(data.shopping.totalEstimatedCost)}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-[#b8b8bf]">
+                Dari stok gudang yang habis/di bawah minimum, dihitung per kemasan beli bila tersedia.
               </p>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={values[f.key]}
-                onChange={(e) =>
-                  setValues((cur) => ({ ...cur, [f.key]: e.target.value }))
-                }
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-              />
+              {data.shopping.areas.length === 0 ? (
+                <p className="mt-3 flex items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.04] px-3 py-3 text-sm text-[#d6d6dc]">
+                  <PackageSearch className="size-4 text-[#b8b8bf]" />
+                  Semua stok aman — belum ada bahan yang perlu dibeli.
+                </p>
+              ) : (
+                <div className="garage-scroll mt-3 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                  {data.shopping.areas.map((group) => (
+                    <div key={group.area}>
+                      <div className="flex items-center justify-between gap-2 border-b border-[#34343c] pb-1">
+                        <p className="text-sm font-semibold text-white">Belanja {group.label}</p>
+                        <p className="garage-mono text-sm font-bold tabular-nums text-white">
+                          {currency.format(group.estimatedCost)}
+                        </p>
+                      </div>
+                      <ul>
+                        {group.items.map((item) => (
+                          <li
+                            key={item.sku}
+                            className="flex items-start justify-between gap-3 border-b border-[#23232a] py-2 last:border-0"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm text-white">
+                                {item.name}
+                                {item.urgency === "critical" ? (
+                                  <span className="ml-2 rounded border border-[#d11a2a]/55 bg-[#d11a2a]/16 px-1.5 py-0.5 text-[10px] font-bold text-[#ffb3b3]">
+                                    HABIS
+                                  </span>
+                                ) : item.urgency === "low" ? (
+                                  <span className="ml-2 rounded border border-[#f5a742]/50 bg-[#f5a742]/14 px-1.5 py-0.5 text-[10px] font-bold text-[#ffd08a]">
+                                    MENIPIS
+                                  </span>
+                                ) : null}
+                              </p>
+                              <p className="text-[11px] text-[#b8b8bf]">
+                                Stok {item.onHand.toLocaleString("id-ID")} {item.unit} · min{" "}
+                                {item.minStock.toLocaleString("id-ID")} · beli{" "}
+                                <span className="font-semibold text-[#e4e4e7]">
+                                  {item.packages !== null
+                                    ? `${item.packages} × ${item.packageLabel ?? "kemasan"}`
+                                    : `${item.suggestedQty.toLocaleString("id-ID")} ${item.unit}`}
+                                </span>
+                              </p>
+                            </div>
+                            <span className="garage-mono shrink-0 text-sm font-semibold tabular-nums text-white">
+                              {currency.format(item.estimatedCost)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3 flex justify-end">
+                <Button asChild variant="outline" className="garage-press h-9 border-[#4a4a54] text-white">
+                  <Link href="/warehouse">Buka Gudang</Link>
+                </Button>
+              </div>
             </div>
-          ))}
-        </div>
-        {error ? (
-          <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
-            <AlertTitle>Gagal</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          </>
         ) : null}
-        <DialogFooter className="gap-2 pt-1 sm:gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="garage-press h-10 border-[#4a4a54] bg-white/[0.055]"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Batal
-          </Button>
-          <Button type="submit" className="garage-press h-10" disabled={saving}>
-            {saving ? (
-              <>
-                <RefreshCw className="mr-2 size-4 animate-spin" />
-                Menyimpan...
-              </>
-            ) : (
-              <>
-                <Check className="mr-2 size-4" />
-                Simpan
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </form>
-    </>
+      </CardContent>
+    </Card>
   );
 }

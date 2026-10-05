@@ -34,6 +34,9 @@ RUN npm run build
 FROM node:22-bookworm-slim AS migrator
 WORKDIR /app
 ENV NODE_ENV=production
+# Zona waktu operasional outlet (WIB). Semua laporan harian, struk & PDF
+# dihitung dalam Asia/Jakarta — sama seperti PC kasir lokal.
+ENV TZ=Asia/Jakarta
 ENV GARAGE_DB_DRIVER=postgres
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json tsconfig.json drizzle.config.ts ./
@@ -47,6 +50,9 @@ CMD ["node_modules/.bin/tsx", "src/db/migrate.ts"]
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Zona waktu operasional outlet (WIB). Semua laporan harian, struk & PDF
+# dihitung dalam Asia/Jakarta — sama seperti PC kasir lokal.
+ENV TZ=Asia/Jakarta
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV GARAGE_DB_DRIVER=postgres
 ENV PORT=3000

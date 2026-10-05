@@ -834,6 +834,13 @@
       "when": 1791148936735,
       "tag": "0118_cash_session_deposit",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1791188118604,
+      "tag": "0119_finance_owner_daily_costs",
+      "breakpoints": true
     }
   ]
 }

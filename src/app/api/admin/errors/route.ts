@@ -5,6 +5,7 @@ import { getDb, isDatabaseConfigured } from "@/db";
 import { errorEvents } from "@/db/schema";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { recordError } from "@/lib/garage-error-tracking";
+import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 const clientErrorSchema = z.object({
   message: z.string().min(1).max(2000),
   stack: z.string().max(8000).optional(),
-  url: z.string().optional(),
+  url: z.string().max(2000).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -95,6 +96,10 @@ export async function GET(request: Request) {
 // POST — client-side error reporter
 export async function POST(request: Request) {
   // No auth required — kalau user gak login, error tetap ditangkap.
+  // Dibatasi per IP agar endpoint publik ini tidak dipakai membanjiri DB.
+  if (rateLimit(request, "admin-client-errors", { limit: 20, windowMs: 60_000 })) {
+    return fail(429, "RATE_LIMITED", "Terlalu banyak laporan error. Coba lagi sebentar.");
+  }
   const parsed = await readJson(request, clientErrorSchema);
   if (parsed.error) return parsed.error;
 

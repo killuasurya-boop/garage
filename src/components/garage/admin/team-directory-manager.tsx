@@ -15,7 +15,7 @@ interface StaffProfile {
   status: string;
   division: string | null;
   position: string | null;
-  pinCode: string | null;
+  hasPin: boolean;
   name: string;
   email: string;
 }
@@ -32,6 +32,7 @@ export function TeamDirectoryManager() {
   const [status, setStatus] = useState("active");
   const [role, setRole] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function fetchStaff() {
     try {
@@ -57,7 +58,7 @@ export function TeamDirectoryManager() {
     setEditingId(item.id);
     setDivision(item.division || "F&B Kafe");
     setPosition(item.position || "");
-    setPinCode(item.pinCode || "");
+    setPinCode(""); // PIN lama tidak pernah dikirim ke browser; kosong = tidak diubah.
     setStatus(item.status);
     setRole(item.role);
   }
@@ -72,17 +73,22 @@ export function TeamDirectoryManager() {
           id,
           division,
           position,
-          pinCode,
+          ...(pinCode.trim() ? { pinCode: pinCode.trim() } : {}),
           status,
           role,
         }),
       });
       if (res.ok) {
         setEditingId(null);
+        setSaveError(null);
         fetchStaff();
+      } else {
+        const body = await res.json().catch(() => null);
+        setSaveError(body?.error?.message ?? "Gagal menyimpan perubahan staf.");
       }
     } catch (err) {
       console.error(err);
+      setSaveError("Koneksi terputus. Coba simpan lagi.");
     } finally {
       setSubmitting(false);
     }
@@ -101,6 +107,12 @@ export function TeamDirectoryManager() {
           </div>
         </div>
       </div>
+
+      {saveError ? (
+        <p role="alert" className="rounded-lg border border-[#d11a2a]/45 bg-[#d11a2a]/12 px-3 py-2 text-sm text-[#ffb3b3]">
+          {saveError}
+        </p>
+      ) : null}
 
       {loading ? (
         <div className="py-12 text-center text-zinc-500">Memuat direktori karyawan...</div>
@@ -182,13 +194,14 @@ export function TeamDirectoryManager() {
                           <Input
                             value={pinCode}
                             onChange={(e) => setPinCode(e.target.value)}
-                            placeholder="4-6 Angka"
+                            placeholder={item.hasPin ? "Ganti PIN" : "4-8 angka"}
+                            inputMode="numeric"
                             className="h-8 px-2 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 text-xs text-center w-20 mx-auto focus:border-amber-500"
                           />
                         ) : (
                           <span className="text-zinc-400 font-mono text-xs flex items-center justify-center gap-1">
                             <Key className="size-3.5 text-zinc-600" />
-                            {item.pinCode ? "••••" : "Belum Set"}
+                            {item.hasPin ? "••••" : "Belum Set"}
                           </span>
                         )}
                       </td>

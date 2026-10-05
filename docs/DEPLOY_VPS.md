@@ -73,17 +73,31 @@ docker compose --env-file .env.production up -d --build
 # migrasi baru ikut otomatis lewat service `migrate`
 ```
 
-**Backup database (cron harian disarankan):**
-```bash
-docker compose --env-file .env.production exec db \
-  pg_dump -U garage garage | gzip > backup-$(date +%F).sql.gz
-```
+**Backup database (otomatis):**
+- Service `backup` (docker-compose) menjalankan `scripts/pg-backup.sh`:
+  1× sehari setelah **04:00 WIB** → `./backups/garage-daily-*.sql.gz`,
+  disimpan **14 hari** (atur `BACKUP_HOUR` / `BACKUP_KEEP_DAYS` di `.env.production`).
+- Setiap deploy (GitHub Actions & `deploy.sh`) membuat
+  `./backups/garage-pre-deploy-*.sql.gz` **sebelum migrasi**; deploy berhenti bila
+  backup gagal. 10 backup pre-deploy/manual terakhir disimpan.
+- Tiap file diuji (gzip utuh + penanda selesai `pg_dump`) sebelum dianggap jadi.
+- Cek: `ls -lh /root/garage/backups` dan `docker compose --env-file .env.production logs --tail 20 backup`.
+- Backup manual kapan saja:
+  `docker compose --env-file .env.production run --rm backup once manual`
+- **Salin ke luar VPS** secara berkala (laptop/Google Drive), mis. dari PC:
+  `scp root@<ip-vps>:/root/garage/backups/garage-daily-*.sql.gz .`
+  — backup yang hanya ada di VPS ikut hilang bila VPS rusak.
 
-**Restore:**
+**Restore** (hentikan app dulu agar tidak ada transaksi baru):
 ```bash
-gunzip -c backup-YYYY-MM-DD.sql.gz | \
-  docker compose --env-file .env.production exec -T db psql -U garage garage
+docker compose --env-file .env.production stop app
+gunzip -c backups/garage-daily-YYYY-MM-DD_HHMMSS.sql.gz | \
+  docker compose --env-file .env.production exec -T db \
+  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+docker compose --env-file .env.production up -d app
 ```
+File dibuat dengan `--clean --if-exists`, jadi bisa langsung di-restore ke
+database yang sudah berisi (tabel lama diganti isi backup).
 
 ## Cron wajib di VPS (padanan `vercel.json` + Task Scheduler PC lokal)
 
@@ -95,7 +109,7 @@ gunzip -c backup-YYYY-MM-DD.sql.gz | \
 |---|---|---|
 | 23:59 tiap hari | Finalisasi payroll/fee pool (WAJIB) | `curl -fsS -X POST -H "x-cron-secret: $S" -H "content-type: application/json" -d "{\"date\":\"$(date +%F)\"}" $D/api/payroll/cron/finalize` |
 | 00:30 tiap hari | Susulan finalisasi kemarin (bila 23:59 terlewat) | `curl -fsS -X POST -H "x-cron-secret: $S" -H "content-type: application/json" -d "{}" $D/api/payroll/cron/finalize` |
-| 02:00 tiap hari | Backup DB | lihat "Backup database" di atas |
+| — | Backup DB | otomatis oleh service `backup` (tidak perlu crontab) |
 | */5 menit | Antrean WhatsApp (bila dipakai) | `curl -fsS -H "authorization: Bearer $S" $D/api/jobs/whatsapp-messaging` |
 | 03:00 tgl 1 | Bersihkan chat internal lama | `curl -fsS -H "authorization: Bearer $S" "$D/api/admin/purge/cron?retentionDays=90"` |
 

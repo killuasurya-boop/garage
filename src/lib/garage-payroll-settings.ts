@@ -62,6 +62,13 @@ export const PAYROLL_DEFAULTS: Record<string, unknown> = {
     { maxMinutes: 120, percent: 50 },
     { maxMinutes: null, percent: 0 }, // catch-all (>120)
   ],
+  // Aturan owner: telat Rp1.000/menit dari jam buka; telat ≥30 menit → gaji
+  // hari itu 0. Bracket di atas hanya dipakai bila mode diubah ke "bracket".
+  "late.penalty": {
+    mode: "per_minute",
+    perMinute: 1000,
+    cutoffMinutes: 30,
+  },
   [PAYROLL_KEYS.overtime]: {
     enabled: true,
     startHour: 23,

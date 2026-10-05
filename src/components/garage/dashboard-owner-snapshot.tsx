@@ -98,6 +98,7 @@ type SnapshotData = {
   inventory: InventoryItem[];
   orders: OrderRow[];
   pendingCustomerOrders: number;
+  capital: CapitalSnapshot | null;
   loading: boolean;
   error: string | null;
 };
@@ -132,13 +133,14 @@ export function DashboardOwnerSnapshot({
     inventory: [],
     orders: [],
     pendingCustomerOrders: 0,
+    capital: null,
     loading: true,
     error: null,
   });
 
   const load = useCallback(async () => {
     try {
-      const [financeRes, guardRes, approvalsRes, auditRes, inventoryRes, ordersRes] =
+      const [financeRes, guardRes, approvalsRes, auditRes, inventoryRes, ordersRes, capitalRes] =
         await Promise.allSettled([
           fetch("/api/finance/overview"),
           fetch("/api/finance/guard"),
@@ -146,6 +148,7 @@ export function DashboardOwnerSnapshot({
           fetch("/api/audit/stats"),
           fetch("/api/inventory"),
           fetch("/api/orders"),
+          fetch("/api/finance/capital-recovery?period=today"),
         ]);
 
       const parse = async <T,>(
@@ -182,6 +185,7 @@ export function DashboardOwnerSnapshot({
         ? inventoryData
         : inventoryData.rows ?? [];
       const orders = (await parse<OrderRow[]>(ordersRes)) ?? [];
+      const capital = (await parse<{ capital: CapitalSnapshot }>(capitalRes))?.capital ?? null;
 
       const pendingCustomerOrders = orders.filter(
         (o) =>
@@ -198,6 +202,7 @@ export function DashboardOwnerSnapshot({
         inventory,
         orders,
         pendingCustomerOrders,
+        capital,
         loading: false,
         error: null,
       });
@@ -436,6 +441,8 @@ export function DashboardOwnerSnapshot({
         />
       </div>
 
+      {data.capital && data.capital.initialCapital > 0 ? <CapitalRecoveryStrip capital={data.capital} /> : null}
+
       {/* Attendance hari ini — tombol cepat ke terminal kiosk */}
       <AttendanceTodayWidget
         onOpenAdminLog={
@@ -664,5 +671,64 @@ function QuickLink({
       </div>
       <ArrowRight className="size-3.5 text-[#8f8f99] transition-transform group-hover:translate-x-0.5 group-hover:text-[#f5a742]" />
     </div>
+  );
+}
+
+type CapitalSnapshot = {
+  methodLabel: string;
+  initialCapital: number;
+  recovered: number;
+  remaining: number;
+  recoveryPct: number;
+  roiPct: number | null;
+  avgMonthlyNetProfit: number | null;
+  estimatedPaybackMonths: number | null;
+};
+
+/** Ringkasan balik modal untuk Owner (detail & metode di Finance Control). */
+function CapitalRecoveryStrip({ capital }: { capital: CapitalSnapshot }) {
+  const months = capital.estimatedPaybackMonths;
+  const items: Array<{ label: string; value: string; danger?: boolean }> = [
+    { label: "Modal awal", value: currency.format(capital.initialCapital) },
+    { label: "Modal kembali", value: currency.format(capital.recovered), danger: capital.recovered < 0 },
+    { label: "Progress", value: `${capital.recoveryPct.toLocaleString("id-ID")}%` },
+    { label: "Sisa balik modal", value: currency.format(capital.remaining) },
+    {
+      label: "Rata-rata laba/bulan",
+      value: capital.avgMonthlyNetProfit === null ? "Belum ada data" : currency.format(capital.avgMonthlyNetProfit),
+      danger: (capital.avgMonthlyNetProfit ?? 0) < 0,
+    },
+    {
+      label: "Estimasi balik modal",
+      value: months === null ? "Belum bisa diproyeksi" : months === 0 ? "Lunas" : `± ${months.toLocaleString("id-ID")} bulan`,
+    },
+    {
+      label: "ROI",
+      value: capital.roiPct === null ? "—" : `${capital.roiPct.toLocaleString("id-ID")}%`,
+      danger: (capital.roiPct ?? 0) < 0,
+    },
+  ];
+  return (
+    <section className="rounded-lg border border-[#34343c] bg-[#111116] p-4" aria-label="Balik modal">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="garage-mono text-[11px] uppercase tracking-wide text-[#ffd08a]">Balik modal · {capital.methodLabel}</p>
+        <a href="/control/financial" className="text-xs font-semibold text-[#d6d6dc] underline-offset-2 hover:underline">
+          Detail
+        </a>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded bg-white/10" aria-hidden>
+        <div className="h-full bg-[#f5a742]" style={{ width: `${Math.max(0, Math.min(100, capital.recoveryPct))}%` }} />
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 xl:grid-cols-7">
+        {items.map((item) => (
+          <div key={item.label} className="min-w-0">
+            <dt className="text-[11px] text-[#b8b8bf]">{item.label}</dt>
+            <dd className={`garage-mono break-words text-sm font-bold tabular-nums ${item.danger ? "text-[#ffc2c8]" : "text-white"}`}>
+              {item.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

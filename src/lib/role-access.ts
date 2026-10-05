@@ -205,6 +205,14 @@ for (const role of Object.keys(roleModules) as Role[]) {
   }
 }
 
+// Garage Control Center — layar operasional bersama untuk semua staf (tanpa
+// nominal uang; detail personal hanya milik sendiri).
+for (const role of Object.keys(roleModules) as Role[]) {
+  if (!roleModules[role].includes("ops-center")) {
+    roleModules[role].push("ops-center");
+  }
+}
+
 // Smart Notification Center — semua role yang punya station kerja real-time
 // butuh akses. Owner/Manajer untuk konfigurasi, kasir/waiter untuk monitor
 // trigger di station mereka.

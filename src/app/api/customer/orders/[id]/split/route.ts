@@ -4,7 +4,7 @@ import { fail, ok, readJson } from "@/lib/api-response";
 import { splitCustomerOrder } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { rateLimit } from "@/lib/rate-limit";
-import { requireGarageSession } from "@/lib/server-auth";
+import { requireCashierSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -32,7 +32,7 @@ export async function POST(
   if (limited) return limited;
 
   // Sama dengan yang boleh Final Bayar bill meja.
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

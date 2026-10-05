@@ -38,6 +38,26 @@ export async function countOwners() {
   return Number(row?.c ?? 0);
 }
 
+/**
+ * Satu akun per orang: akun login staf (selain Owner) langsung dapat kode absen
+ * + baris gaji, sehingga absen, gaji, dan fee masuk ke akun yang sama. PIN absen
+ * diatur Owner (Manajemen User). Gagal pasang absen tidak menggagalkan user.
+ */
+async function attachAbsenIdentity(userId: string, role: Role, position?: string | null) {
+  if (role === "Owner") return;
+  try {
+    const { ensureAbsenIdentity } = await import("@/lib/garage-absen-employees");
+    await ensureAbsenIdentity(userId, {
+      position: position ?? null,
+      role,
+      excludeFromFee: role === "Manajer",
+      generatePin: false,
+    });
+  } catch (error) {
+    console.warn("[admin-user] gagal memasang identitas absen:", error);
+  }
+}
+
 async function writeAdminAudit(
   context: AdminAuditContext | undefined,
   action: string,
@@ -280,6 +300,7 @@ export async function createAdminUser(
       role: input.role,
       outletId: input.outletId,
     });
+    await attachAbsenIdentity(created.id, input.role, input.position);
     return { userId: created.id };
   }
 
@@ -298,6 +319,7 @@ export async function createAdminUser(
     role: input.role,
     outletId: input.outletId,
   });
+  await attachAbsenIdentity(newUserId, input.role, input.position);
   return { userId: newUserId };
 }
 

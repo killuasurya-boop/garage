@@ -3,6 +3,9 @@ import { describe, it, expect } from "vitest";
 import type { Role } from "@/lib/garage-data";
 import {
   canAccessModule,
+  canHandleMoney,
+  canUseApiAs,
+  modulesForProfile,
   canUseApi,
   modulesForRole,
   permissionsForRole,
@@ -42,7 +45,7 @@ describe("role-access: invariants", () => {
       expect(canAccessModule("Kasir", homeModuleFor("Kasir", ws))).toBe(true);
     }
     expect(homeModuleFor("Kasir", null)).toBe("pos");
-    expect(homeModuleFor("Kasir", "all")).toBe("pos");
+    expect(homeModuleFor("Kasir", "all")).toBe("kitchen"); // barista "all" bukan kasir → tanpa POS
     expect(homeModuleFor("Waiter", "bar")).toBe("waiter");
     expect(homeModuleFor("Owner", "dapur")).toBe("dashboard");
   });
@@ -167,4 +170,47 @@ describe("role-access: konsistensi modul ↔ permission data", () => {
     });
   }
 
+});
+
+describe("kapabilitas per akun (role + workstation + jabatan)", () => {
+  const kasir = { role: "Kasir" as const, workstation: null, position: "Kasir" };
+  const barista = { role: "Kasir" as const, workstation: "bar", position: "Barista" };
+  const baristaAll = { role: "Kasir" as const, workstation: "all", position: "Barista" };
+  const koki = { role: "Kasir" as const, workstation: "dapur", position: "Koki" };
+  const asistenKoki = { role: "Kasir" as const, workstation: "dapur", position: "Asisten Koki" };
+  const helper = { role: "Kasir" as const, workstation: "helper_bar", position: "Helper Bar" };
+
+  it("pegang uang hanya kasir + Owner/Manajer", () => {
+    expect(canHandleMoney(kasir)).toBe(true);
+    expect(canHandleMoney({ role: "Owner" })).toBe(true);
+    expect(canHandleMoney({ role: "Manajer", workstation: "all" })).toBe(true);
+    for (const p of [barista, baristaAll, koki, asistenKoki, helper, { role: "Waiter" as const }]) {
+      expect(canHandleMoney(p)).toBe(false);
+    }
+    for (const p of [barista, koki, asistenKoki, helper]) {
+      expect(canUseApiAs(p, "shift:cash")).toBe(false);
+      expect(canUseApiAs(p, "pos:use")).toBe(false);
+      expect(canUseApiAs(p, "orders:manage")).toBe(false);
+      expect(canUseApiAs(p, "kitchen:write")).toBe(true);
+    }
+    expect(canUseApiAs(kasir, "shift:cash")).toBe(true);
+  });
+
+  it("tulis stok: kasir, barista, koki; asisten koki & helper hanya lihat", () => {
+    for (const p of [kasir, barista, baristaAll, koki]) expect(canUseApiAs(p, "inventory:write")).toBe(true);
+    for (const p of [asistenKoki, helper]) {
+      expect(canUseApiAs(p, "inventory:write")).toBe(false);
+      expect(canUseApiAs(p, "inventory:read")).toBe(true);
+    }
+    expect(canUseApiAs({ role: "Waiter" }, "inventory:write")).toBe(false);
+  });
+
+  it("modul POS disembunyikan untuk non-kasir; home produksi ke Kitchen", () => {
+    expect(modulesForProfile(kasir)).toContain("pos");
+    expect(modulesForProfile(barista)).not.toContain("pos");
+    expect(modulesForProfile(baristaAll)).not.toContain("pos");
+    expect(modulesForProfile({ role: "Manajer" })).toContain("pos");
+    expect(homeModuleFor("Kasir", "all")).toBe("kitchen");
+    expect(homeModuleFor("Kasir", null)).toBe("pos");
+  });
 });

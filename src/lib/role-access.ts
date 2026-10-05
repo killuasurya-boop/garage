@@ -273,7 +273,8 @@ const PRODUCTION_ONLY_WORKSTATIONS = new Set(["bar", "dapur", "helper_bar", "hel
  * Dibuka" (barista/koki tidak membuka shift kas). Temuan QA-audit 2026-09-28.
  */
 export function homeModuleFor(role: Role, workstation?: string | null): ModuleId {
-  if (role === "Kasir" && workstation && PRODUCTION_ONLY_WORKSTATIONS.has(workstation)) {
+  // Termasuk workstation "all": POS hanya untuk kasir (lihat canHandleMoney).
+  if (role === "Kasir" && workstation && (PRODUCTION_ONLY_WORKSTATIONS.has(workstation) || workstation === "all")) {
     return "kitchen";
   }
   return firstModuleForRole(role);
@@ -294,3 +295,68 @@ export const protectedRoleRank: Record<Role, number> = {
   Kasir: 30,
   Waiter: 20,
 };
+
+// =============================================================================
+// Kapabilitas per akun (role + workstation + jabatan).
+// Role Kasir dipakai bersama oleh kasir, barista, koki, asisten koki & helper —
+// pembedanya `staff_profiles.workstation` + `position`. Keputusan owner Okt 2026:
+//   • Pegang uang (POS, buka shift kas, pembayaran, tandai lunas): hanya kasir
+//     (role Kasir tanpa workstation) + Owner/Manajer.
+//   • Tulis stok gudang: kasir, barista (bar/all), koki (dapur). Asisten Koki &
+//     helper hanya lihat stok.
+// =============================================================================
+export type StaffCapabilityProfile = {
+  role: Role;
+  workstation?: string | null;
+  position?: string | null;
+};
+
+const MONEY_PERMISSIONS: Permission[] = ["pos:use", "orders:manage", "shift:cash"];
+const HELPER_WORKSTATIONS = new Set(["helper_bar", "helper_dapur", "helper_all"]);
+
+/** Kasir sungguhan = role Kasir yang tidak ditugaskan ke stasiun produksi. */
+export function isCashierStaff(profile: StaffCapabilityProfile): boolean {
+  return profile.role === "Kasir" && !profile.workstation;
+}
+
+/** Boleh pegang uang: buka/tutup shift kas, POS, pembayaran, tandai lunas. */
+export function canHandleMoney(profile: StaffCapabilityProfile): boolean {
+  return MANAGEMENT_ROLES.includes(profile.role) || isCashierStaff(profile);
+}
+
+/** Boleh input/ubah stok gudang (bukan sekadar lihat). */
+export function canWriteStock(profile: StaffCapabilityProfile): boolean {
+  if (MANAGEMENT_ROLES.includes(profile.role)) return true;
+  if (profile.role !== "Kasir") return false;
+  if (profile.workstation && HELPER_WORKSTATIONS.has(profile.workstation)) return false;
+  if (profile.position?.trim().toLowerCase() === "asisten koki") return false;
+  return true;
+}
+
+export function effectivePermissions(profile: StaffCapabilityProfile): Permission[] {
+  const base = permissionsForRole(profile.role);
+  if (profile.role !== "Kasir") return base;
+  const money = canHandleMoney(profile);
+  const stock = canWriteStock(profile);
+  return base.filter(
+    (permission) =>
+      (money || !MONEY_PERMISSIONS.includes(permission)) && (stock || permission !== "inventory:write"),
+  );
+}
+
+export function canUseApiAs(profile: StaffCapabilityProfile, permission: Permission) {
+  return effectivePermissions(profile).includes(permission);
+}
+
+/** Modul yang tampil untuk akun ini — POS disembunyikan untuk non-kasir. */
+export function modulesForProfile(profile: StaffCapabilityProfile): ModuleId[] {
+  const modules = modulesForRole(profile.role);
+  if (profile.role === "Kasir" && !canHandleMoney(profile)) {
+    return modules.filter((moduleId) => moduleId !== "pos");
+  }
+  return modules;
+}
+
+export function canAccessModuleAs(profile: StaffCapabilityProfile, moduleId: ModuleId) {
+  return modulesForProfile(profile).includes(moduleId);
+}

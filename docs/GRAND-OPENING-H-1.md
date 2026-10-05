@@ -102,29 +102,36 @@ $T src/db/reset-grand-opening.ts
 $T src/db/reset-grand-opening.ts --apply --yes --backup-done
 #    tambah --reset-member-points bila poin/kunjungan member berasal dari uji coba
 
-# 5. Samakan 11 akun operasional (dry-run dulu, lalu --apply).
-#    Akun di luar daftar hanya dihapus bila --remove-others.
+# 5. Samakan 13 akun operasional (dry-run dulu, lalu --apply). Satu akun per
+#    orang: login = absen (kode + PIN) = gaji = fee. --remove-others menghapus
+#    akun di luar daftar termasuk akun absen lama (@absen.garage.local).
 $T src/scripts/garage-setup-accounts.ts
 $T src/scripts/garage-setup-accounts.ts --apply --remove-others
-#    → CATAT password sementara yang tercetak (sekali saja); wajib ganti saat login pertama.
+#    → CATAT password sementara & PIN absen yang tercetak (sekali saja).
 
 # 6. Nyalakan aplikasi & cek bukti fresh (boleh diulang kapan saja, baca saja)
 $C up -d app
 $T src/db/reset-grand-opening.ts --status
 ```
 
-11 akun operasional (pemetaan ke 4 role Garage OS):
+13 akun operasional (pemetaan ke 4 role Garage OS) — satu akun per orang:
 
-| Akun | Jabatan | Role | Workstation |
-|---|---|---|---|
-| owner@garage.id | Owner | Owner | – |
-| manajer@garage.id | Manajer | Manajer | – |
-| barista1@ / barista2@garage.id | Barista (POS + BAR) | Kasir | Produksi BAR |
-| waiter1@ / waiter2@ / waiter3@garage.id | Waiter | Waiter | – |
-| koki@garage.id | Koki | Kasir | Produksi DAPUR |
-| asisten.koki@garage.id | Asisten Koki | Kasir | Produksi DAPUR |
-| helper.bar@garage.id | Helper Bar | Kasir | Helper BAR |
-| helper.dapur@garage.id | Helper Dapur | Kasir | Helper DAPUR |
+| Akun | Jabatan | Role | Workstation | Kode absen |
+|---|---|---|---|---|
+| owner@garage.id | Owner | Owner | – | (tidak absen) |
+| manajer@garage.id | Manajer | Manajer | – | MGR |
+| kasir1@ / kasir2@garage.id | Kasir (POS + tutup shift) | Kasir | – | KSR1, KSR2 |
+| barista1@ / barista2@garage.id | Barista (POS + BAR) | Kasir | Produksi BAR | BAR1, BAR2 |
+| waiter1@ / waiter2@ / waiter3@garage.id | Waiter | Waiter | – | WTR1–WTR3 |
+| koki@garage.id | Koki | Kasir | Produksi DAPUR | KOKI |
+| asisten.koki@garage.id | Asisten Koki | Kasir | Produksi DAPUR | AKOKI |
+| helper.bar@garage.id | Helper Bar | Kasir | Helper BAR | HBAR |
+| helper.dapur@garage.id | Helper Dapur | Kasir | Helper DAPUR | HDPR |
+
+Absen di HP: buka /absen, masukkan **kode absen + PIN** (atau absen dari akun
+yang sedang login) — gaji harian, fee pool & fee produksi masuk ke akun yang
+sama. Gaji tiap akun diisi Owner di Payroll → Karyawan. Staf baru cukup dibuat
+di Manajemen User: kode absen otomatis dibuat (PIN diatur Owner).
 
 Owner/Manajer yang sudah ada **tidak diubah password-nya**. Nama tampilan bisa
 diganti ke nama asli staf di Manajemen User setelahnya.

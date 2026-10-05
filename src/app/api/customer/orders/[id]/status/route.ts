@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { updateCustomerOrderStatus } from "@/lib/garage-service";
-import { requireGarageSession } from "@/lib/server-auth";
+import { requireCashierSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -32,7 +32,7 @@ export async function PATCH(
   // Terima/tolak order QR = validasi kasir (pembayaran). Waiter TIDAK termasuk:
   // tugas waiter = antar + pesankan order, bukan validasi. Hindari ambiguitas
   // "Tunggu Kasir" tapi waiter ikut acc.
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

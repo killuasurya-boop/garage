@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ok, readJson } from "@/lib/api-response";
 import { createVoucher, getVoucherData } from "@/lib/garage-service";
 import { MAX_PERCENT_VOUCHER, MIN_PERCENT_VOUCHER } from "@/lib/member-types";
-import { requireGarageSession } from "@/lib/server-auth";
+import { requireCashierSession, requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -31,7 +31,7 @@ const voucherSchema = z.discriminatedUnion("type", [
 ]);
 
 export async function GET() {
-  const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

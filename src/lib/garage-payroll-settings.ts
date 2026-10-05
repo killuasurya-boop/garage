@@ -52,9 +52,10 @@ export const PAYROLL_DEFAULTS: Record<string, unknown> = {
   },
   [PAYROLL_KEYS.attendanceMethods]: {
     // per role name; fallback "default"
+    // Satu akun = login = absen: semua staf PIN + selfie + GPS (sama dengan
+    // /absen). Jalur sesi login tidak pernah lebih longgar dari `absen`.
     default: "pin_selfie_gps",
-    Kasir: "pin",
-    Waiter: "pin_selfie_gps_multi",
+    absen: "pin_selfie_gps",
   },
   [PAYROLL_KEYS.lateBrackets]: [
     { maxMinutes: 15, percent: 100 },

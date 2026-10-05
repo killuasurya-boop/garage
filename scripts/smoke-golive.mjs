@@ -2,7 +2,7 @@
 // =============================================================================
 // Smoke test go-live Garage OS — alur bisnis nyata lewat API terhadap server
 // yang sedang jalan (DB uji, BUKAN produksi). Membuktikan:
-//   - 11 akun bisa login, role & workstation benar
+//   - 13 akun bisa login, role & workstation benar
 //   - RBAC: allow & deny lewat API langsung (bukan hanya UI)
 //   - Waiter pesan 3 meja (Americano sama) → kasir terima → BAR & DAPUR
 //     proses → helper serah-terima → bayar Cash/QRIS/Transfer → laporan
@@ -63,6 +63,8 @@ class Client {
 const ROSTER = {
   owner: "owner@garage.id",
   manajer: "manajer@garage.id",
+  kasir1: "kasir1@garage.id",
+  kasir2: "kasir2@garage.id",
   barista1: "barista1@garage.id",
   barista2: "barista2@garage.id",
   waiter1: "waiter1@garage.id",

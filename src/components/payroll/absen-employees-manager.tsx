@@ -371,14 +371,14 @@ export function AbsenEmployeesManager() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--garage-fg)]">Karyawan Absen</h1>
           <p className="text-base text-[var(--garage-dim)]">
-            Akun absen HP karyawan (kode + PIN) — terpisah dari akun login sistem kasir.
+            Satu akun per karyawan: akun login yang sama dipakai untuk absen (kode + PIN), gaji, dan fee.
           </p>
         </div>
-        {canManagePay && editing !== "__new__" && (
-          <button type="button" onClick={() => openEditor("__new__")} className={btnPrimary}>
+        {canManagePay && (
+          <a href="/control/users" className={btnPrimary}>
             <Plus className="size-4" aria-hidden />
-            Tambah karyawan
-          </button>
+            Tambah lewat Manajemen User
+          </a>
         )}
       </div>
 
@@ -433,7 +433,7 @@ export function AbsenEmployeesManager() {
         <p className="text-base text-[var(--garage-dim)]">Memuat karyawan…</p>
       ) : employees.length === 0 && !loadError ? (
         <p className={`${card} text-base text-[var(--garage-dim)]`}>
-          Belum ada karyawan absen. Tekan <strong>Tambah karyawan</strong>.
+          Belum ada karyawan absen. Tambahkan akun staf di <strong>Manajemen User</strong> — kode absen otomatis dibuat.
         </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">

@@ -288,3 +288,116 @@ export async function resetAbsenPin(rawCode: string, actor: AbsenActor) {
   await writeAudit(actor, "absen_employee_reset_pin", code, {});
   return { code, pin };
 }
+
+// ---------- Satu akun: login = absen = gaji = fee ----------
+
+/** Awalan kode absen dari jabatan, mis. "Barista" → "BAR", "Asisten Koki" → "AKOKI". */
+export function absenCodePrefix(position: string | null | undefined, role: string): string {
+  const raw = (position || role || "STAF").trim().toUpperCase();
+  const known: Record<string, string> = {
+    MANAJER: "MGR",
+    KASIR: "KSR",
+    BARISTA: "BAR",
+    WAITER: "WTR",
+    KOKI: "KOKI",
+    "ASISTEN KOKI": "AKOKI",
+    "HELPER BAR": "HBAR",
+    "HELPER DAPUR": "HDPR",
+  };
+  return known[raw] ?? (raw.replace(/[^A-Z0-9]/g, "").slice(0, 4) || "STAF");
+}
+
+async function nextFreeCode(prefix: string): Promise<string> {
+  const rows = await getDb()
+    .select({ code: staffWageConfig.absenCode })
+    .from(staffWageConfig)
+    .where(isNotNull(staffWageConfig.absenCode));
+  const taken = new Set(rows.map((row) => row.code));
+  for (let n = 1; ; n += 1) {
+    const code = `${prefix}${n}`;
+    if (!taken.has(code)) return code;
+  }
+}
+
+/**
+ * Pasang identitas absen + data gaji ke AKUN LOGIN (bukan akun absen terpisah):
+ * baris staff_wage_config dengan kode absen, dan PIN bila belum ada. Idempoten.
+ * Gaji 0 sampai Owner mengisinya di Payroll → Karyawan.
+ * Mengembalikan PIN baru (sekali) bila dibuat.
+ */
+export async function ensureAbsenIdentity(
+  userId: string,
+  options: {
+    code?: string | null;
+    position?: string | null;
+    role: string;
+    excludeFromFee?: boolean;
+    /** false = PIN diatur Owner sendiri (Manajemen User / Payroll → Reset PIN). */
+    generatePin?: boolean;
+  },
+): Promise<{ code: string; pin: string | null; created: boolean }> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ code: staffWageConfig.absenCode })
+    .from(staffWageConfig)
+    .where(eq(staffWageConfig.staffUserId, userId))
+    .limit(1);
+  const wanted = options.code ? normalizeEmployeeCode(options.code) : null;
+
+  let code: string;
+  let created = false;
+  if (existing?.code && (!wanted || existing.code === wanted)) {
+    code = existing.code;
+  } else {
+    code = wanted ?? (await nextFreeCode(absenCodePrefix(options.position, options.role)));
+    const holder = await findByCode(code);
+    if (holder && holder.staffUserId !== userId) {
+      throw new AbsenEmployeeError("CODE_TAKEN", `Kode ${code} sudah dipakai karyawan lain.`);
+    }
+    if (existing) {
+      await db
+        .update(staffWageConfig)
+        .set({ absenCode: code, updatedAt: new Date() })
+        .where(eq(staffWageConfig.staffUserId, userId));
+    } else {
+      await db.insert(staffWageConfig).values({
+        staffUserId: userId,
+        monthlySalary: 0,
+        dailyWage: 0,
+        overtimeHourly: DEFAULT_OVERTIME_HOURLY,
+        excludeFromFee: options.excludeFromFee ?? false,
+        absenCode: code,
+      });
+      created = true;
+    }
+  }
+
+  const [profile] = await db
+    .select({ pinHash: staffProfiles.pinHash })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1);
+  let pin: string | null = null;
+  if (options.generatePin !== false && profile && !profile.pinHash) {
+    const taken = new Set<string>();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const candidate = generateAbsenPin(taken);
+      const [clash] = await db
+        .select({ userId: staffProfiles.userId })
+        .from(staffProfiles)
+        .where(eq(staffProfiles.pinHash, hashPin(candidate)))
+        .limit(1);
+      if (!clash) {
+        pin = candidate;
+        break;
+      }
+    }
+    if (pin) {
+      await db
+        .update(staffProfiles)
+        .set({ pinHash: hashPin(pin), pinCode: null, updatedAt: new Date() })
+        .where(eq(staffProfiles.userId, userId));
+    }
+  }
+  return { code, pin, created };
+}

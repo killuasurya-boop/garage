@@ -49,7 +49,7 @@ backup() {
     log "GAGAL: pg_dump error."
     return 1
   fi
-  if ! gzip -t "$tmp" || ! gzip -dc "$tmp" | tail -n 5 | grep -q "PostgreSQL database dump complete"; then
+  if ! gzip -t "$tmp" || ! gzip -dc "$tmp" | tail -n 30 | grep -q "PostgreSQL database dump complete"; then
     rm -f "$tmp"
     log "GAGAL: file backup tidak utuh."
     return 1

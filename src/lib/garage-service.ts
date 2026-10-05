@@ -9600,13 +9600,6 @@ type CreatedOrderMemberReward = {
   upgradeNotification: string | null;
 } | null;
 
-function isRequestKeyConflict(error: unknown) {
-  const text = [error, (error as { cause?: unknown } | null)?.cause]
-    .map((e) => (e instanceof Error ? `${e.message} ${(e as { constraint?: string }).constraint ?? ""}` : String(e ?? "")))
-    .join(" ");
-  return text.includes("orders_client_request_key_idx");
-}
-
 export async function createOrder(
   input: OrderInput,
   garage: GarageSession,
@@ -9621,7 +9614,9 @@ export async function createOrder(
     return await createOrderOnce(input, garage, { ...options, requestKey });
   } catch (error) {
     // Dua kiriman kunci sama berbarengan: yang kalah membaca order pemenang.
-    if (requestKey && isRequestKeyConflict(error)) {
+    // Termasuk kalah di klaim approval diskon (pemenang sudah memakainya) —
+    // bila order pemenang ada, kembalikan order itu, bukan error ke kasir.
+    if (requestKey) {
       const existingId = await findOrderByRequestKey(requestKey);
       if (existingId) return replayCreatedOrder(existingId);
     }

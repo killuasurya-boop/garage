@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { fail } from "@/lib/api-response";
 import { hashPin } from "@/lib/attendance";
 import { protectedRoleRank } from "@/lib/role-access";
+import { countOwners, pinTakenByOther } from "@/lib/admin-user-service";
 import type { Role } from "@/lib/garage-data";
 
 const ROLE_VALUES = ["Owner", "Manajer", "Kasir", "Waiter"] as const;
@@ -83,12 +84,23 @@ export async function PATCH(req: Request) {
     // akun Owner, dan tidak boleh menaikkan siapa pun menjadi Owner/Manajer.
     const actorRole = session.data.profile.role as Role;
     const [target] = await db
-      .select({ role: staffProfiles.role })
+      .select({ role: staffProfiles.role, userId: staffProfiles.userId, status: staffProfiles.status })
       .from(staffProfiles)
       .where(eq(staffProfiles.id, id))
       .limit(1);
     if (!target) {
       return fail(404, "NOT_FOUND", "Profil staf tidak ditemukan.");
+    }
+    // Owner terakhir tidak boleh dinonaktifkan/diturunkan — sistem akan terkunci.
+    if (
+      target.role === "Owner" &&
+      ((status && status !== "active") || (role && role !== "Owner")) &&
+      (await countOwners()) <= 1
+    ) {
+      return fail(409, "LAST_OWNER", "Owner terakhir tidak boleh dinonaktifkan atau diturunkan rolenya.");
+    }
+    if (pinCode && (await pinTakenByOther(pinCode, target.userId))) {
+      return fail(409, "PIN_TAKEN", "PIN ini sudah dipakai staf lain. Pilih PIN lain.");
     }
     if (actorRole !== "Owner") {
       const actorRank = protectedRoleRank[actorRole];

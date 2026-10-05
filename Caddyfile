@@ -12,7 +12,10 @@
 		max_size 12MB
 	}
 
-	reverse_proxy app:3000
+	# IP klien asli dari koneksi (bukan header kiriman klien) untuk rate limit.
+	reverse_proxy app:3000 {
+		header_up X-Real-IP {remote_host}
+	}
 }
 
 # www.<domain> → domain utama (DNS www sudah CNAME ke domain utama).

@@ -29,7 +29,7 @@ import { config } from "dotenv";
 import { asc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady, getDb, getPgPool } from "@/db";
-import { outlets, staffProfiles, user } from "@/db/schema";
+import { outlets, staffProfiles, staffWageConfig, user } from "@/db/schema";
 import { createAdminUser, deleteAdminUser, updateAdminUser } from "@/lib/admin-user-service";
 import type { Role } from "@/lib/garage-data";
 
@@ -93,9 +93,11 @@ async function main() {
       role: staffProfiles.role,
       workstation: staffProfiles.workstation,
       status: staffProfiles.status,
+      absenCode: staffWageConfig.absenCode,
     })
     .from(user)
-    .leftJoin(staffProfiles, eq(staffProfiles.userId, user.id));
+    .leftJoin(staffProfiles, eq(staffProfiles.userId, user.id))
+    .leftJoin(staffWageConfig, eq(staffWageConfig.staffUserId, user.id));
   const byEmail = new Map(existing.map((row) => [row.email.toLowerCase(), row]));
   const rosterEmails = new Set(OPERATIONAL_ROSTER.map((entry) => entry.email));
 
@@ -143,9 +145,24 @@ async function main() {
   }
 
   const others = existing.filter((row) => !rosterEmails.has(row.email.toLowerCase()) && row.role);
+  // Tidak pernah dihapus otomatis: akun Owner (bisa jadi login Owner asli) dan
+  // karyawan absensi/payroll (punya kode absen / akun @absen.garage.local) —
+  // menghapusnya ikut menghapus data gaji & riwayatnya.
+  const isSystem = (email: string) => email.toLowerCase().endsWith("@internal.garage"); // bot chat & AI, bukan login staf
+  const isProtected = (row: (typeof others)[number]) =>
+    row.role === "Owner" ||
+    isSystem(row.email) ||
+    Boolean(row.absenCode) ||
+    row.email.toLowerCase().endsWith("@absen.garage.local");
   console.log(`\n== Akun staf di luar daftar (${others.length}) ==`);
   for (const row of others) {
-    console.log(`${removeOthers ? "HAPUS   " : "LAPOR   "} ${row.email} (${row.role}${row.workstation ? `/${row.workstation}` : ""}, ${row.status})`);
+    const label = `${row.email} (${row.role}${row.workstation ? `/${row.workstation}` : ""}, ${row.status})`;
+    if (isProtected(row)) {
+      const why = isSystem(row.email) ? "akun sistem (bot), bukan login staf" : row.role === "Owner" ? "akun Owner, hapus manual bila perlu" : "karyawan absensi/payroll, hapus manual bila perlu";
+      console.log(`SIMPAN   ${label} — ${why}`);
+      continue;
+    }
+    console.log(`${removeOthers ? "HAPUS   " : "LAPOR   "} ${label}`);
     if (apply && removeOthers) {
       await deleteAdminUser(row.id, OWNER_CONTEXT);
     }

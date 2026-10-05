@@ -61,6 +61,8 @@ jobs:
             docker compose --env-file .env.production run --rm backup once pre-deploy
             docker compose --env-file .env.production run --rm migrate
             docker compose --env-file .env.production up -d --no-build app caddy backup
+            # Skrip backup di-mount dari host: restart agar versi terbaru dipakai.
+            docker compose --env-file .env.production restart backup
             docker image prune -f >/dev/null
           "
 

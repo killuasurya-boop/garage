@@ -38,6 +38,8 @@ echo ">> backup sebelum migrasi (./backups)..."
 ${COMPOSE} run --rm backup once pre-deploy
 echo ">> build & up (migrasi DB jalan otomatis)..."
 ${COMPOSE} up -d --build
+# Skrip backup di-mount dari host: restart agar versi terbaru dipakai.
+${COMPOSE} restart backup
 
 # --- 3. Seed awal (opsional, hanya deploy pertama) ---------------------------
 if [ "${1:-}" = "--seed" ]; then

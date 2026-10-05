@@ -34,3 +34,26 @@ describe("chit dapur/bar — nama pemesan", () => {
     expect(buildKitchenChitContent({ ...base, customerName: "Guest Customer" })).not.toContain("NAMA:");
   });
 });
+
+describe("chit delivery", () => {
+  it("mencetak DELIVERY, alamat utuh (dipecah baris) dan No. WA", () => {
+    const address = "Jl. Sudirman No. 12, Kel. Pasar Baru — Patokan: depan masjid pagar hijau";
+    const chit = buildKitchenChitContent({
+      orderNo: "POS-9",
+      tableLabel: "Delivery",
+      orderType: "delivery",
+      customerName: "Rina",
+      customerPhone: "6281234567890",
+      deliveryAddress: address,
+      items: [{ name: "Kopi Susu", qty: 2, station: "Bar" }],
+    });
+    expect(chit).toContain("*** DELIVERY ***");
+    expect(chit).toContain("WA    : 6281234567890");
+    const joined = chit
+      .split("\r\n")
+      .filter((l) => l.startsWith("Antar: ") || l.startsWith("       "))
+      .map((l) => l.slice(7))
+      .join("");
+    expect(joined).toContain(address);
+  });
+});

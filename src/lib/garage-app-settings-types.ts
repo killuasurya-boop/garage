@@ -51,6 +51,11 @@ export type AppSettings = {
   // Target SLA tiket produksi (menit) — dipasang ke tiket BARU saat dibuat.
   productionTargetBarMinutes: number;
   productionTargetFoodMinutes: number;
+  // Delivery menu digital (wajib bayar QRIS dulu).
+  deliveryEnabled: boolean;
+  deliveryFee: number;
+  deliveryMinItems: number;
+  deliveryAreaNote: string;
   // Loyalty
   pointsPerThousand: number;
   voucherMaxDiscountPct: number;
@@ -172,6 +177,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   productionBatchWindowSec: 120,
   productionTargetBarMinutes: 5,
   productionTargetFoodMinutes: 15,
+  deliveryEnabled: true,
+  deliveryFee: 5000,
+  deliveryMinItems: 2,
+  deliveryAreaNote:
+    "Khusus wilayah perkotaan Tebing Tinggi yang aman & terjangkau kurir. Tidak melayani daerah pelosok/rawan.",
   pointsPerThousand: 1,
   voucherMaxDiscountPct: 30,
   qrPromoPct: 10,

@@ -603,6 +603,11 @@ export type CustomerOrder = {
   customerPhone: string | null;
   customerNote: string | null;
   campaign: string | null;
+  // Order online: "dine-in" | "takeaway" | "delivery" (null = lama/POS).
+  fulfillment?: "dine-in" | "takeaway" | "delivery" | string | null;
+  deliveryAddress?: string | null;
+  deliveryFee?: number;
+  deliveryStatus?: "preparing" | "on_the_way" | "delivered" | string | null;
   whatsappInvoiceStatus: "not_sent" | "sent" | "failed" | string;
   whatsappInvoiceUrl: string | null;
   invoicePdfUrl: string | null;

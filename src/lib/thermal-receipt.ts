@@ -88,6 +88,9 @@ export interface KitchenChitInput {
   // Nama pemesan (tamu) — dicetak menonjol di bawah nomor meja supaya
   // bar/dapur/waiter tahu porsi ini milik siapa. Kosong = baris tidak dicetak.
   customerName?: string | null;
+  // Delivery: dicetak di setiap chit supaya kurir/kasir tidak salah antar.
+  customerPhone?: string | null;
+  deliveryAddress?: string | null;
   items: KitchenChitItem[];
 }
 
@@ -160,6 +163,17 @@ export function buildKitchenChitContent(input: KitchenChitInput): string {
     // "Guest Customer" = placeholder POS tanpa nama → tidak dicetak.
     if (customer && customer.toLowerCase() !== "guest customer") {
       rows.push(center(`NAMA: ${customer.toUpperCase()}`));
+      rows.push("-".repeat(W));
+    }
+    const address = clean(input.deliveryAddress);
+    if (address) {
+      rows.push(center("*** DELIVERY ***"));
+      // Alamat dipecah per 32 kolom — tidak dipotong.
+      for (let i = 0; i < address.length; i += W - 7) {
+        rows.push(`${i === 0 ? "Antar: " : "       "}${address.slice(i, i + W - 7)}`);
+      }
+      const phone = clean(input.customerPhone);
+      if (phone) rows.push(`WA    : ${phone}`.slice(0, W));
       rows.push("-".repeat(W));
     }
     if (input.orderType) {

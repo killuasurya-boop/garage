@@ -43,6 +43,8 @@ const customerOrderSchema = z.object({
   // Token chat (opsional). Bila customer sudah ngobrol, order ditautkan ke
   // thread chat agar update status order otomatis muncul di percakapan.
   chatToken: z.string().trim().min(12).max(120).optional(),
+  // Delivery: alamat lengkap + patokan (divalidasi di server untuk orderType delivery).
+  deliveryAddress: z.string().trim().max(300).optional(),
   items: z.array(itemSchema).min(1).max(40),
 });
 

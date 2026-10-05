@@ -22,6 +22,8 @@ const chitSchema = z.object({
   cashierName: optionalString,
   waiterName: optionalString,
   customerName: optionalString,
+  customerPhone: optionalString,
+  deliveryAddress: optionalString,
   items: z.array(
     z.object({
       name: z.string(),

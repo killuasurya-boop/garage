@@ -236,6 +236,8 @@ type CustomerOrderInput = {
   // Token chat customer (opsional). Bila ada, order ditautkan ke thread chat
   // sehingga update status order otomatis muncul sebagai system message.
   chatToken?: string;
+  // Delivery: alamat lengkap + patokan (wajib untuk orderType "delivery").
+  deliveryAddress?: string;
   items: OrderInput["items"];
 };
 
@@ -247,8 +249,11 @@ type CustomerOrderActionInput = {
     | "request_bill"
     | "whatsapp_sent"
     | "waiter_cash_received"
-    | "waiter_cash_deposited";
+    | "waiter_cash_deposited"
+    | "delivery_status";
   reason?: string;
+  // Aksi "delivery_status": status pengantaran order delivery yang sudah lunas.
+  deliveryStatus?: "preparing" | "on_the_way" | "delivered";
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
@@ -877,6 +882,10 @@ function customerOrderResponse(
     customerPhone: row.customerPhone,
     customerNote: row.customerNote,
     campaign: row.campaign,
+    fulfillment: row.fulfillment ?? null,
+    deliveryAddress: row.deliveryAddress ?? null,
+    deliveryFee: row.deliveryFee ?? 0,
+    deliveryStatus: row.deliveryStatus ?? null,
     whatsappInvoiceStatus: row.whatsappInvoiceStatus,
     whatsappInvoiceUrl: row.whatsappInvoiceUrl,
     invoicePdfUrl: null,
@@ -5581,6 +5590,12 @@ export async function getCustomerOrderData(params?: { status?: string }) {
       eq(orders.status, "pending_cashier"),
       eq(orders.status, "awaiting_payment"),
       eq(orders.status, "accepted"),
+      // Delivery lunas yang belum selesai diantar tetap tampil untuk status antar.
+      and(
+        eq(orders.status, "paid"),
+        eq(orders.fulfillment, "delivery"),
+        or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
+      ),
     );
     if (activeCustomerOrderStatusFilter) {
       filters.push(activeCustomerOrderStatusFilter);
@@ -8026,6 +8041,10 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     voucherMaxDiscountPct: settings.voucherMaxDiscountPct,
     qrPromoPct: settings.qrPromoPct,
     qrPromoMaxAmount: settings.qrPromoMaxAmount,
+    deliveryEnabled: settings.deliveryEnabled,
+    deliveryFee: settings.deliveryFee,
+    deliveryMinItems: settings.deliveryMinItems,
+    deliveryAreaNote: settings.deliveryAreaNote,
   };
 }
 
@@ -8128,14 +8147,39 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     ? capVoucherDiscountBySettings(voucherValidation.discount, subtotal, settings)
     : 0;
   const discount = Math.min(grossTotal, promoDiscount + voucherDiscountValue);
-  const total = grossTotal - discount;
+  const isDelivery = input.orderType === "delivery";
+  const paymentMethod = input.paymentMethod?.trim() || "Cash";
+  const deliveryAddress = input.deliveryAddress?.replace(/\s+/g, " ").trim() ?? "";
+  if (isDelivery) {
+    // Syarat delivery owner: aktif, QRIS dulu (tanpa COD), alamat, min. produk.
+    if (!settings.deliveryEnabled) {
+      throw new Error("Layanan delivery sedang tidak tersedia. Silakan pilih Take away.");
+    }
+    if (paymentMethod !== "QRIS") {
+      throw new Error("Delivery wajib bayar QRIS terlebih dahulu (tidak menerima bayar di tempat/COD).");
+    }
+    if (deliveryAddress.length < 10) {
+      throw new Error("Alamat pengantaran wajib diisi lengkap (jalan, nomor, patokan).");
+    }
+    const totalQty = lines.reduce((sum, line) => sum + line.qty, 0);
+    if (totalQty < settings.deliveryMinItems) {
+      throw new Error(`Minimal pemesanan delivery ${settings.deliveryMinItems} produk.`);
+    }
+  }
+  // Ongkir di luar service charge & pajak (keputusan owner).
+  const deliveryFee = isDelivery ? Math.max(0, Math.round(settings.deliveryFee)) : 0;
+  const total = grossTotal - discount + deliveryFee;
   const orderNo = makeOrderNo();
   const invoiceNo = invoiceNoForOrder(orderNo);
   const source =
-    input.source ?? (input.orderType === "takeaway" ? "qr_takeaway" : "qr_table");
-  const channel =
-    source === "qr_takeaway" ? "QR Takeaway" : source === "instagram" ? "Instagram" : "QR Table";
-  const paymentMethod = input.paymentMethod?.trim() || "Cash";
+    input.source ?? (input.orderType === "dine-in" ? "qr_table" : "qr_takeaway");
+  const channel = isDelivery
+    ? "Delivery"
+    : source === "qr_takeaway"
+      ? "QR Takeaway"
+      : source === "instagram"
+        ? "Instagram"
+        : "QR Table";
   const paymentProvider = input.paymentProvider?.trim() || null;
   const paymentReference = input.paymentReference?.trim() || null;
   const initialOrderStatus = paymentMethod === "Cash" ? "pending_cashier" : "awaiting_payment";
@@ -8180,6 +8224,9 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   if (input.customerMode === "member" && (!customerPhone || customerPhone.length < 8)) {
     throw new Error("Nomor WhatsApp member tidak valid.");
   }
+  if (isDelivery && !customerPhone) {
+    throw new Error("Nomor WhatsApp wajib diisi untuk delivery (konfirmasi pembayaran & pengantaran).");
+  }
 
   // Dine-in wajib nomor meja valid & aktif; label disimpan kanonik "Meja 06" supaya
   // peta meja, rincian item & cek "belum diantar" mencocokkan label yang sama.
@@ -8191,6 +8238,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     }
     await assertTableActive(qrTableNumber, input.outletId);
     tableLabel = tableLabelForNumber(qrTableNumber);
+  } else if (isDelivery) {
+    tableLabel = "Delivery";
   } else {
     tableLabel = input.tableLabel?.trim() || orderTypeToChannel(input.orderType);
   }
@@ -8273,6 +8322,10 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         customerPhone,
         customerNote: input.customerNote?.trim() || null,
         campaign: input.campaign?.trim() || null,
+        fulfillment: input.orderType,
+        deliveryAddress: isDelivery ? deliveryAddress : null,
+        deliveryFee,
+        deliveryStatus: null,
         whatsappInvoiceStatus: "not_sent",
         whatsappInvoiceUrl: initialWhatsappInvoiceUrl,
       })
@@ -8519,6 +8572,49 @@ async function updateCustomerOrderStatusImpl(
     const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
     const now = new Date();
     const cashierActionStatuses = ["pending_cashier", "awaiting_payment"];
+    const payFirst = order.fulfillment === "takeaway" || order.fulfillment === "delivery";
+
+    // Status pengantaran (dikelola tim Garage) — hanya order delivery yang lunas.
+    if (input.action === "delivery_status") {
+      if (order.fulfillment !== "delivery") {
+        throw new Error("Status pengantaran hanya untuk order delivery.");
+      }
+      if (order.status !== "paid") {
+        throw new Error("Order delivery harus lunas sebelum diantar.");
+      }
+      const next = input.deliveryStatus;
+      if (next !== "preparing" && next !== "on_the_way" && next !== "delivered") {
+        throw new Error("Status pengantaran tidak dikenal.");
+      }
+      const [updated] = await tx
+        .update(orders)
+        .set({ deliveryStatus: next, updatedAt: now })
+        .where(eq(orders.id, order.id))
+        .returning();
+      const [latestPayment] = await tx
+        .select()
+        .from(payments)
+        .where(eq(payments.orderId, order.id))
+        .orderBy(desc(payments.createdAt))
+        .limit(1);
+      await tx.insert(auditLogs).values({
+        time: nowTimeLabel(),
+        actor,
+        action: `Delivery status ${order.orderNo}`,
+        object: order.deliveryAddress ?? order.tableLabel,
+        device: garage.profile.deviceLabel,
+        status: next,
+        metadata: { orderId: order.id, from: order.deliveryStatus, to: next },
+      });
+      return { order: customerOrderResponse(updated, itemRows, latestPayment), ticketNos: [] as string[] };
+    }
+
+    // Take away & delivery: WAJIB lunas dulu baru pesanan dibuat (keputusan owner).
+    if (input.action === "accept" && payFirst) {
+      throw new Error(
+        "Pesanan take away/delivery wajib lunas dulu. Gunakan Terima Pembayaran setelah pembayaran dicek.",
+      );
+    }
     const paidActionStatuses = [...cashierActionStatuses, "accepted"];
     const waiterCashActionStatuses = [...cashierActionStatuses, "accepted"];
     const waiterBillActionStatuses = ["accepted", "awaiting_payment"];
@@ -8551,6 +8647,15 @@ async function updateCustomerOrderStatusImpl(
 
     if (input.action === "accept" && !cashierActionStatuses.includes(order.status)) {
       throw new Error("Order sudah diproses dan tidak bisa di-accept ulang.");
+    }
+
+    if (
+      input.action === "paid" &&
+      order.fulfillment === "delivery" &&
+      input.paymentMethod &&
+      input.paymentMethod !== "QRIS"
+    ) {
+      throw new Error("Delivery hanya menerima pembayaran QRIS.");
     }
 
     if (input.action === "paid" && !paidActionStatuses.includes(order.status)) {

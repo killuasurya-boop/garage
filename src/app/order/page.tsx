@@ -71,7 +71,7 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
     campaign: resolveOrderCampaign((key) => firstParam(params, key)),
     tableIssue,
     tableHint: fromLinkWithoutTable
-      ? "Pesanan dibuat sebagai Take away. Mau makan di tempat? Scan QR yang menempel di meja Anda."
+      ? "Pilih Take away atau Delivery saat checkout. Mau makan di tempat? Scan QR yang menempel di meja Anda."
       : undefined,
   };
 }

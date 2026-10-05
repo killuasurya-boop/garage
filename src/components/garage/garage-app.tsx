@@ -295,6 +295,10 @@ const WmsAlertWidget = dynamic(
   () => import("@/components/garage/wms-alert-widget").then((m) => m.WmsAlertWidget),
   { ssr: false },
 );
+const OpsCenterView = dynamic(
+  () => import("@/components/garage/ops-center-view").then((m) => m.OpsCenterView),
+  { loading: ModuleChunkFallback },
+);
 const ProductionView = dynamic(
   () => import("@/components/garage/production-view").then((m) => m.ProductionView),
   { loading: ModuleChunkFallback },
@@ -1385,6 +1389,9 @@ function GarageWorkspace({
                 />
               </DateFilterProvider>
             )}
+            {safeActiveModule === "ops-center" && (
+              <OpsCenterView me={data.me} onNavigate={handleModuleChange} />
+            )}
             {safeActiveModule === "ai-agent" && <AiPosAgentView me={data.me} />}
             {safeActiveModule === "kitchen" && (
               <div className="space-y-3">
@@ -1858,7 +1865,7 @@ function ModuleNav({
   // Pengelompokan sidebar (D1/D2) — murni visual, tidak mengubah route/logika.
   // Modul yang tidak masuk grup mana pun jatuh ke "Lainnya" supaya tak hilang.
   const NAV_GROUPS: Array<{ title: string; ids: ModuleId[] }> = [
-    { title: "Ringkasan", ids: ["dashboard", "ai-agent"] },
+    { title: "Ringkasan", ids: ["dashboard", "ops-center", "ai-agent"] },
     { title: "Absensi & Wallet", ids: ["absensi-v2", "wallet-gaji", "wallet-fee"] },
     { title: "Operasional", ids: ["pos", "kitchen", "waiter", "produk", "inventory", "smart-notif"] },
     { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website"] },

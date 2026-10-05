@@ -113,6 +113,10 @@ async function main() {
     ["Asisten Koki → input stok ditolak", c.asisten, "POST", "/api/inventory/movements", 403, {}],
     ["Helper Bar → input stok ditolak", c.helperBar, "POST", "/api/inventory/opname", 403, {}],
     ["Asisten Koki → lihat stok diizinkan", c.asisten, "GET", "/api/inventory", 200],
+    // Control Center: semua staf boleh lihat, tamu tidak.
+    ["Tanpa login → Control Center ditolak", anon, "GET", "/api/ops-center", 401],
+    ["Waiter → Control Center diizinkan", c.waiter1, "GET", "/api/ops-center", 200],
+    ["Helper Dapur → Control Center diizinkan", c.helperDapur, "GET", "/api/ops-center", 200],
   ];
   for (const [name, client, method, path, expected, body] of rbac) {
     const res = await client.req(method, path, body);

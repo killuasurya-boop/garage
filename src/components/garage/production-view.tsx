@@ -16,11 +16,15 @@ import {
   Play,
   RefreshCw,
   Undo2,
+  Monitor,
   Volume2,
   X,
 } from "lucide-react";
 
+import { StationPrintPanel } from "@/components/garage/station-print-panel";
 import { TablePlate } from "@/components/garage/table-plate";
+import { LCD_ZOOM_OPTIONS, useLcdMode } from "@/components/garage/use-lcd-mode";
+import { chitCustomerName } from "@/lib/station-print";
 import { parseTableNumber, tableNumberFromLabel } from "@/lib/garage-tables";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,6 +135,8 @@ export function ProductionView({
 }) {
   const workstation = normalizeWorkstation(me.workstation);
   const isHelper = isHelperWorkstation(workstation);
+  const lcdRoot = useRef<HTMLElement | null>(null);
+  const lcd = useLcdMode(lcdRoot);
   const [board, setBoard] = useState<ProductionBoard | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -380,6 +386,11 @@ export function ProductionView({
     [tickets],
   );
   const rush = counts.queue >= RUSH_WAITING_THRESHOLD || lateIds.size > 0;
+  // Tiket menunggu paling lama (FIFO) — ditampilkan besar di Mode LCD.
+  const oldestWaiting = columns.queue.reduce<ProductionTicketView | null>(
+    (oldest, t) => (!oldest || t.createdAt < oldest.createdAt ? t : oldest),
+    null,
+  );
   const canOperate = board?.canOperate ?? { Bar: false, Food: false };
   const canHandover = board?.canHandover ?? { Bar: false, Food: false };
   const waiters = board?.waiters ?? [];
@@ -844,7 +855,11 @@ export function ProductionView({
   const loadByStation = new Map((board?.load ?? []).map((row) => [row.station, row]));
 
   return (
-    <section className="space-y-3 px-2 sm:px-3 lg:px-4">
+    <section
+      ref={lcdRoot}
+      className={`space-y-3 px-2 sm:px-3 lg:px-4 ${lcd.active ? "min-h-screen overflow-y-auto bg-[#0b0b0e] py-3" : ""}`}
+      style={lcd.active && lcd.zoom !== 1 ? { zoom: lcd.zoom } : undefined}
+    >
       <VoiceSettingsDialog open={voiceDialogOpen} onOpenChange={setVoiceDialogOpen} />
 
       <div className="sticky top-0 z-30 space-y-2 rounded-lg border border-[#34343c] bg-[#111116] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.32)]">
@@ -892,6 +907,37 @@ export function ProductionView({
               <Volume2 className="size-4" />
               <span className="hidden sm:inline">{soundEnabled ? "Suara ON" : "Suara OFF"}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => void (lcd.active ? lcd.exit() : lcd.enter())}
+              aria-pressed={lcd.active}
+              aria-label={lcd.active ? "Keluar Layar LCD" : "Layar LCD"}
+              className={`flex h-11 items-center gap-1.5 rounded-md border px-3 text-xs font-black transition-colors ${
+                lcd.active
+                  ? "border-[#fbbf24]/60 bg-[#fbbf24]/12 text-[#fde68a]"
+                  : "border-[#4a4a54] bg-white/[0.04] text-[#e4e4e7] hover:bg-white/[0.08]"
+              }`}
+            >
+              <Monitor className="size-4" />
+              <span className="hidden sm:inline">{lcd.active ? "Keluar LCD" : "Layar LCD"}</span>
+            </button>
+            {lcd.active ? (
+              <div className="flex h-11 items-center gap-1 rounded-md border border-[#4a4a54] bg-white/[0.04] px-1">
+                {LCD_ZOOM_OPTIONS.map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => lcd.setZoom(z)}
+                    aria-pressed={lcd.zoom === z}
+                    className={`h-9 rounded px-2 font-mono text-xs font-black ${
+                      lcd.zoom === z ? "bg-[#d11a2a] text-white" : "text-[#d0d0d6]"
+                    }`}
+                  >
+                    {Math.round(z * 100)}%
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
             {canViewPerformance ? (
               <button
@@ -973,6 +1019,47 @@ export function ProductionView({
           ))}
         </div>
       </div>
+
+      {lcd.active ? (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4" aria-label="Ringkasan antrean">
+          {(
+            [
+              ["Menunggu", String(counts.queue), "text-white"],
+              ["Diproses", String(counts.cooking), "text-[#ffd79a]"],
+              ["Siap antar", String(counts.ready), "text-[#e4e4e7]"],
+            ] as const
+          ).map(([label, value, tone]) => (
+            <div key={label} className="rounded-lg border border-[#34343c] bg-[#16161b] px-4 py-3">
+              <p className="text-sm font-black uppercase tracking-wide text-[#b8b8c2]">{label}</p>
+              <p className={`font-mono text-4xl font-black ${tone}`}>{value}</p>
+            </div>
+          ))}
+          <div
+            className={`rounded-lg border px-4 py-3 ${
+              oldestWaiting && lateIds.has(oldestWaiting.ticketNo)
+                ? "border-[#d11a2a] bg-[#2a1116]"
+                : "border-[#34343c] bg-[#16161b]"
+            }`}
+          >
+            <p className="text-sm font-black uppercase tracking-wide text-[#b8b8c2]">Tertua menunggu</p>
+            {oldestWaiting ? (
+              <>
+                <p className="font-mono text-4xl font-black text-white">
+                  {fmtElapsed(oldestWaiting.createdAt, now)}
+                </p>
+                <p className="break-words text-base font-black leading-snug text-white">
+                  {oldestWaiting.table}
+                  {chitCustomerName(oldestWaiting) ? ` · ${chitCustomerName(oldestWaiting)}` : ""}
+                </p>
+              </>
+            ) : (
+              <p className="font-mono text-4xl font-black text-[#8f8f99]">—</p>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <StationPrintPanel tickets={tickets} station={station} onPrinted={() => void load(true)} />
 
       {visibleCancelled.length ? (
         <section

@@ -11,6 +11,8 @@ const waiterOrderSchema = z.object({
   tableLabel: z.string().trim().min(1).max(40),
   outletId: z.string().uuid().optional(),
   customerNote: z.string().trim().max(240).optional(),
+  // Nama tamu (opsional) — dicetak di chit Bar/Dapur & tampil di papan produksi.
+  customerName: z.string().trim().max(40).optional(),
   items: z
     .array(
       z.object({
@@ -54,7 +56,11 @@ export async function POST(request: Request) {
       tableLabel,
       outletId: body.data.outletId,
       customerMode: "guest",
-      guestName: `${tableLabel} · ${session.data.user.name}`.slice(0, 80),
+      // "Meja 5 · Andi · Waiter 1" (nama tamu diisi) atau "Meja 5 · Waiter 1".
+      guestName: [tableLabel, body.data.customerName, session.data.user.name]
+        .filter(Boolean)
+        .join(" · ")
+        .slice(0, 80),
       customerNote: body.data.customerNote,
       source: "qr_table",
       paymentMethod: "Cash",

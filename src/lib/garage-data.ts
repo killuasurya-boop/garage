@@ -11,6 +11,7 @@ import {
   Coffee,
   CreditCard,
   Gauge,
+  Radar,
   History,
   LayoutDashboard,
   Megaphone,
@@ -32,6 +33,7 @@ export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
 
 export type ModuleId =
   | "dashboard"
+  | "ops-center"
   | "pos"
   | "ai-agent"
   | "kitchen"
@@ -116,6 +118,12 @@ export const modules = [
     label: "Dashboard",
     description: "Owner command center",
     icon: LayoutDashboard,
+  },
+  {
+    id: "ops-center",
+    label: "Control Center",
+    description: "Operasional real-time",
+    icon: Radar,
   },
   { id: "pos", label: "POS", description: "Tablet cashier", icon: ShoppingCart },
   {

@@ -413,3 +413,39 @@ describe("Meja — order mati tidak menyangkutkan meja (QA-audit)", () => {
     expect(meja.currentOrderId).toBeNull();
   });
 });
+describe("Production Hub — cetak chit stasiun", () => {
+  it("tiket baru belum tercetak; ditandai sekali; tampil di papan; tanda tak tertimpa", async () => {
+    const res = await order("21", "CETAK", [
+      { itemId: "itm-coffee", qty: 1 },
+      { itemId: "itm-food", qty: 1 },
+    ]);
+    const barTicket = await ticketOf(res.orderNo, "Bar");
+    const foodTicket = await ticketOf(res.orderNo, "Food");
+    expect(barTicket.chitPrintedAt).toBeNull();
+
+    // Papan bawa penanda null untuk kedua tiket.
+    let board = await prod.getProductionBoard(bar());
+    for (const no of [barTicket.ticketNo, foodTicket.ticketNo]) {
+      const view = board.tickets.find((row: any) => row.ticketNo === no);
+      expect(view.chitPrintedAt).toBeNull();
+    }
+
+    // Perangkat Bar mencetak tiket Bar saja.
+    expect(await prod.markProductionChitsPrinted([barTicket.ticketNo])).toBe(1);
+    board = await prod.getProductionBoard(bar());
+    expect(board.tickets.find((row: any) => row.ticketNo === barTicket.ticketNo).chitPrintedAt).toEqual(
+      expect.any(String),
+    );
+    expect(board.tickets.find((row: any) => row.ticketNo === foodTicket.ticketNo).chitPrintedAt).toBeNull();
+
+    // Kirim ulang tanda (dua perangkat menekan bersamaan) tidak mengubah apa pun.
+    const first = board.tickets.find((row: any) => row.ticketNo === barTicket.ticketNo).chitPrintedAt;
+    expect(await prod.markProductionChitsPrinted([barTicket.ticketNo, "TIDAK-ADA"])).toBe(0);
+    board = await prod.getProductionBoard(bar());
+    expect(board.tickets.find((row: any) => row.ticketNo === barTicket.ticketNo).chitPrintedAt).toBe(first);
+
+    // Masukan kosong / tak valid aman.
+    expect(await prod.markProductionChitsPrinted([])).toBe(0);
+    expect(await prod.markProductionChitsPrinted(["", "  "])).toBe(0);
+  });
+});

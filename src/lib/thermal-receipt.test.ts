@@ -20,3 +20,17 @@ describe("Nomor meja di struk thermal", () => {
     expect(chit).toContain(">>> MEJA 12 <<<");
   });
 });
+
+describe("chit dapur/bar — nama pemesan", () => {
+  it("mencetak NAMA di bawah banner meja, melewati placeholder Guest Customer", () => {
+    const base = {
+      orderNo: "POS-1",
+      tableLabel: "Meja 07",
+      items: [{ name: "Nasi Goreng", qty: 2, station: "Dapur" }],
+    };
+    const withName = buildKitchenChitContent({ ...base, customerName: "Andi" });
+    expect(withName).toContain("NAMA: ANDI");
+    expect(withName.indexOf("MEJA")).toBeLessThan(withName.indexOf("NAMA: ANDI"));
+    expect(buildKitchenChitContent({ ...base, customerName: "Guest Customer" })).not.toContain("NAMA:");
+  });
+});

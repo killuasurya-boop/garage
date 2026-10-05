@@ -46,7 +46,7 @@ import {
   roleDisplayName,
   updateKitchenStatus,
 } from "@/lib/garage-service";
-import { notifyingProduction } from "@/lib/production-events";
+import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
 const ACTIVE_TICKET_STATUSES = ["queue", "cooking", "ready"];
@@ -786,6 +786,8 @@ export async function markProductionChitsPrinted(ticketNos: string[]): Promise<n
     .set({ chitPrintedAt: new Date() })
     .where(and(inArray(kitchenTickets.ticketNo, unique), isNull(kitchenTickets.chitPrintedAt)))
     .returning({ id: kitchenTickets.id });
+  // Tablet lain di station yang sama langsung melihat "sudah dicetak".
+  if (rows.length) publishProductionChange();
   return rows.length;
 }
 

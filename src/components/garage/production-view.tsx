@@ -138,8 +138,15 @@ export function ProductionView({
 }) {
   const workstation = normalizeWorkstation(me.workstation);
   const isHelper = isHelperWorkstation(workstation);
-  const lcdRoot = useRef<HTMLElement | null>(null);
-  const lcd = useLcdMode(lcdRoot);
+  // Cetak chit mengikuti station PERANGKAT (workstation akun), bukan filter
+  // tampilan — tablet Bar tidak boleh mencetak & menandai tiket Dapur.
+  const printStation: "Bar" | "Food" | "all" =
+    workstation === "bar" || workstation === "helper_bar"
+      ? "Bar"
+      : workstation === "dapur" || workstation === "helper_dapur"
+        ? "Food"
+        : "all";
+  const lcd = useLcdMode();
   const [board, setBoard] = useState<ProductionBoard | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -187,6 +194,9 @@ export function ProductionView({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch awal; state di-set di callback async
     void load();
+  }, [load]);
+
+  useEffect(() => {
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) return;
       void load(true);
@@ -861,8 +871,7 @@ export function ProductionView({
 
   return (
     <section
-      ref={lcdRoot}
-      className={`space-y-3 px-2 sm:px-3 lg:px-4 ${lcd.active ? "min-h-screen overflow-y-auto bg-[#0b0b0e] py-3" : ""}`}
+      className={`space-y-3 px-2 sm:px-3 lg:px-4 ${lcd.active ? "fixed inset-0 z-40 overflow-y-auto bg-[#0b0b0e] py-3" : ""}`}
       style={lcd.active && lcd.zoom !== 1 ? { zoom: lcd.zoom } : undefined}
     >
       <VoiceSettingsDialog open={voiceDialogOpen} onOpenChange={setVoiceDialogOpen} />
@@ -1064,7 +1073,7 @@ export function ProductionView({
         </div>
       ) : null}
 
-      <StationPrintPanel tickets={tickets} station={station} onPrinted={() => void load(true)} />
+      <StationPrintPanel tickets={tickets} station={printStation} onPrinted={() => void load(true)} />
 
       {visibleCancelled.length ? (
         <section

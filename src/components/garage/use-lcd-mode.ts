@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // Mode Layar LCD untuk papan Production Bar/Dapur: layar penuh (sidebar & bar
 // browser hilang), teks diperbesar untuk dibaca dari jarak 1–3 m, dan layar
@@ -22,7 +22,7 @@ function loadZoom(): LcdZoom {
   }
 }
 
-export function useLcdMode(target: RefObject<HTMLElement | null>) {
+export function useLcdMode() {
   const [active, setActive] = useState(false);
   // Zoom hanya dipakai saat mode aktif (setelah ketukan), jadi aman dibaca
   // langsung dari localStorage tanpa beda render server/klien yang terlihat.
@@ -73,11 +73,14 @@ export function useLcdMode(target: RefObject<HTMLElement | null>) {
     setActive(true);
     void requestWakeLock();
     try {
-      await target.current?.requestFullscreen?.();
+      // Layar penuh pada <html> (bukan section): dialog Radix dirender ke
+      // document.body — kalau section yang fullscreen, dialog QC tidak terlihat
+      // dan layar tampak macet. Section menutup layar lewat overlay `fixed`.
+      await document.documentElement.requestFullscreen?.();
     } catch {
       // Layar penuh ditolak (iOS Safari) — tetap tampil besar di dalam halaman.
     }
-  }, [requestWakeLock, target]);
+  }, [requestWakeLock]);
 
   const exit = useCallback(async () => {
     setActive(false);

@@ -57,8 +57,8 @@ function jakartaDay(now: Date) {
   return { key, start: new Date(`${key}T00:00:00+07:00`) };
 }
 
-const jakartaHour = (d: Date) =>
-  Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", hourCycle: "h23" }).format(d));
+const JAKARTA_HOUR = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", hourCycle: "h23" });
+const jakartaHour = (d: Date) => Number(JAKARTA_HOUR.format(d));
 
 type TicketRow = {
   station: string;
@@ -190,17 +190,24 @@ export async function getOpsCenter(garage: GarageSession): Promise<OpsCenterData
   const forecast = forecastNext60(samples);
 
   // ---- Staf hadir (absensi hari ini, belum pulang) -----------------------------
-  const present = await db
-    .select({ role: staffProfiles.role, workstation: staffProfiles.workstation })
+  const presentRows = await db
+    .select({
+      userId: staffAttendanceV2.staffUserId,
+      role: staffProfiles.role,
+      workstation: staffProfiles.workstation,
+    })
     .from(staffAttendanceV2)
     .innerJoin(staffProfiles, eq(staffProfiles.userId, staffAttendanceV2.staffUserId))
     .where(
       and(
-        eq(staffAttendanceV2.date, todayKey),
+        // Kemarin juga: shift malam yang belum pulang tetap terhitung lewat tengah malam.
+        inArray(staffAttendanceV2.date, [todayKey, jakartaDay(yesterdayStart).key]),
         isNotNull(staffAttendanceV2.checkinAt),
         isNull(staffAttendanceV2.checkoutAt),
       ),
     );
+  // Satu orang dihitung sekali (baris kemarin yang belum ditutup + hari ini).
+  const present = [...new Map(presentRows.map((p) => [p.userId, p])).values()];
   const staffOn = {
     Bar: present.filter((p) => p.workstation === "bar" || p.workstation === "all").length,
     Food: present.filter((p) => p.workstation === "dapur" || p.workstation === "all").length,

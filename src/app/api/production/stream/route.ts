@@ -12,30 +12,45 @@ export async function GET(request: Request) {
   if (session.response) return session.response;
 
   const encoder = new TextEncoder();
+  let cleanup: () => void = () => {};
   const stream = new ReadableStream({
     start(controller) {
-      const write = (chunk: string) => {
-        try {
-          controller.enqueue(encoder.encode(chunk));
-        } catch {
-          // Koneksi sudah tertutup — dibersihkan oleh abort.
-        }
-      };
-      const unsubscribe = productionBus.subscribe((event) => {
-        write(`event: change\ndata: {"at":${event.at}}\n\n`);
-      });
-      const heartbeat = setInterval(() => write(": ping\n\n"), 25_000);
-      write("event: ready\ndata: {}\n\n");
-
-      request.signal.addEventListener("abort", () => {
-        clearInterval(heartbeat);
+      let closed = false;
+      let heartbeat: ReturnType<typeof setInterval> | null = null;
+      let unsubscribe: () => void = () => {};
+      cleanup = () => {
+        if (closed) return;
+        closed = true;
+        if (heartbeat) clearInterval(heartbeat);
         unsubscribe();
         try {
           controller.close();
         } catch {
-          /* ignore */
+          /* sudah tertutup */
         }
+      };
+      const write = (chunk: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(chunk));
+        } catch {
+          // Koneksi putus tanpa abort → bersihkan agar listener tidak bocor.
+          cleanup();
+        }
+      };
+      if (request.signal.aborted) {
+        cleanup();
+        return;
+      }
+      unsubscribe = productionBus.subscribe((event) => {
+        write(`event: change\ndata: {"at":${event.at}}\n\n`);
       });
+      heartbeat = setInterval(() => write(": ping\n\n"), 25_000);
+      write("event: ready\ndata: {}\n\n");
+      request.signal.addEventListener("abort", () => cleanup(), { once: true });
+    },
+    cancel() {
+      cleanup();
     },
   });
 

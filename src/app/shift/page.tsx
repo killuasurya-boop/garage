@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { CashierShiftReport } from "@/components/garage/cashier-shift-report";
+import { canHandleMoney, homeModuleFor } from "@/lib/role-access";
 import { requireGarageSession } from "@/lib/server-auth";
 import { staffViewport } from "@/lib/staff-viewport";
 
@@ -20,6 +21,11 @@ export default async function ShiftPage() {
   const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
   if (session.response) {
     redirect("/login");
+  }
+  // Riwayat shift kas hanya untuk pemegang uang (kasir + Owner/Manajer);
+  // barista/koki/helper diarahkan ke papan produksi.
+  if (!canHandleMoney(session.data.profile)) {
+    redirect(`/os?module=${homeModuleFor(session.data.profile.role, session.data.profile.workstation)}`);
   }
 
   return (

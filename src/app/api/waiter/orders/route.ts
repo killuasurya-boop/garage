@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       outletId: body.data.outletId,
       customerMode: "guest",
       // "Meja 5 · Andi · Waiter 1" (nama tamu diisi) atau "Meja 5 · Waiter 1".
-      guestName: [tableLabel, body.data.customerName, session.data.user.name]
+      guestName: [tableLabel, body.data.customerName?.replace(/·/g, " ").trim(), session.data.user.name]
         .filter(Boolean)
         .join(" · ")
         .slice(0, 80),

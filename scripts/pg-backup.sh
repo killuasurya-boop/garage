@@ -61,10 +61,14 @@ backup() {
 
 prune() {
   # Harian: hapus yang lebih tua dari BACKUP_KEEP_DAYS hari.
-  find "$BACKUP_DIR" -maxdepth 1 -name 'garage-daily-*.sql.gz' -mtime +"$BACKUP_KEEP_DAYS" -print -delete \
+  find "$BACKUP_DIR" -maxdepth 1 -name 'garage-daily-????-??-??_??????.sql.gz' -mtime +"$BACKUP_KEEP_DAYS" -print -delete \
     | sed 's/^/[pg-backup] hapus lama: /' || true
-  # Lainnya (pre-deploy, manual): simpan BACKUP_KEEP_OTHER terbaru.
-  ls -1t "$BACKUP_DIR"/garage-*.sql.gz 2>/dev/null | grep -v '/garage-daily-' \
+  # Lainnya (pre-deploy, manual): simpan BACKUP_KEEP_OTHER terbaru. HANYA file
+  # buatan skrip ini (garage-<label>-YYYY-MM-DD_HHMMSS.sql.gz) — backup lain di
+  # folder yang sama (mis. cron lama garage-YYYYMMDD-HHMMSS.*) tidak disentuh.
+  ls -1t "$BACKUP_DIR"/garage-*.sql.gz 2>/dev/null \
+    | grep -E '/garage-[a-z][a-z-]*-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}\.sql\.gz$' \
+    | grep -v '/garage-daily-' \
     | tail -n +"$((BACKUP_KEEP_OTHER + 1))" | while read -r old; do
       rm -f "$old" && echo "[pg-backup] hapus lama: $old"
     done || true
@@ -75,7 +79,7 @@ prune() {
 daemon() {
   mkdir -p "$BACKUP_DIR"
   log "Daemon aktif: backup harian setelah jam ${BACKUP_HOUR}:00 WIB, simpan ${BACKUP_KEEP_DAYS} hari → $BACKUP_DIR"
-  if ! ls "$BACKUP_DIR"/garage-*.sql.gz >/dev/null 2>&1; then
+  if ! ls "$BACKUP_DIR"/garage-daily-*.sql.gz >/dev/null 2>&1; then
     backup daily || log "Backup awal gagal, dicoba lagi 10 menit."
   fi
   while true; do

@@ -3,6 +3,10 @@
 {$GARAGE_DOMAIN} {
 	encode gzip zstd
 
+	# HTTPS wajib selama 1 tahun (browser menolak turun ke HTTP).
+	header Strict-Transport-Security "max-age=31536000"
+	header -Server
+
 	# Upload gambar menu bisa besar — naikkan limit body.
 	request_body {
 		max_size 12MB

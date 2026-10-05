@@ -988,6 +988,19 @@ async function main() {
 
   await ensureDatabaseReady();
 
+  // Production (Docker migrator/VPS: NODE_ENV=production) tidak boleh membuat
+  // akun staf/terminal POS dengan rahasia bawaan kode yang tertulis di repo.
+  if (process.env.NODE_ENV === "production") {
+    const missing = ["GARAGE_SEED_PASSWORD", "GARAGE_MEMBER_SEED_PASSWORD", "GARAGE_POS_API_KEY"].filter(
+      (key) => !process.env[key]?.trim(),
+    );
+    if (missing.length) {
+      throw new Error(
+        `Seed production ditolak: set ${missing.join(", ")} di .env.production (jangan pakai nilai bawaan).`,
+      );
+    }
+  }
+
   const unknownRole = staffSeed.find((staff) => !roles.includes(staff.role));
   if (unknownRole) {
     throw new Error(`Unknown seed role: ${unknownRole.role}`);

@@ -263,10 +263,11 @@ export function EmployeeClockPanel() {
       </CardHeader>
       <CardContent className="space-y-5 pt-4">
         <div className="text-center">
-          <div className="text-3xl font-mono text-[#f5a742] tracking-wider font-bold mb-1">
+          {/* Jam berjalan: detik server ≠ detik browser saat hydrate — wajar. */}
+          <div className="text-3xl font-mono text-[#f5a742] tracking-wider font-bold mb-1" suppressHydrationWarning>
             {time.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </div>
-          <div className="text-sm text-zinc-500">
+          <div className="text-sm text-zinc-500" suppressHydrationWarning>
             {time.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </div>
         </div>

@@ -17,7 +17,23 @@ function lanDevOrigins(): string[] {
     .map((entry) => entry.address);
 }
 
+// Header keamanan untuk semua halaman & API (audit kesiapan 2026-10-05).
+// HSTS dipasang di Caddyfile (hanya relevan di HTTPS VPS, bukan PC kasir LAN).
+// Kamera, GPS & mikrofon tetap diizinkan untuk origin sendiri: absen selfie+GPS,
+// scan WMS, dan perintah suara.
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
+  { key: "X-DNS-Prefetch-Control", value: "on" },
+];
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
   // Standalone output HANYA untuk build Docker/VPS (set GARAGE_STANDALONE=true).
   // Di PC kasir lokal (Windows) kita pakai `next build` + `next start`, dan
   // standalone justru bikin (a) `next start` tidak kompatibel & (b) copy file

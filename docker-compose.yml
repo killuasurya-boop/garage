@@ -4,6 +4,7 @@
 #   migrate : one-shot, apply drizzle/*.sql lalu exit
 #   app     : Next.js standalone
 #   caddy   : reverse proxy + HTTPS otomatis (Let's Encrypt)
+#   backup  : pg_dump harian → ./backups (scripts/pg-backup.sh)
 #
 # Pakai:  docker compose up -d --build
 # Seed (sekali):  docker compose run --rm migrate node_modules/.bin/tsx src/db/seed.ts
@@ -68,6 +69,29 @@ services:
       migrate:
         condition: service_completed_successfully
     # Port hanya dibuka ke Caddy lewat network internal, tidak ke publik.
+
+  # Backup harian Postgres → ./backups di host (folder APP_DIR di VPS).
+  # Jadwal & retensi: scripts/pg-backup.sh. Deploy juga memanggil
+  # `run --rm backup once pre-deploy` sebelum migrasi.
+  backup:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    entrypoint: ["bash", "/scripts/pg-backup.sh"]
+    command: ["daemon"]
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_DIR: /backups
+      BACKUP_HOUR: ${BACKUP_HOUR:-4}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./scripts/pg-backup.sh:/scripts/pg-backup.sh:ro
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
 
   caddy:
     image: caddy:2

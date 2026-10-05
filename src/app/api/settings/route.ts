@@ -46,6 +46,8 @@ const patchSchema = z.object({
   deliveryFee: z.number().int().min(0).max(100_000).optional(),
   deliveryMinItems: z.number().int().min(1).max(20).optional(),
   deliveryAreaNote: z.string().trim().max(240).optional(),
+  garageWhatsapp: z.string().trim().regex(/^(\+?62|0)8\d{7,12}$/, "Nomor WhatsApp tidak valid").optional(),
+  unpaidOrderAutoRejectMinutes: z.number().int().min(0).max(240).optional(),
   pointsPerThousand: z.number().min(0).max(10).optional(),
   voucherMaxDiscountPct: z.number().min(0).max(100).optional(),
   qrPromoPct: z.number().min(0).max(100).optional(),

@@ -13,6 +13,7 @@ function totals(partial: Partial<DayFigure>) {
     voidCount: 0,
     voidAmount: 0,
     netSales: 0,
+    deliveryFees: 0,
     cogs: 0,
     cogsRecipe: 0,
     cogsShrinkage: 0,

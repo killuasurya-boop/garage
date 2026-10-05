@@ -19,7 +19,8 @@ export type Workstation =
   | "all"
   | "helper_bar"
   | "helper_dapur"
-  | "helper_all";
+  | "helper_all"
+  | "kurir";
 
 export const WORKSTATION_VALUES: Workstation[] = [
   "bar",
@@ -28,6 +29,7 @@ export const WORKSTATION_VALUES: Workstation[] = [
   "helper_bar",
   "helper_dapur",
   "helper_all",
+  "kurir",
 ];
 
 export const WORKSTATION_OPTIONS: Array<{ value: Workstation | ""; label: string }> = [
@@ -38,7 +40,13 @@ export const WORKSTATION_OPTIONS: Array<{ value: Workstation | ""; label: string
   { value: "helper_bar", label: "Helper BAR (serah-terima)" },
   { value: "helper_dapur", label: "Helper DAPUR (serah-terima)" },
   { value: "helper_all", label: "Helper BAR + DAPUR (serah-terima)" },
+  { value: "kurir", label: "Kurir delivery (akun Waiter)" },
 ];
+
+/** Akun kurir delivery = role Waiter dengan workstation "kurir". */
+export function isCourierProfile(profile: { role: string; workstation?: string | null }) {
+  return profile.role === "Waiter" && normalizeWorkstation(profile.workstation) === "kurir";
+}
 
 export function workstationLabel(value: string | null | undefined) {
   const ws = normalizeWorkstation(value);

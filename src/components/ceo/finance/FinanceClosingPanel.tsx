@@ -509,6 +509,7 @@ function MonthlyClosing({ overview, onChanged }: { overview: ClosingOverview; on
             <FinanceCard title="Profit & loss" subtitle={`${report.label} · ${report.days} hari`}>
               <Money label="Gross sales" value={report.pnl.grossSales} />
               <Money label="Net sales" value={report.pnl.netSales} strong />
+              <Money label="Ongkir delivery (di luar penjualan)" value={report.pnl.deliveryFees} />
               <Money label="HPP" value={report.pnl.cogs} />
               <Money label="Gross profit" value={report.pnl.grossProfit} strong />
               <Money label="Payroll" value={report.pnl.payroll} />

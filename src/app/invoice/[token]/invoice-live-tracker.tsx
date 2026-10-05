@@ -14,6 +14,14 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import {
+  CourierLiveCard,
+  FulfillmentBadge,
+  TrackerSteps,
+  type CourierInfo,
+  type TrackerStepView,
+} from "@/components/garage/order-progress";
+
 type LiveStatus = {
   orderStatus: string;
   kitchenStatus: string;
@@ -40,6 +48,11 @@ type LiveStatus = {
     deliveredAt: string | null;
   }>;
   updatedAt: string;
+  fulfillment?: "dine-in" | "takeaway" | "delivery";
+  deliveryStatus?: string | null;
+  rejectionReason?: string | null;
+  steps?: TrackerStepView[];
+  courier?: CourierInfo | null;
 };
 
 const POLL_INTERVAL_MS = 8000;
@@ -95,7 +108,12 @@ export function InvoiceLiveTracker({
   // Disimpan sbg state (bukan dipanggil di body) supaya purity-safe.
   const [tick, setTick] = useState<number>(() => Date.now());
 
-  const isTerminal = TERMINAL_KITCHEN_STATUSES.has(status.kitchenStatus);
+  // Delivery baru selesai saat kurir menandai "Sudah sampai" (tiket dapur
+  // "delivered" hanya berarti sudah diserahkan ke kurir).
+  const isTerminal =
+    status.fulfillment === "delivery"
+      ? status.deliveryStatus === "delivered" || status.kitchenStatus === "rejected"
+      : TERMINAL_KITCHEN_STATUSES.has(status.kitchenStatus);
 
   // Polling untuk fetch ulang status dari server tiap 8 detik
   const refetch = useCallback(async () => {
@@ -163,7 +181,8 @@ export function InvoiceLiveTracker({
               Order Ditolak
             </p>
             <p className="mt-1 text-sm leading-6 text-[#ffe1e5]">
-              Pesanan ditolak. Silakan hubungi outlet jika butuh bantuan.
+              Pesanan ditolak{status.rejectionReason ? `: ${status.rejectionReason}` : ""}. Silakan hubungi outlet jika butuh
+              bantuan.
             </p>
             {status.timestamps.rejected && (
               <p className="mt-1 text-xs text-[#ffc2c8]/80">
@@ -176,7 +195,22 @@ export function InvoiceLiveTracker({
     );
   }
 
-  const currentStep = stepDefs[status.activeStep] ?? stepDefs[1];
+  const legacyStep = stepDefs[status.activeStep] ?? stepDefs[1];
+  // Tipe pesanan baru: judul mengikuti langkah server (Dimasak/Dipacking/Diantar kurir…).
+  const typedSteps = status.steps ?? [];
+  const typedCurrent =
+    typedSteps.find((step) => step.state === "current") ??
+    (typedSteps.length && typedSteps.every((step) => step.state === "done") ? typedSteps[typedSteps.length - 1] : null);
+  const typedIndex = typedCurrent ? typedSteps.indexOf(typedCurrent) : -1;
+  const currentStep = typedSteps.length
+    ? {
+        ...legacyStep,
+        label: typedCurrent?.label ?? "Menunggu pembayaran",
+        shortHint: typedCurrent?.hint ?? "Kasir sedang mengecek pembayaran",
+      }
+    : legacyStep;
+  const stepCount = typedSteps.length || stepDefs.length;
+  const stepNumber = typedSteps.length ? Math.max(1, typedIndex + 1) : status.activeStep + 1;
   const CurrentIcon = currentStep.icon;
 
   return (
@@ -201,7 +235,7 @@ export function InvoiceLiveTracker({
               {currentStep.label}
             </h2>
             <p className="mt-0.5 text-xs text-[#8f8f99]">
-              {currentStep.shortHint} · Step {status.activeStep + 1} dari {stepDefs.length}
+              {currentStep.shortHint} · Langkah {stepNumber} dari {stepCount}
             </p>
           </div>
         </div>
@@ -224,7 +258,7 @@ export function InvoiceLiveTracker({
             </span>
           )}
           <span className="font-mono text-[10px] text-[#8f8f99]">
-            {status.activeStep + 1} / {stepDefs.length}
+            {stepNumber} / {stepCount}
           </span>
         </div>
       </div>
@@ -270,8 +304,19 @@ export function InvoiceLiveTracker({
         </div>
       )}
 
+      {/* ── LANGKAH PER TIPE PESANAN (Makan di tempat / Take away / Delivery) ── */}
+      {status.steps?.length ? (
+        <div className="mt-4 space-y-3">
+          <FulfillmentBadge fulfillment={status.fulfillment} />
+          <TrackerSteps steps={status.steps} />
+          {status.fulfillment === "delivery" && status.courier ? (
+            <CourierLiveCard courier={status.courier} deliveryStatus={status.deliveryStatus} nowMs={tick} />
+          ) : null}
+        </div>
+      ) : null}
+
       {/* ── STEP TIMELINE — compact dots dengan timestamp ── */}
-      <div className="mt-4 space-y-2">
+      <div className={`mt-4 space-y-2 ${status.steps?.length ? "hidden" : ""}`}>
         {stepDefs.map((step, idx) => {
           const state =
             idx < status.activeStep

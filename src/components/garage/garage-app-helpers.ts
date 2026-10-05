@@ -24,7 +24,7 @@ export type PaymentMethod = (typeof paymentMethods)[number];
 
 export const paymentBrandConfig = {
   qrisImagePath: QRIS_IMAGE_SRC,
-  deliveryWhatsapp: "081396186251",
+  deliveryWhatsapp: "085121552341",
   social: {
     instagram: "GARAGE Coffee & Motor",
     facebook: "GARAGE Coffee & Motor",
@@ -227,9 +227,10 @@ export function customerOrderFulfillmentLabel(order: CustomerOrder) {
 }
 
 export const deliveryStatusLabel: Record<string, string> = {
-  preparing: "Diproses",
+  preparing: "Disiapkan",
+  picked_up: "Diambil kurir",
   on_the_way: "Dalam pengantaran",
-  delivered: "Selesai diantar",
+  delivered: "Sudah sampai",
 };
 
 export function canAcceptCustomerOrder(order: CustomerOrder) {

@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   TicketPercent,
   User,
+  MapPin,
 } from "lucide-react";
 
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
@@ -74,6 +75,10 @@ import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-setting
 import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
+import { waLink } from "@/lib/whatsapp-link";
+import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
+
+const garageWhatsappUrl = (number: string, text: string) => waLink(number, text) ?? undefined;
 
 type ApiEnvelope<T> =
   | { data: T; error?: never }
@@ -140,8 +145,6 @@ const number = new Intl.NumberFormat("id-ID");
 
 const customerPaymentMethods: CustomerPaymentMethod[] = ["Cash", "QRIS", "Bank Transfer"];
 // WhatsApp Garage untuk konfirmasi bukti bayar take away / delivery.
-const GARAGE_WHATSAPP = "6281396186251";
-const garageWhatsappUrl = (text: string) => `https://wa.me/${GARAGE_WHATSAPP}?text=${encodeURIComponent(text)}`;
 const customerBankAccounts = [
   { id: "BCA", label: "BCA - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
   { id: "BRI", label: "BRI - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
@@ -242,7 +245,7 @@ function ChatBubble({ msg }: { msg: ChatMsg }) {
   );
 }
 
-function CustomerChatPanel({ tableLabel }: { tableLabel: string }) {
+function CustomerChatPanel({ tableLabel, title }: { tableLabel: string; title?: string }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -332,7 +335,7 @@ function CustomerChatPanel({ tableLabel }: { tableLabel: string }) {
         className="garage-press mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-garage-red/45 bg-garage-red/12 px-3 py-2.5 text-xs font-bold text-[#ffc2c8] transition hover:bg-garage-red/20"
       >
         <MessageCircle className="size-4" />
-        Chat langsung dengan kasir
+        {title ?? "Chat langsung dengan kasir"}
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
@@ -722,12 +725,14 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   const anyCooking = rawStations.some(
     (entry) => entry.status === "cooking" && entry.cookingStartedAt,
   );
-  // Tick per detik HANYA saat ada station sedang dimasak (hemat render).
+  const courierMoving = status?.deliveryStatus === "on_the_way" || status?.deliveryStatus === "picked_up";
+  // Tick per detik HANYA saat ada station sedang dimasak (hemat render); saat
+  // kurir jalan cukup tiap 20 detik untuk teks "update x menit lalu".
   useEffect(() => {
-    if (!anyCooking) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    if (!anyCooking && !courierMoving) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), anyCooking ? 1000 : 20_000);
     return () => window.clearInterval(id);
-  }, [anyCooking]);
+  }, [anyCooking, courierMoving]);
 
   const stations = rawStations.map((entry) => {
     const ready = entry.status === "ready" || entry.status === "delivered";
@@ -752,10 +757,12 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   if (rejected) {
     return (
       <div className="mt-3 rounded-md border border-garage-red/50 bg-garage-red/12 p-3 text-sm font-semibold text-[#ffc9c9]">
-        Pesanan ditolak kasir. Silakan hubungi staf.
+        Pesanan ditolak{status?.rejectionReason ? `: ${status.rejectionReason}` : " kasir"}. Silakan pesan ulang atau hubungi staf.
       </div>
     );
   }
+  const typedSteps = status?.steps ?? [];
+  const isDeliveryOrder = status?.fulfillment === "delivery";
 
   const steps = [
     { label: "Masuk kasir", icon: ReceiptText },
@@ -770,8 +777,16 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
         <div className="flex items-center gap-3 rounded-md border border-garage-success/45 bg-garage-success/12 p-3">
           <PackageCheck className="size-7 shrink-0 text-[#86efac]" />
           <div className="min-w-0">
-            <p className="text-base font-bold text-[#bbf7d0]">Pesanan siap</p>
-            <p className="text-sm text-[#dcfce7]">Silakan ambil atau akan segera diantar.</p>
+            <p className="text-base font-bold text-[#bbf7d0]">
+              {status?.fulfillment === "takeaway" ? "Pesanan siap diambil" : isDeliveryOrder ? "Pesanan siap diantar" : "Pesanan siap"}
+            </p>
+            <p className="text-sm text-[#dcfce7]">
+              {status?.fulfillment === "takeaway"
+                ? "Ambil di kasir Garage, sebutkan nomor pesanan."
+                : isDeliveryOrder
+                  ? "Sedang dipacking dan diserahkan ke kurir."
+                  : "Segera diantar ke meja Anda."}
+            </p>
           </div>
         </div>
       ) : done ? (
@@ -804,33 +819,43 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
         </div>
       )}
 
-      <div className="flex items-start gap-1.5">
-        {steps.map((step, index) => {
-          const reached = index <= stepIndex;
-          const current = index === stepIndex && !done;
-          const Icon = step.icon;
-          return (
-            <div key={step.label} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className={`flex size-8 items-center justify-center rounded-md border transition-colors ${
-                  reached
-                    ? "border-garage-success/55 bg-garage-success/15 text-[#86efac]"
-                    : "border-garage-line bg-garage-bg-2 text-garage-mute"
-                } ${current ? "ring-2 ring-garage-amber/60" : ""}`}
-              >
-                <Icon className="size-4" />
+      {typedSteps.length ? (
+        <>
+          <FulfillmentBadge fulfillment={status?.fulfillment} tableLabel={status?.tableLabel} compact />
+          <TrackerSteps steps={typedSteps} />
+          {isDeliveryOrder && status?.courier ? (
+            <CourierLiveCard courier={status.courier} deliveryStatus={status.deliveryStatus} nowMs={nowMs} />
+          ) : null}
+        </>
+      ) : (
+        <div className="flex items-start gap-1.5">
+          {steps.map((step, index) => {
+            const reached = index <= stepIndex;
+            const current = index === stepIndex && !done;
+            const Icon = step.icon;
+            return (
+              <div key={step.label} className="flex flex-1 flex-col items-center gap-1">
+                <div
+                  className={`flex size-8 items-center justify-center rounded-md border transition-colors ${
+                    reached
+                      ? "border-garage-success/55 bg-garage-success/15 text-[#86efac]"
+                      : "border-garage-line bg-garage-bg-2 text-garage-mute"
+                  } ${current ? "ring-2 ring-garage-amber/60" : ""}`}
+                >
+                  <Icon className="size-4" />
+                </div>
+                <span
+                  className={`text-center text-xs font-bold ${
+                    current ? "text-[#ffd9b3]" : reached ? "text-[#dcfce7]" : "text-garage-mute"
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span
-                className={`text-center text-xs font-bold ${
-                  current ? "text-[#ffd9b3]" : reached ? "text-[#dcfce7]" : "text-garage-mute"
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {stations.length ? (
         <div className="flex flex-wrap gap-2">
@@ -853,7 +878,8 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
                 className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-bold tabular-nums ${tone}`}
               >
                 <StationIcon station={entry.station} />
-                {entry.station}: {label}
+                {entry.station}
+                {entry.verb && !entry.ready ? ` · ${entry.verb}` : ""}: {label}
               </span>
             );
           })}
@@ -893,6 +919,8 @@ export function MemberOrderPage({
     | "deliveryFee"
     | "deliveryMinItems"
     | "deliveryAreaNote"
+    | "garageWhatsapp"
+    | "unpaidOrderAutoRejectMinutes"
   >;
   // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
   initialOrderingOpen?: boolean;
@@ -940,6 +968,24 @@ export function MemberOrderPage({
   const [guestPhone, setGuestPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryLandmark, setDeliveryLandmark] = useState("");
+  // Lokasi pelanggan (opsional) — supaya jarak kurir bisa ditampilkan di pelacak.
+  const [customerLocation, setCustomerLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationState, setLocationState] = useState<"idle" | "loading" | "denied">("idle");
+  const requestCustomerLocation = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationState("denied");
+      return;
+    }
+    setLocationState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCustomerLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setLocationState("idle");
+      },
+      () => setLocationState("denied"),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
+    );
+  };
   const [paymentProvider, setPaymentProvider] = useState(customerBankAccounts[0].id);
   const [paymentReference, setPaymentReference] = useState("");
   const [returnPath] = useState(() => initialReturnPath ?? readReturnPath());
@@ -1402,6 +1448,8 @@ export function MemberOrderPage({
               .filter(Boolean)
               .join(" — ")
           : undefined,
+        customerLat: isDelivery ? customerLocation?.lat : undefined,
+        customerLng: isDelivery ? customerLocation?.lng : undefined,
         outletId: qrContext.outletId,
         customerMode: mode,
         guestName: mode === "guest" ? guestName.trim() : undefined,
@@ -1581,6 +1629,30 @@ export function MemberOrderPage({
                   placeholder="Contoh: depan masjid, pagar hijau"
                 />
               </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={requestCustomerLocation}
+                  disabled={locationState === "loading"}
+                  className={`garage-press inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-bold transition-colors ${
+                    customerLocation
+                      ? "border-garage-amber/60 bg-garage-amber/12 text-[#ffd79a]"
+                      : "border-garage-line-2 bg-garage-bg-2 text-white hover:bg-garage-bg-3"
+                  }`}
+                >
+                  <MapPin className="size-4" aria-hidden />
+                  {locationState === "loading"
+                    ? "Mencari lokasi…"
+                    : customerLocation
+                      ? "Lokasi tersimpan ✓"
+                      : "Pakai lokasi saya (opsional)"}
+                </button>
+                <span className="text-xs text-garage-dim">
+                  {locationState === "denied"
+                    ? "Izin lokasi ditolak — alamat saja sudah cukup."
+                    : "Membantu kurir & menampilkan jarak kurir ke Anda."}
+                </span>
+              </div>
             </div>
           ) : (
             <p className="mt-2 text-sm leading-6 text-garage-dim">
@@ -1948,16 +2020,17 @@ export function MemberOrderPage({
 
         <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
-            {qrContext.tableHint && !qrContext.tableIssue ? (
-              <div
-                className="mb-4 flex items-start gap-3 rounded-md border border-garage-line bg-garage-bg-2/70 px-3.5 py-3"
-                role="status"
-              >
-                <ShoppingBag className="mt-0.5 size-5 shrink-0 text-garage-amber" aria-hidden />
-                <div className="min-w-0 text-sm leading-6">
-                  <p className="font-bold text-white">Pesan dari luar Garage</p>
-                  <p className="text-garage-dim">{qrContext.tableHint}</p>
-                </div>
+            {!staffOrder && !qrContext.tableIssue ? (
+              <div className="mb-4 space-y-2" role="status">
+                {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
+                <FulfillmentBadge fulfillment={effectiveOrderType} tableLabel={qrContext.tableLabel} />
+                {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
+                {canChooseFulfillment ? (
+                  <CustomerChatPanel
+                    tableLabel={`${isDelivery ? "Delivery" : "Take away"}${guestName.trim() ? ` · ${guestName.trim()}` : ""}`.slice(0, 40)}
+                    title="Chat kasir (take away & delivery)"
+                  />
+                ) : null}
               </div>
             ) : null}
             {qrContext.tableIssue ? (
@@ -2116,7 +2189,7 @@ export function MemberOrderPage({
                         {lastOrder.order.paymentMethod && lastOrder.order.paymentMethod !== "Cash" &&
                         (lastOrder.order.fulfillment === "takeaway" || lastOrder.order.fulfillment === "delivery") ? (
                           <a
-                            href={garageWhatsappUrl(
+                            href={garageWhatsappUrl(billingSettings.garageWhatsapp,
                               `Halo Garage, saya sudah bayar ${lastOrder.order.paymentMethod} untuk pesanan ${lastOrder.order.orderNo} (${
                                 lastOrder.order.fulfillment === "delivery" ? "Delivery" : "Take away"
                               }) a.n. ${lastOrder.order.customerName ?? "-"}. Bukti bayar terlampir.`,
@@ -2315,7 +2388,9 @@ export function MemberOrderPage({
           className="inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[92svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-xl sm:border"
         >
           <SheetHeader className="border-b border-garage-line p-4 text-left">
-            <SheetTitle className="pr-8 font-sans text-xl font-bold text-white">Checkout · {qrContext.tableLabel}</SheetTitle>
+            <SheetTitle className="pr-8 font-sans text-xl font-bold text-white">
+              Checkout · {isDelivery ? "Delivery" : qrContext.tableLabel}
+            </SheetTitle>
             <SheetDescription className="text-sm text-garage-dim">
               {staffOrder
                 ? "Cek pesanan lalu kirim ke kasir."

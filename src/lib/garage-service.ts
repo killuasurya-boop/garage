@@ -10,6 +10,16 @@ import {
 import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import {
+  buildTrackerSteps,
+  DELIVERY_STATUSES,
+  deliveryStatusPatch,
+  distanceKm,
+  normalizeFulfillment,
+  stationVerb,
+  validLatLng,
+  type DeliveryStatus,
+} from "@/lib/garage-delivery-rules";
+import {
   ALL_TABLE_NUMBERS,
   MAX_TABLE_NUMBER,
   TABLE_NUMBER_RANGE_MESSAGE,
@@ -238,6 +248,9 @@ type CustomerOrderInput = {
   chatToken?: string;
   // Delivery: alamat lengkap + patokan (wajib untuk orderType "delivery").
   deliveryAddress?: string;
+  // Lokasi pelanggan (opsional, tombol "Pakai lokasi saya") untuk jarak kurir.
+  customerLat?: number;
+  customerLng?: number;
   items: OrderInput["items"];
 };
 
@@ -253,7 +266,7 @@ type CustomerOrderActionInput = {
     | "delivery_status";
   reason?: string;
   // Aksi "delivery_status": status pengantaran order delivery yang sudah lunas.
-  deliveryStatus?: "preparing" | "on_the_way" | "delivered";
+  deliveryStatus?: DeliveryStatus;
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
@@ -450,7 +463,7 @@ export const roleDisplayName: Record<Role, string> = {
 };
 
 const receiptBrand = {
-  deliveryWhatsapp: "081396186251",
+  deliveryWhatsapp: "085121552341",
   social: {
     instagram: "GARAGE Coffee & Motor",
     facebook: "GARAGE Coffee & Motor",
@@ -458,6 +471,18 @@ const receiptBrand = {
     youtube: "GARAGE Coffee & Motor",
   },
 };
+
+/** Struk khusus Delivery: data antar + ongkir terpisah (null untuk order non-delivery). */
+function deliveryReceiptBlock(order: typeof orders.$inferSelect) {
+  if (order.fulfillment !== "delivery") return null;
+  return {
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    address: order.deliveryAddress,
+    courierName: order.courierName,
+    fee: order.deliveryFee ?? 0,
+  };
+}
 
 function calculateEarnedPointsWithSettings(
   amount: number,
@@ -886,6 +911,10 @@ function customerOrderResponse(
     deliveryAddress: row.deliveryAddress ?? null,
     deliveryFee: row.deliveryFee ?? 0,
     deliveryStatus: row.deliveryStatus ?? null,
+    courierUserId: row.courierUserId ?? null,
+    courierName: row.courierName ?? null,
+    courierLocationAt: row.courierLocationAt?.toISOString() ?? null,
+    deliveredAt: row.deliveredAt?.toISOString() ?? null,
     whatsappInvoiceStatus: row.whatsappInvoiceStatus,
     whatsappInvoiceUrl: row.whatsappInvoiceUrl,
     invoicePdfUrl: null,
@@ -6879,6 +6908,21 @@ async function moveTableImpl(
   });
 }
 
+function publicCourierInfo(order: typeof orders.$inferSelect, withLocation: boolean) {
+  const name = (order.courierName ?? "Kurir").split(/\s+/)[0];
+  const sharing = withLocation && order.courierLat != null && order.courierLng != null;
+  const courierPoint = sharing ? { lat: order.courierLat as number, lng: order.courierLng as number } : null;
+  const customerPoint =
+    order.customerLat != null && order.customerLng != null ? { lat: order.customerLat, lng: order.customerLng } : null;
+  return {
+    name,
+    lat: courierPoint?.lat ?? null,
+    lng: courierPoint?.lng ?? null,
+    locationAt: sharing ? (order.courierLocationAt?.toISOString() ?? null) : null,
+    distanceKm: courierPoint && customerPoint ? Math.round(distanceKm(courierPoint, customerPoint) * 10) / 10 : null,
+  };
+}
+
 export async function getPublicCustomerOrderStatus(id: string) {
   const db = getDb();
   const safeId = id.trim();
@@ -6891,6 +6935,7 @@ export async function getPublicCustomerOrderStatus(id: string) {
   if (!order || !customerOrderSources.includes(order.orderSource)) {
     return null;
   }
+  const lookedUpById = looksLikeUuid && order.id === safeId;
 
   const ticketRows = await db
     .select()
@@ -6938,6 +6983,7 @@ export async function getPublicCustomerOrderStatus(id: string) {
       }
       return {
         station: ticket.station === "Food" ? "Dapur" : ticket.station,
+        verb: stationVerb(ticket.station),
         status: ticket.status,
         etaSeconds,
         targetSeconds,
@@ -6954,6 +7000,23 @@ export async function getPublicCustomerOrderStatus(id: string) {
     kitchenStatus: publicKitchenStatus,
     estimatedMinutes,
     stations,
+    fulfillment: normalizeFulfillment(invoiceReadyOrder.fulfillment),
+    deliveryStatus: invoiceReadyOrder.deliveryStatus ?? null,
+    deliveryFee: invoiceReadyOrder.deliveryFee ?? 0,
+    rejectionReason: invoiceReadyOrder.status === "rejected" ? (invoiceReadyOrder.rejectionReason ?? null) : null,
+    steps: buildTrackerSteps({
+      fulfillment: invoiceReadyOrder.fulfillment,
+      orderStatus: invoiceReadyOrder.status,
+      stations: ticketRows.map((ticket) => ({ station: ticket.station, status: ticket.status })),
+      deliveryStatus: invoiceReadyOrder.deliveryStatus,
+    }),
+    // Kurir: nama depan + posisi GPS terakhir (hanya selama diantar). Posisi &
+    // jarak HANYA untuk pencarian lewat id order (UUID, tidak bisa ditebak) —
+    // nomor order mudah ditebak, jadi lewat nomor order hanya nama kurir.
+    courier:
+      invoiceReadyOrder.fulfillment === "delivery" && invoiceReadyOrder.courierUserId
+        ? publicCourierInfo(invoiceReadyOrder, lookedUpById)
+        : null,
     // Jalur publik untuk lihat invoice = invoiceWebUrl (token tracking).
     // whatsappInvoiceUrl (link wa.me) SENGAJA tidak diekspos di endpoint publik
     // ini — membocorkan nomor WA bisnis ke siapa pun yang tahu order id.
@@ -7377,6 +7440,7 @@ export async function getPublicInvoiceTracking(token: string) {
     service: invoiceReadyOrder.service,
     tax: invoiceReadyOrder.tax,
     discount: invoiceReadyOrder.discount,
+    deliveryFee: invoiceReadyOrder.deliveryFee ?? 0,
     total: invoiceReadyOrder.total,
     createdAt: invoiceReadyOrder.createdAt.toISOString(),
     updatedAt: invoiceReadyOrder.updatedAt.toISOString(),
@@ -7405,6 +7469,17 @@ export async function getInvoiceLiveStatus(token: string) {
       updatedAt: orders.updatedAt,
       acceptedAt: orders.acceptedAt,
       rejectedAt: orders.rejectedAt,
+      rejectionReason: orders.rejectionReason,
+      fulfillment: orders.fulfillment,
+      deliveryStatus: orders.deliveryStatus,
+      deliveredAt: orders.deliveredAt,
+      courierUserId: orders.courierUserId,
+      courierName: orders.courierName,
+      courierLat: orders.courierLat,
+      courierLng: orders.courierLng,
+      courierLocationAt: orders.courierLocationAt,
+      customerLat: orders.customerLat,
+      customerLng: orders.customerLng,
     })
     .from(orders)
     .where(eq(orders.invoiceTrackingToken, safeToken))
@@ -7473,6 +7548,21 @@ export async function getInvoiceLiveStatus(token: string) {
     orderStatus: order.status,
     kitchenStatus: publicKitchenStatus,
     activeStep,
+    // Pelacak per tipe pesanan (Makan di tempat / Take away / Delivery). Token
+    // tracking tidak bisa ditebak → posisi GPS kurir boleh ditampilkan di sini.
+    fulfillment: normalizeFulfillment(order.fulfillment),
+    deliveryStatus: order.deliveryStatus ?? null,
+    rejectionReason: order.status === "rejected" ? (order.rejectionReason ?? null) : null,
+    steps: buildTrackerSteps({
+      fulfillment: order.fulfillment,
+      orderStatus: order.status,
+      stations: ticketRows.map((ticket) => ({ station: ticket.station, status: ticket.status })),
+      deliveryStatus: order.deliveryStatus,
+    }),
+    courier:
+      order.fulfillment === "delivery" && order.courierUserId
+        ? publicCourierInfo(order as unknown as typeof orders.$inferSelect, true)
+        : null,
     targetMinutes,
     elapsedSeconds,
     remainingSeconds,
@@ -8045,6 +8135,8 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     deliveryFee: settings.deliveryFee,
     deliveryMinItems: settings.deliveryMinItems,
     deliveryAreaNote: settings.deliveryAreaNote,
+    garageWhatsapp: settings.garageWhatsapp,
+    unpaidOrderAutoRejectMinutes: settings.unpaidOrderAutoRejectMinutes,
   };
 }
 
@@ -8324,6 +8416,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         campaign: input.campaign?.trim() || null,
         fulfillment: input.orderType,
         deliveryAddress: isDelivery ? deliveryAddress : null,
+        customerLat: isDelivery ? (validLatLng(input.customerLat, input.customerLng)?.lat ?? null) : null,
+        customerLng: isDelivery ? (validLatLng(input.customerLat, input.customerLng)?.lng ?? null) : null,
         deliveryFee,
         deliveryStatus: null,
         whatsappInvoiceStatus: "not_sent",
@@ -8583,12 +8677,12 @@ async function updateCustomerOrderStatusImpl(
         throw new Error("Order delivery harus lunas sebelum diantar.");
       }
       const next = input.deliveryStatus;
-      if (next !== "preparing" && next !== "on_the_way" && next !== "delivered") {
+      if (!next || !DELIVERY_STATUSES.includes(next)) {
         throw new Error("Status pengantaran tidak dikenal.");
       }
       const [updated] = await tx
         .update(orders)
-        .set({ deliveryStatus: next, updatedAt: now })
+        .set(deliveryStatusPatch(next, now))
         .where(eq(orders.id, order.id))
         .returning();
       const [latestPayment] = await tx
@@ -8806,7 +8900,8 @@ async function updateCustomerOrderStatusImpl(
         .update(orders)
         .set({
           status: "rejected",
-          rejectedBy: garage.user.id,
+          // Tolak otomatis (sistem) tidak punya user → null.
+          rejectedBy: garage.user.id || null,
           rejectedAt: now,
           rejectionReason: input.reason?.trim() || "Ditolak kasir",
           updatedAt: now,
@@ -9476,6 +9571,7 @@ async function updateCustomerOrderStatusImpl(
         tax: order.tax,
         discount: order.discount,
         total: order.total,
+        delivery: deliveryReceiptBlock(order),
         brand: receiptBrand,
       };
 

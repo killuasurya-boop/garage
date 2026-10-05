@@ -22,7 +22,7 @@ const createSchema = z.object({
   division: z.string().optional(),
   position: z.string().optional(),
   // Workstation Production Hub; kosong/null = tidak ditugaskan produksi.
-  workstation: z.enum(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all"]).nullable().optional(),
+  workstation: z.enum(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all", "kurir"]).nullable().optional(),
   requirePasswordChange: z.boolean().optional(),
 });
 

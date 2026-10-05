@@ -223,6 +223,7 @@ isLocalQrBaseUrl,
 import { formatTableDuration } from "@/lib/garage-tables";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
+import { DeliveryOrderPanel } from "@/components/garage/delivery-order-panel";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
 import {
   PosOrderCancelDialog,
@@ -6878,6 +6879,7 @@ export function PosView({
                           {order.deliveryStatus
                             ? ` · ${deliveryStatusLabel[order.deliveryStatus] ?? order.deliveryStatus}`
                             : ""}
+                          {order.courierName ? ` · Kurir ${order.courierName}` : order.status === "paid" ? " · Belum ada kurir" : ""}
                         </p>
                       </div>
                     ) : order.fulfillment === "takeaway" && order.status !== "paid" ? (
@@ -7678,6 +7680,7 @@ export function PosView({
                                 <p className="mt-0.5 text-[#d0d0d6]">
                                   Ongkir {currency.format(order.deliveryFee ?? 0)} · wajib QRIS
                                   {order.deliveryStatus ? ` · ${deliveryStatusLabel[order.deliveryStatus] ?? order.deliveryStatus}` : ""}
+                                  {order.courierName ? ` · Kurir ${order.courierName}` : order.status === "paid" ? " · Belum ada kurir" : ""}
                                 </p>
                               </div>
                             ) : order.fulfillment === "takeaway" && order.status !== "paid" ? (
@@ -8171,42 +8174,14 @@ export function PosView({
                 </div>
               ) : null}
 
-              {selectedCustomerOrder.fulfillment === "delivery" ? (
-                <div className="space-y-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/[0.07] p-3 text-sm text-white">
-                  <p className="font-black text-[#ffd79a]">DELIVERY · wajib QRIS dulu</p>
-                  <p className="break-words">
-                    <span className="text-[#b8b8bf]">Alamat:</span> {selectedCustomerOrder.deliveryAddress ?? "-"}
-                  </p>
-                  <p>
-                    <span className="text-[#b8b8bf]">WA:</span> {selectedCustomerOrder.customerPhone ?? "-"} ·{" "}
-                    <span className="text-[#b8b8bf]">Ongkir:</span> {currency.format(selectedCustomerOrder.deliveryFee ?? 0)}
-                  </p>
-                  {selectedCustomerOrder.status === "paid" ? (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <span className="text-[#b8b8bf]">Status antar:</span>
-                      {(["preparing", "on_the_way", "delivered"] as const).map((step) => (
-                        <Button
-                          key={step}
-                          type="button"
-                          size="sm"
-                          variant={selectedCustomerOrder.deliveryStatus === step ? "default" : "outline"}
-                          className="garage-press h-9 border-[#4a4a54] px-3 text-xs"
-                          disabled={Boolean(customerOrderActionId)}
-                          aria-pressed={selectedCustomerOrder.deliveryStatus === step}
-                          onClick={() => void setDeliveryStatus(selectedCustomerOrder, step)}
-                        >
-                          {deliveryStatusLabel[step]}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-[#d0d0d6]">Status antar bisa diatur setelah lunas.</p>
-                  )}
-                </div>
-              ) : selectedCustomerOrder.fulfillment === "takeaway" && selectedCustomerOrder.status !== "paid" ? (
-                <p className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/[0.07] p-3 text-sm font-semibold text-[#ffd79a]">
-                  TAKE AWAY · wajib lunas dulu (QRIS/Transfer dicek, atau bayar di kasir), baru pesanan dibuat.
-                </p>
+              {selectedCustomerOrder.fulfillment === "delivery" || selectedCustomerOrder.fulfillment === "takeaway" ? (
+                <DeliveryOrderPanel
+                  order={selectedCustomerOrder}
+                  busy={Boolean(customerOrderActionId)}
+                  autoRejectMinutes={settings.unpaidOrderAutoRejectMinutes}
+                  onSetStatus={(step) => void setDeliveryStatus(selectedCustomerOrder, step)}
+                  onChanged={() => void loadCustomerOrders({ silent: true })}
+                />
               ) : null}
 
               <div className="flex flex-wrap gap-2">

@@ -597,6 +597,7 @@ export async function getMonthlyClosingReview(month: string) {
       discount: totals.discount,
       refund: totals.refund,
       netSales: totals.netSales,
+      deliveryFees: totals.deliveryFees,
       cogs: totals.cogs,
       grossProfit: totals.grossProfit,
       payroll: totals.payroll,

@@ -213,6 +213,12 @@ for (const role of Object.keys(roleModules) as Role[]) {
   }
 }
 
+// Modul Kurir: Owner/Manajer memantau semua antaran; Waiter hanya bila akunnya kurir
+// (difilter di modulesForProfile).
+for (const role of ["Owner", "Manajer", "Waiter"] as Role[]) {
+  if (!roleModules[role].includes("courier")) roleModules[role].push("courier");
+}
+
 // Smart Notification Center — semua role yang punya station kerja real-time
 // butuh akses. Owner/Manajer untuk konfigurasi, kasir/waiter untuk monitor
 // trigger di station mereka.
@@ -283,6 +289,7 @@ const PRODUCTION_ONLY_WORKSTATIONS = new Set(["bar", "dapur", "helper_bar", "hel
 export function homeModuleFor(role: Role, workstation?: string | null): ModuleId {
   // Termasuk workstation "all": POS hanya untuk kasir (lihat canHandleMoney).
   const station = (workstation ?? "").trim().toLowerCase();
+  if (role === "Waiter" && station === "kurir") return "courier";
   if (role === "Kasir" && (PRODUCTION_ONLY_WORKSTATIONS.has(station) || station === "all")) {
     return "kitchen";
   }
@@ -369,6 +376,13 @@ export function canUseApiAs(profile: StaffCapabilityProfile, permission: Permiss
 /** Modul yang tampil untuk akun ini — POS disembunyikan untuk non-kasir. */
 export function modulesForProfile(profile: StaffCapabilityProfile): ModuleId[] {
   const modules = modulesForRole(profile.role);
+  // Akun kurir (Waiter + workstation "kurir"): modul Kurir menggantikan layar meja.
+  if (profile.role === "Waiter") {
+    const courier = (profile.workstation ?? "").trim().toLowerCase() === "kurir";
+    return courier
+      ? ["courier", ...modules.filter((moduleId) => moduleId !== "waiter" && moduleId !== "courier")]
+      : modules.filter((moduleId) => moduleId !== "courier");
+  }
   if (profile.role === "Kasir" && !canHandleMoney(profile)) {
     return modules.filter((moduleId) => moduleId !== "pos");
   }

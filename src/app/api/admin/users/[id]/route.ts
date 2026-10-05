@@ -19,7 +19,7 @@ const patchSchema = z.object({
   division: z.string().nullable().optional(),
   position: z.string().nullable().optional(),
   // Workstation Production Hub; null = tidak ditugaskan produksi.
-  workstation: z.enum(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all"]).nullable().optional(),
+  workstation: z.enum(["bar", "dapur", "all", "helper_bar", "helper_dapur", "helper_all", "kurir"]).nullable().optional(),
   status: z.enum(["active", "suspended"]).optional(),
   suspendedReason: z.string().nullable().optional(),
   passwordResetRequired: z.boolean().optional(),

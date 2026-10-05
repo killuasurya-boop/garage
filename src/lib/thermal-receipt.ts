@@ -54,6 +54,14 @@ export interface ThermalReceiptInput {
   reprintAt?: string | null;
   // Bill sementara (belum dibayar) — dicetak dari detail meja sebelum Final Bayar.
   provisional?: boolean | null;
+  // Struk khusus Delivery: data antar + ongkir sebagai baris terpisah (di luar penjualan).
+  delivery?: {
+    customerName?: string | null;
+    customerPhone?: string | null;
+    address?: string | null;
+    courierName?: string | null;
+    fee?: number | null;
+  } | null;
   memberReward?: {
     level?: string | null;
     memberName?: string | null;
@@ -317,6 +325,41 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
   rows.push(`Kasir : ${clean(receipt.cashier?.name) || "-"}`.slice(0, W));
   rows.push(line());
 
+  // Blok DELIVERY: nama, WA, alamat utuh (dibungkus per kata), kurir.
+  const delivery = receipt.delivery;
+  if (delivery) {
+    rows.push("=".repeat(W));
+    rows.push(center("*** DELIVERY ***"));
+    rows.push("=".repeat(W));
+    const customer = clean(delivery.customerName);
+    if (customer) rows.push(`Nama  : ${customer}`.slice(0, W));
+    const phone = clean(delivery.customerPhone);
+    if (phone) rows.push(`WA    : ${phone}`.slice(0, W));
+    const address = clean(delivery.address);
+    if (address) {
+      let current = "";
+      let first = true;
+      const flush = () => {
+        rows.push(`${first ? "Alamat: " : "        "}${current}`);
+        first = false;
+        current = "";
+      };
+      for (const word of address.split(" ")) {
+        const next = current ? `${current} ${word}` : word;
+        if (next.length > W - 8 && current) {
+          flush();
+          current = word.slice(0, W - 8);
+        } else {
+          current = next.slice(0, W - 8);
+        }
+      }
+      if (current) flush();
+    }
+    const courier = clean(delivery.courierName);
+    rows.push(`Kurir : ${courier || "-"}`.slice(0, W));
+    rows.push(line());
+  }
+
   for (const item of receipt.items || []) {
     const name = clean(item.name || item.itemName || "Item");
     const variant = clean(item.variant || item.variantLabel);
@@ -342,6 +385,11 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
   }
   if ((receipt.discount || 0) > 0) {
     rows.push(row("Diskon", `-${fmt(receipt.discount)}`));
+  }
+  const deliveryFee = receipt.delivery?.fee ?? 0;
+  if (deliveryFee > 0) {
+    // Ongkir terpisah dari harga menu (sudah termasuk di TOTAL).
+    rows.push(row("Ongkir delivery", fmt(deliveryFee)));
   }
   rows.push(row("TOTAL", fmt(receipt.total)));
 

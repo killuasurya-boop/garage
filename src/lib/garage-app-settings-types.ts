@@ -56,6 +56,10 @@ export type AppSettings = {
   deliveryFee: number;
   deliveryMinItems: number;
   deliveryAreaNote: string;
+  // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
+  garageWhatsapp: string;
+  // Order take away/delivery belum dibayar lewat batas ini otomatis ditolak (menit, 0 = mati).
+  unpaidOrderAutoRejectMinutes: number;
   // Loyalty
   pointsPerThousand: number;
   voucherMaxDiscountPct: number;
@@ -182,6 +186,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   deliveryMinItems: 2,
   deliveryAreaNote:
     "Khusus wilayah perkotaan Tebing Tinggi yang aman & terjangkau kurir. Tidak melayani daerah pelosok/rawan.",
+  garageWhatsapp: "6285121552341",
+  unpaidOrderAutoRejectMinutes: 30,
   pointsPerThousand: 1,
   voucherMaxDiscountPct: 30,
   qrPromoPct: 10,

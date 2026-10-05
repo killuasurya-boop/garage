@@ -345,6 +345,7 @@ export function emptyRaw(date: string): DayRaw {
     date,
     orderCount: 0,
     netSales: 0,
+    deliveryFees: 0,
     discount: 0,
     refund: 0,
     voidCount: 0,
@@ -402,8 +403,9 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
       .select({
         day: orderDay,
         count: sql<number>`count(*)::int`,
-        net: sql<string>`coalesce(sum(${orders.total} - ${orders.tax}), 0)::bigint`,
+        net: sql<string>`coalesce(sum(${orders.total} - ${orders.tax} - ${orders.deliveryFee}), 0)::bigint`,
         discount: sql<string>`coalesce(sum(${orders.discount}), 0)::bigint`,
+        deliveryFees: sql<string>`coalesce(sum(${orders.deliveryFee}), 0)::bigint`,
       })
       .from(orders)
       .where(and(eq(orders.status, "paid"), inOrderRange))
@@ -412,7 +414,7 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
       .select({
         day: orderDay,
         count: sql<number>`count(*)::int`,
-        amount: sql<string>`coalesce(sum(${orders.total} - ${orders.tax}), 0)::bigint`,
+        amount: sql<string>`coalesce(sum(${orders.total} - ${orders.tax} - ${orders.deliveryFee}), 0)::bigint`,
       })
       .from(orders)
       .where(and(eq(orders.status, "voided"), inOrderRange))
@@ -561,6 +563,7 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
     const raw = at(row.day);
     raw.orderCount = Number(row.count);
     raw.netSales = Number(row.net);
+    raw.deliveryFees = Number(row.deliveryFees);
     raw.discount = Number(row.discount);
   }
   for (const row of voidRows) {
@@ -608,7 +611,7 @@ const LIVE_WINDOW_DAYS = 7;
  * snapshot "locked" (Daily Closing) tidak pernah diubah.
  * v2: HPP aktual = resep + susut gudang (PRD §11).
  */
-const ENGINE_VERSION = 2;
+const ENGINE_VERSION = 3; // v3: ongkir delivery dipisah dari penjualan bersih
 
 type SnapshotRow = typeof financialSnapshots.$inferSelect;
 
@@ -624,6 +627,7 @@ function figureFromSnapshot(row: SnapshotRow): DayFigure {
     voidCount: row.voidCount,
     voidAmount: Number(row.voidAmount),
     netSales: Number(row.netSales),
+    deliveryFees: Number(breakdown.deliveryFees ?? 0),
     cogs: Number(row.cogs),
     // Snapshot versi lama (sebelum v2) belum memisah susut → seluruh HPP = resep.
     cogsRecipe: breakdown.cogsRecipe !== undefined ? Number(breakdown.cogsRecipe) : Number(row.cogs),
@@ -691,6 +695,7 @@ export function snapshotFromFigure(figure: DayFigure) {
       coveredLineSales: figure.coveredLineSales,
       cogsRecipe: figure.cogsRecipe,
       cogsShrinkage: figure.cogsShrinkage,
+      deliveryFees: figure.deliveryFees,
       engineVersion: ENGINE_VERSION,
     },
     status: "auto",
@@ -786,7 +791,7 @@ async function loadHourlyNetSales(dayKey: string) {
   const db = getDb();
   const hourExpr = sql<number>`extract(hour from (${orders.createdAt} at time zone 'UTC') + interval '7 hours')::int`;
   const rows = await db
-    .select({ hour: hourExpr, net: sql<string>`coalesce(sum(${orders.total} - ${orders.tax}), 0)::bigint` })
+    .select({ hour: hourExpr, net: sql<string>`coalesce(sum(${orders.total} - ${orders.tax} - ${orders.deliveryFee}), 0)::bigint` })
     .from(orders)
     .where(
       and(
@@ -1120,6 +1125,7 @@ export async function getFinanceControlDashboard(input: {
       discount: totals.discount,
       refund: totals.refund,
       netSales: totals.netSales,
+      deliveryFees: totals.deliveryFees,
       cogs: totals.cogs,
       cogsRecipe: totals.cogsRecipe,
       cogsShrinkage: totals.cogsShrinkage,

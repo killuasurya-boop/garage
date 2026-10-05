@@ -17,6 +17,16 @@ import { normalizeWorkstation } from "@/lib/garage-production-rules";
 import { permissionsForRole, protectedRoleRank } from "@/lib/role-access";
 import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
 
+
+/** "kurir" hanya untuk Waiter; stasiun produksi/helper hanya untuk Kasir. */
+function workstationForRole(role: string, workstation: string | null | undefined) {
+  const ws = normalizeWorkstation(workstation);
+  if (!ws) return null;
+  if (role === "Waiter") return ws === "kurir" ? ws : null;
+  if (role === "Kasir") return ws === "kurir" ? null : ws;
+  return null;
+}
+
 export type AdminAuditContext = {
   actorUserId: string;
   actorName: string;
@@ -293,7 +303,7 @@ export async function createAdminUser(
       deviceLabel: input.deviceLabel ?? "POS-01",
       division: input.division || null,
       position: input.position || null,
-      workstation: normalizeWorkstation(input.workstation),
+      workstation: workstationForRole(input.role, input.workstation),
       passwordResetRequired: input.requirePasswordChange ?? true,
     });
     await writeAdminAudit(audit, "user.create", input.email, {
@@ -312,7 +322,7 @@ export async function createAdminUser(
     deviceLabel: input.deviceLabel ?? "POS-01",
     division: input.division || null,
     position: input.position || null,
-    workstation: normalizeWorkstation(input.workstation),
+    workstation: workstationForRole(input.role, input.workstation),
     passwordResetRequired: input.requirePasswordChange ?? true,
   });
   await writeAdminAudit(audit, "user.create", input.email, {
@@ -387,7 +397,11 @@ export async function updateAdminUser(
   if (patch.division !== undefined) profileUpdate.division = patch.division || null;
   if (patch.position !== undefined) profileUpdate.position = patch.position || null;
   if (patch.workstation !== undefined) {
-    profileUpdate.workstation = normalizeWorkstation(patch.workstation);
+    // Role tidak ikut di patch → validasi terhadap role lama terjadi di UI; di sini
+    // cukup pastikan "kurir" hanya untuk Waiter dan stasiun produksi hanya Kasir.
+    profileUpdate.workstation = patch.role
+      ? workstationForRole(patch.role, patch.workstation)
+      : normalizeWorkstation(patch.workstation);
   }
   if (patch.passwordResetRequired !== undefined) {
     profileUpdate.passwordResetRequired = patch.passwordResetRequired;

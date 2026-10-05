@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { sweepUnpaidOrdersLazily } from "@/lib/garage-courier";
 import {
   createCustomerOrder,
   getCustomerOrderData,
@@ -45,6 +46,8 @@ const customerOrderSchema = z.object({
   chatToken: z.string().trim().min(12).max(120).optional(),
   // Delivery: alamat lengkap + patokan (divalidasi di server untuk orderType delivery).
   deliveryAddress: z.string().trim().max(300).optional(),
+  customerLat: z.number().min(-90).max(90).optional(),
+  customerLng: z.number().min(-180).max(180).optional(),
   items: z.array(itemSchema).min(1).max(40),
 });
 
@@ -54,6 +57,8 @@ export async function GET(request: Request) {
     return session.response;
   }
 
+  // Tolak otomatis order take away/delivery yang lewat batas bayar (sapuan malas).
+  await sweepUnpaidOrdersLazily();
   const url = new URL(request.url);
   return ok(
     await getCustomerOrderData({

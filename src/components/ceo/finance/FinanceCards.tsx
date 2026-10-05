@@ -462,9 +462,11 @@ export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
       <div className="mt-3 grid grid-cols-2 gap-3">
         <Stat label="Alokasi Save Money" value={rupiah(pnl.reserveAllocation)} />
         <Stat label={`Void (${pnl.voidCount})`} value={rupiah(pnl.voidAmount)} />
+        <Stat label="Ongkir delivery (di luar penjualan)" value={rupiah(pnl.deliveryFees ?? 0)} />
       </div>
       <p className="mt-3 text-xs text-zinc-400">
-        Save Money = cadangan kas, bukan expense. Void dicatat terpisah dan tidak mengurangi revenue.
+        Save Money = cadangan kas, bukan expense. Void dicatat terpisah dan tidak mengurangi revenue. Ongkir
+        delivery ikut masuk kas (QRIS) tetapi tidak dihitung sebagai penjualan menu.
         {pnl.hppCoveragePct !== null ? ` HPP terukur untuk ${percent(pnl.hppCoveragePct)} penjualan.` : ""}
       </p>
     </FinanceCard>

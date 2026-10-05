@@ -490,6 +490,14 @@ import type { AppSettings as _AppSettings } from "./garage-app-settings-types";
 export type AppSettings = _AppSettings;
 
 export type OrderReceipt = {
+  /** Struk khusus Delivery (null/undefined untuk order biasa). */
+  delivery?: {
+    customerName?: string | null;
+    customerPhone?: string | null;
+    address?: string | null;
+    courierName?: string | null;
+    fee?: number | null;
+  } | null;
   invoiceNo: string;
   invoiceStatus: string;
   orderNo: string;
@@ -607,7 +615,11 @@ export type CustomerOrder = {
   fulfillment?: "dine-in" | "takeaway" | "delivery" | string | null;
   deliveryAddress?: string | null;
   deliveryFee?: number;
-  deliveryStatus?: "preparing" | "on_the_way" | "delivered" | string | null;
+  deliveryStatus?: "preparing" | "picked_up" | "on_the_way" | "delivered" | string | null;
+  courierUserId?: string | null;
+  courierName?: string | null;
+  courierLocationAt?: string | null;
+  deliveredAt?: string | null;
   whatsappInvoiceStatus: "not_sent" | "sent" | "failed" | string;
   whatsappInvoiceUrl: string | null;
   invoicePdfUrl: string | null;
@@ -666,7 +678,20 @@ export type PublicOrderStatus = {
     etaSeconds: number | null;
     targetSeconds: number;
     cookingStartedAt: string | null;
+    verb?: string;
   }>;
+  fulfillment?: "dine-in" | "takeaway" | "delivery";
+  deliveryStatus?: string | null;
+  deliveryFee?: number;
+  rejectionReason?: string | null;
+  steps?: Array<{ key: string; label: string; hint: string; state: "done" | "current" | "todo" }>;
+  courier?: {
+    name: string;
+    lat: number | null;
+    lng: number | null;
+    locationAt: string | null;
+    distanceKm: number | null;
+  } | null;
   message: string;
   invoicePdfUrl?: string | null;
   invoiceWebUrl?: string | null;

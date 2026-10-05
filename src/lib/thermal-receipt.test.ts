@@ -57,3 +57,35 @@ describe("chit delivery", () => {
     expect(joined).toContain(address);
   });
 });
+
+describe("Struk khusus Delivery", () => {
+  it("mencetak blok DELIVERY (nama, WA, alamat utuh, kurir) dan ongkir terpisah", () => {
+    const content = buildThermalContent({
+      orderNo: "QR-9",
+      tableLabel: "Delivery",
+      items: [{ name: "Nasi Goreng", qty: 2, unitPrice: 20_000, lineTotal: 40_000 }],
+      subtotal: 40_000,
+      total: 45_000,
+      delivery: {
+        customerName: "Rina",
+        customerPhone: "081234567890",
+        address: "Jl. Sudirman No. 12, dekat Masjid Raya — Patokan: pagar hijau",
+        courierName: "Andi Kurir",
+        fee: 5_000,
+      },
+    });
+    expect(content).toContain("*** DELIVERY ***");
+    expect(content).toContain("Nama  : Rina");
+    expect(content).toContain("WA    : 081234567890");
+    expect(content).toContain("pagar hijau");
+    expect(content).toContain("Kurir : Andi Kurir");
+    expect(content).toMatch(/Ongkir delivery\s+Rp\s?5\.000/);
+    for (const line of content.split("\r\n")) expect(line.length).toBeLessThanOrEqual(32);
+  });
+
+  it("order biasa tanpa blok delivery", () => {
+    const content = buildThermalContent({ orderNo: "POS-1", items: [], total: 10_000 });
+    expect(content).not.toContain("DELIVERY");
+    expect(content).not.toContain("Ongkir");
+  });
+});

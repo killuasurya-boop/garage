@@ -1,9 +1,9 @@
-// Skrip operator: samakan akun staf dengan 13 akun operasional go-live.
+// Skrip operator: samakan akun staf dengan 14 akun operasional go-live.
 // SATU AKUN per orang: akun login yang sama dipakai untuk absen (kode + PIN),
 // gaji harian, fee pool, dan fee produksi — tidak ada lagi akun absen terpisah.
 //
 //   Owner 1 · Manajer 1 · Kasir 2 · Barista 2 · Waiter 3 · Koki 1 ·
-//   Asisten Koki 1 · Helper Bar 1 · Helper Dapur 1  = 13 akun
+//   Asisten Koki 1 · Helper Bar 1 · Helper Dapur 1 · Kurir 1 = 14 akun
 //
 // Pemetaan ke pondasi Garage OS (4 role aplikasi, tidak diubah):
 //   Kasir        → role Kasir, tanpa workstation            (POS + tutup shift)
@@ -12,6 +12,7 @@
 //   Asisten Koki → role Kasir, workstation "dapur"
 //   Helper Bar   → role Kasir, workstation "helper_bar"     (serah-terima BAR)
 //   Helper Dapur → role Kasir, workstation "helper_dapur"   (serah-terima DAPUR)
+//   Kurir        → role Waiter, workstation "kurir"         (modul Kurir + GPS)
 // Semua kecuali Owner mendapat kode absen (KSR1, BAR1, WTR1, …) + PIN absen.
 //
 // Default DRY-RUN (hanya laporan). Tulis dengan --apply.
@@ -70,6 +71,7 @@ export const OPERATIONAL_ROSTER: RosterEntry[] = [
   { email: "asisten.koki@garage.id", name: "Asisten Koki", role: "Kasir", position: "Asisten Koki", division: "Dapur", workstation: "dapur", deviceLabel: "DAPUR-02", absenCode: "AKOKI" },
   { email: "helper.bar@garage.id", name: "Helper Bar", role: "Kasir", position: "Helper Bar", division: "Bar", workstation: "helper_bar", deviceLabel: "BAR-HELPER", absenCode: "HBAR" },
   { email: "helper.dapur@garage.id", name: "Helper Dapur", role: "Kasir", position: "Helper Dapur", division: "Dapur", workstation: "helper_dapur", deviceLabel: "DAPUR-HELPER", absenCode: "HDPR" },
+  { email: "kurir1@garage.id", name: "Kurir 1", role: "Waiter", position: "Kurir", division: "Delivery", workstation: "kurir", deviceLabel: "KURIR-01", absenCode: "KUR1" },
 ];
 
 const OWNER_CONTEXT = { actorUserId: "system", actorName: "garage-setup-accounts", actorRole: "Owner" as Role };

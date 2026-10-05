@@ -96,6 +96,8 @@ type QrContext = {
   campaign?: string;
   /** Nomor meja QR tidak valid / meja nonaktif → checkout diblokir dengan pesan ini. */
   tableIssue?: string;
+  /** Info netral (bukan error), mis. pengunjung dari Instagram otomatis Take away. */
+  tableHint?: string;
 };
 
 type CartLine = {
@@ -1786,6 +1788,18 @@ export function MemberOrderPage({
 
         <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
+            {qrContext.tableHint && !qrContext.tableIssue ? (
+              <div
+                className="mb-4 flex items-start gap-3 rounded-md border border-garage-line bg-garage-bg-2/70 px-3.5 py-3"
+                role="status"
+              >
+                <ShoppingBag className="mt-0.5 size-5 shrink-0 text-garage-amber" aria-hidden />
+                <div className="min-w-0 text-sm leading-6">
+                  <p className="font-bold text-white">Pesan untuk dibawa pulang</p>
+                  <p className="text-garage-dim">{qrContext.tableHint}</p>
+                </div>
+              </div>
+            ) : null}
             {qrContext.tableIssue ? (
               <div
                 className="mb-4 flex items-start gap-3 rounded-md border border-garage-red-bright/55 bg-garage-red/12 px-3.5 py-3"

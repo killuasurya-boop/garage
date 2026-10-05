@@ -40,7 +40,8 @@ function logoBuffer(): Buffer | null {
   if (logoBufCache !== undefined) return logoBufCache;
   try {
     logoBufCache = readFileSync(
-      join(process.cwd(), "public", "garage-brand", "logo-website.png"),
+      // Wordmark GARAGE saja (tanpa tagline "Coffee & Motor") khusus kartu meja.
+      join(process.cwd(), "public", "garage-brand", "logo-wordmark.png"),
     );
   } catch {
     logoBufCache = null;
@@ -100,24 +101,35 @@ function drawCard(doc: any, x: number, y: number, w: number, h: number, table: s
   doc.roundedRect(X(14), Y(14), 512 * s, 812 * s, 22 * s).clip();
   doc.rect(X(0), Y(0), W, H).fill("#ffffff");
 
-  // Header.
-  doc.rect(X(0), Y(0), W, 128 * s).fill("#111116");
-  doc.rect(X(0), Y(128), W, 8 * s).fill("#d11a2a");
-  doc.roundedRect(X((540 - 248) / 2), Y(30), 248 * s, 76 * s, 14 * s).fill("#f4f4f5");
+  // Header: logo krom langsung di atas hitam + glow merah halus.
+  const hdr = doc.linearGradient(X(0), Y(0), X(0), Y(170));
+  hdr.stop(0, "#1c1c22").stop(1, "#0a0a0d");
+  doc.rect(X(0), Y(0), W, 170 * s).fill(hdr);
+  const glow = doc.radialGradient(X(270), Y(78), 0, X(270), Y(78), 230 * s);
+  glow.stop(0, "#d11a2a", 0.38).stop(1, "#d11a2a", 0);
+  doc.save();
+  doc.ellipse(X(270), Y(78), 230 * s, 70 * s).fill(glow);
+  doc.restore();
   if (logoBuf) {
-    doc.image(logoBuf, X((540 - 220) / 2), Y(36), { fit: [220 * s, 64 * s], align: "center", valign: "center" });
+    doc.image(logoBuf, X((540 - 400) / 2), Y(34), { fit: [400 * s, 90 * s], align: "center", valign: "center" });
   } else {
-    text("GARAGE", 270, 82, 38, { color: "#111116" });
+    text("GARAGE", 270, 104, 64, { color: "#e4e4e7" });
   }
+  doc.save().lineWidth(2.5 * s).strokeColor("#d11a2a");
+  doc.moveTo(X(270 - 150), Y(143)).lineTo(X(270 - 78), Y(143)).stroke();
+  doc.moveTo(X(270 + 78), Y(143)).lineTo(X(270 + 150), Y(143)).stroke();
+  doc.restore();
+  text("COFFEE", 270, 150, 20, { color: "#d4d4d8", spacing: 9 });
+  doc.rect(X(0), Y(170), W, 6 * s).fill("#d11a2a");
 
   // Nomor meja.
-  text("MEJA", 270, 178, 20, { color: "#d11a2a", spacing: 12 });
-  text(table, 270, 294, 140, { color: "#111116", spacing: -3 });
+  text("MEJA", 270, 212, 18, { color: "#d11a2a", spacing: 12 });
+  text(table, 270, 320, 128, { color: "#111116", spacing: -3 });
 
   // QR + bingkai bidik.
-  const qrBox = 250;
+  const qrBox = 236;
   const qrX = (540 - qrBox) / 2;
-  const qrY = 326;
+  const qrY = 350;
   doc.image(qrBuf, X(qrX), Y(qrY), { width: qrBox * s, height: qrBox * s });
   const pad = 18;
   const arm = 34;
@@ -137,25 +149,25 @@ function drawCard(doc: any, x: number, y: number, w: number, h: number, table: s
   doc.restore();
 
   // Ajakan + 3 langkah.
-  text("SCAN & PESAN DARI MEJA", 270, by1 + 42, 23, { color: "#111116", spacing: 1 });
+  text("SCAN & PESAN DARI MEJA", 270, by1 + 40, 22, { color: "#111116", spacing: 1 });
   const steps = [
     { x: 120, label: "Scan QR" },
     { x: 270, label: "Pilih menu" },
     { x: 420, label: "Kirim pesanan" },
   ];
   doc.save().lineWidth(3 * s).strokeColor("#e3ddd2").dash(4 * s, { space: 5 * s });
-  doc.moveTo(X(steps[0].x + 26), Y(by1 + 74)).lineTo(X(steps[1].x - 26), Y(by1 + 74)).stroke();
-  doc.moveTo(X(steps[1].x + 26), Y(by1 + 74)).lineTo(X(steps[2].x - 26), Y(by1 + 74)).stroke();
+  doc.moveTo(X(steps[0].x + 26), Y(by1 + 72)).lineTo(X(steps[1].x - 26), Y(by1 + 72)).stroke();
+  doc.moveTo(X(steps[1].x + 26), Y(by1 + 72)).lineTo(X(steps[2].x - 26), Y(by1 + 72)).stroke();
   doc.undash().restore();
   steps.forEach((step, index) => {
-    doc.circle(X(step.x), Y(by1 + 74), 16 * s).fill("#d11a2a");
-    text(String(index + 1), step.x, by1 + 80, 17, { color: "#ffffff" });
-    text(step.label, step.x, by1 + 108, 15, { color: "#3a332c" });
+    doc.circle(X(step.x), Y(by1 + 72), 16 * s).fill("#d11a2a");
+    text(String(index + 1), step.x, by1 + 78, 17, { color: "#ffffff" });
+    text(step.label, step.x, by1 + 104, 15, { color: "#3a332c" });
   });
 
   // Footer.
   doc.rect(X(0), Y(840 - 96), W, 96 * s).fill("#111116");
-  text("GARAGE COFFEE & MOTOR", 40, 840 - 54, 17, { color: "#ffffff", align: "left", spacing: 1.5 });
+  text("GARAGE COFFEE", 40, 840 - 54, 18, { color: "#ffffff", align: "left", spacing: 2 });
   text("Butuh bantuan? Panggil pelayan.", 40, 840 - 30, 13, { color: "#f5a742", align: "left" });
   doc.rect(X(540 - 150), Y(840 - 96), 150 * s, 96 * s).fill("#d11a2a");
   text("MEJA", 540 - 75, 840 - 62, 12, { color: "#ffd7dc", spacing: 4 });

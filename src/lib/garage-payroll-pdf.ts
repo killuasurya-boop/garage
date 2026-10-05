@@ -72,6 +72,7 @@ export async function generatePayrollSlipPdf(data: PayrollPdfData): Promise<Buff
         doc.font("Helvetica").fontSize(9).fillColor("#666666").text("Tanggal Transfer:", 40, 194);
         doc.font("Helvetica").fontSize(9).fillColor(darkColor).text(
           new Date(data.paidAt).toLocaleDateString("id-ID", {
+            timeZone: "Asia/Jakarta",
             day: "numeric",
             month: "long",
             year: "numeric"

@@ -115,6 +115,15 @@ export const auth = betterAuth({
       generateId: () => crypto.randomUUID(),
     },
   },
+  // Semua HP/tablet outlet keluar lewat SATU IP publik (NAT WiFi kafe). Bawaan
+  // Better Auth (3 login / 10 detik per IP) membuat staf ditolak saat login
+  // bersamaan di awal shift. Proteksi brute-force utama = penguncian per akun
+  // (hooks di bawah) + batas per IP di route /api/auth.
+  rateLimit: {
+    customRules: {
+      "/sign-in/email": { window: 60, max: 40 },
+    },
+  },
   plugins: [
     twoFactor({
       issuer: "Garage Coffee & Motor",

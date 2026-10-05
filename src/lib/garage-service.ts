@@ -5093,9 +5093,7 @@ export async function getApprovalStats() {
   const allRows = await db.select().from(approvals);
 
   const now = Date.now();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayMs = todayStart.getTime();
+  const todayMs = getJakartaTodayRange().start.getTime();
 
   let pending = 0;
   let pendingHighRisk = 0;
@@ -5169,13 +5167,13 @@ export async function getAuditData(params?: {
     filters.push(eq(auditLogs.status, params.status));
   }
   if (params?.dateFrom) {
-    const from = new Date(`${params.dateFrom}T00:00:00.000Z`);
+    const from = new Date(`${params.dateFrom}T00:00:00.000${jakartaOffset}`);
     if (!Number.isNaN(from.getTime())) {
       filters.push(gte(auditLogs.createdAt, from));
     }
   }
   if (params?.dateTo) {
-    const to = new Date(`${params.dateTo}T23:59:59.999Z`);
+    const to = new Date(`${params.dateTo}T23:59:59.999${jakartaOffset}`);
     if (!Number.isNaN(to.getTime())) {
       filters.push(lt(auditLogs.createdAt, new Date(to.getTime() + 1)));
     }
@@ -5229,8 +5227,7 @@ export async function getAuditData(params?: {
 // Stats untuk header bar di Audit Log viewer
 export async function getAuditStats() {
   const db = getDb();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = getJakartaTodayRange().start;
 
   const allRowsToday = await db
     .select({
@@ -5428,14 +5425,14 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
   }
 
   if (filter.dateFrom) {
-    const from = new Date(`${filter.dateFrom}T00:00:00.000Z`);
+    const from = new Date(`${filter.dateFrom}T00:00:00.000${jakartaOffset}`);
     if (!Number.isNaN(from.getTime())) {
       conditions.push(gte(orders.createdAt, from));
     }
   }
 
   if (filter.dateTo) {
-    const to = new Date(`${filter.dateTo}T23:59:59.999Z`);
+    const to = new Date(`${filter.dateTo}T23:59:59.999${jakartaOffset}`);
     if (!Number.isNaN(to.getTime())) {
       conditions.push(lt(orders.createdAt, new Date(to.getTime() + 1)));
     }
@@ -8467,7 +8464,10 @@ export async function updateCustomerOrderStatus(
 ) {
   const db = getDb();
   const result = await db.transaction(async (tx) => {
-    const [order] = await tx.select().from(orders).where(eq(orders.id, id)).limit(1);
+    // FOR UPDATE: dua kasir/klik ganda "Terima"/"Lunas" diserialkan pada baris
+    // order; permintaan kedua membaca status terbaru lalu jatuh ke cabang
+    // idempoten di bawah (tanpa tiket, stok, pembayaran, atau kas ganda).
+    const [order] = await tx.select().from(orders).where(eq(orders.id, id)).limit(1).for("update");
     if (!order || !customerOrderSources.includes(order.orderSource)) {
       return null;
     }
@@ -9724,6 +9724,8 @@ async function createOrderOnce(
     : 0;
   const baseAfterVoucher = Math.max(0, grossTotal - voucherDiscount);
   let manualDiscountValue = 0;
+  // Satu approval diskon manual hanya untuk SATU order (ditandai di dalam transaksi).
+  let usedDiscountApprovalId: string | null = null;
   if (input.manualDiscount) {
     // Diskon (voucher / manual / point) hanya untuk member terdaftar.
     if (!input.customerId && !input.memberPhone) {
@@ -9742,6 +9744,7 @@ async function createOrderOnce(
     }
     if (manualDiscountNeedsApproval(manualDiscountValue, baseAfterVoucher, settings)) {
       const approvalId = input.manualDiscount.approvalId?.trim();
+      usedDiscountApprovalId = approvalId || null;
       if (!approvalId) {
         throw new Error(
           `Diskon di atas ${settings.manualDiscountApprovalPct}% bill wajib approval supervisor dulu.`,
@@ -9869,6 +9872,27 @@ async function createOrderOnce(
       .for("no key update");
     if (!lockedCashSession) {
       throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
+    }
+
+    if (usedDiscountApprovalId) {
+      // Bersyarat: approval yang sudah dipakai order lain ditolak (anti pakai ulang).
+      const claimed = await tx
+        .update(approvals)
+        .set({
+          payload: sql`${approvals.payload} || ${JSON.stringify({ usedByOrderNo: orderNo })}::jsonb`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(approvals.id, usedDiscountApprovalId),
+            eq(approvals.status, "approved"),
+            sql`not (${approvals.payload} ? 'usedByOrderNo')`,
+          ),
+        )
+        .returning({ id: approvals.id });
+      if (!claimed.length) {
+        throw new Error("Approval diskon manual ini sudah dipakai untuk order lain. Ajukan approval baru.");
+      }
     }
 
     let memberReward: {
@@ -10607,8 +10631,26 @@ export async function claimKitchenTicket(ticketNo: string, garage: GarageSession
       claimedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    // Bersyarat: dua waiter menekan bersamaan → hanya satu yang menang.
+    .where(
+      and(
+        eq(kitchenTickets.ticketNo, ticketNo),
+        eq(kitchenTickets.status, "ready"),
+        or(isNull(kitchenTickets.claimedBy), eq(kitchenTickets.claimedBy, garage.user.id)),
+      ),
+    )
     .returning();
+  if (!updated) {
+    const [latest] = await db
+      .select({ claimedByName: kitchenTickets.claimedByName, status: kitchenTickets.status })
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.ticketNo, ticketNo))
+      .limit(1);
+    if (latest && latest.status !== "ready") {
+      throw new KitchenTransitionError(latest.status, "picked_up");
+    }
+    throw new TicketClaimError(latest?.claimedByName ?? "waiter lain");
+  }
   if (updated) {
     await createAuditLog({
       actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
@@ -12780,8 +12822,13 @@ function isUuidLike(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function findOutletOrder(db: GarageDb | GarageTx, idOrOrderNo: string, garage: GarageSession) {
-  const [order] = await db
+async function findOutletOrder(
+  db: GarageDb | GarageTx,
+  idOrOrderNo: string,
+  garage: GarageSession,
+  options?: { forUpdate?: boolean },
+) {
+  const query = db
     .select()
     .from(orders)
     .where(
@@ -12791,6 +12838,9 @@ async function findOutletOrder(db: GarageDb | GarageTx, idOrOrderNo: string, gar
       ),
     )
     .limit(1);
+  // forUpdate (hanya di dalam transaksi): void/refund bersamaan diserialkan pada
+  // baris order agar stok & kas tidak dikembalikan dua kali.
+  const [order] = options?.forUpdate ? await query.for("update") : await query;
   return order ?? null;
 }
 
@@ -13698,7 +13748,7 @@ export async function voidOrder(
   await assertOrderDayOpen(idOrOrderNo, garage);
 
   const result = await db.transaction(async (tx) => {
-    const order = await findOutletOrder(tx, idOrOrderNo, garage);
+    const order = await findOutletOrder(tx, idOrOrderNo, garage, { forUpdate: true });
     if (!order) {
       throw new Error("Order tidak ditemukan.");
     }
@@ -13857,7 +13907,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
   await assertOrderDayOpen(orderId, garage);
 
   const refunded = await db.transaction(async (tx) => {
-    const order = await findOutletOrder(tx, orderId, garage);
+    const order = await findOutletOrder(tx, orderId, garage, { forUpdate: true });
     if (!order) throw new Error("Order tidak ditemukan.");
     if (order.status !== "paid") {
       throw new Error("Order sudah tidak berstatus lunas — refund dibatalkan.");
@@ -16469,13 +16519,13 @@ export async function getSmartReorderSuggestions(params?: { windowDays?: number 
 
 export async function getWarehouseDailyAuditSummary(params?: { date?: string }) {
   const db = getDb();
-  const start = params?.date ? new Date(`${params.date}T00:00:00`) : new Date();
-  if (Number.isNaN(start.getTime())) {
-    start.setTime(Date.now());
-  }
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  // Batas hari WIB (00:00–24:00 Asia/Jakarta), bukan zona server.
+  const requested = params?.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+    ? new Date(`${params.date}T00:00:00${jakartaOffset}`)
+    : null;
+  const { start, end } = getJakartaTodayRange(
+    requested && !Number.isNaN(requested.getTime()) ? requested : new Date(),
+  );
 
   const [movementRows, receivingRows, issuedRows, stockRows] = await Promise.all([
     db
@@ -16574,7 +16624,7 @@ export async function getWarehouseDailyAuditSummary(params?: { date?: string }) 
   );
 
   return {
-    date: start.toISOString().slice(0, 10),
+    date: getJakartaDateKey(start),
     generatedAt: new Date().toISOString(),
     movementCount: movementRows.length,
     receivingCount: receivingRows.length,

@@ -118,6 +118,7 @@ export function buildKitchenChitContent(input: KitchenChitInput): string {
       ? new Intl.DateTimeFormat("id-ID", {
           dateStyle: "short",
           timeStyle: "short",
+          timeZone: "Asia/Jakarta",
         }).format(new Date(iso))
       : "-";
 
@@ -194,7 +195,7 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
   const fmt = (v: number | null | undefined) => currency.format(v ?? 0);
   const fmtDate = (iso: string | null | undefined) =>
     iso ? new Intl.DateTimeFormat("id-ID", {
-      dateStyle: "short", timeStyle: "short",
+      dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jakarta",
     }).format(new Date(iso)) : "-";
   const W = 32; // 57/58mm thermal paper, Generic/Text driver.
 

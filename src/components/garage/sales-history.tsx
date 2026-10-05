@@ -160,7 +160,11 @@ type OrderReceiptData = {
 export function SalesHistoryView() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Tanggal hari ini menurut WIB (toISOString = UTC → 00:00–07:00 WIB jadi "kemarin").
+  const today = useMemo(
+    () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date()),
+    [],
+  );
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
   const [selectedId, setSelectedId] = useState<string | null>(null);

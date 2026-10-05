@@ -10,6 +10,7 @@ const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Asia/Jakarta",
   });
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -295,7 +296,7 @@ export async function generateInvoicePdf(data: OrderReceiptData): Promise<Buffer
           .fontSize(8)
           .fillColor("#999")
           .text(
-            `Dicetak ${new Date().toLocaleString("id-ID")} · Halaman ${i + 1} dari ${range.count}`,
+            `Dicetak ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} · Halaman ${i + 1} dari ${range.count}`,
             48,
             812,
             { width: 499, align: "center" },

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { decideApproval, getApprovalById } from "@/lib/garage-service";
+import { canUseApi } from "@/lib/role-access";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -34,6 +35,11 @@ export async function GET(
   const approval = await getApprovalById(id);
   if (!approval) {
     return fail(404, "APPROVAL_NOT_FOUND", "Pengajuan tidak ditemukan.");
+  }
+  // Kasir/Waiter hanya perlu status pengajuan (polling diskon/void) — detail
+  // nominal, alasan & pemohon hanya untuk yang berhak memutuskan approval.
+  if (!canUseApi(session.data.profile.role, "approvals:decide")) {
+    return ok({ id: approval.id, type: approval.type, status: approval.status });
   }
   return ok(approval);
 }

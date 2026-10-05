@@ -12,7 +12,14 @@
 // Pakai (server Garage HARUS mati):
 //   npx tsx src/db/reset-grand-opening.ts                      # dry-run
 //   npx tsx src/db/reset-grand-opening.ts --apply --yes        # terapkan
-//   Opsi: --reset-member-points  (poin & riwayat poin member ikut di-nol-kan)
+//   npx tsx src/db/reset-grand-opening.ts --status             # bukti kondisi fresh (baca saja)
+//   Opsi: --reset-member-points  (poin, kunjungan & riwayat poin member ikut di-nol-kan)
+//         --backup-done          (Postgres/VPS: backup sudah dibuat lewat
+//                                 `docker compose run --rm backup once pre-reset`)
+//
+// Setelah --apply, skrip memeriksa ulang: order, pembayaran, kas, QRIS,
+// transfer, pengeluaran, absensi, wallet gaji/fee, stok & pembelian harus 0.
+// Bila ada yang tidak 0 → keluar dengan error (bukan "fresh").
 // =============================================================================
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -237,13 +244,77 @@ export async function applyGrandOpeningReset(
       await tx.execute(sql.raw(RESET_SQL[table as (typeof RESET_TABLES)[number]]));
     }
     if (options.resetMemberPoints) {
-      await tx.execute(sql.raw(`UPDATE customers SET points = 0`));
+      await tx.execute(sql.raw(`UPDATE customers SET points = 0, visits = 0, last_order = '-'`));
     }
   });
 }
 
+export type FreshCheck = { label: string; value: number; money: boolean };
+
+/** Angka yang WAJIB 0 pada sistem fresh (transaksi & saldo), dibaca langsung dari DB. */
+export async function readFreshStatus(db: { execute: (query: ReturnType<typeof sql.raw>) => Promise<unknown> }) {
+  const one = async (query: string) => {
+    try {
+      return Number(rowsOf(await db.execute(sql.raw(query)))[0]?.v ?? 0);
+    } catch {
+      return 0; // tabel/kolom tidak ada di DB lama → dianggap 0
+    }
+  };
+  const paid = `status = 'captured'`;
+  const checks: FreshCheck[] = [
+    { label: "Order", value: await one(`select count(*)::bigint as v from orders`), money: false },
+    { label: "Omzet (order lunas)", value: await one(`select coalesce(sum(total),0)::bigint as v from orders where status = 'paid'`), money: true },
+    { label: "Pembayaran (baris)", value: await one(`select count(*)::bigint as v from payments`), money: false },
+    { label: "Cash", value: await one(`select coalesce(sum(amount),0)::bigint as v from payments where ${paid} and lower(method) similar to '%(cash|tunai)%'`), money: true },
+    { label: "QRIS", value: await one(`select coalesce(sum(amount),0)::bigint as v from payments where ${paid} and lower(method) like '%qris%'`), money: true },
+    { label: "Transfer", value: await one(`select coalesce(sum(amount),0)::bigint as v from payments where ${paid} and lower(method) similar to '%(transfer|bank)%'`), money: true },
+    { label: "Refund/Void (order)", value: await one(`select count(*)::bigint as v from orders where status in ('voided','refunded')`), money: false },
+    { label: "Approval/koreksi", value: await one(`select count(*)::bigint as v from approvals`), money: false },
+    { label: "Sesi kas (shift)", value: await one(`select count(*)::bigint as v from cash_sessions`), money: false },
+    { label: "Kas di laci (expected)", value: await one(`select coalesce(sum(expected_cash),0)::bigint as v from cash_sessions`), money: true },
+    { label: "Pengeluaran", value: await one(`select coalesce(sum(amount),0)::bigint as v from expenses`), money: true },
+    { label: "Piutang/Hutang supplier", value: await one(`select count(*)::bigint as v from supplier_invoices`), money: false },
+    { label: "Absensi", value: await one(`select (select count(*) from employee_attendances) + (select count(*) from staff_attendance_v2) as v`), money: false },
+    { label: "Wallet gaji", value: await one(`select coalesce(sum(total_credited),0)::bigint as v from staff_daily_wages`), money: true },
+    { label: "Wallet fee/bonus", value: await one(`select (select coalesce(sum(amount),0) from fee_pool_splits) + (select coalesce(sum(amount),0) from staff_earnings) as v`), money: true },
+    { label: "Kasbon", value: await one(`select coalesce(sum(amount),0)::bigint as v from staff_cash_advances`), money: true },
+    { label: "Pergerakan stok", value: await one(`select (select count(*) from stock_movements) + (select count(*) from wms_stock_movement) as v`), money: false },
+    { label: "Stok di gudang (qty)", value: await one(`select (select coalesce(sum(on_hand),0) from inventory_items) + (select coalesce(sum(qty),0) from wms_warehouse_stock) as v`), money: false },
+    { label: "Pembelian/penerimaan", value: await one(`select (select count(*) from supplier_receivings) + (select count(*) from wms_receiving) as v`), money: false },
+  ];
+  // Riwayat audit bukan transaksi: setelah reset, pembuatan akun go-live ikut
+  // tercatat (wajar). Ditampilkan sebagai info, tidak menggagalkan status fresh.
+  const auditEntries = await one(`select count(*)::bigint as v from audit_logs`);
+  const masters = {
+    akunStaf: await one(`select count(*)::bigint as v from staff_profiles`),
+    menu: await one(`select count(*)::bigint as v from menu_items`),
+    resep: await one(`select count(*)::bigint as v from menu_recipes`),
+    bahan: await one(`select count(*)::bigint as v from inventory_items`),
+    meja: await one(`select count(*)::bigint as v from dining_tables`),
+    supplier: await one(`select count(*)::bigint as v from suppliers`),
+    pengaturan: await one(`select count(*)::bigint as v from app_settings`),
+  };
+  return { checks, masters, auditEntries, fresh: checks.every((c) => c.value === 0) };
+}
+
+function printFreshStatus(status: Awaited<ReturnType<typeof readFreshStatus>>) {
+  const rupiah = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(n)}`;
+  console.log("\n=== STATUS FRESH (harus 0 semua) ===");
+  for (const check of status.checks) {
+    const shown = check.money ? rupiah(check.value) : String(check.value);
+    console.log(`  ${check.value === 0 ? "OK " : "XX "} ${check.label.padEnd(28)} ${shown}`);
+  }
+  console.log(`\nInfo: riwayat audit ${status.auditEntries} baris (setup akun/konfigurasi setelah reset).`);
+  console.log("\nMaster tetap tersedia:");
+  for (const [key, value] of Object.entries(status.masters)) console.log(`  ${key.padEnd(12)} ${value}`);
+  if (status.masters.meja === 0) console.log("  (meja 0 baris = semua Meja 01–50 aktif; atur di Pengaturan → Meja & QR)");
+  console.log(status.fresh ? "\nHASIL: FRESH ✓ (semua transaksi & saldo 0)" : "\nHASIL: BELUM FRESH ✗");
+}
+
 async function main() {
   const apply = process.argv.includes("--apply");
+  const statusOnly = process.argv.includes("--status");
+  const backupDone = process.argv.includes("--backup-done");
   const confirmed = process.argv.includes("--yes");
   const resetMemberPoints = process.argv.includes("--reset-member-points");
   const driver = (process.env.GARAGE_DB_DRIVER ?? "pglite").trim().toLowerCase();
@@ -264,15 +335,29 @@ async function main() {
       fs.cpSync(dataDir, target, { recursive: true });
       fs.rmSync(path.join(target, "postmaster.pid"), { force: true });
       console.log(`Backup PGlite: ${target}`);
+    } else if (backupDone) {
+      console.log("Backup Postgres: dinyatakan sudah dibuat (--backup-done). Pastikan file pre-reset ada di ./backups.");
     } else {
       const backup = spawnSync(process.execPath, ["scripts/backup.mjs"], { stdio: "inherit", env: process.env });
-      if (backup.status !== 0) throw new Error("Backup Postgres gagal — reset dibatalkan.");
+      if (backup.status !== 0) {
+        throw new Error(
+          "Backup Postgres gagal — reset dibatalkan. Di VPS: `docker compose --env-file .env.production run --rm backup once pre-reset` lalu ulangi dengan --backup-done.",
+        );
+      }
     }
   }
 
   const { ensureDatabaseReady, getDb, getPgPool } = await import("@/db");
   await ensureDatabaseReady();
   const db = getDb();
+
+  if (statusOnly) {
+    const status = await readFreshStatus(db);
+    printFreshStatus(status);
+    await (getPgPool() as { close?: () => Promise<void>; end?: () => Promise<void> }).close?.();
+    if (!status.fresh) process.exitCode = 2;
+    return;
+  }
 
   const { existing, foreignKeys } = await readDbShape(db);
 
@@ -322,6 +407,11 @@ async function main() {
   await applyGrandOpeningReset(db, plan, { resetMemberPoints });
 
   console.log(`\nRESET SELESAI: ${totalRows} baris transaksi dihapus, stok & pemakaian voucher di-nol-kan.`);
+  const status = await readFreshStatus(db);
+  printFreshStatus(status);
+  if (!status.fresh) {
+    throw new Error("Verifikasi gagal: masih ada transaksi/saldo yang tidak 0 (lihat XX di atas).");
+  }
   console.log("Lanjutkan runbook: docs/GRAND-OPENING-H-1.md (stock opname pembukaan, cek akun, buka shift).");
   await (getPgPool() as { close?: () => Promise<void>; end?: () => Promise<void> }).close?.();
 }
@@ -329,7 +419,7 @@ async function main() {
 // Jalankan hanya bila dieksekusi langsung (bukan saat diimpor tes).
 if (process.argv[1] && /reset-grand-opening\.ts$/.test(process.argv[1])) {
   main()
-    .then(() => process.exit(0))
+    .then(() => process.exit(process.exitCode ?? 0))
     .catch((error) => {
       console.error("GAGAL:", error instanceof Error ? error.message : error);
       process.exit(1);

@@ -85,6 +85,12 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
       response: fail(403, "ACCOUNT_SUSPENDED", "Akun anda di-suspend oleh admin."),
     };
   }
+  if (row.status === "inactive") {
+    return {
+      data: null,
+      response: fail(403, "ACCOUNT_INACTIVE", "Akun anda sudah tidak aktif. Hubungi Owner/Manajer."),
+    };
+  }
 
   // Update lastLoginAt sekali per sesi: kalau session lebih baru dari last login,
   // berarti login baru → catat. Idempotent: hit kedua dst di sesi yang sama no-op.

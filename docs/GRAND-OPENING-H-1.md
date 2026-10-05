@@ -77,3 +77,58 @@ Lalu nyalakan server seperti biasa (`JALANKAN-GARAGE-PRODUKSI.bat`).
 
 - Buka `/control` → Readiness Audit.
 - Targetkan status **GO**. Blocker keamanan yang tersisa dari audit terakhir (2FA Owner/Manajer, ganti password default, backup harian) dikerjakan sebelum buka.
+
+---
+
+## Versi VPS (garagecoffee.id, Docker) — fresh go-live
+
+Jalankan di VPS dari folder `/root/garage`. `C` = `docker compose --env-file .env.production`.
+Skrip memakai container `migrate` (kode & `tsx` sudah ada di image).
+
+```bash
+C="docker compose --env-file .env.production"
+T="$C run --rm migrate node_modules/.bin/tsx"
+
+# 1. Hentikan transaksi: matikan aplikasi (DB tetap jalan)
+$C stop app
+
+# 2. Backup dulu (WAJIB) → ./backups/garage-pre-reset-*.sql.gz
+$C run --rm backup once pre-reset
+
+# 3. Lihat rencana (dry-run, tidak mengubah apa pun)
+$T src/db/reset-grand-opening.ts
+
+# 4. Terapkan reset + verifikasi otomatis "FRESH ✓" (semua transaksi & saldo 0)
+$T src/db/reset-grand-opening.ts --apply --yes --backup-done
+#    tambah --reset-member-points bila poin/kunjungan member berasal dari uji coba
+
+# 5. Samakan 11 akun operasional (dry-run dulu, lalu --apply).
+#    Akun di luar daftar hanya dihapus bila --remove-others.
+$T src/scripts/garage-setup-accounts.ts
+$T src/scripts/garage-setup-accounts.ts --apply --remove-others
+#    → CATAT password sementara yang tercetak (sekali saja); wajib ganti saat login pertama.
+
+# 6. Nyalakan aplikasi & cek bukti fresh (boleh diulang kapan saja, baca saja)
+$C up -d app
+$T src/db/reset-grand-opening.ts --status
+```
+
+11 akun operasional (pemetaan ke 4 role Garage OS):
+
+| Akun | Jabatan | Role | Workstation |
+|---|---|---|---|
+| owner@garage.id | Owner | Owner | – |
+| manajer@garage.id | Manajer | Manajer | – |
+| barista1@ / barista2@garage.id | Barista (POS + BAR) | Kasir | Produksi BAR |
+| waiter1@ / waiter2@ / waiter3@garage.id | Waiter | Waiter | – |
+| koki@garage.id | Koki | Kasir | Produksi DAPUR |
+| asisten.koki@garage.id | Asisten Koki | Kasir | Produksi DAPUR |
+| helper.bar@garage.id | Helper Bar | Kasir | Helper BAR |
+| helper.dapur@garage.id | Helper Dapur | Kasir | Helper DAPUR |
+
+Owner/Manajer yang sudah ada **tidak diubah password-nya**. Nama tampilan bisa
+diganti ke nama asli staf di Manajemen User setelahnya.
+
+Uji alur bisnis (opsional, di server uji — **bukan** produksi):
+`SMOKE_BASE=http://127.0.0.1:3002 SMOKE_PASSWORD=… node scripts/smoke-golive.mjs`
+lalu reset lagi (langkah 2–4).

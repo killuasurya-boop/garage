@@ -46,6 +46,7 @@ import {
   roleDisplayName,
   updateKitchenStatus,
 } from "@/lib/garage-service";
+import { notifyingProduction } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
 const ACTIVE_TICKET_STATUSES = ["queue", "cooking", "ready"];
@@ -459,7 +460,7 @@ export async function productionTicketAction(
 // Smart Batch
 // ---------------------------------------------------------------------------
 
-export async function startProductionBatch(ticketItemIds: string[], garage: GarageSession) {
+async function startProductionBatchImpl(ticketItemIds: string[], garage: GarageSession) {
   const ids = [...new Set(ticketItemIds)];
   if (ids.length < 2) {
     throw new ProductionBatchError("Batch butuh minimal 2 porsi.", "BATCH_INVALID");
@@ -603,7 +604,7 @@ export async function startProductionBatch(ticketItemIds: string[], garage: Gara
  * 100%). Bila kurang, tidak ada yang disimpan dan error UNALLOCATED membawa
  * jumlah porsi yang belum teralokasi.
  */
-export async function completeProductionBatch(
+async function completeProductionBatchImpl(
   batchId: string,
   allocationIds: string[],
   garage: GarageSession,
@@ -715,7 +716,7 @@ export async function completeProductionBatch(
   return { batch: result.batch, readyTicketNos: readied };
 }
 
-export async function cancelProductionBatch(
+async function cancelProductionBatchImpl(
   batchId: string,
   reason: string,
   garage: GarageSession,
@@ -787,3 +788,9 @@ export async function markProductionChitsPrinted(ticketNos: string[]): Promise<n
     .returning({ id: kitchenTickets.id });
   return rows.length;
 }
+
+// Realtime: setiap mutasi produksi yang SUKSES memancarkan tanda perubahan
+// (Production Hub & Control Center langsung mengambil ulang). Lihat production-events.ts.
+export const startProductionBatch = notifyingProduction(startProductionBatchImpl);
+export const completeProductionBatch = notifyingProduction(completeProductionBatchImpl);
+export const cancelProductionBatch = notifyingProduction(cancelProductionBatchImpl);

@@ -40,6 +40,8 @@ const patchSchema = z.object({
   receiptCopies: z.number().int().min(1).max(5).optional(),
   kitchenChitAutoPrint: z.boolean().optional(),
   productionBatchWindowSec: z.number().int().min(0).max(900).optional(),
+  productionTargetBarMinutes: z.number().int().min(1).max(60).optional(),
+  productionTargetFoodMinutes: z.number().int().min(1).max(90).optional(),
   pointsPerThousand: z.number().min(0).max(10).optional(),
   voucherMaxDiscountPct: z.number().min(0).max(100).optional(),
   qrPromoPct: z.number().min(0).max(100).optional(),

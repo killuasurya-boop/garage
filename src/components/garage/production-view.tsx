@@ -54,6 +54,7 @@ import {
   workstationLabel,
 } from "@/lib/garage-production-rules";
 import { isOnlineChannel, voice } from "@/lib/garage-voice";
+import { useProductionStream } from "@/lib/use-production-stream";
 
 const VoiceSettingsDialog = dynamic(
   () => import("@/components/garage/voice-settings-dialog").then((m) => m.VoiceSettingsDialog),
@@ -68,6 +69,8 @@ type StationFilter = "all" | "Bar" | "Food";
 type StatusColumn = "queue" | "cooking" | "ready";
 
 const POLL_MS = 4000;
+// Saat stream realtime terhubung, polling hanya cadangan.
+const POLL_LIVE_MS = 15_000;
 const RUSH_WAITING_THRESHOLD = 8;
 
 const COLUMN_META: Record<StatusColumn, { label: string; hint: string; tone: string }> = {
@@ -179,6 +182,8 @@ export function ProductionView({
     }
   }, []);
 
+  const { connected: live } = useProductionStream(useCallback(() => void load(true), [load]));
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch awal; state di-set di callback async
     void load();
@@ -186,7 +191,7 @@ export function ProductionView({
       if (typeof document !== "undefined" && document.hidden) return;
       void load(true);
     };
-    const id = window.setInterval(tick, POLL_MS);
+    const id = window.setInterval(tick, live ? POLL_LIVE_MS : POLL_MS);
     const onVisible = () => {
       if (!document.hidden) tick();
     };
@@ -197,7 +202,7 @@ export function ProductionView({
       document.removeEventListener("visibilitychange", onVisible);
       unsub();
     };
-  }, [load]);
+  }, [load, live]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);

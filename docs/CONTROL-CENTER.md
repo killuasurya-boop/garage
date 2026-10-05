@@ -7,7 +7,10 @@ harus dikerjakan **sekarang**, dan apakah Garage membaik.
 - Satu sumber data: Production Hub (`getProductionBoard`) + tabel yang sudah ada. Tidak ada tabel
   order/produksi baru, tidak ada migrasi.
 - **Tanpa nominal uang** (omzet, harga, margin, gaji) — aman dilihat semua role.
-- Data diperbarui tiap 10 detik (berhenti saat tab tidak terlihat) + langsung setelah aksi produksi.
+- **Realtime**: setiap mutasi produksi yang sukses (order masuk, terima order, mulai/siap, batch
+  mulai/selesai/batal, serah-terima, pindah meja, void) memancarkan tanda lewat SSE
+  `/api/production/stream`; Control Center & Production Hub langsung memuat ulang. Header menampilkan
+  **LIVE**. Bila koneksi putus → **Polling** (Control Center 10 dtk, Production 4 dtk).
 - Tombol **MULAI BATCH** memakai API batch Production Hub yang sama (atomik; bila batch sudah diambil
   staf lain, server menolak dan layar tidak berubah). Hanya tampil untuk akun yang boleh produksi
   di station itu.
@@ -43,7 +46,8 @@ Label: ≥ 75 TINGGI, ≥ 50 SEDANG, < 50 RENDAH. "Hemat N× mulai" = porsi − 
 | NORMAL | selain itu |
 
 "Mendekati SLA" = umur ≥ 80% target; "lewat SLA" = umur > target. Target: minuman 5 menit,
-makanan 15 menit (`kitchenTargetMinutes`).
+makanan 15 menit — bisa diubah di **Pengaturan → Production Hub → Target SLA Bar / Dapur** (berlaku
+untuk tiket baru; tiket yang sudah ada tetap memakai target lamanya).
 
 ## Beban station
 `beban % = menit kerja antre ÷ (staf hadir × 30 menit) × 100`
@@ -78,6 +82,6 @@ diri sendiri; tidak ada ranking publik.
 - Persiapan & stok: bahan *low*/*watch* dari Warehouse — rekomendasi saja, stok tidak dipotong.
 
 ## Belum dikerjakan (TODO)
-- Target SLA per station/produk yang bisa diubah dari Pengaturan (sekarang tertanam saat tiket dibuat).
 - Batch window default 2 menit (`productionBatchWindowSec`, bisa diubah Owner di Pengaturan).
-- Log event produksi khusus & realtime push (sekarang polling 10 detik).
+- Bus realtime in-memory: cukup untuk satu server (VPS sekarang). Bila nanti lebih dari satu
+  instance, ganti ke Postgres LISTEN/NOTIFY atau Redis.

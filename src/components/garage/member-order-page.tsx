@@ -6,6 +6,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, ty
 import {
   AlertTriangle,
   Banknote,
+  Bike,
   ChefHat,
   ChevronUp,
   CheckCircle2,
@@ -26,6 +27,7 @@ import {
   ShoppingBag,
   TicketPercent,
   User,
+  MapPin,
 } from "lucide-react";
 
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
@@ -73,6 +75,10 @@ import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-setting
 import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
+import { waLink } from "@/lib/whatsapp-link";
+import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
+
+const garageWhatsappUrl = (number: string, text: string) => waLink(number, text) ?? undefined;
 
 type ApiEnvelope<T> =
   | { data: T; error?: never }
@@ -96,6 +102,8 @@ type QrContext = {
   campaign?: string;
   /** Nomor meja QR tidak valid / meja nonaktif → checkout diblokir dengan pesan ini. */
   tableIssue?: string;
+  /** Info netral (bukan error), mis. pengunjung dari Instagram otomatis Take away. */
+  tableHint?: string;
 };
 
 type CartLine = {
@@ -136,6 +144,7 @@ const HERO_SECTION_ID = "menu-unggulan";
 const number = new Intl.NumberFormat("id-ID");
 
 const customerPaymentMethods: CustomerPaymentMethod[] = ["Cash", "QRIS", "Bank Transfer"];
+// WhatsApp Garage untuk konfirmasi bukti bayar take away / delivery.
 const customerBankAccounts = [
   { id: "BCA", label: "BCA - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
   { id: "BRI", label: "BRI - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
@@ -236,7 +245,7 @@ function ChatBubble({ msg }: { msg: ChatMsg }) {
   );
 }
 
-function CustomerChatPanel({ tableLabel }: { tableLabel: string }) {
+function CustomerChatPanel({ tableLabel, title }: { tableLabel: string; title?: string }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -326,7 +335,7 @@ function CustomerChatPanel({ tableLabel }: { tableLabel: string }) {
         className="garage-press mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-garage-red/45 bg-garage-red/12 px-3 py-2.5 text-xs font-bold text-[#ffc2c8] transition hover:bg-garage-red/20"
       >
         <MessageCircle className="size-4" />
-        Chat langsung dengan kasir
+        {title ?? "Chat langsung dengan kasir"}
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
@@ -716,12 +725,14 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   const anyCooking = rawStations.some(
     (entry) => entry.status === "cooking" && entry.cookingStartedAt,
   );
-  // Tick per detik HANYA saat ada station sedang dimasak (hemat render).
+  const courierMoving = status?.deliveryStatus === "on_the_way" || status?.deliveryStatus === "picked_up";
+  // Tick per detik HANYA saat ada station sedang dimasak (hemat render); saat
+  // kurir jalan cukup tiap 20 detik untuk teks "update x menit lalu".
   useEffect(() => {
-    if (!anyCooking) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    if (!anyCooking && !courierMoving) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), anyCooking ? 1000 : 20_000);
     return () => window.clearInterval(id);
-  }, [anyCooking]);
+  }, [anyCooking, courierMoving]);
 
   const stations = rawStations.map((entry) => {
     const ready = entry.status === "ready" || entry.status === "delivered";
@@ -746,10 +757,12 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
   if (rejected) {
     return (
       <div className="mt-3 rounded-md border border-garage-red/50 bg-garage-red/12 p-3 text-sm font-semibold text-[#ffc9c9]">
-        Pesanan ditolak kasir. Silakan hubungi staf.
+        Pesanan ditolak{status?.rejectionReason ? `: ${status.rejectionReason}` : " kasir"}. Silakan pesan ulang atau hubungi staf.
       </div>
     );
   }
+  const typedSteps = status?.steps ?? [];
+  const isDeliveryOrder = status?.fulfillment === "delivery";
 
   const steps = [
     { label: "Masuk kasir", icon: ReceiptText },
@@ -764,8 +777,16 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
         <div className="flex items-center gap-3 rounded-md border border-garage-success/45 bg-garage-success/12 p-3">
           <PackageCheck className="size-7 shrink-0 text-[#86efac]" />
           <div className="min-w-0">
-            <p className="text-base font-bold text-[#bbf7d0]">Pesanan siap</p>
-            <p className="text-sm text-[#dcfce7]">Silakan ambil atau akan segera diantar.</p>
+            <p className="text-base font-bold text-[#bbf7d0]">
+              {status?.fulfillment === "takeaway" ? "Pesanan siap diambil" : isDeliveryOrder ? "Pesanan siap diantar" : "Pesanan siap"}
+            </p>
+            <p className="text-sm text-[#dcfce7]">
+              {status?.fulfillment === "takeaway"
+                ? "Ambil di kasir Garage, sebutkan nomor pesanan."
+                : isDeliveryOrder
+                  ? "Sedang dipacking dan diserahkan ke kurir."
+                  : "Segera diantar ke meja Anda."}
+            </p>
           </div>
         </div>
       ) : done ? (
@@ -798,33 +819,43 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
         </div>
       )}
 
-      <div className="flex items-start gap-1.5">
-        {steps.map((step, index) => {
-          const reached = index <= stepIndex;
-          const current = index === stepIndex && !done;
-          const Icon = step.icon;
-          return (
-            <div key={step.label} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className={`flex size-8 items-center justify-center rounded-md border transition-colors ${
-                  reached
-                    ? "border-garage-success/55 bg-garage-success/15 text-[#86efac]"
-                    : "border-garage-line bg-garage-bg-2 text-garage-mute"
-                } ${current ? "ring-2 ring-garage-amber/60" : ""}`}
-              >
-                <Icon className="size-4" />
+      {typedSteps.length ? (
+        <>
+          <FulfillmentBadge fulfillment={status?.fulfillment} tableLabel={status?.tableLabel} compact />
+          <TrackerSteps steps={typedSteps} />
+          {isDeliveryOrder && status?.courier ? (
+            <CourierLiveCard courier={status.courier} deliveryStatus={status.deliveryStatus} nowMs={nowMs} />
+          ) : null}
+        </>
+      ) : (
+        <div className="flex items-start gap-1.5">
+          {steps.map((step, index) => {
+            const reached = index <= stepIndex;
+            const current = index === stepIndex && !done;
+            const Icon = step.icon;
+            return (
+              <div key={step.label} className="flex flex-1 flex-col items-center gap-1">
+                <div
+                  className={`flex size-8 items-center justify-center rounded-md border transition-colors ${
+                    reached
+                      ? "border-garage-success/55 bg-garage-success/15 text-[#86efac]"
+                      : "border-garage-line bg-garage-bg-2 text-garage-mute"
+                  } ${current ? "ring-2 ring-garage-amber/60" : ""}`}
+                >
+                  <Icon className="size-4" />
+                </div>
+                <span
+                  className={`text-center text-xs font-bold ${
+                    current ? "text-[#ffd9b3]" : reached ? "text-[#dcfce7]" : "text-garage-mute"
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span
-                className={`text-center text-xs font-bold ${
-                  current ? "text-[#ffd9b3]" : reached ? "text-[#dcfce7]" : "text-garage-mute"
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {stations.length ? (
         <div className="flex flex-wrap gap-2">
@@ -847,7 +878,8 @@ function OrderTracker({ status }: { status: PublicOrderStatus | null }) {
                 className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-bold tabular-nums ${tone}`}
               >
                 <StationIcon station={entry.station} />
-                {entry.station}: {label}
+                {entry.station}
+                {entry.verb && !entry.ready ? ` · ${entry.verb}` : ""}: {label}
               </span>
             );
           })}
@@ -877,7 +909,18 @@ export function MemberOrderPage({
   // Pengaturan tagihan outlet dari server (sama dengan createCustomerOrder).
   billing?: Pick<
     AppSettings,
-    "serviceChargePct" | "taxPct" | "roundingMode" | "voucherMaxDiscountPct" | "qrPromoPct" | "qrPromoMaxAmount"
+    | "serviceChargePct"
+    | "taxPct"
+    | "roundingMode"
+    | "voucherMaxDiscountPct"
+    | "qrPromoPct"
+    | "qrPromoMaxAmount"
+    | "deliveryEnabled"
+    | "deliveryFee"
+    | "deliveryMinItems"
+    | "deliveryAreaNote"
+    | "garageWhatsapp"
+    | "unpaidOrderAutoRejectMinutes"
   >;
   // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
   initialOrderingOpen?: boolean;
@@ -920,6 +963,29 @@ export function MemberOrderPage({
   const [voucherResult, setVoucherResult] = useState<VoucherValidation | null>(null);
   const [voucherBusy, setVoucherBusy] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<CustomerPaymentMethod>("Cash");
+  // Pesan dari luar Garage (link tanpa meja): Take away atau Delivery.
+  const [fulfillment, setFulfillment] = useState<"takeaway" | "delivery">("takeaway");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryLandmark, setDeliveryLandmark] = useState("");
+  // Lokasi pelanggan (opsional) — supaya jarak kurir bisa ditampilkan di pelacak.
+  const [customerLocation, setCustomerLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationState, setLocationState] = useState<"idle" | "loading" | "denied">("idle");
+  const requestCustomerLocation = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationState("denied");
+      return;
+    }
+    setLocationState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCustomerLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setLocationState("idle");
+      },
+      () => setLocationState("denied"),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
+    );
+  };
   const [paymentProvider, setPaymentProvider] = useState(customerBankAccounts[0].id);
   const [paymentReference, setPaymentReference] = useState("");
   const [returnPath] = useState(() => initialReturnPath ?? readReturnPath());
@@ -1163,8 +1229,22 @@ export function MemberOrderPage({
     ? capVoucherDiscountBySettings(voucherResult.discount, subtotal, billingSettings)
     : 0;
   const discount = Math.min(grossTotal, promoDiscount);
-  const total = Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount));
+  // Take away ↔ Delivery hanya untuk order dari link (bukan QR meja / mode waiter).
+  const canChooseFulfillment = qrContext.orderType === "takeaway" && !staffOrder;
+  const deliveryAvailable = canChooseFulfillment && billingSettings.deliveryEnabled;
+  const effectiveOrderType: OrderType =
+    deliveryAvailable && fulfillment === "delivery" ? "delivery" : qrContext.orderType;
+  const isDelivery = effectiveOrderType === "delivery";
+  // Ongkir di luar service & pajak (sama dengan server).
+  const deliveryFee = isDelivery ? billingSettings.deliveryFee : 0;
+  const total =
+    Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount)) + deliveryFee;
   const itemCount = cartLines.reduce((sum, line) => sum + line.qty, 0);
+  const allowedPaymentMethods: CustomerPaymentMethod[] = isDelivery ? ["QRIS"] : customerPaymentMethods;
+  const phoneDigits = guestPhone.replace(/\D/g, "");
+  const deliveryPhoneMissing = isDelivery && mode === "guest" && phoneDigits.length < 8;
+  const deliveryAddressMissing = isDelivery && deliveryAddress.trim().length < 10;
+  const deliveryBelowMin = isDelivery && itemCount < billingSettings.deliveryMinItems;
   const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = !staffOrder && mode === "guest" && !guestName.trim();
@@ -1173,11 +1253,7 @@ export function MemberOrderPage({
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
   const cashPaymentLabel =
-    qrContext.orderType === "delivery"
-      ? "COD"
-      : qrContext.orderType === "takeaway"
-        ? "Bayar Saat Ambil"
-        : "Bayar di Meja / Kasir";
+    effectiveOrderType === "takeaway" ? "Bayar di kasir" : "Bayar di Meja / Kasir";
   const paymentProviderValue =
     paymentMethod === "QRIS"
       ? qrisProvider
@@ -1191,9 +1267,18 @@ export function MemberOrderPage({
     !memberMissing &&
     !soldOutCartLine &&
     orderingOpen &&
-    !qrContext.tableIssue;
+    !qrContext.tableIssue &&
+    !deliveryPhoneMissing &&
+    !deliveryAddressMissing &&
+    !deliveryBelowMin;
   const checkoutBlockReason = qrContext.tableIssue
     ? qrContext.tableIssue
+    : deliveryBelowMin
+    ? `Minimal pemesanan delivery ${billingSettings.deliveryMinItems} produk.`
+    : deliveryPhoneMissing
+    ? "Isi nomor WhatsApp untuk delivery."
+    : deliveryAddressMissing
+    ? "Isi alamat pengantaran lengkap."
     : !orderingOpen
     ? "Kasir belum buka. Order bisa dikirim setelah outlet buka."
     : memberMissing
@@ -1204,13 +1289,18 @@ export function MemberOrderPage({
         ? "Lengkapi nama customer."
         : "";
   const channelLabel =
-    qrContext.orderType === "takeaway"
+    effectiveOrderType === "takeaway"
       ? "Takeaway"
-      : qrContext.orderType === "delivery"
+      : effectiveOrderType === "delivery"
         ? "Delivery"
         : "Dine-in";
+  // Delivery: tanpa estimasi waktu (keputusan owner).
   const etaLabel =
-    qrContext.orderType === "takeaway" ? "Siap ambil 15–20 menit" : "Diantar ke meja";
+    effectiveOrderType === "takeaway"
+      ? "Siap ambil 15–20 menit"
+      : effectiveOrderType === "delivery"
+        ? "Diantar kurir Garage"
+        : "Diantar ke meja";
 
   function add(itemId: string, variantId: string, delta: number) {
     const item = menuItems.find((entry) => entry.id === itemId);
@@ -1350,8 +1440,16 @@ export function MemberOrderPage({
             })()
           : undefined;
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", {
-        orderType: qrContext.orderType,
-        tableLabel: qrContext.tableLabel,
+        orderType: effectiveOrderType,
+        tableLabel: isDelivery ? undefined : qrContext.tableLabel,
+        guestPhone: mode === "guest" && phoneDigits.length >= 8 ? guestPhone.trim() : undefined,
+        deliveryAddress: isDelivery
+          ? [deliveryAddress.trim(), deliveryLandmark.trim() ? `Patokan: ${deliveryLandmark.trim()}` : ""]
+              .filter(Boolean)
+              .join(" — ")
+          : undefined,
+        customerLat: isDelivery ? customerLocation?.lat : undefined,
+        customerLng: isDelivery ? customerLocation?.lng : undefined,
         outletId: qrContext.outletId,
         customerMode: mode,
         guestName: mode === "guest" ? guestName.trim() : undefined,
@@ -1438,6 +1536,7 @@ export function MemberOrderPage({
       {voucherDiscount > 0 ? (
         <BillLine label="Voucher tambahan" value={`- ${rupiah.format(voucherDiscount)}`} />
       ) : null}
+      {deliveryFee > 0 ? <BillLine label="Ongkir (Tebing Tinggi)" value={rupiah.format(deliveryFee)} /> : null}
     </>
   );
 
@@ -1446,6 +1545,123 @@ export function MemberOrderPage({
 
   const checkoutContent = (
     <>
+      {canChooseFulfillment ? (
+        <section className="rounded-lg border border-garage-line bg-garage-bg-2/60 p-3.5">
+          <p className="text-sm font-bold text-white">Cara pesan</p>
+          <div className="mt-2 grid grid-cols-2 gap-1 rounded-md border border-garage-line bg-garage-bg-1 p-1" role="radiogroup" aria-label="Cara pesan">
+            {(
+              [
+                ["takeaway", "Take away", "Ambil di Garage", ShoppingBag],
+                ["delivery", "Delivery", deliveryAvailable ? `Ongkir ${rupiah.format(billingSettings.deliveryFee)}` : "Sedang tidak tersedia", Bike],
+              ] as const
+            ).map(([value, label, hint, Icon]) => {
+              const selected = (value === "delivery" ? isDelivery : !isDelivery);
+              const disabled = value === "delivery" && !deliveryAvailable;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={disabled}
+                  onClick={() => {
+                    setFulfillment(value);
+                    // Delivery wajib bayar QRIS dulu (tanpa COD).
+                    if (value === "delivery") setPaymentMethod("QRIS");
+                  }}
+                  className={`garage-press flex min-h-12 items-center gap-2 rounded-sm px-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selected ? "bg-garage-red text-white" : "text-garage-dim hover:bg-garage-bg-3"
+                  }`}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold">{label}</span>
+                    <span className={`block text-xs ${selected ? "text-white/85" : "text-garage-mute"}`}>{hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {isDelivery ? (
+            <div className="mt-3 grid gap-3">
+              <ul className="list-disc space-y-0.5 pl-5 text-sm leading-6 text-garage-dim">
+                <li>Minimal {billingSettings.deliveryMinItems} produk · ongkir {rupiah.format(billingSettings.deliveryFee)}.</li>
+                <li>Wajib bayar QRIS dulu; pesanan dibuat & diantar setelah pembayaran dicek kasir.</li>
+                <li>{billingSettings.deliveryAreaNote}</li>
+              </ul>
+              {deliveryBelowMin ? (
+                <p className="rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3 py-2 text-sm font-semibold text-white" role="alert">
+                  Tambah {billingSettings.deliveryMinItems - itemCount} produk lagi untuk delivery.
+                </p>
+              ) : null}
+              {mode === "guest" ? (
+                <label className="grid gap-1.5">
+                  <span className="text-sm font-bold text-garage-dim">No. WhatsApp</span>
+                  <input
+                    value={guestPhone}
+                    onChange={(event) => setGuestPhone(event.target.value)}
+                    inputMode="tel"
+                    autoComplete="tel"
+                    className={`${inputClass} border-garage-line`}
+                    placeholder="08xxxxxxxxxx"
+                  />
+                </label>
+              ) : null}
+              <label className="grid gap-1.5">
+                <span className="text-sm font-bold text-garage-dim">Alamat lengkap</span>
+                <textarea
+                  value={deliveryAddress}
+                  onChange={(event) => setDeliveryAddress(event.target.value)}
+                  rows={3}
+                  maxLength={240}
+                  autoComplete="street-address"
+                  className="w-full rounded-md border border-garage-line bg-garage-bg-2 px-3.5 py-2.5 text-base text-white outline-none transition-colors placeholder:text-garage-mute focus:border-garage-amber"
+                  placeholder="Jalan, nomor rumah, kelurahan"
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <span className="text-sm font-bold text-garage-dim">Patokan (opsional)</span>
+                <input
+                  value={deliveryLandmark}
+                  onChange={(event) => setDeliveryLandmark(event.target.value)}
+                  maxLength={50}
+                  className={`${inputClass} border-garage-line`}
+                  placeholder="Contoh: depan masjid, pagar hijau"
+                />
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={requestCustomerLocation}
+                  disabled={locationState === "loading"}
+                  className={`garage-press inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-bold transition-colors ${
+                    customerLocation
+                      ? "border-garage-amber/60 bg-garage-amber/12 text-[#ffd79a]"
+                      : "border-garage-line-2 bg-garage-bg-2 text-white hover:bg-garage-bg-3"
+                  }`}
+                >
+                  <MapPin className="size-4" aria-hidden />
+                  {locationState === "loading"
+                    ? "Mencari lokasi…"
+                    : customerLocation
+                      ? "Lokasi tersimpan ✓"
+                      : "Pakai lokasi saya (opsional)"}
+                </button>
+                <span className="text-xs text-garage-dim">
+                  {locationState === "denied"
+                    ? "Izin lokasi ditolak — alamat saja sudah cukup."
+                    : "Membantu kurir & menampilkan jarak kurir ke Anda."}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm leading-6 text-garage-dim">
+              Ambil di Garage. Bayar QRIS/Transfer dulu atau bayar di kasir — pesanan dibuat setelah lunas.
+            </p>
+          )}
+        </section>
+      ) : null}
+
       {/* 1. PESANAN — review item: ubah qty, catatan per item, rincian tagihan. */}
       <section className="rounded-lg border border-garage-line bg-garage-bg-2/60 p-3.5">
         <StepHeading
@@ -1623,9 +1839,20 @@ export function MemberOrderPage({
       {/* 3. PEMBAYARAN */}
       <section className="rounded-lg border border-garage-line bg-garage-bg-2/60 p-3.5">
         <StepHeading step={3} title="Pembayaran" />
-        <div className="mt-3 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Metode pembayaran">
-          {customerPaymentMethods.map((method) => {
-            const label = method === "Cash" ? "Tunai" : method === "QRIS" ? "QRIS" : "Transfer";
+        <div
+          className={`mt-3 grid gap-2 ${allowedPaymentMethods.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}
+          role="radiogroup"
+          aria-label="Metode pembayaran"
+        >
+          {allowedPaymentMethods.map((method) => {
+            const label =
+              method === "Cash"
+                ? effectiveOrderType === "takeaway"
+                  ? "Bayar di kasir"
+                  : "Tunai"
+                : method === "QRIS"
+                  ? "QRIS"
+                  : "Transfer";
             const Icon = method === "Cash" ? Banknote : method === "QRIS" ? QrCode : Landmark;
             const selected = paymentMethod === method;
             return (
@@ -1653,8 +1880,15 @@ export function MemberOrderPage({
 
         {paymentMethod === "Cash" ? (
           <p className="mt-3 text-sm leading-6 text-garage-dim">
-            <strong className="text-white">{cashPaymentLabel}</strong> — bayar tunai langsung ke staf. Kasir
-            mengonfirmasi sebelum pesanan diproses.
+            <strong className="text-white">{cashPaymentLabel}</strong> —{" "}
+            {effectiveOrderType === "takeaway"
+              ? "datang & bayar langsung di kasir Garage. Pesanan dibuat setelah lunas."
+              : "bayar tunai langsung ke staf. Kasir mengonfirmasi sebelum pesanan diproses."}
+          </p>
+        ) : effectiveOrderType !== "dine-in" ? (
+          <p className="mt-3 text-sm leading-6 text-garage-dim">
+            Pesanan dibuat setelah pembayaran dicek kasir. Setelah kirim pesanan, tekan{" "}
+            <strong className="text-white">Kirim bukti bayar via WhatsApp</strong>.
           </p>
         ) : null}
 
@@ -1765,7 +1999,7 @@ export function MemberOrderPage({
         <OrderHeader
           tableLabel={qrContext.tableLabel}
           tableCode={compactTableNumber(qrContext.tableLabel)}
-          dineIn={qrContext.orderType === "dine-in"}
+          dineIn={effectiveOrderType === "dine-in"}
           channelLabel={channelLabel}
           etaLabel={etaLabel}
           loginHref={loginHref}
@@ -1786,6 +2020,19 @@ export function MemberOrderPage({
 
         <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
+            {!staffOrder && !qrContext.tableIssue ? (
+              <div className="mb-4 space-y-2" role="status">
+                {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
+                <FulfillmentBadge fulfillment={effectiveOrderType} tableLabel={qrContext.tableLabel} />
+                {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
+                {canChooseFulfillment ? (
+                  <CustomerChatPanel
+                    tableLabel={`${isDelivery ? "Delivery" : "Take away"}${guestName.trim() ? ` · ${guestName.trim()}` : ""}`.slice(0, 40)}
+                    title="Chat kasir (take away & delivery)"
+                  />
+                ) : null}
+              </div>
+            ) : null}
             {qrContext.tableIssue ? (
               <div
                 className="mb-4 flex items-start gap-3 rounded-md border border-garage-red-bright/55 bg-garage-red/12 px-3.5 py-3"
@@ -1939,6 +2186,22 @@ export function MemberOrderPage({
                             Tracking belum dibuat
                           </span>
                         )}
+                        {lastOrder.order.paymentMethod && lastOrder.order.paymentMethod !== "Cash" &&
+                        (lastOrder.order.fulfillment === "takeaway" || lastOrder.order.fulfillment === "delivery") ? (
+                          <a
+                            href={garageWhatsappUrl(billingSettings.garageWhatsapp,
+                              `Halo Garage, saya sudah bayar ${lastOrder.order.paymentMethod} untuk pesanan ${lastOrder.order.orderNo} (${
+                                lastOrder.order.fulfillment === "delivery" ? "Delivery" : "Take away"
+                              }) a.n. ${lastOrder.order.customerName ?? "-"}. Bukti bayar terlampir.`,
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`${invoiceButtonClass} border-garage-amber/55 text-[#ffd79a] hover:bg-garage-amber/12`}
+                          >
+                            <MessageCircle size={16} />
+                            Kirim bukti bayar via WhatsApp
+                          </a>
+                        ) : null}
                         {whatsappInvoiceUrl ? (
                           <a
                             href={whatsappInvoiceUrl}
@@ -2125,7 +2388,9 @@ export function MemberOrderPage({
           className="inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[92svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-xl sm:border"
         >
           <SheetHeader className="border-b border-garage-line p-4 text-left">
-            <SheetTitle className="pr-8 font-sans text-xl font-bold text-white">Checkout · {qrContext.tableLabel}</SheetTitle>
+            <SheetTitle className="pr-8 font-sans text-xl font-bold text-white">
+              Checkout · {isDelivery ? "Delivery" : qrContext.tableLabel}
+            </SheetTitle>
             <SheetDescription className="text-sm text-garage-dim">
               {staffOrder
                 ? "Cek pesanan lalu kirim ke kasir."

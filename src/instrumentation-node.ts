@@ -19,7 +19,25 @@ export async function registerNode() {
   // Backup otomatis harian + tiap ~6 jam (hanya database lokal PGlite).
   if (process.env.NODE_ENV === "production") {
     startBackupScheduler();
+    startUnpaidOrderSweeper();
   }
+}
+
+// Tolak otomatis order take away/delivery yang tidak dibayar dalam batas waktu
+// (Pengaturan → Delivery, default 30 menit). Tiap menit; modul dimuat malas
+// supaya startup server tetap ringan.
+function startUnpaidOrderSweeper() {
+  if (process.env.GARAGE_DISABLE_AUTO_REJECT === "true") return;
+  const timer = setInterval(async () => {
+    try {
+      const { sweepUnpaidOrders } = await import("@/lib/garage-courier");
+      const rejected = await sweepUnpaidOrders();
+      if (rejected.length) console.log(`[auto-reject] ${rejected.length} order belum bayar ditolak: ${rejected.join(", ")}`);
+    } catch (error) {
+      console.warn("[auto-reject] sapuan gagal:", error instanceof Error ? error.message : error);
+    }
+  }, 60_000);
+  timer.unref?.();
 }
 
 // Pemanasan halaman setelah server siap. Tanpa ini pengunjung PERTAMA setelah

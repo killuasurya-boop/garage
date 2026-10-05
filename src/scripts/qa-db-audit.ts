@@ -215,7 +215,7 @@ async function main() {
   await check(
     "Integritas",
     "workstation valid",
-    `SELECT count(*) FROM staff_profiles WHERE workstation IS NOT NULL AND workstation NOT IN ('bar','dapur','all','helper_bar','helper_dapur','helper_all')`,
+    `SELECT count(*) FROM staff_profiles WHERE workstation IS NOT NULL AND workstation NOT IN ('bar','dapur','all','helper_bar','helper_dapur','helper_all','kurir')`,
   );
 
   // Terminal POS dengan kunci default dev (hash sha256 "garage-pos-dev-key").

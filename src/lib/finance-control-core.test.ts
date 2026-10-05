@@ -51,6 +51,7 @@ function raw(partial: Partial<DayRaw>): DayRaw {
     date: "2026-09-23",
     orderCount: 0,
     netSales: 0,
+    deliveryFees: 0,
     discount: 0,
     refund: 0,
     voidCount: 0,
@@ -71,6 +72,17 @@ function raw(partial: Partial<DayRaw>): DayRaw {
 }
 
 describe("computeDayFigure", () => {
+  it("ongkir delivery dicatat terpisah: tidak menambah net sales / gross profit, kas tetap masuk", () => {
+    const figure = computeDayFigure(
+      raw({ netSales: 100_000, deliveryFees: 10_000, payments: { QRIS: 110_000 } }),
+      config,
+    );
+    expect(figure.netSales).toBe(100_000);
+    expect(figure.deliveryFees).toBe(10_000);
+    expect(figure.grossSales).toBe(100_000);
+    expect(figure.cashIn).toBe(110_000);
+  });
+
   it("menghitung P&L: net sales − HPP − payroll − opex = net profit", () => {
     const figure = computeDayFigure(
       raw({ netSales: 2_000_000, discount: 50_000, refund: 20_000, cogs: 700_000, payrollWages: 400_000, payrollFee: 10_000 }),

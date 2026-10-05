@@ -532,6 +532,25 @@ export const orders = pgTable(
     customerPhone: text("customer_phone"),
     customerNote: text("customer_note"),
     campaign: text("campaign"),
+    // Order online: "dine-in" | "takeaway" | "delivery" (null = order POS/lama).
+    // Take away & delivery WAJIB lunas sebelum masuk produksi.
+    fulfillment: text("fulfillment"),
+    // Delivery: alamat + patokan, ongkir (Rp, di luar service/pajak), status antar
+    // ("preparing" | "picked_up" | "on_the_way" | "delivered"; null = belum/ bukan delivery).
+    deliveryAddress: text("delivery_address"),
+    deliveryFee: integer("delivery_fee").notNull().default(0),
+    deliveryStatus: text("delivery_status"),
+    // Kurir yang ditugaskan kasir (akun Waiter workstation "kurir") + posisi GPS
+    // terakhirnya (hanya selama pengantaran; dihapus saat selesai demi privasi).
+    courierUserId: text("courier_user_id").references(() => user.id, { onDelete: "set null" }),
+    courierName: text("courier_name"),
+    courierLat: numeric("courier_lat", { precision: 9, scale: 6, mode: "number" }),
+    courierLng: numeric("courier_lng", { precision: 9, scale: 6, mode: "number" }),
+    courierLocationAt: timestamp("courier_location_at", { withTimezone: true }),
+    // Lokasi pelanggan (opsional, dibagikan saat checkout delivery).
+    customerLat: numeric("customer_lat", { precision: 9, scale: 6, mode: "number" }),
+    customerLng: numeric("customer_lng", { precision: 9, scale: 6, mode: "number" }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     whatsappInvoiceStatus: text("whatsapp_invoice_status").notNull().default("not_sent"),
     whatsappInvoiceUrl: text("whatsapp_invoice_url"),
     invoiceTrackingToken: text("invoice_tracking_token"),

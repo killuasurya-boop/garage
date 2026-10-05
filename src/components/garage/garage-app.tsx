@@ -299,6 +299,10 @@ const OpsCenterView = dynamic(
   () => import("@/components/garage/ops-center-view").then((m) => m.OpsCenterView),
   { loading: ModuleChunkFallback },
 );
+const CourierView = dynamic(
+  () => import("@/components/garage/courier-view").then((m) => m.CourierView),
+  { loading: ModuleChunkFallback },
+);
 const ProductionView = dynamic(
   () => import("@/components/garage/production-view").then((m) => m.ProductionView),
   { loading: ModuleChunkFallback },
@@ -1392,6 +1396,7 @@ function GarageWorkspace({
             {safeActiveModule === "ops-center" && (
               <OpsCenterView me={data.me} onNavigate={handleModuleChange} />
             )}
+            {safeActiveModule === "courier" && <CourierView me={data.me} />}
             {safeActiveModule === "ai-agent" && <AiPosAgentView me={data.me} />}
             {safeActiveModule === "kitchen" && (
               <div className="space-y-3">
@@ -1867,7 +1872,7 @@ function ModuleNav({
   const NAV_GROUPS: Array<{ title: string; ids: ModuleId[] }> = [
     { title: "Ringkasan", ids: ["dashboard", "ops-center", "ai-agent"] },
     { title: "Absensi & Wallet", ids: ["absensi-v2", "wallet-gaji", "wallet-fee"] },
-    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "produk", "inventory", "smart-notif"] },
+    { title: "Operasional", ids: ["pos", "kitchen", "waiter", "courier", "produk", "inventory", "smart-notif"] },
     { title: "Pelanggan & Penjualan", ids: ["crm", "membership", "marketing", "website"] },
     { title: "Keuangan", ids: ["finance", "earnings", "payroll-owner", "approvals"] },
     {

@@ -80,6 +80,8 @@ useState
 import {
 bankAccounts,
 canAcceptCustomerOrder,
+customerOrderFulfillmentLabel,
+deliveryStatusLabel,
 canConfirmCustomerPayment,
 canFinalizeCustomerOrder,
 canRejectCustomerOrder,
@@ -221,6 +223,7 @@ isLocalQrBaseUrl,
 import { formatTableDuration } from "@/lib/garage-tables";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
+import { DeliveryOrderPanel } from "@/components/garage/delivery-order-panel";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
 import {
   PosOrderCancelDialog,
@@ -2106,6 +2109,25 @@ export function PosView({
     previousNeedsCleaningRef.current = currentNeedsCleaning;
   }, [tableLiveRows]);
 
+  // Status pengantaran order delivery yang sudah lunas (dikelola tim Garage).
+  async function setDeliveryStatus(order: CustomerOrder, deliveryStatus: "preparing" | "on_the_way" | "delivered") {
+    if (customerOrderActionId) return;
+    setCustomerOrderActionId(`${order.id}:delivery`);
+    setCustomerOrderError(null);
+    try {
+      await garageApi.patch<CustomerOrderActionResponse>(`/api/customer/orders/${order.id}/status`, {
+        action: "delivery_status",
+        deliveryStatus,
+      });
+      setPosNotice(`${order.orderNo}: ${deliveryStatusLabel[deliveryStatus]}.`);
+      await loadCustomerOrders({ silent: true });
+    } catch (error) {
+      setCustomerOrderError(error instanceof Error ? error.message : "Status pengantaran gagal disimpan.");
+    } finally {
+      setCustomerOrderActionId(null);
+    }
+  }
+
   async function decideCustomerOrder(
     order: CustomerOrder,
     action:
@@ -2169,8 +2191,11 @@ export function PosView({
           orderNo: order.orderNo,
           queueNo: order.queueNo ?? null,
           tableLabel: order.tableLabel,
-          orderType: order.orderSource,
+          orderType: order.fulfillment ?? order.orderSource,
           createdAt: order.createdAt,
+          customerName: order.customerName,
+          customerPhone: order.fulfillment === "delivery" ? order.customerPhone : null,
+          deliveryAddress: order.fulfillment === "delivery" ? order.deliveryAddress ?? null : null,
           items: order.items.map((item) => ({
             name: item.itemName,
             variant: item.variantLabel,
@@ -2232,7 +2257,11 @@ export function PosView({
   function openFinalizeDialog(order: CustomerOrder) {
     const method = customerOrderPaymentMethod(order);
     setFinalizeMethod(
-      (paymentMethods as readonly string[]).includes(method) ? (method as PaymentMethod) : "Cash",
+      order.fulfillment === "delivery"
+        ? "QRIS"
+        : (paymentMethods as readonly string[]).includes(method)
+          ? (method as PaymentMethod)
+          : "Cash",
     );
     setFinalizeCash("");
     setFinalizeOrderTarget(order);
@@ -3281,6 +3310,8 @@ export function PosView({
     cashierName?: string | null;
     waiterName?: string | null;
     customerName?: string | null;
+    customerPhone?: string | null;
+    deliveryAddress?: string | null;
     items: KitchenChitItem[];
     // force = cetak walau auto-print mati (mis. tombol "cetak ulang chit").
     force?: boolean;
@@ -5553,13 +5584,21 @@ export function PosView({
               <p className="garage-mono text-[11px] uppercase tracking-wide text-[#b8b8bf]">
                 Metode bayar
               </p>
+              {finalizeOrderTarget.fulfillment === "delivery" ? (
+                <p className="text-xs font-semibold text-[#ffd79a]">
+                  Delivery hanya QRIS — cek mutasi QRIS dulu, baru tandai lunas & antar.
+                </p>
+              ) : null}
               <div className="grid grid-cols-2 gap-1.5">
-                {paymentMethods.map((method) => (
+                {(finalizeOrderTarget.fulfillment === "delivery"
+                  ? (["QRIS"] as PaymentMethod[])
+                  : paymentMethods
+                ).map((method) => (
                   <button
                     key={method}
                     type="button"
                     onClick={() => setFinalizeMethod(method)}
-                    disabled={method === "QRIS" && !qrisImageReady}
+                    disabled={method === "QRIS" && !qrisImageReady && finalizeOrderTarget.fulfillment !== "delivery"}
                     className={`garage-press h-10 rounded-md border text-sm font-bold disabled:opacity-40 ${
                       finalizeMethod === method
                         ? "border-[#f5a742] bg-[#f5a742] text-black"
@@ -6829,6 +6868,25 @@ export function PosView({
                         {itemSummary}
                       </p>
                     </div>
+                    {order.fulfillment === "delivery" ? (
+                      <div className="mt-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/[0.07] px-3 py-2 text-xs leading-5 text-white">
+                        <p className="break-words">
+                          <span className="font-black text-[#ffd79a]">DELIVERY · Antar ke:</span>{" "}
+                          {order.deliveryAddress ?? "-"}
+                        </p>
+                        <p className="mt-0.5 text-[#d0d0d6]">
+                          Ongkir {currency.format(order.deliveryFee ?? 0)} · wajib QRIS dulu
+                          {order.deliveryStatus
+                            ? ` · ${deliveryStatusLabel[order.deliveryStatus] ?? order.deliveryStatus}`
+                            : ""}
+                          {order.courierName ? ` · Kurir ${order.courierName}` : order.status === "paid" ? " · Belum ada kurir" : ""}
+                        </p>
+                      </div>
+                    ) : order.fulfillment === "takeaway" && order.status !== "paid" ? (
+                      <p className="mt-2 text-xs font-semibold text-[#ffd79a]">
+                        TAKE AWAY · wajib lunas dulu (QRIS/Transfer dicek, atau bayar di kasir).
+                      </p>
+                    ) : null}
                     {order.customerNote ? (
                       <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#ffd08a]">
                         Catatan: {order.customerNote}
@@ -7565,6 +7623,11 @@ export function PosView({
                               <div className="min-w-0">
                                 <div className="flex min-w-0 items-center gap-2">
                                   <h3 className="truncate text-base font-black text-white">{order.tableLabel}</h3>
+                                  {customerOrderFulfillmentLabel(order) ? (
+                                    <Badge className="shrink-0 border-[#f5a742]/55 bg-[#f5a742]/16 px-2 text-[10px] font-black text-[#ffd79a]">
+                                      {customerOrderFulfillmentLabel(order)}
+                                    </Badge>
+                                  ) : null}
                                   <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
                                     {order.customerMode}
                                   </Badge>
@@ -7609,6 +7672,22 @@ export function PosView({
                                 Catatan: {order.customerNote}
                               </p>
                             ) : null}
+                            {order.fulfillment === "delivery" ? (
+                              <div className="mt-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/[0.07] px-3 py-2 text-xs leading-5 text-white">
+                                <p className="break-words">
+                                  <span className="font-black text-[#ffd79a]">Antar ke:</span> {order.deliveryAddress ?? "-"}
+                                </p>
+                                <p className="mt-0.5 text-[#d0d0d6]">
+                                  Ongkir {currency.format(order.deliveryFee ?? 0)} · wajib QRIS
+                                  {order.deliveryStatus ? ` · ${deliveryStatusLabel[order.deliveryStatus] ?? order.deliveryStatus}` : ""}
+                                  {order.courierName ? ` · Kurir ${order.courierName}` : order.status === "paid" ? " · Belum ada kurir" : ""}
+                                </p>
+                              </div>
+                            ) : order.fulfillment === "takeaway" && order.status !== "paid" ? (
+                              <p className="mt-2 text-xs font-semibold text-[#ffd79a]">
+                                Take away: wajib lunas dulu, baru pesanan dibuat.
+                              </p>
+                            ) : null}
                             <div className="mt-3 grid grid-cols-4 gap-2">
                               <Button
                                 type="button"
@@ -7623,30 +7702,58 @@ export function PosView({
                               >
                                 Detail
                               </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="garage-press h-9 px-2 text-[11px]"
-                                disabled={Boolean(busyAction)}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void decideCustomerOrder(order, "accept");
-                                }}
-                              >
-                                Terima
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="garage-press h-9 bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
-                                disabled={Boolean(busyAction)}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openFinalizeDialog(order);
-                                }}
-                              >
-                                Terima
-                              </Button>
+                              {canAcceptCustomerOrder(order) ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="garage-press h-9 px-2 text-[11px]"
+                                  disabled={Boolean(busyAction)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void decideCustomerOrder(order, "accept");
+                                  }}
+                                >
+                                  Terima
+                                </Button>
+                              ) : order.fulfillment === "delivery" && order.status === "paid" ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="garage-press h-9 px-2 text-[11px]"
+                                  disabled={Boolean(busyAction) || Boolean(customerOrderActionId)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void setDeliveryStatus(
+                                      order,
+                                      order.deliveryStatus === "on_the_way" ? "delivered" : "on_the_way",
+                                    );
+                                  }}
+                                >
+                                  {order.deliveryStatus === "on_the_way" ? "Selesai antar" : "Mulai antar"}
+                                </Button>
+                              ) : (
+                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-[#34343c] px-1 text-center text-[10px] font-bold leading-tight text-[#b8b8c2]">
+                                  Bayar dulu
+                                </span>
+                              )}
+                              {canFinalizeCustomerOrder(order) ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="garage-press h-9 bg-[#22c55e] px-2 text-[11px] text-white hover:bg-[#16a34a]"
+                                  disabled={Boolean(busyAction)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openFinalizeDialog(order);
+                                  }}
+                                >
+                                  Terima Bayar
+                                </Button>
+                              ) : (
+                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-[#34343c] px-1 text-[10px] font-bold text-[#d4d4d8]">
+                                  Lunas
+                                </span>
+                              )}
                               {order.whatsappInvoiceUrl ? (
                                 <a
                                   href={order.whatsappInvoiceUrl}
@@ -8065,6 +8172,16 @@ export function PosView({
                     </div>
                   ) : null}
                 </div>
+              ) : null}
+
+              {selectedCustomerOrder.fulfillment === "delivery" || selectedCustomerOrder.fulfillment === "takeaway" ? (
+                <DeliveryOrderPanel
+                  order={selectedCustomerOrder}
+                  busy={Boolean(customerOrderActionId)}
+                  autoRejectMinutes={settings.unpaidOrderAutoRejectMinutes}
+                  onSetStatus={(step) => void setDeliveryStatus(selectedCustomerOrder, step)}
+                  onChanged={() => void loadCustomerOrders({ silent: true })}
+                />
               ) : null}
 
               <div className="flex flex-wrap gap-2">

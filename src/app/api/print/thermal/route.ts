@@ -22,6 +22,8 @@ const chitSchema = z.object({
   cashierName: optionalString,
   waiterName: optionalString,
   customerName: optionalString,
+  customerPhone: optionalString,
+  deliveryAddress: optionalString,
   items: z.array(
     z.object({
       name: z.string(),
@@ -94,6 +96,13 @@ const thermalSchema = z.object({
       totalPoints: optionalNumber,
     }).nullish(),
     invoiceWebUrl: optionalString,
+    delivery: z.object({
+      customerName: optionalString,
+      customerPhone: optionalString,
+      address: optionalString,
+      courierName: optionalString,
+      fee: optionalNumber,
+    }).nullish(),
   }).nullish(),
   printerName: optionalString,
   copies: z.number().int().min(1).max(5).nullish(),

@@ -806,6 +806,9 @@ export default async function InvoiceTrackingPage({
                   discount
                 />
               )}
+              {invoice.deliveryFee > 0 && (
+                <TotalRow label="Ongkir delivery" value={rupiah.format(invoice.deliveryFee)} />
+              )}
               <div className="mt-3 border-t border-[#34343c] pt-3 invoice-total-row">
                 <TotalRow
                   label="Total"

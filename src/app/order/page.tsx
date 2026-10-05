@@ -41,7 +41,12 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
     rawSource === "instagram" || rawSource === "campaign" || rawSource === "qr_takeaway"
       ? rawSource
       : "qr_table";
-  const orderType = source === "qr_takeaway" ? "takeaway" : "dine-in";
+  // Link tanpa nomor meja (bio Instagram, kampanye, garagecoffee.id/order polos)
+  // berarti pengunjung tidak sedang duduk di meja → otomatis Take away, bukan
+  // peringatan "Meja belum dikenali". Peringatan tetap muncul untuk QR meja yang
+  // rusak: source=qr_table eksplisit tanpa nomor, atau nomor meja tidak valid.
+  const fromLinkWithoutTable = !rawTable && rawSource !== "qr_table";
+  const orderType = source === "qr_takeaway" || fromLinkWithoutTable ? "takeaway" : "dine-in";
   // Dine-in: nomor meja dirapikan ("6" → "Meja 06"). Nomor tidak valid/tidak ada
   // ditandai sejak halaman dibuka (bukan baru ditolak saat checkout).
   const tableNumber = orderType === "dine-in" ? parseTableNumber(rawTable ?? null) : null;
@@ -65,6 +70,9 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
     outletId: uuidOrUndefined(firstParam(params, "outletId")),
     campaign: resolveOrderCampaign((key) => firstParam(params, key)),
     tableIssue,
+    tableHint: fromLinkWithoutTable
+      ? "Pilih Take away atau Delivery saat checkout. Mau makan di tempat? Scan QR yang menempel di meja Anda."
+      : undefined,
   };
 }
 

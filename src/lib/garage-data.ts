@@ -1,5 +1,6 @@
 import { freshClosingChecklist } from "@/lib/cash-closing";
 import {
+  Bike,
   Activity,
   BadgeCheck,
   BarChart3,
@@ -34,6 +35,7 @@ export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
 export type ModuleId =
   | "dashboard"
   | "ops-center"
+  | "courier"
   | "pos"
   | "ai-agent"
   | "kitchen"
@@ -133,6 +135,7 @@ export const modules = [
     icon: Sparkles,
   },
   { id: "kitchen", label: "Production", description: "Bar & Dapur", icon: ChefHat },
+  { id: "courier", label: "Kurir", description: "Antar pesanan delivery", icon: Bike },
   {
     id: "waiter",
     label: "Waiter",

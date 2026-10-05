@@ -34,3 +34,58 @@ describe("chit dapur/bar — nama pemesan", () => {
     expect(buildKitchenChitContent({ ...base, customerName: "Guest Customer" })).not.toContain("NAMA:");
   });
 });
+
+describe("chit delivery", () => {
+  it("mencetak DELIVERY, alamat utuh (dipecah baris) dan No. WA", () => {
+    const address = "Jl. Sudirman No. 12, Kel. Pasar Baru — Patokan: depan masjid pagar hijau";
+    const chit = buildKitchenChitContent({
+      orderNo: "POS-9",
+      tableLabel: "Delivery",
+      orderType: "delivery",
+      customerName: "Rina",
+      customerPhone: "6281234567890",
+      deliveryAddress: address,
+      items: [{ name: "Kopi Susu", qty: 2, station: "Bar" }],
+    });
+    expect(chit).toContain("*** DELIVERY ***");
+    expect(chit).toContain("WA    : 6281234567890");
+    const joined = chit
+      .split("\r\n")
+      .filter((l) => l.startsWith("Antar: ") || l.startsWith("       "))
+      .map((l) => l.slice(7))
+      .join("");
+    expect(joined).toContain(address);
+  });
+});
+
+describe("Struk khusus Delivery", () => {
+  it("mencetak blok DELIVERY (nama, WA, alamat utuh, kurir) dan ongkir terpisah", () => {
+    const content = buildThermalContent({
+      orderNo: "QR-9",
+      tableLabel: "Delivery",
+      items: [{ name: "Nasi Goreng", qty: 2, unitPrice: 20_000, lineTotal: 40_000 }],
+      subtotal: 40_000,
+      total: 45_000,
+      delivery: {
+        customerName: "Rina",
+        customerPhone: "081234567890",
+        address: "Jl. Sudirman No. 12, dekat Masjid Raya — Patokan: pagar hijau",
+        courierName: "Andi Kurir",
+        fee: 5_000,
+      },
+    });
+    expect(content).toContain("*** DELIVERY ***");
+    expect(content).toContain("Nama  : Rina");
+    expect(content).toContain("WA    : 081234567890");
+    expect(content).toContain("pagar hijau");
+    expect(content).toContain("Kurir : Andi Kurir");
+    expect(content).toMatch(/Ongkir delivery\s+Rp\s?5\.000/);
+    for (const line of content.split("\r\n")) expect(line.length).toBeLessThanOrEqual(32);
+  });
+
+  it("order biasa tanpa blok delivery", () => {
+    const content = buildThermalContent({ orderNo: "POS-1", items: [], total: 10_000 });
+    expect(content).not.toContain("DELIVERY");
+    expect(content).not.toContain("Ongkir");
+  });
+});

@@ -1,0 +1,336 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import type { Role } from "@/lib/garage-data";
+import type { GarageSession } from "@/lib/server-auth";
+import {
+  seedGarageBasics,
+  setupGarageTestDb,
+  teardownGarageTestDb,
+  type GarageTestDb,
+} from "@/lib/test-helpers/garage-test-db";
+
+// =============================================================================
+// Take away & Delivery menu digital (keputusan owner Okt 2026):
+// - Take away: QRIS / Transfer / bayar di kasir — WAJIB lunas dulu baru dibuat.
+// - Delivery: QRIS saja (tanpa COD), WA + alamat wajib, min. 2 produk,
+//   ongkir Rp5.000 di luar service/pajak; status antar dikelola kasir.
+// =============================================================================
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+let t: GarageTestDb;
+let svc: any;
+let outletId = "";
+
+const KASIR = "user-itest-dlv-kasir";
+
+function kasir(): GarageSession {
+  return {
+    user: { id: KASIR, name: "Kasir Delivery" },
+    profile: {
+      id: `sp-${KASIR}`,
+      role: "Kasir" as Role,
+      shiftLabel: "Pagi",
+      deviceLabel: "DLV-1",
+      passwordResetRequired: false,
+      workstation: null,
+      outlet: { id: outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
+    },
+  } as unknown as GarageSession;
+}
+
+const ADDRESS = "Jl. Sudirman No. 12, dekat Masjid Raya — Patokan: pagar hijau";
+
+function deliveryInput(overrides: Record<string, unknown> = {}) {
+  return {
+    orderType: "delivery",
+    customerMode: "guest",
+    guestName: "Rina",
+    guestPhone: "081234567890",
+    paymentMethod: "QRIS",
+    paymentProvider: "QRIS GARAGE",
+    source: "instagram",
+    deliveryAddress: ADDRESS,
+    items: [{ itemId: "itm-coffee", variantId: "reg", qty: 2 }],
+    ...overrides,
+  };
+}
+
+async function ticketsOf(orderId: string) {
+  const { eq } = await import("drizzle-orm");
+  return t.getDb().select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId));
+}
+
+beforeAll(async () => {
+  t = await setupGarageTestDb();
+  outletId = (await seedGarageBasics(t, { userId: KASIR })).outletId;
+  svc = await import("@/lib/garage-service");
+}, 60_000);
+
+afterAll(async () => {
+  await teardownGarageTestDb(t);
+});
+
+describe("Delivery: syarat pemesanan", () => {
+  it("valid: ongkir Rp5.000 di luar service/pajak, alamat & WA tersimpan, label Delivery", async () => {
+    const res = await svc.createCustomerOrder(deliveryInput());
+    const o = res.order;
+    expect(o.fulfillment).toBe("delivery");
+    expect(o.channel).toBe("Delivery");
+    expect(o.tableLabel).toBe("Delivery");
+    expect(o.deliveryFee).toBe(5000);
+    expect(o.deliveryAddress).toBe(ADDRESS);
+    expect(o.customerPhone).toBeTruthy();
+    expect(o.total).toBe(o.subtotal + o.service + o.tax - o.discount + 5000);
+    expect(o.status).toBe("awaiting_payment");
+  });
+
+  it("ditolak: bukan QRIS (COD/transfer), < 2 produk, tanpa alamat, tanpa WA", async () => {
+    await expect(svc.createCustomerOrder(deliveryInput({ paymentMethod: "Cash" }))).rejects.toThrow(/QRIS/);
+    await expect(svc.createCustomerOrder(deliveryInput({ paymentMethod: "Bank Transfer" }))).rejects.toThrow(/QRIS/);
+    await expect(
+      svc.createCustomerOrder(deliveryInput({ items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }] })),
+    ).rejects.toThrow(/Minimal pemesanan delivery 2/);
+    await expect(svc.createCustomerOrder(deliveryInput({ deliveryAddress: "  " }))).rejects.toThrow(/Alamat/);
+    await expect(svc.createCustomerOrder(deliveryInput({ guestPhone: undefined }))).rejects.toThrow(/WhatsApp/);
+  });
+
+  it("delivery nonaktif di Pengaturan → ditolak", async () => {
+    await svc.updateAppSettings(outletId, { deliveryEnabled: false }, kasir());
+    await expect(svc.createCustomerOrder(deliveryInput())).rejects.toThrow(/tidak tersedia/);
+    await svc.updateAppSettings(outletId, { deliveryEnabled: true }, kasir());
+  });
+});
+
+describe("Wajib bayar dulu (take away & delivery)", () => {
+  it("take away: 'Terima' tanpa bayar ditolak & tidak membuat tiket; Terima Pembayaran → tiket", async () => {
+    const res = await svc.createCustomerOrder({
+      orderType: "takeaway",
+      customerMode: "guest",
+      guestName: "Budi",
+      paymentMethod: "Cash",
+      source: "qr_takeaway",
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    });
+    expect(res.order.fulfillment).toBe("takeaway");
+    await expect(
+      svc.updateCustomerOrderStatus(res.order.id, { action: "accept" }, kasir()),
+    ).rejects.toThrow(/wajib lunas dulu/);
+    expect(await ticketsOf(res.order.id)).toHaveLength(0);
+
+    const paid = await svc.updateCustomerOrderStatus(
+      res.order.id,
+      { action: "paid", paymentMethod: "Cash", cashReceived: 100_000 },
+      kasir(),
+    );
+    expect(paid.order.status).toBe("paid");
+    expect(await ticketsOf(res.order.id)).not.toHaveLength(0);
+  });
+
+  it("delivery: lunas hanya QRIS; lalu status antar Diproses → Dalam pengantaran → Selesai", async () => {
+    const res = await svc.createCustomerOrder(deliveryInput());
+    const id = res.order.id;
+    await expect(svc.updateCustomerOrderStatus(id, { action: "accept" }, kasir())).rejects.toThrow(/wajib lunas/);
+    await expect(
+      svc.updateCustomerOrderStatus(id, { action: "paid", paymentMethod: "Cash" }, kasir()),
+    ).rejects.toThrow(/QRIS/);
+    // Status antar sebelum lunas ditolak.
+    await expect(
+      svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: "on_the_way" }, kasir()),
+    ).rejects.toThrow(/lunas/);
+
+    const paid = await svc.updateCustomerOrderStatus(id, { action: "paid", paymentMethod: "QRIS" }, kasir());
+    expect(paid.order.status).toBe("paid");
+    expect(await ticketsOf(id)).not.toHaveLength(0);
+
+    for (const step of ["preparing", "on_the_way", "delivered"]) {
+      const r = await svc.updateCustomerOrderStatus(id, { action: "delivery_status", deliveryStatus: step }, kasir());
+      expect(r.order.deliveryStatus).toBe(step);
+    }
+  });
+
+  it("dine-in QR tidak berubah: 'Terima' tanpa bayar tetap boleh", async () => {
+    const res = await svc.createCustomerOrder({
+      orderType: "dine-in",
+      tableLabel: "Meja 3",
+      customerMode: "guest",
+      guestName: "Meja Tiga",
+      paymentMethod: "Cash",
+      source: "qr_table",
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    });
+    const accepted = await svc.updateCustomerOrderStatus(res.order.id, { action: "accept" }, kasir());
+    expect(accepted.order.status).toBe("accepted");
+    await expect(
+      svc.updateCustomerOrderStatus(res.order.id, { action: "delivery_status", deliveryStatus: "on_the_way" }, kasir()),
+    ).rejects.toThrow(/hanya untuk order delivery/);
+  });
+});
+
+// =============================================================================
+// Tahap 2: kurir + GPS, indikator status per tipe, tolak otomatis 30 menit.
+// =============================================================================
+const KURIR = "user-itest-dlv-kurir";
+const KURIR2 = "user-itest-dlv-kurir2";
+
+function courier(id = KURIR, name = "Andi Kurir"): GarageSession {
+  return {
+    user: { id, name },
+    profile: {
+      id: `sp-${id}`,
+      role: "Waiter" as Role,
+      shiftLabel: "Pagi",
+      deviceLabel: "HP-KURIR",
+      passwordResetRequired: false,
+      workstation: "kurir",
+      outlet: { id: outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
+    },
+  } as unknown as GarageSession;
+}
+
+async function paidDelivery(extra: Record<string, unknown> = {}) {
+  const res = await svc.createCustomerOrder(deliveryInput(extra));
+  await svc.updateCustomerOrderStatus(res.order.id, { action: "paid", paymentMethod: "QRIS" }, kasir());
+  return res.order.id as string;
+}
+
+describe("Kurir + GPS", () => {
+  let cour: any;
+  beforeAll(async () => {
+    cour = await import("@/lib/garage-courier");
+    await t.getDb().insert(t.schema.user).values([
+      { id: KURIR, name: "Andi Kurir", email: `${KURIR}@garage.id` },
+      { id: KURIR2, name: "Bayu Kurir", email: `${KURIR2}@garage.id` },
+    ]);
+    await t.getDb().insert(t.schema.staffProfiles).values([
+      { userId: KURIR, outletId, role: "Waiter", workstation: "kurir" },
+      { userId: KURIR2, outletId, role: "Waiter", workstation: "kurir" },
+    ]);
+  });
+
+  it("kasir menugaskan kurir; kurir lain & waiter biasa ditolak; GPS hanya saat diantar lalu dihapus", async () => {
+    const id = await paidDelivery({ customerLat: 3.3285, customerLng: 99.1625 });
+    const list = await cour.listCouriers(kasir());
+    expect(list.map((c: any) => c.name)).toEqual(["Andi Kurir", "Bayu Kurir"]);
+
+    // Kurir tidak bisa menugaskan diri sendiri (bukan pegang uang).
+    await expect(cour.assignCourier(id, KURIR, courier())).rejects.toThrow(/kasir/);
+    const assigned = await cour.assignCourier(id, KURIR, kasir());
+    expect(assigned.courierName).toBe("Andi Kurir");
+    expect(assigned.deliveryStatus).toBe("preparing");
+
+    // GPS sebelum berangkat ditolak; kurir lain ditolak.
+    await expect(cour.updateCourierLocation(id, 3.33, 99.16, courier())).rejects.toThrow(/sedang diantar/);
+    await expect(cour.courierDeliveryAction(id, "pickup", courier(KURIR2, "Bayu Kurir"))).rejects.toThrow(/tidak ditugaskan/);
+
+    await cour.courierDeliveryAction(id, "pickup", courier());
+    const otw = await cour.courierDeliveryAction(id, "depart", courier());
+    expect(otw.deliveryStatus).toBe("on_the_way");
+    await cour.updateCourierLocation(id, 3.3301, 99.1601, courier());
+    await expect(cour.updateCourierLocation(id, 3.33, 99.16, courier(KURIR2, "Bayu Kurir"))).rejects.toThrow(/tidak ditugaskan/);
+    await expect(cour.updateCourierLocation(id, 999, 99.16, courier())).rejects.toThrow(/tidak valid/);
+
+    // Pelanggan (lewat id order) melihat kurir, posisi & jarak; lewat nomor order hanya nama.
+    const pub = await svc.getPublicCustomerOrderStatus(id);
+    expect(pub.fulfillment).toBe("delivery");
+    expect(pub.courier).toMatchObject({ name: "Andi", lat: 3.3301, lng: 99.1601 });
+    expect(pub.courier.distanceKm).toBeGreaterThan(0);
+    expect(pub.steps.find((s: any) => s.key === "on_the_way").state).toBe("current");
+    const byNo = await svc.getPublicCustomerOrderStatus(pub.orderNo);
+    expect(byNo.courier).toMatchObject({ name: "Andi", lat: null, lng: null, distanceKm: null });
+
+    // Melepas kurir saat sedang dibawa ditolak.
+    await expect(cour.assignCourier(id, null, kasir())).rejects.toThrow(/sedang dibawa/);
+
+    const arrived = await cour.courierDeliveryAction(id, "arrive", courier());
+    expect(arrived.deliveryStatus).toBe("delivered");
+    expect(arrived.deliveredAt).toBeTruthy();
+    const after = await svc.getPublicCustomerOrderStatus(id);
+    expect(after.courier.lat).toBeNull(); // GPS dihapus (privasi)
+    expect(after.steps.at(-1)).toMatchObject({ key: "arrived", state: "done" });
+    await expect(cour.updateCourierLocation(id, 3.33, 99.16, courier())).rejects.toThrow(/sedang diantar/);
+
+    const board = await cour.getCourierBoard(courier());
+    expect(board.isCourier).toBe(true);
+    expect(board.done.map((o: any) => o.id)).toContain(id);
+    expect(board.active.map((o: any) => o.id)).not.toContain(id);
+  });
+
+  it("delivery belum lunas tidak bisa ditugaskan", async () => {
+    const res = await svc.createCustomerOrder(deliveryInput());
+    await expect(cour.assignCourier(res.order.id, KURIR, kasir())).rejects.toThrow(/lunas/);
+  });
+});
+
+describe("Indikator status per tipe pesanan", () => {
+  it("take away: Pembayaran diterima → Diracik → Dipacking → Siap diambil", async () => {
+    const res = await svc.createCustomerOrder({
+      orderType: "takeaway",
+      customerMode: "guest",
+      guestName: "Tia",
+      paymentMethod: "QRIS",
+      source: "qr_takeaway",
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    });
+    const waiting = await svc.getPublicCustomerOrderStatus(res.order.id);
+    expect(waiting.fulfillment).toBe("takeaway");
+    expect(waiting.steps.map((s: any) => s.label)).toEqual(["Pembayaran diterima", "Dimasak", "Dipacking", "Siap diambil"]);
+    expect(waiting.steps.every((s: any) => s.state === "todo")).toBe(true);
+
+    await svc.updateCustomerOrderStatus(res.order.id, { action: "paid", paymentMethod: "QRIS" }, kasir());
+    const paid = await svc.getPublicCustomerOrderStatus(res.order.id);
+    expect(paid.steps[0].state).toBe("done");
+    expect(paid.steps[1].state).toBe("current");
+    expect(paid.stations[0].verb).toBe(paid.stations[0].station === "Bar" ? "Diracik" : "Dimasak");
+  });
+});
+
+describe("Tolak otomatis order belum bayar", () => {
+  it("take away/delivery > 30 menit ditolak; dine-in & yang baru tidak disentuh", async () => {
+    const cour = await import("@/lib/garage-courier");
+    const { eq } = await import("drizzle-orm");
+    const old = await svc.createCustomerOrder(deliveryInput());
+    const fresh = await svc.createCustomerOrder(deliveryInput());
+    const dine = await svc.createCustomerOrder({
+      orderType: "dine-in",
+      tableLabel: "Meja 7",
+      customerMode: "guest",
+      guestName: "Meja Tujuh",
+      paymentMethod: "Cash",
+      source: "qr_table",
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    });
+    const past = new Date(Date.now() - 31 * 60_000);
+    for (const id of [old.order.id, dine.order.id]) {
+      await t.getDb().update(t.schema.orders).set({ createdAt: past }).where(eq(t.schema.orders.id, id));
+    }
+    const rejected = await cour.sweepUnpaidOrders();
+    expect(rejected).toEqual([old.order.orderNo]);
+    const [row] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, old.order.id));
+    expect(row.status).toBe("rejected");
+    expect(row.rejectionReason).toBe("Tidak dibayar dalam 30 menit");
+    expect(row.rejectedBy).toBeNull();
+    const [freshRow] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, fresh.order.id));
+    expect(freshRow.status).toBe("awaiting_payment");
+
+    // 0 = mati.
+    await t.getDb().update(t.schema.orders).set({ createdAt: past }).where(eq(t.schema.orders.id, fresh.order.id));
+    await svc.updateAppSettings(outletId, { unpaidOrderAutoRejectMinutes: 0 }, kasir());
+    expect(await cour.sweepUnpaidOrders()).toEqual([]);
+    await svc.updateAppSettings(outletId, { unpaidOrderAutoRejectMinutes: 30 }, kasir());
+  });
+});
+
+describe("Ongkir terpisah dari penjualan", () => {
+  it("loadDayRaws: net sales hari ini tidak memuat ongkir; ongkir tercatat di deliveryFees", async () => {
+    const { loadDayRaws } = await import("@/lib/finance-control");
+    const { jakartaDateKey } = await import("@/lib/finance-control-core");
+    const today = jakartaDateKey();
+    const before = (await loadDayRaws(today, today)).get(today);
+    const id = await paidDelivery();
+    const after = (await loadDayRaws(today, today)).get(today);
+    const { eq } = await import("drizzle-orm");
+    const [row] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, id));
+    expect((after?.deliveryFees ?? 0) - (before?.deliveryFees ?? 0)).toBe(5000);
+    expect((after?.netSales ?? 0) - (before?.netSales ?? 0)).toBe(row.total - row.tax - 5000);
+  });
+});

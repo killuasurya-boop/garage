@@ -24,7 +24,7 @@ export type PaymentMethod = (typeof paymentMethods)[number];
 
 export const paymentBrandConfig = {
   qrisImagePath: QRIS_IMAGE_SRC,
-  deliveryWhatsapp: "081396186251",
+  deliveryWhatsapp: "085121552341",
   social: {
     instagram: "GARAGE Coffee & Motor",
     facebook: "GARAGE Coffee & Motor",
@@ -177,6 +177,7 @@ export function customerOrderPaymentReference(order: CustomerOrder) {
 
 export function customerOrderPaymentLabel(order: CustomerOrder) {
   const method = customerOrderPaymentMethod(order);
+  if (method === "Cash" && order.fulfillment === "takeaway") return "Bayar di kasir";
   if (method === "Cash" && order.channel.toLowerCase().includes("delivery")) return "COD";
   if (method === "Cash" && order.channel.toLowerCase().includes("take")) return "Bayar Saat Ambil";
   if (method === "Cash") return "Bayar di Meja / Kasir";
@@ -214,8 +215,28 @@ export function customerOrderNeedsWaiterCash(order: CustomerOrder) {
   );
 }
 
+/** Take away & delivery wajib lunas dulu — tidak ada "Terima" tanpa bayar. */
+export function isPayFirstOrder(order: CustomerOrder) {
+  return order.fulfillment === "takeaway" || order.fulfillment === "delivery";
+}
+
+export function customerOrderFulfillmentLabel(order: CustomerOrder) {
+  if (order.fulfillment === "delivery") return "DELIVERY";
+  if (order.fulfillment === "takeaway") return "TAKE AWAY";
+  return null;
+}
+
+export const deliveryStatusLabel: Record<string, string> = {
+  preparing: "Disiapkan",
+  picked_up: "Diambil kurir",
+  on_the_way: "Dalam pengantaran",
+  delivered: "Sudah sampai",
+};
+
 export function canAcceptCustomerOrder(order: CustomerOrder) {
-  return order.status === "pending_cashier" || order.status === "awaiting_payment";
+  return (
+    (order.status === "pending_cashier" || order.status === "awaiting_payment") && !isPayFirstOrder(order)
+  );
 }
 
 export function canRejectCustomerOrder(order: CustomerOrder) {
@@ -268,7 +289,12 @@ export function tablesInRange(start: string, end: string) {
 
 export function compactTableNumber(tableLabel: string) {
   const match = tableLabel.match(/\d+/);
-  return match ? match[0].padStart(2, "0") : tableLabel;
+  if (match) return match[0].padStart(2, "0");
+  // Label non-meja dipendekkan agar muat di kotak kecil (tidak meluber).
+  const lower = tableLabel.trim().toLowerCase();
+  if (lower.startsWith("delivery")) return "DLV";
+  if (lower.startsWith("take")) return "TA";
+  return tableLabel.trim().slice(0, 3).toUpperCase();
 }
 
 export function fallbackTableLiveRow(tableNumber: string): TableLiveRow {

@@ -90,11 +90,26 @@ function WorkstationField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  if (role === "Waiter") {
+    // Waiter: pilih apakah akun ini kurir delivery (modul Kurir + GPS).
+    return (
+      <Field label="Tugas Waiter">
+        <Select value={value === "kurir" ? "kurir" : "none"} onValueChange={(next) => onChange(next === "kurir" ? "kurir" : "")}>
+          <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Waiter meja (layanan dine-in)</SelectItem>
+            <SelectItem value="kurir">Kurir delivery (modul Kurir + GPS)</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+    );
+  }
   if (role !== "Kasir") {
     return (
       <p className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
-        Workstation produksi:{" "}
-        {role === "Waiter" ? "tidak berlaku (Waiter tidak menandai READY)." : "semua station (override manajemen)."}
+        Workstation produksi: semua station (override manajemen).
       </p>
     );
   }
@@ -105,7 +120,7 @@ function WorkstationField({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {WORKSTATION_OPTIONS.map((option) => (
+          {WORKSTATION_OPTIONS.filter((option) => option.value !== "kurir").map((option) => (
             <SelectItem key={option.value || "none"} value={option.value || "none"}>
               {option.label}
             </SelectItem>
@@ -474,6 +489,9 @@ export function UserManagement({
                                   {[row.division, row.position].filter(Boolean).join(" - ")}
                                 </div>
                               ) : null}
+                              {row.role === "Waiter" && row.workstation === "kurir" ? (
+                                <div className="text-[11px] text-zinc-400">Tugas: Kurir delivery</div>
+                              ) : null}
                               {row.role === "Kasir" ? (
                                 <div className="text-[11px] text-zinc-400">
                                   Workstation:{" "}
@@ -661,7 +679,12 @@ function CreateUserDialog({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         ...form,
-        workstation: form.role === "Kasir" && form.workstation ? form.workstation : null,
+        workstation:
+          form.role === "Kasir" && form.workstation && form.workstation !== "kurir"
+            ? form.workstation
+            : form.role === "Waiter" && form.workstation === "kurir"
+              ? "kurir"
+              : null,
       }),
     });
     const json = await res.json();
@@ -878,7 +901,12 @@ function EditUserDialog({
     setError(null);
     const payload = {
       ...form,
-      workstation: form.role === "Kasir" && form.workstation ? form.workstation : null,
+      workstation:
+          form.role === "Kasir" && form.workstation && form.workstation !== "kurir"
+            ? form.workstation
+            : form.role === "Waiter" && form.workstation === "kurir"
+              ? "kurir"
+              : null,
       newPassword: form.newPassword.trim() ? form.newPassword : null,
       pinCode: undefined,
       suspendedReason:

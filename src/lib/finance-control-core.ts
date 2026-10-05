@@ -110,6 +110,8 @@ export type DayRaw = {
   date: string;
   orderCount: number;
   netSales: number;
+  /** Ongkir delivery (titipan biaya antar) — DI LUAR penjualan bersih. */
+  deliveryFees: number;
   discount: number;
   refund: number;
   voidCount: number;
@@ -138,6 +140,8 @@ export type DayFigure = {
   voidCount: number;
   voidAmount: number;
   netSales: number;
+  /** Ongkir delivery terkumpul — dipisah dari penjualan (bukan omzet menu). */
+  deliveryFees: number;
   /** HPP aktual = HPP resep + susut gudang (PRD §11). */
   cogs: number;
   cogsRecipe: number;
@@ -176,6 +180,7 @@ const NUMERIC_KEYS = [
   "voidCount",
   "voidAmount",
   "netSales",
+  "deliveryFees",
   "cogs",
   "cogsRecipe",
   "cogsShrinkage",
@@ -488,6 +493,7 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     voidCount: raw.voidCount,
     voidAmount: raw.voidAmount,
     netSales: raw.netSales,
+    deliveryFees: raw.deliveryFees,
     cogs,
     cogsRecipe: raw.cogs,
     cogsShrinkage: raw.shrinkage,

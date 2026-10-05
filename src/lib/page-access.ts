@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import type { ModuleId } from "@/lib/garage-data";
 import { loadSettingsByKeys } from "@/lib/garage-settings-service";
-import { canAccessModule, homeModuleFor } from "@/lib/role-access";
+import { canAccessModuleAs, homeModuleFor } from "@/lib/role-access";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export async function requireModulePageAccess(moduleId: ModuleId) {
@@ -33,7 +33,7 @@ export async function requireModulePageAccess(moduleId: ModuleId) {
     }
   }
 
-  if (!canAccessModule(role, moduleId)) {
+  if (!canAccessModuleAs(session.data.profile, moduleId)) {
     redirect(`/os?module=${homeModuleFor(role, session.data.profile.workstation)}`);
   }
 

@@ -6,7 +6,7 @@ import { outlets, staffProfiles } from "@/db/schema";
 import { fail } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/garage-data";
-import { canUseApi, MANAGEMENT_ROLES, type Permission } from "@/lib/role-access";
+import { canHandleMoney, canUseApiAs, MANAGEMENT_ROLES, type Permission } from "@/lib/role-access";
 import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
 
 export const ACTIVE_OUTLET_COOKIE = "garage_active_outlet";
@@ -27,6 +27,9 @@ export type GarageSession = {
     // Workstation Production Hub ("bar" | "dapur" | "all" | null). Lihat
     // canOperateStation di garage-production-rules.
     workstation?: string | null;
+    // Jabatan (Barista, Koki, Asisten Koki, ...). Bersama workstation
+    // menentukan kapabilitas akun role Kasir — lihat effectivePermissions.
+    position?: string | null;
     outlet: {
       id: string;
       code: string;
@@ -62,6 +65,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
       lastLoginAt: staffProfiles.lastLoginAt,
       passwordResetRequired: staffProfiles.passwordResetRequired,
       workstation: staffProfiles.workstation,
+      position: staffProfiles.position,
       outletId: outlets.id,
       outletCode: outlets.code,
       outletName: outlets.name,
@@ -162,6 +166,7 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
         deviceLabel: row.deviceLabel,
         passwordResetRequired: row.passwordResetRequired,
         workstation: row.workstation ?? null,
+        position: row.position ?? null,
         outlet: activeOutlet,
       },
     } satisfies GarageSession,
@@ -175,13 +180,31 @@ export async function requirePermission(permission: Permission) {
     return session;
   }
 
-  if (!canUseApi(session.data.profile.role, permission)) {
+  if (!canUseApiAs(session.data.profile, permission)) {
     return {
       data: null,
-      response: fail(403, "FORBIDDEN", "Role Anda tidak punya akses untuk aksi ini."),
+      response: fail(403, "FORBIDDEN", "Akun Anda tidak punya akses untuk aksi ini."),
     };
   }
 
+  return session;
+}
+
+/**
+ * Sesi untuk aksi uang (terima/tandai lunas, split bill, voucher, serah-terima
+ * kas): hanya kasir (role Kasir tanpa workstation) + Owner/Manajer.
+ */
+export async function requireCashierSession() {
+  const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
+  if (session.response) {
+    return session;
+  }
+  if (!canHandleMoney(session.data.profile)) {
+    return {
+      data: null,
+      response: fail(403, "CASHIER_ONLY", "Hanya kasir yang boleh memegang uang/pembayaran."),
+    };
+  }
   return session;
 }
 
@@ -191,7 +214,7 @@ export async function requireAnyPermission(permissions: Permission[]) {
     return session;
   }
 
-  if (!permissions.some((permission) => canUseApi(session.data.profile.role, permission))) {
+  if (!permissions.some((permission) => canUseApiAs(session.data.profile, permission))) {
     return {
       data: null,
       response: fail(403, "FORBIDDEN", "Role Anda tidak punya akses untuk aksi ini."),

@@ -181,11 +181,12 @@ type ModuleId,
 type Role
 } from "@/lib/garage-data";
 import {
-canAccessModule,
+canAccessModuleAs,
 canUseApi,
 homeModuleFor,
 MANAGEMENT_ROLES,
-modulesForRole,
+modulesForProfile,
+type StaffCapabilityProfile,
 } from "@/lib/role-access";
 // First-paint / selalu tampil / kecil → tetap statis (cepat).
 import { ChatFab } from "@/components/garage/chat-fab";
@@ -527,7 +528,7 @@ function GarageWorkspace({
   const lastPendingApprovalRef = useRef(0);
   useEffect(() => {
     if (!data?.me) return;
-    if (!canAccessModule(data.me.role, "approvals")) return;
+    if (!canAccessModuleAs(data.me, "approvals")) return;
     let cancelled = false;
     const load = async () => {
       try {
@@ -563,7 +564,7 @@ function GarageWorkspace({
   const [newRecruitmentCount, setNewRecruitmentCount] = useState(0);
   useEffect(() => {
     if (!data?.me) return;
-    if (!canAccessModule(data.me.role, "recruitment")) return;
+    if (!canAccessModuleAs(data.me, "recruitment")) return;
     let cancelled = false;
     const loadRec = async () => {
       try {
@@ -595,7 +596,7 @@ function GarageWorkspace({
       });
       setData(nextData);
       setActiveModule((current) =>
-        canAccessModule(nextData.me.role, current)
+        canAccessModuleAs(nextData.me, current)
           ? current
           : homeModuleFor(nextData.me.role, nextData.me.workstation),
       );
@@ -701,7 +702,7 @@ function GarageWorkspace({
         if (mounted) {
           setData(payload);
           setActiveModule((current) =>
-            canAccessModule(payload.me.role, current)
+            canAccessModuleAs(payload.me, current)
               ? current
               : homeModuleFor(payload.me.role, payload.me.workstation),
           );
@@ -895,7 +896,7 @@ function GarageWorkspace({
   }
 
   function handleModuleChange(module: ModuleId) {
-    if (!canAccessModule(data?.me.role ?? "Kasir", module)) {
+    if (!canAccessModuleAs(data?.me ?? { role: "Kasir" }, module)) {
       return;
     }
 
@@ -921,7 +922,7 @@ function GarageWorkspace({
     return null;
   }
 
-  const allowedModules = modulesForRole(data.me.role);
+  const allowedModules = modulesForProfile(data.me);
   const roleHomeModule = homeModuleFor(data.me.role, data.me.workstation);
   const safeActiveModule = allowedModules.includes(activeModule)
     ? activeModule
@@ -984,7 +985,7 @@ function GarageWorkspace({
             <Separator className="my-4 bg-[#34343c]" />
             <ModuleNav
               activeModule={safeActiveModule}
-              role={data.me.role}
+              profile={data.me}
               onChange={handleModuleChange}
               approvalBadgeCount={pendingApprovalCount}
               recruitmentBadgeCount={newRecruitmentCount}
@@ -1055,7 +1056,7 @@ function GarageWorkspace({
                       <Separator className="my-4 bg-[#34343c]" />
                       <ModuleNav
                         activeModule={safeActiveModule}
-                        role={data.me.role}
+                        profile={data.me}
                         onChange={(value) => {
                           handleModuleChange(value);
                         }}
@@ -1110,7 +1111,7 @@ function GarageWorkspace({
                 )}
 
                 {/* Absen = aksi kelas satu: selalu tampak, tanpa buka profil (NAV_ACTION_AUDIT §1.3). */}
-                {canAccessModule(data.me.role, "absensi-v2") && (
+                {canAccessModuleAs(data.me, "absensi-v2") && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1158,23 +1159,23 @@ function GarageWorkspace({
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Aksi cepat</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {canAccessModule(data.me.role, "absensi-v2") && (
+                    {canAccessModuleAs(data.me, "absensi-v2") && (
                       <DropdownMenuItem onClick={() => window.location.assign("/absen")}>
                         <Fingerprint className="mr-2 size-4" />
                         Absen kehadiran
                       </DropdownMenuItem>
                     )}
-                    {canAccessModule(data.me.role, "pos") && (
+                    {canAccessModuleAs(data.me, "pos") && (
                       <DropdownMenuItem onClick={() => handleModuleChange("pos")}>
                         Buka POS
                       </DropdownMenuItem>
                     )}
-                    {canAccessModule(data.me.role, "finance") && (
+                    {canAccessModuleAs(data.me, "finance") && (
                       <DropdownMenuItem onClick={() => handleModuleChange("finance")}>
                         Mulai tutup buku
                       </DropdownMenuItem>
                     )}
-                    {canAccessModule(data.me.role, "approvals") && (
+                    {canAccessModuleAs(data.me, "approvals") && (
                       <DropdownMenuItem onClick={() => handleModuleChange("approvals")}>
                         Tinjau approval
                       </DropdownMenuItem>
@@ -1293,7 +1294,7 @@ function GarageWorkspace({
               <GarageAiAlertsBell
                 role={data.me.role}
                 onOpenAiModule={
-                  canAccessModule(data.me.role, "ai-agent")
+                  canAccessModuleAs(data.me, "ai-agent")
                     ? () => handleModuleChange("ai-agent")
                     : undefined
                 }
@@ -1375,7 +1376,7 @@ function GarageWorkspace({
                   navModules={modules
                     .filter(
                       (m) =>
-                        canAccessModule(data.me.role, m.id) &&
+                        canAccessModuleAs(data.me, m.id) &&
                         m.id !== "pos" &&
                         !["absensi-v2", "wallet-gaji", "wallet-fee"].includes(m.id),
                     )
@@ -1839,19 +1840,19 @@ function PosHeaderBrand() {
 
 function ModuleNav({
   activeModule,
-  role,
+  profile,
   onChange,
   approvalBadgeCount = 0,
   recruitmentBadgeCount = 0,
 }: {
   activeModule: ModuleId;
-  role: Role;
+  profile: StaffCapabilityProfile;
   onChange: (module: ModuleId) => void;
   approvalBadgeCount?: number;
   recruitmentBadgeCount?: number;
 }) {
   const accessibleModules = modules.filter((module) =>
-    canAccessModule(role, module.id),
+    canAccessModuleAs(profile, module.id),
   );
 
   // Pengelompokan sidebar (D1/D2) — murni visual, tidak mengubah route/logika.

@@ -78,9 +78,26 @@ async function loadStaff(staffUserId: string) {
   return row;
 }
 
-function requiredMethodFor(role: string, methodMap: Record<string, string>): AttendanceMethod {
-  const m = (methodMap[role] ?? methodMap["default"] ?? "pin_selfie_gps") as AttendanceMethod;
-  return m;
+const METHOD_STRICTNESS: Record<AttendanceMethod, number> = {
+  pin: 0,
+  pin_selfie_gps_multi: 1,
+  pin_selfie_gps: 2,
+};
+
+function asMethod(value: string | undefined): AttendanceMethod | null {
+  return value && value in METHOD_STRICTNESS ? (value as AttendanceMethod) : null;
+}
+
+/**
+ * Metode absen jalur sesi login. Satu akun = login = absen, jadi jalur ini
+ * TIDAK boleh lebih longgar dari /absen (`methods.absen`, default PIN + selfie
+ * + GPS): diambil yang paling ketat antara metode role dan metode /absen.
+ */
+export function requiredMethodFor(role: string, methodMap: Record<string, string> | null): AttendanceMethod {
+  const map = methodMap ?? {};
+  const roleMethod = asMethod(map[role]) ?? asMethod(map["default"]) ?? "pin_selfie_gps";
+  const absenMethod = asMethod(map["absen"]) ?? "pin_selfie_gps";
+  return METHOD_STRICTNESS[roleMethod] >= METHOD_STRICTNESS[absenMethod] ? roleMethod : absenMethod;
 }
 
 async function saveSelfie(

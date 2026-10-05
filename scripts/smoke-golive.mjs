@@ -106,15 +106,22 @@ async function main() {
     ["Owner → manajemen user diizinkan", c.owner, "GET", "/api/admin/users", 200],
     ["Koki → papan produksi diizinkan", c.koki, "GET", "/api/production", 200],
     ["Waiter → peta meja diizinkan", c.waiter1, "GET", "/api/waiter/tables", 200],
+    // Pegang uang hanya kasir; tulis stok: kasir/barista/koki (bukan asisten/helper).
+    ["Barista → buka kas ditolak (bukan kasir)", c.barista1, "POST", "/api/finance/cash-sessions", 403, { openingCash: 100000 }],
+    ["Koki → terima/bayar order ditolak", c.koki, "PATCH", "/api/customer/orders/00000000-0000-0000-0000-000000000000/status", 403, { action: "paid" }],
+    ["Barista → buat order POS ditolak", c.barista1, "POST", "/api/orders", 403, {}],
+    ["Asisten Koki → input stok ditolak", c.asisten, "POST", "/api/inventory/movements", 403, {}],
+    ["Helper Bar → input stok ditolak", c.helperBar, "POST", "/api/inventory/opname", 403, {}],
+    ["Asisten Koki → lihat stok diizinkan", c.asisten, "GET", "/api/inventory", 200],
   ];
   for (const [name, client, method, path, expected, body] of rbac) {
     const res = await client.req(method, path, body);
     check(name, res.status === expected, `HTTP ${res.status} (harap ${expected})`);
   }
 
-  // ---------- 3. Barista buka kas ----------
-  const opened = await c.barista1.req("POST", "/api/finance/cash-sessions", { openingCash: 200000 });
-  check("Barista 1 buka shift kas Rp200.000", opened.status === 200 || opened.status === 201, `HTTP ${opened.status} ${opened.json?.error?.message ?? ""}`);
+  // ---------- 3. Kasir buka kas ----------
+  const opened = await c.kasir1.req("POST", "/api/finance/cash-sessions", { openingCash: 200000 });
+  check("Kasir 1 buka shift kas Rp200.000", opened.status === 200 || opened.status === 201, `HTTP ${opened.status} ${opened.json?.error?.message ?? ""}`);
 
   // ---------- 4. Waiter pesan 3 meja, produk sama ----------
   const item = (itemId, variantId, qty = 1) => ({ itemId, variantId, qty });
@@ -130,12 +137,12 @@ async function main() {
 
   // ---------- 5. Kasir terima (accept) — dua kali bersamaan pada Meja 3 ----------
   for (const id of ids.slice(0, 2)) {
-    const res = await c.barista1.req("PATCH", `/api/customer/orders/${id}/status`, { action: "accept" });
+    const res = await c.kasir1.req("PATCH", `/api/customer/orders/${id}/status`, { action: "accept" });
     check(`Kasir terima order ${id.slice(0, 8)}`, res.status === 200, `HTTP ${res.status} ${res.json?.error?.message ?? ""}`);
   }
   const [acc1, acc2] = await Promise.all([
-    c.barista1.req("PATCH", `/api/customer/orders/${ids[2]}/status`, { action: "accept" }),
-    c.barista1.req("PATCH", `/api/customer/orders/${ids[2]}/status`, { action: "accept" }),
+    c.kasir1.req("PATCH", `/api/customer/orders/${ids[2]}/status`, { action: "accept" }),
+    c.kasir1.req("PATCH", `/api/customer/orders/${ids[2]}/status`, { action: "accept" }),
   ]);
   check("Terima ganda bersamaan Meja 3 tidak error", acc1.status === 200 && acc2.status === 200, `${acc1.status}/${acc2.status}`);
 
@@ -196,10 +203,10 @@ async function main() {
 
   // ---------- 8. Pembayaran Cash / QRIS / Transfer, bayar ganda bersamaan ----------
   const pay = (id, method, extra = {}) =>
-    c.barista1.req("PATCH", `/api/customer/orders/${id}/status`, { action: "paid", paymentMethod: method, ...extra });
+    c.kasir1.req("PATCH", `/api/customer/orders/${id}/status`, { action: "paid", paymentMethod: method, ...extra });
   const totals = [];
   for (const id of ids) {
-    const res = await c.barista1.req("GET", `/api/orders/${id}/receipt`);
+    const res = await c.kasir1.req("GET", `/api/orders/${id}/receipt`);
     totals.push(Number(res.data?.total ?? res.data?.order?.total ?? 0));
   }
   const p1 = await pay(ids[0], "Cash", { cashReceived: 100000 });

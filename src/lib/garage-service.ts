@@ -170,7 +170,7 @@ import {
   guardReset,
   lockedMessage,
 } from "@/lib/pin-guard";
-import { canUseApi } from "@/lib/role-access";
+import { canUseApi, canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
 type GarageDb = ReturnType<typeof getDb>;
@@ -1143,6 +1143,7 @@ export function sessionPayload(garage: GarageSession) {
     shift: garage.profile.shiftLabel,
     device: garage.profile.deviceLabel,
     workstation: garage.profile.workstation ?? null,
+    position: garage.profile.position ?? null,
   };
 }
 
@@ -5275,17 +5276,16 @@ export async function getAuditStats() {
 }
 
 export async function getBootstrapData(garage: GarageSession) {
-  const role = garage.profile.role;
-  const canReadDashboard = canUseApi(role, "dashboard:read");
-  const canUsePos = canUseApi(role, "pos:use");
-  const canReadKitchen = canUseApi(role, "kitchen:read");
-  const canReadInventory = canUseApi(role, "inventory:read");
-  const canReadFinance = canUseApi(role, "finance:read");
-  const canWriteFinance = canUseApi(role, "finance:write");
-  const canUseCashShift = canUseApi(role, "shift:cash");
-  const canReadCrm = canUseApi(role, "crm:read");
-  const canReadApprovals = canUseApi(role, "approvals:read");
-  const canReadAudit = canUseApi(role, "audit:read");
+  const canReadDashboard = canUseApiAs(garage.profile, "dashboard:read");
+  const canUsePos = canUseApiAs(garage.profile, "pos:use");
+  const canReadKitchen = canUseApiAs(garage.profile, "kitchen:read");
+  const canReadInventory = canUseApiAs(garage.profile, "inventory:read");
+  const canReadFinance = canUseApiAs(garage.profile, "finance:read");
+  const canWriteFinance = canUseApiAs(garage.profile, "finance:write");
+  const canUseCashShift = canUseApiAs(garage.profile, "shift:cash");
+  const canReadCrm = canUseApiAs(garage.profile, "crm:read");
+  const canReadApprovals = canUseApiAs(garage.profile, "approvals:read");
+  const canReadAudit = canUseApiAs(garage.profile, "audit:read");
 
   const emptyDashboard = {
     headlineMetrics: [],

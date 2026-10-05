@@ -120,13 +120,17 @@ $T src/db/reset-grand-opening.ts --status
 |---|---|---|---|---|
 | owner@garage.id | Owner | Owner | – | (tidak absen) |
 | manajer@garage.id | Manajer | Manajer | – | MGR |
-| kasir1@ / kasir2@garage.id | Kasir (POS + tutup shift) | Kasir | – | KSR1, KSR2 |
-| barista1@ / barista2@garage.id | Barista (POS + BAR) | Kasir | Produksi BAR | BAR1, BAR2 |
+| kasir1@ / kasir2@garage.id | Kasir (POS, kas, pembayaran, stok) | Kasir | – | KSR1, KSR2 |
+| barista1@ / barista2@garage.id | Barista (BAR + input stok) | Kasir | Produksi BAR | BAR1, BAR2 |
 | waiter1@ / waiter2@ / waiter3@garage.id | Waiter | Waiter | – | WTR1–WTR3 |
-| koki@garage.id | Koki | Kasir | Produksi DAPUR | KOKI |
-| asisten.koki@garage.id | Asisten Koki | Kasir | Produksi DAPUR | AKOKI |
+| koki@garage.id | Koki (DAPUR + input stok) | Kasir | Produksi DAPUR | KOKI |
+| asisten.koki@garage.id | Asisten Koki (lihat stok) | Kasir | Produksi DAPUR | AKOKI |
 | helper.bar@garage.id | Helper Bar | Kasir | Helper BAR | HBAR |
 | helper.dapur@garage.id | Helper Dapur | Kasir | Helper DAPUR | HDPR |
+
+Pegang uang (POS, buka/tutup shift kas, terima & tandai lunas, split bill,
+voucher) hanya Kasir 1–2 + Owner/Manajer. Barista/Koki/Asisten/Helper tidak
+melihat POS. Input stok: Kasir, Barista, Koki; Asisten Koki & Helper hanya lihat.
 
 Absen di HP: buka /absen, masukkan **kode absen + PIN** (atau absen dari akun
 yang sedang login) — gaji harian, fee pool & fee produksi masuk ke akun yang

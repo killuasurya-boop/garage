@@ -841,6 +841,13 @@
       "when": 1791188118604,
       "tag": "0119_finance_owner_daily_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1791207617371,
+      "tag": "0120_ticket_chit_printed",
+      "breakpoints": true
     }
   ]
 }

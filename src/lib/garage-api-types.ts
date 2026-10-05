@@ -135,6 +135,8 @@ export type ProductionTicketView = {
   handoverByName: string | null;
   issueReason: string | null;
   addonSequence: number;
+  // Waktu chit tercetak di printer stasiun (null = belum dicetak).
+  chitPrintedAt: string | null;
   items: ProductionItemView[];
   // Tiket lama tanpa porsi terstruktur (dibuat sebelum Production Hub).
   legacy: boolean;

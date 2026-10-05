@@ -2814,6 +2814,7 @@ export function PosView({
       orderType,
       createdAt: result.receipt.createdAt ?? new Date().toISOString(),
       cashierName: result.receipt.cashier?.name ?? null,
+      customerName: guestName || result.receipt.customer?.name || null,
       items: guestLines.map((line) => ({
         name: line.name,
         variant: line.variantLabel,
@@ -3279,6 +3280,7 @@ export function PosView({
     createdAt?: string | null;
     cashierName?: string | null;
     waiterName?: string | null;
+    customerName?: string | null;
     items: KitchenChitItem[];
     // force = cetak walau auto-print mati (mis. tombol "cetak ulang chit").
     force?: boolean;
@@ -3302,6 +3304,7 @@ export function PosView({
       tableLabel,
       orderType: "qr_table",
       createdAt: bill.createdAt,
+      customerName: bill.customerName,
       force: true,
       items: bill.items.map((item) => ({
         name: item.itemName,
@@ -3530,6 +3533,7 @@ export function PosView({
         orderType,
         createdAt: result.receipt.createdAt ?? new Date().toISOString(),
         cashierName: result.receipt.cashier?.name ?? null,
+        customerName: result.receipt.customer?.name ?? null,
         items: cartLines.map((line) => ({
           name: line.item.name,
           variant: line.variant.label,

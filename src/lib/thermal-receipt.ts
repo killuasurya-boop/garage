@@ -85,6 +85,9 @@ export interface KitchenChitInput {
   createdAt?: string | null;
   cashierName?: string | null;
   waiterName?: string | null;
+  // Nama pemesan (tamu) — dicetak menonjol di bawah nomor meja supaya
+  // bar/dapur/waiter tahu porsi ini milik siapa. Kosong = baris tidak dicetak.
+  customerName?: string | null;
   items: KitchenChitItem[];
 }
 
@@ -152,6 +155,12 @@ export function buildKitchenChitContent(input: KitchenChitInput): string {
       rows.push("-".repeat(W));
     } else {
       rows.push(`Meja  : ${clean(input.tableLabel) || "-"}`.slice(0, W));
+    }
+    const customer = clean(input.customerName);
+    // "Guest Customer" = placeholder POS tanpa nama → tidak dicetak.
+    if (customer && customer.toLowerCase() !== "guest customer") {
+      rows.push(center(`NAMA: ${customer.toUpperCase()}`));
+      rows.push("-".repeat(W));
     }
     if (input.orderType) {
       rows.push(`Tipe  : ${orderTypeLabel(input.orderType)}`.slice(0, W));

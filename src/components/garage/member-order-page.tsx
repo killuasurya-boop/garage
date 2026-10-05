@@ -1321,6 +1321,7 @@ export function MemberOrderPage({
           tableLabel: qrContext.tableLabel,
           outletId: qrContext.outletId,
           customerNote: customerNote.trim() || undefined,
+          customerName: guestName.trim() || undefined,
           items: cartLines.map((line) => ({
             itemId: line.item.id,
             variantId: line.variant.id,
@@ -1329,6 +1330,7 @@ export function MemberOrderPage({
           })),
         });
         setCart({});
+        setGuestName("");
         setCartNotes({});
         setCustomerNote("");
         setCheckoutOpen(false);
@@ -1464,6 +1466,17 @@ export function MemberOrderPage({
           Dipesan oleh <strong className="text-white">{staffOrder.name}</strong> untuk{" "}
           <strong className="text-white">{qrContext.tableLabel}</strong>. Pesanan masuk ke kasir untuk
           divalidasi; pembayaran di kasir saat bill.
+          <label className="mt-3 grid gap-1.5">
+            <span className="text-sm font-bold text-garage-dim">Nama tamu (opsional)</span>
+            <input
+              value={guestName}
+              onChange={(event) => setGuestName(event.target.value)}
+              maxLength={40}
+              className={`${inputClass} border-garage-line`}
+              placeholder="Dicetak di chit Bar/Dapur bersama nomor meja"
+              autoComplete="off"
+            />
+          </label>
         </section>
       ) : (
         <>

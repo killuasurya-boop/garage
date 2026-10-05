@@ -282,7 +282,8 @@ const PRODUCTION_ONLY_WORKSTATIONS = new Set(["bar", "dapur", "helper_bar", "hel
  */
 export function homeModuleFor(role: Role, workstation?: string | null): ModuleId {
   // Termasuk workstation "all": POS hanya untuk kasir (lihat canHandleMoney).
-  if (role === "Kasir" && workstation && (PRODUCTION_ONLY_WORKSTATIONS.has(workstation) || workstation === "all")) {
+  const station = (workstation ?? "").trim().toLowerCase();
+  if (role === "Kasir" && (PRODUCTION_ONLY_WORKSTATIONS.has(station) || station === "all")) {
     return "kitchen";
   }
   return firstModuleForRole(role);
@@ -321,10 +322,17 @@ export type StaffCapabilityProfile = {
 
 const MONEY_PERMISSIONS: Permission[] = ["pos:use", "orders:manage", "shift:cash"];
 const HELPER_WORKSTATIONS = new Set(["helper_bar", "helper_dapur", "helper_all"]);
+const STATION_WORKSTATIONS = new Set(["bar", "dapur", "all", ...HELPER_WORKSTATIONS]);
+
+/** Workstation dinormalkan (huruf kecil, tanpa spasi); nilai tak dikenal = tidak ditugaskan. */
+function stationOf(workstation: string | null | undefined): string | null {
+  const v = (workstation ?? "").trim().toLowerCase();
+  return STATION_WORKSTATIONS.has(v) ? v : null;
+}
 
 /** Kasir sungguhan = role Kasir yang tidak ditugaskan ke stasiun produksi. */
 export function isCashierStaff(profile: StaffCapabilityProfile): boolean {
-  return profile.role === "Kasir" && !profile.workstation;
+  return profile.role === "Kasir" && !stationOf(profile.workstation);
 }
 
 /** Boleh pegang uang: buka/tutup shift kas, POS, pembayaran, tandai lunas. */
@@ -336,8 +344,10 @@ export function canHandleMoney(profile: StaffCapabilityProfile): boolean {
 export function canWriteStock(profile: StaffCapabilityProfile): boolean {
   if (MANAGEMENT_ROLES.includes(profile.role)) return true;
   if (profile.role !== "Kasir") return false;
-  if (profile.workstation && HELPER_WORKSTATIONS.has(profile.workstation)) return false;
-  if (profile.position?.trim().toLowerCase() === "asisten koki") return false;
+  const station = stationOf(profile.workstation);
+  if (station && HELPER_WORKSTATIONS.has(station)) return false;
+  // Jabatan asisten (mis. "Asisten Koki", "asisten dapur") hanya lihat stok.
+  if (/\basisten\b/i.test(profile.position ?? "")) return false;
   return true;
 }
 

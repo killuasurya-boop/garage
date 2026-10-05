@@ -61,11 +61,14 @@ describe("cetak stasiun", () => {
     expect(ticketChitContent(ticket({ table: "Meja 05", identity: "Meja 05" }))).not.toContain("NAMA:");
   });
 
-  it("order waiter \"Meja 5 · Andi · Waiter 1\" → NAMA: ANDI · WAITER 1", () => {
-    expect(chitCustomerName({ identity: "Meja 05 · Andi · Waiter 1", table: "Meja 05" })).toBe("Andi · Waiter 1");
-    expect(chitCustomerName({ identity: "Meja 5 · Waiter 1", table: "Meja 05" })).toBe("Waiter 1");
+  it("nama tamu dari identity: order waiter, POS, placeholder", () => {
+    expect(chitCustomerName({ identity: "Meja 5 · Andi · Waiter 1", table: "Meja 05" })).toBe("Andi");
+    // Waiter tanpa nama tamu → bukan NAMA (itu nama waiter).
+    expect(chitCustomerName({ identity: "Meja 5 · Waiter 1", table: "Meja 05" })).toBeNull();
     expect(chitCustomerName({ identity: "Meja 05", table: "Meja 05" })).toBeNull();
     expect(chitCustomerName({ identity: "Budi", table: "Meja 05" })).toBe("Budi");
+    expect(chitCustomerName({ identity: "Tamu", table: "Takeaway" })).toBeNull();
+    expect(chitCustomerName({ identity: "Antrian #12", table: "Takeaway" })).toBeNull();
   });
 
   it("stasiun internal 'Food' tampil sebagai DAPUR", () => {

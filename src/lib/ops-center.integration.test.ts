@@ -163,3 +163,19 @@ describe("Garage Control Center", () => {
     expect(data.team.ordersToday).toBe(3);
   });
 });
+
+describe("Target SLA dari Pengaturan", () => {
+  it("tanpa setting: Bar 5 / Dapur 15; setelah diubah: tiket BARU memakai target baru, tiket lama tetap", async () => {
+    const before = await order("31", "LAMA", [{ itemId: "itm-coffee", qty: 1 }, { itemId: "itm-food", qty: 1 }]);
+    expect((await ticketOf(before.orderNo, "Bar")).targetMinutes).toBe(5);
+    expect((await ticketOf(before.orderNo, "Food")).targetMinutes).toBe(15);
+
+    await svc.updateAppSettings(outletId, { productionTargetBarMinutes: 7, productionTargetFoodMinutes: 20 }, kasir());
+    const after = await order("32", "BARU", [{ itemId: "itm-coffee", qty: 1 }, { itemId: "itm-food", qty: 1 }]);
+    expect((await ticketOf(after.orderNo, "Bar")).targetMinutes).toBe(7);
+    expect((await ticketOf(after.orderNo, "Food")).targetMinutes).toBe(20);
+    expect((await ticketOf(before.orderNo, "Bar")).targetMinutes).toBe(5);
+
+    await svc.updateAppSettings(outletId, { productionTargetBarMinutes: 5, productionTargetFoodMinutes: 15 }, kasir());
+  });
+});

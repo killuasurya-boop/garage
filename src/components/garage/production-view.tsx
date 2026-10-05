@@ -54,6 +54,7 @@ import {
   workstationLabel,
 } from "@/lib/garage-production-rules";
 import { isOnlineChannel, voice } from "@/lib/garage-voice";
+import { useProductionStream } from "@/lib/use-production-stream";
 
 const VoiceSettingsDialog = dynamic(
   () => import("@/components/garage/voice-settings-dialog").then((m) => m.VoiceSettingsDialog),
@@ -68,6 +69,8 @@ type StationFilter = "all" | "Bar" | "Food";
 type StatusColumn = "queue" | "cooking" | "ready";
 
 const POLL_MS = 4000;
+// Saat stream realtime terhubung, polling hanya cadangan.
+const POLL_LIVE_MS = 15_000;
 const RUSH_WAITING_THRESHOLD = 8;
 
 const COLUMN_META: Record<StatusColumn, { label: string; hint: string; tone: string }> = {
@@ -135,8 +138,15 @@ export function ProductionView({
 }) {
   const workstation = normalizeWorkstation(me.workstation);
   const isHelper = isHelperWorkstation(workstation);
-  const lcdRoot = useRef<HTMLElement | null>(null);
-  const lcd = useLcdMode(lcdRoot);
+  // Cetak chit mengikuti station PERANGKAT (workstation akun), bukan filter
+  // tampilan — tablet Bar tidak boleh mencetak & menandai tiket Dapur.
+  const printStation: "Bar" | "Food" | "all" =
+    workstation === "bar" || workstation === "helper_bar"
+      ? "Bar"
+      : workstation === "dapur" || workstation === "helper_dapur"
+        ? "Food"
+        : "all";
+  const lcd = useLcdMode();
   const [board, setBoard] = useState<ProductionBoard | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -179,14 +189,19 @@ export function ProductionView({
     }
   }, []);
 
+  const { connected: live } = useProductionStream(useCallback(() => void load(true), [load]));
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch awal; state di-set di callback async
     void load();
+  }, [load]);
+
+  useEffect(() => {
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) return;
       void load(true);
     };
-    const id = window.setInterval(tick, POLL_MS);
+    const id = window.setInterval(tick, live ? POLL_LIVE_MS : POLL_MS);
     const onVisible = () => {
       if (!document.hidden) tick();
     };
@@ -197,7 +212,7 @@ export function ProductionView({
       document.removeEventListener("visibilitychange", onVisible);
       unsub();
     };
-  }, [load]);
+  }, [load, live]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -856,8 +871,7 @@ export function ProductionView({
 
   return (
     <section
-      ref={lcdRoot}
-      className={`space-y-3 px-2 sm:px-3 lg:px-4 ${lcd.active ? "min-h-screen overflow-y-auto bg-[#0b0b0e] py-3" : ""}`}
+      className={`space-y-3 px-2 sm:px-3 lg:px-4 ${lcd.active ? "fixed inset-0 z-40 overflow-y-auto bg-[#0b0b0e] py-3" : ""}`}
       style={lcd.active && lcd.zoom !== 1 ? { zoom: lcd.zoom } : undefined}
     >
       <VoiceSettingsDialog open={voiceDialogOpen} onOpenChange={setVoiceDialogOpen} />
@@ -1059,7 +1073,7 @@ export function ProductionView({
         </div>
       ) : null}
 
-      <StationPrintPanel tickets={tickets} station={station} onPrinted={() => void load(true)} />
+      <StationPrintPanel tickets={tickets} station={printStation} onPrinted={() => void load(true)} />
 
       {visibleCancelled.length ? (
         <section

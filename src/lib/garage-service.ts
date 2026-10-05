@@ -170,6 +170,7 @@ import {
   guardReset,
   lockedMessage,
 } from "@/lib/pin-guard";
+import { notifyingProduction } from "@/lib/production-events";
 import { canUseApi, canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -516,6 +517,19 @@ function kitchenItemLabel(line: {
 // Satu tiket per workstation (BAR / DAPUR) per order. Station dari master
 // produk (menu_items.station) dengan fallback kategori — lihat
 // productionStationFor. `items`/`itemNotes` tetap diisi untuk chit & layar lama.
+/** Target SLA (menit) per kelompok dari Pengaturan; fallback default lama. */
+function productionTargetsFrom(settings?: {
+  productionTargetBarMinutes?: number;
+  productionTargetFoodMinutes?: number;
+} | null): Record<KitchenTargetGroup, number> {
+  const pick = (value: number | undefined, fallback: number) =>
+    Number.isFinite(value) && (value as number) >= 1 ? Math.round(value as number) : fallback;
+  return {
+    drink: pick(settings?.productionTargetBarMinutes, kitchenTargetMinutes.drink),
+    food: pick(settings?.productionTargetFoodMinutes, kitchenTargetMinutes.food),
+  };
+}
+
 function productionTicketDrafts(
   lines: Array<{
     itemName: string;
@@ -525,6 +539,7 @@ function productionTicketDrafts(
     category: string | null;
     station?: string | null;
   }>,
+  targets: Record<KitchenTargetGroup, number> = kitchenTargetMinutes,
 ) {
   const linesByStation = new Map<ProductionStation, typeof lines>();
   for (const line of lines) {
@@ -542,7 +557,7 @@ function productionTicketDrafts(
     return {
       ticketNo: makeTicketNo(),
       targetGroup,
-      targetMinutes: kitchenTargetMinutes[targetGroup],
+      targetMinutes: targets[targetGroup],
       station,
       items: groupLines.map(kitchenItemLabel),
       itemNotes,
@@ -6687,7 +6702,7 @@ export async function updateTableStatus(
 // pelanggan ikut pindah (dapur/waiter melihat meja baru), sesi sumber ditutup,
 // sesi tujuan diisi. Baris sesi kedua meja dikunci (FOR UPDATE) supaya dua
 // waiter yang memindahkan ke meja yang sama tidak sama-sama lolos.
-export async function moveTable(
+async function moveTableImpl(
   from: string,
   to: string,
   garage: GarageSession,
@@ -8457,11 +8472,13 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   };
 }
 
-export async function updateCustomerOrderStatus(
+async function updateCustomerOrderStatusImpl(
   id: string,
   input: CustomerOrderActionInput,
   garage: GarageSession,
 ) {
+  // Target SLA tiket baru dibaca SEBELUM transaksi (PGlite satu koneksi).
+  const productionTargets = productionTargetsFrom(await getAppSettings(garage.profile.outlet.id));
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     // FOR UPDATE: dua kasir/klik ganda "Terima"/"Lunas" diserialkan pada baris
@@ -8760,6 +8777,7 @@ export async function updateCustomerOrderStatus(
       // Catatan per-item pelanggan ikut ke tiket & porsi produksi.
       const ticketDrafts = productionTicketDrafts(
         menuRows.map((line) => ({ ...line, category: line.category ?? "Makanan" })),
+        productionTargets,
       );
 
       const insertedTickets = await tx
@@ -9600,7 +9618,7 @@ type CreatedOrderMemberReward = {
   upgradeNotification: string | null;
 } | null;
 
-export async function createOrder(
+async function createOrderImpl(
   input: OrderInput,
   garage: GarageSession,
   options: { offlineSync?: boolean; requestKey?: string } = {},
@@ -9764,7 +9782,7 @@ async function createOrderOnce(
   const invoiceNo = invoiceNoForOrder(orderNo);
   const channel = orderTypeToChannel(input.orderType);
   // Auto routing (BR-04): station dari master produk, bukan keputusan operator.
-  const ticketDrafts = productionTicketDrafts(lines);
+  const ticketDrafts = productionTicketDrafts(lines, productionTargetsFrom(settings));
   const paymentMethod = input.paymentMethod ?? "Cash";
   const paymentMetadata: Record<string, unknown> = {
     provider: input.paymentProvider ?? null,
@@ -10503,7 +10521,7 @@ async function findActiveWaiter(waiterUserId: string) {
   return { id: row.id, name: row.name };
 }
 
-export async function handoverKitchenTicket(
+async function handoverKitchenTicketImpl(
   ticketNo: string,
   waiterUserId: string | null,
   garage: GarageSession,
@@ -10599,7 +10617,7 @@ export async function listCallableWaiters() {
 
 // Waiter klaim tiket "Saya antar": kunci tiket ke dirinya supaya waiter lain
 // tidak ikut jalan, dan fee antar nanti jatuh ke pengklaim.
-export async function claimKitchenTicket(ticketNo: string, garage: GarageSession) {
+async function claimKitchenTicketImpl(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db
     .select()
@@ -10665,7 +10683,7 @@ export async function claimKitchenTicket(ticketNo: string, garage: GarageSession
 }
 
 // Lepas klaim (batal antar). Hanya pengklaim atau manager.
-export async function releaseKitchenTicket(ticketNo: string, garage: GarageSession) {
+async function releaseKitchenTicketImpl(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db
     .select()
@@ -10690,7 +10708,7 @@ export async function releaseKitchenTicket(ticketNo: string, garage: GarageSessi
 // garage.user di updateKitchenStatus → otomatis ke pengklaim.
 // Helper Bar/Dapur tap nama waiter yang mengambil pesanan di meja saji → tiket langsung
 // "delivered" atas nama waiter itu (fee antar ke waiter). Waiter tidak menekan apa pun.
-export async function pickupKitchenTicket(
+async function pickupKitchenTicketImpl(
   ticketNo: string,
   waiterUserId: string,
   garage: GarageSession,
@@ -10747,7 +10765,7 @@ export async function pickupKitchenTicket(
   });
 }
 
-export async function deliverClaimedTicket(ticketNo: string, garage: GarageSession) {
+async function deliverClaimedTicketImpl(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db
     .select()
@@ -10806,7 +10824,7 @@ export class ProductionReopenError extends Error {
   }
 }
 
-export async function updateKitchenStatus(
+async function updateKitchenStatusImpl(
   ticketNo: string,
   status: string,
   garage: GarageSession,
@@ -13732,7 +13750,7 @@ export async function splitCustomerOrder(
  * - fee staf dari order ini ditarik kembali
  * - audit log
  */
-export async function voidOrder(
+async function voidOrderImpl(
   idOrOrderNo: string,
   reason: string,
   garage: GarageSession,
@@ -18792,3 +18810,16 @@ export async function getStaffLeaderboard(): Promise<LeaderboardEntry[]> {
 
   return entries;
 }
+
+// Realtime: setiap mutasi produksi yang SUKSES memancarkan tanda perubahan
+// (Production Hub & Control Center langsung mengambil ulang). Lihat production-events.ts.
+export const createOrder = notifyingProduction(createOrderImpl);
+export const updateCustomerOrderStatus = notifyingProduction(updateCustomerOrderStatusImpl);
+export const updateKitchenStatus = notifyingProduction(updateKitchenStatusImpl);
+export const claimKitchenTicket = notifyingProduction(claimKitchenTicketImpl);
+export const deliverClaimedTicket = notifyingProduction(deliverClaimedTicketImpl);
+export const handoverKitchenTicket = notifyingProduction(handoverKitchenTicketImpl);
+export const moveTable = notifyingProduction(moveTableImpl);
+export const pickupKitchenTicket = notifyingProduction(pickupKitchenTicketImpl);
+export const releaseKitchenTicket = notifyingProduction(releaseKitchenTicketImpl);
+export const voidOrder = notifyingProduction(voidOrderImpl);

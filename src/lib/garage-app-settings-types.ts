@@ -48,6 +48,9 @@ export type AppSettings = {
   // Production Hub: rentang waktu maksimal antar porsi dalam satu Smart Batch
   // (detik). 0 = tanpa batas. Dokumen §8.4 menyarankan mulai 60–120 detik.
   productionBatchWindowSec: number;
+  // Target SLA tiket produksi (menit) — dipasang ke tiket BARU saat dibuat.
+  productionTargetBarMinutes: number;
+  productionTargetFoodMinutes: number;
   // Loyalty
   pointsPerThousand: number;
   voucherMaxDiscountPct: number;
@@ -167,6 +170,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   receiptCopies: 1,
   kitchenChitAutoPrint: true,
   productionBatchWindowSec: 120,
+  productionTargetBarMinutes: 5,
+  productionTargetFoodMinutes: 15,
   pointsPerThousand: 1,
   voucherMaxDiscountPct: 30,
   qrPromoPct: 10,

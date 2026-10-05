@@ -47,9 +47,12 @@ import type { ModuleId } from "@/lib/garage-data";
 import { voice } from "@/lib/garage-voice";
 import type { OpsStation } from "@/lib/ops-center-engine";
 import type { OpsCenterData, OpsStationView } from "@/lib/ops-center-types";
+import { useProductionStream } from "@/lib/use-production-stream";
 import { chitCustomerName } from "@/lib/station-print";
 
 const POLL_MS = 10_000;
+// Saat stream realtime terhubung, polling hanya cadangan.
+const POLL_LIVE_MS = 30_000;
 const SOUND_KEY = "garage:ops-center-sound";
 const stationLabel = (s: OpsStation) => (s === "Bar" ? "Bar" : "Dapur");
 /** "Meja 05 · Andi" — nama pemesan tanpa mengulang label meja. */
@@ -88,13 +91,19 @@ export function OpsCenterView({ me, onNavigate }: { me: GarageMe; onNavigate: (m
     }
   }, []);
 
+  const refreshSilently = useCallback(() => void load(true), [load]);
+  const { connected: streamLive } = useProductionStream(refreshSilently);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch awal; state di-set di callback async
     void load();
+  }, [load]);
+
+  useEffect(() => {
     const tick = () => {
       if (!document.hidden) void load(true);
     };
-    const id = window.setInterval(tick, POLL_MS);
+    const id = window.setInterval(tick, streamLive ? POLL_LIVE_MS : POLL_MS);
     document.addEventListener("visibilitychange", tick);
     const unsub = subscribeGarageCache(GARAGE_TAGS.kitchen, () => void load(true));
     return () => {
@@ -102,7 +111,7 @@ export function OpsCenterView({ me, onNavigate }: { me: GarageMe; onNavigate: (m
       document.removeEventListener("visibilitychange", tick);
       unsub();
     };
-  }, [load]);
+  }, [load, streamLive]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -202,6 +211,15 @@ export function OpsCenterView({ me, onNavigate }: { me: GarageMe; onNavigate: (m
             <p className="text-sm text-[#b8b8c2]">Real-Time Operations • Smart Production • Team KPI</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[11px] font-black uppercase ${
+                streamLive ? "border-[#4a4a54] text-white" : "border-[#f5a742]/50 text-[#ffd79a]"
+              }`}
+              title={streamLive ? "Update langsung dari server" : "Koneksi realtime belum tersambung — memuat ulang tiap 10 detik"}
+            >
+              <span className={`size-2 rounded-full ${streamLive ? "bg-[#d4d4d8] motion-safe:animate-pulse" : "bg-[#f5a742]"}`} aria-hidden />
+              {streamLive ? "Live" : "Polling"}
+            </span>
             <span className="font-mono text-2xl font-black tabular-nums text-white" aria-label="Jam WIB">
               {clock}
             </span>

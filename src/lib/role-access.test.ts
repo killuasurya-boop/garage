@@ -214,3 +214,20 @@ describe("kapabilitas per akun (role + workstation + jabatan)", () => {
     expect(homeModuleFor("Kasir", null)).toBe("pos");
   });
 });
+
+describe("kapabilitas: ejaan workstation/jabatan tidak membuka celah", () => {
+  it("workstation huruf besar / spasi tetap dikenali; nilai tak dikenal = kasir", () => {
+    expect(canHandleMoney({ role: "Kasir", workstation: " Bar " })).toBe(false);
+    expect(homeModuleFor("Kasir", "Bar")).toBe("kitchen");
+    // Nilai asing (bukan stasiun) tidak membuat kasir terkunci dari POS → tidak ada redirect berulang.
+    expect(canHandleMoney({ role: "Kasir", workstation: "kasir" })).toBe(true);
+    expect(homeModuleFor("Kasir", "kasir")).toBe("pos");
+    expect(modulesForProfile({ role: "Kasir", workstation: "kasir" })).toContain("pos");
+  });
+
+  it("jabatan asisten (ejaan apa pun) hanya lihat stok", () => {
+    for (const position of ["Asisten Koki", "asisten  koki", "ASISTEN DAPUR"]) {
+      expect(canUseApiAs({ role: "Kasir", workstation: "dapur", position }, "inventory:write")).toBe(false);
+    }
+  });
+});

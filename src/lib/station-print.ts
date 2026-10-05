@@ -23,20 +23,23 @@ export function chitStationLabel(station: string): "Dapur" | "Bar" {
 }
 
 /**
- * Nama pemesan untuk chit. Order waiter tersimpan sebagai "Meja 5 · Andi ·
- * Waiter 1" → nama = segmen sesudah label meja. Identity yang hanya berisi meja
- * → tidak ada nama.
+ * Nama pemesan untuk chit / layar. Format identity:
+ * - order waiter: "Meja 5 · Andi · Waiter 1" (nama tamu diisi) → "Andi";
+ *   "Meja 5 · Waiter 1" (tanpa nama tamu) → null (itu nama waiter, bukan tamu).
+ * - order POS: nama customer; placeholder "Tamu" / "Antrian #12" → null.
  */
 export function chitCustomerName(ticket: Pick<ProductionTicketView, "identity" | "table">): string | null {
   const parts = (ticket.identity ?? "").split(" · ").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
   const sameTable = (label: string) =>
     label.toLowerCase() === (ticket.table ?? "").trim().toLowerCase() ||
     (parseTableNumber(label) !== null && parseTableNumber(label) === parseTableNumber(ticket.table ?? null));
-  if (parts.length > 1 && sameTable(parts[0])) {
-    return parts.slice(1).join(" · ");
+  if (sameTable(parts[0])) {
+    return parts.length >= 3 ? parts[1] : null;
   }
   const name = parts.join(" · ");
-  return name && name !== ticket.table ? name : null;
+  if (/^(tamu|guest customer|antrian\s*#?\d+)$/i.test(name)) return null;
+  return name;
 }
 
 /** Teks chit satu tiket produksi (tanpa harga), format sama dengan chit kasir. */

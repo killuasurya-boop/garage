@@ -184,12 +184,21 @@ export async function buildFinanceReport(input: {
           ["Diskon", -pnl.discount],
           ["Refund", -pnl.refund],
           ["Net sales", pnl.netSales],
-          ["HPP resep (penjualan)", -pnl.cogsRecipe],
-          ["Susut / waste gudang", -pnl.cogsShrinkage],
-          ["HPP aktual", -pnl.cogs],
+          ...(pnl.cogsBasis === "purchase"
+            ? [
+                ["Belanja bahan Bar (gudang)", -pnl.purchaseBar],
+                ["Belanja bahan Dapur (gudang)", -pnl.purchaseDapur],
+                ["Belanja umum (gudang)", -pnl.purchaseUmum],
+                ["Total belanja bahan", -pnl.cogs],
+              ]
+            : [
+                ["HPP resep (penjualan)", -pnl.cogsRecipe],
+                ["Susut / waste gudang", -pnl.cogsShrinkage],
+                ["HPP aktual", -pnl.cogs],
+              ]),
           ["Gross profit", pnl.grossProfit],
-          ["Payroll", -pnl.payroll],
-          ["Biaya operasional", -pnl.operatingExpense],
+          ["Upah & payroll", -pnl.payroll],
+          ["Biaya tetap & operasional", -pnl.operatingExpense],
           ["Operating profit", pnl.operatingProfit],
           ["Non-operasional", -pnl.nonOperatingExpense],
           ["Net profit", pnl.netProfit],
@@ -379,6 +388,7 @@ export async function buildFinanceReport(input: {
       const rows = figures.map((f) => ({
         date: f.date,
         netSales: f.netSales,
+        purchases: f.purchaseBar + f.purchaseDapur + f.purchaseUmum,
         recipe: f.cogsRecipe,
         shrinkage: f.cogsShrinkage,
         cogs: f.cogs,
@@ -388,13 +398,14 @@ export async function buildFinanceReport(input: {
       const hppColumns: Column[] = [
         { key: "date", label: "Tanggal", type: "text" },
         { key: "netSales", label: "Net sales", type: "money" },
-        { key: "recipe", label: "HPP resep", type: "money" },
+        { key: "purchases", label: "Belanja gudang", type: "money" },
+        { key: "recipe", label: "HPP resep (info)", type: "money" },
         { key: "shrinkage", label: "Susut gudang", type: "money" },
-        { key: "cogs", label: "HPP aktual", type: "money" },
-        { key: "ratio", label: "HPP / omzet", type: "pct" },
+        { key: "cogs", label: pnl.cogsBasis === "purchase" ? "Biaya bahan (P&L)" : "HPP aktual", type: "money" },
+        { key: "ratio", label: "Biaya bahan / omzet", type: "pct" },
         { key: "coverage", label: "Terukur resep", type: "pct" },
       ];
-      tables.push({ title: "HPP harian (resep + gudang)", columns: hppColumns, rows, totals: totalsRow(rows, hppColumns, "date") });
+      tables.push({ title: pnl.cogsBasis === "purchase" ? "Biaya bahan harian (belanja gudang)" : "HPP harian (resep + gudang)", columns: hppColumns, rows, totals: totalsRow(rows, hppColumns, "date") });
       const products = await getProductProfitability(period.fromKey, period.toKey);
       tables.push({
         title: "HPP per produk",
@@ -408,10 +419,19 @@ export async function buildFinanceReport(input: {
         rows: products.rows.map((p) => ({ name: p.name, sellingPrice: p.sellingPrice, unitHpp: p.unitHpp, marginPct: p.marginPct, qty: p.qty })),
       });
       summary = [
-        { label: "HPP resep", value: money(pnl.cogsRecipe) },
-        { label: "Susut / waste gudang", value: money(pnl.cogsShrinkage) },
-        { label: "HPP aktual", value: money(pnl.cogs) },
-        { label: "HPP / net sales", value: pct(pnl.hppRatioPct) },
+        ...(pnl.cogsBasis === "purchase"
+          ? [
+              { label: "Belanja Bar", value: money(pnl.purchaseBar) },
+              { label: "Belanja Dapur", value: money(pnl.purchaseDapur) },
+              { label: "Total belanja bahan (P&L)", value: money(pnl.cogs) },
+              { label: "HPP resep (info)", value: money(pnl.cogsRecipe) },
+            ]
+          : [
+              { label: "HPP resep", value: money(pnl.cogsRecipe) },
+              { label: "Susut / waste gudang", value: money(pnl.cogsShrinkage) },
+              { label: "HPP aktual", value: money(pnl.cogs) },
+            ]),
+        { label: "Biaya bahan / net sales", value: pct(pnl.hppRatioPct) },
         { label: "Penjualan terukur resep", value: pct(pnl.hppCoveragePct) },
         { label: "Produk tanpa resep", value: String(products.totals.withoutRecipe) },
       ];

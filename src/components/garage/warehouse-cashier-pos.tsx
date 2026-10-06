@@ -755,6 +755,8 @@ export function WarehouseCashierPos({ inventoryItems }: { inventoryItems: Invent
         </div>
       ) : null}
 
+      {mode === "supplier_receive" ? <ReceivingDoorNotice /> : null}
+
       {mode === "supplier_receive" ? (
         <section className="grid gap-4 xl:grid-cols-[1fr_420px]">
           <Card className="garage-panel garage-animate-in">
@@ -1158,5 +1160,23 @@ export function WarehouseCashierPos({ inventoryItems }: { inventoryItems: Invent
         </Card>
       </section>
     </section>
+  );
+}
+
+/** Satu pintu penerimaan: bahan gudang dicatat di Gudang → Penerimaan (stok + belanja sekali). */
+export function ReceivingDoorNotice() {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#f5a742]/45 bg-[#f5a742]/10 px-4 py-3">
+      <p className="min-w-0 text-sm text-[#ffe2b8]">
+        Barang masuk dari supplier / belanja pasar dicatat di <strong>Gudang → Penerimaan</strong>: stok gudang bertambah dan
+        belanja Bar/Dapur otomatis masuk laporan keuangan (dibayar langsung, tanpa hutang).
+      </p>
+      <a
+        href="/warehouse/receiving"
+        className="garage-press inline-flex min-h-10 shrink-0 items-center rounded-md bg-[#d11a2a] px-4 text-sm font-bold text-white hover:bg-[#b51522]"
+      >
+        Buka Penerimaan Gudang
+      </a>
+    </div>
   );
 }

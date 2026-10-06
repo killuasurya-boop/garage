@@ -165,7 +165,7 @@ import {
 } from "@/lib/member-types";
 import { hashPassword } from "@/lib/member-auth";
 import { daysInMonth } from "@/lib/finance-control-core";
-import { purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
+import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import {
   APPROVAL_CATEGORY_LABEL,
@@ -362,6 +362,11 @@ type ExpenseInput = {
   supplierInvoiceId?: string | null;
   expenseDate?: string;
   notes?: string;
+  /**
+   * Belanja bahan habis pakai tanpa stok gudang (es batu, gas, sayur harian):
+   * dihitung sebagai "Belanja bahan" di laba rugi (kategori Belanja Bar/Dapur/Umum).
+   */
+  countAsPurchase?: boolean;
 };
 
 export type MenuProductInput = {
@@ -3431,6 +3436,15 @@ export async function getFinanceOverview() {
   const monthNetRevenue = engine.month.netSales;
   const monthGrossProfit = engine.month.grossProfit;
   const monthNetProfit = engine.month.netProfit;
+  const monthTargetToDate = (() => {
+    const target = engine.config.netProfitTargetMonthly;
+    if (!target) return null;
+    const monthStart = `${engine.todayKey.slice(0, 8)}01`;
+    const from = engine.config.businessStartDate > monthStart ? engine.config.businessStartDate : monthStart;
+    if (from > engine.todayKey) return null;
+    const activeDays = Math.round((Date.parse(engine.todayKey) - Date.parse(from)) / 86_400_000) + 1;
+    return Math.round((target / daysInMonth(engine.todayKey)) * activeDays);
+  })();
 
   const supplierPayables = supplierInvoiceRows.length
     ? supplierInvoiceRows.map((row) => ({
@@ -3576,6 +3590,14 @@ export async function getFinanceOverview() {
             message: "Net profit hari ini negatif; cek expense harian dan diskon.",
           }
         : null,
+    // Patokan balik modal: profit bulan berjalan vs target prorata s/d hari ini.
+    monthTargetToDate !== null && monthNetProfit >= 0 && monthNetProfit < monthTargetToDate
+      ? {
+          area: "Target profit",
+          level: "watch",
+          message: `Profit bersih bulan ini ${formatIdrShort(monthNetProfit)} di bawah target s/d hari ini ${formatIdrShort(monthTargetToDate)}.`,
+        }
+      : null,
     lowStockRows.length
       ? {
           area: "Inventory cost",
@@ -11901,6 +11923,19 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
   const itemSkus = [...new Set(input.items.map((item) => item.sku.trim()).filter(Boolean))];
   if (!itemSkus.length) throw new Error("Minimal 1 SKU wajib diisi untuk Supplier POS.");
 
+  // Satu pintu penerimaan (owner, Okt 2026): bahan yang dikelola gudang WMS wajib
+  // dicatat lewat Gudang → Penerimaan supaya stok, HPP, dan belanja tercatat
+  // sekali di ledger yang sama (cegah stok ganda & belanja dobel).
+  const wmsManaged: string[] = [];
+  for (const sku of itemSkus) {
+    if (await isWmsManaged(db, sku)) wmsManaged.push(sku);
+  }
+  if (wmsManaged.length) {
+    throw new Error(
+      `Bahan ${wmsManaged.join(", ")} dikelola gudang. Catat barang masuk lewat Gudang → Penerimaan (/warehouse/receiving).`,
+    );
+  }
+
   const inventoryRows = await db.select().from(inventoryItems).where(inArray(inventoryItems.sku, itemSkus));
   const inventoryBySku = new Map(inventoryRows.map((item) => [item.sku, item]));
   const lines = input.items.map((line) => {
@@ -14659,6 +14694,12 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
   const ownerApprovalThreshold = await getExpenseOwnerApprovalThreshold();
   const status = input.amount >= approvalThreshold ? "pending_approval" : "recorded";
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  // Belanja bahan tanpa stok gudang → ikut biaya "Belanja bahan" (sourceDoc unik).
+  const purchaseArea = input.countAsPurchase ? purchaseAreaForCategory(input.category) : null;
+  if (input.countAsPurchase && !purchaseArea) {
+    throw new Error("Belanja bahan hanya untuk kategori Belanja Bar / Belanja Dapur / Belanja Umum.");
+  }
+  const purchaseSourceDoc = purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null;
   const db = getDb();
   const { expense, cashSession } = await db.transaction(async (tx) => {
     const [createdExpense] = await tx
@@ -14674,6 +14715,7 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
         status,
         expenseDate,
         notes: input.notes?.trim() || null,
+        sourceDoc: purchaseSourceDoc,
         createdBy: garage.user.id,
       })
       .returning();

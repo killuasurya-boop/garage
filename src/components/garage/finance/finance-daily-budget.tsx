@@ -76,6 +76,7 @@ export function FinanceDailyBudget({ overview }: { overview: FinanceOverview | n
   const omzet = overview?.today.revenue ?? 0;
   const fixedTotal = data?.fixed.total ?? 0;
   const variableTotal = data?.variable.total ?? 0;
+  const purchaseBasis = (data?.variable.basis ?? "purchase") === "purchase";
   const sisa = omzet - fixedTotal - variableTotal;
 
   return (
@@ -85,8 +86,8 @@ export function FinanceDailyBudget({ overview }: { overview: FinanceOverview | n
           <div className="min-w-0">
             <CardTitle>Biaya Harian &amp; Belanja</CardTitle>
             <CardDescription>
-              Biaya tetap dari Pengaturan Keuangan. Biaya bahan baku terhitung otomatis dari resep setiap
-              penjualan lunas, dipisah Bar &amp; Dapur.
+              Biaya tetap dari Pengaturan Keuangan. Biaya bahan baku = belanja yang diterima gudang hari ini
+              (dibayar langsung), dipisah Bar &amp; Dapur dan dibandingkan dengan anggaran.
             </CardDescription>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -127,7 +128,7 @@ export function FinanceDailyBudget({ overview }: { overview: FinanceOverview | n
                 hint={`Operasional ${shortRp(data.fixed.operational)} + Save Money ${shortRp(data.fixed.reserve)}`}
               />
               <Tile
-                label="Bahan baku terpakai (otomatis)"
+                label={purchaseBasis ? "Belanja bahan hari ini" : "Bahan baku terpakai (otomatis)"}
                 value={variableTotal}
                 tone="out"
                 hint={`Anggaran ${shortRp(data.variable.budgetMin)}–${shortRp(data.variable.budgetMax)}`}
@@ -167,7 +168,9 @@ export function FinanceDailyBudget({ overview }: { overview: FinanceOverview | n
               </div>
 
               <div className="garage-surface rounded-md p-3">
-                <p className="text-sm font-semibold text-white">Biaya tidak tetap — bahan baku terpakai hari ini</p>
+                <p className="text-sm font-semibold text-white">
+                  {purchaseBasis ? "Belanja bahan hari ini vs anggaran" : "Biaya tidak tetap — bahan baku terpakai hari ini"}
+                </p>
                 <div className="mt-2 space-y-3">
                   {data.variable.areas.map((area) => {
                     const status = STATUS_STYLE[area.status];
@@ -195,7 +198,12 @@ export function FinanceDailyBudget({ overview }: { overview: FinanceOverview | n
                         <p className="mt-1 text-[11px] text-[#b8b8bf]">
                           Anggaran {currency.format(area.budgetMin)} – {currency.format(area.budgetMax)} / hari
                         </p>
-                        {area.linesWithoutRecipe > 0 ? (
+                        {purchaseBasis ? (
+                          <p className="mt-1 text-[11px] text-[#b8b8bf]">
+                            Pemakaian menurut resep (info): {currency.format(area.recipeUsage ?? 0)}
+                          </p>
+                        ) : null}
+                        {!purchaseBasis && area.linesWithoutRecipe > 0 ? (
                           <p className="mt-1 text-[11px] text-[#ffd08a]">
                             {area.linesWithoutRecipe} item terjual belum punya resep — bahan bakunya belum
                             terhitung. Lengkapi resep di menu Produk.

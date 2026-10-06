@@ -21,6 +21,8 @@ type ReceivingRow = {
   doc: string;
   supplier: string;
   status: string;
+  paymentMethod?: string;
+  receivedDate?: string | null;
   items: number;
   totalValue: number;
   createdAt: string;
@@ -34,6 +36,8 @@ type ReceivingDetail = {
   additionalCost: number;
   warehouseId: string | null;
   status: string;
+  paymentMethod?: string;
+  receivedDate?: string | null;
   items: Array<{
     productId: string;
     orderedQty: number;
@@ -204,6 +208,9 @@ export default function WmsReceivingPage() {
   const [supplier, setSupplier] = useState("");
   const [poNumber, setPoNumber] = useState("");
   const [additionalCost, setAdditionalCost] = useState("");
+  // Belanja dibayar langsung: metode bayar + tanggal barang diterima (= tanggal biaya).
+  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Transfer" | "QRIS">("Cash");
+  const [receivedDate, setReceivedDate] = useState(todayWib());
   const [newSupplier, setNewSupplier] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
@@ -241,6 +248,8 @@ export default function WmsReceivingPage() {
     setSupplier("");
     setPoNumber("");
     setAdditionalCost("");
+    setPaymentMethod("Cash");
+    setReceivedDate(todayWib());
     setItems([emptyItem()]);
     setEditId(null);
     setStep(0);
@@ -251,6 +260,8 @@ export default function WmsReceivingPage() {
     setSupplier(draft.supplier ?? "");
     setPoNumber(draft.poNumber ?? "");
     setAdditionalCost(String(draft.additionalCost || ""));
+    setPaymentMethod((draft.paymentMethod as "Cash" | "Transfer" | "QRIS") || "Cash");
+    setReceivedDate(draft.receivedDate || todayWib());
     setItems(draft.items.length ? draft.items.map(itemToDraft) : [emptyItem()]);
     setEditId(draft.id);
     setCreating(true);
@@ -427,6 +438,8 @@ export default function WmsReceivingPage() {
         poNumber: poNumber.trim() || undefined,
         additionalCost: parseIdNumber(additionalCost) || 0,
         warehouseId: warehouseId || undefined,
+        paymentMethod,
+        receivedDate: receivedDate || null,
         items: buildPayloadItems(items),
       };
 
@@ -455,6 +468,24 @@ export default function WmsReceivingPage() {
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Gagal menyimpan penerimaan.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doCancel(id: string, doc: string) {
+    const reason = window.prompt(
+      `Batalkan penerimaan ${doc}?\nStok yang masuk akan dikeluarkan lagi dan belanjanya dihapus dari laporan keuangan.\nTulis alasan (mis. salah qty / salah harga):`,
+    );
+    if (!reason || reason.trim().length < 3) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await garageApi.post(`/api/wms/receiving/${id}/cancel`, { reason: reason.trim() });
+      setMsg(`Penerimaan ${doc} dibatalkan — buat penerimaan baru dengan data yang benar.`);
+      await load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Gagal membatalkan penerimaan.");
     } finally {
       setBusy(false);
     }
@@ -514,8 +545,8 @@ export default function WmsReceivingPage() {
         <div>
           <h1 className="text-[22px] font-extrabold text-[#111111]">Receiving</h1>
           <p className="text-[13px] text-[#6B7280]">
-            Penerimaan barang dari supplier → stok + batch + HPP. Bahan otomatis masuk ke{" "}
-            <b>Ruang Bar/Dapur</b> sesuai kategori.
+            Penerimaan barang dari supplier / belanja pasar → stok + batch + HPP + belanja lunas di laporan keuangan.
+            Bahan otomatis masuk ke <b>Ruang Bar/Dapur</b> sesuai kategori.
           </p>
         </div>
         <button
@@ -632,7 +663,35 @@ export default function WmsReceivingPage() {
                 className={`${input} w-full sm:w-56`}
                 title="Dialokasikan proporsional ke HPP bahan (landed cost)"
               />
+              <label className="flex w-full items-center gap-2 text-[12px] font-semibold text-[#374151] sm:w-auto">
+                Dibayar
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as "Cash" | "Transfer" | "QRIS")}
+                  className={`${input} w-full sm:w-32`}
+                  aria-label="Metode bayar belanja"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Transfer">Transfer</option>
+                  <option value="QRIS">QRIS</option>
+                </select>
+              </label>
+              <label className="flex w-full items-center gap-2 text-[12px] font-semibold text-[#374151] sm:w-auto">
+                Tgl terima
+                <input
+                  type="date"
+                  value={receivedDate}
+                  max={todayWib()}
+                  onChange={(e) => setReceivedDate(e.target.value)}
+                  className={`${input} w-full sm:w-40`}
+                  aria-label="Tanggal barang diterima"
+                />
+              </label>
             </div>
+            <p className="mt-2 text-[12px] text-[#6B7280]">
+              Belanja langsung lunas (tanpa hutang): saat diselesaikan, nilai barang + biaya tambahan tercatat sebagai Belanja
+              Bar/Dapur di laporan keuangan pada tanggal terima.
+            </p>
           </div>
 
           <div className="max-h-[440px] overflow-auto rounded-lg border border-[#F0F1F4]">
@@ -1019,7 +1078,12 @@ export default function WmsReceivingPage() {
               list.map((r) => (
                 <tr key={r.id} className="border-b border-[#F0F1F4] last:border-0">
                   <td className="px-3 py-2.5 font-mono text-[12px] font-bold text-[#C8102E]">{r.doc}</td>
-                  <td className="px-3 py-2.5 text-[#111111]">{r.supplier || "-"}</td>
+                  <td className="px-3 py-2.5 text-[#111111]">
+                    {r.supplier || "-"}
+                    <span className="block text-[11px] text-[#6B7280]">
+                      {r.paymentMethod ?? "Cash"} · terima {r.receivedDate ?? r.createdAt.slice(0, 10)}
+                    </span>
+                  </td>
                   <td className="px-3 py-2.5 text-right font-mono text-[#6B7280]">{r.items}</td>
                   <td className="px-3 py-2.5 text-right font-mono text-[#111111]">{currency.format(r.totalValue)}</td>
                   <td className="px-3 py-2.5">
@@ -1037,7 +1101,18 @@ export default function WmsReceivingPage() {
                           <Pencil className="size-3.5" /> Edit
                         </button>
                       )}
-                      {r.status !== "completed" && (
+                      {r.status === "completed" && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void doCancel(r.id, r.doc)}
+                          className="rounded-md border border-[#FCA5A5] px-2.5 py-1.5 text-[12px] font-semibold text-[#B91C1C] hover:bg-[#FEF2F2] disabled:opacity-50"
+                          title="Salah input? Batalkan lalu buat penerimaan baru yang benar (Owner/Manajer)."
+                        >
+                          Batalkan
+                        </button>
+                      )}
+                      {r.status !== "completed" && r.status !== "cancelled" && (
                         <button
                           type="button"
                           disabled={busy}
@@ -1077,6 +1152,13 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     );
   }
+  if (status === "cancelled") {
+    return (
+      <span className="rounded-full bg-[#FEE2E2] px-2 py-0.5 text-[10px] font-bold uppercase text-[#B91C1C]">
+        Dibatalkan
+      </span>
+    );
+  }
   if (status === "pending_approval") {
     return (
       <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold uppercase text-[#D97706]">
@@ -1087,4 +1169,9 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-bold uppercase text-[#6B7280]">Draft</span>
   );
+}
+
+/** Tanggal hari ini (WIB) "YYYY-MM-DD" untuk default tanggal terima. */
+function todayWib() {
+  return new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
 }

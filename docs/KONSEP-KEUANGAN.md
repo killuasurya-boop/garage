@@ -22,6 +22,20 @@ Profit bersih    = Omzet bersih − Belanja bahan − Biaya tetap − Biaya lain
 - **Save Money** Rp100.000/hari adalah cadangan, bukan biaya.
 - Dasar biaya bisa diganti di Finance → Pengaturan → "Biaya bahan baku dihitung dari" (Belanja gudang / Resep).
 
+## Alur belanja harian (siap operasional)
+
+1. **Satu pintu:** semua barang yang disimpan di gudang dicatat lewat **Gudang → Penerimaan** (`/warehouse/receiving`).
+   Menu lama "Barang Masuk Supplier" menolak bahan gudang dan mengarahkan ke Penerimaan, agar stok & belanja tidak dobel.
+2. Isi supplier (opsional), **Dibayar** (Cash / Transfer / QRIS), **Tgl terima** (default hari ini, tidak boleh masa depan),
+   ongkir di "Biaya tambahan", lalu **Selesaikan**. Belanja tercatat lunas pada tanggal terima.
+3. **Salah input?** Owner/Manajer klik **Batalkan** pada penerimaan yang sudah selesai (wajib alasan): stok dikeluarkan
+   lagi & belanjanya dihapus dari laporan. Lalu buat penerimaan baru yang benar. Bila stoknya sudah terpakai, pembatalan
+   ditolak → koreksi lewat stok opname. Hari yang sudah Daily Closing tidak bisa diubah.
+4. **Bahan habis pakai tanpa stok** (es batu, gas, sayur harian): Finance → Tambah Pengeluaran, kategori Belanja
+   Bar/Dapur/Umum, centang **"tanpa stok gudang"** → ikut biaya belanja bahan. Tanpa centang = hanya uang keluar.
+5. Anggaran harian Bar/Dapur (Finance → Biaya Harian & Belanja) dibandingkan dengan belanja nyata hari itu.
+6. Finance Guard memberi peringatan bila profit bersih bulan berjalan di bawah target s/d hari ini.
+
 ## Target profit bersih = patokan balik modal
 
 Isi **Finance → Pengaturan → Target profit bersih / bulan**. Lalu:

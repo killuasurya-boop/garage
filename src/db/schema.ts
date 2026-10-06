@@ -3023,7 +3023,15 @@ export const wmsReceiving = pgTable("wms_receiving", {
   poNumber: text("po_number").notNull().default(""), // No. PO / referensi order
   additionalCost: wmsNum("additional_cost").notNull().default(0), // ongkir/pajak → landed cost
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
-  status: text("status").notNull().default("draft"), // draft|request|approved|issued|received|completed
+  status: text("status").notNull().default("draft"), // draft|pending_approval|completed|cancelled
+  // Belanja dibayar langsung (owner, Okt 2026): metode bayar + tanggal barang
+  // diterima (= tanggal biaya belanja di laporan keuangan).
+  paymentMethod: text("payment_method").notNull().default("Cash"),
+  receivedDate: date("received_date"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  cancelledBy: text("cancelled_by").references(() => user.id, { onDelete: "set null" }),
+  cancelReason: text("cancel_reason"),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

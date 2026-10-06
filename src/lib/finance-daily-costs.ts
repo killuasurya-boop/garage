@@ -9,7 +9,7 @@ import {
   jakartaDayStart,
   type VariableBudget,
 } from "@/lib/finance-control-core";
-import { loadFinanceConfig } from "@/lib/finance-control";
+import { loadDayRaws, loadFinanceConfig } from "@/lib/finance-control";
 import { productionStationFor } from "@/lib/garage-production-rules";
 import { getWmsProducts, getWmsSmartReorder } from "@/lib/wms-service";
 
@@ -36,7 +36,11 @@ export type DailyCosts = {
       status: BudgetStatus;
       /** Baris terjual yang menunya belum punya resep (HPP dihitung 0). */
       linesWithoutRecipe: number;
+      /** Pemakaian bahan menurut resep (info) — pembanding belanja. */
+      recipeUsage: number;
     }>;
+    /** "purchase" = actual = belanja diterima gudang hari ini; "recipe" = HPP terpakai. */
+    basis: "purchase" | "recipe";
     total: number;
     budgetMin: number;
     budgetMax: number;
@@ -146,10 +150,16 @@ export async function getDailyCosts(dateKey = jakartaDateKey()): Promise<DailyCo
   for (const row of cogsRows) actual[areaOf(row)] += Number(row.cogs);
   for (const row of lineRows) noRecipe[areaOf(row)] += Number(row.withoutRecipe);
 
+  // Konsep owner (mode purchase): anggaran dibandingkan dengan belanja yang
+  // benar-benar diterima gudang hari ini; pemakaian resep tetap jadi info.
+  const basis = config.cogsBasis ?? "purchase";
+  const purchases = basis === "purchase" ? ((await loadDayRaws(dateKey, dateKey)).get(dateKey)?.purchases ?? null) : null;
+
   const areas = (["bar", "dapur"] as const).map((area) => {
     const min = area === "bar" ? budget.barMin : budget.dapurMin;
     const max = area === "bar" ? budget.barMax : budget.dapurMax;
-    const value = Math.round(actual[area]);
+    const recipeUsage = Math.round(actual[area]);
+    const value = purchases ? Math.round(purchases[area]) : recipeUsage;
     return {
       area,
       label: AREA_LABEL[area],
@@ -158,6 +168,7 @@ export async function getDailyCosts(dateKey = jakartaDateKey()): Promise<DailyCo
       budgetMax: max,
       status: budgetStatus(value, min, max),
       linesWithoutRecipe: noRecipe[area],
+      recipeUsage,
     };
   });
 
@@ -207,6 +218,7 @@ export async function getDailyCosts(dateKey = jakartaDateKey()): Promise<DailyCo
     fixed: { items: fixedItems, operational, reserve, total: operational + reserve },
     variable: {
       areas,
+      basis,
       total: areas.reduce((s, a) => s + a.actual, 0),
       budgetMin: budget.barMin + budget.dapurMin,
       budgetMax: budget.barMax + budget.dapurMax,

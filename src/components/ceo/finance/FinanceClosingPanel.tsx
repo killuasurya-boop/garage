@@ -258,9 +258,9 @@ function DailyClosing({ overview, onChanged }: { overview: ClosingOverview; onCh
             </FinanceCard>
             <FinanceCard title="Financial snapshot" subtitle={data.status === "closed" ? "Angka terkunci" : "Angka live saat ini"}>
               <Money label="Revenue (net sales)" value={data.figures.netSales} strong />
-              <Money label="HPP" value={data.figures.cogs} />
-              <Money label="Payroll" value={data.figures.payroll} />
-              <Money label="Biaya operasional" value={data.figures.operatingExpense} />
+              <Money label="Biaya bahan (belanja gudang)" value={data.figures.cogs} />
+              <Money label="Upah & payroll" value={data.figures.payroll} />
+              <Money label="Biaya tetap & operasional" value={data.figures.operatingExpense} />
               <Money label="Net profit" value={data.figures.netProfit} strong />
               <Money label="Cash in" value={data.figures.cashIn} />
               <Money label="Cash out" value={data.figures.cashOut} />
@@ -510,10 +510,10 @@ function MonthlyClosing({ overview, onChanged }: { overview: ClosingOverview; on
               <Money label="Gross sales" value={report.pnl.grossSales} />
               <Money label="Net sales" value={report.pnl.netSales} strong />
               <Money label="Ongkir delivery (di luar penjualan)" value={report.pnl.deliveryFees} />
-              <Money label="HPP" value={report.pnl.cogs} />
+              <Money label="Biaya bahan (belanja gudang)" value={report.pnl.cogs} />
               <Money label="Gross profit" value={report.pnl.grossProfit} strong />
-              <Money label="Payroll" value={report.pnl.payroll} />
-              <Money label="Biaya operasional" value={report.pnl.operatingExpense} />
+              <Money label="Upah & payroll" value={report.pnl.payroll} />
+              <Money label="Biaya tetap & operasional" value={report.pnl.operatingExpense} />
               <Money label="Non-operasional" value={report.pnl.nonOperatingExpense} />
               <Money label="Net profit" value={report.pnl.netProfit} strong />
               <p className="mt-2 text-xs text-zinc-400">

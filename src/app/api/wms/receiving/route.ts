@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson } from "@/lib/api-response";
 import { createReceiving, listReceivings } from "@/lib/wms-service";
 import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
@@ -12,6 +12,8 @@ const createSchema = z.object({
   poNumber: z.string().trim().max(60).optional(),
   additionalCost: z.number().nonnegative().max(1_000_000_000).optional(),
   warehouseId: z.string().uuid().optional(),
+  paymentMethod: z.enum(["Cash", "Transfer", "QRIS"]).optional(),
+  receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal YYYY-MM-DD.").nullable().optional(),
   items: z
     .array(
       z.object({
@@ -45,5 +47,9 @@ export async function POST(request: Request) {
   if (session.response) return session.response;
   const parsed = await readJson(request, createSchema);
   if (parsed.error) return parsed.error;
-  return ok(await createReceiving(parsed.data, session.data.user.id), { status: 201 });
+  try {
+    return ok(await createReceiving(parsed.data, session.data.user.id), { status: 201 });
+  } catch (e) {
+    return fail(400, "RECEIVING_CREATE_FAILED", e instanceof Error ? e.message : "Gagal membuat penerimaan.");
+  }
 }

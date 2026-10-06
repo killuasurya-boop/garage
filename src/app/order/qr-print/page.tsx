@@ -265,7 +265,7 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
         }
         .card-item { display: flex; flex-direction: column; gap: 8px; }
         .card-svg {
-          aspect-ratio: 540 / 840; background: #fff; border-radius: 10px; display: block;
+          aspect-ratio: 600 / 900; background: #fff; border-radius: 10px; display: block;
           height: auto; width: 100%;
         }
         .btn-dl-one {
@@ -328,10 +328,10 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
                     img.onerror = reject;
                     img.src = svgObjUrl;
                   });
-                  const scale = 2.5; // 540x840 -> 1350x2100 (tajam untuk cetak)
+                  const scale = 2.5; // 600x900 -> 1500x2250 (tajam untuk cetak)
                   const canvas = document.createElement("canvas");
-                  canvas.width = 540 * scale;
-                  canvas.height = 840 * scale;
+                  canvas.width = 600 * scale;
+                  canvas.height = 900 * scale;
                   const ctx = canvas.getContext("2d");
                   ctx.fillStyle = "#ffffff";
                   ctx.fillRect(0, 0, canvas.width, canvas.height);

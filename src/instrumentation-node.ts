@@ -33,6 +33,11 @@ function startUnpaidOrderSweeper() {
       const { sweepUnpaidOrders } = await import("@/lib/garage-courier");
       const rejected = await sweepUnpaidOrders();
       if (rejected.length) console.log(`[auto-reject] ${rejected.length} order belum bayar ditolak: ${rejected.join(", ")}`);
+      // Sekali per jam: bersihkan feed notifikasi staf yang sudah lama (> 14 hari).
+      if (new Date().getMinutes() === 7) {
+        const { pruneStaffNotifications } = await import("@/lib/staff-notifications");
+        await pruneStaffNotifications();
+      }
     } catch (error) {
       console.warn("[auto-reject] sapuan gagal:", error instanceof Error ? error.message : error);
     }

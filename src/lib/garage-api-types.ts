@@ -666,7 +666,7 @@ export type CustomerOrderActionResponse = {
 };
 
 export type PublicOrderStatus = {
-  id: string;
+  id: string | null;
   orderNo: string;
   tableLabel: string;
   orderStatus: string;

@@ -108,6 +108,8 @@ export type AnnouncePayload = {
   table?: string | null;
   channel?: string | null;
   itemName?: string | null;
+  /** Nomor pesanan yang dibacakan (dedupKey hanya kunci anti-dobel). */
+  orderNo?: string | null;
 };
 
 export type AnnounceOptions = AnnouncePayload & {
@@ -187,6 +189,12 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   cooldownMs: 3500,
 };
 
+/** "QR-1234" / "POS-1243337757" → "1 2 3 4" (4 digit terakhir, dibaca per angka). */
+function spokenOrderNo(orderNo: string) {
+  const digits = orderNo.replace(/\D/g, "");
+  return (digits.slice(-4) || orderNo).split("").join(" ");
+}
+
 export const VOICE_CHANNEL_LABEL: Record<VoiceChannel, string> = {
   kasir: "Kasir (ramah & jelas)",
   kitchen: "Dapur (ramah & tegas)",
@@ -218,9 +226,9 @@ export const SCENARIO_META: Record<
     label: "Order baru → Dapur (kasir input)",
     channel: "kitchen",
     dingKind: "soft",
-    build: ({ table, dedupKey }) => {
+    build: ({ table, orderNo }) => {
       const t = normalizeTable(table);
-      const o = dedupKey ? `, nomor ${dedupKey},` : "";
+      const o = orderNo ? `, nomor ${spokenOrderNo(orderNo)},` : "";
       if (t && o) return `Perhatian. Pesanan baru ${t}${o} telah masuk ke dapur.`;
       if (t) return `Perhatian. Pesanan baru ${t} telah masuk ke dapur.`;
       return `Perhatian. Pesanan baru telah masuk ke dapur.`;
@@ -230,9 +238,9 @@ export const SCENARIO_META: Record<
     label: "Order baru → Bar (kasir input)",
     channel: "bar",
     dingKind: "soft",
-    build: ({ table, dedupKey }) => {
+    build: ({ table, orderNo }) => {
       const t = normalizeTable(table);
-      const o = dedupKey ? `, nomor ${dedupKey},` : "";
+      const o = orderNo ? `, nomor ${spokenOrderNo(orderNo)},` : "";
       if (t && o) return `Perhatian. Pesanan baru minuman ${t}${o} telah masuk ke bar.`;
       if (t) return `Perhatian. Pesanan baru minuman ${t} telah masuk ke bar.`;
       return `Perhatian. Pesanan baru minuman telah masuk ke bar.`;
@@ -285,9 +293,9 @@ export const SCENARIO_META: Record<
     label: "Pesanan selesai",
     channel: "kitchen",
     dingKind: "soft",
-    build: ({ table, dedupKey }) => {
+    build: ({ table, orderNo }) => {
       const t = normalizeTable(table);
-      const o = dedupKey ? `, nomor ${dedupKey},` : "";
+      const o = orderNo ? `, nomor ${spokenOrderNo(orderNo)},` : "";
       if (t && o) return `Pesanan ${t}${o} sudah siap diantar.`;
       if (t) return `Pesanan ${t} sudah siap diantar.`;
       return `Ada pesanan siap diantar.`;
@@ -487,6 +495,17 @@ export const SCENARIO_META: Record<
         : `Pesan dari Owner. Mohon segera dicek di chat internal.`,
   },
 };
+
+// Skenario yang belum punya pemicu di aplikasi — disembunyikan dari daftar
+// pengaturan supaya pengguna tidak mengira fitur itu aktif.
+export const UNUSED_SCENARIOS = new Set<VoiceScenario>([
+  "member_vip",
+  "audit_alert",
+  "finance_alert",
+  "product_management_alert",
+  "membership_approval",
+  "waiter_reservation",
+]);
 
 export const SCENARIO_ORDER: VoiceScenario[] = [
   "order_new_kitchen",

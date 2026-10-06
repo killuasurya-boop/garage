@@ -210,7 +210,7 @@ VoucherValidation
 } from "@/lib/garage-api-types";
 import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
 import { printKitchenChit, printThermal } from "@/lib/print-client";
-import { productionIdentityName, productionStationLabel } from "@/lib/garage-production-rules";
+import { productionIdentityName, productionStationFor, productionStationLabel } from "@/lib/garage-production-rules";
 import type { KitchenChitItem } from "@/lib/thermal-receipt";
 import {
 currency
@@ -223,6 +223,7 @@ isLocalQrBaseUrl,
 import { formatTableDuration } from "@/lib/garage-tables";
 import { voice } from "@/lib/garage-voice";
 import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
+import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
 import { DeliveryOrderPanel } from "@/components/garage/delivery-order-panel";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
 import {
@@ -828,6 +829,17 @@ export function PosView({
   const [customerOrderCashReceived, setCustomerOrderCashReceived] = useState("");
   const [customerOrderCashDeposited, setCustomerOrderCashDeposited] = useState("");
   const [qrOrdersOpen, setQrOrdersOpen] = useState(false);
+  // Klik notifikasi "Order baru" / "Chat baru" dari pusat notifikasi.
+  useEffect(() => {
+    const openQr = () => setQrOrdersOpen(true);
+    const openChat = () => setChatOpen(true);
+    window.addEventListener("garage:open-qr", openQr);
+    window.addEventListener("garage:open-chat", openChat);
+    return () => {
+      window.removeEventListener("garage:open-qr", openQr);
+      window.removeEventListener("garage:open-chat", openChat);
+    };
+  }, []);
   // Monitor "Status Produksi" (read-only) untuk kasir. READY adalah hak
   // workstation Bar/Dapur di Production Hub (BR-07/08), bukan kasir.
   const [kitchenTickets, setKitchenTickets] = useState<KitchenOrder[]>([]);
@@ -1139,8 +1151,13 @@ export function PosView({
         : null,
     [customerOrders, qrInsights?.recentOrders, selectedCustomerOrderId],
   );
+  // "Menunggu kasir" = belum diterima/dibayar saja (bukan yang sudah diproses
+  // atau delivery yang sedang diantar).
+  const waitingCustomerOrderCount = customerOrders.filter(
+    (order) => order.status === "pending_cashier" || order.status === "awaiting_payment",
+  ).length;
   const showQrNotice =
-    customerOrders.length > 0 && dismissedQrNoticeKey !== customerOrderNoticeKey;
+    waitingCustomerOrderCount > 0 && dismissedQrNoticeKey !== customerOrderNoticeKey;
   const qrNoticeIsNew =
     showQrNotice && qrNoticePulseKey === customerOrderNoticeKey;
   const subtotal = cartLines.reduce(
@@ -1545,7 +1562,8 @@ export function PosView({
   }, [emitQrNotificationTone, getQrNotificationAudioContext]);
 
   const playQrOrderNotificationSound = useCallback(() => {
-    if (cashierPosSettings.qrSoundMode === "off") {
+    // Pengaturan outlet (Notifikasi → Suara QR) mengalahkan setelan per perangkat.
+    if (cashierPosSettings.qrSoundMode === "off" || settings.qrSoundOn === false) {
       return;
     }
 
@@ -1572,7 +1590,16 @@ export function PosView({
 
     pendingQrNotificationSoundRef.current = false;
     emitQrNotificationTone(context);
-  }, [cashierPosSettings.qrSoundMode, emitQrNotificationTone, getQrNotificationAudioContext]);
+  }, [cashierPosSettings.qrSoundMode, settings.qrSoundOn, emitQrNotificationTone, getQrNotificationAudioContext]);
+
+  // Pusat notifikasi tidak ikut membunyikan order QR selama layar POS terbuka
+  // (POS sudah punya bunyi QR sendiri sesuai setelan perangkat) — cegah dobel.
+  useEffect(() => {
+    document.body.dataset.posQrSound = "1";
+    return () => {
+      delete document.body.dataset.posQrSound;
+    };
+  }, []);
 
   const previewQrAirportAnnouncer = useCallback(() => {
     voice.unlock();
@@ -1659,9 +1686,8 @@ export function PosView({
           if (previousOrderIdSnapshot.has(order.id)) continue;
 
           // 1. QR order announcement (existing, gated oleh qrSoundMode airport)
-          if (cashierPosSettings.qrSoundMode === "airport") {
+          if (cashierPosSettings.qrSoundMode === "airport" && settings.qrSoundOn !== false) {
             void voice.announce("airport_qr", {
-              force: true,
               channel: order.orderSource || order.channel,
               customerName: order.customerName,
               table: order.tableLabel,
@@ -1697,7 +1723,7 @@ export function PosView({
         setCustomerOrdersLoading(false);
       }
     }
-  }, [cashierPosSettings.qrSoundMode, playQrOrderNotificationSound]);
+  }, [cashierPosSettings.qrSoundMode, playQrOrderNotificationSound, settings.qrSoundOn]);
 
   const loadQrControlInsights = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
@@ -3217,7 +3243,6 @@ export function PosView({
       // dari expected) sehingga Manager langsung tahu untuk verifikasi.
       if (closedSession.discrepancy !== 0) {
         void voice.announce("cash_anomaly", {
-          force: true,
           dedupKey: `cash-anomaly-${closedSession.id}`,
         });
       }
@@ -3531,17 +3556,16 @@ export function PosView({
       for (const line of cart) {
         const item = menuItemsById.get(line.itemId);
         if (!item) continue;
-        if (item.category === "Makanan" || item.category === "Cemilan") {
-          hasKitchenItem = true;
-        } else if (item.category === "Coffee" || item.category === "Non-Coffee") {
-          hasBarItem = true;
-        }
+        // Sama dengan routing tiket server: override station di master produk, lalu kategori.
+        if (productionStationFor(item) === "Bar") hasBarItem = true;
+        else hasKitchenItem = true;
         if (hasKitchenItem && hasBarItem) break;
       }
       if (hasKitchenItem) {
         void voice.announce("order_new_kitchen", {
           customerName: voiceCustomerName,
           table: voiceTable,
+          orderNo: result.orderNo,
           dedupKey: `${result.orderNo}-kitchen`,
         });
       }
@@ -3549,6 +3573,7 @@ export function PosView({
         void voice.announce("order_new_bar", {
           customerName: voiceCustomerName,
           table: voiceTable,
+          orderNo: result.orderNo,
           dedupKey: `${result.orderNo}-bar`,
         });
       }
@@ -3811,7 +3836,16 @@ export function PosView({
         isCashierKiosk ? "xl:pl-[292px]" : ""
       }`}
     >
-      <PosChatInbox open={chatOpen} onOpenChange={setChatOpen} onUnread={setChatUnread} />
+      <PosChatInbox
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        onUnread={setChatUnread}
+        onOpenOrder={(orderId) => {
+          setChatOpen(false);
+          setQrOrdersOpen(true);
+          setSelectedCustomerOrderId(orderId);
+        }}
+      />
       <VoiceSettingsDialog
         open={voiceDialogOpen}
         onOpenChange={setVoiceDialogOpen}
@@ -3915,8 +3949,8 @@ export function PosView({
                   <Bell className="size-4" />
                   QR Order
                 </span>
-                <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
-                  {customerOrders.length}
+                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
+                  {waitingCustomerOrderCount}
                 </Badge>
               </Button>
               <Button
@@ -4176,8 +4210,8 @@ export function PosView({
                   <Bell className="size-4" />
                   QR Order
                 </span>
-                <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
-                  {customerOrders.length}
+                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
+                  {waitingCustomerOrderCount}
                 </Badge>
               </Button>
               <Button
@@ -4544,7 +4578,7 @@ export function PosView({
                     </div>
                     <div className="rounded border border-[#f5a742]/35 bg-[#f5a742]/10 p-2">
                       <p className="text-lg font-black text-[#ffd08a]">
-                        {customerOrders.length}
+                        {waitingCustomerOrderCount}
                       </p>
                       <p className="text-[10px] text-[#b8b8bf]">QR pending</p>
                     </div>
@@ -4738,8 +4772,8 @@ export function PosView({
                     >
                       <Bell className="mr-2 size-4" />
                       Kontrol QR Order
-                      <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} ml-auto px-2 text-[10px]`}>
-                        {customerOrders.length}
+                      <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} ml-auto px-2 text-[10px]`}>
+                        {waitingCustomerOrderCount}
                       </Badge>
                     </Button>
                     <Button
@@ -5810,6 +5844,8 @@ export function PosView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+          {/* Kasir di mode POS penuh tidak punya header global → lonceng di sini. */}
+          {me.role === "Kasir" ? <StaffNotificationCenter newOrderSound={settings.newOrderSound} /> : null}
           <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
           <span
             className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#16A34A]/45 bg-[#16A34A]/12 px-2.5 text-[11px] font-semibold text-[#7fd7a3]"
@@ -5910,7 +5946,7 @@ export function PosView({
             data-pulse={qrNoticeIsNew ? "true" : "false"}
             aria-label="Buka Operasional QR"
             className={`garage-press h-10 gap-1.5 px-2.5 text-xs ${
-              customerOrders.length
+              waitingCustomerOrderCount
                 ? "qr-order-notice border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffe0ad] hover:bg-[#f5a742]/20"
                 : "border-[#4a4a54] bg-white/[0.055] text-[#d4d4d8] hover:bg-white/[0.09]"
             } ${isCashierKiosk ? "xl:hidden" : ""}`}
@@ -5918,8 +5954,8 @@ export function PosView({
           >
             <Bell className="size-3.5" />
             QR
-            <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[10px]`}>
-              {customerOrders.length}
+            <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[10px]`}>
+              {waitingCustomerOrderCount}
             </Badge>
           </Button>
           <Button
@@ -6017,7 +6053,7 @@ export function PosView({
             data-pulse={qrNoticeIsNew ? "true" : "false"}
             aria-label="Buka Operasional QR"
             className={`garage-press h-11 gap-2 px-3 text-xs min-[1200px]:h-9 ${
-              customerOrders.length
+              waitingCustomerOrderCount
                 ? "qr-order-notice border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffe0ad] hover:bg-[#f5a742]/20"
                 : "border-[#4a4a54] bg-white/[0.055] text-[#d4d4d8] hover:bg-white/[0.09]"
             }`}
@@ -6026,8 +6062,8 @@ export function PosView({
             <Bell className="size-3.5" />
             <span className="hidden sm:inline">QR / Operasional</span>
             <span className="sm:hidden">QR</span>
-            <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[10px]`}>
-              {customerOrders.length}
+            <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-1.5 text-[10px]`}>
+              {waitingCustomerOrderCount}
             </Badge>
           </Button>
           <Button
@@ -6262,7 +6298,7 @@ export function PosView({
               isKasir={me.role === "Kasir"}
               isSupervisor={me.role === "Owner" || me.role === "Manajer"}
               activeTableCount={closeShiftActiveTables.length}
-              pendingQrCount={customerOrders.length}
+              pendingQrCount={waitingCustomerOrderCount}
               canResetAllTables={canResetAllTablesOnClose}
               signOffRequired={shiftSignOffRequired}
               pending={shiftPending}
@@ -6387,8 +6423,8 @@ export function PosView({
               <div className="flex flex-wrap items-center gap-2">
                 <Bell className="size-3.5 text-[#f5a742]" />
                 <p className="garage-mono text-[11px] text-[#b8b8bf]">Antrean QR kasir</p>
-                <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
-                  {customerOrders.length ? `${customerOrders.length} baru` : "Kosong"}
+                <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} px-2 text-[10px]`}>
+                  {waitingCustomerOrderCount ? `${waitingCustomerOrderCount} baru` : "Kosong"}
                 </Badge>
                 <span className="hidden text-xs text-[#d6d6dc] md:inline">
                   Order dari scan meja langsung diproses di sini.
@@ -7511,12 +7547,13 @@ export function PosView({
             <Alert
               key={customerOrderNoticeKey}
               data-pulse={qrNoticeIsNew ? "true" : "false"}
-              className="hidden"
+              className="qr-order-notice mb-3 border-[#f5a742]/55 bg-[#f5a742]/12 text-[#ffe9c7]"
+              role="status"
             >
               <Bell className="size-4 text-[#f5a742]" />
               <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                  <AlertTitle>{customerOrders.length} QR order menunggu kasir</AlertTitle>
+                  <AlertTitle>{waitingCustomerOrderCount} QR order menunggu kasir</AlertTitle>
                   <AlertDescription>
                     Detail bisa dibuka dari kartu order. Terima untuk masuk dapur (KDS).
                   </AlertDescription>
@@ -7555,8 +7592,8 @@ export function PosView({
                       Order customer dari scan meja/menu digital. Proses cepat tanpa memenuhi layar POS.
                     </DialogDescription>
                   </div>
-                  <Badge className={`${customerOrders.length ? statusClass.pending_cashier : statusClass.info} shrink-0 px-2 text-[10px]`}>
-                    {customerOrders.length ? `${customerOrders.length} menunggu` : "Kosong"}
+                  <Badge className={`${waitingCustomerOrderCount ? statusClass.pending_cashier : statusClass.info} shrink-0 px-2 text-[10px]`}>
+                    {waitingCustomerOrderCount ? `${waitingCustomerOrderCount} menunggu` : "Kosong"}
                   </Badge>
                 </div>
               </DialogHeader>

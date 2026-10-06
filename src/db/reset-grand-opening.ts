@@ -38,6 +38,8 @@ loadEnv({ quiet: true });
 export const KEEP_TABLES = [
   // akun & akses
   "user", "account", "session", "verification", "two_factor", "staff_profiles", "push_subscriptions",
+  // kunci sistem (VAPID web push) — tetap supaya langganan HP tidak putus
+  "system_keys",
   // outlet & pengaturan
   "outlets", "dining_tables", "app_settings", "pos_terminals", "site_assets", "operation_locations", "operation_glossary",
   // menu, resep, katalog
@@ -72,6 +74,7 @@ export const CLEAR_TABLES = [
   "orders", "order_items", "payments", "payment_settlements", "kitchen_tickets",
   "production_ticket_items", "production_batches", "production_batch_allocations",
   "table_sessions", "service_requests", "print_jobs", "customer_chat_threads", "customer_chat_messages",
+  "order_push_subscriptions", "staff_notifications", "staff_notification_reads",
   "voucher_redemptions",
   // kas & finance transaksional
   "cash_sessions", "cash_movements", "expenses", "supplier_invoices", "supplier_receivings",

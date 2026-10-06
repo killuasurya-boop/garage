@@ -22,6 +22,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { GARAGE_LOCATION } from "@/lib/garage-location";
 import { getInvoiceLiveStatus, getPublicInvoiceTracking } from "@/lib/garage-service";
+import { InvoiceContact } from "./invoice-contact";
 import { InvoiceLiveTracker } from "./invoice-live-tracker";
 import { InvoicePrintButton } from "./invoice-print-button";
 import { InvoiceQrCode } from "./invoice-qr";
@@ -630,6 +631,22 @@ export default async function InvoiceTrackingPage({
                 orderUpdatedAt={invoice.updatedAt}
               />
             )}
+          </div>
+
+          {/* Chat kasir + notifikasi HP (web only) */}
+          <div className="invoice-timeline mt-3">
+            <InvoiceContact
+              token={token}
+              orderId={invoice.id}
+              orderNo={invoice.orderNo}
+              label={
+                liveStatus?.fulfillment === "delivery"
+                  ? "Delivery"
+                  : liveStatus?.fulfillment === "takeaway"
+                    ? "Take away"
+                    : (invoice.tableLabel ?? "Pelanggan")
+              }
+            />
           </div>
 
           {/* === PRINT-ONLY: META STRIP ringkas (info kunci) === */}

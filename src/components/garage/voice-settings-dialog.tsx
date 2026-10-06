@@ -36,6 +36,7 @@ import {
 import {
   SCENARIO_META,
   SCENARIO_ORDER,
+  UNUSED_SCENARIOS,
   VOICE_CHANNEL_LABEL,
   type ExecutiveTtsStatus,
   type VoiceTtsProvider,
@@ -306,7 +307,7 @@ export function VoiceSettingsDialog({
     voice.unlock();
     setTestAllRunning(true);
     try {
-      for (const scenario of SCENARIO_ORDER) {
+      for (const scenario of SCENARIO_ORDER.filter((item) => !UNUSED_SCENARIOS.has(item))) {
         await voice.preview(scenario);
       }
     } finally {
@@ -903,7 +904,7 @@ export function VoiceSettingsDialog({
               Aktifkan/matikan per skenario. Tombol Test untuk preview suara langsung.
             </p>
             <div className="mt-3 space-y-2">
-              {SCENARIO_ORDER.map((scenario) => {
+              {SCENARIO_ORDER.filter((scenario) => !UNUSED_SCENARIOS.has(scenario)).map((scenario) => {
                 const meta = SCENARIO_META[scenario];
                 const enabled = settings.scenariosEnabled[scenario] !== false;
                 return (

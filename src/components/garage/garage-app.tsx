@@ -55,6 +55,7 @@ type RefObject
 } from "react";
 
 import { GarageAiAlertsBell } from "@/components/garage/garage-ai-alerts-bell";
+import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
 import {
 agentReportDateLabel,
 agentReportInputType,
@@ -391,6 +392,15 @@ const statusClass: Record<string, string> = {
   untested: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
 };
 
+/** Preferensi "Perangkat ini bersuara" dari Pusat Notifikasi (default ON). */
+function deviceSoundEnabled() {
+  try {
+    return window.localStorage.getItem("garage:device:notif-sound") !== "off";
+  } catch {
+    return true;
+  }
+}
+
 export function GarageApp({
   initialModule = "dashboard",
 }: {
@@ -533,7 +543,8 @@ function GarageWorkspace({
   const signOutInFlight = useRef(false);
   // Badge counter pending approvals di nav module — polling 60s
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
-  const lastPendingApprovalRef = useRef(0);
+  // -1 = belum pernah dimuat (muat pertama tidak berbunyi; 0→1 tetap berbunyi).
+  const lastPendingApprovalRef = useRef(-1);
   useEffect(() => {
     if (!data?.me) return;
     if (!canAccessModuleAs(data.me, "approvals")) return;
@@ -550,8 +561,8 @@ function GarageWorkspace({
         setPendingApprovalCount(nextCount);
         // Voice notification: bunyi hanya saat count naik (ada request baru),
         // bukan saat halaman pertama kali load atau saat count turun.
-        if (prev > 0 && nextCount > prev) {
-          void voice.announce("approval_pending", {
+        if (prev >= 0 && nextCount > prev) {
+          if (deviceSoundEnabled()) void voice.announce("approval_pending", {
             dedupKey: `approval-bump-${nextCount}`,
           });
         }
@@ -561,12 +572,16 @@ function GarageWorkspace({
       }
     };
     void load();
-    const id = window.setInterval(load, 60_000);
+    // Interval dari Pengaturan → Notifikasi (default 60 dtk, min 15 dtk).
+    const intervalSec = Math.max(15, Number(data.settings?.approvalPollIntervalSec) || 60);
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") void load();
+    }, intervalSec * 1000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [data?.me]);
+  }, [data?.me, data?.settings?.approvalPollIntervalSec]);
 
   // Badge counter kandidat "Baru" di menu Recruitment — polling 90s.
   const [newRecruitmentCount, setNewRecruitmentCount] = useState(0);
@@ -779,7 +794,7 @@ function GarageWorkspace({
       for (const sku of newlyLow) {
         const item = data.inventoryItems.find((entry) => entry.sku === sku);
         if (!item) continue;
-        void voice.announce("warning_lowstock", {
+        if (deviceSoundEnabled()) void voice.announce("warning_lowstock", {
           itemName: item.name,
           dedupKey: `lowstock:${sku}`,
         });
@@ -902,6 +917,38 @@ function GarageWorkspace({
       }
     }
   }
+
+  // Klik notifikasi (pusat notifikasi / web push) → buka modul tujuan; tanda
+  // tambahan (qr=1 / chat=1) diteruskan ke POS lewat event window.
+  useEffect(() => {
+    const onNavigate = (event: Event) => {
+      const raw = (event as CustomEvent<string>).detail;
+      if (!raw) return;
+      const url = new URL(raw, window.location.origin);
+      const target = url.searchParams.get("module") as ModuleId | null;
+      if (target && canAccessModuleAs(data?.me ?? { role: "Kasir" }, target)) {
+        setActiveModule(target);
+        setMobileOpen(false);
+      }
+      if (url.searchParams.get("qr") === "1") {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent("garage:open-qr")), 300);
+      }
+      if (url.searchParams.get("chat") === "1") {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent("garage:open-chat")), 300);
+      }
+    };
+    window.addEventListener("garage:navigate", onNavigate);
+    // Dibuka dari notifikasi HP (tab baru): /os?module=pos&qr=1 → jalankan sekali.
+    const params = new URLSearchParams(window.location.search);
+    if (data?.me && (params.get("qr") === "1" || params.get("chat") === "1")) {
+      onNavigate(new CustomEvent("garage:navigate", { detail: `${window.location.pathname}${window.location.search}` }));
+      params.delete("qr");
+      params.delete("chat");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    }
+    return () => window.removeEventListener("garage:navigate", onNavigate);
+  }, [data?.me]);
 
   function handleModuleChange(module: ModuleId) {
     if (!canAccessModuleAs(data?.me ?? { role: "Kasir" }, module)) {
@@ -1133,6 +1180,7 @@ function GarageWorkspace({
                   </Button>
                 )}
 
+                <StaffNotificationCenter newOrderSound={data.settings?.newOrderSound} />
                 <GarageAiAlertsBell
                   role={data.me.role}
                   onOpenAiModule={() => handleModuleChange("ai-agent")}
@@ -1299,6 +1347,7 @@ function GarageWorkspace({
               >
                 <RefreshCw className="size-4" />
               </Button>
+              <StaffNotificationCenter newOrderSound={data.settings?.newOrderSound} />
               <GarageAiAlertsBell
                 role={data.me.role}
                 onOpenAiModule={
@@ -3830,7 +3879,7 @@ function AiPosAgentView({ me }: { me: GarageMe }) {
     }
 
     lastSpokenAlertRef.current = alertKey;
-    void voice.announce("role_alert", { force: true });
+    void voice.announce("role_alert");
   }, [autopilotAlerts, autopilotEnabled, voiceMode, voiceSupport.speech]);
 
   async function loadAgents() {

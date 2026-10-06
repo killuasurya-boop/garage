@@ -862,6 +862,13 @@
       "when": 1791232500201,
       "tag": "0122_order_courier",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1791244956303,
+      "tag": "0123_notifications_chat",
+      "breakpoints": true
     }
   ]
 }

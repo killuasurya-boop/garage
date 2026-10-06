@@ -9,6 +9,8 @@ import {
 } from "@/lib/garage-app-settings-types";
 import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
+import { notifyStaff } from "@/lib/staff-notifications";
+import { sendOrderPush } from "@/lib/web-push-sender";
 import {
   buildTrackerSteps,
   DELIVERY_STATUSES,
@@ -6993,7 +6995,9 @@ export async function getPublicCustomerOrderStatus(id: string) {
     .sort((a, b) => a.station.localeCompare(b.station));
 
   return {
-    id: invoiceReadyOrder.id,
+    // Lewat NOMOR order (mudah ditebak) hanya status ringkas: id order & token
+    // invoice tidak diberikan — keduanya kunci akses chat, invoice & GPS kurir.
+    id: lookedUpById ? invoiceReadyOrder.id : null,
     orderNo: invoiceReadyOrder.orderNo,
     tableLabel: invoiceReadyOrder.tableLabel,
     orderStatus: invoiceReadyOrder.status,
@@ -7021,7 +7025,7 @@ export async function getPublicCustomerOrderStatus(id: string) {
     // whatsappInvoiceUrl (link wa.me) SENGAJA tidak diekspos di endpoint publik
     // ini — membocorkan nomor WA bisnis ke siapa pun yang tahu order id.
     // Customer yang membuat order tetap punya link WA dari respons create order.
-    invoiceWebUrl: invoiceWebPath(invoiceReadyOrder.invoiceTrackingToken),
+    invoiceWebUrl: lookedUpById ? invoiceWebPath(invoiceReadyOrder.invoiceTrackingToken) : null,
     message: publicStatusMessage(invoiceReadyOrder.status, kitchenStatus),
     updatedAt: invoiceReadyOrder.updatedAt.toISOString(),
   };
@@ -7071,6 +7075,23 @@ export async function createServiceRequest(input: {
       note: input.note?.trim() || null,
     })
     .returning();
+  // Waiter di layar mana pun (dan HP terkunci lewat push) diberi tahu.
+  const typeLabel: Record<ServiceRequestType, string> = {
+    call: "memanggil pelayan",
+    bill: "minta bill",
+    water: "minta air minum",
+    other: "butuh bantuan",
+  };
+  await notifyStaff({
+    outletId: input.outletId ?? null,
+    audience: "waiter",
+    kind: `service_${type}`,
+    severity: type === "bill" ? "warning" : "urgent",
+    title: `${tableLabel} ${typeLabel[type]}`,
+    body: input.note?.trim() || null,
+    url: "/os?module=waiter",
+    dedupKey: `service:${row.id}`,
+  }).catch(() => null);
   return { id: row.id, deduped: false };
 }
 
@@ -7102,30 +7123,108 @@ export async function resolveServiceRequest(id: string, userId: string) {
 }
 
 // ── Live chat customer (guest/member) <-> kasir ───────────────────────────
-// Thread diikat ke chatToken acak (kontrol akses guest tanpa login) + meja.
+// Thread diikat ke chatToken acak (kontrol akses guest tanpa login). Satu thread
+// per pesanan: klien memakai token baru per order (lihat member-order-page), dan
+// order hanya bisa ditautkan dengan BUKTI kepemilikan = token invoice/tracking
+// (bukan UUID order yang bisa bocor).
 type CustomerChatMessageRow = {
   id: string;
   sender: string;
   body: string;
   staffUserId: string | null;
+  attachmentUrl?: string | null;
   createdAt: Date;
 };
 
-function mapCustomerChatMessage(row: CustomerChatMessageRow) {
+const CHAT_PAGE_SIZE = 200;
+const CHAT_IDLE_RESOLVE_MS = 12 * 60 * 60 * 1000;
+
+function mapCustomerChatMessage(row: CustomerChatMessageRow, staffNames?: Map<string, string>) {
+  const staffName = row.staffUserId ? (staffNames?.get(row.staffUserId) ?? null) : null;
   return {
     id: row.id,
     sender: row.sender,
     body: row.body,
+    attachmentUrl: row.attachmentUrl ?? null,
+    // Nama depan staf yang membalas (bukan selalu "Kasir").
+    staffName: staffName ? staffName.split(/\s+/)[0] : null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+async function staffNameMap(rows: Array<{ staffUserId: string | null }>) {
+  const ids = [...new Set(rows.map((row) => row.staffUserId).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return new Map<string, string>();
+  const people = await getDb().select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids));
+  return new Map(people.map((person) => [person.id, person.name]));
+}
+
+/** Pesan thread: halaman terbaru (atau setelah afterId) — difilter di SQL, bukan di JS. */
+async function chatMessagesPage(threadId: string, afterId?: string) {
+  const db = getDb();
+  if (afterId && /^[0-9a-f-]{36}$/i.test(afterId)) {
+    const [anchor] = await db
+      .select({ createdAt: customerChatMessages.createdAt })
+      .from(customerChatMessages)
+      .where(and(eq(customerChatMessages.id, afterId), eq(customerChatMessages.threadId, threadId)))
+      .limit(1);
+    if (anchor) {
+      return db
+        .select()
+        .from(customerChatMessages)
+        .where(
+          and(
+            eq(customerChatMessages.threadId, threadId),
+            or(
+              sql`${customerChatMessages.createdAt} > ${anchor.createdAt}`,
+              and(eq(customerChatMessages.createdAt, anchor.createdAt), sql`${customerChatMessages.id} > ${afterId}`),
+            ),
+          ),
+        )
+        .orderBy(asc(customerChatMessages.createdAt), asc(customerChatMessages.id))
+        .limit(CHAT_PAGE_SIZE);
+    }
+  }
+  const latest = await db
+    .select()
+    .from(customerChatMessages)
+    .where(eq(customerChatMessages.threadId, threadId))
+    .orderBy(desc(customerChatMessages.createdAt), desc(customerChatMessages.id))
+    .limit(CHAT_PAGE_SIZE);
+  return latest.reverse();
+}
+
+/** Order milik pelanggan berdasarkan token invoice/tracking (bukti kepemilikan). */
+async function orderByTrackingToken(orderToken: string | null | undefined) {
+  const tokenValue = orderToken?.trim();
+  if (!tokenValue || tokenValue.length < 12) return null;
+  const [order] = await getDb()
+    .select({
+      id: orders.id,
+      orderNo: orders.orderNo,
+      outletId: orders.outletId,
+      tableLabel: orders.tableLabel,
+      fulfillment: orders.fulfillment,
+      customerName: orders.customerName,
+    })
+    .from(orders)
+    .where(eq(orders.invoiceTrackingToken, tokenValue))
+    .limit(1);
+  return order ?? null;
+}
+
+function chatLabelForOrder(order: { tableLabel: string; fulfillment: string | null; customerName: string | null }) {
+  if (order.fulfillment === "delivery" || order.fulfillment === "takeaway") {
+    const type = order.fulfillment === "delivery" ? "Delivery" : "Take away";
+    return `${type}${order.customerName ? ` · ${order.customerName}` : ""}`.slice(0, 40);
+  }
+  return order.tableLabel;
 }
 
 async function ensureCustomerChatThread(input: {
   chatToken: string;
   tableLabel: string;
-  outletId?: string | null;
-  orderId?: string | null;
-  memberId?: string | null;
+  order?: { id: string; outletId: string | null; tableLabel: string; fulfillment: string | null; customerName: string | null } | null;
 }) {
   const db = getDb();
   const chatToken = input.chatToken.trim();
@@ -7137,50 +7236,90 @@ async function ensureCustomerChatThread(input: {
   if (existing) {
     const patch: Record<string, unknown> = {};
     if (existing.status !== "open") patch.status = "open";
-    if (input.tableLabel && input.tableLabel.trim() && input.tableLabel.trim() !== existing.tableLabel) {
-      patch.tableLabel = input.tableLabel.trim();
+    // Label hanya mengikuti klien selama thread belum terikat ke pesanan.
+    const label = input.tableLabel?.trim();
+    if (!existing.orderId && !input.order && label && label !== existing.tableLabel) patch.tableLabel = label;
+    if (input.order && !existing.orderId) {
+      patch.orderId = input.order.id;
+      patch.tableLabel = chatLabelForOrder(input.order);
+      if (input.order.outletId) patch.outletId = input.order.outletId;
     }
-    if (input.orderId && !existing.orderId) patch.orderId = input.orderId;
-    if (input.memberId && !existing.memberId) patch.memberId = input.memberId;
     if (Object.keys(patch).length) {
       await db.update(customerChatThreads).set(patch).where(eq(customerChatThreads.id, existing.id));
     }
-    return existing.id;
+    return { id: existing.id, created: false };
   }
   const [row] = await db
     .insert(customerChatThreads)
     .values({
       chatToken,
-      tableLabel: input.tableLabel.trim() || "Meja QR",
-      outletId: input.outletId ?? null,
-      orderId: input.orderId ?? null,
-      memberId: input.memberId ?? null,
+      tableLabel: input.order ? chatLabelForOrder(input.order) : input.tableLabel.trim() || "Meja QR",
+      outletId: input.order?.outletId ?? null,
+      orderId: input.order?.id ?? null,
     })
     .returning({ id: customerChatThreads.id });
-  return row.id;
+  return { id: row.id, created: true };
 }
+
+export class CustomerChatLimitError extends Error {}
 
 export async function postCustomerChatMessage(input: {
   chatToken: string;
   tableLabel: string;
   body: string;
-  orderId?: string | null;
-  memberId?: string | null;
+  orderToken?: string | null;
+  attachmentUrl?: string | null;
 }) {
   const db = getDb();
   const body = input.body.trim();
-  if (!body) return null;
-  const threadId = await ensureCustomerChatThread(input);
+  const attachmentUrl =
+    input.attachmentUrl && /^\/garage-uploads\/chat\/[a-zA-Z0-9._-]+$/.test(input.attachmentUrl) ? input.attachmentUrl : null;
+  if (!body && !attachmentUrl) return null;
+  const order = await orderByTrackingToken(input.orderToken);
+  const thread = await ensureCustomerChatThread({ chatToken: input.chatToken, tableLabel: input.tableLabel, order });
+  // Anti-spam per thread: maks 12 pesan / menit.
+  const [recent] = await db
+    .select({ n: count() })
+    .from(customerChatMessages)
+    .where(
+      and(
+        eq(customerChatMessages.threadId, thread.id),
+        eq(customerChatMessages.sender, "customer"),
+        gte(customerChatMessages.createdAt, new Date(Date.now() - 60_000)),
+      ),
+    );
+  if ((recent?.n ?? 0) >= 12) {
+    throw new CustomerChatLimitError("Terlalu banyak pesan. Tunggu sebentar sebelum mengirim lagi.");
+  }
   const now = new Date();
   const [msg] = await db
     .insert(customerChatMessages)
-    .values({ threadId, sender: "customer", body })
+    .values({ threadId: thread.id, sender: "customer", body: body || "📷 Foto", attachmentUrl })
     .returning();
-  await db
+  const [threadRow] = await db
     .update(customerChatThreads)
     .set({ lastMessageAt: now, lastCustomerAt: now })
-    .where(eq(customerChatThreads.id, threadId));
-  return { threadId, id: msg.id, createdAt: msg.createdAt.toISOString() };
+    .where(eq(customerChatThreads.id, thread.id))
+    .returning();
+  // Pusat notifikasi: kasir di modul mana pun diberi tahu (satu notifikasi per
+  // thread per 2 menit supaya tidak banjir).
+  try {
+    const bucket = Math.floor(now.getTime() / 120_000);
+    await notifyStaff({
+      outletId: threadRow?.outletId ?? null,
+      audience: "cashier",
+      kind: "chat",
+      severity: "warning",
+      title: `Chat baru · ${threadRow?.tableLabel ?? input.tableLabel}`,
+      body: attachmentUrl ? "📷 Mengirim foto" : body.slice(0, 120),
+      url: "/os?module=pos&chat=1",
+      orderId: threadRow?.orderId ?? null,
+      dedupKey: `chat:${thread.id}:${bucket}`,
+    });
+  } catch {
+    /* notifikasi tidak boleh menggagalkan chat */
+  }
+  return { threadId: thread.id, id: msg.id, createdAt: msg.createdAt.toISOString() };
 }
 
 export async function getCustomerChatMessages(input: { chatToken: string; afterId?: string }) {
@@ -7191,70 +7330,131 @@ export async function getCustomerChatMessages(input: { chatToken: string; afterI
     .where(eq(customerChatThreads.chatToken, input.chatToken.trim()))
     .limit(1);
   if (!thread) {
-    return { threadId: null as string | null, status: "open", messages: [] as ReturnType<typeof mapCustomerChatMessage>[] };
+    return {
+      threadId: null as string | null,
+      status: "open",
+      staffReadAt: null as string | null,
+      messages: [] as ReturnType<typeof mapCustomerChatMessage>[],
+    };
   }
-  const rows = await db
-    .select()
-    .from(customerChatMessages)
-    .where(eq(customerChatMessages.threadId, thread.id))
-    .orderBy(asc(customerChatMessages.createdAt))
-    .limit(200);
-  let messages = rows.map(mapCustomerChatMessage);
-  if (input.afterId) {
-    const idx = messages.findIndex((m) => m.id === input.afterId);
-    if (idx >= 0) messages = messages.slice(idx + 1);
-  }
-  return { threadId: thread.id, status: thread.status, messages };
+  const rows = await chatMessagesPage(thread.id, input.afterId);
+  const names = await staffNameMap(rows);
+  return {
+    threadId: thread.id,
+    status: thread.status,
+    // Untuk tanda "Dibaca" di sisi pelanggan.
+    staffReadAt: thread.staffReadAt?.toISOString() ?? null,
+    messages: rows.map((row) => mapCustomerChatMessage(row, names)),
+  };
 }
 
-export async function listStaffChatThreads() {
+/**
+ * Inbox kasir: thread terbuka (atau riwayat "resolved"), dengan info pesanan
+ * (nomor, tipe, status) dan jumlah pesan belum dibaca. Satu kueri per jenis
+ * data — tidak N+1. Thread yang diam > 12 jam otomatis ditutup.
+ */
+export async function listStaffChatThreads(opts?: { outletId?: string | null; status?: "open" | "resolved" }) {
   const db = getDb();
+  const status = opts?.status ?? "open";
+  if (status === "open") {
+    await db
+      .update(customerChatThreads)
+      .set({ status: "resolved" })
+      .where(
+        and(
+          eq(customerChatThreads.status, "open"),
+          lt(customerChatThreads.lastMessageAt, new Date(Date.now() - CHAT_IDLE_RESOLVE_MS)),
+        ),
+      );
+  }
+  const outletFilter = opts?.outletId
+    ? or(isNull(customerChatThreads.outletId), eq(customerChatThreads.outletId, opts.outletId))
+    : undefined;
   const rows = await db
-    .select()
+    .select({
+      thread: customerChatThreads,
+      orderNo: orders.orderNo,
+      orderStatus: orders.status,
+      fulfillment: orders.fulfillment,
+      deliveryStatus: orders.deliveryStatus,
+      total: orders.total,
+    })
     .from(customerChatThreads)
-    .where(eq(customerChatThreads.status, "open"))
+    .leftJoin(orders, eq(orders.id, customerChatThreads.orderId))
+    .where(and(eq(customerChatThreads.status, status), outletFilter))
     .orderBy(desc(customerChatThreads.lastMessageAt))
-    .limit(100);
-  const result = [];
-  for (const t of rows) {
-    const [last] = await db
-      .select({ body: customerChatMessages.body, sender: customerChatMessages.sender })
-      .from(customerChatMessages)
-      .where(eq(customerChatMessages.threadId, t.id))
-      .orderBy(desc(customerChatMessages.createdAt))
-      .limit(1);
-    const unread = t.lastCustomerAt != null && (t.staffReadAt == null || t.lastCustomerAt > t.staffReadAt);
-    result.push({
+    .limit(status === "open" ? 100 : 50);
+  if (!rows.length) return [];
+  const ids = rows.map((row) => row.thread.id);
+  const lastRows = await db
+    .selectDistinctOn([customerChatMessages.threadId], {
+      threadId: customerChatMessages.threadId,
+      body: customerChatMessages.body,
+      sender: customerChatMessages.sender,
+      attachmentUrl: customerChatMessages.attachmentUrl,
+    })
+    .from(customerChatMessages)
+    .where(inArray(customerChatMessages.threadId, ids))
+    .orderBy(customerChatMessages.threadId, desc(customerChatMessages.createdAt));
+  const lastByThread = new Map(lastRows.map((row) => [row.threadId, row]));
+  const unreadRows = await db
+    .select({ threadId: customerChatMessages.threadId, n: count() })
+    .from(customerChatMessages)
+    .innerJoin(customerChatThreads, eq(customerChatThreads.id, customerChatMessages.threadId))
+    .where(
+      and(
+        inArray(customerChatMessages.threadId, ids),
+        eq(customerChatMessages.sender, "customer"),
+        or(isNull(customerChatThreads.staffReadAt), sql`${customerChatMessages.createdAt} > ${customerChatThreads.staffReadAt}`),
+      ),
+    )
+    .groupBy(customerChatMessages.threadId);
+  const unreadByThread = new Map(unreadRows.map((row) => [row.threadId, Number(row.n)]));
+  return rows.map(({ thread: t, ...order }) => {
+    const last = lastByThread.get(t.id);
+    const unreadCount = unreadByThread.get(t.id) ?? 0;
+    return {
       id: t.id,
       tableLabel: t.tableLabel,
       orderId: t.orderId,
+      orderNo: order.orderNo ?? null,
+      orderStatus: order.orderStatus ?? null,
+      fulfillment: order.fulfillment ?? (t.tableLabel.toLowerCase().startsWith("meja") ? "dine-in" : null),
+      deliveryStatus: order.deliveryStatus ?? null,
+      total: order.total ?? null,
       status: t.status,
-      unread,
+      unread: unreadCount > 0,
+      unreadCount,
       lastMessageAt: t.lastMessageAt.toISOString(),
-      preview: last ? last.body.slice(0, 80) : "",
+      preview: last ? (last.attachmentUrl && last.body === "📷 Foto" ? "📷 Foto" : last.body.slice(0, 80)) : "",
       lastSender: last?.sender ?? null,
-    });
-  }
-  return result;
+    };
+  });
 }
 
 export async function getStaffChatThread(
   threadId: string,
-  opts?: { markRead?: boolean },
+  opts?: { markRead?: boolean; afterId?: string },
 ) {
   const db = getDb();
-  const [thread] = await db
-    .select()
+  const [row] = await db
+    .select({
+      thread: customerChatThreads,
+      orderNo: orders.orderNo,
+      orderStatus: orders.status,
+      fulfillment: orders.fulfillment,
+      deliveryStatus: orders.deliveryStatus,
+      total: orders.total,
+      customerPhone: orders.customerPhone,
+    })
     .from(customerChatThreads)
+    .leftJoin(orders, eq(orders.id, customerChatThreads.orderId))
     .where(eq(customerChatThreads.id, threadId))
     .limit(1);
-  if (!thread) return null;
-  const rows = await db
-    .select()
-    .from(customerChatMessages)
-    .where(eq(customerChatMessages.threadId, threadId))
-    .orderBy(asc(customerChatMessages.createdAt))
-    .limit(300);
+  if (!row) return null;
+  const { thread } = row;
+  const rows = await chatMessagesPage(threadId, opts?.afterId);
+  const names = await staffNameMap(rows);
   if (opts?.markRead) {
     await db
       .update(customerChatThreads)
@@ -7265,8 +7465,14 @@ export async function getStaffChatThread(
     id: thread.id,
     tableLabel: thread.tableLabel,
     orderId: thread.orderId,
+    orderNo: row.orderNo ?? null,
+    orderStatus: row.orderStatus ?? null,
+    fulfillment: row.fulfillment ?? (thread.tableLabel.toLowerCase().startsWith("meja") ? "dine-in" : null),
+    deliveryStatus: row.deliveryStatus ?? null,
+    total: row.total ?? null,
+    customerPhone: row.customerPhone ?? null,
     status: thread.status,
-    messages: rows.map((r) => ({ ...mapCustomerChatMessage(r), staffUserId: r.staffUserId })),
+    messages: rows.map((r) => ({ ...mapCustomerChatMessage(r, names), staffUserId: r.staffUserId })),
   };
 }
 
@@ -7274,15 +7480,38 @@ export async function postStaffChatMessage(input: { threadId: string; userId: st
   const db = getDb();
   const body = input.body.trim();
   if (!body) return null;
+  const [thread] = await db
+    .select({ id: customerChatThreads.id })
+    .from(customerChatThreads)
+    .where(eq(customerChatThreads.id, input.threadId))
+    .limit(1);
+  if (!thread) return null;
   const now = new Date();
   const [msg] = await db
     .insert(customerChatMessages)
     .values({ threadId: input.threadId, sender: "staff", staffUserId: input.userId, body })
     .returning();
+  // Balasan staf membuka lagi thread yang sudah ditutup (supaya tidak "hilang").
   await db
     .update(customerChatThreads)
-    .set({ lastMessageAt: now, staffReadAt: now })
+    .set({ lastMessageAt: now, staffReadAt: now, status: "open", assignedToUserId: input.userId })
     .where(eq(customerChatThreads.id, input.threadId));
+  try {
+    const [threadRow] = await db
+      .select({ orderId: customerChatThreads.orderId })
+      .from(customerChatThreads)
+      .where(eq(customerChatThreads.id, input.threadId))
+      .limit(1);
+    if (threadRow?.orderId) {
+      await sendOrderPush(threadRow.orderId, {
+        title: "Balasan dari kasir Garage",
+        body: body.slice(0, 120),
+        tag: `chat-${input.threadId}`,
+      });
+    }
+  } catch {
+    /* push opsional */
+  }
   return { id: msg.id, createdAt: msg.createdAt.toISOString() };
 }
 
@@ -7291,14 +7520,28 @@ export async function postStaffChatMessage(input: { threadId: string; userId: st
 export async function linkChatThreadToOrder(chatToken: string, orderId: string, orderNo?: string | null) {
   const db = getDb();
   const [thread] = await db
-    .select({ id: customerChatThreads.id })
+    .select({ id: customerChatThreads.id, orderId: customerChatThreads.orderId })
     .from(customerChatThreads)
     .where(eq(customerChatThreads.chatToken, chatToken))
     .limit(1);
   if (!thread) return null;
+  const [order] = await db
+    .select({
+      outletId: orders.outletId,
+      tableLabel: orders.tableLabel,
+      fulfillment: orders.fulfillment,
+      customerName: orders.customerName,
+    })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
   await db
     .update(customerChatThreads)
-    .set({ orderId, lastMessageAt: new Date() })
+    .set({
+      orderId,
+      lastMessageAt: new Date(),
+      ...(order ? { tableLabel: chatLabelForOrder(order), outletId: order.outletId } : {}),
+    })
     .where(eq(customerChatThreads.id, thread.id));
   await db.insert(customerChatMessages).values({
     threadId: thread.id,
@@ -7308,24 +7551,29 @@ export async function linkChatThreadToOrder(chatToken: string, orderId: string, 
   return { threadId: thread.id };
 }
 
-// Dipakai untuk push status order otomatis ke percakapan (system message).
+// Dipakai untuk push status order otomatis ke percakapan (system message) —
+// ke SEMUA thread yang terikat order ini.
 export async function postSystemChatMessageForOrder(orderId: string, body: string) {
   const db = getDb();
-  const [thread] = await db
+  const threads = await db
     .select({ id: customerChatThreads.id })
     .from(customerChatThreads)
-    .where(eq(customerChatThreads.orderId, orderId))
-    .limit(1);
-  if (!thread) return null;
-  const [msg] = await db
+    .where(eq(customerChatThreads.orderId, orderId));
+  if (!threads.length) return null;
+  const now = new Date();
+  await db
     .insert(customerChatMessages)
-    .values({ threadId: thread.id, sender: "system", body: body.trim() })
-    .returning({ id: customerChatMessages.id });
+    .values(threads.map((thread) => ({ threadId: thread.id, sender: "system", body: body.trim() })));
   await db
     .update(customerChatThreads)
-    .set({ lastMessageAt: new Date() })
-    .where(eq(customerChatThreads.id, thread.id));
-  return { id: msg.id };
+    .set({ lastMessageAt: now })
+    .where(
+      inArray(
+        customerChatThreads.id,
+        threads.map((thread) => thread.id),
+      ),
+    );
+  return { count: threads.length };
 }
 
 export async function resolveCustomerChatThread(threadId: string, userId: string) {
@@ -7338,6 +7586,8 @@ export async function resolveCustomerChatThread(threadId: string, userId: string
   return row ? { id: row.id } : null;
 }
 
+export class ChatForwardError extends Error {}
+
 export async function forwardCustomerChatToWaiter(threadId: string, userId: string) {
   const db = getDb();
   const [thread] = await db
@@ -7346,6 +7596,10 @@ export async function forwardCustomerChatToWaiter(threadId: string, userId: stri
     .where(eq(customerChatThreads.id, threadId))
     .limit(1);
   if (!thread) return null;
+  // Hanya untuk pelanggan di meja (bukan take away/delivery).
+  if (!parseTableNumber(thread.tableLabel)) {
+    throw new ChatForwardError("Teruskan ke pelayan hanya untuk pelanggan yang duduk di meja.");
+  }
   await createServiceRequest({
     tableLabel: thread.tableLabel,
     outletId: thread.outletId ?? undefined,
@@ -7358,6 +7612,87 @@ export async function forwardCustomerChatToWaiter(threadId: string, userId: stri
     body: "Pelayan sudah diarahkan ke meja Anda. 🙏",
   });
   return { ok: true };
+}
+
+export type OrderProgressKind = "all_ready" | "handed" | "on_the_way" | "delivered" | "courier_assigned";
+
+/**
+ * Kabar progres pesanan untuk pelanggan (pesan sistem chat + push HP) dan
+ * notifikasi kasir — teks menyesuaikan tipe pesanan (meja/take away/delivery).
+ */
+export async function announceOrderProgress(orderId: string, kind: OrderProgressKind, extra?: { courierName?: string | null }) {
+  const [order] = await getDb()
+    .select({
+      id: orders.id,
+      orderNo: orders.orderNo,
+      outletId: orders.outletId,
+      fulfillment: orders.fulfillment,
+      customerName: orders.customerName,
+      tableLabel: orders.tableLabel,
+      invoiceTrackingToken: orders.invoiceTrackingToken,
+    })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+  if (!order) return;
+  const type = order.fulfillment === "delivery" ? "delivery" : order.fulfillment === "takeaway" ? "takeaway" : "dine-in";
+  const trackUrl = order.invoiceTrackingToken ? `/invoice/${order.invoiceTrackingToken}` : "/order";
+  let chat: string | null = null;
+  let push: string | null = null;
+  if (kind === "all_ready") {
+    chat =
+      type === "takeaway"
+        ? `Pesanan ${order.orderNo} SIAP DIAMBIL di kasir. Sebutkan nomor pesanan ya. 🛍️`
+        : type === "delivery"
+          ? `Pesanan ${order.orderNo} sedang dipacking dan segera dibawa kurir. 📦`
+          : `Pesanan ${order.orderNo} siap, sebentar lagi diantar ke meja. 🛎️`;
+    push = type === "takeaway" ? "Pesanan Anda siap diambil di kasir" : type === "delivery" ? "Pesanan sedang dipacking untuk kurir" : "Pesanan siap, segera diantar ke meja";
+    if (type === "takeaway") {
+      await notifyStaff({
+        outletId: order.outletId,
+        audience: "cashier",
+        kind: "takeaway_ready",
+        severity: "urgent",
+        title: `Take away ${order.orderNo} siap diambil`,
+        body: order.customerName ? `Panggil ${order.customerName}` : "Panggil pelanggan",
+        url: "/os?module=pos",
+        orderId: order.id,
+        dedupKey: `takeaway_ready:${order.id}`,
+      }).catch(() => null);
+    }
+  } else if (kind === "handed") {
+    if (type === "delivery") return; // diserahkan ke kurir — kabar berikutnya dari status antar
+    chat = type === "takeaway" ? `Pesanan ${order.orderNo} sudah diambil. Terima kasih! ☕` : `Pesanan ${order.orderNo} sudah diantar ke meja. Selamat menikmati! ☕`;
+  } else if (kind === "courier_assigned") {
+    chat = `Kurir ${extra?.courierName ?? "Garage"} ditugaskan untuk pesanan ${order.orderNo}.`;
+  } else if (kind === "on_the_way") {
+    chat = `Kurir ${extra?.courierName ?? "Garage"} sedang menuju alamat Anda. Pantau posisi di halaman pelacak. 🛵`;
+    push = `Kurir ${extra?.courierName ?? "Garage"} sedang menuju alamat Anda`;
+  } else if (kind === "delivered") {
+    chat = `Pesanan ${order.orderNo} sudah sampai. Selamat menikmati! ☕`;
+    push = "Pesanan sudah sampai. Selamat menikmati!";
+    await notifyStaff({
+      outletId: order.outletId,
+      audience: "cashier",
+      kind: "delivery_arrived",
+      severity: "info",
+      title: `Delivery ${order.orderNo} sudah sampai`,
+      body: order.customerName ? `Diterima ${order.customerName}` : null,
+      url: "/os?module=courier",
+      orderId: order.id,
+      dedupKey: `delivery_arrived:${order.id}`,
+    }).catch(() => null);
+  }
+  if (chat) await postSystemChatMessageForOrder(order.id, chat).catch(() => null);
+  if (push) {
+    void sendOrderPush(order.id, {
+      title: `Garage · ${order.orderNo}`,
+      body: push,
+      url: trackUrl,
+      tag: `order-${order.id}`,
+      requireInteraction: kind === "all_ready" && type === "takeaway",
+    }).catch(() => null);
+  }
 }
 
 export async function getPublicInvoiceTracking(token: string) {
@@ -8548,6 +8883,26 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     })
     .where(eq(orders.id, created.order.id));
 
+  // Pusat notifikasi: kasir di modul mana pun tahu ada order QR baru.
+  {
+    const payFirst = created.order.fulfillment === "takeaway" || created.order.fulfillment === "delivery";
+    const typeLabel =
+      created.order.fulfillment === "delivery" ? "Delivery" : created.order.fulfillment === "takeaway" ? "Take away" : created.order.tableLabel;
+    await notifyStaff({
+      outletId: outlet.id,
+      audience: "cashier",
+      kind: "qr_new",
+      severity: payFirst ? "urgent" : "warning",
+      title: `Order baru ${created.order.orderNo} · ${typeLabel}`,
+      body: `${created.order.customerName ?? "Pelanggan"} · ${created.order.paymentMethod ?? "-"}${
+        payFirst ? " · cek pembayaran dulu" : ""
+      }`,
+      url: "/os?module=pos&qr=1",
+      orderId: created.order.id,
+      dedupKey: `qr_new:${created.order.id}`,
+    }).catch(() => null);
+  }
+
   // Tautkan chat customer ke order ini (kalau ada) supaya update status order
   // otomatis muncul sebagai system message di chat.
   if (input.chatToken && input.chatToken.trim().length >= 12) {
@@ -9637,6 +9992,23 @@ async function updateCustomerOrderStatusImpl(
       };
       const body = labels[input.action];
       if (body) await postSystemChatMessageForOrder(result.order.id, body);
+      // Push HP pelanggan (bila berlangganan "Kabari saya").
+      const pushBody: Record<string, string> = {
+        accept: "Pesanan diterima kasir dan sedang dibuat.",
+        paid: "Pembayaran diterima — pesanan sedang dibuat.",
+        reject: `Pesanan ditolak${input.reason ? `: ${input.reason}` : "."}`,
+      };
+      if (pushBody[input.action]) {
+        void sendOrderPush(result.order.id, {
+          title: `Garage · ${orderNo}`,
+          body: pushBody[input.action],
+          url: result.order.invoiceWebUrl ?? "/order",
+          tag: `order-${result.order.id}`,
+        }).catch(() => null);
+      }
+      if (input.action === "delivery_status" && (input.deliveryStatus === "on_the_way" || input.deliveryStatus === "delivered")) {
+        await announceOrderProgress(result.order.id, input.deliveryStatus, { courierName: result.order.courierName });
+      }
     } catch {
       /* non-blocking */
     }
@@ -11200,16 +11572,20 @@ async function updateKitchenStatusImpl(
     }
   }
 
-  // Auto system message ke chat customer untuk transisi ready/delivered.
-  // Non-blocking: chat thread mungkin tidak ada untuk order ini.
-  if (ticket.orderId && (status === "ready" || status === "delivered")) {
+  // Kabar ke pelanggan (chat + push) & kasir: SATU pesan per pesanan saat
+  // semua station siap / semua sudah diserahkan — bukan per tiket Bar/Dapur.
+  if (ticket.orderId && (status === "ready" || status === "delivered") && current.status !== status) {
     try {
-      const station = ticket.targetGroup === "Bar" ? "Bar" : "Dapur";
-      const body =
-        status === "ready"
-          ? `${station}: pesanan siap, sebentar lagi diantar. 🛎️`
-          : `${station}: pesanan sudah diantar ke meja. Selamat menikmati! ☕`;
-      await postSystemChatMessageForOrder(ticket.orderId, body);
+      const siblings = await db
+        .select({ status: kitchenTickets.status })
+        .from(kitchenTickets)
+        .where(eq(kitchenTickets.orderId, ticket.orderId));
+      const live = siblings.filter((row) => !["rejected", "canceled", "cancelled"].includes(row.status));
+      if (status === "ready" && live.every((row) => row.status === "ready" || row.status === "delivered")) {
+        await announceOrderProgress(ticket.orderId, "all_ready");
+      } else if (status === "delivered" && live.every((row) => row.status === "delivered")) {
+        await announceOrderProgress(ticket.orderId, "handed");
+      }
     } catch {
       /* non-blocking */
     }

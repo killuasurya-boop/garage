@@ -16,7 +16,7 @@ const levelStyles: Record<MemberLevel, { tone: string; border: string; label: st
   Platinum: {
     tone: "from-[#70b8ee]/24 via-[#12365f]/18 to-white/[0.08]",
     border: "border-[#70b8ee]/45",
-    label: "1.5x point + monthly drink + exclusive event",
+    label: "1.6x point + monthly drink + exclusive event",
   },
   Ultra: {
     tone: "from-[#9060f0]/28 via-[#201060]/24 to-black/20",

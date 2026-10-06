@@ -37,6 +37,7 @@ const customerOrderSchema = z.object({
   customerNote: z.string().trim().max(240).optional(),
   source: z.enum(["qr_table", "qr_takeaway", "instagram", "campaign"]).optional(),
   campaign: z.string().trim().max(80).optional(),
+  pointsToRedeem: z.number().int().min(0).max(1_000_000).optional(),
   voucherCode: z.string().trim().max(40).optional(),
   paymentMethod: z.enum(["Cash", "QRIS", "Bank Transfer"]).default("Cash"),
   paymentProvider: z.string().trim().max(60).optional(),

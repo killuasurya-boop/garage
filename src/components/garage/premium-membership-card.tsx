@@ -140,7 +140,7 @@ const tierThemes: Record<MemberLevel, TierTheme> = {
     borderTo: "rgba(80,170,240,0.40)",
     qrFg: "#0a1225",
     conceptCode: "QUANTUM · PRESTIGE",
-    perks: "Point 1.5x · Free monthly drink · Exclusive event",
+    perks: "Point 1.6x · Free monthly drink · Exclusive event",
     tierIcon: "◈",
   },
   Ultra: {

@@ -26,6 +26,7 @@ import {
   menuRecipes,
   orderItems,
   orders,
+  pointRedemptions,
   paymentSettlements,
   payments,
   staffDailyWages,
@@ -778,6 +779,38 @@ async function storeSnapshots(figures: DayFigure[]) {
  * dibuat bila belum ada); 7 hari terakhir + hari ini dihitung live karena
  * transaksi terlambat/backdate masih mungkin. Snapshot `locked` selalu dipakai.
  */
+/**
+ * Poin member: potongan poin pada order lunas di periode (setelah poin yang
+ * dikembalikan karena void/refund) + saldo poin beredar × nilai poin.
+ */
+async function loadMemberPointsFigures(fromKey: string, toKey: string) {
+  const db = getDb();
+  const [used] = await db
+    .select({
+      discount: sql<string>`coalesce(sum(${pointRedemptions.discount}::numeric * (${pointRedemptions.pointsUsed} - ${pointRedemptions.returnedPoints}) / nullif(${pointRedemptions.pointsUsed}, 0)), 0)::float8`,
+    })
+    .from(pointRedemptions)
+    .innerJoin(orders, eq(orders.id, pointRedemptions.orderId))
+    .where(
+      and(
+        eq(orders.status, "paid"),
+        gte(orders.createdAt, jakartaDayStart(fromKey)),
+        lt(orders.createdAt, jakartaDayStart(addDays(toKey, 1))),
+      ),
+    );
+  const [{ getAppSettings }, { outstandingPointsValue }] = await Promise.all([
+    import("@/lib/garage-service"),
+    import("@/lib/member-points"),
+  ]);
+  const settings = await getAppSettings(null);
+  const outstanding = await outstandingPointsValue(db, settings.memberPointValue);
+  return {
+    discount: Math.round(Number(used?.discount ?? 0)),
+    outstanding: outstanding.points,
+    outstandingValue: outstanding.value,
+  };
+}
+
 /** Belanja gudang sebelum tanggal mulai usaha = stok awal (bagian modal). */
 export async function loadOpeningStockPurchases(startKey: string) {
   const [row] = await getDb()
@@ -1002,6 +1035,7 @@ export async function getFinanceControlDashboard(input: {
   });
   const cashVariance = await loadCashVariance(period.fromKey, period.toKey, config.thresholds.cashVarianceTolerance);
   const hppCoveragePct = ratioPct(totals.coveredLineSales, totals.lineSales);
+  const memberPoints = await loadMemberPointsFigures(period.fromKey, period.toKey);
   const knownCategories = new Set(config.categories.map((row) => row.name.toLowerCase()));
   const unclassifiedCategories = (await listExpenseCategoriesSeen()).filter(
     (name) => !knownCategories.has(name.toLowerCase()),
@@ -1177,6 +1211,10 @@ export async function getFinanceControlDashboard(input: {
       cogsRecipe: totals.cogsRecipe,
       cogsShrinkage: totals.cogsShrinkage,
       cogsBasis: config.cogsBasis ?? "purchase",
+      // Diskon poin member (sudah termasuk di diskon/omzet bersih) + kewajiban poin beredar.
+      pointsDiscount: memberPoints.discount,
+      pointsOutstanding: memberPoints.outstanding,
+      pointsOutstandingValue: memberPoints.outstandingValue,
       purchaseBar: totals.purchaseBar,
       purchaseDapur: totals.purchaseDapur,
       purchaseUmum: totals.purchaseUmum,

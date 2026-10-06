@@ -62,6 +62,12 @@ export type AppSettings = {
   unpaidOrderAutoRejectMinutes: number;
   // Loyalty
   pointsPerThousand: number;
+  // Pakai poin saat bayar (owner, Okt 2026): nilai 1 poin, batas potongan per
+  // tagihan, minimal poin dipakai, dan poin hangus bila tidak aktif N bulan.
+  memberPointValue: number;
+  memberRedeemMaxPct: number;
+  memberRedeemMinPoints: number;
+  memberPointExpiryMonths: number;
   voucherMaxDiscountPct: number;
   // Promo otomatis order QR/online (dulu tertanam di kode: 10% maks Rp25.000).
   qrPromoPct: number;
@@ -188,7 +194,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     "Khusus wilayah perkotaan Tebing Tinggi yang aman & terjangkau kurir. Tidak melayani daerah pelosok/rawan.",
   garageWhatsapp: "6285121552341",
   unpaidOrderAutoRejectMinutes: 30,
-  pointsPerThousand: 1,
+  // 0,5 poin per Rp1.000 menu → Silver ±5% (1 poin = Rp100).
+  pointsPerThousand: 0.5,
+  memberPointValue: 100,
+  memberRedeemMaxPct: 50,
+  memberRedeemMinPoints: 50,
+  memberPointExpiryMonths: 12,
   voucherMaxDiscountPct: 30,
   qrPromoPct: 10,
   qrPromoMaxAmount: 25_000,

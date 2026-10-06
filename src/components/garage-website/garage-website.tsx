@@ -5612,17 +5612,17 @@ const rupiahShort = (value) =>
 const MEMBER_TIER_META = {
   Silver: { meta: "Daftar gratis", badge: "Mulai" },
   Gold: { meta: `Belanja ${rupiahShort(GOLD_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,2"}x` },
-  Platinum: { meta: `Belanja ${rupiahShort(PLATINUM_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,5"}x` },
+  Platinum: { meta: `Belanja ${rupiahShort(PLATINUM_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,6"}x` },
 };
 const MEMBER_PERK_LABEL = {
-  "Earn normal point": `1 poin tiap Rp ${POINT_EARN_AMOUNT.toLocaleString("id-ID")}`,
+  "Earn normal point": `1 poin tiap Rp ${(POINT_EARN_AMOUNT * 2).toLocaleString("id-ID")} · 1 poin = Rp100 saat bayar`,
   "Akses promo umum": "Akses promo umum",
   "Welcome reward": "Welcome reward",
   "Point 1.2x": "Poin 1,2x lebih cepat",
   "Birthday reward": "Hadiah ulang tahun",
   "Priority promo": "Promo prioritas",
   "Early access seasonal drink": "Duluan coba minuman musiman",
-  "Point 1.5x": "Poin 1,5x lebih cepat",
+  "Point 1.6x": "Poin 1,6x lebih cepat",
   "Free monthly drink": "Gratis minuman tiap bulan",
   "Exclusive event": "Event eksklusif member",
   "Faster redeem": "Tukar poin lebih cepat",

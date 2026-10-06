@@ -1,15 +1,12 @@
-import { redeemCustomerPoints } from "@/lib/garage-service";
+import { fail } from "@/lib/api-response";
 import { requirePermission } from "@/lib/server-auth";
-import { ok } from "@/lib/api-response";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+/**
+ * Ditutup (owner, Okt 2026): tukar semua poin dari CRM tidak tercatat ke tagihan.
+ * Poin member dipakai di kasir (POS → pilih member → "Pakai poin").
+ */
+export async function POST() {
   const session = await requirePermission("crm:write");
   if (session.response) return session.response;
-  const { id } = await params;
-  const result = await redeemCustomerPoints(id);
-  if (!result) return new Response("Customer not found", { status: 404 });
-  return ok(result);
+  return fail(410, "POINTS_REDEEM_AT_CHECKOUT", "Poin dipakai saat bayar di kasir: pilih member → \"Pakai poin\".");
 }

@@ -955,7 +955,7 @@ async function runMemberAndPosTests(results: AuditResult[], staffJar: CookieJar)
       },
       memberJar,
     );
-    expectStatus(results, "Member earn IDOR blocked", earnOther, 403, "critical", "Member tidak boleh menambah points untuk akun lain.");
+    expectStatus(results, "Member self-earn disabled", earnOther, 410, "critical", "Member tidak boleh menambah points sendiri.");
 
     const redeemOther = await request(
       "/api/points/redeem",
@@ -968,7 +968,7 @@ async function runMemberAndPosTests(results: AuditResult[], staffJar: CookieJar)
       },
       memberJar,
     );
-    expectStatus(results, "Member redeem IDOR blocked", redeemOther, 403, "critical", "Member tidak boleh redeem points akun lain.");
+    expectStatus(results, "Member standalone redeem disabled", redeemOther, 410, "critical", "Poin hanya dipakai saat bayar.");
 
     const refresh = await request("/api/member/auth/refresh", { method: "POST" }, memberJar);
     expectStatus(results, "Member refresh works", refresh, 200, "medium", "Refresh token member harus rotasi dengan session aktif.");

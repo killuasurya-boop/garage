@@ -474,11 +474,17 @@ export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
         <Stat label={`Void (${pnl.voidCount})`} value={rupiah(pnl.voidAmount)} />
         <Stat label="Ongkir delivery (di luar penjualan)" value={rupiah(pnl.deliveryFees ?? 0)} />
         {purchaseMode ? <Stat label="HPP resep (info margin menu)" value={rupiah(pnl.cogsRecipe)} /> : null}
+        <Stat label="Diskon poin member (termasuk di diskon)" value={rupiah(pnl.pointsDiscount ?? 0)} />
+        <Stat
+          label={`Poin beredar (${(pnl.pointsOutstanding ?? 0).toLocaleString("id-ID")} poin)`}
+          value={rupiah(pnl.pointsOutstandingValue ?? 0)}
+        />
       </div>
       <p className="mt-3 text-xs text-zinc-400">
         Save Money = cadangan kas, bukan expense. Void dicatat terpisah dan tidak mengurangi revenue. Ongkir
         delivery ikut masuk kas (QRIS) tetapi tidak dihitung sebagai penjualan menu.
         {purchaseMode ? " Biaya bahan = belanja yang diterima gudang (dibayar cash); HPP resep hanya pembanding margin." : ""}
+        {" Poin beredar = kewajiban potongan ke member bila semua poin dipakai (bukan biaya sampai dipakai)."}
         {pnl.hppCoveragePct !== null ? ` HPP terukur untuk ${percent(pnl.hppCoveragePct)} penjualan.` : ""}
       </p>
     </FinanceCard>

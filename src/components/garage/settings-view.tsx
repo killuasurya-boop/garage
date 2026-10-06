@@ -192,6 +192,10 @@ export function SettingsView({ me }: { me: GarageMe }) {
     expenseApprovalThreshold: "Threshold Approval Expense",
     autoPrintReceipt: "Auto-Print Struk",
     pointsPerThousand: "Poin Loyalty",
+    memberPointValue: "Nilai 1 Poin",
+    memberRedeemMaxPct: "Maks Potongan Poin",
+    memberRedeemMinPoints: "Minimal Poin Dipakai",
+    memberPointExpiryMonths: "Poin Hangus (bulan tidak aktif)",
     voucherMaxDiscountPct: "Max Discount Voucher",
     marketingMonthlyBudget: "Budget Marketing Bulanan",
     aiAutopilotEnabled: "GARAGE AI Autopilot",
@@ -427,7 +431,10 @@ export function SettingsView({ me }: { me: GarageMe }) {
       "aiWhatsappPhonesGudang", "aiWhatsappPhonesManagement",
     ],
     printer: ["defaultPrinterName", "receiptCopies"],
-    loyalty: ["pointsPerThousand", "voucherMaxDiscountPct"],
+    loyalty: [
+      "pointsPerThousand", "memberPointValue", "memberRedeemMaxPct", "memberRedeemMinPoints",
+      "memberPointExpiryMonths", "voucherMaxDiscountPct",
+    ],
     marketing: [
       "marketingCampaignName", "marketingMonthlyBudget", "marketingDefaultSegment", "marketingUtmSource",
       "marketingAutoLogEnabled", "marketingWhatsappTemplate", "marketingDefaultChannel",
@@ -1459,7 +1466,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
             <>
               <SettingsField
                 label="Poin per Rp 1.000"
-                description="Berapa poin didapat member per Rp 1.000 belanja (sebelum tax)."
+                description="Poin per Rp 1.000 harga menu setelah diskon (tanpa pajak, service, ongkir), lalu × pengali level."
                 defaultValue={defaults.pointsPerThousand}
                 currentValue={merged.pointsPerThousand}
                 onReset={() => resetField("pointsPerThousand")}
@@ -1474,6 +1481,82 @@ export function SettingsView({ me }: { me: GarageMe }) {
                   onChange={(e) =>
                     setField("pointsPerThousand", Number(e.target.value))
                   }
+                  disabled={!canWrite}
+                  className="h-10 border-[#34343c] bg-white/[0.06]"
+                />
+              </SettingsField>
+              <SettingsField
+                label="Nilai 1 poin (Rp)"
+                description="Potongan rupiah per poin saat member bayar pakai poin."
+                defaultValue={defaults.memberPointValue}
+                currentValue={merged.memberPointValue}
+                onReset={() => resetField("memberPointValue")}
+                disabled={!canWrite}
+              >
+                <Input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  step="1"
+                  value={merged.memberPointValue}
+                  onChange={(e) => setField("memberPointValue", Number(e.target.value))}
+                  disabled={!canWrite}
+                  className="h-10 border-[#34343c] bg-white/[0.06]"
+                />
+              </SettingsField>
+              <SettingsField
+                label="Maks potongan poin per tagihan (%)"
+                description="Dari harga menu setelah promo/voucher. 0 = pakai poin dimatikan."
+                defaultValue={defaults.memberRedeemMaxPct}
+                currentValue={merged.memberRedeemMaxPct}
+                onReset={() => resetField("memberRedeemMaxPct")}
+                disabled={!canWrite}
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="5"
+                  value={merged.memberRedeemMaxPct}
+                  onChange={(e) => setField("memberRedeemMaxPct", Number(e.target.value))}
+                  disabled={!canWrite}
+                  className="h-10 border-[#34343c] bg-white/[0.06]"
+                />
+              </SettingsField>
+              <SettingsField
+                label="Minimal poin dipakai"
+                description="Poin baru bisa dipakai setelah saldo mencapai angka ini."
+                defaultValue={defaults.memberRedeemMinPoints}
+                currentValue={merged.memberRedeemMinPoints}
+                onReset={() => resetField("memberRedeemMinPoints")}
+                disabled={!canWrite}
+              >
+                <Input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  step="1"
+                  value={merged.memberRedeemMinPoints}
+                  onChange={(e) => setField("memberRedeemMinPoints", Number(e.target.value))}
+                  disabled={!canWrite}
+                  className="h-10 border-[#34343c] bg-white/[0.06]"
+                />
+              </SettingsField>
+              <SettingsField
+                label="Poin hangus bila tidak aktif (bulan)"
+                description="Saldo poin hangus bila member tidak bertransaksi selama N bulan. 0 = tidak hangus."
+                defaultValue={defaults.memberPointExpiryMonths}
+                currentValue={merged.memberPointExpiryMonths}
+                onReset={() => resetField("memberPointExpiryMonths")}
+                disabled={!canWrite}
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  max={60}
+                  step="1"
+                  value={merged.memberPointExpiryMonths}
+                  onChange={(e) => setField("memberPointExpiryMonths", Number(e.target.value))}
                   disabled={!canWrite}
                   className="h-10 border-[#34343c] bg-white/[0.06]"
                 />
@@ -1501,13 +1584,13 @@ export function SettingsView({ me }: { me: GarageMe }) {
               <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-4">
                 <p className="text-sm font-semibold text-white">Simulasi loyalty</p>
                 <p className="mt-1 text-[11px] text-[#b8b8bf]">
-                  Belanja Rp 50.000 menghasilkan {samplePoints} poin sebelum multiplier tier member.
+                  Menu Rp 50.000 menghasilkan {samplePoints} poin (Silver) — 1 poin = Rp {merged.memberPointValue.toLocaleString("id-ID")} saat dipakai bayar.
                 </p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                   {[
                     ["Silver", samplePoints],
-                    ["Gold 1.5x", Math.floor(samplePoints * 1.5)],
-                    ["Platinum 2x", samplePoints * 2],
+                    ["Gold 1.2x", Math.floor(samplePoints * 1.2)],
+                    ["Platinum 1.6x", Math.floor(samplePoints * 1.6)],
                   ].map(([label, points]) => (
                     <div key={String(label)} className="rounded border border-[#34343c] bg-black/15 p-3">
                       <p className="garage-mono text-[10px] text-[#8f8f99]">{label}</p>

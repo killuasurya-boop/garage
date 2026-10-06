@@ -1328,8 +1328,8 @@ export function MembershipAdminView({
                             : tier === "Gold"
                               ? "1.2x point"
                               : tier === "Platinum"
-                                ? "1.5x point"
-                                : "5x · 3 tahun · owner"}
+                                ? "1.6x point"
+                                : "2x · 3 tahun · owner"}
                         </span>
                       </button>
                     );

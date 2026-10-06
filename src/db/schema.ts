@@ -480,10 +480,18 @@ export const pointRedemptions = pgTable(
       .references(() => customers.id, { onDelete: "cascade" }),
     pointsUsed: integer("points_used").notNull(),
     discount: integer("discount").notNull(),
+    // Pakai poin saat bayar (owner, Okt 2026): terikat ke order supaya bisa
+    // dikembalikan saat void/refund/tolak. source: POS | QR | MEMBER_APP | CRM.
+    orderId: uuid("order_id").references((): AnyPgColumn => orders.id, { onDelete: "set null" }),
+    source: text("source").notNull().default("MEMBER_APP"),
+    status: text("status").notNull().default("redeemed"), // redeemed | returned
+    returnedPoints: integer("returned_points").notNull().default(0),
+    returnedAt: timestamp("returned_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     customerIdx: index("point_redemptions_customer_id_idx").on(table.customerId),
+    orderIdx: index("point_redemptions_order_id_idx").on(table.orderId),
     createdIdx: index("point_redemptions_created_at_idx").on(table.createdAt),
   }),
 );

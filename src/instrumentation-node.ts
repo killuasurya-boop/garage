@@ -38,6 +38,18 @@ function startUnpaidOrderSweeper() {
         const { pruneStaffNotifications } = await import("@/lib/staff-notifications");
         await pruneStaffNotifications();
       }
+      // Sekali sehari 03:17 WIB: poin member tidak aktif hangus (Pengaturan → Loyalty).
+      const wib = new Date(Date.now() + 7 * 3_600_000);
+      if (wib.getUTCHours() === 3 && wib.getUTCMinutes() === 17) {
+        const [{ getAppSettings }, { expireInactivePoints }, { getDb }] = await Promise.all([
+          import("@/lib/garage-service"),
+          import("@/lib/member-points"),
+          import("@/db"),
+        ]);
+        const settings = await getAppSettings(null);
+        const expired = await expireInactivePoints(getDb(), { months: settings.memberPointExpiryMonths });
+        if (expired.length) console.log(`[member-points] poin ${expired.length} member tidak aktif hangus.`);
+      }
     } catch (error) {
       console.warn("[auto-reject] sapuan gagal:", error instanceof Error ? error.message : error);
     }

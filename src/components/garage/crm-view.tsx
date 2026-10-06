@@ -251,11 +251,11 @@ function CrmMetricBox({ label, value, sub }: { label: string; value: string; sub
 
 function CrmProgramView() {
   const rewardCostRows = [
-    { label: "Point earn", value: "Rp1.000 = 1 poin", note: "Biaya muncul saat poin diredeem." },
+    { label: "Point earn", value: "Rp2.000 menu = 1 poin", note: "Dari harga menu setelah diskon (tanpa pajak/ongkir), × pengali level. Diatur di Pengaturan → Loyalty." },
     {
       label: "Redeem point",
       value: `${POINTS_PER_REDEEM_UNIT} poin = ${currency.format(DISCOUNT_PER_REDEEM_UNIT)}`,
-      note: "Mudah dihitung customer dan cocok untuk kasir jelaskan cepat.",
+      note: "Dipakai langsung saat bayar (kasir / menu digital), maks 50% harga menu. Biaya muncul saat poin dipakai.",
     },
     {
       label: "Voucher campaign",
@@ -300,7 +300,7 @@ function CrmProgramView() {
           <div className="mt-3 grid gap-2">
             <TierProgramRow tier="Silver" target="Daftar member" earn="1x point" benefits="Welcome reward, promo umum, stamp mission" />
             <TierProgramRow tier="Gold" target={`Mulai ${currency.format(GOLD_ANNUAL_SPEND)}/tahun`} earn="1.2x point" benefits="Birthday reward, priority promo, early access seasonal drink" />
-            <TierProgramRow tier="Platinum" target={`Mulai ${currency.format(PLATINUM_ANNUAL_SPEND)}/tahun`} earn="1.5x point" benefits="Free monthly drink, VIP menu, exclusive event, faster redeem" />
+            <TierProgramRow tier="Platinum" target={`Mulai ${currency.format(PLATINUM_ANNUAL_SPEND)}/tahun`} earn="1.6x point" benefits="Free monthly drink, VIP menu, exclusive event, faster redeem" />
           </div>
         </div>
 

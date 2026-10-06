@@ -59,6 +59,25 @@ function shouldTriggerAutopilot(lastAutopilotAt: string | null) {
   return !Number.isFinite(lastAt) || Date.now() - lastAt > AUTOPILOT_STALE_MS;
 }
 
+const KNOWN_ALERTS_KEY = "garage:ai:known-alert-ids";
+
+function readKnownAlertIds() {
+  try {
+    const raw = window.sessionStorage.getItem(KNOWN_ALERTS_KEY);
+    return new Set<string>(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeKnownAlertIds(ids: Set<string>) {
+  try {
+    window.sessionStorage.setItem(KNOWN_ALERTS_KEY, JSON.stringify([...ids].slice(-200)));
+  } catch {
+    /* sessionStorage tidak tersedia */
+  }
+}
+
 type GarageAiAlertsBellProps = {
   role: Role;
   onOpenAiModule?: () => void;
@@ -73,7 +92,7 @@ export function GarageAiAlertsBell({ role, onOpenAiModule }: GarageAiAlertsBellP
   const [error, setError] = useState<string | null>(null);
   const [autopilotStatus, setAutopilotStatus] =
     useState<AiAutopilotStatusResponse | null>(null);
-  const knownAlertIdsRef = useRef<Set<string>>(new Set());
+  const knownAlertIdsRef = useRef<Set<string> | null>(null);
   const canOpenAi = canAccessModule(role, "ai-agent" satisfies ModuleId);
 
   const loadAutopilotStatus = useCallback(async () => {
@@ -103,20 +122,23 @@ export function GarageAiAlertsBell({ role, onOpenAiModule }: GarageAiAlertsBellP
       const nextUnread = payload.unreadCount ?? 0;
       const nextAlerts = (payload.alerts ?? []).filter((alert) => !alert.acknowledged);
 
-      const previousIds = knownAlertIdsRef.current;
-      const hasNewHigh = nextAlerts.some(
-        (alert) =>
-          alert.priority === "high" && !previousIds.has(alert.id),
-      );
+      // Muat pertama (atau remount saat pindah modul) TIDAK berbunyi: daftar id
+      // yang sudah diketahui disimpan per sesi tab.
+      const previousIds = knownAlertIdsRef.current ?? readKnownAlertIds();
+      const firstLoad = knownAlertIdsRef.current === null && previousIds.size === 0;
+      const hasNewHigh =
+        !firstLoad && nextAlerts.some((alert) => alert.priority === "high" && !previousIds.has(alert.id));
 
-      knownAlertIdsRef.current = new Set(nextAlerts.map((alert) => alert.id));
+      const known = new Set([...previousIds, ...nextAlerts.map((alert) => alert.id)]);
+      knownAlertIdsRef.current = known;
+      writeKnownAlertIds(known);
       setAlerts(nextAlerts);
       setUnreadCount(nextUnread);
 
       if (hasNewHigh && typeof window !== "undefined") {
         // File MP3 statis di public/voice/scenarios/ai-alert-high.mp3 — voice
         // konsisten dengan announcement Smart Notification lainnya.
-        void voice.announce("ai_alert_high", { force: true });
+        void voice.announce("ai_alert_high");
       }
 
       return payload;
@@ -258,7 +280,14 @@ export function GarageAiAlertsBell({ role, onOpenAiModule }: GarageAiAlertsBellP
             <p className="px-2 py-6 text-center text-sm text-[#b8b8bf]">Memuat…</p>
           ) : null}
 
-          {!loading && alerts.length === 0 ? (
+          {!loading && alerts.length === 0 && error ? (
+            <div className="rounded-lg border border-[#d11a2a]/45 bg-[#d11a2a]/10 px-3 py-6 text-center">
+              <p className="text-sm font-semibold text-[#ffc9c9]">Pengingat gagal dimuat</p>
+              <p className="mt-1 text-xs leading-5 text-[#d0d0d6]">{error} — coba muat ulang.</p>
+            </div>
+          ) : null}
+
+          {!loading && alerts.length === 0 && !error ? (
             <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-6 text-center">
               <p className="text-sm font-semibold text-emerald-100">Semua aman</p>
               <p className="mt-1 text-xs leading-5 text-[#b8b8bf]">

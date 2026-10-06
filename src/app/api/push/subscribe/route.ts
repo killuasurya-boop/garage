@@ -28,7 +28,7 @@ const unsubscribeSchema = z.object({
 
 export async function GET() {
   const enabled = await isPushEnabled();
-  const vapidPublicKey = getVapidPublicKey();
+  const vapidPublicKey = await getVapidPublicKey();
   return ok({
     enabled,
     vapidPublicKey,

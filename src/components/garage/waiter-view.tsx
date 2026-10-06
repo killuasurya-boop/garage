@@ -216,8 +216,15 @@ export function WaiterView({ me }: Props) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAll(false);
+    // Tab tersembunyi: tetap cek tiap ±30 dtk supaya notifikasi browser
+    // ("tampil saat tab di belakang") benar-benar bisa muncul.
+    let lastHiddenTick = 0;
     const tick = () => {
-      if (document.hidden || inFlightRef.current) return;
+      if (inFlightRef.current) return;
+      if (document.hidden) {
+        if (Date.now() - lastHiddenTick < 30_000) return;
+        lastHiddenTick = Date.now();
+      }
       void loadAll(true);
     };
     const id = window.setInterval(tick, POLL_MS);

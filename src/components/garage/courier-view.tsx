@@ -94,13 +94,17 @@ export function CourierView({ me }: { me: GarageMe }) {
     }
   }, []);
 
+  const { connected } = useProductionStream(load);
+  // Poll cadangan: 20 dtk (60 dtk bila realtime tersambung); jeda saat tab tersembunyi
+  // kecuali sedang membawa pesanan (GPS & status tetap perlu segar).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- muat awal data antaran
     void load();
-    const id = window.setInterval(() => void load(), 20_000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") void load();
+    }, connected ? 60_000 : 20_000);
     return () => window.clearInterval(id);
-  }, [load]);
-  const { connected } = useProductionStream(load);
+  }, [load, connected]);
 
   // GPS: hanya untuk kurir, hanya pesanan miliknya yang sedang dibawa.
   const carriedIds = useMemo(

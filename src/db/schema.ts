@@ -671,6 +671,8 @@ export const customerChatMessages = pgTable(
     sender: text("sender").notNull(), // customer | staff | system
     staffUserId: text("staff_user_id").references(() => user.id, { onDelete: "set null" }),
     body: text("body").notNull(),
+    // Lampiran foto (mis. bukti bayar) — path /garage-uploads/chat/<acak>.jpg.
+    attachmentUrl: text("attachment_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -2820,6 +2822,75 @@ export const recruitmentPositions = pgTable(
     sortIdx: index("recruitment_positions_sort_idx").on(table.sortOrder),
   }),
 );
+
+// Pusat notifikasi staf (feed per outlet). `audience` = siapa yang menerima:
+// "cashier" (pegang uang), "courier", "production", "management", "all", atau
+// "user" (khusus `userId`). Status baca per user di staff_notification_reads.
+export const staffNotifications = pgTable(
+  "staff_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "cascade" }),
+    audience: text("audience").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    severity: text("severity").notNull().default("info"), // info | warning | urgent
+    title: text("title").notNull(),
+    body: text("body"),
+    url: text("url"),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    // Kunci anti-dobel (mis. "qr_new:<orderId>").
+    dedupKey: text("dedup_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletCreatedIdx: index("staff_notifications_outlet_created_idx").on(table.outletId, table.createdAt),
+    userIdx: index("staff_notifications_user_idx").on(table.userId),
+    dedupIdx: uniqueIndex("staff_notifications_dedup_idx").on(table.dedupKey),
+  }),
+);
+
+export const staffNotificationReads = pgTable(
+  "staff_notification_reads",
+  {
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => staffNotifications.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: uniqueIndex("staff_notification_reads_pk").on(table.notificationId, table.userId),
+  }),
+);
+
+// Web Push untuk PELANGGAN (tanpa akun): langganan diikat ke satu order.
+export const orderPushSubscriptions = pgTable(
+  "order_push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    keyP256dh: text("key_p256dh").notNull(),
+    keyAuth: text("key_auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    orderEndpointIdx: uniqueIndex("order_push_subscriptions_order_endpoint_idx").on(table.orderId, table.endpoint),
+  }),
+);
+
+// Kunci sistem yang dibuat otomatis (mis. VAPID web push). Tidak pernah
+// diekspos lewat API pengaturan.
+export const systemKeys = pgTable("system_keys", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // 🔊 Smart Notification Logs
 export const notificationLogs = pgTable(

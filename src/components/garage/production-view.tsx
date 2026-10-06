@@ -224,6 +224,19 @@ export function ProductionView({
       if (localStorage.getItem("garage:kds:sound") === "on") {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- init sekali dari storage
         setSoundEnabled(true);
+        // Browser hanya mengizinkan audio setelah sentuhan: siapkan AudioContext
+        // pada sentuhan pertama supaya "Suara ON" yang tersimpan benar-benar bunyi.
+        const prime = () => {
+          const AudioCtor =
+            window.AudioContext ??
+            (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+          if (!AudioCtor) return;
+          if (!audioRef.current || audioRef.current.state === "closed") audioRef.current = new AudioCtor();
+          void audioRef.current.resume();
+          voice.unlock();
+        };
+        window.addEventListener("pointerdown", prime, { once: true });
+        return () => window.removeEventListener("pointerdown", prime);
       }
     } catch {
       /* localStorage tidak tersedia */
@@ -304,27 +317,31 @@ export function ProductionView({
     if (prev) {
       let hasNew = false;
       for (const t of board.tickets) {
+        // Hanya station yang tampil di layar ini; "Suara OFF" juga membisukan suara orang.
+        if (station !== "all" && station !== t.station) continue;
         const before = prev.get(t.ticketNo);
         if (!before) {
           hasNew = true;
+          if (!soundEnabled) continue;
           if (isOnlineChannel(t.channel)) {
             void voice.announce("online_new", { channel: t.channel, dedupKey: `${t.ticketNo}:online` });
           }
           continue;
         }
+        if (!soundEnabled) continue;
         if (before === "queue" && t.status === "cooking") {
           void voice.announce(t.station === "Bar" ? "bar_mixing" : "kitchen_cooking", {
             table: t.table,
             dedupKey: `${t.ticketNo}:cook`,
           });
         } else if (before !== "ready" && t.status === "ready") {
-          void voice.announce("order_ready", { table: t.table, dedupKey: `${t.ticketNo}:ready` });
+          void voice.announce("order_ready", { table: t.table, orderNo: t.orderNo, dedupKey: `${t.ticketNo}:ready` });
         }
       }
       if (hasNew) playTone("new");
     }
     prevStatusRef.current = next;
-  }, [board, playTone]);
+  }, [board, playTone, station, soundEnabled]);
 
   useEffect(() => {
     let newlyLate = false;
@@ -344,14 +361,17 @@ export function ProductionView({
       if (station !== "all" && station !== t.station) continue;
       const minutes = Math.floor(elapsedMinutes(t.handoverAt, now));
       if (minutes < PICKUP_REMIND_MINUTES) continue;
+      // Maksimal 3 pengingat per tiket (menit ke-3, 4, 5) — sesudahnya tidak berisik lagi.
+      if (minutes >= PICKUP_REMIND_MINUTES + 3) continue;
       if (remindRef.current.get(t.ticketNo) === minutes) continue;
       remindRef.current.set(t.ticketNo, minutes);
+      if (!soundEnabled) continue;
       void voice.announce("order_ready_deliver", {
         table: t.table,
         dedupKey: `${t.ticketNo}:remind:${minutes}`,
       });
     }
-  }, [now, tickets, station]);
+  }, [now, tickets, station, soundEnabled]);
 
   const inStation = useCallback(
     (s: "Bar" | "Food") => station === "all" || station === s,

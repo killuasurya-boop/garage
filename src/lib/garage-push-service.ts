@@ -1,13 +1,6 @@
-// Web Push subscription management — scaffold awal.
-// Foundation untuk fitur notificationPushEnabled di /control/settings.
-//
-// Untuk benar-benar kirim push notification ke browser, perlu:
-// 1. VAPID keys di env (GARAGE_VAPID_PUBLIC, GARAGE_VAPID_PRIVATE)
-// 2. npm install web-push (atau alternatif native fetch ke endpoint browser)
-// 3. Service worker di public/sw.js untuk handle push event
-// 4. Client subscribe flow yang minta permission + register subscription
-//
-// File ini handle (3) sebagian + database layer untuk subscribe/unsubscribe.
+// Web Push subscription management (staf) — database layer subscribe/unsubscribe.
+// Pengiriman ada di web-push-sender.ts (VAPID otomatis), dipicu pusat notifikasi
+// (staff-notifications.ts). Klien subscribe lewat lib/push-client.ts.
 
 import { and, desc, eq, sql } from "drizzle-orm";
 
@@ -129,7 +122,12 @@ export async function isPushEnabled(): Promise<boolean> {
   }
 }
 
-// Expose VAPID public key untuk client subscribe flow.
-export function getVapidPublicKey(): string | null {
-  return process.env.GARAGE_VAPID_PUBLIC ?? null;
+// Expose VAPID public key untuk client subscribe flow (env atau dibuat otomatis).
+export async function getVapidPublicKey(): Promise<string | null> {
+  try {
+    const { getVapidKeys } = await import("@/lib/web-push-sender");
+    return (await getVapidKeys()).publicKey;
+  } catch {
+    return null;
+  }
 }

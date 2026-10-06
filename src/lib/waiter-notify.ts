@@ -116,15 +116,28 @@ export async function requestBrowserNotifyPermission(): Promise<NotificationPerm
   }
 }
 
-export function showBrowserNotify(title: string, body: string) {
+export function showBrowserNotify(title: string, body: string, tag?: string) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   if (typeof document !== "undefined" && document.visibilityState === "visible") {
     // Tab fokus — toast in-app sudah cukup, skip OS notif supaya tidak dobel.
     return;
   }
+  // Lewat service worker: `new Notification()` melempar "Illegal constructor"
+  // di Chrome Android. Tag per kejadian supaya notifikasi kedua tidak menimpa.
+  const options = { body, tag: tag ?? `garage-waiter-${Date.now()}`, icon: "/garage-brand/logo-icon.png" };
+  if ("serviceWorker" in navigator) {
+    void navigator.serviceWorker
+      .getRegistration("/")
+      .then((registration) => {
+        if (registration) return registration.showNotification(title, options);
+        new Notification(title, options);
+      })
+      .catch(() => undefined);
+    return;
+  }
   try {
-    new Notification(title, { body, tag: "garage-waiter-ready" });
+    new Notification(title, options);
   } catch {
     /* ignore */
   }

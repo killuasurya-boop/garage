@@ -23,6 +23,9 @@ const TABLES_TO_CLEAR = [
   "error_events",
   "feedback_entries",
   "push_subscriptions",
+  "order_push_subscriptions",
+  "staff_notifications",
+  "staff_notification_reads",
   "login_attempts",
   // customer & member
   "customers",

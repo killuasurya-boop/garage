@@ -77,6 +77,12 @@ import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 import { waLink } from "@/lib/whatsapp-link";
 import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
+import { OrderPushButton } from "@/components/garage/order-push-button";
+import {
+  adoptChatTokenForOrder,
+  CustomerChatPanel,
+  existingGenericChatToken,
+} from "@/components/garage/customer-chat-panel";
 
 const garageWhatsappUrl = (number: string, text: string) => waLink(number, text) ?? undefined;
 
@@ -198,194 +204,34 @@ async function postJson<T>(url: string, payload: unknown) {
   return json.data;
 }
 
-function getOrCreateChatToken(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    let t = window.localStorage.getItem("garage:chatToken");
-    if (!t || t.length < 12) {
-      const raw =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `c${Date.now()}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
-      t = raw.replace(/-/g, "");
-      window.localStorage.setItem("garage:chatToken", t);
-    }
-    return t;
-  } catch {
-    return `c${Date.now()}${Math.random().toString(36).slice(2)}`;
-  }
+/** Status akhir: tidak perlu dipoll lagi. */
+function isTrackedOrderFinished(status: PublicOrderStatus) {
+  if (status.orderStatus === "rejected" || status.kitchenStatus === "rejected") return true;
+  if (status.steps?.length) return status.steps.every((step) => step.state === "done");
+  return status.kitchenStatus === "delivered" || status.kitchenStatus === "completed";
 }
 
-type ChatMsg = { id: string; sender: string; body: string; createdAt: string };
-
-function ChatBubble({ msg }: { msg: ChatMsg }) {
-  if (msg.sender === "system") {
-    return (
-      <p className="mx-auto w-fit rounded-full border border-garage-amber/30 bg-garage-amber/10 px-3 py-1 text-center text-[11px] font-semibold text-[#ffd79a]">
-        {msg.body}
-      </p>
-    );
-  }
-  const mine = msg.sender === "customer";
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${
-          mine
-            ? "rounded-br-sm bg-garage-red text-white"
-            : "rounded-bl-sm border border-garage-line bg-white/[0.06] text-garage-fg"
-        }`}
-      >
-        {!mine ? (
-          <span className="mb-0.5 block text-[10px] font-bold uppercase text-garage-amber">Kasir</span>
-        ) : null}
-        <span className="whitespace-pre-wrap break-words">{msg.body}</span>
-      </div>
-    </div>
-  );
+/** Browser memblokir getar sebelum pengguna menyentuh halaman (dan mencatat error). */
+function canVibrate() {
+  const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  return typeof navigator.vibrate === "function" && (activation ? activation.hasBeenActive : true);
 }
 
-function CustomerChatPanel({ tableLabel, title }: { tableLabel: string; title?: string }) {
-  const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
-  const lastIdRef = useRef<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const seenRef = useRef<Set<string>>(new Set());
-  const tokenRef = useRef<string>("");
-
-  const ensureToken = useCallback(() => {
-    if (!tokenRef.current) tokenRef.current = getOrCreateChatToken();
-    return tokenRef.current;
-  }, []);
-
-  const mergeMessages = useCallback((incoming: ChatMsg[]) => {
-    if (!incoming.length) return;
-    setMessages((prev) => {
-      const next = [...prev];
-      for (const m of incoming) {
-        if (!seenRef.current.has(m.id)) {
-          seenRef.current.add(m.id);
-          next.push(m);
-        }
-      }
-      return next;
-    });
-    lastIdRef.current = incoming[incoming.length - 1].id;
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    async function poll() {
-      try {
-        const token = ensureToken();
-        if (!token) return;
-        const after = lastIdRef.current;
-        const url = `/api/customer/chat?token=${encodeURIComponent(token)}${
-          after ? `&afterId=${encodeURIComponent(after)}` : ""
-        }`;
-        const data = await getJson<{ threadId: string | null; status: string; messages: ChatMsg[] }>(url);
-        if (active) mergeMessages(data.messages);
-      } catch {
-        /* offline sesaat - polling berikutnya coba lagi */
-      }
-    }
-    void poll();
-    const id = window.setInterval(() => void poll(), 3000);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
-  }, [open, ensureToken, mergeMessages]);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
-
-  async function send() {
-    const body = input.trim();
-    if (!body || sending) return;
-    setSending(true);
-    setError("");
-    const tk = ensureToken();
-    try {
-      await postJson("/api/customer/chat", { chatToken: tk, tableLabel, body });
-      setInput("");
-      const data = await getJson<{ messages: ChatMsg[] }>(
-        `/api/customer/chat?token=${encodeURIComponent(tk)}${
-          lastIdRef.current ? `&afterId=${encodeURIComponent(lastIdRef.current)}` : ""
-        }`,
-      );
-      mergeMessages(data.messages);
-    } catch {
-      setError("Gagal mengirim. Coba lagi.");
-    } finally {
-      setSending(false);
-    }
-  }
-
+function ChatLaunchButton({ label, unread, onClick }: { label: string; unread: number; onClick: () => void }) {
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="garage-press mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-garage-red/45 bg-garage-red/12 px-3 py-2.5 text-xs font-bold text-[#ffc2c8] transition hover:bg-garage-red/20"
-      >
-        <MessageCircle className="size-4" />
-        {title ?? "Chat langsung dengan kasir"}
-      </button>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side="bottom"
-          className="flex h-[80vh] flex-col gap-0 border-garage-line bg-garage-bg-1 p-0"
-        >
-          <SheetHeader className="border-b border-garage-line p-4 text-left">
-            <SheetTitle className="flex items-center gap-2 font-sans text-white">
-              <MessageCircle className="size-4 text-garage-amber" /> Chat Kasir
-            </SheetTitle>
-            <SheetDescription className="text-garage-dim">
-              {tableLabel} - kasir akan balas secepatnya.
-            </SheetDescription>
-          </SheetHeader>
-          <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-4">
-            {messages.length === 0 ? (
-              <p className="mt-6 text-center text-sm text-garage-mute">
-                Mulai chat dengan kasir - tanya menu, ralat pesanan, atau minta bantuan.
-              </p>
-            ) : (
-              messages.map((m) => <ChatBubble key={m.id} msg={m} />)
-            )}
-          </div>
-          {error ? <p className="px-4 pb-1 text-xs text-[#fca5a5]">{error}</p> : null}
-          <div className="flex items-end gap-2 border-t border-garage-line p-3">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              rows={1}
-              placeholder="Tulis pesan..."
-              className="max-h-24 min-h-11 flex-1 resize-none rounded-md border border-garage-line-2 bg-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-garage-mute focus:border-garage-red/60 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={sending || !input.trim()}
-              className="garage-press h-11 shrink-0 rounded-md bg-garage-red px-4 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {sending ? "..." : "Kirim"}
-            </button>
-          </div>
-        </SheetContent>
-      </Sheet>
-    </>
+    <button
+      type="button"
+      onClick={onClick}
+      className="garage-press mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-garage-red/45 bg-garage-red/12 px-3 py-2.5 text-sm font-bold text-[#ffc9c9] transition hover:bg-garage-red/20"
+    >
+      <MessageCircle className="size-4" aria-hidden />
+      {label}
+      {unread > 0 ? (
+        <span className="rounded-full bg-garage-amber px-2 py-0.5 text-xs font-black text-black" aria-label={`${unread} pesan baru dari kasir`}>
+          {unread} baru
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -1000,6 +846,9 @@ export function MemberOrderPage({
   // supaya tracker tidak hilang saat halaman di-refresh.
   const [trackedOrderId, setTrackedOrderId] = useState<string | null>(null);
   const [trackedOrderNo, setTrackedOrderNo] = useState<string | null>(null);
+  // Live chat (satu panel untuk seluruh halaman; tombol pemicu punya badge sendiri).
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [helpMessage, setHelpMessage] = useState("");
   const [helpBusy, setHelpBusy] = useState<string | null>(null);
@@ -1096,35 +945,6 @@ export function MemberOrderPage({
     return () => window.removeEventListener("scroll", updateScrollState);
   }, []);
 
-  useEffect(() => {
-    if (!lastOrder?.order.id) {
-      return;
-    }
-
-    let alive = true;
-    const loadStatus = async () => {
-      try {
-        const status = await getJson<PublicOrderStatus>(
-          `/api/customer/orders/${lastOrder.order.id}/public-status`,
-        );
-        if (alive) {
-          setOrderStatus(status);
-        }
-      } catch {
-        if (alive) {
-          setOrderStatus(null);
-        }
-      }
-    };
-
-    void loadStatus();
-    const intervalId = window.setInterval(loadStatus, 8_000);
-    return () => {
-      alive = false;
-      window.clearInterval(intervalId);
-    };
-  }, [lastOrder?.order.id]);
-
   // Resume: baca order terakhir dari localStorage saat mount (kalau belum ada
   // sesi aktif), supaya tracker tetap muncul setelah refresh/buka ulang.
   useEffect(() => {
@@ -1143,22 +963,41 @@ export function MemberOrderPage({
     }
   }, [lastOrder]);
 
-  // Poll status untuk order yang di-resume (tanpa sesi lastOrder aktif).
+  // Satu poller untuk pesanan aktif (baru dibuat atau di-resume):
+  // - tiap 8 dtk, jeda saat tab disembunyikan, langsung cek saat kembali;
+  // - berhenti setelah status akhir (selesai/diterima/ditolak);
+  // - error jaringan TIDAK menghapus pelacak (hanya 404 = pesanan tidak ada).
+  const trackId = lastOrder?.order.id ?? trackedOrderId;
   useEffect(() => {
-    if (lastOrder || !trackedOrderId) return;
+    if (!trackId) return;
     let alive = true;
+    let stopped = false;
+    let intervalId = 0;
     const loadStatus = async () => {
+      if (stopped || document.visibilityState === "hidden") return;
       try {
-        const status = await getJson<PublicOrderStatus>(
-          `/api/customer/orders/${trackedOrderId}/public-status`,
-        );
-        if (!alive) return;
+        const response = await fetch(`/api/customer/orders/${trackId}/public-status`, { cache: "no-store" });
+        if (response.status === 404) {
+          if (!alive) return;
+          stopped = true;
+          window.clearInterval(intervalId);
+          if (!lastOrder) {
+            setTrackedOrderId(null);
+            try {
+              window.localStorage.removeItem("garage:trackedOrder");
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+        const json = (await response.json().catch(() => ({}))) as { data?: PublicOrderStatus };
+        if (!alive || !response.ok || !json.data) return;
+        const status = json.data;
         setOrderStatus(status);
-        const finished =
-          ["delivered", "completed", "rejected"].includes(status.kitchenStatus) ||
-          status.orderStatus === "paid";
-        if (finished) {
-          // Sudah selesai â€” berhenti menyimpan supaya kunjungan berikutnya bersih.
+        if (isTrackedOrderFinished(status)) {
+          stopped = true;
+          window.clearInterval(intervalId);
           try {
             window.localStorage.removeItem("garage:trackedOrder");
           } catch {
@@ -1166,23 +1005,40 @@ export function MemberOrderPage({
           }
         }
       } catch {
-        if (alive) {
-          setTrackedOrderId(null);
-          try {
-            window.localStorage.removeItem("garage:trackedOrder");
-          } catch {
-            /* ignore */
-          }
-        }
+        /* jaringan putus sesaat — coba lagi di putaran berikutnya */
       }
     };
     void loadStatus();
-    const intervalId = window.setInterval(loadStatus, 8_000);
+    intervalId = window.setInterval(loadStatus, 8_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadStatus();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [lastOrder, trackedOrderId]);
+  }, [trackId, lastOrder]);
+
+  // Perubahan langkah status → getar + judul tab (pelanggan sering menaruh HP).
+  const currentStepKey = orderStatus?.steps?.find((step) => step.state === "current")?.key ?? null;
+  const currentStepLabel = orderStatus?.steps?.find((step) => step.state === "current")?.label ?? null;
+  const previousStepRef = useRef<string | null>(null);
+  useEffect(() => {
+    const signature = `${orderStatus?.orderNo ?? ""}:${currentStepKey ?? (orderStatus && isTrackedOrderFinished(orderStatus) ? "done" : "")}`;
+    const previous = previousStepRef.current;
+    previousStepRef.current = signature;
+    if (!previous || previous === signature || !orderStatus) return;
+    try {
+      if (canVibrate()) navigator.vibrate(currentStepKey === "pickup" || currentStepKey === "arrived" ? [200, 100, 200, 100, 200] : [150]);
+    } catch {
+      /* tidak didukung */
+    }
+    if (document.visibilityState === "hidden") {
+      document.title = `🔔 ${currentStepLabel ?? "Pesanan diperbarui"} · Garage`;
+    }
+  }, [orderStatus, currentStepKey, currentStepLabel]);
 
   const normalizedQuery = deferredQuery.trim().toLowerCase();
   const filteredMenu = useMemo(
@@ -1235,6 +1091,20 @@ export function MemberOrderPage({
   const effectiveOrderType: OrderType =
     deliveryAvailable && fulfillment === "delivery" ? "delivery" : qrContext.orderType;
   const isDelivery = effectiveOrderType === "delivery";
+  // Chat diikat ke pesanan yang sedang dilacak (bukti kepemilikan = token invoice).
+  const chatOrderId = lastOrder?.order.id ?? trackedOrderId ?? null;
+  const chatOrderNo = lastOrder?.order.orderNo ?? trackedOrderNo ?? null;
+  const chatOrderToken =
+    (orderStatus?.invoiceWebUrl ?? lastOrder?.order.invoiceWebUrl ?? "").split("/invoice/")[1]?.split(/[?#]/)[0] || null;
+  const chatLabel = chatOrderId
+    ? (orderStatus?.fulfillment === "delivery"
+        ? "Delivery"
+        : orderStatus?.fulfillment === "takeaway"
+          ? "Take away"
+          : (orderStatus?.tableLabel ?? qrContext.tableLabel))
+    : canChooseFulfillment
+      ? `${isDelivery ? "Delivery" : "Take away"}${guestName.trim() ? ` · ${guestName.trim()}` : ""}`.slice(0, 40)
+      : qrContext.tableLabel;
   // Ongkir di luar service & pajak (sama dengan server).
   const deliveryFee = isDelivery ? billingSettings.deliveryFee : 0;
   const total =
@@ -1429,16 +1299,7 @@ export function MemberOrderPage({
         return;
       }
 
-      const existingChatToken =
-        typeof window !== "undefined"
-          ? (() => {
-              try {
-                return window.localStorage.getItem("garage:chatToken") || undefined;
-              } catch {
-                return undefined;
-              }
-            })()
-          : undefined;
+      const existingChatToken = existingGenericChatToken();
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", {
         orderType: effectiveOrderType,
         tableLabel: isDelivery ? undefined : qrContext.tableLabel,
@@ -1460,7 +1321,7 @@ export function MemberOrderPage({
         paymentMethod,
         paymentProvider: paymentProviderValue || undefined,
         paymentReference: paymentReference.trim() || undefined,
-        chatToken: existingChatToken && existingChatToken.length >= 12 ? existingChatToken : undefined,
+        chatToken: existingChatToken,
         items: cartLines.map((line) => ({
           itemId: line.item.id,
           variantId: line.variant.id,
@@ -1476,6 +1337,8 @@ export function MemberOrderPage({
       setCheckoutOpen(false);
       setMessage(`${result.order.orderNo} masuk ke kasir. Pembayaran menunggu konfirmasi.`);
       setLastOrder(result);
+      // Percakapan sebelum memesan kini milik pesanan ini; kunjungan berikutnya mulai baru.
+      adoptChatTokenForOrder(result.order.id);
       // Persist supaya tracker tetap ada walau halaman di-refresh.
       try {
         window.localStorage.setItem(
@@ -2026,9 +1889,10 @@ export function MemberOrderPage({
                 <FulfillmentBadge fulfillment={effectiveOrderType} tableLabel={qrContext.tableLabel} />
                 {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
                 {canChooseFulfillment ? (
-                  <CustomerChatPanel
-                    tableLabel={`${isDelivery ? "Delivery" : "Take away"}${guestName.trim() ? ` · ${guestName.trim()}` : ""}`.slice(0, 40)}
-                    title="Chat kasir (take away & delivery)"
+                  <ChatLaunchButton
+                    label="Chat kasir (take away & delivery)"
+                    unread={chatUnread}
+                    onClick={() => setChatOpen(true)}
                   />
                 ) : null}
               </div>
@@ -2117,6 +1981,8 @@ export function MemberOrderPage({
                   </div>
                 </div>
                 <OrderTracker status={orderStatus} />
+                <ChatLaunchButton label="Tanya kasir soal pesanan ini" unread={chatUnread} onClick={() => setChatOpen(true)} />
+                <OrderPushButton orderId={trackedOrderId} orderToken={chatOrderToken} />
                 {orderStatus.invoiceWebUrl ? (
                   <a
                     href={orderStatus.invoiceWebUrl}
@@ -2154,6 +2020,8 @@ export function MemberOrderPage({
                             {lastOrder.order.paymentMethod ?? "Cash"}
                           </span>
                           <OrderTracker status={orderStatus} />
+                          <ChatLaunchButton label="Tanya kasir soal pesanan ini" unread={chatUnread} onClick={() => setChatOpen(true)} />
+                          <OrderPushButton orderId={lastOrder.order.id} orderToken={chatOrderToken} />
                           {mode !== "guest" ? (
                             <p className="mt-3 text-sm font-semibold text-white">{lastOrder.memberCta}</p>
                           ) : null}
@@ -2378,8 +2246,28 @@ export function MemberOrderPage({
           message={helpMessage}
           onRequest={(type, label) => void callService(type, label)}
         >
-          <CustomerChatPanel tableLabel={qrContext.tableLabel} />
+          <ChatLaunchButton
+            label="Chat langsung dengan kasir"
+            unread={chatUnread}
+            onClick={() => {
+              setHelpOpen(false);
+              setChatOpen(true);
+            }}
+          />
         </OrderHelpSheet>
+      ) : null}
+
+      {!staffOrder ? (
+        <CustomerChatPanel
+          tableLabel={chatLabel}
+          orderId={chatOrderId}
+          orderToken={chatOrderToken}
+          orderNo={chatOrderNo}
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          onUnreadChange={setChatUnread}
+          hideTrigger
+        />
       ) : null}
 
       <Sheet open={checkoutOpen} onOpenChange={setCheckoutOpen}>

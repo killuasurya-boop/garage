@@ -5,6 +5,7 @@ import { AtSign, MessageCircle, X } from "lucide-react";
 
 import { ChatModule } from "@/components/garage/chat-module";
 import { garageApi } from "@/lib/api-client";
+import { voice } from "@/lib/garage-voice";
 import type { Role } from "@/lib/garage-data";
 
 type ChannelSummary = { id: string; unread: number };
@@ -156,6 +157,14 @@ export function ChatFab({
           setUnread((n) => n + 1);
           if (mentionsMe(event.message.body, currentUserName, currentUserRole)) {
             setMentioned(true);
+            // Disebut di chat tim → bunyi (patuh mute & preferensi perangkat).
+            try {
+              if (window.localStorage.getItem("garage:device:notif-sound") !== "off") {
+                void voice.announce("owner_chat_ping", { dedupKey: `mention:${Date.now() >> 14}` });
+              }
+            } catch {
+              /* ignore */
+            }
           }
         }
       } catch {

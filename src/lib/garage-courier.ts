@@ -22,7 +22,8 @@ import {
 import type { Role } from "@/lib/garage-data";
 import { isCourierProfile } from "@/lib/garage-production-rules";
 import { canHandleMoney, MANAGEMENT_ROLES } from "@/lib/role-access";
-import { getAppSettings, roleDisplayName, updateCustomerOrderStatus } from "@/lib/garage-service";
+import { announceOrderProgress, getAppSettings, roleDisplayName, updateCustomerOrderStatus } from "@/lib/garage-service";
+import { notifyStaff } from "@/lib/staff-notifications";
 import { publishProductionChange } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -155,6 +156,22 @@ export async function assignCourier(orderId: string, courierUserId: string | nul
     return updated;
   });
   publishProductionChange();
+  if (courierUserId) {
+    // Kurir langsung diberi tahu (layar mana pun + HP terkunci lewat push).
+    await notifyStaff({
+      outletId: result.outletId,
+      audience: "user",
+      userId: courierUserId,
+      kind: "courier_assigned",
+      severity: "urgent",
+      title: `Antaran baru ${result.orderNo}`,
+      body: `${result.customerName ?? "Pelanggan"} · ${result.deliveryAddress ?? "-"}`.slice(0, 200),
+      url: "/os?module=courier",
+      orderId: result.id,
+      dedupKey: `courier_assigned:${result.id}:${courierUserId}`,
+    }).catch(() => null);
+    await announceOrderProgress(result.id, "courier_assigned", { courierName: result.courierName }).catch(() => null);
+  }
   return courierOrderView(result);
 }
 
@@ -197,6 +214,9 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
     return updated;
   });
   publishProductionChange();
+  if (rule.to === "on_the_way" || rule.to === "delivered") {
+    await announceOrderProgress(result.id, rule.to, { courierName: result.courierName }).catch(() => null);
+  }
   return courierOrderView(result);
 }
 
@@ -357,7 +377,23 @@ export async function sweepUnpaidOrders(now: Date = new Date()) {
     if (!outlet) continue;
     const settings = await getAppSettings(outlet.id);
     const limit = settings.unpaidOrderAutoRejectMinutes;
-    if (!isUnpaidOrderExpired(order, limit, now)) continue;
+    if (!isUnpaidOrderExpired(order, limit, now)) {
+      // Peringatan 5 menit sebelum batal otomatis.
+      if (limit > 5 && isUnpaidOrderExpired(order, limit - 5, now)) {
+        await notifyStaff({
+          outletId: outlet.id,
+          audience: "cashier",
+          kind: "unpaid_expiring",
+          severity: "warning",
+          title: `${order.orderNo} batal otomatis ±5 menit lagi`,
+          body: "Belum dibayar — cek pembayaran atau hubungi pelanggan.",
+          url: "/os?module=pos&qr=1",
+          orderId: order.id,
+          dedupKey: `unpaid_expiring:${order.id}`,
+        }).catch(() => null);
+      }
+      continue;
+    }
     try {
       await updateCustomerOrderStatus(
         order.id,
@@ -365,6 +401,17 @@ export async function sweepUnpaidOrders(now: Date = new Date()) {
         systemSession({ id: outlet.id, code: outlet.code, name: outlet.name, timezone: outlet.timezone ?? "Asia/Jakarta" }),
       );
       rejected.push(order.orderNo);
+      await notifyStaff({
+        outletId: outlet.id,
+        audience: "cashier",
+        kind: "auto_rejected",
+        severity: "warning",
+        title: `${order.orderNo} ditolak otomatis`,
+        body: `${AUTO_REJECT_REASON(limit)}. Stok dikembalikan.`,
+        url: "/os?module=pos&qr=1",
+        orderId: order.id,
+        dedupKey: `auto_rejected:${order.id}`,
+      }).catch(() => null);
     } catch (error) {
       console.error("[auto-reject] gagal menolak", order.orderNo, error);
     }

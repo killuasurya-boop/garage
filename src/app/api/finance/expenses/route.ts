@@ -16,6 +16,7 @@ const expenseSchema = z.object({
   supplierInvoiceId: z.string().uuid().nullable().optional(),
   expenseDate: z.string().datetime({ offset: true }).optional(),
   notes: z.string().trim().max(500).optional(),
+  countAsPurchase: z.boolean().optional(),
 });
 
 export async function GET(request: Request) {

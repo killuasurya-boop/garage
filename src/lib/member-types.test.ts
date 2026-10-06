@@ -4,6 +4,7 @@ import {
   GOLD_MIN_POINTS,
   PLATINUM_MIN_POINTS,
   calculateEarnedPoints,
+  maxRedeemablePoints,
   calculateRedeemDiscount,
   memberLevelForPoints,
   memberLevelRank,
@@ -36,8 +37,16 @@ describe("calculateEarnedPoints", () => {
     expect(calculateEarnedPoints(33_000, "Gold").pointsEarned).toBe(39);
   });
 
-  it("Platinum multiplier 1.5x", () => {
-    expect(calculateEarnedPoints(50_000, "Platinum").pointsEarned).toBe(75);
+  it("Platinum multiplier 1.6x, Ultra 2x (owner, Okt 2026)", () => {
+    expect(calculateEarnedPoints(50_000, "Platinum").pointsEarned).toBe(80);
+    expect(calculateEarnedPoints(50_000, "Ultra").pointsEarned).toBe(100);
+  });
+
+  it("maks poin per tagihan: saldo, % harga menu, nilai poin", () => {
+    expect(maxRedeemablePoints({ balance: 1_000, base: 60_000, pointValue: 100, maxPct: 50 })).toBe(300);
+    expect(maxRedeemablePoints({ balance: 120, base: 60_000, pointValue: 100, maxPct: 50 })).toBe(120);
+    expect(maxRedeemablePoints({ balance: 500, base: 0, pointValue: 100, maxPct: 50 })).toBe(0);
+    expect(maxRedeemablePoints({ balance: 500, base: 60_000, pointValue: 100, maxPct: 0 })).toBe(0);
   });
 
   it("level tidak dikenal jatuh ke Silver (multiplier 1)", () => {

@@ -130,6 +130,14 @@ Scroll direction:
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.
 
+## Finance Rules
+
+- Profit bersih = omzet bersih − belanja bahan (penerimaan gudang, cash lunas) − biaya tetap harian − biaya lain
+  (`cogsBasis: "purchase"`, lihat `docs/KONSEP-KEUANGAN.md`). Penerimaan gudang mencatat `expenses` lunas per area
+  via `recordCashPurchases` (`src/lib/finance-purchases.ts`, `sourceDoc` idempoten) — tidak membuat hutang supplier.
+  Hanya expense ber-`sourceDoc` yang jadi biaya bahan; expense/pelunasan kategori belanja lain = cash-out saja.
+- Target profit bersih/bulan (`netProfitTargetMonthly`) = patokan balik modal (`computeCapitalTarget`).
+
 ## Table (Meja) Rules
 
 - Table numbers/labels go through `src/lib/garage-tables.ts` only: `parseTableNumber`

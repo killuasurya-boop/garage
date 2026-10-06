@@ -72,8 +72,8 @@ afterAll(async () => {
   await teardownGarageTestDb(t);
 });
 
-describe("Receiving WMS → tagihan supplier", () => {
-  it("receiving selesai → stok masuk & invoice hutang Belanja Bar terbentuk (termasuk ongkir)", async () => {
+describe("Receiving WMS → belanja cash lunas (tanpa hutang)", () => {
+  it("receiving selesai → stok masuk & belanja Bar lunas tercatat (termasuk ongkir), tanpa invoice hutang", async () => {
     const rec = await wms.createReceiving({
       supplier: "Toko Susu",
       additionalCost: 5_000,
@@ -90,21 +90,121 @@ describe("Receiving WMS → tagihan supplier", () => {
     await wms.completeReceiving(rec.id);
     expect(await wmsTotal("A-MILK")).toBe(2000);
 
-    const { eq } = await import("drizzle-orm");
-    const [inv] = await t
+    const { eq, like } = await import("drizzle-orm");
+    const invoices = await t
       .getDb()
       .select()
       .from(t.schema.supplierInvoices)
-      .where(eq(t.schema.supplierInvoices.invoiceNo, rec.doc));
-    expect(inv).toBeTruthy();
-    expect(inv.amount).toBe(2000 * 24 + 5_000);
-    expect(inv.status).toBe("unpaid");
-    expect(inv.category).toBe("Belanja Bar");
+      .where(like(t.schema.supplierInvoices.invoiceNo, `${rec.doc}%`));
+    expect(invoices).toHaveLength(0);
 
-    // Selesaikan ulang (retry) → tidak membuat invoice kedua.
+    const [exp] = await t
+      .getDb()
+      .select()
+      .from(t.schema.expenses)
+      .where(eq(t.schema.expenses.sourceDoc, `WMS:${rec.doc}#bar`));
+    expect(exp).toBeTruthy();
+    expect(exp.amount).toBe(2000 * 24 + 5_000);
+    expect(exp.status).toBe("paid");
+    expect(exp.paymentMethod).toBe("Cash");
+    expect(exp.category).toBe("Belanja Bar");
+
+    // Selesaikan ulang (retry) → tidak membuat belanja kedua.
     await wms.completeReceiving(rec.id);
-    const all = await t.getDb().select().from(t.schema.supplierInvoices).where(eq(t.schema.supplierInvoices.invoiceNo, rec.doc));
+    const all = await t.getDb().select().from(t.schema.expenses).where(like(t.schema.expenses.sourceDoc, `WMS:${rec.doc}%`));
     expect(all.length).toBe(1);
+
+    // Laba rugi hari ini: belanja Bar = biaya bahan (mode default "purchase").
+    const fc = await import("@/lib/finance-control");
+    const { jakartaDateKey } = await import("@/lib/finance-control-core");
+    const config = await fc.loadFinanceConfig();
+    expect(config.cogsBasis).toBe("purchase");
+    const raws = await fc.loadDayRaws(jakartaDateKey(), jakartaDateKey());
+    const raw = raws.get(jakartaDateKey())!;
+    expect(raw.purchases.bar).toBe(2000 * 24 + 5_000);
+  });
+});
+
+describe("Penerimaan gudang siap operasional", () => {
+  it("tanggal terima & metode bayar → belanja di tanggal terima; batal → stok keluar & belanja di-void", async () => {
+    const { like } = await import("drizzle-orm");
+    const core = await import("@/lib/finance-control-core");
+    const yesterday = core.addDays(core.jakartaDateKey(), -1);
+    const before = await wmsTotal("A-MILK");
+    const rec = await wms.createReceiving({
+      supplier: "Pasar",
+      paymentMethod: "Transfer",
+      receivedDate: yesterday,
+      items: [
+        {
+          productId: milkId,
+          orderedQty: 500,
+          receivedQty: 500,
+          hpp: 20,
+          expiredAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        },
+      ],
+    });
+    await wms.completeReceiving(rec.id);
+    expect(await wmsTotal("A-MILK")).toBe(before + 500);
+    const [exp] = await t.getDb().select().from(t.schema.expenses).where(like(t.schema.expenses.sourceDoc, `WMS:${rec.doc}#%`));
+    expect(exp.paymentMethod).toBe("Transfer");
+    expect(core.jakartaDateKey(new Date(exp.expenseDate))).toBe(yesterday);
+
+    // Tanggal terima di masa depan ditolak.
+    await expect(
+      wms.createReceiving({ receivedDate: core.addDays(core.jakartaDateKey(), 2), items: [{ productId: milkId, orderedQty: 1, receivedQty: 1, hpp: 1 }] }),
+    ).rejects.toThrow(/masa depan/);
+
+    await expect(wms.cancelReceiving(rec.id, { reason: "x" })).rejects.toThrow(/Alasan/);
+    const cancelled = await wms.cancelReceiving(rec.id, { reason: "salah harga", actorName: "Owner" });
+    expect(cancelled.status).toBe("cancelled");
+    expect(await wmsTotal("A-MILK")).toBe(before);
+    const [voided] = await t.getDb().select().from(t.schema.expenses).where(like(t.schema.expenses.sourceDoc, `WMS:${rec.doc}#%`));
+    expect(voided.status).toBe("void");
+    const fc = await import("@/lib/finance-control");
+    const raw = (await fc.loadDayRaws(yesterday, yesterday)).get(yesterday);
+    expect(raw?.purchases.bar ?? 0).toBe(0);
+    // Tidak bisa diselesaikan / dibatalkan lagi.
+    await expect(wms.cancelReceiving(rec.id, { reason: "lagi" })).rejects.toThrow(/sudah dibatalkan/);
+    await expect(wms.completeReceiving(rec.id)).rejects.toThrow(/dibatalkan/);
+  });
+
+  it("batal ditolak bila stok penerimaan sudah terpakai", async () => {
+    const rec = await wms.createReceiving({
+      items: [{ productId: milkId, orderedQty: 100, receivedQty: 100, hpp: 20, expiredAt: new Date(Date.now() + 30 * 86_400_000).toISOString() }],
+    });
+    await wms.completeReceiving(rec.id);
+    const total = await wmsTotal("A-MILK");
+    // Pakai hampir semua stok susu.
+    await wms.consumeWmsStockForSale(t.getDb(), { sku: "A-MILK", qty: total - 10, refDoc: "SALE TEST" });
+    await expect(wms.cancelReceiving(rec.id, { reason: "salah qty" })).rejects.toThrow(/sudah terpakai/);
+  });
+
+  it("belanja tanpa stok (es batu) dihitung belanja bahan; tanpa centang hanya arus kas", async () => {
+    const owner = session("Owner" as Role);
+    const counted = await svc.createExpense(
+      { category: "Belanja Dapur", description: "Es batu", amount: 20_000, paymentMethod: "Transfer", countAsPurchase: true },
+      owner,
+    );
+    expect(counted.sourceDoc).toMatch(/^EXP:.+#dapur$/);
+    const plain = await svc.createExpense({ category: "Belanja Dapur", description: "Bayar nota lama", amount: 15_000, paymentMethod: "Transfer" }, owner);
+    expect(plain.sourceDoc).toBeNull();
+    await expect(
+      svc.createExpense({ category: "Operasional", description: "x", amount: 1_000, countAsPurchase: true }, owner),
+    ).rejects.toThrow(/Belanja/);
+    const core = await import("@/lib/finance-control-core");
+    const fc = await import("@/lib/finance-control");
+    const today = core.jakartaDateKey();
+    const raw = (await fc.loadDayRaws(today, today)).get(today)!;
+    expect(raw.purchases.dapur).toBeGreaterThanOrEqual(20_000);
+    expect(raw.expenses["Belanja Dapur"]).toBeGreaterThanOrEqual(35_000);
+  });
+
+  it("Barang Masuk Supplier lama menolak bahan gudang (satu pintu)", async () => {
+    await expect(
+      svc.createSupplierReceiving({ items: [{ sku: "A-MILK", qty: 10, unitCost: 20 }] }, session("Owner" as Role)),
+    ).rejects.toThrow(/Gudang → Penerimaan/);
   });
 });
 

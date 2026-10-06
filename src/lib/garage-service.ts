@@ -164,6 +164,9 @@ import {
   type MemberLevel,
 } from "@/lib/member-types";
 import { hashPassword } from "@/lib/member-auth";
+import { daysInMonth } from "@/lib/finance-control-core";
+import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, returnPointsForOrder } from "@/lib/member-points";
+import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import {
   APPROVAL_CATEGORY_LABEL,
@@ -201,6 +204,8 @@ type OrderInput = {
   memberPhone?: string;
   guestName?: string;
   guestPhone?: string;
+  /** Poin member yang dipakai sebagai potongan di tagihan ini. */
+  pointsToRedeem?: number;
   voucherCode?: string;
   manualDiscount?: {
     approvalId?: string;
@@ -241,6 +246,8 @@ type CustomerOrderInput = {
   customerNote?: string;
   source?: CustomerOrderSource;
   campaign?: string;
+  /** Member login: poin dipakai sebagai potongan (dipotong saat order dibuat). */
+  pointsToRedeem?: number;
   voucherCode?: string;
   paymentMethod?: string;
   paymentProvider?: string;
@@ -360,6 +367,11 @@ type ExpenseInput = {
   supplierInvoiceId?: string | null;
   expenseDate?: string;
   notes?: string;
+  /**
+   * Belanja bahan habis pakai tanpa stok gudang (es batu, gas, sayur harian):
+   * dihitung sebagai "Belanja bahan" di laba rugi (kategori Belanja Bar/Dapur/Umum).
+   */
+  countAsPurchase?: boolean;
 };
 
 export type MenuProductInput = {
@@ -486,12 +498,16 @@ function deliveryReceiptBlock(order: typeof orders.$inferSelect) {
   };
 }
 
+/**
+ * Poin didapat dari harga menu bersih (subtotal − semua diskon termasuk poin),
+ * TANPA pajak/service/ongkir (owner, Okt 2026).
+ */
 function calculateEarnedPointsWithSettings(
-  amount: number,
+  netMenuAmount: number,
   level: string,
   settings: AppSettings,
 ) {
-  return calculateEarnedPoints(amount * settings.pointsPerThousand, level);
+  return calculateEarnedPoints(Math.max(0, netMenuAmount) * settings.pointsPerThousand, level);
 }
 
 function receiptSettingsPayload(settings: AppSettings) {
@@ -3407,8 +3423,11 @@ export async function getFinanceOverview() {
   const dailyExpense = dailyCogs + dailyOpsExpense + dailyPayrollAccrual + dailyMarketing + dailyOther;
   const dailyGrossProfit = engine.today.grossProfit;
   const dailyNetProfit = engine.today.netProfit;
-  const foodCostRatio = engine.today.netSales
-    ? Number(((dailyCogs / engine.today.netSales) * 100).toFixed(1))
+  // Mode belanja gudang: rasio bahan dihitung bulan berjalan (belanja ÷ omzet)
+  // supaya hari belanja stok besar tidak memicu alarm palsu.
+  const ratioBase = (engine.config.cogsBasis ?? "purchase") === "purchase" ? engine.month : engine.today;
+  const foodCostRatio = ratioBase.netSales
+    ? Number(((ratioBase.cogs / ratioBase.netSales) * 100).toFixed(1))
     : 0;
   const averageOrderValue = dailyOrderCount ? Math.round(dailyRevenue / dailyOrderCount) : 0;
   const bomCoverage = await getMenuBomCoverage();
@@ -3426,6 +3445,15 @@ export async function getFinanceOverview() {
   const monthNetRevenue = engine.month.netSales;
   const monthGrossProfit = engine.month.grossProfit;
   const monthNetProfit = engine.month.netProfit;
+  const monthTargetToDate = (() => {
+    const target = engine.config.netProfitTargetMonthly;
+    if (!target) return null;
+    const monthStart = `${engine.todayKey.slice(0, 8)}01`;
+    const from = engine.config.businessStartDate > monthStart ? engine.config.businessStartDate : monthStart;
+    if (from > engine.todayKey) return null;
+    const activeDays = Math.round((Date.parse(engine.todayKey) - Date.parse(from)) / 86_400_000) + 1;
+    return Math.round((target / daysInMonth(engine.todayKey)) * activeDays);
+  })();
 
   const supplierPayables = supplierInvoiceRows.length
     ? supplierInvoiceRows.map((row) => ({
@@ -3571,6 +3599,14 @@ export async function getFinanceOverview() {
             message: "Net profit hari ini negatif; cek expense harian dan diskon.",
           }
         : null,
+    // Patokan balik modal: profit bulan berjalan vs target prorata s/d hari ini.
+    monthTargetToDate !== null && monthNetProfit >= 0 && monthNetProfit < monthTargetToDate
+      ? {
+          area: "Target profit",
+          level: "watch",
+          message: `Profit bersih bulan ini ${formatIdrShort(monthNetProfit)} di bawah target s/d hari ini ${formatIdrShort(monthTargetToDate)}.`,
+        }
+      : null,
     lowStockRows.length
       ? {
           area: "Inventory cost",
@@ -3645,6 +3681,23 @@ export async function getFinanceOverview() {
       expense: dailyExpense,
       grossProfit: dailyGrossProfit,
       netProfit: dailyNetProfit,
+      // Rincian laba hari ini: penjualan bersih − HPP − tiap baris biaya = net profit.
+      netSales: engine.today.netSales,
+      cogs: dailyCogs,
+      cogsBasis: engine.config.cogsBasis ?? "purchase",
+      purchases: {
+        bar: engine.today.purchaseBar,
+        dapur: engine.today.purchaseDapur,
+        umum: engine.today.purchaseUmum,
+      },
+      // Sama dengan kartu Balik modal: target bulan ÷ jumlah hari bulan berjalan.
+      netProfitTargetDaily: engine.config.netProfitTargetMonthly
+        ? Math.round(engine.config.netProfitTargetMonthly / daysInMonth(engine.todayKey))
+        : null,
+      costLines: Object.entries(engine.today.costLines)
+        .filter(([, amount]) => amount)
+        .map(([label, amount]) => ({ label, amount }))
+        .sort((a, b) => b.amount - a.amount),
       foodCostRatio,
       recipeFoodCost: recipeCogs,
       recipeLines: todayRecipeCostRows.length,
@@ -8466,6 +8519,10 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     voucherMaxDiscountPct: settings.voucherMaxDiscountPct,
     qrPromoPct: settings.qrPromoPct,
     qrPromoMaxAmount: settings.qrPromoMaxAmount,
+    pointsPerThousand: settings.pointsPerThousand,
+    memberPointValue: settings.memberPointValue,
+    memberRedeemMaxPct: settings.memberRedeemMaxPct,
+    memberRedeemMinPoints: settings.memberRedeemMinPoints,
     deliveryEnabled: settings.deliveryEnabled,
     deliveryFee: settings.deliveryFee,
     deliveryMinItems: settings.deliveryMinItems,
@@ -8573,7 +8630,25 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   const voucherDiscountValue = voucherValidation?.valid
     ? capVoucherDiscountBySettings(voucherValidation.discount, subtotal, settings)
     : 0;
-  const discount = Math.min(grossTotal, promoDiscount + voucherDiscountValue);
+  // Pakai poin: hanya member login (memberCustomerId dari sesi member, bukan input bebas).
+  let pointsRedeem = { points: 0, discount: 0 };
+  if (input.pointsToRedeem && input.pointsToRedeem > 0) {
+    if (input.customerMode !== "member" || !input.memberCustomerId) {
+      throw new Error("Login member untuk memakai poin.");
+    }
+    const [balanceRow] = await db
+      .select({ points: customers.points })
+      .from(customers)
+      .where(eq(customers.id, input.memberCustomerId))
+      .limit(1);
+    pointsRedeem = pointsDiscountFor({
+      requested: input.pointsToRedeem,
+      base: Math.max(0, subtotal - promoDiscount - voucherDiscountValue),
+      balance: balanceRow?.points ?? 0,
+      settings,
+    });
+  }
+  const discount = Math.min(grossTotal, promoDiscount + voucherDiscountValue + pointsRedeem.discount);
   const isDelivery = input.orderType === "delivery";
   const paymentMethod = input.paymentMethod?.trim() || "Cash";
   const deliveryAddress = input.deliveryAddress?.replace(/\s+/g, " ").trim() ?? "";
@@ -8824,6 +8899,16 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       }
     }
 
+    if (pointsRedeem.points > 0 && input.memberCustomerId) {
+      await redeemPointsForOrder(tx, {
+        customerId: input.memberCustomerId,
+        orderId: order.id,
+        points: pointsRedeem.points,
+        discount: pointsRedeem.discount,
+        source: "QR",
+      });
+    }
+
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor: customerPhone ? `${customerName} / ${customerPhone}` : customerName,
@@ -8844,6 +8929,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         promoDiscount,
         voucherCode: voucherValidation?.valid ? voucherValidation.code : null,
         voucherDiscount: voucherDiscountValue,
+        pointsRedeemed: pointsRedeem.points,
+        pointsDiscount: pointsRedeem.discount,
       },
     });
 
@@ -9233,6 +9320,8 @@ async function updateCustomerOrderStatusImpl(
       // dengan void. Dicatat sebagai "Refund <orderNo> …" supaya void berikutnya
       // tidak mengembalikan dua kali.
       const rejectReason = input.reason?.trim() || "Ditolak kasir";
+      // Poin member yang dipakai di order ini dikembalikan utuh.
+      await returnPointsForOrder(tx, order.id, { ratio: 1 });
       const deductedForReject = await sumMovementsBySku(tx, "recipe_deduct", outletDeductNote(order.orderNo));
       const refundedBeforeReject = await sumMovementsBySku(tx, "refund_reverse", outletRefundNote(order.orderNo));
       for (const [sku, qty] of deductedForReject) {
@@ -9724,11 +9813,10 @@ async function updateCustomerOrderStatusImpl(
           if (account) {
             const settings = await getAppSettings(order.outletId);
             const { pointsEarned } = calculateEarnedPointsWithSettings(
-              order.total,
+              order.subtotal - order.discount,
               beforeLevel,
               settings,
             );
-            const totalPoints = customer.points + pointsEarned;
             const annualSpend = await annualPaidSpendForCustomer(customer.id, tx, order.total);
             const earnedLevel = memberLevelForAnnualSpend(annualSpend);
             const afterLevel =
@@ -9743,10 +9831,11 @@ async function updateCustomerOrderStatusImpl(
             await tx
               .update(customers)
               .set({
-                points: totalPoints,
+                // Relatif: tidak menimpa poin yang dipotong/ditambah transaksi lain.
+                points: sql`${customers.points} + ${pointsEarned}`,
                 tier: afterLevel,
                 cardTier: afterLevel,
-                visits: customer.visits + 1,
+                visits: sql`${customers.visits} + 1`,
                 lastOrder: `${order.channel} ${order.orderNo}`,
                 flag: upgradeNotification ?? customer.flag,
                 updatedAt: now,
@@ -10349,7 +10438,23 @@ async function createOrderOnce(
       }
     }
   }
-  const discount = Math.min(grossTotal, voucherDiscount + manualDiscountValue);
+  // Pakai poin member: pra-cek batas tagihan (saldo dipotong atomik di transaksi).
+  let pointsRedeem = { points: 0, discount: 0 };
+  if (input.pointsToRedeem && input.pointsToRedeem > 0) {
+    if (!input.customerId && !input.memberPhone) throw new Error("Pakai poin hanya untuk member.");
+    const [balanceRow] = await db
+      .select({ points: customers.points })
+      .from(customers)
+      .where(input.customerId ? eq(customers.id, input.customerId) : eq(customers.phone, normalizePhone(input.memberPhone ?? "")))
+      .limit(1);
+    pointsRedeem = pointsDiscountFor({
+      requested: input.pointsToRedeem,
+      base: Math.max(0, subtotal - voucherDiscount - manualDiscountValue),
+      balance: balanceRow?.points ?? 0,
+      settings,
+    });
+  }
+  const discount = Math.min(grossTotal, voucherDiscount + manualDiscountValue + pointsRedeem.discount);
   const total = grossTotal - discount;
   const orderNo = makeOrderNo();
   const invoiceNo = invoiceNoForOrder(orderNo);
@@ -10367,6 +10472,8 @@ async function createOrderOnce(
     voucherDiscount,
     manualDiscount: manualDiscountValue,
     manualDiscountReason: input.manualDiscount?.reason?.trim() || null,
+    pointsRedeemed: pointsRedeem.points,
+    pointsDiscount: pointsRedeem.discount,
   };
 
   if (input.cashReceived !== undefined) {
@@ -10612,6 +10719,16 @@ async function createOrderOnce(
       }
     }
 
+    if (pointsRedeem.points > 0 && memberCustomer) {
+      await redeemPointsForOrder(tx, {
+        customerId: memberCustomer.id,
+        orderId: order.id,
+        points: pointsRedeem.points,
+        discount: pointsRedeem.discount,
+        source: "POS",
+      });
+    }
+
     const tickets = await tx
       .insert(kitchenTickets)
       .values(
@@ -10779,11 +10896,10 @@ async function createOrderOnce(
     if (memberCustomer && memberAccount) {
       const beforeLevel = normalizeMemberLevel(memberCustomer.cardTier ?? memberCustomer.tier);
       const { pointsEarned } = calculateEarnedPointsWithSettings(
-        total,
+        subtotal - discount,
         beforeLevel,
         settings,
       );
-      const totalPoints = memberCustomer.points + pointsEarned;
       const annualSpend = await annualPaidSpendForCustomer(memberCustomer.id, tx, total);
       const earnedLevel = memberLevelForAnnualSpend(annualSpend);
       const afterLevel =
@@ -10795,18 +10911,22 @@ async function createOrderOnce(
       const upgradeNotification =
         afterLevel !== beforeLevel ? `Selamat, level member naik ke ${afterLevel}.` : null;
 
-      await tx
+      // Relatif (points + n), bukan nilai absolut terbaca sebelum transaksi:
+      // tidak menimpa potongan poin di atas / transaksi paralel.
+      const [afterRow] = await tx
         .update(customers)
         .set({
-          points: totalPoints,
+          points: sql`${customers.points} + ${pointsEarned}`,
           tier: afterLevel,
           cardTier: afterLevel,
-          visits: memberCustomer.visits + 1,
+          visits: sql`${customers.visits} + 1`,
           lastOrder: `${channel} ${orderNo}`,
           flag: upgradeNotification ?? memberCustomer.flag,
           updatedAt: new Date(),
         })
-        .where(eq(customers.id, memberCustomer.id));
+        .where(eq(customers.id, memberCustomer.id))
+        .returning({ points: customers.points });
+      const totalPoints = afterRow?.points ?? memberCustomer.points + pointsEarned;
 
       await tx.insert(memberTransactions).values({
         customerId: memberCustomer.id,
@@ -11879,6 +11999,19 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
   const itemSkus = [...new Set(input.items.map((item) => item.sku.trim()).filter(Boolean))];
   if (!itemSkus.length) throw new Error("Minimal 1 SKU wajib diisi untuk Supplier POS.");
 
+  // Satu pintu penerimaan (owner, Okt 2026): bahan yang dikelola gudang WMS wajib
+  // dicatat lewat Gudang → Penerimaan supaya stok, HPP, dan belanja tercatat
+  // sekali di ledger yang sama (cegah stok ganda & belanja dobel).
+  const wmsManaged: string[] = [];
+  for (const sku of itemSkus) {
+    if (await isWmsManaged(db, sku)) wmsManaged.push(sku);
+  }
+  if (wmsManaged.length) {
+    throw new Error(
+      `Bahan ${wmsManaged.join(", ")} dikelola gudang. Catat barang masuk lewat Gudang → Penerimaan (/warehouse/receiving).`,
+    );
+  }
+
   const inventoryRows = await db.select().from(inventoryItems).where(inArray(inventoryItems.sku, itemSkus));
   const inventoryBySku = new Map(inventoryRows.map((item) => [item.sku, item]));
   const lines = input.items.map((line) => {
@@ -11900,28 +12033,10 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
   const totalAmount = lines.reduce((sum, line) => sum + line.lineTotal, 0);
 
   const result = await db.transaction(async (tx) => {
-    let supplierInvoiceId: string | null = null;
+    // Belanja dibayar cash langsung (tanpa hutang) — dicatat setelah kode
+    // penerimaan dibuat, per area pemakaian bahan (Bar/Dapur/Umum).
+    const supplierInvoiceId: string | null = null;
     const invoiceNo = input.invoiceNo?.trim();
-    if (invoiceNo) {
-      const [invoice] = await tx
-        .insert(supplierInvoices)
-        .values({
-          supplierId: input.supplierId || null,
-          outletId: garage.profile.outlet.id,
-          invoiceNo,
-          category: "COGS",
-          description: `Supplier receiving ${invoiceNo}`,
-          amount: totalAmount,
-          status: "unpaid",
-          dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-          createdBy: garage.user.id,
-          notes: input.note?.trim() || null,
-          updatedAt: now,
-        })
-        .onConflictDoNothing()
-        .returning({ id: supplierInvoices.id });
-      supplierInvoiceId = invoice?.id ?? null;
-    }
 
     const [receiving] = await tx
       .insert(supplierReceivings)
@@ -12012,6 +12127,22 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
         totalAmount,
         items: lines.length,
       },
+    });
+
+    const byArea: Partial<Record<PurchaseArea, number>> = {};
+    for (const line of lines) {
+      const area = purchaseAreaOf(line.item.usageArea);
+      byArea[area] = (byArea[area] ?? 0) + line.lineTotal;
+    }
+    await recordCashPurchases(tx, {
+      sourceDoc: `OS:${receiving.code}`,
+      outletId: garage.profile.outlet.id,
+      supplierId: input.supplierId || null,
+      description: `Barang masuk supplier ${receiving.code}${invoiceNo ? ` / ${invoiceNo}` : ""}`,
+      byArea,
+      userId: garage.user.id,
+      notes: input.note?.trim() || null,
+      date: now,
     });
 
     // Harga masuk jadi HPP bahan terbaru → HPP menu yang memakainya ikut live.
@@ -14160,6 +14291,9 @@ export async function splitCustomerOrder(
     if (paymentRows.some((payment) => payment.status === "captured")) {
       throw new Error("Bill ini sudah punya pembayaran lunas — tidak bisa dipisah.");
     }
+    if (await orderHasPointRedemption(tx, order.id)) {
+      throw new Error("Bill ini memakai poin member — tidak bisa dipisah. Tolak/batalkan lalu buat ulang bila perlu.");
+    }
     const pendingPayment = paymentRows.find((payment) => payment.status !== "captured") ?? null;
     const cashState =
       typeof pendingPayment?.metadata?.cashFlowStatus === "string"
@@ -14417,6 +14551,7 @@ async function voidOrderImpl(
 
     // Poin member dari order ini ditarik & kuota voucher yang dipakai dikembalikan.
     await reverseLoyaltyForOrder(tx, order.id, { ratio: 1, source: "VOID" });
+    await returnPointsForOrder(tx, order.id, { ratio: 1 });
 
     // Production Hub: tiket yang belum diantar ikut batal supaya Bar/Dapur
     // berhenti membuat & waiter tidak mengantar pesanan yang dibatalkan.
@@ -14586,6 +14721,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
     // Poin member ditarik proporsional terhadap nilai yang dikembalikan.
     if (order.total > 0) {
       await reverseLoyaltyForOrder(tx, order.id, { ratio: split.refundAmount / order.total, source: "REFUND" });
+      await returnPointsForOrder(tx, order.id, { ratio: split.refundAmount / order.total });
     }
 
     await tx.insert(auditLogs).values({
@@ -14639,6 +14775,12 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
   const ownerApprovalThreshold = await getExpenseOwnerApprovalThreshold();
   const status = input.amount >= approvalThreshold ? "pending_approval" : "recorded";
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  // Belanja bahan tanpa stok gudang → ikut biaya "Belanja bahan" (sourceDoc unik).
+  const purchaseArea = input.countAsPurchase ? purchaseAreaForCategory(input.category) : null;
+  if (input.countAsPurchase && !purchaseArea) {
+    throw new Error("Belanja bahan hanya untuk kategori Belanja Bar / Belanja Dapur / Belanja Umum.");
+  }
+  const purchaseSourceDoc = purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null;
   const db = getDb();
   const { expense, cashSession } = await db.transaction(async (tx) => {
     const [createdExpense] = await tx
@@ -14654,6 +14796,7 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
         status,
         expenseDate,
         notes: input.notes?.trim() || null,
+        sourceDoc: purchaseSourceDoc,
         createdBy: garage.user.id,
       })
       .returning();

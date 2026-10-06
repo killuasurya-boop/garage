@@ -22,6 +22,7 @@ import {
   addDays,
   computeBep,
   computeCapitalRecovery,
+  dayRecoveryValue,
   computeDayFigure,
   daysInMonth,
   eachDay,
@@ -528,12 +529,25 @@ export async function getMonthlyClosingReview(month: string) {
     fixedDaily: fixedCostDaily(config),
     monthDays: daysInMonth(fromKey),
   });
+  // Nilai "modal kembali" sama dengan dashboard (metode pilihan Owner) + target profit.
+  const recoveryMethod = config.capitalRecoveryMethod ?? "net_profit";
+  const capitalOutByDate = new Map<string, number>();
+  for (const tx of config.capital) {
+    if (tx.type === "withdrawal") capitalOutByDate.set(tx.date, (capitalOutByDate.get(tx.date) ?? 0) + tx.amount);
+  }
+  const recoveryOf = (f: (typeof figures)[number]) => dayRecoveryValue(f, recoveryMethod, capitalOutByDate);
+  const activeMonth = monthFigures.filter((f) => f.date >= config.businessStartDate);
   const capital = computeCapitalRecovery({
     capital: config.capital.filter((tx) => tx.date <= toKey),
-    cumulativeNetProfit: figures.filter((f) => f.date >= config.businessStartDate && f.date <= toKey).reduce((s, f) => s + f.netProfit, 0),
-    recentNetProfits: monthFigures.map((f) => f.netProfit),
+    cumulativeNetProfit: figures.filter((f) => f.date >= config.businessStartDate && f.date <= toKey).reduce((s, f) => s + recoveryOf(f), 0),
+    recentNetProfits: activeMonth.map(recoveryOf),
     startDate: config.businessStartDate,
     todayKey: requiredTo < fromKey ? fromKey : requiredTo,
+    method: recoveryMethod,
+    targetMonthly: config.netProfitTargetMonthly,
+    monthToDateActual: activeMonth.reduce((s, f) => s + recoveryOf(f), 0),
+    activeDaysInMonth: activeMonth.length,
+    monthDays: daysInMonth(fromKey),
   });
 
   const n = (rows: Array<{ n: number }>) => Number(rows[0]?.n ?? 0);

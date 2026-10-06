@@ -480,10 +480,18 @@ export const pointRedemptions = pgTable(
       .references(() => customers.id, { onDelete: "cascade" }),
     pointsUsed: integer("points_used").notNull(),
     discount: integer("discount").notNull(),
+    // Pakai poin saat bayar (owner, Okt 2026): terikat ke order supaya bisa
+    // dikembalikan saat void/refund/tolak. source: POS | QR | MEMBER_APP | CRM.
+    orderId: uuid("order_id").references((): AnyPgColumn => orders.id, { onDelete: "set null" }),
+    source: text("source").notNull().default("MEMBER_APP"),
+    status: text("status").notNull().default("redeemed"), // redeemed | returned
+    returnedPoints: integer("returned_points").notNull().default(0),
+    returnedAt: timestamp("returned_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     customerIdx: index("point_redemptions_customer_id_idx").on(table.customerId),
+    orderIdx: index("point_redemptions_order_id_idx").on(table.orderId),
     createdIdx: index("point_redemptions_created_at_idx").on(table.createdAt),
   }),
 );
@@ -1218,6 +1226,9 @@ export const expenses = pgTable(
     expenseDate: timestamp("expense_date", { withTimezone: true }).notNull().defaultNow(),
     receiptUrl: text("receipt_url"),
     notes: text("notes"),
+    // Belanja bahan dari penerimaan gudang (dibayar cash langsung): "<doc>#<area>".
+    // Hanya baris ber-sourceDoc yang menjadi biaya "Belanja bahan" di laba rugi.
+    sourceDoc: text("source_doc"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -1226,6 +1237,7 @@ export const expenses = pgTable(
   },
   (table) => ({
     outletIdx: index("expenses_outlet_idx").on(table.outletId),
+    sourceDocUidx: uniqueIndex("expenses_source_doc_uidx").on(table.sourceDoc),
     supplierIdx: index("expenses_supplier_idx").on(table.supplierId),
     categoryIdx: index("expenses_category_idx").on(table.category),
     statusIdx: index("expenses_status_idx").on(table.status),
@@ -3019,7 +3031,15 @@ export const wmsReceiving = pgTable("wms_receiving", {
   poNumber: text("po_number").notNull().default(""), // No. PO / referensi order
   additionalCost: wmsNum("additional_cost").notNull().default(0), // ongkir/pajak → landed cost
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
-  status: text("status").notNull().default("draft"), // draft|request|approved|issued|received|completed
+  status: text("status").notNull().default("draft"), // draft|pending_approval|completed|cancelled
+  // Belanja dibayar langsung (owner, Okt 2026): metode bayar + tanggal barang
+  // diterima (= tanggal biaya belanja di laporan keuangan).
+  paymentMethod: text("payment_method").notNull().default("Cash"),
+  receivedDate: date("received_date"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  cancelledBy: text("cancelled_by").references(() => user.id, { onDelete: "set null" }),
+  cancelReason: text("cancel_reason"),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

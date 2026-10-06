@@ -70,6 +70,7 @@ export function FinanceExpenseDialog({
 
   const [formOpen, setFormOpen] = useState(false);
   const [formCategory, setFormCategory] = useState("Operasional");
+  const [formNonStockPurchase, setFormNonStockPurchase] = useState(false);
   const [formDescription, setFormDescription] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formPaymentMethod, setFormPaymentMethod] = useState("Cash");
@@ -157,6 +158,7 @@ export function FinanceExpenseDialog({
 
   function openForm() {
     setFormCategory("Operasional");
+    setFormNonStockPurchase(false);
     setFormDescription("");
     setFormAmount("");
     setFormPaymentMethod("Cash");
@@ -185,6 +187,7 @@ export function FinanceExpenseDialog({
         amount: Math.round(amount),
         paymentMethod: formPaymentMethod || "Cash",
         notes: formNote.trim() || undefined,
+        countAsPurchase: isPurchaseCategory(formCategory) ? formNonStockPurchase : undefined,
       });
       setFormOpen(false);
       onOverviewRefresh();
@@ -456,7 +459,7 @@ export function FinanceExpenseDialog({
                   [
                     "Belanja Dapur",
                     "Belanja Bar",
-                    "COGS",
+                    "Belanja Umum",
                     "Operasional",
                     "Payroll",
                     "Marketing",
@@ -479,6 +482,30 @@ export function FinanceExpenseDialog({
                   </Button>
                 ))}
               </div>
+              {isPurchaseCategory(formCategory) || formCategory === "COGS" ? (
+                <div className="mt-2 space-y-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-2 text-xs text-[#ffd79a]">
+                  <p>
+                    Bahan yang disimpan di gudang dicatat lewat <strong>Gudang → Penerimaan</strong> (stok + biaya otomatis).
+                  </p>
+                  {isPurchaseCategory(formCategory) ? (
+                    <label className="flex items-start gap-2 text-[#ffe2b8]">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 size-4 accent-[#f5a742]"
+                        checked={formNonStockPurchase}
+                        onChange={(event) => setFormNonStockPurchase(event.target.checked)}
+                      />
+                      <span>
+                        Bahan habis pakai <strong>tanpa stok gudang</strong> (es batu, gas, sayur harian) — hitung sebagai
+                        belanja bahan di laba rugi.
+                      </span>
+                    </label>
+                  ) : null}
+                  {!formNonStockPurchase || !isPurchaseCategory(formCategory) ? (
+                    <p>Tanpa centang, pengeluaran ini hanya mencatat uang keluar (tidak mengurangi profit lagi).</p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div>
               <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
@@ -589,4 +616,8 @@ export function FinanceExpenseDialog({
       </Dialog>
     </>
   );
+}
+
+function isPurchaseCategory(category: string) {
+  return category === "Belanja Bar" || category === "Belanja Dapur" || category === "Belanja Umum";
 }

@@ -15,7 +15,7 @@ export type ExpenseGroup =
 
 export const EXPENSE_GROUP_LABEL: Record<ExpenseGroup, string> = {
   opex: "Biaya operasional",
-  cogs_purchase: "Belanja bahan (masuk HPP via resep)",
+  cogs_purchase: "Belanja bahan baku (Bar/Dapur)",
   payroll: "Payroll manual",
   payroll_payout: "Pencairan gaji/fee (sudah diakru Payroll)",
   non_operating: "Non-operasional",
@@ -83,6 +83,8 @@ export const DEFAULT_VARIABLE_BUDGET: VariableBudget = {
   dapurMax: 500_000,
 };
 
+export type CogsBasis = "purchase" | "recipe";
+
 export type FinanceConfig = {
   businessStartDate: string;
   openingCash: { amount: number; date: string; isSet: boolean };
@@ -90,6 +92,14 @@ export type FinanceConfig = {
   thresholds: FinanceThresholds;
   capitalRecoveryMethod?: CapitalRecoveryMethod;
   variableBudget?: VariableBudget;
+  /**
+   * Dasar biaya bahan di laba rugi. "purchase" (konsep owner, Okt 2026):
+   * Belanja bahan yang diterima gudang = biaya. "recipe": HPP resep + susut.
+   * Tidak diisi = "recipe" (kompatibel data lama/fixture).
+   */
+  cogsBasis?: CogsBasis;
+  /** Target profit bersih per bulan (Rp) — patokan balik modal. null = belum diisi. */
+  netProfitTargetMonthly?: number | null;
   costItems: FinanceCostItem[];
   payrollPositions: FinancePayrollPosition[];
   categories: FinanceExpenseCategory[];
@@ -124,6 +134,8 @@ export type DayRaw = {
   payrollWages: number;
   payrollFee: number;
   expenses: Record<string, number>;
+  /** Belanja bahan dari penerimaan gudang (cash lunas) per area. */
+  purchases: { bar: number; dapur: number; umum: number };
   payments: Record<string, number>;
   settlementFees: number;
   capitalIn: number;
@@ -142,10 +154,17 @@ export type DayFigure = {
   netSales: number;
   /** Ongkir delivery terkumpul — dipisah dari penjualan (bukan omzet menu). */
   deliveryFees: number;
-  /** HPP aktual = HPP resep + susut gudang (PRD §11). */
+  /**
+   * Biaya bahan di laba rugi. Mode purchase = belanja bahan diterima gudang;
+   * mode recipe = HPP resep + susut gudang (PRD §11).
+   */
   cogs: number;
   cogsRecipe: number;
   cogsShrinkage: number;
+  /** Belanja bahan (penerimaan gudang) per area — selalu terisi sebagai info. */
+  purchaseBar: number;
+  purchaseDapur: number;
+  purchaseUmum: number;
   grossProfit: number;
   payroll: number;
   operatingExpense: number;
@@ -184,6 +203,9 @@ const NUMERIC_KEYS = [
   "cogs",
   "cogsRecipe",
   "cogsShrinkage",
+  "purchaseBar",
+  "purchaseDapur",
+  "purchaseUmum",
   "grossProfit",
   "payroll",
   "operatingExpense",
@@ -370,6 +392,18 @@ export function resolvePeriod(
 
 // ─── Aturan finance per hari ────────────────────────────────────────────────
 
+/** Kode item biaya "Upah karyawan". */
+export const WAGE_ITEM_CODE = "GAJI";
+
+/**
+ * Item upah yang dibebankan harian ke P&L (treatment "accrue"). Upah = biaya
+ * pasti harian; bila absensi Payroll punya upah aktual hari itu, angka aktual
+ * yang dipakai (tidak dobel). "budget_only" = hanya patokan BEP.
+ */
+export function accruedWageItem(config: Pick<FinanceConfig, "costItems">) {
+  return config.costItems.find((item) => item.code === WAGE_ITEM_CODE && item.active && item.treatment === "accrue") ?? null;
+}
+
 export function payrollMasterMonthly(config: Pick<FinanceConfig, "payrollPositions">) {
   return config.payrollPositions
     .filter((row) => row.active)
@@ -382,7 +416,7 @@ export function payrollMasterMonthly(config: Pick<FinanceConfig, "payrollPositio
  */
 export function payrollBudgetDaily(config: Pick<FinanceConfig, "payrollPositions"> & Partial<Pick<FinanceConfig, "costItems">>) {
   const wageItem = config.costItems?.find(
-    (item) => item.code === "GAJI" && item.active && item.treatment === "budget_only" && item.dailyAmount > 0,
+    (item) => item.code === WAGE_ITEM_CODE && item.active && item.treatment !== "reserve" && item.dailyAmount > 0,
   );
   if (wageItem) return wageItem.dailyAmount;
   return Math.round(payrollMasterMonthly(config) / 30);
@@ -395,9 +429,10 @@ export function reserveDaily(config: Pick<FinanceConfig, "costItems">) {
     .reduce((sum, item) => sum + item.dailyAmount, 0);
 }
 
+/** Item akru harian selain upah (upah dihitung di payroll). */
 export function accruedDailyOpex(config: Pick<FinanceConfig, "costItems">) {
   return config.costItems
-    .filter((item) => item.active && item.treatment === "accrue")
+    .filter((item) => item.active && item.treatment === "accrue" && item.code !== WAGE_ITEM_CODE)
     .reduce((sum, item) => sum + item.dailyAmount, 0);
 }
 
@@ -426,8 +461,9 @@ function add(record: Record<string, number>, key: string, amount: number) {
 export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure {
   const active = raw.date >= config.businessStartDate;
   const accrueItems = active
-    ? config.costItems.filter((item) => item.active && item.treatment === "accrue")
+    ? config.costItems.filter((item) => item.active && item.treatment === "accrue" && item.code !== WAGE_ITEM_CODE)
     : [];
+  const wageItem = active ? accruedWageItem(config) : null;
   const accruedCodes = new Set(accrueItems.map((item) => item.code));
   const costLines: Record<string, number> = {};
   const cashOutByGroup: Record<string, number> = {};
@@ -466,8 +502,14 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     add(costLines, item.name, item.dailyAmount);
   }
 
-  const payroll = raw.payrollWages + raw.payrollFee + payrollExpense;
-  add(costLines, "Payroll", payroll);
+  // Upah: aktual dari absensi bila ada; tanpa absensi → upah harian standar
+  // (item GAJI "accrue") karena gaji tetap wajib dibayar tiap hari.
+  const wages = raw.payrollWages > 0 || !wageItem ? raw.payrollWages : wageItem.dailyAmount;
+  const payroll = wages + raw.payrollFee + payrollExpense;
+  const wageLabel = wageItem?.name ?? "Upah karyawan";
+  add(costLines, raw.payrollWages > 0 ? `${wageLabel} (absensi)` : wageLabel, wages);
+  add(costLines, "Fee karyawan", raw.payrollFee);
+  add(costLines, "Payroll lain", payrollExpense);
   add(costLines, "Biaya transaksi", raw.settlementFees);
 
   const reserveAllocation = active
@@ -477,8 +519,12 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     : 0;
 
   const operatingExpense = opexAccrued + opexActual + raw.settlementFees;
-  // HPP aktual = resep (konsumsi penjualan) + susut/waste gudang.
-  const cogs = raw.cogs + raw.shrinkage;
+  // Mode purchase: biaya bahan = belanja diterima gudang (sejak tanggal mulai
+  // usaha; sebelum itu = stok awal, bagian modal). Mode recipe: HPP resep + susut.
+  const purchaseMode = config.cogsBasis === "purchase";
+  const purchases = raw.purchases ?? { bar: 0, dapur: 0, umum: 0 };
+  const purchaseTotal = active ? purchases.bar + purchases.dapur + purchases.umum : 0;
+  const cogs = purchaseMode ? purchaseTotal : raw.cogs + raw.shrinkage;
   const grossProfit = raw.netSales - cogs;
   const operatingProfit = grossProfit - payroll - operatingExpense;
   const channels = { ...raw.payments };
@@ -497,6 +543,9 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     cogs,
     cogsRecipe: raw.cogs,
     cogsShrinkage: raw.shrinkage,
+    purchaseBar: active ? purchases.bar : 0,
+    purchaseDapur: active ? purchases.dapur : 0,
+    purchaseUmum: active ? purchases.umum : 0,
     grossProfit,
     payroll,
     operatingExpense,
@@ -507,8 +556,9 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     cashOut: expenseCashOut + raw.capitalOut,
     reserveAllocation,
     fixedCost: active ? opexAccrued + payrollBudgetDaily(config) : 0,
-    // Contribution margin memakai HPP resep saja: susut tidak proporsional ke penjualan.
-    variableCost: raw.cogs + raw.settlementFees + variableOpex,
+    // Contribution margin: mode recipe memakai HPP resep saja (susut tidak
+    // proporsional ke penjualan); mode purchase memakai belanja bahan.
+    variableCost: (purchaseMode ? purchaseTotal : raw.cogs) + raw.settlementFees + variableOpex,
     lineSales: raw.lineSales,
     coveredLineSales: raw.coveredLineSales,
     costLines,
@@ -582,11 +632,14 @@ export function computeBep(input: {
   trailing: FigureTotals;
   fixedDaily: number;
   monthDays: number;
+  /** Mode belanja: margin dari 30 hari terakhir supaya hari belanja besar tidak membuat BEP loncat. */
+  preferTrailing?: boolean;
 }): BepResult {
   const periodCm = contributionMargin(input.totals);
   const trailingCm = contributionMargin(input.trailing);
-  const cm = periodCm ?? trailingCm;
-  const cmSource = periodCm !== null ? "period" : "trailing_30d";
+  const useTrailing = input.preferTrailing ? trailingCm !== null : periodCm === null;
+  const cm = useTrailing ? trailingCm : periodCm;
+  const cmSource = useTrailing ? "trailing_30d" : "period";
 
   if (input.totals.fixedCost <= 0) {
     return {
@@ -646,7 +699,50 @@ export type CapitalRecovery = {
   estimatedPaybackDate: string | null;
   startDate: string;
   daysRunning: number;
+  /** Target profit bersih/bulan (patokan balik modal) — null bila belum diisi. */
+  target: CapitalTarget | null;
+  /** Belanja bahan sebelum tanggal mulai usaha = stok awal (bagian modal, bukan biaya). */
+  openingStockPurchases: number;
 };
+
+export type CapitalTarget = {
+  monthly: number;
+  daily: number;
+  /** Bulan berjalan: target prorata s/d hari ini vs realisasi (metode terpilih). */
+  monthToDateTarget: number;
+  monthToDateActual: number;
+  monthToDateAchievementPct: number | null;
+  status: "ABOVE" | "BELOW";
+  /** Balik modal bila profit bersih = target. */
+  paybackMonths: number | null;
+  paybackDate: string | null;
+};
+
+export function computeCapitalTarget(input: {
+  monthly: number | null | undefined;
+  remaining: number;
+  todayKey: string;
+  monthToDateActual: number;
+  /** Hari aktif usaha di bulan berjalan s/d hari ini. */
+  activeDaysInMonth: number;
+  monthDays: number;
+}): CapitalTarget | null {
+  if (!input.monthly || input.monthly <= 0) return null;
+  const daily = input.monthly / Math.max(1, input.monthDays);
+  const monthToDateTarget = Math.round(daily * Math.max(0, input.activeDaysInMonth));
+  const paybackDays = input.remaining > 0 ? Math.ceil(input.remaining / (input.monthly / 30)) : 0;
+  return {
+    monthly: input.monthly,
+    daily: Math.round(daily),
+    monthToDateTarget,
+    monthToDateActual: input.monthToDateActual,
+    monthToDateAchievementPct:
+      monthToDateTarget > 0 ? Math.round((input.monthToDateActual / monthToDateTarget) * 1000) / 10 : null,
+    status: input.monthToDateActual >= monthToDateTarget ? "ABOVE" : "BELOW",
+    paybackMonths: Math.round((paybackDays / 30) * 10) / 10,
+    paybackDate: paybackDays > 0 ? addDays(input.todayKey, paybackDays) : null,
+  };
+}
 
 export function computeCapitalRecovery(input: {
   capital: CapitalTx[];
@@ -655,6 +751,11 @@ export function computeCapitalRecovery(input: {
   startDate: string;
   todayKey: string;
   method?: CapitalRecoveryMethod;
+  targetMonthly?: number | null;
+  monthToDateActual?: number;
+  activeDaysInMonth?: number;
+  monthDays?: number;
+  openingStockPurchases?: number;
 }): CapitalRecovery {
   const method = input.method ?? "net_profit";
   const initialCapital = input.capital
@@ -690,6 +791,15 @@ export function computeCapitalRecovery(input: {
     estimatedPaybackDate: paybackDays !== null ? addDays(input.todayKey, paybackDays) : null,
     startDate: input.startDate,
     daysRunning: Math.max(0, diffDays(input.startDate, input.todayKey) + 1),
+    target: computeCapitalTarget({
+      monthly: input.targetMonthly,
+      remaining,
+      todayKey: input.todayKey,
+      monthToDateActual: input.monthToDateActual ?? 0,
+      activeDaysInMonth: input.activeDaysInMonth ?? 0,
+      monthDays: input.monthDays ?? 30,
+    }),
+    openingStockPurchases: input.openingStockPurchases ?? 0,
   };
 }
 

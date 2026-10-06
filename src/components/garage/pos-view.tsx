@@ -238,7 +238,7 @@ import {
 } from "@/components/garage/pos-table-bill-split-dialog";
 import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
 import { calculateBillingTotals } from "@/lib/garage-billing";
-import { normalizePhone } from "@/lib/member-types";
+import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
 
 const PosModuleFallback = () => (
   <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat POS...</div>
@@ -937,6 +937,15 @@ export function PosView({
   const [memberCreatedPin, setMemberCreatedPin] = useState<string | null>(null);
   const [posVoucherCode, setPosVoucherCode] = useState("");
   const [posVoucherResult, setPosVoucherResult] = useState<VoucherValidation | null>(null);
+  // Poin member yang dipakai sebagai potongan (owner, Okt 2026). Reset tiap ganti member.
+  // Disimpan bersama id member → otomatis 0 saat member diganti/dilepas.
+  const [posPointsState, setPosPointsState] = useState<{ memberId: string | null; points: number }>({
+    memberId: null,
+    points: 0,
+  });
+  const selectedMemberId = selectedMember?.customerId ?? null;
+  const posPointsToUse = posPointsState.memberId === selectedMemberId ? posPointsState.points : 0;
+  const setPosPointsToUse = (points: number) => setPosPointsState({ memberId: selectedMemberId, points });
   const [posVoucherBusy, setPosVoucherBusy] = useState(false);
   const previousCustomerOrderIdsRef = useRef<Set<string>>(new Set());
   const customerOrdersPrimedRef = useRef(false);
@@ -1180,10 +1189,28 @@ export function PosView({
         )
       : Math.min(Math.max(0, total - voucher), manualDiscount.amount)
     : 0;
-  const totalDue = Math.max(0, total - voucher - manualDiscountAmount);
+  // Pakai poin: batas = saldo & maks % harga menu setelah voucher/diskon (sama dgn server).
+  const pointsBase = Math.max(0, subtotal - voucher - manualDiscountAmount);
+  const maxPointsToUse =
+    posCustomerMode === "member" && selectedMember
+      ? maxRedeemablePoints({
+          balance: selectedMember.member.points,
+          base: pointsBase,
+          pointValue: settings.memberPointValue,
+          maxPct: settings.memberRedeemMaxPct,
+        })
+      : 0;
+  const pointsToUse =
+    posPointsToUse >= settings.memberRedeemMinPoints ? Math.min(posPointsToUse, maxPointsToUse) : 0;
+  const pointsDiscountAmount = Math.min(
+    Math.max(0, total - voucher - manualDiscountAmount),
+    pointsToUse * settings.memberPointValue,
+  );
+  const totalDue = Math.max(0, total - voucher - manualDiscountAmount - pointsDiscountAmount);
+  // Poin dari harga menu bersih (tanpa pajak/service), sama dengan server.
   const estimatedMemberPoints = selectedMember
     ? Math.floor(
-        Math.floor((totalDue / 1000) * settings.pointsPerThousand) *
+        Math.floor((Math.max(0, pointsBase - pointsDiscountAmount) / 1000) * settings.pointsPerThousand) *
           selectedMember.member.multiplier,
       )
     : 0;
@@ -3510,6 +3537,7 @@ export function PosView({
       guestName: posCustomerMode === "guest" ? guestName.trim() || undefined : undefined,
       guestPhone: posCustomerMode === "guest" ? guestPhone.trim() || undefined : undefined,
       voucherCode: posVoucherResult?.valid ? posVoucherResult.code : undefined,
+      pointsToRedeem: posCustomerMode === "member" && pointsToUse > 0 ? pointsToUse : undefined,
       manualDiscount: manualDiscount
         ? {
             approvalId: manualDiscount.approvalId,
@@ -9079,6 +9107,11 @@ export function PosView({
                             memberError={memberError}
                             memberCreatedPin={memberCreatedPin}
                             estimatedMemberPoints={estimatedMemberPoints}
+                            pointsToUse={pointsToUse}
+                            maxPointsToUse={maxPointsToUse}
+                            minPointsToUse={settings.memberRedeemMinPoints}
+                            pointValue={settings.memberPointValue}
+                            onPointsToUseChange={setPosPointsToUse}
                             memberOptions={posMemberOptions}
                             onModeChange={setPosCustomerMode}
                             onGuestNameChange={setGuestName}
@@ -9094,6 +9127,14 @@ export function PosView({
                         ) : null}
                         {paymentStep === "payment" ? (
                           <div className="space-y-3">
+                            {pointsDiscountAmount > 0 ? (
+                              <div className="flex items-center justify-between gap-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 px-3 py-2 text-sm">
+                                <span className="text-[#ffe2b8]">Potongan poin member ({pointsToUse} poin)</span>
+                                <span className="garage-mono font-semibold text-[#ffd08a]">
+                                  −{currency.format(pointsDiscountAmount)}
+                                </span>
+                              </div>
+                            ) : null}
                             {cartItemCount >= 2 ? (
                               <button
                                 type="button"
@@ -11071,6 +11112,11 @@ function CheckoutCustomerStep({
   memberError,
   memberCreatedPin,
   estimatedMemberPoints,
+  pointsToUse,
+  maxPointsToUse,
+  minPointsToUse,
+  pointValue,
+  onPointsToUseChange,
   memberOptions,
   onModeChange,
   onGuestNameChange,
@@ -11089,6 +11135,11 @@ function CheckoutCustomerStep({
   memberError: string | null;
   memberCreatedPin: string | null;
   estimatedMemberPoints: number;
+  pointsToUse: number;
+  maxPointsToUse: number;
+  minPointsToUse: number;
+  pointValue: number;
+  onPointsToUseChange: (points: number) => void;
   memberOptions: Customer[];
   onModeChange: (mode: PosCustomerMode) => void;
   onGuestNameChange: (value: string) => void;
@@ -11225,6 +11276,14 @@ function CheckoutCustomerStep({
                   <p className="text-xs font-semibold text-[#ffd08a]">+{estimatedMemberPoints}</p>
                 </div>
               </div>
+              <PosPointsRedeemBox
+                balance={selectedMember.member.points}
+                pointsToUse={pointsToUse}
+                maxPointsToUse={maxPointsToUse}
+                minPointsToUse={minPointsToUse}
+                pointValue={pointValue}
+                onChange={onPointsToUseChange}
+              />
               {memberCreatedPin ? (
                 <Alert className="mt-3 border-[#22c55e]/45 bg-[#22c55e]/12 text-[#f4f4f5]">
                   <ShieldCheck className="size-4" />
@@ -12218,3 +12277,77 @@ function formatReceiptDate(value: string) {
   }).format(new Date(value));
 }
 
+/** Pakai poin member di kasir: potongan = poin × nilai poin, maks sesuai Pengaturan. */
+function PosPointsRedeemBox({
+  balance,
+  pointsToUse,
+  maxPointsToUse,
+  minPointsToUse,
+  pointValue,
+  onChange,
+}: {
+  balance: number;
+  pointsToUse: number;
+  maxPointsToUse: number;
+  minPointsToUse: number;
+  pointValue: number;
+  onChange: (points: number) => void;
+}) {
+  const canUse = maxPointsToUse >= minPointsToUse;
+  return (
+    <div className="mt-3 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[#ffe2b8]">Pakai poin</p>
+        <p className="garage-mono text-[11px] text-[#ffd08a]">
+          1 poin = {currency.format(pointValue)} · saldo {balance}
+        </p>
+      </div>
+      {canUse ? (
+        <>
+          <div className="mt-2 flex gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={maxPointsToUse}
+              value={pointsToUse || ""}
+              placeholder={`${minPointsToUse}–${maxPointsToUse}`}
+              onChange={(event) => onChange(Math.max(0, Math.floor(Number(event.target.value) || 0)))}
+              aria-label="Jumlah poin dipakai"
+              className="h-10 border-[#34343c] bg-black/30 text-sm"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-10 shrink-0 border-[#f5a742]/50 px-3 text-xs text-[#ffd08a]"
+              onClick={() => onChange(maxPointsToUse)}
+            >
+              Maks {maxPointsToUse}
+            </Button>
+            {pointsToUse > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="garage-press h-10 shrink-0 px-2 text-xs text-[#d4d4d8]"
+                onClick={() => onChange(0)}
+              >
+                Batal
+              </Button>
+            ) : null}
+          </div>
+          <p className="mt-1.5 text-[11px] text-[#e4e4e7]">
+            {pointsToUse > 0
+              ? `Potongan ${currency.format(pointsToUse * pointValue)} (${pointsToUse} poin).`
+              : `Minimal ${minPointsToUse} poin, maksimal ${maxPointsToUse} poin untuk tagihan ini.`}
+          </p>
+        </>
+      ) : (
+        <p className="mt-1.5 text-[11px] text-[#e4e4e7]">
+          {balance < minPointsToUse
+            ? `Poin bisa dipakai mulai ${minPointsToUse} poin.`
+            : "Tagihan ini belum bisa memakai poin (batas potongan terlalu kecil)."}
+        </p>
+      )}
+    </div>
+  );
+}

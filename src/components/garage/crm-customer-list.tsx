@@ -926,15 +926,11 @@ function CustomerDetailModal({
                     <Download className="size-4" />
                     Export Card PDF
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="garage-press h-11 gap-2 border-[#22c55e]/45 bg-[#22c55e]/8 text-[#86efac] hover:bg-[#22c55e]/15"
-                    onClick={() => setTukarPoinOpen(true)}
-                  >
-                    <Award className="size-4" />
-                    Tukar Poin
-                  </Button>
+                  {/* Tukar poin dipindah ke kasir: POS → pilih member → "Pakai poin" (owner, Okt 2026). */}
+                  <p className="flex h-11 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.04] px-3 text-xs text-[#d4d4d8]">
+                    <Award className="size-4 shrink-0 text-[#ffd08a]" />
+                    Poin dipakai saat bayar di kasir
+                  </p>
                   <Button
                     type="button"
                     variant="outline"

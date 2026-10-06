@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Camera,
   Check,
@@ -24,14 +24,7 @@ import { MemberLevelCard } from "@/components/garage/member-card";
 import { MemberAnalytics } from "@/components/garage/member-analytics";
 import { PremiumMembershipCard } from "@/components/garage/premium-membership-card";
 import { useGarageToast } from "@/components/garage/garage-toast";
-import {
-  calculateRedeemDiscount,
-  DISCOUNT_PER_REDEEM_UNIT,
-  GOLD_ANNUAL_SPEND,
-  PLATINUM_ANNUAL_SPEND,
-  POINTS_PER_REDEEM_UNIT,
-  type MemberLevel,
-} from "@/lib/member-types";
+import { GOLD_ANNUAL_SPEND, PLATINUM_ANNUAL_SPEND, type MemberLevel } from "@/lib/member-types";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -300,9 +293,7 @@ export function MemberDashboard() {
   const [redemptions, setRedemptions] = useState<PointRedemption[]>([]);
   const [walletVouchers, setWalletVouchers] = useState<WalletVoucher[]>([]);
   const [walletMissions, setWalletMissions] = useState<WalletMission[]>([]);
-  const [redeemPoints, setRedeemPoints] = useState(100);
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<ProfileFormState>({
@@ -351,23 +342,7 @@ export function MemberDashboard() {
     return () => window.clearTimeout(task);
   }, [load]);
 
-  const redeemDiscount = useMemo(() => calculateRedeemDiscount(redeemPoints), [redeemPoints]);
 
-  async function handleRedeem() {
-    setBusy(true);
-    setMessage("");
-    try {
-      const result = await postJson<{ discount: number; totalPoints: number }>("/api/points/redeem", {
-        pointsToRedeem: redeemPoints,
-      });
-      setMessage(`Redeem berhasil: potongan ${rupiah.format(result.discount)}. Sisa point ${number.format(result.totalPoints)}.`);
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Redeem gagal.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function handleLogout() {
     await postJson("/api/member/auth/logout");
@@ -891,8 +866,8 @@ export function MemberDashboard() {
           <section className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <MemberLevelCard level="Silver" points={`0-${number.format((GOLD_ANNUAL_SPEND / 1000) - 1)} pts`} multiplier="1x" active={member.level === "Silver"} />
             <MemberLevelCard level="Gold" points={`Rp${number.format(GOLD_ANNUAL_SPEND)}/tahun`} multiplier="1.2x" active={member.level === "Gold"} />
-            <MemberLevelCard level="Platinum" points={`Rp${number.format(PLATINUM_ANNUAL_SPEND)}/tahun`} multiplier="1.5x" active={member.level === "Platinum"} />
-            <MemberLevelCard level="Ultra" points="3 tahun langganan + owner approval" multiplier="5x" active={member.level === "Ultra"} />
+            <MemberLevelCard level="Platinum" points={`Rp${number.format(PLATINUM_ANNUAL_SPEND)}/tahun`} multiplier="1.6x" active={member.level === "Platinum"} />
+            <MemberLevelCard level="Ultra" points="3 tahun langganan + owner approval" multiplier="2x" active={member.level === "Ultra"} />
             <ReferralPanel
               code={member.referralCode ?? member.memberCode ?? null}
               memberName={member.name}
@@ -905,33 +880,22 @@ export function MemberDashboard() {
             <div className="flex items-center gap-3">
               <TicketPercent className="text-[#f5a742]" size={22} />
               <div>
-                <p className="garage-mono">Redeem Points</p>
-                <h2 className="garage-display text-4xl">Voucher</h2>
+                <p className="garage-mono">Pakai Poin</p>
+                <h2 className="garage-display text-4xl">Saat Bayar</h2>
               </div>
             </div>
             <div className="mt-6 grid gap-3">
-              <label className="grid gap-2">
-                <span className="garage-mono">Points dipakai</span>
-                <input
-                  type="number"
-                  min={100}
-                  step={100}
-                  max={member.totalPoints}
-                  value={redeemPoints}
-                  onChange={(event) => setRedeemPoints(Number(event.target.value))}
-                  className="w-full border border-[#34343c] bg-white/[0.055] px-4 py-3 text-white outline-none transition focus:border-[#f5a742]"
-                />
-              </label>
               <div className="garage-surface p-4">
-                <p className="garage-mono">Potongan</p>
-                <p className="garage-display mt-1 text-4xl">{rupiah.format(redeemDiscount)}</p>
-                <p className="mt-2 text-xs text-[#9696a1]">
-                  {POINTS_PER_REDEEM_UNIT} poin = {rupiah.format(DISCOUNT_PER_REDEEM_UNIT)}
+                <p className="garage-mono">Saldo poin</p>
+                <p className="garage-display mt-1 text-4xl">{number.format(member.totalPoints)}</p>
+                <p className="mt-2 text-sm leading-6 text-[#d6d6dc]">
+                  Poin dipakai langsung saat bayar: pilih <strong>Pakai poin</strong> di checkout menu digital, atau
+                  sebutkan ke kasir. Potongan tampil di tagihan &amp; struk.
                 </p>
               </div>
-              <button className="btn btn-primary justify-center" disabled={busy || redeemPoints > member.totalPoints} onClick={handleRedeem}>
-                <span>{busy ? "Memproses" : "Redeem"}</span>
-              </button>
+              <a className="btn btn-primary justify-center" href="/order">
+                <span>Pesan &amp; pakai poin</span>
+              </a>
               {message ? <p className="text-sm leading-6 text-[#ffd7da]">{message}</p> : null}
             </div>
           </section>

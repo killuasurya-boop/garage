@@ -27,6 +27,7 @@ const orderSchema = z.object({
   memberPhone: z.string().trim().min(8).optional(),
   guestName: z.string().trim().min(2).max(80).optional(),
   guestPhone: z.string().trim().min(8).max(24).optional(),
+  pointsToRedeem: z.number().int().min(0).max(1_000_000).optional(),
   voucherCode: z.string().trim().max(40).optional(),
   manualDiscount: z
     .object({

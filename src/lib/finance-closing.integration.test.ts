@@ -99,7 +99,10 @@ describe("Financial engine (DB nyata)", () => {
 
     const dashboard = await control.getFinanceControlDashboard({ period: "today" });
     expect(dashboard.pnl.cogsShrinkage).toBe(5_000);
-    expect(dashboard.pnl.cogs).toBe(dashboard.pnl.cogsRecipe + 5_000);
+    // Mode default "purchase": biaya bahan = belanja gudang; susut tetap tampil sebagai info
+    // (nilainya sudah termasuk di belanja) sehingga tidak dikurangkan dua kali.
+    expect(dashboard.pnl.cogsBasis).toBe("purchase");
+    expect(dashboard.pnl.cogs).toBe(dashboard.pnl.purchaseBar + dashboard.pnl.purchaseDapur + dashboard.pnl.purchaseUmum);
   });
 
   it("expense ≥ batas approval default (Rp1 jt) masuk pending_approval", async () => {

@@ -869,6 +869,34 @@
       "when": 1791244956303,
       "tag": "0123_notifications_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791269519303,
+      "tag": "0124_finance_wage_accrue",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1791272936393,
+      "tag": "0125_finance_purchase_cash",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1791276653651,
+      "tag": "0126_wms_receiving_payment",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1791305027840,
+      "tag": "0127_member_points_checkout",
+      "breakpoints": true
     }
   ]
 }

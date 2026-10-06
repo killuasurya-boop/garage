@@ -34,6 +34,12 @@ type FinanceOverview = {
     orderCount: number;
     cashCollected: number;
     nonCashCollected: number;
+    netSales?: number;
+    cogs?: number;
+    cogsBasis?: "purchase" | "recipe";
+    purchases?: { bar: number; dapur: number; umum: number };
+    netProfitTargetDaily?: number | null;
+    costLines?: Array<{ label: string; amount: number }>;
   };
   // P&L bulan berjalan (month-to-date) — untuk tile omzet bulanan.
   profitLoss?: {
@@ -116,6 +122,9 @@ const compactCurrency = (value: number) => {
 };
 
 const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short" });
+
+const signedCompact = (value: number) => (value < 0 ? `-${compactCurrency(-value)}` : compactCurrency(value));
+const sumLines = (lines?: Array<{ amount: number }>) => (lines ?? []).reduce((sum, line) => sum + line.amount, 0);
 
 export function DashboardOwnerSnapshot({
   role,
@@ -395,9 +404,9 @@ export function DashboardOwnerSnapshot({
           }
         />
         <SnapshotCard
-          label="Net Profit"
-          value={compactCurrency(data.finance?.today.netProfit ?? 0)}
-          sub={`AOV ${compactCurrency(data.finance?.today.averageOrderValue ?? 0)}`}
+          label="Net Profit Hari Ini"
+          value={signedCompact(data.finance?.today.netProfit ?? 0)}
+          sub={`Biaya hari ini ${compactCurrency(sumLines(data.finance?.today.costLines) + (data.finance?.today.cogs ?? 0))} · AOV ${compactCurrency(data.finance?.today.averageOrderValue ?? 0)}`}
           icon={
             (data.finance?.today.netProfit ?? 0) >= 0 ? (
               <TrendingUp className="size-4" />
@@ -440,6 +449,8 @@ export function DashboardOwnerSnapshot({
           }
         />
       </div>
+
+      {data.finance?.today.costLines ? <ProfitBreakdown today={data.finance.today} /> : null}
 
       {data.capital && data.capital.initialCapital > 0 ? <CapitalRecoveryStrip capital={data.capital} /> : null}
 
@@ -646,6 +657,76 @@ function SnapshotCard({
   );
 }
 
+/** Rincian profit bersih hari ini: omzet bersih − belanja bahan − biaya tetap & lain. */
+function ProfitBreakdown({ today }: { today: FinanceOverview["today"] }) {
+  const lines = today.costLines ?? [];
+  const netSales = today.netSales ?? 0;
+  const cogs = today.cogs ?? 0;
+  const purchaseMode = (today.cogsBasis ?? "purchase") === "purchase";
+  const purchases = today.purchases ?? { bar: 0, dapur: 0, umum: 0 };
+  const totalCost = sumLines(lines) + cogs;
+  const materialRows = purchaseMode
+    ? [
+        { label: "Belanja bahan Bar", amount: purchases.bar },
+        { label: "Belanja bahan Dapur", amount: purchases.dapur },
+        ...(purchases.umum ? [{ label: "Belanja umum", amount: purchases.umum }] : []),
+      ]
+    : cogs
+      ? [{ label: "HPP bahan baku", amount: cogs }]
+      : [];
+  const rows: Array<{ label: string; amount: number; tone: "plus" | "minus" }> = [
+    { label: "Omzet bersih", amount: netSales, tone: "plus" },
+    ...materialRows.map((row) => ({ ...row, tone: "minus" as const })),
+    ...lines.map((line) => ({ label: line.label, amount: line.amount, tone: "minus" as const })),
+  ];
+  const target = today.netProfitTargetDaily ?? null;
+  const gap = target !== null ? today.netProfit - target : null;
+  return (
+    <section className="rounded-md border border-[#34343c] bg-[#17171c] p-3" aria-label="Rincian profit bersih hari ini">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="garage-mono text-[11px] uppercase tracking-wide text-[#c9c9d1]">
+          Profit bersih hari ini = omzet − belanja bahan − biaya tetap
+        </p>
+        <p className="text-[11px] text-[#a6a6b0]">
+          Total biaya hari ini <span className="font-semibold text-[#ffd79a]">{currency.format(totalCost)}</span>
+        </p>
+      </div>
+      <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-baseline justify-between gap-3 border-b border-[#26262d] py-1 text-xs">
+            <dt className="min-w-0 truncate text-[#c9c9d1]">{row.label}</dt>
+            <dd className={`shrink-0 font-mono font-semibold ${row.tone === "plus" ? "text-white" : "text-[#ffc2c8]"}`}>
+              {row.tone === "minus" ? "−" : "+"}
+              {currency.format(row.amount)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-semibold text-white">Profit bersih</span>
+        <span className={`font-mono font-bold ${today.netProfit < 0 ? "text-[#ffc2c8]" : "text-[#86efac]"}`}>
+          {today.netProfit < 0 ? "−" : ""}
+          {currency.format(Math.abs(today.netProfit))}
+        </span>
+      </div>
+      {target !== null && gap !== null ? (
+        <div className="mt-1 flex flex-wrap items-baseline justify-between gap-2 text-xs">
+          <span className="text-[#c9c9d1]">Target profit hari ini {currency.format(target)}</span>
+          <span className={`font-mono font-semibold ${gap >= 0 ? "text-[#86efac]" : "text-[#ffd79a]"}`}>
+            {gap >= 0 ? `Di atas target +${currency.format(gap)}` : `Kurang ${currency.format(-gap)} dari target`}
+          </span>
+        </div>
+      ) : null}
+      {purchaseMode ? (
+        <p className="mt-1 text-[11px] text-[#a6a6b0]">
+          Belanja bahan = barang yang diterima gudang hari ini (dibayar cash). Upah memakai upah harian standar bila absensi belum
+          mencatat upah aktual.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function QuickLink({
   icon,
   label,
@@ -683,35 +764,78 @@ type CapitalSnapshot = {
   roiPct: number | null;
   avgMonthlyNetProfit: number | null;
   estimatedPaybackMonths: number | null;
+  openingStockPurchases?: number;
+  target?: {
+    monthly: number;
+    daily: number;
+    monthToDateTarget: number;
+    monthToDateActual: number;
+    monthToDateAchievementPct: number | null;
+    status: "ABOVE" | "BELOW";
+    paybackMonths: number | null;
+    paybackDate: string | null;
+  } | null;
 };
 
-/** Ringkasan balik modal untuk Owner (detail & metode di Finance Control). */
+const monthYear = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" });
+const paybackLabel = (months: number | null) =>
+  months === null ? "Belum bisa diproyeksi" : months === 0 ? "Lunas" : `± ${months.toLocaleString("id-ID")} bulan`;
+
+/** Balik modal dengan patokan target profit bersih (detail & metode di Finance Control). */
 function CapitalRecoveryStrip({ capital }: { capital: CapitalSnapshot }) {
-  const months = capital.estimatedPaybackMonths;
-  const items: Array<{ label: string; value: string; danger?: boolean }> = [
+  const target = capital.target ?? null;
+  const items: Array<{ label: string; value: string; sub?: string; tone?: "danger" | "good" | "amber" }> = [
+    target
+      ? {
+          label: "Target profit bersih",
+          value: `${currency.format(target.monthly)}/bln`,
+          sub: `≈ ${currency.format(target.daily)}/hari`,
+          tone: "amber",
+        }
+      : { label: "Target profit bersih", value: "Belum diisi", sub: "Isi di Finance → Pengaturan", tone: "amber" },
+    target
+      ? {
+          label: "Bulan ini vs target",
+          value: `${currency.format(target.monthToDateActual)}`,
+          sub: `target s/d hari ini ${currency.format(target.monthToDateTarget)}${
+            target.monthToDateAchievementPct !== null ? ` · ${target.monthToDateAchievementPct.toLocaleString("id-ID")}%` : ""
+          }`,
+          tone: target.status === "ABOVE" ? "good" : "danger",
+        }
+      : { label: "Bulan ini vs target", value: "—" },
+    target
+      ? {
+          label: "Balik modal sesuai target",
+          value: paybackLabel(target.paybackMonths),
+          sub: target.paybackDate ? `perkiraan ${monthYear.format(new Date(`${target.paybackDate}T00:00:00Z`))}` : undefined,
+        }
+      : { label: "Balik modal sesuai target", value: "—" },
+    {
+      label: "Laju aktual (30 hari)",
+      value: paybackLabel(capital.estimatedPaybackMonths),
+      sub:
+        capital.avgMonthlyNetProfit === null ? "belum ada data" : `rata-rata ${currency.format(capital.avgMonthlyNetProfit)}/bln`,
+      tone: (capital.avgMonthlyNetProfit ?? 0) < 0 ? "danger" : undefined,
+    },
     { label: "Modal awal", value: currency.format(capital.initialCapital) },
-    { label: "Modal kembali", value: currency.format(capital.recovered), danger: capital.recovered < 0 },
-    { label: "Progress", value: `${capital.recoveryPct.toLocaleString("id-ID")}%` },
+    {
+      label: "Modal kembali",
+      value: currency.format(capital.recovered),
+      sub: `${capital.recoveryPct.toLocaleString("id-ID")}% · ROI ${capital.roiPct === null ? "—" : `${capital.roiPct.toLocaleString("id-ID")}%`}`,
+      tone: capital.recovered < 0 ? "danger" : undefined,
+    },
     { label: "Sisa balik modal", value: currency.format(capital.remaining) },
     {
-      label: "Rata-rata laba/bulan",
-      value: capital.avgMonthlyNetProfit === null ? "Belum ada data" : currency.format(capital.avgMonthlyNetProfit),
-      danger: (capital.avgMonthlyNetProfit ?? 0) < 0,
-    },
-    {
-      label: "Estimasi balik modal",
-      value: months === null ? "Belum bisa diproyeksi" : months === 0 ? "Lunas" : `± ${months.toLocaleString("id-ID")} bulan`,
-    },
-    {
-      label: "ROI",
-      value: capital.roiPct === null ? "—" : `${capital.roiPct.toLocaleString("id-ID")}%`,
-      danger: (capital.roiPct ?? 0) < 0,
+      label: "Stok awal (bagian modal)",
+      value: currency.format(capital.openingStockPurchases ?? 0),
+      sub: "belanja gudang sebelum mulai usaha",
     },
   ];
+  const toneCls = { danger: "text-[#ffc2c8]", good: "text-[#86efac]", amber: "text-[#ffd79a]" } as const;
   return (
     <section className="rounded-lg border border-[#34343c] bg-[#111116] p-4" aria-label="Balik modal">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="garage-mono text-[11px] uppercase tracking-wide text-[#ffd08a]">Balik modal · {capital.methodLabel}</p>
+        <p className="garage-mono text-[11px] uppercase tracking-wide text-[#ffd08a]">Balik modal · patokan target profit bersih</p>
         <a href="/control/financial" className="text-xs font-semibold text-[#d6d6dc] underline-offset-2 hover:underline">
           Detail
         </a>
@@ -719,13 +843,14 @@ function CapitalRecoveryStrip({ capital }: { capital: CapitalSnapshot }) {
       <div className="mt-2 h-2 overflow-hidden rounded bg-white/10" aria-hidden>
         <div className="h-full bg-[#f5a742]" style={{ width: `${Math.max(0, Math.min(100, capital.recoveryPct))}%` }} />
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 xl:grid-cols-7">
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {items.map((item) => (
           <div key={item.label} className="min-w-0">
             <dt className="text-[11px] text-[#b8b8bf]">{item.label}</dt>
-            <dd className={`garage-mono break-words text-sm font-bold tabular-nums ${item.danger ? "text-[#ffc2c8]" : "text-white"}`}>
+            <dd className={`garage-mono break-words text-sm font-bold tabular-nums ${item.tone ? toneCls[item.tone] : "text-white"}`}>
               {item.value}
             </dd>
+            {item.sub ? <dd className="break-words text-[11px] text-[#a6a6b0]">{item.sub}</dd> : null}
           </div>
         ))}
       </dl>

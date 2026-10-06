@@ -417,9 +417,13 @@ export function FinanceView({
           tone="good"
         />
         <FinanceKpi
-          label="Modal / HPP"
-          value={currency.format(overview?.today.recipeFoodCost ?? 0)}
-          sub={`Food cost ${overview?.today.foodCostRatio ?? 0}% · dari BOM`}
+          label={overview?.today.cogsBasis === "recipe" ? "Modal / HPP" : "Belanja bahan hari ini"}
+          value={currency.format(overview?.today.cogsBasis === "recipe" ? (overview?.today.recipeFoodCost ?? 0) : (overview?.today.cogs ?? 0))}
+          sub={
+            overview?.today.cogsBasis === "recipe"
+              ? `Food cost ${overview?.today.foodCostRatio ?? 0}% · dari BOM`
+              : `Bar + Dapur diterima gudang · HPP resep ${currency.format(overview?.today.recipeFoodCost ?? 0)}`
+          }
           tone="amber"
         />
         <FinanceKpi
@@ -868,7 +872,7 @@ export function FinanceView({
                 ["Pendapatan bruto", overview?.profitLoss.grossRevenue ?? 0],
                 ["Diskon & retur", -(overview?.profitLoss.discounts ?? 0)],
                 ["Pendapatan neto", overview?.profitLoss.netRevenue ?? 0],
-                ["HPP / COGS", -(overview?.profitLoss.cogs ?? 0)],
+                [overview?.today.cogsBasis === "recipe" ? "HPP / COGS" : "Belanja bahan (gudang)", -(overview?.profitLoss.cogs ?? 0)],
                 ["Gross profit", overview?.profitLoss.grossProfit ?? 0],
                 ["Gaji pegawai", -(overview?.profitLoss.payroll ?? 0)],
                 ["Operasional", -(overview?.profitLoss.operational ?? 0)],

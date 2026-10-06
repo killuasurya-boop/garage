@@ -1,12 +1,13 @@
-import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, like, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   appSettings,
   approvals,
+  auditLogs,
+  expenses,
   inventoryItems,
   outlets,
-  supplierInvoices,
   wmsBatch,
   wmsBomItem,
   wmsCategory,
@@ -31,6 +32,15 @@ import {
   wmsWarehouseStock,
   user,
 } from "@/db/schema";
+import {
+  normalizeReceivedDate,
+  purchaseAreaOf,
+  purchaseDateFor,
+  recordCashPurchases,
+  voidCashPurchases,
+  type PurchaseArea,
+  type PurchasePaymentMethod,
+} from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
 import {
@@ -1244,12 +1254,15 @@ export async function createReceiving(
     poNumber?: string;
     additionalCost?: number;
     warehouseId?: string;
+    paymentMethod?: PurchasePaymentMethod;
+    receivedDate?: string | null;
     items: ReceivingItemInput[];
   },
   userId?: string | null,
 ) {
   const db = getDb();
   const whId = input.warehouseId ?? (await primaryWarehouseId(db));
+  const receivedDate = normalizeReceivedDate(input.receivedDate);
   const [rec] = await db
     .insert(wmsReceiving)
     .values({
@@ -1258,6 +1271,8 @@ export async function createReceiving(
       poNumber: input.poNumber?.trim() ?? "",
       additionalCost: input.additionalCost ?? 0,
       warehouseId: whId,
+      paymentMethod: input.paymentMethod ?? "Cash",
+      receivedDate,
       status: "draft",
       createdBy: userId ?? null,
     })
@@ -1299,6 +1314,8 @@ export async function listReceivings() {
       doc: wmsReceiving.doc,
       supplier: wmsReceiving.supplier,
       status: wmsReceiving.status,
+      paymentMethod: wmsReceiving.paymentMethod,
+      receivedDate: wmsReceiving.receivedDate,
       createdAt: wmsReceiving.createdAt,
       items: sql<number>`count(${wmsReceivingItem.id})::int`,
       totalValue: sql<number>`coalesce(sum(${wmsReceivingItem.receivedQty} * ${wmsReceivingItem.hpp}), 0)`,
@@ -1313,6 +1330,8 @@ export async function listReceivings() {
     doc: r.doc,
     supplier: r.supplier,
     status: r.status,
+    paymentMethod: r.paymentMethod,
+    receivedDate: r.receivedDate ? String(r.receivedDate) : null,
     items: Number(r.items),
     totalValue: Math.round(Number(r.totalValue)),
     createdAt: r.createdAt.toISOString(),
@@ -1354,6 +1373,11 @@ export async function getReceiving(id: string) {
     additionalCost: Number(rec.additionalCost ?? 0),
     warehouseId: rec.warehouseId,
     status: rec.status,
+    paymentMethod: rec.paymentMethod,
+    receivedDate: rec.receivedDate ? String(rec.receivedDate) : null,
+    completedAt: rec.completedAt ? rec.completedAt.toISOString() : null,
+    cancelledAt: rec.cancelledAt ? rec.cancelledAt.toISOString() : null,
+    cancelReason: rec.cancelReason ?? null,
     createdAt: rec.createdAt.toISOString(),
     items: items.map((it) => ({
       ...it,
@@ -1370,6 +1394,8 @@ export async function updateReceiving(
     poNumber?: string;
     additionalCost?: number;
     warehouseId?: string;
+    paymentMethod?: PurchasePaymentMethod;
+    receivedDate?: string | null;
     items: ReceivingItemInput[];
   },
 ) {
@@ -1386,6 +1412,8 @@ export async function updateReceiving(
       poNumber: input.poNumber?.trim() ?? rec.poNumber,
       additionalCost: input.additionalCost ?? rec.additionalCost,
       warehouseId: input.warehouseId ?? rec.warehouseId,
+      paymentMethod: input.paymentMethod ?? rec.paymentMethod,
+      receivedDate: input.receivedDate !== undefined ? normalizeReceivedDate(input.receivedDate) : rec.receivedDate,
       status: "draft",
     })
     .where(eq(wmsReceiving.id, id));
@@ -1474,6 +1502,17 @@ export async function completeReceiving(
   userId?: string | null,
   opts?: { forceApprove?: boolean; actorName?: string },
 ) {
+  // Cek hari terkunci (Daily Closing) di luar transaksi — query di dalam tx lain
+  // akan menunggu koneksi yang sama (deadlock di driver single-connection).
+  const [pre] = await getDb()
+    .select({ receivedDate: wmsReceiving.receivedDate, status: wmsReceiving.status })
+    .from(wmsReceiving)
+    .where(eq(wmsReceiving.id, id))
+    .limit(1);
+  if (pre?.receivedDate && pre.status !== "completed") {
+    const { assertFinanceDayOpen } = await import("@/lib/finance-closing");
+    await assertFinanceDayOpen(purchaseDateFor(String(pre.receivedDate)));
+  }
   return runInTx(async (tx) => {
     const [rec] = await tx
       .select()
@@ -1483,6 +1522,7 @@ export async function completeReceiving(
       .limit(1);
     if (!rec) return null;
     if (rec.status === "completed") return rec;
+    if (rec.status === "cancelled") throw new Error("Penerimaan sudah dibatalkan.");
     if (rec.status === "pending_approval" && !opts?.forceApprove) {
       throw new Error("Menunggu approval manager untuk selisih >10%.");
     }
@@ -1602,45 +1642,125 @@ export async function completeReceiving(
       }
     }
 
-    // Pembelian WMS → tagihan supplier (hutang, belum dibayar) supaya belanja
-    // bahan tercatat di Keuangan. Uang keluar baru dicatat saat invoice dibayar
-    // (markSupplierInvoicePaid → expense) — tidak dobel. Idempoten via invoiceNo.
-    const purchaseTotal = Math.round(totalValue + additionalCost);
-    if (purchaseTotal > 0) {
-      const areaCount = { bar: 0, dapur: 0 };
-      for (const x of accepted) {
-        const area = areaByCat.get((x.category ?? "").trim().toLowerCase());
-        if (area === "bar") areaCount.bar += 1;
-        else if (area === "dapur") areaCount.dapur += 1;
-      }
-      const category =
-        areaCount.bar > 0 && areaCount.dapur === 0
-          ? "Belanja Bar"
-          : areaCount.dapur > 0 && areaCount.bar === 0
-            ? "Belanja Dapur"
-            : "COGS";
-      const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
-      await tx
-        .insert(supplierInvoices)
-        .values({
-          outletId: outlet?.id ?? null,
-          invoiceNo: rec.poNumber?.trim() ? `${rec.doc} / ${rec.poNumber.trim()}` : rec.doc,
-          category,
-          description: `Receiving WMS ${rec.doc}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
-          amount: purchaseTotal,
-          status: "unpaid",
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          createdBy: userId ?? null,
-          notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
-        })
-        .onConflictDoNothing({ target: supplierInvoices.invoiceNo });
+    // Belanja dibayar cash langsung (owner, Okt 2026): tidak ada hutang supplier.
+    // Nilai per area (Bar/Dapur/Umum, termasuk porsi biaya tambahan) dicatat
+    // sebagai pengeluaran kas lunas = biaya "Belanja bahan" di laba rugi.
+    // Idempoten lewat sourceDoc.
+    const byArea: Partial<Record<PurchaseArea, number>> = {};
+    for (const x of accepted) {
+      const qty = Number(x.row.receivedQty);
+      const value = qty * Number(x.row.hpp);
+      const share = additionalCost > 0 && totalValue > 0 ? (additionalCost * value) / totalValue : 0;
+      const area = purchaseAreaOf(areaByCat.get((x.category ?? "").trim().toLowerCase()));
+      byArea[area] = (byArea[area] ?? 0) + value + share;
     }
+    if (additionalCost > 0 && totalValue <= 0) byArea.umum = (byArea.umum ?? 0) + additionalCost;
+    const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
+    // Tanggal biaya = tanggal barang diterima (bukan saat tombol "Selesai" diklik).
+    const purchaseDate = rec.receivedDate ? purchaseDateFor(String(rec.receivedDate)) : new Date();
+    await recordCashPurchases(tx, {
+      sourceDoc: `WMS:${rec.doc}`,
+      outletId: outlet?.id ?? null,
+      paymentMethod: rec.paymentMethod,
+      date: purchaseDate,
+      description: `Belanja gudang ${rec.doc}${rec.poNumber?.trim() ? ` / ${rec.poNumber.trim()}` : ""}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
+      byArea,
+      userId: userId ?? null,
+      notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
+    });
 
     const [updated] = await tx
       .update(wmsReceiving)
-      .set({ status: "completed" })
+      .set({ status: "completed", completedAt: new Date() })
       .where(eq(wmsReceiving.id, id))
       .returning();
+    return updated;
+  });
+}
+
+/**
+ * Batalkan penerimaan yang sudah selesai (salah qty/harga/barang). Stok yang
+ * masuk dikeluarkan lagi dari ruang yang sama dan belanja kasnya di-void,
+ * sehingga stok & laporan keuangan kembali seperti sebelum penerimaan. Bila
+ * sebagian stok sudah terpakai → ditolak (koreksi lewat opname). Untuk
+ * memperbaiki: batalkan lalu buat penerimaan baru yang benar.
+ */
+export async function cancelReceiving(
+  id: string,
+  input: { userId?: string | null; reason: string; actorName?: string },
+) {
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new Error("Alasan pembatalan wajib diisi.");
+  // Hari biaya yang sudah Daily Closing tidak boleh berubah (cek di luar tx).
+  const [pre] = await getDb().select({ doc: wmsReceiving.doc }).from(wmsReceiving).where(eq(wmsReceiving.id, id)).limit(1);
+  if (pre) {
+    const rows = await getDb()
+      .select({ expenseDate: expenses.expenseDate })
+      .from(expenses)
+      .where(like(expenses.sourceDoc, `WMS:${pre.doc}#%`));
+    const { assertFinanceDayOpen } = await import("@/lib/finance-closing");
+    for (const row of rows) await assertFinanceDayOpen(new Date(row.expenseDate));
+  }
+  return runInTx(async (tx) => {
+    const [rec] = await tx.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).for("update").limit(1);
+    if (!rec) return null;
+    if (rec.status === "cancelled") throw new Error("Penerimaan sudah dibatalkan.");
+    if (rec.status !== "completed") throw new Error("Hanya penerimaan yang sudah selesai yang bisa dibatalkan; draft cukup diedit.");
+    const whId = rec.warehouseId;
+    if (!whId) throw new Error("Penerimaan tanpa gudang tidak bisa dibatalkan.");
+
+    const items = await tx
+      .select({ row: wmsReceivingItem, productName: wmsProduct.name, category: wmsProduct.category })
+      .from(wmsReceivingItem)
+      .leftJoin(wmsProduct, eq(wmsProduct.id, wmsReceivingItem.productId))
+      .where(eq(wmsReceivingItem.receivingId, id));
+    const catRows = await tx.select({ name: wmsCategory.name, area: wmsCategory.area }).from(wmsCategory);
+    const areaByCat = new Map(catRows.map((c) => [c.name.trim().toLowerCase(), c.area]));
+
+    for (const { row: it, productName, category } of items) {
+      if (!it.productId || it.qc === "reject") continue;
+      const qty = Number(it.receivedQty);
+      if (qty <= 0) continue;
+      const area = areaByCat.get((category ?? "").trim().toLowerCase()) ?? "umum";
+      const target = area === "umum" ? whId : ((await mainWarehouseForArea(tx, area)) ?? whId);
+      try {
+        await recordStockMovement(tx, {
+          type: "out",
+          productId: it.productId,
+          warehouseId: target,
+          deltaQty: -qty,
+          hpp: Number(it.hpp),
+          refDoc: `BATAL ${rec.doc}`,
+          userId: input.userId ?? null,
+        });
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `${productName ?? "Bahan"}: stok sudah terpakai sebagian (${detail}). Penerimaan tidak bisa dibatalkan — koreksi lewat stok opname.`,
+        );
+      }
+    }
+
+    const voided = await voidCashPurchases(tx, { sourceDoc: `WMS:${rec.doc}`, reason });
+
+    const [updated] = await tx
+      .update(wmsReceiving)
+      .set({ status: "cancelled", cancelledAt: new Date(), cancelledBy: input.userId ?? null, cancelReason: reason })
+      .where(eq(wmsReceiving.id, id))
+      .returning();
+    await tx.insert(auditLogs).values({
+      time: new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date()),
+      actor: input.actorName ?? "Gudang",
+      action: "Penerimaan gudang dibatalkan",
+      object: rec.doc,
+      device: "WMS",
+      status: "warning",
+      metadata: {
+        receivingId: rec.id,
+        reason,
+        voidedPurchase: voided.reduce((sum, row) => sum + row.amount, 0),
+      },
+    });
     return updated;
   });
 }

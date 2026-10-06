@@ -18,6 +18,8 @@ const updateSchema = z.object({
       businessStartDate: dateKey.optional(),
       openingCash: z.object({ amount: z.number().int().min(-100_000_000_000).max(100_000_000_000), date: dateKey, isSet: z.boolean() }).optional(),
       revenueTargetDaily: rupiah.nullable().optional(),
+      netProfitTargetMonthly: rupiah.nullable().optional(),
+      cogsBasis: z.enum(["purchase", "recipe"]).optional(),
       expenseApprovalThreshold: z.number().int().min(1_000).max(1_000_000_000).optional(),
       expenseOwnerApprovalThreshold: z.number().int().min(1_000).max(1_000_000_000).optional(),
       capitalRecoveryMethod: z.enum(["net_profit", "operating_cashflow", "net_profit_after_reserve"]).optional(),

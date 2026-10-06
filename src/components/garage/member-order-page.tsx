@@ -70,7 +70,7 @@ import type {
   PublicOrderStatus,
   VoucherValidation,
 } from "@/lib/garage-api-types";
-import type { MemberLevel } from "@/lib/member-types";
+import { maxRedeemablePoints, type MemberLevel } from "@/lib/member-types";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-settings-types";
 import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
@@ -98,6 +98,7 @@ type MemberProfile = {
   phone: string;
   level: MemberLevel;
   totalPoints: number;
+  points?: number;
 };
 
 type QrContext = {
@@ -761,6 +762,10 @@ export function MemberOrderPage({
     | "voucherMaxDiscountPct"
     | "qrPromoPct"
     | "qrPromoMaxAmount"
+    | "pointsPerThousand"
+    | "memberPointValue"
+    | "memberRedeemMaxPct"
+    | "memberRedeemMinPoints"
     | "deliveryEnabled"
     | "deliveryFee"
     | "deliveryMinItems"
@@ -807,6 +812,8 @@ export function MemberOrderPage({
   const [customerNote, setCustomerNote] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherResult, setVoucherResult] = useState<VoucherValidation | null>(null);
+  // Pakai poin member saat checkout (maks sesuai Pengaturan).
+  const [usePoints, setUsePoints] = useState(false);
   const [voucherBusy, setVoucherBusy] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<CustomerPaymentMethod>("Cash");
   // Pesan dari luar Garage (link tanpa meja): Take away atau Delivery.
@@ -1107,8 +1114,24 @@ export function MemberOrderPage({
       : qrContext.tableLabel;
   // Ongkir di luar service & pajak (sama dengan server).
   const deliveryFee = isDelivery ? billingSettings.deliveryFee : 0;
+  // Poin member: maks = saldo & % harga menu setelah promo/voucher (sama dgn server).
+  const maxPointsUsable =
+    mode === "member" && member && !staffOrder
+      ? maxRedeemablePoints({
+          balance: member.points ?? member.totalPoints,
+          base: Math.max(0, subtotal - promoDiscount - voucherDiscount),
+          pointValue: billingSettings.memberPointValue,
+          maxPct: billingSettings.memberRedeemMaxPct,
+        })
+      : 0;
+  const canUsePoints = maxPointsUsable >= billingSettings.memberRedeemMinPoints;
+  const pointsUsed = usePoints && canUsePoints ? maxPointsUsable : 0;
+  const pointsDiscount = Math.min(
+    Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount)),
+    pointsUsed * billingSettings.memberPointValue,
+  );
   const total =
-    Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount)) + deliveryFee;
+    Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount) - pointsDiscount) + deliveryFee;
   const itemCount = cartLines.reduce((sum, line) => sum + line.qty, 0);
   const allowedPaymentMethods: CustomerPaymentMethod[] = isDelivery ? ["QRIS"] : customerPaymentMethods;
   const phoneDigits = guestPhone.replace(/\D/g, "");
@@ -1318,6 +1341,7 @@ export function MemberOrderPage({
         source: qrContext.source,
         campaign: qrContext.campaign,
         voucherCode: voucherCode.trim() || undefined,
+        pointsToRedeem: pointsUsed > 0 ? pointsUsed : undefined,
         paymentMethod,
         paymentProvider: paymentProviderValue || undefined,
         paymentReference: paymentReference.trim() || undefined,
@@ -1398,6 +1422,9 @@ export function MemberOrderPage({
       {discount > 0 ? <BillLine label={discountLabel} value={`- ${rupiah.format(discount)}`} /> : null}
       {voucherDiscount > 0 ? (
         <BillLine label="Voucher tambahan" value={`- ${rupiah.format(voucherDiscount)}`} />
+      ) : null}
+      {pointsDiscount > 0 ? (
+        <BillLine label={`Poin member (${pointsUsed} poin)`} value={`- ${rupiah.format(pointsDiscount)}`} />
       ) : null}
       {deliveryFee > 0 ? <BillLine label="Ongkir (Tebing Tinggi)" value={rupiah.format(deliveryFee)} /> : null}
     </>
@@ -1616,6 +1643,39 @@ export function MemberOrderPage({
           <div className="mt-3 rounded-md border border-garage-line bg-garage-bg-1 p-3">
             <p className="text-sm font-bold text-white">{member.name}</p>
             <p className="mt-0.5 font-mono text-sm tabular-nums text-garage-dim">{member.phone}</p>
+            <div className="mt-3 rounded-md border border-garage-amber/40 bg-garage-amber/10 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">Pakai poin</p>
+                  <p className="mt-0.5 text-xs text-garage-dim">
+                    Saldo {number.format(member.points ?? member.totalPoints)} poin · 1 poin = {rupiah.format(billingSettings.memberPointValue)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={usePoints && canUsePoints}
+                  disabled={!canUsePoints}
+                  onClick={() => setUsePoints((value) => !value)}
+                  className={`garage-press h-9 shrink-0 rounded-full px-4 text-sm font-bold transition-colors disabled:opacity-50 ${
+                    usePoints && canUsePoints
+                      ? "bg-garage-amber text-black"
+                      : "border border-garage-amber/50 text-white"
+                  }`}
+                >
+                  {usePoints && canUsePoints ? "Dipakai" : "Pakai"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-white">
+                {canUsePoints
+                  ? usePoints
+                    ? `Potongan ${rupiah.format(pointsDiscount)} (${pointsUsed} poin).`
+                    : `Bisa potong sampai ${rupiah.format(maxPointsUsable * billingSettings.memberPointValue)} (${maxPointsUsable} poin).`
+                  : (member.points ?? member.totalPoints) < billingSettings.memberRedeemMinPoints
+                    ? `Poin bisa dipakai mulai ${billingSettings.memberRedeemMinPoints} poin.`
+                    : "Tambah pesanan untuk bisa memakai poin."}
+              </p>
+            </div>
           </div>
         ) : (
           <div className="mt-3 rounded-md border border-garage-amber/40 bg-garage-amber/10 p-3">

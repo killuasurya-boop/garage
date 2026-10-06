@@ -44,17 +44,17 @@ export const memberLevelRules: MemberLevelRule[] = [
     level: "Platinum",
     minPoints: PLATINUM_MIN_POINTS,
     maxPoints: null,
-    multiplier: 1.5,
-    perks: ["Point 1.5x", "Free monthly drink", "Exclusive event", "Faster redeem"],
+    multiplier: 1.6,
+    perks: ["Point 1.6x", "Free monthly drink", "Exclusive event", "Faster redeem"],
   },
   {
     level: "Ultra",
     minPoints: Number.POSITIVE_INFINITY,
     maxPoints: null,
-    multiplier: 5,
+    multiplier: 2,
     requiresApproval: true,
     perks: [
-      "Point 5x",
+      "Point 2x",
       `Eligible setelah ${ULTRA_MEMBERSHIP_YEARS} tahun langganan + owner approval`,
       "Prototype access",
       "Owner-only privilege",
@@ -167,6 +167,22 @@ export function calculateEarnedPoints(amount: number, level: string) {
     multiplier,
     pointsEarned: Math.floor(basePoints * multiplier),
   };
+}
+
+/**
+ * Poin yang boleh dipakai di satu tagihan (owner, Okt 2026): ≤ saldo dan
+ * potongan ≤ maxPct% dari sisa tagihan menu setelah promo/voucher/diskon lain.
+ */
+export function maxRedeemablePoints(input: {
+  balance: number;
+  /** Nilai menu setelah diskon lain (tanpa pajak/service/ongkir). */
+  base: number;
+  pointValue: number;
+  maxPct: number;
+}) {
+  if (input.pointValue <= 0 || input.base <= 0 || input.balance <= 0) return 0;
+  const capRupiah = Math.floor((input.base * Math.max(0, Math.min(100, input.maxPct))) / 100);
+  return Math.max(0, Math.min(Math.floor(input.balance), Math.floor(capRupiah / input.pointValue)));
 }
 
 export function calculateRedeemDiscount(pointsToRedeem: number) {

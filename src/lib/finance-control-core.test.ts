@@ -132,6 +132,33 @@ describe("computeDayFigure", () => {
     expect(figure.channels.Modal).toBe(500_000_000);
   });
 
+  it("upah karyawan 'accrue': upah harian standar tanpa absensi, upah aktual bila ada (tidak dobel)", () => {
+    const accrueWage = {
+      ...config,
+      costItems: config.costItems.map((item) => (item.code === "GAJI" ? { ...item, treatment: "accrue" as const } : item)),
+    };
+    // Tanpa penjualan & absensi: net profit = −(upah 450rb + akru 63rb).
+    const idle = computeDayFigure(raw({}), accrueWage);
+    expect(idle.payroll).toBe(450_000);
+    expect(idle.operatingExpense).toBe(63_000);
+    expect(idle.netProfit).toBe(-513_000);
+    expect(idle.costLines["Gaji karyawan"]).toBe(450_000);
+    // Rincian biaya selalu menjumlah ke net profit.
+    const lineTotal = Object.values(idle.costLines).reduce((sum, value) => sum + value, 0);
+    expect(idle.netSales - idle.cogs - lineTotal).toBe(idle.netProfit);
+
+    // Absensi mencatat upah aktual 380rb + fee 12rb → aktual dipakai, bukan 450rb.
+    const actual = computeDayFigure(raw({ netSales: 1_000_000, payrollWages: 380_000, payrollFee: 12_000 }), accrueWage);
+    expect(actual.payroll).toBe(392_000);
+    expect(actual.costLines["Gaji karyawan (absensi)"]).toBe(380_000);
+    expect(actual.costLines["Gaji karyawan"]).toBeUndefined();
+
+    // BEP tidak menghitung upah dua kali.
+    expect(fixedCostDaily(accrueWage)).toBe(513_000);
+    // Sebelum tanggal mulai bisnis: tidak ada upah standar.
+    expect(computeDayFigure(raw({ date: "2026-08-31" }), accrueWage).payroll).toBe(0);
+  });
+
   it("tidak mengakru biaya sebelum tanggal mulai bisnis", () => {
     const figure = computeDayFigure(raw({ date: "2026-08-31" }), config);
     expect(figure.operatingExpense).toBe(0);

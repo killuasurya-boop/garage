@@ -3645,6 +3645,13 @@ export async function getFinanceOverview() {
       expense: dailyExpense,
       grossProfit: dailyGrossProfit,
       netProfit: dailyNetProfit,
+      // Rincian laba hari ini: penjualan bersih − HPP − tiap baris biaya = net profit.
+      netSales: engine.today.netSales,
+      cogs: dailyCogs,
+      costLines: Object.entries(engine.today.costLines)
+        .filter(([, amount]) => amount)
+        .map(([label, amount]) => ({ label, amount }))
+        .sort((a, b) => b.amount - a.amount),
       foodCostRatio,
       recipeFoodCost: recipeCogs,
       recipeLines: todayRecipeCostRows.length,

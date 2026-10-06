@@ -869,6 +869,13 @@
       "when": 1791244956303,
       "tag": "0123_notifications_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791269519303,
+      "tag": "0124_finance_wage_accrue",
+      "breakpoints": true
     }
   ]
 }

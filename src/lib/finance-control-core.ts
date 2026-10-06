@@ -370,6 +370,18 @@ export function resolvePeriod(
 
 // ─── Aturan finance per hari ────────────────────────────────────────────────
 
+/** Kode item biaya "Upah karyawan". */
+export const WAGE_ITEM_CODE = "GAJI";
+
+/**
+ * Item upah yang dibebankan harian ke P&L (treatment "accrue"). Upah = biaya
+ * pasti harian; bila absensi Payroll punya upah aktual hari itu, angka aktual
+ * yang dipakai (tidak dobel). "budget_only" = hanya patokan BEP.
+ */
+export function accruedWageItem(config: Pick<FinanceConfig, "costItems">) {
+  return config.costItems.find((item) => item.code === WAGE_ITEM_CODE && item.active && item.treatment === "accrue") ?? null;
+}
+
 export function payrollMasterMonthly(config: Pick<FinanceConfig, "payrollPositions">) {
   return config.payrollPositions
     .filter((row) => row.active)
@@ -382,7 +394,7 @@ export function payrollMasterMonthly(config: Pick<FinanceConfig, "payrollPositio
  */
 export function payrollBudgetDaily(config: Pick<FinanceConfig, "payrollPositions"> & Partial<Pick<FinanceConfig, "costItems">>) {
   const wageItem = config.costItems?.find(
-    (item) => item.code === "GAJI" && item.active && item.treatment === "budget_only" && item.dailyAmount > 0,
+    (item) => item.code === WAGE_ITEM_CODE && item.active && item.treatment !== "reserve" && item.dailyAmount > 0,
   );
   if (wageItem) return wageItem.dailyAmount;
   return Math.round(payrollMasterMonthly(config) / 30);
@@ -395,9 +407,10 @@ export function reserveDaily(config: Pick<FinanceConfig, "costItems">) {
     .reduce((sum, item) => sum + item.dailyAmount, 0);
 }
 
+/** Item akru harian selain upah (upah dihitung di payroll). */
 export function accruedDailyOpex(config: Pick<FinanceConfig, "costItems">) {
   return config.costItems
-    .filter((item) => item.active && item.treatment === "accrue")
+    .filter((item) => item.active && item.treatment === "accrue" && item.code !== WAGE_ITEM_CODE)
     .reduce((sum, item) => sum + item.dailyAmount, 0);
 }
 
@@ -426,8 +439,9 @@ function add(record: Record<string, number>, key: string, amount: number) {
 export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure {
   const active = raw.date >= config.businessStartDate;
   const accrueItems = active
-    ? config.costItems.filter((item) => item.active && item.treatment === "accrue")
+    ? config.costItems.filter((item) => item.active && item.treatment === "accrue" && item.code !== WAGE_ITEM_CODE)
     : [];
+  const wageItem = active ? accruedWageItem(config) : null;
   const accruedCodes = new Set(accrueItems.map((item) => item.code));
   const costLines: Record<string, number> = {};
   const cashOutByGroup: Record<string, number> = {};
@@ -466,8 +480,14 @@ export function computeDayFigure(raw: DayRaw, config: FinanceConfig): DayFigure 
     add(costLines, item.name, item.dailyAmount);
   }
 
-  const payroll = raw.payrollWages + raw.payrollFee + payrollExpense;
-  add(costLines, "Payroll", payroll);
+  // Upah: aktual dari absensi bila ada; tanpa absensi → upah harian standar
+  // (item GAJI "accrue") karena gaji tetap wajib dibayar tiap hari.
+  const wages = raw.payrollWages > 0 || !wageItem ? raw.payrollWages : wageItem.dailyAmount;
+  const payroll = wages + raw.payrollFee + payrollExpense;
+  const wageLabel = wageItem?.name ?? "Upah karyawan";
+  add(costLines, raw.payrollWages > 0 ? `${wageLabel} (absensi)` : wageLabel, wages);
+  add(costLines, "Fee karyawan", raw.payrollFee);
+  add(costLines, "Payroll lain", payrollExpense);
   add(costLines, "Biaya transaksi", raw.settlementFees);
 
   const reserveAllocation = active

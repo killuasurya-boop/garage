@@ -34,6 +34,9 @@ type FinanceOverview = {
     orderCount: number;
     cashCollected: number;
     nonCashCollected: number;
+    netSales?: number;
+    cogs?: number;
+    costLines?: Array<{ label: string; amount: number }>;
   };
   // P&L bulan berjalan (month-to-date) — untuk tile omzet bulanan.
   profitLoss?: {
@@ -116,6 +119,9 @@ const compactCurrency = (value: number) => {
 };
 
 const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short" });
+
+const signedCompact = (value: number) => (value < 0 ? `-${compactCurrency(-value)}` : compactCurrency(value));
+const sumLines = (lines?: Array<{ amount: number }>) => (lines ?? []).reduce((sum, line) => sum + line.amount, 0);
 
 export function DashboardOwnerSnapshot({
   role,
@@ -395,9 +401,9 @@ export function DashboardOwnerSnapshot({
           }
         />
         <SnapshotCard
-          label="Net Profit"
-          value={compactCurrency(data.finance?.today.netProfit ?? 0)}
-          sub={`AOV ${compactCurrency(data.finance?.today.averageOrderValue ?? 0)}`}
+          label="Net Profit Hari Ini"
+          value={signedCompact(data.finance?.today.netProfit ?? 0)}
+          sub={`Biaya hari ini ${compactCurrency(sumLines(data.finance?.today.costLines) + (data.finance?.today.cogs ?? 0))} · AOV ${compactCurrency(data.finance?.today.averageOrderValue ?? 0)}`}
           icon={
             (data.finance?.today.netProfit ?? 0) >= 0 ? (
               <TrendingUp className="size-4" />
@@ -440,6 +446,8 @@ export function DashboardOwnerSnapshot({
           }
         />
       </div>
+
+      {data.finance?.today.costLines ? <ProfitBreakdown today={data.finance.today} /> : null}
 
       {data.capital && data.capital.initialCapital > 0 ? <CapitalRecoveryStrip capital={data.capital} /> : null}
 
@@ -643,6 +651,53 @@ function SnapshotCard({
       <p className={`mt-1 garage-display text-xl font-bold ${valueCls}`}>{value}</p>
       {sub && <p className="mt-0.5 text-[10px] text-[#8f8f99]">{sub}</p>}
     </div>
+  );
+}
+
+/** Rincian net profit hari ini: penjualan bersih − HPP − tiap biaya pasti. */
+function ProfitBreakdown({ today }: { today: FinanceOverview["today"] }) {
+  const lines = today.costLines ?? [];
+  const netSales = today.netSales ?? 0;
+  const cogs = today.cogs ?? 0;
+  const totalCost = sumLines(lines);
+  const rows: Array<{ label: string; amount: number; tone: "plus" | "minus" }> = [
+    { label: "Penjualan bersih", amount: netSales, tone: "plus" },
+    ...(cogs ? [{ label: "HPP bahan baku", amount: cogs, tone: "minus" as const }] : []),
+    ...lines.map((line) => ({ label: line.label, amount: line.amount, tone: "minus" as const })),
+  ];
+  return (
+    <section className="rounded-md border border-[#34343c] bg-[#17171c] p-3" aria-label="Rincian net profit hari ini">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="garage-mono text-[11px] uppercase tracking-wide text-[#c9c9d1]">Rincian net profit hari ini</p>
+        <p className="text-[11px] text-[#a6a6b0]">
+          Biaya pasti hari ini <span className="font-semibold text-[#ffd79a]">{currency.format(totalCost + cogs)}</span>
+        </p>
+      </div>
+      <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-baseline justify-between gap-3 border-b border-[#26262d] py-1 text-xs">
+            <dt className="min-w-0 truncate text-[#c9c9d1]">{row.label}</dt>
+            <dd className={`shrink-0 font-mono font-semibold ${row.tone === "plus" ? "text-white" : "text-[#ffc2c8]"}`}>
+              {row.tone === "minus" ? "−" : "+"}
+              {currency.format(row.amount)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-semibold text-white">Net profit</span>
+        <span className={`font-mono font-bold ${today.netProfit < 0 ? "text-[#ffc2c8]" : "text-[#86efac]"}`}>
+          {today.netProfit < 0 ? "−" : ""}
+          {currency.format(Math.abs(today.netProfit))}
+        </span>
+      </div>
+      {netSales === 0 ? (
+        <p className="mt-1 text-[11px] text-[#a6a6b0]">
+          Belum ada penjualan lunas hari ini, jadi net profit = minus total biaya harian. Upah memakai upah harian standar
+          bila absensi belum mencatat upah aktual.
+        </p>
+      ) : null}
+    </section>
   );
 }
 

@@ -95,8 +95,9 @@ export function FinanceSettingsPanel() {
   const dailyTotals = useMemo(() => {
     const items = draft?.costItems.filter((item) => item.active) ?? [];
     return {
-      accrue: items.filter((item) => item.treatment === "accrue").reduce((sum, item) => sum + item.dailyAmount, 0),
-      wage: items.find((item) => item.code === "GAJI" && item.treatment === "budget_only")?.dailyAmount ?? 0,
+      accrue: items.filter((item) => item.treatment === "accrue" && item.code !== "GAJI").reduce((sum, item) => sum + item.dailyAmount, 0),
+      wage: items.find((item) => item.code === "GAJI" && item.treatment !== "reserve")?.dailyAmount ?? 0,
+      wageInPnl: items.some((item) => item.code === "GAJI" && item.treatment === "accrue"),
       reserve: items.filter((item) => item.treatment === "reserve").reduce((sum, item) => sum + item.dailyAmount, 0),
     };
   }, [draft]);
@@ -285,7 +286,7 @@ export function FinanceSettingsPanel() {
 
       <FinanceCard
         title="Biaya harian (operating cost master)"
-        subtitle={`Total ${rupiah(dailyTotals.accrue + dailyTotals.wage + dailyTotals.reserve)}/hari · operasional ${rupiah(dailyTotals.accrue + dailyTotals.wage)} (akru ${rupiah(dailyTotals.accrue)} + upah ${rupiah(dailyTotals.wage)}) · Save Money ${rupiah(dailyTotals.reserve)}`}
+        subtitle={`Total ${rupiah(dailyTotals.accrue + dailyTotals.wage + dailyTotals.reserve)}/hari · operasional ${rupiah(dailyTotals.accrue + dailyTotals.wage)} (akru ${rupiah(dailyTotals.accrue)} + upah ${rupiah(dailyTotals.wage)}${dailyTotals.wageInPnl ? "" : " hanya patokan BEP"}) · Save Money ${rupiah(dailyTotals.reserve)}`}
         actions={
           <button
             type="button"

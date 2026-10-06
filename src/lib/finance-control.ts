@@ -84,7 +84,7 @@ type Db = ReturnType<typeof getDb>;
 // Biaya tetap harian versi owner (Okt 2026): total Rp799.000/hari =
 // operasional Rp699.000 + Save Money Rp100.000 (cadangan laba, bukan beban).
 const DEFAULT_COST_ITEMS: FinanceCostItem[] = [
-  { code: "GAJI", name: "Upah karyawan", dailyAmount: 544_000, costClass: "fixed", treatment: "budget_only", active: true, sortOrder: 1 },
+  { code: "GAJI", name: "Upah karyawan", dailyAmount: 544_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 1 },
   { code: "LISTRIK", name: "Listrik", dailyAmount: 35_000, costClass: "semi_variable", treatment: "accrue", active: true, sortOrder: 2 },
   { code: "INTERNET", name: "Internet", dailyAmount: 10_000, costClass: "fixed", treatment: "accrue", active: true, sortOrder: 3 },
   { code: "IKLAN", name: "Iklan", dailyAmount: 30_000, costClass: "variable", treatment: "accrue", active: true, sortOrder: 4 },
@@ -611,7 +611,7 @@ const LIVE_WINDOW_DAYS = 7;
  * snapshot "locked" (Daily Closing) tidak pernah diubah.
  * v2: HPP aktual = resep + susut gudang (PRD §11).
  */
-const ENGINE_VERSION = 3; // v3: ongkir delivery dipisah dari penjualan bersih
+const ENGINE_VERSION = 4; // v3: ongkir dipisah dari penjualan; v4: upah karyawan harian masuk P&L
 
 type SnapshotRow = typeof financialSnapshots.$inferSelect;
 

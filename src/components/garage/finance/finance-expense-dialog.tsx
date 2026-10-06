@@ -479,6 +479,12 @@ export function FinanceExpenseDialog({
                   </Button>
                 ))}
               </div>
+              {formCategory === "Belanja Dapur" || formCategory === "Belanja Bar" || formCategory === "COGS" ? (
+                <p className="mt-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-2 text-xs text-[#ffd79a]">
+                  Belanja bahan sebaiknya dicatat lewat Penerimaan Gudang: stok bertambah dan biaya Bar/Dapur otomatis
+                  masuk laba rugi. Pengeluaran di sini hanya mencatat uang keluar (tidak mengurangi profit lagi).
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">

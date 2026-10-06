@@ -164,6 +164,8 @@ import {
   type MemberLevel,
 } from "@/lib/member-types";
 import { hashPassword } from "@/lib/member-auth";
+import { daysInMonth } from "@/lib/finance-control-core";
+import { purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import {
   APPROVAL_CATEGORY_LABEL,
@@ -3407,8 +3409,11 @@ export async function getFinanceOverview() {
   const dailyExpense = dailyCogs + dailyOpsExpense + dailyPayrollAccrual + dailyMarketing + dailyOther;
   const dailyGrossProfit = engine.today.grossProfit;
   const dailyNetProfit = engine.today.netProfit;
-  const foodCostRatio = engine.today.netSales
-    ? Number(((dailyCogs / engine.today.netSales) * 100).toFixed(1))
+  // Mode belanja gudang: rasio bahan dihitung bulan berjalan (belanja ÷ omzet)
+  // supaya hari belanja stok besar tidak memicu alarm palsu.
+  const ratioBase = (engine.config.cogsBasis ?? "purchase") === "purchase" ? engine.month : engine.today;
+  const foodCostRatio = ratioBase.netSales
+    ? Number(((ratioBase.cogs / ratioBase.netSales) * 100).toFixed(1))
     : 0;
   const averageOrderValue = dailyOrderCount ? Math.round(dailyRevenue / dailyOrderCount) : 0;
   const bomCoverage = await getMenuBomCoverage();
@@ -3648,6 +3653,16 @@ export async function getFinanceOverview() {
       // Rincian laba hari ini: penjualan bersih − HPP − tiap baris biaya = net profit.
       netSales: engine.today.netSales,
       cogs: dailyCogs,
+      cogsBasis: engine.config.cogsBasis ?? "purchase",
+      purchases: {
+        bar: engine.today.purchaseBar,
+        dapur: engine.today.purchaseDapur,
+        umum: engine.today.purchaseUmum,
+      },
+      // Sama dengan kartu Balik modal: target bulan ÷ jumlah hari bulan berjalan.
+      netProfitTargetDaily: engine.config.netProfitTargetMonthly
+        ? Math.round(engine.config.netProfitTargetMonthly / daysInMonth(engine.todayKey))
+        : null,
       costLines: Object.entries(engine.today.costLines)
         .filter(([, amount]) => amount)
         .map(([label, amount]) => ({ label, amount }))
@@ -11907,28 +11922,10 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
   const totalAmount = lines.reduce((sum, line) => sum + line.lineTotal, 0);
 
   const result = await db.transaction(async (tx) => {
-    let supplierInvoiceId: string | null = null;
+    // Belanja dibayar cash langsung (tanpa hutang) — dicatat setelah kode
+    // penerimaan dibuat, per area pemakaian bahan (Bar/Dapur/Umum).
+    const supplierInvoiceId: string | null = null;
     const invoiceNo = input.invoiceNo?.trim();
-    if (invoiceNo) {
-      const [invoice] = await tx
-        .insert(supplierInvoices)
-        .values({
-          supplierId: input.supplierId || null,
-          outletId: garage.profile.outlet.id,
-          invoiceNo,
-          category: "COGS",
-          description: `Supplier receiving ${invoiceNo}`,
-          amount: totalAmount,
-          status: "unpaid",
-          dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-          createdBy: garage.user.id,
-          notes: input.note?.trim() || null,
-          updatedAt: now,
-        })
-        .onConflictDoNothing()
-        .returning({ id: supplierInvoices.id });
-      supplierInvoiceId = invoice?.id ?? null;
-    }
 
     const [receiving] = await tx
       .insert(supplierReceivings)
@@ -12019,6 +12016,22 @@ export async function createSupplierReceiving(input: SupplierReceivingInput, gar
         totalAmount,
         items: lines.length,
       },
+    });
+
+    const byArea: Partial<Record<PurchaseArea, number>> = {};
+    for (const line of lines) {
+      const area = purchaseAreaOf(line.item.usageArea);
+      byArea[area] = (byArea[area] ?? 0) + line.lineTotal;
+    }
+    await recordCashPurchases(tx, {
+      sourceDoc: `OS:${receiving.code}`,
+      outletId: garage.profile.outlet.id,
+      supplierId: input.supplierId || null,
+      description: `Barang masuk supplier ${receiving.code}${invoiceNo ? ` / ${invoiceNo}` : ""}`,
+      byArea,
+      userId: garage.user.id,
+      notes: input.note?.trim() || null,
+      date: now,
     });
 
     // Harga masuk jadi HPP bahan terbaru → HPP menu yang memakainya ikut live.

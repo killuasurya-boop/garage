@@ -72,8 +72,8 @@ afterAll(async () => {
   await teardownGarageTestDb(t);
 });
 
-describe("Receiving WMS → tagihan supplier", () => {
-  it("receiving selesai → stok masuk & invoice hutang Belanja Bar terbentuk (termasuk ongkir)", async () => {
+describe("Receiving WMS → belanja cash lunas (tanpa hutang)", () => {
+  it("receiving selesai → stok masuk & belanja Bar lunas tercatat (termasuk ongkir), tanpa invoice hutang", async () => {
     const rec = await wms.createReceiving({
       supplier: "Toko Susu",
       additionalCost: 5_000,
@@ -90,21 +90,38 @@ describe("Receiving WMS → tagihan supplier", () => {
     await wms.completeReceiving(rec.id);
     expect(await wmsTotal("A-MILK")).toBe(2000);
 
-    const { eq } = await import("drizzle-orm");
-    const [inv] = await t
+    const { eq, like } = await import("drizzle-orm");
+    const invoices = await t
       .getDb()
       .select()
       .from(t.schema.supplierInvoices)
-      .where(eq(t.schema.supplierInvoices.invoiceNo, rec.doc));
-    expect(inv).toBeTruthy();
-    expect(inv.amount).toBe(2000 * 24 + 5_000);
-    expect(inv.status).toBe("unpaid");
-    expect(inv.category).toBe("Belanja Bar");
+      .where(like(t.schema.supplierInvoices.invoiceNo, `${rec.doc}%`));
+    expect(invoices).toHaveLength(0);
 
-    // Selesaikan ulang (retry) → tidak membuat invoice kedua.
+    const [exp] = await t
+      .getDb()
+      .select()
+      .from(t.schema.expenses)
+      .where(eq(t.schema.expenses.sourceDoc, `WMS:${rec.doc}#bar`));
+    expect(exp).toBeTruthy();
+    expect(exp.amount).toBe(2000 * 24 + 5_000);
+    expect(exp.status).toBe("paid");
+    expect(exp.paymentMethod).toBe("Cash");
+    expect(exp.category).toBe("Belanja Bar");
+
+    // Selesaikan ulang (retry) → tidak membuat belanja kedua.
     await wms.completeReceiving(rec.id);
-    const all = await t.getDb().select().from(t.schema.supplierInvoices).where(eq(t.schema.supplierInvoices.invoiceNo, rec.doc));
+    const all = await t.getDb().select().from(t.schema.expenses).where(like(t.schema.expenses.sourceDoc, `WMS:${rec.doc}%`));
     expect(all.length).toBe(1);
+
+    // Laba rugi hari ini: belanja Bar = biaya bahan (mode default "purchase").
+    const fc = await import("@/lib/finance-control");
+    const { jakartaDateKey } = await import("@/lib/finance-control-core");
+    const config = await fc.loadFinanceConfig();
+    expect(config.cogsBasis).toBe("purchase");
+    const raws = await fc.loadDayRaws(jakartaDateKey(), jakartaDateKey());
+    const raw = raws.get(jakartaDateKey())!;
+    expect(raw.purchases.bar).toBe(2000 * 24 + 5_000);
   });
 });
 

@@ -1218,6 +1218,9 @@ export const expenses = pgTable(
     expenseDate: timestamp("expense_date", { withTimezone: true }).notNull().defaultNow(),
     receiptUrl: text("receipt_url"),
     notes: text("notes"),
+    // Belanja bahan dari penerimaan gudang (dibayar cash langsung): "<doc>#<area>".
+    // Hanya baris ber-sourceDoc yang menjadi biaya "Belanja bahan" di laba rugi.
+    sourceDoc: text("source_doc"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -1226,6 +1229,7 @@ export const expenses = pgTable(
   },
   (table) => ({
     outletIdx: index("expenses_outlet_idx").on(table.outletId),
+    sourceDocUidx: uniqueIndex("expenses_source_doc_uidx").on(table.sourceDoc),
     supplierIdx: index("expenses_supplier_idx").on(table.supplierId),
     categoryIdx: index("expenses_category_idx").on(table.category),
     statusIdx: index("expenses_status_idx").on(table.status),

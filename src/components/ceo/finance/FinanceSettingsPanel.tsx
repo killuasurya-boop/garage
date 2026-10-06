@@ -388,6 +388,35 @@ export function FinanceSettingsPanel() {
         </FinanceCard>
 
         <FinanceCard title="Metode balik modal (BEP/Payback)" subtitle="Menentukan cara menghitung modal kembali, ROI, dan estimasi balik modal">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label="Target profit bersih / bulan"
+              hint={
+                (draft.settings.netProfitTargetMonthly ?? 0) > 0
+                  ? `≈ ${rupiah(Math.round((draft.settings.netProfitTargetMonthly ?? 0) / 30))}/hari · patokan estimasi balik modal.`
+                  : "Patokan balik modal: sisa modal ÷ target. Isi 0 bila belum ada."
+              }
+            >
+              <NumberInput
+                label="Target profit bersih per bulan"
+                value={draft.settings.netProfitTargetMonthly ?? 0}
+                onChange={(value) => setSettings({ netProfitTargetMonthly: value > 0 ? value : null })}
+              />
+            </Field>
+            <Field
+              label="Biaya bahan baku dihitung dari"
+              hint="Belanja gudang: setiap penerimaan barang (dibayar cash) langsung jadi biaya Bar/Dapur."
+            >
+              <select
+                className={input}
+                value={draft.settings.cogsBasis}
+                onChange={(e) => setSettings({ cogsBasis: e.target.value as Draft["settings"]["cogsBasis"] })}
+              >
+                <option value="purchase">Belanja masuk gudang (Bar/Dapur)</option>
+                <option value="recipe">Pemakaian resep (HPP) + susut</option>
+              </select>
+            </Field>
+          </div>
           <Field label="Metode perhitungan">
             <select
               className={input}
@@ -409,8 +438,8 @@ export function FinanceSettingsPanel() {
             ))}
           </ul>
           <p className="mt-3 text-xs text-zinc-400">
-            Saldo kas tidak pernah dihitung sebagai &quot;modal kembali&quot;. Estimasi balik modal memakai rata-rata 30 hari terakhir
-            (aktual) dan diperbarui setiap hari.
+            Saldo kas tidak pernah dihitung sebagai &quot;modal kembali&quot;. Estimasi balik modal ditampilkan dua: sesuai target
+            profit bersih, dan sesuai laju aktual 30 hari terakhir (diperbarui setiap hari).
           </p>
         </FinanceCard>
       </div>

@@ -6,7 +6,6 @@ import {
   approvals,
   inventoryItems,
   outlets,
-  supplierInvoices,
   wmsBatch,
   wmsBomItem,
   wmsCategory,
@@ -31,6 +30,7 @@ import {
   wmsWarehouseStock,
   user,
 } from "@/db/schema";
+import { purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
 import {
@@ -1602,39 +1602,28 @@ export async function completeReceiving(
       }
     }
 
-    // Pembelian WMS → tagihan supplier (hutang, belum dibayar) supaya belanja
-    // bahan tercatat di Keuangan. Uang keluar baru dicatat saat invoice dibayar
-    // (markSupplierInvoicePaid → expense) — tidak dobel. Idempoten via invoiceNo.
-    const purchaseTotal = Math.round(totalValue + additionalCost);
-    if (purchaseTotal > 0) {
-      const areaCount = { bar: 0, dapur: 0 };
-      for (const x of accepted) {
-        const area = areaByCat.get((x.category ?? "").trim().toLowerCase());
-        if (area === "bar") areaCount.bar += 1;
-        else if (area === "dapur") areaCount.dapur += 1;
-      }
-      const category =
-        areaCount.bar > 0 && areaCount.dapur === 0
-          ? "Belanja Bar"
-          : areaCount.dapur > 0 && areaCount.bar === 0
-            ? "Belanja Dapur"
-            : "COGS";
-      const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
-      await tx
-        .insert(supplierInvoices)
-        .values({
-          outletId: outlet?.id ?? null,
-          invoiceNo: rec.poNumber?.trim() ? `${rec.doc} / ${rec.poNumber.trim()}` : rec.doc,
-          category,
-          description: `Receiving WMS ${rec.doc}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
-          amount: purchaseTotal,
-          status: "unpaid",
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          createdBy: userId ?? null,
-          notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
-        })
-        .onConflictDoNothing({ target: supplierInvoices.invoiceNo });
+    // Belanja dibayar cash langsung (owner, Okt 2026): tidak ada hutang supplier.
+    // Nilai per area (Bar/Dapur/Umum, termasuk porsi biaya tambahan) dicatat
+    // sebagai pengeluaran kas lunas = biaya "Belanja bahan" di laba rugi.
+    // Idempoten lewat sourceDoc.
+    const byArea: Partial<Record<PurchaseArea, number>> = {};
+    for (const x of accepted) {
+      const qty = Number(x.row.receivedQty);
+      const value = qty * Number(x.row.hpp);
+      const share = additionalCost > 0 && totalValue > 0 ? (additionalCost * value) / totalValue : 0;
+      const area = purchaseAreaOf(areaByCat.get((x.category ?? "").trim().toLowerCase()));
+      byArea[area] = (byArea[area] ?? 0) + value + share;
     }
+    if (additionalCost > 0 && totalValue <= 0) byArea.umum = (byArea.umum ?? 0) + additionalCost;
+    const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
+    await recordCashPurchases(tx, {
+      sourceDoc: `WMS:${rec.doc}`,
+      outletId: outlet?.id ?? null,
+      description: `Belanja gudang ${rec.doc}${rec.poNumber?.trim() ? ` / ${rec.poNumber.trim()}` : ""}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
+      byArea,
+      userId: userId ?? null,
+      notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
+    });
 
     const [updated] = await tx
       .update(wmsReceiving)

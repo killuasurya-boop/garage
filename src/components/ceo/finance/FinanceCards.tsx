@@ -431,17 +431,27 @@ export function AlertsCard({ alerts }: { alerts: FinanceControlDashboard["alerts
 
 export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
   const pnl = data.pnl;
+  const purchaseMode = pnl.cogsBasis === "purchase";
   const rows: Array<{ label: string; value: number; strong?: boolean; minus?: boolean; note?: string }> = [
     { label: "Gross sales", value: pnl.grossSales },
     { label: "Diskon", value: -pnl.discount, minus: true },
     { label: "Refund", value: -pnl.refund, minus: true },
     { label: "Net sales (revenue)", value: pnl.netSales, strong: true },
-    { label: "HPP resep (penjualan)", value: -pnl.cogsRecipe, minus: true },
-    { label: "Susut / waste gudang", value: -pnl.cogsShrinkage, minus: true },
-    { label: "HPP aktual", value: -pnl.cogs, minus: true, note: pnl.hppRatioPct !== null ? percent(pnl.hppRatioPct) : undefined },
+    ...(purchaseMode
+      ? [
+          { label: "Belanja bahan Bar (gudang)", value: -pnl.purchaseBar, minus: true },
+          { label: "Belanja bahan Dapur (gudang)", value: -pnl.purchaseDapur, minus: true },
+          ...(pnl.purchaseUmum ? [{ label: "Belanja umum (gudang)", value: -pnl.purchaseUmum, minus: true }] : []),
+          { label: "Total belanja bahan", value: -pnl.cogs, minus: true, note: pnl.hppRatioPct !== null ? percent(pnl.hppRatioPct) : undefined },
+        ]
+      : [
+          { label: "HPP resep (penjualan)", value: -pnl.cogsRecipe, minus: true },
+          { label: "Susut / waste gudang", value: -pnl.cogsShrinkage, minus: true },
+          { label: "HPP aktual", value: -pnl.cogs, minus: true, note: pnl.hppRatioPct !== null ? percent(pnl.hppRatioPct) : undefined },
+        ]),
     { label: "Gross profit", value: pnl.grossProfit, strong: true, note: pnl.grossMarginPct !== null ? percent(pnl.grossMarginPct) : undefined },
-    { label: "Payroll (aktual)", value: -pnl.payroll, minus: true },
-    { label: "Biaya operasional", value: -pnl.operatingExpense, minus: true },
+    { label: "Upah & payroll", value: -pnl.payroll, minus: true },
+    { label: "Biaya tetap & operasional", value: -pnl.operatingExpense, minus: true },
     { label: "Operating profit", value: pnl.operatingProfit, strong: true },
     { label: "Non-operasional", value: -pnl.nonOperatingExpense, minus: true },
     { label: "Net profit", value: pnl.netProfit, strong: true, note: pnl.netMarginPct !== null ? percent(pnl.netMarginPct) : undefined },
@@ -451,8 +461,8 @@ export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
       <dl className="divide-y divide-white/8">
         {rows.map((row) => (
           <div key={row.label} className={`flex items-center justify-between gap-3 py-2 ${row.strong ? "text-zinc-50" : "text-zinc-300"}`}>
-            <dt className={`text-sm ${row.strong ? "font-bold" : ""}`}>{row.label}</dt>
-            <dd className="flex items-center gap-2 font-mono text-sm tabular-nums">
+            <dt className={`min-w-0 text-sm ${row.strong ? "font-bold" : ""}`}>{row.label}</dt>
+            <dd className="flex shrink-0 items-center gap-2 whitespace-nowrap font-mono text-sm tabular-nums">
               {row.note ? <span className="text-xs text-zinc-400">{row.note}</span> : null}
               <span className={row.strong ? `font-bold ${row.value < 0 ? toneText.bad : ""}` : ""}>{rupiah(row.value)}</span>
             </dd>
@@ -463,10 +473,12 @@ export function ProfitLossCard({ data }: { data: FinanceControlDashboard }) {
         <Stat label="Alokasi Save Money" value={rupiah(pnl.reserveAllocation)} />
         <Stat label={`Void (${pnl.voidCount})`} value={rupiah(pnl.voidAmount)} />
         <Stat label="Ongkir delivery (di luar penjualan)" value={rupiah(pnl.deliveryFees ?? 0)} />
+        {purchaseMode ? <Stat label="HPP resep (info margin menu)" value={rupiah(pnl.cogsRecipe)} /> : null}
       </div>
       <p className="mt-3 text-xs text-zinc-400">
         Save Money = cadangan kas, bukan expense. Void dicatat terpisah dan tidak mengurangi revenue. Ongkir
         delivery ikut masuk kas (QRIS) tetapi tidak dihitung sebagai penjualan menu.
+        {purchaseMode ? " Biaya bahan = belanja yang diterima gudang (dibayar cash); HPP resep hanya pembanding margin." : ""}
         {pnl.hppCoveragePct !== null ? ` HPP terukur untuk ${percent(pnl.hppCoveragePct)} penjualan.` : ""}
       </p>
     </FinanceCard>

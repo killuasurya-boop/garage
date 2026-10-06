@@ -6,7 +6,7 @@
 //   Expenses → OPEX & cash out
 // Hasil per hari disimpan ke financial_snapshots agar dashboard tidak
 // menghitung ulang seluruh histori setiap dibuka (PRD §54).
-import { and, asc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { getDb } from "@/db";
@@ -64,6 +64,7 @@ import {
   sumFigures,
   type BepResult,
   type CostClass,
+  type CogsBasis,
   type CostTreatment,
   type DayFigure,
   type DayRaw,
@@ -75,6 +76,7 @@ import {
   type FinanceThresholds,
   type PeriodKey,
 } from "@/lib/finance-control-core";
+import { purchaseAreaForCategory } from "@/lib/finance-purchases";
 import type { GarageSession } from "@/lib/server-auth";
 
 type Db = ReturnType<typeof getDb>;
@@ -111,6 +113,7 @@ const DEFAULT_CATEGORIES: FinanceExpenseCategory[] = [
   { name: "COGS", groupKey: "cogs_purchase", costClass: "variable", costItemCode: null },
   { name: "Belanja Dapur", groupKey: "cogs_purchase", costClass: "variable", costItemCode: null },
   { name: "Belanja Bar", groupKey: "cogs_purchase", costClass: "variable", costItemCode: null },
+  { name: "Belanja Umum", groupKey: "cogs_purchase", costClass: "variable", costItemCode: null },
   { name: "Payroll", groupKey: "payroll", costClass: "fixed", costItemCode: null },
   { name: "Gaji Karyawan", groupKey: "payroll_payout", costClass: "fixed", costItemCode: null },
   { name: "Fee/Insentif Karyawan", groupKey: "payroll_payout", costClass: "variable", costItemCode: null },
@@ -148,6 +151,10 @@ type SettingsShape = {
   capitalRecoveryMethod: CapitalRecoveryMethod;
   /** Anggaran belanja bahan baku per hari (Bar & Dapur). */
   variableBudget: VariableBudget;
+  /** Dasar biaya bahan di laba rugi (default "purchase" = belanja gudang). */
+  cogsBasis: CogsBasis;
+  /** Target profit bersih per bulan (Rp); null = belum diisi. */
+  netProfitTargetMonthly: number | null;
 };
 
 export const DEFAULT_EXPENSE_APPROVAL_THRESHOLD = 1_000_000;
@@ -249,6 +256,11 @@ function readSettings(rows: Array<{ key: string; value: unknown }>): SettingsSha
       ? (map.get("capitalRecoveryMethod") as CapitalRecoveryMethod)
       : "net_profit",
     variableBudget: { ...DEFAULT_VARIABLE_BUDGET, ...((map.get("variableBudget") ?? {}) as Partial<VariableBudget>) },
+    cogsBasis: map.get("cogsBasis") === "recipe" ? "recipe" : "purchase",
+    netProfitTargetMonthly:
+      typeof map.get("netProfitTargetMonthly") === "number" && (map.get("netProfitTargetMonthly") as number) > 0
+        ? (map.get("netProfitTargetMonthly") as number)
+        : null,
   };
 }
 
@@ -357,6 +369,7 @@ export function emptyRaw(date: string): DayRaw {
     payrollWages: 0,
     payrollFee: 0,
     expenses: {},
+    purchases: { bar: 0, dapur: 0, umum: 0 },
     payments: {},
     settlementFees: 0,
     capitalIn: 0,
@@ -487,6 +500,8 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
       .select({
         day: expenseDay,
         category: expenses.category,
+        // Belanja dari penerimaan gudang (cash lunas) = biaya "Belanja bahan".
+        purchase: sql<boolean>`(${expenses.sourceDoc} is not null)`,
         amount: sql<string>`coalesce(sum(${expenses.amount}), 0)::bigint`,
       })
       .from(expenses)
@@ -497,7 +512,7 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
           lt(expenses.expenseDate, end),
         ),
       )
-      .groupBy(expenseDay, expenses.category),
+      .groupBy(expenseDay, expenses.category, sql`(${expenses.sourceDoc} is not null)`),
     db
       .select({ day: settlementDay, fee: sql<string>`coalesce(sum(${paymentSettlements.feeAmount}), 0)::bigint` })
       .from(paymentSettlements)
@@ -587,6 +602,10 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
   for (const row of expenseRows) {
     const raw = at(row.day);
     raw.expenses[row.category] = (raw.expenses[row.category] ?? 0) + Number(row.amount);
+    if (row.purchase === true || String(row.purchase) === "true") {
+      const area = purchaseAreaForCategory(row.category) ?? "umum";
+      raw.purchases[area] += Number(row.amount);
+    }
   }
   for (const row of settlementRows) at(row.day).settlementFees = Number(row.fee);
   for (const row of capitalRows) {
@@ -611,7 +630,7 @@ const LIVE_WINDOW_DAYS = 7;
  * snapshot "locked" (Daily Closing) tidak pernah diubah.
  * v2: HPP aktual = resep + susut gudang (PRD §11).
  */
-const ENGINE_VERSION = 4; // v3: ongkir dipisah dari penjualan; v4: upah karyawan harian masuk P&L
+const ENGINE_VERSION = 5; // v3: ongkir dipisah; v4: upah harian masuk P&L; v5: biaya bahan = belanja gudang
 
 type SnapshotRow = typeof financialSnapshots.$inferSelect;
 
@@ -632,6 +651,9 @@ function figureFromSnapshot(row: SnapshotRow): DayFigure {
     // Snapshot versi lama (sebelum v2) belum memisah susut → seluruh HPP = resep.
     cogsRecipe: breakdown.cogsRecipe !== undefined ? Number(breakdown.cogsRecipe) : Number(row.cogs),
     cogsShrinkage: Number(breakdown.cogsShrinkage ?? 0),
+    purchaseBar: Number(breakdown.purchaseBar ?? 0),
+    purchaseDapur: Number(breakdown.purchaseDapur ?? 0),
+    purchaseUmum: Number(breakdown.purchaseUmum ?? 0),
     grossProfit: Number(row.grossProfit),
     payroll: Number(row.payroll),
     operatingExpense: Number(row.operatingExpense),
@@ -695,6 +717,9 @@ export function snapshotFromFigure(figure: DayFigure) {
       coveredLineSales: figure.coveredLineSales,
       cogsRecipe: figure.cogsRecipe,
       cogsShrinkage: figure.cogsShrinkage,
+      purchaseBar: figure.purchaseBar,
+      purchaseDapur: figure.purchaseDapur,
+      purchaseUmum: figure.purchaseUmum,
       deliveryFees: figure.deliveryFees,
       engineVersion: ENGINE_VERSION,
     },
@@ -753,6 +778,21 @@ async function storeSnapshots(figures: DayFigure[]) {
  * dibuat bila belum ada); 7 hari terakhir + hari ini dihitung live karena
  * transaksi terlambat/backdate masih mungkin. Snapshot `locked` selalu dipakai.
  */
+/** Belanja gudang sebelum tanggal mulai usaha = stok awal (bagian modal). */
+export async function loadOpeningStockPurchases(startKey: string) {
+  const [row] = await getDb()
+    .select({ total: sql<string>`coalesce(sum(${expenses.amount}), 0)::bigint` })
+    .from(expenses)
+    .where(
+      and(
+        isNotNull(expenses.sourceDoc),
+        inArray(expenses.status, PNL_EXPENSE_STATUSES),
+        lt(expenses.expenseDate, jakartaDayStart(startKey)),
+      ),
+    );
+  return Number(row?.total ?? 0);
+}
+
 export async function getDayFigures(fromKey: string, toKey: string, config: FinanceConfig, todayKey: string) {
   const db = getDb();
   const liveFrom = addDays(todayKey, -LIVE_WINDOW_DAYS);
@@ -886,9 +926,10 @@ export async function getFinanceControlDashboard(input: {
   const trailing = sumFigures(range(addDays(todayKey, -29), todayKey));
   const fixedDaily = fixedCostDaily(config);
 
-  const bep = computeBep({ totals, trailing, fixedDaily, monthDays });
+  const preferTrailing = config.cogsBasis === "purchase";
+  const bep = computeBep({ totals, trailing, fixedDaily, monthDays, preferTrailing });
   const today = byDate.get(todayKey) ?? null;
-  const todayBep = computeBep({ totals: sumFigures(today ? [today] : []), trailing, fixedDaily, monthDays });
+  const todayBep = computeBep({ totals: sumFigures(today ? [today] : []), trailing, fixedDaily, monthDays, preferTrailing });
   const previous7 = range(addDays(todayKey, -7), addDays(todayKey, -1));
   const monthToDate = sumFigures(range(month.fromKey, todayKey));
   const previousMonthToDate = sumFigures(range(month.prevFromKey, month.prevToKey));
@@ -925,6 +966,7 @@ export async function getFinanceControlDashboard(input: {
   }
   const recoveryOf = (day: DayFigure) => dayRecoveryValue(day, recoveryMethod, capitalOutByDate);
   const sinceStart = range(config.businessStartDate, todayKey);
+  const monthActive = range(max(config.businessStartDate, month.fromKey), todayKey);
   const capital = computeCapitalRecovery({
     capital: config.capital,
     cumulativeNetProfit: sinceStart.reduce((sum, day) => sum + recoveryOf(day), 0),
@@ -932,6 +974,11 @@ export async function getFinanceControlDashboard(input: {
     startDate: config.businessStartDate,
     todayKey,
     method: recoveryMethod,
+    targetMonthly: config.netProfitTargetMonthly,
+    monthToDateActual: monthActive.reduce((sum, day) => sum + recoveryOf(day), 0),
+    activeDaysInMonth: monthActive.length,
+    monthDays,
+    openingStockPurchases: await loadOpeningStockPurchases(config.businessStartDate),
   });
   // Pembeda untuk Owner: kas & aset BUKAN "modal kembali".
   const [inventoryAsset] = await getDb()
@@ -1129,6 +1176,10 @@ export async function getFinanceControlDashboard(input: {
       cogs: totals.cogs,
       cogsRecipe: totals.cogsRecipe,
       cogsShrinkage: totals.cogsShrinkage,
+      cogsBasis: config.cogsBasis ?? "purchase",
+      purchaseBar: totals.purchaseBar,
+      purchaseDapur: totals.purchaseDapur,
+      purchaseUmum: totals.purchaseUmum,
       grossProfit: totals.grossProfit,
       grossMarginPct: ratioPct(totals.grossProfit, totals.netSales),
       payroll: totals.payroll,
@@ -1236,6 +1287,8 @@ export async function getFinanceSettingsBundle() {
       expenseOwnerApprovalThreshold,
       capitalRecoveryMethod: config.capitalRecoveryMethod ?? "net_profit",
       variableBudget: config.variableBudget ?? DEFAULT_VARIABLE_BUDGET,
+      cogsBasis: config.cogsBasis ?? "purchase",
+      netProfitTargetMonthly: config.netProfitTargetMonthly ?? null,
     },
     capitalRecoveryMethods: CAPITAL_RECOVERY_METHODS,
     costItems: config.costItems,
@@ -1279,6 +1332,11 @@ export async function updateFinanceSettings(input: FinanceSettingsUpdate, garage
         thresholds: { ...before.settings.thresholds, ...(input.settings.thresholds ?? {}) },
         capitalRecoveryMethod: input.settings.capitalRecoveryMethod ?? before.settings.capitalRecoveryMethod,
         variableBudget: { ...before.settings.variableBudget, ...(input.settings.variableBudget ?? {}) },
+        cogsBasis: input.settings.cogsBasis ?? before.settings.cogsBasis,
+        netProfitTargetMonthly:
+          input.settings.netProfitTargetMonthly !== undefined
+            ? input.settings.netProfitTargetMonthly
+            : before.settings.netProfitTargetMonthly,
       };
       for (const [key, raw] of Object.entries(merged)) {
         if (JSON.stringify(raw) === JSON.stringify(before.settings[key as keyof SettingsShape])) continue;

@@ -63,5 +63,12 @@ describe("Gudang utama 2 ruang", () => {
     expect(await onHandAt("RICE", ruangDapur.id)).toBe(riceBefore + 200);
     // Bahan dapur TIDAK masuk ke Ruang Bar.
     expect(await onHandAt("RICE", ruangBar.id)).toBe(0);
+
+    // Belanja cash lunas dipisah per area (Bar / Dapur) — dasar biaya bahan.
+    const { like } = await import("drizzle-orm");
+    const spend = await t.getDb().select().from(t.schema.expenses).where(like(t.schema.expenses.sourceDoc, `WMS:${rec.doc}#%`));
+    const byCat = Object.fromEntries(spend.map((row: any) => [row.category, row.amount]));
+    expect(byCat["Belanja Bar"]).toBe(Math.round(100 * 0.12));
+    expect(byCat["Belanja Dapur"]).toBe(Math.round(200 * 0.013));
   });
 });

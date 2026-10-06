@@ -11,6 +11,9 @@ export type FinanceOverview = {
     orderCount: number;
     cashCollected: number;
     nonCashCollected: number;
+    /** Biaya bahan di laba rugi (mode purchase = belanja gudang). */
+    cogs?: number;
+    cogsBasis?: "purchase" | "recipe";
   };
   feeLiability: {
     totalAccrued: number;

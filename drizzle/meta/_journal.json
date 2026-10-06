@@ -876,6 +876,13 @@
       "when": 1791269519303,
       "tag": "0124_finance_wage_accrue",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1791272936393,
+      "tag": "0125_finance_purchase_cash",
+      "breakpoints": true
     }
   ]
 }

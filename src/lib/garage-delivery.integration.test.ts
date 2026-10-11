@@ -92,14 +92,30 @@ describe("Delivery: syarat pemesanan", () => {
     expect(o.status).toBe("awaiting_payment");
   });
 
-  it("ditolak: bukan QRIS (COD/transfer), < 2 produk, tanpa alamat, tanpa WA", async () => {
+  it("ditolak: bukan QRIS (COD/transfer), belanja < Rp25.000, tanpa alamat, tanpa WA", async () => {
     await expect(svc.createCustomerOrder(deliveryInput({ paymentMethod: "Cash" }))).rejects.toThrow(/QRIS/);
     await expect(svc.createCustomerOrder(deliveryInput({ paymentMethod: "Bank Transfer" }))).rejects.toThrow(/QRIS/);
     await expect(
       svc.createCustomerOrder(deliveryInput({ items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }] })),
-    ).rejects.toThrow(/Minimal pemesanan delivery 2/);
+    ).rejects.toThrow(/Minimal belanja delivery Rp25\.000/);
     await expect(svc.createCustomerOrder(deliveryInput({ deliveryAddress: "  " }))).rejects.toThrow(/Alamat/);
     await expect(svc.createCustomerOrder(deliveryInput({ guestPhone: undefined }))).rejects.toThrow(/WhatsApp/);
+  });
+
+  it("ongkir per km dari titik Garage; di luar radius ditolak; tanpa lokasi = ongkir dasar", async () => {
+    // Garage di (3.3285, 99.1625). 0,01° lintang ≈ 1,11 km.
+    await svc.updateAppSettings(outletId, { garageLat: 3.3285, garageLng: 99.1625 }, kasir());
+    const near = await svc.createCustomerOrder(deliveryInput({ customerLat: 3.3285 + 0.0275, customerLng: 99.1625 }));
+    // ± 3,1 km → dasar Rp5.000 (2 km) + 2 km × Rp2.000 = Rp9.000
+    expect(near.order.deliveryFee).toBe(9000);
+    const billing = await svc.getCustomerOrderBillingSettings(outletId);
+    expect(billing.deliveryOrigin).toEqual({ lat: 3.3285, lng: 99.1625 });
+    await expect(
+      svc.createCustomerOrder(deliveryInput({ customerLat: 3.3285 + 0.09, customerLng: 99.1625 })),
+    ).rejects.toThrow(/di luar jangkauan delivery \(maks 7 km\)/);
+    const noLocation = await svc.createCustomerOrder(deliveryInput());
+    expect(noLocation.order.deliveryFee).toBe(5000);
+    await svc.updateAppSettings(outletId, { garageLat: 0, garageLng: 0 }, kasir());
   });
 
   it("delivery nonaktif di Pengaturan → ditolak", async () => {

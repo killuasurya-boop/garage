@@ -159,6 +159,43 @@ export function validLatLng(lat: unknown, lng: unknown): { lat: number; lng: num
   return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 };
 }
 
+// -----------------------------------------------------------------------------
+// Ongkir per km (owner, Okt 2026): ongkir dasar untuk N km pertama + tarif per
+// km berikutnya (dibulatkan ke atas), maksimal radius. Jarak = garis lurus dari
+// titik Garage ke lokasi yang dibagikan pelanggan. Tanpa lokasi pelanggan (atau
+// titik Garage belum diisi) → ongkir dasar (flat).
+// -----------------------------------------------------------------------------
+export type DeliveryTariff = {
+  baseFee: number;
+  baseKm: number;
+  perKmFee: number;
+  /** 0 = tanpa batas radius. */
+  maxKm: number;
+};
+
+export type DeliveryQuote =
+  | { ok: true; fee: number; distanceKm: number | null; flat: boolean }
+  | { ok: false; reason: string; distanceKm: number };
+
+export function deliveryQuote(
+  tariff: DeliveryTariff,
+  origin: { lat: number; lng: number } | null,
+  destination: { lat: number; lng: number } | null,
+): DeliveryQuote {
+  const baseFee = Math.max(0, Math.round(tariff.baseFee));
+  if (!origin || !destination) return { ok: true, fee: baseFee, distanceKm: null, flat: true };
+  const km = Math.round(distanceKm(origin, destination) * 10) / 10;
+  if (tariff.maxKm > 0 && km > tariff.maxKm) {
+    return {
+      ok: false,
+      distanceKm: km,
+      reason: `Lokasi ± ${km.toLocaleString("id-ID")} km dari Garage, di luar jangkauan delivery (maks ${tariff.maxKm} km).`,
+    };
+  }
+  const extraKm = Math.max(0, Math.ceil(km - Math.max(0, tariff.baseKm)));
+  return { ok: true, fee: baseFee + extraKm * Math.max(0, Math.round(tariff.perKmFee)), distanceKm: km, flat: false };
+}
+
 /** Order take away/delivery belum lunas & sudah lewat batas → tolak otomatis. */
 export function isUnpaidOrderExpired(
   order: { fulfillment: string | null; status: string; createdAt: Date | string },

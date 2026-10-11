@@ -517,7 +517,44 @@ const barMenuItems: GarageMenuItem[] = [
 // Menu aktif (owner, Sep 2026): 10 produk makanan & cemilan + 19 minuman bar.
 // HPP selalu dari bahan baku resep (bukan patokan persen): makanan/cemilan HPP 0
 // sampai owner mengisi resepnya; minuman bar dari resep "HPP BAR.xlsx".
-export const menuItems: GarageMenuItem[] = [
+const MENU_PHOTO_IDS = new Set([
+  "bar-biscoff",
+  "bar-butterscotch-sea-salt",
+  "bar-cappuccino",
+  "bar-caramel-macchiato",
+  "bar-choco-cloud",
+  "bar-coffee-latte",
+  "bar-coklat",
+  "bar-creamy-nutty",
+  "bar-dirty-latte",
+  "bar-gula-aren",
+  "bar-hazelnut-latte",
+  "bar-ice-tea",
+  "bar-lemon-tea",
+  "bar-lychee-tea",
+  "bar-matcha",
+  "bar-matcha-butterscotch",
+  "bar-matcha-strawberry",
+  "bar-mocca-peanut",
+  "bar-mont-blanc",
+  "bar-peach-tea",
+  "bar-sanger",
+  "bar-spanish-latte",
+  "bar-strawberry-milk",
+  "bar-vanilla-latte",
+  "cemilan-kentang-balado",
+  "cemilan-kentang-ori",
+  "cemilan-mix-plater",
+  "cemilan-nugget",
+  "cemilan-sosis",
+  "makanan-ayam-penyet",
+  "makanan-indomie-goreng",
+  "makanan-indomie-kuah",
+  "makanan-nasi",
+  "makanan-nasi-goreng",
+]);
+
+export const menuItems: GarageMenuItem[] = ([
   {
     id: "makanan-indomie-kuah",
     name: "Indomie Kuah",
@@ -619,7 +656,10 @@ export const menuItems: GarageMenuItem[] = [
     tags: ["Snack"],
   },
   ...barMenuItems,
-];
+] satisfies GarageMenuItem[]).map((item): GarageMenuItem =>
+  // Foto produk owner (Okt 2026) di public/menu-photos/<id>.webp.
+  MENU_PHOTO_IDS.has(item.id) ? { ...item, imageUrl: `/menu-photos/${item.id}.webp` } : item,
+);
 
 export const cartSeed: { itemId: string; variantId: string; qty: number }[] = [];
 

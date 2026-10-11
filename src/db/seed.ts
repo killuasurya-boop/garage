@@ -210,6 +210,7 @@ async function seedMenu() {
       status: item.status ?? "active",
       prep: item.prep,
       tags: item.tags,
+      imageUrl: item.imageUrl ?? null,
       sortOrder: index,
     };
     if (syncCatalog) {

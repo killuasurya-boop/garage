@@ -70,9 +70,10 @@ function buildQrContext(params: SearchParams): CustomerOrderQrContext {
     outletId: uuidOrUndefined(firstParam(params, "outletId")),
     campaign: resolveOrderCampaign((key) => firstParam(params, key)),
     tableIssue,
-    tableHint: fromLinkWithoutTable
-      ? "Pilih Take away atau Delivery saat checkout. Mau makan di tempat? Scan QR yang menempel di meja Anda."
-      : undefined,
+    // Link umum (tanpa meja): pelanggan memilih Dine-in / Take away / Delivery dulu.
+    chooseType: fromLinkWithoutTable,
+    // QR meja: nomor meja langsung dikonfirmasi ("Kamu di Meja 07, benar?").
+    presetTable: tableNumber ?? undefined,
   };
 }
 

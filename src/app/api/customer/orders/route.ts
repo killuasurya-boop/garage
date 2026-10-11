@@ -3,6 +3,7 @@ import { z } from "zod";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { sweepUnpaidOrdersLazily } from "@/lib/garage-courier";
 import {
+  TableClaimError,
   createCustomerOrder,
   getCustomerOrderData,
 } from "@/lib/garage-service";
@@ -47,6 +48,9 @@ const customerOrderSchema = z.object({
   chatToken: z.string().trim().min(12).max(120).optional(),
   // Delivery: alamat lengkap + patokan (divalidasi di server untuk orderType delivery).
   deliveryAddress: z.string().trim().max(300).optional(),
+  // Pilih meja menu digital: kunci meja milik pelanggan / kode gabung meja terisi.
+  tableHoldToken: z.string().regex(/^[a-f0-9]{32,64}$/).optional(),
+  tableJoinCode: z.string().regex(/^\d{4}$/, "Kode gabung 4 angka.").optional(),
   customerLat: z.number().min(-90).max(90).optional(),
   customerLng: z.number().min(-180).max(180).optional(),
   items: z.array(itemSchema).min(1).max(40),
@@ -102,11 +106,16 @@ export async function POST(request: Request) {
     const result = await createCustomerOrder({
       ...body.data,
       memberCustomerId,
+      // Dine-in dari menu digital wajib kunci meja / kode gabung (bukan order staf).
+      enforceTableClaim: body.data.orderType === "dine-in",
     });
     if (cache?.kind === "miss") cache.commit(result);
     return ok(result, { status: 201 });
   } catch (error) {
     if (cache?.kind === "miss") cache.abandon();
+    if (error instanceof TableClaimError) {
+      return fail(409, error.code, error.message);
+    }
     return fail(
       400,
       "CUSTOMER_ORDER_CREATE_FAILED",

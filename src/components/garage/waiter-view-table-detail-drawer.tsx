@@ -53,7 +53,7 @@ function kitchenTone(status: string | null) {
   return "bg-white/[0.05] text-garage-dim ring-white/15";
 }
 
-type LifecycleAction = "clean" | "leave" | "start_cleaning" | "reserve" | "unreserve";
+type LifecycleAction = "clean" | "leave" | "start_cleaning" | "reserve" | "unreserve" | "release_hold";
 
 type PendingConfirm =
   | { kind: "lifecycle"; action: LifecycleAction; title: string; body: string; cta: string }
@@ -204,6 +204,17 @@ export function TableDetailDrawer({
               cta: "Ya, tamu pergi",
             },
           }
+        : row.status === "held"
+          ? {
+              action: "release_hold",
+              label: "Lepas kunci",
+              cls: "bg-[#facc15] text-[#1a1400] hover:bg-[#fde047]",
+              confirm: {
+                title: `Lepas kunci ${row.tableLabel}?`,
+                body: "Pelanggan sedang memilih meja ini di menu digital. Lepas bila pelanggan sudah pergi tanpa memesan.",
+                cta: "Ya, lepas kunci",
+              },
+            }
         : row.status === "reserved"
           ? {
               action: "unreserve",

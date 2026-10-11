@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Award,
   Bell,
+  Armchair,
   Bike,
   Bot,
   Building2,
@@ -56,6 +57,7 @@ import {
 import { isThemePresetId } from "@/lib/garage-theme";
 
 const ICON_MAP: Record<string, typeof Building2> = {
+  Armchair,
   Bike,
   Building2,
   Cpu,

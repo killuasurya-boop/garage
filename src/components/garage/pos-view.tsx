@@ -7318,25 +7318,34 @@ export function PosView({
                       : openBill && table.timerMinutes >= 30
                         ? "watch"
                         : "ok";
+                  // Warna PDF owner (sama dengan menu digital & waiter).
                   const toneClass =
                     availability === "cleaning"
-                      ? "border-[#ff2a3a]/65 bg-[#d11a2a]/14"
-                      : availability === "paid"
-                        ? "border-[#d4d4d8]/55 bg-white/[0.07]"
-                        : openBill
-                          ? "border-[#f5a742]/65 bg-[#f5a742]/10"
-                          : "border-[#4a4a54] bg-white/[0.035]";
+                      ? "border-[#9ca3af]/65 bg-[#9ca3af]/12"
+                      : availability === "held"
+                        ? "border-[#facc15]/70 bg-[#facc15]/10"
+                        : availability === "reserved"
+                          ? "border-[#3b82f6]/70 bg-[#3b82f6]/12"
+                          : availability === "paid" || openBill
+                            ? "border-[#ef4444]/65 bg-[#ef4444]/10"
+                            : isEmpty
+                              ? "border-[#22c55e]/50 bg-[#22c55e]/[0.07]"
+                              : "border-[#4a4a54] bg-white/[0.035]";
                   const statusText = table.staleFromPreviousDay
                     ? "Cek kasir · bill kemarin"
                     : tableAvailabilityLabel(availability);
                   const barClass =
                     availability === "cleaning"
-                      ? "bg-[#ff2a3a]"
-                      : availability === "paid"
-                        ? "bg-[#d4d4d8]"
-                        : openBill
-                          ? "bg-[#f5a742]"
-                          : "bg-[#4a4a54]";
+                      ? "bg-[#9ca3af]"
+                      : availability === "held"
+                        ? "bg-[#facc15]"
+                        : availability === "reserved"
+                          ? "bg-[#3b82f6]"
+                          : availability === "paid" || openBill
+                            ? "bg-[#ef4444]"
+                            : isEmpty
+                              ? "bg-[#22c55e]"
+                              : "bg-[#4a4a54]";
                   return (
                     <button
                       key={table.tableNumber}
@@ -7357,16 +7366,30 @@ export function PosView({
                           table.staleFromPreviousDay
                             ? "text-[#ffb3b3]"
                             : availability === "cleaning"
-                              ? "text-[#ffc2c8]"
-                              : openBill
-                                ? "text-[#ffd08a]"
-                                : isEmpty
-                                  ? "text-[#a1a1aa]"
-                                  : "text-[#e4e4e7]"
+                              ? "text-[#e5e7eb]"
+                              : availability === "held"
+                                ? "text-[#fef08a]"
+                                : availability === "reserved"
+                                  ? "text-[#bfdbfe]"
+                                  : openBill || availability === "paid"
+                                    ? "text-[#fecaca]"
+                                    : isEmpty
+                                      ? "text-[#bbf7d0]"
+                                      : "text-[#e4e4e7]"
                         }`}
                       >
                         {statusText}
                       </p>
+                      {(table.billTotal ?? 0) > 0 ? (
+                        <p className="garage-mono mt-0.5 truncate text-[11px] font-semibold text-white">
+                          {currency.format(table.billTotal ?? 0)}
+                        </p>
+                      ) : null}
+                      {table.idleWarning && !table.staleFromPreviousDay ? (
+                        <span className="mt-1 inline-block rounded-sm bg-[#facc15] px-1 py-0.5 text-[10px] font-bold leading-none text-[#1a1400]">
+                          Cek meja · {formatTableDuration(table.idleMinutes ?? 0)} diam
+                        </span>
+                      ) : null}
                       {table.currentOrderId && table.timerMinutes > 0 && !table.staleFromPreviousDay ? (
                         <span
                           className={`garage-mono mt-1 inline-block rounded-sm px-1 py-0.5 text-[11px] font-bold leading-none ${
@@ -7388,10 +7411,10 @@ export function PosView({
 
               {/* Keterangan warna meja (sama dengan peta meja waiter). */}
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#34343c] pt-2 text-[11px] text-[#b8b8bf]">
-                {(["ready", "bill", "paid", "cleaning"] as const).map((state) => (
+                {(["ready", "held", "bill", "reserved", "cleaning"] as const).map((state) => (
                   <span key={state} className="inline-flex items-center gap-1.5">
                     <span className="pos-table-indicator" data-state={state} aria-hidden="true" />
-                    {tableAvailabilityLabel(state)}
+                    {state === "bill" ? "Terisi" : tableAvailabilityLabel(state)}
                   </span>
                 ))}
                 <span className="inline-flex items-center gap-1.5">
@@ -10888,10 +10911,10 @@ function CheckoutOrderStep({
           </div>
 
           <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#b8b8bf]" aria-label="Keterangan status meja">
-            {(["ready", "bill", "paid", "cleaning"] as const).map((state) => (
+            {(["ready", "held", "bill", "reserved", "cleaning"] as const).map((state) => (
               <li key={state} className="inline-flex items-center gap-1.5">
                 <span className="pos-table-indicator" data-state={state} aria-hidden="true" />
-                {tableAvailabilityLabel(state)}
+                {state === "bill" ? "Terisi" : tableAvailabilityLabel(state)}
               </li>
             ))}
           </ul>

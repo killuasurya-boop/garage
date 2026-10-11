@@ -60,9 +60,17 @@ async function ticketsOf(orderId: string) {
   return t.getDb().select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, orderId));
 }
 
+const STANDBY = "user-itest-dlv-standby";
+
 beforeAll(async () => {
   t = await setupGarageTestDb();
   outletId = (await seedGarageBasics(t, { userId: KASIR })).outletId;
+  // Delivery hanya bisa dipesan bila ada kurir "Siap antar" (Pengaturan default).
+  await t.getDb().insert(t.schema.user).values({ id: STANDBY, name: "Zaki Standby", email: `${STANDBY}@garage.id` });
+  await t
+    .getDb()
+    .insert(t.schema.staffProfiles)
+    .values({ userId: STANDBY, outletId, role: "Waiter", workstation: "kurir", courierAvailability: "available" });
   svc = await import("@/lib/garage-service");
 }, 60_000);
 
@@ -205,12 +213,18 @@ describe("Kurir + GPS", () => {
       { userId: KURIR, outletId, role: "Waiter", workstation: "kurir" },
       { userId: KURIR2, outletId, role: "Waiter", workstation: "kurir" },
     ]);
+    // Andi menyalakan "Siap antar"; Bayu masih offline.
+    await cour.setCourierAvailability({ available: true }, courier());
   });
 
   it("kasir menugaskan kurir; kurir lain & waiter biasa ditolak; GPS hanya saat diantar lalu dihapus", async () => {
     const id = await paidDelivery({ customerLat: 3.3285, customerLng: 99.1625 });
     const list = await cour.listCouriers(kasir());
-    expect(list.map((c: any) => c.name)).toEqual(["Andi Kurir", "Bayu Kurir"]);
+    expect(list.map((c: any) => c.name)).toEqual(["Andi Kurir", "Bayu Kurir", "Zaki Standby"]);
+    expect(list.find((c: any) => c.userId === KURIR)).toMatchObject({ status: "available", assignable: true });
+    expect(list.find((c: any) => c.userId === KURIR2)).toMatchObject({ status: "offline", assignable: false });
+    // Kurir offline tidak bisa ditugaskan.
+    await expect(cour.assignCourier(id, KURIR2, kasir())).rejects.toThrow(/offline/);
 
     // Kurir tidak bisa menugaskan diri sendiri (bukan pegang uang).
     await expect(cour.assignCourier(id, KURIR, courier())).rejects.toThrow(/kasir/);
@@ -241,6 +255,9 @@ describe("Kurir + GPS", () => {
     // Melepas kurir saat sedang dibawa ditolak.
     await expect(cour.assignCourier(id, null, kasir())).rejects.toThrow(/sedang dibawa/);
 
+    // Sudah sampai wajib foto bukti terkirim.
+    await expect(cour.courierDeliveryAction(id, "arrive", courier())).rejects.toThrow(/foto bukti/);
+    await cour.attachDeliveryProof(id, "/api/courier/proof/proof-test.jpg", courier());
     const arrived = await cour.courierDeliveryAction(id, "arrive", courier());
     expect(arrived.deliveryStatus).toBe("delivered");
     expect(arrived.deliveredAt).toBeTruthy();
@@ -258,6 +275,45 @@ describe("Kurir + GPS", () => {
   it("delivery belum lunas tidak bisa ditugaskan", async () => {
     const res = await svc.createCustomerOrder(deliveryInput());
     await expect(cour.assignCourier(res.order.id, KURIR, kasir())).rejects.toThrow(/lunas/);
+  });
+
+  it("kurir Tersedia ambil sendiri; klaim kedua ditolak; kurir sibuk/offline tidak bisa ambil", async () => {
+    const id = await paidDelivery();
+    const board = await cour.getCourierBoard(courier());
+    expect(board.me).toMatchObject({ status: "available" });
+    expect(board.claimable.map((o: any) => o.id)).toContain(id);
+
+    // Bayu offline → tidak bisa ambil.
+    await expect(cour.claimDeliveryOrder(id, courier(KURIR2, "Bayu Kurir"))).rejects.toThrow(/Siap antar/);
+    const claimed = await cour.claimDeliveryOrder(id, courier());
+    expect(claimed.courierName).toBe("Andi Kurir");
+
+    // Andi sekarang "Ditugaskan" → tidak bisa ambil pesanan lain; Bayu online tapi pesanan sudah diambil.
+    const [andi] = (await cour.listCouriers(kasir())).filter((c: any) => c.userId === KURIR);
+    expect(andi.status).toBe("assigned");
+    await cour.setCourierAvailability({ available: true }, courier(KURIR2, "Bayu Kurir"));
+    await expect(cour.claimDeliveryOrder(id, courier(KURIR2, "Bayu Kurir"))).rejects.toThrow(/sudah diambil/);
+    const other = await paidDelivery();
+    await expect(cour.claimDeliveryOrder(other, courier())).rejects.toThrow(/Selesaikan antaran/);
+  });
+
+  it("tanpa kurir siap antar, delivery tidak bisa dipesan & tidak tampil di menu", async () => {
+    const { eq } = await import("drizzle-orm");
+    await t
+      .getDb()
+      .update(t.schema.staffProfiles)
+      .set({ courierAvailability: "offline" })
+      .where(eq(t.schema.staffProfiles.workstation, "kurir"));
+    const billing = await svc.getCustomerOrderBillingSettings(outletId);
+    expect(billing.deliveryEnabled).toBe(false);
+    expect(billing.deliveryUnavailableReason).toMatch(/Kurir sedang tidak tersedia/);
+    await expect(svc.createCustomerOrder(deliveryInput())).rejects.toThrow(/Kurir sedang tidak tersedia/);
+    await t
+      .getDb()
+      .update(t.schema.staffProfiles)
+      .set({ courierAvailability: "available" })
+      .where(eq(t.schema.staffProfiles.userId, STANDBY));
+    expect((await svc.getCustomerOrderBillingSettings(outletId)).deliveryEnabled).toBe(true);
   });
 });
 

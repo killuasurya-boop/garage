@@ -151,8 +151,16 @@ Scroll direction:
   "empty" resets `cleanedAt`. Previous-day unpaid bills surface as
   `staleFromPreviousDay` ("Cek kasir"), never auto-cancelled.
 - `moveTable` moves every open bill + kitchen tickets + open service requests in one
-  transaction. Table UI colours: kosong graphite, belum bayar amber, lunas silver,
-  perlu bersih red — always with a text label.
+  transaction (join code moves too).
+- Table UI colours (owner PDF "Flow Pemesanan Menu Digital", Okt 2026) — same on
+  customer menu, waiter, POS, smart floor, landing: Kosong green, Sedang dipilih
+  yellow, Terisi red (sub-label Belum bayar / Di kasir / Lunas), Reserved blue,
+  Perlu dibersihkan grey, Meja kamu = thick white outline + check. Always with a
+  text label. Palette lives in `src/lib/garage-table-status.ts`.
+- Customer dine-in (`/order`): pick table first (QR meja = confirm "Kamu di Meja 07,
+  benar?"), server hold `table_sessions.held_until` (`tableHoldMinutes`, FOR UPDATE
+  in tx). Occupied tables only via 4-digit `join_code` (cleared when emptied).
+  `/api/customer/orders` sets `enforceTableClaim`; staff orders don't.
 
 ## Verification
 

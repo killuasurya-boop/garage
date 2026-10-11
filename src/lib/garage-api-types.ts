@@ -620,6 +620,7 @@ export type CustomerOrder = {
   courierName?: string | null;
   courierLocationAt?: string | null;
   deliveredAt?: string | null;
+  deliveryProofUrl?: string | null;
   whatsappInvoiceStatus: "not_sent" | "sent" | "failed" | string;
   whatsappInvoiceUrl: string | null;
   invoicePdfUrl: string | null;
@@ -658,6 +659,8 @@ export type CustomerOrderCreateResponse = {
     url: string | null;
   };
   memberCta: string;
+  /** Kode gabung meja (dine-in) untuk teman semeja. */
+  joinCode?: string | null;
 };
 
 export type CustomerOrderActionResponse = {
@@ -696,6 +699,7 @@ export type PublicOrderStatus = {
   invoicePdfUrl?: string | null;
   invoiceWebUrl?: string | null;
   whatsappInvoiceUrl?: string | null;
+  tableJoin?: { tableNumber: string; tableLabel: string; joinCode: string } | null;
   updatedAt: string;
 };
 
@@ -795,6 +799,14 @@ export type TableLiveRow = {
   active?: boolean;
   /** Bill belum lunas dari hari sebelumnya → perlu dicek kasir. */
   staleFromPreviousDay?: boolean;
+  /** Total semua bill sesi (lunas + belum). */
+  billTotal?: number;
+  /** Meja sedang dipilih pelanggan di menu digital sampai waktu ini. */
+  heldUntil?: string | null;
+  /** Menit sejak aktivitas terakhir meja (0 bila kosong). */
+  idleMinutes?: number;
+  /** Meja terisi melewati batas "meja lupa ditutup" (Pengaturan → Meja). */
+  idleWarning?: boolean;
 };
 
 export type OutletTableConfig = {

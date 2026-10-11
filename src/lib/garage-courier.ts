@@ -55,27 +55,57 @@ const isCourier = (garage: GarageSession) => isCourierProfile(garage.profile);
 const canDispatch = (garage: GarageSession) =>
   canHandleMoney({ role: garage.profile.role, workstation: garage.profile.workstation, position: garage.profile.position });
 
-export type CourierOption = { userId: string; name: string; activeDeliveries: number };
+/**
+ * Status kurir (PDF owner, Okt 2026) — warna sama dengan meja:
+ *   available  = Tersedia (hijau, bisa ditugaskan)
+ *   assigned   = Ditugaskan, menunggu pickup (kuning)
+ *   delivering = Sedang mengantar (merah)
+ *   offline    = Offline / istirahat (abu-abu)
+ */
+export type CourierStatus = "available" | "assigned" | "delivering" | "offline";
 
-/** Kurir aktif di outlet + jumlah antaran yang sedang dibawa (untuk pilihan kasir). */
-export async function listCouriers(garage: GarageSession): Promise<CourierOption[]> {
-  const db = getDb();
+export type CourierOption = {
+  userId: string;
+  name: string;
+  activeDeliveries: number;
+  status: CourierStatus;
+  /** Hanya kurir Tersedia yang bisa ditugaskan / mengambil pesanan. */
+  assignable: boolean;
+};
+
+export function courierStatusFor(
+  availability: string | null | undefined,
+  activeStatuses: Array<string | null>,
+): CourierStatus {
+  if (availability !== "available") return "offline";
+  if (activeStatuses.some((status) => status === "picked_up" || status === "on_the_way")) return "delivering";
+  if (activeStatuses.length) return "assigned";
+  return "available";
+}
+
+type CourierDb = Pick<ReturnType<typeof getDb>, "select">;
+
+async function couriersOfOutlet(db: CourierDb, outletId: string) {
   const rows = await db
-    .select({ userId: staffProfiles.userId, name: user.name, workstation: staffProfiles.workstation })
+    .select({
+      userId: staffProfiles.userId,
+      name: user.name,
+      availability: staffProfiles.courierAvailability,
+    })
     .from(staffProfiles)
     .innerJoin(user, eq(user.id, staffProfiles.userId))
     .where(
       and(
-        eq(staffProfiles.outletId, garage.profile.outlet.id),
+        eq(staffProfiles.outletId, outletId),
         eq(staffProfiles.role, "Waiter"),
         eq(staffProfiles.status, "active"),
         eq(staffProfiles.workstation, "kurir"),
       ),
     )
     .orderBy(asc(user.name));
-  if (!rows.length) return [];
+  if (!rows.length) return [] as CourierOption[];
   const active = await db
-    .select({ courierUserId: orders.courierUserId })
+    .select({ courierUserId: orders.courierUserId, deliveryStatus: orders.deliveryStatus })
     .from(orders)
     .where(
       and(
@@ -88,11 +118,76 @@ export async function listCouriers(garage: GarageSession): Promise<CourierOption
         ne(orders.status, "rejected"),
       ),
     );
-  return rows.map((row) => ({
-    userId: row.userId,
-    name: row.name,
-    activeDeliveries: active.filter((entry) => entry.courierUserId === row.userId).length,
-  }));
+  return rows.map((row): CourierOption => {
+    const mine = active.filter((entry) => entry.courierUserId === row.userId).map((entry) => entry.deliveryStatus);
+    const status = courierStatusFor(row.availability, mine);
+    return {
+      userId: row.userId,
+      name: row.name,
+      activeDeliveries: mine.length,
+      status,
+      assignable: status === "available",
+    };
+  });
+}
+
+/** Kurir aktif di outlet + status (untuk pilihan kasir). */
+export async function listCouriers(garage: GarageSession): Promise<CourierOption[]> {
+  return couriersOfOutlet(getDb(), garage.profile.outlet.id);
+}
+
+/**
+ * Ketersediaan delivery untuk menu digital: tidak ada kurir "Siap antar" →
+ * delivery tidak bisa dipilih (bila diwajibkan Pengaturan); semua sibuk →
+ * tetap bisa pesan, masuk antrean.
+ */
+export async function deliveryCourierAvailability(outletId: string) {
+  const couriers = await couriersOfOutlet(getDb(), outletId);
+  const online = couriers.filter((courier) => courier.status !== "offline");
+  return {
+    online: online.length,
+    free: online.filter((courier) => courier.status === "available").length,
+  };
+}
+
+/** Kurir menyalakan "Siap antar" / "Istirahat" (atau Owner/Manajer untuk kurir lain). */
+export async function setCourierAvailability(
+  input: { available: boolean; courierUserId?: string },
+  garage: GarageSession,
+) {
+  const targetId = input.courierUserId ?? garage.user.id;
+  if (targetId !== garage.user.id && !isManagement(garage)) {
+    throw new CourierError("Hanya Owner/Manajer yang bisa mengubah status kurir lain.", 403);
+  }
+  if (targetId === garage.user.id && !isCourier(garage)) {
+    throw new CourierError("Status siap antar hanya untuk akun kurir.", 403);
+  }
+  const db = getDb();
+  const now = new Date();
+  const [row] = await db
+    .update(staffProfiles)
+    .set({ courierAvailability: input.available ? "available" : "offline", courierAvailabilityAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(staffProfiles.userId, targetId),
+        eq(staffProfiles.outletId, garage.profile.outlet.id),
+        eq(staffProfiles.workstation, "kurir"),
+      ),
+    )
+    .returning({ userId: staffProfiles.userId });
+  if (!row) throw new CourierError("Akun kurir tidak ditemukan.", 404);
+  await db.insert(auditLogs).values({
+    time: timeLabel(),
+    actor: actorOf(garage),
+    action: input.available ? "Kurir siap antar" : "Kurir istirahat",
+    object: targetId,
+    device: garage.profile.deviceLabel,
+    status: input.available ? "available" : "offline",
+    metadata: { courierUserId: targetId },
+  });
+  publishProductionChange();
+  const [mine] = (await listCouriers(garage)).filter((courier) => courier.userId === targetId);
+  return mine ?? null;
 }
 
 async function lockDeliveryOrder(tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], orderId: string) {
@@ -111,6 +206,20 @@ export async function assignCourier(orderId: string, courierUserId: string | nul
     if (order.status !== "paid") throw new CourierError("Order delivery harus lunas sebelum ditugaskan ke kurir.");
     if (order.deliveryStatus === "delivered") throw new CourierError("Pesanan sudah selesai diantar.");
     let courierName: string | null = null;
+    if (courierUserId && courierUserId !== order.courierUserId) {
+      // Hanya kurir berstatus Tersedia (siap antar & tidak membawa pesanan).
+      const options = await couriersOfOutlet(tx, order.outletId ?? garage.profile.outlet.id);
+      const option = options.find((courier) => courier.userId === courierUserId);
+      if (option && !option.assignable) {
+        const reason =
+          option.status === "offline"
+            ? "sedang offline/istirahat"
+            : option.status === "delivering"
+              ? "sedang mengantar"
+              : "sudah ditugaskan pesanan lain";
+        throw new CourierError(`${option.name} ${reason}. Pilih kurir yang Tersedia.`, 409);
+      }
+    }
     if (courierUserId) {
       const [courier] = await tx
         .select({ userId: staffProfiles.userId, name: user.name })
@@ -196,6 +305,10 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
     if (!rule.from.includes(order.deliveryStatus ?? null)) {
       throw new CourierError("Urutan status antar tidak sesuai. Muat ulang daftar antaran.");
     }
+    // "Sudah sampai" wajib foto bukti terkirim (PDF owner).
+    if (rule.to === "delivered" && !order.deliveryProofUrl) {
+      throw new CourierError("Ambil foto bukti terkirim dulu sebelum menandai Sudah sampai.", 409);
+    }
     const now = new Date();
     const [updated] = await tx
       .update(orders)
@@ -218,6 +331,71 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
     await announceOrderProgress(result.id, rule.to, { courierName: result.courierName }).catch(() => null);
   }
   return courierOrderView(result);
+}
+
+/** Kurir Tersedia mengambil sendiri pesanan delivery lunas yang belum ada kurirnya. */
+export async function claimDeliveryOrder(orderId: string, garage: GarageSession) {
+  if (!isCourier(garage)) throw new CourierError("Hanya akun kurir yang bisa mengambil pesanan.", 403);
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    const order = await lockDeliveryOrder(tx, orderId);
+    if (order.status !== "paid") throw new CourierError("Order belum lunas.");
+    if (order.courierUserId === garage.user.id) return order; // idempoten
+    if (order.courierUserId) throw new CourierError("Pesanan ini sudah diambil kurir lain.", 409);
+    if (order.deliveryStatus === "delivered") throw new CourierError("Pesanan sudah selesai diantar.");
+    const options = await couriersOfOutlet(tx, order.outletId ?? garage.profile.outlet.id);
+    const me = options.find((courier) => courier.userId === garage.user.id);
+    if (!me || me.status === "offline") throw new CourierError("Nyalakan \"Siap antar\" dulu sebelum mengambil pesanan.", 409);
+    if (!me.assignable) throw new CourierError("Selesaikan antaran yang sedang dibawa dulu.", 409);
+    const now = new Date();
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        courierUserId: garage.user.id,
+        courierName: garage.user.name,
+        deliveryStatus: order.deliveryStatus ?? "preparing",
+        courierLat: null,
+        courierLng: null,
+        courierLocationAt: null,
+        updatedAt: now,
+      })
+      .where(and(eq(orders.id, order.id), isNull(orders.courierUserId)))
+      .returning();
+    if (!updated) throw new CourierError("Pesanan ini sudah diambil kurir lain.", 409);
+    await tx.insert(auditLogs).values({
+      time: timeLabel(),
+      actor: actorOf(garage),
+      action: `Kurir ambil ${order.orderNo}`,
+      object: garage.user.name,
+      device: garage.profile.deviceLabel,
+      status: updated.deliveryStatus ?? "preparing",
+      metadata: { orderId: order.id, courierUserId: garage.user.id, by: "self_claim" },
+    });
+    return updated;
+  });
+  publishProductionChange();
+  await announceOrderProgress(result.id, "courier_assigned", { courierName: result.courierName }).catch(() => null);
+  return courierOrderView(result);
+}
+
+/** Simpan foto bukti terkirim (URL file staf) — hanya kurir yang ditugaskan / manajemen. */
+export async function attachDeliveryProof(orderId: string, proofUrl: string, garage: GarageSession) {
+  const db = getDb();
+  const [order] = await db
+    .select({ id: orders.id, courierUserId: orders.courierUserId, deliveryStatus: orders.deliveryStatus, orderNo: orders.orderNo })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+  if (!order) throw new CourierError("Order tidak ditemukan.", 404);
+  if (order.courierUserId !== garage.user.id && !isManagement(garage)) {
+    throw new CourierError("Pesanan ini tidak ditugaskan ke Anda.", 403);
+  }
+  if (order.deliveryStatus !== "picked_up" && order.deliveryStatus !== "on_the_way") {
+    throw new CourierError("Foto bukti diambil saat pesanan sedang diantar.", 409);
+  }
+  await db.update(orders).set({ deliveryProofUrl: proofUrl, updatedAt: new Date() }).where(eq(orders.id, order.id));
+  publishProductionChange();
+  return { ok: true, proofUrl };
 }
 
 /** Posisi GPS kurir — hanya kurir yang ditugaskan, hanya saat pesanan dibawa. */
@@ -264,6 +442,7 @@ function courierOrderView(row: typeof orders.$inferSelect, items: Array<{ itemNa
     invoiceTrackingToken: row.invoiceTrackingToken,
     createdAt: row.createdAt.toISOString(),
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
+    deliveryProofUrl: row.deliveryProofUrl ?? null,
     items: items.map((item) => ({ name: item.itemName, variant: item.variantLabel, qty: item.qty })),
     production: readyStations ?? null,
   };
@@ -315,10 +494,30 @@ export async function getCourierBoard(garage: GarageSession) {
       { total: live.length, ready: live.filter((ticket) => ticket.status === "ready" || ticket.status === "delivered").length },
     );
   });
+  // Kurir: pesanan siap diambil sendiri (lunas, belum ada kurir).
+  const claimableRows = isCourier(garage)
+    ? await db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.fulfillment, "delivery"),
+            eq(orders.status, "paid"),
+            isNull(orders.courierUserId),
+            or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
+            or(eq(orders.outletId, garage.profile.outlet.id), isNull(orders.outletId)),
+          ),
+        )
+        .orderBy(asc(orders.createdAt))
+        .limit(20)
+    : [];
+  const couriers = await listCouriers(garage);
   return {
     active: views.filter((view) => view.deliveryStatus !== "delivered"),
     done: views.filter((view) => view.deliveryStatus === "delivered"),
-    couriers: isCourier(garage) ? [] : await listCouriers(garage),
+    claimable: claimableRows.map((row) => courierOrderView(row)),
+    me: isCourier(garage) ? couriers.find((courier) => courier.userId === garage.user.id) ?? null : null,
+    couriers: isCourier(garage) ? [] : couriers,
     canDispatch: canDispatch(garage),
     isCourier: isCourier(garage),
   };

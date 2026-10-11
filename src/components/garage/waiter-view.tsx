@@ -1,5 +1,6 @@
 "use client";
 
+import { useProductionStream } from "@/lib/use-production-stream";
 import {
   useCallback,
   useEffect,
@@ -108,6 +109,7 @@ function serviceRequestLabel(type: string) {
   if (type === "bill") return "Minta Bill";
   if (type === "water") return "Air / Tisu";
   if (type === "other") return "Bantuan";
+  if (type === "move") return "Minta Pindah Meja";
   return "Panggil Pelayan";
 }
 
@@ -238,6 +240,14 @@ export function WaiterView({ me }: Props) {
     };
   }, [loadAll]);
 
+  // Realtime: meja dipilih pelanggan / order masuk / meja dibersihkan langsung
+  // tampil tanpa menunggu polling (polling tetap jadi cadangan).
+  useProductionStream(
+    useCallback(() => {
+      if (!inFlightRef.current) void loadAll(true);
+    }, [loadAll]),
+  );
+
   // Pesankan: buka menu digital (tampilan pelanggan) untuk meja ini di tab yang sama,
   // mode waiter → nama pemesan otomatis, order masuk ke kasir untuk divalidasi.
   function openWaiterOrder(tableNumber: string) {
@@ -292,7 +302,7 @@ export function WaiterView({ me }: Props) {
   const handleLifecycle = useCallback(
     async (
       row: TableLiveRow,
-      action: "leave" | "start_cleaning" | "reserve" | "unreserve",
+      action: "leave" | "start_cleaning" | "reserve" | "unreserve" | "release_hold",
     ) => {
       setActingTable(row.tableNumber);
       try {
@@ -305,6 +315,7 @@ export function WaiterView({ me }: Props) {
           start_cleaning: `${row.tableLabel} sedang dibersihkan`,
           reserve: `${row.tableLabel} ditandai dipesan`,
           unreserve: `${row.tableLabel} kembali kosong`,
+          release_hold: `Kunci ${row.tableLabel} dilepas`,
         }[action];
         toast.push({ tone: "success", title, ttl: 2200 });
         await loadAll(true);
@@ -782,12 +793,17 @@ export function WaiterView({ me }: Props) {
                           <span className={`size-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
                           <span className="line-clamp-2">{tone.label}</span>
                         </span>
-                        {row.total > 0 ? (
+                        {(row.billTotal ?? row.total) > 0 ? (
                           <span className="truncate font-mono text-[11px] font-semibold leading-tight text-white">
-                            {formatRupiah(row.total)}
+                            {formatRupiah(row.billTotal ?? row.total)}
                           </span>
                         ) : row.area ? (
                           <span className="truncate text-[11px] leading-tight text-garage-dim">{row.area}</span>
+                        ) : null}
+                        {row.idleWarning && !row.staleFromPreviousDay ? (
+                          <span className="mt-1 self-start rounded-sm bg-[#facc15] px-1 py-0.5 text-[10px] font-bold leading-none text-[#1a1400]">
+                            Cek meja · {formatTableDuration(row.idleMinutes ?? 0)} diam
+                          </span>
                         ) : null}
                         {row.staleFromPreviousDay ? (
                           <span className="mt-1 self-start rounded-sm bg-[#d11a2a] px-1 py-0.5 text-[10px] font-bold leading-none text-white">

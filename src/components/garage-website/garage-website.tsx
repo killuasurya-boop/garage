@@ -3,6 +3,7 @@
 "use client";
 
 import Link from "next/link";
+import { CUSTOMER_TABLE_STATUS_COPY, TABLE_STATUS_COLORS } from "@/lib/garage-table-status";
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
@@ -214,6 +215,15 @@ async function getPublicTrackingStatus(trackingId) {
 }
 
 function tableStatusCopy(row) {
+  // Status & warna sama dengan menu digital (PDF owner): Kosong hijau, Sedang
+  // dipilih kuning, Terisi merah, Reserved biru, Perlu dibersihkan abu-abu.
+  if (row.customerStatus && CUSTOMER_TABLE_STATUS_COPY[row.customerStatus]) {
+    return {
+      label: CUSTOMER_TABLE_STATUS_COPY[row.customerStatus].label,
+      tone: row.customerStatus === "available" ? "ready" : "full",
+      color: TABLE_STATUS_COLORS[row.customerStatus].dot,
+    };
+  }
   if (row.needsCleaning || row.status === "needs_cleaning") return TABLE_STATUS_COPY.needs_cleaning;
   return TABLE_STATUS_COPY[row.status] ?? TABLE_STATUS_COPY.unavailable;
 }
@@ -1466,6 +1476,7 @@ function Nav() {
                         <i
                           className="garage-table-indicator"
                           data-state={availability}
+                          style={copy.color ? { background: copy.color, boxShadow: `0 0 10px ${copy.color}` } : undefined}
                           aria-hidden="true"
                         />
                       </span>
@@ -1474,6 +1485,7 @@ function Nav() {
                         <i
                           className="garage-table-indicator"
                           data-state={availability}
+                          style={copy.color ? { background: copy.color } : undefined}
                           aria-hidden="true"
                         />
                         <em>{copy.label}</em>

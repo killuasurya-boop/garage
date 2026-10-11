@@ -1967,28 +1967,35 @@ body {
   }
 
   /* Titik status meja POS — statis (tanpa animasi berulang: puluhan titik
-     berkedip berat di tablet & melanggar aturan motion). Palet sama dengan
-     peta meja waiter: kosong = cincin silver, belum bayar/terisi = amber,
-     lunas = silver, perlu bersih = merah. */
+     berkedip berat di tablet & melanggar aturan motion). Palet PDF owner, sama
+     dengan menu digital & peta waiter: kosong hijau, sedang dipilih kuning,
+     terisi/belum bayar/lunas merah, reserved biru, perlu dibersihkan abu-abu.
+     Label teks selalu menyertai titik. */
   .pos-table-indicator[data-state="ready"] {
-    background: transparent;
-    box-shadow: inset 0 0 0 1.5px #a1a1aa;
+    background: #22c55e;
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.45);
+  }
+
+  .pos-table-indicator[data-state="held"] {
+    background: #facc15;
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.45);
   }
 
   .pos-table-indicator[data-state="full"],
-  .pos-table-indicator[data-state="bill"] {
-    background: #f5a742;
-    box-shadow: 0 0 0 1px rgba(245, 167, 66, 0.4);
+  .pos-table-indicator[data-state="bill"],
+  .pos-table-indicator[data-state="paid"] {
+    background: #ef4444;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45);
   }
 
-  .pos-table-indicator[data-state="paid"] {
-    background: #d4d4d8;
-    box-shadow: 0 0 0 1px rgba(212, 212, 216, 0.4);
+  .pos-table-indicator[data-state="reserved"] {
+    background: #3b82f6;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.45);
   }
 
   .pos-table-indicator[data-state="cleaning"] {
-    background: #ff2a3a;
-    box-shadow: 0 0 0 1px rgba(255, 42, 58, 0.45);
+    background: #9ca3af;
+    box-shadow: 0 0 0 1px rgba(156, 163, 175, 0.45);
   }
 
   .pos-table-indicator[data-state="unknown"] {

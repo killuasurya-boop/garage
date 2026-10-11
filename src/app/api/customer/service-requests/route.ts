@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const serviceRequestSchema = z.object({
   tableLabel: z.string().trim().min(1).max(40),
   outletId: z.string().uuid().optional(),
-  type: z.enum(["call", "bill", "water", "other"]).default("call"),
+  type: z.enum(["call", "bill", "water", "move", "other"]).default("call"),
   note: z.string().trim().max(160).optional(),
 });
 

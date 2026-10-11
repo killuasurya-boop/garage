@@ -66,7 +66,7 @@ export function defaultPaymentProvider(method: PaymentMethod) {
 
 // --- Table availability ----------------------------------------------------
 
-export type TableAvailability = "ready" | "bill" | "paid" | "cleaning" | "full" | "unknown";
+export type TableAvailability = "ready" | "held" | "reserved" | "bill" | "paid" | "cleaning" | "full" | "unknown";
 
 export const occupiedTableStatuses = new Set([
   "pending",
@@ -124,6 +124,8 @@ export function tableAvailabilityState(
 ): TableAvailability {
   if (!table || !liveDataReady) return "unknown";
   if (tableNeedsCleaning(table)) return "cleaning";
+  if (table.status === "held") return "held";
+  if (table.status === "reserved") return "reserved";
   if (hasAwaitingTableBill(table) || hasOpenTableBill(table)) return "bill";
   if (isPaidOnlyTable(table)) return "paid";
   if (table.status === "empty" && !table.needsCleaning) return "ready";
@@ -134,9 +136,11 @@ export function tableAvailabilityState(
 
 export function tableAvailabilityLabel(availability: TableAvailability) {
   if (availability === "ready") return "Kosong";
+  if (availability === "held") return "Sedang dipilih";
+  if (availability === "reserved") return "Reserved";
   if (availability === "bill") return "Belum bayar";
   if (availability === "paid") return "Lunas";
-  if (availability === "cleaning") return "Perlu bersih";
+  if (availability === "cleaning") return "Perlu dibersihkan";
   if (availability === "full") return "Terisi";
   return "Belum sinkron";
 }
@@ -318,6 +322,8 @@ export function tableLiveStatusLabel(table: TableLiveRow | null | undefined) {
   if (!table) return "Belum sinkron";
   if (tableNeedsCleaning(table)) return "Perlu dibersihkan";
   if (table.status === "mixed") return "Mixed bill";
+  if (table.status === "held") return "Sedang dipilih";
+  if (table.status === "reserved") return "Reserved";
   if (hasAwaitingTableBill(table)) return "Tagihan";
   if (hasOpenTableBill(table)) return "Belum Bayar";
   if (isPaidOnlyTable(table)) return "Lunas";
@@ -328,12 +334,15 @@ export function tableLiveStatusLabel(table: TableLiveRow | null | undefined) {
 
 export function tableLiveStatusTone(table: TableLiveRow | null | undefined) {
   if (!table) return "border-[#4a4a54] bg-white/[0.06] text-[#d4d4d8]";
-  // Palet peta meja: kosong = silver netral, belum bayar = amber, lunas = silver,
-  // perlu bersih = merah (sama dengan peta meja waiter & POS).
+  // Palet PDF owner (sama dengan menu digital & peta waiter): kosong hijau,
+  // sedang dipilih kuning, terisi (belum bayar/lunas) merah, reserved biru,
+  // perlu dibersihkan abu-abu.
   const state = tableAvailabilityState(table, true);
-  if (state === "cleaning") return "border-[#ff2a3a]/50 bg-[#d11a2a]/12 text-[#ffc2c8]";
-  if (state === "bill" || state === "full") return "border-[#f5a742]/50 bg-[#f5a742]/12 text-[#ffd08a]";
-  if (state === "paid") return "border-[#d4d4d8]/45 bg-white/[0.08] text-white";
+  if (state === "cleaning") return "border-[#9ca3af]/55 bg-[#9ca3af]/12 text-[#e5e7eb]";
+  if (state === "held") return "border-[#facc15]/60 bg-[#facc15]/12 text-[#fef08a]";
+  if (state === "reserved") return "border-[#3b82f6]/60 bg-[#3b82f6]/12 text-[#bfdbfe]";
+  if (state === "bill" || state === "full" || state === "paid") return "border-[#ef4444]/55 bg-[#ef4444]/12 text-[#fecaca]";
+  if (state === "ready") return "border-[#22c55e]/55 bg-[#22c55e]/10 text-[#bbf7d0]";
   return "border-[#4a4a54] bg-white/[0.06] text-[#e4e4e7]";
 }
 

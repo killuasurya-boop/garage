@@ -4,6 +4,7 @@ import { fail, ok, readJson } from "@/lib/api-response";
 import {
   getTableLiveRow,
   getUndeliveredProductionForTable,
+  releaseTableHoldByStaff,
   undeliveredProductionMessage,
   updateTableStatus,
 } from "@/lib/garage-service";
@@ -17,7 +18,7 @@ export const runtime = "nodejs";
 // Status tidak berubah hanya karena pembayaran — perlu event "tamu pergi".
 // CLEANING → AVAILABLE memakai /clean (sudah ada).
 const lifecycleSchema = z.object({
-  action: z.enum(["leave", "start_cleaning", "reserve", "unreserve"]),
+  action: z.enum(["leave", "start_cleaning", "reserve", "unreserve", "release_hold"]),
 });
 
 export async function POST(
@@ -54,7 +55,7 @@ export async function POST(
       if (openBills > 0 || ["pending", "accepted", "ready", "awaiting_payment", "mixed"].includes(row.status)) {
         return fail(409, "TABLE_HAS_OPEN_BILL", "Masih ada bill belum lunas di meja ini.");
       }
-      if (row.status === "empty" || row.status === "reserved") {
+      if (row.status === "empty" || row.status === "reserved" || row.status === "held") {
         return fail(409, "TABLE_NOT_OCCUPIED", "Meja tidak sedang terisi.");
       }
       const undelivered = await getUndeliveredProductionForTable(tableNumber, session.data.profile.outlet.id);
@@ -86,6 +87,13 @@ export async function POST(
         return fail(409, "TABLE_NOT_AVAILABLE", "Hanya meja AVAILABLE yang bisa direservasi.");
       }
       return ok(await updateTableStatus(tableNumber, { status: "reserved" }, session.data));
+    }
+    case "release_hold": {
+      // Pelanggan memilih meja lalu pergi tanpa pesan → staf lepas kunci kuning.
+      if (row.status !== "held") {
+        return fail(409, "TABLE_NOT_HELD", "Meja tidak sedang dipilih pelanggan.");
+      }
+      return ok(await releaseTableHoldByStaff(tableNumber, session.data));
     }
     case "unreserve": {
       if (row.status !== "reserved") {

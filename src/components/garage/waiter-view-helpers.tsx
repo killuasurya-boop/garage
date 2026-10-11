@@ -107,108 +107,119 @@ export type TableTone = {
   dot: string;
 };
 
-// Palet Garage (hitam · silver · merah · amber). Setiap status punya LABEL teks,
-// jadi warna hanya penguat — tidak ada yang harus ditebak dari warna saja.
-//   Kosong   → grafit netral          Belum bayar → amber
-//   Di kasir → amber pekat            Lunas       → silver
-//   Perlu bersih → merah              Dibersihkan → merah putus-putus
-//   Dipesan  → silver putus-putus     Sebagian lunas → amber + silver
+// Warna status meja (PDF owner "Flow Pemesanan Menu Digital", Okt 2026) — sama
+// dengan menu digital pelanggan. Setiap status punya LABEL teks; warna hanya penguat.
+//   Kosong → hijau      Sedang dipilih → kuning     Terisi → merah (label teks
+//   menyebut keadaannya: Belum bayar / Di kasir / Sebagian lunas / Lunas)
+//   Reserved → biru
+//   Perlu bersih → abu-abu      Dibersihkan → abu-abu putus-putus
 export function tableTone(row: TableLiveRow): TableTone {
   if (isCleaningTable(row)) {
     return {
-      card: "border-dashed border-[#ff2a3a]/70 bg-[#d11a2a]/10",
+      card: "border-dashed border-[#9ca3af]/70 bg-[#9ca3af]/10",
       label: "Dibersihkan",
-      bar: "bg-[repeating-linear-gradient(180deg,#ff2a3a_0_6px,transparent_6px_10px)]",
-      dot: "bg-[#ff2a3a]",
-      short: "Kotor",
-      labelColor: "text-[#ffb3b3]",
-      swatch: "border border-dashed border-[#ff2a3a] bg-[#d11a2a]/20",
+      bar: "bg-[repeating-linear-gradient(180deg,#9ca3af_0_6px,transparent_6px_10px)]",
+      dot: "bg-[#9ca3af]",
+      short: "Bersih-bersih",
+      labelColor: "text-[#e5e7eb]",
+      swatch: "border border-dashed border-[#9ca3af] bg-[#9ca3af]/20",
     };
   }
   if (isDirtyTable(row)) {
     return {
-      card: "border-[#ff2a3a]/75 bg-[#d11a2a]/14",
-      label: "Perlu bersih",
-      bar: "bg-[#ff2a3a]",
-      dot: "bg-[#ff2a3a]",
+      card: "border-[#9ca3af]/75 bg-[#9ca3af]/14",
+      label: "Perlu dibersihkan",
+      bar: "bg-[#9ca3af]",
+      dot: "bg-[#9ca3af]",
       short: "Kotor",
-      labelColor: "text-[#ffb3b3]",
-      swatch: "border border-[#ff2a3a] bg-[#d11a2a]/35",
+      labelColor: "text-[#e5e7eb]",
+      swatch: "border border-[#9ca3af] bg-[#9ca3af]/35",
     };
   }
   if (row.status === "reserved") {
     return {
-      card: "border-dashed border-[#d4d4d8]/70 bg-white/[0.04]",
-      label: "Dipesan",
-      bar: "bg-[repeating-linear-gradient(180deg,#d4d4d8_0_6px,transparent_6px_10px)]",
-      dot: "bg-[#d4d4d8]",
-      short: "Dipesan",
-      labelColor: "text-[#e4e4e7]",
-      swatch: "border border-dashed border-[#d4d4d8] bg-white/10",
+      card: "border-[#3b82f6]/70 bg-[#3b82f6]/12",
+      label: "Reserved",
+      bar: "bg-[#3b82f6]",
+      dot: "bg-[#3b82f6]",
+      short: "Reserved",
+      labelColor: "text-[#bfdbfe]",
+      swatch: "border border-[#3b82f6] bg-[#3b82f6]/30",
+    };
+  }
+  if (row.status === "held") {
+    return {
+      card: "border-[#facc15]/75 bg-[#facc15]/12",
+      label: "Sedang dipilih",
+      bar: "bg-[#facc15]",
+      dot: "bg-[#facc15]",
+      short: "Dipilih",
+      labelColor: "text-[#fef08a]",
+      swatch: "border border-[#facc15] bg-[#facc15]/30",
     };
   }
   if (hasAwaitingPaymentBill(row)) {
     return {
-      card: "border-[#f5a742] bg-[#f5a742]/18",
+      card: "border-[#ef4444] bg-[#ef4444]/18",
       label: "Di kasir",
-      bar: "bg-[#f5a742]",
-      dot: "bg-[#f5a742]",
+      bar: "bg-[#ef4444]",
+      dot: "bg-[#ef4444]",
       short: "Di kasir",
-      labelColor: "text-[#ffd08a]",
-      swatch: "border border-[#f5a742] bg-[#f5a742]/45",
+      labelColor: "text-[#fecaca]",
+      swatch: "border border-[#ef4444] bg-[#ef4444]/45",
     };
   }
   if (row.status === "mixed") {
     return {
-      card: "border-[#f5a742]/70 bg-[linear-gradient(135deg,rgba(245,167,66,0.14),rgba(212,212,216,0.08))]",
+      card: "border-[#ef4444]/70 bg-[#ef4444]/12",
       label: "Sebagian lunas",
-      bar: "bg-[linear-gradient(180deg,#f5a742,#d4d4d8)]",
-      dot: "bg-[#f5a742]",
+      bar: "bg-[#ef4444]",
+      dot: "bg-[#ef4444]",
       short: "Sebagian",
-      labelColor: "text-[#ffd08a]",
-      swatch: "border border-[#f5a742] bg-[linear-gradient(135deg,rgba(245,167,66,0.5),rgba(212,212,216,0.35))]",
+      labelColor: "text-[#fecaca]",
+      swatch: "border border-[#ef4444] bg-[#ef4444]/30",
     };
   }
   if (isPaidOnly(row)) {
     return {
-      card: "border-[#d4d4d8]/60 bg-white/[0.07]",
+      card: "border-[#ef4444]/50 bg-[#ef4444]/8",
       label: "Lunas",
-      bar: "bg-[#d4d4d8]",
-      dot: "bg-[#e4e4e7]",
+      bar: "bg-[#ef4444]/70",
+      dot: "bg-[#ef4444]",
       short: "Lunas",
-      labelColor: "text-[#f4f4f5]",
-      swatch: "border border-[#d4d4d8] bg-white/25",
+      labelColor: "text-[#fecaca]",
+      swatch: "border border-[#ef4444]/60 bg-[#ef4444]/15",
     };
   }
   if (hasOpenBill(row)) {
     return {
-      card: "border-[#f5a742]/70 bg-[#f5a742]/10",
+      card: "border-[#ef4444]/75 bg-[#ef4444]/14",
       label: row.status === "pending" ? "Menunggu kasir" : "Belum bayar",
-      bar: "bg-[#f5a742]",
-      dot: "bg-[#f5a742]",
+      bar: "bg-[#ef4444]",
+      dot: "bg-[#ef4444]",
       short: "Terisi",
-      labelColor: "text-[#ffd08a]",
-      swatch: "border border-[#f5a742]/80 bg-[#f5a742]/25",
+      labelColor: "text-[#fecaca]",
+      swatch: "border border-[#ef4444]/80 bg-[#ef4444]/30",
     };
   }
   return {
-    card: "border-garage-line bg-garage-bg-2",
+    card: "border-[#22c55e]/55 bg-[#22c55e]/8",
     label: "Kosong",
-    bar: "bg-[#4a4a54]",
-    dot: "bg-[#8f8f99]",
+    bar: "bg-[#22c55e]",
+    dot: "bg-[#22c55e]",
     short: "Kosong",
-    labelColor: "text-garage-dim",
-    swatch: "border border-garage-line-2 bg-garage-bg-2",
+    labelColor: "text-[#bbf7d0]",
+    swatch: "border border-[#22c55e] bg-[#22c55e]/25",
   };
 }
 
-/** Keterangan warna untuk peta & pemilih meja. */
+/** Keterangan warna untuk peta & pemilih meja (sama dengan menu digital pelanggan). */
 export const TABLE_LEGEND: Array<{ label: string; swatch: string }> = [
-  { label: "Kosong", swatch: "border border-garage-line-2 bg-garage-bg-2" },
-  { label: "Belum bayar", swatch: "border border-[#f5a742]/80 bg-[#f5a742]/25" },
-  { label: "Lunas", swatch: "border border-[#d4d4d8] bg-white/25" },
-  { label: "Perlu bersih", swatch: "border border-[#ff2a3a] bg-[#d11a2a]/35" },
-  { label: "Dipesan", swatch: "border border-dashed border-[#d4d4d8] bg-white/10" },
+  { label: "Kosong", swatch: "border border-[#22c55e] bg-[#22c55e]/25" },
+  { label: "Sedang dipilih", swatch: "border border-[#facc15] bg-[#facc15]/30" },
+  { label: "Terisi", swatch: "border border-[#ef4444]/80 bg-[#ef4444]/30" },
+  { label: "Reserved", swatch: "border border-[#3b82f6] bg-[#3b82f6]/30" },
+  { label: "Perlu dibersihkan", swatch: "border border-[#9ca3af] bg-[#9ca3af]/35" },
 ];
 
 /** Meja aktif yang menunggu lama: amber ≥15 menit, merah ≥30 menit. */

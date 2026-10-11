@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
@@ -185,7 +185,8 @@ import {
   guardReset,
   lockedMessage,
 } from "@/lib/pin-guard";
-import { notifyingProduction } from "@/lib/production-events";
+import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
+import { customerTableStatusFor } from "@/lib/garage-table-status";
 import { canUseApi, canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -260,6 +261,14 @@ type CustomerOrderInput = {
   // Lokasi pelanggan (opsional, tombol "Pakai lokasi saya") untuk jarak kurir.
   customerLat?: number;
   customerLng?: number;
+  /**
+   * Menu digital pilih meja (owner, Okt 2026): pelanggan wajib memegang kunci
+   * meja (holdToken) atau kode gabung untuk meja terisi. Order staf (waiter)
+   * tidak memakai aturan ini.
+   */
+  enforceTableClaim?: boolean;
+  tableHoldToken?: string;
+  tableJoinCode?: string;
   items: OrderInput["items"];
 };
 
@@ -933,6 +942,8 @@ function customerOrderResponse(
     courierName: row.courierName ?? null,
     courierLocationAt: row.courierLocationAt?.toISOString() ?? null,
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
+    // Foto bukti terkirim (hanya bisa dibuka staf yang login).
+    deliveryProofUrl: row.deliveryProofUrl ?? null,
     whatsappInvoiceStatus: row.whatsappInvoiceStatus,
     whatsappInvoiceUrl: row.whatsappInvoiceUrl,
     invoicePdfUrl: null,
@@ -6396,6 +6407,7 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
   const sessionByTable = new Map(sessionRows.map((row) => [row.tableNumber, row]));
   const orderById = new Map(latestOrders.map((order) => [order.id, order]));
   const now = new Date();
+  const idleWarnHours = (await getAppSettings(outletId)).tableIdleWarnHours;
 
   // Semua order meja hari ini per meja (untuk multi-bill dalam satu sesi).
   const ordersByTable = new Map<string, typeof todayTableOrders>();
@@ -6477,8 +6489,22 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
       status = tableStatusFromOrder(order, ticketStatus, needsCleaning);
     }
 
+    // Kunci menu digital: meja kosong yang sedang dipilih pelanggan (belum checkout).
+    const heldUntil =
+      status === "empty" && session?.heldUntil && session.heldUntil > now ? session.heldUntil : null;
+    if (heldUntil) status = "held";
+
     const lastStatusAt = session?.lastStatusAt ?? order?.updatedAt ?? order?.createdAt ?? null;
     const tableConfig = configByNumber.get(tableNumber);
+    // Aktivitas terakhir meja (order/pembayaran/status) → peringatan "meja lupa ditutup".
+    const lastActivityMs = Math.max(
+      lastStatusAt?.getTime() ?? 0,
+      ...sessionBills.map((bill) => bill.updatedAt.getTime()),
+    );
+    const idleMinutes =
+      status === "empty" || status === "held" || !lastActivityMs
+        ? 0
+        : Math.max(0, Math.floor((now.getTime() - lastActivityMs) / 60_000));
 
     const bills = sessionBills.map((o) => ({
       id: o.id,
@@ -6510,6 +6536,11 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
       bills,
       paidBillCount,
       openBillCount,
+      // Total semua bill sesi (lunas + belum) untuk kartu kasir.
+      billTotal: sessionBills.reduce((sum, bill) => sum + bill.total, 0),
+      heldUntil: heldUntil?.toISOString() ?? null,
+      idleMinutes,
+      idleWarning: idleWarnHours > 0 && idleMinutes >= idleWarnHours * 60,
     };
   });
 }
@@ -6702,28 +6733,48 @@ export function undeliveredProductionMessage(
   return `Masih ada pesanan belum diantar: ${list}. Antar atau batalkan dulu.`;
 }
 
-export async function getPublicTableLiveData(outletId?: string | null) {
+export async function getPublicTableLiveData(outletId?: string | null, holdToken?: string | null) {
   const rows = await getTableLiveData({ outletId });
+  const db = getDb();
+  // "Meja kamu" (outline + centang) — dicocokkan lewat hash token tanpa membocorkan token lain.
+  const mineHash = holdToken ? hashTableHoldToken(holdToken) : null;
+  const resolvedOutlet = await resolveTableOutletId(outletId);
+  const mineRows = mineHash
+    ? await db
+        .select({ tableNumber: tableSessions.tableNumber })
+        .from(tableSessions)
+        .where(
+          and(
+            eq(tableSessions.heldTokenHash, mineHash),
+            resolvedOutlet ? eq(tableSessions.outletId, resolvedOutlet) : undefined,
+          ),
+        )
+    : [];
+  const mine = new Set(mineRows.map((row) => row.tableNumber));
 
-  return rows.map((row) => {
-    const needsCleaning = Boolean(row.needsCleaning || row.status === "needs_cleaning");
-    const available = row.status === "empty" && !needsCleaning;
-    const status = needsCleaning
-      ? "needs_cleaning"
-      : available
-        ? "empty"
-        : ["pending", "accepted", "awaiting_payment", "paid", "ready", "mixed"].includes(row.status)
-          ? "occupied"
-          : "unavailable";
+  return rows.flatMap((row) => {
+    const customerStatus = customerTableStatusFor(row);
+    if (!customerStatus) return [];
+    const needsCleaning = customerStatus === "cleaning";
+    const available = customerStatus === "available";
+    // Status lama (dipakai halaman Cek Meja di website) tetap ada.
+    const status = needsCleaning ? "needs_cleaning" : available ? "empty" : customerStatus === "occupied" ? "occupied" : "unavailable";
 
-    return {
-      tableNumber: row.tableNumber,
-      tableLabel: row.tableLabel,
-      status,
-      available,
-      needsCleaning,
-      lastStatusAt: row.lastStatusAt,
-    };
+    return [
+      {
+        tableNumber: row.tableNumber,
+        tableLabel: row.tableLabel,
+        area: row.area,
+        capacity: row.capacity,
+        customerStatus,
+        mine: mine.has(row.tableNumber) && customerStatus === "held",
+        heldUntil: row.heldUntil,
+        status,
+        available,
+        needsCleaning,
+        lastStatusAt: row.lastStatusAt,
+      },
+    ];
   });
 }
 
@@ -6763,6 +6814,11 @@ export async function updateTableStatus(
   const updateSet: Record<string, unknown> = { ...insertValues };
   if (!resetsWindow) {
     delete updateSet.cleanedAt;
+  } else {
+    // Sesi tamu selesai: kode gabung lama tidak berlaku, kunci pilih meja dilepas.
+    updateSet.joinCode = null;
+    updateSet.heldUntil = null;
+    updateSet.heldTokenHash = null;
   }
 
   const [row] = await db
@@ -6786,6 +6842,7 @@ export async function updateTableStatus(
     },
   });
 
+  publishProductionChange();
   return {
     tableNumber: row.tableNumber,
     tableLabel: row.tableLabel,
@@ -6794,6 +6851,217 @@ export async function updateTableStatus(
     needsCleaning: row.needsCleaning,
     lastStatusAt: row.lastStatusAt.toISOString(),
   };
+}
+
+// =============================================================================
+// Kunci meja menu digital (owner, Okt 2026). Pelanggan memilih meja → meja
+// "Sedang dipilih" (kuning) selama tableHoldMinutes; dua orang tidak bisa
+// memilih meja yang sama. Meja terisi hanya bisa digabung dengan kode 4 digit
+// dari pesanan pertama. Semua cek di dalam transaksi + FOR UPDATE (pakai `tx`).
+// =============================================================================
+
+export class TableClaimError extends Error {
+  constructor(
+    public code:
+      | "TABLE_HELD"
+      | "TABLE_OCCUPIED"
+      | "TABLE_RESERVED"
+      | "TABLE_CLEANING"
+      | "TABLE_JOIN_CODE_INVALID",
+    message: string,
+  ) {
+    super(message);
+    this.name = "TableClaimError";
+  }
+}
+
+export function hashTableHoldToken(token: string) {
+  return createHash("sha256").update(`table-hold:${token}`).digest("hex");
+}
+
+function newJoinCode() {
+  return String(randomInt(1000, 10000));
+}
+
+type DbTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/** Kunci baris sesi meja + hitung apakah meja sedang ditempati (ada bill hidup di sesi). */
+async function lockTableSession(tx: DbTx, outletId: string, tableNumber: string) {
+  const now = new Date();
+  await tx
+    .insert(tableSessions)
+    .values({
+      outletId,
+      tableNumber,
+      tableLabel: tableLabelForNumber(tableNumber),
+      status: "empty",
+      lastStatusAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: [tableSessions.outletId, tableSessions.tableNumber] });
+  const [session] = await tx
+    .select()
+    .from(tableSessions)
+    .where(and(eq(tableSessions.outletId, outletId), eq(tableSessions.tableNumber, tableNumber)))
+    .for("update");
+  const { start } = getJakartaTodayRange();
+  const windowStart = session?.cleanedAt && session.cleanedAt > start ? session.cleanedAt : start;
+  const liveBills = await tx
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      and(
+        orderTableLabelMatch(tableNumber),
+        gte(orders.createdAt, windowStart),
+        inArray(orders.status, [...OPEN_TABLE_BILL_STATUSES, "paid"]),
+        orderOutletFilter(outletId),
+      ),
+    )
+    .limit(1);
+  return { session, occupied: liveBills.length > 0, now };
+}
+
+/** Aturan pilih meja pelanggan. Lempar TableClaimError bila tidak boleh. */
+function assertTableClaimable(
+  state: Awaited<ReturnType<typeof lockTableSession>>,
+  tableNumber: string,
+  claim: { holdToken?: string | null; joinCode?: string | null },
+): "new" | "join" {
+  const { session, occupied, now } = state;
+  const label = tableLabelForNumber(tableNumber);
+  if (session?.needsCleaning || ["needs_cleaning", "cleaning"].includes(session?.status ?? "")) {
+    throw new TableClaimError("TABLE_CLEANING", `${label} sedang dibersihkan. Pilih meja lain.`);
+  }
+  if (occupied) {
+    const code = claim.joinCode?.trim();
+    if (!code) {
+      throw new TableClaimError(
+        "TABLE_OCCUPIED",
+        `${label} sedang terisi. Masukkan kode gabung dari teman semeja, atau pilih meja lain.`,
+      );
+    }
+    if (!session?.joinCode || session.joinCode !== code) {
+      throw new TableClaimError("TABLE_JOIN_CODE_INVALID", `Kode gabung ${label} salah. Cek struk teman semeja.`);
+    }
+    return "join";
+  }
+  if (session?.status === "reserved") {
+    throw new TableClaimError("TABLE_RESERVED", `${label} sudah dipesan (reserved). Pilih meja lain.`);
+  }
+  const heldByOther =
+    session?.heldUntil &&
+    session.heldUntil > now &&
+    (!claim.holdToken || session.heldTokenHash !== hashTableHoldToken(claim.holdToken));
+  if (heldByOther) {
+    throw new TableClaimError("TABLE_HELD", `${label} sedang dipilih pelanggan lain. Pilih meja lain.`);
+  }
+  return "new";
+}
+
+/** Pelanggan memilih meja (atau memperpanjang kunci / gabung dengan kode). */
+export async function holdCustomerTable(input: {
+  tableNumber: string;
+  outletId?: string;
+  holdToken?: string | null;
+  joinCode?: string | null;
+}) {
+  const tableNumber = parseTableNumber(input.tableNumber);
+  if (!tableNumber) throw new Error(TABLE_NUMBER_RANGE_MESSAGE);
+  const { outlet, open } = await resolveQrOutletShift(input.outletId);
+  if (!outlet) throw new Error("Outlet tidak ditemukan.");
+  if (!open) throw new Error("Outlet belum open shift. Silakan hubungi kasir.");
+  await assertTableActive(tableNumber, outlet.id);
+  const settings = await getAppSettings(outlet.id);
+  const holdMinutes = Math.min(15, Math.max(2, settings.tableHoldMinutes || 5));
+  const token = input.holdToken && /^[a-f0-9]{32,64}$/.test(input.holdToken) ? input.holdToken : randomBytes(24).toString("hex");
+
+  const result = await getDb().transaction(async (tx) => {
+    const state = await lockTableSession(tx, outlet.id, tableNumber);
+    const mode = assertTableClaimable(state, tableNumber, { holdToken: token, joinCode: input.joinCode });
+    if (mode === "join") return { mode, expiresAt: null as Date | null };
+    const tokenHash = hashTableHoldToken(token);
+    // Satu pelanggan = satu meja terkunci: lepas kunci lama dari token yang sama.
+    await tx
+      .update(tableSessions)
+      .set({ heldUntil: null, heldTokenHash: null, updatedAt: state.now })
+      .where(
+        and(
+          eq(tableSessions.outletId, outlet.id),
+          eq(tableSessions.heldTokenHash, tokenHash),
+          ne(tableSessions.tableNumber, tableNumber),
+        ),
+      );
+    const expiresAt = new Date(state.now.getTime() + holdMinutes * 60_000);
+    await tx
+      .update(tableSessions)
+      .set({ heldUntil: expiresAt, heldTokenHash: tokenHash, updatedAt: state.now })
+      .where(and(eq(tableSessions.outletId, outlet.id), eq(tableSessions.tableNumber, tableNumber)));
+    return { mode, expiresAt };
+  });
+  publishProductionChange();
+  return {
+    tableNumber,
+    tableLabel: tableLabelForNumber(tableNumber),
+    mode: result.mode,
+    holdToken: result.mode === "new" ? token : null,
+    expiresAt: result.expiresAt?.toISOString() ?? null,
+    holdMinutes,
+  };
+}
+
+/** Pelanggan ganti meja / batal: lepas kunci miliknya sendiri. */
+export async function releaseCustomerTable(input: { holdToken: string; outletId?: string }) {
+  const { outlet } = await resolveQrOutletShift(input.outletId);
+  if (!outlet) return { released: 0 };
+  const rows = await getDb()
+    .update(tableSessions)
+    .set({ heldUntil: null, heldTokenHash: null, updatedAt: new Date() })
+    .where(
+      and(eq(tableSessions.outletId, outlet.id), eq(tableSessions.heldTokenHash, hashTableHoldToken(input.holdToken))),
+    )
+    .returning({ id: tableSessions.id });
+  if (rows.length) publishProductionChange();
+  return { released: rows.length };
+}
+
+/** Staf melepas kunci "Sedang dipilih" (mis. pelanggan pergi tanpa pesan). */
+export async function releaseTableHoldByStaff(table: string, garage: GarageSession) {
+  const tableNumber = normalizeTableNumber(table);
+  const [row] = await getDb()
+    .update(tableSessions)
+    .set({ heldUntil: null, heldTokenHash: null, updatedAt: new Date() })
+    .where(
+      and(eq(tableSessions.outletId, garage.profile.outlet.id), eq(tableSessions.tableNumber, tableNumber)),
+    )
+    .returning({ tableLabel: tableSessions.tableLabel });
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: `Lepas kunci ${tableLabelForNumber(tableNumber)}`,
+    object: row?.tableLabel ?? tableLabelForNumber(tableNumber),
+    device: garage.profile.deviceLabel,
+    status: "released",
+  });
+  publishProductionChange();
+  return { tableNumber };
+}
+
+/** Kode gabung meja untuk halaman status pesanan pelanggan (hanya meja sesi order itu). */
+export async function getJoinCodeForOrder(orderId: string) {
+  const db = getDb();
+  const [order] = await db
+    .select({ tableLabel: orders.tableLabel, outletId: orders.outletId, status: orders.status, fulfillment: orders.fulfillment })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+  if (!order || order.fulfillment !== "dine-in" || isDeadTableOrderStatus(order.status)) return null;
+  const tableNumber = tableNumberFromOrderLabel(order.tableLabel);
+  if (!tableNumber || !order.outletId) return null;
+  const [session] = await db
+    .select({ joinCode: tableSessions.joinCode })
+    .from(tableSessions)
+    .where(and(eq(tableSessions.outletId, order.outletId), eq(tableSessions.tableNumber, tableNumber)))
+    .limit(1);
+  return session?.joinCode ? { tableNumber, tableLabel: tableLabelForNumber(tableNumber), joinCode: session.joinCode } : null;
 }
 
 // Pindahkan SEMUA bill sesi aktif (termasuk bill hasil pisah) dari meja sumber
@@ -6910,6 +7178,8 @@ async function moveTableImpl(
         ),
       );
 
+    // Kode gabung ikut pindah ke meja baru (teman semeja tetap bisa gabung).
+    const carriedJoinCode = locked.find((row) => row.tableNumber === fromNumber)?.joinCode ?? null;
     // Tutup sesi sumber: kosong + cleanedAt=now (bill window sumber selesai).
     await tx
       .update(tableSessions)
@@ -6917,6 +7187,9 @@ async function moveTableImpl(
         status: "empty",
         currentOrderId: null,
         needsCleaning: false,
+        joinCode: null,
+        heldUntil: null,
+        heldTokenHash: null,
         cleanedAt: now,
         lastStatusAt: now,
         updatedAt: now,
@@ -6937,6 +7210,9 @@ async function moveTableImpl(
         status: targetStatus,
         currentOrderId,
         needsCleaning: false,
+        joinCode: carriedJoinCode,
+        heldUntil: null,
+        heldTokenHash: null,
         cleanedAt: new Date(new Date(oldestBill.createdAt).getTime() - 1),
         lastStatusAt: now,
         updatedAt: now,
@@ -7079,14 +7355,16 @@ export async function getPublicCustomerOrderStatus(id: string) {
     // ini — membocorkan nomor WA bisnis ke siapa pun yang tahu order id.
     // Customer yang membuat order tetap punya link WA dari respons create order.
     invoiceWebUrl: lookedUpById ? invoiceWebPath(invoiceReadyOrder.invoiceTrackingToken) : null,
+    // Kode gabung meja untuk teman semeja — hanya lewat id order (UUID).
+    tableJoin: lookedUpById ? await getJoinCodeForOrder(invoiceReadyOrder.id) : null,
     message: publicStatusMessage(invoiceReadyOrder.status, kitchenStatus),
     updatedAt: invoiceReadyOrder.updatedAt.toISOString(),
   };
 }
 
-export type ServiceRequestType = "call" | "bill" | "water" | "other";
+export type ServiceRequestType = "call" | "bill" | "water" | "move" | "other";
 
-const serviceRequestTypes: ServiceRequestType[] = ["call", "bill", "water", "other"];
+const serviceRequestTypes: ServiceRequestType[] = ["call", "bill", "water", "move", "other"];
 
 // Panggilan pelayan dari meja. Dedup 60 detik per (meja+type) supaya tap
 // berulang tidak membanjiri staf.
@@ -7133,6 +7411,7 @@ export async function createServiceRequest(input: {
     call: "memanggil pelayan",
     bill: "minta bill",
     water: "minta air minum",
+    move: "minta pindah meja",
     other: "butuh bantuan",
   };
   await notifyStaff({
@@ -8504,6 +8783,45 @@ export async function createShiftHandoverReport(
  * Pengaturan tagihan yang dipakai createCustomerOrder — dikirim ke halaman
  * pesan QR supaya total yang dilihat pelanggan = total yang ditagih kasir.
  */
+/**
+ * Kurir online untuk delivery menu digital: "Siap antar" (online) dan yang
+ * tidak sedang membawa pesanan (free). Tanpa kurir online + Pengaturan wajib →
+ * Delivery tidak bisa dipilih pelanggan (PDF owner, Okt 2026).
+ */
+async function deliveryCouriersOnline(outletId: string) {
+  const db = getDb();
+  const online = await db
+    .select({ userId: staffProfiles.userId })
+    .from(staffProfiles)
+    .where(
+      and(
+        eq(staffProfiles.outletId, outletId),
+        eq(staffProfiles.status, "active"),
+        eq(staffProfiles.workstation, "kurir"),
+        eq(staffProfiles.courierAvailability, "available"),
+      ),
+    );
+  if (!online.length) return { online: 0, free: 0 };
+  const busy = await db
+    .select({ courierUserId: orders.courierUserId })
+    .from(orders)
+    .where(
+      and(
+        inArray(
+          orders.courierUserId,
+          online.map((row) => row.userId),
+        ),
+        eq(orders.fulfillment, "delivery"),
+        or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
+        ne(orders.status, "rejected"),
+      ),
+    );
+  const busyIds = new Set(busy.map((row) => row.courierUserId));
+  return { online: online.length, free: online.filter((row) => !busyIds.has(row.userId)).length };
+}
+
+const NO_COURIER_MESSAGE = "Kurir sedang tidak tersedia. Silakan pilih Take away atau coba lagi nanti.";
+
 export async function getCustomerOrderBillingSettings(outletId?: string) {
   const [settingsOutlet] = await getDb()
     .select({ id: outlets.id })
@@ -8512,6 +8830,11 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     .orderBy(outlets.code)
     .limit(1);
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
+  const couriers =
+    settings.deliveryEnabled && settings.deliveryRequireOnlineCourier && settingsOutlet
+      ? await deliveryCouriersOnline(settingsOutlet.id)
+      : null;
+  const noCourier = Boolean(couriers && couriers.online === 0);
   return {
     serviceChargePct: settings.serviceChargePct,
     taxPct: settings.taxPct,
@@ -8523,7 +8846,14 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     memberPointValue: settings.memberPointValue,
     memberRedeemMaxPct: settings.memberRedeemMaxPct,
     memberRedeemMinPoints: settings.memberRedeemMinPoints,
-    deliveryEnabled: settings.deliveryEnabled,
+    deliveryEnabled: settings.deliveryEnabled && !noCourier,
+    deliveryUnavailableReason: !settings.deliveryEnabled
+      ? "Delivery sedang tidak tersedia."
+      : noCourier
+        ? NO_COURIER_MESSAGE
+        : null,
+    // Semua kurir sedang mengantar → pesanan masuk antrean (tetap bisa pesan).
+    deliveryCouriersBusy: Boolean(couriers && couriers.online > 0 && couriers.free === 0),
     deliveryFee: settings.deliveryFee,
     deliveryMinItems: settings.deliveryMinItems,
     deliveryAreaNote: settings.deliveryAreaNote,
@@ -8657,6 +8987,10 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     if (!settings.deliveryEnabled) {
       throw new Error("Layanan delivery sedang tidak tersedia. Silakan pilih Take away.");
     }
+    if (settings.deliveryRequireOnlineCourier && settingsOutlet) {
+      const couriers = await deliveryCouriersOnline(settingsOutlet.id);
+      if (couriers.online === 0) throw new Error(NO_COURIER_MESSAGE);
+    }
     if (paymentMethod !== "QRIS") {
       throw new Error("Delivery wajib bayar QRIS terlebih dahulu (tidak menerima bayar di tempat/COD).");
     }
@@ -8758,7 +9092,27 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     ? makeWhatsappInvoiceUrl(initialWhatsappInvoiceInput)
     : null;
 
+  const dineInTableNumber = input.orderType === "dine-in" ? tableNumberFromOrderLabel(tableLabel) : null;
+
   const created = await db.transaction(async (tx) => {
+    // Meja dine-in: kunci sesi meja, cek aturan pilih meja (pelanggan), lalu
+    // lepas kunci "Sedang dipilih" & siapkan kode gabung untuk teman semeja.
+    let joinCode: string | null = null;
+    if (dineInTableNumber) {
+      const state = await lockTableSession(tx, outlet.id, dineInTableNumber);
+      if (input.enforceTableClaim) {
+        assertTableClaimable(state, dineInTableNumber, {
+          holdToken: input.tableHoldToken,
+          joinCode: input.tableJoinCode,
+        });
+      }
+      joinCode = state.session?.joinCode ?? newJoinCode();
+      await tx
+        .update(tableSessions)
+        .set({ joinCode, heldUntil: null, heldTokenHash: null, lastStatusAt: state.now, updatedAt: state.now })
+        .where(and(eq(tableSessions.outletId, outlet.id), eq(tableSessions.tableNumber, dineInTableNumber)));
+    }
+
     const [existingByPhone] = customerPhone
       ? await tx
           .select()
@@ -8947,6 +9301,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         input.customerMode === "member"
           ? "Points member akan diproses setelah kasir menandai order paid."
           : "Daftar member, points dari order ini langsung masuk.",
+      joinCode,
     };
   });
 
@@ -9013,6 +9368,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       url: invoiceWhatsappUrl,
     },
     memberCta: created.memberCta,
+    // Kode gabung meja (dine-in) — ditunjukkan ke pelanggan untuk teman semeja.
+    joinCode: created.joinCode,
   };
 
   // Guest tanpa nomor WA: tidak ada invoice WhatsApp untuk dikirim.
@@ -10554,6 +10911,20 @@ async function createOrderOnce(
   }
 
   const created = await db.transaction(async (tx) => {
+    // Order kasir untuk meja: siapkan kode gabung (teman semeja bisa pesan
+    // sendiri dari menu digital) & lepas kunci "Sedang dipilih".
+    if (tableNumber) {
+      const state = await lockTableSession(tx, garage.profile.outlet.id, tableNumber);
+      await tx
+        .update(tableSessions)
+        .set({
+          joinCode: state.session?.joinCode ?? newJoinCode(),
+          heldUntil: null,
+          heldTokenHash: null,
+          updatedAt: state.now,
+        })
+        .where(and(eq(tableSessions.outletId, garage.profile.outlet.id), eq(tableSessions.tableNumber, tableNumber)));
+    }
     // Kunci sesi kas sampai transaksi commit: tutup shift memakai FOR UPDATE,
     // jadi tidak bisa menyelip sebelum kas order ini tercatat. Bukan FOR SHARE:
     // order lain kasir yang sama akan UPDATE baris ini juga → upgrade kunci deadlock.

@@ -47,6 +47,14 @@ import { OrderCartBar, type LastAdded } from "@/components/garage/order/order-ca
 import { OrderHeader } from "@/components/garage/order/order-header";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
+  CustomerTablePicker,
+  OrderTypeChooser,
+  TableJoinCodeCard,
+  releaseTableHold,
+  requestTableHold,
+  type TableHoldState,
+} from "@/components/garage/order/customer-table-picker";
+import {
   QuantityControl,
   cartKey,
   categoryIcon,
@@ -111,6 +119,10 @@ type QrContext = {
   tableIssue?: string;
   /** Info netral (bukan error), mis. pengunjung dari Instagram otomatis Take away. */
   tableHint?: string;
+  /** Link umum tanpa meja → langkah awal pilih tipe pesanan (Dine-in / Take away / Delivery). */
+  chooseType?: boolean;
+  /** Nomor meja dari QR meja ("07") → konfirmasi lalu kunci meja. */
+  presetTable?: string;
 };
 
 type CartLine = {
@@ -184,6 +196,13 @@ async function getJson<T>(url: string) {
   return json.data;
 }
 
+/** Error API dengan kode (mis. TABLE_OCCUPIED) supaya UI bisa bereaksi tepat. */
+class ApiError extends Error {
+  constructor(message: string, public code?: string) {
+    super(message);
+  }
+}
+
 async function postJson<T>(url: string, payload: unknown) {
   const response = await fetch(url, {
     method: "POST",
@@ -193,7 +212,7 @@ async function postJson<T>(url: string, payload: unknown) {
   });
   const json = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok) {
-    if ("error" in json && json.error) throw new Error(json.error.message);
+    if ("error" in json && json.error) throw new ApiError(json.error.message, json.error.code);
     if ("success" in json && !json.success) throw new Error(json.message);
     throw new Error("Request gagal.");
   }
@@ -772,7 +791,12 @@ export function MemberOrderPage({
     | "deliveryAreaNote"
     | "garageWhatsapp"
     | "unpaidOrderAutoRejectMinutes"
-  >;
+  > & {
+    /** Delivery sementara tidak bisa dipilih (mis. tidak ada kurir siap antar). */
+    deliveryUnavailableReason?: string | null;
+    /** Semua kurir sedang mengantar → pesanan delivery masuk antrean. */
+    deliveryCouriersBusy?: boolean;
+  };
   // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
   initialOrderingOpen?: boolean;
   // Mode waiter (/order?mode=waiter, sesi staf dicek server): nama pemesan otomatis,
@@ -842,7 +866,12 @@ export function MemberOrderPage({
   const [paymentProvider, setPaymentProvider] = useState(customerBankAccounts[0].id);
   const [paymentReference, setPaymentReference] = useState("");
   const [returnPath] = useState(() => initialReturnPath ?? readReturnPath());
-  const [qrContext] = useState<QrContext>(() => initialQrContext ?? readQrContext());
+  const [qrContext, setQrContext] = useState<QrContext>(() => initialQrContext ?? readQrContext());
+  // Pilih tipe pesanan & meja (PDF owner, Okt 2026).
+  const [typeChosen, setTypeChosen] = useState(() => !qrContext.chooseType);
+  const [tableHold, setTableHold] = useState<TableHoldState | null>(null);
+  const [tableHoldRestored, setTableHoldRestored] = useState(false);
+  const [tablePickerRequested, setTablePickerRequested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(!hasInitialMenuItems);
   const [message, setMessage] = useState("");
@@ -864,7 +893,7 @@ export function MemberOrderPage({
   const [showNoteField, setShowNoteField] = useState(false);
   const deferredQuery = useDeferredValue(query);
 
-  async function callService(type: "call" | "bill" | "water", label: string) {
+  async function callService(type: "call" | "bill" | "water" | "move", label: string) {
     setHelpBusy(type);
     setHelpMessage("");
     try {
@@ -873,7 +902,11 @@ export function MemberOrderPage({
         outletId: qrContext.outletId,
         type,
       });
-      setHelpMessage(`${label} terkirim. Pelayan akan segera datang ke ${qrContext.tableLabel}.`);
+      setHelpMessage(
+        type === "move"
+          ? `Permintaan pindah dari ${qrContext.tableLabel} terkirim. Waiter/kasir akan datang & memindahkan pesananmu.`
+          : `${label} terkirim. Pelayan akan segera datang ke ${qrContext.tableLabel}.`,
+      );
     } catch {
       setHelpMessage("Gagal mengirim panggilan. Coba lagi sebentar.");
     } finally {
@@ -1092,6 +1125,97 @@ export function MemberOrderPage({
     ? capVoucherDiscountBySettings(voucherResult.discount, subtotal, billingSettings)
     : 0;
   const discount = Math.min(grossTotal, promoDiscount);
+  // ---------------------------------------------------------------------------
+  // Pilih meja (PDF owner, Okt 2026): dine-in pelanggan wajib memilih/konfirmasi
+  // meja sebelum menu; meja dikunci di server & diperpanjang selama aktif.
+  // ---------------------------------------------------------------------------
+  const tableHoldKey = `garage:tableHold:${qrContext.outletId ?? "default"}`;
+  const needsTable = qrContext.orderType === "dine-in" && !staffOrder && !qrContext.tableIssue;
+
+  const saveTableHold = useCallback(
+    (hold: TableHoldState | null) => {
+      setTableHold(hold);
+      try {
+        if (hold) window.sessionStorage.setItem(tableHoldKey, JSON.stringify({ ...hold, savedAt: Date.now() }));
+        else window.sessionStorage.removeItem(tableHoldKey);
+      } catch {
+        /* sessionStorage tidak tersedia */
+      }
+      if (hold) setQrContext((context) => ({ ...context, tableLabel: hold.tableLabel }));
+    },
+    [tableHoldKey],
+  );
+
+  // Pulihkan meja yang sudah dipilih (refresh halaman). QR meja lain → abaikan yang lama.
+  useEffect(() => {
+    if (tableHoldRestored) return;
+    let restored: (TableHoldState & { savedAt?: number }) | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(tableHoldKey);
+      restored = raw ? (JSON.parse(raw) as TableHoldState & { savedAt?: number }) : null;
+    } catch {
+      restored = null;
+    }
+    const tooOld = !restored?.savedAt || Date.now() - restored.savedAt > 12 * 60 * 60 * 1000;
+    const otherTable = Boolean(qrContext.presetTable && restored && restored.tableNumber !== qrContext.presetTable);
+    if (restored && !tooOld && !otherTable && needsTable) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTableHold(restored);
+      setQrContext((context) => ({ ...context, tableLabel: restored.tableLabel }));
+    } else if (restored?.token && otherTable) {
+      void releaseTableHold(restored.token, qrContext.outletId);
+    }
+    setTableHoldRestored(true);
+  }, [needsTable, qrContext.outletId, qrContext.presetTable, tableHoldKey, tableHoldRestored]);
+
+  // Perpanjang kunci meja tiap 2 menit selama pelanggan masih memilih menu.
+  const holdToken = tableHold?.mode === "new" ? tableHold.token : null;
+  const holdTable = tableHold?.tableNumber ?? null;
+  useEffect(() => {
+    if (!holdToken || !holdTable || !needsTable) return;
+    let alive = true;
+    const renew = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const next = await requestTableHold({ table: holdTable, outletId: qrContext.outletId, holdToken });
+        if (alive) saveTableHold(next);
+      } catch (error) {
+        if (!alive) return;
+        saveTableHold(null);
+        setMessage(error instanceof Error ? error.message : "Meja kamu sudah tidak tersedia. Pilih meja lagi.");
+      }
+    };
+    const id = window.setInterval(renew, 120_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [holdToken, holdTable, needsTable, qrContext.outletId, saveTableHold]);
+
+  const showTablePicker =
+    typeChosen && needsTable && tableHoldRestored && !lastOrder && (!tableHold || tablePickerRequested);
+
+  function chooseOrderType(value: "dine-in" | "takeaway" | "delivery") {
+    if (value === "dine-in") {
+      setQrContext((context) => ({
+        ...context,
+        orderType: "dine-in",
+        tableLabel: tableHold?.tableLabel ?? "Pilih meja",
+        tableHint: undefined,
+      }));
+    } else {
+      if (tableHold?.token) void releaseTableHold(tableHold.token, qrContext.outletId);
+      if (tableHold) saveTableHold(null);
+      setQrContext((context) => ({
+        ...context,
+        orderType: "takeaway",
+        tableLabel: "Take away",
+      }));
+      setFulfillment(value);
+    }
+    setTypeChosen(true);
+  }
+
   // Take away ↔ Delivery hanya untuk order dari link (bukan QR meja / mode waiter).
   const canChooseFulfillment = qrContext.orderType === "takeaway" && !staffOrder;
   const deliveryAvailable = canChooseFulfillment && billingSettings.deliveryEnabled;
@@ -1161,11 +1285,14 @@ export function MemberOrderPage({
     !soldOutCartLine &&
     orderingOpen &&
     !qrContext.tableIssue &&
+    !(needsTable && !tableHold) &&
     !deliveryPhoneMissing &&
     !deliveryAddressMissing &&
     !deliveryBelowMin;
   const checkoutBlockReason = qrContext.tableIssue
     ? qrContext.tableIssue
+    : needsTable && !tableHold
+    ? "Pilih meja dulu."
     : deliveryBelowMin
     ? `Minimal pemesanan delivery ${billingSettings.deliveryMinItems} produk.`
     : deliveryPhoneMissing
@@ -1326,6 +1453,8 @@ export function MemberOrderPage({
       const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", {
         orderType: effectiveOrderType,
         tableLabel: isDelivery ? undefined : qrContext.tableLabel,
+        tableHoldToken: needsTable && tableHold?.mode === "new" ? tableHold.token ?? undefined : undefined,
+        tableJoinCode: needsTable && tableHold?.mode === "join" ? tableHold.joinCode ?? undefined : undefined,
         guestPhone: mode === "guest" && phoneDigits.length >= 8 ? guestPhone.trim() : undefined,
         deliveryAddress: isDelivery
           ? [deliveryAddress.trim(), deliveryLandmark.trim() ? `Patokan: ${deliveryLandmark.trim()}` : ""]
@@ -1361,6 +1490,10 @@ export function MemberOrderPage({
       setCheckoutOpen(false);
       setMessage(`${result.order.orderNo} masuk ke kasir. Pembayaran menunggu konfirmasi.`);
       setLastOrder(result);
+      // Meja kini terisi: pesanan tambahan dari HP ini memakai kode gabung meja.
+      if (needsTable && tableHold && result.joinCode) {
+        saveTableHold({ ...tableHold, mode: "join", token: null, joinCode: result.joinCode, expiresAt: null });
+      }
       // Percakapan sebelum memesan kini milik pesanan ini; kunjungan berikutnya mulai baru.
       adoptChatTokenForOrder(result.order.id);
       // Persist supaya tracker tetap ada walau halaman di-refresh.
@@ -1374,6 +1507,11 @@ export function MemberOrderPage({
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Checkout gagal.");
+      // Meja tidak valid lagi (diambil orang lain / kode salah) → pilih meja ulang.
+      if (error instanceof ApiError && error.code?.startsWith("TABLE_")) {
+        saveTableHold(null);
+        setCheckoutOpen(false);
+      }
     } finally {
       setBusy(false);
     }
@@ -1442,7 +1580,14 @@ export function MemberOrderPage({
             {(
               [
                 ["takeaway", "Take away", "Ambil di Garage", ShoppingBag],
-                ["delivery", "Delivery", deliveryAvailable ? `Ongkir ${rupiah.format(billingSettings.deliveryFee)}` : "Sedang tidak tersedia", Bike],
+                [
+                  "delivery",
+                  "Delivery",
+                  deliveryAvailable
+                    ? `Ongkir ${rupiah.format(billingSettings.deliveryFee)}`
+                    : billingSettings.deliveryUnavailableReason ?? "Sedang tidak tersedia",
+                  Bike,
+                ],
               ] as const
             ).map(([value, label, hint, Icon]) => {
               const selected = (value === "delivery" ? isDelivery : !isDelivery);
@@ -1479,6 +1624,11 @@ export function MemberOrderPage({
                 <li>Wajib bayar QRIS dulu; pesanan dibuat & diantar setelah pembayaran dicek kasir.</li>
                 <li>{billingSettings.deliveryAreaNote}</li>
               </ul>
+              {billingSettings.deliveryCouriersBusy ? (
+                <p className="rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3 py-2 text-sm font-semibold text-white" role="status">
+                  Semua kurir sedang mengantar. Pesananmu masuk antrean dan diantar kurir berikutnya yang selesai.
+                </p>
+              ) : null}
               {deliveryBelowMin ? (
                 <p className="rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3 py-2 text-sm font-semibold text-white" role="alert">
                   Tambah {billingSettings.deliveryMinItems - itemCount} produk lagi untuk delivery.
@@ -1947,6 +2097,39 @@ export function MemberOrderPage({
               <div className="mb-4 space-y-2" role="status">
                 {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
                 <FulfillmentBadge fulfillment={effectiveOrderType} tableLabel={qrContext.tableLabel} />
+                {needsTable && tableHold ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-white/12 bg-garage-bg-1 px-3 py-2">
+                    <p className="min-w-0 text-sm text-garage-dim">
+                      {tableHold.mode === "join" ? (
+                        <>
+                          Gabung di <strong className="text-white">{tableHold.tableLabel}</strong> dengan kode teman semeja.
+                        </>
+                      ) : (
+                        <>
+                          <strong className="text-white">{tableHold.tableLabel}</strong> dikunci untukmu sampai checkout.
+                        </>
+                      )}
+                    </p>
+                    {!lastOrder ? (
+                      <button
+                        type="button"
+                        onClick={() => setTablePickerRequested(true)}
+                        className="garage-press rounded-md border border-white/20 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
+                      >
+                        Ganti meja
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {qrContext.chooseType && typeChosen && !lastOrder ? (
+                  <button
+                    type="button"
+                    onClick={() => setTypeChosen(false)}
+                    className="garage-press px-1 text-sm font-bold text-garage-amber underline-offset-4 hover:underline"
+                  >
+                    Ubah tipe pesanan (Dine-in / Take away / Delivery)
+                  </button>
+                ) : null}
                 {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
                 {canChooseFulfillment ? (
                   <ChatLaunchButton
@@ -2041,6 +2224,11 @@ export function MemberOrderPage({
                   </div>
                 </div>
                 <OrderTracker status={orderStatus} />
+                {orderStatus.tableJoin ? (
+                  <div className="mt-3">
+                    <TableJoinCodeCard tableLabel={orderStatus.tableJoin.tableLabel} joinCode={orderStatus.tableJoin.joinCode} />
+                  </div>
+                ) : null}
                 <ChatLaunchButton label="Tanya kasir soal pesanan ini" unread={chatUnread} onClick={() => setChatOpen(true)} />
                 <OrderPushButton orderId={trackedOrderId} orderToken={chatOrderToken} />
                 {orderStatus.invoiceWebUrl ? (
@@ -2080,6 +2268,14 @@ export function MemberOrderPage({
                             {lastOrder.order.paymentMethod ?? "Cash"}
                           </span>
                           <OrderTracker status={orderStatus} />
+                          {(orderStatus?.tableJoin?.joinCode ?? lastOrder.joinCode) && lastOrder.order.fulfillment === "dine-in" ? (
+                            <div className="mt-3">
+                              <TableJoinCodeCard
+                                tableLabel={orderStatus?.tableJoin?.tableLabel ?? lastOrder.order.tableLabel}
+                                joinCode={(orderStatus?.tableJoin?.joinCode ?? lastOrder.joinCode) as string}
+                              />
+                            </div>
+                          ) : null}
                           <ChatLaunchButton label="Tanya kasir soal pesanan ini" unread={chatUnread} onClick={() => setChatOpen(true)} />
                           <OrderPushButton orderId={lastOrder.order.id} orderToken={chatOrderToken} />
                           {mode !== "guest" ? (
@@ -2351,6 +2547,32 @@ export function MemberOrderPage({
           {checkoutFooter}
         </SheetContent>
       </Sheet>
+      {!staffOrder && !typeChosen ? (
+        <OrderTypeChooser
+          deliveryEnabled={billingSettings.deliveryEnabled}
+          deliveryNote={billingSettings.deliveryUnavailableReason ?? null}
+          onChoose={chooseOrderType}
+        />
+      ) : null}
+      {showTablePicker ? (
+        <CustomerTablePicker
+          outletId={qrContext.outletId}
+          current={tableHold}
+          presetTable={tableHold ? null : qrContext.presetTable}
+          onPicked={(hold) => {
+            saveTableHold(hold);
+            setTablePickerRequested(false);
+            setMessage("");
+          }}
+          onClose={
+            tableHold
+              ? () => setTablePickerRequested(false)
+              : qrContext.chooseType
+                ? () => setTypeChosen(false)
+                : undefined
+          }
+        />
+      ) : null}
     </main>
   );
 }

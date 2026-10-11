@@ -1,5 +1,6 @@
 "use client";
 
+import { useProductionStream } from "@/lib/use-production-stream";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -105,7 +106,7 @@ function buildCommandItems(tables: TableLiveRow[], tickets: KitchenOrder[]): Com
     .map((table): CommandItem => ({
       id: `bill-${table.tableNumber}`,
       label: `${table.tableLabel} tagihan di kasir`,
-      detail: `${currency.format(table.total)} · menunggu ${formatTableDuration(table.timerMinutes)}`,
+      detail: `${currency.format(table.billTotal ?? table.total)} · menunggu ${formatTableDuration(table.timerMinutes)}`,
       tone: table.timerMinutes >= 15 ? "danger" : "warning",
       module: "pos",
       icon: "bill",
@@ -144,7 +145,22 @@ function buildCommandItems(tables: TableLiveRow[], tickets: KitchenOrder[]): Com
       icon: "late",
     }));
 
-  return [...readyTickets, ...bills, ...clean, ...lateTables].slice(0, 8);
+  // Meja lupa ditutup: terisi lebih lama dari batas Pengaturan tanpa aktivitas.
+  const shown = new Set([...bills, ...clean, ...lateTables].map((item) => item.id.split("-").pop()));
+  const idle = tables
+    .filter((table) => table.idleWarning && !shown.has(table.tableNumber))
+    .sort((a, b) => (b.idleMinutes ?? 0) - (a.idleMinutes ?? 0))
+    .slice(0, 3)
+    .map((table): CommandItem => ({
+      id: `idle-${table.tableNumber}`,
+      label: `${table.tableLabel} lupa ditutup?`,
+      detail: `${formatTableDuration(table.idleMinutes ?? 0)} tanpa aktivitas · tutup/kosongkan bila tamu sudah pergi`,
+      tone: "warning",
+      module: "waiter",
+      icon: "clean",
+    }));
+
+  return [...readyTickets, ...bills, ...clean, ...lateTables, ...idle].slice(0, 8);
 }
 
 export function SmartFloorCommand({ onNavigateModule }: SmartFloorCommandProps) {
@@ -196,6 +212,13 @@ export function SmartFloorCommand({ onNavigateModule }: SmartFloorCommandProps) 
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [refresh]);
+
+  // Realtime: perubahan meja/produksi langsung memicu sinkron (polling = cadangan).
+  useProductionStream(
+    useCallback(() => {
+      if (!inFlightRef.current) void refresh(true);
+    }, [refresh]),
+  );
 
   const stats = useMemo(() => {
     const activeTables = tables.filter(

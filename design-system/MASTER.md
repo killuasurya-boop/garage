@@ -206,6 +206,13 @@ Audit terhadap state saat ini (commit `5258c7f`). **Untuk action items detail, l
 - ⚠️ Verify: variant picker (Cold/Hot, Sedang/Pedas, Barbeque/Balado/Campur) — touch target ≥44px.
 - ⚠️ Verify: "Bayar" button disabled saat empty cart.
 
+### 7.2b Status meja (owner, Okt 2026)
+- Warna status meja mengikuti PDF owner dan **sama di semua layar** (menu digital, waiter, POS,
+  smart floor, landing): Kosong hijau `#22c55e`, Sedang dipilih kuning `#facc15`, Terisi merah
+  `#ef4444`, Reserved biru `#3b82f6`, Perlu dibersihkan abu-abu `#9ca3af`, Meja kamu = outline
+  putih tebal + centang. Ini pengecualian sengaja dari larangan hijau/biru — khusus indikator meja.
+- Warna selalu disertai label teks/ikon (buta warna, layar redup). Sumber: `src/lib/garage-table-status.ts`.
+
 ### 7.3 Kitchen
 - ⚠️ Verify: status chip + label teks (bukan dot warna saja).
 - ⚠️ Verify: jam masuk order visible & mono (tabular alignment).

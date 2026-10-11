@@ -63,6 +63,8 @@ services:
       # Selfie absensi — di luar public/ (TIDAK di-serve statis) supaya foto wajah
       # karyawan hanya bisa diakses lewat API terproteksi. Persisten + writable.
       - garage-attendance-selfies:/app/storage/attendance
+      # Foto bukti terkirim dari kurir — hanya lewat API staf, persisten.
+      - garage-delivery-proofs:/app/storage/delivery-proof
     depends_on:
       db:
         condition: service_healthy
@@ -113,5 +115,6 @@ volumes:
   garage-uploads:
   garage-recruitment-files:
   garage-attendance-selfies:
+  garage-delivery-proofs:
   caddy-data:
   caddy-config:

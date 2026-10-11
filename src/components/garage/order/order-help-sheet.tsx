@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Bell, CheckCircle2, FileText, GlassWater } from "lucide-react";
+import { ArrowRightLeft, Bell, CheckCircle2, FileText, GlassWater } from "lucide-react";
 
 import {
   Sheet,
@@ -11,12 +11,18 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-export type HelpRequestType = "call" | "bill" | "water";
+export type HelpRequestType = "call" | "bill" | "water" | "move";
 
 const HELP_ACTIONS = [
   { type: "call", label: "Panggil pelayan", hint: "Pelayan datang ke meja", Icon: Bell },
   { type: "bill", label: "Minta bill", hint: "Tagihan dibawa ke meja", Icon: FileText },
   { type: "water", label: "Air / tisu", hint: "Air putih atau tisu", Icon: GlassWater },
+  {
+    type: "move",
+    label: "Minta pindah meja",
+    hint: "Waiter/kasir memindahkan pesananmu (dapur ikut tahu)",
+    Icon: ArrowRightLeft,
+  },
 ] as const;
 
 // Sheet bantuan dine-in (dulu panel besar di atas menu). Aksi & chat tetap sama.

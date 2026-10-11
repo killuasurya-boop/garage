@@ -56,6 +56,12 @@ export type AppSettings = {
   deliveryFee: number;
   deliveryMinItems: number;
   deliveryAreaNote: string;
+  // Delivery hanya bisa dipilih bila ada kurir yang sedang "Siap antar".
+  deliveryRequireOnlineCourier: boolean;
+  // Menu digital pilih meja (owner, Okt 2026): lama kunci meja saat customer
+  // memilih (menit) dan peringatan meja terisi tanpa aktivitas (jam).
+  tableHoldMinutes: number;
+  tableIdleWarnHours: number;
   // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
   garageWhatsapp: string;
   // Order take away/delivery belum dibayar lewat batas ini otomatis ditolak (menit, 0 = mati).
@@ -192,6 +198,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   deliveryMinItems: 2,
   deliveryAreaNote:
     "Khusus wilayah perkotaan Tebing Tinggi yang aman & terjangkau kurir. Tidak melayani daerah pelosok/rawan.",
+  deliveryRequireOnlineCourier: true,
+  tableHoldMinutes: 5,
+  tableIdleWarnHours: 3,
   garageWhatsapp: "6285121552341",
   unpaidOrderAutoRejectMinutes: 30,
   // 0,5 poin per Rp1.000 menu → Silver ±5% (1 poin = Rp100).

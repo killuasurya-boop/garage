@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { deliveryStatusLabel } from "@/components/garage/garage-app-helpers";
 import { garageApi } from "@/lib/api-client";
 import type { CustomerOrder } from "@/lib/garage-api-types";
+import { COURIER_STATUS_COPY, TABLE_STATUS_COLORS, type CourierStatusKey } from "@/lib/garage-table-status";
 import {
   buildCustomerWhatsappMessage,
   CUSTOMER_WHATSAPP_LABEL,
@@ -14,7 +15,13 @@ import {
   type CustomerWhatsappKind,
 } from "@/lib/whatsapp-link";
 
-type CourierOption = { userId: string; name: string; activeDeliveries: number };
+type CourierOption = {
+  userId: string;
+  name: string;
+  activeDeliveries: number;
+  status: CourierStatusKey;
+  assignable: boolean;
+};
 
 const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
@@ -158,9 +165,13 @@ export function DeliveryOrderPanel({
               Belum ada akun kurir aktif. Buat di Manajemen User: role Waiter, workstation &quot;Kurir delivery&quot;.
             </p>
           ) : (
+            <>
             <div className="flex flex-wrap gap-2">
               {couriers.map((courier) => {
                 const selected = order.courierUserId === courier.userId;
+                // Warna status kurir (PDF owner): hanya "Tersedia" yang bisa ditugaskan.
+                const copy = COURIER_STATUS_COPY[courier.status ?? "offline"];
+                const colors = TABLE_STATUS_COLORS[copy.color];
                 return (
                   <Button
                     key={courier.userId}
@@ -168,16 +179,28 @@ export function DeliveryOrderPanel({
                     size="sm"
                     variant={selected ? "default" : "outline"}
                     aria-pressed={selected}
-                    disabled={assigning || busy || order.deliveryStatus === "delivered"}
-                    className="garage-press h-9 border-[#4a4a54] px-3 text-xs"
+                    disabled={
+                      assigning || busy || order.deliveryStatus === "delivered" || (!selected && !courier.assignable)
+                    }
+                    title={!selected && !courier.assignable ? `${courier.name}: ${copy.label}` : undefined}
+                    className="garage-press h-auto min-h-9 flex-col items-start gap-0 border-[#4a4a54] px-3 py-1.5 text-left text-xs"
                     onClick={() => void assign(selected ? null : courier.userId)}
                   >
-                    {courier.name}
-                    {courier.activeDeliveries ? ` · ${courier.activeDeliveries} antaran` : " · kosong"}
+                    <span className="font-bold">{courier.name}</span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: colors.text }}>
+                      <span className="size-1.5 rounded-full" style={{ background: colors.dot }} aria-hidden />
+                      {copy.label}
+                    </span>
                   </Button>
                 );
               })}
             </div>
+            {couriers.every((courier) => !courier.assignable) ? (
+              <p className="text-xs text-[#ffd79a]">
+                Belum ada kurir Tersedia. Pesanan masuk antrean — kurir yang selesai/siap antar bisa mengambilnya sendiri.
+              </p>
+            ) : null}
+            </>
           )}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <span className="text-xs text-garage-dim">Status antar:</span>
@@ -196,6 +219,16 @@ export function DeliveryOrderPanel({
               </Button>
             ))}
           </div>
+          {order.deliveryProofUrl ? (
+            <a
+              href={order.deliveryProofUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#bbf7d0] underline-offset-2 hover:underline"
+            >
+              <Package className="size-3.5" aria-hidden /> Lihat foto bukti terkirim
+            </a>
+          ) : null}
           {error ? <p className="text-xs font-semibold text-[#ffb3b3]">{error}</p> : null}
         </div>
       ) : isDelivery ? (

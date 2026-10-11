@@ -9,7 +9,9 @@
 
 import {
   Bike,
+  Camera,
   CheckCircle2,
+  Coffee,
   Clock3,
   LocateFixed,
   LocateOff,
@@ -27,6 +29,7 @@ import { deliveryStatusLabel } from "@/components/garage/garage-app-helpers";
 import { Button } from "@/components/ui/button";
 import { garageApi } from "@/lib/api-client";
 import type { GarageMe } from "@/lib/garage-api-types";
+import { COURIER_STATUS_COPY, TABLE_STATUS_COLORS, type CourierStatusKey } from "@/lib/garage-table-status";
 import { useProductionStream } from "@/lib/use-production-stream";
 import { buildCustomerWhatsappMessage, waLink } from "@/lib/whatsapp-link";
 
@@ -47,6 +50,7 @@ type CourierOrder = {
   invoiceTrackingToken: string | null;
   createdAt: string;
   deliveredAt: string | null;
+  deliveryProofUrl: string | null;
   items: Array<{ name: string; variant: string | null; qty: number }>;
   production: { total: number; ready: number } | null;
 };
@@ -54,9 +58,25 @@ type CourierOrder = {
 type CourierBoard = {
   active: CourierOrder[];
   done: CourierOrder[];
+  claimable: CourierOrder[];
+  me: { userId: string; name: string; status: CourierStatusKey; assignable: boolean } | null;
   canDispatch: boolean;
   isCourier: boolean;
 };
+
+export function CourierStatusChip({ status }: { status: CourierStatusKey }) {
+  const copy = COURIER_STATUS_COPY[status];
+  const colors = TABLE_STATUS_COLORS[copy.color];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold"
+      style={{ borderColor: colors.border, background: colors.bg, color: colors.text }}
+    >
+      <span className="size-2 rounded-full" style={{ background: colors.dot }} aria-hidden />
+      {copy.label}
+    </span>
+  );
+}
 
 const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 const timeFmt = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
@@ -146,6 +166,50 @@ export function CourierView({ me }: { me: GarageMe }) {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [carriedKey]);
 
+  async function setAvailability(available: boolean) {
+    setBusyId("availability");
+    setError(null);
+    try {
+      await garageApi.post("/api/courier/availability", { available });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Status kurir gagal diubah.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function claim(order: CourierOrder) {
+    setBusyId(order.id);
+    setError(null);
+    try {
+      await garageApi.post(`/api/courier/orders/${order.id}/claim`, {});
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pesanan gagal diambil.");
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function uploadProof(order: CourierOrder, file: File) {
+    setBusyId(order.id);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(`/api/courier/orders/${order.id}/proof`, { method: "POST", body: form });
+      const json = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+      if (!response.ok) throw new Error(json?.error?.message ?? "Foto bukti gagal dikirim.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Foto bukti gagal dikirim.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function act(order: CourierOrder, action: "pickup" | "depart" | "arrive") {
     setBusyId(order.id);
     setError(null);
@@ -163,6 +227,8 @@ export function CourierView({ me }: { me: GarageMe }) {
   const mine = board?.isCourier ?? false;
   const active = board?.active ?? [];
   const done = board?.done ?? [];
+  const claimable = board?.claimable ?? [];
+  const myStatus = board?.me?.status ?? "offline";
 
   return (
     <section className="space-y-4">
@@ -185,8 +251,73 @@ export function CourierView({ me }: { me: GarageMe }) {
         </div>
       </header>
 
+      {mine && board ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-garage-line bg-garage-bg-1 p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-garage-dim">Status saya</p>
+            <div className="mt-1">
+              <CourierStatusChip status={myStatus} />
+            </div>
+          </div>
+          {myStatus === "offline" ? (
+            <Button
+              type="button"
+              className="garage-press h-11 bg-[#16a34a] px-4 font-black text-white hover:bg-[#15803d]"
+              disabled={busyId === "availability"}
+              onClick={() => void setAvailability(true)}
+            >
+              <Bike className="size-4" aria-hidden /> Siap antar
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-11 border-garage-line-2 px-4 font-bold"
+              disabled={busyId === "availability" || carriedIds.length > 0}
+              onClick={() => void setAvailability(false)}
+              title={carriedIds.length ? "Selesaikan antaran dulu" : undefined}
+            >
+              <Coffee className="size-4" aria-hidden /> Istirahat
+            </Button>
+          )}
+        </div>
+      ) : null}
+
       {error ? (
         <p className="rounded-md border border-garage-red/50 bg-garage-red/10 p-3 text-sm font-semibold text-[#ffc9c9]">{error}</p>
+      ) : null}
+
+      {mine && claimable.length ? (
+        <div className="rounded-lg border border-[#22c55e]/45 bg-[#22c55e]/[0.06] p-4">
+          <p className="text-sm font-black text-white">Siap antar · ambil sendiri ({claimable.length})</p>
+          <p className="text-xs text-garage-dim">
+            {myStatus === "available"
+              ? "Pesanan delivery lunas yang belum ada kurirnya."
+              : myStatus === "offline"
+                ? "Nyalakan \"Siap antar\" untuk mengambil pesanan."
+                : "Selesaikan antaran yang sedang dibawa dulu."}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {claimable.map((order) => (
+              <li key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-garage-line bg-garage-bg-2 p-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-white">
+                    {order.orderNo} · {order.customerName ?? "Pelanggan"}
+                  </p>
+                  <p className="line-clamp-2 text-sm text-garage-dim">{order.deliveryAddress ?? "-"}</p>
+                </div>
+                <Button
+                  type="button"
+                  className="garage-press h-11 font-black"
+                  disabled={myStatus !== "available" || busyId === order.id}
+                  onClick={() => void claim(order)}
+                >
+                  {busyId === order.id ? "Mengambil…" : "Ambil"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {board === null ? (
@@ -196,7 +327,9 @@ export function CourierView({ me }: { me: GarageMe }) {
           <Package className="mx-auto size-8 text-garage-mute" aria-hidden />
           <p className="mt-2 text-base font-bold text-white">Belum ada antaran</p>
           <p className="text-sm text-garage-dim">
-            {mine ? "Kasir akan menugaskan pesanan delivery ke akun Anda." : "Tugaskan kurir dari detail order delivery di POS."}
+            {mine
+              ? "Nyalakan \"Siap antar\" — kasir menugaskan pesanan, atau ambil sendiri dari daftar Siap antar."
+              : "Tugaskan kurir dari detail order delivery di POS."}
           </p>
         </div>
       ) : (
@@ -208,6 +341,7 @@ export function CourierView({ me }: { me: GarageMe }) {
               busy={busyId === order.id}
               canAct={order.courierUserId === me.user.id || me.role === "Owner" || me.role === "Manajer"}
               onAct={(action) => void act(order, action)}
+              onProof={(file) => void uploadProof(order, file)}
             />
           ))}
         </div>
@@ -265,11 +399,13 @@ function CourierCard({
   busy,
   canAct,
   onAct,
+  onProof,
 }: {
   order: CourierOrder;
   busy: boolean;
   canAct: boolean;
   onAct: (action: "pickup" | "depart" | "arrive") => void;
+  onProof: (file: File) => void;
 }) {
   const status = order.deliveryStatus ?? "preparing";
   const route = routeUrl(order);
@@ -290,7 +426,12 @@ function CourierCard({
       ? { action: "pickup" as const, label: "Ambil pesanan", hint: productionReady ? "Pesanan siap diambil di kasir" : "Pesanan masih dibuat Bar/Dapur" }
       : status === "picked_up"
         ? { action: "depart" as const, label: "Mulai antar", hint: "GPS mulai dibagikan ke pelanggan" }
-        : { action: "arrive" as const, label: "Sudah sampai", hint: "GPS berhenti dibagikan" };
+        : {
+            action: "arrive" as const,
+            label: "Sudah sampai",
+            hint: order.deliveryProofUrl ? "GPS berhenti dibagikan" : "Ambil foto bukti terkirim dulu",
+          };
+  const needsProof = primary.action === "arrive" && !order.deliveryProofUrl;
 
   return (
     <article className="flex flex-col gap-3 rounded-lg border border-garage-red/40 bg-garage-bg-1 p-4">
@@ -376,12 +517,37 @@ function CourierCard({
         )}
       </div>
 
+      {canAct && carrying(order.deliveryStatus) ? (
+        <label
+          className={`garage-press flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border text-sm font-bold ${
+            order.deliveryProofUrl
+              ? "border-[#22c55e]/55 bg-[#22c55e]/10 text-[#bbf7d0]"
+              : "border-garage-amber/60 bg-garage-amber/10 text-[#ffd79a]"
+          }`}
+        >
+          <Camera className="size-4" aria-hidden />
+          {order.deliveryProofUrl ? "Foto bukti tersimpan · ganti foto" : "Ambil foto bukti terkirim"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            className="sr-only"
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) onProof(file);
+            }}
+          />
+        </label>
+      ) : null}
+
       {canAct ? (
         <div>
           <Button
             type="button"
             className="garage-press h-12 w-full text-base font-black"
-            disabled={busy}
+            disabled={busy || needsProof}
             onClick={() => onAct(primary.action)}
           >
             {busy ? "Menyimpan…" : primary.label}

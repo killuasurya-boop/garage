@@ -14,6 +14,11 @@ export async function GET(request: Request) {
     outletParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(outletParam)
       ? outletParam
       : null;
-  const data = await getPublicTableLiveData(outletId);
+  // Header token kunci meja → tandai "Meja kamu" (tidak pernah mengirim token orang lain).
+  const holdToken = request.headers.get("x-table-hold-token");
+  const data = await getPublicTableLiveData(
+    outletId,
+    holdToken && /^[a-f0-9]{32,64}$/.test(holdToken) ? holdToken : null,
+  );
   return okWithEtag(request, data);
 }

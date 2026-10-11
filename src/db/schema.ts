@@ -273,6 +273,10 @@ export const staffProfiles = pgTable(
     // tidak ditugaskan produksi (mis. kasir di mesin kasir) → tidak boleh
     // MULAI/READY tiket. Owner/Manajer selalu boleh (override, tercatat audit).
     workstation: text("workstation"),
+    // Kurir: "available" (siap antar) | "offline" (istirahat). Status
+    // Ditugaskan/Mengantar diturunkan dari pesanan aktif (garage-courier).
+    courierAvailability: text("courier_availability").notNull().default("offline"),
+    courierAvailabilityAt: timestamp("courier_availability_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -559,6 +563,8 @@ export const orders = pgTable(
     customerLat: numeric("customer_lat", { precision: 9, scale: 6, mode: "number" }),
     customerLng: numeric("customer_lng", { precision: 9, scale: 6, mode: "number" }),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    // Foto bukti terkirim (wajib saat kurir menandai "Sudah sampai").
+    deliveryProofUrl: text("delivery_proof_url"),
     whatsappInvoiceStatus: text("whatsapp_invoice_status").notNull().default("not_sent"),
     whatsappInvoiceUrl: text("whatsapp_invoice_url"),
     invoiceTrackingToken: text("invoice_tracking_token"),
@@ -1314,6 +1320,13 @@ export const tableSessions = pgTable(
     needsCleaning: boolean("needs_cleaning").notNull().default(false),
     lastStatusAt: timestamp("last_status_at", { withTimezone: true }).notNull().defaultNow(),
     cleanedAt: timestamp("cleaned_at", { withTimezone: true }),
+    // Kunci sementara saat customer memilih meja di menu digital (owner, Okt
+    // 2026): meja "Sedang dipilih" sampai heldUntil; token disimpan sebagai hash.
+    heldUntil: timestamp("held_until", { withTimezone: true }),
+    heldTokenHash: text("held_token_hash"),
+    // Kode gabung 4 digit untuk teman semeja (dibuat saat pesanan pertama,
+    // dihapus saat meja dikosongkan).
+    joinCode: text("join_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

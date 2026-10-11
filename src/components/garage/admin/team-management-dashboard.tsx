@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -16,7 +16,9 @@ import {
   MapPin,
   BookOpen,
   LayoutDashboard,
-  Handshake
+  Handshake,
+  ArrowUpRight,
+  Info
 } from "lucide-react";
 
 import type { Role } from "@/lib/garage-data";
@@ -102,9 +104,56 @@ function NavItem({ value, label, icon: Icon, activeTab, onSelect }: NavItemProps
   );
 }
 
+const LEGACY_PAYROLL_TABS = new Set(["attendance", "advances", "payroll"]);
+
+/** Tab lama saat Payroll V2 aktif: riwayat saja, transaksi baru di /owner/payroll. */
+function PayrollV2Banner({ tab }: { tab: string }) {
+  const target =
+    tab === "attendance"
+      ? { href: "/owner/payroll/today", label: "Absensi hari ini (Payroll V2)" }
+      : tab === "advances"
+        ? { href: "/owner/payroll/pay", label: "Pembayaran & potongan (Payroll V2)" }
+        : { href: "/owner/payroll", label: "Buka Payroll V2" };
+  return (
+    <div
+      role="status"
+      className="mb-5 flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="flex items-start gap-2 leading-relaxed">
+        <Info className="mt-0.5 size-4 shrink-0 text-amber-400" />
+        <span>
+          <strong className="font-semibold">Payroll V2 aktif.</strong> Absensi, upah harian, kasbon & pembayaran gaji
+          dikelola di menu Payroll. Panel ini hanya riwayat — input baru ditolak supaya gaji tidak tercatat dobel.
+        </span>
+      </p>
+      <a
+        href={target.href}
+        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-[#d11a2a] px-3 py-2 text-sm font-semibold text-white hover:bg-[#b01522]"
+      >
+        {target.label}
+        <ArrowUpRight className="size-4" />
+      </a>
+    </div>
+  );
+}
+
 export function TeamManagementDashboard({ role }: { role: Role }) {
   const [activeTab, setActiveTab] = useState("overview");
+  const [payrollV2, setPayrollV2] = useState(false);
   const canViewFinance = canUseApi(role, "finance:read");
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/hr/payroll-mode", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (alive && json?.data?.v2Enabled) setPayrollV2(true);
+      })
+      .catch(() => null);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Komponen Helper untuk merender konten yang aktif
   const renderContent = () => {
@@ -215,6 +264,7 @@ export function TeamManagementDashboard({ role }: { role: Role }) {
         {/* Konten Utama (Card Panel) */}
         <main className="flex-1 w-full bg-card text-card-foreground rounded-xl border p-4 sm:p-6 shadow-sm min-h-[600px] overflow-hidden relative">
            <div className="animate-in fade-in duration-300">
+             {payrollV2 && LEGACY_PAYROLL_TABS.has(activeTab) ? <PayrollV2Banner tab={activeTab} /> : null}
              {renderContent()}
            </div>
         </main>

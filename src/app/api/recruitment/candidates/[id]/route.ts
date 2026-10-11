@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { RECRUITMENT_STATUSES, updateCandidate } from "@/lib/garage-recruitment-service";
+import { getDb } from "@/db";
+import { auditLogs } from "@/db/schema";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -39,6 +41,20 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!updated) {
     return fail(404, "CANDIDATE_NOT_FOUND", "Kandidat tidak ditemukan.");
   }
+
+  // Jejak audit: siapa mengubah status / nilai / jadwal pelamar (tanpa isi catatan).
+  await getDb()
+    .insert(auditLogs)
+    .values({
+      time: new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date()),
+      actor: `${session.data.user.name} / ${session.data.profile.role}`,
+      action: body.data.status ? `Rekrutmen: status → ${body.data.status}` : "Rekrutmen: update kandidat",
+      object: `${updated.fullName} (${updated.appliedPosition})`,
+      device: session.data.profile.deviceLabel ?? "OS",
+      status: "recorded",
+      metadata: { candidateId: updated.id, fields: Object.keys(body.data) },
+    })
+    .catch((error) => console.error("Audit rekrutmen gagal", error));
 
   return ok({ candidate: updated });
 }

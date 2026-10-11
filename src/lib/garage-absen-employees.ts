@@ -307,7 +307,7 @@ export function absenCodePrefix(position: string | null | undefined, role: strin
   return known[raw] ?? (raw.replace(/[^A-Z0-9]/g, "").slice(0, 4) || "STAF");
 }
 
-async function nextFreeCode(prefix: string): Promise<string> {
+export async function nextFreeCode(prefix: string): Promise<string> {
   const rows = await getDb()
     .select({ code: staffWageConfig.absenCode })
     .from(staffWageConfig)

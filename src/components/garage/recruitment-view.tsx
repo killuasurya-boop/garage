@@ -88,6 +88,8 @@ type Candidate = {
   interviewDate?: string | null;
   interviewLink?: string | null;
   cvParsedData?: Record<string, unknown> | null;
+  hiredAt?: string | null;
+  hiredEmployeeCode?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -156,7 +158,7 @@ const getWhatsappLink = (
   
   if (template === "interview") {
     const fmtDate = interviewDate 
-      ? new Date(interviewDate).toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + " WIB"
+      ? (/(Z|[+-]\d\d:\d\d)$/.test(interviewDate) ? new Date(interviewDate) : new Date(`${interviewDate}:00+07:00`)).toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: "Asia/Jakarta" }) + " WIB"
       : "[TANGGAL BELUM DITENTUKAN]";
     msg = `Halo ${name}, selamat lamaran kamu untuk posisi ${position} lolos seleksi awal. Kami mengundang kamu untuk interview pada:\n\nTanggal: ${fmtDate}\nLokasi/Link: ${interviewLink || "[LOKASI BELUM DITENTUKAN]"}\n\nMohon konfirmasi kehadirannya ya. Terima kasih!`;
   } else if (template === "reject") {
@@ -192,9 +194,10 @@ function CandidateDrawer({
   const [finalDecision, setFinalDecision] = useState(candidate.finalDecision ?? "");
   
   // Superpowers Goal: Jadwal Interview
-  const [interviewDate, setInterviewDate] = useState<string>(
-    candidate.interviewDate ? new Date(candidate.interviewDate).toISOString().slice(0, 16) : ""
-  );
+  // Jam interview selalu WIB (input datetime-local tanpa zona). Dulu ISO UTC
+  // dibaca sebagai jam lokal → tiap "Simpan" jadwal mundur 7 jam.
+  const initialInterviewDate = isoToWibInput(candidate.interviewDate);
+  const [interviewDate, setInterviewDate] = useState<string>(initialInterviewDate);
   const [interviewLink, setInterviewLink] = useState(candidate.interviewLink ?? "");
 
   const [saving, setSaving] = useState(false);
@@ -212,7 +215,9 @@ function CandidateDrawer({
         followUpDate: followUpDate || null,
         assignedTo: assignedTo || null,
         finalDecision: finalDecision || null,
-        interviewDate: interviewDate ? new Date(interviewDate).toISOString() : null,
+        ...(interviewDate !== initialInterviewDate
+          ? { interviewDate: interviewDate ? wibInputToIso(interviewDate) : null }
+          : {}),
         interviewLink: interviewLink || null,
         ...(score !== "" ? { score: Number(score) } : {}),
       });
@@ -238,7 +243,7 @@ function CandidateDrawer({
       await onStatusChange(
         {
           ...candidate,
-          interviewDate: interviewDate ? new Date(interviewDate).toISOString() : candidate.interviewDate,
+          interviewDate: interviewDate ? wibInputToIso(interviewDate) : candidate.interviewDate,
           interviewLink: interviewLink || candidate.interviewLink,
         },
         s,
@@ -380,42 +385,42 @@ function CandidateDrawer({
             <div className="space-y-2 text-sm text-[#d4d4d8]">
               <p><span className="text-[#888]">Gaji diharapkan:</span> {fmtRp(candidate.expectedSalary)}</p>
               {candidate.cvUrl && (
-                <a href={candidate.cvUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#22c55e]/30 bg-[#22c55e]/10 px-3 py-1.5 text-xs font-semibold text-[#bbf7d0] hover:bg-[#22c55e]/20">
+                <a href={safeHref(candidate.cvUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#22c55e]/30 bg-[#22c55e]/10 px-3 py-1.5 text-xs font-semibold text-[#bbf7d0] hover:bg-[#22c55e]/20">
                   <FileText className="size-3.5" /> Lihat CV <ExternalLink className="size-3" />
                 </a>
               )}
               {candidate.photoUrl && (
-                <a href={candidate.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                <a href={safeHref(candidate.photoUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
                   <User className="size-3.5" /> Foto Diri <ExternalLink className="size-3" />
                 </a>
               )}
               {candidate.portfolioUrl && (
-                <a href={candidate.portfolioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                <a href={safeHref(candidate.portfolioUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
                   <Briefcase className="size-3.5" /> Portfolio <ExternalLink className="size-3" />
                 </a>
               )}
               {candidate.certificateUrl && (
-                <a href={candidate.certificateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                <a href={safeHref(candidate.certificateUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
                   <FileText className="size-3.5" /> Sertifikat <ExternalLink className="size-3" />
                 </a>
               )}
               {candidate.ktpUrl && (
-                <a href={candidate.ktpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-1.5 text-xs font-semibold text-[#fde68a] hover:bg-[#f59e0b]/20">
+                <a href={safeHref(candidate.ktpUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-1.5 text-xs font-semibold text-[#fde68a] hover:bg-[#f59e0b]/20">
                   <FileText className="size-3.5" /> KTP Internal <ExternalLink className="size-3" />
                 </a>
               )}
               {candidate.instagramUrl && (
-                <a href={candidate.instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                <a href={safeHref(candidate.instagramUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
                   <ExternalLink className="size-3.5" /> Instagram
                 </a>
               )}
               {candidate.tiktokUrl && (
-                <a href={candidate.tiktokUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                <a href={safeHref(candidate.tiktokUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
                   <ExternalLink className="size-3.5" /> TikTok
                 </a>
               )}
               {candidate.linkedinUrl && (
-                <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
+                <a href={safeHref(candidate.linkedinUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[#34343c] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-[#d4d4d8] hover:bg-white/[0.1]">
                   <ExternalLink className="size-3.5" /> LinkedIn
                 </a>
               )}
@@ -545,6 +550,8 @@ function CandidateDrawer({
               </button>
             </div>
           </div>
+
+          {candidate.status === "Diterima" ? <HireCandidateBox candidate={candidate} onHired={onSaved} /> : null}
 
           {/* WhatsApp CTA */}
           <div className="rounded-md border border-[#25d366]/30 bg-[#25d366]/[0.04] p-4 space-y-3">
@@ -1159,7 +1166,7 @@ export function RecruitmentView() {
                         <td className="p-3 text-xs text-[#a1a1aa]">{fmtDate(c.createdAt)}</td>
                         <td className="p-3">
                           {c.cvUrl ? (
-                            <a href={c.cvUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#bbf7d0] hover:underline">
+                            <a href={safeHref(c.cvUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#bbf7d0] hover:underline">
                               <FileText className="size-3.5" /> CV <ExternalLink className="size-3" />
                             </a>
                           ) : (
@@ -1241,5 +1248,130 @@ export function RecruitmentView() {
         )}
       </section>
     </>
+  );
+}
+
+/** Hanya tautan dokumen resmi / http(s) yang boleh jadi link (data lama bisa berisi teks bebas). */
+function safeHref(value: string | null | undefined): string | undefined {
+  const url = (value ?? "").trim();
+  if (url.startsWith("/api/recruitment/files/") || /^https?:\/\//i.test(url)) return url;
+  if (/^@?[a-z0-9._]{2,60}$/i.test(url)) return `https://instagram.com/${url.replace(/^@/, "")}`;
+  return undefined;
+}
+
+/** ISO → "YYYY-MM-DDTHH:mm" jam WIB untuk input datetime-local. */
+function isoToWibInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const time = new Date(iso).getTime();
+  if (!Number.isFinite(time)) return "";
+  return new Date(time + 7 * 3_600_000).toISOString().slice(0, 16);
+}
+
+/** "YYYY-MM-DDTHH:mm" (WIB) → ISO UTC. */
+function wibInputToIso(value: string): string {
+  return new Date(`${value}:00+07:00`).toISOString();
+}
+
+function todayWibDate() {
+  return new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Pelamar diterima → karyawan Payroll V2 (kode absen + PIN + gaji) tanpa ketik
+ * ulang data. Hanya Owner (server menolak peran lain).
+ */
+function HireCandidateBox({ candidate, onHired }: { candidate: Candidate; onHired: () => void }) {
+  const [position, setPosition] = useState(candidate.appliedPosition);
+  const [code, setCode] = useState("");
+  const [salary, setSalary] = useState("");
+  const [shiftStart, setShiftStart] = useState("");
+  const [joinDate, setJoinDate] = useState(() => candidate.availableStartDate || todayWibDate());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ code: string; pin: string } | null>(null);
+  const inputCls =
+    "h-9 w-full rounded-md border border-[#34343c] bg-black/40 px-2.5 text-sm text-white outline-none focus:border-[#f5a742]";
+
+  if (candidate.hiredAt && !result) {
+    return (
+      <div className="rounded-md border border-[#22c55e]/40 bg-[#22c55e]/10 p-4 text-sm text-[#bbf7d0]">
+        Sudah jadi karyawan · kode absen <strong>{candidate.hiredEmployeeCode}</strong>. Kelola gaji & PIN di Payroll →
+        Karyawan.
+      </div>
+    );
+  }
+
+  async function hire() {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await garageApi.post<{ code: string; pin: string }>(
+        `/api/recruitment/candidates/${candidate.id}/hire`,
+        {
+          code: code.trim() || undefined,
+          position: position.trim() || null,
+          monthlySalary: Math.round(Number(salary.replace(/[^\d]/g, "")) || 0),
+          shiftStart: shiftStart || null,
+          joinDate,
+        },
+      );
+      setResult(data);
+      onHired();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menjadikan karyawan.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/[0.06] p-4">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-[#ffd08a]">Jadikan karyawan (Owner)</p>
+      {result ? (
+        <div className="rounded-md border border-[#22c55e]/40 bg-[#22c55e]/10 p-3 text-sm text-white">
+          <p>
+            Karyawan dibuat · kode absen <strong>{result.code}</strong>
+          </p>
+          <p className="mt-1">
+            PIN absen: <strong className="font-mono text-lg tracking-widest text-[#ffd08a]">{result.pin}</strong>
+          </p>
+          <p className="mt-1 text-xs text-[#d4d4d8]">Catat & berikan ke karyawan — PIN hanya tampil sekali.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="text-xs text-[#d4d4d8]">
+              Jabatan
+              <input className={inputCls} value={position} onChange={(e) => setPosition(e.target.value)} />
+            </label>
+            <label className="text-xs text-[#d4d4d8]">
+              Kode absen (kosong = otomatis)
+              <input className={inputCls} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="mis. BAR2" />
+            </label>
+            <label className="text-xs text-[#d4d4d8]">
+              Gaji bulanan (Rp)
+              <input className={inputCls} inputMode="numeric" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="mis. 2000000" />
+            </label>
+            <label className="text-xs text-[#d4d4d8]">
+              Jam masuk (opsional)
+              <input className={inputCls} type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
+            </label>
+            <label className="text-xs text-[#d4d4d8] sm:col-span-2">
+              Tanggal mulai kerja
+              <input className={inputCls} type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
+            </label>
+          </div>
+          {error ? <p className="text-xs text-[#fca5a5]">{error}</p> : null}
+          <button
+            type="button"
+            disabled={busy || !salary.trim() || !joinDate}
+            onClick={() => void hire()}
+            className="w-full rounded-md bg-[#d11a2a] py-2.5 text-sm font-bold text-white hover:bg-[#b01525] disabled:opacity-50"
+          >
+            {busy ? "Membuat karyawan…" : "Jadikan karyawan & buat PIN absen"}
+          </button>
+        </>
+      )}
+    </div>
   );
 }

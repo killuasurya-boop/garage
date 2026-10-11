@@ -30,3 +30,21 @@ export const RECRUITMENT_STATUSES = [
   "Ditolak",
   "Talent Pool",
 ] as const;
+
+/** Normalisasi nomor WhatsApp pelamar: 0812… / +62812… / 62812… → 62812… */
+export function normalizeApplicantPhone(value: string | null | undefined): string {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
+  if (digits.startsWith("8")) return `62${digits}`;
+  return digits;
+}
+
+/** Link dokumen hasil upload resmi (/api/recruitment/files/...). */
+export const RECRUITMENT_FILE_URL =
+  /^\/api\/recruitment\/files\/(cv|photo|ktp|portfolio|certificate)-\d{13}-[a-f0-9]{8}\.(pdf|doc|docx|jpg|png|webp)$/;
+
+/** URL tautan publik (sosmed/portfolio) wajib https. */
+export const HTTPS_URL = /^https:\/\/[^\s"'<>]{3,480}$/i;
+
+/** Lowongan dibuka WhatsApp grup pelamar (satu sumber). */
+export const RECRUITMENT_WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/HQ6hItzXVgULWHVwlw7mDd";

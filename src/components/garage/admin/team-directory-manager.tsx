@@ -31,6 +31,7 @@ export function TeamDirectoryManager() {
   const [pinCode, setPinCode] = useState("");
   const [status, setStatus] = useState("active");
   const [role, setRole] = useState("");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -61,9 +62,15 @@ export function TeamDirectoryManager() {
     setPinCode(""); // PIN lama tidak pernah dikirim ke browser; kosong = tidak diubah.
     setStatus(item.status);
     setRole(item.role);
+    setReason("");
   }
 
   async function handleSave(id: string) {
+    const current = staff.find((row) => row.id === id);
+    if (status !== "active" && current?.status !== status && !reason.trim()) {
+      setSaveError("Isi alasan sebelum menonaktifkan staf (tercatat di audit log).");
+      return;
+    }
     try {
       setSubmitting(true);
       const res = await fetch("/api/hr/team/staff", {
@@ -76,6 +83,7 @@ export function TeamDirectoryManager() {
           ...(pinCode.trim() ? { pinCode: pinCode.trim() } : {}),
           status,
           role,
+          ...(status !== "active" && reason.trim() ? { reason: reason.trim() } : {}),
         }),
       });
       if (res.ok) {
@@ -209,14 +217,27 @@ export function TeamDirectoryManager() {
                       {/* Status */}
                       <td className="p-4 text-center">
                         {isEditing ? (
-                          <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                            className="h-8 px-2 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 text-xs focus:outline-none"
-                          >
-                            <option value="active">Aktif</option>
-                            <option value="suspended">Ditangguhkan</option>
-                          </select>
+                          <div className="flex flex-col items-center gap-1.5">
+                            <select
+                              value={status}
+                              onChange={(e) => setStatus(e.target.value)}
+                              className="h-8 px-2 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 text-xs focus:outline-none"
+                            >
+                              <option value="active">Aktif</option>
+                              <option value="suspended">Ditangguhkan</option>
+                              <option value="inactive">Keluar / resign</option>
+                            </select>
+                            {status !== "active" && status !== item.status ? (
+                              <input
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                maxLength={200}
+                                placeholder="Alasan (wajib dicatat)"
+                                aria-label="Alasan nonaktif"
+                                className="h-8 w-40 px-2 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 text-xs placeholder:text-zinc-500 focus:outline-none"
+                              />
+                            ) : null}
+                          </div>
                         ) : (
                           <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border inline-flex items-center gap-1 ${
                             item.status === "active"
@@ -231,7 +252,7 @@ export function TeamDirectoryManager() {
                             ) : (
                               <>
                                 <ShieldAlert className="size-3" />
-                                Ditutup
+                                {item.status === "inactive" ? "Keluar" : "Ditangguhkan"}
                               </>
                             )}
                           </span>

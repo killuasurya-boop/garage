@@ -105,8 +105,10 @@ export async function POST(request: Request) {
       message: "Data CV dibaca AI. Periksa & lengkapi sebelum kirim.",
     });
   } catch (err) {
+    // Detail error (kunci API, kuota, dsb.) hanya di log server, bukan ke publik.
+    console.error("Parse CV gagal", err);
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Gagal memproses CV." },
+      { ok: false, error: "CV belum bisa dibaca otomatis. Isi data secara manual." },
       { status: 500 },
     );
   }

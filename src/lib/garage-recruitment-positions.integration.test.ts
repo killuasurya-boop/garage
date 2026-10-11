@@ -48,4 +48,18 @@ describe("Recruitment positions — self-healing seed", () => {
     const waiter = list.find((p: any) => p.slug === "waiter");
     expect(waiter?.title).toMatch(/waiter|pelayan/i);
   });
+
+  it("hapus posisi default → ditutup (tidak muncul lagi terbuka); posisi custom terhapus", async () => {
+    const all = await svc.listAllPositions();
+    const waiter = all.find((p: any) => p.slug === "waiter");
+    expect(await svc.deletePosition(waiter.id)).toBe(true);
+    const open = await svc.listOpenPositions();
+    expect(open.some((p: any) => p.slug === "waiter")).toBe(false);
+    const after = await svc.listAllPositions();
+    expect(after.filter((p: any) => p.slug === "waiter").length).toBe(1);
+
+    const custom = await svc.createPosition({ slug: "kurir-motor", title: "Kurir Motor", location: "Tebing Tinggi", type: "Part-time", experience: "-", description: "-", isOpen: true });
+    expect(await svc.deletePosition(custom.id)).toBe(true);
+    expect((await svc.listAllPositions()).some((p: any) => p.id === custom.id)).toBe(false);
+  });
 });

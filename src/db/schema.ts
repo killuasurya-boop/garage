@@ -2801,6 +2801,9 @@ export const candidates = pgTable(
     interviewLink: text("interview_link"),
     // Data parsing AI
     cvParsedData: jsonb("cv_parsed_data"),
+    // Diterima → dijadikan karyawan (Payroll V2 / absen): kode karyawan & waktu.
+    hiredAt: timestamp("hired_at", { withTimezone: true }),
+    hiredEmployeeCode: text("hired_employee_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

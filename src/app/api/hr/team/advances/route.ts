@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { staffAdvances, staffProfiles, user } from "@/db/schema";
@@ -59,6 +60,13 @@ export async function POST(req: Request) {
   try {
     const session = await requirePermission("staff:manage");
     if (session.response) return session.response;
+    if (isPayrollV2Enabled()) {
+      return fail(
+        409,
+        "PAYROLL_V2_ACTIVE",
+        "Payroll V2 aktif — gaji, kasbon & pembayaran dikelola di menu Payroll (/owner/payroll). Data di sini hanya riwayat.",
+      );
+    }
 
     const parsed = await readJson(req, advanceBodySchema);
     if (parsed.error) return parsed.error;

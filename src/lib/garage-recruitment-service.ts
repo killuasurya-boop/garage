@@ -213,26 +213,52 @@ export async function updateCandidate(id: string, input: CandidateUpdateInput) {
   if (input.interviewDate !== undefined) patch.interviewDate = input.interviewDate ? new Date(input.interviewDate) : null;
   if (input.interviewLink !== undefined) patch.interviewLink = clean(input.interviewLink);
 
+  const [before] = await db
+    .select({ status: candidates.status, interviewDate: candidates.interviewDate })
+    .from(candidates)
+    .where(eq(candidates.id, id))
+    .limit(1);
+  if (!before) return null;
+
   const [row] = await db
     .update(candidates)
     .set(patch)
     .where(eq(candidates.id, id))
     .returning();
 
-  if (row && input.status) {
+  // WA otomatis hanya bila status BENAR-BENAR berubah (atau jadwal interview
+  // diganti saat status Interview) — tidak dikirim ulang tiap simpan / bulk.
+  const statusChanged = Boolean(row && input.status && input.status !== before.status);
+  const interviewRescheduled = Boolean(
+    row &&
+      row.status === "Interview" &&
+      input.interviewDate !== undefined &&
+      (row.interviewDate?.getTime() ?? null) !== (before.interviewDate?.getTime() ?? null),
+  );
+  if (row && (statusChanged || interviewRescheduled)) {
     // Auto Notifikasi via WhatsApp
     const provider = resolveProvider();
     const sender = getSender(provider);
     
     let messageBody = "";
-    if (input.status === "Interview" && input.interviewDate) {
-      const dateStr = new Date(input.interviewDate).toLocaleString("id-ID");
-      messageBody = `Halo ${row.fullName}, selamat Anda lolos ke tahap Interview untuk posisi ${row.appliedPosition} di GARAGE. Jadwal interview Anda: ${dateStr}. ${input.interviewLink ? "Link: " + input.interviewLink : ""}`;
-    } else if (input.status === "Diterima") {
+    const notifyStatus = row.status;
+    const scheduled = row.interviewDate;
+    if (notifyStatus === "Interview" && scheduled) {
+      const dateStr = `${scheduled.toLocaleString("id-ID", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Jakarta",
+      })} WIB`;
+      messageBody = `Halo ${row.fullName}, selamat Anda lolos ke tahap Interview untuk posisi ${row.appliedPosition} di GARAGE. Jadwal interview Anda: ${dateStr}. ${row.interviewLink ? "Tempat/Link: " + row.interviewLink : ""}`;
+    } else if (statusChanged && notifyStatus === "Diterima") {
       messageBody = `Halo ${row.fullName}, SELAMAT! Anda dinyatakan LULUS dan diterima untuk posisi ${row.appliedPosition} di GARAGE. Tim HR kami akan segera menghubungi Anda untuk proses pemberkasan dan onboarding. Terima kasih!`;
-    } else if (input.status === "Talent Pool") {
+    } else if (statusChanged && notifyStatus === "Talent Pool") {
       messageBody = `Halo ${row.fullName}, terima kasih telah melamar di GARAGE untuk posisi ${row.appliedPosition}. Profil Anda sangat menarik, namun posisi ini sudah terpenuhi saat ini. Kami menyimpan data Anda di Talent Pool dan akan menghubungi Anda jika ada lowongan yang sesuai!`;
-    } else if (input.status === "Ditolak") {
+    } else if (statusChanged && notifyStatus === "Ditolak") {
       messageBody = `Halo ${row.fullName}, terima kasih atas minat Anda pada GARAGE. Saat ini kami belum bisa melanjutkan lamaran Anda untuk posisi ${row.appliedPosition}. Tetap semangat!`;
     }
 

@@ -2,11 +2,31 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { checkDuplicateCandidate, createCandidate } from "@/lib/garage-recruitment-service";
+import {
+  HTTPS_URL,
+  RECRUITMENT_FILE_URL,
+  RECRUITMENT_WHATSAPP_GROUP_URL,
+} from "@/lib/garage-recruitment-data";
+import { listOpenPositions } from "@/lib/garage-recruitment-positions-service";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-const recruitmentWhatsappGroupUrl = "https://chat.whatsapp.com/HQ6hItzXVgULWHVwlw7mDd";
+const recruitmentWhatsappGroupUrl = RECRUITMENT_WHATSAPP_GROUP_URL;
+
+// Dokumen wajib berasal dari upload resmi; tautan sosmed/portfolio wajib https.
+const fileUrl = (message: string) =>
+  z.string().trim().max(500).regex(RECRUITMENT_FILE_URL, message);
+const optionalFileUrl = (message: string) => fileUrl(message).optional().or(z.literal(""));
+// Sosmed boleh @username / domain tanpa skema / http(s); skema lain (javascript:,
+// data:, dll) ditolak supaya tidak bisa jadi tautan berbahaya di layar admin.
+const optionalSocial = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((v) => !/^[a-z][a-z0-9+.-]*:/i.test(v) || /^https?:\/\//i.test(v), "Tautan harus http(s):// atau @username.")
+  .optional()
+  .or(z.literal(""));
 
 function isDatabaseReadinessError(error: unknown) {
   if (!(error instanceof Error)) return false;
@@ -45,15 +65,33 @@ const applySchema = z.object({
   customerExperience: z.string().trim().max(2000).optional().or(z.literal("")),
   expectedSalary: z.number().int().min(0).max(100_000_000).optional().nullable(),
   interviewAvailability: z.string().trim().max(160).optional().or(z.literal("")),
-  cvUrl: z.string().trim().min(2, "CV wajib diupload.").max(500),
-  photoUrl: z.string().trim().min(2, "Pas foto wajib diupload.").max(500),
-  ktpUrl: z.string().trim().max(500).optional().or(z.literal("")),
-  certificateUrl: z.string().trim().max(500).optional().or(z.literal("")),
-  portfolioUrl: z.string().trim().max(500).optional().or(z.literal("")),
-  instagramUrl: z.string().trim().max(500).optional().or(z.literal("")),
-  tiktokUrl: z.string().trim().max(500).optional().or(z.literal("")),
-  linkedinUrl: z.string().trim().max(500).optional().or(z.literal("")),
-  socialMediaUrl: z.string().trim().max(500).optional().or(z.literal("")),
+  cvUrl: fileUrl("CV wajib diupload lewat form."),
+  photoUrl: fileUrl("Pas foto wajib diupload lewat form."),
+  ktpUrl: optionalFileUrl("File KTP tidak valid — upload ulang."),
+  certificateUrl: optionalFileUrl("File sertifikat tidak valid — upload ulang."),
+  // Portfolio boleh file upload ATAU tautan https.
+  portfolioUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (v) => !v || RECRUITMENT_FILE_URL.test(v) || HTTPS_URL.test(v) || /^http:\/\/[^\s"'<>]{3,480}$/i.test(v),
+      "Portfolio harus file upload atau tautan http(s)://",
+    )
+    .optional(),
+  instagramUrl: optionalSocial,
+  tiktokUrl: optionalSocial,
+  linkedinUrl: optionalSocial,
+  socialMediaUrl: z
+    .string()
+    .trim()
+    .max(1500)
+    .refine(
+      (v) => v.split("|").every((part) => !/^[a-z][a-z0-9+.-]*:/i.test(part.trim()) || /^https?:\/\//i.test(part.trim())),
+      "Tautan sosial media tidak valid.",
+    )
+    .optional()
+    .or(z.literal("")),
   // Sumber pelamar — dari mana tahu lowongan
   referralSource: z.enum([
     "Instagram",
@@ -78,6 +116,15 @@ export async function POST(request: Request) {
   try {
     const { consent: _consent, ...data } = body.data;
     void _consent;
+
+    // Posisi harus salah satu lowongan yang sedang dibuka.
+    const openPositions = await listOpenPositions();
+    if (
+      openPositions.length &&
+      !openPositions.some((position) => position.title.toLowerCase() === data.appliedPosition.toLowerCase())
+    ) {
+      return fail(400, "RECRUITMENT_POSITION_CLOSED", "Posisi ini sedang tidak dibuka. Pilih posisi lain.");
+    }
 
     // Cek duplikat: WA/email + posisi sama dalam 30 hari terakhir
     const duplicate = await checkDuplicateCandidate(

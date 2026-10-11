@@ -137,9 +137,23 @@ export async function updatePosition(
   return row ? mapRow(row) : null;
 }
 
-// Hapus posisi.
+// Hapus posisi. Posisi default (seed) cukup ditutup — kalau barisnya dihapus,
+// self-healing seed akan memunculkannya lagi dalam keadaan terbuka.
 export async function deletePosition(id: string): Promise<boolean> {
   const db = await ensureDatabaseReady();
+  const [row] = await db
+    .select({ slug: recruitmentPositions.slug })
+    .from(recruitmentPositions)
+    .where(eq(recruitmentPositions.id, id))
+    .limit(1);
+  if (!row) return false;
+  if (SEED_POSITIONS.some((p) => p.slug === row.slug)) {
+    await db
+      .update(recruitmentPositions)
+      .set({ isOpen: false, updatedAt: new Date() })
+      .where(eq(recruitmentPositions.id, id));
+    return true;
+  }
   const result = await db
     .delete(recruitmentPositions)
     .where(eq(recruitmentPositions.id, id))

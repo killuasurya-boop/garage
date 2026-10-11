@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { session as sessionTable, staffProfiles, user } from "@/db/schema";
+import { auditLogs, session as sessionTable, staffProfiles, user } from "@/db/schema";
 import { requirePermission } from "@/lib/server-auth";
 import { eq } from "drizzle-orm";
 import { fail } from "@/lib/api-response";
@@ -25,6 +25,8 @@ const patchStaffSchema = z.object({
   status: z.enum(["active", "suspended", "inactive"]).optional(),
   shiftLabel: z.string().trim().max(80).optional(),
   role: z.enum(ROLE_VALUES).optional(),
+  // Alasan nonaktif/suspend (offboarding) — tersimpan di profil & audit log.
+  reason: z.string().trim().max(200).optional(),
 });
 
 export async function GET() {
@@ -52,7 +54,13 @@ export async function GET() {
         email: user.email,
       })
       .from(staffProfiles)
-      .innerJoin(user, eq(staffProfiles.userId, user.id));
+      .innerJoin(user, eq(staffProfiles.userId, user.id))
+      // Owner melihat semua outlet; Manajer hanya staf outlet-nya sendiri.
+      .where(
+        session.data.profile.role === "Owner"
+          ? undefined
+          : eq(staffProfiles.outletId, session.data.profile.outlet.id),
+      );
 
     // PIN absen tidak pernah dikirim ke browser — hanya status "sudah diatur".
     return NextResponse.json({
@@ -76,7 +84,7 @@ export async function PATCH(req: Request) {
     if (!parsed.success) {
       return fail(400, "VALIDATION_ERROR", parsed.error.issues.map((i) => i.message).join("; ") || "Payload tidak valid");
     }
-    const { id, division, position, pinCode, status, shiftLabel, role } = parsed.data;
+    const { id, division, position, pinCode, status, shiftLabel, role, reason } = parsed.data;
 
     const db = await getDb();
 
@@ -84,8 +92,18 @@ export async function PATCH(req: Request) {
     // akun Owner, dan tidak boleh menaikkan siapa pun menjadi Owner/Manajer.
     const actorRole = session.data.profile.role as Role;
     const [target] = await db
-      .select({ role: staffProfiles.role, userId: staffProfiles.userId, status: staffProfiles.status })
+      .select({
+        role: staffProfiles.role,
+        userId: staffProfiles.userId,
+        status: staffProfiles.status,
+        outletId: staffProfiles.outletId,
+        position: staffProfiles.position,
+        division: staffProfiles.division,
+        shiftLabel: staffProfiles.shiftLabel,
+        name: user.name,
+      })
       .from(staffProfiles)
+      .innerJoin(user, eq(staffProfiles.userId, user.id))
       .where(eq(staffProfiles.id, id))
       .limit(1);
     if (!target) {
@@ -102,6 +120,9 @@ export async function PATCH(req: Request) {
     if (pinCode && (await pinTakenByOther(pinCode, target.userId))) {
       return fail(409, "PIN_TAKEN", "PIN ini sudah dipakai staf lain. Pilih PIN lain.");
     }
+    if (actorRole !== "Owner" && target.outletId !== session.data.profile.outlet.id) {
+      return fail(403, "FORBIDDEN", "Staf ini bukan dari outlet anda.");
+    }
     if (actorRole !== "Owner") {
       const actorRank = protectedRoleRank[actorRole];
       if (protectedRoleRank[target.role as Role] >= actorRank || (role && protectedRoleRank[role] >= actorRank)) {
@@ -117,7 +138,12 @@ export async function PATCH(req: Request) {
       updateData.pinHash = hashPin(pinCode);
       updateData.pinCode = null;
     }
-    if (status !== undefined) updateData.status = status;
+    if (status !== undefined && status !== target.status) {
+      updateData.status = status;
+      // Offboarding: catat kapan & kenapa dinonaktifkan; aktif lagi = bersihkan.
+      updateData.suspendedAt = status === "active" ? null : new Date();
+      updateData.suspendedReason = status === "active" ? null : reason || null;
+    }
     if (shiftLabel !== undefined) updateData.shiftLabel = shiftLabel;
     if (role !== undefined) updateData.role = role;
 
@@ -131,13 +157,27 @@ export async function PATCH(req: Request) {
       .where(eq(staffProfiles.id, id));
 
     // Status non-aktif/suspend: putus semua sesi login yang masih berjalan.
-    if (status && status !== "active") {
-      const [profile] = await db
-        .select({ userId: staffProfiles.userId })
-        .from(staffProfiles)
-        .where(eq(staffProfiles.id, id))
-        .limit(1);
-      if (profile) await db.delete(sessionTable).where(eq(sessionTable.userId, profile.userId));
+    if (updateData.status && updateData.status !== "active") {
+      await db.delete(sessionTable).where(eq(sessionTable.userId, target.userId));
+    }
+
+    const changes: string[] = [];
+    if (updateData.status) changes.push(`status ${target.status} → ${updateData.status}`);
+    if (role !== undefined && role !== target.role) changes.push(`role ${target.role} → ${role}`);
+    if (pinCode) changes.push("PIN absen diganti");
+    if (position !== undefined && position !== (target.position ?? "")) changes.push(`jabatan → ${position || "-"}`);
+    if (division !== undefined && division !== (target.division ?? "")) changes.push(`divisi → ${division || "-"}`);
+    if (shiftLabel !== undefined && shiftLabel !== target.shiftLabel) changes.push(`shift → ${shiftLabel}`);
+    if (changes.length) {
+      await db.insert(auditLogs).values({
+        time: new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date()),
+        actor: `${session.data.user.name} / ${session.data.profile.role}`,
+        action: updateData.status && updateData.status !== "active" ? "SDM: staf dinonaktifkan" : "SDM: ubah data staf",
+        object: `${target.name} — ${changes.join(", ")}`,
+        device: session.data.profile.deviceLabel ?? "OS",
+        status: "recorded",
+        metadata: { staffProfileId: id, changes, reason: reason || null },
+      });
     }
 
     return NextResponse.json({ success: true });

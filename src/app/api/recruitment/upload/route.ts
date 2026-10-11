@@ -77,6 +77,30 @@ function projectRoot() {
 }
 
 // Upload dokumen kandidat (CV / foto / portfolio). Publik tapi rate-limited.
+function startsWith(buffer: Buffer, bytes: number[], offset = 0) {
+  return bytes.every((byte, index) => buffer[offset + index] === byte);
+}
+
+/** Cek tanda tangan file sesuai ekstensi tujuan. */
+function contentMatchesExtension(buffer: Buffer, ext: string) {
+  switch (ext) {
+    case ".pdf":
+      return startsWith(buffer, [0x25, 0x50, 0x44, 0x46]); // %PDF
+    case ".jpg":
+      return startsWith(buffer, [0xff, 0xd8, 0xff]);
+    case ".png":
+      return startsWith(buffer, [0x89, 0x50, 0x4e, 0x47]);
+    case ".webp":
+      return startsWith(buffer, [0x52, 0x49, 0x46, 0x46]) && startsWith(buffer, [0x57, 0x45, 0x42, 0x50], 8);
+    case ".docx":
+      return startsWith(buffer, [0x50, 0x4b, 0x03, 0x04]); // zip
+    case ".doc":
+      return startsWith(buffer, [0xd0, 0xcf, 0x11, 0xe0]); // OLE
+    default:
+      return false;
+  }
+}
+
 export async function POST(request: Request) {
   const limited = rateLimit(request, "recruitment-upload", { limit: 12, windowMs: 60_000 });
   if (limited) return limited;
@@ -106,13 +130,20 @@ export async function POST(request: Request) {
     return fail(400, "FILE_UNSUPPORTED", rule.hint);
   }
 
+  const buffer = Buffer.from(await file.arrayBuffer());
+  // Tipe dari browser bisa dipalsukan → cocokkan isi file (magic bytes).
+  if (!contentMatchesExtension(buffer, ext)) {
+    return fail(400, "FILE_CONTENT_MISMATCH", `Isi file tidak sesuai format. ${rule.hint}`);
+  }
+
   const dir = path.join(projectRoot(), "storage", "recruitment");
   await mkdir(dir, { recursive: true });
   const fileName = `${kind}-${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
   try {
-    await writeFile(path.join(dir, fileName), Buffer.from(await file.arrayBuffer()));
+    await writeFile(path.join(dir, fileName), buffer);
   } catch (error) {
-    return fail(500, "FILE_SAVE_FAILED", error instanceof Error ? error.message : "Gagal menyimpan file.");
+    console.error("Failed to save recruitment upload", error);
+    return fail(500, "FILE_SAVE_FAILED", "Gagal menyimpan file. Coba lagi.");
   }
 
   return ok({ url: `/api/recruitment/files/${fileName}` }, { status: 201 });

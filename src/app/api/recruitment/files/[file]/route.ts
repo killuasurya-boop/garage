@@ -56,6 +56,10 @@ export async function GET(
       "Content-Type": contentTypeFor(safeFile),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
+      // Dokumen Word selalu diunduh (bukan dibuka di browser); PDF/foto tampil inline
+      // tanpa skrip.
+      "Content-Disposition": /\.(doc|docx)$/.test(safeFile) ? `attachment; filename="${safeFile}"` : "inline",
+      "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
     },
   });
 }

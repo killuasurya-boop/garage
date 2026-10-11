@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, CheckCircle2, Clock, XCircle, Calendar, Briefcase } from "lucide-react";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,13 +26,14 @@ const STEPS = [
 
 export function ApplicantTracker() {
   const [whatsapp, setWhatsapp] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<TrackerData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!whatsapp.trim()) return;
+    if (!whatsapp.trim() || !email.trim()) return;
 
     setLoading(true);
     setError(null);
@@ -44,12 +43,13 @@ export function ApplicantTracker() {
       const res = await fetch("/api/recruitment/track-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ whatsapp }),
+        body: JSON.stringify({ whatsapp, email }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Gagal melacak status");
-      
-      setData(json.data);
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.application) {
+        throw new Error(json?.error?.message ?? "Gagal melacak status");
+      }
+      setData(json.data.application as TrackerData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan");
     } finally {
@@ -70,17 +70,18 @@ export function ApplicantTracker() {
           Cek Status Lamaran
         </h2>
         <p style={{ color: "var(--fg-dim)", fontSize: 14 }}>
-          Masukkan nomor WhatsApp yang Anda gunakan saat mendaftar.
+          Masukkan nomor WhatsApp dan email yang Anda gunakan saat mendaftar.
         </p>
       </div>
 
-      <form onSubmit={handleSearch} style={{ display: "flex", gap: 12, marginBottom: 32 }}>
-        <div style={{ position: "relative", flex: 1 }}>
+      <form onSubmit={handleSearch} style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
+        <div style={{ position: "relative", flex: "1 1 220px" }}>
           <Search size={18} style={{ position: "absolute", left: 14, top: 13, color: "var(--fg-mute)" }} />
           <Input 
             value={whatsapp}
             onChange={(e) => setWhatsapp(e.target.value)}
-            placeholder="Contoh: 08123456789"
+            placeholder="No. WhatsApp, contoh 08123456789"
+            aria-label="Nomor WhatsApp saat melamar"
             style={{ 
               paddingLeft: 42, 
               background: "rgba(255,255,255,0.05)", 
@@ -90,9 +91,24 @@ export function ApplicantTracker() {
             }}
           />
         </div>
+        <div style={{ flex: "1 1 220px" }}>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email saat melamar"
+            aria-label="Email saat melamar"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 12,
+              height: 44,
+            }}
+          />
+        </div>
         <Button 
           type="submit" 
-          disabled={loading || !whatsapp}
+          disabled={loading || !whatsapp || !email}
           style={{ 
             height: 44, 
             borderRadius: 12, 
@@ -188,13 +204,17 @@ export function ApplicantTracker() {
                               <Calendar size={14} /> Jadwal Interview:
                             </div>
                             <div style={{ color: "#fff", fontSize: 13, marginLeft: 20 }}>
-                              {format(new Date(data.interviewDate), "EEEE, dd MMMM yyyy - HH:mm", { locale: idLocale })} WIB
+                              {new Date(data.interviewDate).toLocaleString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB
                             </div>
                             {data.interviewLink && (
                               <div style={{ marginTop: 8, marginLeft: 20 }}>
-                                <a href={data.interviewLink} target="_blank" rel="noreferrer" style={{ color: "var(--red)", fontSize: 13, textDecoration: "underline" }}>
-                                  Link/Lokasi Pertemuan
-                                </a>
+                                {/^https?:\/\//i.test(data.interviewLink) ? (
+                                  <a href={data.interviewLink} target="_blank" rel="noreferrer" style={{ color: "var(--red)", fontSize: 13, textDecoration: "underline" }}>
+                                    Link pertemuan online
+                                  </a>
+                                ) : (
+                                  <span style={{ color: "#fff", fontSize: 13 }}>Lokasi: {data.interviewLink}</span>
+                                )}
                               </div>
                             )}
                           </motion.div>

@@ -79,6 +79,7 @@ import type {
   VoucherValidation,
 } from "@/lib/garage-api-types";
 import { maxRedeemablePoints, type MemberLevel } from "@/lib/member-types";
+import { deliveryQuote } from "@/lib/garage-delivery-rules";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-settings-types";
 import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
@@ -788,6 +789,10 @@ export function MemberOrderPage({
     | "deliveryEnabled"
     | "deliveryFee"
     | "deliveryMinItems"
+    | "deliveryBaseKm"
+    | "deliveryPerKmFee"
+    | "deliveryMaxKm"
+    | "deliveryMinSpend"
     | "deliveryAreaNote"
     | "garageWhatsapp"
     | "unpaidOrderAutoRejectMinutes"
@@ -796,6 +801,8 @@ export function MemberOrderPage({
     deliveryUnavailableReason?: string | null;
     /** Semua kurir sedang mengantar → pesanan delivery masuk antrean. */
     deliveryCouriersBusy?: boolean;
+    /** Titik Garage untuk ongkir per km (null = ongkir flat). */
+    deliveryOrigin?: { lat: number; lng: number } | null;
   };
   // Ada shift kasir buka (server). undefined = belum diketahui → anggap buka.
   initialOrderingOpen?: boolean;
@@ -1237,7 +1244,19 @@ export function MemberOrderPage({
       ? `${isDelivery ? "Delivery" : "Take away"}${guestName.trim() ? ` · ${guestName.trim()}` : ""}`.slice(0, 40)
       : qrContext.tableLabel;
   // Ongkir di luar service & pajak (sama dengan server).
-  const deliveryFee = isDelivery ? billingSettings.deliveryFee : 0;
+  // Ongkir per km (rumus sama dengan server): lokasi pelanggan → jarak dari Garage.
+  const deliveryQuoteResult = deliveryQuote(
+    {
+      baseFee: billingSettings.deliveryFee,
+      baseKm: billingSettings.deliveryBaseKm,
+      perKmFee: billingSettings.deliveryPerKmFee,
+      maxKm: billingSettings.deliveryMaxKm,
+    },
+    billingSettings.deliveryOrigin ?? null,
+    customerLocation,
+  );
+  const deliveryOutOfRange = isDelivery && !deliveryQuoteResult.ok;
+  const deliveryFee = isDelivery && deliveryQuoteResult.ok ? deliveryQuoteResult.fee : 0;
   // Poin member: maks = saldo & % harga menu setelah promo/voucher (sama dgn server).
   const maxPointsUsable =
     mode === "member" && member && !staffOrder
@@ -1261,7 +1280,8 @@ export function MemberOrderPage({
   const phoneDigits = guestPhone.replace(/\D/g, "");
   const deliveryPhoneMissing = isDelivery && mode === "guest" && phoneDigits.length < 8;
   const deliveryAddressMissing = isDelivery && deliveryAddress.trim().length < 10;
-  const deliveryBelowMin = isDelivery && itemCount < billingSettings.deliveryMinItems;
+  const deliveryBelowMin =
+    isDelivery && billingSettings.deliveryMinSpend > 0 && subtotal < billingSettings.deliveryMinSpend;
   const discountLabel = mode === "member" ? "Voucher member" : "Promo QR";
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = !staffOrder && mode === "guest" && !guestName.trim();
@@ -1288,13 +1308,16 @@ export function MemberOrderPage({
     !(needsTable && !tableHold) &&
     !deliveryPhoneMissing &&
     !deliveryAddressMissing &&
-    !deliveryBelowMin;
+    !deliveryBelowMin &&
+    !deliveryOutOfRange;
   const checkoutBlockReason = qrContext.tableIssue
     ? qrContext.tableIssue
     : needsTable && !tableHold
     ? "Pilih meja dulu."
+    : deliveryOutOfRange && !deliveryQuoteResult.ok
+    ? deliveryQuoteResult.reason
     : deliveryBelowMin
-    ? `Minimal pemesanan delivery ${billingSettings.deliveryMinItems} produk.`
+    ? `Minimal belanja delivery ${rupiah.format(billingSettings.deliveryMinSpend)}.`
     : deliveryPhoneMissing
     ? "Isi nomor WhatsApp untuk delivery."
     : deliveryAddressMissing
@@ -1584,7 +1607,7 @@ export function MemberOrderPage({
                   "delivery",
                   "Delivery",
                   deliveryAvailable
-                    ? `Ongkir ${rupiah.format(billingSettings.deliveryFee)}`
+                    ? `Ongkir mulai ${rupiah.format(billingSettings.deliveryFee)}`
                     : billingSettings.deliveryUnavailableReason ?? "Sedang tidak tersedia",
                   Bike,
                 ],
@@ -1620,7 +1643,20 @@ export function MemberOrderPage({
           {isDelivery ? (
             <div className="mt-3 grid gap-3">
               <ul className="list-disc space-y-0.5 pl-5 text-sm leading-6 text-garage-dim">
-                <li>Minimal {billingSettings.deliveryMinItems} produk · ongkir {rupiah.format(billingSettings.deliveryFee)}.</li>
+                <li>
+                  {billingSettings.deliveryMinSpend > 0
+                    ? `Minimal belanja ${rupiah.format(billingSettings.deliveryMinSpend)}`
+                    : "Tanpa minimal belanja"}{" "}
+                  · ongkir {rupiah.format(billingSettings.deliveryFee)}
+                  {billingSettings.deliveryOrigin
+                    ? ` untuk ${billingSettings.deliveryBaseKm.toLocaleString("id-ID")} km pertama, +${rupiah.format(
+                        billingSettings.deliveryPerKmFee,
+                      )}/km berikutnya${
+                        billingSettings.deliveryMaxKm > 0 ? ` (maks ${billingSettings.deliveryMaxKm.toLocaleString("id-ID")} km)` : ""
+                      }`
+                    : ""}
+                  .
+                </li>
                 <li>Wajib bayar QRIS dulu; pesanan dibuat & diantar setelah pembayaran dicek kasir.</li>
                 <li>{billingSettings.deliveryAreaNote}</li>
               </ul>
@@ -1631,7 +1667,7 @@ export function MemberOrderPage({
               ) : null}
               {deliveryBelowMin ? (
                 <p className="rounded-md border border-garage-amber/50 bg-garage-amber/10 px-3 py-2 text-sm font-semibold text-white" role="alert">
-                  Tambah {billingSettings.deliveryMinItems - itemCount} produk lagi untuk delivery.
+                  Tambah belanja {rupiah.format(Math.max(0, billingSettings.deliveryMinSpend - subtotal))} lagi untuk delivery.
                 </p>
               ) : null}
               {mode === "guest" ? (
@@ -1689,10 +1725,23 @@ export function MemberOrderPage({
                 </button>
                 <span className="text-xs text-garage-dim">
                   {locationState === "denied"
-                    ? "Izin lokasi ditolak — alamat saja sudah cukup."
-                    : "Membantu kurir & menampilkan jarak kurir ke Anda."}
+                    ? "Izin lokasi ditolak — alamat saja cukup, ongkir dasar berlaku."
+                    : billingSettings.deliveryOrigin
+                      ? "Ongkir dihitung dari jarak lokasi Anda ke Garage."
+                      : "Membantu kurir & menampilkan jarak kurir ke Anda."}
                 </span>
               </div>
+              {deliveryQuoteResult.ok && deliveryQuoteResult.distanceKm != null ? (
+                <p className="rounded-md border border-white/12 bg-garage-bg-2 px-3 py-2 text-sm text-white" role="status">
+                  Jarak ± <strong>{deliveryQuoteResult.distanceKm.toLocaleString("id-ID")} km</strong> · ongkir{" "}
+                  <strong className="font-mono tabular-nums">{rupiah.format(deliveryQuoteResult.fee)}</strong>
+                </p>
+              ) : null}
+              {!deliveryQuoteResult.ok ? (
+                <p className="rounded-md border border-garage-red/55 bg-garage-red/12 px-3 py-2 text-sm font-semibold text-[#ffc9c9]" role="alert">
+                  {deliveryQuoteResult.reason} Silakan pilih Take away.
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-sm leading-6 text-garage-dim">

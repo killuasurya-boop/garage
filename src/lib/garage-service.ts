@@ -14,6 +14,7 @@ import { sendOrderPush } from "@/lib/web-push-sender";
 import {
   buildTrackerSteps,
   DELIVERY_STATUSES,
+  deliveryQuote,
   deliveryStatusPatch,
   distanceKm,
   normalizeFulfillment,
@@ -106,6 +107,7 @@ import {
   menuItems,
   menuVariants,
   orderItems,
+  operationLocations,
   orders,
   outlets,
   diningTables,
@@ -8820,6 +8822,39 @@ async function deliveryCouriersOnline(outletId: string) {
   return { online: online.length, free: online.filter((row) => !busyIds.has(row.userId)).length };
 }
 
+/**
+ * Titik Garage untuk hitung jarak ongkir: Pengaturan (garageLat/Lng) → bila
+ * kosong, titik Geofence GPS absensi outlet. null = belum ada → ongkir flat.
+ */
+async function deliveryOrigin(
+  outletId: string | null,
+  settings: Pick<AppSettings, "garageLat" | "garageLng">,
+): Promise<{ lat: number; lng: number } | null> {
+  const fromSettings = validLatLng(Number(settings.garageLat), Number(settings.garageLng));
+  if (fromSettings && (fromSettings.lat !== 0 || fromSettings.lng !== 0)) return fromSettings;
+  const [location] = await getDb()
+    .select({ lat: operationLocations.latitude, lng: operationLocations.longitude })
+    .from(operationLocations)
+    .where(
+      and(
+        eq(operationLocations.type, "presensi"),
+        outletId ? or(eq(operationLocations.outletId, outletId), isNull(operationLocations.outletId)) : undefined,
+      ),
+    )
+    .orderBy(asc(operationLocations.createdAt))
+    .limit(1);
+  return location ? validLatLng(location.lat, location.lng) : null;
+}
+
+function deliveryTariffFrom(settings: AppSettings) {
+  return {
+    baseFee: settings.deliveryFee,
+    baseKm: settings.deliveryBaseKm,
+    perKmFee: settings.deliveryPerKmFee,
+    maxKm: settings.deliveryMaxKm,
+  };
+}
+
 const NO_COURIER_MESSAGE = "Kurir sedang tidak tersedia. Silakan pilih Take away atau coba lagi nanti.";
 
 export async function getCustomerOrderBillingSettings(outletId?: string) {
@@ -8857,6 +8892,12 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     deliveryFee: settings.deliveryFee,
     deliveryMinItems: settings.deliveryMinItems,
     deliveryAreaNote: settings.deliveryAreaNote,
+    // Ongkir per km (dihitung sama persis di HP pelanggan & server).
+    deliveryBaseKm: settings.deliveryBaseKm,
+    deliveryPerKmFee: settings.deliveryPerKmFee,
+    deliveryMaxKm: settings.deliveryMaxKm,
+    deliveryMinSpend: settings.deliveryMinSpend,
+    deliveryOrigin: settings.deliveryEnabled ? await deliveryOrigin(settingsOutlet?.id ?? null, settings) : null,
     garageWhatsapp: settings.garageWhatsapp,
     unpaidOrderAutoRejectMinutes: settings.unpaidOrderAutoRejectMinutes,
   };
@@ -8997,13 +9038,25 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     if (deliveryAddress.length < 10) {
       throw new Error("Alamat pengantaran wajib diisi lengkap (jalan, nomor, patokan).");
     }
-    const totalQty = lines.reduce((sum, line) => sum + line.qty, 0);
-    if (totalQty < settings.deliveryMinItems) {
-      throw new Error(`Minimal pemesanan delivery ${settings.deliveryMinItems} produk.`);
+    // Minimal belanja (harga menu) — menggantikan aturan minimal produk.
+    if (settings.deliveryMinSpend > 0 && subtotal < settings.deliveryMinSpend) {
+      throw new Error(
+        `Minimal belanja delivery Rp${settings.deliveryMinSpend.toLocaleString("id-ID")} (harga menu).`,
+      );
     }
   }
-  // Ongkir di luar service charge & pajak (keputusan owner).
-  const deliveryFee = isDelivery ? Math.max(0, Math.round(settings.deliveryFee)) : 0;
+  // Ongkir per km dari titik Garage (di luar service charge & pajak). Tanpa
+  // lokasi pelanggan → ongkir dasar. Di luar radius → ditolak.
+  let deliveryFee = 0;
+  if (isDelivery) {
+    const quote = deliveryQuote(
+      deliveryTariffFrom(settings),
+      await deliveryOrigin(settingsOutlet?.id ?? null, settings),
+      validLatLng(input.customerLat, input.customerLng),
+    );
+    if (!quote.ok) throw new Error(quote.reason);
+    deliveryFee = quote.fee;
+  }
   const total = grossTotal - discount + deliveryFee;
   const orderNo = makeOrderNo();
   const invoiceNo = invoiceNoForOrder(orderNo);

@@ -56,6 +56,16 @@ export type AppSettings = {
   deliveryFee: number;
   deliveryMinItems: number;
   deliveryAreaNote: string;
+  // Ongkir per km: deliveryFee = ongkir dasar untuk deliveryBaseKm pertama,
+  // + deliveryPerKmFee per km berikutnya, maks deliveryMaxKm (0 = tanpa batas).
+  deliveryBaseKm: number;
+  deliveryPerKmFee: number;
+  deliveryMaxKm: number;
+  // Minimal belanja delivery (harga menu, Rp). 0 = tanpa minimal.
+  deliveryMinSpend: number;
+  // Titik lokasi Garage untuk hitung jarak (0 = pakai titik geofence absensi).
+  garageLat: number;
+  garageLng: number;
   // Delivery hanya bisa dipilih bila ada kurir yang sedang "Siap antar".
   deliveryRequireOnlineCourier: boolean;
   // Menu digital pilih meja (owner, Okt 2026): lama kunci meja saat customer
@@ -199,6 +209,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   deliveryAreaNote:
     "Khusus wilayah perkotaan Tebing Tinggi yang aman & terjangkau kurir. Tidak melayani daerah pelosok/rawan.",
   deliveryRequireOnlineCourier: true,
+  deliveryBaseKm: 2,
+  deliveryPerKmFee: 2000,
+  deliveryMaxKm: 7,
+  deliveryMinSpend: 25000,
+  garageLat: 0,
+  garageLng: 0,
   tableHoldMinutes: 5,
   tableIdleWarnHours: 3,
   garageWhatsapp: "6285121552341",

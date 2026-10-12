@@ -6,7 +6,7 @@
 // Juga: tolak otomatis order take away/delivery yang tidak dibayar tepat waktu.
 // =============================================================================
 
-import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, notInArray, asc, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, kitchenTickets, orderItems, orders, outlets, staffProfiles, user } from "@/db/schema";
@@ -115,7 +115,8 @@ async function couriersOfOutlet(db: CourierDb, outletId: string) {
         ),
         eq(orders.fulfillment, "delivery"),
         or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
-        ne(orders.status, "rejected"),
+        // Order void/batal tidak lagi membuat kurir "sibuk".
+        notInArray(orders.status, ["rejected", "voided", "cancelled"]),
       ),
     );
   return rows.map((row): CourierOption => {

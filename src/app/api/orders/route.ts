@@ -5,7 +5,7 @@ import { createOrder, getOrderData } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { TABLE_NUMBER_RANGE_MESSAGE, parseTableNumber } from "@/lib/garage-tables";
 import { rateLimit } from "@/lib/rate-limit";
-import { requirePermission } from "@/lib/server-auth";
+import { requireCashierSession, requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -66,7 +66,8 @@ const orderSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await requirePermission("orders:read");
+  // Daftar order berisi nominal & metode bayar → hanya kasir/Owner/Manajer.
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

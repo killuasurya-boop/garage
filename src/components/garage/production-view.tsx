@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ProductionSoldOutDialog } from "@/components/garage/production-sold-out-dialog";
 import { StationPrintPanel } from "@/components/garage/station-print-panel";
 import { TablePlate } from "@/components/garage/table-plate";
 import { LCD_ZOOM_OPTIONS, useLcdMode } from "@/components/garage/use-lcd-mode";
@@ -41,6 +42,7 @@ import { currency } from "@/lib/garage-data";
 import type {
   GarageMe,
   KitchenPerformanceData,
+  MenuItem,
   KitchenShiftReport,
   ProductionBatchSuggestionView,
   ProductionBatchView,
@@ -48,6 +50,7 @@ import type {
   ProductionTicketView,
 } from "@/lib/garage-api-types";
 import {
+  canOperateStation,
   isHelperWorkstation,
   normalizeWorkstation,
   productionStationLabel,
@@ -123,6 +126,7 @@ function StationChip({ station }: { station: "Bar" | "Food" }) {
 
 export function ProductionView({
   me,
+  menuItems = [],
   canViewPerformance,
   performance,
   performanceLoading,
@@ -130,6 +134,7 @@ export function ProductionView({
   onRefreshPerformance,
 }: {
   me: GarageMe;
+  menuItems?: MenuItem[];
   canViewPerformance: boolean;
   performance: KitchenPerformanceData | null;
   performanceLoading: boolean;
@@ -138,6 +143,10 @@ export function ProductionView({
 }) {
   const workstation = normalizeWorkstation(me.workstation);
   const isHelper = isHelperWorkstation(workstation);
+  // Station yang boleh menandai menu habis (helper tidak; Owner/Manajer semua).
+  const soldOutStations = (["Bar", "Food"] as const).filter((st) =>
+    canOperateStation(me.role, me.workstation, st),
+  );
   // Cetak chit mengikuti station PERANGKAT (workstation akun), bukan filter
   // tampilan — tablet Bar tidak boleh mencetak & menandai tiket Dapur.
   const printStation: "Bar" | "Food" | "all" =
@@ -345,12 +354,17 @@ export function ProductionView({
 
   useEffect(() => {
     let newlyLate = false;
+    // Bunyi "terlambat" hanya untuk tiket station yang sedang ditampilkan —
+    // tablet Bar tidak berbunyi karena tiket Dapur.
+    const visibleNos = new Set(
+      tickets.filter((t) => station === "all" || t.station === station).map((t) => t.ticketNo),
+    );
     for (const id of lateIds) {
-      if (!prevLateRef.current.has(id)) newlyLate = true;
+      if (!prevLateRef.current.has(id) && visibleNos.has(id)) newlyLate = true;
     }
     if (newlyLate) playTone("late");
     prevLateRef.current = lateIds;
-  }, [lateIds, playTone]);
+  }, [lateIds, playTone, tickets, station]);
 
   // Pengingat: tiket READY yang dipanggil ≥3 menit belum diambil → umumkan ulang tiap
   // menit di layar station-nya (waiter cukup mendengar, tidak perlu melihat HP).
@@ -615,9 +629,9 @@ export function ProductionView({
           <span>{ticket.channel}</span>
         </p>
 
-        {ticket.issueReason && ticket.status !== "ready" ? (
+        {ticket.issueReason && (ticket.status !== "ready" || ticket.issueReason.startsWith("Sebagian batal")) ? (
           <p className="mt-2 rounded-sm border border-[#d11a2a]/50 bg-[#d11a2a]/14 px-2 py-1 text-xs font-bold text-[#ffc2c8]">
-            Dikembalikan: {ticket.issueReason}
+            {ticket.issueReason.startsWith("Sebagian batal") ? ticket.issueReason : `Dikembalikan: ${ticket.issueReason}`}
           </p>
         ) : null}
 
@@ -941,6 +955,9 @@ export function ProductionView({
               <Volume2 className="size-4" />
               <span className="hidden sm:inline">{soundEnabled ? "Suara ON" : "Suara OFF"}</span>
             </button>
+            {soldOutStations.length ? (
+              <ProductionSoldOutDialog menuItems={menuItems} stations={soldOutStations} />
+            ) : null}
             <button
               type="button"
               onClick={() => void (lcd.active ? lcd.exit() : lcd.enter())}

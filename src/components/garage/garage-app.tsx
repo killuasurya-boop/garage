@@ -1452,6 +1452,7 @@ function GarageWorkspace({
                 <WmsAlertWidget variant="banner" />
                 <ProductionView
                   me={data.me}
+                  menuItems={data.menuItems}
                   performance={kitchenPerformance}
                   performanceLoading={kitchenPerformanceLoading}
                   performanceError={kitchenPerformanceError}

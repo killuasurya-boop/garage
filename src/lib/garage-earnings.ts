@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-
 
 import { getDb } from "@/db";
 import type { StaffFeeRates } from "@/lib/garage-app-settings-types";
+import { productionStationFor } from "@/lib/garage-production-rules";
 import {
   earningsFailedQueue,
   kitchenTickets,
@@ -394,13 +395,16 @@ export async function recordTicketReadyEarnings(input: RecordTicketReadyInput) {
       qty: orderItems.qty,
       menuItemId: orderItems.menuItemId,
       category: menuItems.category,
+      station: menuItems.station,
     })
     .from(orderItems)
     .leftJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
     .where(eq(orderItems.orderId, ticket.orderId));
 
+  // Ikuti routing produksi (override station di master produk), bukan hanya
+  // kategori — mis. "Makanan" yang dibuat Bar tetap dapat fee Bar.
   const matchingItems = itemsForOrder.filter((row) => {
-    const kind = itemKindForCategory(row.category);
+    const kind = productionStationFor({ station: row.station, category: row.category }) === "Bar" ? "drink" : "food";
     return kind === ticketKind;
   });
   if (!matchingItems.length) return [];
@@ -419,13 +423,13 @@ export async function recordTicketReadyEarnings(input: RecordTicketReadyInput) {
         eq(staffEarnings.status, "accrued"),
       ),
     );
-  const existingKeys = new Set(
-    existingRows.map((row) => `${row.staffUserId}:${row.orderItemId ?? ""}:${row.role ?? ""}`),
-  );
+  // Satu fee per item per peran: tiket yang dikembalikan lalu di-READY-kan
+  // staf lain tidak membayar fee dua kali.
+  const existingKeys = new Set(existingRows.map((row) => `${row.orderItemId ?? ""}:${row.role ?? ""}`));
 
   const rows = matchingItems.flatMap((item) =>
     recipients.flatMap((recipient) => {
-      const key = `${recipient.staffUserId}:${item.id}:${recipient.staffRole}`;
+      const key = `${item.id}:${recipient.staffRole}`;
       if (existingKeys.has(key)) return [];
 
       const unitFee = lookupUnitFee(

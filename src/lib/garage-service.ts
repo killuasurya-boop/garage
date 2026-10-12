@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql } from "drizzle-orm";
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -52,6 +52,7 @@ import {
 } from "@/lib/garage-production-rules";
 import {
   cancelProductionForOrder,
+  cancelProductionQuantities,
   insertProductionTicketItems,
   pendingBatchNosForTicket,
   ProductionBatchPendingError,
@@ -101,6 +102,8 @@ import {
   inventoryTransferItems,
   inventoryTransferRequests,
   kitchenTickets,
+  productionBatchAllocations,
+  productionTicketItems,
   memberAccounts,
   memberTransactions,
   menuRecipes,
@@ -6489,8 +6492,9 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
     let status: string;
     if (idle) {
       status = needsCleaning ? "needs_cleaning" : "empty";
-    } else if (session?.status === "cleaning") {
-      // Siklus meja: DIRTY → CLEANING → AVAILABLE (lihat /lifecycle).
+    } else if (session?.status === "cleaning" && openBillCount === 0) {
+      // Siklus meja: DIRTY → CLEANING → AVAILABLE (lihat /lifecycle). Bill baru
+      // yang belum lunas di meja ini tidak boleh tertutup status "dibersihkan".
       status = "cleaning";
     } else if (isMixed) {
       status = "mixed";
@@ -6503,7 +6507,7 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
           ? "needs_cleaning"
           : "empty";
     } else {
-      status = tableStatusFromOrder(order, ticketStatus, needsCleaning);
+      status = tableStatusFromOrder(order, ticketStatus, needsCleaning && openBillCount === 0);
     }
 
     // Kunci menu digital: meja kosong yang sedang dipilih pelanggan (belum checkout).
@@ -7180,6 +7184,16 @@ async function moveTableImpl(
       .update(kitchenTickets)
       .set({ tableLabel: toLabel })
       .where(inArray(kitchenTickets.orderId, orderIds));
+    // Porsi & alokasi batch menyimpan snapshot meja — ikut pindah supaya kartu
+    // Smart Batch / alokasi tidak mengantar ke meja lama.
+    await tx
+      .update(productionTicketItems)
+      .set({ tableLabel: toLabel })
+      .where(inArray(productionTicketItems.orderId, orderIds));
+    await tx
+      .update(productionBatchAllocations)
+      .set({ tableLabel: toLabel })
+      .where(inArray(productionBatchAllocations.orderId, orderIds));
     // Panggilan pelanggan yang masih terbuka ikut pindah ke meja baru.
     await tx
       .update(serviceRequests)
@@ -8853,7 +8867,7 @@ async function deliveryCouriersOnline(outletId: string) {
         ),
         eq(orders.fulfillment, "delivery"),
         or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
-        ne(orders.status, "rejected"),
+        notInArray(orders.status, ["rejected", "voided", "cancelled"]),
       ),
     );
   const busyIds = new Set(busy.map((row) => row.courierUserId));
@@ -12340,6 +12354,12 @@ export async function updateInventoryItem(
     return null;
   }
 
+  // WMS = satu-satunya buku stok fisik: onHand bahan gudang hanya cermin total
+  // WMS. Koreksi stok lewat Gudang → Penyesuaian / Stok opname.
+  if (input.onHand !== undefined && Number(input.onHand) !== Number(current.onHand) && (await isWmsManaged(db, sku))) {
+    throw new InventoryWmsManagedError(sku);
+  }
+
   const nextOnHand = input.onHand ?? current.onHand;
   const nextMin = input.min ?? current.min;
   const status = input.status ?? inventoryStatusFor(nextOnHand, nextMin);
@@ -12422,9 +12442,20 @@ export async function updateInventoryItem(
   return item;
 }
 
+/** Stok bahan WMS tidak boleh diubah langsung dari modul Inventory. */
+export class InventoryWmsManagedError extends Error {
+  constructor(sku: string) {
+    super(`Stok ${sku} dikelola gudang (WMS). Ubah stok lewat Gudang → Penyesuaian atau Stok opname.`);
+    this.name = "InventoryWmsManagedError";
+  }
+}
+
 export async function createStockMovement(input: MovementInput, garage: GarageSession) {
   const db = getDb();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  if (input.applyToStock && input.itemSku && (await isWmsManaged(db, input.itemSku))) {
+    throw new InventoryWmsManagedError(input.itemSku);
+  }
 
   const [movement] = await db.transaction(async (tx) => {
     if (input.applyToStock) {
@@ -14777,6 +14808,18 @@ async function inheritedLedgerOf(
     : null;
 }
 
+/** Ada bill pisahan yang masih hidup & menumpang tiket/stok order ini? */
+async function hasLiveInheritedChildren(tx: GarageTx, orderId: string) {
+  const children = await tx
+    .select({ orderNo: orders.orderNo, parentOrderId: orders.parentOrderId })
+    .from(orders)
+    .where(and(eq(orders.parentOrderId, orderId), ne(orders.status, "voided")));
+  for (const child of children) {
+    if (await inheritedLedgerOf(tx, child)) return true;
+  }
+  return false;
+}
+
 /** Kebutuhan bahan bill-bill pisahan yang masih hidup & menumpang catatan stok order ini. */
 async function liveInheritedChildrenQty(tx: GarageTx, order: { id: string; orderSource: string }) {
   const children = await tx
@@ -15096,12 +15139,35 @@ async function voidOrderImpl(
 
     // Production Hub: tiket yang belum diantar ikut batal supaya Bar/Dapur
     // berhenti membuat & waiter tidak mengantar pesanan yang dibatalkan.
-    const productionCancel = await cancelProductionForOrder(
-      tx,
-      order.id,
-      `Order dibatalkan: ${reason}`,
-      now,
-    );
+    // Split bill: tiket produksi menumpang order induk. Void satu bill hanya
+    // membatalkan porsi milik bill itu — bill lain di meja tetap dibuat.
+    const productionCancel = await (async () => {
+      if (ledgerOrderNo) {
+        const [ledger] = await tx
+          .select({ id: orders.id })
+          .from(orders)
+          .where(eq(orders.orderNo, ledgerOrderNo))
+          .limit(1);
+        if (!ledger) return { ticketNos: [] as string[] };
+        const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+        return cancelProductionQuantities(tx, {
+          ledgerOrderId: ledger.id,
+          lines: ownItems,
+          reason: `Sebagian batal: bill ${order.orderNo} dibatalkan (${reason})`,
+          now,
+        });
+      }
+      if (await hasLiveInheritedChildren(tx, order.id)) {
+        const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+        return cancelProductionQuantities(tx, {
+          ledgerOrderId: order.id,
+          lines: ownItems,
+          reason: `Sebagian batal: bill ${order.orderNo} dibatalkan (${reason})`,
+          now,
+        });
+      }
+      return cancelProductionForOrder(tx, order.id, `Order dibatalkan: ${reason}`, now);
+    })();
 
     await tx
       .update(orders)
@@ -15124,7 +15190,7 @@ async function voidOrderImpl(
         cashOut,
         cashSessionId: cashSession?.id ?? null,
         cancelledTickets: productionCancel.ticketNos,
-        batchesAdjusted: productionCancel.batchesTouched,
+        batchesAdjusted: "batchesTouched" in productionCancel ? productionCancel.batchesTouched : 0,
       },
     });
 
@@ -15250,6 +15316,23 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       }
     }
 
+    // Bar/Dapur berhenti membuat item yang direfund (stoknya sudah dikembalikan).
+    const [ledgerOrder] =
+      ledgerNo === order.orderNo
+        ? [{ id: order.id }]
+        : await tx.select({ id: orders.id }).from(orders).where(eq(orders.orderNo, ledgerNo)).limit(1);
+    const productionCancel = ledgerOrder
+      ? await cancelProductionQuantities(tx, {
+          ledgerOrderId: ledgerOrder.id,
+          lines: lines.map((line) => {
+            const item = currentItems.find((row) => row.id === line.orderItemId)!;
+            return { menuItemId: item.menuItemId, variantId: item.variantId, qty: line.qty };
+          }),
+          reason: `Sebagian batal: refund ${order.orderNo} (${reason})`,
+          now,
+        })
+      : { ticketNos: [] as string[], cancelledQty: 0 };
+
     await tx
       .update(orders)
       .set({ ...split.next, updatedAt: now })
@@ -15295,6 +15378,8 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       feeLines: lines.map((line) => ({ qty: line.qty, unitPrice: line.unitPrice })),
     };
   });
+
+  publishProductionChange();
 
   // Payroll V2 — fee produk untuk item yang di-refund ikut ditarik. Non-blocking.
   try {

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { ok, readJson } from "@/lib/api-response";
 import { markProductionChitsPrinted } from "@/lib/garage-production";
+import { normalizeWorkstation } from "@/lib/garage-production-rules";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -21,5 +22,8 @@ export async function POST(request: Request) {
   if (body.error) {
     return body.error;
   }
-  return ok({ marked: await markProductionChitsPrinted(body.data.ticketNos) });
+  const ws = normalizeWorkstation(session.data.profile.workstation);
+  const onlyStation =
+    ws === "bar" || ws === "helper_bar" ? "Bar" : ws === "dapur" || ws === "helper_dapur" ? "Food" : null;
+  return ok({ marked: await markProductionChitsPrinted(body.data.ticketNos, onlyStation) });
 }

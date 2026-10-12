@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { requestManualDiscountApproval } from "@/lib/garage-service";
-import { requirePermission } from "@/lib/server-auth";
+import { requireCashierSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -14,7 +14,7 @@ const discountRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await requirePermission("orders:manage");
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

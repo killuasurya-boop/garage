@@ -6,7 +6,7 @@
 // Setiap porsi tetap membawa Nama + Meja + Order ID sampai diantar.
 // =============================================================================
 
-import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -98,12 +98,30 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
   const db = getDb();
   const now = new Date();
 
-  const ticketRows = await db
-    .select()
-    .from(kitchenTickets)
-    .where(inArray(kitchenTickets.status, ACTIVE_TICKET_STATUSES))
-    .orderBy(asc(kitchenTickets.createdAt))
-    .limit(300);
+  // Tiket SIAP yang tak pernah diambil (takeaway/tanpa waiter) jangan menumpuk
+  // sampai menutupi pesanan baru: ambil yang terbaru, SIAP > 8 jam disembunyikan,
+  // dan hanya tiket outlet akun ini.
+  const staleReadyBefore = new Date(now.getTime() - 8 * 60 * 60_000);
+  const ticketRows = (
+    await db
+      .select()
+      .from(kitchenTickets)
+      .where(
+        and(
+          inArray(kitchenTickets.status, ACTIVE_TICKET_STATUSES),
+          or(ne(kitchenTickets.status, "ready"), gte(kitchenTickets.updatedAt, staleReadyBefore)),
+          or(
+            isNull(kitchenTickets.orderId),
+            inArray(
+              kitchenTickets.orderId,
+              db.select({ id: orders.id }).from(orders).where(eq(orders.outletId, garage.profile.outlet.id)),
+            ),
+          ),
+        ),
+      )
+      .orderBy(desc(kitchenTickets.createdAt))
+      .limit(300)
+  ).reverse();
   const ticketIds = ticketRows.map((row) => row.id);
 
   const itemRows = ticketIds.length
@@ -191,8 +209,10 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
     );
 
   const tickets: ProductionTicketView[] = ticketRows.map((ticket) => {
-    const items = itemsByTicket.get(ticket.id) ?? [];
-    const legacy = items.length === 0;
+    const allItems = itemsByTicket.get(ticket.id) ?? [];
+    // Porsi yang dibatalkan (void bill split / refund parsial) tidak ditampilkan.
+    const items = allItems.filter((item) => item.status !== "cancelled");
+    const legacy = allItems.length === 0;
     const notes = (ticket.itemNotes ?? {}) as Record<string, unknown>;
     const pendingBatchNos = [
       ...new Set(
@@ -510,6 +530,9 @@ async function startProductionBatchImpl(ticketItemIds: string[], garage: GarageS
       throw new ProductionPermissionError(first.station);
     }
 
+    // Nomor batch = urutan harian; kunci transaksi supaya dua "Mulai batch"
+    // bersamaan tidak mendapat nomor sama (unik → error 500).
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('garage:production-batch-no'))`);
     const todayBatches = await tx
       .select({ id: productionBatches.id })
       .from(productionBatches)
@@ -778,13 +801,28 @@ async function cancelProductionBatchImpl(
  * "Cetak" hampir bersamaan tidak saling menimpa. Mengembalikan jumlah baris yang
  * benar-benar berubah.
  */
-export async function markProductionChitsPrinted(ticketNos: string[]): Promise<number> {
+export async function markProductionChitsPrinted(
+  ticketNos: string[],
+  /** Station perangkat; null = semua (kasir / Owner / Manajer / workstation all). */
+  onlyStation: "Bar" | "Food" | null = null,
+): Promise<number> {
   const unique = [...new Set(ticketNos.map((no) => no.trim()).filter(Boolean))].slice(0, 100);
   if (unique.length === 0) return 0;
   const rows = await getDb()
     .update(kitchenTickets)
     .set({ chitPrintedAt: new Date() })
-    .where(and(inArray(kitchenTickets.ticketNo, unique), isNull(kitchenTickets.chitPrintedAt)))
+    .where(
+      and(
+        inArray(kitchenTickets.ticketNo, unique),
+        isNull(kitchenTickets.chitPrintedAt),
+        // Tablet Bar tidak boleh menandai chit Dapur "sudah dicetak" (dan sebaliknya).
+        onlyStation === "Bar"
+          ? sql`lower(${kitchenTickets.station}) = 'bar'`
+          : onlyStation === "Food"
+            ? sql`lower(${kitchenTickets.station}) <> 'bar'`
+            : undefined,
+      ),
+    )
     .returning({ id: kitchenTickets.id });
   // Tablet lain di station yang sama langsung melihat "sudah dicetak".
   if (rows.length) publishProductionChange();

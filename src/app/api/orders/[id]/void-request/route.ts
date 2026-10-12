@@ -5,7 +5,7 @@ import { ORDER_CANCEL_REASON_CODES } from "@/lib/approval-rules";
 import { requestOrderVoidApproval } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { rateLimit } from "@/lib/rate-limit";
-import { requirePermission } from "@/lib/server-auth";
+import { requireCashierSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ export async function POST(
   const limited = rateLimit(request, "order-void-request", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
 
-  const session = await requirePermission("orders:manage");
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

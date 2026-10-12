@@ -1,5 +1,10 @@
 # Garage POS Laptop dan Thermal 57/58 mm
 
+> **Update Okt 2026:** printer laptop kini diatur per perangkat di POS → Printer
+> ("Printer Perangkat Ini"): Bluetooth, kabel USB, jaringan, atau printer umum lewat
+> Chrome, tanpa driver. Lihat `docs/PRINTER-LAPTOP.md`. Bagian di bawah berlaku untuk
+> mode "Printer umum (Chrome)".
+
 POS kasir dipakai dari laptop Windows dengan cetak struk manual. Setelah
 transaksi selesai, kasir menekan tombol `Cetak Struk`; browser akan membuka
 dialog print sehingga printer thermal bisa dipilih atau dikontrol dari driver.

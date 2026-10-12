@@ -538,6 +538,8 @@ function receiptSettingsPayload(settings: AppSettings) {
     receiptShowLogo: settings.receiptShowLogo,
     receiptShowTaxBreakdown: settings.receiptShowTaxBreakdown,
     receiptShowMemberPoints: settings.receiptShowMemberPoints,
+    receiptShowSignature: settings.receiptShowSignature,
+    managementSlipCopies: settings.managementSlipCopies,
     roundingMode: settings.roundingMode,
     currency: settings.currency,
     timezone: settings.timezone,

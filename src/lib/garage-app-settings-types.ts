@@ -135,6 +135,9 @@ export type AppSettings = {
   receiptShowLogo: boolean;
   receiptShowTaxBreakdown: boolean;
   receiptShowMemberPoints: boolean;
+  // Kertas manajemen (slip tutup shift, rekap harian).
+  receiptShowSignature: boolean;
+  managementSlipCopies: number;
   // Notification extra
   notificationPushEnabled: boolean;
   lowStockThreshold: number;
@@ -272,6 +275,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   receiptShowLogo: true,
   receiptShowTaxBreakdown: true,
   receiptShowMemberPoints: true,
+  receiptShowSignature: true,
+  managementSlipCopies: 1,
   // Notification extra
   notificationPushEnabled: true,
   lowStockThreshold: 5,

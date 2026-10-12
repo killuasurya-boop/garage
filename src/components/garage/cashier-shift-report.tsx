@@ -8,6 +8,7 @@ import {
   Download,
   FileText,
   Loader2,
+  Printer,
   Receipt,
   RefreshCw,
 } from "lucide-react";
@@ -31,6 +32,26 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GarageApiError, garageApi } from "@/lib/api-client";
+import type { AppSettings } from "@/lib/garage-app-settings-types";
+import {
+  printDailyRecap,
+  printShiftSlip,
+  type SlipPrintResult,
+  type SlipPrintSettings,
+} from "@/lib/management-slip-print";
+
+async function loadSlipSettings(): Promise<SlipPrintSettings> {
+  try {
+    const data = await garageApi.get<{ settings: AppSettings }>("/api/settings");
+    return {
+      brand: { brandName: data.settings.brandName, brandTagline: data.settings.brandTagline },
+      showSignature: data.settings.receiptShowSignature,
+      copies: data.settings.managementSlipCopies,
+    };
+  } catch {
+    return {};
+  }
+}
 
 const fmtRp = (n: number) =>
   `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(n))}`;
@@ -802,6 +823,19 @@ function DailyShiftReportPanel({
   onCloseShift: (row: ClosableShift) => void;
   onReconcileQris: (row: DailyShiftReport["rows"][number]) => void;
 }) {
+  const [printing, setPrinting] = useState<string | null>(null);
+  const [printResult, setPrintResult] = useState<SlipPrintResult | null>(null);
+
+  async function runPrint(key: string, action: (settings: SlipPrintSettings) => Promise<SlipPrintResult>) {
+    setPrinting(key);
+    setPrintResult(null);
+    try {
+      setPrintResult(await action(await loadSlipSettings()));
+    } finally {
+      setPrinting(null);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <Card className="border-zinc-700 bg-zinc-900/40">
@@ -826,9 +860,33 @@ function DailyShiftReportPanel({
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[#f5a742]/55 text-[#ffd08a] hover:bg-[#f5a742]/15"
+              disabled={!report || printing !== null}
+              onClick={() => {
+                if (report) void runPrint("daily", (settings) => printDailyRecap(report, settings));
+              }}
+            >
+              <Printer className="h-4 w-4" />
+              {printing === "daily" ? "Mencetak..." : "Cetak rekap"}
+            </Button>
           </div>
         </CardContent>
       </Card>
+      {printResult ? (
+        <p
+          role={printResult.ok ? "status" : "alert"}
+          className={`rounded-md border px-3 py-2 text-sm ${
+            printResult.ok
+              ? "border-[#f5a742]/40 bg-[#f5a742]/10 text-[#ffe2b0]"
+              : "border-rose-600/40 bg-rose-950/30 text-rose-200"
+          }`}
+        >
+          {printResult.message}
+        </p>
+      ) : null}
 
       {error && (
         <Card className="border-rose-600/40 bg-rose-950/20">
@@ -994,6 +1052,26 @@ function DailyShiftReportPanel({
                           {row.qrisCounted == null ? "Cocokkan QRIS" : "Ubah cek QRIS"}
                         </Button>
                       ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="border-[#4a4a54] text-[#f4f4f5] hover:bg-white/10"
+                        disabled={printing !== null}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void runPrint(`shift-${row.id}`, (settings) =>
+                            printShiftSlip(row.id, settings, {
+                              qrisCounted: row.qrisCounted,
+                              floatLeft: row.floatLeft,
+                              depositAmount: row.depositAmount,
+                            }),
+                          );
+                        }}
+                      >
+                        <Printer className="h-4 w-4" />
+                        {printing === `shift-${row.id}` ? "Mencetak..." : "Cetak slip"}
+                      </Button>
                       {row.status === "open" ? (
                         <Button
                           type="button"

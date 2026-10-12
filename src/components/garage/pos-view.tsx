@@ -138,6 +138,8 @@ type CashierThemeMode
 } from "@/components/garage/garage-app-pickers";
 import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
 import { CloseShiftForm, type CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
+import { DevicePrinterPanel } from "@/components/garage/device-printer-panel";
+import { printShiftSlip } from "@/lib/management-slip-print";
 import { TablePlate } from "@/components/garage/table-plate";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -780,6 +782,7 @@ export function PosView({
   const [shiftSignOffRequired, setShiftSignOffRequired] = useState(false);
   // Hasil hitung tutup shift; POS langsung terkunci setelah tutup, jadi hasilnya
   // ditampilkan di kartu "Shift Belum Dibuka", bukan di notice POS.
+  const [shiftSlipStatus, setShiftSlipStatus] = useState<{ pending: boolean; message: string | null; ok: boolean } | null>(null);
   const [lastShiftCloseResult, setLastShiftCloseResult] = useState<{
     code: string;
     discrepancy: number;
@@ -3786,8 +3789,44 @@ export function PosView({
                   rel="noopener noreferrer"
                   className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-[#4a4a54] bg-white/[0.06] px-3 text-xs font-semibold text-white hover:bg-white/10"
                 >
-                  <Printer className="size-3.5" /> Cetak laporan tutup shift
+                  <Printer className="size-3.5" /> Laporan PDF
                 </a>
+              ) : null}
+              {lastShiftCloseResult.sessionId ? (
+                <button
+                  type="button"
+                  disabled={shiftSlipStatus?.pending === true}
+                  onClick={() => {
+                    const sessionId = lastShiftCloseResult.sessionId;
+                    if (!sessionId) return;
+                    setShiftSlipStatus({ pending: true, message: null, ok: true });
+                    void printShiftSlip(
+                      sessionId,
+                      {
+                        brand: { brandName: settings.brandName, brandTagline: settings.brandTagline, outletName: me.outlet.name, outletCode: me.outlet.code },
+                        showSignature: settings.receiptShowSignature,
+                        copies: settings.managementSlipCopies,
+                        printedBy: me.user.name,
+                      },
+                      {
+                        floatLeft: lastShiftCloseResult.floatLeft,
+                        depositAmount: lastShiftCloseResult.depositAmount,
+                      },
+                    ).then((result) => setShiftSlipStatus({ pending: false, message: result.message, ok: result.ok }));
+                  }}
+                  className="garage-press ml-2 mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-[#f5a742]/50 bg-[#f5a742]/12 px-3 text-xs font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20 disabled:opacity-60"
+                >
+                  <Printer className="size-3.5" />
+                  {shiftSlipStatus?.pending ? "Mencetak..." : "Cetak slip (printer struk)"}
+                </button>
+              ) : null}
+              {shiftSlipStatus?.message ? (
+                <p
+                  role={shiftSlipStatus.ok ? "status" : "alert"}
+                  className={`mt-2 text-xs ${shiftSlipStatus.ok ? "text-[#ffe0ad]" : "text-[#ff9aa2]"}`}
+                >
+                  {shiftSlipStatus.message}
+                </p>
               ) : null}
               {lastShiftCloseResult.qrisRecorded ? (
                 <p className="mt-2 text-xs text-[#d6d6dc]">
@@ -4872,6 +4911,7 @@ export function PosView({
               </TabsContent>
 
               <TabsContent value="printer" className="mt-3 space-y-3">
+                <DevicePrinterPanel compact brand={{ brandName: settings.brandName }} />
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
                   <SettingsChoiceGroup<PosReceiptPrintMode>
                     label="Cetak struk setelah bayar"

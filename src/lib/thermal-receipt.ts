@@ -6,6 +6,7 @@
 // format struk supaya tampilan tidak pernah beda antar jalur cetak.
 
 import { parseTableNumber } from "@/lib/garage-tables";
+import { paperColumns, wrapText, type ReceiptLayoutOptions } from "@/lib/receipt-layout";
 
 export interface ThermalReceiptInput {
   invoiceNo?: string | null;
@@ -118,8 +119,12 @@ function orderTypeLabel(raw: string): string {
   return map[key] ?? String(raw ?? "").trim();
 }
 
-export function buildKitchenChitContent(input: KitchenChitInput): string {
-  const W = 32;
+export function buildKitchenChitContent(
+  input: KitchenChitInput,
+  options: ReceiptLayoutOptions = {},
+): string {
+  // Lebar kolom mengikuti kertas perangkat: 58 mm = 32, 80 mm = 48.
+  const W = paperColumns(options.width);
   const clean = (value: string | null | undefined) =>
     String(value ?? "").replace(/\s+/g, " ").trim();
   const center = (value: string) => {
@@ -219,7 +224,10 @@ export function buildKitchenChitContent(input: KitchenChitInput): string {
   return blocks.join("\r\n") + "\r\n";
 }
 
-export function buildThermalContent(receipt: ThermalReceiptInput): string {
+export function buildThermalContent(
+  receipt: ThermalReceiptInput,
+  options: ReceiptLayoutOptions = {},
+): string {
   const currency = new Intl.NumberFormat("id-ID", {
     style: "currency", currency: "IDR", maximumFractionDigits: 0,
   });
@@ -228,7 +236,8 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
     iso ? new Intl.DateTimeFormat("id-ID", {
       dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jakarta",
     }).format(new Date(iso)) : "-";
-  const W = 32; // 57/58mm thermal paper, Generic/Text driver.
+  // 58 mm = 32 kolom (default), 80 mm = 48 kolom — tata letak ikut lebar kertas.
+  const W = paperColumns(options.width);
 
   const line = () => "-".repeat(W);
   const clean = (value: string | null | undefined) =>
@@ -367,7 +376,12 @@ export function buildThermalContent(receipt: ThermalReceiptInput): string {
     const price = item.unitPrice || 0;
     const total = item.lineTotal || price * qty;
     const variantText = variant && variant !== "Regular" ? ` ${variant}` : "";
-    rows.push(row(`${qty}x ${name}${variantText}`, fmt(total)));
+    // Nama item panjang dibungkus ke baris berikut — tidak pernah terpotong,
+    // dan harga baris selalu utuh di kanan baris pertama.
+    const totalText = fmt(total);
+    const nameLines = wrapText(`${qty}x ${name}${variantText}`, W - totalText.length - 1);
+    rows.push(row(nameLines[0] ?? "", totalText));
+    for (const extra of nameLines.slice(1)) rows.push(`   ${extra}`.slice(0, W));
     rows.push(`   @ ${fmt(price)}`.slice(0, W));
   }
 

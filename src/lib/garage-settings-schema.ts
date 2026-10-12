@@ -258,6 +258,23 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         type: "boolean",
         defaultValue: DEFAULT_APP_SETTINGS.receiptShowMemberPoints,
       },
+      {
+        key: "receiptShowSignature",
+        label: "Kolom tanda tangan di slip manajemen",
+        hint: "Slip tutup shift & rekap harian memuat kolom tanda tangan Kasir/Manajer.",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.receiptShowSignature,
+      },
+      {
+        key: "managementSlipCopies",
+        label: "Jumlah cetak slip manajemen",
+        type: "number",
+        defaultValue: DEFAULT_APP_SETTINGS.managementSlipCopies,
+        min: 1,
+        max: 3,
+        step: 1,
+        unit: "lembar",
+      },
     ],
   },
   {

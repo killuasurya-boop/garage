@@ -13,6 +13,17 @@
 // `fetch("/api/print/thermal", ...)` di seluruh pemanggil lama.
 
 import {
+  DEVICE_PRINTER_MODE_LABELS,
+  DevicePrinterError,
+  deviceColumns,
+  escPosJob,
+  findRememberedDirectMode,
+  loadDevicePrinterConfig,
+  printViaBrowser,
+  sendToDirectPrinter,
+  type DevicePrinterConfig,
+} from "@/lib/device-printer";
+import {
   buildKitchenChitContent,
   buildThermalContent,
   type KitchenChitInput,
@@ -30,9 +41,10 @@ export interface PrintKitchenChitPayload {
   printerName?: string;
 }
 
-function agentBaseUrl() {
-  // Override per-device lewat env build-time bila agen pakai port lain.
+function agentBaseUrl(config: DevicePrinterConfig = loadDevicePrinterConfig()) {
+  // URL agen bisa diisi per laptop (Pengaturan Printer); fallback env build-time.
   return (
+    config.agentUrl.replace(/\/$/, "") ||
     process.env.NEXT_PUBLIC_PRINT_AGENT_URL?.replace(/\/$/, "") ||
     "http://localhost:9100"
   );
@@ -63,96 +75,112 @@ const AGENT_DOWN_ERROR = {
   },
 };
 
-/**
- * Drop-in pengganti fetch("/api/print/thermal"). Membentuk konten di browser,
- * mengirim ke agen cetak lokal. Bila agen tak terjangkau, fallback ke route
- * server (berguna di dev saat server == PC warung). Selalu resolve dengan
- * Response — pemanggil cukup baca res.ok / res.json() seperti biasa.
- */
-/**
- * Cetak chit dapur/bar (tanpa harga) ke printer kasir. Sama seperti printThermal:
- * konten dibentuk di browser lalu dikirim ke agen cetak lokal; fallback ke route
- * server. Selalu resolve dengan Response. Bila tak ada item, tidak mencetak.
- */
-export async function printKitchenChit(
-  payload: PrintKitchenChitPayload,
-): Promise<Response> {
-  const content = buildKitchenChitContent(payload.chit);
-  if (!content.trim()) {
-    return jsonResponse({ success: true, skipped: true }, 200);
-  }
+const DEVICE_ACTIONS = [
+  "Pastikan printer menyala, kertas terpasang, dan lampu Bluetooth/kabel aktif",
+  "Buka Pengaturan → Printer Perangkat Ini, lalu klik Hubungkan",
+  "Klik Tes cetak untuk memastikan printer siap",
+];
 
-  // 1) Agen cetak lokal di PC kasir.
-  try {
-    const res = await fetch(`${agentBaseUrl()}/print`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, copies: 1, printerName: payload.printerName }),
-    });
-    if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { printer?: string };
-      return jsonResponse(
-        { success: true, printer: data.printer ?? "local-agent", method: "local-agent" },
-        200,
-      );
-    }
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    return jsonResponse(
-      { error: { code: "PRINT_FAILED", message: data.error || "Gagal mencetak chit", detail: data.error || "" } },
-      502,
-    );
-  } catch {
-    // 2) Fallback ke route server (dev / server == PC warung).
-    try {
-      const res = await fetch("/api/print/thermal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ chit: payload.chit, printerName: payload.printerName }),
-      });
-      const text = await res.text();
-      return new Response(text, {
-        status: res.status,
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch {
-      return jsonResponse(AGENT_DOWN_ERROR, 503);
-    }
-  }
+function deviceErrorResponse(error: unknown, mode: string) {
+  const message =
+    error instanceof DevicePrinterError || error instanceof Error
+      ? error.message
+      : "Gagal mencetak ke printer perangkat.";
+  const notConnected = error instanceof DevicePrinterError && error.code === "NOT_CONNECTED";
+  return jsonResponse(
+    {
+      error: {
+        code: notConnected ? "PRINTER_NOT_CONNECTED" : "PRINT_FAILED",
+        message,
+        title: notConnected ? "Printer belum terhubung" : "Gagal mencetak",
+        hint: `Koneksi: ${mode}. ${message}`,
+        actions: DEVICE_ACTIONS,
+        detail: message,
+      },
+    },
+    notConnected ? 503 : 502,
+  );
 }
 
-export async function printThermal(payload: PrintThermalPayload): Promise<Response> {
-  const content = buildThermalContent(payload.receipt);
-  const copies = payload.copies ?? 1;
+function printedResponse(printer: string, method: string) {
+  return jsonResponse({ success: true, printer, method }, 200);
+}
 
-  // 1) Coba agen cetak lokal di PC kasir.
+interface DeliverOptions {
+  copies: number;
+  printerName?: string;
+  /** Body untuk route server lama (/api/print/thermal) bila agen tak terjangkau. */
+  legacyBody?: unknown;
+  config?: DevicePrinterConfig;
+  /** Mode Otomatis: boleh jatuh ke dialog print Chrome (default ya). */
+  browserFallback?: boolean;
+}
+
+/**
+ * Satu pintu kirim teks struk ke printer sesuai pengaturan laptop ini:
+ *   serial/usb/ble → langsung (tanpa driver/agen)
+ *   browser        → dialog print Chrome
+ *   agent          → agen lokal (+ route server di dev)
+ *   auto           → perangkat yang pernah diizinkan → agen → dialog print
+ * Selalu resolve dengan Response (bentuk sama seperti route lama).
+ */
+export async function deliverPrintContent(
+  content: string,
+  options: DeliverOptions,
+): Promise<Response> {
+  const config = options.config ?? loadDevicePrinterConfig();
+  const copies = Math.max(1, options.copies || 1);
+  const job = () => escPosJob(content, { copies, cut: config.cut, feedLines: config.feedLines });
+
+  if (config.mode === "serial" || config.mode === "usb" || config.mode === "ble") {
+    try {
+      await sendToDirectPrinter(config.mode, job(), config);
+      return printedResponse(config.deviceLabel || DEVICE_PRINTER_MODE_LABELS[config.mode], config.mode);
+    } catch (error) {
+      return deviceErrorResponse(error, DEVICE_PRINTER_MODE_LABELS[config.mode]);
+    }
+  }
+
+  if (config.mode === "browser") {
+    try {
+      for (let i = 0; i < copies; i += 1) await printViaBrowser(content, config);
+      return printedResponse("Dialog print Chrome", "browser");
+    } catch (error) {
+      return deviceErrorResponse(error, DEVICE_PRINTER_MODE_LABELS.browser);
+    }
+  }
+
+  if (config.mode === "auto") {
+    const remembered = await findRememberedDirectMode(config).catch(() => null);
+    if (remembered) {
+      try {
+        await sendToDirectPrinter(remembered, job(), config);
+        return printedResponse(config.deviceLabel || DEVICE_PRINTER_MODE_LABELS[remembered], remembered);
+      } catch {
+        // lanjut ke agen / dialog print
+      }
+    }
+  }
+
+  // Agen cetak lokal di PC kasir (printer jaringan/LAN atau driver Windows).
   try {
-    const res = await fetch(`${agentBaseUrl()}/print`, {
+    const res = await fetch(`${agentBaseUrl(config)}/print`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content,
-        copies,
-        printerName: payload.printerName,
-      }),
+      body: JSON.stringify({ content, copies, printerName: options.printerName }),
     });
-
     if (res.ok) {
       const data = (await res.json().catch(() => ({}))) as { printer?: string };
-      return jsonResponse(
-        { success: true, printer: data.printer ?? "local-agent", method: "local-agent" },
-        200,
-      );
+      return printedResponse(data.printer ?? "local-agent", "local-agent");
     }
-
     // Agen menjawab tapi gagal cetak (printer mati/kertas habis, dll.).
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     return jsonResponse(
       {
         error: {
           code: "PRINT_FAILED",
-          message: data.error || "Gagal mencetak struk",
-          title: "Gagal mencetak struk",
+          message: data.error || "Gagal mencetak",
+          title: "Gagal mencetak",
           hint: "Agen cetak menerima perintah tapi printer gagal merespon.",
           actions: [
             "Pastikan printer RPP02N menyala (lampu indikator hidup)",
@@ -165,23 +193,85 @@ export async function printThermal(payload: PrintThermalPayload): Promise<Respon
       502,
     );
   } catch {
-    // 2) Agen tak terjangkau → fallback ke route server (dev / server lokal).
+    // Agen tak terjangkau → lanjut.
+  }
+
+  // Route server (dev / server == PC warung).
+  if (options.legacyBody !== undefined) {
     try {
       const res = await fetch("/api/print/thermal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(options.legacyBody),
       });
-      // Lewatkan apa adanya dari server (sudah punya bentuk error yang sama).
       const text = await res.text();
-      return new Response(text, {
-        status: res.status,
-        headers: { "Content-Type": "application/json" },
-      });
+      if (res.ok || config.mode === "agent") {
+        return new Response(text, { status: res.status, headers: { "Content-Type": "application/json" } });
+      }
     } catch {
-      // 3) Dua-duanya gagal → agen offline.
-      return jsonResponse(AGENT_DOWN_ERROR, 503);
+      // lanjut
     }
   }
+
+  // Otomatis: terakhir pakai dialog print Chrome agar struk tidak pernah macet.
+  if (config.mode === "auto" && options.browserFallback !== false) {
+    try {
+      for (let i = 0; i < copies; i += 1) await printViaBrowser(content, config);
+      return printedResponse("Dialog print Chrome", "browser");
+    } catch {
+      // jatuh ke pesan agen offline
+    }
+  }
+  return jsonResponse(AGENT_DOWN_ERROR, 503);
+}
+
+/**
+ * Cetak chit dapur/bar (tanpa harga). Lebar kolom ikut kertas laptop ini.
+ * Selalu resolve dengan Response. Bila tak ada item, tidak mencetak.
+ */
+export async function printKitchenChit(
+  payload: PrintKitchenChitPayload,
+): Promise<Response> {
+  const config = loadDevicePrinterConfig();
+  const content = buildKitchenChitContent(payload.chit, { width: deviceColumns(config) });
+  if (!content.trim()) {
+    return jsonResponse({ success: true, skipped: true }, 200);
+  }
+  return deliverPrintContent(content, {
+    copies: 1,
+    printerName: payload.printerName,
+    legacyBody: { chit: payload.chit, printerName: payload.printerName },
+    config,
+    // Chit otomatis tiap order: jangan memunculkan dialog print berulang-ulang.
+    browserFallback: false,
+  });
+}
+
+/** Drop-in pengganti fetch("/api/print/thermal") untuk struk pelanggan. */
+export async function printThermal(payload: PrintThermalPayload): Promise<Response> {
+  const config = loadDevicePrinterConfig();
+  const content = buildThermalContent(payload.receipt, { width: deviceColumns(config) });
+  return deliverPrintContent(content, {
+    copies: payload.copies ?? 1,
+    printerName: payload.printerName,
+    legacyBody: payload,
+    config,
+  });
+}
+
+/**
+ * Cetak kertas lain (slip tutup shift, rekap harian, tes cetak). `build`
+ * menerima jumlah kolom kertas laptop ini supaya tata letak selalu pas.
+ */
+export async function printDocument(
+  build: (columns: number) => string,
+  options: { copies?: number; printerName?: string } = {},
+): Promise<Response> {
+  const config = loadDevicePrinterConfig();
+  return deliverPrintContent(build(deviceColumns(config)), {
+    copies: options.copies ?? 1,
+    printerName: options.printerName,
+    config,
+  });
 }

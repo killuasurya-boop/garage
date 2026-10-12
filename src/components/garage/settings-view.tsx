@@ -1,5 +1,6 @@
 "use client";
 
+import { DevicePrinterPanel } from "@/components/garage/device-printer-panel";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -1398,6 +1399,9 @@ export function SettingsView({ me }: { me: GarageMe }) {
 
           {activeTab === "printer" ? (
             <>
+              <DevicePrinterPanel
+                brand={{ brandName: merged.brandName, outletName: me.outlet.name, outletCode: me.outlet.code }}
+              />
               <SettingsField
                 label="Nama Printer Default"
                 description="Override env DEFAULT_PRINTER_NAME. Kosongkan untuk auto-detect."
@@ -1442,7 +1446,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
                   <div>
                     <p className="text-sm font-semibold text-white">Status printer & test print</p>
                     <p className="mt-1 text-[11px] leading-5 text-[#b8b8bf]">
-                      Mengirim struk test ke printer default. Print server dan driver Windows harus aktif.
+                      Mengirim struk test lewat Printer Perangkat Ini (atau agen cetak bila mode Jaringan).
                     </p>
                     <p className="garage-mono mt-1 text-[10px] text-[#ffd08a]">
                       Target: {merged.defaultPrinterName || "auto-detect"}

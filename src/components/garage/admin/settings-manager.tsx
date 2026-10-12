@@ -1,5 +1,6 @@
 "use client";
 
+import { DevicePrinterPanel } from "@/components/garage/device-printer-panel";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -567,6 +568,11 @@ export function SettingsManager({
                   ) : null}
                 </CardHeader>
                 <CardContent>
+                  {category.id === "printer" ? (
+                    <div className="mb-5">
+                      <DevicePrinterPanel />
+                    </div>
+                  ) : null}
                   <div className="grid gap-4">
                     {category.fields.map((field) => renderField(field))}
                   </div>

@@ -61,6 +61,8 @@ export async function GET(request: Request) {
   }
 
   const db = getDb();
+  // Laporan per outlet staf yang mengunduh (dulu tanpa filter outlet).
+  const outletId = session.data.profile.outlet.id;
 
   const dayOrders = await db
     .select()
@@ -68,6 +70,7 @@ export async function GET(request: Request) {
     .where(
       and(
         eq(orders.status, "paid"),
+        eq(orders.outletId, outletId),
         gte(orders.createdAt, range.start),
         lt(orders.createdAt, range.end),
       ),
@@ -86,12 +89,13 @@ export async function GET(request: Request) {
           ),
         )
     : [];
-  const paymentByOrder = new Map<string, { method: string; amount: number }>();
+  // Split bayar: semua metode ditampilkan (dulu hanya pembayaran pertama).
+  const paymentByOrder = new Map<string, Array<{ method: string; amount: number }>>();
   for (const row of dayPayments) {
     if (!row.orderId) continue;
-    if (!paymentByOrder.has(row.orderId)) {
-      paymentByOrder.set(row.orderId, { method: row.method, amount: row.amount });
-    }
+    const list = paymentByOrder.get(row.orderId) ?? [];
+    list.push({ method: row.method, amount: row.amount });
+    paymentByOrder.set(row.orderId, list);
   }
 
   const [overview, dayExpenses, daySettlements, supplierRows, cashRows, opnameRows] =
@@ -102,6 +106,7 @@ export async function GET(request: Request) {
         .from(expenses)
         .where(
           and(
+            eq(expenses.outletId, outletId),
             gte(expenses.expenseDate, range.start),
             lt(expenses.expenseDate, range.end),
           ),
@@ -139,6 +144,7 @@ export async function GET(request: Request) {
         .from(cashSessions)
         .where(
           and(
+            eq(cashSessions.outletId, outletId),
             gte(cashSessions.openedAt, range.start),
             lt(cashSessions.openedAt, range.end),
           ),
@@ -186,10 +192,16 @@ export async function GET(request: Request) {
 
   const revenue = dayOrders.reduce((acc, row) => acc + (row.total ?? 0), 0);
   sum.addRow(["Revenue", currency.format(revenue)]);
-  sum.addRow(["Expense", currency.format(overview.today.expense)]);
-  sum.addRow(["Gross profit", currency.format(overview.today.grossProfit)]);
-  sum.addRow(["Net profit", currency.format(overview.today.netProfit)]);
-  sum.addRow(["Food cost", `${overview.today.foodCostRatio}%`]);
+  // Pengeluaran sesuai TANGGAL yang diminta (dulu selalu angka hari ini).
+  const dayExpenseTotal = dayExpenses
+    .filter((row) => !["cancelled", "rejected"].includes(row.status))
+    .reduce((acc, row) => acc + row.amount, 0);
+  sum.addRow(["Expense", currency.format(dayExpenseTotal)]);
+  if (dateParam === jakartaToday()) {
+    sum.addRow(["Gross profit (hari ini)", currency.format(overview.today.grossProfit)]);
+    sum.addRow(["Net profit (hari ini)", currency.format(overview.today.netProfit)]);
+    sum.addRow(["Food cost (hari ini)", `${overview.today.foodCostRatio}%`]);
+  }
   sum.addRow(["Finance health", `${overview.financeGuard.healthScore} / ${overview.financeGuard.level}`]);
   sum.addRow(["Guard brief", overview.financeGuard.brief]);
 
@@ -222,7 +234,7 @@ export async function GET(request: Request) {
     "Waktu",
   ]);
   for (const row of dayOrders) {
-    const pay = paymentByOrder.get(row.id);
+    const pays = paymentByOrder.get(row.id) ?? [];
     orderSheet.addRow([
       row.orderNo,
       row.channel,
@@ -232,7 +244,7 @@ export async function GET(request: Request) {
       row.tax,
       row.discount,
       row.total,
-      pay?.method ?? "-",
+      pays.length ? pays.map((pay) => (pays.length > 1 ? `${pay.method} ${pay.amount}` : pay.method)).join(" + ") : "-",
       new Intl.DateTimeFormat("id-ID", {
         dateStyle: "short",
         timeStyle: "medium",
@@ -392,53 +404,46 @@ export async function GET(request: Request) {
   const reconSheet = wb.addWorksheet("Shift Reconciliation");
   reconSheet.addRow([
     "Session",
-    "Opening",
-    "Cash Payments (linked)",
-    "Cash Out (movements)",
-    "Calculated Expected",
-    "System Expected",
-    "Variance",
-    "Actual",
-    "Discrepancy",
+    "Modal awal",
+    "Tunai dari penjualan",
+    "Kas masuk",
+    "Kas keluar",
+    "Pengeluaran/refund/koreksi lain",
+    "Kas seharusnya (sistem)",
+    "Dihitung",
+    "Selisih",
   ]);
-  for (const session of cashRows) {
+  for (const cashSession of cashRows) {
     const [paymentAgg] = await db
       .select({
-        cashIn: sql<number>`coalesce(sum(case when lower(${payments.method}) = 'cash' then ${payments.amount} else 0 end), 0)::int`,
-        totalCaptured: sql<number>`coalesce(sum(${payments.amount}), 0)::int`,
+        cashSales: sql<number>`coalesce(sum(case when lower(${payments.method}) like '%cash%' or lower(${payments.method}) like '%tunai%' then ${payments.amount} else 0 end), 0)::int`,
       })
       .from(payments)
-      .where(
-        and(
-          eq(payments.cashSessionId, session.id),
-          eq(payments.status, "captured"),
-        ),
-      );
-    const [movementAgg] = await db
+      .where(and(eq(payments.cashSessionId, cashSession.id), eq(payments.status, "captured")));
+    const movementAgg = await db
       .select({
-        cashOut: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int`,
+        type: cashMovements.type,
+        amount: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int`,
       })
       .from(cashMovements)
-      .where(
-        and(
-          eq(cashMovements.cashSessionId, session.id),
-          eq(cashMovements.type, "out"),
-        ),
-      );
-    const cashIn = Number(paymentAgg?.cashIn ?? 0);
-    const cashOut = Number(movementAgg?.cashOut ?? 0);
-    const calculatedExpected = session.openingCash + cashIn - cashOut;
-    const variance = calculatedExpected - session.expectedCash;
+      .where(eq(cashMovements.cashSessionId, cashSession.id))
+      .groupBy(cashMovements.type);
+    const cashSales = Number(paymentAgg?.cashSales ?? 0);
+    const cashIn = Number(movementAgg.find((row) => row.type === "cash_in")?.amount ?? 0);
+    const cashOut = Number(movementAgg.find((row) => row.type === "cash_out")?.amount ?? 0);
+    // Sisa beda = pengeluaran tunai lain, refund/void tunai, koreksi metode bayar.
+    const otherAdjustments =
+      cashSession.expectedCash - (cashSession.openingCash + cashSales + cashIn - cashOut);
     reconSheet.addRow([
-      session.code,
-      session.openingCash,
+      cashSession.code,
+      cashSession.openingCash,
+      cashSales,
       cashIn,
       cashOut,
-      calculatedExpected,
-      session.expectedCash,
-      variance,
-      session.actualCash ?? "",
-      session.discrepancy,
+      otherAdjustments,
+      cashSession.expectedCash,
+      cashSession.actualCash ?? "",
+      cashSession.discrepancy,
     ]);
   }
   reconSheet.getRow(1).font = { bold: true };

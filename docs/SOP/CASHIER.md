@@ -1,5 +1,7 @@
 # SOP Kasir
 
+> **Panduan terbaru (Okt 2026):** lihat `docs/panduan/KASIR.md` atau di aplikasi: menu **Training → Panduan Kerja**. Dokumen di bawah adalah template SOP lama.
+
 ## Purpose
 
 Operator POS, pembayaran, receipt, member lookup, dan cash session.

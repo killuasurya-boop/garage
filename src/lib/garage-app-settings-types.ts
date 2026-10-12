@@ -137,6 +137,8 @@ export type AppSettings = {
   receiptShowMemberPoints: boolean;
   // Kertas manajemen (slip tutup shift, rekap harian).
   receiptShowSignature: boolean;
+  // Kas keluar/masuk laci oleh Kasir ≥ nominal ini wajib PIN Manajer/Owner.
+  cashMovementPinThreshold: number;
   managementSlipCopies: number;
   // Notification extra
   notificationPushEnabled: boolean;
@@ -176,8 +178,8 @@ export type AppSettings = {
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  serviceChargePct: 5,
-  taxPct: 10,
+  serviceChargePct: 0,
+  taxPct: 0,
   manualDiscountMaxPct: 50,
   manualDiscountApprovalPct: 10,
   receiptHistoryMax: 20,
@@ -276,6 +278,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   receiptShowTaxBreakdown: true,
   receiptShowMemberPoints: true,
   receiptShowSignature: true,
+  cashMovementPinThreshold: 50000,
   managementSlipCopies: 1,
   // Notification extra
   notificationPushEnabled: true,

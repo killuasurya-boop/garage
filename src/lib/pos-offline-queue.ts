@@ -27,6 +27,8 @@ export type QueuedOrder = {
   status: QueuedOrderStatus;
   /** Pesan error terakhir kalau status=failed. */
   errorMessage?: string;
+  /** Ditolak server secara permanen (mis. data tidak valid) — tidak dicoba otomatis lagi. */
+  permanent?: boolean;
   /** Ringkasan untuk UI (total, customerName, dll). Optional. */
   summary?: {
     total?: number;
@@ -151,11 +153,12 @@ export async function markSynced(id: string): Promise<void> {
 }
 
 /** Gagal sync → kembalikan ke pending dgn pesan error. */
-export async function markFailed(id: string, errorMessage: string): Promise<void> {
+export async function markFailed(id: string, errorMessage: string, permanent = false): Promise<void> {
   await tx("readwrite", async (store) => {
     const row = (await req(store.get(id))) as QueuedOrder | undefined;
     if (!row) return;
     row.status = "failed";
+    row.permanent = permanent;
     row.errorMessage = errorMessage.slice(0, 240);
     row.updatedAt = Date.now();
     await req(store.put(row));

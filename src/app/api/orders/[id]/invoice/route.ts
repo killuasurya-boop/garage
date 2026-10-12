@@ -15,7 +15,7 @@ export async function GET(
   }
 
   const { id } = await context.params;
-  const data = await getOrderForReceipt(id);
+  const data = await getOrderForReceipt(id, { outletId: session.data.profile.outlet.id });
   if (!data) {
     return fail(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
   }

@@ -113,7 +113,15 @@ export async function POST(request: Request) {
 
   try {
     // Sinkron order offline: uang sudah diterima fisik → kekurangan tunai dicatat, tidak ditolak.
-    const offlineSync = request.headers.get("x-garage-offline-sync") === "1";
+    // Hanya order yang benar-benar tertahan di antrean offline (dibuat ≥ 1 menit
+    // lalu, maks 3 hari) yang dilonggarkan — header saja tidak cukup, supaya
+    // kasir tidak bisa melewati cek "uang kurang" dengan header buatan.
+    const offlineCreatedAt = Number(request.headers.get("x-garage-offline-created-at"));
+    const offlineAgeMs = Number.isFinite(offlineCreatedAt) ? Date.now() - offlineCreatedAt : -1;
+    const offlineSync =
+      request.headers.get("x-garage-offline-sync") === "1" &&
+      offlineAgeMs >= 60_000 &&
+      offlineAgeMs <= 3 * 24 * 60 * 60_000;
     // Cache memori di atas hanya bertahan selama proses hidup; kunci juga
     // disimpan di order (unik di DB) sehingga retry setelah server restart
     // tetap mengembalikan order yang sama.

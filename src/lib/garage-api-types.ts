@@ -422,6 +422,8 @@ export type SiteAsset = {
 export type CashSession = {
   id: string | null;
   code: string;
+  /** ISO waktu buka shift (untuk peringatan shift lupa ditutup). */
+  openedAt?: string;
   openingCash: number;
   expectedCash: number;
   actualCash: number | null;

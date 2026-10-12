@@ -1,3 +1,4 @@
+import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { ok } from "@/lib/api-response";
 import { getActiveCashSessionForCashier } from "@/lib/garage-service";
 import { requireAnyPermission } from "@/lib/server-auth";
@@ -11,5 +12,5 @@ export async function GET() {
   }
 
   const data = await getActiveCashSessionForCashier(session.data.user.id);
-  return ok({ session: data });
+  return ok({ session: data ? redactOpenShiftCash(data, session.data.profile.role) : data });
 }

@@ -2964,6 +2964,8 @@ body {
 
   .garage-os-shell [data-slot="tabs-trigger"][data-state="active"] {
     background: color-mix(in srgb, var(--garage-button-bg) 14%, #ffffff) !important;
+    /* Latar tab aktif terang → teks gelap agar terbaca (dulu abu di atas putih). */
+    color: #16161b !important;
     box-shadow: none !important;
   }
 

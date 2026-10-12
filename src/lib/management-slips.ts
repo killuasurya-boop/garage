@@ -60,6 +60,7 @@ export interface ShiftSlipInput {
   floatLeft?: number | null;
   depositAmount?: number | null;
   closingNote?: string | null;
+  cashMovements?: { cashIn: number; cashOut: number } | null;
 }
 
 export interface DailyRecapRow {
@@ -192,6 +193,8 @@ export function buildShiftSlipContent(input: ShiftSlipInput, options: SlipOption
 
   layout.text("KAS LACI");
   layout.pair("Modal awal", formatRupiah(s.openingCash));
+  if (input.cashMovements?.cashIn) layout.pair("Kas masuk", formatRupiah(input.cashMovements.cashIn));
+  if (input.cashMovements?.cashOut) layout.pair("Kas keluar", `-${formatRupiah(input.cashMovements.cashOut)}`);
   layout.pair("Kas seharusnya", formatRupiah(s.expectedCash));
   layout.pair("Kas dihitung", s.actualCash == null ? "-" : formatRupiah(s.actualCash));
   const diff = Math.round(s.discrepancy ?? 0);
@@ -305,5 +308,86 @@ export function buildTestPageContent(
   layout.divider();
   layout.center("Printer siap dipakai");
   layout.blank();
+  return layout.output();
+}
+
+export interface CashMovementSlipInput {
+  type: "out" | "in";
+  category: string;
+  description: string;
+  amount: number;
+  cashSessionCode: string;
+  createdByName?: string | null;
+  approvedByName?: string | null;
+  movementAt?: string | null;
+}
+
+/** Slip Kas Keluar / Masuk laci (bukti fisik untuk Owner). */
+export function buildCashMovementSlipContent(input: CashMovementSlipInput, options: SlipOptions = {}): string {
+  const layout = createLayout(options);
+  header(layout, input.type === "out" ? "SLIP KAS KELUAR" : "SLIP KAS MASUK", options);
+  layout.field("Shift", input.cashSessionCode);
+  layout.field("Waktu", formatJakartaDateTime(input.movementAt ?? new Date().toISOString()));
+  layout.field("Kategori", input.category);
+  layout.field("Ket", input.description);
+  layout.field("Petugas", input.createdByName || "-");
+  if (input.approvedByName) layout.field("Setuju", input.approvedByName);
+  layout.divider();
+  layout.pair(input.type === "out" ? "UANG KELUAR" : "UANG MASUK", formatRupiah(input.amount));
+  footer(layout, options, ["Kasir", input.type === "out" ? "Penerima" : "Penyerah"]);
+  return layout.output();
+}
+
+export interface SalesSummarySlipInput {
+  range: { from: string; to: string };
+  scope: "outlet" | "shift";
+  sessionCode: string | null;
+  summary: {
+    gross: number;
+    transactions: number;
+    averageTicket: number;
+    itemsSold: number;
+    discount: number;
+    deliveryFee: number;
+    voidCount: number;
+    refundCount: number;
+  };
+  products: Array<{ label: string; qty: number; revenue: number }>;
+  paymentMethods: Array<{ label: string; revenue: number }>;
+  cashiers: Array<{ label: string; revenue: number }>;
+}
+
+/** Ringkasan laporan penjualan untuk printer struk (10 produk terlaris). */
+export function buildSalesSummarySlipContent(input: SalesSummarySlipInput, options: SlipOptions = {}): string {
+  const layout = createLayout(options);
+  header(layout, "LAPORAN PENJUALAN", options);
+  layout.field(
+    "Periode",
+    input.range.from === input.range.to ? input.range.from : `${input.range.from} s/d ${input.range.to}`,
+  );
+  if (input.sessionCode) layout.field("Shift", input.sessionCode);
+  layout.divider();
+  const s = input.summary;
+  layout.pair("OMZET", formatRupiah(s.gross));
+  layout.pair("Transaksi", String(s.transactions));
+  layout.pair("Rata-rata/struk", formatRupiah(s.averageTicket));
+  layout.pair("Item terjual", String(s.itemsSold));
+  if (s.discount > 0) layout.pair("Diskon", `-${formatRupiah(s.discount)}`);
+  if (s.deliveryFee > 0) layout.pair("Ongkir", formatRupiah(s.deliveryFee));
+  if (s.voidCount || s.refundCount) layout.pair("Void / refund", `${s.voidCount} / ${s.refundCount}`);
+  layout.divider();
+  layout.text("PER METODE BAYAR");
+  if (input.paymentMethods.length === 0) layout.text("(belum ada pembayaran)");
+  for (const row of input.paymentMethods) layout.pair(row.label, formatRupiah(row.revenue));
+  layout.divider();
+  layout.text("10 PRODUK TERLARIS");
+  if (input.products.length === 0) layout.text("(belum ada penjualan)");
+  for (const row of input.products.slice(0, 10)) layout.pair(`${row.qty}x ${row.label}`, formatRupiah(row.revenue));
+  if (input.scope === "outlet" && input.cashiers.length > 0) {
+    layout.divider();
+    layout.text("PER KASIR");
+    for (const row of input.cashiers) layout.pair(row.label, formatRupiah(row.revenue));
+  }
+  footer(layout, options, ["Manajer", "Owner"]);
   return layout.output();
 }

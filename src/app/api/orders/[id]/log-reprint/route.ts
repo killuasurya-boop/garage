@@ -25,7 +25,7 @@ export async function POST(
   }
 
   const { id } = await context.params;
-  const orderData = await getOrderForReceipt(id);
+  const orderData = await getOrderForReceipt(id, { outletId: session.data.profile.outlet.id });
   if (!orderData) {
     return fail(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
   }
@@ -50,11 +50,13 @@ export async function POST(
     );
 
   const currentCount = Number(countRow?.c ?? 0);
-  if (currentCount >= MAX_REPRINTS) {
+  // Manajer/Owner boleh melewati batas (tetap tercatat di audit).
+  const isSupervisor = session.data.profile.role === "Owner" || session.data.profile.role === "Manajer";
+  if (currentCount >= MAX_REPRINTS && !isSupervisor) {
     return fail(
       429,
       "REPRINT_LIMIT_REACHED",
-      `Batas cetak ulang ${MAX_REPRINTS}x sudah tercapai untuk order ini.`,
+      `Batas cetak ulang ${MAX_REPRINTS}x sudah tercapai untuk order ini. Minta Manajer/Owner untuk mencetak.`,
     );
   }
 
@@ -88,7 +90,7 @@ export async function GET(
   }
 
   const { id } = await context.params;
-  const orderData = await getOrderForReceipt(id);
+  const orderData = await getOrderForReceipt(id, { outletId: session.data.profile.outlet.id });
   if (!orderData) {
     return fail(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
   }

@@ -1,3 +1,5 @@
+> **Panduan terbaru (Okt 2026):** lihat [`docs/panduan/BARISTA.md`](../panduan/BARISTA.md) — juga tampil di akun karyawan: menu Training → tab Panduan Kerja.
+
 # SOP Barista
 
 ## Purpose

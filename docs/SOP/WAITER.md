@@ -1,3 +1,5 @@
+> **Panduan terbaru (Okt 2026):** lihat [`docs/panduan/WAITER.md`](../panduan/WAITER.md) — juga tampil di akun karyawan: menu Training → tab Panduan Kerja.
+
 # SOP Waiter 1 / Waiter 2
 
 ## Purpose

@@ -231,3 +231,12 @@ describe("kapabilitas: ejaan workstation/jabatan tidak membuka celah", () => {
     }
   });
 });
+
+describe("waiter & kurir", () => {
+  it("waiter tidak pegang uang; kurir tidak mengubah meja", () => {
+    expect(canHandleMoney({ role: "Waiter", workstation: null })).toBe(false);
+    expect(canUseApiAs({ role: "Waiter", workstation: null }, "tables:write")).toBe(true);
+    expect(canUseApiAs({ role: "Waiter", workstation: "kurir" }, "tables:write")).toBe(false);
+    expect(canUseApiAs({ role: "Waiter", workstation: "kurir" }, "tables:read")).toBe(true);
+  });
+});

@@ -266,7 +266,7 @@ describe("Kurir + GPS", () => {
     await cour.courierDeliveryAction(id, "pickup", courier());
     // Tiket SIAP otomatis tertutup (diserahkan ke kurir).
     const closed = await t.getDb().select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, id));
-    expect(closed.every((ticket) => ticket.status === "delivered")).toBe(true);
+    expect(closed.every((ticket: any) => ticket.status === "delivered")).toBe(true);
     const otw = await cour.courierDeliveryAction(id, "depart", courier());
     expect(otw.deliveryStatus).toBe("on_the_way");
     await cour.updateCourierLocation(id, 3.3301, 99.1601, courier());

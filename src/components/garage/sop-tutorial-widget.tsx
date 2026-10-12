@@ -407,7 +407,7 @@ export function SopTutorialWidget({
   const contextLabel = role ? `${role}${activeModule ? ` - ${activeModule}` : ""}` : "Role aktif";
 
   return (
-    <div className="pointer-events-none fixed bottom-3 left-3 z-30 flex flex-col items-start sm:bottom-4 sm:left-4">
+    <div className="pointer-events-none fixed bottom-24 left-3 z-30 flex flex-col items-start sm:left-4 md:bottom-4">
       {/* Tutorial Window */}
       {isOpen && (
         <div 

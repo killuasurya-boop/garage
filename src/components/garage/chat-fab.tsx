@@ -101,10 +101,12 @@ export function ChatFab({
       if (saved) {
         setPos(saved);
       } else {
-        // default: bottom-right
+        // default: bottom-right. Di HP (< md) naik di atas bar Total Tagihan
+        // POS supaya tombol Bayar tidak tertutup.
+        const mobileBarOffset = window.innerWidth < 768 ? 76 : 0;
         setPos({
           x: window.innerWidth - fabSize - 20,
-          y: window.innerHeight - fabSize - 20,
+          y: window.innerHeight - fabSize - 20 - mobileBarOffset,
         });
       }
     };

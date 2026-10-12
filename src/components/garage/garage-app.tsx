@@ -1536,7 +1536,7 @@ function GarageWorkspace({
               </DateFilterProvider>
             )}
             {safeActiveModule === "team-management" && <TeamManagementDashboard role={data.me.role} />}
-            {safeActiveModule === "training" && <GarageTrainingModule role={data.me.role} />}
+            {safeActiveModule === "training" && <GarageTrainingModule role={data.me.role} workstation={data.me.workstation} />}
             {safeActiveModule === "recruitment" && <RecruitmentView />}
             {safeActiveModule === "settings" && <SettingsView me={data.me} />}
             {safeActiveModule === "smart-notif" && (

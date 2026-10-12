@@ -8,10 +8,18 @@ export type { GuideSection, GuideStep, RoleGuide } from "@/lib/role-guides/types
 /** Semua panduan. Tambah role lain di sini (Barista, Waiter, Kurir, …). */
 export const ROLE_GUIDES: RoleGuide[] = [kasirGuide, manajerKasirGuide];
 
-/** Panduan untuk role ini. Owner/Manajer melihat semua panduan. */
-export function guidesForRole(role: Role | string): RoleGuide[] {
+/**
+ * Panduan untuk akun ini (role + posisi/workstation). Owner/Manajer melihat
+ * semua panduan supaya bisa melatih tim.
+ */
+export function guidesForRole(role: Role | string, workstation?: string | null): RoleGuide[] {
   if (role === "Owner" || role === "Manajer") return ROLE_GUIDES;
-  return ROLE_GUIDES.filter((guide) => guide.roles.includes(role as Role));
+  const ws = workstation?.trim() || null;
+  return ROLE_GUIDES.filter((guide) => {
+    if (guide.workstations?.length) return Boolean(ws && guide.workstations.includes(ws));
+    if (!guide.roles.includes(role as Role)) return false;
+    return !(guide.onlyWithoutWorkstation && ws);
+  });
 }
 
 /** Markdown untuk docs/panduan (npm run docs:guides) & cetak. */

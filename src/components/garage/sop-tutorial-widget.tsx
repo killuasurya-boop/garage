@@ -91,10 +91,11 @@ const SOP_DATA: TutorialCategory[] = [
         title: "Tutup Shift Kasir",
         content: [
           "Selesaikan semua bill aktif sebelum tutup shift.",
-          "Hitung uang tunai fisik, QRIS, debit, dan transfer sesuai metode pembayaran.",
-          "Masukkan catatan jika ada selisih antara sistem dan uang fisik.",
-          "Kirim closing untuk approval Supervisor/Finance.",
-          "Jangan serahkan shift tanpa status kas dan bill pending yang jelas."
+          "Tekan Tutup Shift, hitung uang laci per pecahan — angka sistem sengaja tidak ditampilkan (blind count).",
+          "Isi total QRIS dari mutasi BNI untuk dicocokkan.",
+          "Pilih uang yang ditinggal di laci; sisanya disetor ke Owner.",
+          "Selisih besar → masukkan PIN Manajer/Owner. Setelah tutup, cetak slip & serahkan bersama setoran.",
+          "Panduan lengkap: menu Training → Panduan Kerja."
         ]
       }
     ]
@@ -198,11 +199,11 @@ const SOP_DATA: TutorialCategory[] = [
         id: "fin-1",
         title: "Tutup Kasir (Closing Cash Session)",
         content: [
-          "Setiap akhir shift, kasir wajib melakukan 'Tutup Sesi Kasir' dari modul POS.",
-          "Masukkan jumlah hitungan uang tunai aktual di laci kasir (Cash Drawer).",
-          "Sistem akan membandingkan saldo sistem dengan hitungan fisik.",
-          "Jika ada selisih (discrepancy), kasir harus menulis catatan penjelasan selisih.",
-          "Sesi akan masuk ke status 'Pending Approval' untuk disetujui Manajer/Finance."
+          "Setiap akhir shift, kasir menutup shift dari POS dengan blind count (hitung pecahan tanpa melihat angka sistem).",
+          "Kas keluar/masuk laci selama shift dicatat lewat tombol Kas Keluar / Masuk agar hitungan pas.",
+          "Kas seharusnya & selisih tampil setelah shift ditutup; selisih besar wajib PIN Manajer/Owner.",
+          "Manajer/Owner memeriksa & menyetujui selisih serta mencocokkan QRIS di Rekap Harian.",
+          "Panduan lengkap: menu Training → Panduan Kerja."
         ]
       },
       {

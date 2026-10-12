@@ -1,3 +1,4 @@
+import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { fail, ok } from "@/lib/api-response";
 import { getCashSessionTransactions } from "@/lib/garage-service";
 import { canUseApi } from "@/lib/role-access";
@@ -25,5 +26,5 @@ export async function GET(
       "Sesi tidak ditemukan atau bukan milik kasir ini.",
     );
   }
-  return ok(data);
+  return ok({ ...data, session: redactOpenShiftCash(data.session, session.data.profile.role) });
 }

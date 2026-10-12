@@ -17,6 +17,7 @@ import { GarageApiError } from "@/lib/api-client";
 import { useGarageToast } from "@/components/garage/garage-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { RoleGuideViewer } from "@/components/garage/role-guide-viewer";
 
 type CourseLesson = {
   id: string;
@@ -55,7 +56,7 @@ function splitInstruction(item: string) {
   return { label: match[1], detail: match[2] };
 }
 
-export function GarageTrainingModule() {
+export function GarageTrainingModule({ role = "Kasir" }: { role?: string }) {
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
   const [sops, setSops] = useState<SopChecklist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -170,8 +171,15 @@ export function GarageTrainingModule() {
         </div>
       </div>
 
-      <Tabs defaultValue="training" className="flex flex-1 flex-col">
-        <TabsList className="h-auto w-full justify-start gap-2 rounded-lg border border-[#34343c] bg-[#181820] p-1">
+      <Tabs defaultValue="guide" className="flex flex-1 flex-col">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-lg border border-[#34343c] bg-[#181820] p-1">
+          <TabsTrigger
+            value="guide"
+            className="gap-2 rounded-md px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-zinc-400 data-[state=active]:bg-[#d11a2a] data-[state=active]:text-white"
+          >
+            <BookOpenCheck className="size-4" />
+            Panduan Kerja
+          </TabsTrigger>
           <TabsTrigger
             value="training"
             className="gap-2 rounded-md px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-zinc-400 data-[state=active]:bg-[#d11a2a] data-[state=active]:text-white"
@@ -189,6 +197,10 @@ export function GarageTrainingModule() {
         </TabsList>
 
         <ScrollArea className="mt-4 flex-1 pr-1">
+          <TabsContent value="guide" className="m-0 space-y-4 pb-6">
+            <RoleGuideViewer role={role} />
+          </TabsContent>
+
           <TabsContent value="training" className="m-0 space-y-4 pb-6">
             {courses.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[#34343c] bg-[#181820] p-8 text-center text-sm text-zinc-500">

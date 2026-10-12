@@ -174,11 +174,30 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
   };
 }
 
+/**
+ * Akun dengan kewajiban ganti password (akun baru / direset Owner) tidak boleh
+ * memakai API operasional sampai password diganti. Halaman diarahkan oleh
+ * page-access; API berizin ditolak di sini (dulu hanya halaman yang dicek).
+ */
+function passwordResetBlocked(session: { data: GarageSession }) {
+  if (!session.data.profile.passwordResetRequired) return null;
+  return {
+    data: null,
+    response: fail(
+      403,
+      "PASSWORD_RESET_REQUIRED",
+      "Ganti password akun Anda dulu (menu Akun → Ganti Password) sebelum memakai kasir.",
+    ),
+  };
+}
+
 export async function requirePermission(permission: Permission) {
   const session = await requireGarageSession();
   if (session.response) {
     return session;
   }
+  const resetBlocked = passwordResetBlocked(session);
+  if (resetBlocked) return resetBlocked;
 
   if (!canUseApiAs(session.data.profile, permission)) {
     return {
@@ -199,6 +218,8 @@ export async function requireCashierSession() {
   if (session.response) {
     return session;
   }
+  const resetBlocked = passwordResetBlocked(session);
+  if (resetBlocked) return resetBlocked;
   if (!canHandleMoney(session.data.profile)) {
     return {
       data: null,
@@ -213,6 +234,8 @@ export async function requireAnyPermission(permissions: Permission[]) {
   if (session.response) {
     return session;
   }
+  const resetBlocked = passwordResetBlocked(session);
+  if (resetBlocked) return resetBlocked;
 
   if (!permissions.some((permission) => canUseApiAs(session.data.profile, permission))) {
     return {

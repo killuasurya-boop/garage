@@ -20,6 +20,7 @@ export async function GET(request: Request) {
   const params = url.searchParams;
 
   const result = await listInvoicesForFinance({
+    outletId: session.data.profile.outlet.id,
     search: params.get("search") ?? undefined,
     status: params.get("status") ?? undefined,
     paymentMethod: params.get("paymentMethod") ?? undefined,

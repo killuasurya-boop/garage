@@ -25,7 +25,11 @@ let running = false;
 async function syncOne(): Promise<boolean> {
   if (typeof navigator !== "undefined" && !navigator.onLine) return false;
   const all = await listQueue();
-  const target = all.find((q) => q.status === "pending" || q.status === "failed");
+  // Item yang ditolak permanen dilewati, supaya satu order bermasalah tidak
+  // memacetkan seluruh antrean (dulu selalu mencoba item gagal tertua dulu).
+  const target =
+    all.find((q) => q.status === "pending") ??
+    all.find((q) => q.status === "failed" && !q.permanent);
   if (!target) return false;
 
   await markSyncing(target.id);
@@ -36,6 +40,9 @@ async function syncOne(): Promise<boolean> {
         "Content-Type": "application/json",
         "X-Idempotency-Key": target.id,
         "X-Garage-Offline-Sync": "1",
+        // Waktu order dibuat saat offline — server hanya melonggarkan cek
+        // uang kurang untuk order yang memang tertahan di antrean.
+        "X-Garage-Offline-Created-At": String(target.createdAt),
       },
       body: JSON.stringify(target.payload),
     });
@@ -47,7 +54,9 @@ async function syncOne(): Promise<boolean> {
     // 400 = invalid payload (tidak retry, mark failed)
     const errBody = await res.json().catch(() => null);
     const msg = errBody?.error?.message ?? `HTTP ${res.status}`;
-    await markFailed(target.id, msg);
+    // 4xx selain 408/409/429 = ditolak permanen; 5xx/408/409/429 dicoba lagi.
+    const permanent = res.status >= 400 && res.status < 500 && ![408, 409, 429].includes(res.status);
+    await markFailed(target.id, msg, permanent);
     return false;
   } catch (e) {
     await markFailed(target.id, e instanceof Error ? e.message : "Network error");

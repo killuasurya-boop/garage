@@ -139,6 +139,7 @@ type CashierThemeMode
 import { ShiftStartStatus } from "@/components/garage/pos-shift-start-status";
 import { CloseShiftForm, type CloseShiftPayload } from "@/components/garage/pos-close-shift-form";
 import { DevicePrinterPanel } from "@/components/garage/device-printer-panel";
+import { SalesReport } from "@/components/garage/sales-report";
 import { printShiftSlip } from "@/lib/management-slip-print";
 import { TablePlate } from "@/components/garage/table-plate";
 import { Alert,AlertDescription,AlertTitle } from "@/components/ui/alert";
@@ -211,7 +212,9 @@ TableOrderBill,
 VoucherValidation
 } from "@/lib/garage-api-types";
 import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
-import { printKitchenChit, printThermal } from "@/lib/print-client";
+import { printDocument, printKitchenChit, printThermal } from "@/lib/print-client";
+import { buildCashMovementSlipContent } from "@/lib/management-slips";
+import { claimReprint } from "@/lib/reprint-guard";
 import { productionIdentityName, productionStationFor, productionStationLabel } from "@/lib/garage-production-rules";
 import type { KitchenChitItem } from "@/lib/thermal-receipt";
 import {
@@ -319,6 +322,11 @@ const menuSubCategories: Record<"Dapur" | "Bar", MenuFilter[]> = {
 };
 const qrPublicBaseUrl = process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
 const qrPrintPath = "/order/qr-print";
+
+/** Station chit = station tiket produksi (override produk, lalu kategori). */
+function chitStationFor(item: Pick<MenuItem, "category"> & { station?: string | null }): "Dapur" | "Bar" {
+  return productionStationFor({ station: item.station, category: item.category }) === "Bar" ? "Bar" : "Dapur";
+}
 const pilotQrPrintPath = "/order/qr-print?tables=01,25,50";
 const initialVisibleProducts = 40;
 const productLoadStep = 20;
@@ -699,7 +707,9 @@ export function PosView({
   const [expenseDescription, setExpenseDescription] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseNote, setExpenseNote] = useState("");
-  const [expensePaymentMethod, setExpensePaymentMethod] = useState("Cash");
+  // "out" = kas keluar laci, "in" = kas masuk (tambah uang kecil).
+  const [expensePaymentMethod, setExpensePaymentMethod] = useState<"out" | "in">("out");
+  const [expenseManagerPin, setExpenseManagerPin] = useState("");
   const [expensePending, setExpensePending] = useState(false);
   const [expenseError, setExpenseError] = useState<string | null>(null);
   // Quick Count Stok (hanya tampil utk role yg punya inventory:write)
@@ -801,7 +811,27 @@ export function PosView({
   const [shiftPending, setShiftPending] = useState(false);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [posNotice, setPosNotice] = useState<string | null>(null);
-  const [locked, setLocked] = useState(false);
+  // Kunci POS bertahan saat halaman di-refresh (dulu refresh = terbuka).
+  const lockStorageKey = `garage:pos-locked:${me.user.id}`;
+  const [locked, setLockedState] = useState(() => {
+    try {
+      return typeof window !== "undefined" && window.sessionStorage.getItem(lockStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setLocked = useCallback(
+    (value: boolean) => {
+      setLockedState(value);
+      try {
+        if (value) window.sessionStorage.setItem(lockStorageKey, "1");
+        else window.sessionStorage.removeItem(lockStorageKey);
+      } catch {
+        // storage diblokir: kunci tetap berlaku di tab ini
+      }
+    },
+    [lockStorageKey],
+  );
   const [unlockPassword, setUnlockPassword] = useState("");
   const [lockError, setLockError] = useState<string | null>(null);
   const [fullscreenGuardActive, setFullscreenGuardActive] = useState(false);
@@ -1005,6 +1035,17 @@ export function PosView({
     [customers],
   );
   const shiftOpen = cashSession.status === "open";
+  // Shift lupa ditutup (> 20 jam): server menolak transaksi baru; tampilkan
+  // layar wajib tutup shift supaya kasir tidak bingung.
+  const [staleClock, setStaleClock] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setStaleClock(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const staleShift =
+    shiftOpen &&
+    Boolean(cashSession.openedAt) &&
+    staleClock - new Date(cashSession.openedAt ?? 0).getTime() > 20 * 60 * 60_000;
   // Blind count: selama shift berjalan Kasir tidak diberi angka kas sistem
   // (omzet, kas seharusnya, rincian cash/non-cash) — baru tampil setelah tutup shift.
   const hideShiftCashFigures = isCashierKiosk && shiftOpen;
@@ -1108,7 +1149,7 @@ export function PosView({
   const stationByItemName = useMemo(() => {
     const map = new Map<string, "Dapur" | "Bar">();
     for (const item of menuItems) {
-      map.set(item.name.trim().toLowerCase(), menuGroupForCategory(item.category));
+      map.set(item.name.trim().toLowerCase(), chitStationFor(item));
     }
     return map;
   }, [menuItems]);
@@ -1502,6 +1543,7 @@ export function PosView({
         code,
         subtotal,
         customerMode: posCustomerMode === "member" ? "member" : "guest",
+        customerId: posCustomerMode === "member" ? selectedMemberId ?? undefined : undefined,
       });
       setPosVoucherResult(result);
     } catch (error) {
@@ -2097,7 +2139,7 @@ export function PosView({
       window.removeEventListener("keydown", resetTimer);
       window.removeEventListener("touchstart", resetTimer);
     };
-  }, [cashierPosSettings.autoLockDelay, isCashierKiosk, locked]);
+  }, [cashierPosSettings.autoLockDelay, isCashierKiosk, locked, setLocked]);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) {
@@ -2812,6 +2854,12 @@ export function PosView({
       isReprint: true,
       reprintAt: new Date().toISOString(),
     };
+    const claim = await claimReprint(receipt.orderNo);
+    if (!claim.ok) {
+      setReprintStatus("error");
+      setReprintError(claim.message);
+      return;
+    }
     try {
       const res = await printThermal({
         receipt: reprintPayload,
@@ -2905,7 +2953,9 @@ export function PosView({
         variant: line.variantLabel,
         qty: line.qty,
         note: line.note ?? null,
-        station: menuGroupForCategory(line.category as MenuItem["category"]),
+        station:
+          stationByItemName.get(line.name.trim().toLowerCase()) ??
+          menuGroupForCategory(line.category as MenuItem["category"]),
       })),
     });
     setPosNotice(`${guestName}: ${result.orderNo} lunas ${currency.format(result.total)}.`);
@@ -2963,7 +3013,8 @@ export function PosView({
     setExpenseDescription("");
     setExpenseAmount("");
     setExpenseNote("");
-    setExpensePaymentMethod("Cash");
+    setExpensePaymentMethod("out");
+    setExpenseManagerPin("");
     setExpenseDialogOpen(true);
   }
 
@@ -3069,19 +3120,45 @@ export function PosView({
     setExpensePending(true);
     setExpenseError(null);
     try {
-      await garageApi.post("/api/finance/expenses", {
+      const note = expenseNote.trim();
+      const type = expensePaymentMethod;
+      const result = await garageApi.post<{
+        id: string;
+        amount: number;
+        cashSessionCode: string;
+        approvedByName: string | null;
+        movementAt: string;
+      }>("/api/finance/cash-sessions/movements", {
+        type,
         category: expenseCategory.trim() || "Lain-lain",
-        description,
+        description: note ? `${description} — ${note}` : description,
         amount: Math.round(amount),
-        paymentMethod: expensePaymentMethod || "Cash",
-        notes: expenseNote.trim() || undefined,
+        managerPin: expenseManagerPin.trim() || undefined,
+        countAsPurchase: type === "out" && expenseCategory.startsWith("Belanja") ? true : undefined,
       });
       setExpenseDialogOpen(false);
-      const approvalNote =
-        amount >= 1_000_000 ? " · butuh persetujuan Manajer" : "";
       setPosNotice(
-        `Pengeluaran ${currency.format(Math.round(amount))} dicatat.${approvalNote}`,
+        `${type === "out" ? "Kas keluar" : "Kas masuk"} ${currency.format(Math.round(amount))} dicatat di laci shift ${result.cashSessionCode}.`,
       );
+      void printDocument((width) =>
+        buildCashMovementSlipContent(
+          {
+            type,
+            category: expenseCategory,
+            description: note ? `${description} — ${note}` : description,
+            amount: Math.round(amount),
+            cashSessionCode: result.cashSessionCode,
+            createdByName: me.user.name,
+            approvedByName: result.approvedByName,
+            movementAt: result.movementAt,
+          },
+          {
+            width,
+            brand: { brandName: settings.brandName, brandTagline: settings.brandTagline, outletName: me.outlet.name, outletCode: me.outlet.code },
+            showSignature: settings.receiptShowSignature,
+          },
+        ),
+      ).catch(() => undefined);
     } catch (error) {
       setExpenseError(
         error instanceof Error ? error.message : "Gagal mencatat pengeluaran.",
@@ -3333,7 +3410,7 @@ export function PosView({
     setLockError(null);
 
     if (!unlockPassword.trim()) {
-      setLockError("Masukkan PIN lock POS.");
+      setLockError("Masukkan password akun Anda.");
       return;
     }
 
@@ -3344,7 +3421,7 @@ export function PosView({
       setUnlockPassword("");
       setLocked(false);
     } catch (error) {
-      setLockError(error instanceof Error ? error.message : "PIN lock POS tidak cocok.");
+      setLockError(error instanceof Error ? error.message : "Password akun tidak cocok.");
     }
   }
 
@@ -3626,7 +3703,7 @@ export function PosView({
           variant: line.variant.label,
           qty: line.qty,
           note: line.note ?? null,
-          station: menuGroupForCategory(line.item.category),
+          station: chitStationFor(line.item),
         })),
       });
       setPaymentStep("done");
@@ -4122,7 +4199,7 @@ export function PosView({
                 }}
               >
                 <Banknote className="size-4" />
-                Catat Pengeluaran
+                Kas Keluar / Masuk
               </Button>
               <Button
                 type="button"
@@ -4383,7 +4460,7 @@ export function PosView({
                 onClick={() => openExpenseDialog()}
               >
                 <Banknote className="size-4" />
-                Catat Pengeluaran
+                Kas Keluar / Masuk
               </Button>
               <Button
                 type="button"
@@ -4541,6 +4618,17 @@ export function PosView({
 
           {activeCashierToolOpen === "reports" && (
             <div className="space-y-3">
+              <details className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
+                <summary className="cursor-pointer px-1 py-1 text-sm font-semibold text-white">
+                  Penjualan shift saya (produk, kategori, metode bayar)
+                </summary>
+                <div className="mt-2">
+                  <SalesReport
+                    brand={{ brandName: settings.brandName, outletName: me.outlet.name, outletCode: me.outlet.code }}
+                    printedBy={me.user.name}
+                  />
+                </div>
+              </details>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-white">
@@ -9697,6 +9785,33 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
+      {staleShift && !locked && !shiftDialogOpen && (
+        <div className="fixed inset-0 z-[110] flex min-h-screen items-center justify-center bg-[#050506]/95 p-4">
+          <div role="alertdialog" aria-labelledby="stale-shift-title" className="garage-panel w-full max-w-md rounded-md p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffe0ad]">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div>
+                <h2 id="stale-shift-title" className="garage-display garage-chrome text-2xl">
+                  Shift belum ditutup
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-[#d6d6dc]">
+                  Shift {cashSession.code} sudah terbuka lebih dari 20 jam. Hitung uang laci lalu
+                  tutup shift dulu, kemudian buka shift baru untuk transaksi hari ini.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              className="garage-press mt-5 h-11 w-full bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+              onClick={() => setShiftDialogOpen(true)}
+            >
+              Tutup shift sekarang
+            </Button>
+          </div>
+        </div>
+      )}
       {fullscreenNeedsAttention && !locked && (
         <div className="fixed inset-0 z-[120] flex min-h-screen items-center justify-center bg-[#050506] p-4">
           <div className="garage-panel w-full max-w-md rounded-md p-5 shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
@@ -9747,7 +9862,7 @@ export function PosView({
               <div>
                 <h2 className="garage-display garage-chrome text-2xl">Kasir terkunci</h2>
                 <p className="mt-1 text-sm leading-6 text-[#d6d6dc]">
-                  Masukkan PIN lock POS untuk membuka kasir.
+                  Masukkan password akun {me.user.name} untuk membuka kasir.
                 </p>
               </div>
             </div>
@@ -9774,7 +9889,8 @@ export function PosView({
                 value={unlockPassword}
                 onChange={(event) => setUnlockPassword(event.target.value)}
                 className="h-11 border-[#34343c] bg-white/[0.06]"
-                placeholder="PIN lock POS"
+                placeholder="Password akun"
+                autoComplete="current-password"
               />
               {lockError && (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
@@ -10332,10 +10448,11 @@ export function PosView({
           className="border-[#34343c] bg-[#111116] sm:max-w-md"
         >
           <DialogHeader>
-            <DialogTitle>Catat Pengeluaran Kasir</DialogTitle>
+            <DialogTitle>Kas Keluar / Masuk Laci</DialogTitle>
             <DialogDescription>
-              Kasbon dari laci kasir selama shift. Tercatat ke Finance &
-              memengaruhi rekonsiliasi kas saat closing shift.
+              Uang laci yang keluar (belanja kecil, kasbon) atau masuk (tambah uang
+              kecil) selama shift. Ikut dihitung saat tutup shift; kas keluar juga
+              tercatat sebagai pengeluaran tunai.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -10350,15 +10467,16 @@ export function PosView({
                 Kategori
               </p>
               <div className="grid grid-cols-3 gap-1.5">
-                {(
-                  [
-                    "Kasbon",
-                    "Beli Air",
-                    "Beli Tisu",
-                    "Transport",
-                    "Konsumsi Staff",
-                    "Lain-lain",
-                  ] as const
+                {(expensePaymentMethod === "out"
+                  ? [
+                      "Belanja Bar",
+                      "Belanja Dapur",
+                      "Kasbon",
+                      "Beli Air/Es",
+                      "Transport",
+                      "Lain-lain",
+                    ]
+                  : ["Tambah Uang Kecil", "Setoran Owner", "Lain-lain"]
                 ).map((cat) => (
                   <Button
                     key={cat}
@@ -10408,22 +10526,29 @@ export function PosView({
               </div>
               <div>
                 <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                  Metode bayar
+                  Jenis
                 </p>
                 <div className="grid grid-cols-2 gap-1">
-                  {(["Cash", "QRIS"] as const).map((method) => (
+                  {([
+                    ["out", "Kas keluar"],
+                    ["in", "Kas masuk"],
+                  ] as const).map(([value, label]) => (
                     <Button
-                      key={method}
+                      key={value}
                       type="button"
                       variant="outline"
+                      aria-pressed={expensePaymentMethod === value}
                       className={`garage-press h-11 px-2 text-xs ${
-                        expensePaymentMethod === method
-                          ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#dcfce7]"
+                        expensePaymentMethod === value
+                          ? "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]"
                           : "border-[#4a4a54] bg-white/[0.055]"
                       }`}
-                      onClick={() => setExpensePaymentMethod(method)}
+                      onClick={() => {
+                        setExpensePaymentMethod(value);
+                        setExpenseCategory(value === "out" ? "Belanja Bar" : "Tambah Uang Kecil");
+                      }}
                     >
-                      {paymentMethodLabel(method)}
+                      {label}
                     </Button>
                   ))}
                 </div>
@@ -10443,15 +10568,22 @@ export function PosView({
                 maxLength={200}
               />
             </div>
-            {Number(expenseAmount) >= 1_000_000 ? (
-              <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]">
-                <AlertTriangle className="size-4" />
-                <AlertTitle>Butuh persetujuan Manajer</AlertTitle>
-                <AlertDescription>
-                  Pengeluaran â‰¥ Rp 1.000.000 otomatis masuk antrian approval
-                  sebelum tercatat permanen.
-                </AlertDescription>
-              </Alert>
+            {me.role === "Kasir" &&
+            Number(expenseAmount) >= settings.cashMovementPinThreshold ? (
+              <div>
+                <p className="garage-mono mb-1 text-[10px] text-[#ffd08a]">
+                  PIN Manajer/Owner (mulai {currency.format(settings.cashMovementPinThreshold)})
+                </p>
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={expenseManagerPin}
+                  onChange={(event) => setExpenseManagerPin(event.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="PIN Manajer"
+                  className="h-11 border-[#f5a742]/45 bg-white/[0.06]"
+                />
+              </div>
             ) : null}
             {expenseError ? (
               <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">

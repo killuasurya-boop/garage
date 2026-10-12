@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import { printThermal } from "@/lib/print-client";
+import { claimReprint } from "@/lib/reprint-guard";
 import { CashierRulesPanel } from "@/components/garage/cashier-rules-panel";
 import {
   GarageEmpty,
@@ -458,6 +459,12 @@ function OrderDetailView({
     if (!data) return;
     setPrinting(true);
     setPrintResult(null);
+    const claim = await claimReprint(data.order.id);
+    if (!claim.ok) {
+      setPrintResult(claim.message);
+      setPrinting(false);
+      return;
+    }
     try {
       const payment = data.payments[0];
       const cashReceivedMeta =
@@ -497,6 +504,8 @@ function OrderDetailView({
         discount: data.order.discount,
         total: data.order.total,
         invoiceWebUrl: data.order.invoiceWebUrl,
+        isReprint: true,
+        reprintAt: new Date().toISOString(),
       };
 
       const response = await printThermal({ receipt });

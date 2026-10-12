@@ -152,4 +152,7 @@ export type ApprovalPayload = {
   expenseId?: string;
   /** Approval expense 2 tingkat (PRD Finance §46): review Manajer sebelum keputusan Owner. */
   managerReview?: { by: string; name: string; at: string };
+  /** Diskon manual: nominal maksimum yang disetujui & kasir peminta. */
+  discountAmount?: number;
+  requestedBy?: string;
 };

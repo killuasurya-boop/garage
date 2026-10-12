@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SalesReport } from "@/components/garage/sales-report";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import type { AppSettings } from "@/lib/garage-app-settings-types";
 import {
@@ -377,14 +378,19 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
         </Card>
       )}
 
-      <Tabs defaultValue={active ? "active" : "history"} className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue={active ? "active" : "history"} className="min-w-0 space-y-4">
+        <TabsList className="h-auto max-w-full flex-wrap justify-start">
           <TabsTrigger value="active">Sesi Aktif</TabsTrigger>
           <TabsTrigger value="history">Riwayat ({history.length})</TabsTrigger>
           {dailyReport || dailyLoading || dailyError ? (
             <TabsTrigger value="daily">Rekap Harian</TabsTrigger>
           ) : null}
+          <TabsTrigger value="sales">Laporan Penjualan</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sales" className="space-y-3">
+          <SalesReport />
+        </TabsContent>
 
         <TabsContent value="active" className="space-y-3">
           {loadingList && !active ? (

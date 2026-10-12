@@ -445,6 +445,17 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         unit: "IDR",
       },
       {
+        key: "cashMovementPinThreshold",
+        label: "Kas keluar/masuk kasir wajib PIN mulai",
+        hint: "Kasir mencatat uang keluar/masuk laci; mulai nominal ini perlu PIN Manajer/Owner.",
+        type: "number",
+        defaultValue: DEFAULT_APP_SETTINGS.cashMovementPinThreshold,
+        min: 0,
+        max: 10000000,
+        step: 5000,
+        unit: "Rp",
+      },
+      {
         key: "shiftRequireManagerSignoff",
         label: "Tutup shift butuh manager sign-off",
         type: "boolean",

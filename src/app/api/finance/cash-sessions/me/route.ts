@@ -1,3 +1,4 @@
+import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { ok } from "@/lib/api-response";
 import { listCashSessionsForCashier } from "@/lib/garage-service";
 import { requireAnyPermission } from "@/lib/server-auth";
@@ -29,5 +30,8 @@ export async function GET(request: Request) {
     limit: parseIntParam(url.searchParams.get("limit"), 30),
     offset: parseIntParam(url.searchParams.get("offset"), 0),
   });
-  return ok(result);
+  return ok({
+    ...result,
+    rows: result.rows.map((row) => redactOpenShiftCash(row, session.data.profile.role)),
+  });
 }

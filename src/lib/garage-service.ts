@@ -88,6 +88,7 @@ import {
   approvals,
   auditCases,
   auditLogs,
+  cashMovements,
   cashSessions,
   crmCampaignLogs,
   customSegmentCustomers,
@@ -168,6 +169,7 @@ import {
 import { hashPassword } from "@/lib/member-auth";
 import { daysInMonth } from "@/lib/finance-control-core";
 import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, returnPointsForOrder } from "@/lib/member-points";
+import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import {
@@ -3125,6 +3127,7 @@ export async function getFinanceSummary(params?: { outletId?: string; openedBy?:
       closingNote: cashSession.closingNote,
       discrepancyStatus: cashSession.discrepancyStatus,
       managerSignOffAt: cashSession.managerSignOffAt?.toISOString() ?? null,
+      openedAt: cashSession.openedAt.toISOString(),
     }
       : {
           id: null,
@@ -3190,10 +3193,10 @@ export async function getFinanceOverview() {
   );
 
   const cashCollected = todayMethodRows
-    .filter((row) => row.method === "Cash")
+    .filter((row) => isCashMethod(row.method))
     .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
   const nonCashCollected = todayMethodRows
-    .filter((row) => row.method !== "Cash")
+    .filter((row) => !isCashMethod(row.method))
     .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
 
   // Staff fee liability.
@@ -5180,6 +5183,8 @@ export async function requestManualDiscountApproval(
       risk,
       age: "baru saja",
       status: "pending",
+      // Approval terkunci ke nominal ini & kasir peminta (dipakai saat order).
+      payload: { discountAmount: amount, requestedBy: garage.user.id } satisfies ApprovalPayload,
     });
 
   await createAuditLog({
@@ -5477,8 +5482,8 @@ export async function getBootstrapData(garage: GarageSession) {
     inventoryItems: inventory,
     stockMovements: movements,
     paymentBreakdown: canReadFinance ? finance.paymentBreakdown : [],
-    cashSession: finance.cashSession,
-    posCashSession: posFinance.cashSession,
+    cashSession: redactOpenShiftCash(finance.cashSession, garage.profile.role),
+    posCashSession: redactOpenShiftCash(posFinance.cashSession, garage.profile.role),
     closingChecklist: finance.cashSession.checklist,
     customers: customerRows,
     approvals: approvalRows,
@@ -5535,6 +5540,8 @@ export type FinanceInvoiceListFilter = {
   dateTo?: string;
   limit?: number;
   offset?: number;
+  /** Batasi ke outlet staf (riwayat penjualan tidak boleh lintas outlet). */
+  outletId?: string;
 };
 
 export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = {}) {
@@ -5543,6 +5550,9 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
 
   const conditions = [];
 
+  if (filter.outletId) {
+    conditions.push(eq(orders.outletId, filter.outletId));
+  }
   if (filter.status && filter.status !== "all") {
     conditions.push(eq(orders.status, filter.status));
   }
@@ -8263,6 +8273,9 @@ export async function validateVoucher(input: {
   code?: string;
   subtotal: number;
   customerMode?: "guest" | "member" | string;
+  /** Pemilik voucher pribadi dicocokkan dengan member transaksi ini. */
+  customerId?: string | null;
+  customerPhone?: string | null;
 }) {
   const code = voucherCode(input.code);
   if (!code) {
@@ -8326,6 +8339,21 @@ export async function validateVoucher(input: {
   }
   if (voucher.audience === "guest" && input.customerMode === "member") {
     return { valid: false, code, title: voucher.title, discount: 0, message: "Voucher khusus guest." };
+  }
+  // Voucher pribadi (mis. hadiah member) hanya untuk pemiliknya.
+  if (voucher.customerId) {
+    let ownsVoucher = Boolean(input.customerId && input.customerId === voucher.customerId);
+    if (!ownsVoucher && input.customerPhone) {
+      const [owner] = await getDb()
+        .select({ phone: customers.phone })
+        .from(customers)
+        .where(eq(customers.id, voucher.customerId))
+        .limit(1);
+      ownsVoucher = Boolean(owner?.phone && normalizePhone(owner.phone) === normalizePhone(input.customerPhone));
+    }
+    if (!ownsVoucher) {
+      return { valid: false, code, title: voucher.title, discount: 0, message: "Voucher ini milik member lain." };
+    }
   }
 
   const discount = voucherDiscount(voucher, input.subtotal);
@@ -8705,11 +8733,16 @@ export async function createShiftHandoverReport(
   garage: GarageSession,
 ) {
   const db = getDb();
+  // Sesi milik pengguna ini di outlet ini dulu; bila tidak ada, sesi terbuka
+  // terbaru di OUTLET ini (dulu: sesi terbuka terbaru di outlet mana pun).
   const [openSession] = await db
     .select()
     .from(cashSessions)
-    .where(eq(cashSessions.status, "open"))
-    .orderBy(desc(cashSessions.openedAt))
+    .where(and(eq(cashSessions.status, "open"), eq(cashSessions.outletId, garage.profile.outlet.id)))
+    .orderBy(
+      sql`case when ${cashSessions.openedBy} = ${garage.user.id} then 0 else 1 end`,
+      desc(cashSessions.openedAt),
+    )
     .limit(1);
   const qr = await getQrControlInsights();
   const kitchenRows = await db
@@ -8995,6 +9028,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         code: input.voucherCode,
         subtotal,
         customerMode: input.customerMode,
+        // Hanya id dari sesi member (bukan input bebas) yang membuka voucher pribadi.
+        customerId: input.memberCustomerId ?? null,
       })
     : null;
   if (input.voucherCode && !voucherValidation?.valid) {
@@ -9298,13 +9333,20 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
           customerPhone,
           discount: voucherDiscountValue,
         });
-        await tx
+        const [claimed] = await tx
           .update(vouchers)
           .set({
             usedCount: sql`${vouchers.usedCount} + 1`,
             updatedAt: new Date(),
           })
-          .where(eq(vouchers.id, voucher.id));
+          .where(
+            and(
+              eq(vouchers.id, voucher.id),
+              or(isNull(vouchers.usageLimit), lt(vouchers.usedCount, vouchers.usageLimit)),
+            ),
+          )
+          .returning({ id: vouchers.id });
+        if (!claimed) throw new Error("Kuota voucher habis.");
       }
     }
 
@@ -9487,6 +9529,10 @@ async function updateCustomerOrderStatusImpl(
     // idempoten di bawah (tanpa tiket, stok, pembayaran, atau kas ganda).
     const [order] = await tx.select().from(orders).where(eq(orders.id, id)).limit(1).for("update");
     if (!order || !customerOrderSources.includes(order.orderSource)) {
+      return null;
+    }
+    // Kasir hanya boleh memproses pesanan outlet-nya sendiri.
+    if (order.outletId && order.outletId !== garage.profile.outlet.id) {
       return null;
     }
 
@@ -10083,19 +10129,20 @@ async function updateCustomerOrderStatusImpl(
       const latestCashDeposited = latestPayment
         ? numberFromMetadata(latestPayment.metadata, "cashDeposited")
         : null;
-      const confirmingMethod = input.paymentMethod?.trim() || latestPayment?.method || "Cashier";
+      const confirmingMethod = input.paymentMethod?.trim() || latestPayment?.method || "Cash";
+      const confirmingIsCash = isCashMethod(confirmingMethod);
       const confirmedCashReceived =
-        confirmingMethod === "Cash"
+        confirmingIsCash
           ? input.cashReceived ?? latestCashReceived ?? latestCashDeposited ?? order.total
           : null;
       const confirmedCashDeposited =
-        confirmingMethod === "Cash"
+        confirmingIsCash
           ? input.cashDeposited ?? latestCashDeposited ?? confirmedCashReceived
           : null;
       const effectiveCashDeposited = input.cashDeposited ?? latestCashDeposited;
 
       if (
-        confirmingMethod === "Cash" &&
+        confirmingIsCash &&
         latestCashFlowStatus === "cash_discrepancy" &&
         (effectiveCashDeposited == null || effectiveCashDeposited < order.total)
       ) {
@@ -10103,7 +10150,7 @@ async function updateCustomerOrderStatusImpl(
       }
 
       if (
-        confirmingMethod === "Cash" &&
+        confirmingIsCash &&
         latestCashFlowStatus === "handed_to_cashier" &&
         effectiveCashDeposited != null &&
         effectiveCashDeposited < order.total
@@ -10122,8 +10169,8 @@ async function updateCustomerOrderStatusImpl(
             provider: input.paymentProvider?.trim() || null,
             reference: input.paymentReference?.trim() || null,
             source: "customer_qr",
-            cashFlowStatus: confirmingMethod === "Cash" ? "cashier_confirmed" : null,
-            ...(confirmingMethod === "Cash"
+            cashFlowStatus: confirmingIsCash ? "cashier_confirmed" : null,
+            ...(confirmingIsCash
               ? {
                   cashReceived: confirmedCashReceived,
                   cashDeposited: confirmedCashDeposited,
@@ -10157,10 +10204,10 @@ async function updateCustomerOrderStatusImpl(
                 : null),
             source: "customer_qr",
             cashFlowStatus:
-              (pendingPayment.method === "Cash" || confirmingMethod === "Cash")
+              (isCashMethod(pendingPayment.method) || confirmingIsCash)
                 ? "cashier_confirmed"
                 : pendingPayment.metadata.cashFlowStatus ?? null,
-            ...(confirmingMethod === "Cash"
+            ...(confirmingIsCash
               ? {
                   cashReceived: confirmedCashReceived,
                   cashDeposited: confirmedCashDeposited,
@@ -10192,7 +10239,7 @@ async function updateCustomerOrderStatusImpl(
 
       if (
         cashierOpenSession &&
-        normalizePaymentMethod(confirmingMethod) === "cash"
+        confirmingIsCash
       ) {
         await tx
           .update(cashSessions)
@@ -10409,7 +10456,7 @@ async function updateCustomerOrderStatusImpl(
         tableLabel: order.tableLabel,
         channel: order.channel,
         payment: {
-          method: input.paymentMethod?.trim() || "Cashier",
+          method: input.paymentMethod?.trim() || "Cash",
           provider: input.paymentProvider?.trim() || null,
           reference: input.paymentReference?.trim() || null,
           cashReceived: receiptCashReceived,
@@ -10716,6 +10763,12 @@ async function createOrderImpl(
   }
 }
 
+export const STALE_SHIFT_HOURS = 20;
+
+export function isStaleCashSession(openedAt: Date | string, now = new Date()) {
+  return now.getTime() - new Date(openedAt).getTime() > STALE_SHIFT_HOURS * 60 * 60_000;
+}
+
 async function createOrderOnce(
   input: OrderInput,
   garage: GarageSession,
@@ -10723,7 +10776,7 @@ async function createOrderOnce(
 ) {
   const db = getDb();
   const [openCashSession] = await db
-    .select({ id: cashSessions.id })
+    .select({ id: cashSessions.id, code: cashSessions.code, openedAt: cashSessions.openedAt })
     .from(cashSessions)
     .where(
       and(
@@ -10736,6 +10789,13 @@ async function createOrderOnce(
 
   if (!openCashSession) {
     throw new Error("Open shift wajib dilakukan sebelum transaksi POS.");
+  }
+  // Shift lupa ditutup (buka > 20 jam): penjualan baru tidak boleh masuk ke
+  // laci kemarin. Shift lewat tengah malam yang wajar tetap boleh.
+  if (!options.offlineSync && isStaleCashSession(openCashSession.openedAt)) {
+    throw new Error(
+      `Shift ${openCashSession.code} sudah terbuka lebih dari ${STALE_SHIFT_HOURS} jam. Tutup shift dulu (hitung uang laci), lalu buka shift baru.`,
+    );
   }
 
   const tableNumber =
@@ -10801,6 +10861,8 @@ async function createOrderOnce(
         code: input.voucherCode,
         subtotal,
         customerMode: input.customerId || input.memberPhone ? "member" : "guest",
+        customerId: input.customerId ?? null,
+        customerPhone: input.memberPhone ?? null,
       })
     : null;
   if (input.voucherCode && !voucherValidation?.valid) {
@@ -10838,7 +10900,7 @@ async function createOrderOnce(
         );
       }
       const [approval] = await db
-        .select({ id: approvals.id, status: approvals.status, type: approvals.type })
+        .select({ id: approvals.id, status: approvals.status, type: approvals.type, payload: approvals.payload })
         .from(approvals)
         .where(eq(approvals.id, approvalId))
         .limit(1);
@@ -10847,6 +10909,21 @@ async function createOrderOnce(
       }
       if (approval.status !== "approved") {
         throw new Error("Approval diskon manual belum disetujui.");
+      }
+      // Approval hanya berlaku untuk kasir peminta & maksimal nominal yang
+      // disetujui (dulu approval apa pun membuka diskon sampai batas maksimum).
+      const approvedPayload = (approval.payload ?? {}) as ApprovalPayload;
+      if (
+        typeof approvedPayload.discountAmount !== "number" ||
+        (approvedPayload.requestedBy && approvedPayload.requestedBy !== garage.user.id)
+      ) {
+        throw new Error("Approval diskon ini bukan untuk transaksi Anda. Minta approval ulang.");
+      }
+      // Toleransi kecil untuk selisih pembulatan basis klien vs server.
+      if (manualDiscountValue > approvedPayload.discountAmount + 500) {
+        throw new Error(
+          `Diskon ${idrFormatter.format(manualDiscountValue)} melebihi yang disetujui (${idrFormatter.format(approvedPayload.discountAmount)}).`,
+        );
       }
     }
   }
@@ -10922,7 +10999,7 @@ async function createOrderOnce(
   // berubah selama offline; menolaknya membuat antrean sinkron macet. Dicatat
   // sebagai kekurangan tunai supaya kelihatan saat tutup shift.
   const cashShortfall =
-    !splits && paymentMethod === "Cash" && input.cashReceived !== undefined
+    !splits && isCashMethod(paymentMethod) && input.cashReceived !== undefined
       ? Math.max(0, total - input.cashReceived)
       : 0;
   if (cashShortfall > 0 && !options.offlineSync) {
@@ -11138,10 +11215,19 @@ async function createOrderOnce(
           customerPhone: memberCustomer?.phone ?? guestPhone,
           discount: voucherDiscount,
         });
-        await tx
+        // Atomik: kuota dicek & ditambah dalam satu UPDATE (dua kasir bersamaan
+        // tidak bisa melewati batas pemakaian).
+        const [claimed] = await tx
           .update(vouchers)
           .set({ usedCount: sql`${vouchers.usedCount} + 1`, updatedAt: new Date() })
-          .where(eq(vouchers.id, voucherRow.id));
+          .where(
+            and(
+              eq(vouchers.id, voucherRow.id),
+              or(isNull(vouchers.usageLimit), lt(vouchers.usedCount, vouchers.usageLimit)),
+            ),
+          )
+          .returning({ id: vouchers.id });
+        if (!claimed) throw new Error("Kuota voucher habis.");
       }
     }
 
@@ -13930,15 +14016,23 @@ async function applyCashExpenseToOpenSession(
   tx: GarageDb | GarageTx,
   amount: number,
   garage: GarageSession,
-  options: { required?: boolean } = {},
+  options: { required?: boolean; preferSessionIds?: string[]; preferUserId?: string | null } = {},
 ) {
+  // Urutan laci: (1) shift asal pembayaran tunai bila masih buka — uangnya
+  // keluar dari laci itu; (2) kasir yang meminta void/refund; (3) pengguna
+  // yang memproses; (4) shift Kasir lain di outlet ini.
+  const preferIds = (options.preferSessionIds ?? []).filter(isUuidLike);
+  const preferUser = options.preferUserId ?? garage.user.id;
+  const preferIdsSql = preferIds.length
+    ? sql`${cashSessions.id} in (${sql.join(preferIds.map((id) => sql`${id}`), sql`, `)})`
+    : sql`false`;
   const [openSession] = await tx
     .select({ id: cashSessions.id, expectedCash: cashSessions.expectedCash, code: cashSessions.code })
     .from(cashSessions)
     .leftJoin(staffProfiles, eq(staffProfiles.userId, cashSessions.openedBy))
     .where(and(eq(cashSessions.outletId, garage.profile.outlet.id), eq(cashSessions.status, "open")))
     .orderBy(
-      sql`case when ${cashSessions.openedBy} = ${garage.user.id} then 0 when ${staffProfiles.role} = 'Kasir' then 1 else 2 end`,
+      sql`case when ${preferIdsSql} then 0 when ${cashSessions.openedBy} = ${preferUser} then 1 when ${cashSessions.openedBy} = ${garage.user.id} then 2 when ${staffProfiles.role} = 'Kasir' then 3 else 4 end`,
       desc(cashSessions.openedAt),
     )
     .limit(1);
@@ -14311,12 +14405,16 @@ async function reducePaymentsForRefund(
     .orderBy(desc(payments.createdAt));
   let remaining = amount;
   let cashOut = 0;
+  const cashSessionIds: string[] = [];
   for (const payment of rows) {
     // Void menutup semua pembayaran; refund berhenti begitu nominalnya terpenuhi.
     if (mode === "refund" && remaining <= 0) break;
     const take = mode === "void" ? payment.amount : Math.min(payment.amount, remaining);
     remaining -= take;
-    if (payment.method.toLowerCase() === "cash") cashOut += take;
+    if (isCashMethod(payment.method) && take > 0) {
+      cashOut += take;
+      if (payment.cashSessionId) cashSessionIds.push(payment.cashSessionId);
+    }
     const metadata = payment.metadata ?? {};
     const alreadyRefunded = numberFromMetadata(metadata, "refundedAmount") ?? 0;
     await tx
@@ -14332,7 +14430,7 @@ async function reducePaymentsForRefund(
       })
       .where(eq(payments.id, payment.id));
   }
-  return { cashOut };
+  return { cashOut, cashSessionIds };
 }
 
 // =============================================================================
@@ -14971,9 +15069,11 @@ async function voidOrderImpl(
       });
     }
 
-    const { cashOut } = await reducePaymentsForRefund(tx, order.id, order.total, "void");
+    const { cashOut, cashSessionIds } = await reducePaymentsForRefund(tx, order.id, order.total, "void");
     const cashSession =
-      cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true }) : null;
+      cashOut > 0
+        ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true, preferSessionIds: cashSessionIds })
+        : null;
 
     // Poin member dari order ini ditarik & kuota voucher yang dipakai dikembalikan.
     await reverseLoyaltyForOrder(tx, order.id, { ratio: 1, source: "VOID" });
@@ -15140,9 +15240,11 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       .set({ ...split.next, updatedAt: now })
       .where(eq(orders.id, order.id));
 
-    const { cashOut } = await reducePaymentsForRefund(tx, order.id, split.refundAmount, "refund");
+    const { cashOut, cashSessionIds } = await reducePaymentsForRefund(tx, order.id, split.refundAmount, "refund");
     const cashSession =
-      cashOut > 0 ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true }) : null;
+      cashOut > 0
+        ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true, preferSessionIds: cashSessionIds })
+        : null;
 
     // Poin member ditarik proporsional terhadap nilai yang dikembalikan.
     if (order.total > 0) {
@@ -15191,6 +15293,166 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
   return result;
 }
 
+// =============================================================================
+// Kas keluar / masuk laci oleh kasir (owner, Okt 2026). Uang fisik di laci
+// berubah di luar penjualan: beli es batu/gas (keluar), tambah uang kecil dari
+// Owner (masuk). Tercatat di sesi kas yang buka → kas seharusnya ikut berubah,
+// sehingga blind count tutup shift tetap pas. Kas keluar juga jadi pengeluaran
+// tunai di Finance. Kasir di atas `cashMovementPinThreshold` wajib PIN Manajer.
+// =============================================================================
+
+export type CashMovementInput = {
+  type: "out" | "in";
+  category: string;
+  description: string;
+  amount: number;
+  managerPin?: string;
+  countAsPurchase?: boolean;
+};
+
+export class CashMovementPinRequiredError extends Error {
+  code = "MANAGER_PIN_REQUIRED";
+  constructor(threshold: number) {
+    super(`Kas keluar/masuk mulai ${idrFormatter.format(threshold)} perlu PIN Manajer/Owner.`);
+  }
+}
+
+export async function recordCashMovement(input: CashMovementInput, garage: GarageSession) {
+  if (!Number.isInteger(input.amount) || input.amount <= 0) {
+    throw new Error("Nominal harus lebih dari 0.");
+  }
+  const settings = await getAppSettings(garage.profile.outlet.id);
+  const isSupervisor = garage.profile.role === "Owner" || garage.profile.role === "Manajer";
+  let approver: { userId: string; name: string } | null = null;
+  if (!isSupervisor && input.amount >= settings.cashMovementPinThreshold) {
+    if (!input.managerPin?.trim()) throw new CashMovementPinRequiredError(settings.cashMovementPinThreshold);
+    const found = await resolveApproverByPin(
+      input.managerPin.trim(),
+      garage,
+      `Kas ${input.type === "out" ? "keluar" : "masuk"} ${idrFormatter.format(input.amount)}`,
+    );
+    approver = { userId: found.userId, name: found.name };
+  }
+  const purchaseArea =
+    input.type === "out" && input.countAsPurchase ? purchaseAreaForCategory(input.category) : null;
+  if (input.type === "out" && input.countAsPurchase && !purchaseArea) {
+    throw new Error("Belanja bahan hanya untuk kategori Belanja Bar / Belanja Dapur / Belanja Umum.");
+  }
+
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const now = new Date();
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    // Laci = sesi kas milik pengguna ini yang masih buka di outlet ini.
+    const [session] = await tx
+      .select({ id: cashSessions.id, code: cashSessions.code })
+      .from(cashSessions)
+      .where(
+        and(
+          eq(cashSessions.outletId, garage.profile.outlet.id),
+          eq(cashSessions.openedBy, garage.user.id),
+          eq(cashSessions.status, "open"),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!session) throw new CashSessionRequiredForCashOutError();
+
+    const delta = input.type === "out" ? -input.amount : input.amount;
+    await tx
+      .update(cashSessions)
+      .set({ expectedCash: sql`${cashSessions.expectedCash} + ${delta}` })
+      .where(and(eq(cashSessions.id, session.id), eq(cashSessions.status, "open")));
+
+    let expenseId: string | null = null;
+    if (input.type === "out") {
+      const [expense] = await tx
+        .insert(expenses)
+        .values({
+          outletId: garage.profile.outlet.id,
+          category: input.category,
+          description: input.description,
+          amount: input.amount,
+          paymentMethod: "Cash",
+          // Uang sudah keluar dari laci → tercatat, bukan menunggu approval.
+          status: "recorded",
+          expenseDate: now,
+          notes: `Kas keluar laci shift ${session.code}${approver ? ` · disetujui ${approver.name}` : ""}`,
+          sourceDoc: purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null,
+          createdBy: garage.user.id,
+        })
+        .returning({ id: expenses.id });
+      expenseId = expense.id;
+    }
+
+    const [movement] = await tx
+      .insert(cashMovements)
+      .values({
+        cashSessionId: session.id,
+        outletId: garage.profile.outlet.id,
+        type: input.type === "out" ? "cash_out" : "cash_in",
+        category: input.category,
+        description: input.description,
+        amount: input.amount,
+        status: "recorded",
+        movementAt: now,
+        createdBy: garage.user.id,
+        approvedBy: approver?.userId ?? null,
+        approvedAt: approver ? now : null,
+      })
+      .returning();
+
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor,
+      action: input.type === "out" ? "Kas keluar laci" : "Kas masuk laci",
+      object: `${input.category}: ${input.description}`,
+      device: garage.profile.deviceLabel,
+      status: "recorded",
+      metadata: {
+        cashMovementId: movement.id,
+        cashSessionId: session.id,
+        amount: input.amount,
+        expenseId,
+        approvedBy: approver?.name ?? null,
+      },
+    });
+    return { movement, session, expenseId };
+  });
+
+  return {
+    id: result.movement.id,
+    type: input.type,
+    category: input.category,
+    description: input.description,
+    amount: input.amount,
+    movementAt: result.movement.movementAt.toISOString(),
+    cashSessionId: result.session.id,
+    cashSessionCode: result.session.code,
+    expenseId: result.expenseId,
+    approvedByName: approver?.name ?? null,
+    createdByName: garage.user.name,
+  };
+}
+
+export async function listCashMovementsForSession(sessionId: string) {
+  const rows = await getDb()
+    .select({
+      id: cashMovements.id,
+      type: cashMovements.type,
+      category: cashMovements.category,
+      description: cashMovements.description,
+      amount: cashMovements.amount,
+      movementAt: cashMovements.movementAt,
+      createdByName: user.name,
+    })
+    .from(cashMovements)
+    .leftJoin(user, eq(user.id, cashMovements.createdBy))
+    .where(eq(cashMovements.cashSessionId, sessionId))
+    .orderBy(asc(cashMovements.movementAt));
+  return rows.map((row) => ({ ...row, movementAt: row.movementAt.toISOString() }));
+}
+
 export async function createExpense(input: ExpenseInput, garage: GarageSession) {
   const expenseDate = input.expenseDate ? new Date(input.expenseDate) : new Date();
   // Backdate ke hari yang sudah Daily Closing ditolak (PRD §16 LOCK DAY).
@@ -15228,7 +15490,7 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
       .returning();
 
     const affectedCashSession =
-      status === "recorded" && paymentMethod.toLowerCase() === "cash"
+      status === "recorded" && isCashMethod(paymentMethod)
         ? await applyCashExpenseToOpenSession(tx, input.amount, garage)
         : null;
 
@@ -15360,7 +15622,7 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
   const now = new Date();
   const result = await db.transaction(async (tx) => {
     const affectedCashSession =
-      decision === "approved" && current.paymentMethod.toLowerCase() === "cash"
+      decision === "approved" && isCashMethod(current.paymentMethod)
         ? await applyCashExpenseToOpenSession(tx, current.amount, garage)
         : null;
     const [updated] = await tx
@@ -15435,7 +15697,7 @@ export async function cancelExpenseInTx(
 
   if (current.status !== "pending_approval") {
     await assertFinanceDayOpen(current.expenseDate);
-    if (current.paymentMethod.toLowerCase() === "cash") {
+    if (isCashMethod(current.paymentMethod)) {
       const hitAt = current.approvedAt ?? current.createdAt;
       const [session] = await tx
         .select({ id: cashSessions.id, status: cashSessions.status, expectedCash: cashSessions.expectedCash })
@@ -16248,6 +16510,14 @@ export async function correctPaymentMethod(
   }
 
   const result = await db.transaction(async (tx) => {
+    const [orderOutlet] = await tx
+      .select({ outletId: orders.outletId })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    if (!orderOutlet || (orderOutlet.outletId && orderOutlet.outletId !== garage.profile.outlet.id)) {
+      throw new PaymentCorrectionError("Order tidak ditemukan di outlet ini.", "NO_PAYMENT", 404);
+    }
     const orderPayments = await tx
       .select()
       .from(payments)
@@ -16689,6 +16959,11 @@ async function withDailyShiftLabels<T extends ShiftLabelBaseRow>(rows: T[]) {
   });
 }
 
+/** Satu definisi "tunai" untuk laci kas (Cash/Tunai; "Cashier" lama = tunai). */
+function isCashMethod(method: string | null | undefined) {
+  return normalizePaymentMethod(String(method ?? "")) === "cash";
+}
+
 function normalizePaymentMethod(method: string) {
   const value = method.toLowerCase();
   if (value.includes("cash") || value.includes("tunai")) return "cash";
@@ -16820,7 +17095,7 @@ export type CashSessionTransactionsResult = {
     channel: string;
     customerName: string | null;
     createdAt: string;
-    payments: Array<{ method: string; amount: number; status: string }>;
+    payments: Array<{ method: string; amount: number; status: string; cashSessionId?: string | null }>;
   }>;
 };
 
@@ -16861,6 +17136,18 @@ export async function getCashSessionTransactions(
     : null;
 
   const closedAt = session.session.closedAt ?? new Date();
+  // Order milik shift = order yang pembayarannya masuk ke sesi kas ini
+  // (termasuk order QR yang dibayar kasir ini) + order buatan kasir ini yang
+  // DIBUAT selama shift (mis. belum bayar / void). Dulu memakai `updatedAt`,
+  // sehingga refund/void/ubah status setelah tutup shift menggeser order
+  // keluar-masuk laporan shift yang sudah ditutup.
+  const sessionPaymentOrders = await db
+    .selectDistinct({ orderId: payments.orderId })
+    .from(payments)
+    .where(eq(payments.cashSessionId, sessionId));
+  const paidOrderIds = sessionPaymentOrders
+    .map((row) => row.orderId)
+    .filter((id): id is string => Boolean(id));
   const orderRows = await db
     .select({
       id: orders.id,
@@ -16878,10 +17165,14 @@ export async function getCashSessionTransactions(
     })
     .from(orders)
     .where(
-      and(
-        eq(orders.createdBy, sessionCashierId),
-        gte(orders.updatedAt, session.session.openedAt),
-        lt(orders.updatedAt, closedAt),
+      or(
+        paidOrderIds.length ? inArray(orders.id, paidOrderIds) : sql`false`,
+        and(
+          eq(orders.createdBy, sessionCashierId),
+          session.session.outletId ? eq(orders.outletId, session.session.outletId) : undefined,
+          gte(orders.createdAt, session.session.openedAt),
+          lt(orders.createdAt, closedAt),
+        ),
       ),
     )
     .orderBy(desc(orders.createdAt));
@@ -16947,9 +17238,16 @@ export async function getCashSessionSummary(
   const data = await getCashSessionTransactions(sessionId, cashierUserId, options);
   if (!data) return null;
 
-  const paid = data.orders.filter((o) => o.status === "paid");
-  const refunded = data.orders.filter(
-    (o) => o.status === "refunded" || o.status === "void" || o.status === "cancelled",
+  // Lunas = order berstatus paid yang pembayarannya masuk ke sesi ini (order
+  // buatan kasir ini yang dibayar di shift lain tidak dihitung dua kali).
+  const paid = data.orders.filter(
+    (o) =>
+      o.status === "paid" &&
+      (o.payments.length === 0 ||
+        o.payments.some((p) => p.cashSessionId === sessionId || p.cashSessionId === null)),
+  );
+  const refunded = data.orders.filter((o) =>
+    ["refunded", "void", "voided", "cancelled"].includes(o.status),
   );
   const grossSales = paid.reduce((sum, o) => sum + o.total, 0);
   const subtotalSum = paid.reduce((sum, o) => sum + o.subtotal, 0);
@@ -16960,7 +17258,8 @@ export async function getCashSessionSummary(
   const methodMap = new Map<string, { count: number; total: number }>();
   for (const order of paid) {
     for (const p of order.payments) {
-      if (p.status === "refunded" || p.status === "void") continue;
+      if (p.status === "refunded" || p.status === "void" || p.status === "voided") continue;
+      if (p.cashSessionId && p.cashSessionId !== sessionId) continue;
       const cur = methodMap.get(p.method) ?? { count: 0, total: 0 };
       cur.count += 1;
       cur.total += p.amount;
@@ -16968,8 +17267,19 @@ export async function getCashSessionSummary(
     }
   }
 
+  const movementRows = await getDb()
+    .select({ type: cashMovements.type, amount: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int` })
+    .from(cashMovements)
+    .where(eq(cashMovements.cashSessionId, sessionId))
+    .groupBy(cashMovements.type);
+  const cashMovementTotals = {
+    cashIn: movementRows.find((row) => row.type === "cash_in")?.amount ?? 0,
+    cashOut: movementRows.find((row) => row.type === "cash_out")?.amount ?? 0,
+  };
+
   return {
     session: data.session,
+    cashMovements: cashMovementTotals,
     counts: {
       total: data.orders.length,
       paid: paid.length,
@@ -17177,7 +17487,10 @@ export type OrderReceiptData = {
   }>;
 };
 
-export async function getOrderForReceipt(orderId: string): Promise<OrderReceiptData | null> {
+export async function getOrderForReceipt(
+  orderId: string,
+  options: { outletId?: string } = {},
+): Promise<OrderReceiptData | null> {
   const db = getDb();
   const [row] = await db
     .select({
@@ -17187,7 +17500,13 @@ export async function getOrderForReceipt(orderId: string): Promise<OrderReceiptD
     })
     .from(orders)
     .leftJoin(outlets, eq(outlets.id, orders.outletId))
-    .where(eq(orders.id, orderId))
+    .where(
+      and(
+        // Terima id order atau nomor order (struk di POS hanya membawa orderNo).
+        isUuidLike(orderId) ? eq(orders.id, orderId) : eq(orders.orderNo, orderId),
+        options.outletId ? eq(orders.outletId, options.outletId) : undefined,
+      ),
+    )
     .limit(1);
   if (!row) return null;
 
@@ -17437,6 +17756,12 @@ export async function decideApprovalWithPin(
   input: { pin: string; status: "approved" | "rejected"; reasonDecided?: string },
   garage: GarageSession,
 ) {
+  // PIN di tablet kasir hanya untuk pengajuan POS (diskon, void, refund, selisih
+  // kas). Pengeluaran besar, stok opname dll diputus dari modul Approvals.
+  const POS_PIN_PREFIXES = ["APP-DISC-", "APP-VOID-", "APP-RFD-", "APP-CASH-"];
+  if (!POS_PIN_PREFIXES.some((prefix) => id.startsWith(prefix))) {
+    throw new Error("Pengajuan ini diputus dari menu Persetujuan, bukan lewat PIN di kasir.");
+  }
   const approver = await resolveApproverByPin(input.pin, garage, id);
 
   const approverSession: GarageSession = {

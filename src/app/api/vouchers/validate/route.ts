@@ -10,6 +10,8 @@ const voucherValidateSchema = z.object({
   code: z.string().trim().min(1).max(40),
   subtotal: z.number().int().nonnegative(),
   customerMode: z.enum(["guest", "member"]).optional(),
+  // Hanya untuk pratinjau voucher pribadi; pemakaian sebenarnya dicek ulang saat order.
+  customerId: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {

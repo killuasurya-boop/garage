@@ -1,0 +1,1 @@
+ALTER TABLE "wms_opname_line" ADD COLUMN "counted_at" timestamp with time zone;

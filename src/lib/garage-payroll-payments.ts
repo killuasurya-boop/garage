@@ -269,6 +269,9 @@ export async function payEmployee(input: PayEmployeeInput, garage: GarageSession
   const db = getDb();
 
   const settled = await db.transaction(async (tx) => {
+    // Satu gajian per karyawan pada satu waktu: klik ganda / dua manajer membayar
+    // bersamaan menunggu di sini, lalu mendapati semuanya sudah lunas.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`payroll-pay:${emp.staffUserId}`}))`);
     const wageRows = await tx
       .select({ id: staffDailyWages.id, total: staffDailyWages.totalCredited })
       .from(staffDailyWages)
@@ -351,16 +354,24 @@ export async function payEmployee(input: PayEmployeeInput, garage: GarageSession
       .returning();
 
     if (wageRows.length) {
-      await tx
+      const marked = await tx
         .update(staffDailyWages)
         .set({ payoutId: payment.id })
-        .where(inArray(staffDailyWages.id, wageRows.map((r) => r.id)));
+        .where(and(inArray(staffDailyWages.id, wageRows.map((r) => r.id)), isNull(staffDailyWages.payoutId)))
+        .returning({ id: staffDailyWages.id });
+      if (marked.length !== wageRows.length) {
+        throw new PayrollPaymentError("ALREADY_PAID", "Sebagian gaji sudah dibayar oleh proses lain. Muat ulang.");
+      }
     }
     if (feeRows.length) {
-      await tx
+      const markedFee = await tx
         .update(feePoolSplits)
         .set({ paymentId: payment.id })
-        .where(inArray(feePoolSplits.id, feeRows.map((r) => r.id)));
+        .where(and(inArray(feePoolSplits.id, feeRows.map((r) => r.id)), isNull(feePoolSplits.paymentId)))
+        .returning({ id: feePoolSplits.id });
+      if (markedFee.length !== feeRows.length) {
+        throw new PayrollPaymentError("ALREADY_PAID", "Sebagian fee sudah dibayar oleh proses lain. Muat ulang.");
+      }
       const earningIds = feeRows.map((r) => r.earningId).filter((x): x is string => Boolean(x));
       if (earningIds.length) {
         await tx.update(staffEarnings).set({ status: "paid" }).where(inArray(staffEarnings.id, earningIds));

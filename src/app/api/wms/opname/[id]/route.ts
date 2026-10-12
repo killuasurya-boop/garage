@@ -20,10 +20,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
-  await context.params;
+  const { id } = await context.params;
   const parsed = await readJson(request, patchSchema);
   if (parsed.error) return parsed.error;
-  const row = await saveWmsOpnameLine(parsed.data.lineId, parsed.data.physicalQty);
+  let row: Awaited<ReturnType<typeof saveWmsOpnameLine>>;
+  try {
+    row = await saveWmsOpnameLine(parsed.data.lineId, parsed.data.physicalQty, id);
+  } catch (error) {
+    return fail(409, "OPNAME_LOCKED", error instanceof Error ? error.message : "Opname tidak bisa diubah.");
+  }
   if (!row) return fail(404, "LINE_NOT_FOUND", "Baris opname tidak ditemukan.");
   return ok({ id: row.id });
 }

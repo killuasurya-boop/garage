@@ -19,7 +19,8 @@ const receivingSchema = z.object({
       z.object({
         sku: z.string().trim().min(1),
         qty: z.number().positive(),
-        unitCost: z.number().nonnegative(),
+        // Harga 0 akan menjadikan HPP bahan & menu 0 — wajib diisi.
+        unitCost: z.number().positive("Harga beli wajib lebih dari 0."),
         note: z.string().trim().max(240).optional(),
       }),
     )

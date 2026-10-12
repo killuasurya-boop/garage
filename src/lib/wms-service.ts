@@ -1610,7 +1610,8 @@ export async function completeReceiving(
 
       const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
       if (prod) {
-        const oldQty = await totalOnHand(tx, it.productId);
+        // Stok minus (penjualan mendahului penerimaan) tidak ikut rata-rata HPP.
+        const oldQty = Math.max(0, await totalOnHand(tx, it.productId));
         const oldValue = oldQty * Number(prod.hpp);
         const newQty = oldQty + qty;
         const newHpp = newQty > 0 ? (oldValue + qty * effHpp) / newQty : effHpp;
@@ -1798,13 +1799,18 @@ export async function createInternalOrder(
     // Sumber = ruang gudang utama sesuai AREA outlet tujuan (Outlet Bar←Ruang Bar,
     // Outlet Dapur←Ruang Dapur). Bisa dioverride via sourceWarehouseId.
     let source = input.sourceWarehouseId ?? null;
+    const [outlet] = await tx
+      .select({ area: wmsWarehouse.area, type: wmsWarehouse.type })
+      .from(wmsWarehouse)
+      .where(eq(wmsWarehouse.id, input.outletWarehouseId))
+      .limit(1);
+    // Internal order = permintaan ke ruang outlet (Bar/Dapur). Pindah antar gudang
+    // utama lewat Transfer (Owner/Manajer).
+    if (!outlet || outlet.type === "main") {
+      throw new Error("Tujuan internal order harus ruang outlet (Bar/Dapur). Pindah antar gudang pakai Transfer.");
+    }
     if (!source) {
-      const [outlet] = await tx
-        .select({ area: wmsWarehouse.area })
-        .from(wmsWarehouse)
-        .where(eq(wmsWarehouse.id, input.outletWarehouseId))
-        .limit(1);
-      source = await mainWarehouseForArea(tx, outlet?.area ?? "bar");
+      source = await mainWarehouseForArea(tx, outlet.area ?? "bar");
     }
     if (!source) throw new Error("Gudang utama belum ada.");
     if (input.outletWarehouseId === source) {
@@ -2150,7 +2156,7 @@ export async function runProduction(
     // Update HPP rata-rata tertimbang produk output (seperti receiving).
     const [outProd] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, rec.outputProductId)).limit(1);
     if (outProd) {
-      const oldQty = await totalOnHand(tx, rec.outputProductId);
+      const oldQty = Math.max(0, await totalOnHand(tx, rec.outputProductId));
       const oldValue = oldQty * Number(outProd.hpp);
       const newQty = oldQty + producedQty;
       const newHpp = newQty > 0 ? (oldValue + totalCost) / newQty : unitCost;
@@ -3848,11 +3854,19 @@ export async function listWmsOpnames() {
   }));
 }
 
-export async function saveWmsOpnameLine(lineId: string, physicalQty: number) {
+export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opnameId?: string) {
   const db = getDb();
+  const [line] = await db
+    .select({ id: wmsOpnameLine.id, opnameId: wmsOpnameLine.opnameId, status: wmsStockOpname.status })
+    .from(wmsOpnameLine)
+    .innerJoin(wmsStockOpname, eq(wmsStockOpname.id, wmsOpnameLine.opnameId))
+    .where(eq(wmsOpnameLine.id, lineId))
+    .limit(1);
+  if (!line || (opnameId && line.opnameId !== opnameId)) return null;
+  if (line.status === "completed") throw new Error("Opname sudah difinalisasi — hitungan tidak bisa diubah.");
   const [row] = await db
     .update(wmsOpnameLine)
-    .set({ physicalQty })
+    .set({ physicalQty, countedAt: new Date() })
     .where(eq(wmsOpnameLine.id, lineId))
     .returning();
   return row ?? null;
@@ -3878,6 +3892,9 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
     const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
     for (const l of lines) {
       if (!l.productId) continue;
+      // Baris yang tidak dihitung dilewati: stok tetap sesuai ledger (penjualan
+      // selama opname berlangsung tidak "dikembalikan").
+      if (!l.countedAt) continue;
       // Variance vs stok LIVE — recordStockMovement mengunci baris stok, jadi
       // nilai yang dibaca di sini konsisten dengan mutasi lain.
       const liveQty = await warehouseOnHand(tx, l.productId, op.warehouseId);

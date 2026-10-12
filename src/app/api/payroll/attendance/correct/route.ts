@@ -27,11 +27,12 @@ export async function POST(request: Request) {
     const res = await correctAttendance(body.data, {
       userId: session.data!.user.id,
       name: session.data!.user.name || session.data!.user.email,
+      role: session.data!.profile.role,
     });
     return ok(res);
   } catch (err) {
     if (err instanceof AbsenControlError) {
-      return fail(err.code === "NOT_FOUND" ? 404 : err.code === "ALREADY_PAID" ? 409 : 400, err.code, err.message);
+      return fail(err.code === "NOT_FOUND" ? 404 : err.code === "ALREADY_PAID" ? 409 : err.code === "SELF_CORRECTION" ? 403 : 400, err.code, err.message);
     }
     return fail(500, "CORRECTION_FAILED", (err as Error).message);
   }

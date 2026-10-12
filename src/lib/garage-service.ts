@@ -13177,8 +13177,18 @@ export async function createStockOpname(input: StockOpnameInput, garage: GarageS
       note: entry.note?.trim() || null,
     };
   });
+  // Bahan gudang (WMS) dihitung lewat Gudang → Stok Opname supaya ledger fisik
+  // tetap satu; opname lama ini hanya untuk bahan non-WMS.
+  const wmsSkus: string[] = [];
+  for (const row of detailRows) {
+    if (await isWmsManaged(db, row.itemSku)) wmsSkus.push(row.itemSku);
+  }
+  if (wmsSkus.length) {
+    throw new Error(`Bahan ${wmsSkus.join(", ")} dikelola gudang. Hitung lewat Gudang → Stok Opname (/warehouse/opname).`);
+  }
   const totalDelta = Number(detailRows.reduce((sum, row) => sum + row.delta, 0).toFixed(4));
-  const status = stockOpnameStatus(totalDelta);
+  // Persetujuan dari total selisih absolut (+50 & −50 tetap butuh approval).
+  const status = stockOpnameStatus(detailRows.reduce((sum, row) => sum + Math.abs(row.delta), 0));
   const now = new Date();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
 
@@ -13268,6 +13278,9 @@ async function decideStockOpname(id: string, garage: GarageSession, decision: "a
   if (!current) return null;
   if (!["draft", "pending_approval"].includes(current.status)) {
     throw new Error("Opname sudah diputuskan atau sudah diterapkan.");
+  }
+  if (decision === "approved" && current.createdBy === garage.user.id && garage.profile.role !== "Owner") {
+    throw new Error("Opname yang Anda buat sendiri harus disetujui orang lain (Manajer/Owner).");
   }
 
   const now = new Date();
@@ -15737,6 +15750,9 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
   if (current.status !== "pending_approval") {
     throw new Error("Hanya pengeluaran pending approval yang bisa diputuskan.");
   }
+  if (decision === "approved" && current.createdBy === garage.user.id && garage.profile.role !== "Owner") {
+    throw new Error("Pengeluaran yang Anda catat sendiri harus disetujui orang lain.");
+  }
   if (decision === "approved") {
     const held = await holdExpenseForOwner(id, garage);
     if (held) return { expense: current, cashSession: null, pendingOwnerApproval: true, approval: held };
@@ -15757,8 +15773,10 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
         approvedAt: decision === "approved" ? now : null,
         updatedAt: now,
       })
-      .where(eq(expenses.id, id))
+      // Hanya yang masih pending: dua keputusan bersamaan tidak memotong kas dua kali.
+      .where(and(eq(expenses.id, id), eq(expenses.status, "pending_approval")))
       .returning();
+    if (!updated) throw new Error("Pengeluaran ini sudah diputuskan.");
 
     // Diputus langsung dari modul Keuangan → tutup juga entri di antrean Persetujuan.
     await tx
@@ -17757,6 +17775,22 @@ export async function decideApproval(
     const pendingExpenseId =
       (current.payload as ApprovalPayload | null)?.expenseId ??
       (id.startsWith("APP-EXP-") ? id.slice("APP-EXP-".length) : null);
+    // Tidak boleh menyetujui pengajuan sendiri (kecuali Owner).
+    if (garage.profile.role !== "Owner") {
+      const payload = (current.payload ?? {}) as ApprovalPayload & { requestedBy?: string };
+      let ownerOfRequest = payload.requestedBy ?? null;
+      if (!ownerOfRequest && pendingExpenseId) {
+        const [exp] = await db
+          .select({ createdBy: expenses.createdBy })
+          .from(expenses)
+          .where(eq(expenses.id, pendingExpenseId))
+          .limit(1);
+        ownerOfRequest = exp?.createdBy ?? null;
+      }
+      if (ownerOfRequest && ownerOfRequest === garage.user.id) {
+        throw new Error("Pengajuan Anda sendiri harus disetujui orang lain.");
+      }
+    }
     if (pendingExpenseId) {
       const held = await holdExpenseForOwner(pendingExpenseId, garage);
       if (held) return held;
@@ -18948,8 +18982,9 @@ function parseAmountIdr(label: string): number {
 
 export async function runAutoApprovalSweep(garage: GarageSession): Promise<AutoApprovalResult> {
   const db = getDb();
-  const settings = await getAppSettings(garage.profile.outlet.id);
-  const expenseThreshold = Number(settings.expenseApprovalThreshold ?? 1_000_000);
+  // Ambang dari Pengaturan Keuangan (Owner), bukan setting app yang bisa diubah Manajer.
+  const { getExpenseApprovalThreshold } = await import("@/lib/finance-control");
+  const expenseThreshold = Number((await getExpenseApprovalThreshold()) ?? 1_000_000);
 
   const pending = await db
     .select()

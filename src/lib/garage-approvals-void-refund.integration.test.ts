@@ -230,6 +230,20 @@ describe("Refund item & batal order lewat Persetujuan", () => {
     expect(await expectedCash()).toBe(cashAfterSale - refundAmount);
     expect(await globalOnHand("BEAN")).toBe(1000 - 36);
 
+    // Bar berhenti membuat kopi yang direfund: porsi produksi tinggal 2.
+    const { eq } = await import("drizzle-orm");
+    const prodItems = await t
+      .getDb()
+      .select()
+      .from(t.schema.productionTicketItems)
+      .where(eq(t.schema.productionTicketItems.orderId, orderId));
+    if (prodItems.length) {
+      const liveCoffee = prodItems
+        .filter((i: any) => i.menuItemId === "itm-coffee" && i.status !== "cancelled")
+        .reduce((sum: number, i: any) => sum + i.qty, 0);
+      expect(liveCoffee).toBe(2);
+    }
+
     // Tidak bisa diputus dua kali.
     await expect(
       svc.decideApproval(id, { status: "approved" }, manajer()),

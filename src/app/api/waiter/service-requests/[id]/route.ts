@@ -14,7 +14,7 @@ export async function PATCH(
   }
 
   const { id } = await context.params;
-  const result = await resolveServiceRequest(id, session.data.user.id);
+  const result = await resolveServiceRequest(id, session.data.user.id, session.data.profile.outlet.id);
   if (!result) {
     return fail(404, "SERVICE_REQUEST_NOT_FOUND", "Panggilan tidak ditemukan atau sudah selesai.");
   }

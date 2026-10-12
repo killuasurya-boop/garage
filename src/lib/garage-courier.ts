@@ -6,7 +6,7 @@
 // Juga: tolak otomatis order take away/delivery yang tidak dibayar tepat waktu.
 // =============================================================================
 
-import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, kitchenTickets, orderItems, orders, outlets, staffProfiles, user } from "@/db/schema";
@@ -115,7 +115,8 @@ async function couriersOfOutlet(db: CourierDb, outletId: string) {
         ),
         eq(orders.fulfillment, "delivery"),
         or(isNull(orders.deliveryStatus), ne(orders.deliveryStatus, "delivered")),
-        ne(orders.status, "rejected"),
+        // Order void/batal tidak lagi membuat kurir "sibuk".
+        notInArray(orders.status, ["rejected", "voided", "cancelled"]),
       ),
     );
   return rows.map((row): CourierOption => {
@@ -197,6 +198,10 @@ async function lockDeliveryOrder(tx: Parameters<Parameters<ReturnType<typeof get
   return order;
 }
 
+async function lockCourierProfile(tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], userId: string) {
+  await tx.select({ id: staffProfiles.id }).from(staffProfiles).where(eq(staffProfiles.userId, userId)).for("update");
+}
+
 /** Kasir/Manajer/Owner menugaskan (atau melepas, courierUserId=null) kurir. */
 export async function assignCourier(orderId: string, courierUserId: string | null, garage: GarageSession) {
   if (!canDispatch(garage)) throw new CourierError("Hanya kasir, manajer, atau owner yang bisa menugaskan kurir.", 403);
@@ -206,11 +211,19 @@ export async function assignCourier(orderId: string, courierUserId: string | nul
     if (order.status !== "paid") throw new CourierError("Order delivery harus lunas sebelum ditugaskan ke kurir.");
     if (order.deliveryStatus === "delivered") throw new CourierError("Pesanan sudah selesai diantar.");
     let courierName: string | null = null;
+    const carrying = order.deliveryStatus === "picked_up" || order.deliveryStatus === "on_the_way";
+    if (courierUserId && order.courierUserId && courierUserId !== order.courierUserId && carrying) {
+      // Barang & foto bukti ada di kurir lama — ganti kurir hanya sebelum diambil.
+      throw new CourierError("Pesanan sedang dibawa kurir — tidak bisa diganti kurir lain.");
+    }
     if (courierUserId && courierUserId !== order.courierUserId) {
-      // Hanya kurir berstatus Tersedia (siap antar & tidak membawa pesanan).
+      // Kunci baris kurir supaya dua kasir tidak menugaskan kurir yang sama bersamaan.
+      await lockCourierProfile(tx, courierUserId);
+      // Hanya kurir berstatus Tersedia (siap antar & tidak membawa pesanan) di outlet order.
       const options = await couriersOfOutlet(tx, order.outletId ?? garage.profile.outlet.id);
       const option = options.find((courier) => courier.userId === courierUserId);
-      if (option && !option.assignable) {
+      if (!option) throw new CourierError("Kurir bukan dari outlet ini atau tidak aktif.");
+      if (!option.assignable) {
         const reason =
           option.status === "offline"
             ? "sedang offline/istirahat"
@@ -305,6 +318,23 @@ export async function courierDeliveryAction(orderId: string, action: string, gar
     if (!rule.from.includes(order.deliveryStatus ?? null)) {
       throw new CourierError("Urutan status antar tidak sesuai. Muat ulang daftar antaran.");
     }
+    // Ambil pesanan hanya setelah Bar/Dapur selesai semua; tiketnya lalu ditutup
+    // (diserahkan ke kurir) supaya tidak menggantung di layar produksi.
+    const takingFromStation =
+      rule.to === "picked_up" || (rule.to === "on_the_way" && order.deliveryStatus !== "picked_up");
+    if (takingFromStation) {
+      const pending = await tx
+        .select({ ticketNo: kitchenTickets.ticketNo })
+        .from(kitchenTickets)
+        .where(and(eq(kitchenTickets.orderId, order.id), inArray(kitchenTickets.status, ["queue", "cooking"])));
+      if (pending.length) {
+        throw new CourierError("Pesanan masih dibuat Bar/Dapur. Tunggu sampai semua SIAP.", 409);
+      }
+      await tx
+        .update(kitchenTickets)
+        .set({ status: "delivered", deliveredAt: new Date(), deliveredByName: garage.user.name, updatedAt: new Date() })
+        .where(and(eq(kitchenTickets.orderId, order.id), eq(kitchenTickets.status, "ready")));
+    }
     // "Sudah sampai" wajib foto bukti terkirim (PDF owner).
     if (rule.to === "delivered" && !order.deliveryProofUrl) {
       throw new CourierError("Ambil foto bukti terkirim dulu sebelum menandai Sudah sampai.", 409);
@@ -343,6 +373,8 @@ export async function claimDeliveryOrder(orderId: string, garage: GarageSession)
     if (order.courierUserId === garage.user.id) return order; // idempoten
     if (order.courierUserId) throw new CourierError("Pesanan ini sudah diambil kurir lain.", 409);
     if (order.deliveryStatus === "delivered") throw new CourierError("Pesanan sudah selesai diantar.");
+    // Kunci baris kurir: dua tap "Ambil" cepat tidak boleh mendapat dua pesanan.
+    await lockCourierProfile(tx, garage.user.id);
     const options = await couriersOfOutlet(tx, order.outletId ?? garage.profile.outlet.id);
     const me = options.find((courier) => courier.userId === garage.user.id);
     if (!me || me.status === "offline") throw new CourierError("Nyalakan \"Siap antar\" dulu sebelum mengambil pesanan.", 409);
@@ -379,9 +411,9 @@ export async function claimDeliveryOrder(orderId: string, garage: GarageSession)
 }
 
 /** Simpan foto bukti terkirim (URL file staf) — hanya kurir yang ditugaskan / manajemen. */
-export async function attachDeliveryProof(orderId: string, proofUrl: string, garage: GarageSession) {
-  const db = getDb();
-  const [order] = await db
+/** Cek boleh unggah foto bukti — dipanggil SEBELUM file disimpan ke disk. */
+export async function assertCanAttachDeliveryProof(orderId: string, garage: GarageSession) {
+  const [order] = await getDb()
     .select({ id: orders.id, courierUserId: orders.courierUserId, deliveryStatus: orders.deliveryStatus, orderNo: orders.orderNo })
     .from(orders)
     .where(eq(orders.id, orderId))
@@ -393,6 +425,12 @@ export async function attachDeliveryProof(orderId: string, proofUrl: string, gar
   if (order.deliveryStatus !== "picked_up" && order.deliveryStatus !== "on_the_way") {
     throw new CourierError("Foto bukti diambil saat pesanan sedang diantar.", 409);
   }
+  return order;
+}
+
+export async function attachDeliveryProof(orderId: string, proofUrl: string, garage: GarageSession) {
+  const db = getDb();
+  const order = await assertCanAttachDeliveryProof(orderId, garage);
   await db.update(orders).set({ deliveryProofUrl: proofUrl, updatedAt: new Date() }).where(eq(orders.id, order.id));
   publishProductionChange();
   return { ok: true, proofUrl };

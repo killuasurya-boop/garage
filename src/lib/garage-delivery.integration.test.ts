@@ -252,7 +252,21 @@ describe("Kurir + GPS", () => {
     await expect(cour.updateCourierLocation(id, 3.33, 99.16, courier())).rejects.toThrow(/sedang diantar/);
     await expect(cour.courierDeliveryAction(id, "pickup", courier(KURIR2, "Bayu Kurir"))).rejects.toThrow(/tidak ditugaskan/);
 
+    // Belum SIAP di Bar/Dapur → belum bisa diambil kurir.
+    const { eq } = await import("drizzle-orm");
+    const tickets = await t.getDb().select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, id));
+    if (tickets.length) {
+      await expect(cour.courierDeliveryAction(id, "pickup", courier())).rejects.toThrow(/Bar\/Dapur/);
+      await t
+        .getDb()
+        .update(t.schema.kitchenTickets)
+        .set({ status: "ready" })
+        .where(eq(t.schema.kitchenTickets.orderId, id));
+    }
     await cour.courierDeliveryAction(id, "pickup", courier());
+    // Tiket SIAP otomatis tertutup (diserahkan ke kurir).
+    const closed = await t.getDb().select().from(t.schema.kitchenTickets).where(eq(t.schema.kitchenTickets.orderId, id));
+    expect(closed.every((ticket: any) => ticket.status === "delivered")).toBe(true);
     const otw = await cour.courierDeliveryAction(id, "depart", courier());
     expect(otw.deliveryStatus).toBe("on_the_way");
     await cour.updateCourierLocation(id, 3.3301, 99.1601, courier());

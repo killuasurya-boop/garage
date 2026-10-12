@@ -233,6 +233,45 @@ describe("Pisah bill SESUDAH diterima dapur", () => {
   });
 });
 
+describe("Pisah bill vs layar Bar/Dapur", () => {
+  async function liveProduction(orderId: string) {
+    const { eq } = await drizzle();
+    const tickets = await ticketsOf(orderId);
+    const items = await t
+      .getDb()
+      .select()
+      .from(t.schema.productionTicketItems)
+      .where(eq(t.schema.productionTicketItems.orderId, orderId));
+    return {
+      tickets,
+      liveQty: (menuItemId: string) =>
+        items
+          .filter((i: any) => i.menuItemId === menuItemId && i.status !== "cancelled")
+          .reduce((sum: number, i: any) => sum + i.qty, 0),
+    };
+  }
+
+  it("void bill induk hanya membatalkan porsinya; porsi bill pisahan tetap dibuat", async () => {
+    const p = await newTableOrder("Meja 10");
+    await svc.updateCustomerOrderStatus(p.id, { action: "accept" }, kasir());
+    const coffee = (await itemsOf(p.id)).find((i: any) => i.menuItemId === "itm-coffee");
+    const { child: c } = await svc.splitCustomerOrder(p.id, { items: [{ orderItemId: coffee.id, qty: 1 }] }, kasir());
+
+    await svc.requestOrderVoidApproval(p.orderNo, { reasonCode: "pelanggan_batal" }, manajer());
+    let prod = await liveProduction(p.id);
+    // 1 kopi milik bill pisahan tetap di Bar; kopi & makanan milik induk batal.
+    expect(prod.liveQty("itm-coffee")).toBe(1);
+    expect(prod.liveQty("itm-food")).toBe(0);
+    expect(prod.tickets.some((ticket: any) => ticket.status !== "cancelled")).toBe(true);
+
+    // Bill pisahan ikut dibatalkan → tidak ada lagi yang dibuat.
+    await svc.requestOrderVoidApproval(c.orderNo, { reasonCode: "pelanggan_batal" }, manajer());
+    prod = await liveProduction(p.id);
+    expect(prod.liveQty("itm-coffee")).toBe(0);
+    expect(prod.tickets.every((ticket: any) => ticket.status === "cancelled")).toBe(true);
+  });
+});
+
 describe("Pisah bill SEBELUM diterima dapur", () => {
   it("tiap bill diproses sendiri: tiket & potong stok masing-masing, total stok tetap 36 g", async () => {
     const before = await beanLedgerNet();

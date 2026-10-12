@@ -1,3 +1,5 @@
+> **Panduan terbaru (Okt 2026):** lihat [`docs/panduan/MANAJER-HARIAN.md`](../panduan/MANAJER-HARIAN.md) — juga tampil di akun karyawan: menu Training → tab Panduan Kerja.
+
 # SOP Manager Operasional
 
 ## Purpose

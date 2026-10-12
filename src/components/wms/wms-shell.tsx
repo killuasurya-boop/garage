@@ -47,7 +47,7 @@ import { WmsNotificationsDrawer } from "@/components/wms/wms-notifications-drawe
 // Shell desain GARAGE WMS (README §5/§8). Tema light di-scope di sini; tidak
 // memakai token gelap Garage OS. Sidebar graphite collapsible, header 60px.
 
-type NavItem = { label: string; href?: string; icon: typeof Package; soon?: boolean };
+type NavItem = { label: string; href?: string; icon: typeof Package; soon?: boolean; managementOnly?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
@@ -57,8 +57,8 @@ const NAV: NavGroup[] = [
       { label: "Dashboard", href: "/warehouse", icon: LayoutDashboard },
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
       { label: "Scan Barcode", href: "/warehouse/scan", icon: ScanLine },
-      { label: "Receiving", href: "/warehouse/receiving", icon: Truck },
-      { label: "Transfer", href: "/warehouse/transfer", icon: ArrowLeftRight },
+      { label: "Receiving", href: "/warehouse/receiving", icon: Truck, managementOnly: true },
+      { label: "Transfer", href: "/warehouse/transfer", icon: ArrowLeftRight, managementOnly: true },
     ],
   },
   {
@@ -68,7 +68,7 @@ const NAV: NavGroup[] = [
       { label: "Kitchen", href: "/warehouse/kitchen", icon: ChefHat },
       { label: "Bar", href: "/warehouse/bar", icon: Coffee },
       { label: "Recipe", href: "/warehouse/recipe", icon: BookOpen },
-      { label: "Production", href: "/warehouse/production", icon: Factory },
+      { label: "Production", href: "/warehouse/production", icon: Factory, managementOnly: true },
     ],
   },
   {
@@ -76,25 +76,25 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Stock Opname", href: "/warehouse/opname", icon: ClipboardCheck },
       { label: "Checklist", href: "/warehouse/checklist", icon: ListChecks },
-      { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders },
+      { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders, managementOnly: true },
       { label: "Log Aktivitas", href: "/warehouse/activity-log", icon: Clock },
       { label: "Reports", href: "/warehouse/reports", icon: FileBarChart },
-      { label: "Keuangan & HPP", href: "/warehouse/keuangan", icon: Wallet },
+      { label: "Keuangan & HPP", href: "/warehouse/keuangan", icon: Wallet, managementOnly: true },
     ],
   },
   {
     title: "Smart 2026",
     items: [
-      { label: "Smart Reorder", href: "/warehouse/reorder", icon: Sparkles },
+      { label: "Smart Reorder", href: "/warehouse/reorder", icon: Sparkles, managementOnly: true },
       { label: "Cold Chain", href: "/warehouse/cold-chain", icon: Thermometer },
-      { label: "Owner Analytics", href: "/warehouse/analytics", icon: TrendingUp },
+      { label: "Owner Analytics", href: "/warehouse/analytics", icon: TrendingUp, managementOnly: true },
     ],
   },
   {
     title: "System",
     items: [
-      { label: "Master Data", href: "/warehouse/master", icon: Tags },
-      { label: "Settings", href: "/warehouse/settings", icon: Settings },
+      { label: "Master Data", href: "/warehouse/master", icon: Tags, managementOnly: true },
+      { label: "Settings", href: "/warehouse/settings", icon: Settings, managementOnly: true },
     ],
   },
 ];
@@ -119,6 +119,13 @@ export function WmsShell({
   const [signingOut, setSigningOut] = useState(false);
   // Absen kelas satu juga di shell WMS (NAV_ACTION_AUDIT §1.3) untuk role staff gudang.
   const canAbsen = canAccessModule(user.role as Role, "absensi-v2");
+  // Kasir/Barista/Koki: menu yang hanya bisa dipakai Owner/Manajer disembunyikan
+  // (dulu tampil lalu 403).
+  const isManagement = user.role === "Owner" || user.role === "Manajer";
+  const visibleNav = NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => isManagement || !item.managementOnly),
+  })).filter((group) => group.items.length > 0);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -203,7 +210,7 @@ export function WmsShell({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 pb-3 [scrollbar-width:thin]">
-          {NAV.map((group) => (
+          {visibleNav.map((group) => (
             <div key={group.title} className="mb-3">
               {!collapsed && (
                 <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">

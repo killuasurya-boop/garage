@@ -4,7 +4,7 @@
 // siklus import).
 // =============================================================================
 
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, notInArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -144,7 +144,7 @@ export async function syncProductionItemsForTicket(
       .where(
         and(
           eq(productionTicketItems.ticketId, ticketId),
-          ne(productionTicketItems.status, "ready"),
+          notInArray(productionTicketItems.status, ["ready", "cancelled"]),
         ),
       );
     return;
@@ -244,8 +244,9 @@ export async function fullyReadyTicketIds(db: DbLike, ticketIds: string[]) {
     .select({ ticketId: productionTicketItems.ticketId, status: productionTicketItems.status })
     .from(productionTicketItems)
     .where(inArray(productionTicketItems.ticketId, ticketIds));
-  const pending = new Set(rows.filter((row) => row.status !== "ready").map((row) => row.ticketId));
-  const withItems = new Set(rows.map((row) => row.ticketId));
+  const live = rows.filter((row) => row.status !== "cancelled");
+  const pending = new Set(live.filter((row) => row.status !== "ready").map((row) => row.ticketId));
+  const withItems = new Set(live.map((row) => row.ticketId));
   return ticketIds.filter((id) => withItems.has(id) && !pending.has(id));
 }
 
@@ -256,4 +257,97 @@ export async function ticketNosByIds(db: DbLike, ticketIds: string[]) {
     .from(kitchenTickets)
     .where(inArray(kitchenTickets.id, ticketIds));
   return rows.map((row) => row.ticketNo);
+}
+
+/**
+ * Batalkan sebagian porsi produksi (bukan seluruh order): void satu bill hasil
+ * split bill (tiketnya menumpang order induk) atau refund parsial. Porsi
+ * dicocokkan per menu + varian di tiket order `ledgerOrderId` yang masih hidup,
+ * mulai dari yang belum dibuat. Tiket tanpa porsi tersisa ikut "cancelled".
+ */
+export async function cancelProductionQuantities(
+  tx: DbLike,
+  input: {
+    ledgerOrderId: string;
+    lines: Array<{ menuItemId: string | null; variantId: string; qty: number }>;
+    reason: string;
+    now?: Date;
+  },
+) {
+  const now = input.now ?? new Date();
+  const tickets = await tx
+    .select({ id: kitchenTickets.id, ticketNo: kitchenTickets.ticketNo })
+    .from(kitchenTickets)
+    .where(
+      and(
+        eq(kitchenTickets.orderId, input.ledgerOrderId),
+        inArray(kitchenTickets.status, ["queue", "cooking", "ready"]),
+      ),
+    );
+  if (!tickets.length) return { ticketNos: [] as string[], cancelledQty: 0 };
+  const ticketIds = tickets.map((ticket) => ticket.id);
+  const items = await tx
+    .select()
+    .from(productionTicketItems)
+    .where(and(inArray(productionTicketItems.ticketId, ticketIds), ne(productionTicketItems.status, "cancelled")));
+  // Yang belum dikerjakan dibatalkan duluan, lalu yang diproses, terakhir yang siap.
+  const rank: Record<string, number> = { waiting: 0, processing: 1, ready: 2 };
+  items.sort((a, b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3));
+
+  let cancelledQty = 0;
+  for (const line of input.lines) {
+    let remaining = line.qty;
+    for (const item of items) {
+      if (remaining <= 0) break;
+      if (item.qty <= 0 || item.menuItemId !== line.menuItemId || item.variantId !== line.variantId) continue;
+      const take = Math.min(item.qty, remaining);
+      remaining -= take;
+      cancelledQty += take;
+      item.qty -= take;
+      if (item.batchId) {
+        const [batch] = await tx
+          .select({ status: productionBatches.status, totalQty: productionBatches.totalQty })
+          .from(productionBatches)
+          .where(eq(productionBatches.id, item.batchId))
+          .limit(1);
+        if (batch?.status === "processing") {
+          const left = Math.max(0, batch.totalQty - take);
+          await tx
+            .update(productionBatches)
+            .set(left > 0 ? { totalQty: left } : { totalQty: 0, status: "cancelled", completedAt: now })
+            .where(eq(productionBatches.id, item.batchId));
+        }
+        await tx
+          .delete(productionBatchAllocations)
+          .where(eq(productionBatchAllocations.ticketItemId, item.id));
+      }
+      await tx
+        .update(productionTicketItems)
+        .set(item.qty > 0 ? { qty: item.qty, batchId: null } : { status: "cancelled", batchId: null })
+        .where(eq(productionTicketItems.id, item.id));
+      if (item.qty <= 0) item.status = "cancelled";
+      else item.batchId = null;
+    }
+  }
+
+  const touched: string[] = [];
+  for (const ticket of tickets) {
+    const live = items.filter((item) => item.ticketId === ticket.id && item.status !== "cancelled");
+    const hadItems = items.some((item) => item.ticketId === ticket.id);
+    if (hadItems && !live.length) {
+      await tx
+        .update(kitchenTickets)
+        .set({ status: "cancelled", issueReason: input.reason, issueAt: now, updatedAt: now })
+        .where(eq(kitchenTickets.id, ticket.id));
+      touched.push(ticket.ticketNo);
+    } else if (live.length && cancelledQty > 0) {
+      // Tiket tetap jalan dengan porsi tersisa; alasan tampil di kartu Bar/Dapur.
+      await tx
+        .update(kitchenTickets)
+        .set({ issueReason: input.reason, issueAt: now, updatedAt: now })
+        .where(eq(kitchenTickets.id, ticket.id));
+      touched.push(ticket.ticketNo);
+    }
+  }
+  return { ticketNos: touched, cancelledQty };
 }

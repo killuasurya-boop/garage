@@ -115,6 +115,18 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
       response: fail(403, "FORBIDDEN", "Role Anda tidak punya akses untuk aksi ini."),
     };
   }
+  // Rute berbasis role (gudang, payroll, koreksi absen, …) juga diblok selama
+  // password wajib diganti — sama seperti rute berbasis permission.
+  if (allowedRoles?.length && row.passwordResetRequired) {
+    return {
+      data: null,
+      response: fail(
+        403,
+        "PASSWORD_RESET_REQUIRED",
+        "Ganti password akun Anda dulu (menu Akun → Ganti Password) sebelum memakai menu ini.",
+      ),
+    };
+  }
 
   // Cek active outlet override dari cookie (hanya untuk role yg boleh switch).
   // Kalau cookie valid & outlet aktif, ganti outlet info di profile.

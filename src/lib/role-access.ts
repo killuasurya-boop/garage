@@ -360,6 +360,10 @@ export function canWriteStock(profile: StaffCapabilityProfile): boolean {
 
 export function effectivePermissions(profile: StaffCapabilityProfile): Permission[] {
   const base = permissionsForRole(profile.role);
+  // Kurir (Waiter + workstation "kurir") tidak melayani meja.
+  if (profile.role === "Waiter" && (profile.workstation ?? "").trim().toLowerCase() === "kurir") {
+    return base.filter((permission) => permission !== "tables:write");
+  }
   if (profile.role !== "Kasir") return base;
   const money = canHandleMoney(profile);
   const stock = canWriteStock(profile);

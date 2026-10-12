@@ -34,12 +34,15 @@ export async function POST(
     return fail(404, "TABLE_NOT_FOUND", "Meja tidak ditemukan.");
   }
 
+  // Bill yang belum lunas (mis. order baru di meja yang belum dibersihkan)
+  // tidak boleh hilang dari peta karena meja ditandai bersih.
   const canClear =
-    row.status === "paid" ||
+    (row.openBillCount ?? 0) === 0 &&
+    (row.status === "paid" ||
     row.status === "rejected" ||
     row.status === "needs_cleaning" ||
     row.status === "cleaning" ||
-    !row.currentOrderId;
+    !row.currentOrderId);
   if (!canClear) {
     return fail(
       409,

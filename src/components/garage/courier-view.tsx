@@ -432,6 +432,8 @@ function CourierCard({
             hint: order.deliveryProofUrl ? "GPS berhenti dibagikan" : "Ambil foto bukti terkirim dulu",
           };
   const needsProof = primary.action === "arrive" && !order.deliveryProofUrl;
+  // Server menolak ambil pesanan sebelum semua tiket Bar/Dapur SIAP.
+  const waitingProduction = primary.action === "pickup" && !productionReady;
 
   return (
     <article className="flex flex-col gap-3 rounded-lg border border-garage-red/40 bg-garage-bg-1 p-4">
@@ -547,7 +549,7 @@ function CourierCard({
           <Button
             type="button"
             className="garage-press h-12 w-full text-base font-black"
-            disabled={busy || needsProof}
+            disabled={busy || needsProof || waitingProduction}
             onClick={() => onAct(primary.action)}
           >
             {busy ? "Menyimpan…" : primary.label}

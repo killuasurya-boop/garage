@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ok, readJson } from "@/lib/api-response";
+import { fail, ok, readJson } from "@/lib/api-response";
 import {
   createStockMovement,
   getStockMovementsSummary,
@@ -49,5 +49,9 @@ export async function POST(request: Request) {
     return body.error;
   }
 
-  return ok(await createStockMovement(body.data, session.data), { status: 201 });
+  try {
+    return ok(await createStockMovement(body.data, session.data), { status: 201 });
+  } catch (error) {
+    return fail(400, "STOCK_MOVEMENT_FAILED", error instanceof Error ? error.message : "Gagal mencatat pergerakan stok.");
+  }
 }

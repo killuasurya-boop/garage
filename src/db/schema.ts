@@ -3245,6 +3245,9 @@ export const wmsOpnameLine = pgTable(
     productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
     systemQty: wmsNum("system_qty").notNull().default(0),
     physicalQty: wmsNum("physical_qty").notNull().default(0),
+    // Diisi saat petugas memasukkan hitungan fisik. Baris yang tidak dihitung
+    // tidak di-adjust saat finalisasi (penjualan selama opname tidak dibatalkan).
+    countedAt: timestamp("counted_at", { withTimezone: true }),
   },
   (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
 );

@@ -1,3 +1,5 @@
+> **Panduan terbaru (Okt 2026):** lihat [`docs/panduan/DAPUR.md`](../panduan/DAPUR.md) — juga tampil di akun karyawan: menu Training → tab Panduan Kerja.
+
 # SOP Kitchen / Koki
 
 ## Purpose

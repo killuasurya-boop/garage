@@ -11,6 +11,10 @@ import {
 } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 
+function isManagementRole(role: string) {
+  return role === "Owner" || role === "Manajer";
+}
+
 export const runtime = "nodejs";
 
 const inventoryPatchSchema = z.object({
@@ -61,8 +65,18 @@ export async function PATCH(
     return body.error;
   }
 
+  // Harga beli/unit menentukan HPP semua menu → hanya Owner/Manajer.
+  if (body.data.unitCost !== undefined && !isManagementRole(session.data.profile.role)) {
+    return fail(403, "FORBIDDEN", "Harga beli bahan hanya bisa diubah Owner/Manajer.");
+  }
+
   const { sku } = await context.params;
-  const item = await updateInventoryItem(sku, body.data, session.data);
+  let item: Awaited<ReturnType<typeof updateInventoryItem>>;
+  try {
+    item = await updateInventoryItem(sku, body.data, session.data);
+  } catch (error) {
+    return fail(400, "INVENTORY_UPDATE_FAILED", error instanceof Error ? error.message : "Gagal mengubah bahan.");
+  }
   if (!item) {
     return fail(404, "INVENTORY_NOT_FOUND", "Inventory item was not found.");
   }
@@ -76,6 +90,9 @@ export async function DELETE(
 ) {
   const session = await requirePermission("inventory:write");
   if (session.response) return session.response;
+  if (!isManagementRole(session.data.profile.role)) {
+    return fail(403, "FORBIDDEN", "Hapus bahan hanya bisa dilakukan Owner/Manajer.");
+  }
 
   const { sku } = await context.params;
   try {

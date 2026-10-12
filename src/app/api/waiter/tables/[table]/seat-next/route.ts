@@ -37,7 +37,7 @@ export async function POST(
     return fail(
       409,
       "SEAT_NEXT_NOT_APPLICABLE",
-      "Belum ada bill lunas di sesi meja ini. Gunakan POS untuk order baru.",
+      "Belum ada bill lunas di sesi meja ini. Pakai Pesankan untuk order baru.",
     );
   }
 

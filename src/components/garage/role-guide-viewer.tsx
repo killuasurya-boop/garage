@@ -49,8 +49,8 @@ function printGuide(guide: RoleGuide) {
 }
 
 /** Tab "Panduan" di modul Training: panduan kerja sesuai role akun. */
-export function RoleGuideViewer({ role }: { role: string }) {
-  const guides = useMemo(() => guidesForRole(role), [role]);
+export function RoleGuideViewer({ role, workstation = null }: { role: string; workstation?: string | null }) {
+  const guides = useMemo(() => guidesForRole(role, workstation), [role, workstation]);
   const [guideId, setGuideId] = useState(guides[0]?.id ?? "");
   const guide = guides.find((item) => item.id === guideId) ?? guides[0];
   const [sectionId, setSectionId] = useState<string | null>(null);

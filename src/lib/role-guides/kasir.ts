@@ -7,6 +7,8 @@ export const kasirGuide: RoleGuide = {
   summary:
     "Alur kerja kasir Garage dari login, buka shift, melayani pesanan, sampai tutup shift dan balancing uang laci.",
   roles: ["Kasir"],
+  // Barista / koki juga role Kasir (workstation bar/dapur) — mereka pakai panduan produksi.
+  onlyWithoutWorkstation: true,
   updatedAt: "2026-10-12",
   sections: [
     {

@@ -47,7 +47,8 @@ export class AbsenControlError extends Error {
       | "TIME_INVALID"
       | "CHECKOUT_REQUIRED"
       | "ALREADY_PAID"
-      | "ATTENDANCE_EXISTS",
+      | "ATTENDANCE_EXISTS"
+      | "SELF_CORRECTION",
     message: string,
   ) {
     super(message);
@@ -58,6 +59,8 @@ export class AbsenControlError extends Error {
 export interface ControlActor {
   userId: string;
   name: string;
+  /** Owner boleh mengoreksi absen sendiri; Manajer tidak. */
+  role?: string;
 }
 
 const hhmm = (minutes: number) =>
@@ -243,6 +246,10 @@ export interface CorrectAttendanceInput {
 export async function correctAttendance(input: CorrectAttendanceInput, actor: ControlActor, now = new Date()) {
   const db = getDb();
   const emp = await findEmployee(input.code);
+  // Koreksi absen = mengubah gaji → tidak boleh untuk diri sendiri (kecuali Owner).
+  if (emp.staffUserId === actor.userId && actor.role !== "Owner") {
+    throw new AbsenControlError("SELF_CORRECTION", "Absen Anda sendiri harus dikoreksi oleh Owner.");
+  }
   const today = jakartaDateKey(now);
   const date = input.date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today) {

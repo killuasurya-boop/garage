@@ -1,6 +1,6 @@
 import { listInvoicesForFinance } from "@/lib/garage-service";
 import { okWithEtag } from "@/lib/http-etag";
-import { requirePermission } from "@/lib/server-auth";
+import { requireCashierSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -11,7 +11,7 @@ function parseIntParam(value: string | null, fallback: number) {
 }
 
 export async function GET(request: Request) {
-  const session = await requirePermission("orders:read");
+  const session = await requireCashierSession();
   if (session.response) {
     return session.response;
   }

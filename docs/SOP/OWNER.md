@@ -1,3 +1,5 @@
+> **Panduan terbaru (Okt 2026):** lihat [`docs/panduan/OWNER.md`](../panduan/OWNER.md) — juga tampil di akun karyawan: menu Training → tab Panduan Kerja.
+
 # SOP Owner / CEO
 
 ## Purpose

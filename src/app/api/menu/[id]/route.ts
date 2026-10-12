@@ -8,7 +8,13 @@ import {
   updateMenuProduct,
   updateMenuProductStock,
 } from "@/lib/garage-service";
-import { requireGarageSession, requirePermission } from "@/lib/server-auth";
+import { eq } from "drizzle-orm";
+
+import { getDb } from "@/db";
+import { menuItems } from "@/db/schema";
+import { canOperateStation, productionStationFor } from "@/lib/garage-production-rules";
+import { canUseApiAs } from "@/lib/role-access";
+import { requireAnyPermission, requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -105,9 +111,24 @@ export async function PATCH(
     Object.prototype.hasOwnProperty.call(rawRecord, "stock");
 
   if (isStockOnly) {
-    const session = await requirePermission("pos:use");
+    // Kasir (POS) atau Bar/Dapur (Production Hub) boleh menandai stok habis;
+    // akun produksi hanya untuk menu di station-nya.
+    const session = await requireAnyPermission(["pos:use", "kitchen:write"]);
     if (session.response) {
       return session.response;
+    }
+    if (!canUseApiAs(session.data.profile, "pos:use")) {
+      const [menu] = await getDb()
+        .select({ station: menuItems.station, category: menuItems.category })
+        .from(menuItems)
+        .where(eq(menuItems.id, id))
+        .limit(1);
+      if (!menu) return fail(404, "MENU_PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
+      if (
+        !canOperateStation(session.data.profile.role, session.data.profile.workstation, productionStationFor(menu))
+      ) {
+        return fail(403, "FORBIDDEN", "Menu ini bukan station Anda.");
+      }
     }
 
     const body = menuProductPatchSchema.safeParse(raw);

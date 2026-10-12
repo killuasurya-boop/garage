@@ -1,17 +1,41 @@
 import type { Role } from "@/lib/garage-data";
 import { kasirGuide } from "@/lib/role-guides/kasir";
+import { kurirGuide } from "@/lib/role-guides/kurir";
+import { manajerHarianGuide } from "@/lib/role-guides/manajer-harian";
 import { manajerKasirGuide } from "@/lib/role-guides/manajer-kasir";
+import { ownerGuide } from "@/lib/role-guides/owner";
+import { baristaGuide, dapurGuide } from "@/lib/role-guides/produksi";
+import { waiterGuide } from "@/lib/role-guides/waiter";
 import type { RoleGuide } from "@/lib/role-guides/types";
 
 export type { GuideSection, GuideStep, RoleGuide } from "@/lib/role-guides/types";
 
-/** Semua panduan. Tambah role lain di sini (Barista, Waiter, Kurir, …). */
-export const ROLE_GUIDES: RoleGuide[] = [kasirGuide, manajerKasirGuide];
+/** Semua panduan kerja per posisi (urutan = urutan di pilihan panduan). */
+export const ROLE_GUIDES: RoleGuide[] = [
+  kasirGuide,
+  waiterGuide,
+  kurirGuide,
+  baristaGuide,
+  dapurGuide,
+  manajerHarianGuide,
+  manajerKasirGuide,
+  ownerGuide,
+];
 
-/** Panduan untuk role ini. Owner/Manajer melihat semua panduan. */
-export function guidesForRole(role: Role | string): RoleGuide[] {
-  if (role === "Owner" || role === "Manajer") return ROLE_GUIDES;
-  return ROLE_GUIDES.filter((guide) => guide.roles.includes(role as Role));
+/**
+ * Panduan untuk akun ini (role + posisi/workstation). Owner/Manajer melihat
+ * semua panduan supaya bisa melatih tim.
+ */
+export function guidesForRole(role: Role | string, workstation?: string | null): RoleGuide[] {
+  if (role === "Owner") return ROLE_GUIDES;
+  // Manajer: panduan tim + panduan Manajer (panduan Owner disembunyikan).
+  if (role === "Manajer") return ROLE_GUIDES.filter((guide) => guide.id !== "owner");
+  const ws = workstation?.trim() || null;
+  return ROLE_GUIDES.filter((guide) => {
+    if (guide.workstations?.length) return Boolean(ws && guide.workstations.includes(ws.toLowerCase()));
+    if (!guide.roles.includes(role as Role)) return false;
+    return !(guide.onlyWithoutWorkstation && ws);
+  });
 }
 
 /** Markdown untuk docs/panduan (npm run docs:guides) & cetak. */

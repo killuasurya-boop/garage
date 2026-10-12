@@ -8,7 +8,7 @@ export async function PATCH(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireAnyPermission(["inventory:write", "approvals:decide"]);
+  const session = await requireAnyPermission(["approvals:decide"]);
   if (session.response) return session.response;
 
   const { id } = await context.params;

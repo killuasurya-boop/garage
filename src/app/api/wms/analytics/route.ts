@@ -5,7 +5,8 @@ import { requirePermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const session = await requirePermission("inventory:read");
+  // HPP, food cost & nilai stok = data keuangan (bukan untuk akun kasir/bar/dapur).
+  const session = await requirePermission("finance:read");
   if (session.response) return session.response;
   return ok(await getWmsOwnerAnalytics());
 }

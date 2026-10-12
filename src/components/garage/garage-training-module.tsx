@@ -56,7 +56,7 @@ function splitInstruction(item: string) {
   return { label: match[1], detail: match[2] };
 }
 
-export function GarageTrainingModule({ role = "Kasir" }: { role?: string }) {
+export function GarageTrainingModule({ role = "Kasir", workstation = null }: { role?: string; workstation?: string | null }) {
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
   const [sops, setSops] = useState<SopChecklist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -198,7 +198,7 @@ export function GarageTrainingModule({ role = "Kasir" }: { role?: string }) {
 
         <ScrollArea className="mt-4 flex-1 pr-1">
           <TabsContent value="guide" className="m-0 space-y-4 pb-6">
-            <RoleGuideViewer role={role} />
+            <RoleGuideViewer role={role} workstation={workstation} />
           </TabsContent>
 
           <TabsContent value="training" className="m-0 space-y-4 pb-6">

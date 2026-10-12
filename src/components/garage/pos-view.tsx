@@ -231,6 +231,7 @@ import { PosChatInbox } from "@/components/garage/pos-chat-inbox";
 import { StaffNotificationCenter } from "@/components/garage/staff-notification-center";
 import { DeliveryOrderPanel } from "@/components/garage/delivery-order-panel";
 import { ManagerPinPanel } from "@/components/garage/manager-pin-panel";
+import { MemberQrScanDialog } from "@/components/garage/member-qr-scan-dialog";
 import {
   PosOrderCancelDialog,
   type OrderCancelTarget,
@@ -979,6 +980,13 @@ export function PosView({
   const selectedMemberId = selectedMember?.customerId ?? null;
   const posPointsToUse = posPointsState.memberId === selectedMemberId ? posPointsState.points : 0;
   const setPosPointsToUse = (points: number) => setPosPointsState({ memberId: selectedMemberId, points });
+  // Pakai poin wajib scan QR member (owner, Okt 2026): token dari server,
+  // terikat ke member terpilih — otomatis tidak berlaku saat member diganti.
+  const [memberRedeemAuth, setMemberRedeemAuth] = useState<{ memberId: string; token: string } | null>(null);
+  const memberQrVerified = Boolean(selectedMemberId && memberRedeemAuth?.memberId === selectedMemberId);
+  const [memberQrOpen, setMemberQrOpen] = useState(false);
+  const [memberQrBusy, setMemberQrBusy] = useState(false);
+  const [memberQrError, setMemberQrError] = useState<string | null>(null);
   const [posVoucherBusy, setPosVoucherBusy] = useState(false);
   const previousCustomerOrderIdsRef = useRef<Set<string>>(new Set());
   const customerOrdersPrimedRef = useRef(false);
@@ -1234,6 +1242,27 @@ export function PosView({
       : Math.min(Math.max(0, total - voucher), manualDiscount.amount)
     : 0;
   // Pakai poin: batas = saldo & maks % harga menu setelah voucher/diskon (sama dgn server).
+  async function verifyMemberQr(payload: string) {
+    if (!selectedMemberId) return;
+    setMemberQrBusy(true);
+    setMemberQrError(null);
+    try {
+      const result = await garageApi.post<{ customerId: string; redeemToken: string }>("/api/pos/member/verify", {
+        qr: payload,
+      });
+      if (result.customerId !== selectedMemberId) {
+        setMemberQrError("QR ini milik member lain. Pastikan QR sesuai member yang dipilih.");
+        return;
+      }
+      setMemberRedeemAuth({ memberId: result.customerId, token: result.redeemToken });
+      setMemberQrOpen(false);
+      setPosNotice("QR member terverifikasi. Poin bisa dipakai.");
+    } catch (error) {
+      setMemberQrError(error instanceof Error ? error.message : "QR member tidak dikenali.");
+    } finally {
+      setMemberQrBusy(false);
+    }
+  }
   const pointsBase = Math.max(0, subtotal - voucher - manualDiscountAmount);
   const maxPointsToUse =
     posCustomerMode === "member" && selectedMember
@@ -1245,7 +1274,7 @@ export function PosView({
         })
       : 0;
   const pointsToUse =
-    posPointsToUse >= settings.memberRedeemMinPoints ? Math.min(posPointsToUse, maxPointsToUse) : 0;
+    memberQrVerified && posPointsToUse >= settings.memberRedeemMinPoints ? Math.min(posPointsToUse, maxPointsToUse) : 0;
   const pointsDiscountAmount = Math.min(
     Math.max(0, total - voucher - manualDiscountAmount),
     pointsToUse * settings.memberPointValue,
@@ -3618,6 +3647,8 @@ export function PosView({
       guestPhone: posCustomerMode === "guest" ? guestPhone.trim() || undefined : undefined,
       voucherCode: posVoucherResult?.valid ? posVoucherResult.code : undefined,
       pointsToRedeem: posCustomerMode === "member" && pointsToUse > 0 ? pointsToUse : undefined,
+      memberRedeemToken:
+        posCustomerMode === "member" && pointsToUse > 0 && memberQrVerified ? memberRedeemAuth?.token : undefined,
       manualDiscount: manualDiscount
         ? {
             approvalId: manualDiscount.approvalId,
@@ -9247,6 +9278,13 @@ export function PosView({
                             }}
                           />
                         ) : null}
+                        <MemberQrScanDialog
+                          open={memberQrOpen}
+                          busy={memberQrBusy}
+                          error={memberQrError}
+                          onDetect={(payload) => void verifyMemberQr(payload)}
+                          onOpenChange={setMemberQrOpen}
+                        />
                         {paymentStep === "customer" ? (
                           <CheckoutCustomerStep
                             mode={posCustomerMode}
@@ -9263,6 +9301,11 @@ export function PosView({
                             minPointsToUse={settings.memberRedeemMinPoints}
                             pointValue={settings.memberPointValue}
                             onPointsToUseChange={setPosPointsToUse}
+                            memberQrVerified={memberQrVerified}
+                            onScanMemberQr={() => {
+                              setMemberQrError(null);
+                              setMemberQrOpen(true);
+                            }}
                             memberOptions={posMemberOptions}
                             onModeChange={setPosCustomerMode}
                             onGuestNameChange={setGuestName}
@@ -11312,6 +11355,8 @@ function CheckoutCustomerStep({
   minPointsToUse,
   pointValue,
   onPointsToUseChange,
+  memberQrVerified,
+  onScanMemberQr,
   memberOptions,
   onModeChange,
   onGuestNameChange,
@@ -11335,6 +11380,8 @@ function CheckoutCustomerStep({
   minPointsToUse: number;
   pointValue: number;
   onPointsToUseChange: (points: number) => void;
+  memberQrVerified: boolean;
+  onScanMemberQr: () => void;
   memberOptions: Customer[];
   onModeChange: (mode: PosCustomerMode) => void;
   onGuestNameChange: (value: string) => void;
@@ -11478,6 +11525,8 @@ function CheckoutCustomerStep({
                 minPointsToUse={minPointsToUse}
                 pointValue={pointValue}
                 onChange={onPointsToUseChange}
+                verified={memberQrVerified}
+                onScan={onScanMemberQr}
               />
               {memberCreatedPin ? (
                 <Alert className="mt-3 border-[#22c55e]/45 bg-[#22c55e]/12 text-[#f4f4f5]">
@@ -12480,6 +12529,8 @@ function PosPointsRedeemBox({
   minPointsToUse,
   pointValue,
   onChange,
+  verified,
+  onScan,
 }: {
   balance: number;
   pointsToUse: number;
@@ -12487,6 +12538,8 @@ function PosPointsRedeemBox({
   minPointsToUse: number;
   pointValue: number;
   onChange: (points: number) => void;
+  verified: boolean;
+  onScan: () => void;
 }) {
   const canUse = maxPointsToUse >= minPointsToUse;
   return (
@@ -12497,8 +12550,27 @@ function PosPointsRedeemBox({
           1 poin = {currency.format(pointValue)} · saldo {balance}
         </p>
       </div>
-      {canUse ? (
+      {canUse && !verified ? (
+        <div className="mt-2 space-y-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            className="garage-press h-10 w-full border-[#f5a742]/50 text-sm text-[#ffd08a]"
+            onClick={onScan}
+          >
+            <QrCode className="mr-2 size-4" />
+            Scan QR member untuk pakai poin
+          </Button>
+          <p className="text-[11px] text-[#e4e4e7]">
+            Poin hanya bisa dipakai setelah QR di kartu/aplikasi member dipindai. Nomor HP saja tidak cukup.
+          </p>
+        </div>
+      ) : canUse ? (
         <>
+          <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-[#ffd08a]">
+            <ShieldCheck className="size-3.5" />
+            QR member terverifikasi
+          </p>
           <div className="mt-2 flex gap-2">
             <Input
               type="number"

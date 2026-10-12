@@ -85,7 +85,10 @@ export const kasirGuide: RoleGuide = {
       steps: [
         { text: "Cari member dengan nomor HP, atau daftarkan member baru dari kasir." },
         { text: "Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi." },
-        { text: "Poin: bila member punya poin, pilih jumlah poin yang dipakai. Potongan muncul di ringkasan bayar." },
+        {
+          text: "Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.",
+          warn: "Poin tidak bisa dipakai hanya dengan nomor HP. QR harus milik member yang dipilih.",
+        },
         {
           text: "Diskon manual hanya untuk member. Di atas batas yang ditentukan Owner, tekan Minta Persetujuan lalu Manajer/Owner memasukkan PIN di tablet kasir.",
           warn: "Persetujuan diskon hanya berlaku untuk nominal yang disetujui dan untuk kasir yang meminta.",

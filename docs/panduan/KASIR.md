@@ -56,7 +56,8 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 
 1. Cari member dengan nomor HP, atau daftarkan member baru dari kasir.
 2. Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi.
-3. Poin: bila member punya poin, pilih jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.
+3. Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.
+   - **Penting:** Poin tidak bisa dipakai hanya dengan nomor HP. QR harus milik member yang dipilih.
 4. Diskon manual hanya untuk member. Di atas batas yang ditentukan Owner, tekan Minta Persetujuan lalu Manajer/Owner memasukkan PIN di tablet kasir.
    - **Penting:** Persetujuan diskon hanya berlaku untuk nominal yang disetujui dan untuk kasir yang meminta.
 

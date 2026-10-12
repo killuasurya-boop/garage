@@ -39,3 +39,4 @@ PIN Manajer/Owner dipakai di tablet kasir. PIN tidak boleh diberikan ke kasir.
 2. Pengaturan → Receipt: kolom tanda tangan slip manajemen & jumlah cetak slip.
 3. Pengaturan → Printer: Printer Perangkat Ini (per laptop).
 4. Pajak & service saat ini 0% (Garage tidak memungut PB1/service).
+5. Pakai poin member di kasir wajib scan QR kartu/aplikasi member (nomor HP saja ditolak sistem).

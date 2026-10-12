@@ -47,6 +47,11 @@ async function member(phone: string, points: number, createdAt?: Date) {
   return cust;
 }
 
+async function tok(customerId: string, userId = KASIR) {
+  const { issueMemberRedeemToken } = await import("@/lib/member-redeem-token");
+  return issueMemberRedeemToken({ customerId, userId }).token;
+}
+
 async function customer(id: string) {
   const { eq } = await import("drizzle-orm");
   const [row] = await t.getDb().select().from(t.schema.customers).where(eq(t.schema.customers.id, id));
@@ -75,6 +80,7 @@ describe("Pakai poin di kasir (POS)", () => {
         cashReceived: 500_000,
         customerId: cust.id,
         pointsToRedeem: 300,
+        memberRedeemToken: await tok(cust.id),
         items: [{ itemId: "itm-food", variantId: "reg", qty: 2 }],
       },
       session(),
@@ -100,16 +106,43 @@ describe("Pakai poin di kasir (POS)", () => {
       paymentMethod: "Cash",
       cashReceived: 500_000,
       customerId: cust.id,
+      memberRedeemToken: await tok(cust.id),
       items: [{ itemId: "itm-food", variantId: "reg", qty: 2 }],
     };
     await expect(svc.createOrder({ ...base, pointsToRedeem: 400 }, session())).rejects.toThrow(/Maksimal 300 poin/);
     await expect(svc.createOrder({ ...base, pointsToRedeem: 10 }, session())).rejects.toThrow(/Minimal/);
     const poor = await member("081277770003", 60);
-    await expect(svc.createOrder({ ...base, customerId: poor.id, pointsToRedeem: 100 }, session())).rejects.toThrow(/Saldo poin/);
+    await expect(svc.createOrder({ ...base, customerId: poor.id, memberRedeemToken: await tok(poor.id), pointsToRedeem: 100 }, session())).rejects.toThrow(/Saldo poin/);
     await expect(
       svc.createOrder({ ...base, customerId: undefined, pointsToRedeem: 100 }, session()),
     ).rejects.toThrow(/member/);
     expect((await customer(cust.id)).points).toBe(1_000);
+  });
+
+  it("wajib scan QR member: tanpa token, token member lain, atau token kasir lain ditolak", async () => {
+    const cust = await member("081277779904", 500);
+    const other = await member("081277779905", 500);
+    const base = {
+      orderType: "takeaway",
+      paymentMethod: "Cash",
+      cashReceived: 500_000,
+      pointsToRedeem: 100,
+      items: [{ itemId: "itm-food", variantId: "reg", qty: 2 }],
+    };
+    await expect(svc.createOrder({ ...base, customerId: cust.id }, session())).rejects.toThrow(/scan QR member/);
+    await expect(
+      svc.createOrder({ ...base, memberPhone: "081277779904" }, session()),
+    ).rejects.toThrow(/scan QR member/);
+    await expect(
+      svc.createOrder({ ...base, customerId: cust.id, memberRedeemToken: await tok(other.id) }, session()),
+    ).rejects.toThrow(/scan QR member/);
+    await expect(
+      svc.createOrder({ ...base, customerId: cust.id, memberRedeemToken: await tok(cust.id, "kasir-lain") }, session()),
+    ).rejects.toThrow(/scan QR member/);
+    expect((await customer(cust.id)).points).toBe(500);
+    // Lewat nomor HP + token QR yang benar tetap boleh.
+    await svc.createOrder({ ...base, memberPhone: "081277779904", memberRedeemToken: await tok(cust.id) }, session());
+    expect((await customer(cust.id)).points).toBeLessThan(500);
   });
 });
 

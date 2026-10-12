@@ -52,6 +52,7 @@ export const manajerKasirGuide: RoleGuide = {
         { text: "Pengaturan → Receipt: kolom tanda tangan slip manajemen & jumlah cetak slip." },
         { text: "Pengaturan → Printer: Printer Perangkat Ini (per laptop)." },
         { text: "Pajak & service saat ini 0% (Garage tidak memungut PB1/service)." },
+        { text: "Pakai poin member di kasir wajib scan QR kartu/aplikasi member (nomor HP saja ditolak sistem)." },
       ],
     },
   ],

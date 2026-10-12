@@ -76,7 +76,7 @@ export function FeedbackWidget() {
         type="button"
         onClick={() => setOpen(true)}
         title="Report bug / feedback"
-        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg ring-2 ring-[var(--primary)]/30 transition hover:scale-110"
+        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 md:bottom-6 md:right-6 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg ring-2 ring-[var(--primary)]/30 transition hover:scale-110"
       >
         <Bug className="h-5 w-5" />
       </button>

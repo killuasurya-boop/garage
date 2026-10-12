@@ -168,6 +168,7 @@ import {
 } from "@/lib/member-types";
 import { hashPassword } from "@/lib/member-auth";
 import { daysInMonth } from "@/lib/finance-control-core";
+import { verifyMemberRedeemToken } from "@/lib/member-redeem-token";
 import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, returnPointsForOrder } from "@/lib/member-points";
 import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
@@ -211,6 +212,8 @@ type OrderInput = {
   guestPhone?: string;
   /** Poin member yang dipakai sebagai potongan di tagihan ini. */
   pointsToRedeem?: number;
+  /** Token dari scan QR member (/api/pos/member/verify) — wajib untuk pakai poin. */
+  memberRedeemToken?: string;
   voucherCode?: string;
   manualDiscount?: {
     approvalId?: string;
@@ -10932,10 +10935,22 @@ async function createOrderOnce(
   if (input.pointsToRedeem && input.pointsToRedeem > 0) {
     if (!input.customerId && !input.memberPhone) throw new Error("Pakai poin hanya untuk member.");
     const [balanceRow] = await db
-      .select({ points: customers.points })
+      .select({ id: customers.id, points: customers.points })
       .from(customers)
       .where(input.customerId ? eq(customers.id, input.customerId) : eq(customers.phone, normalizePhone(input.memberPhone ?? "")))
       .limit(1);
+    // Owner (Okt 2026): poin hanya bisa dipakai setelah QR kartu member dipindai
+    // oleh kasir ini — nomor HP saja tidak cukup.
+    if (
+      !balanceRow ||
+      !verifyMemberRedeemToken(input.memberRedeemToken, {
+        customerId: balanceRow.id,
+        userId: garage.user.id,
+        offlineSync: options.offlineSync,
+      })
+    ) {
+      throw new Error("Pakai poin wajib scan QR member dulu. Minta member menunjukkan QR di kartu/aplikasi member.");
+    }
     pointsRedeem = pointsDiscountFor({
       requested: input.pointsToRedeem,
       base: Math.max(0, subtotal - voucherDiscount - manualDiscountValue),

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { fail, ok } from "@/lib/api-response";
-import { CourierError, attachDeliveryProof } from "@/lib/garage-courier";
+import { CourierError, assertCanAttachDeliveryProof, attachDeliveryProof } from "@/lib/garage-courier";
 import { deliveryProofDir, detectProofImage } from "@/lib/delivery-proof-storage";
 import { rateLimit } from "@/lib/rate-limit";
 import { requireGarageSession } from "@/lib/server-auth";
@@ -21,6 +21,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (session.response) return session.response;
   const { id } = await context.params;
   if (!UUID.test(id)) return fail(400, "INVALID_ORDER_ID", "Order tidak valid.");
+
+  // Cek kepemilikan dulu — akun lain tidak boleh mengisi disk dengan file yatim.
+  try {
+    await assertCanAttachDeliveryProof(id, session.data);
+  } catch (error) {
+    if (error instanceof CourierError) return fail(error.status, "COURIER_PROOF_FAILED", error.message);
+    throw error;
+  }
 
   let formData: FormData;
   try {

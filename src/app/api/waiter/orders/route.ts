@@ -54,7 +54,8 @@ export async function POST(request: Request) {
     const created = await createCustomerOrder({
       orderType: "dine-in",
       tableLabel,
-      outletId: body.data.outletId,
+      // Selalu outlet akun waiter (bukan dari body).
+      outletId: session.data.profile.outlet.id,
       customerMode: "guest",
       // "Meja 5 · Andi · Waiter 1" (nama tamu diisi) atau "Meja 5 · Waiter 1".
       guestName: [tableLabel, body.data.customerName?.replace(/·/g, " ").trim(), session.data.user.name]
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
         .slice(0, 80),
       customerNote: body.data.customerNote,
       source: "qr_table",
+      staffOrder: true,
       paymentMethod: "Cash",
       items: body.data.items,
     });

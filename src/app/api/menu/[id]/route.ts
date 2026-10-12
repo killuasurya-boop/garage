@@ -14,7 +14,7 @@ import { getDb } from "@/db";
 import { menuItems } from "@/db/schema";
 import { canOperateStation, productionStationFor } from "@/lib/garage-production-rules";
 import { canUseApiAs } from "@/lib/role-access";
-import { requireAnyPermission, requireGarageSession, requirePermission } from "@/lib/server-auth";
+import { requireAnyPermission, requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 

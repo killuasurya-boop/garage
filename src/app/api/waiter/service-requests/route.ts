@@ -10,6 +10,6 @@ export async function GET(request: Request) {
     return session.response;
   }
 
-  const requests = await listOpenServiceRequests();
+  const requests = await listOpenServiceRequests(session.data.profile.outlet.id);
   return okWithEtag(request, requests);
 }

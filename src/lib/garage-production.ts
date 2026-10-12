@@ -396,7 +396,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       Food: canOperateStation(garage.profile.role, garage.profile.workstation, "Food"),
     },
     canHandover,
-    waiters: canHandover.Bar || canHandover.Food ? await listCallableWaiters() : [],
+    waiters: canHandover.Bar || canHandover.Food ? await listCallableWaiters(garage.profile.outlet.id) : [],
     cancelled: cancelledRows.map((ticket) => ({
       ticketNo: ticket.ticketNo,
       orderNo: ticket.orderNo,

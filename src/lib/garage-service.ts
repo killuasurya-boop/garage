@@ -260,6 +260,8 @@ type CustomerOrderInput = {
   /** Member login: poin dipakai sebagai potongan (dipotong saat order dibuat). */
   pointsToRedeem?: number;
   voucherCode?: string;
+  /** Dibuat staf (waiter "Pesankan"): tanpa promo QR self-order. */
+  staffOrder?: boolean;
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
@@ -7458,12 +7460,18 @@ export async function createServiceRequest(input: {
   return { id: row.id, deduped: false };
 }
 
-export async function listOpenServiceRequests() {
+export async function listOpenServiceRequests(outletId?: string) {
   const db = getDb();
   const rows = await db
     .select()
     .from(serviceRequests)
-    .where(eq(serviceRequests.status, "open"))
+    .where(
+      and(
+        eq(serviceRequests.status, "open"),
+        // Panggilan meja outlet lain tidak tampil (data lama tanpa outlet tetap tampil).
+        outletId ? or(eq(serviceRequests.outletId, outletId), isNull(serviceRequests.outletId)) : undefined,
+      ),
+    )
     .orderBy(asc(serviceRequests.createdAt))
     .limit(100);
   return rows.map((row) => ({
@@ -7475,12 +7483,18 @@ export async function listOpenServiceRequests() {
   }));
 }
 
-export async function resolveServiceRequest(id: string, userId: string) {
+export async function resolveServiceRequest(id: string, userId: string, outletId?: string) {
   const db = getDb();
   const [row] = await db
     .update(serviceRequests)
     .set({ status: "resolved", resolvedBy: userId, resolvedAt: new Date() })
-    .where(and(eq(serviceRequests.id, id), eq(serviceRequests.status, "open")))
+    .where(
+      and(
+        eq(serviceRequests.id, id),
+        eq(serviceRequests.status, "open"),
+        outletId ? or(eq(serviceRequests.outletId, outletId), isNull(serviceRequests.outletId)) : undefined,
+      ),
+    )
     .returning();
   return row ? { id: row.id } : null;
 }
@@ -9039,7 +9053,8 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
   const { service, tax, grossTotal } = calculateBillingTotals(subtotal, settings);
   // Promo QR dari Pengaturan (dulu tertanam: 10% maks Rp25.000).
-  const promoDiscount = qrPromoDiscount(subtotal, settings);
+  // Promo QR untuk pelanggan yang memesan sendiri — bukan pesanan yang dibuat staf (waiter).
+  const promoDiscount = input.staffOrder ? 0 : qrPromoDiscount(subtotal, settings);
   const voucherValidation = input.voucherCode
     ? await validateVoucher({
         code: input.voucherCode,
@@ -11821,13 +11836,21 @@ async function handoverKitchenTicketImpl(
 /** Waiter aktif (sedang login) + jumlah antaran berjalan — untuk dipanggil helper. */
 // Semua waiter aktif (tidak harus sedang login): waiter cukup mengambil pesanan di meja
 // saji, helper Bar/Dapur yang tap nama mereka saat "Diambil".
-export async function listCallableWaiters() {
+export async function listCallableWaiters(outletId?: string) {
   const db = getDb();
   const rows = await db
     .select({ id: user.id, name: user.name })
     .from(staffProfiles)
     .innerJoin(user, eq(user.id, staffProfiles.userId))
-    .where(and(eq(staffProfiles.role, "Waiter"), eq(staffProfiles.status, "active")));
+    .where(
+      and(
+        eq(staffProfiles.role, "Waiter"),
+        eq(staffProfiles.status, "active"),
+        // Akun kurir (delivery) tidak mengantar ke meja.
+        or(isNull(staffProfiles.workstation), ne(staffProfiles.workstation, "kurir")),
+        outletId ? eq(staffProfiles.outletId, outletId) : undefined,
+      ),
+    );
   const unique = [...new Map(rows.map((row) => [row.id, row])).values()];
   if (!unique.length) return [];
   const loads = await db
@@ -15360,6 +15383,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       metadata: {
         orderId: order.id,
         orderNo: order.orderNo,
+        cancelledProductionTickets: productionCancel.ticketNos,
         refundAmount: split.refundAmount,
         previousTotal: order.total,
         nextTotal: split.next.total,

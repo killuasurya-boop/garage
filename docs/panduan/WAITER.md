@@ -2,7 +2,7 @@
 
 > Melayani meja dari tamu datang, pesan, antar pesanan, sampai meja bersih kembali. Waiter tidak memegang uang.
 >
-> Untuk: Waiter · Diperbarui 2026-10-12. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Waiter · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Mulai kerja
 

@@ -2,7 +2,7 @@
 
 > Alur kerja kasir Garage dari login, buka shift, melayani pesanan, sampai tutup shift dan balancing uang laci.
 >
-> Untuk: Kasir · Diperbarui 2026-10-12. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Kasir · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Login & layar kunci
 
@@ -83,7 +83,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 1. Cetak ulang struk: menu Riwayat Struk Shift → Cetak ulang. Maksimal 3 kali per order. Setelah itu minta Manajer/Owner.
 2. Salah pilih metode bayar (mis. tercatat Tunai padahal QRIS): Koreksi Metode Bayar sebelum tutup shift, dengan PIN Manajer/Owner.
 3. Batal (void) / refund: ajukan dari detail order dengan alasan. Manajer/Owner menyetujui dengan PIN. Uang tunai yang dikembalikan otomatis dikurangkan dari laci.
-   - **Penting:** Jangan mengembalikan uang sebelum void/refund disetujui sistem.
+   - **Penting:** Jangan mengembalikan uang sebelum void/refund disetujui sistem. Menu yang belum dibuat: bahan kembali ke stok. Menu yang sudah dibuat/diantar: dicatat waste.
 
 ## 9. Kas keluar / masuk laci
 

@@ -272,6 +272,36 @@ describe("Pisah bill vs layar Bar/Dapur", () => {
   });
 });
 
+describe("Waste: menu yang sudah dibuat lalu dibatalkan", () => {
+  it("porsi yang sedang/sudah dibuat tidak mengembalikan bahan; yang belum dibuat kembali", async () => {
+    const { eq, and } = await drizzle();
+    const p = await newTableOrder("Meja 11");
+    await svc.updateCustomerOrderStatus(p.id, { action: "accept" }, kasir());
+    const before = await beanLedgerNet();
+    // Barista sudah mulai membuat kopi (2 porsi).
+    await t
+      .getDb()
+      .update(t.schema.productionTicketItems)
+      .set({ status: "processing" })
+      .where(
+        and(
+          eq(t.schema.productionTicketItems.orderId, p.id),
+          eq(t.schema.productionTicketItems.menuItemId, "itm-coffee"),
+        ),
+      );
+    await svc.requestOrderVoidApproval(p.orderNo, { reasonCode: "pelanggan_batal" }, manajer());
+    // 36 g kopi sudah terpakai → dicatat waste, tidak kembali ke stok.
+    expect(await beanLedgerNet()).toBe(before);
+
+    const q = await newTableOrder("Meja 12");
+    await svc.updateCustomerOrderStatus(q.id, { action: "accept" }, kasir());
+    const beforeQ = await beanLedgerNet();
+    await svc.requestOrderVoidApproval(q.orderNo, { reasonCode: "pelanggan_batal" }, manajer());
+    // Belum mulai dibuat → bahan kembali penuh.
+    expect(await beanLedgerNet()).toBe(beforeQ + 36);
+  });
+});
+
 describe("Pisah bill SEBELUM diterima dapur", () => {
   it("tiap bill diproses sendiri: tiket & potong stok masing-masing, total stok tetap 36 g", async () => {
     const before = await beanLedgerNet();

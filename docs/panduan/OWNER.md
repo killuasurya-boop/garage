@@ -2,7 +2,7 @@
 
 > Memantau bisnis, keputusan final persetujuan, pengaturan keuangan & gaji, dan pengawasan tim.
 >
-> Untuk: Owner · Diperbarui 2026-10-12. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Owner · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Memantau bisnis
 

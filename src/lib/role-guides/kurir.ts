@@ -7,7 +7,7 @@ export const kurirGuide: RoleGuide = {
   summary: "Mengambil pesanan delivery yang sudah lunas, mengantar dengan GPS, dan menyelesaikan dengan foto bukti.",
   roles: ["Waiter"],
   workstations: ["kurir"],
-  updatedAt: "2026-10-12",
+  updatedAt: "2026-10-13",
   sections: [
     {
       id: "mulai",

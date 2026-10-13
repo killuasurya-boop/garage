@@ -2328,8 +2328,10 @@ export async function getKitchenPerformanceData(params?: {
 
     const staffName =
       ticket.readyByName ?? ticket.acceptedByName ?? "Belum tercatat";
+    // Target waktu dihitung sejak pesanan masuk (sama dengan layar Bar/Dapur),
+    // bukan sejak tombol Mulai — menunda Mulai tidak memperbaiki skor.
     const productionMinutes =
-      minutesBetween(ticket.acceptedAt ?? ticket.createdAt, ticket.readyAt) ??
+      minutesBetween(ticket.createdAt, ticket.readyAt) ??
       ticket.elapsed;
     const isLate = productionMinutes > ticket.targetMinutes;
     const bucket = buckets.get(staffName) ?? {
@@ -12166,7 +12168,8 @@ async function updateKitchenStatusImpl(
 
   if (status === "ready") {
     const acceptedAt = current.acceptedAt ?? current.createdAt;
-    const productionMinutes = minutesBetween(acceptedAt, now) ?? 0;
+    // SLA (owner, Okt 2026): sejak pesanan masuk ke station, sama dengan layar.
+    const productionMinutes = minutesBetween(current.createdAt, now) ?? 0;
 
     if (!current.acceptedAt) {
       update.acceptedAt = acceptedAt;
@@ -15103,6 +15106,40 @@ async function voidOrderImpl(
     // Bill pisahan yang menumpang catatan stok induk: kembalikan sesuai item
     // miliknya, dicatat di buku induk supaya void induk tidak menghitung dobel.
     const ledgerOrderNo = await inheritedLedgerOf(tx, order);
+    // Split bill: tiket produksi menumpang order induk. Void satu bill hanya
+    // membatalkan porsi milik bill itu — bill lain di meja tetap dibuat.
+    const production = await (async () => {
+      if (ledgerOrderNo) {
+        const [ledger] = await tx
+          .select({ id: orders.id })
+          .from(orders)
+          .where(eq(orders.orderNo, ledgerOrderNo))
+          .limit(1);
+        if (!ledger) return { ticketNos: [] as string[], tracked: false, unmade: [], made: [] };
+        const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+        return cancelProductionQuantities(tx, {
+          ledgerOrderId: ledger.id,
+          lines: ownItems,
+          reason: `Sebagian batal: bill ${order.orderNo} dibatalkan (${reason})`,
+          now,
+        });
+      }
+      if (await hasLiveInheritedChildren(tx, order.id)) {
+        const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+        return cancelProductionQuantities(tx, {
+          ledgerOrderId: order.id,
+          lines: ownItems,
+          reason: `Sebagian batal: bill ${order.orderNo} dibatalkan (${reason})`,
+          now,
+        });
+      }
+      return cancelProductionForOrder(tx, order.id, `Order dibatalkan: ${reason}`, now);
+    })();
+    // Waste (owner, Okt 2026): bahan untuk porsi yang SUDAH dibuat/diantar tidak
+    // kembali ke stok — hanya porsi yang belum mulai dibuat.
+    const wasteBySku = production.tracked
+      ? await recipeQtyBySku(tx, production.made, orderUsesRecipeWaste(order))
+      : new Map<string, number>();
     if (ledgerOrderNo) {
       const parentDeducted =
         (await sumMovementsBySku(tx, "recipe_deduct", outletDeductNote(ledgerOrderNo))).size > 0;
@@ -15110,7 +15147,9 @@ async function voidOrderImpl(
       const needs = parentDeducted
         ? await recipeQtyBySku(tx, ownItems, orderUsesRecipeWaste(order))
         : new Map<string, number>();
-      for (const [sku, qty] of needs) {
+      for (const [sku, needQty] of needs) {
+        const qty = Number((needQty - (wasteBySku.get(sku) ?? 0)).toFixed(4));
+        if (qty <= 0) continue;
         await restoreOutletStock(tx, {
           sku,
           qty,
@@ -15133,7 +15172,7 @@ async function voidOrderImpl(
     const keptByChildren = deducted.size ? await liveInheritedChildrenQty(tx, order) : new Map<string, number>();
     for (const [sku, qty] of deducted) {
       const restoreQty = Number(
-        (qty - (alreadyRefunded.get(sku) ?? 0) - (keptByChildren.get(sku) ?? 0)).toFixed(4),
+        (qty - (alreadyRefunded.get(sku) ?? 0) - (keptByChildren.get(sku) ?? 0) - (wasteBySku.get(sku) ?? 0)).toFixed(4),
       );
       if (restoreQty <= 0) continue;
       await restoreOutletStock(tx, {
@@ -15175,35 +15214,6 @@ async function voidOrderImpl(
 
     // Production Hub: tiket yang belum diantar ikut batal supaya Bar/Dapur
     // berhenti membuat & waiter tidak mengantar pesanan yang dibatalkan.
-    // Split bill: tiket produksi menumpang order induk. Void satu bill hanya
-    // membatalkan porsi milik bill itu — bill lain di meja tetap dibuat.
-    const productionCancel = await (async () => {
-      if (ledgerOrderNo) {
-        const [ledger] = await tx
-          .select({ id: orders.id })
-          .from(orders)
-          .where(eq(orders.orderNo, ledgerOrderNo))
-          .limit(1);
-        if (!ledger) return { ticketNos: [] as string[] };
-        const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-        return cancelProductionQuantities(tx, {
-          ledgerOrderId: ledger.id,
-          lines: ownItems,
-          reason: `Sebagian batal: bill ${order.orderNo} dibatalkan (${reason})`,
-          now,
-        });
-      }
-      if (await hasLiveInheritedChildren(tx, order.id)) {
-        const ownItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-        return cancelProductionQuantities(tx, {
-          ledgerOrderId: order.id,
-          lines: ownItems,
-          reason: `Sebagian batal: bill ${order.orderNo} dibatalkan (${reason})`,
-          now,
-        });
-      }
-      return cancelProductionForOrder(tx, order.id, `Order dibatalkan: ${reason}`, now);
-    })();
 
     await tx
       .update(orders)
@@ -15225,8 +15235,9 @@ async function voidOrderImpl(
         stockReversed,
         cashOut,
         cashSessionId: cashSession?.id ?? null,
-        cancelledTickets: productionCancel.ticketNos,
-        batchesAdjusted: "batchesTouched" in productionCancel ? productionCancel.batchesTouched : 0,
+        cancelledTickets: production.ticketNos,
+        batchesAdjusted: "batchesTouched" in production ? production.batchesTouched : 0,
+        wasteItems: production.made,
       },
     });
 
@@ -15236,7 +15247,7 @@ async function voidOrderImpl(
       stockReversed,
       previousTotal: order.total,
       cashOut,
-      cancelledTickets: productionCancel.ticketNos,
+      cancelledTickets: production.ticketNos,
     };
   });
 
@@ -15299,6 +15310,28 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       (await sumMovementsBySku(tx, "stock_out", globalDeductNote(ledgerNo))).size > 0;
     const outletId = order.outletId ?? garage.profile.outlet.id;
 
+    // Bar/Dapur berhenti membuat item yang direfund. Dihitung sebelum stok:
+    // porsi yang sudah dibuat/diantar = waste (bahan tidak kembali ke stok).
+    const [ledgerOrder] =
+      ledgerNo === order.orderNo
+        ? [{ id: order.id }]
+        : await tx.select({ id: orders.id }).from(orders).where(eq(orders.orderNo, ledgerNo)).limit(1);
+    const productionCancel = ledgerOrder
+      ? await cancelProductionQuantities(tx, {
+          ledgerOrderId: ledgerOrder.id,
+          lines: lines.map((line) => {
+            const item = currentItems.find((row) => row.id === line.orderItemId)!;
+            return { menuItemId: item.menuItemId, variantId: item.variantId, qty: line.qty };
+          }),
+          reason: `Sebagian batal: refund ${order.orderNo} (${reason})`,
+          now,
+        })
+      : { ticketNos: [] as string[], cancelledQty: 0, tracked: false, unmade: [], made: [] };
+    const unmadeLeft = new Map<string, number>();
+    for (const u of productionCancel.unmade) {
+      const k = `${u.menuItemId ?? ""}|${u.variantId}`;
+      unmadeLeft.set(k, (unmadeLeft.get(k) ?? 0) + u.qty);
+    }
     for (const line of lines) {
       const item = currentItems.find((row) => row.id === line.orderItemId)!;
       const nextQty = item.qty - line.qty;
@@ -15312,6 +15345,14 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       }
 
       if ((!hadOutletDeduct && !hadGlobalDeduct) || !item.menuItemId) continue;
+      // Hanya porsi yang belum dibuat yang mengembalikan bahan (data lama tanpa
+      // porsi produksi: semua dikembalikan seperti sebelumnya).
+      const lineKey = `${item.menuItemId ?? ""}|${item.variantId}`;
+      const restoreLineQty = productionCancel.tracked
+        ? Math.min(line.qty, unmadeLeft.get(lineKey) ?? 0)
+        : line.qty;
+      if (productionCancel.tracked) unmadeLeft.set(lineKey, (unmadeLeft.get(lineKey) ?? 0) - restoreLineQty);
+      if (restoreLineQty <= 0) continue;
       const recipes = await tx
         .select({ sku: menuRecipes.inventorySku, qty: menuRecipes.qty, wastePct: menuRecipes.wastePct })
         .from(menuRecipes)
@@ -15325,7 +15366,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       for (const recipe of recipes) {
         if (!recipe.sku) continue;
         const waste = withWaste ? 1 + (recipe.wastePct ?? 0) / 100 : 1;
-        const restoreQty = Number((recipe.qty * line.qty * waste).toFixed(3));
+        const restoreQty = Number((recipe.qty * restoreLineQty * waste).toFixed(3));
         if (restoreQty <= 0) continue;
         const source = ledgerNo === order.orderNo ? "" : ` (${order.orderNo})`;
         if (hadOutletDeduct) {
@@ -15352,22 +15393,6 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
       }
     }
 
-    // Bar/Dapur berhenti membuat item yang direfund (stoknya sudah dikembalikan).
-    const [ledgerOrder] =
-      ledgerNo === order.orderNo
-        ? [{ id: order.id }]
-        : await tx.select({ id: orders.id }).from(orders).where(eq(orders.orderNo, ledgerNo)).limit(1);
-    const productionCancel = ledgerOrder
-      ? await cancelProductionQuantities(tx, {
-          ledgerOrderId: ledgerOrder.id,
-          lines: lines.map((line) => {
-            const item = currentItems.find((row) => row.id === line.orderItemId)!;
-            return { menuItemId: item.menuItemId, variantId: item.variantId, qty: line.qty };
-          }),
-          reason: `Sebagian batal: refund ${order.orderNo} (${reason})`,
-          now,
-        })
-      : { ticketNos: [] as string[], cancelledQty: 0 };
 
     await tx
       .update(orders)
@@ -15397,6 +15422,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
         orderId: order.id,
         orderNo: order.orderNo,
         cancelledProductionTickets: productionCancel.ticketNos,
+        wasteItems: productionCancel.made,
         refundAmount: split.refundAmount,
         previousTotal: order.total,
         nextTotal: split.next.total,

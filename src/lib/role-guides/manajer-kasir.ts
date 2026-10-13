@@ -6,7 +6,7 @@ export const manajerKasirGuide: RoleGuide = {
   title: "Panduan Supervisi Kasir (Manajer & Owner)",
   summary: "Persetujuan di kasir, rekap harian, selisih kas, QRIS, dan laporan penjualan.",
   roles: ["Manajer", "Owner"],
-  updatedAt: "2026-10-12",
+  updatedAt: "2026-10-13",
   sections: [
     {
       id: "pin",

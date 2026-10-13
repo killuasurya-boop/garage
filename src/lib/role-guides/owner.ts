@@ -6,7 +6,7 @@ export const ownerGuide: RoleGuide = {
   title: "Panduan Owner",
   summary: "Memantau bisnis, keputusan final persetujuan, pengaturan keuangan & gaji, dan pengawasan tim.",
   roles: ["Owner"],
-  updatedAt: "2026-10-12",
+  updatedAt: "2026-10-13",
   sections: [
     {
       id: "pantau",

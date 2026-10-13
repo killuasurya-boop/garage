@@ -29,3 +29,13 @@
 1. Manajemen Tim: kelola akun Manajer dan semua karyawan. Akun baru / reset wajib ganti password sebelum bisa bekerja.
 2. PIN Owner/Manajer hanya untuk persetujuan di tablet kasir — jangan diberikan ke kasir.
 3. Audit: periksa void, refund, koreksi absen, penerimaan barang, dan perubahan harga.
+
+## 5. Agent AI (WhatsApp / Telegram)
+
+OpenClaw / Hermes bisa mengontrol Garage OS dari WhatsApp atau Telegram memakai API key agent.
+
+1. Pengaturan → Integrasi → API Key Agent AI → Buat key. Pilih hak akses: Owner penuh, Manajer, atau Baca-saja.
+2. Salin key (hanya tampil sekali) dan konfigurasi MCP ke agent: URL /api/mcp + header Authorization: Bearer key.
+   - **Penting:** Key Owner penuh bisa void/refund, catat pengeluaran, dan setujui pengajuan langsung. Jangan bagikan key; cabut segera bila bocor.
+3. Semua aksi agent tercatat di Audit dengan nama "Agent <nama key>".
+4. Panduan teknis lengkap: docs/AGENT-API.md.

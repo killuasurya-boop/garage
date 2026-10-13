@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { ensureDatabaseReady, getDb } from "@/db";
 import { outlets, staffProfiles } from "@/db/schema";
 import { fail } from "@/lib/api-response";
+import { extractAgentKey, resolveAgentSession } from "@/lib/agent-api-key";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/garage-data";
 import { canHandleMoney, canUseApiAs, MANAGEMENT_ROLES, type Permission } from "@/lib/role-access";
@@ -36,14 +37,23 @@ export type GarageSession = {
       name: string;
       timezone: string;
     };
+    /** Ada bila request memakai API key agent AI (lihat agent-api-key.ts). */
+    agentKey?: { id: string; label: string; scope: "owner" | "manajer" | "readonly" } | null;
   };
 };
 
 export async function requireGarageSession(allowedRoles?: Role[]) {
   await ensureDatabaseReady();
 
+  const requestHeaders = await headers();
+  // API key agent AI (OpenClaw / Hermes): sesi sintetis atas nama Owner pembuat key.
+  const agentKey = extractAgentKey(requestHeaders);
+  if (agentKey) {
+    return resolveAgentSession(agentKey, requestHeaders, allowedRoles);
+  }
+
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   });
 
   if (!session?.user) {
@@ -256,5 +266,21 @@ export async function requireAnyPermission(permissions: Permission[]) {
     };
   }
 
+  return session;
+}
+
+/**
+ * Sesi manusia (login cookie) saja — API key agent ditolak. Dipakai untuk aksi
+ * yang tidak boleh dilakukan agent: kelola API key, keamanan akun.
+ */
+export async function requireHumanSession(allowedRoles?: Role[]) {
+  const session = await requireGarageSession(allowedRoles);
+  if (session.response) return session;
+  if (session.data.profile.agentKey) {
+    return {
+      data: null,
+      response: fail(403, "HUMAN_SESSION_REQUIRED", "Aksi ini hanya bisa dilakukan Owner yang login langsung, bukan lewat API key."),
+    };
+  }
   return session;
 }

@@ -48,5 +48,19 @@ export const ownerGuide: RoleGuide = {
         { text: "Audit: periksa void, refund, koreksi absen, penerimaan barang, dan perubahan harga." },
       ],
     },
+    {
+      id: "agent",
+      title: "5. Agent AI (WhatsApp / Telegram)",
+      intro: "OpenClaw / Hermes bisa mengontrol Garage OS dari WhatsApp atau Telegram memakai API key agent.",
+      steps: [
+        { text: "Pengaturan → Integrasi → API Key Agent AI → Buat key. Pilih hak akses: Owner penuh, Manajer, atau Baca-saja." },
+        {
+          text: "Salin key (hanya tampil sekali) dan konfigurasi MCP ke agent: URL /api/mcp + header Authorization: Bearer key.",
+          warn: "Key Owner penuh bisa void/refund, catat pengeluaran, dan setujui pengajuan langsung. Jangan bagikan key; cabut segera bila bocor.",
+        },
+        { text: "Semua aksi agent tercatat di Audit dengan nama \"Agent <nama key>\"." },
+        { text: "Panduan teknis lengkap: docs/AGENT-API.md." },
+      ],
+    },
   ],
 };

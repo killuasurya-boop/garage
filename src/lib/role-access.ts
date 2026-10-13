@@ -325,6 +325,8 @@ export type StaffCapabilityProfile = {
   role: Role;
   workstation?: string | null;
   position?: string | null;
+  /** Diisi bila request memakai API key agent AI (lihat agent-api-key.ts). */
+  agentKey?: { scope: string } | null;
 };
 
 const MONEY_PERMISSIONS: Permission[] = ["pos:use", "orders:manage", "shift:cash"];
@@ -360,6 +362,10 @@ export function canWriteStock(profile: StaffCapabilityProfile): boolean {
 
 export function effectivePermissions(profile: StaffCapabilityProfile): Permission[] {
   const base = permissionsForRole(profile.role);
+  // API key agent baca-saja: hanya izin ":read" (tulis tetap ditolak di auth juga).
+  if (profile.agentKey?.scope === "readonly") {
+    return base.filter((permission) => permission.endsWith(":read"));
+  }
   // Kurir (Waiter + workstation "kurir") tidak melayani meja.
   if (profile.role === "Waiter" && (profile.workstation ?? "").trim().toLowerCase() === "kurir") {
     return base.filter((permission) => permission !== "tables:write");

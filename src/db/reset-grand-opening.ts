@@ -41,7 +41,7 @@ export const KEEP_TABLES = [
   // kunci sistem (VAPID web push) — tetap supaya langganan HP tidak putus
   "system_keys",
   // outlet & pengaturan
-  "outlets", "dining_tables", "app_settings", "pos_terminals", "site_assets", "operation_locations", "operation_glossary",
+  "outlets", "dining_tables", "app_settings", "pos_terminals", "agent_api_keys", "site_assets", "operation_locations", "operation_glossary",
   // menu, resep, katalog
   "menu_items", "menu_variants", "menu_recipes", "menu_research",
   // pelanggan & member (poin dipertahankan kecuali --reset-member-points)

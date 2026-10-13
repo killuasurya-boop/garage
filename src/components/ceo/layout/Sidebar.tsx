@@ -29,7 +29,8 @@ import {
 import { useDashboard } from "../store/dashboardStore";
 import { GlowDot } from "../ui/GlowDot";
 
-const nav = [
+/** Menu Control Center (dipakai sidebar & pencarian topbar). */
+export const controlNav = [
   { href: "/control", label: "Ringkasan", icon: LayoutDashboard },
   { href: "/control/onboarding", label: "Onboarding", icon: Rocket },
   { href: "/control/briefing", label: "Briefing", icon: Sparkles },
@@ -101,7 +102,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {nav.map((item) => {
+        {controlNav.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href || (item.href !== "/control" && pathname.startsWith(item.href));
           return (

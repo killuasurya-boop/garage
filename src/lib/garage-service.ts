@@ -1617,7 +1617,7 @@ export async function getMenuData(params?: {
   });
 }
 
-function slugifyMenuId(value: string) {
+export function slugifyMenuId(value: string) {
   return value
     .trim()
     .toLowerCase()
@@ -1628,11 +1628,11 @@ function slugifyMenuId(value: string) {
     .slice(0, 64);
 }
 
-function sectionForMenuCategory(category: MenuCategory) {
+export function sectionForMenuCategory(category: MenuCategory) {
   return category === "Coffee" || category === "Non-Coffee" ? "Bar" : "Dapur";
 }
 
-function normalizeVariantId(value: string | undefined, index: number) {
+export function normalizeVariantId(value: string | undefined, index: number) {
   const fallback = index === 0 ? "regular" : `variant-${index + 1}`;
   return slugifyMenuId(value || fallback) || fallback;
 }
@@ -1650,7 +1650,7 @@ function menuSkuPrefix(category: string) {
 
 // Auto-generate SKU unik format <PREFIX>-<urut 3 digit> berdasar kategori.
 // Cari nomor tertinggi yang sudah dipakai prefix tsb lalu +1 (toleran gap).
-async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
+export async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
   const prefix = menuSkuPrefix(category);
   const rows = await tx
     .select({ sku: menuItems.sku })
@@ -1665,7 +1665,7 @@ async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
 }
 
 // Normalisasi SKU manual: uppercase, hanya huruf/angka/dash. Kosong → null.
-function normalizeMenuSku(raw: string | undefined | null) {
+export function normalizeMenuSku(raw: string | undefined | null) {
   const trimmed = (raw ?? "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
   return trimmed || null;
 }
@@ -14046,16 +14046,21 @@ export async function listExpenses(
   if (filter.status && filter.status !== "all") {
     conditions.push(eq(expenses.status, filter.status));
   }
+  // "YYYY-MM-DD" = hari kalender WIB penuh (akhir inklusif); ISO lengkap dipakai apa adanya.
+  const isDayKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
   if (filter.from) {
-    const fromDate = new Date(filter.from);
+    const fromDate = isDayKey(filter.from) ? new Date(`${filter.from}T00:00:00.000${jakartaOffset}`) : new Date(filter.from);
     if (!Number.isNaN(fromDate.getTime())) {
       conditions.push(gte(expenses.expenseDate, fromDate));
     }
   }
   if (filter.to) {
-    const toDate = new Date(filter.to);
-    if (!Number.isNaN(toDate.getTime())) {
-      conditions.push(lte(expenses.expenseDate, toDate));
+    if (isDayKey(filter.to)) {
+      const end = new Date(new Date(`${filter.to}T00:00:00.000${jakartaOffset}`).getTime() + 86_400_000);
+      if (!Number.isNaN(end.getTime())) conditions.push(lt(expenses.expenseDate, end));
+    } else {
+      const toDate = new Date(filter.to);
+      if (!Number.isNaN(toDate.getTime())) conditions.push(lte(expenses.expenseDate, toDate));
     }
   }
   const rows = await getDb()

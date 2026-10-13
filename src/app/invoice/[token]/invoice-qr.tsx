@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { QrCode } from "lucide-react";
 
 interface InvoiceQrProps {
@@ -8,63 +8,51 @@ interface InvoiceQrProps {
   size?: number;
 }
 
+/**
+ * QR tautan invoice/tracking. Dibuat sebagai data URL (PNG) sehingga tampil
+ * di layar & ikut tercetak — sebelumnya canvas belum terpasang saat QR digambar
+ * sehingga QR tidak pernah muncul.
+ */
 export function InvoiceQrCode({ url, size = 144 }: InvoiceQrProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const fullUrl = url.startsWith("http") || typeof window === "undefined" ? url : `${window.location.origin}${url}`;
 
   useEffect(() => {
-    import("qrcode").then((qrcodeMod) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const baseUrl =
-        typeof window !== "undefined" ? window.location.origin : "https://garage.id";
-      const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
-
-      // qrcode's default export is toCanvas
-      const toCanvas = (
-        qrcodeMod.default as unknown as (
-          canvas: HTMLCanvasElement,
-          text: string,
-          opts?: {
-            width?: number;
-            margin?: number;
-            color?: { dark?: string; light?: string };
-            errorCorrectionLevel?: string;
-          }
-        ) => Promise<unknown>
-      );
-
-      toCanvas(canvas, fullUrl, {
-        width: size,
-        margin: 1,
-        color: {
-          dark: "#111827",
-          light: "#ffffff",
-        },
-        errorCorrectionLevel: "M",
-      }).then(() => setLoaded(true)).catch(() => setLoaded(false));
-    }).catch(() => setLoaded(false));
-  }, [url, size]);
+    let cancelled = false;
+    import("qrcode")
+      .then((QRCode) =>
+        QRCode.toDataURL(fullUrl, {
+          width: size * 2,
+          margin: 1,
+          errorCorrectionLevel: "M",
+          color: { dark: "#111827", light: "#ffffff" },
+        }),
+      )
+      .then((value) => {
+        if (!cancelled) setDataUrl(value);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fullUrl, size]);
 
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="rounded-md border border-[#34343c] bg-white p-2">
-        {loaded ? (
-          <canvas ref={canvasRef} width={size} height={size} className="block" />
+        {dataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data URL QR, perlu ikut tercetak
+          <img src={dataUrl} width={size} height={size} alt={`QR invoice: ${fullUrl}`} className="block" />
         ) : (
-          <div
-            className="flex items-center justify-center"
-            style={{ width: size, height: size }}
-          >
-            <QrCode
-              className="text-gray-800"
-              style={{ width: size * 0.5, height: size * 0.5 } as React.CSSProperties}
-            />
+          <div className="flex items-center justify-center" style={{ width: size, height: size }}>
+            <QrCode className="text-gray-800" style={{ width: size * 0.5, height: size * 0.5 }} aria-hidden />
           </div>
         )}
       </div>
-      <span className="font-mono text-[9px] text-[#8f8f99]">Scan untuk tracking</span>
+      <span className="font-mono text-[10px] text-[#a1a1aa]">{failed ? "QR gagal dibuat — buka tautan invoice" : "Scan untuk tracking"}</span>
     </div>
   );
 }

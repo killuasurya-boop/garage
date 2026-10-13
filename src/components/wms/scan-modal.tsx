@@ -1,53 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useCodeScanner } from "@/lib/use-code-scanner";
+import { parseWmsScan } from "@/lib/wms-scan";
 
-/** Modal scan barcode/QR (kamera + BarcodeDetector native) + fallback ketik manual. */
+/** Modal scan barcode/QR (kamera: BarcodeDetector / jsQR) + fallback ketik manual / scanner USB. */
 export function ScanModal({ onDetect, onCancel, title = "Scan Barcode / QR" }: { onDetect: (v: string) => void; onCancel: () => void; title?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const detectRef = useRef(onDetect);
-  const [err, setErr] = useState<string | null>(null);
-  const [supported, setSupported] = useState(true);
   const [manual, setManual] = useState("");
-
-  useEffect(() => { detectRef.current = onDetect; }, [onDetect]);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    let raf = 0;
-    let stopped = false;
-    void (async () => {
-      const Detector = (window as any).BarcodeDetector;
-      if (!Detector) { setSupported(false); return; }
-      const detector = new Detector({ formats: ["qr_code", "code_128", "ean_13", "ean_8", "code_39", "upc_a", "upc_e"] });
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        const tick = async () => {
-          if (stopped || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0].rawValue) { detectRef.current(String(codes[0].rawValue)); return; }
-          } catch { /* frame gagal — lanjut */ }
-          raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      } catch {
-        setErr("Tidak bisa akses kamera. Izinkan kamera, atau ketik SKU/barcode manual.");
-      }
-    })();
-    return () => {
-      stopped = true;
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
-    };
-  }, []);
+  // Label penerimaan "SKU|BATCH" → kirim SKU-nya saja ke pemanggil.
+  const emit = (raw: string) => {
+    const { code } = parseWmsScan(raw);
+    if (code) onDetect(code);
+  };
+  const { error: err, engine } = useCodeScanner({ videoRef, enabled: true, onCode: emit });
+  const detectRef = { current: emit };
+  const supported = !err;
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4" onClick={onCancel}>
@@ -61,7 +31,7 @@ export function ScanModal({ onDetect, onCancel, title = "Scan Barcode / QR" }: {
             <div className="overflow-hidden rounded-lg bg-black">
               <video ref={videoRef} playsInline muted className="h-52 w-full object-cover" />
             </div>
-            <p className="mt-2 text-center text-[12px] text-[#6B7280]">Arahkan kamera ke QR/barcode.</p>
+            <p className="mt-2 text-center text-[12px] text-[#6B7280]">{engine === "jsqr" ? "Arahkan kamera ke QR (barcode batang: ketik manual / scanner USB)." : "Arahkan kamera ke QR/barcode."}</p>
           </>
         )}
         {/* Fallback / alternatif: ketik SKU atau barcode manual */}

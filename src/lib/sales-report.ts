@@ -11,6 +11,7 @@ import { and, eq, gte, inArray, lt } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { cashSessions, menuItems, orderItems, orders, payments, user } from "@/db/schema";
+import { isCalendarDateKey } from "@/lib/date-range";
 
 export type SalesReportRange = { from: string; to: string };
 
@@ -32,7 +33,34 @@ export type SalesReportPayment = {
   amount: number;
   status: string;
   cashierName: string | null;
+  /** Kode shift kas penerima pembayaran (opsional, untuk rekap per shift). */
+  shiftCode?: string | null;
 };
+
+export type SalesGranularity = "day" | "week" | "month" | "year";
+
+/** Tanggal kalender WIB (YYYY-MM-DD) dari Date. */
+export function wibDateKey(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(date);
+}
+
+/** Kunci & label periode rekap (minggu = Senin–Minggu, ISO). */
+export function periodBucket(dateKey: string, granularity: SalesGranularity) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  if (granularity === "year") return { key: String(y), label: String(y) };
+  if (granularity === "month") {
+    const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, 1)));
+    return { key: `${y}-${String(m).padStart(2, "0")}`, label };
+  }
+  if (granularity === "week") {
+    const date = new Date(Date.UTC(y, m - 1, d));
+    const monday = new Date(date.getTime() - ((date.getUTCDay() + 6) % 7) * 86_400_000);
+    const sunday = new Date(monday.getTime() + 6 * 86_400_000);
+    const key = monday.toISOString().slice(0, 10);
+    return { key, label: `${key} s/d ${sunday.toISOString().slice(0, 10)}` };
+  }
+  return { key: dateKey, label: dateKey };
+}
 
 export type SalesReportItem = {
   orderId: string;
@@ -79,6 +107,7 @@ export function aggregateSalesReport(input: {
   orders: SalesReportOrder[];
   items: SalesReportItem[];
   payments: SalesReportPayment[];
+  granularity?: SalesGranularity;
 }) {
   const paidOrders = input.orders.filter((order) => order.status === PAID);
   const paidIds = new Set(paidOrders.map((order) => order.id));
@@ -126,9 +155,68 @@ export function aggregateSalesReport(input: {
     bump(cashiers, cashier, cashier, 0, order.total);
   }
 
+  // Rekap per periode, per shift, detail transaksi & daftar pembatalan.
+  const granularity = input.granularity ?? "day";
+  const periods = new Map<string, { key: string; label: string; transactions: number; subtotal: number; discount: number; deliveryFee: number; total: number }>();
+  const methodsByOrder = new Map<string, string[]>();
+  const shiftByOrder = new Map<string, string>();
+  for (const payment of input.payments) {
+    if (payment.status !== "captured" || payment.amount <= 0) continue;
+    const list = methodsByOrder.get(payment.orderId) ?? [];
+    const group = paymentMethodGroup(payment.method);
+    if (!list.includes(group)) list.push(group);
+    methodsByOrder.set(payment.orderId, list);
+    if (payment.shiftCode && !shiftByOrder.has(payment.orderId)) shiftByOrder.set(payment.orderId, payment.shiftCode);
+  }
+  const shifts = new Map<string, Row>();
+  const transactions = paidOrders
+    .slice()
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((order) => {
+      const dateKey = wibDateKey(order.createdAt);
+      const bucket = periodBucket(dateKey, granularity);
+      const period = periods.get(bucket.key) ?? { ...bucket, transactions: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0 };
+      period.transactions += 1;
+      period.subtotal += order.subtotal;
+      period.discount += order.discount;
+      period.deliveryFee += order.deliveryFee;
+      period.total += order.total;
+      periods.set(bucket.key, period);
+      const shift = shiftByOrder.get(order.id) ?? "Tanpa shift";
+      bump(shifts, shift, shift, 0, order.total);
+      return {
+        orderNo: order.orderNo,
+        date: dateKey,
+        time: new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(order.createdAt),
+        channel: order.channel,
+        cashier: cashierByOrder.get(order.id) ?? "-",
+        shift,
+        method: (methodsByOrder.get(order.id) ?? []).join(" + ") || "-",
+        subtotal: order.subtotal,
+        discount: order.discount,
+        deliveryFee: order.deliveryFee,
+        total: order.total,
+      };
+    });
+  const cancellations = [...voidOrders, ...refundedOrders]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((order) => ({
+      orderNo: order.orderNo,
+      date: wibDateKey(order.createdAt),
+      status: VOID_STATUSES.has(order.status) ? "Void/Batal" : "Refund",
+      channel: order.channel,
+      total: order.total,
+    }));
+
   return {
+    granularity,
+    periods: [...periods.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    shifts: [...shifts.values()].sort(byRevenue),
+    transactions,
+    cancellations,
     summary: {
       gross,
+      netSales: subtotal - discount,
       subtotal,
       discount,
       deliveryFee,
@@ -159,7 +247,7 @@ function wibStart(dateKey: string) {
 }
 
 export function isDateKey(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(wibStart(value).getTime());
+  return isCalendarDateKey(value);
 }
 
 /** Ambil data & susun laporan. `sessionId` = laporan satu shift (Kasir). */
@@ -167,6 +255,7 @@ export async function getSalesReport(params: {
   outletId: string;
   range: SalesReportRange;
   sessionId?: string | null;
+  granularity?: SalesGranularity;
 }): Promise<SalesReport> {
   const db = getDb();
   const start = wibStart(params.range.from);
@@ -232,6 +321,7 @@ export async function getSalesReport(params: {
             amount: payments.amount,
             status: payments.status,
             cashierName: user.name,
+            shiftCode: cashSessions.code,
           })
           .from(payments)
           .leftJoin(cashSessions, eq(cashSessions.id, payments.cashSessionId))
@@ -247,7 +337,8 @@ export async function getSalesReport(params: {
     ...aggregateSalesReport({
       orders: orderRows,
       items: itemRows,
-      payments: paymentRows.filter((row): row is SalesReportPayment => Boolean(row.orderId)),
+      payments: paymentRows.flatMap((row): SalesReportPayment[] => (row.orderId ? [{ ...row, orderId: row.orderId }] : [])),
+      granularity: params.granularity,
     }),
   };
 }

@@ -1394,7 +1394,6 @@ function GarageWorkspace({
             {safeActiveModule === "dashboard" && (
               <DateFilterProvider>
                 <div className="space-y-3">
-                  <DateFilterBar />
                   <WmsAlertWidget variant="card" />
                   <DashboardView
                     data={data.dashboard}
@@ -1477,7 +1476,6 @@ function GarageWorkspace({
             {safeActiveModule === "finance" && (
               <DateFilterProvider>
                 <div className="space-y-3">
-                  <DateFilterBar />
                   <WmsAlertWidget variant="card" />
                   <FinanceView
                     cashSession={data.cashSession}

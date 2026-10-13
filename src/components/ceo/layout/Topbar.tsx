@@ -1,43 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Bell, Download, Filter, LayoutDashboard, Menu, RefreshCw, Search } from "lucide-react";
-import { useDashboard, type DateRange, type Department } from "../store/dashboardStore";
-
-const ranges: { id: DateRange; label: string }[] = [
-  { id: "7d", label: "7D" },
-  { id: "30d", label: "30D" },
-  { id: "90d", label: "90D" },
-  { id: "1y", label: "1Y" },
-];
-
-const depts: { id: Department; label: string }[] = [
-  { id: "all", label: "Semua divisi" },
-  { id: "pos", label: "POS" },
-  { id: "kitchen", label: "Dapur" },
-  { id: "inventory", label: "Stok" },
-  { id: "finance", label: "Keuangan" },
-  { id: "hr", label: "Tim" },
-  { id: "marketing", label: "Marketing" },
-  { id: "procurement", label: "Pembelian" },
-];
+import { Bell, Download, LayoutDashboard, Menu, RefreshCw, Search } from "lucide-react";
+import { useDashboard } from "../store/dashboardStore";
+import { controlNav } from "./Sidebar";
 
 export function Topbar() {
-  const { dateRange, setDateRange, department, setDepartment, unreadCount, setNotifPanelOpen, setFilterPanelOpen, filterPanelOpen, setMobileNavOpen } = useDashboard();
+  const { unreadCount, setNotifPanelOpen, setMobileNavOpen } = useDashboard();
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
 
+  // Muat ulang data server halaman ini (bukan notifikasi palsu).
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 900);
-    toast.success("Dashboard diperbarui");
+    router.refresh();
+    window.setTimeout(() => setRefreshing(false), 900);
   };
 
-  const onExport = () => {
-    toast.message("Menyiapkan laporan...", { description: "Ringkasan owner sedang diproses." });
+  // Cari menu Control Center lalu buka halamannya.
+  const onSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const term = query.trim().toLowerCase();
+    if (!term) return;
+    const match = controlNav.find((item) => item.label.toLowerCase().includes(term) || item.href.includes(term));
+    if (match) {
+      router.push(match.href);
+      setQuery("");
+    } else {
+      toast.error(`Menu "${query.trim()}" tidak ditemukan.`);
+    }
   };
 
   return (
@@ -60,57 +56,35 @@ export function Topbar() {
           <span className="sm:hidden">OS</span>
         </Link>
 
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5">
-          <Search className="h-3.5 w-3.5 text-zinc-400" />
+        <form
+          role="search"
+          onSubmit={onSearch}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5"
+        >
+          <Search className="h-3.5 w-3.5 text-zinc-400" aria-hidden />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari modul, KPI, alert..."
-            className="min-w-0 flex-1 bg-transparent text-xs text-zinc-100 outline-none placeholder:text-zinc-500"
+            list="control-nav-search"
+            aria-label="Cari menu Control Center"
+            placeholder="Cari menu (Penjualan, Inventory, Cash Closing…)"
+            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
           />
-        </div>
+          <datalist id="control-nav-search">
+            {controlNav.map((item) => (
+              <option key={item.href} value={item.label} />
+            ))}
+          </datalist>
+        </form>
 
-        <div className="hidden items-center gap-1 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] p-1 lg:flex">
-          {ranges.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setDateRange(r.id)}
-              className={`rounded-md px-3 py-1 text-[11px] font-semibold uppercase transition ${
-                dateRange === r.id ? "bg-[color-mix(in_srgb,var(--garage-red)_22%,transparent)] text-[#ffd0d0]" : "text-zinc-400 hover:text-zinc-100"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-
-        <select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value as Department)}
-          className="hidden rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-xs text-zinc-100 lg:block"
-        >
-          {depts.map((d) => (
-            <option key={d.id} value={d.id} className="bg-[#121216]">
-              {d.label}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={() => setFilterPanelOpen(!filterPanelOpen)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-3 py-1.5 text-[11px] font-semibold uppercase text-zinc-200 hover:bg-[var(--garage-bg-3)]"
-        >
-          <Filter className="h-3.5 w-3.5" /> Filter
-        </button>
-
-        <button
-          onClick={onExport}
+        <Link
+          href="/os?module=finance&tab=reports"
           className="inline-flex items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--garage-amber)_55%,transparent)] bg-[color-mix(in_srgb,var(--garage-amber)_18%,transparent)] px-3 py-1.5 text-[11px] font-semibold uppercase text-[#ffd8a8] hover:bg-[color-mix(in_srgb,var(--garage-amber)_28%,transparent)]"
         >
-          <Download className="h-3.5 w-3.5" /> Ekspor
-        </button>
+          <Download className="h-3.5 w-3.5" /> Laporan
+        </Link>
 
-        <button onClick={onRefresh} className="rounded-lg border border-white/10 bg-[var(--garage-bg-2)] p-1.5 text-zinc-300 hover:bg-[var(--garage-bg-3)]" title="Perbarui">
+        <button type="button" onClick={onRefresh} aria-label="Muat ulang data" className="rounded-lg border border-white/10 bg-[var(--garage-bg-2)] p-1.5 text-zinc-300 hover:bg-[var(--garage-bg-3)]" title="Muat ulang data">
           <motion.span animate={refreshing ? { rotate: 360 } : { rotate: 0 }} transition={{ duration: 0.9 }}>
             <RefreshCw className="h-3.5 w-3.5" />
           </motion.span>

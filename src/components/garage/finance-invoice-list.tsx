@@ -29,7 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useDateFilterContext } from "@/components/garage/date-filter";
+import { mergeDateParams, useDateFilterContext } from "@/components/garage/date-filter";
 
 type InvoiceRow = {
   id: string;
@@ -87,13 +87,20 @@ const STATUS_OPTIONS = [
 ];
 
 export function FinanceInvoiceList() {
-  const { predicate: dateFilterPredicate } = useDateFilterContext();
+  const { filter: globalDateFilter } = useDateFilterContext();
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  // Filter tanggal global berubah → kembali ke halaman 1.
+  const globalDateKey = JSON.stringify(globalDateFilter);
+  const [lastGlobalDateKey, setLastGlobalDateKey] = useState(globalDateKey);
+  if (lastGlobalDateKey !== globalDateKey) {
+    setLastGlobalDateKey(globalDateKey);
+    setPage(0);
+  }
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -110,8 +117,10 @@ export function FinanceInvoiceList() {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (status && status !== "all") params.set("status", status);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
+      // Filter tanggal global modul diteruskan ke server (bukan memfilter halaman aktif saja).
+      const merged = mergeDateParams({ from: dateFrom, to: dateTo }, globalDateFilter);
+      if (merged.dateFrom) params.set("dateFrom", merged.dateFrom);
+      if (merged.dateTo) params.set("dateTo", merged.dateTo);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(page * PAGE_SIZE));
 
@@ -134,7 +143,7 @@ export function FinanceInvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, dateFrom, dateTo, page]);
+  }, [search, status, dateFrom, dateTo, page, globalDateFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch list whenever filters/page change
@@ -221,6 +230,7 @@ export function FinanceInvoiceList() {
             <Input
               type="date"
               value={dateFrom}
+              max={dateTo || undefined}
               onChange={(event) => {
                 setDateFrom(event.target.value);
                 setPage(0);
@@ -233,6 +243,7 @@ export function FinanceInvoiceList() {
             <Input
               type="date"
               value={dateTo}
+              min={dateFrom || undefined}
               onChange={(event) => {
                 setDateTo(event.target.value);
                 setPage(0);
@@ -289,7 +300,7 @@ export function FinanceInvoiceList() {
                     Memuat invoice…
                   </td>
                 </tr>
-              ) : rows.filter((row) => dateFilterPredicate(row.createdAt)).length === 0 ? (
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-12 text-center text-sm text-[#8f8f99]">
                     <Receipt className="mx-auto mb-2 size-6 text-[#4a4a54]" />
@@ -297,7 +308,7 @@ export function FinanceInvoiceList() {
                   </td>
                 </tr>
               ) : (
-                rows.filter((row) => dateFilterPredicate(row.createdAt)).map((row) => (
+                rows.map((row) => (
                   <tr
                     key={row.id}
                     className="cursor-pointer border-b border-[#23232a] transition-colors hover:bg-white/[0.04]"

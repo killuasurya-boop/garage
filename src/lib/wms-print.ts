@@ -3,8 +3,11 @@
 
 export function printWmsDoc(title: string, bodyHtml: string, meta?: string) {
   const win = window.open("", "_blank", "width=960,height=680");
-  if (!win) return;
-  const tanggal = new Date().toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" });
+  if (!win) {
+    window.alert("Jendela cetak diblokir browser. Izinkan pop-up untuk situs ini lalu coba lagi.");
+    return;
+  }
+  const tanggal = `${new Date().toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Jakarta" })} WIB`;
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     *{font-family:Inter,Arial,system-ui,sans-serif;box-sizing:border-box}
     body{margin:0;padding:22px;color:#111}

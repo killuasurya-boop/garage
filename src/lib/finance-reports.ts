@@ -1,8 +1,6 @@
 // Garage Financial Control — Reporting & export (PRD §55): PDF, Excel, CSV.
 // Setiap laporan dibangun dari engine yang sama dengan dashboard, jadi angka
 // export = angka layar (single source of truth).
-import ExcelJS from "exceljs";
-import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
 import { and, asc, eq, gte, lt, lte, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -25,6 +23,7 @@ import {
 } from "@/lib/finance-control-core";
 import { getDayFigures, getFinanceControlDashboard, loadFinanceConfig } from "@/lib/finance-control";
 import { getProductProfitability } from "@/lib/finance-intelligence";
+import { renderReport, type ExportFormat } from "@/lib/report-engine";
 
 export const REPORT_TYPES = [
   "daily",
@@ -51,8 +50,7 @@ export const REPORT_LABEL: Record<ReportType, string> = {
   product: "Laporan Profitabilitas Produk",
 };
 
-export const EXPORT_FORMATS = ["pdf", "xlsx", "csv"] as const;
-export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+export { EXPORT_FORMATS, type ExportFormat } from "@/lib/report-engine";
 
 type ColumnType = "text" | "int" | "money" | "pct";
 type Column = { key: string; label: string; type: ColumnType };
@@ -569,191 +567,21 @@ export async function buildFinanceReport(input: {
   };
 }
 
-// ─── Writer ─────────────────────────────────────────────────────────────────
+// ─── Writer: engine laporan standar (src/lib/report-engine.ts) ──────────────
+export { reportToCsv, reportToPdf, reportToXlsx } from "@/lib/report-engine";
 
-function cellText(value: string | number | null | undefined, type: ColumnType) {
-  if (value === null || value === undefined || value === "") return type === "text" ? "" : "—";
-  if (type === "money") return money(Number(value));
-  if (type === "pct") return pct(Number(value));
-  if (type === "int") return new Intl.NumberFormat("id-ID").format(Number(value));
-  return String(value);
-}
-
-export function reportToCsv(report: FinanceReport) {
-  const escape = (value: unknown) => {
-    const text = value === null || value === undefined ? "" : String(value);
-    return /[",\n;]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
-  const lines: string[] = [escape(report.title), escape(`Periode: ${report.periodLabel}`), ""];
-  for (const item of report.summary) lines.push([escape(item.label), escape(item.value)].join(","));
-  for (const table of report.tables) {
-    lines.push("", escape(table.title), table.columns.map((c) => escape(c.label)).join(","));
-    for (const row of [...table.rows, ...(table.totals ? [table.totals] : [])]) {
-      // Angka mentah (tanpa format) agar mudah diolah di spreadsheet.
-      lines.push(table.columns.map((c) => escape(row[c.key] ?? "")).join(","));
-    }
-  }
-  return `﻿${lines.join("\r\n")}`;
-}
-
-export async function reportToXlsx(report: FinanceReport) {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Garage Financial Control";
-  workbook.created = new Date();
-  const summarySheet = workbook.addWorksheet("Ringkasan");
-  summarySheet.addRow([report.title]).font = { bold: true, size: 14 };
-  summarySheet.addRow([`Periode: ${report.periodLabel}`]);
-  summarySheet.addRow([]);
-  for (const item of report.summary) summarySheet.addRow([item.label, item.value]);
-  summarySheet.addRow([]);
-  for (const note of report.notes) summarySheet.addRow([note]).font = { italic: true, color: { argb: "FF6B7280" } };
-  summarySheet.getColumn(1).width = 38;
-  summarySheet.getColumn(2).width = 28;
-
-  const used = new Set<string>(["Ringkasan"]);
-  for (const table of report.tables) {
-    let name = table.title.replace(/[\\/?*[\]:]/g, "").slice(0, 31);
-    for (let i = 2; used.has(name); i += 1) name = `${name.slice(0, 28)} ${i}`;
-    used.add(name);
-    const sheet = workbook.addWorksheet(name);
-    const header = sheet.addRow(table.columns.map((c) => c.label));
-    header.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    header.eachCell((cell) => {
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A1D26" } };
-    });
-    for (const row of table.rows) {
-      sheet.addRow(table.columns.map((c) => (c.type === "pct" && row[c.key] !== null && row[c.key] !== undefined ? Number(row[c.key]) / 100 : row[c.key] ?? null)));
-    }
-    if (table.totals) {
-      const total = sheet.addRow(table.columns.map((c) => table.totals?.[c.key] ?? null));
-      total.font = { bold: true };
-    }
-    table.columns.forEach((column, index) => {
-      const col = sheet.getColumn(index + 1);
-      col.width = column.type === "text" ? 26 : 18;
-      if (column.type === "money") col.numFmt = '"Rp"#,##0;[Red]-"Rp"#,##0';
-      if (column.type === "pct") col.numFmt = "0.0%";
-      if (column.type === "int") col.numFmt = "#,##0";
-    });
-    sheet.views = [{ state: "frozen", ySplit: 1 }];
-  }
-  return Buffer.from(await workbook.xlsx.writeBuffer());
-}
-
-export function reportToPdf(report: FinanceReport): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const wide = report.tables.some((t) => t.columns.length > 6);
-    const doc = new PDFDocument({ size: "A4", layout: wide ? "landscape" : "portrait", margin: 36 });
-    const chunks: Buffer[] = [];
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", reject);
-
-    const DARK = "#1a1111";
-    const RED = "#c41a1a";
-    const AMBER = "#b45309";
-    const MUTED = "#6b7280";
-    const left = doc.page.margins.left;
-    const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const bottom = () => doc.page.height - doc.page.margins.bottom - 20;
-
-    // Kop
-    doc.rect(left, 36, width, 64).fill(DARK);
-    doc.rect(left, 96, width, 4).fill(RED);
-    doc.font("Helvetica-Bold").fontSize(16).fillColor("#ffffff").text("GARAGE COFFEE & MOTOR", left + 14, 50);
-    doc.font("Helvetica").fontSize(9).fillColor("#d4d4d8").text("Garage Financial Control System", left + 14, 72);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor("#f2b872").text(report.title.toUpperCase(), left, 50, { width: width - 14, align: "right" });
-    doc.font("Helvetica").fontSize(9).fillColor("#ffffff").text(`Periode: ${report.periodLabel}`, left, 72, { width: width - 14, align: "right" });
-    doc.y = 116;
-
-    // Ringkasan
-    const cols = wide ? 4 : 3;
-    const boxW = (width - (cols - 1) * 8) / cols;
-    report.summary.forEach((item, index) => {
-      const col = index % cols;
-      if (col === 0 && index > 0) doc.y += 44;
-      const x = left + col * (boxW + 8);
-      const y = doc.y;
-      doc.roundedRect(x, y, boxW, 38, 4).fill("#f4f4f5");
-      doc.font("Helvetica").fontSize(7.5).fillColor(MUTED).text(item.label.toUpperCase(), x + 8, y + 6, { width: boxW - 16 });
-      doc.font("Helvetica-Bold").fontSize(10.5).fillColor(DARK).text(item.value, x + 8, y + 19, { width: boxW - 16, lineBreak: false, ellipsis: true });
-      doc.y = y;
-    });
-    doc.y += 56;
-
-    for (const table of report.tables) {
-      if (doc.y > bottom() - 60) doc.addPage();
-      doc.font("Helvetica-Bold").fontSize(11).fillColor(DARK).text(table.title, left, doc.y);
-      doc.moveDown(0.3);
-      const weights = table.columns.map((c) => (c.type === "text" ? (c.key === "description" || c.key === "name" ? 2.2 : 1.3) : 1));
-      const sum = weights.reduce((a, b) => a + b, 0);
-      const widths = weights.map((w) => (w / sum) * width);
-      const drawHeader = () => {
-        const y = doc.y;
-        doc.rect(left, y, width, 18).fill(DARK);
-        let x = left;
-        table.columns.forEach((c, i) => {
-          doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#ffffff").text(c.label, x + 4, y + 5, {
-            width: widths[i] - 8,
-            align: c.type === "text" ? "left" : "right",
-            lineBreak: false,
-            ellipsis: true,
-          });
-          x += widths[i];
-        });
-        doc.y = y + 18;
-      };
-      drawHeader();
-      const rows = [...table.rows.map((r) => ({ r, total: false })), ...(table.totals ? [{ r: table.totals, total: true }] : [])];
-      if (!rows.length) {
-        doc.font("Helvetica").fontSize(8).fillColor(MUTED).text("Tidak ada data pada periode ini.", left + 4, doc.y + 4);
-        doc.y += 18;
-      }
-      rows.forEach(({ r, total }, index) => {
-        if (doc.y > bottom()) {
-          doc.addPage();
-          drawHeader();
-        }
-        const y = doc.y;
-        if (total) doc.rect(left, y, width, 16).fill("#fde7c8");
-        else if (index % 2 === 1) doc.rect(left, y, width, 16).fill("#fafafa");
-        let x = left;
-        table.columns.forEach((c, i) => {
-          const value = r[c.key];
-          const negative = (c.type === "money" || c.type === "pct") && Number(value) < 0;
-          doc
-            .font(total ? "Helvetica-Bold" : "Helvetica")
-            .fontSize(7.5)
-            .fillColor(negative ? RED : DARK)
-            .text(cellText(value, c.type), x + 4, y + 4.5, {
-              width: widths[i] - 8,
-              align: c.type === "text" ? "left" : "right",
-              lineBreak: false,
-              ellipsis: true,
-            });
-          x += widths[i];
-        });
-        doc.y = y + 16;
-      });
-      doc.y += 14;
-    }
-
-    if (doc.y > bottom() - 40) doc.addPage();
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(AMBER).text("Catatan", left, doc.y);
-    for (const note of report.notes) doc.font("Helvetica").fontSize(7.5).fillColor(MUTED).text(`• ${note}`, left, doc.y + 2, { width });
-    doc
-      .font("Helvetica")
-      .fontSize(7)
-      .fillColor(MUTED)
-      .text(
-        `Dibuat ${new Date(report.generatedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB · Garage Financial Control`,
-        left,
-        doc.y + 8,
-        { width },
-      );
-    doc.end();
-  });
-}
+/** Nama file standar per jenis laporan keuangan (GARAGE_LAPORAN_…). */
+const FILE_KIND: Record<ReportType, string> = {
+  daily: "LAPORAN_KEUANGAN_HARIAN",
+  pnl: "LAPORAN_LABA_RUGI",
+  cashflow: "LAPORAN_CASHFLOW",
+  expense: "LAPORAN_PENGELUARAN",
+  payroll: "LAPORAN_PAYROLL",
+  hpp: "LAPORAN_HPP",
+  bep: "LAPORAN_BEP",
+  capital: "LAPORAN_BALIK_MODAL",
+  product: "LAPORAN_PROFITABILITAS_PRODUK",
+};
 
 export async function exportFinanceReport(input: {
   type: ReportType;
@@ -764,16 +592,5 @@ export async function exportFinanceReport(input: {
 }) {
   const report = await buildFinanceReport(input);
   const resolved = resolvePeriod(input.period, jakartaDateKey(), { from: input.from, to: input.to });
-  const base = `garage-${input.type}-${resolved.fromKey}${resolved.toKey !== resolved.fromKey ? `_${resolved.toKey}` : ""}`;
-  if (input.format === "csv") {
-    return { body: Buffer.from(reportToCsv(report), "utf8"), contentType: "text/csv; charset=utf-8", filename: `${base}.csv` };
-  }
-  if (input.format === "xlsx") {
-    return {
-      body: await reportToXlsx(report),
-      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      filename: `${base}.xlsx`,
-    };
-  }
-  return { body: await reportToPdf(report), contentType: "application/pdf", filename: `${base}.pdf` };
+  return renderReport(report, input.format, { kind: FILE_KIND[input.type], from: resolved.fromKey, to: resolved.toKey });
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { reportFileName } from "@/lib/report-file-name";
+import { todayWibKey } from "@/lib/date-range";
 import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
@@ -361,7 +363,7 @@ export function MembershipAdminView({
     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `member-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = reportFileName({ kind: "MEMBER_TERPILIH", from: todayWibKey(), to: todayWibKey(), ext: "csv" });
     a.click();
     URL.revokeObjectURL(url);
   }

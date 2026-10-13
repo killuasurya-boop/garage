@@ -1,5 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import QRCode from "qrcode";
 import { AlertTriangle, ArrowLeft, Download, FileDown, Printer } from "lucide-react";
 
 import {
@@ -61,9 +63,18 @@ function configuredBaseRaw() {
   );
 }
 
-function publicBaseInfo() {
+// Tanpa GARAGE_PUBLIC_BASE_URL → pakai alamat yang sedang dibuka (sama dengan
+// /api/customer/qr-card), bukan 127.0.0.1:3001 yang tidak bisa dibuka HP tamu.
+async function publicBaseInfo() {
   const raw = configuredBaseRaw();
-  const baseUrl = normalizeGarageBaseUrl(raw || "http://127.0.0.1:3001");
+  let fallback = "http://127.0.0.1:3000";
+  if (!raw) {
+    const h = await headers();
+    const host = h.get("x-forwarded-host")?.split(",")[0]?.trim() || h.get("host");
+    const proto = h.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+    if (host) fallback = `${proto}://${host}`;
+  }
+  const baseUrl = normalizeGarageBaseUrl(raw || fallback);
   return { baseUrl, configured: Boolean(raw), warning: !raw || isLocalQrBaseUrl(baseUrl) };
 }
 
@@ -86,7 +97,7 @@ function qrCard(baseUrl: string, table: string) {
 
 export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
   const params = await searchParams;
-  const base = publicBaseInfo();
+  const base = await publicBaseInfo();
   const requested = parseTableSelection(params.tables);
   const activeTables = await activeTablesOrAll();
   const tables = requested ?? activeTables;
@@ -94,6 +105,9 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
   const cards = tables.map((table) => qrCard(base.baseUrl, table));
   const pdfHref = `/api/customer/qr-cards/pdf?tables=${tables.join(",")}`;
   const selectionValue = Array.isArray(params.tables) ? params.tables.join(",") : params.tables ?? "";
+  // QR menu takeaway (meja kasir / pintu / brosur): /order tanpa meja → otomatis Take away.
+  const takeawayUrl = new URL("/order?source=qr_takeaway", base.baseUrl).toString();
+  const takeawayQr = await QRCode.toDataURL(takeawayUrl, { width: 480, margin: 2, errorCorrectionLevel: "M" });
 
   return (
     <main className="qr-mgr">
@@ -171,6 +185,18 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
         </span>
       </div>
 
+      <section className="takeaway-qr" aria-label="QR menu takeaway">
+        <img src={takeawayQr} alt="QR menu takeaway" width={160} height={160} />
+        <div className="takeaway-text">
+          <span className="info-label">QR Menu Takeaway / Counter</span>
+          <p>Untuk meja kasir, pintu masuk, atau brosur. Tamu memesan sebagai <b>Take away</b> (bukan dine-in).</p>
+          <span className="info-value">{takeawayUrl}</span>
+          <a className="qr-btn qr-btn-ghost" href={takeawayQr} download="GARAGE-QR-Menu-Takeaway.png">
+            <Download size={16} aria-hidden /> Unduh PNG
+          </a>
+        </div>
+      </section>
+
       <section className="card-grid" aria-label="Kartu QR per meja">
         {cards.map((card) => (
           <article className="card-item" key={card.table}>
@@ -243,6 +269,15 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
           margin: 0 auto 14px; max-width: 1180px; padding: 12px 14px;
         }
         .base-warning code { background: rgba(255,255,255,0.08); border-radius: 4px; color: #fff; padding: 1px 4px; }
+        .takeaway-qr {
+          align-items: center; background: #121216; border: 1px solid #2a2a30; border-radius: 8px;
+          display: flex; flex-wrap: wrap; gap: 16px; margin: 0 auto 18px; max-width: 1180px; padding: 12px;
+        }
+        .takeaway-qr img { background: #fff; border-radius: 6px; padding: 6px; }
+        .takeaway-text { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 220px; }
+        .takeaway-text p { color: #d4d4d8; font-size: 14px; margin: 0; }
+        .takeaway-text .qr-btn { align-self: flex-start; }
+        @media print { .takeaway-qr { display: none; } }
         .mgr-actions {
           align-items: center; display: flex; flex-wrap: wrap; gap: 10px;
           margin: 0 auto 18px; max-width: 1180px;

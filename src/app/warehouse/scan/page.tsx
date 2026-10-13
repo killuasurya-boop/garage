@@ -6,9 +6,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Package, ScanLine } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
+import { useCodeScanner } from "@/lib/use-code-scanner";
 import type { WmsProductRow } from "@/lib/wms-types";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { parseWmsScan } from "@/lib/wms-scan";
 
 type ScanHistory = { code: string; name: string; at: string };
 
@@ -16,7 +16,6 @@ export default function WmsScanPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [products, setProducts] = useState<WmsProductRow[]>([]);
-  const [mode, setMode] = useState<"sku" | "barcode" | "qr">("sku");
   const [result, setResult] = useState<WmsProductRow | null>(null);
   const [history, setHistory] = useState<ScanHistory[]>([]);
   const [manual, setManual] = useState("");
@@ -27,15 +26,24 @@ export default function WmsScanPage() {
   }, []);
 
   const lookup = useCallback(
-    (code: string) => {
-      const q = code.trim().toLowerCase();
+    (raw: string) => {
+      // Label penerimaan "SKU|BATCH" → cari SKU-nya.
+      const { code, batch } = parseWmsScan(raw);
+      const q = code.toLowerCase();
+      if (!q) return;
+      setErr(null);
       const hit =
         products.find((p) => p.sku.toLowerCase() === q) ??
         products.find((p) => (p.barcode ?? "").toLowerCase() === q) ??
         products.find((p) => p.name.toLowerCase().includes(q));
       if (hit) {
         setResult(hit);
-        setHistory((h) => [{ code, name: hit.name, at: new Date().toLocaleTimeString("id-ID") }, ...h].slice(0, 8));
+        setHistory((h) =>
+          [
+            { code: batch ? `${code} · batch ${batch}` : code, name: hit.name, at: new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" }) },
+            ...h,
+          ].slice(0, 8),
+        );
       } else {
         setResult(null);
         setErr(`Tidak ditemukan: ${code}`);
@@ -44,49 +52,8 @@ export default function WmsScanPage() {
     [products],
   );
 
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    let raf = 0;
-    let stopped = false;
-    void (async () => {
-      const Detector = (window as any).BarcodeDetector;
-      if (!Detector) {
-        setErr("BarcodeDetector tidak didukung — gunakan input manual.");
-        return;
-      }
-      const detector = new Detector({
-        formats: ["qr_code", "code_128", "ean_13", "ean_8", "code_39", "upc_a", "upc_e"],
-      });
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        const tick = async () => {
-          if (stopped || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0].rawValue) {
-              lookup(String(codes[0].rawValue));
-              return;
-            }
-          } catch {
-            /* frame gagal */
-          }
-          raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      } catch {
-        setErr("Kamera tidak tersedia. Izinkan akses kamera atau ketik manual.");
-      }
-    })();
-    return () => {
-      stopped = true;
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
-    };
-  }, [lookup]);
+  const scanner = useCodeScanner({ videoRef, enabled: true, onCode: lookup });
+  const cameraError = scanner.error;
 
   return (
     <div className="-m-6 min-h-[calc(100vh-60px)] bg-[#181818] text-white">
@@ -100,21 +67,7 @@ export default function WmsScanPage() {
         <span className="w-16" />
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2 px-4 py-3">
-        {(["sku", "barcode", "qr"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            className={`rounded-full px-4 py-1.5 text-[12px] font-bold uppercase tracking-wide ${
-              mode === m ? "bg-[#C8102E] text-white" : "bg-white/10 text-white/60"
-            }`}
-          >
-            {m}
-          </button>
-        ))}
-      </div>
-
+      <div className="h-3" />
       <div className="relative mx-auto max-w-lg px-4">
         <div className="relative overflow-hidden rounded-xl bg-black">
           <video ref={videoRef} playsInline muted className="aspect-[4/3] w-full object-cover opacity-90" />
@@ -125,7 +78,11 @@ export default function WmsScanPage() {
           />
         </div>
         <p className="mt-2 flex items-center justify-center gap-1.5 text-[12px] text-white/50">
-          <Camera className="size-3.5" /> Mode {mode.toUpperCase()} — arahkan ke label produk
+          <Camera className="size-3.5" />{" "}
+          {cameraError ??
+            (scanner.engine === "jsqr"
+              ? "Arahkan ke QR label. Barcode batang: ketik / pakai scanner USB."
+              : "Arahkan ke QR label atau barcode kemasan.")}
         </p>
 
         <div className="mt-3 flex gap-2">

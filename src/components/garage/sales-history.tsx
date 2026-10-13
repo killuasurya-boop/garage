@@ -47,6 +47,7 @@ const fmtDateTime = (iso: string | null) =>
     ? new Date(iso).toLocaleString("id-ID", {
         dateStyle: "medium",
         timeStyle: "short",
+        timeZone: "Asia/Jakarta",
       })
     : "—";
 
@@ -276,6 +277,7 @@ export function SalesHistoryView() {
             <Input
               type="date"
               value={dateFrom}
+              max={dateTo || undefined}
               onChange={(e) => setDateFrom(e.target.value)}
             />
           </div>
@@ -286,6 +288,7 @@ export function SalesHistoryView() {
             <Input
               type="date"
               value={dateTo}
+              min={dateFrom || undefined}
               onChange={(e) => setDateTo(e.target.value)}
             />
           </div>

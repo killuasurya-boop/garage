@@ -117,12 +117,16 @@ function formatSince(value?: string | Date | null) {
     .toUpperCase();
 }
 
-async function qrSvg(payload: string, tint: string) {
+// QR selalu modul gelap di atas latar putih solid: warna tema terang (ULTRA
+// #f8f5ff) di atas putih membuat QR tidak terbaca scanner kasir.
+const QR_DARK = "#0d1018";
+
+async function qrSvg(payload: string) {
   return QRCode.toString(payload || "GARAGE", {
     type: "svg",
     errorCorrectionLevel: "M",
-    margin: 0,
-    color: { dark: tint, light: "#ffffff00" },
+    margin: 2,
+    color: { dark: QR_DARK, light: "#ffffff" },
     width: 180,
   });
 }
@@ -157,7 +161,7 @@ async function buildFront(input: MembershipCardImageInput, theme: TierTheme) {
   const tier = normalizeTier(input.tier);
   const memberId = input.memberCode ?? `${tier.slice(0, 3).toUpperCase()}-${input.phone.slice(-4)}`;
   const qrPayload = JSON.stringify({ v: 1, id: memberId, tier, n: input.name });
-  const qr = await qrSvg(qrPayload, theme.text);
+  const qr = await qrSvg(qrPayload);
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
@@ -193,7 +197,7 @@ async function buildFront(input: MembershipCardImageInput, theme: TierTheme) {
       ${chipSvg(58, 220, theme.accent)}
 
       <g transform="translate(${WIDTH - 240}, 220)">
-        <rect width="180" height="180" rx="14" fill="#ffffff" opacity="0.82" />
+        <rect width="180" height="180" rx="14" fill="#ffffff" />
         <g transform="translate(8, 8) scale(${164 / 180})">${qr}</g>
       </g>
 

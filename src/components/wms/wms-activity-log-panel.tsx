@@ -1,5 +1,8 @@
 "use client";
 
+import { todayWibKey } from "@/lib/date-range";
+import { addDaysKey } from "@/lib/report-periods";
+
 import { useEffect, useMemo, useState } from "react";
 
 interface Row {
@@ -49,18 +52,17 @@ function fmt(dt: string) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Jakarta",
   });
 }
 
+// Tanggal kalender WIB (server memfilter per hari WIB), bukan zona waktu perangkat.
 function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayWibKey();
 }
 
 function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return addDaysKey(todayWibKey(), -n);
 }
 
 export function WmsActivityLogPanel() {

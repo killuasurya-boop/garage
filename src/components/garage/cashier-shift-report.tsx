@@ -62,6 +62,7 @@ const fmtDateTime = (iso: string | null) =>
     ? new Date(iso).toLocaleString("id-ID", {
         dateStyle: "medium",
         timeStyle: "short",
+        timeZone: "Asia/Jakarta",
       })
     : "—";
 
@@ -69,6 +70,7 @@ const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Jakarta",
   });
 
 const todayDateKey = () => {
@@ -859,7 +861,12 @@ function DailyShiftReportPanel({
             <Input
               type="date"
               value={date}
-              onChange={(event) => onDateChange(event.target.value)}
+              max={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date())}
+              aria-label="Tanggal rekap"
+              onChange={(event) => {
+                // Input dikosongkan → tetap tanggal sebelumnya (hindari request date= kosong).
+                if (event.target.value) onDateChange(event.target.value);
+              }}
               className="h-9 w-[160px] border-zinc-700 bg-zinc-950"
             />
             <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>

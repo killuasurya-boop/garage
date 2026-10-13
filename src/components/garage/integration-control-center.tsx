@@ -16,6 +16,7 @@ import {
   MapPin,
 } from "lucide-react";
 
+import { AgentApiKeysPanel } from "@/components/garage/agent-api-keys-panel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -206,6 +207,8 @@ export function IntegrationControlCenter() {
           Koneksi resmi G A R A G E. Token tidak pernah dikirim ke browser.
         </p>
       </div>
+
+      <AgentApiKeysPanel />
 
       {error ? (
         <Alert className="border-red-500/40 bg-red-500/10">

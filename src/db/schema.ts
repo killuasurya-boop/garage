@@ -518,6 +518,37 @@ export const posTerminals = pgTable(
   }),
 );
 
+// API key agent AI (OpenClaw / Hermes via WhatsApp & Telegram). Key mentah hanya
+// ditampilkan sekali saat dibuat; yang disimpan hanya hash sha256. Agent bertindak
+// atas nama Owner pembuat (actingUserId) dengan scope owner | manajer | readonly.
+export const agentApiKeys = pgTable(
+  "agent_api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    label: text("label").notNull(),
+    prefix: text("prefix").notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    scope: text("scope").notNull().default("readonly"),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "cascade" }),
+    actingUserId: text("acting_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    lastUsedIp: text("last_used_ip"),
+    useCount: integer("use_count").notNull().default(0),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    keyIdx: uniqueIndex("agent_api_keys_key_hash_idx").on(table.keyHash),
+    outletIdx: index("agent_api_keys_outlet_idx").on(table.outletId),
+  }),
+);
+
 export const orders = pgTable(
   "orders",
   {

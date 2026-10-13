@@ -1,5 +1,7 @@
 "use client";
 
+import { BulkImportDialog } from "@/components/garage/bulk-import-dialog";
+import type { WmsImportResult } from "@/lib/wms-service";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -281,7 +283,29 @@ export default function WmsInventoryPage() {
           onCancel={() => setEditing(null)}
         />
       )}
-      {importing && <ImportModal onDone={() => { setImporting(false); void load(); }} onCancel={() => setImporting(false)} />}
+      {importing && (
+        <BulkImportDialog<WmsImportResult>
+          config={{
+            title: "Impor Bahan Baku (Excel / CSV)",
+            description: "Cocok berdasarkan SKU: SKU baru dibuat, SKU lama diperbarui. Sel kosong tidak mengubah data. Stok tidak berubah lewat impor.",
+            endpoint: "/api/wms/products/import",
+            templates: [
+              { label: "Template Excel", href: "/api/wms/products/export?template=1" },
+              { label: "Template CSV", href: "/api/wms/products/export?template=1&format=csv" },
+            ],
+            summarize: (r) => [
+              { label: "Baru", value: r.created, tone: "good" },
+              { label: "Diperbarui", value: r.updated, tone: "warn" },
+              { label: "Tidak berubah", value: r.unchanged, tone: "muted" },
+              { label: "Error (dilewati)", value: r.skipped, tone: r.skipped ? "bad" : "muted" },
+            ],
+            pendingChanges: (r) => r.created + r.updated,
+            variant: "light",
+          }}
+          onClose={() => setImporting(false)}
+          onImported={() => void load()}
+        />
+      )}
       {scanning && <ScanModal onDetect={(v) => { setQ(v); setScanning(false); }} onCancel={() => setScanning(false)} />}
       {adjusting && (
         <StockAdjustModal
@@ -1044,85 +1068,6 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
           <button type="button" onClick={onCancel} className="rounded-md border border-[#E8E8E8] px-3 py-2 text-[13px] font-semibold text-[#6B7280] hover:bg-[#F8F9FB]">Batal</button>
           <button type="button" disabled={busy || !name.trim() || !category} onClick={() => void save()} className="rounded-md bg-[#C8102E] px-3.5 py-2 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(200,16,46,0.25)] hover:bg-[#a60d26] disabled:opacity-50">Simpan perubahan</button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-type ImportPreview = { created: number; updated: number; skipped: number; errors: Array<{ row: number; message: string }>; dryRun: boolean };
-
-function ImportModal({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  async function run(dryRun: boolean) {
-    if (!file) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("dryRun", dryRun ? "true" : "false");
-      const res = await fetch("/api/wms/products/import", { method: "POST", body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? "Gagal import.");
-      if (dryRun) setPreview(json.data as ImportPreview);
-      else onDone();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Gagal import.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-4" onClick={onCancel}>
-      <div className="w-full max-w-md rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[14px] font-bold text-[#111111]">Import Produk (Excel)</p>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
-        </div>
-
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a href="/api/wms/products/export?template=1" className="mb-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#2563EB] hover:underline">
-          <FileDown className="size-3.5" /> Unduh template Excel
-        </a>
-
-        <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
-        <button type="button" onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-1.5 rounded-md border border-dashed border-[#C8102E]/40 bg-[#FDF1F3] px-3 py-3 text-[13px] font-semibold text-[#111111] hover:bg-[#FCE7EB]">
-          <Upload className="size-4 text-[#C8102E]" /> {file ? file.name : "Pilih file .xlsx"}
-        </button>
-
-        {file && !preview && (
-          <button type="button" disabled={busy} onClick={() => void run(true)} className="mt-3 w-full rounded-md bg-[#2F3136] py-2 text-[13px] font-bold text-white hover:bg-black disabled:opacity-50">
-            {busy ? "Memeriksa…" : "Pratinjau (cek dulu)"}
-          </button>
-        )}
-
-        {preview && (
-          <div className="mt-3 rounded-lg border border-[#E8E8E8] bg-[#F8F9FB] p-3 text-[12.5px]">
-            <p className="font-bold text-[#111111]">Pratinjau:</p>
-            <ul className="mt-1 space-y-0.5 text-[#374151]">
-              <li>🆕 Dibuat baru: <b>{preview.created}</b></li>
-              <li>♻️ Diupdate (SKU sama): <b>{preview.updated}</b></li>
-              <li>⏭️ Dilewati: <b>{preview.skipped}</b></li>
-            </ul>
-            {preview.errors.length > 0 && (
-              <div className="mt-2 max-h-24 overflow-y-auto text-[11.5px] text-[#DC2626]">
-                {preview.errors.slice(0, 20).map((e, i) => <p key={i}>Baris {e.row}: {e.message}</p>)}
-              </div>
-            )}
-            <button type="button" disabled={busy || preview.created + preview.updated === 0} onClick={() => void run(false)} className="mt-3 w-full rounded-md bg-[#C8102E] py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
-              {busy ? "Menyimpan…" : `Konfirmasi Import (${preview.created + preview.updated})`}
-            </button>
-          </div>
-        )}
-
-        {err && <p className="mt-2 text-[12.5px] text-[#DC2626]">{err}</p>}
-        <p className="mt-3 text-[11px] text-[#9CA3AF]">Cocok berdasarkan SKU. Kolom Stok diabaikan — ubah stok lewat Receiving/Adjustment.</p>
       </div>
     </div>
   );

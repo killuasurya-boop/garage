@@ -1,5 +1,7 @@
 "use client";
 
+import { BulkImportDialog } from "@/components/garage/bulk-import-dialog";
+import type { MenuImportResult } from "@/lib/menu-import";
 import { reportFileName } from "@/lib/report-file-name";
 import { todayWibKey } from "@/lib/date-range";
 import dynamic from "next/dynamic";
@@ -27,6 +29,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Upload,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -302,6 +305,7 @@ export function InventoryView({
   const [warehouseMovement, setWarehouseMovement] = useState("SKU gudang baru");
   const [warehouseSaving, setWarehouseSaving] = useState(false);
   const [warehouseError, setWarehouseError] = useState<string | null>(null);
+  const [menuImportOpen, setMenuImportOpen] = useState(false);
   const [exportingInventory, setExportingInventory] = useState<"xlsx" | "pdf" | null>(null);
   type LocationStockRow = {
     id: string;
@@ -2770,6 +2774,30 @@ export function InventoryView({
         </div>
       )}
 
+      {menuImportOpen ? (
+        <BulkImportDialog<MenuImportResult>
+          config={{
+            title: "Impor Massal Produk Menu (Excel / CSV)",
+            description:
+              "1 baris = 1 varian harga. Produk lama dicocokkan lewat SKU lalu nama — tidak dibuat ganda. HPP dihitung dari resep, bukan dari file.",
+            endpoint: "/api/menu/import",
+            templates: [
+              { label: "Template Excel", href: "/api/menu/import/template?format=xlsx" },
+              { label: "Template CSV", href: "/api/menu/import/template?format=csv" },
+            ],
+            summarize: (r) => [
+              { label: "Produk baru", value: r.productsCreated, tone: "good" },
+              { label: "Produk diubah", value: r.productsUpdated, tone: "warn" },
+              { label: "Tidak berubah", value: r.productsUnchanged, tone: "muted" },
+              { label: "Baris error", value: r.errorRows, tone: r.errorRows ? "bad" : "muted" },
+            ],
+            pendingChanges: (r) => r.productsCreated + r.productsUpdated,
+          }}
+          onClose={() => setMenuImportOpen(false)}
+          onImported={() => void onMenuChanged()}
+        />
+      ) : null}
+
       {effectiveWorkspaceTab === "products" && canManageMenuProducts && (
         <Card className="garage-panel garage-animate-in">
           <CardHeader>
@@ -2788,6 +2816,15 @@ export function InventoryView({
                 >
                   <Plus className="size-3.5" />
                   Add Produk
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="garage-press h-8 gap-1.5 px-3 text-xs"
+                  onClick={() => setMenuImportOpen(true)}
+                >
+                  <Upload className="size-3.5" />
+                  Impor Massal
                 </Button>
                 <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 text-[#bbf7d0]">
                   {activeProductItems.length} aktif

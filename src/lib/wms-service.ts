@@ -1,6 +1,7 @@
 import { and, desc, eq, ilike, inArray, like, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
+import { parseImportFile, parseLocaleNumber, templateCsv, templateXlsx, type ImportColumn, type ImportRowResult } from "@/lib/bulk-import";
 import {
   appSettings,
   approvals,
@@ -761,8 +762,9 @@ export async function updateWmsProduct(
     barcode?: string | null;
     archivedAt?: Date | null; // set null = restore dari arsip
   } & WmsPackInput,
+  dbOverride?: Db,
 ) {
-  const db = getDb();
+  const db = dbOverride ?? getDb();
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.name !== undefined) set.name = patch.name.trim();
   if (patch.category !== undefined) set.category = patch.category.trim();
@@ -811,8 +813,10 @@ export async function createWmsProduct(
     initialWarehouseId?: string | null;
   } & WmsPackInput,
   userId?: string | null,
+  dbOverride?: Db,
 ) {
-  const db = getDb();
+  // dbOverride = transaksi pemanggil (mis. impor massal: semua baris atomik).
+  const db = dbOverride ?? getDb();
   const hpp = unitCostFromPack(input) ?? input.hpp ?? 0;
   const [prod] = await db
     .insert(wmsProduct)
@@ -843,7 +847,7 @@ export async function createWmsProduct(
       target = await mainWarehouseForArea(db, cat?.area ?? "umum");
     }
     if (target) {
-      await runInTx((tx) =>
+      const record = (tx: Tx) =>
         recordStockMovement(tx, {
           type: "in",
           productId: prod.id,
@@ -853,8 +857,8 @@ export async function createWmsProduct(
           refDoc: "STOK-AWAL",
           userId: userId ?? null,
           batchNo: `INIT-${prod.sku.trim()}`,
-        }),
-      );
+        });
+      await (dbOverride ? record(dbOverride) : runInTx(record));
     }
   }
   return prod;
@@ -1007,131 +1011,236 @@ export async function exportWmsProductsWorkbook(opts?: { template?: boolean }): 
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+export type { ImportRowAction, ImportRowResult } from "@/lib/bulk-import";
+
 export type WmsImportResult = {
   created: number;
   updated: number;
+  unchanged: number;
+  /** Jumlah baris error (dilewati). */
   skipped: number;
   errors: Array<{ row: number; message: string }>;
+  rows: ImportRowResult[];
+  mapping: Record<string, string>;
+  ignored: string[];
   dryRun: boolean;
 };
 
-function headerKey(v: unknown): string | null {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return null;
-  if (s.includes("sku")) return "sku";
-  if (s.includes("nama") || s === "name") return "name";
-  if (s.includes("kategori") || s.includes("category")) return "category";
-  if (s.includes("satuan") || s.includes("unit")) return "unit";
-  if (s.includes("min")) return "minStock";
-  if (s === "hpp" || s.includes("hpp") || s.includes("modal")) return "hpp";
-  if (s.includes("barcode")) return "barcode";
-  if (s.includes("stok") || s.includes("stock")) return "onHand"; // diabaikan
-  return null;
-}
+const WMS_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "sku", label: "SKU", aliases: ["kode", "kode bahan", "sku bahan"], required: true },
+  { key: "name", label: "Nama", aliases: ["nama bahan", "name", "nama produk"] },
+  { key: "category", label: "Kategori", aliases: ["category"] },
+  { key: "unit", label: "Satuan", aliases: ["unit", "satuan simpan"] },
+  { key: "minStock", label: "Min Stok", aliases: ["min", "minimum", "min stock", "stok minimum"] },
+  { key: "hpp", label: "HPP", aliases: ["hpp per satuan", "harga modal", "modal", "unit cost"] },
+  { key: "barcode", label: "Barcode", aliases: ["ean", "kode barcode"] },
+  { key: "onHand", label: "Stok", aliases: ["stock", "on hand"] },
+];
 
-function cellNum(v: unknown): number | undefined {
-  if (v === null || v === undefined || v === "") return undefined;
-  const n = Number(typeof v === "object" && v !== null && "result" in v ? (v as { result: unknown }).result : v);
-  return Number.isFinite(n) ? n : undefined;
-}
+const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 
-function cellStr(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "object" && v !== null && "text" in v) return String((v as { text: unknown }).text ?? "").trim();
-  return String(v).trim();
-}
-
-/** Parse workbook → upsert by SKU (dryRun hanya menghitung, tak menulis). */
+/**
+ * Impor bahan baku (CSV/XLSX) → buat baru / perbarui berdasar SKU.
+ * - dryRun: pratinjau per baris (buat / ubah + daftar perubahan / tetap / error).
+ * - commit: hanya baris valid, SEMUA dalam satu transaksi + audit log.
+ * - Sel kosong = tidak diubah (barcode/HPP lama tidak terhapus).
+ * - SKU ganda dalam file, kategori tak dikenal, angka tidak valid → error per baris.
+ * - Kolom Stok diabaikan (stok hanya lewat Penerimaan/Penyesuaian).
+ */
 export async function importWmsProductsFromBuffer(
   buffer: Buffer,
-  opts: { dryRun: boolean },
+  opts: { dryRun: boolean; filename?: string; actorName?: string },
   userId?: string | null,
 ): Promise<WmsImportResult> {
-  const ExcelJS = (await import("exceljs")).default;
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer as unknown as ArrayBuffer);
-  const ws = wb.worksheets[0];
-  if (!ws) throw new Error("File Excel tidak punya sheet.");
-
-  // Peta kolom dari baris header (baris 1).
-  const colMap: Record<string, number> = {};
-  ws.getRow(1).eachCell((cell, col) => {
-    const key = headerKey(cell.value);
-    if (key) colMap[key] = col;
-  });
-  if (colMap.sku === undefined) throw new Error("Kolom 'SKU' wajib ada di header.");
-
-  // Produk existing (termasuk arsip — SKU unik global).
-  const db = getDb();
-  const existing = new Map<string, { id: string; archived: boolean }>();
-  for (const r of await db
-    .select({ id: wmsProduct.id, sku: wmsProduct.sku, archivedAt: wmsProduct.archivedAt })
-    .from(wmsProduct)) {
-    existing.set(r.sku.trim().toLowerCase(), { id: r.id, archived: !!r.archivedAt });
+  const sheet = await parseImportFile(buffer, opts.filename ?? "import.xlsx", WMS_IMPORT_COLUMNS);
+  if (sheet.missingRequired.length) {
+    throw new Error(`Kolom wajib tidak ditemukan: ${sheet.missingRequired.join(", ")}. Gunakan template impor.`);
   }
 
-  const result: WmsImportResult = { created: 0, updated: 0, skipped: 0, errors: [], dryRun: opts.dryRun };
+  const db = getDb();
+  const products = await db.select().from(wmsProduct);
+  const bySku = new Map(products.map((p) => [p.sku.trim().toLowerCase(), p]));
+  const byBarcode = new Map(products.filter((p) => p.barcode).map((p) => [String(p.barcode).trim(), p]));
+  const categories = await listWmsCategories();
+  const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.name]));
 
-  const rows: Array<{ rowNo: number; sku: string; name: string; category: string; unit: string; minStock?: number; hpp?: number; barcode: string }> = [];
-  ws.eachRow((row, rowNo) => {
-    if (rowNo === 1) return; // header
-    const sku = cellStr(row.getCell(colMap.sku).value);
-    if (!sku) return; // baris kosong → lewati diam-diam
-    rows.push({
-      rowNo,
-      sku,
-      name: colMap.name ? cellStr(row.getCell(colMap.name).value) : "",
-      category: colMap.category ? cellStr(row.getCell(colMap.category).value) : "",
-      unit: colMap.unit ? cellStr(row.getCell(colMap.unit).value) : "",
-      minStock: colMap.minStock ? cellNum(row.getCell(colMap.minStock).value) : undefined,
-      hpp: colMap.hpp ? cellNum(row.getCell(colMap.hpp).value) : undefined,
-      barcode: colMap.barcode ? cellStr(row.getCell(colMap.barcode).value) : "",
-    });
-  });
+  const result: WmsImportResult = {
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    skipped: 0,
+    errors: [],
+    rows: [],
+    mapping: sheet.mapping,
+    ignored: sheet.ignored,
+    dryRun: opts.dryRun,
+  };
+  type Plan =
+    | { kind: "create"; input: Parameters<typeof createWmsProduct>[0] }
+    | { kind: "update"; id: string; patch: Parameters<typeof updateWmsProduct>[1] };
+  const plans: Plan[] = [];
+  const seenSku = new Map<string, number>();
+  const seenBarcode = new Map<string, number>();
 
-  for (const r of rows) {
-    const key = r.sku.toLowerCase();
-    const hit = existing.get(key);
-    if (hit) {
-      // Update master (tanpa mengubah stok). Un-arsip bila sebelumnya diarsipkan.
-      if (!opts.dryRun) {
-        await updateWmsProduct(hit.id, {
-          name: r.name || undefined,
-          category: r.category || undefined,
-          unit: r.unit || undefined,
-          minStock: r.minStock,
-          hpp: r.hpp,
-          barcode: r.barcode || null,
-          ...(hit.archived ? { archivedAt: null } : {}),
-        });
-      }
-      result.updated++;
-    } else {
-      // Buat baru — butuh minimal nama & kategori.
-      if (!r.name || !r.category) {
-        result.skipped++;
-        result.errors.push({ row: r.rowNo, message: `SKU ${r.sku}: Nama & Kategori wajib untuk produk baru.` });
+  for (const { rowNo, values } of sheet.rows) {
+    const sku = values.sku ?? "";
+    const fail = (message: string) => {
+      result.rows.push({ row: rowNo, key: sku || "-", name: values.name ?? "", action: "error", message });
+      result.errors.push({ row: rowNo, message: sku ? `SKU ${sku}: ${message}` : message });
+      result.skipped += 1;
+    };
+    if (!sku) {
+      fail("SKU wajib diisi.");
+      continue;
+    }
+    if (!SKU_PATTERN.test(sku)) {
+      fail("SKU hanya boleh huruf, angka, titik, strip, garis bawah (maks. 40 karakter).");
+      continue;
+    }
+    const skuKey = sku.toLowerCase();
+    if (seenSku.has(skuKey)) {
+      fail(`SKU ganda dalam file (sudah ada di baris ${seenSku.get(skuKey)}).`);
+      continue;
+    }
+    seenSku.set(skuKey, rowNo);
+
+    const name = (values.name ?? "").trim();
+    const categoryRaw = (values.category ?? "").trim();
+    const unit = (values.unit ?? "").trim();
+    const barcode = (values.barcode ?? "").trim();
+    const minStock = parseLocaleNumber(values.minStock ?? "");
+    const hpp = parseLocaleNumber(values.hpp ?? "");
+    if (name.length > 120) {
+      fail("Nama maksimal 120 karakter.");
+      continue;
+    }
+    if (unit.length > 20) {
+      fail("Satuan maksimal 20 karakter.");
+      continue;
+    }
+    if (minStock !== null && (Number.isNaN(minStock) || minStock < 0)) {
+      fail(`Min Stok "${values.minStock}" harus angka ≥ 0.`);
+      continue;
+    }
+    if (hpp !== null && (Number.isNaN(hpp) || hpp < 0)) {
+      fail(`HPP "${values.hpp}" harus angka ≥ 0.`);
+      continue;
+    }
+    let category: string | null = null;
+    if (categoryRaw) {
+      category = categoryByName.get(categoryRaw.toLowerCase()) ?? null;
+      if (!category) {
+        fail(`Kategori "${categoryRaw}" belum ada di master. Tambahkan dulu di Gudang → Kategori.`);
         continue;
       }
-      if (!opts.dryRun) {
-        await createWmsProduct(
-          {
-            sku: r.sku,
-            name: r.name,
-            category: r.category,
-            unit: r.unit || "pcs",
-            minStock: r.minStock ?? 0,
-            hpp: r.hpp ?? 0,
-            barcode: r.barcode || null,
-          },
-          userId,
-        );
-      }
-      result.created++;
     }
+    if (barcode) {
+      if (seenBarcode.has(barcode)) {
+        fail(`Barcode ganda dalam file (baris ${seenBarcode.get(barcode)}).`);
+        continue;
+      }
+      const owner = byBarcode.get(barcode);
+      if (owner && owner.sku.trim().toLowerCase() !== skuKey) {
+        fail(`Barcode ${barcode} sudah dipakai bahan ${owner.sku}.`);
+        continue;
+      }
+      seenBarcode.set(barcode, rowNo);
+    }
+
+    const existing = bySku.get(skuKey);
+    if (!existing) {
+      if (!name || !category) {
+        fail("Bahan baru wajib punya Nama dan Kategori.");
+        continue;
+      }
+      plans.push({
+        kind: "create",
+        input: { sku, name, category, unit: unit || "pcs", minStock: minStock ?? 0, hpp: hpp ?? 0, barcode: barcode || null },
+      });
+      result.rows.push({ row: rowNo, key: sku, name, action: "create" });
+      result.created += 1;
+      continue;
+    }
+
+    // Perbarui hanya kolom yang diisi & benar-benar berbeda.
+    const patch: Parameters<typeof updateWmsProduct>[1] = {};
+    const changes: string[] = [];
+    if (name && name !== existing.name) {
+      patch.name = name;
+      changes.push(`Nama: ${existing.name} → ${name}`);
+    }
+    if (category && category !== existing.category) {
+      patch.category = category;
+      changes.push(`Kategori: ${existing.category} → ${category}`);
+    }
+    if (unit && unit !== existing.unit) {
+      patch.unit = unit;
+      changes.push(`Satuan: ${existing.unit} → ${unit}`);
+    }
+    if (minStock !== null && Math.abs(minStock - Number(existing.minStock)) > 1e-4) {
+      patch.minStock = minStock;
+      changes.push(`Min stok: ${Number(existing.minStock)} → ${minStock}`);
+    }
+    if (hpp !== null && Math.abs(hpp - Number(existing.hpp)) > 1e-4) {
+      patch.hpp = hpp;
+      changes.push(`HPP: ${Number(existing.hpp)} → ${hpp}`);
+    }
+    if (barcode && barcode !== (existing.barcode ?? "")) {
+      patch.barcode = barcode;
+      changes.push(`Barcode: ${existing.barcode || "-"} → ${barcode}`);
+    }
+    if (existing.archivedAt) {
+      patch.archivedAt = null;
+      changes.push("Dipulihkan dari arsip");
+    }
+    if (!changes.length) {
+      result.rows.push({ row: rowNo, key: sku, name: existing.name, action: "unchanged" });
+      result.unchanged += 1;
+      continue;
+    }
+    plans.push({ kind: "update", id: existing.id, patch });
+    result.rows.push({ row: rowNo, key: sku, name: name || existing.name, action: "update", changes });
+    result.updated += 1;
   }
 
+  if (opts.dryRun || plans.length === 0) return result;
+
+  await runInTx(async (tx) => {
+    for (const plan of plans) {
+      if (plan.kind === "create") await createWmsProduct(plan.input, userId, tx);
+      else await updateWmsProduct(plan.id, plan.patch, tx);
+    }
+    await tx.insert(auditLogs).values({
+      time: new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date()),
+      actor: opts.actorName ?? "Gudang",
+      action: "Impor massal bahan baku",
+      object: opts.filename ?? "file impor",
+      device: "Garage OS",
+      status: "recorded",
+      metadata: { created: result.created, updated: result.updated, unchanged: result.unchanged, errors: result.skipped },
+    });
+  });
   return result;
+}
+
+/** Template impor bahan baku (XLSX dengan daftar kategori / CSV). */
+export async function wmsImportTemplate(format: "xlsx" | "csv") {
+  const examples = [["BAR-901", "Contoh: Susu UHT 1L", "", "ml", "2000", "18,5", "", ""]];
+  if (format === "csv") return Buffer.from(templateCsv(WMS_IMPORT_COLUMNS, examples), "utf8");
+  const categories = await listWmsCategories();
+  return templateXlsx({
+    sheetName: "Bahan",
+    columns: WMS_IMPORT_COLUMNS,
+    examples,
+    lists: { category: categories.map((c) => c.name), unit: ["gr", "kg", "ml", "liter", "pcs", "pack", "sachet", "botol"] },
+    notes: [
+      "1 baris = 1 bahan. Cocok berdasarkan SKU: SKU baru → dibuat, SKU yang sudah ada → diperbarui.",
+      "Bahan baru wajib Nama & Kategori (pilih dari daftar kategori gudang).",
+      "Sel kosong = tidak diubah. HPP = harga per satuan simpan (boleh desimal, mis. 18,5 per ml).",
+      "Kolom Stok diabaikan — stok hanya berubah lewat Penerimaan / Penyesuaian.",
+      "Hapus baris contoh sebelum mengunggah. Maks. 2.000 baris, 5 MB.",
+    ],
+  });
 }
 
 export async function getWmsDashboard(params?: { warehouseId?: string }): Promise<WmsDashboard> {

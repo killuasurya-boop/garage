@@ -16,11 +16,12 @@ export async function POST(request: Request) {
   try {
     formData = await request.formData();
   } catch {
-    return fail(400, "INVALID_MULTIPART_FORM", "Kirim file Excel sebagai multipart/form-data (field 'file').");
+    return fail(400, "INVALID_MULTIPART_FORM", "Kirim file sebagai multipart/form-data (field 'file').");
   }
 
   const file = formData.get("file");
-  if (!(file instanceof File)) return fail(400, "FILE_MISSING", "File Excel wajib diunggah.");
+  if (!(file instanceof File)) return fail(400, "FILE_MISSING", "File .xlsx / .csv wajib diunggah.");
+  if (!/\.(xlsx|csv)$/i.test(file.name)) return fail(400, "FILE_TYPE", "Format file harus .xlsx atau .csv.");
   if (file.size <= 0) return fail(400, "FILE_EMPTY", "File kosong.");
   if (file.size > maxBytes) return fail(413, "FILE_TOO_LARGE", "Ukuran file maksimal 5 MB.");
 
@@ -29,9 +30,13 @@ export async function POST(request: Request) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await importWmsProductsFromBuffer(buffer, { dryRun }, session.data.user.id);
+    const result = await importWmsProductsFromBuffer(
+      buffer,
+      { dryRun, filename: file.name, actorName: session.data.user.name },
+      session.data.user.id,
+    );
     return ok(result);
   } catch (e) {
-    return fail(400, "IMPORT_FAILED", e instanceof Error ? e.message : "Gagal memproses file Excel.");
+    return fail(400, "IMPORT_FAILED", e instanceof Error ? e.message : "Gagal memproses file impor.");
   }
 }

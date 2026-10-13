@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -136,11 +136,6 @@ export function TwoFactorManager({ user, policyRequires2fa, role }: Props) {
 
   function copy(text: string) {
     navigator.clipboard.writeText(text).catch(() => {});
-  }
-
-  // QR code via external service (no extra dep) — generate SVG from TOTP URI
-  function qrSvgUrl(uri: string): string {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(uri)}`;
   }
 
   return (
@@ -287,13 +282,7 @@ export function TwoFactorManager({ user, policyRequires2fa, role }: Props) {
             <CardContent className="space-y-4">
               <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
                 <div className="rounded-md border border-[var(--border)] bg-white p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={qrSvgUrl(totpUri)}
-                    alt="2FA QR code"
-                    width={240}
-                    height={240}
-                  />
+                  <LocalQr value={totpUri} size={240} alt="QR 2FA (dibuat di perangkat ini)" />
                 </div>
                 <div className="flex-1 space-y-2">
                   <div>
@@ -476,4 +465,29 @@ export function TwoFactorManager({ user, policyRequires2fa, role }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * QR dibuat lokal di browser (paket qrcode) — rahasia TOTP tidak pernah dikirim
+ * ke layanan pihak ketiga (sebelumnya memakai api.qrserver.com).
+ */
+function LocalQr({ value, size, alt }: { value: string; size: number; alt: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void import("qrcode")
+      .then((QRCode) => QRCode.toDataURL(value, { width: size * 2, margin: 1, errorCorrectionLevel: "M" }))
+      .then((url) => {
+        if (!cancelled) setSrc(url);
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [value, size]);
+  if (!src) return <div style={{ width: size, height: size }} className="grid place-items-center text-xs text-gray-600">Membuat QR…</div>;
+  // eslint-disable-next-line @next/next/no-img-element -- data URL QR lokal
+  return <img src={src} alt={alt} width={size} height={size} />;
 }

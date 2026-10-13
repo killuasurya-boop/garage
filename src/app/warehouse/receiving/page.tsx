@@ -156,7 +156,10 @@ async function printReceivingLabels(
     }),
   );
   const win = window.open("", "_blank", "width=800,height=600");
-  if (!win) return;
+  if (!win) {
+    window.alert("Jendela cetak label diblokir browser. Izinkan pop-up untuk situs ini lalu cetak ulang dari daftar penerimaan.");
+    return;
+  }
   win.document.write(`<!doctype html><html><head><title>Label Penerimaan</title><style>
     *{font-family:Inter,system-ui,sans-serif;box-sizing:border-box}
     body{margin:0;padding:12px}

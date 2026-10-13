@@ -1,7 +1,5 @@
 "use client";
 
-import { BulkImportDialog } from "@/components/garage/bulk-import-dialog";
-import type { WmsImportResult } from "@/lib/wms-service";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -27,6 +25,9 @@ import {
 import { garageApi } from "@/lib/api-client";
 import { currency, unitCostCurrency } from "@/lib/garage-data";
 import { ScanModal } from "@/components/wms/scan-modal";
+import { BulkImportDialog } from "@/components/garage/bulk-import-dialog";
+import type { WmsImportResult } from "@/lib/wms-service";
+import { escapeHtml } from "@/lib/wms-print";
 import { WMS_STATUS_COLOR, type WmsProductRow, type WmsWarehouse } from "@/lib/wms-types";
 
 type WmsCategory = { id: string; name: string; area: "bar" | "dapur" | "umum" };
@@ -47,14 +48,18 @@ function fmtDate(iso: string) {
 
 /** Cetak label QR (encode SKU) untuk produk terpilih — client-side, lalu window.print(). */
 async function printQrLabels(items: WmsProductRow[]) {
+  if (items.length === 0) return;
   const cards = await Promise.all(
     items.map(async (p) => {
       const qr = await QRCode.toDataURL(p.sku, { margin: 1, width: 220 });
-      return `<div class="lbl"><img src="${qr}" alt="${p.sku}"/><div class="nm">${p.name}</div><div class="sku">${p.sku}</div></div>`;
+      return `<div class="lbl"><img src="${qr}" alt="${escapeHtml(p.sku)}"/><div class="nm">${escapeHtml(p.name)}</div><div class="sku">${escapeHtml(p.sku)}</div></div>`;
     }),
   );
   const win = window.open("", "_blank", "width=800,height=600");
-  if (!win) return;
+  if (!win) {
+    window.alert("Jendela cetak diblokir browser. Izinkan pop-up untuk situs ini lalu coba lagi.");
+    return;
+  }
   win.document.write(`<!doctype html><html><head><title>Label Produk</title><style>
     *{font-family:Inter,system-ui,sans-serif;box-sizing:border-box}
     body{margin:0;padding:12px}

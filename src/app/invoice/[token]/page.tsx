@@ -683,10 +683,10 @@ export default async function InvoiceTrackingPage({
       </section>
 
       {/* ─── BODY: Items + Sidebar ─── */}
-      <section className="mx-auto grid max-w-5xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8">
+      <section className="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8">
 
         {/* Left column */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
 
           {/* ── Items ── */}
           <div className="rounded-md border border-[#34343c] bg-[#111116] p-4">

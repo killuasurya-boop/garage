@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, FileDown, Loader2, Upload, X } from "lucide-react";
 
 import type { ImportRowResult } from "@/lib/bulk-import";
@@ -104,9 +105,12 @@ export function BulkImportDialog<T extends { rows: ImportRowResult[]; mapping: R
   const result = saved ?? preview;
   const pending = preview ? config.pendingChanges(preview) : 0;
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-label={config.title} onClick={onClose}>
-      <div className={`flex max-h-[92vh] w-full max-w-3xl flex-col rounded-xl border shadow-2xl ${theme.panel}`} onClick={(e) => e.stopPropagation()}>
+  // Portal ke <body>: dialog dipakai di dalam panel beranimasi (transform) yang
+  // membuat position:fixed salah posisi di mobile.
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 grid grid-cols-[minmax(0,1fr)] place-items-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-label={config.title} onClick={onClose}>
+      <div className={`flex max-h-[92vh] w-full min-w-0 max-w-3xl flex-col rounded-xl border shadow-2xl ${theme.panel}`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b border-current/10 p-4">
           <div className="min-w-0">
             <p className="text-base font-bold">{config.title}</p>
@@ -117,7 +121,7 @@ export function BulkImportDialog<T extends { rows: ImportRowResult[]; mapping: R
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        <div className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto p-4">
           {!saved ? (
             <>
               <div className="flex flex-wrap gap-2">
@@ -165,7 +169,7 @@ export function BulkImportDialog<T extends { rows: ImportRowResult[]; mapping: R
           )}
 
           {result ? (
-            <div className={`space-y-3 rounded-lg border p-3 ${theme.box}`}>
+            <div className={`min-w-0 space-y-3 rounded-lg border p-3 ${theme.box}`}>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {config.summarize(result).map((item) => (
                   <div key={item.label} className="min-w-0">
@@ -267,6 +271,7 @@ export function BulkImportDialog<T extends { rows: ImportRowResult[]; mapping: R
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { reportFileName } from "@/lib/report-file-name";
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -37,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DateFilterBar } from "@/components/garage/date-filter";
 import { ReportCenter } from "@/components/garage/report-center";
 import { FinanceInvoiceList } from "@/components/garage/finance-invoice-list";
 import { FinanceAnomalyPanel } from "@/components/garage/finance-anomaly-panel";
@@ -99,7 +101,10 @@ export function FinanceView({
   role?: Role;
   onNavigateModule?: (module: ModuleId) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<FinanceTab>("overview");
+  // ?tab=reports (tautan "Laporan" dari Control Center) langsung membuka Pusat Laporan.
+  const [activeTab, setActiveTab] = useState<FinanceTab>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "reports" ? "reports" : "overview",
+  );
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +189,7 @@ export function FinanceView({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `garage-finance-${todayIso}.xlsx`;
+      link.download = reportFileName({ kind: "LAPORAN_KEUANGAN_HARIAN", from: todayIso, to: todayIso, ext: "xlsx" });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -406,7 +411,13 @@ export function FinanceView({
         </button>
       </div>
 
-      {activeTab === "invoices" && <FinanceInvoiceList />}
+      {activeTab === "invoices" && (
+        <div className="space-y-3">
+          {/* Filter tanggal hanya untuk daftar invoice (diteruskan ke server). */}
+          <DateFilterBar />
+          <FinanceInvoiceList />
+        </div>
+      )}
       {activeTab === "reports" && <ReportCenter />}
 
       {activeTab === "overview" && (

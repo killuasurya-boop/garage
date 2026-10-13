@@ -3674,8 +3674,21 @@ export async function getWmsReports(params?: {
   const limit = Math.min(Math.max(Number(params?.limit ?? 200), 1), 500);
   const offset = Math.max(Number(params?.offset ?? 0), 0);
   const filters = [];
-  if (params?.from) filters.push(sql`${wmsStockMovement.createdAt} >= ${new Date(params.from)}`);
-  if (params?.to) filters.push(sql`${wmsStockMovement.createdAt} <= ${new Date(params.to)}`);
+  // Tanggal "YYYY-MM-DD" = hari kalender WIB penuh (akhir inklusif); ISO lengkap dipakai apa adanya.
+  const isKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (params?.from) {
+    const from = isKey(params.from) ? new Date(`${params.from}T00:00:00+07:00`) : new Date(params.from);
+    if (!Number.isNaN(from.getTime())) filters.push(sql`${wmsStockMovement.createdAt} >= ${from}`);
+  }
+  if (params?.to) {
+    if (isKey(params.to)) {
+      const end = new Date(new Date(`${params.to}T00:00:00+07:00`).getTime() + 86_400_000);
+      filters.push(sql`${wmsStockMovement.createdAt} < ${end}`);
+    } else {
+      const to = new Date(params.to);
+      if (!Number.isNaN(to.getTime())) filters.push(sql`${wmsStockMovement.createdAt} <= ${to}`);
+    }
+  }
   if (params?.type && params.type !== "all") filters.push(eq(wmsStockMovement.type, params.type));
   if (params?.warehouseId) filters.push(eq(wmsStockMovement.warehouseId, params.warehouseId));
   const where = filters.length ? and(...filters) : undefined;

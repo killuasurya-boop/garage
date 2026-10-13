@@ -1,5 +1,7 @@
 "use client";
 
+import { reportFileName } from "@/lib/report-file-name";
+import { todayWibKey } from "@/lib/date-range";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -266,7 +268,7 @@ export function InventoryView({
     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `produk-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = reportFileName({ kind: "PRODUK_TERPILIH", from: todayWibKey(), to: todayWibKey(), ext: "csv" });
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1261,7 +1263,7 @@ export function InventoryView({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `garage-audit-gudang-${date || new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = reportFileName({ kind: "AUDIT_GUDANG", from: date || todayWibKey(), to: date || todayWibKey(), ext: "pdf" });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1287,7 +1289,7 @@ export function InventoryView({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `garage-laporan-harian-gudang-${date || new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.download = reportFileName({ kind: "LAPORAN_HARIAN_GUDANG", from: date || todayWibKey(), to: date || todayWibKey(), ext: "xlsx" });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1315,7 +1317,7 @@ export function InventoryView({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `garage-rekap-bulanan-gudang-${month}.xlsx`;
+      link.download = `GARAGE_REKAP_BULANAN_GUDANG_${month}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1417,7 +1419,7 @@ export function InventoryView({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `garage-request-${effectiveTransferStation}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = reportFileName({ kind: "REQUEST_BAHAN", division: effectiveTransferStation, from: todayWibKey(), to: todayWibKey(), ext: "pdf" });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2442,7 +2444,7 @@ export function InventoryView({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `garage-produk-gudang-${todayIso}.${format}`;
+      link.download = reportFileName({ kind: "PRODUK_GUDANG", from: todayIso, to: todayIso, ext: format });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

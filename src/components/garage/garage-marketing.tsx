@@ -1,5 +1,7 @@
 "use client";
 
+import { reportFileName } from "@/lib/report-file-name";
+import { todayWibKey } from "@/lib/date-range";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -912,7 +914,7 @@ function MarketingCampaigns({
     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `campaign-terpilih-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = reportFileName({ kind: "CAMPAIGN_TERPILIH", from: todayWibKey(), to: todayWibKey(), ext: "csv" });
     a.click();
     URL.revokeObjectURL(url);
   }

@@ -3,7 +3,7 @@
 // Owner/Manajer bisa akses semua; Kasir (pegang tugas gudang) lihat aktivitas
 // sendiri saja.
 
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -13,6 +13,7 @@ import {
   wmsWarehouse,
 } from "@/db/schema";
 import { fail, ok } from "@/lib/api-response";
+import { isCalendarDateKey } from "@/lib/date-range";
 import { requireGarageSession } from "@/lib/server-auth";
 import { MANAGEMENT_ROLES } from "@/lib/role-access";
 
@@ -51,11 +52,18 @@ export async function GET(request: Request) {
   if (filterType) conditions.push(eq(wmsStockMovement.type, filterType));
   if (filterWarehouseId) conditions.push(eq(wmsStockMovement.warehouseId, filterWarehouseId));
   if (filterProductId) conditions.push(eq(wmsStockMovement.productId, filterProductId));
+  if ((fromDate && !isCalendarDateKey(fromDate)) || (toDate && !isCalendarDateKey(toDate))) {
+    return fail(400, "INVALID_DATE", "Tanggal tidak valid (YYYY-MM-DD).");
+  }
+  if (fromDate && toDate && fromDate > toDate) {
+    return fail(400, "INVALID_RANGE", "Tanggal mulai harus sebelum tanggal akhir.");
+  }
   if (fromDate) {
     conditions.push(gte(wmsStockMovement.createdAt, new Date(`${fromDate}T00:00:00+07:00`)));
   }
   if (toDate) {
-    conditions.push(lte(wmsStockMovement.createdAt, new Date(`${toDate}T23:59:59+07:00`)));
+    // Akhir hari inklusif: < awal hari berikutnya (bukan 23:59:59 yang melewatkan milidetik terakhir).
+    conditions.push(lt(wmsStockMovement.createdAt, new Date(new Date(`${toDate}T00:00:00+07:00`).getTime() + 86_400_000)));
   }
 
   try {

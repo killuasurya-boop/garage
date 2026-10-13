@@ -55,7 +55,7 @@ const compact = (n: number) => {
   if (Math.abs(n) >= 1_000) return `Rp ${(n / 1_000).toFixed(0)} rb`;
   return idr.format(n);
 };
-const timeFmt = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" });
+const timeFmt = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
 function todayKey() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -141,7 +141,10 @@ export default function CashClosingPage() {
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              aria-label="Tanggal closing"
+              onChange={(e) => {
+                if (e.target.value) setDate(e.target.value);
+              }}
               className="rounded-lg border border-white/10 bg-[var(--garage-bg-2)] px-2 py-1.5 text-xs text-zinc-100"
             />
             <button

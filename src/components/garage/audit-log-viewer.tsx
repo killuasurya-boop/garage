@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useDateFilterContext } from "@/components/garage/date-filter";
+import { mergeDateParams, useDateFilterContext } from "@/components/garage/date-filter";
 
 type AuditRow = {
   id: string;
@@ -81,7 +81,7 @@ const dateTime = new Intl.DateTimeFormat("id-ID", {
 const PAGE_SIZE = 30;
 
 export function AuditLogViewer() {
-  const { predicate: dateFilterPredicate } = useDateFilterContext();
+  const { filter: globalDateFilter } = useDateFilterContext();
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -89,6 +89,13 @@ export function AuditLogViewer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  // Filter tanggal global berubah → kembali ke halaman 1.
+  const globalDateKey = JSON.stringify(globalDateFilter);
+  const [lastGlobalDateKey, setLastGlobalDateKey] = useState(globalDateKey);
+  if (lastGlobalDateKey !== globalDateKey) {
+    setLastGlobalDateKey(globalDateKey);
+    setPage(0);
+  }
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState("all");
@@ -104,8 +111,10 @@ export function AuditLogViewer() {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (status && status !== "all") params.set("status", status);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
+      // Filter tanggal global modul diteruskan ke server (bukan memfilter halaman aktif saja).
+      const merged = mergeDateParams({ from: dateFrom, to: dateTo }, globalDateFilter);
+      if (merged.dateFrom) params.set("dateFrom", merged.dateFrom);
+      if (merged.dateTo) params.set("dateTo", merged.dateTo);
       if (actorFilter) params.set("actor", actorFilter);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(page * PAGE_SIZE));
@@ -135,7 +144,7 @@ export function AuditLogViewer() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, dateFrom, dateTo, actorFilter, page]);
+  }, [search, status, dateFrom, dateTo, actorFilter, page, globalDateFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
@@ -157,7 +166,7 @@ export function AuditLogViewer() {
     setPage(0);
   }
 
-  const visibleRows = rows.filter((row) => dateFilterPredicate(row.createdAt));
+  const visibleRows = rows;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const showingFrom = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const showingTo = Math.min(total, (page + 1) * PAGE_SIZE);
@@ -303,6 +312,7 @@ export function AuditLogViewer() {
           <Input
             type="date"
             value={dateFrom}
+              max={dateTo || undefined}
             onChange={(event) => {
               setDateFrom(event.target.value);
               setPage(0);
@@ -315,6 +325,7 @@ export function AuditLogViewer() {
           <Input
             type="date"
             value={dateTo}
+              min={dateFrom || undefined}
             onChange={(event) => {
               setDateTo(event.target.value);
               setPage(0);

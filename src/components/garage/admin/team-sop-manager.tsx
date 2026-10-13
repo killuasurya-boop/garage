@@ -296,7 +296,11 @@ export function TeamSopManager() {
             <input
               type="date"
               value={dateStr}
-              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              onChange={(e) => {
+                // Dikosongkan → tetap tanggal sebelumnya (hindari Invalid Date/NaN).
+                // Tengah hari lokal supaya tanggal tidak bergeser oleh zona waktu.
+                if (e.target.value) setSelectedDate(new Date(`${e.target.value}T12:00:00`));
+              }}
               className="text-xs font-semibold px-3 py-2 rounded border bg-muted text-foreground"
             />
           </div>

@@ -123,13 +123,10 @@ export function TeamShiftScheduler() {
   }, [currentDate]);
 
   const handleMonthChange = (direction: "prev" | "next") => {
-    const newDate = new Date(currentDate);
-    if (direction === "prev") {
-      newDate.setMonth(currentDate.getMonth() - 1);
-    } else {
-      newDate.setMonth(currentDate.getMonth() + 1);
-    }
-    setCurrentDate(newDate);
+    // Selalu ke tanggal 1 bulan tujuan: setMonth() pada tanggal 31 melompati
+    // bulan pendek (31 Jan + 1 bulan = 3 Mar).
+    const offset = direction === "prev" ? -1 : 1;
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
   };
 
   const handleShiftChange = (staffId: string, dateStr: string, shiftType: string) => {

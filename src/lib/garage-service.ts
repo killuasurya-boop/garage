@@ -14046,16 +14046,21 @@ export async function listExpenses(
   if (filter.status && filter.status !== "all") {
     conditions.push(eq(expenses.status, filter.status));
   }
+  // "YYYY-MM-DD" = hari kalender WIB penuh (akhir inklusif); ISO lengkap dipakai apa adanya.
+  const isDayKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
   if (filter.from) {
-    const fromDate = new Date(filter.from);
+    const fromDate = isDayKey(filter.from) ? new Date(`${filter.from}T00:00:00.000${jakartaOffset}`) : new Date(filter.from);
     if (!Number.isNaN(fromDate.getTime())) {
       conditions.push(gte(expenses.expenseDate, fromDate));
     }
   }
   if (filter.to) {
-    const toDate = new Date(filter.to);
-    if (!Number.isNaN(toDate.getTime())) {
-      conditions.push(lte(expenses.expenseDate, toDate));
+    if (isDayKey(filter.to)) {
+      const end = new Date(new Date(`${filter.to}T00:00:00.000${jakartaOffset}`).getTime() + 86_400_000);
+      if (!Number.isNaN(end.getTime())) conditions.push(lt(expenses.expenseDate, end));
+    } else {
+      const toDate = new Date(filter.to);
+      if (!Number.isNaN(toDate.getTime())) conditions.push(lte(expenses.expenseDate, toDate));
     }
   }
   const rows = await getDb()

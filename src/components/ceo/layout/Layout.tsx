@@ -7,7 +7,6 @@ import type { ReactNode } from "react";
 import { DashboardProvider } from "../store/dashboardStore";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { ControlFilterPanel } from "../panels/ControlFilterPanel";
 import { NotificationCenter } from "../panels/NotificationCenter";
 
 export function CeoLayout({ children }: { children: ReactNode }) {
@@ -25,7 +24,6 @@ export function CeoLayout({ children }: { children: ReactNode }) {
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar />
-            <ControlFilterPanel />
             <main className="flex-1">
               <AnimatePresence mode="wait">
                 <motion.div

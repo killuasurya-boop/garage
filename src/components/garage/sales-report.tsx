@@ -1,11 +1,14 @@
 "use client";
 
-import { Download, Loader2, Printer, RefreshCw } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Loader2, Printer, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { garageApi } from "@/lib/api-client";
+import { downloadReportFile, fileSizeLabel, saveBlob } from "@/lib/report-download-client";
+import { reportFileName } from "@/lib/report-file-name";
+import { periodError } from "@/lib/report-periods";
 import { buildSalesSummarySlipContent } from "@/lib/management-slips";
 import { printDocument } from "@/lib/print-client";
 import type { SalesReport as SalesReportData } from "@/lib/sales-report";
@@ -37,7 +40,8 @@ function csvEscape(value: string | number) {
 function downloadCsv(report: SalesReportData) {
   const lines: string[] = [];
   const push = (...cells: Array<string | number>) => lines.push(cells.map(csvEscape).join(","));
-  push("Laporan Penjualan Garage", `${report.range.from} s/d ${report.range.to}`);
+  push("GARAGE COFFEE & MOTOR");
+  push("Laporan Penjualan", `${report.range.from} s/d ${report.range.to}`);
   if (report.sessionCode) push("Shift", report.sessionCode);
   push("Omzet", report.summary.gross);
   push("Transaksi", report.summary.transactions);
@@ -51,6 +55,11 @@ function downloadCsv(report: SalesReportData) {
     lines.push("");
     push(title, withQty ? "Qty" : "Transaksi", "Omzet");
     for (const row of rows) push(row.label, withQty ? row.qty : row.count, row.revenue);
+    push(
+      "TOTAL",
+      rows.reduce((sum, row) => sum + (withQty ? row.qty : row.count), 0),
+      rows.reduce((sum, row) => sum + row.revenue, 0),
+    );
   };
   section("Produk", report.products, true);
   section("Kategori", report.categories, true);
@@ -58,13 +67,16 @@ function downloadCsv(report: SalesReportData) {
   section("Per jam", report.hours, false);
   section("Kasir", report.cashiers, false);
   section("Tipe order", report.orderTypes, false);
-  const blob = new Blob([`﻿${lines.join("\n")}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `penjualan-${report.range.from}_${report.range.to}.csv`;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const blob = new Blob([`﻿${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
+  saveBlob(
+    blob,
+    reportFileName({
+      kind: report.sessionCode ? `LAPORAN_PENJUALAN_SHIFT_${report.sessionCode}` : "LAPORAN_PENJUALAN",
+      from: report.range.from,
+      to: report.range.to,
+      ext: "csv",
+    }),
+  );
 }
 
 function Table({
@@ -146,10 +158,17 @@ export function SalesReport({
 
   // Ambil laporan setiap rentang berubah / tombol Muat ulang. setState hanya di
   // callback (bukan sinkron di badan efek).
+  const rangeError = periodError(range.from, range.to, { today: wibDate(), maxDays: 92 });
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
+      if (rangeError) {
+        setError(rangeError);
+        setReport(null);
+        return;
+      }
       setLoading(true);
       setError(null);
       garageApi
@@ -174,7 +193,22 @@ export function SalesReport({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [range.from, range.to, reloadKey]);
+  }, [range.from, range.to, reloadKey, rangeError]);
+
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | "csv" | null>(null);
+  async function exportServer(format: "pdf" | "xlsx" | "csv") {
+    setExporting(format);
+    setPrintNotice(null);
+    try {
+      const params = new URLSearchParams({ module: "penjualan", type: "day", format, from: range.from, to: range.to });
+      const file = await downloadReportFile(`/api/reports/export?${params.toString()}`, `GARAGE_LAPORAN_PENJUALAN.${format}`);
+      setPrintNotice(`${file.filename} diunduh (${fileSizeLabel(file.size)}).`);
+    } catch (err) {
+      setPrintNotice(err instanceof Error ? err.message : "Gagal membuat laporan.");
+    } finally {
+      setExporting(null);
+    }
+  }
 
   async function printSummary() {
     if (!report) return;
@@ -260,10 +294,32 @@ export function SalesReport({
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Muat ulang
           </Button>
-          <Button type="button" size="sm" variant="outline" disabled={!report} onClick={() => report && downloadCsv(report)}>
-            <Download className="h-4 w-4" />
-            CSV
-          </Button>
+          {shiftScope ? (
+            <Button type="button" size="sm" variant="outline" disabled={!report} onClick={() => report && downloadCsv(report)}>
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
+          ) : (
+            (
+              [
+                ["pdf", "PDF", FileText],
+                ["xlsx", "Excel", FileSpreadsheet],
+                ["csv", "CSV", Download],
+              ] as const
+            ).map(([format, label, Icon]) => (
+              <Button
+                key={format}
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!report || exporting !== null || Boolean(rangeError)}
+                onClick={() => void exportServer(format)}
+              >
+                {exporting === format ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                {label}
+              </Button>
+            ))
+          )}
           <Button
             type="button"
             size="sm"

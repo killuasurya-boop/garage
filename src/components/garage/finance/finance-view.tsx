@@ -37,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ReportCenter } from "@/components/garage/report-center";
 import { FinanceInvoiceList } from "@/components/garage/finance-invoice-list";
 import { FinanceAnomalyPanel } from "@/components/garage/finance-anomaly-panel";
 import { FinanceCfoBrief } from "@/components/garage/finance/finance-cfo-brief";
@@ -72,7 +73,7 @@ const statusClass: Record<string, string> = {
   info: "border-[#3b82f6]/45 bg-[#3b82f6]/12 text-[#93c5fd]",
 };
 
-type FinanceTab = "overview" | "invoices";
+type FinanceTab = "overview" | "invoices" | "reports";
 
 type FinanceMode = "basic" | "full";
 
@@ -366,7 +367,7 @@ export function FinanceView({
       </div>
 
       {/* Tab strip */}
-      <div className="grid grid-cols-2 items-stretch gap-1 rounded-lg border border-[#34343c] bg-[#111116] p-1">
+      <div className="grid grid-cols-3 items-stretch gap-1 rounded-lg border border-[#34343c] bg-[#111116] p-1">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
@@ -391,9 +392,22 @@ export function FinanceView({
           <span className="sm:hidden">Invoice</span>
           <span className="hidden sm:inline">Daftar Invoice</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("reports")}
+          className={`garage-press rounded-md px-2 py-2.5 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
+            activeTab === "reports"
+              ? "bg-[#f5a742] text-black"
+              : "text-[#d6d6dc] hover:bg-white/[0.04]"
+          }`}
+        >
+          <span className="sm:hidden">Laporan</span>
+          <span className="hidden sm:inline">Pusat Laporan</span>
+        </button>
       </div>
 
       {activeTab === "invoices" && <FinanceInvoiceList />}
+      {activeTab === "reports" && <ReportCenter />}
 
       {activeTab === "overview" && (
         <>

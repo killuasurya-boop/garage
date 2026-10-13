@@ -12,7 +12,7 @@ function productionGuide(station: "bar" | "dapur"): RoleGuide {
     summary: `Membuat ${what} dari antrean Production Hub, QC, memanggil waiter, mengatur stok habis, dan stok bahan.`,
     roles: ["Kasir"],
     workstations: isBar ? ["bar", "all", "helper_bar", "helper_all"] : ["dapur", "all", "helper_dapur", "helper_all"],
-    updatedAt: "2026-10-12",
+    updatedAt: "2026-10-13",
     sections: [
       {
         id: "mulai",
@@ -39,11 +39,11 @@ function productionGuide(station: "bar" | "dapur"): RoleGuide {
           },
           { text: "Selesai: tekan QC · Siap · Panggil → cek tampilan & catatan → QC OK · Siap · Panggil. Waiter otomatis dipanggil." },
           {
-            text: "Timer merah = lewat target waktu. Kerjakan segera dan beri tahu kasir bila ada kendala.",
+            text: "Timer merah = lewat target waktu. Target dihitung sejak pesanan masuk (bukan sejak Mulai) — sama di layar & laporan kinerja. Kerjakan segera dan beri tahu kasir bila ada kendala.",
           },
           {
             text: "Kartu bertuliskan Sebagian batal = sebagian porsi dibatalkan/direfund kasir. Buat hanya porsi yang tersisa di kartu.",
-            warn: "Pesanan di bagian merah Batal jangan dibuat lagi.",
+            warn: "Pesanan di bagian merah Batal jangan dibuat lagi. Porsi yang sudah mulai dibuat lalu dibatalkan dicatat sebagai waste (bahan tidak kembali ke stok).",
           },
         ],
       },

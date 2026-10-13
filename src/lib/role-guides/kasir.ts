@@ -9,7 +9,7 @@ export const kasirGuide: RoleGuide = {
   roles: ["Kasir"],
   // Barista / koki juga role Kasir (workstation bar/dapur) — mereka pakai panduan produksi.
   onlyWithoutWorkstation: true,
-  updatedAt: "2026-10-12",
+  updatedAt: "2026-10-13",
   sections: [
     {
       id: "login",
@@ -136,7 +136,7 @@ export const kasirGuide: RoleGuide = {
         },
         {
           text: "Batal (void) / refund: ajukan dari detail order dengan alasan. Manajer/Owner menyetujui dengan PIN. Uang tunai yang dikembalikan otomatis dikurangkan dari laci.",
-          warn: "Jangan mengembalikan uang sebelum void/refund disetujui sistem.",
+          warn: "Jangan mengembalikan uang sebelum void/refund disetujui sistem. Menu yang belum dibuat: bahan kembali ke stok. Menu yang sudah dibuat/diantar: dicatat waste.",
         },
       ],
     },

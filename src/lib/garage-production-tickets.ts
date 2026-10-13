@@ -182,7 +182,27 @@ export async function cancelProductionForOrder(
       ),
     )
     .returning({ id: kitchenTickets.id, ticketNo: kitchenTickets.ticketNo });
-  if (!tickets.length) return { ticketNos: [] as string[], batchesTouched: 0 };
+  // Porsi yang sudah diantar (tiket delivered) = sudah dibuat & dikonsumsi.
+  const servedItems = await tx
+    .select({ menuItemId: productionTicketItems.menuItemId, variantId: productionTicketItems.variantId, qty: productionTicketItems.qty })
+    .from(productionTicketItems)
+    .innerJoin(kitchenTickets, eq(productionTicketItems.ticketId, kitchenTickets.id))
+    .where(
+      and(
+        eq(kitchenTickets.orderId, orderId),
+        eq(kitchenTickets.status, "delivered"),
+        ne(productionTicketItems.status, "cancelled"),
+      ),
+    );
+  if (!tickets.length) {
+    return {
+      ticketNos: [] as string[],
+      batchesTouched: 0,
+      tracked: servedItems.length > 0,
+      unmade: [] as ProductionQtyLine[],
+      made: servedItems.map(toQtyLine),
+    };
+  }
 
   const ticketIds = tickets.map((ticket) => ticket.id);
   const items = await tx
@@ -190,9 +210,13 @@ export async function cancelProductionForOrder(
       id: productionTicketItems.id,
       batchId: productionTicketItems.batchId,
       qty: productionTicketItems.qty,
+      status: productionTicketItems.status,
+      menuItemId: productionTicketItems.menuItemId,
+      variantId: productionTicketItems.variantId,
     })
     .from(productionTicketItems)
     .where(inArray(productionTicketItems.ticketId, ticketIds));
+  const liveItems = items.filter((item) => item.status !== "cancelled");
 
   const qtyByBatch = new Map<string, number>();
   for (const item of items) {
@@ -234,7 +258,20 @@ export async function cancelProductionForOrder(
     .set({ status: "cancelled", batchId: null })
     .where(inArray(productionTicketItems.ticketId, ticketIds));
 
-  return { ticketNos: tickets.map((ticket) => ticket.ticketNo), batchesTouched };
+  return {
+    ticketNos: tickets.map((ticket) => ticket.ticketNo),
+    batchesTouched,
+    // Ada data porsi → stok dikembalikan hanya untuk yang belum dibuat.
+    tracked: items.length > 0 || servedItems.length > 0,
+    unmade: liveItems.filter((item) => item.status === "waiting").map(toQtyLine),
+    made: [...liveItems.filter((item) => item.status !== "waiting"), ...servedItems].map(toQtyLine),
+  };
+}
+
+export type ProductionQtyLine = { menuItemId: string | null; variantId: string; qty: number };
+
+function toQtyLine(item: { menuItemId: string | null; variantId: string | null; qty: number }): ProductionQtyLine {
+  return { menuItemId: item.menuItemId, variantId: item.variantId ?? "", qty: item.qty };
 }
 
 /** Tiket (id) yang seluruh porsinya sudah ready — kandidat auto READY. */
@@ -284,7 +321,18 @@ export async function cancelProductionQuantities(
         inArray(kitchenTickets.status, ["queue", "cooking", "ready"]),
       ),
     );
-  if (!tickets.length) return { ticketNos: [] as string[], cancelledQty: 0 };
+  const [anyItem] = await tx
+    .select({ id: productionTicketItems.id })
+    .from(productionTicketItems)
+    .innerJoin(kitchenTickets, eq(productionTicketItems.ticketId, kitchenTickets.id))
+    .where(eq(kitchenTickets.orderId, input.ledgerOrderId))
+    .limit(1);
+  const tracked = Boolean(anyItem);
+  const unmade: ProductionQtyLine[] = [];
+  if (!tickets.length) {
+    // Semua tiket sudah diantar / tidak ada → porsi yang diminta = sudah dibuat.
+    return { ticketNos: [] as string[], cancelledQty: 0, tracked, unmade, made: tracked ? input.lines.map(toQtyLine) : [] };
+  }
   const ticketIds = tickets.map((ticket) => ticket.id);
   const items = await tx
     .select()
@@ -303,6 +351,7 @@ export async function cancelProductionQuantities(
       const take = Math.min(item.qty, remaining);
       remaining -= take;
       cancelledQty += take;
+      if (item.status === "waiting") unmade.push({ menuItemId: item.menuItemId, variantId: item.variantId ?? "", qty: take });
       item.qty -= take;
       if (item.batchId) {
         const [batch] = await tx
@@ -349,5 +398,19 @@ export async function cancelProductionQuantities(
       touched.push(ticket.ticketNo);
     }
   }
-  return { ticketNos: touched, cancelledQty };
+  // Yang bukan "belum dibuat" (sedang/sudah dibuat atau sudah diantar) = sudah dibuat.
+  const made: ProductionQtyLine[] = [];
+  if (tracked) {
+    const key = (l: { menuItemId: string | null; variantId: string }) => `${l.menuItemId ?? ""}|${l.variantId}`;
+    const requested = new Map<string, ProductionQtyLine>();
+    for (const line of input.lines) {
+      const current = requested.get(key(line));
+      requested.set(key(line), { menuItemId: line.menuItemId, variantId: line.variantId, qty: (current?.qty ?? 0) + line.qty });
+    }
+    for (const [k, line] of requested) {
+      const unmadeQty = unmade.filter((u) => key(u) === k).reduce((sum, u) => sum + u.qty, 0);
+      if (line.qty - unmadeQty > 0) made.push({ ...line, qty: line.qty - unmadeQty });
+    }
+  }
+  return { ticketNos: touched, cancelledQty, tracked, unmade, made };
 }

@@ -6,7 +6,7 @@ export const manajerHarianGuide: RoleGuide = {
   title: "Panduan Harian Manajer",
   summary: "Persetujuan, gudang (penerimaan, transfer, opname), keuangan harian, absensi & gajian, tim, dan pengaturan.",
   roles: ["Manajer", "Owner"],
-  updatedAt: "2026-10-12",
+  updatedAt: "2026-10-13",
   sections: [
     {
       id: "pagi",
@@ -26,6 +26,9 @@ export const manajerHarianGuide: RoleGuide = {
           text: "Pengajuan yang Anda buat sendiri (pengeluaran, kasbon, opname) harus disetujui orang lain — sistem menolak persetujuan sendiri.",
         },
         { text: "Pengeluaran di atas batas Owner: persetujuan Anda menjadi Direview — menunggu Owner." },
+        {
+          text: "Void/refund: bahan menu yang belum dibuat kembali ke stok; menu yang sudah dibuat/diantar dicatat waste (tercatat di Audit sebagai wasteItems).",
+        },
       ],
     },
     {

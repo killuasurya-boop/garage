@@ -2,7 +2,7 @@
 
 > Persetujuan, gudang (penerimaan, transfer, opname), keuangan harian, absensi & gajian, tim, dan pengaturan.
 >
-> Untuk: Manajer, Owner · Diperbarui 2026-10-12. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Manajer, Owner · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Buka hari
 
@@ -15,6 +15,7 @@
 1. Menu Persetujuan: diskon, void, refund, selisih kas, pengeluaran, dan opname. Tolak wajib dengan alasan.
 2. Pengajuan yang Anda buat sendiri (pengeluaran, kasbon, opname) harus disetujui orang lain — sistem menolak persetujuan sendiri.
 3. Pengeluaran di atas batas Owner: persetujuan Anda menjadi Direview — menunggu Owner.
+4. Void/refund: bahan menu yang belum dibuat kembali ke stok; menu yang sudah dibuat/diantar dicatat waste (tercatat di Audit sebagai wasteItems).
 
 ## 3. Gudang (Warehouse)
 

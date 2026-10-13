@@ -8,7 +8,7 @@ export const waiterGuide: RoleGuide = {
   roles: ["Waiter"],
   // Akun kurir juga role Waiter (workstation "kurir") — punya panduan sendiri.
   onlyWithoutWorkstation: true,
-  updatedAt: "2026-10-12",
+  updatedAt: "2026-10-13",
   sections: [
     {
       id: "mulai",

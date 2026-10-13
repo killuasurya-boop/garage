@@ -2,7 +2,7 @@
 
 > Membuat makanan dari antrean Production Hub, QC, memanggil waiter, mengatur stok habis, dan stok bahan.
 >
-> Untuk: Kasir · Diperbarui 2026-10-12. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Kasir · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Mulai kerja
 
@@ -20,9 +20,9 @@ Kolom: Menunggu → Diproses → Siap. Kartu menunjukkan nama tamu, meja, item +
 2. Smart Batch: beberapa pesanan dengan menu & catatan sama bisa dibuat sekaligus — tekan Mulai batch ×N.
    - Tips: Batch: setelah selesai, tekan QC + Allocation lalu ketuk tiap porsi (Nama + Meja) sampai UNALLOCATED = 0, lalu Batch complete.
 3. Selesai: tekan QC · Siap · Panggil → cek tampilan & catatan → QC OK · Siap · Panggil. Waiter otomatis dipanggil.
-4. Timer merah = lewat target waktu. Kerjakan segera dan beri tahu kasir bila ada kendala.
+4. Timer merah = lewat target waktu. Target dihitung sejak pesanan masuk (bukan sejak Mulai) — sama di layar & laporan kinerja. Kerjakan segera dan beri tahu kasir bila ada kendala.
 5. Kartu bertuliskan Sebagian batal = sebagian porsi dibatalkan/direfund kasir. Buat hanya porsi yang tersisa di kartu.
-   - **Penting:** Pesanan di bagian merah Batal jangan dibuat lagi.
+   - **Penting:** Pesanan di bagian merah Batal jangan dibuat lagi. Porsi yang sudah mulai dibuat lalu dibatalkan dicatat sebagai waste (bahan tidak kembali ke stok).
 
 ## 3. Serah ke waiter
 

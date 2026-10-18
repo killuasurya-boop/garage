@@ -35,12 +35,12 @@ export const paymentBrandConfig = {
 
 // Rekening resmi owner (Okt 2026). Ganti di sini + Pengaturan → Pembayaran bila berubah.
 export const bankAccounts = [
-  { id: "BNI", bank: "BNI", accountName: "GARAGE Coffee & Motor", accountNumber: "2114194027" },
-  { id: "Bank Jago", bank: "Bank Jago", accountName: "GARAGE Coffee & Motor", accountNumber: "507300982382" },
+  { id: "BNI", bank: "BNI", accountName: "Suryadi", accountNumber: "2114194027" },
+  { id: "Bank Jago", bank: "Bank Jago", accountName: "Suryadi", accountNumber: "507300982382" },
 ];
 
 export const eWalletAccounts = [
-  { id: "DANA", provider: "DANA", accountName: "GARAGE Coffee & Motor", accountNumber: "081396186251" },
+  { id: "DANA", provider: "DANA", accountName: "Suryadi", accountNumber: "081396186251" },
 ];
 
 export function defaultPaymentProvider(method: PaymentMethod) {

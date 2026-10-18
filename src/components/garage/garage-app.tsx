@@ -1449,7 +1449,7 @@ function GarageWorkspace({
               <OpsCenterView me={data.me} onNavigate={handleModuleChange} />
             )}
             {safeActiveModule === "courier" && <CourierView me={data.me} />}
-            {safeActiveModule === "events" && <EventsView />}
+            {safeActiveModule === "events" && <EventsView canExport={data.me.role === "Owner"} />}
             {safeActiveModule === "ai-agent" && <AiPosAgentView me={data.me} />}
             {safeActiveModule === "kitchen" && (
               <div className="space-y-3">

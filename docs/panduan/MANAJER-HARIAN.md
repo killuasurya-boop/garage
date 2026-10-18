@@ -47,3 +47,14 @@
 4. Profil member (CRM → klik member): foto (klik avatar untuk mengganti), alamat, riwayat poin dapat/pakai/kedaluwarsa dengan saldo, order, dan voucher.
 5. Pengaturan: Meja & QR, printer, struk, batas PIN kas keluar/masuk.
 6. CRM/Membership: koreksi poin wajib dengan alasan. Audit untuk memeriksa aksi sensitif.
+
+## 7. Undangan Grand Opening
+
+Menu Undangan Digital: tamu, link undangan pribadi, dan rekap RSVP.
+
+1. Tambah tamu satu per satu, atau tab Impor → unduh template → isi Nama, WhatsApp, Jumlah orang → Pratinjau → Simpan. Baris duplikat/tidak valid tidak ikut disimpan.
+2. Tekan Buat undangan untuk membuat link pribadi semua tamu yang belum punya.
+3. Bagikan manual: WhatsApp terbuka dengan pesan siap kirim. Kirim pesannya, lalu tekan Sudah dikirim — tandai dibagikan.
+   - **Penting:** Status Dibagikan hanya catatan petugas, bukan bukti pesan terkirim/terbaca. Jangan tandai sebelum benar-benar mengirim.
+4. Link tersebar ke orang lain? Tekan Link baru (link lama mati, jawaban RSVP tetap). Cabut = link tidak bisa dipakai sama sekali.
+5. Pantau rekap: Hadir (undangan & total orang), Tidak hadir, Belum menjawab. Ekspor CSV hanya untuk Owner.

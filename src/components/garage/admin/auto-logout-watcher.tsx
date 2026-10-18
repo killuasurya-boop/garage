@@ -16,6 +16,11 @@ const PUBLIC_PATH_PREFIXES = [
   "/franchise",
   "/order",
   "/display",
+  "/grand-opening",
+  "/undangan",
+  "/wifi",
+  "/recruitment",
+  "/legal",
   "/api",
 ];
 

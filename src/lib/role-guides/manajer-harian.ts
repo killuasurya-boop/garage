@@ -76,5 +76,20 @@ export const manajerHarianGuide: RoleGuide = {
         { text: "CRM/Membership: koreksi poin wajib dengan alasan. Audit untuk memeriksa aksi sensitif." },
       ],
     },
+    {
+      id: "undangan",
+      title: "7. Undangan Grand Opening",
+      intro: "Menu Undangan Digital: tamu, link undangan pribadi, dan rekap RSVP.",
+      steps: [
+        { text: "Tambah tamu satu per satu, atau tab Impor → unduh template → isi Nama, WhatsApp, Jumlah orang → Pratinjau → Simpan. Baris duplikat/tidak valid tidak ikut disimpan." },
+        { text: "Tekan Buat undangan untuk membuat link pribadi semua tamu yang belum punya." },
+        {
+          text: "Bagikan manual: WhatsApp terbuka dengan pesan siap kirim. Kirim pesannya, lalu tekan Sudah dikirim — tandai dibagikan.",
+          warn: "Status Dibagikan hanya catatan petugas, bukan bukti pesan terkirim/terbaca. Jangan tandai sebelum benar-benar mengirim.",
+        },
+        { text: "Link tersebar ke orang lain? Tekan Link baru (link lama mati, jawaban RSVP tetap). Cabut = link tidak bisa dipakai sama sekali." },
+        { text: "Pantau rekap: Hadir (undangan & total orang), Tidak hadir, Belum menjawab. Ekspor CSV hanya untuk Owner." },
+      ],
+    },
   ],
 };

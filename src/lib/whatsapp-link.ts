@@ -157,3 +157,29 @@ export function buildGarageOrderNotice(
     .filter((line): line is string => line !== null)
     .join("\n");
 }
+
+export type InvitationWhatsappInput = {
+  guestName: string;
+  eventTitle: string;
+  dateLabel: string;
+  timeLabel: string;
+  venue: string;
+  url: string;
+};
+
+/** Pesan undangan pribadi (dibagikan manual oleh petugas lewat wa.me). */
+export function buildInvitationWhatsappMessage(input: InvitationWhatsappInput): string {
+  return [
+    `Halo ${input.guestName},`,
+    "",
+    `Dengan senang hati kami mengundang Anda ke *${input.eventTitle}*.`,
+    `📅 ${input.dateLabel}`,
+    `🕒 ${input.timeLabel}`,
+    `📍 ${input.venue}`,
+    "",
+    "Mohon konfirmasi kehadiran lewat undangan pribadi Anda:",
+    input.url,
+    "",
+    "Link ini khusus untuk Anda, mohon tidak dibagikan. Terima kasih — Garage Coffee",
+  ].join("\n");
+}

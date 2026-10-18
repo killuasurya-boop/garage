@@ -77,6 +77,7 @@ export const ownerGuide: RoleGuide = {
           warn: "Selama status Draft, halaman /grand-opening tidak bisa dibuka publik. Perubahan tanggal/jam/alamat tercatat di Audit.",
         },
         { text: "FAQ dan galeri hanya tampil bila diisi; jangan isi performer/promo yang belum terkonfirmasi." },
+        { text: "Tamu & undangan pribadi: lihat panduan Manajer bab Undangan Grand Opening. Owner juga bisa Ekspor CSV dan melihat tab Log." },
       ],
     },
     {

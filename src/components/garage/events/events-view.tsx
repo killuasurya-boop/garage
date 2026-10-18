@@ -3,11 +3,16 @@
 import { useEffect, useState } from "react";
 import { Loader2, PartyPopper } from "lucide-react";
 
+import { EventActivityPanel } from "@/components/garage/events/event-activity-panel";
+import { EventGuestsPanel } from "@/components/garage/events/event-guests-panel";
+import { EventImportPanel } from "@/components/garage/events/event-import-panel";
 import { EventSettingsPanel } from "@/components/garage/events/event-settings-panel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AdminEvent } from "@/lib/event-service";
 
 // Modul "Undangan Digital" (PRD GC-PRD-EVENT-001): Owner + Manajer.
-export function EventsView() {
+export function EventsView({ canExport }: { canExport: boolean }) {
+  const [tab, setTab] = useState("guests");
   const [events, setEvents] = useState<AdminEvent[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,9 +73,35 @@ export function EventsView() {
       {events && !selected ? <p className="text-garage-dim">Belum ada event.</p> : null}
 
       {selected ? (
-        <div className="rounded-xl border border-garage-line bg-garage-bg-1 p-4 sm:p-5">
-          <EventSettingsPanel key={selected.id} event={selected} onChanged={replaceEvent} />
-        </div>
+        <Tabs value={tab} onValueChange={setTab} className="gap-4">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 sm:w-fit">
+            <TabsTrigger value="guests" data-testid="tab-guests">Tamu & Undangan</TabsTrigger>
+            <TabsTrigger value="import" data-testid="tab-import">Impor</TabsTrigger>
+            <TabsTrigger value="event" data-testid="tab-event">Konten Event</TabsTrigger>
+            {canExport ? <TabsTrigger value="log" data-testid="tab-log">Log</TabsTrigger> : null}
+          </TabsList>
+          <div className="rounded-xl border border-garage-line bg-garage-bg-1 p-4 sm:p-5">
+            <TabsContent value="guests">
+              {selected.status === "draft" ? (
+                <p className="mb-4 rounded-md border border-garage-amber/50 bg-garage-amber/10 p-3 text-sm text-garage-fg">
+                  Event masih Draft: link undangan baru bisa dibuka tamu setelah event diterbitkan (tab Konten Event).
+                </p>
+              ) : null}
+              <EventGuestsPanel key={selected.id} event={selected} canExport={canExport} />
+            </TabsContent>
+            <TabsContent value="import">
+              <EventImportPanel eventId={selected.id} onImported={() => setTab("guests")} />
+            </TabsContent>
+            <TabsContent value="event">
+              <EventSettingsPanel key={selected.id} event={selected} onChanged={replaceEvent} />
+            </TabsContent>
+            {canExport ? (
+              <TabsContent value="log">
+                <EventActivityPanel eventId={selected.id} />
+              </TabsContent>
+            ) : null}
+          </div>
+        </Tabs>
       ) : null}
     </section>
   );

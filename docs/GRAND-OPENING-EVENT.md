@@ -13,14 +13,21 @@ Data acara disimpan sebagai **satu baris** di tabel `events` dengan `slug = gran
 | Landing `garagecoffee.id/grand-opening` | Mengembalikan 404 selama status masih Draft. |
 | Undangan pribadi `garagecoffee.id/undangan/<token>` | Tidak diindeks mesin pencari dan tidak tercantum di sitemap. |
 
-Konten diedit di **Garage OS → Undangan Digital → Konten Event**. Bila tanggal, jam, alamat, atau link Maps diubah, versi konten naik dan perubahannya tercatat di Audit.
+Konten diedit di **Garage OS → Undangan Digital → Konten Event**. Selain fakta acara, panel ini juga mengatur konten poster di landing:
+
+- **Rundown** (jam WIB): default 15.00–18.00 Live Music dan 20.00–23.00 Diskoyoks.
+- **Teks promo**: default "Diskon 20% Menu Bundling". Bila dikosongkan, section promo disembunyikan.
+- **Sponsor**: tampil hanya sebagai teks "Supported by BLACK", tanpa logo atau gambar produk, sampai aset resmi dan ketentuan tayang dari Djarum diterima.
+- **Gerbang usia 21+**: aktif, wajib selama ada sponsor produk tembakau. Konfirmasi pengunjung disimpan di browser pengunjung.
+
+ Bila tanggal, jam, alamat, atau link Maps diubah, versi konten naik dan perubahannya tercatat di Audit.
 
 ## Persiapan (H-5 s/d H-2)
 
 1. Owner memeriksa Konten Event. Isi hanya fakta yang sudah pasti. FAQ dan galeri boleh dikosongkan; bagian yang kosong tidak ditampilkan di website.
 2. Owner menekan **Terbitkan**, lalu memeriksa tampilan di HP dan desktop:
    - `/`: banner Grand Opening dan tombol "Lihat Detail Acara".
-   - `/grand-opening`: tanggal, jam, alamat, tombol Maps, tombol WhatsApp `wa.me/6285121552341`, dan tombol Bagikan.
+   - `/grand-opening`: gerbang 21+, rundown, badge promo, tanggal, jam, alamat, tombol Maps, tombol WhatsApp `wa.me/6285121552341`, dan tombol Bagikan.
 3. Manajer memasukkan daftar tamu, manual atau lewat impor CSV. Selalu lakukan pratinjau dulu, lalu simpan.
 4. Tekan **Buat undangan**, lalu **Bagikan manual** ke setiap tamu. Tekan **tandai dibagikan** hanya setelah pesan benar-benar terkirim.
 5. Pantau rekap RSVP setiap hari. Tamu bisa mengubah jawabannya sampai batas RSVP (default 24 Okt pukul 15.00 WIB).

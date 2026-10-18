@@ -3723,6 +3723,15 @@ export const events = pgTable(
     about: text("about"),
     faq: jsonb("faq").$type<Array<{ q: string; a: string }>>().notNull().default(sql`'[]'::jsonb`),
     gallery: jsonb("gallery").$type<Array<{ src: string; alt: string }>>().notNull().default(sql`'[]'::jsonb`),
+    // Rundown acara (jam lokal event, "HH:MM").
+    agenda: jsonb("agenda")
+      .$type<Array<{ start: string; end: string; title: string }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    promoText: text("promo_text"),
+    // Sponsor tampil sebagai teks; ageGate = konfirmasi usia 21+ sebelum landing (sponsor produk tembakau).
+    sponsorName: text("sponsor_name"),
+    ageGate: boolean("age_gate").notNull().default(false),
     // draft | published | archived
     status: text("status").notNull().default("draft"),
     featuredOnHome: boolean("featured_on_home").notNull().default(true),

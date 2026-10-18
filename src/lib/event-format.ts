@@ -19,8 +19,21 @@ export type PublicEvent = {
   about: string | null;
   faq: Array<{ q: string; a: string }>;
   gallery: Array<{ src: string; alt: string }>;
+  agenda: EventAgendaItem[];
+  promoText: string | null;
+  sponsorName: string | null;
+  ageGate: boolean;
   rsvpDeadline: string | null;
 };
+
+export type EventAgendaItem = { start: string; end: string; title: string };
+
+export const AGENDA_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** "15:00" → "15.00" (format jam Indonesia). */
+export function agendaClock(value: string) {
+  return value.replace(":", ".");
+}
 
 const ZONE_LABEL: Record<string, string> = {
   "Asia/Jakarta": "WIB",

@@ -27,6 +27,10 @@ type Draft = {
   highlights: string[];
   about: string;
   faq: Array<{ q: string; a: string }>;
+  agenda: Array<{ start: string; end: string; title: string }>;
+  promoText: string;
+  sponsorName: string;
+  ageGate: boolean;
   featuredOnHome: boolean;
   defaultMaxPax: number;
 };
@@ -45,6 +49,10 @@ function toDraft(event: AdminEvent): Draft {
     highlights: event.highlights,
     about: event.about ?? "",
     faq: event.faq,
+    agenda: event.agenda,
+    promoText: event.promoText ?? "",
+    sponsorName: event.sponsorName ?? "",
+    ageGate: event.ageGate,
     featuredOnHome: event.featuredOnHome,
     defaultMaxPax: event.defaultMaxPax,
   };
@@ -111,6 +119,10 @@ export function EventSettingsPanel({
           about: draft.about || null,
           faq: draft.faq.filter((item) => item.q.trim() && item.a.trim()),
           gallery: event.gallery,
+          agenda: draft.agenda.filter((item) => item.title.trim()),
+          promoText: draft.promoText.trim() || null,
+          sponsorName: draft.sponsorName.trim() || null,
+          ageGate: draft.ageGate,
           featuredOnHome: draft.featuredOnHome,
           defaultMaxPax: draft.defaultMaxPax,
         }),
@@ -300,6 +312,65 @@ export function EventSettingsPanel({
             </Button>
           ) : null}
         </div>
+
+        <div className="grid gap-2 md:col-span-2" data-testid="event-agenda-editor">
+          <span className="text-sm font-bold text-garage-fg">Rundown acara (jam WIB, tampil di landing Grand Opening)</span>
+          {draft.agenda.map((item, index) => (
+            <div key={index} className="grid gap-2 rounded-md border border-garage-line p-3 sm:grid-cols-[120px_120px_minmax(0,1fr)_auto] sm:items-center">
+              <Input
+                type="time"
+                className={inputClass}
+                value={item.start}
+                aria-label={`Jam mulai sesi ${index + 1}`}
+                onChange={(e) => patch("agenda", draft.agenda.map((a, i) => (i === index ? { ...a, start: e.target.value } : a)))}
+              />
+              <Input
+                type="time"
+                className={inputClass}
+                value={item.end}
+                aria-label={`Jam selesai sesi ${index + 1}`}
+                onChange={(e) => patch("agenda", draft.agenda.map((a, i) => (i === index ? { ...a, end: e.target.value } : a)))}
+              />
+              <Input
+                className={inputClass}
+                placeholder="Nama sesi, mis. Live Music"
+                value={item.title}
+                aria-label={`Nama sesi ${index + 1}`}
+                onChange={(e) => patch("agenda", draft.agenda.map((a, i) => (i === index ? { ...a, title: e.target.value } : a)))}
+              />
+              <Button type="button" variant="outline" className="w-fit" onClick={() => patch("agenda", draft.agenda.filter((_, i) => i !== index))}>
+                <Trash2 className="size-4" /> Hapus
+              </Button>
+            </div>
+          ))}
+          {draft.agenda.length < 12 ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-fit"
+              onClick={() => patch("agenda", [...draft.agenda, { start: "15:00", end: "18:00", title: "" }])}
+            >
+              <Plus className="size-4" /> Tambah sesi
+            </Button>
+          ) : null}
+        </div>
+
+        <Field label="Teks promo (opsional)" hint="Mis. Diskon 20% Menu Bundling. Kosong = section promo disembunyikan.">
+          <Input className={inputClass} value={draft.promoText} onChange={(e) => patch("promoText", e.target.value)} />
+        </Field>
+        <Field label="Sponsor (opsional)" hint="Tampil sebagai teks 'Supported by …' tanpa logo produk.">
+          <Input className={inputClass} value={draft.sponsorName} onChange={(e) => patch("sponsorName", e.target.value)} />
+        </Field>
+
+        <label className="flex items-center gap-3 md:col-span-2">
+          <input
+            type="checkbox"
+            className="size-5 accent-[#d11a2a]"
+            checked={draft.ageGate}
+            onChange={(e) => patch("ageGate", e.target.checked)}
+          />
+          <span className="text-base text-garage-fg">Gerbang usia 21+ di landing (wajib bila sponsor produk tembakau)</span>
+        </label>
 
         <label className="flex items-center gap-3 md:col-span-2">
           <input

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agendaClock,
   countdownParts,
   eventPhase,
   formatEventDate,
@@ -33,5 +34,10 @@ describe("format event Grand Opening (WIB)", () => {
     expect(toZonedInputValue(startsAt)).toBe("2026-10-24T15:00");
     expect(fromZonedInputValue("2026-10-24T15:00")).toBe(startsAt);
     expect(fromZonedInputValue("24/10/2026")).toBeNull();
+  });
+
+  it("jam rundown tampil format Indonesia", () => {
+    expect(agendaClock("15:00")).toBe("15.00");
+    expect(agendaClock("20:30")).toBe("20.30");
   });
 });

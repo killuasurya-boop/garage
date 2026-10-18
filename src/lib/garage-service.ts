@@ -3759,9 +3759,9 @@ export async function getFinanceOverview() {
           const method = row.method;
           const provider =
             method === "QRIS"
-              ? "BCA"
+              ? "BNI"
               : method === "E-Wallet"
-                ? "OVO/GoPay"
+                ? "DANA"
                 : method === "Bank Transfer"
                   ? "Bank"
                   : method === "Card"

@@ -28,6 +28,7 @@ import {
   Users,
   Wallet,
   WalletCards,
+  PartyPopper,
 } from "lucide-react";
 
 export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
@@ -35,6 +36,7 @@ export type Role = "Owner" | "Manajer" | "Kasir" | "Waiter";
 export type ModuleId =
   | "dashboard"
   | "ops-center"
+  | "events"
   | "courier"
   | "pos"
   | "ai-agent"
@@ -126,6 +128,12 @@ export const modules = [
     label: "Control Center",
     description: "Operasional real-time",
     icon: Radar,
+  },
+  {
+    id: "events",
+    label: "Undangan Digital",
+    description: "Grand Opening, tamu & RSVP",
+    icon: PartyPopper,
   },
   { id: "pos", label: "POS", description: "Tablet cashier", icon: ShoppingCart },
   {

@@ -7,6 +7,8 @@ import { CUSTOMER_TABLE_STATUS_COPY, TABLE_STATUS_COLORS } from "@/lib/garage-ta
 import Image from "next/image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SiteAsset } from "@/lib/site-assets";
+import type { PublicEvent } from "@/lib/event-format";
+import { GrandOpeningBanner } from "@/components/garage-website/grand-opening-banner";
 import {
   Award,
   ChevronDown,
@@ -7196,8 +7198,10 @@ function LiveTestimonials() {
 function GarageWebsiteRoot({
   landingHero = null,
   businessInfo = null,
+  featuredEvent = null,
 }: {
   landingHero?: SiteAsset | null;
+  featuredEvent?: PublicEvent | null;
   businessInfo?: {
     tagline?: string;
     whatsapp?: string;
@@ -7280,6 +7284,7 @@ function GarageWebsiteRoot({
       <PromoBar />
       <Nav />
       <Hero landingHero={landingHero} />
+      {featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
       <Menu />
       <HowToOrder />
       <LiveVisitBoard />

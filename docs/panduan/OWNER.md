@@ -41,7 +41,16 @@
 4. WiFi gratis khusus member: isi GARAGE_WIFI_SECRET & GARAGE_WIFI_ROUTER_KEY di server, aktifkan di Pengaturan → WiFi Member, lalu pasang perintah MikroTik dari Pengaturan → Integrasi → WiFi Gratis Member.
    - Tips: Panduan lengkap: docs/WIFI-MIKROTIK.md.
 
-## 6. Agent AI (WhatsApp / Telegram)
+## 6. Grand Opening & Undangan Digital
+
+Satu data event untuk banner homepage, halaman /grand-opening, dan undangan pribadi.
+
+1. Menu Undangan Digital → periksa judul, tanggal, jam, alamat, link Maps, WhatsApp, dan highlight. Isi hanya informasi yang sudah pasti.
+2. Tekan Terbitkan setelah semua benar. Banner homepage dan halaman garagecoffee.id/grand-opening langsung tampil.
+   - **Penting:** Selama status Draft, halaman /grand-opening tidak bisa dibuka publik. Perubahan tanggal/jam/alamat tercatat di Audit.
+3. FAQ dan galeri hanya tampil bila diisi; jangan isi performer/promo yang belum terkonfirmasi.
+
+## 7. Agent AI (WhatsApp / Telegram)
 
 OpenClaw / Hermes bisa mengontrol Garage OS dari WhatsApp atau Telegram memakai API key agent.
 

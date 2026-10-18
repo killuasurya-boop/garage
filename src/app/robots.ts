@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/order", "/franchise", "/member-login"],
+        allow: ["/", "/order", "/grand-opening", "/franchise", "/member-login"],
         // Modul operasional & endpoint internal tidak boleh diindeks.
         disallow: [
           "/api/",
@@ -26,6 +26,7 @@ export default function robots(): MetadataRoute.Robots {
           "/login",
           "/member",
           "/invoice",
+          "/undangan",
           "/saas-executive",
           "/garage-uploads",
         ],

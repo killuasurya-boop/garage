@@ -140,6 +140,7 @@ import {
   type SegmentRule,
 } from "@/db/schema";
 import { buildPointLedger } from "@/lib/member-point-ledger";
+import { buildInvoiceWhatsappMessage } from "@/lib/whatsapp-link";
 import {
   closingChecklist as fallbackClosingChecklist,
   cartSeed,
@@ -678,29 +679,7 @@ type WhatsappInvoiceDelivery = {
 };
 
 function makeWhatsappInvoiceMessage(input: WhatsappInvoiceInput) {
-  const itemLines = input.items
-    .map((item) => {
-      const label =
-        item.variantLabel === "Regular"
-          ? item.itemName
-          : `${item.itemName} ${item.variantLabel}`;
-      return `- ${item.qty}x ${label}: ${formatIdrShort(item.lineTotal)}`;
-    })
-    .join("\n");
-  const message = [
-    `Invoice GARAGE Coffee & Motor`,
-    `Order: ${input.orderNo}`,
-    `Lokasi: ${input.tableLabel}`,
-    "",
-    itemLines,
-    "",
-    `Total: ${formatIdrShort(input.total)}`,
-    input.invoiceUrl ? `Invoice & tracking: ${input.invoiceUrl}` : null,
-    !input.invoiceUrl && input.invoicePdfUrl ? `PDF Invoice: ${input.invoicePdfUrl}` : null,
-    "Terima kasih. Simpan link ini untuk order ulang dan rewards member.",
-  ].filter((line) => line !== null).join("\n");
-
-  return message;
+  return buildInvoiceWhatsappMessage(input);
 }
 
 function makeWhatsappMessageUrl(phone: string, message: string) {
@@ -960,6 +939,9 @@ function customerOrderResponse(
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
     // Foto bukti terkirim (hanya bisa dibuka staf yang login).
     deliveryProofUrl: row.deliveryProofUrl ?? null,
+    // Bukti transfer dari pelanggan (menu digital) — privat, API staf.
+    paymentProofUrl: row.paymentProofUrl ?? null,
+    paymentProofAt: row.paymentProofAt?.toISOString() ?? null,
     whatsappInvoiceStatus: row.whatsappInvoiceStatus,
     whatsappInvoiceUrl: row.whatsappInvoiceUrl,
     invoicePdfUrl: null,
@@ -4151,6 +4133,8 @@ export type CrmCustomerListFilter = {
   search?: string;
   tier?: string;
   sort?: "recent" | "spend" | "visits" | "points" | "name";
+  // "unverified" = nomor WA belum ditandai aktif oleh staf.
+  wa?: "verified" | "unverified";
   limit?: number;
   offset?: number;
 };
@@ -4164,6 +4148,8 @@ export async function listCustomersForCrm(filter: CrmCustomerListFilter = {}) {
   if (filter.tier && filter.tier !== "all") {
     conditions.push(eq(customers.cardTier, filter.tier));
   }
+  if (filter.wa === "verified") conditions.push(isNotNull(customers.waVerifiedAt));
+  if (filter.wa === "unverified") conditions.push(isNull(customers.waVerifiedAt));
   if (filter.search?.trim()) {
     const like = `%${filter.search.trim()}%`;
     const search = or(
@@ -4264,6 +4250,7 @@ export async function listCustomersForCrm(filter: CrmCustomerListFilter = {}) {
         address: row.address,
         photoUrl: row.photoUrl,
         expiresAt: row.expiresAt?.toISOString?.() ?? null,
+        waVerifiedAt: row.waVerifiedAt?.toISOString() ?? null,
         lastOrderAt: lastOrderAt?.toISOString() ?? null,
         daysSinceVisit,
         totalSpend: spend?.total ?? 0,
@@ -4385,6 +4372,7 @@ export async function getCustomerDetailForCrm(customerId: string) {
     address: customer.address,
     photoUrl: customer.photoUrl,
     expiresAt: customer.expiresAt?.toISOString?.() ?? null,
+    waVerifiedAt: customer.waVerifiedAt?.toISOString() ?? null,
     createdAt: customer.createdAt.toISOString(),
     stats: {
       totalSpend,
@@ -4491,6 +4479,9 @@ export async function updateCustomerCrmProfile(
 
     values.phone = phone;
     accountValues.phone = phone;
+    // Ganti nomor → status "WA aktif" harus dicek ulang oleh staf.
+    values.waVerifiedAt = null;
+    values.waVerifiedBy = null;
   }
 
   if (input.address !== undefined) {
@@ -6737,7 +6728,9 @@ export async function getTableOrderItems(tableNumber: string, outletId?: string 
         total: o.total,
         createdAt: o.createdAt.toISOString(),
         customerName: o.customerName,
+        customerPhone: o.customerPhone ?? null,
         customerNote: o.customerNote,
+        invoiceUrl: invoiceWebUrl(o.invoiceTrackingToken),
         parentOrderId: o.parentOrderId,
         // Pisah bill: bill meja yang belum lunas & masih punya ≥2 porsi.
         canSplit:
@@ -9001,6 +8994,7 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     deliveryMinSpend: settings.deliveryMinSpend,
     deliveryOrigin: settings.deliveryEnabled ? await deliveryOrigin(settingsOutlet?.id ?? null, settings) : null,
     garageWhatsapp: settings.garageWhatsapp,
+    bankAccountsText: settings.bankAccountsText,
     unpaidOrderAutoRejectMinutes: settings.unpaidOrderAutoRejectMinutes,
   };
 }

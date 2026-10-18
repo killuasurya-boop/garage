@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   History,
   Loader2,
+  MessageCircle,
   NotebookPen,
   ReceiptText,
   RefreshCw,
@@ -22,6 +23,7 @@ import type {
   TableOrderItemsResponse,
 } from "@/lib/garage-api-types";
 import { formatTableDuration } from "@/lib/garage-tables";
+import { buildInvoiceWhatsappMessage, normalizeWaNumber, waLink } from "@/lib/whatsapp-link";
 
 import {
   billStatusTone,
@@ -114,6 +116,87 @@ function InlineError({ message, onRetry }: { message: string; onRetry: () => voi
       >
         <RefreshCw size={13} aria-hidden /> Coba lagi
       </button>
+    </div>
+  );
+}
+
+// Kirim invoice ke WA pelanggan (link wa.me, gratis). Nomor baru disimpan ke
+// order supaya kasir & CRM ikut melihatnya.
+function BillWhatsappShare({
+  bill,
+  tableLabel,
+  onToast,
+}: {
+  bill: TableOrderBill;
+  tableLabel: string;
+  onToast: (t: ToastInput) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState(bill.customerPhone ?? "");
+  const [saving, setSaving] = useState(false);
+  const valid = normalizeWaNumber(phone) !== "";
+
+  async function send() {
+    const link = waLink(
+      phone,
+      buildInvoiceWhatsappMessage({
+        orderNo: bill.orderNo,
+        tableLabel,
+        total: bill.total,
+        items: bill.items,
+        invoiceUrl: bill.invoiceUrl ?? null,
+      }),
+    );
+    if (!link) return;
+    window.open(link, "_blank", "noopener,noreferrer");
+    if (normalizeWaNumber(phone) !== normalizeWaNumber(bill.customerPhone)) {
+      setSaving(true);
+      try {
+        const res = await fetch(`/api/orders/${bill.id}/customer-phone`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ phone }),
+        });
+        if (!res.ok) throw new Error();
+      } catch {
+        onToast({ tone: "error", title: "Nomor WA belum tersimpan", body: "WhatsApp sudah terbuka, tapi nomor gagal disimpan ke order." });
+      } finally {
+        setSaving(false);
+      }
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="waiter-bill-wa"
+        className="garage-press mt-2 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#25d366]/12 px-3 text-[12px] font-bold text-[#8ff0b2] ring-1 ring-[#25d366]/40 hover:bg-[#25d366]/20"
+      >
+        <MessageCircle size={14} aria-hidden /> Kirim invoice WA
+      </button>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-black/20 p-2 ring-1 ring-white/10">
+      <input
+        value={phone}
+        onChange={(event) => setPhone(event.target.value)}
+        inputMode="tel"
+        placeholder="No. WA pelanggan (08xx)"
+        aria-label="Nomor WhatsApp pelanggan"
+        className="h-9 min-w-0 flex-1 rounded-md bg-white/[0.06] px-3 text-[13px] text-white ring-1 ring-white/12 placeholder:text-garage-dim focus:outline-none focus:ring-[#25d366]/60"
+      />
+      <button
+        type="button"
+        onClick={() => void send()}
+        disabled={!valid || saving}
+        className="garage-press inline-flex h-9 items-center gap-1.5 rounded-md bg-[#25d366] px-3 text-[12px] font-bold text-black disabled:opacity-50"
+      >
+        {saving ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} aria-hidden />} Buka WhatsApp
+      </button>
+      {!valid && phone.trim() ? <p className="w-full text-[11px] text-[#ffb3b3]">Nomor WA tidak valid (contoh 0812xxxxxxx).</p> : null}
     </div>
   );
 }
@@ -637,6 +720,9 @@ export function TableDetailDrawer({
                         </li>
                       ))}
                     </ul>
+                    {bill.status !== "rejected" ? (
+                      <BillWhatsappShare bill={bill} tableLabel={items.data?.tableLabel ?? row.tableLabel} onToast={onToast} />
+                    ) : null}
                   </li>
                 ))}
               </ul>

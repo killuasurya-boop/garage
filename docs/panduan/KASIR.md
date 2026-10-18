@@ -54,11 +54,12 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 
 ## 5. Member, voucher & diskon
 
-1. Cari member dengan nomor HP, atau daftarkan member baru dari kasir.
-2. Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi.
-3. Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.
+1. Cari member dengan nomor HP, atau daftarkan member baru dari kasir. Nomor wajib WhatsApp aktif (08xx).
+2. Cek WA member: saat member dipilih, tekan Cek WA (WhatsApp terbuka), minta pelanggan membalas, lalu tekan Tandai WA aktif.
+3. Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi.
+4. Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.
    - **Penting:** Poin tidak bisa dipakai hanya dengan nomor HP. QR harus milik member yang dipilih.
-4. Diskon manual hanya untuk member. Di atas batas yang ditentukan Owner, tekan Minta Persetujuan lalu Manajer/Owner memasukkan PIN di tablet kasir.
+5. Diskon manual hanya untuk member. Di atas batas yang ditentukan Owner, tekan Minta Persetujuan lalu Manajer/Owner memasukkan PIN di tablet kasir.
    - **Penting:** Persetujuan diskon hanya berlaku untuk nominal yang disetujui dan untuk kasir yang meminta.
 
 ## 6. Pesanan QR dari pelanggan
@@ -66,7 +67,9 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 1. Pesanan dari QR meja / menu digital muncul di daftar QR order dengan bunyi notifikasi.
 2. Periksa isi pesanan lalu tekan Terima. Pesanan Take away & Delivery harus Lunas dulu sebelum diterima.
 3. Tolak bila menu habis atau pesanan tidak jelas. Stok dan poin pelanggan dikembalikan otomatis.
-4. Pelanggan yang bergabung di meja terisi memakai kode gabung 4 angka yang tercetak di struk.
+4. Pesanan Transfer/QRIS dengan label Bukti transfer ✓ sudah diunggah pelanggan. Tekan Lihat, cocokkan nominal dengan mutasi rekening/QRIS, baru proses Lunas.
+   - **Penting:** Bukti foto bisa dipalsukan — tetap cek uang benar-benar masuk di aplikasi bank.
+5. Pelanggan yang bergabung di meja terisi memakai kode gabung 4 angka yang tercetak di struk.
 
 ## 7. Pembayaran
 
@@ -77,6 +80,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 4. Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS).
 5. Split bill: satu meja dipisah jadi beberapa tagihan per orang.
 6. Bill sementara (belum lunas) bisa dicetak dari detail meja. Struk ini bertanda BILL SEMENTARA.
+7. Setelah lunas: isi nomor WA pelanggan lalu Kirim Invoice ke Customer — WhatsApp terbuka dengan rincian pesanan & link invoice, tinggal tekan kirim.
 
 ## 8. Cetak ulang, koreksi & pembatalan
 

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Award,
+  Wifi,
   Bell,
   Armchair,
   Bike,
@@ -58,6 +59,7 @@ import {
 import { isThemePresetId } from "@/lib/garage-theme";
 
 const ICON_MAP: Record<string, typeof Building2> = {
+  Wifi,
   Armchair,
   Bike,
   Building2,

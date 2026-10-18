@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { memberWhatsappSchema } from "@/lib/member-phone";
+
 import { fail, ok, readJson } from "@/lib/api-response";
 import { createCrmMember } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
@@ -10,7 +12,7 @@ export const runtime = "nodejs";
 // lewat menu admin Membership). Membuat akun member aktif + record CRM.
 const registerSchema = z.object({
   name: z.string().trim().min(2, "Nama member wajib diisi."),
-  phone: z.string().trim().min(8, "Nomor HP wajib valid."),
+  phone: memberWhatsappSchema,
   password: z.string().min(6, "PIN minimal 6 digit/karakter."),
   email: z.string().trim().email("Email tidak valid.").optional().or(z.literal("")),
 });

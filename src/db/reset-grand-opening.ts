@@ -87,7 +87,7 @@ export const CLEAR_TABLES = [
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional
-  "crm_campaign_logs", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
+  "wifi_access_logs", "crm_campaign_logs", "marketing_broadcasts", "marketing_broadcast_deliveries", "whatsapp_messaging_queue",
   "content_publishing_queue", "content_publishing_results",
   // member (sesi)
   "member_sessions",

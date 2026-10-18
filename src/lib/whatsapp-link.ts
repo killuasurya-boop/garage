@@ -90,3 +90,70 @@ export function buildCustomerWhatsappMessage(order: CustomerWhatsappOrder, kind:
     }
   }
 }
+
+export type InvoiceWhatsappItem = { itemName: string; variantLabel?: string | null; qty: number; lineTotal: number };
+
+export type InvoiceWhatsappInput = {
+  orderNo: string;
+  tableLabel?: string | null;
+  customerName?: string | null;
+  total: number;
+  items: InvoiceWhatsappItem[];
+  invoiceUrl?: string | null;
+  invoicePdfUrl?: string | null;
+  paymentMethod?: string | null;
+};
+
+function itemLines(items: InvoiceWhatsappItem[]) {
+  return items
+    .map((item) => {
+      const variant = item.variantLabel && item.variantLabel !== "Regular" ? ` ${item.variantLabel}` : "";
+      return `- ${item.qty}x ${item.itemName}${variant}: ${rupiah(item.lineTotal)}`;
+    })
+    .join("\n");
+}
+
+/** Invoice ke WA pelanggan (dipakai kasir, waiter, dan server). */
+export function buildInvoiceWhatsappMessage(input: InvoiceWhatsappInput): string {
+  return [
+    "Invoice GARAGE Coffee & Motor",
+    `Order: ${input.orderNo}`,
+    input.tableLabel ? `Lokasi: ${input.tableLabel}` : null,
+    "",
+    itemLines(input.items),
+    "",
+    `Total: ${rupiah(input.total)}`,
+    input.paymentMethod ? `Bayar: ${input.paymentMethod}` : null,
+    input.invoiceUrl ? `Invoice & tracking: ${input.invoiceUrl}` : null,
+    !input.invoiceUrl && input.invoicePdfUrl ? `PDF Invoice: ${input.invoicePdfUrl}` : null,
+    "Terima kasih. Simpan link ini untuk order ulang dan rewards member.",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
+/** Pesanan menu digital → WA Garage: ringkasan + status bukti transfer. */
+export function buildGarageOrderNotice(
+  input: InvoiceWhatsappInput & { customerPhone?: string | null; fulfillment?: string | null },
+  proofUploaded: boolean,
+): string {
+  const type =
+    input.fulfillment === "delivery" ? "Delivery" : input.fulfillment === "takeaway" ? "Take away" : input.tableLabel || "Dine in";
+  return [
+    `Halo Garage, saya ${input.customerName?.trim() || "pelanggan"} sudah memesan lewat menu digital.`,
+    `Order: ${input.orderNo} (${type})`,
+    input.customerPhone ? `WA saya: ${input.customerPhone}` : null,
+    "",
+    itemLines(input.items),
+    "",
+    `Total: ${rupiah(input.total)}`,
+    `Metode: ${input.paymentMethod || "Transfer"}`,
+    proofUploaded
+      ? "Bukti transfer sudah saya unggah di aplikasi (cek di POS)."
+      : "Bukti transfer saya lampirkan di chat ini.",
+    input.invoiceUrl ? `Invoice: ${input.invoiceUrl}` : null,
+    "Mohon dikonfirmasi ya, terima kasih 🙏",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}

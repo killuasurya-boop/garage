@@ -43,6 +43,8 @@ Warna meja sama di semua layar (menu digital, waiter, kasir).
 
 1. Tamu minta bill: buka detail meja → Minta tagihan. Status menjadi Tagihan di kasir.
 2. Pembayaran selalu di kasir. Waiter tidak menerima uang, tidak membatalkan, dan tidak memberi diskon.
+3. Kirim invoice ke WA tamu: buka detail meja → di bawah pesanan tekan Kirim invoice WA → isi nomor WA tamu → Buka WhatsApp → kirim.
+   - Tips: Nomor yang diisi tersimpan di pesanan, jadi kasir tidak perlu bertanya lagi.
 
 ## 7. Pindah, tamu pergi & bersih
 

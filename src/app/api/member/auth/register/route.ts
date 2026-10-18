@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { memberWhatsappSchema } from "@/lib/member-phone";
+
 import { createMemberTokenPair, memberCookieHeaders } from "@/lib/member-auth";
 import { registerMember } from "@/lib/member-service";
 import { errorJson, readMemberJson, successJson } from "@/lib/member-types";
@@ -9,7 +11,7 @@ export const runtime = "nodejs";
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, "Nama member wajib diisi."),
-  phone: z.string().trim().min(8, "Nomor HP wajib valid."),
+  phone: memberWhatsappSchema,
   email: z.string().trim().email("Email tidak valid.").optional().or(z.literal("")),
   password: z.string().min(6, "Password/PIN minimal 6 karakter."),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal lahir harus YYYY-MM-DD.").optional().or(z.literal("")),

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { AgentApiKeysPanel } from "@/components/garage/agent-api-keys-panel";
+import { WifiSetupPanel } from "@/components/garage/wifi-setup-panel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -209,6 +210,7 @@ export function IntegrationControlCenter() {
       </div>
 
       <AgentApiKeysPanel />
+      <WifiSetupPanel />
 
       {error ? (
         <Alert className="border-red-500/40 bg-red-500/10">

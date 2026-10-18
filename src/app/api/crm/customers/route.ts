@@ -3,6 +3,8 @@ import { createCrmMember, listCustomersForCrm } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 import { z } from "zod";
 
+import { memberWhatsappSchema } from "@/lib/member-phone";
+
 export const runtime = "nodejs";
 
 function parseIntParam(value: string | null, fallback: number) {
@@ -26,6 +28,7 @@ export async function GET(request: Request) {
   const result = await listCustomersForCrm({
     search: params.get("search") ?? undefined,
     tier: params.get("tier") ?? undefined,
+    wa: params.get("wa") === "verified" || params.get("wa") === "unverified" ? (params.get("wa") as "verified" | "unverified") : undefined,
     sort: safeSort,
     limit: parseIntParam(params.get("limit"), 50),
     offset: parseIntParam(params.get("offset"), 0),
@@ -36,7 +39,7 @@ export async function GET(request: Request) {
 
 const createMemberSchema = z.object({
   name: z.string().trim().min(2, "Nama member wajib diisi."),
-  phone: z.string().trim().min(8, "Nomor HP wajib valid."),
+  phone: memberWhatsappSchema,
   email: z.string().trim().email("Email tidak valid.").optional().or(z.literal("")),
   password: z.string().min(6, "PIN sementara minimal 6 karakter."),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),

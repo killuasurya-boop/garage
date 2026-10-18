@@ -33,19 +33,14 @@ export const paymentBrandConfig = {
   },
 };
 
+// Rekening resmi owner (Okt 2026). Ganti di sini + Pengaturan → Pembayaran bila berubah.
 export const bankAccounts = [
-  { id: "BCA", bank: "BCA", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "BRI", bank: "BRI", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "BNI", bank: "BNI", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "BANK SUMUT", bank: "BANK SUMUT", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
+  { id: "BNI", bank: "BNI", accountName: "GARAGE Coffee & Motor", accountNumber: "2114194027" },
+  { id: "Bank Jago", bank: "Bank Jago", accountName: "GARAGE Coffee & Motor", accountNumber: "507300982382" },
 ];
 
 export const eWalletAccounts = [
-  { id: "DANA", provider: "DANA", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "OVO", provider: "OVO", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "ShopeePay", provider: "ShopeePay", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "Bank Jago", provider: "Bank Jago", accountName: "GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "Lainnya", provider: "Lainnya", accountName: "GARAGE Coffee & Motor", accountNumber: "Manual kasir" },
+  { id: "DANA", provider: "DANA", accountName: "GARAGE Coffee & Motor", accountNumber: "081396186251" },
 ];
 
 export function defaultPaymentProvider(method: PaymentMethod) {

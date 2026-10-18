@@ -231,7 +231,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   tableHoldMinutes: 5,
   tableIdleWarnHours: 3,
   garageWhatsapp: "6285121552341",
-  bankAccountsText: "",
+  bankAccountsText: "BNI | 2114194027 | GARAGE Coffee & Motor\nBANK JAGO | 507300982382 | GARAGE Coffee & Motor\nDANA | 081396186251 | GARAGE Coffee & Motor",
   wifiEnabled: false,
   wifiSsid: "GARAGE Free WiFi",
   wifiSessionHours: 3,

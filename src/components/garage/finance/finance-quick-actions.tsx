@@ -132,7 +132,7 @@ function ActionForm({
 
   // Settlement
   const [settlementMethod, setSettlementMethod] = useState("QRIS");
-  const [settlementProvider, setSettlementProvider] = useState("BCA");
+  const [settlementProvider, setSettlementProvider] = useState("BNI");
   const [settlementExpected, setSettlementExpected] = useState("");
   const [settlementSettled, setSettlementSettled] = useState("");
   const [settlementNo, setSettlementNo] = useState("SET-MANUAL");

@@ -109,6 +109,8 @@ testsprite_tests\tmp\config.json
 # Berkas upload recruitment (runtime, persisten via volume di prod) — jangan commit
 /storage/recruitment/*
 !/storage/recruitment/.gitkeep
+# Dokumen karyawan & foto member (runtime, volume garage-profile-files)
+/storage/profiles/
 # Debris/skrip uji sementara
 /test-pglite.mjs
 

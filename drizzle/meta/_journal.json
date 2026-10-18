@@ -939,6 +939,13 @@
       "when": 1791881859503,
       "tag": "0133_bumpy_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1792333841626,
+      "tag": "0134_easy_beast",
+      "breakpoints": true
     }
   ]
 }

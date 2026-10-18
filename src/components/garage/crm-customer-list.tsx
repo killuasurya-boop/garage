@@ -2,9 +2,10 @@
 
 import { reportFileName } from "@/lib/report-file-name";
 import { todayWibKey } from "@/lib/date-range";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Award,
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -622,6 +623,18 @@ type CustomerDetail = {
     createdAt: string;
   }>;
   favoriteItems: Array<{ name: string; variant: string; qty: number }>;
+  address?: string | null;
+  photoUrl?: string | null;
+  expiresAt?: string | null;
+  pointLedger?: Array<{
+    id: string;
+    at: string;
+    kind: "earn" | "redeem" | "return" | "expire" | "adjust" | "reverse";
+    label: string;
+    points: number;
+    balanceAfter: number;
+    orderId: string | null;
+  }>;
 };
 
 function CustomerDetailModal({
@@ -664,6 +677,27 @@ function CustomerDetailModal({
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [allAvailableTags, setAllAvailableTags] = useState<string[]>([]);
   const [tagSaving, setTagSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!detail) return;
+    setPhotoUploading(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await fetch(`/api/crm/customers/${detail.id}/photo`, { method: "POST", body });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.photoUrl) throw new Error(json?.error?.message || "Foto gagal diunggah");
+      setDetail((d) => (d ? { ...d, photoUrl: json.data.photoUrl } : d));
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Foto gagal diunggah");
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (!customerId) return;
@@ -835,10 +869,38 @@ function CustomerDetailModal({
       <Dialog open={Boolean(customerId)} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-h-[92svh] overflow-hidden border-[#34343c] bg-[#111116] sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="size-5 text-[#f5a742]" />
-              {detail?.name ?? "Detail Customer"}
+            <DialogTitle className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => photoInput.current?.click()}
+                disabled={!detail || photoUploading}
+                data-testid="member-photo-button"
+                title="Ganti foto member"
+                className="group relative size-12 shrink-0 overflow-hidden rounded-full border border-[#4a4a54] bg-[#1b1b22]"
+              >
+                {detail?.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- foto privat lewat API ber-auth
+                  <img src={detail.photoUrl} alt={`Foto ${detail.name}`} className="size-full object-cover" />
+                ) : (
+                  <User className="absolute inset-0 m-auto size-6 text-[#f5a742]" />
+                )}
+                <span className="absolute inset-x-0 bottom-0 flex h-4 items-center justify-center bg-black/65 text-white">
+                  {photoUploading ? <RefreshCw className="size-3 animate-spin" /> : <Camera className="size-3" />}
+                </span>
+              </button>
+              <span className="min-w-0 truncate">{detail?.name ?? "Detail Customer"}</span>
             </DialogTitle>
+            <input
+              ref={photoInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void handlePhotoUpload(file);
+              }}
+            />
             <DialogDescription>
               {detail ? (
                 <span className="flex items-center gap-2 font-mono text-xs">
@@ -889,7 +951,17 @@ function CustomerDetailModal({
                   <StatBox label="Member Code" value={detail.memberCode || "-"} />
                   <StatBox label="Birthday" value={detail.birthday || "-"} />
                   <StatBox label="Referral" value={detail.referralCode || "-"} />
+                  <StatBox
+                    label="Poin berlaku s/d"
+                    value={detail.expiresAt ? new Date(detail.expiresAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-"}
+                  />
                 </div>
+                {detail.address ? (
+                  <p className="rounded-md border border-[#34343c] bg-[#17171c] px-3 py-2 text-sm text-[#e4e4e8]">
+                    <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-[#a9a9b3]">Alamat</span>
+                    {detail.address}
+                  </p>
+                ) : null}
 
                 {/* Action buttons */}
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -1286,6 +1358,37 @@ function CustomerDetailModal({
                     </ul>
                   </div>
                 )}
+
+                {/* Riwayat poin */}
+                <div className="rounded-md border border-[#34343c] bg-[#17171c] p-3" data-testid="member-point-ledger">
+                  <p className="garage-mono mb-2 text-[11px] uppercase tracking-wide text-[#f5a742]">
+                    Riwayat Poin ({detail.pointLedger?.length ?? 0})
+                  </p>
+                  {!detail.pointLedger || detail.pointLedger.length === 0 ? (
+                    <p className="text-xs text-[#a9a9b3]">Belum ada riwayat poin.</p>
+                  ) : (
+                    <ul className="garage-scroll max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                      {detail.pointLedger.map((entry) => (
+                        <li
+                          key={entry.id}
+                          className="flex items-center justify-between gap-2 rounded-md border border-[#23232a] bg-black/20 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">{entry.label}</p>
+                            <p className="mt-0.5 font-mono text-[11px] text-[#a9a9b3]">{dateTime.format(new Date(entry.at))}</p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className={`font-mono text-sm font-bold tabular-nums ${entry.points >= 0 ? "text-[#9be8b4]" : "text-[#ff9ea6]"}`}>
+                              {entry.points >= 0 ? "+" : "−"}
+                              {Math.abs(entry.points).toLocaleString("id-ID")}
+                            </p>
+                            <p className="font-mono text-[11px] text-[#a9a9b3]">saldo {entry.balanceAfter.toLocaleString("id-ID")}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
                 {/* Order history */}
                 <div className="rounded-md border border-[#34343c] bg-[#17171c] p-3">

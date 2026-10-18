@@ -11,6 +11,7 @@ import {
   nextFreeCode,
 } from "@/lib/garage-absen-employees";
 import { requireGarageSession } from "@/lib/server-auth";
+import { copyCandidateToStaffPersonal } from "@/lib/staff-profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,6 +75,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .update(candidates)
       .set({ hiredAt: new Date(), hiredEmployeeCode: created.code, finalDecision: `Karyawan ${created.code}`, updatedAt: new Date() })
       .where(and(eq(candidates.id, id), isNull(candidates.hiredAt)));
+    // WA, domisili, tgl lahir, foto, KTP & CV pelamar ikut ke profil karyawan.
+    try {
+      await copyCandidateToStaffPersonal(id, created.code);
+    } catch (error) {
+      console.error("Copy candidate data to staff profile failed", error);
+    }
     await db.insert(auditLogs).values({
       time: new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date()),
       actor: `${session.data.user.name} / ${session.data.profile.role}`,

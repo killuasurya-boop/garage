@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Edit2, ShieldAlert, Key, Check, X, ShieldCheck } from "lucide-react";
+import { Users, Edit2, ShieldAlert, Key, Check, X, ShieldCheck, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StaffProfileDrawer } from "@/components/garage/staff-profile-drawer";
 
 interface StaffProfile {
   id: string;
@@ -34,6 +35,7 @@ export function TeamDirectoryManager() {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
 
   async function fetchStaff() {
     try {
@@ -146,8 +148,14 @@ export function TeamDirectoryManager() {
                     <tr key={item.id} className="hover:bg-zinc-900/10 transition-colors">
                       {/* Name */}
                       <td className="p-4">
-                        <div className="font-semibold text-zinc-100">{item.name}</div>
-                        <div className="text-xs text-zinc-500">{item.email}</div>
+                        <button
+                          type="button"
+                          onClick={() => setProfileId(item.id)}
+                          className="text-left font-semibold text-zinc-100 underline-offset-4 hover:text-amber-300 hover:underline"
+                        >
+                          {item.name}
+                        </button>
+                        <div className="text-xs text-zinc-400">{item.email.endsWith("@absen.garage.local") ? "Akun absen (tanpa login)" : item.email}</div>
                       </td>
 
                       {/* Division */}
@@ -281,14 +289,27 @@ export function TeamDirectoryManager() {
                             </Button>
                           </div>
                         ) : (
-                          <Button
-                            onClick={() => startEdit(item)}
-                            size="sm"
-                            variant="ghost"
-                            className="text-zinc-400 hover:text-zinc-200 h-7 px-2 rounded-md border border-zinc-800"
-                          >
-                            <Edit2 className="size-3.5" />
-                          </Button>
+                          <div className="flex justify-end gap-1.5">
+                            <Button
+                              onClick={() => setProfileId(item.id)}
+                              size="sm"
+                              variant="ghost"
+                              data-testid="staff-profile-open"
+                              className="text-amber-300 hover:text-amber-200 h-7 gap-1 px-2 rounded-md border border-amber-500/30"
+                            >
+                              <IdCard className="size-3.5" />
+                              Profil
+                            </Button>
+                            <Button
+                              onClick={() => startEdit(item)}
+                              size="sm"
+                              variant="ghost"
+                              aria-label={`Edit ${item.name}`}
+                              className="text-zinc-400 hover:text-zinc-200 h-7 px-2 rounded-md border border-zinc-800"
+                            >
+                              <Edit2 className="size-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -299,6 +320,7 @@ export function TeamDirectoryManager() {
           </div>
         </div>
       )}
+      <StaffProfileDrawer staffProfileId={profileId} onClose={() => setProfileId(null)} />
     </div>
   );
 }

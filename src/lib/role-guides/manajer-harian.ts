@@ -70,6 +70,8 @@ export const manajerHarianGuide: RoleGuide = {
       steps: [
         { text: "Manajemen Tim: buat, ubah, nonaktifkan, atau reset password akun Kasir/Waiter. Atur posisi (workstation): Bar, Dapur, Helper, atau Kurir." },
         { text: "Reset PIN absen bila karyawan lupa." },
+        { text: "Profil karyawan (klik nama di Direktori): data diri, absensi bulan ini, saldo gaji/fee, kasbon, dokumen, dan aktivitas. NIK & rekening tampil tersamar — hanya Owner yang bisa mengubahnya." },
+        { text: "Profil member (CRM → klik member): foto (klik avatar untuk mengganti), alamat, riwayat poin dapat/pakai/kedaluwarsa dengan saldo, order, dan voucher." },
         { text: "Pengaturan: Meja & QR, printer, struk, batas PIN kas keluar/masuk." },
         { text: "CRM/Membership: koreksi poin wajib dengan alasan. Audit untuk memeriksa aksi sensitif." },
       ],

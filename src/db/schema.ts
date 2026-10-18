@@ -287,6 +287,38 @@ export const staffProfiles = pgTable(
   }),
 );
 
+// Data pribadi karyawan (profil 360°). 1:1 dengan staff_profiles. NIK & rekening
+// hanya tampil penuh untuk Owner; Manajer melihat versi tersamar.
+export const staffPersonal = pgTable(
+  "staff_personal",
+  {
+    staffProfileId: uuid("staff_profile_id")
+      .primaryKey()
+      .references(() => staffProfiles.id, { onDelete: "cascade" }),
+    whatsapp: text("whatsapp"),
+    address: text("address"),
+    birthDate: date("birth_date"),
+    gender: text("gender"),
+    nik: text("nik"),
+    bankName: text("bank_name"),
+    bankAccountNumber: text("bank_account_number"),
+    bankAccountName: text("bank_account_name"),
+    emergencyName: text("emergency_name"),
+    emergencyRelation: text("emergency_relation"),
+    emergencyPhone: text("emergency_phone"),
+    contractType: text("contract_type"),
+    contractEnd: date("contract_end"),
+    photoUrl: text("photo_url"),
+    ktpUrl: text("ktp_url"),
+    cvUrl: text("cv_url"),
+    contractUrl: text("contract_url"),
+    otherDocs: jsonb("other_docs").$type<Array<{ label: string; url: string }>>().notNull().default([]),
+    notes: text("notes"),
+    updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
 export const menuItems = pgTable(
   "menu_items",
   {

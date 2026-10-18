@@ -25,6 +25,7 @@ export class AbsenEmployeeError extends Error {
 
 export interface AbsenEmployeeView {
   code: string;
+  staffProfileId: string; // untuk membuka Profil karyawan 360°
   name: string;
   position: string | null;
   monthlySalary: number;
@@ -99,6 +100,7 @@ export async function listAbsenEmployees(): Promise<AbsenEmployeeView[]> {
   const rows = await getDb()
     .select({
       code: staffWageConfig.absenCode,
+      staffProfileId: staffProfiles.id,
       name: user.name,
       position: staffProfiles.position,
       monthlySalary: staffWageConfig.monthlySalary,
@@ -118,6 +120,7 @@ export async function listAbsenEmployees(): Promise<AbsenEmployeeView[]> {
 
   return rows.map((r) => ({
     code: r.code ?? "",
+    staffProfileId: r.staffProfileId,
     name: r.name,
     position: r.position,
     // Data lama tanpa monthly_salary: perkiraan dari harian, dibulatkan ke ribuan

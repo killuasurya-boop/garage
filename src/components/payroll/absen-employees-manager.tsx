@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { KeyRound, Pencil, Plus, X } from "lucide-react";
+import { IdCard, KeyRound, Pencil, Plus, X } from "lucide-react";
+
+import { StaffProfileDrawer } from "@/components/garage/staff-profile-drawer";
 
 import type { AbsenEmployeeView } from "@/lib/garage-absen-employees";
 
@@ -255,6 +257,7 @@ export function AbsenEmployeesManager() {
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [pinReveal, setPinReveal] = useState<{ code: string; name: string; pin: string } | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [canManagePay, setCanManagePay] = useState(false);
 
   const load = useCallback(async () => {
@@ -533,6 +536,12 @@ export function AbsenEmployeesManager() {
                     </div>
                   ) : (
                     <div className="flex flex-wrap justify-end gap-2">
+                      {e.staffProfileId ? (
+                        <button type="button" onClick={() => setProfileId(e.staffProfileId)} className={btnGhost}>
+                          <IdCard className="size-4" aria-hidden />
+                          Profil
+                        </button>
+                      ) : null}
                       <button type="button" onClick={() => setConfirmReset(e.code)} className={btnGhost}>
                         <KeyRound className="size-4" aria-hidden />
                         Reset PIN
@@ -549,6 +558,7 @@ export function AbsenEmployeesManager() {
           ))}
         </div>
       )}
+      <StaffProfileDrawer staffProfileId={profileId} onClose={() => setProfileId(null)} />
     </section>
   );
 }

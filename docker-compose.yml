@@ -65,6 +65,8 @@ services:
       - garage-attendance-selfies:/app/storage/attendance
       # Foto bukti terkirim dari kurir — hanya lewat API staf, persisten.
       - garage-delivery-proofs:/app/storage/delivery-proof
+      # Dokumen karyawan (foto/KTP/CV/kontrak) & foto member — hanya lewat API.
+      - garage-profile-files:/app/storage/profiles
     depends_on:
       db:
         condition: service_healthy
@@ -116,5 +118,6 @@ volumes:
   garage-recruitment-files:
   garage-attendance-selfies:
   garage-delivery-proofs:
+  garage-profile-files:
   caddy-data:
   caddy-config:

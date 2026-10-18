@@ -106,6 +106,7 @@ import {
   productionTicketItems,
   memberAccounts,
   memberTransactions,
+  pointRedemptions,
   menuRecipes,
   menuResearch,
   menuItems,
@@ -138,6 +139,7 @@ import {
   vouchers,
   type SegmentRule,
 } from "@/db/schema";
+import { buildPointLedger } from "@/lib/member-point-ledger";
 import {
   closingChecklist as fallbackClosingChecklist,
   cartSeed,
@@ -4323,6 +4325,37 @@ export async function getCustomerDetailForCrm(customerId: string) {
     .orderBy(sql`sum(${orderItems.qty}) desc`)
     .limit(5);
 
+  // Riwayat poin (dapat / pakai / kembali / kedaluwarsa) untuk profil member.
+  const [pointTx, pointRd] = await Promise.all([
+    db
+      .select({
+        id: memberTransactions.id,
+        source: memberTransactions.source,
+        pointsEarned: memberTransactions.pointsEarned,
+        orderId: memberTransactions.orderId,
+        createdAt: memberTransactions.createdAt,
+      })
+      .from(memberTransactions)
+      .where(eq(memberTransactions.customerId, customerId))
+      .orderBy(desc(memberTransactions.createdAt))
+      .limit(40),
+    db
+      .select({
+        id: pointRedemptions.id,
+        pointsUsed: pointRedemptions.pointsUsed,
+        source: pointRedemptions.source,
+        status: pointRedemptions.status,
+        returnedPoints: pointRedemptions.returnedPoints,
+        returnedAt: pointRedemptions.returnedAt,
+        orderId: pointRedemptions.orderId,
+        createdAt: pointRedemptions.createdAt,
+      })
+      .from(pointRedemptions)
+      .where(eq(pointRedemptions.customerId, customerId))
+      .orderBy(desc(pointRedemptions.createdAt))
+      .limit(40),
+  ]);
+
   const totalSpend = Number(stats?.totalSpend ?? 0);
   const paidCount = Number(stats?.paidCount ?? 0);
   const annualSpend = await annualPaidSpendForCustomer(customer.id, db);
@@ -4376,6 +4409,7 @@ export async function getCustomerDetailForCrm(customerId: string) {
       variant: f.variantLabel,
       qty: Number(f.totalQty),
     })),
+    pointLedger: buildPointLedger(pointTx, pointRd, customer.points),
   };
 }
 

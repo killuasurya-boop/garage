@@ -44,6 +44,11 @@ export const ownerGuide: RoleGuide = {
       title: "4. Tim & keamanan",
       steps: [
         { text: "Manajemen Tim: kelola akun Manajer dan semua karyawan. Akun baru / reset wajib ganti password sebelum bisa bekerja." },
+        {
+          text: "Profil karyawan: Manajemen Tim → Direktori → klik nama atau tombol Profil (juga di Payroll → Karyawan). Isi data diri, kontak darurat, rekening gaji, kontrak, dan unggah foto/KTP/CV.",
+          warn: "NIK, nomor rekening, dan file KTP hanya terlihat penuh oleh Owner — Manajer melihat versi tersamar.",
+        },
+        { text: "Pelamar yang dijadikan karyawan otomatis membawa WA, alamat, tanggal lahir, foto, KTP, dan CV dari lamarannya." },
         { text: "PIN Owner/Manajer hanya untuk persetujuan di tablet kasir — jangan diberikan ke kasir." },
         { text: "Audit: periksa void, refund, koreksi absen, penerimaan barang, dan perubahan harga." },
       ],

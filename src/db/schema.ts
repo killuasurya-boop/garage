@@ -407,6 +407,9 @@ export const customers = pgTable(
     address: text("address"),
     photoUrl: text("photo_url"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    // Nomor WA sudah dicek aktif oleh staf (kasir menghubungi lewat wa.me).
+    waVerifiedAt: timestamp("wa_verified_at", { withTimezone: true }),
+    waVerifiedBy: text("wa_verified_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -416,6 +419,22 @@ export const customers = pgTable(
     cardTierIdx: index("customers_card_tier_idx").on(table.cardTier),
     ultraCandidateIdx: index("customers_ultra_candidate_idx").on(table.ultraCandidate),
     expiresAtIdx: index("customers_expires_at_idx").on(table.expiresAt),
+  }),
+);
+
+// WiFi gratis khusus member (MikroTik Hotspot): siapa memakai WiFi & kapan.
+export const wifiAccessLogs = pgTable(
+  "wifi_access_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    mac: text("mac"),
+    ip: text("ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    customerIdx: index("wifi_access_logs_customer_idx").on(table.customerId),
+    createdIdx: index("wifi_access_logs_created_idx").on(table.createdAt),
   }),
 );
 
@@ -628,6 +647,9 @@ export const orders = pgTable(
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     // Foto bukti terkirim (wajib saat kurir menandai "Sudah sampai").
     deliveryProofUrl: text("delivery_proof_url"),
+    // Bukti transfer/QRIS yang diunggah pelanggan dari menu digital (privat, lewat API staf).
+    paymentProofUrl: text("payment_proof_url"),
+    paymentProofAt: timestamp("payment_proof_at", { withTimezone: true }),
     whatsappInvoiceStatus: text("whatsapp_invoice_status").notNull().default("not_sent"),
     whatsappInvoiceUrl: text("whatsapp_invoice_url"),
     invoiceTrackingToken: text("invoice_tracking_token"),

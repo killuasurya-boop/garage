@@ -67,6 +67,7 @@ export type CrmCustomerRow = {
   totalSpend: number;
   paidOrderCount: number;
   averageTicket: number;
+  waVerifiedAt?: string | null;
 };
 
 type CustomerListResponse = {
@@ -122,6 +123,7 @@ export function CrmCustomerList({
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [tier, setTier] = useState(initialTier);
   const [sort, setSort] = useState("recent");
+  const [waFilter, setWaFilter] = useState<"" | "verified" | "unverified">("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -171,6 +173,7 @@ export function CrmCustomerList({
       if (tier && tier !== "all") params.set("tier", tier);
       if (selectedTag) params.set("tag", selectedTag);
       if (sort) params.set("sort", sort);
+      if (waFilter) params.set("wa", waFilter);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(page * PAGE_SIZE));
       const res = await fetch(`/api/crm/customers?${params.toString()}`);
@@ -192,7 +195,7 @@ export function CrmCustomerList({
     } finally {
       setLoading(false);
     }
-  }, [search, tier, sort, page, selectedTag]);
+  }, [search, tier, sort, page, selectedTag, waFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch when filters change
@@ -316,6 +319,20 @@ export function CrmCustomerList({
                 </option>
               ))}
             </select>
+            <select
+              value={waFilter}
+              onChange={(event) => {
+                setWaFilter(event.target.value as "" | "verified" | "unverified");
+                setPage(0);
+              }}
+              aria-label="Filter status WhatsApp"
+              data-testid="crm-wa-filter"
+              className="h-10 rounded-md border border-[#34343c] bg-white/[0.06] px-3 text-sm text-white"
+            >
+              <option value="" className="bg-[#15151b]">Semua WA</option>
+              <option value="unverified" className="bg-[#15151b]">WA belum dicek</option>
+              <option value="verified" className="bg-[#15151b]">WA aktif ✓</option>
+            </select>
             {allTags.length > 0 && (
               <select
                 value={selectedTag}
@@ -438,8 +455,11 @@ export function CrmCustomerList({
                     </td>
                     <td className="px-3 py-3">
                       <p className="font-semibold text-white">{row.name}</p>
-                      <p className="mt-0.5 font-mono text-[10px] text-[#8f8f99]">
+                      <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-[#a9a9b3]">
                         {row.phone}
+                        {row.waVerifiedAt ? (
+                          <span className="rounded border border-[#25d366]/45 bg-[#25d366]/12 px-1 text-[10px] font-bold text-[#8ff0b2]">WA ✓</span>
+                        ) : null}
                       </p>
                       {row.memberCode && (
                         <p className="mt-0.5 font-mono text-[10px] text-[#ffd79a]">
@@ -626,6 +646,7 @@ type CustomerDetail = {
   address?: string | null;
   photoUrl?: string | null;
   expiresAt?: string | null;
+  waVerifiedAt?: string | null;
   pointLedger?: Array<{
     id: string;
     at: string;
@@ -678,7 +699,31 @@ function CustomerDetailModal({
   const [allAvailableTags, setAllAvailableTags] = useState<string[]>([]);
   const [tagSaving, setTagSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [waSaving, setWaSaving] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
+
+  const handleVerifyWa = async (verified: boolean) => {
+    if (!detail) return;
+    setWaSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/crm/customers/${detail.id}/verify-wa`, { method: verified ? "POST" : "DELETE" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message || "Status WA gagal disimpan");
+      setDetail((d) => (d ? { ...d, waVerifiedAt: json?.data?.waVerifiedAt ?? null } : d));
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Status WA gagal disimpan");
+    } finally {
+      setWaSaving(false);
+    }
+  };
+
+  const handleCheckWa = () => {
+    if (!detail) return;
+    const message = `Halo ${detail.name.split(/\s+/)[0] || "Kak"}, ini Garage Coffee & Motor. Kami cek nomor WhatsApp member Garage kamu sudah aktif ya. Mohon balas "OK" — terima kasih! 🙏`;
+    window.open(`https://wa.me/${normalizeWaNumber(detail.phone)}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  };
 
   const handlePhotoUpload = async (file: File) => {
     if (!detail) return;
@@ -955,6 +1000,43 @@ function CustomerDetailModal({
                     label="Poin berlaku s/d"
                     value={detail.expiresAt ? new Date(detail.expiresAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-"}
                   />
+                </div>
+                <div
+                  data-testid="member-wa-verify"
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 ${
+                    detail.waVerifiedAt ? "border-[#25d366]/45 bg-[#25d366]/[0.07]" : "border-[#f5a742]/45 bg-[#f5a742]/[0.07]"
+                  }`}
+                >
+                  <p className="text-sm text-white">
+                    {detail.waVerifiedAt ? (
+                      <>
+                        <span className="font-bold text-[#8ff0b2]">WhatsApp aktif ✓</span>
+                        <span className="ml-1 text-xs text-[#c4c4cc]">
+                          dicek {new Date(detail.waVerifiedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-bold text-[#ffd79a]">Nomor WA belum dicek aktif</span>
+                    )}
+                  </p>
+                  <div className="flex gap-2">
+                    {!detail.waVerifiedAt ? (
+                      <Button type="button" size="sm" variant="outline" className="garage-press h-8 gap-1.5 border-[#25d366]/55 text-[#8ff0b2]" onClick={handleCheckWa}>
+                        <MessageCircle className="size-3.5" /> Cek lewat WA
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="garage-press h-8 border-[#4a4a54]"
+                      disabled={waSaving}
+                      onClick={() => void handleVerifyWa(!detail.waVerifiedAt)}
+                    >
+                      {waSaving ? <RefreshCw className="size-3 animate-spin" /> : null}
+                      {detail.waVerifiedAt ? "Batalkan tanda" : "Tandai WA aktif"}
+                    </Button>
+                  </div>
                 </div>
                 {detail.address ? (
                   <p className="rounded-md border border-[#34343c] bg-[#17171c] px-3 py-2 text-sm text-[#e4e4e8]">

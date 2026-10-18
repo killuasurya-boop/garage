@@ -6,11 +6,11 @@ import path from "node:path";
 // storage/profiles (di luar public/, hanya lewat API ber-auth).
 // Volume Docker: garage-profile-files.
 
-export type ProfileFileScope = "staff" | "member";
+export type ProfileFileScope = "staff" | "member" | "payment";
 export type ProfileFileExt = ".jpg" | ".png" | ".webp" | ".pdf";
 
 export const PROFILE_FILE_MAX_BYTES = 5 * 1024 * 1024;
-export const PROFILE_FILE_NAME = /^(staff|member)-[0-9a-f-]{36}-\d{13}-[a-f0-9]{8}\.(jpg|png|webp|pdf)$/;
+export const PROFILE_FILE_NAME = /^(staff|member|payment)-[0-9a-f-]{36}-\d{13}-[a-f0-9]{8}\.(jpg|png|webp|pdf)$/;
 
 export const PROFILE_FILE_TYPES: Record<ProfileFileExt, string> = {
   ".jpg": "image/jpeg",

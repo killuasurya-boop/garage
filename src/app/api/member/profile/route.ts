@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { requireMemberAuth } from "@/lib/member-auth";
+import { memberWhatsappSchema } from "@/lib/member-phone";
 import { getMemberProfile, updateMemberProfile } from "@/lib/member-service";
 import { errorJson, readMemberJson, successJson } from "@/lib/member-types";
 
@@ -8,11 +9,7 @@ export const runtime = "nodejs";
 
 const updateSchema = z.object({
   name: z.string().min(2, "Nama minimal 2 karakter.").max(80).optional(),
-  phone: z
-    .string()
-    .min(8, "Nomor telepon terlalu pendek.")
-    .max(20, "Nomor telepon terlalu panjang.")
-    .optional(),
+  phone: memberWhatsappSchema.optional(),
   address: z.string().max(280, "Alamat maksimum 280 karakter.").optional().nullable(),
   birthday: z
     .string()

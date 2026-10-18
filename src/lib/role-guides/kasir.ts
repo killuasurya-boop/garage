@@ -85,7 +85,10 @@ export const kasirGuide: RoleGuide = {
       id: "member-diskon",
       title: "5. Member, voucher & diskon",
       steps: [
-        { text: "Cari member dengan nomor HP, atau daftarkan member baru dari kasir." },
+        { text: "Cari member dengan nomor HP, atau daftarkan member baru dari kasir. Nomor wajib WhatsApp aktif (08xx)." },
+        {
+          text: "Cek WA member: saat member dipilih, tekan Cek WA (WhatsApp terbuka), minta pelanggan membalas, lalu tekan Tandai WA aktif.",
+        },
         { text: "Voucher: masukkan kode lalu cek. Voucher pribadi hanya bisa dipakai pemiliknya, dan kuota voucher dibatasi." },
         {
           text: "Poin: tekan Scan QR member, lalu pindai QR di kartu/aplikasi member (kamera atau scanner). Setelah terverifikasi, isi jumlah poin yang dipakai. Potongan muncul di ringkasan bayar.",
@@ -105,6 +108,10 @@ export const kasirGuide: RoleGuide = {
         { text: "Periksa isi pesanan lalu tekan Terima. Pesanan Take away & Delivery harus Lunas dulu sebelum diterima." },
         { text: "Tolak bila menu habis atau pesanan tidak jelas. Stok dan poin pelanggan dikembalikan otomatis." },
         {
+          text: "Pesanan Transfer/QRIS dengan label Bukti transfer ✓ sudah diunggah pelanggan. Tekan Lihat, cocokkan nominal dengan mutasi rekening/QRIS, baru proses Lunas.",
+          warn: "Bukti foto bisa dipalsukan — tetap cek uang benar-benar masuk di aplikasi bank.",
+        },
+        {
           text: "Pelanggan yang bergabung di meja terisi memakai kode gabung 4 angka yang tercetak di struk.",
         },
       ],
@@ -122,6 +129,7 @@ export const kasirGuide: RoleGuide = {
         { text: "Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS)." },
         { text: "Split bill: satu meja dipisah jadi beberapa tagihan per orang." },
         { text: "Bill sementara (belum lunas) bisa dicetak dari detail meja. Struk ini bertanda BILL SEMENTARA." },
+        { text: "Setelah lunas: isi nomor WA pelanggan lalu Kirim Invoice ke Customer — WhatsApp terbuka dengan rincian pesanan & link invoice, tinggal tekan kirim." },
       ],
     },
     {

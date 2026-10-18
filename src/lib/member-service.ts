@@ -660,6 +660,8 @@ export async function updateMemberProfile(input: UpdateMemberProfileInput) {
     .set({
       name: trimmedName && trimmedName.length > 0 ? trimmedName : existing.name,
       phone: normalizedPhone ?? existing.phone,
+      // Ganti nomor → status "WA aktif" harus dicek ulang oleh staf.
+      ...(normalizedPhone && normalizedPhone !== existing.phone ? { waVerifiedAt: null, waVerifiedBy: null } : {}),
       address:
         input.address === undefined
           ? existing.address

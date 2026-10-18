@@ -74,6 +74,14 @@ export type AppSettings = {
   tableIdleWarnHours: number;
   // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
   garageWhatsapp: string;
+  // Rekening transfer untuk pelanggan, satu per baris: "BANK | NOMOR | ATAS NAMA".
+  bankAccountsText: string;
+  // WiFi gratis khusus member (MikroTik Hotspot). Secret & router key di env.
+  wifiEnabled: boolean;
+  wifiSsid: string;
+  wifiSessionHours: number;
+  wifiMaxDevices: number;
+  wifiHotspotHost: string;
   // Order take away/delivery belum dibayar lewat batas ini otomatis ditolak (menit, 0 = mati).
   unpaidOrderAutoRejectMinutes: number;
   // Loyalty
@@ -223,6 +231,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   tableHoldMinutes: 5,
   tableIdleWarnHours: 3,
   garageWhatsapp: "6285121552341",
+  bankAccountsText: "",
+  wifiEnabled: false,
+  wifiSsid: "GARAGE Free WiFi",
+  wifiSessionHours: 3,
+  wifiMaxDevices: 200,
+  wifiHotspotHost: "",
   unpaidOrderAutoRejectMinutes: 30,
   // 0,5 poin per Rp1.000 menu → Silver ±5% (1 poin = Rp100).
   pointsPerThousand: 0.5,

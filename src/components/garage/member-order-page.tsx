@@ -84,7 +84,8 @@ import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-setting
 import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
-import { waLink } from "@/lib/whatsapp-link";
+import { parseBankAccounts } from "@/lib/bank-accounts";
+import { PaymentProofPanel } from "@/components/garage/order/payment-proof-panel";
 import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
 import { OrderPushButton } from "@/components/garage/order-push-button";
 import {
@@ -93,7 +94,6 @@ import {
   existingGenericChatToken,
 } from "@/components/garage/customer-chat-panel";
 
-const garageWhatsappUrl = (number: string, text: string) => waLink(number, text) ?? undefined;
 
 type ApiEnvelope<T> =
   | { data: T; error?: never }
@@ -164,13 +164,6 @@ const HERO_SECTION_ID = "menu-unggulan";
 const number = new Intl.NumberFormat("id-ID");
 
 const customerPaymentMethods: CustomerPaymentMethod[] = ["Cash", "QRIS", "Bank Transfer"];
-// WhatsApp Garage untuk konfirmasi bukti bayar take away / delivery.
-const customerBankAccounts = [
-  { id: "BCA", label: "BCA - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "BRI", label: "BRI - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "BNI", label: "BNI - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-  { id: "BANK SUMUT", label: "BANK SUMUT - GARAGE Coffee & Motor", accountNumber: "Belum dikonfigurasi" },
-];
 const qrisProvider = "QRIS GARAGE";
 const qrisImagePath = QRIS_IMAGE_SRC;
 
@@ -870,7 +863,7 @@ export function MemberOrderPage({
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
     );
   };
-  const [paymentProvider, setPaymentProvider] = useState(customerBankAccounts[0].id);
+  const [paymentProvider, setPaymentProvider] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const [returnPath] = useState(() => initialReturnPath ?? readReturnPath());
   const [qrContext, setQrContext] = useState<QrContext>(() => initialQrContext ?? readQrContext());
@@ -1125,6 +1118,9 @@ export function MemberOrderPage({
   // outlet, lalu promo QR (Pengaturan qrPromoPct/qrPromoMaxAmount) & voucher.
   // Dulu PB1 & pembulatan tidak dihitung → total di HP lebih murah dari tagihan kasir.
   const billingSettings = { ...DEFAULT_APP_SETTINGS, ...(billing ?? {}) };
+  // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
+  const customerBankAccounts = parseBankAccounts(billingSettings.bankAccountsText);
+  const selectedBank = customerBankAccounts.find((account) => account.id === paymentProvider) ?? customerBankAccounts[0] ?? null;
   const { service, tax, grossTotal } = calculateBillingTotals(subtotal, billingSettings);
   const roundingAdjustment = grossTotal - (subtotal + service + tax);
   const promoDiscount = qrPromoDiscount(subtotal, billingSettings);
@@ -1295,7 +1291,9 @@ export function MemberOrderPage({
     paymentMethod === "QRIS"
       ? qrisProvider
       : paymentMethod === "Bank Transfer"
-        ? paymentProvider
+        ? selectedBank
+          ? `${selectedBank.bank} ${selectedBank.number}`
+          : "Transfer"
         : "";
   const canCheckout =
     cartLines.length > 0 &&
@@ -2042,26 +2040,38 @@ export function MemberOrderPage({
 
         {paymentMethod === "Bank Transfer" ? (
           <div className="mt-3 grid gap-3">
-            <label className="grid gap-1.5">
-              <span className="text-sm font-bold text-garage-dim">Rekening tujuan</span>
-              <select
-                value={paymentProvider}
-                onChange={(event) => setPaymentProvider(event.target.value)}
-                className={`${inputClass} border-garage-line`}
-              >
-                {customerBankAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="rounded-md border border-garage-line bg-garage-bg-1 px-3 py-2.5 text-sm text-garage-dim">
-              No. rekening:{" "}
-              <span className="font-mono font-bold tabular-nums text-white">
-                {customerBankAccounts.find((account) => account.id === paymentProvider)?.accountNumber ?? "-"}
-              </span>
-            </p>
+            {customerBankAccounts.length === 0 ? (
+              <p className="rounded-md border border-garage-amber/45 bg-garage-amber/10 px-3 py-2.5 text-sm text-[#ffd79a]">
+                Rekening transfer belum diatur. Tanyakan nomor rekening ke kasir, atau pilih QRIS.
+              </p>
+            ) : (
+              <>
+                {customerBankAccounts.length > 1 ? (
+                  <label className="grid gap-1.5">
+                    <span className="text-sm font-bold text-garage-dim">Rekening tujuan</span>
+                    <select
+                      value={selectedBank?.id ?? ""}
+                      onChange={(event) => setPaymentProvider(event.target.value)}
+                      className={`${inputClass} border-garage-line`}
+                    >
+                      {customerBankAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.bank} - {account.holder}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div className="rounded-md border border-garage-line bg-garage-bg-1 px-3 py-2.5 text-sm text-garage-dim" data-testid="bank-account-card">
+                  <p className="font-bold text-white">{selectedBank?.bank}</p>
+                  <p className="mt-0.5">
+                    No. rekening:{" "}
+                    <span className="font-mono text-base font-bold tabular-nums text-white">{selectedBank?.number}</span>
+                  </p>
+                  <p className="mt-0.5">a.n. {selectedBank?.holder}</p>
+                </div>
+              </>
+            )}
             <label className="grid gap-1.5">
               <span className="text-sm font-bold text-garage-dim">Referensi transfer (opsional)</span>
               <input
@@ -2332,6 +2342,15 @@ export function MemberOrderPage({
                           ) : null}
                         </div>
                       </div>
+                      {lastOrder.order.paymentMethod && lastOrder.order.paymentMethod !== "Cash" && chatOrderToken ? (
+                        <PaymentProofPanel
+                          token={chatOrderToken}
+                          order={lastOrder.order}
+                          invoiceUrl={invoiceWebUrl && typeof window !== "undefined" ? new URL(invoiceWebUrl, window.location.origin).toString() : invoiceWebUrl}
+                          garageWhatsapp={billingSettings.garageWhatsapp}
+                          alreadyPaid={orderStatus?.orderStatus === "paid"}
+                        />
+                      ) : null}
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                         {invoiceWebUrl ? (
                           <a
@@ -2359,22 +2378,6 @@ export function MemberOrderPage({
                             Tracking belum dibuat
                           </span>
                         )}
-                        {lastOrder.order.paymentMethod && lastOrder.order.paymentMethod !== "Cash" &&
-                        (lastOrder.order.fulfillment === "takeaway" || lastOrder.order.fulfillment === "delivery") ? (
-                          <a
-                            href={garageWhatsappUrl(billingSettings.garageWhatsapp,
-                              `Halo Garage, saya sudah bayar ${lastOrder.order.paymentMethod} untuk pesanan ${lastOrder.order.orderNo} (${
-                                lastOrder.order.fulfillment === "delivery" ? "Delivery" : "Take away"
-                              }) a.n. ${lastOrder.order.customerName ?? "-"}. Bukti bayar terlampir.`,
-                            )}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={`${invoiceButtonClass} border-garage-amber/55 text-[#ffd79a] hover:bg-garage-amber/12`}
-                          >
-                            <MessageCircle size={16} />
-                            Kirim bukti bayar via WhatsApp
-                          </a>
-                        ) : null}
                         {whatsappInvoiceUrl ? (
                           <a
                             href={whatsappInvoiceUrl}

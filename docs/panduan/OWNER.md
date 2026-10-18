@@ -33,7 +33,15 @@
 4. PIN Owner/Manajer hanya untuk persetujuan di tablet kasir — jangan diberikan ke kasir.
 5. Audit: periksa void, refund, koreksi absen, penerimaan barang, dan perubahan harga.
 
-## 5. Agent AI (WhatsApp / Telegram)
+## 5. WhatsApp pelanggan & WiFi member
+
+1. Pengaturan → Pembayaran: isi Rekening transfer pelanggan (satu per baris: BANK | NOMOR | ATAS NAMA). Tampil di menu digital saat pelanggan pilih Transfer.
+2. Pelanggan menu digital yang bayar Transfer/QRIS bisa mengunggah bukti bayar dan mengirim ringkasan pesanan ke WhatsApp Garage.
+3. CRM: filter WA belum dicek untuk melihat member yang nomornya belum dipastikan aktif.
+4. WiFi gratis khusus member: isi GARAGE_WIFI_SECRET & GARAGE_WIFI_ROUTER_KEY di server, aktifkan di Pengaturan → WiFi Member, lalu pasang perintah MikroTik dari Pengaturan → Integrasi → WiFi Gratis Member.
+   - Tips: Panduan lengkap: docs/WIFI-MIKROTIK.md.
+
+## 6. Agent AI (WhatsApp / Telegram)
 
 OpenClaw / Hermes bisa mengontrol Garage OS dari WhatsApp atau Telegram memakai API key agent.
 

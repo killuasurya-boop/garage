@@ -623,6 +623,8 @@ export type CustomerOrder = {
   courierLocationAt?: string | null;
   deliveredAt?: string | null;
   deliveryProofUrl?: string | null;
+  paymentProofUrl?: string | null;
+  paymentProofAt?: string | null;
   whatsappInvoiceStatus: "not_sent" | "sent" | "failed" | string;
   whatsappInvoiceUrl: string | null;
   invoicePdfUrl: string | null;
@@ -752,7 +754,10 @@ export type TableOrderBill = {
   total: number;
   createdAt: string;
   customerName: string | null;
+  customerPhone?: string | null;
   customerNote: string | null;
+  // Link invoice publik (/invoice/{token}) untuk dikirim lewat WhatsApp.
+  invoiceUrl?: string | null;
   // Bill hasil pisah bill per produk menunjuk ke order meja asalnya.
   parentOrderId?: string | null;
   canSplit?: boolean;

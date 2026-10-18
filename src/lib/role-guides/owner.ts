@@ -54,8 +54,21 @@ export const ownerGuide: RoleGuide = {
       ],
     },
     {
+      id: "wa-wifi",
+      title: "5. WhatsApp pelanggan & WiFi member",
+      steps: [
+        { text: "Pengaturan → Pembayaran: isi Rekening transfer pelanggan (satu per baris: BANK | NOMOR | ATAS NAMA). Tampil di menu digital saat pelanggan pilih Transfer." },
+        { text: "Pelanggan menu digital yang bayar Transfer/QRIS bisa mengunggah bukti bayar dan mengirim ringkasan pesanan ke WhatsApp Garage." },
+        { text: "CRM: filter WA belum dicek untuk melihat member yang nomornya belum dipastikan aktif." },
+        {
+          text: "WiFi gratis khusus member: isi GARAGE_WIFI_SECRET & GARAGE_WIFI_ROUTER_KEY di server, aktifkan di Pengaturan → WiFi Member, lalu pasang perintah MikroTik dari Pengaturan → Integrasi → WiFi Gratis Member.",
+          tip: "Panduan lengkap: docs/WIFI-MIKROTIK.md.",
+        },
+      ],
+    },
+    {
       id: "agent",
-      title: "5. Agent AI (WhatsApp / Telegram)",
+      title: "6. Agent AI (WhatsApp / Telegram)",
       intro: "OpenClaw / Hermes bisa mengontrol Garage OS dari WhatsApp atau Telegram memakai API key agent.",
       steps: [
         { text: "Pengaturan → Integrasi → API Key Agent AI → Buat key. Pilih hak akses: Owner penuh, Manajer, atau Baca-saja." },

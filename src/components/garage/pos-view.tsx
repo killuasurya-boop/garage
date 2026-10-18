@@ -245,6 +245,8 @@ import {
 import { remainingCart, type SplitAssignment } from "@/lib/split-bill";
 import { calculateBillingTotals } from "@/lib/garage-billing";
 import { maxRedeemablePoints, normalizePhone } from "@/lib/member-types";
+import { buildInvoiceWhatsappMessage, waLink } from "@/lib/whatsapp-link";
+import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 
 const PosModuleFallback = () => (
   <div className="px-4 py-10 text-center text-sm text-zinc-400">Memuat POS...</div>
@@ -4634,6 +4636,12 @@ export function PosView({
                     {selectedMember.member.phone} - {selectedMember.member.tier} -{" "}
                     {selectedMember.member.points} poin
                   </p>
+                  <PosMemberWaVerify
+                    key={selectedMember.customerId}
+                    customerId={selectedMember.customerId}
+                    name={selectedMember.member.name}
+                    phone={selectedMember.member.phone}
+                  />
                 </div>
               ) : (
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-sm text-[#b8b8bf]">
@@ -7115,6 +7123,17 @@ export function PosView({
                         Catatan: {order.customerNote}
                       </p>
                     ) : null}
+                    {order.paymentProofUrl ? (
+                      <a
+                        href={order.paymentProofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="pos-payment-proof"
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#22c55e]/45 bg-[#22c55e]/10 px-2.5 py-1 text-xs font-bold text-[#bbf7d0] hover:bg-[#22c55e]/18"
+                      >
+                        Bukti transfer ✓ · Lihat
+                      </a>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         type="button"
@@ -7918,6 +7937,17 @@ export function PosView({
                               <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#ffd08a]">
                                 Catatan: {order.customerNote}
                               </p>
+                            ) : null}
+                            {order.paymentProofUrl ? (
+                              <a
+                                href={order.paymentProofUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid="pos-payment-proof"
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#22c55e]/45 bg-[#22c55e]/10 px-2.5 py-1 text-xs font-bold text-[#bbf7d0] hover:bg-[#22c55e]/18"
+                              >
+                                Bukti transfer ✓ · Lihat
+                              </a>
                             ) : null}
                             {order.fulfillment === "delivery" ? (
                               <div className="mt-2 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/[0.07] px-3 py-2 text-xs leading-5 text-white">
@@ -12083,27 +12113,33 @@ function PaymentCompletePanel({
         return receipt.whatsappInvoiceUrl;
       }
 
-      // Bangun manual: normalisasi nomor (0xxx → 62xxx) + template ringkas
-      const normalized = normalizeWaNumber(trimmed);
-      const lines = [
-        `Invoice GARAGE Coffee & Motor`,
-        `Order: ${receipt.orderNo}`,
-        `Total: ${currency.format(receipt.total)}`,
-      ];
-      if (invoiceWebUrl) {
-        lines.push(``);
-        lines.push(`Invoice & tracking:`);
-        lines.push(invoiceWebUrl);
-      }
-      lines.push(``);
-      lines.push(`Terima kasih sudah mampir ke GARAGE.`);
-      const text = encodeURIComponent(lines.join("\n"));
-      return `https://wa.me/${normalized}?text=${text}`;
+      // Bangun dari template bersama (sama dengan waiter & server): item + total + link invoice.
+      return (
+        waLink(
+          trimmed,
+          buildInvoiceWhatsappMessage({
+            orderNo: receipt.orderNo,
+            tableLabel: receipt.tableLabel,
+            total: receipt.total,
+            items: receipt.items.map((item) => ({
+              itemName: item.name,
+              variantLabel: item.variant,
+              qty: item.qty,
+              lineTotal: item.lineTotal,
+            })),
+            invoiceUrl: invoiceWebUrl,
+            paymentMethod: receipt.payment.method,
+          }),
+        ) ?? `https://wa.me/${normalizeWaNumber(trimmed)}`
+      );
     },
     [
       invoiceWebUrl,
       receipt.customer?.phone,
+      receipt.items,
       receipt.orderNo,
+      receipt.payment.method,
+      receipt.tableLabel,
       receipt.total,
       receipt.whatsappInvoiceUrl,
     ],

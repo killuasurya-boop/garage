@@ -69,6 +69,10 @@ export const waiterGuide: RoleGuide = {
       steps: [
         { text: "Tamu minta bill: buka detail meja → Minta tagihan. Status menjadi Tagihan di kasir." },
         { text: "Pembayaran selalu di kasir. Waiter tidak menerima uang, tidak membatalkan, dan tidak memberi diskon." },
+        {
+          text: "Kirim invoice ke WA tamu: buka detail meja → di bawah pesanan tekan Kirim invoice WA → isi nomor WA tamu → Buka WhatsApp → kirim.",
+          tip: "Nomor yang diisi tersimpan di pesanan, jadi kasir tidak perlu bertanya lagi.",
+        },
       ],
     },
     {

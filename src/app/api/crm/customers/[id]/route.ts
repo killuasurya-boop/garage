@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { memberWhatsappSchema } from "@/lib/member-phone";
 import {
   deleteCustomerCrmProfile,
   getCustomerCardTier,
@@ -29,7 +30,7 @@ export async function GET(
 
 const patchSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
-  phone: z.string().trim().min(8).max(24).optional(),
+  phone: memberWhatsappSchema.optional(),
   address: z.string().max(500).nullable().optional(),
   photoUrl: z.string().max(500).nullable().optional(),
   memberPassword: z.string().max(72).optional(),

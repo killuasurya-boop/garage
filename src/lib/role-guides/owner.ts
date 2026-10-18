@@ -67,8 +67,21 @@ export const ownerGuide: RoleGuide = {
       ],
     },
     {
+      id: "grand-opening",
+      title: "6. Grand Opening & Undangan Digital",
+      intro: "Satu data event untuk banner homepage, halaman /grand-opening, dan undangan pribadi.",
+      steps: [
+        { text: "Menu Undangan Digital → periksa judul, tanggal, jam, alamat, link Maps, WhatsApp, dan highlight. Isi hanya informasi yang sudah pasti." },
+        {
+          text: "Tekan Terbitkan setelah semua benar. Banner homepage dan halaman garagecoffee.id/grand-opening langsung tampil.",
+          warn: "Selama status Draft, halaman /grand-opening tidak bisa dibuka publik. Perubahan tanggal/jam/alamat tercatat di Audit.",
+        },
+        { text: "FAQ dan galeri hanya tampil bila diisi; jangan isi performer/promo yang belum terkonfirmasi." },
+      ],
+    },
+    {
       id: "agent",
-      title: "6. Agent AI (WhatsApp / Telegram)",
+      title: "7. Agent AI (WhatsApp / Telegram)",
       intro: "OpenClaw / Hermes bisa mengontrol Garage OS dari WhatsApp atau Telegram memakai API key agent.",
       steps: [
         { text: "Pengaturan → Integrasi → API Key Agent AI → Buat key. Pilih hak akses: Owner penuh, Manajer, atau Baca-saja." },

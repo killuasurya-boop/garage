@@ -953,6 +953,13 @@
       "when": 1792341249329,
       "tag": "0135_clear_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1792356756888,
+      "tag": "0136_simple_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

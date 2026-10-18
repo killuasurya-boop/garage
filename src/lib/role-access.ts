@@ -32,7 +32,9 @@ export type Permission =
   | "shift:handover"
   | "earnings:read"
   | "earnings:manage"
-  | "chat:use";
+  | "chat:use"
+  | "events:manage"
+  | "events:export";
 
 const ownerPermissions: Permission[] = [
   "dashboard:read",
@@ -67,6 +69,8 @@ const ownerPermissions: Permission[] = [
   "earnings:read",
   "earnings:manage",
   "chat:use",
+  "events:manage",
+  "events:export",
 ];
 
 export const rolePermissions: Record<Role, Permission[]> = {
@@ -104,6 +108,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "shift:handover",
     "earnings:read",
     "earnings:manage",
+    "events:manage",
   ],
   // Kasir = union Kasir + Barista + Koki + Asisten Koki + Kitchen/Barista +
   // Gudang lama — kasir sekarang juga pegang KDS dapur/bar dan stok gudang.
@@ -211,6 +216,11 @@ for (const role of Object.keys(roleModules) as Role[]) {
   if (!roleModules[role].includes("ops-center")) {
     roleModules[role].push("ops-center");
   }
+}
+
+// Undangan Digital (Grand Opening): Owner + Manajer; ekspor data tamu Owner saja.
+for (const role of ["Owner", "Manajer"] as Role[]) {
+  if (!roleModules[role].includes("events")) roleModules[role].push("events");
 }
 
 // Modul Kurir: Owner/Manajer memantau semua antaran; Waiter hanya bila akunnya kurir

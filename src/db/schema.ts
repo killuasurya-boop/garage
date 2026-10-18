@@ -3702,5 +3702,143 @@ export const staffPayoutRequests = pgTable(
   }),
 );
 
+// ─── Event & Undangan Digital (PRD GC-PRD-EVENT-001) ────────────────────────
+// Satu sumber data event untuk homepage, landing /grand-opening, dan undangan.
+
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    tagline: text("tagline"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    timezone: text("timezone").notNull().default("Asia/Jakarta"),
+    venueName: text("venue_name").notNull(),
+    address: text("address").notNull(),
+    mapsUrl: text("maps_url").notNull(),
+    contactWhatsapp: text("contact_whatsapp").notNull(),
+    highlights: jsonb("highlights").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    about: text("about"),
+    faq: jsonb("faq").$type<Array<{ q: string; a: string }>>().notNull().default(sql`'[]'::jsonb`),
+    gallery: jsonb("gallery").$type<Array<{ src: string; alt: string }>>().notNull().default(sql`'[]'::jsonb`),
+    // draft | published | archived
+    status: text("status").notNull().default("draft"),
+    featuredOnHome: boolean("featured_on_home").notNull().default(true),
+    rsvpDeadline: timestamp("rsvp_deadline", { withTimezone: true }),
+    defaultMaxPax: integer("default_max_pax").notNull().default(2),
+    contentVersion: integer("content_version").notNull().default(1),
+    updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    slugUnique: uniqueIndex("events_slug_unique").on(t.slug),
+    statusIdx: index("events_status_idx").on(t.status),
+  }),
+);
+
+export const eventGuests = pgTable(
+  "event_guests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    fullName: text("full_name").notNull(),
+    phone: text("phone"),
+    phoneNormalized: text("phone_normalized"),
+    notes: text("notes"),
+    maxPax: integer("max_pax").notNull().default(2),
+    // active | archived
+    status: text("status").notNull().default("active"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    eventIdx: index("event_guests_event_idx").on(t.eventId),
+    phoneUnique: uniqueIndex("event_guests_event_phone_unique")
+      .on(t.eventId, t.phoneNormalized)
+      .where(sql`${t.phoneNormalized} IS NOT NULL`),
+  }),
+);
+
+export const eventInvitations = pgTable(
+  "event_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    guestId: uuid("guest_id")
+      .notNull()
+      .references(() => eventGuests.id, { onDelete: "cascade" }),
+    // sha256(token) untuk lookup; token asli terenkripsi (AES-GCM) agar link bisa disalin ulang.
+    tokenHash: text("token_hash").notNull(),
+    tokenEnc: text("token_enc").notNull(),
+    tokenRef: text("token_ref").notNull(),
+    // ready | shared | revoked
+    status: text("status").notNull().default("ready"),
+    sharedAt: timestamp("shared_at", { withTimezone: true }),
+    sharedBy: text("shared_by").references(() => user.id, { onDelete: "set null" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedBy: text("revoked_by").references(() => user.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenHashUnique: uniqueIndex("event_invitations_token_hash_unique").on(t.tokenHash),
+    // Satu undangan aktif per tamu (yang dicabut tidak dihitung).
+    activeGuestUnique: uniqueIndex("event_invitations_active_guest_unique")
+      .on(t.guestId)
+      .where(sql`${t.status} <> 'revoked'`),
+    eventIdx: index("event_invitations_event_idx").on(t.eventId),
+  }),
+);
+
+export const eventRsvps = pgTable(
+  "event_rsvps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invitationId: uuid("invitation_id")
+      .notNull()
+      .references(() => eventInvitations.id, { onDelete: "cascade" }),
+    // attending | declined (tanpa baris = pending)
+    response: text("response").notNull(),
+    pax: integer("pax").notNull().default(0),
+    note: text("note"),
+    // guest | admin
+    source: text("source").notNull().default("guest"),
+    changeCount: integer("change_count").notNull().default(0),
+    respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    invitationUnique: uniqueIndex("event_rsvps_invitation_unique").on(t.invitationId),
+  }),
+);
+
+export const eventActivityLogs = pgTable(
+  "event_activity_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    invitationId: uuid("invitation_id").references(() => eventInvitations.id, { onDelete: "set null" }),
+    guestId: uuid("guest_id").references(() => eventGuests.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    // nama staf atau "Tamu"
+    actor: text("actor").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    eventIdx: index("event_activity_logs_event_idx").on(t.eventId, t.occurredAt),
+  }),
+);
+
 // Garage Financial Control System (PRD V2.0) — tabel di file terpisah.
 export * from "./schema-finance";

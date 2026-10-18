@@ -645,3 +645,14 @@ html { scroll-behavior: smooth; }
   .garage-website .floating-wa { display: none !important; }
   main.garage-website { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
+/* Banner Grand Opening (grand-opening-banner.tsx) — reset `*` di atas menghapus padding utilitas. */
+.garage-website .go-banner { padding: 24px 16px; margin: 0 auto; }
+.garage-website .go-banner__card { padding: 20px; }
+.garage-website .go-banner__title { margin-top: 8px; }
+.garage-website .go-banner__facts { margin-top: 16px; list-style: none; }
+.garage-website .go-banner__actions { margin-top: 20px; }
+.garage-website .go-banner__btn { padding: 0 20px; }
+@media (min-width: 640px) {
+  .garage-website .go-banner { padding: 24px; }
+  .garage-website .go-banner__card { padding: 28px; }
+}

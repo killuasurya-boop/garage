@@ -198,6 +198,7 @@ import {
   lockedMessage,
 } from "@/lib/pin-guard";
 import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
+import { paymentBalance, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { customerTableStatusFor } from "@/lib/garage-table-status";
 import { canUseApi, canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
@@ -15128,6 +15129,8 @@ async function voidOrderImpl(
   idOrOrderNo: string,
   reason: string,
   garage: GarageSession,
+  // auditAction: label Audit Log (mis. "Hapus invoice" untuk invoice belum lunas).
+  options: { auditAction?: string } = {},
 ) {
   const db = getDb();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
@@ -15265,7 +15268,7 @@ async function voidOrderImpl(
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
       actor,
-      action: `Order dibatalkan ${order.orderNo}`,
+      action: `${options.auditAction ?? "Order dibatalkan"} ${order.orderNo}`,
       object: order.tableLabel,
       device: garage.profile.deviceLabel,
       status: "voided",
@@ -17678,6 +17681,9 @@ export type OrderReceiptData = {
     discount: number;
     total: number;
     createdAt: string;
+    paymentStatus: PaymentStatus;
+    paidAmount: number;
+    balanceDue: number;
   };
   outlet: { code: string | null; name: string | null } | null;
   cashier: { id: string | null; name: string | null } | null;
@@ -17737,7 +17743,7 @@ export async function getOrderForReceipt(
       lineTotal: orderItems.lineTotal,
     })
     .from(orderItems)
-    .where(eq(orderItems.orderId, orderId));
+    .where(eq(orderItems.orderId, row.order.id));
 
   const paymentRows = await db
     .select({
@@ -17748,8 +17754,19 @@ export async function getOrderForReceipt(
       metadata: payments.metadata,
     })
     .from(payments)
-    .where(eq(payments.orderId, orderId))
+    .where(eq(payments.orderId, row.order.id))
     .orderBy(desc(payments.createdAt));
+
+  // Status pembayaran terpisah dari metode (Pending / Lunas / Gagal).
+  const paymentStatus = paymentStatusOf(row.order, paymentRows[0]?.status ?? null);
+  const captured = paymentRows
+    .filter((p) => p.status === "captured")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const { paid: paidAmount, balanceDue } = paymentBalance(
+    row.order.total,
+    paymentStatus,
+    paymentStatus === "paid" ? row.order.total : captured,
+  );
 
   return {
     order: {
@@ -17770,6 +17787,9 @@ export async function getOrderForReceipt(
       discount: row.order.discount,
       total: row.order.total,
       createdAt: row.order.createdAt.toISOString(),
+      paymentStatus,
+      paidAmount,
+      balanceDue,
     },
     outlet: { code: row.outletCode ?? null, name: row.outletName ?? null },
     cashier: { id: row.order.createdBy ?? null, name: cashierName },
@@ -20521,3 +20541,41 @@ export const moveTable = notifyingProduction(moveTableImpl);
 export const pickupKitchenTicket = notifyingProduction(pickupKitchenTicketImpl);
 export const releaseKitchenTicket = notifyingProduction(releaseKitchenTicketImpl);
 export const voidOrder = notifyingProduction(voidOrderImpl);
+
+const UNPAID_DELETABLE_STATUSES = new Set(["pending_cashier", "awaiting_payment", "accepted", "pending", "open"]);
+
+/**
+ * Hapus invoice BELUM LUNAS (owner, Okt 2026) — hanya Owner/Manajer, wajib
+ * alasan + ketik ulang nomor invoice. Soft delete lewat jalur void (tiket
+ * Bar/Dapur batal, stok kembali, poin/voucher dikembalikan) sehingga nomor
+ * invoice & riwayat tetap ada untuk laporan; Audit Log mencatat "Hapus invoice".
+ * Invoice LUNAS tidak bisa dihapus — pakai Batal/Refund (dengan alasan).
+ */
+export async function deleteUnpaidInvoice(
+  idOrOrderNo: string,
+  input: { reason: string; confirmOrderNo: string },
+  garage: GarageSession,
+) {
+  if (garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") {
+    throw new Error("Hanya Owner atau Manajer yang boleh menghapus invoice.");
+  }
+  const [order] = await getDb()
+    .select({ id: orders.id, orderNo: orders.orderNo, status: orders.status, outletId: orders.outletId })
+    .from(orders)
+    .where(isUuidLike(idOrOrderNo) ? eq(orders.id, idOrOrderNo) : eq(orders.orderNo, idOrOrderNo))
+    .limit(1);
+  if (!order || (order.outletId && order.outletId !== garage.profile.outlet.id)) {
+    throw new Error("Invoice tidak ditemukan.");
+  }
+  const typed = input.confirmOrderNo.trim().toUpperCase();
+  if (typed !== order.orderNo.toUpperCase() && typed !== invoiceNoForOrder(order.orderNo).toUpperCase()) {
+    throw new Error("Nomor invoice konfirmasi tidak cocok.");
+  }
+  if (order.status === "paid") {
+    throw new Error("Invoice sudah LUNAS tidak bisa dihapus. Gunakan Batal / Refund dengan alasan (tercatat di audit).");
+  }
+  if (!UNPAID_DELETABLE_STATUSES.has(order.status)) {
+    throw new Error("Invoice ini sudah dibatalkan/ditolak sebelumnya.");
+  }
+  return voidOrder(order.id, `Hapus invoice: ${input.reason}`, garage, { auditAction: "Hapus invoice" });
+}

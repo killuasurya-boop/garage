@@ -291,8 +291,50 @@ describe("struk besar di dialog print Chrome", () => {
     );
     expect(Math.max(...content.split(/\r?\n/).map((line) => line.length))).toBeLessThanOrEqual(24);
     const { html, tallCount } = browserReceiptLines(content);
-    expect(tallCount).toBe(5); // nama toko, antrian, meja, TOTAL, Kembali
+    expect(tallCount).toBe(6); // nama toko, antrian, meja, TOTAL, STATUS, Kembali
     expect(html).toContain('<div class="l t"><span>TOTAL');
     expect(html).toContain('<div class="l t"><span>Kembali');
+  });
+});
+
+describe("struk: status pembayaran terpisah dari metode", () => {
+  const base = {
+    orderNo: "POS-0002",
+    invoiceNo: "INV-0002",
+    createdAt: "2026-10-19T12:00:00.000Z",
+    tableLabel: "Meja 07",
+    customer: { name: "Andi" },
+    items: [{ itemName: "Choco Kiss", variantLabel: "Regular", unitPrice: 16000, qty: 2, lineTotal: 32000 }],
+    subtotal: 32000,
+    service: 0,
+    tax: 0,
+    discount: 0,
+    total: 32000,
+  } as Parameters<typeof buildThermalContent>[0];
+
+  it("lunas tunai: status, metode, dibayar, kembali, nama & meja", () => {
+    const text = stripControlCodes(
+      buildThermalContent({ ...base, payment: { method: "Cash", cashReceived: 50000, change: 18000 } }, { width: 24 }),
+    );
+    expect(text).toMatch(/STATUS\s+LUNAS/);
+    expect(text).toMatch(/Metode\s+Cash/);
+    expect(text).toMatch(/Dibayar\s+Rp 32\.000/);
+    expect(text).toMatch(/Kembali\s+Rp 18\.000/);
+    expect(text).toContain("Nama  : Andi");
+    expect(text).toContain("MEJA 07");
+    expect(text).toContain("INV-0002");
+    expect(text).not.toContain("Sisa tagihan");
+  });
+
+  it("bill sementara / QRIS menunggu verifikasi: PENDING + sisa tagihan", () => {
+    const pending = stripControlCodes(buildThermalContent({ ...base, provisional: true }, { width: 32 }));
+    expect(pending).toMatch(/STATUS\s+PENDING/);
+    expect(pending).toMatch(/Dibayar\s+Rp 0/);
+    expect(pending).toMatch(/Sisa tagihan\s+Rp 32\.000/);
+    const qris = stripControlCodes(
+      buildThermalContent({ ...base, paymentStatus: "pending", payment: { method: "QRIS" } }, { width: 32 }),
+    );
+    expect(qris).toMatch(/STATUS\s+PENDING/);
+    expect(qris).not.toMatch(/Kembali/);
   });
 });

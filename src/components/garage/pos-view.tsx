@@ -214,6 +214,8 @@ VoucherValidation
 import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
+import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
+import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { claimReprint } from "@/lib/reprint-guard";
@@ -1021,6 +1023,9 @@ export function PosView({
   );
   const isCashierKiosk = me.role === "Kasir";
   const canManagePosSettings = me.role === "Owner" || me.role === "Manajer";
+  // Hapus invoice belum lunas: Owner/Manajer saja (server juga menolak role lain).
+  const canDeleteInvoice = me.role === "Owner" || me.role === "Manajer";
+  const [invoiceDeleteTarget, setInvoiceDeleteTarget] = useState<InvoiceDeleteTarget | null>(null);
   const canResetAllTablesOnClose = ["Owner", "Manajer"].includes(
     me.role,
   );
@@ -3595,6 +3600,10 @@ export function PosView({
           tax: number;
           discount: number;
           total: number;
+          tableLabel: string | null;
+          customerName: string | null;
+          paymentStatus: "pending" | "paid" | "failed";
+          paidAmount: number;
         };
         outlet: { code: string; name: string } | null;
         cashier: { name: string } | null;
@@ -3609,6 +3618,10 @@ export function PosView({
       const res = await printThermal({
         receipt: {
           provisional: true,
+          paymentStatus: data.order.paymentStatus === "failed" ? "failed" : "pending",
+          paidAmount: data.order.paidAmount,
+          tableLabel: data.order.tableLabel,
+          customer: { name: data.order.customerName },
           invoiceNo: data.order.invoiceNo,
           orderNo: data.order.orderNo,
           createdAt: data.order.createdAt,
@@ -5748,6 +5761,27 @@ export function PosView({
                                       <FileText className="mr-1 size-3.5 shrink-0" />
                                       {provisionalBillBusyId === bill.id ? "Mencetak…" : "Bill sementara"}
                                     </Button>
+                                    {canDeleteInvoice && bill.status !== "paid" ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        data-testid="pos-table-invoice-delete"
+                                        className="garage-press col-span-2 h-9 border-[#d11a2a]/55 bg-[#d11a2a]/10 px-2 text-[11px] text-[#ffc2c8]"
+                                        onClick={() =>
+                                          setInvoiceDeleteTarget({
+                                            id: bill.id,
+                                            orderNo: bill.orderNo,
+                                            total: bill.total,
+                                            label: [tableDetail.tableLabel, bill.customerName].filter(Boolean).join(" · "),
+                                            status: bill.status,
+                                          })
+                                        }
+                                      >
+                                        <Trash2 className="mr-1 size-3.5 shrink-0" />
+                                        Hapus invoice
+                                      </Button>
+                                    ) : null}
                                   </div>
                                 ) : null}
                                 {bill.canSplit || bill.canPay ? (
@@ -8419,8 +8453,8 @@ export function PosView({
                   <p className="mt-2 text-2xl font-black text-white">
                     {currency.format(selectedCustomerOrder.total)}
                   </p>
-                  <Badge className={`${statusClass[selectedCustomerOrder.status] ?? statusClass.pending_cashier} mt-2 px-2 text-[10px]`}>
-                    {selectedCustomerOrder.status}
+                  <Badge className={`${statusClass[selectedCustomerOrder.status] ?? statusClass.pending_cashier} mt-2 px-2 text-xs`}>
+                    {PAYMENT_STATUS_LABEL[paymentStatusOf(selectedCustomerOrder)]} · {selectedCustomerOrder.paymentMethod ?? "-"}
                   </Badge>
                 </div>
               </div>
@@ -8633,6 +8667,25 @@ export function PosView({
                     onClick={() => openRejectDialog(selectedCustomerOrder)}
                   >
                     Tolak
+                  </Button>
+                ) : null}
+                {canDeleteInvoice && paymentStatusOf(selectedCustomerOrder) === "pending" && selectedCustomerOrder.status !== "pending_cashier" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="pos-invoice-delete"
+                    className="garage-press h-11 flex-1 basis-[140px] border-[#d11a2a]/60 bg-[#d11a2a]/10 text-[#ffc2c8]"
+                    onClick={() =>
+                      setInvoiceDeleteTarget({
+                        id: selectedCustomerOrder.id,
+                        orderNo: selectedCustomerOrder.orderNo,
+                        total: selectedCustomerOrder.total,
+                        label: [selectedCustomerOrder.tableLabel, selectedCustomerOrder.customerName].filter(Boolean).join(" · "),
+                        status: selectedCustomerOrder.status,
+                      })
+                    }
+                  >
+                    <Trash2 className="mr-1 size-4" /> Hapus invoice
                   </Button>
                 ) : null}
               </div>
@@ -10674,6 +10727,19 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
+      <PosInvoiceDeleteDialog
+        target={invoiceDeleteTarget}
+        onClose={() => setInvoiceDeleteTarget(null)}
+        onDeleted={(message) => {
+          setInvoiceDeleteTarget(null);
+          setSelectedCustomerOrderId(null);
+          setPosNotice(message);
+          void loadCustomerOrders({ silent: true });
+          void loadTableLiveData({ silent: true });
+          void loadKitchenTickets();
+          invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.finance, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+        }}
+      />
       <PosOrderCancelDialog
         target={cancelTarget}
         onClose={() => setCancelTarget(null)}

@@ -33,6 +33,11 @@ const kasir = () =>
     },
   }) as unknown as GarageSession;
 
+const asRole = (role: Role) => {
+  const session = kasir() as any;
+  return { ...session, profile: { ...session.profile, role } } as GarageSession;
+};
+
 async function rowsWhere(table: any, column: any, value: string) {
   const { eq } = await import("drizzle-orm");
   return t.getDb().select().from(table).where(eq(column, value));
@@ -99,5 +104,73 @@ describe("Bayar nanti (open bill)", () => {
     );
     const [paid] = await rowsWhere(t.schema.orders, t.schema.orders.id, orderId);
     expect(paid.status).toBe("paid");
+  });
+
+  it("hapus invoice belum lunas: hanya Owner/Manajer, wajib konfirmasi nomor, tercatat audit; lunas ditolak", async () => {
+    const created = await svc.createCustomerOrder({
+      orderType: "dine-in",
+      tableLabel: "Meja 05",
+      outletId,
+      customerMode: "guest",
+      guestName: "Budi",
+      source: "qr_table",
+      staffOrder: true,
+      allowHiddenItems: true,
+      paymentMethod: "Cash",
+      items: [{ itemId: "itm-food", variantId: "reg", qty: 2 }],
+    });
+    const orderId = created.order.id;
+    const orderNo = created.order.orderNo;
+    await svc.updateCustomerOrderStatus(orderId, { action: "accept" }, kasir(), { openBill: true });
+
+    await expect(
+      svc.deleteUnpaidInvoice(orderId, { reason: "Salah input pesanan", confirmOrderNo: orderNo }, kasir()),
+    ).rejects.toThrow(/Owner atau Manajer/);
+    await expect(
+      svc.deleteUnpaidInvoice(orderId, { reason: "Salah input pesanan", confirmOrderNo: "POS-SALAH" }, asRole("Manajer")),
+    ).rejects.toThrow(/tidak cocok/);
+
+    await svc.deleteUnpaidInvoice(orderId, { reason: "Salah input pesanan", confirmOrderNo: orderNo }, asRole("Manajer"));
+    const [deleted] = await rowsWhere(t.schema.orders, t.schema.orders.id, orderId);
+    expect(deleted.status).toBe("voided");
+    const tickets = await rowsWhere(t.schema.kitchenTickets, t.schema.kitchenTickets.orderId, orderId);
+    expect(tickets.every((ticket: any) => ticket.status === "cancelled")).toBe(true);
+    const { like } = await import("drizzle-orm");
+    const audit = await t.getDb().select().from(t.schema.auditLogs).where(like(t.schema.auditLogs.action, `Hapus invoice ${orderNo}%`));
+    expect(audit).toHaveLength(1);
+    expect((audit[0].metadata as any).reason).toMatch(/Salah input pesanan/);
+
+    // Invoice lunas tidak bisa dihapus (harus Batal/Refund).
+    const paidOrder = await svc.createCustomerOrder({
+      orderType: "takeaway",
+      outletId,
+      customerMode: "guest",
+      guestName: "Cici",
+      source: "qr_takeaway",
+      staffOrder: true,
+      paymentMethod: "Cash",
+      items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }],
+    });
+    await svc.updateCustomerOrderStatus(paidOrder.order.id, { action: "accept" }, kasir(), { openBill: true });
+    const [open2] = await rowsWhere(t.schema.orders, t.schema.orders.id, paidOrder.order.id);
+    await svc.updateCustomerOrderStatus(
+      paidOrder.order.id,
+      { action: "paid", paymentMethod: "Cash", cashReceived: open2.total },
+      kasir(),
+    );
+    await expect(
+      svc.deleteUnpaidInvoice(
+        paidOrder.order.id,
+        { reason: "Coba hapus lunas", confirmOrderNo: paidOrder.order.orderNo },
+        asRole("Owner"),
+      ),
+    ).rejects.toThrow(/LUNAS/);
+
+    const receipt = await svc.getOrderForReceipt(paidOrder.order.id);
+    expect(receipt.order.paymentStatus).toBe("paid");
+    expect(receipt.items.length).toBe(1);
+    const deletedReceipt = await svc.getOrderForReceipt(orderNo);
+    expect(deletedReceipt.order.paymentStatus).toBe("failed");
+    expect(deletedReceipt.items.length).toBe(1);
   });
 });

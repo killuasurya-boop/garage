@@ -2,7 +2,7 @@
 
 > Memantau bisnis, keputusan final persetujuan, pengaturan keuangan & gaji, dan pengawasan tim.
 >
-> Untuk: Owner · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Owner · Diperbarui 2026-10-19. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Memantau bisnis
 
@@ -31,7 +31,8 @@
    - **Penting:** NIK, nomor rekening, dan file KTP hanya terlihat penuh oleh Owner — Manajer melihat versi tersamar.
 3. Pelamar yang dijadikan karyawan otomatis membawa WA, alamat, tanggal lahir, foto, KTP, dan CV dari lamarannya.
 4. PIN Owner/Manajer hanya untuk persetujuan di tablet kasir — jangan diberikan ke kasir.
-5. Audit: periksa void, refund, koreksi absen, penerimaan barang, dan perubahan harga.
+5. Audit: periksa void, refund, hapus invoice, koreksi absen, penerimaan barang, dan perubahan harga.
+6. Hapus invoice hanya untuk tagihan BELUM lunas (Owner/Manajer, wajib alasan + ketik nomor invoice). Invoice lunas hanya bisa Batal/Refund. Semua tetap tercatat (tidak ada data yang hilang dari laporan).
 
 ## 5. WhatsApp pelanggan & WiFi member
 

@@ -157,6 +157,12 @@ export const kasirGuide: RoleGuide = {
           text: "Batal (void) / refund: ajukan dari detail order dengan alasan. Manajer/Owner menyetujui dengan PIN. Uang tunai yang dikembalikan otomatis dikurangkan dari laci.",
           warn: "Jangan mengembalikan uang sebelum void/refund disetujui sistem. Menu yang belum dibuat: bahan kembali ke stok. Menu yang sudah dibuat/diantar: dicatat waste.",
         },
+        {
+          text: "Hapus invoice yang BELUM dibayar (salah input / pelanggan batal) hanya bisa dilakukan Owner atau Manajer. Kasir tidak punya tombol hapus — panggil Manajer.",
+        },
+        {
+          text: "Struk mencantumkan STATUS pembayaran (LUNAS / PENDING / GAGAL), metode (Cash/QRIS/Transfer), jumlah dibayar, dan Sisa tagihan bila belum lunas. QRIS tetap PENDING sampai Anda menekan Lunas setelah notifikasi bank masuk.",
+        },
       ],
     },
     {

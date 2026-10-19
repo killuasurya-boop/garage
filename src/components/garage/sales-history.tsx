@@ -15,9 +15,12 @@ import {
   Receipt,
   RefreshCw,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 
+import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
+import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,6 +63,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Dibatalkan",
   refunded: "Direfund",
   void: "Void",
+  voided: "Dibatalkan (void)",
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -73,24 +77,23 @@ const PAYMENT_LABELS: Record<string, string> = {
 const labelForMethod = (method: string | null | undefined) =>
   !method ? "—" : PAYMENT_LABELS[method.toLowerCase()] ?? method.toUpperCase();
 
+/** Status pembayaran (Pending/Lunas/Gagal) + status order bila berbeda. */
 function statusBadge(status: string) {
   const label = STATUS_LABELS[status] ?? status;
-  if (status === "paid")
-    return (
-      <Badge className="border-emerald-600/40 bg-emerald-600/15 text-emerald-300">
-        {label}
-      </Badge>
-    );
-  if (status === "rejected" || status === "cancelled")
-    return (
-      <Badge className="border-rose-600/40 bg-rose-600/15 text-rose-300">
-        {label}
-      </Badge>
-    );
+  const payment = paymentStatusOf({ status });
+  const tone =
+    payment === "paid"
+      ? "border-emerald-600/40 bg-emerald-600/15 text-emerald-300"
+      : payment === "failed"
+        ? "border-rose-600/40 bg-rose-600/15 text-rose-300"
+        : "border-[#f5a742]/50 bg-[#f5a742]/15 text-[#ffd08a]";
   return (
-    <Badge variant="outline" className="border-zinc-600 text-zinc-300">
-      {label}
-    </Badge>
+    <div className="flex flex-col items-start gap-0.5">
+      <Badge className={tone}>{PAYMENT_STATUS_LABEL[payment]}</Badge>
+      {label !== PAYMENT_STATUS_LABEL[payment] ? (
+        <span className="text-[11px] text-zinc-300">{label}</span>
+      ) : null}
+    </div>
   );
 }
 
@@ -140,6 +143,9 @@ type OrderReceiptData = {
     discount: number;
     total: number;
     createdAt: string;
+    paymentStatus: "pending" | "paid" | "failed";
+    paidAmount: number;
+    balanceDue: number;
   };
   outlet: { code: string | null; name: string | null } | null;
   cashier: { id: string | null; name: string | null } | null;
@@ -159,7 +165,7 @@ type OrderReceiptData = {
   }>;
 };
 
-export function SalesHistoryView() {
+export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoice?: boolean } = {}) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   // Tanggal hari ini menurut WIB (toISOString = UTC → 00:00–07:00 WIB jadi "kemarin").
@@ -201,6 +207,7 @@ export function SalesHistoryView() {
     return (
       <OrderDetailView
         orderId={selectedId}
+        canDeleteInvoice={canDeleteInvoice}
         onBack={() => setSelectedId(null)}
       />
     );
@@ -415,11 +422,14 @@ export function SalesHistoryView() {
 
 function OrderDetailView({
   orderId,
+  canDeleteInvoice,
   onBack,
 }: {
   orderId: string;
+  canDeleteInvoice: boolean;
   onBack: () => void;
 }) {
+  const [deleteTarget, setDeleteTarget] = useState<InvoiceDeleteTarget | null>(null);
   const [data, setData] = useState<OrderReceiptData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -507,6 +517,10 @@ function OrderDetailView({
         discount: data.order.discount,
         total: data.order.total,
         invoiceWebUrl: data.order.invoiceWebUrl,
+        tableLabel: data.order.tableLabel,
+        customer: { name: data.order.customerName },
+        paymentStatus: data.order.paymentStatus,
+        paidAmount: data.order.paidAmount,
         isReprint: true,
         reprintAt: new Date().toISOString(),
       };
@@ -587,8 +601,37 @@ function OrderDetailView({
             <Download className="h-4 w-4" />
             Download PDF
           </Button>
+          {canDeleteInvoice && data && data.order.paymentStatus === "pending" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="history-invoice-delete"
+              className="border-rose-600/50 bg-rose-950/30 text-rose-200"
+              onClick={() =>
+                setDeleteTarget({
+                  id: data.order.id,
+                  orderNo: data.order.orderNo,
+                  total: data.order.total,
+                  label: [data.order.tableLabel, data.order.customerName].filter(Boolean).join(" · "),
+                  status: data.order.status,
+                })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Hapus invoice
+            </Button>
+          ) : null}
         </div>
       </header>
+      <PosInvoiceDeleteDialog
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(message) => {
+          setDeleteTarget(null);
+          setPrintResult(message);
+          void load();
+        }}
+      />
 
       {printResult && (
         <Card

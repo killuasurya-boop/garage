@@ -233,8 +233,22 @@ export const kasirGuide: RoleGuide = {
       ],
     },
     {
+      id: "cepat",
+      title: "13. Kerja cepat kasir",
+      intro: "Empat jalan pintas supaya antrean cepat habis.",
+      steps: [
+        { text: "Favorit: baris ⭐ Favorit di atas menu berisi 8 menu yang paling sering Anda tekan di perangkat ini (awal: menu Bestseller). Tekan sekali = masuk keranjang." },
+        { text: "Kode singkat: ketik 2–4 huruf di kolom cari, mis. cl = Coffee Latte, ng = Nasi Goreng. Kode tertulis di pojok kiri atas tiap kartu menu. Tekan Enter untuk langsung memesan menu teratas." },
+        {
+          text: "Bayar 1 tap: di bawah tombol Bayar ada ⚡ Uang pas (take away, langsung lunas tunai, kembalian 0) dan ⚡ QRIS (take away, langsung ke layar QRIS). Di HP tombol ini ada di Keranjang.",
+          warn: "Uang pas hanya bila pelanggan memberi uang tepat sejumlah total. Ada kembalian? Pakai tombol Bayar biasa.",
+        },
+        { text: "Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan \"Pesanan siap: #antrian meja\". Suara mengikuti setelan Suara QR (Off = senyap)." },
+      ],
+    },
+    {
       id: "laporan",
-      title: "13. Laporan penjualan shift saya",
+      title: "14. Laporan penjualan shift saya",
       steps: [
         { text: "Buka POS → Laporan Shift → \"Penjualan shift saya\" untuk melihat produk terlaris, kategori dan metode bayar shift Anda." },
         { text: "Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh." },
@@ -242,7 +256,7 @@ export const kasirGuide: RoleGuide = {
     },
     {
       id: "masalah",
-      title: "14. Masalah umum",
+      title: "15. Masalah umum",
       steps: [
         { text: "Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali." },
         { text: "\"Open shift wajib dilakukan\": buka shift dulu." },

@@ -139,12 +139,22 @@ Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di
 7. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 
-## 13. Laporan penjualan shift saya
+## 13. Kerja cepat kasir
+
+Empat jalan pintas supaya antrean cepat habis.
+
+1. Favorit: baris ⭐ Favorit di atas menu berisi 8 menu yang paling sering Anda tekan di perangkat ini (awal: menu Bestseller). Tekan sekali = masuk keranjang.
+2. Kode singkat: ketik 2–4 huruf di kolom cari, mis. cl = Coffee Latte, ng = Nasi Goreng. Kode tertulis di pojok kiri atas tiap kartu menu. Tekan Enter untuk langsung memesan menu teratas.
+3. Bayar 1 tap: di bawah tombol Bayar ada ⚡ Uang pas (take away, langsung lunas tunai, kembalian 0) dan ⚡ QRIS (take away, langsung ke layar QRIS). Di HP tombol ini ada di Keranjang.
+   - **Penting:** Uang pas hanya bila pelanggan memberi uang tepat sejumlah total. Ada kembalian? Pakai tombol Bayar biasa.
+4. Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan "Pesanan siap: #antrian meja". Suara mengikuti setelan Suara QR (Off = senyap).
+
+## 14. Laporan penjualan shift saya
 
 1. Buka POS → Laporan Shift → "Penjualan shift saya" untuk melihat produk terlaris, kategori dan metode bayar shift Anda.
 2. Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh.
 
-## 14. Masalah umum
+## 15. Masalah umum
 
 1. Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali.
 2. "Open shift wajib dilakukan": buka shift dulu.

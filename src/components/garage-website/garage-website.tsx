@@ -548,33 +548,6 @@ function LogoImage({ variant = "wordmark", height, width, shimmer = false, sizes
 }
 
 // ---------- LogoLockup — typographic GARAGE with red A ----------
-function LogoLockup({ size = 80, withSub = true, className = "" }) {
-  return (
-    <span className={`lockup ${className}`} style={{ fontSize: size, lineHeight: 0.85 }}>
-      <span className="chrome">G</span>
-      <span className="chrome">A</span>
-      <span className="chrome">R</span>
-      <span className="red-a">A</span>
-      <span className="chrome">G</span>
-      <span className="chrome">E</span>
-      {withSub && (
-        <span
-          className="chrome"
-          style={{
-            fontSize: size * 0.22,
-            marginLeft: size * 0.15,
-            alignSelf: "flex-end",
-            paddingBottom: size * 0.08,
-            letterSpacing: "0.04em",
-          }}
-        >
-          COFFEE
-        </span>
-      )}
-    </span>
-  );
-}
-
 // ---------- Arrow icon ----------
 function ArrowRight({ size = 14, className = "" }) {
   return (
@@ -693,288 +666,7 @@ function CursorGlow() {
 // floating motion. Sits on a transparent canvas so the site
 // bg shows through.
 
-function CoffeeCup({ size = 360, floating = true, steam = true, className = "", style }) {
-  const w = size;
-  const h = size * 1.25;
-  return (
-    <div
-      className={`${className} ${floating ? "logo-float" : ""}`}
-      style={{
-        position: "relative",
-        width: w, height: h,
-        ...style,
-      }}
-    >
-      {/* red ambient glow */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute", inset: "-10%",
-          background: "radial-gradient(ellipse at 50% 60%, rgba(209,26,42,0.28), transparent 60%)",
-          filter: "blur(36px)",
-          pointerEvents: "none",
-        }}
-      />
-
-      <svg
-        viewBox="0 0 400 500"
-        width="100%" height="100%"
-        style={{ position: "relative", zIndex: 1, overflow: "visible", display: "block" }}
-      >
-        <defs>
-          {/* CUP gradients */}
-          <linearGradient id="cup-body" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"  stopColor="#0a0a0c" />
-            <stop offset="35%" stopColor="#1a1a1e" />
-            <stop offset="50%" stopColor="#222226" />
-            <stop offset="65%" stopColor="#1a1a1e" />
-            <stop offset="100%" stopColor="#050507" />
-          </linearGradient>
-          <linearGradient id="lid-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"  stopColor="#2a2a30" />
-            <stop offset="100%" stopColor="#0a0a0c" />
-          </linearGradient>
-          <linearGradient id="sleeve-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"  stopColor="#1a1a1e" />
-            <stop offset="50%" stopColor="#3a3a42" />
-            <stop offset="100%" stopColor="#0a0a0c" />
-          </linearGradient>
-          {/* coffee surface */}
-          <radialGradient id="coffee-grad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"  stopColor="#5a3a20" />
-            <stop offset="60%" stopColor="#2a1a0e" />
-            <stop offset="100%" stopColor="#100806" />
-          </radialGradient>
-          {/* highlight stripe */}
-          <linearGradient id="cup-highlight" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"  stopColor="rgba(255,255,255,0.18)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-          </linearGradient>
-          <linearGradient id="rim-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"  stopColor="#9a9aa2" />
-            <stop offset="50%" stopColor="#3a3a42" />
-            <stop offset="100%" stopColor="#9a9aa2" />
-          </linearGradient>
-          {/* clip the logo to the sleeve area */}
-          <clipPath id="sleeve-clip">
-            <path d="M 100 220 L 300 220 L 290 360 L 110 360 Z" />
-          </clipPath>
-        </defs>
-
-        {/* STEAM wisps (animated via CSS) */}
-        {steam && (
-          <g className="steam">
-            <path className="steam-w steam-w1"
-              d="M 175 95 Q 165 70 178 50 Q 192 30 180 5"
-              stroke="rgba(255,255,255,0.35)" strokeWidth="3" fill="none" strokeLinecap="round" />
-            <path className="steam-w steam-w2"
-              d="M 200 95 Q 215 70 200 50 Q 188 25 205 0"
-              stroke="rgba(255,255,255,0.28)" strokeWidth="3" fill="none" strokeLinecap="round" />
-            <path className="steam-w steam-w3"
-              d="M 225 95 Q 215 70 230 50 Q 245 30 225 5"
-              stroke="rgba(255,255,255,0.32)" strokeWidth="3" fill="none" strokeLinecap="round" />
-          </g>
-        )}
-
-        {/* LID */}
-        <ellipse cx="200" cy="100" rx="118" ry="14" fill="url(#lid-grad)" stroke="#3a3a42" strokeWidth="1.5" />
-        <path d="M 82 100 L 88 130 Q 200 144 312 130 L 318 100 Z" fill="url(#lid-grad)" stroke="#3a3a42" strokeWidth="1.5" />
-        {/* lid sip hole */}
-        <ellipse cx="170" cy="100" rx="14" ry="3" fill="#050507" />
-
-        {/* CUP BODY — tapered */}
-        <path
-          d="M 88 130 L 110 410 Q 200 426 290 410 L 312 130 Q 200 144 88 130 Z"
-          fill="url(#cup-body)" stroke="#2a2a30" strokeWidth="1.5"
-        />
-
-        {/* CUP rim ring (under the lid) */}
-        <ellipse cx="200" cy="130" rx="112" ry="9" fill="url(#rim-grad)" opacity="0.6" />
-
-        {/* CUP body highlight (left-side reflection) */}
-        <path
-          d="M 110 150 Q 130 145 130 260 L 130 380 Q 118 388 115 392 L 100 150 Z"
-          fill="url(#cup-highlight)"
-          opacity="0.7"
-        />
-
-        {/* SLEEVE — chrome band wrapping middle of cup */}
-        <path
-          d="M 100 220 L 300 220 L 290 360 L 110 360 Z"
-          fill="url(#sleeve-grad)"
-          stroke="#4a4a52"
-          strokeWidth="1"
-        />
-        {/* sleeve top/bottom stitching lines */}
-        <path d="M 100 220 L 300 220" stroke="#5a5a62" strokeWidth="0.5" opacity="0.5" />
-        <path d="M 110 360 L 290 360" stroke="#5a5a62" strokeWidth="0.5" opacity="0.5" />
-        {/* sleeve subtle vertical metal highlight */}
-        <path d="M 200 220 L 200 360" stroke="rgba(255,255,255,0.06)" strokeWidth="40" />
-
-        {/* LOGO printed on sleeve */}
-        <g clipPath="url(#sleeve-clip)">
-          <text
-            x="200"
-            y="292"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="#f3f3f5"
-            fontSize="42"
-            fontWeight="900"
-            letterSpacing="4"
-            style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}
-          >
-            GARAGE
-          </text>
-          <text
-            x="200"
-            y="330"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="#d11a2a"
-            fontSize="12"
-            fontWeight="800"
-            letterSpacing="5"
-          >
-            COFFEE
-          </text>
-        </g>
-
-        {/* base shadow ellipse */}
-        <ellipse cx="200" cy="420" rx="100" ry="6" fill="rgba(0,0,0,0.55)" filter="blur(4px)" />
-
-        {/* COFFEE surface peek through lid hole — small dot */}
-        <ellipse cx="170" cy="100" rx="11" ry="2" fill="url(#coffee-grad)" opacity="0.9" />
-      </svg>
-
-      <style>{`
-        @keyframes steamRise1 {
-          0%   { transform: translateY(20px); opacity: 0; }
-          25%  { opacity: 0.9; }
-          75%  { opacity: 0.9; }
-          100% { transform: translateY(-40px); opacity: 0; }
-        }
-        @keyframes steamRise2 {
-          0%   { transform: translateY(15px) translateX(-2px); opacity: 0; }
-          30%  { opacity: 0.85; }
-          70%  { opacity: 0.85; }
-          100% { transform: translateY(-50px) translateX(2px); opacity: 0; }
-        }
-        @keyframes steamRise3 {
-          0%   { transform: translateY(25px) translateX(2px); opacity: 0; }
-          25%  { opacity: 0.95; }
-          75%  { opacity: 0.95; }
-          100% { transform: translateY(-30px) translateX(-3px); opacity: 0; }
-        }
-        .steam-w  { transform-origin: center; transform-box: fill-box; }
-        .steam-w1 { animation: steamRise1 3.8s ease-in-out infinite; }
-        .steam-w2 { animation: steamRise2 4.6s ease-in-out 0.4s infinite; }
-        .steam-w3 { animation: steamRise3 4.2s ease-in-out 0.8s infinite; }
-      `}</style>
-    </div>
-  );
-}
-
-
-
-// Source: garage-website/project/hero.jsx
-
 // ---------------- LOADER ----------------
-function Loader({ onDone }) {
-  const [pct, setPct] = useState(0);
-  const [exiting, setExiting] = useState(false);
-  useEffect(() => {
-    let p = 0;
-    let completed = false;
-    let exitTimer;
-    let doneTimer;
-
-    const finish = () => {
-      if (completed) return;
-      completed = true;
-      p = 100;
-      setPct(100);
-      clearInterval(t);
-      exitTimer = setTimeout(() => setExiting(true), 80);
-      doneTimer = setTimeout(onDone, 320);
-    };
-
-    const t = setInterval(() => {
-      p += Math.random() * 24 + 18;
-      if (p >= 100) finish();
-      setPct(Math.floor(p));
-    }, 42);
-
-    const fallbackTimer = setTimeout(finish, 900);
-
-    return () => {
-      clearInterval(t);
-      clearTimeout(exitTimer);
-      clearTimeout(doneTimer);
-      clearTimeout(fallbackTimer);
-    };
-  }, [onDone]);
-  return (
-    <div
-      data-garage-disabled-splash
-      style={{
-        position: "fixed", inset: 0, zIndex: 100,
-        background: "radial-gradient(ellipse at center, #0c0c10 0%, #050507 80%)",
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        transition: "transform 1.1s cubic-bezier(0.85,0,0.15,1), opacity 0.6s",
-        transform: exiting ? "translateY(-100%)" : "translateY(0)",
-        pointerEvents: exiting ? "none" : "auto",
-        animation: "loaderAutoDismiss 0.45s cubic-bezier(0.85,0,0.15,1) 1.15s forwards"
-      }}>
-
-      <div className="hero-grid" style={{ opacity: 0.35 }} />
-      <div style={{ position: "relative", zIndex: 2, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ marginBottom: 36 }} className="mono">
-          <span style={{ color: "var(--red)" }}>●</span>&nbsp; MEMANASKAN MESIN
-        </div>
-
-        {/* Cinematic logo reveal: blur-in + scale-up + shimmer sweep */}
-        <div className="logo-enter" style={{ display: "inline-block" }}>
-          <LogoImage
-            variant="wordmark"
-            width="clamp(280px, 78vw, 720px)"
-            shimmer={false}
-          />
-        </div>
-
-        <div style={{ marginTop: 56, width: "min(420px, 80vw)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }} className="mono">
-            <span>MEMUAT</span>
-            <span style={{ color: "var(--fg)" }}>{String(pct).padStart(3, "0")} / 100</span>
-          </div>
-          <div style={{ height: 2, background: "var(--bg-3)", overflow: "hidden" }}>
-            <div style={{
-              height: "100%",
-              width: `${pct}%`,
-              background: "linear-gradient(90deg, var(--red), #ff6b75)",
-              transition: "width 0.18s ease-out",
-              boxShadow: "0 0 14px rgba(209,26,42,0.6)"
-            }} />
-          </div>
-          <div className="mono" style={{ marginTop: 14, opacity: 0.5, fontSize: 9 }}>
-            COFFEE · FOOD · COMMUNITY
-          </div>
-        </div>
-      </div>
-      <style>{`
-        @keyframes loaderAutoDismiss {
-          to {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-            transform: translateY(-100%);
-          }
-        }
-      `}</style>
-    </div>);
-
-}
-
 // ---------------- NAV ----------------
 const MEGA_CATS = [
 { Icon: Coffee, name: "Kopi Susu", desc: "Spanish Latte · Caramel Macchiato · Gula Aren · Biscoff", count: "Coffee" },
@@ -993,14 +685,14 @@ function Nav() {
   // (Franchise, Karier) ada di drawer HP & footer.
   const items = [
   ["Menu", "#menu", true],
-  ["Cara Pesan", "#cara-pesan"],
-  ["Event", "#events"],
+  ["Live Outlet", "#live-status"],
   ["Member", "#membership"],
+  ["Event", "#events"],
   ["Lokasi", "#location"]];
   const mobileItems = [
   ...items,
-  ["Status Meja", "#live-status"],
-  ["Lacak Pesanan", "#live-tracking-system"],
+  ["Cara Pesan", "#cara-pesan"],
+  ["Lacak Pesanan", "#tracking-order"],
   ["Franchise", "/franchise"],
   ["Karier", "/recruitment"]];
 
@@ -3363,388 +3055,6 @@ function LiveVisitBoard() {
   );
 }
 
-function LiveTrackingSystem() {
-  const biz = useBiz();
-  const [trackingData, setTrackingData] = useState(null);
-  const [status, setStatus] = useState("sync");
-  const [updatedAt, setUpdatedAt] = useState(null);
-
-  const refreshTrackingSystem = useCallback(async () => {
-    try {
-      const liveTracking = await getPublicLiveTracking();
-      setTrackingData(liveTracking);
-      setUpdatedAt(liveTracking?.generatedAt ? new Date(liveTracking.generatedAt) : new Date());
-      setStatus("live");
-    } catch {
-      setStatus("fallback");
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshTrackingSystem();
-    const timer = window.setInterval(() => void refreshTrackingSystem(), 12_000);
-    return () => window.clearInterval(timer);
-  }, [refreshTrackingSystem]);
-
-  const orderPulse = trackingData?.orderPulse ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "8-12 menit", overdue: 0 };
-  const barPulse = trackingData?.stationPulse?.bar ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "5-8 menit", status: "Minuman siap dipesan", unit: "minuman" };
-  const kitchenPulse = trackingData?.stationPulse?.kitchen ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "12-18 menit", status: "Dapur siap memasak", unit: "makanan" };
-  const takeawayPulse = trackingData?.takeaway ?? { active: 0, queue: 0, cooking: 0, ready: 0, eta: "8-12 menit", recommendation: "Pesan sekarang, ambil saat sudah siap." };
-  const eventList = trackingData?.events ?? [];
-  const activeOrders = Number(orderPulse.active ?? 0);
-  const queuedOrders = Number(orderPulse.queue ?? 0);
-  const cookingOrders = Number(orderPulse.cooking ?? 0);
-  const readyOrders = Number(orderPulse.ready ?? 0);
-  const nextEvent = eventList[0];
-  const syncLabel = status === "live" && updatedAt
-    ? `Update ${updatedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
-    : status === "fallback"
-      ? "Fallback WA"
-      : "Sinkron";
-
-  const liveCards = [
-    {
-      label: "Pesanan Hari Ini",
-      value: `${activeOrders}`,
-      unit: "sedang berjalan",
-      tone: activeOrders >= 12 ? "busy" : activeOrders > 0 ? "normal" : "ready",
-      copy: `${queuedOrders} menunggu, ${cookingOrders} disiapkan, ${readyOrders} siap diambil. Estimasi ${orderPulse.eta ?? "8-12 menit"}.`,
-    },
-    {
-      label: "Estimasi Makanan",
-      value: kitchenPulse.eta ?? "12-18 menit",
-      unit: kitchenPulse.unit ?? "makanan",
-      tone: kitchenPulse.active >= 6 ? "busy" : kitchenPulse.active > 0 ? "normal" : "ready",
-      copy: `${kitchenPulse.queue ?? 0} menunggu, ${kitchenPulse.cooking ?? 0} sedang dimasak. ${kitchenPulse.status ?? "Dapur siap memasak"}.`,
-    },
-    {
-      label: "Estimasi Minuman",
-      value: barPulse.eta ?? "5-8 menit",
-      unit: barPulse.unit ?? "minuman",
-      tone: barPulse.active >= 6 ? "busy" : barPulse.active > 0 ? "normal" : "ready",
-      copy: `${barPulse.queue ?? 0} menunggu, ${barPulse.cooking ?? 0} sedang dibuat. ${barPulse.status ?? "Minuman siap dipesan"}.`,
-    },
-    {
-      label: "Ambil Sendiri",
-      value: takeawayPulse.eta ?? "8-12 menit",
-      unit: "pickup",
-      tone: takeawayPulse.ready > 0 ? "ready" : takeawayPulse.active >= 8 ? "busy" : takeawayPulse.active > 0 ? "normal" : "ready",
-      copy: takeawayPulse.recommendation ?? "Pesan sekarang, ambil saat sudah siap.",
-    },
-  ];
-
-  return (
-    <section id="live-tracking-system" className="live-system" aria-label="Estimasi pesanan GARAGE">
-      <div className="shell">
-        <div className="live-system-shell">
-          <Reveal className="live-system-head">
-            <div>
-              <div className="eyebrow" style={{ marginBottom: 16 }}>Pesan lebih tenang</div>
-              <h2 className="display live-system-title">
-                Tahu estimasi<br /><span>sebelum pesan.</span>
-              </h2>
-            </div>
-            <div className="live-system-brief">
-              <span className="mono">{syncLabel}</span>
-              <p>
-                Mau dine-in atau takeaway, kamu bisa lihat gambaran waktu tunggu sebelum pesan. Lebih jelas, lebih santai,
-                dan tidak perlu bolak-balik tanya lewat chat.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="live-system-grid">
-            {liveCards.map((card, index) => (
-              <Reveal key={card.label} delay={index * 90} className="live-system-card" style={{ "--track-delay": `${index * 120}ms` }}>
-                <div className="live-system-card-top">
-                  <span className="mono">{card.label}</span>
-                  <i data-tone={card.tone} />
-                </div>
-                <strong>{card.value}</strong>
-                <span>{card.unit}</span>
-                <p>{card.copy}</p>
-              </Reveal>
-            ))}
-          </div>
-
-          <Reveal delay={420} className="live-system-bottom">
-            <div className="live-stepper" aria-label="Alur pesanan GARAGE">
-              {[
-                ["01", "Pesan menu"],
-                ["02", "Kami siapkan"],
-                ["03", "Siap diambil"],
-                ["04", "Selesai"],
-              ].map((step, index) => (
-                <div key={step[0]} className={index <= Math.min(3, activeOrders ? 2 : 1) ? "is-active" : ""}>
-                  <span>{step[0]}</span>
-                  <strong>{step[1]}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="event-live-capacity">
-              <div>
-                <span className="mono">{nextEvent ? "Event terdekat" : "Rombongan & acara"}</span>
-                <h3>{nextEvent?.title ?? "Datang rame-rame?"}</h3>
-                <p>
-                  {nextEvent
-                    ? `${nextEvent.date} · ${nextEvent.time}. Simpan tempatmu lebih cepat lewat WhatsApp.`
-                    : "Kabari jumlah orang & jam datang lewat WhatsApp — meja dan menu bisa disiapkan lebih dulu."}
-                </p>
-              </div>
-              <a
-                href={bizWaUrl(
-                  biz.whatsapp,
-                  nextEvent
-                    ? `Halo GARAGE, saya mau RSVP event ${nextEvent.title}.`
-                    : "Halo GARAGE, saya mau booking tempat untuk rombongan. Mohon info ketersediaannya.",
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary"
-              >
-                <span>{nextEvent ? "RSVP Event" : "Booking Rombongan"}</span><ArrowRight />
-              </a>
-            </div>
-          </Reveal>
-        </div>
-      </div>
-
-      <style>{`
-        .live-system {
-          position: relative;
-          overflow: hidden;
-          border-top: 1px solid var(--line);
-          background:
-            radial-gradient(circle at 18% 12%, rgba(209,26,42,0.16), transparent 32%),
-            radial-gradient(circle at 82% 62%, rgba(245,167,66,0.1), transparent 30%),
-            var(--bg-0);
-          padding: clamp(36px, 6vw, 86px) 0;
-        }
-        .live-system::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background:
-            linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
-          background-size: 56px 56px;
-          mask-image: linear-gradient(180deg, transparent, #000 18%, #000 78%, transparent);
-          animation: garageLiveGridDrift 18s linear infinite;
-        }
-        .live-system-shell {
-          position: relative;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(9,9,11,0.74);
-          backdrop-filter: blur(10px);
-          padding: clamp(18px, 3vw, 34px);
-        }
-        .live-system-head {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
-          gap: 32px;
-          align-items: end;
-          margin-bottom: 24px;
-        }
-        .live-system-title {
-          font-size: clamp(42px, 6.4vw, 94px);
-          line-height: 0.9;
-        }
-        .live-system-title span {
-          color: var(--red);
-        }
-        .live-system-brief {
-          border-left: 2px solid rgba(209,26,42,0.7);
-          padding-left: 18px;
-        }
-        .live-system-brief p {
-          margin-top: 12px;
-          color: var(--fg-dim);
-          font-size: 14px;
-          line-height: 1.65;
-        }
-        .live-system-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
-        }
-        .live-system-card {
-          position: relative;
-          min-width: 0;
-          overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: linear-gradient(160deg, rgba(255,255,255,0.058), rgba(255,255,255,0.018));
-          padding: 18px;
-          isolation: isolate;
-        }
-        .live-system-card::after {
-          content: "";
-          position: absolute;
-          inset: -40% -60%;
-          z-index: -1;
-          background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,0.08) 50%, transparent 62%);
-          transform: translateX(-55%);
-          animation: garageLiveSweep 5.8s var(--ease-out) infinite;
-          animation-delay: var(--track-delay);
-        }
-        .live-system-card-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
-        .live-system-card-top i {
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-          background: #e4e4e7;
-          box-shadow: 0 0 0 6px rgba(228,228,231,0.12), 0 0 22px rgba(228,228,231,0.28);
-        }
-        .live-system-card-top i[data-tone="busy"] {
-          background: var(--amber);
-          box-shadow: 0 0 0 6px rgba(245,167,66,0.12), 0 0 22px rgba(245,167,66,0.28);
-        }
-        .live-system-card-top i[data-tone="normal"] {
-          background: #a1a1aa;
-          box-shadow: 0 0 0 6px rgba(161,161,170,0.12), 0 0 22px rgba(161,161,170,0.24);
-        }
-        .live-system-card strong {
-          display: block;
-          margin-top: 26px;
-          color: var(--fg);
-          font-family: var(--font-display);
-          font-size: clamp(30px, 4vw, 52px);
-          line-height: 0.92;
-          text-transform: uppercase;
-          overflow-wrap: anywhere;
-        }
-        .live-system-card > span {
-          display: block;
-          margin-top: 6px;
-          color: var(--red);
-          font-family: var(--font-mono);
-          font-size: 10px;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-        }
-        .live-system-card p {
-          margin-top: 18px;
-          color: var(--fg-dim);
-          font-size: 13px;
-          line-height: 1.55;
-        }
-        .live-system-bottom {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
-          gap: 12px;
-          margin-top: 12px;
-        }
-        .live-stepper,
-        .event-live-capacity {
-          min-width: 0;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(0,0,0,0.2);
-          padding: 18px;
-        }
-        .live-stepper {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 10px;
-        }
-        .live-stepper div {
-          position: relative;
-          min-width: 0;
-          border: 1px solid rgba(255,255,255,0.09);
-          padding: 14px;
-          color: var(--fg-mute);
-        }
-        .live-stepper div.is-active {
-          border-color: rgba(209,26,42,0.48);
-          background: rgba(209,26,42,0.08);
-          color: var(--fg);
-        }
-        .live-stepper span,
-        .event-live-capacity .mono {
-          color: var(--red);
-          font-family: var(--font-mono);
-          font-size: 10px;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-        }
-        .live-stepper strong {
-          display: block;
-          margin-top: 10px;
-          font-family: var(--font-display);
-          font-size: 24px;
-          line-height: 1;
-          text-transform: uppercase;
-        }
-        .event-live-capacity {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-        }
-        .event-live-capacity h3 {
-          margin-top: 10px;
-          color: var(--fg);
-          font-family: var(--font-display);
-          font-size: clamp(26px, 3vw, 38px);
-          line-height: 0.95;
-          text-transform: uppercase;
-        }
-        .event-live-capacity p {
-          margin-top: 10px;
-          color: var(--fg-dim);
-          font-size: 13px;
-          line-height: 1.5;
-        }
-        @keyframes garageLiveGridDrift {
-          from { background-position: 0 0, 0 0; }
-          to { background-position: 56px 56px, 56px 56px; }
-        }
-        @keyframes garageLiveSweep {
-          0%, 58% { transform: translateX(-55%); opacity: 0; }
-          72% { opacity: 1; }
-          100% { transform: translateX(55%); opacity: 0; }
-        }
-        @media (max-width: 1080px) {
-          .live-system-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-          .live-system-head,
-          .live-system-bottom {
-            grid-template-columns: 1fr;
-          }
-        }
-        @media (max-width: 640px) {
-          .live-system-shell {
-            padding: 16px;
-          }
-          .live-system-grid,
-          .live-stepper {
-            grid-template-columns: 1fr;
-          }
-          .event-live-capacity {
-            align-items: stretch;
-            flex-direction: column;
-          }
-          .event-live-capacity .btn {
-            width: 100%;
-            justify-content: center;
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .live-system::before,
-          .live-system-card::after {
-            animation: none;
-          }
-        }
-      `}</style>
-    </section>
-  );
-}
-
 // ---------------- CARA PESAN & TEKNOLOGI ----------------
 // Marketing: semua cara pesan yang benar-benar didukung sistem (QR meja, takeaway
 // online, waiter, WhatsApp) + teknologi pendukungnya (status meja, lacak pesanan,
@@ -3786,7 +3096,7 @@ function HowToOrder() {
   ];
   const tech = [
     { Icon: LayoutGrid, title: "Status meja live", body: "Lihat meja kosong sebelum berangkat.", href: "#live-status" },
-    { Icon: Timer, title: "Lacak pesanan", body: "Antre, diracik, siap — terpantau dari HP.", href: "#live-tracking-system" },
+    { Icon: Timer, title: "Lacak pesanan", body: "Antre, diracik, siap — terpantau dari HP.", href: "#tracking-order" },
     { Icon: CreditCard, title: "Tunai · QRIS · Transfer", body: "Bayar dengan cara yang kamu suka." },
     { Icon: Award, title: "Poin member otomatis", body: "Tiap belanja jadi poin & naik level.", href: "#membership" },
   ];
@@ -5005,7 +4315,8 @@ function SocialPortfolio() {
     };
   }, []);
   return (
-    <section id="social-portfolio" className="section-pad social-portfolio" style={{
+    <section id="social-portfolio" className="social-portfolio" style={{
+      padding: "88px 0",
       borderTop: "1px solid var(--line)",
       background:
         "radial-gradient(circle at 18% 12%, rgba(209,26,42,0.16), transparent 32%), linear-gradient(180deg, var(--bg-1), var(--bg-0))",
@@ -5014,7 +4325,7 @@ function SocialPortfolio() {
         <div className="social-portfolio-head">
           <div>
             <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Media Sosial</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Ikuti GARAGE di media sosial." style={{ fontSize: "clamp(44px, 7vw, 116px)" }}>
+            <Reveal mask as="h2" delay={100} className="display" aria-label="Ikuti GARAGE di media sosial." style={{ fontSize: "clamp(36px, 4.4vw, 64px)" }}>
               <span style={{ display: "block" }}>Ikuti GARAGE</span>
               <span style={{ display: "block" }}>di <span style={{ color: "var(--red)" }}>media sosial.</span></span>
             </Reveal>
@@ -5062,36 +4373,27 @@ function SocialPortfolio() {
           </>
         ) : null}
 
-        <div className="social-portfolio-grid">
-          {SOCIAL_LINKS.map((social, idx) => (
-            <Reveal key={social.id} delay={idx * 90}>
+        {/* Akun resmi: satu baris pill ringkas (ikon + handle), bukan kartu besar. */}
+        <ul className="social-pill-row" aria-label="Akun media sosial resmi Garage Coffee">
+          {SOCIAL_LINKS.map((social) => (
+            <li key={social.id}>
               <a
                 href={social.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`${social.cta} GARAGE (${social.handle}), buka di tab baru`}
-                className={`social-portfolio-card social-portfolio-card-${social.id}`}
+                aria-label={`${social.cta} Garage Coffee (${social.handle}), buka di tab baru`}
+                className={`social-pill social-pill-${social.id}`}
               >
-                <div className="social-card-top">
-                  <div className="social-mark">
-                    <SocialMark id={social.id} />
-                  </div>
-                  <span className="mono">OFFICIAL</span>
-                </div>
-                <div>
-                  <p className="social-proof">{social.proof}</p>
-                  <h3>{social.label}</h3>
-                  <p className="social-handle">{social.handle}</p>
-                  <p className="social-description">{social.description}</p>
-                </div>
-                <div className="social-card-cta">
-                  <span>{social.cta}</span>
-                  <ArrowRight size={12} />
-                </div>
+                <span className="social-pill-mark"><SocialMark id={social.id} /></span>
+                <span className="social-pill-text">
+                  <strong>{social.label}</strong>
+                  <span>{social.handle}</span>
+                </span>
+                <ArrowRight size={14} aria-hidden />
               </a>
-            </Reveal>
+            </li>
           ))}
-        </div>
+        </ul>
 
         <Reveal className="social-tag-strip">
           <div>
@@ -5106,6 +4408,30 @@ function SocialPortfolio() {
       </div>
 
       <style>{`
+        .social-pill-row {
+          list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 32px;
+        }
+        .social-pill {
+          display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 12px 16px;
+          border: 1px solid var(--line-2); background: rgba(255,255,255,0.035); color: var(--fg);
+          transition: border-color 0.25s var(--ease-out), background 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+        }
+        .social-pill:hover { border-color: var(--red); background: rgba(209,26,42,0.08); transform: translateY(-2px); }
+        .social-pill:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+        .social-pill-mark { width: 36px; height: 36px; flex: none; display: grid; place-items: center; }
+        .social-pill-mark svg { width: 28px; height: 28px; }
+        .social-pill-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+        .social-pill-text strong { font-family: var(--font-display); font-weight: 400; font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase; }
+        .social-pill-text span { font-family: var(--font-mono); font-size: 12px; color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @media (max-width: 980px) { .social-pill-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 520px) {
+          .social-pill { gap: 10px; padding: 10px 12px; }
+          .social-pill-mark { width: 28px; height: 28px; }
+          .social-pill-mark svg { width: 24px; height: 24px; }
+          .social-pill-text strong { font-size: 16px; }
+          .social-pill > svg:last-child { display: none; }
+        }
+        @media (max-width: 330px) { .social-pill-row { grid-template-columns: 1fr; } }
         .social-tag-strip {
           margin-top: 16px; padding: 22px 24px;
           display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap;
@@ -5552,6 +4878,14 @@ const MEMBER_TIER_META = {
   Silver: { meta: "Daftar gratis", badge: "Mulai" },
   Gold: { meta: `Belanja ${rupiahShort(GOLD_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,2"}x` },
   Platinum: { meta: `Belanja ${rupiahShort(PLATINUM_ANNUAL_SPEND)}/tahun`, badge: `Poin ${"1,6"}x` },
+  Ultra: { meta: "Undangan owner", badge: "Poin 2x" },
+};
+// Warna pembeda tier — sama dengan kartu member di dashboard (member-card.tsx).
+const MEMBER_TIER_COLOR = {
+  Silver: "#d4d4d8",
+  Gold: "#f5a742",
+  Platinum: "#70b8ee",
+  Ultra: "#a77bff",
 };
 const MEMBER_PERK_LABEL = {
   "Earn normal point": `1 poin tiap Rp ${(POINT_EARN_AMOUNT * 2).toLocaleString("id-ID")} · 1 poin = Rp100 saat bayar`,
@@ -5565,17 +4899,21 @@ const MEMBER_PERK_LABEL = {
   "Free monthly drink": "Gratis minuman tiap bulan",
   "Exclusive event": "Event eksklusif member",
   "Faster redeem": "Tukar poin lebih cepat",
+  "Point 2x": "Poin 2x lebih cepat",
+  "Prototype access": "Duluan coba menu baru (prototype)",
+  "Owner-only privilege": "Privilege khusus dari owner",
+  "Lifetime card priority": "Kartu prioritas seumur hidup",
 };
 
 function MembershipMasterPro() {
-  const memberTiers = memberLevelRules
-    .filter((rule) => !rule.requiresApproval)
-    .map((rule) => ({
-      name: rule.level,
-      meta: MEMBER_TIER_META[rule.level]?.meta ?? "",
-      badge: MEMBER_TIER_META[rule.level]?.badge ?? "",
-      benefits: rule.perks.map((perk) => MEMBER_PERK_LABEL[perk] ?? perk),
-    }));
+  const memberTiers = memberLevelRules.map((rule) => ({
+    name: rule.level,
+    meta: MEMBER_TIER_META[rule.level]?.meta ?? "",
+    badge: MEMBER_TIER_META[rule.level]?.badge ?? "",
+    color: MEMBER_TIER_COLOR[rule.level] ?? "#d4d4d8",
+    invite: Boolean(rule.requiresApproval),
+    benefits: rule.perks.map((perk) => MEMBER_PERK_LABEL[perk] ?? perk).filter((perk) => !/^Eligible setelah/i.test(perk)),
+  }));
 
   return (
     <section id="membership" className="section-pad" style={{
@@ -5616,18 +4954,31 @@ function MembershipMasterPro() {
 
         <div id="membership-benefits" className="membership-tier-grid">
           {memberTiers.map((tier, index) => (
-            <Reveal key={tier.name} delay={index * 90} className={`membership-tier-card membership-tier-card--${index}`}>
+            <Reveal
+              key={tier.name}
+              delay={index * 90}
+              className="membership-tier-card"
+              data-tier={tier.name}
+              style={{ "--tier": tier.color }}
+            >
               <div className="membership-tier-top">
-                <span className="mono">{tier.meta}</span>
+                <span className="membership-tier-meta">{tier.meta}</span>
                 <span className="membership-tier-badge">{tier.badge}</span>
               </div>
-              <h3>{tier.name}</h3>
+              <h3>
+                <span className="membership-tier-dot" aria-hidden />
+                {tier.name}
+              </h3>
               <ul>
                 {tier.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}
               </ul>
-              <Link href={`${MEMBER_LOGIN_URL}?mode=register`} className="membership-tier-link">
-                {index === 0 ? "Daftar gratis" : "Mulai dari Silver"} <ArrowRight size={12} />
-              </Link>
+              {tier.invite ? (
+                <span className="membership-tier-link membership-tier-link--muted">Khusus undangan owner</span>
+              ) : (
+                <Link href={`${MEMBER_LOGIN_URL}?mode=register`} className="membership-tier-link">
+                  {index === 0 ? "Daftar gratis" : "Mulai dari Silver"} <ArrowRight size={12} />
+                </Link>
+              )}
             </Reveal>
           ))}
         </div>
@@ -5705,7 +5056,7 @@ function MembershipMasterPro() {
         }
         .membership-tier-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 14px;
           margin-top: 56px;
         }
@@ -5713,22 +5064,37 @@ function MembershipMasterPro() {
           position: relative;
           min-width: 0;
           overflow: hidden;
-          border: 1px solid var(--line);
-          background: linear-gradient(160deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));
+          border: 1px solid color-mix(in srgb, var(--tier) 45%, transparent);
+          border-top: 4px solid var(--tier);
+          background:
+            radial-gradient(120% 70% at 100% 0%, color-mix(in srgb, var(--tier) 22%, transparent), transparent 60%),
+            linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
           padding: 24px;
           transition: transform 0.32s var(--ease-out), border-color 0.32s var(--ease-out), background 0.32s var(--ease-out);
         }
         .membership-tier-card:hover {
           transform: translateY(-4px);
-          border-color: rgba(209,26,42,0.48);
-          background: linear-gradient(160deg, rgba(209,26,42,0.09), rgba(255,255,255,0.024));
+          border-color: var(--tier);
+          box-shadow: 0 18px 40px -24px var(--tier);
         }
-        .membership-tier-card--1 {
-          border-color: rgba(245,167,66,0.32);
+        .membership-tier-meta {
+          font-family: var(--font-mono);
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--fg-dim);
         }
-        .membership-tier-card--2 {
-          border-color: rgba(212,212,216,0.42);
+        .membership-tier-dot {
+          display: inline-block;
+          width: 14px;
+          height: 14px;
+          margin-right: 12px;
+          vertical-align: middle;
+          border-radius: 999px;
+          background: var(--tier);
+          box-shadow: 0 0 14px var(--tier);
         }
+        .membership-tier-link--muted { color: var(--fg-dim) !important; }
         .membership-tier-top {
           display: flex;
           align-items: center;
@@ -5736,18 +5102,18 @@ function MembershipMasterPro() {
           gap: 12px;
         }
         .membership-tier-badge {
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.06);
+          border: 1px solid var(--tier);
+          background: color-mix(in srgb, var(--tier) 18%, transparent);
           padding: 6px 8px;
-          color: var(--fg);
+          color: var(--tier);
           font-family: var(--font-mono);
-          font-size: 9px;
+          font-size: 11px;
           letter-spacing: 0.14em;
           text-transform: uppercase;
         }
         .membership-tier-card h3 {
           margin-top: 24px;
-          color: var(--fg);
+          color: var(--tier);
           font-family: var(--font-display);
           font-size: clamp(36px, 4.4vw, 62px);
           line-height: 0.92;
@@ -5800,9 +5166,11 @@ function MembershipMasterPro() {
           flex-wrap: wrap;
           gap: 12px;
         }
+        @media (max-width: 1180px) {
+          .membership-tier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
         @media (max-width: 980px) {
-          .membership-master,
-          .membership-tier-grid {
+          .membership-master {
             grid-template-columns: 1fr;
           }
           .membership-flow {
@@ -5810,6 +5178,7 @@ function MembershipMasterPro() {
           }
         }
         @media (max-width: 560px) {
+          .membership-tier-grid { grid-template-columns: 1fr; }
           .membership-actions .btn,
           .membership-bottom-actions,
           .membership-bottom-actions .btn {
@@ -5912,166 +5281,7 @@ const TESTI = [
 { q: "Octane Affogato bikin saya ubah rencana Minggu. Sekarang punya ritual baru.", a: "Bayu T.", r: "Pengunjung pertama" }];
 
 
-function Testimonials() {
-  const trackRef = useRef(null);
-  const scroll = (dir) => {
-    if (!trackRef.current) return;
-    trackRef.current.scrollBy({ left: dir * 420, behavior: "smooth" });
-  };
-  return (
-    <section className="section-pad" style={{ borderTop: "1px solid var(--line)", overflow: "hidden" }}>
-      <div className="shell">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 60, flexWrap: "wrap", gap: 24 }}>
-          <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Suara Mereka</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Cerita dari dalam garasi." style={{ fontSize: "clamp(48px, 7vw, 116px)" }}>
-              <span style={{ display: "block" }}>Cerita dari</span>
-              <span style={{ display: "block" }}>dalam <span style={{ color: "var(--red)" }}>garasi.</span></span>
-            </Reveal>
-          </div>
-          <Reveal delay={400} style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 64, lineHeight: 1, color: "var(--fg)" }}>4.9</div>
-              <div className="mono" style={{ marginTop: 4 }}>1.240 ULASAN</div>
-            </div>
-            <div style={{ display: "flex", gap: 4, color: "var(--red)" }}>
-              {[1, 2, 3, 4, 5].map((i) => <Star key={i} size={20} />)}
-            </div>
-          </Reveal>
-        </div>
-      </div>
-
-      <div
-        ref={trackRef}
-        style={{
-          display: "flex", gap: 24,
-          overflowX: "auto", scrollSnapType: "x mandatory",
-          paddingLeft: "max(32px, calc((100vw - 1440px) / 2 + 32px))",
-          paddingRight: 32, paddingBottom: 32,
-          scrollbarWidth: "none"
-        }}
-        className="testi-track">
-        
-        {TESTI.map((t, i) =>
-        <Reveal key={i} delay={i * 80}>
-            <article className="card" style={{
-            flexShrink: 0, width: 380, padding: 36, scrollSnapAlign: "start",
-            display: "flex", flexDirection: "column", justifyContent: "space-between",
-            minHeight: 320,
-            background: "linear-gradient(180deg, var(--bg-2), var(--bg-1))"
-          }}>
-              <span className="card-edge" />
-              <div>
-                <div style={{ display: "flex", gap: 4, color: "var(--red)", marginBottom: 20 }}>
-                  {[1, 2, 3, 4, 5].map((s) => <Star key={s} size={14} />)}
-                </div>
-                <p style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 22, lineHeight: 1.15, letterSpacing: "0.01em",
-                textTransform: "uppercase",
-                color: "var(--fg)"
-              }}>
-                  "{t.q}"
-                </p>
-              </div>
-              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
-                <div style={{ fontFamily: "var(--font-mono)", color: "var(--fg)", fontSize: 13 }}>{t.a}</div>
-                <div className="mono" style={{ marginTop: 4 }}>{t.r}</div>
-              </div>
-            </article>
-          </Reveal>
-        )}
-        <div style={{ flexShrink: 0, width: 1 }} />
-      </div>
-
-      <div className="shell" style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <button className="round-btn" onClick={() => scroll(-1)} aria-label="Previous">
-          <ArrowRight size={14} style={{ transform: "rotate(180deg)" }} />
-        </button>
-        <button className="round-btn" onClick={() => scroll(1)} aria-label="Next">
-          <ArrowRight size={14} />
-        </button>
-      </div>
-
-      <style>{`
-        .testi-track::-webkit-scrollbar { display: none; }
-        .round-btn {
-          width: 52px; height: 52px;
-          border: 1px solid var(--line-2);
-          display: inline-flex; align-items: center; justify-content: center;
-          color: var(--fg);
-          transition: all 0.3s var(--ease-out);
-        }
-        .round-btn:hover { background: var(--red); border-color: var(--red); }
-      `}</style>
-    </section>);
-
-}
-
 // ---------------- LOCATION ----------------
-function Location() {
-  const biz = useBiz();
-  return (
-    <section id="location" className="section-pad" style={{ borderTop: "1px solid var(--line)", background: "var(--bg-1)" }}>
-      <div className="shell">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid var(--line)" }} className="loc-grid">
-          {/* left — info */}
-          <div style={{ padding: 56 }}>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Temukan kami</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Mampir saja. Kami menunggu." style={{ fontSize: "clamp(40px, 5vw, 76px)" }}>
-              <span style={{ display: "block" }}>Mampir saja.</span>
-              <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
-            </Reveal>
-
-            <div style={{ marginTop: 48, display: "grid", gap: 28 }}>
-              <Reveal delay={400}>
-                <InfoBlock label="Alamat" mainline={biz.address} sub="Tebing Tinggi Kota, Sumatera Utara" />
-              </Reveal>
-              <Reveal delay={500}>
-                <InfoBlock label="Jam Buka" mainline={formatBusinessHours(biz.hoursOpen, biz.hoursClose)} sub="Buka setiap hari" />
-              </Reveal>
-              <Reveal delay={600}>
-                <InfoBlock label="Kontak" mainline={`+${biz.whatsapp}`} sub={biz.email} />
-              </Reveal>
-              <Reveal delay={700}>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-                  <a className="btn btn-primary" href={bizWaUrl(biz.whatsapp)}><span>WhatsApp</span><ArrowRight /></a>
-                  <a className="btn" href={MAPS_URL} target="_blank" rel="noreferrer"><span>Buka di Maps</span><ArrowRight /></a>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-
-          {/* right — Google Maps embed */}
-          <div style={{ position: "relative", minHeight: 520, borderLeft: "1px solid var(--line)" }} className="loc-map">
-            <iframe
-              src={GARAGE_LOCATION.embedUrl}
-              width="100%"
-              height="100%"
-              style={{ border: 0, position: "absolute", inset: 0, filter: "grayscale(80%) contrast(1.2) invert(92%) hue-rotate(180deg)" }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title="Lokasi Garage Coffee Tebing Tinggi"
-            />
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes pinPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.1); }
-        }
-        @media (max-width: 900px) {
-          .loc-grid { grid-template-columns: 1fr !important; }
-          .loc-map { border-left: 0 !important; border-top: 1px solid var(--line) !important; min-height: 360px !important; }
-        }
-      `}</style>
-    </section>);
-
-}
-
 function LocationMvp() {
   const biz = useBiz();
   const reservationMessage = "Halo GARAGE, saya mau reservasi. Mohon info ketersediaan meja dan jamnya.";
@@ -6080,7 +5290,7 @@ function LocationMvp() {
       <div className="shell">
         <div className="location-mvp-grid">
           <div className="location-mvp-info">
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Temukan kami</Reveal>
+            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Garage Coffee Tebing Tinggi</Reveal>
             <Reveal mask as="h2" delay={100} className="display" aria-label="Mampir saja. Kami menunggu." style={{ fontSize: "clamp(40px, 5vw, 76px)" }}>
               <span style={{ display: "block" }}>Mampir saja.</span>
               <span style={{ display: "block" }}>Kami <span style={{ color: "var(--red)" }}>menunggu.</span></span>
@@ -6173,67 +5383,6 @@ function LocationMvp() {
   );
 }
 
-function LocalSeoBlock() {
-  const biz = useBiz();
-  return (
-    <section id="local-seo" className="local-seo-band">
-      <div className="shell">
-        <Reveal className="local-seo-grid">
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 18 }}>Tebing Tinggi</div>
-            <h2>Garage Coffee Tebing Tinggi</h2>
-            <p>
-              Cafe dan coffee shop di Tebing Tinggi untuk ngopi, makan, nongkrong, pesan takeaway, reservasi WhatsApp, ikut event komunitas, dan jadi member GARAGE.
-            </p>
-          </div>
-          <div className="local-seo-list">
-            <InfoBlock label="Alamat" mainline={streetLine(biz.address)} sub="Kec. Tebing Tinggi Kota, Kota Tebing Tinggi, Sumatera Utara 20631" />
-            <InfoBlock label="Reservasi" mainline={formatIdPhone(biz.whatsapp)} sub="Telepon & WhatsApp bisnis GARAGE" />
-            <InfoBlock label="Akses cepat" mainline="Menu digital & reservasi" sub="Pesan takeaway, cek tempat, dan ikuti progres order" />
-          </div>
-        </Reveal>
-      </div>
-      <style>{`
-        .local-seo-band {
-          border-top: 1px solid var(--line);
-          background: linear-gradient(180deg, var(--bg-0), var(--bg-1));
-          padding: 72px 0;
-        }
-        .local-seo-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
-          gap: 48px;
-          align-items: start;
-        }
-        .local-seo-grid h2 {
-          color: var(--fg);
-          font-family: var(--font-display);
-          font-size: clamp(40px, 6vw, 86px);
-          line-height: 0.9;
-          text-transform: uppercase;
-        }
-        .local-seo-grid p {
-          margin-top: 22px;
-          max-width: 620px;
-          color: var(--fg-dim);
-          font-size: 16px;
-          line-height: 1.7;
-        }
-        .local-seo-list {
-          display: grid;
-          gap: 18px;
-          border: 1px solid var(--line);
-          background: rgba(255,255,255,0.025);
-          padding: 24px;
-        }
-        @media (max-width: 860px) {
-          .local-seo-grid { grid-template-columns: 1fr; }
-        }
-      `}</style>
-    </section>
-  );
-}
-
 function InfoBlock({ label, mainline, sub }) {
   return (
     <div>
@@ -6314,184 +5463,6 @@ function FinalCTA() {
 }
 
 // ---------------- FOOTER ----------------
-function Footer() {
-  const biz = useBiz();
-  const waUrl = bizWaUrl(biz.whatsapp);
-  const mapsUrl = MAPS_URL;
-  const cols = [
-  {
-    h: "Jelajahi",
-    links: [["Live Status", "#live-status"], ["Live Tracking", "#live-tracking-system"], ["Menu", "#menu"], ["Franchise", "/franchise"], ["Cek Nomor Order", `#${TRACKING_SECTION_ID}`], ["Event", "#events"]]
-  },
-  {
-    h: "Kunjungi",
-    links: [["Lokasi", "#location"], ["Jam Buka", "#location"], ["Karier / Recruitment", "/recruitment"], ["WhatsApp", waUrl], ["Reservasi", waUrl], ["Login Karyawan", LOGIN_URL], ["Login Member", MEMBER_LOGIN_URL]]
-  },
-  {
-    h: "Kontak",
-    links: [[biz.email, `mailto:${biz.email}`], ["Order Digital", "/order"], ["Cek Meja", "#live-status"], ["Maps", mapsUrl]]
-  }];
-
-  return (
-    <footer style={{ borderTop: "1px solid var(--line)", background: "var(--bg-1)", position: "relative", zIndex: 2 }}>
-      <div className="shell" style={{ paddingTop: 80, paddingBottom: 32 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 60 }} className="foot-grid">
-          <div>
-            <LogoImage variant="wordmark" height={56} />
-            <div className="mono" style={{ marginTop: 8 }}>COFFEE · TEBING TINGGI · EST. 2026</div>
-            <p style={{ marginTop: 28, color: "var(--fg-dim)", maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
-              Kopi, makanan, dan tempat nongkrong bernuansa garasi industrial. Buka setiap hari.
-            </p>
-            <p style={{ marginTop: 16, color: "var(--fg-dim)", maxWidth: 420, fontSize: 13, lineHeight: 1.55 }}>
-              {biz.address}
-            </p>
-            <div style={{ marginTop: 24 }}>
-              <div className="mono" style={{ marginBottom: 12, color: "var(--fg)" }}>IKUTI GARAGE</div>
-              <p style={{ color: "var(--fg-dim)", maxWidth: 360, fontSize: 13, lineHeight: 1.55, marginBottom: 14 }}>
-                Lihat menu, event, dan suasana terbaru di social media GARAGE.
-              </p>
-              <div className="social-pill-grid" aria-label="Social media resmi GARAGE">
-                {SOCIAL_LINKS.map((social) => (
-                  <a
-                    key={social.label}
-                    href={social.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Buka ${social.label} resmi GARAGE di tab baru`}
-                    className="social-pill"
-                  >
-                    <span className="footer-social-mark" aria-hidden="true">
-                      <SocialMark id={social.id} />
-                    </span>
-                    <span className="footer-social-copy">
-                      <strong>{social.label}</strong>
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
-              <span style={{ width: 8, height: 8, background: "#e4e4e7", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(228,228,231,0.2)" }} />
-              <span className="mono" style={{ color: "var(--fg)" }}>{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "BUKA 24 JAM" : `BUKA SETIAP HARI ${hoursShort(biz)} WIB`}</span>
-            </div>
-          </div>
-          {cols.map((c) =>
-          <div key={c.h}>
-              <div className="mono" style={{ marginBottom: 24 }}>{c.h}</div>
-              <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 14 }}>
-                {c.links.map(([l, h]) =>
-              <li key={l}>
-                  {isLoginHref(h) ? (
-                    <a href={h} onClick={(event) => goToAccess(event, h)} className="foot-link">{l}</a>
-                  ) : (
-                    <a href={h} className="foot-link">{l}</a>
-                  )}
-                </li>
-              )}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div style={{ marginTop: 80, paddingTop: 28, borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-          <div className="mono">© 2026 GARAGE COFFEE TEBING TINGGI · SEMUA HAK CIPTA DILINDUNGI</div>
-          <div className="mono">DIBUAT UNTUK RASA, JIWA, KOMUNITAS</div>
-        </div>
-      </div>
-
-      {/* Giant brand statement — real logo as atmospheric footer mark */}
-      <div style={{ marginTop: 24, overflow: "hidden", position: "relative", paddingBottom: 0 }}>
-        <Reveal>
-          <div style={{
-            position: "relative",
-            width: "100%",
-            display: "flex", justifyContent: "center"
-          }}>
-            <LogoImage
-              variant="wordmark"
-              width="min(1600px, 96vw)"
-              style={{
-                opacity: 0.55,
-                maskImage: "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 92%)",
-                WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 92%)"
-              }}
-            />
-          </div>
-        </Reveal>
-      </div>
-
-      <style>{`
-        .foot-link {
-          font-size: 14px; color: var(--fg-dim);
-          transition: color 0.3s var(--ease-out); display: inline-block;
-          position: relative;
-        }
-        .foot-link::after {
-          content: ""; position: absolute; left: 0; bottom: -2px;
-          width: 0; height: 1px; background: var(--red);
-          transition: width 0.4s var(--ease-out);
-        }
-        .foot-link:hover { color: var(--fg); }
-        .foot-link:hover::after { width: 100%; }
-        .social-pill-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 18px 22px;
-          max-width: 520px;
-        }
-        .social-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 9px;
-          min-height: 32px;
-          padding: 0;
-          color: var(--fg);
-          transition:
-            color 0.25s var(--ease-out),
-            opacity 0.25s var(--ease-out),
-            transform 0.25s var(--ease-out);
-        }
-        .footer-social-mark {
-          width: 28px;
-          height: 28px;
-          flex: 0 0 auto;
-          display: grid;
-          place-items: center;
-        }
-        .footer-social-mark .social-mark-svg {
-          width: 24px;
-          height: 24px;
-        }
-        .footer-social-copy {
-          min-width: 0;
-          display: flex;
-        }
-        .footer-social-copy strong {
-          font-family: var(--font-display);
-          font-size: 18px;
-          line-height: 1;
-          text-transform: uppercase;
-        }
-        .social-pill:hover {
-          color: #fff;
-          opacity: 0.86;
-          transform: translateY(-1px);
-        }
-        @media (max-width: 900px) {
-          .foot-grid { grid-template-columns: 1fr 1fr !important; gap: 40px !important; }
-        }
-        @media (max-width: 560px) {
-          .foot-grid { grid-template-columns: 1fr !important; }
-          .social-pill-grid { gap: 16px 18px; }
-        }
-      `}</style>
-    </footer>);
-
-}
-
-
-// Section Promo Aktif — tarik produk promo (promoActive) langsung dari DB lewat
-// /api/customer/menu. Tampil hanya bila ada promo. Harga promo + harga coret.
 function FooterMvp() {
   const biz = useBiz();
   const waUrl = bizWaUrl(biz.whatsapp);
@@ -7030,7 +6001,7 @@ function MenuGallery() {
             <span style={{ display: "block", color: "var(--red)" }}>kami.</span>
           </Reveal>
         </div>
-        <div style={{
+        <div className="gw-gallery-grid" style={{
           display: "grid", gap: 8,
           gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
         }}>
@@ -7210,21 +6181,25 @@ function GarageWebsiteRoot({
       <Nav />
       <Hero landingHero={landingHero} />
       {featuredEvent ? <GrandOpeningBanner event={featuredEvent} /> : null}
+      {/* 1. Pesan: menu, promo, unggulan, cara pesan */}
       <Menu />
-      <HowToOrder />
-      <LiveVisitBoard />
       <PromoProducts />
       <FeaturedMenu />
-      <LiveTrackingSystem />
-      <LiveTestimonials />
+      <HowToOrder />
+      {/* 2. Live outlet: meja, keramaian, estimasi, lacak pesanan */}
+      <LiveVisitBoard />
+      {/* 3. Member */}
+      <MembershipMasterPro />
+      {/* 4. Tentang & suasana */}
       <About />
       <MenuGallery />
-      <SocialPortfolio />
+      <LiveTestimonials />
       <Experience />
-      <MembershipMasterPro />
+      {/* 5. Event */}
       <Events />
-      <LocalSeoBlock />
+      {/* 6. Lokasi & sosmed */}
       <LocationMvp />
+      <SocialPortfolio />
       <FinalCTA />
       <FooterMvp />
       <FloatingWA />

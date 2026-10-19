@@ -102,6 +102,12 @@ html { scroll-behavior: smooth; }
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
+/* Galeri menu: di HP 2 kolom & maks 6 foto supaya halaman tidak terlalu panjang. */
+@media (max-width: 700px) {
+  .garage-website .gw-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .garage-website .gw-gallery-grid > :nth-child(n + 7) { display: none; }
+}
+
 /* ---------- Buttons ---------- */
 .btn {
   position: relative;
@@ -470,21 +476,19 @@ html { scroll-behavior: smooth; }
   /* Grand Opening tepat di bawah hero (sama-sama order 1, urutan DOM: hero → banner). */
   main.garage-website > section#grand-opening { order: 1; }
   main.garage-website > section#menu { order: 2; }
-  main.garage-website > section#cara-pesan { order: 3; }
-  main.garage-website > section#live-status { order: 4; }
-  main.garage-website > section#location { order: 5; }
-  main.garage-website > section#promo { order: 6; }
-  main.garage-website > section#unggulan { order: 7; }
-  main.garage-website > section#live-tracking-system { order: 8; }
+  main.garage-website > section#promo { order: 3; }
+  main.garage-website > section#unggulan { order: 4; }
+  main.garage-website > section#cara-pesan { order: 5; }
+  main.garage-website > section#live-status { order: 6; }
+  /* Alamat & jam tetap dekat atas di HP (fokus kunjungan). */
+  main.garage-website > section#location { order: 7; }
+  main.garage-website > section#membership { order: 8; }
   main.garage-website > section#events { order: 9; }
-  main.garage-website > section#membership { order: 10; }
-  main.garage-website > section#testimoni { order: 11; }
-  main.garage-website > section#about { order: 12; }
-  main.garage-website > section#galeri { order: 13; }
-  main.garage-website > section#atmosphere { order: 14; }
-  main.garage-website > section#social-portfolio { order: 15; }
-  main.garage-website > section#experience { order: 16; }
-  main.garage-website > section#local-seo { order: 17; }
+  main.garage-website > section#about { order: 10; }
+  main.garage-website > section#galeri { order: 11; }
+  main.garage-website > section#testimoni { order: 12; }
+  main.garage-website > section#experience { order: 13; }
+  main.garage-website > section#social-portfolio { order: 14; }
   main.garage-website > section.section-pad:not([id]) { order: 18; }
   main.garage-website > footer { order: 19; }
 
@@ -1070,21 +1074,19 @@ html { scroll-behavior: smooth; }
   /* Grand Opening tepat di bawah hero (sama-sama order 1, urutan DOM: hero → banner). */
   main.garage-website > section#grand-opening { order: 1; }
   main.garage-website > section#menu { order: 2; }
-  main.garage-website > section#cara-pesan { order: 3; }
-  main.garage-website > section#live-status { order: 4; }
-  main.garage-website > section#location { order: 5; }
-  main.garage-website > section#promo { order: 6; }
-  main.garage-website > section#unggulan { order: 7; }
-  main.garage-website > section#live-tracking-system { order: 8; }
+  main.garage-website > section#promo { order: 3; }
+  main.garage-website > section#unggulan { order: 4; }
+  main.garage-website > section#cara-pesan { order: 5; }
+  main.garage-website > section#live-status { order: 6; }
+  /* Alamat & jam tetap dekat atas di HP (fokus kunjungan). */
+  main.garage-website > section#location { order: 7; }
+  main.garage-website > section#membership { order: 8; }
   main.garage-website > section#events { order: 9; }
-  main.garage-website > section#membership { order: 10; }
-  main.garage-website > section#testimoni { order: 11; }
-  main.garage-website > section#about { order: 12; }
-  main.garage-website > section#galeri { order: 13; }
-  main.garage-website > section#atmosphere { order: 14; }
-  main.garage-website > section#social-portfolio { order: 15; }
-  main.garage-website > section#experience { order: 16; }
-  main.garage-website > section#local-seo { order: 17; }
+  main.garage-website > section#about { order: 10; }
+  main.garage-website > section#galeri { order: 11; }
+  main.garage-website > section#testimoni { order: 12; }
+  main.garage-website > section#experience { order: 13; }
+  main.garage-website > section#social-portfolio { order: 14; }
   main.garage-website > section.section-pad:not([id]) { order: 18; }
   main.garage-website > footer { order: 19; }
 

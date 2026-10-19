@@ -21,6 +21,7 @@ import {
   loadDevicePrinterConfig,
   printViaBrowser,
   sendToDirectPrinter,
+  toPrinterText,
   type DevicePrinterConfig,
 } from "@/lib/device-printer";
 import {
@@ -130,7 +131,15 @@ export async function deliverPrintContent(
 ): Promise<Response> {
   const config = options.config ?? loadDevicePrinterConfig();
   const copies = Math.max(1, options.copies || 1);
-  const job = () => escPosJob(content, { copies, cut: config.cut, feedLines: config.feedLines });
+  const job = () =>
+    escPosJob(content, {
+      copies,
+      cut: config.cut,
+      feedLines: config.feedLines,
+      paper: config.paper,
+      bold: config.bold,
+      textSize: config.textSize,
+    });
 
   if (config.mode === "serial" || config.mode === "usb" || config.mode === "ble") {
     try {
@@ -167,7 +176,7 @@ export async function deliverPrintContent(
     const res = await fetch(`${agentBaseUrl(config)}/print`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, copies, printerName: options.printerName }),
+      body: JSON.stringify({ content: toPrinterText(content), copies, printerName: options.printerName }),
     });
     if (res.ok) {
       const data = (await res.json().catch(() => ({}))) as { printer?: string };

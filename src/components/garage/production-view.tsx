@@ -937,7 +937,9 @@ export function ProductionView({
                   ? "Manajemen (override)"
                   : workstation
                     ? workstationLabel(workstation)
-                    : "Tidak ditugaskan — mode pantau"}
+                    : me.role === "Kasir"
+                      ? "Kasir — semua station"
+                      : "Tidak ditugaskan — mode pantau"}
               </span>
             </p>
           </div>

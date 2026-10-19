@@ -9,7 +9,7 @@ export const kasirGuide: RoleGuide = {
   roles: ["Kasir"],
   // Barista / koki juga role Kasir (workstation bar/dapur) — mereka pakai panduan produksi.
   onlyWithoutWorkstation: true,
-  updatedAt: "2026-10-13",
+  updatedAt: "2026-10-19",
   sections: [
     {
       id: "login",
@@ -59,6 +59,10 @@ export const kasirGuide: RoleGuide = {
         },
         { text: "Pilih lebar kertas 58 mm (RPP02N) atau 80 mm, lalu tekan Tes cetak." },
         { text: "Printer lain yang sudah terpasang di Windows: pilih Printer umum (Chrome)." },
+        {
+          text: "Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Pilih Normal bila ingin hemat kertas.",
+          tip: "Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30, lalu Tes cetak lagi.",
+        },
       ],
       faq: [
         { q: "Huruf acak saat cetak?", a: "Ganti kecepatan port (baud) ke 115200 lalu tes lagi." },
@@ -190,8 +194,22 @@ export const kasirGuide: RoleGuide = {
       ],
     },
     {
+      id: "produksi",
+      title: "12. Proses pesanan Bar & Dapur",
+      intro: "Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di Bar maupun Dapur.",
+      steps: [
+        { text: "Di POS tekan Status Produksi untuk melihat semua tiket aktif, lalu tekan Proses di Production (atau menu Production di samping)." },
+        { text: "Tekan Mulai saat pesanan mulai dibuat. Setelah selesai, cek item/qty/varian/catatan lalu tandai READY (wajib centang QC)." },
+        { text: "Tekan Panggil waiter / serah-terima agar waiter mengambil pesanan yang sudah READY." },
+        {
+          text: "Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.",
+          warn: "Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.",
+        },
+      ],
+    },
+    {
       id: "laporan",
-      title: "12. Laporan penjualan shift saya",
+      title: "13. Laporan penjualan shift saya",
       steps: [
         { text: "Buka POS → Laporan Shift → \"Penjualan shift saya\" untuk melihat produk terlaris, kategori dan metode bayar shift Anda." },
         { text: "Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh." },
@@ -199,7 +217,7 @@ export const kasirGuide: RoleGuide = {
     },
     {
       id: "masalah",
-      title: "13. Masalah umum",
+      title: "14. Masalah umum",
       steps: [
         { text: "Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali." },
         { text: "\"Open shift wajib dilakukan\": buka shift dulu." },

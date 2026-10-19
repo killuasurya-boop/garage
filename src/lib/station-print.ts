@@ -12,6 +12,7 @@
 import type { ProductionTicketView } from "@/lib/garage-api-types";
 import { parseTableNumber } from "@/lib/garage-tables";
 import { buildKitchenChitContent, type KitchenChitItem } from "@/lib/thermal-receipt";
+import { toPrinterText } from "@/lib/device-printer";
 
 export type RawbtMode = "base64" | "intent";
 
@@ -68,7 +69,7 @@ export function ticketChitContent(ticket: ProductionTicketView): string {
 /** Teks -> byte ESC/POS: reset printer + isi (latin1) + umpan kertas. */
 export function toEscPosBytes(content: string, feedLines = 4): Uint8Array {
   const body: number[] = [];
-  for (const ch of content) {
+  for (const ch of toPrinterText(content)) {
     const code = ch.codePointAt(0) ?? 63;
     body.push(code <= 0xff ? code : 63); // di luar latin1 -> "?"
   }

@@ -29,6 +29,7 @@ import {
   type DevicePrinterMode,
 } from "@/lib/device-printer";
 import { buildTestPageContent } from "@/lib/management-slips";
+import { PAPER_COLUMNS } from "@/lib/receipt-layout";
 import { printDocument } from "@/lib/print-client";
 
 type ModeOption = {
@@ -250,6 +251,55 @@ export function DevicePrinterPanel({
             ))}
           </div>
         </div>
+        <div className="space-y-1 text-xs font-semibold text-[#d8d8de]">
+          <span>Ukuran huruf struk</span>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Ukuran huruf struk">
+            {(["normal", "besar"] as const).map((size) => (
+              <button
+                key={size}
+                type="button"
+                aria-pressed={config.textSize === size}
+                onClick={() => update({ textSize: size })}
+                className={`garage-press h-10 rounded-md border px-2 text-sm font-semibold transition-colors ${
+                  config.textSize === size
+                    ? "border-[#e5484d] bg-[#e5484d]/20 text-white"
+                    : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea] hover:bg-white/[0.09]"
+                }`}
+              >
+                {size === "besar" ? "Besar (tinggi 2×)" : "Normal"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="space-y-1 text-xs font-semibold text-[#d8d8de]">
+          Jumlah kolom per baris
+          <select
+            value={columns}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              update({ columns: value === PAPER_COLUMNS[config.paper] ? null : value });
+            }}
+            className="h-10 w-full rounded-md border border-[#4a4a54] bg-[#1b1b20] px-2 text-sm text-white"
+          >
+            {(config.paper === "80" ? [42, 44, 46, 48] : [28, 30, 32]).map((count) => (
+              <option key={count} value={count}>
+                {count} kolom{count === PAPER_COLUMNS[config.paper] ? " (standar)" : ""}
+              </option>
+            ))}
+          </select>
+          <span className="block font-normal text-[#c4c4cc]">
+            Angka di kanan struk terpotong? Turunkan ke {config.paper === "80" ? 46 : 30}.
+          </span>
+        </label>
+        <label className="flex min-h-10 items-center gap-2 text-sm text-[#e4e4ea]">
+          <input
+            type="checkbox"
+            checked={config.bold}
+            onChange={(e) => update({ bold: e.target.checked })}
+            className="size-4 accent-[#e5484d]"
+          />
+          Huruf tebal (lebih hitam &amp; jelas)
+        </label>
         {config.mode === "serial" ? (
           <label className="space-y-1 text-xs font-semibold text-[#d8d8de]">
             Kecepatan port (baud)

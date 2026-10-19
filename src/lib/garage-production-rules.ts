@@ -2,7 +2,7 @@
 // PRODUCTION HUB — aturan murni (tanpa DB) yang dipakai server & UI.
 // Acuan: GARAGE OS Production Hub v1.0 + Workflow Operasional v1.0 (Sep 2026).
 //   - Auto routing dari master produk (BR-04).
-//   - READY hanya oleh workstation produksi (BR-07/BR-08).
+//   - READY oleh workstation produksi, kasir POS, atau Owner/Manajer (BR-07/BR-08; kasir ditambah owner Okt 2026).
 //   - Smart Batch menggabung pekerjaan, BUKAN identitas customer (BR-05).
 // =============================================================================
 
@@ -103,9 +103,18 @@ function helperCovers(workstation: string | null | undefined, station: string | 
 }
 
 /**
+ * Kasir POS (role Kasir tanpa workstation produksi/helper). Owner Okt 2026:
+ * kasir ikut memproses pesanan Bar & Dapur untuk mengontrol pesanan masuk.
+ */
+function isPosCashier(role: Role, workstation: string | null | undefined) {
+  return role === "Kasir" && normalizeWorkstation(workstation) === null;
+}
+
+/**
  * Boleh MULAI / READY / batch di station ini? Owner & Manajer selalu boleh
- * (override manajemen, tercatat audit). Kasir hanya bila akunnya ditugaskan ke
- * workstation tsb. Waiter tidak pernah boleh (BR-08).
+ * (override manajemen, tercatat audit). Kasir POS (tanpa workstation) boleh di
+ * semua station; barista/koki hanya di workstation yang ditugaskan; helper
+ * tidak. Waiter tidak pernah boleh (BR-08).
  */
 export function canOperateStation(
   role: Role,
@@ -114,7 +123,7 @@ export function canOperateStation(
 ) {
   if (role === "Owner" || role === "Manajer") return true;
   if (role !== "Kasir") return false;
-  return workstationCovers(workstation, station);
+  return isPosCashier(role, workstation) || workstationCovers(workstation, station);
 }
 
 /**
@@ -129,7 +138,7 @@ export function canHandoverStation(
 ) {
   if (role === "Owner" || role === "Manajer") return true;
   if (role !== "Kasir") return false;
-  return helperCovers(workstation, station) || workstationCovers(workstation, station);
+  return isPosCashier(role, workstation) || helperCovers(workstation, station) || workstationCovers(workstation, station);
 }
 
 /** Station yang bisa dioperasikan akun ini (untuk filter default UI). */

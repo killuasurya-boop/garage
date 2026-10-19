@@ -2,7 +2,7 @@
 
 > Alur kerja kasir Garage dari login, buka shift, melayani pesanan, sampai tutup shift dan balancing uang laci.
 >
-> Untuk: Kasir · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Kasir · Diperbarui 2026-10-19. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Login & layar kunci
 
@@ -37,6 +37,8 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 2. RPP02N via Bluetooth: pair dulu di Windows (PIN 0000/1234). Lalu pilih Kabel/Bluetooth (COM) → Hubungkan → pilih port "Standard Serial over Bluetooth".
 3. Pilih lebar kertas 58 mm (RPP02N) atau 80 mm, lalu tekan Tes cetak.
 4. Printer lain yang sudah terpasang di Windows: pilih Printer umum (Chrome).
+5. Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Pilih Normal bila ingin hemat kertas.
+   - Tips: Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30, lalu Tes cetak lagi.
 
 **Tanya jawab**
 
@@ -118,12 +120,22 @@ Penutupan memakai blind count: kasir menghitung uang tanpa melihat angka sistem.
 2. Sampaikan pesanan yang masih berjalan, meja terisi, dan catatan penting.
 3. Logout dari akun Anda.
 
-## 12. Laporan penjualan shift saya
+## 12. Proses pesanan Bar & Dapur
+
+Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di Bar maupun Dapur.
+
+1. Di POS tekan Status Produksi untuk melihat semua tiket aktif, lalu tekan Proses di Production (atau menu Production di samping).
+2. Tekan Mulai saat pesanan mulai dibuat. Setelah selesai, cek item/qty/varian/catatan lalu tandai READY (wajib centang QC).
+3. Tekan Panggil waiter / serah-terima agar waiter mengambil pesanan yang sudah READY.
+4. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
+   - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
+
+## 13. Laporan penjualan shift saya
 
 1. Buka POS → Laporan Shift → "Penjualan shift saya" untuk melihat produk terlaris, kategori dan metode bayar shift Anda.
 2. Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh.
 
-## 13. Masalah umum
+## 14. Masalah umum
 
 1. Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali.
 2. "Open shift wajib dilakukan": buka shift dulu.

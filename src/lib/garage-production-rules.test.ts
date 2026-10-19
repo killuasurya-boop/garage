@@ -56,8 +56,9 @@ describe("hak workstation (producer owns READY)", () => {
     expect(canOperateStation("Waiter", "all", "Bar")).toBe(false);
   });
 
-  it("Kasir hanya di workstation yang ditugaskan", () => {
-    expect(canOperateStation("Kasir", null, "Bar")).toBe(false);
+  it("Kasir POS (tanpa workstation) boleh semua station; barista/koki hanya workstation-nya", () => {
+    expect(canOperateStation("Kasir", null, "Bar")).toBe(true);
+    expect(canOperateStation("Kasir", null, "Food")).toBe(true);
     expect(canOperateStation("Kasir", "bar", "Bar")).toBe(true);
     expect(canOperateStation("Kasir", "bar", "Food")).toBe(false);
     expect(canOperateStation("Kasir", "dapur", "Food")).toBe(true);
@@ -73,9 +74,9 @@ describe("helper serah-terima", () => {
     expect(canOperateStation("Kasir", "helper_all", "Bar")).toBe(false);
   });
 
-  it("workstation produksi boleh ACC sebagai cadangan; waiter & kasir tanpa tugas tidak", () => {
+  it("workstation produksi & kasir POS boleh ACC; waiter tidak", () => {
     expect(canHandoverStation("Kasir", "dapur", "Food")).toBe(true);
-    expect(canHandoverStation("Kasir", null, "Food")).toBe(false);
+    expect(canHandoverStation("Kasir", null, "Food")).toBe(true);
     expect(canHandoverStation("Waiter", "helper_all", "Bar")).toBe(false);
     expect(canHandoverStation("Manajer", null, "Bar")).toBe(true);
   });

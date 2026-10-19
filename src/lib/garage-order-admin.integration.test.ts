@@ -159,4 +159,18 @@ describe("order & invoice admin", () => {
     const [still] = await rowsWhere(t.schema.orders, t.schema.orders.id, order.id);
     expect(still.status).not.toBe("voided");
   });
+
+  it("Owner tanpa shift: konfirmasi QRIS boleh, Tunai ditolak (uang laci)", async () => {
+    const order = await openBill("Gita");
+    await t.getDb().insert(t.schema.user).values({ id: "user-owner-noshift", name: "Owner Pantau", email: "owner-noshift@garage.id" });
+    const ownerNoShift = { ...as("Owner"), user: { id: "user-owner-noshift", name: "Owner Pantau", email: "owner-noshift@garage.id" } } as any;
+    await expect(
+      svc.confirmOrderPayment(order.id, { paymentMethod: "Cash", reason: "Bayar tunai" }, ownerNoShift),
+    ).rejects.toThrow(/TUNAI wajib/);
+    await svc.confirmOrderPayment(order.id, { paymentMethod: "QRIS", reason: "Cek mutasi BNI" }, ownerNoShift);
+    const [paid] = await rowsWhere(t.schema.orders, t.schema.orders.id, order.id);
+    expect(paid.status).toBe("paid");
+    const pays = await rowsWhere(t.schema.payments, t.schema.payments.orderId, order.id);
+    expect(pays.filter((p: any) => p.status === "captured")).toHaveLength(1);
+  });
 });

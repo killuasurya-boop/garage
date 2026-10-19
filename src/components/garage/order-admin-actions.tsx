@@ -224,7 +224,8 @@ export function OrderAdminActions({
     method: `Hanya metode yang berubah (tanpa transaksi baru, total tetap ${currency.format(target.total)}). Shift pembayaran harus masih buka.`,
     revert:
       "Untuk pelunasan yang salah input. Status kembali Pending, pembayaran tidak dihapus, total tetap. BUKAN refund — tidak ada uang keluar. Hanya bila shift pembayaran masih buka.",
-    confirm: "Catat pembayaran yang sudah benar-benar diterima (uang/notifikasi bank sudah dicek). Wajib shift Anda sedang buka.",
+    confirm:
+      "Catat pembayaran yang sudah benar-benar diterima (uang/notifikasi bank sudah dicek). QRIS/Transfer bisa tanpa shift; Tunai wajib dari shift yang sedang buka (uang masuk laci).",
     cancel: paid
       ? "Order LUNAS dibatalkan: tidak dihitung penjualan, stok yang belum dibuat kembali, poin ditarik. Uang tunai dikeluarkan dari laci shift aktif bila dikembalikan ke pelanggan."
       : "Order dibatalkan: pesanan Bar/Dapur batal, stok kembali. Riwayat tetap tersimpan.",

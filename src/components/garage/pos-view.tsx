@@ -1066,6 +1066,10 @@ export function PosView({
     [customers],
   );
   const shiftOpen = cashSession.status === "open";
+  // Mode pantau Owner (owner, Okt 2026): Owner boleh membuka POS tanpa shift untuk
+  // memantau (Bar & Dapur, pesanan, laporan). Transaksi & kas tetap butuh shift.
+  const [ownerViewing, setOwnerViewing] = useState(false);
+  const posVisible = shiftOpen || ownerViewing;
   // Shift lupa ditutup (> 20 jam): server menolak transaksi baru; tampilkan
   // layar wajib tutup shift supaya kasir tidak bingung.
   const [staleClock, setStaleClock] = useState(() => Date.now());
@@ -2251,7 +2255,7 @@ export function PosView({
   }, []);
 
   useEffect(() => {
-    if (!shiftOpen) {
+    if (!posVisible) {
       return;
     }
 
@@ -2278,7 +2282,7 @@ export function PosView({
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, loadKitchenTickets, shiftOpen]);
+  }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, loadKitchenTickets, posVisible]);
 
   // Voice notification: trigger waiter_clear_table saat meja baru transition
   // ke "needs_cleaning" â€” tidak re-fire setiap polling untuk meja yang udah
@@ -3933,7 +3937,7 @@ export function PosView({
     }
   }
 
-  if (!shiftOpen) {
+  if (!posVisible) {
     return (
       <section className="flex h-full min-h-0 items-center justify-center p-3">
         <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
@@ -4120,6 +4124,17 @@ export function PosView({
           >
             Mulai Shift Kasir
           </Button>
+          {me.role === "Owner" ? (
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="pos-owner-view"
+              className="garage-press mt-2 h-11 w-full border-[#4a4a54] bg-white/[0.06]"
+              onClick={() => setOwnerViewing(true)}
+            >
+              Lihat POS tanpa shift (mode pantau Owner)
+            </Button>
+          ) : null}
           {/* Absen kelas satu: bisa clock-in tanpa harus buka shift dulu (NAV_ACTION_AUDIT §1.3). */}
           {canAccessModule(me.role, "absensi-v2") && (
             <Button
@@ -6731,7 +6746,7 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
-      {!shiftOpen ? (
+      {!posVisible ? (
         <div className="garage-panel garage-animate-in mx-auto max-w-xl rounded-md p-5">
           <div className="flex items-start gap-3">
             <div className="garage-shift-closed flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/18 text-[#ffe1e5]">
@@ -6752,6 +6767,17 @@ export function PosView({
           >
             Mulai Shift Kasir
           </Button>
+          {me.role === "Owner" ? (
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="pos-owner-view"
+              className="garage-press mt-2 h-11 w-full border-[#4a4a54] bg-white/[0.06]"
+              onClick={() => setOwnerViewing(true)}
+            >
+              Lihat POS tanpa shift (mode pantau Owner)
+            </Button>
+          ) : null}
           {canAccessModule(me.role, "absensi-v2") && (
             <Button
               type="button"
@@ -6767,6 +6793,25 @@ export function PosView({
         </div>
       ) : (
         <>
+        {!shiftOpen && ownerViewing ? (
+          <div
+            data-testid="pos-owner-view-banner"
+            className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/12 px-3 py-2 text-sm text-[#ffe0ad]"
+          >
+            <span className="text-[#ffe0ad]">
+              <b className="text-white">Mode pantau Owner</b> — tanpa shift. Bisa melihat menu, pesanan, Bar &amp; Dapur, dan laporan. Transaksi &amp; kas
+              butuh Mulai Shift.
+            </span>
+            <span className="flex gap-2">
+              <Button type="button" size="sm" className="h-9" onClick={prepareShiftDialog}>
+                Mulai Shift
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-9" onClick={() => setOwnerViewing(false)}>
+                Keluar mode pantau
+              </Button>
+            </span>
+          </div>
+        ) : null}
         {billOpen && (
           <button
             type="button"

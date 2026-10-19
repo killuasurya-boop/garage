@@ -9835,8 +9835,16 @@ async function updateCustomerOrderStatusImpl(
         .limit(1)
         .for("no key update");
       cashierOpenSession = session ?? null;
-      if (!cashierOpenSession) {
-        throw new Error("Open shift wajib dilakukan sebelum proses order QR.");
+      // Owner/Manajer mengonfirmasi QRIS/Transfer dari Riwayat Penjualan tanpa shift:
+      // tidak ada uang laci yang bergerak. Tunai tetap wajib shift (masuk laci).
+      const adminNonCash =
+        options.adminConfirm && input.action === "paid" && !isCashMethod(input.paymentMethod ?? "Cash");
+      if (!cashierOpenSession && !adminNonCash) {
+        throw new Error(
+          options.adminConfirm
+            ? "Pelunasan TUNAI wajib dari shift yang sedang buka (uang masuk laci). Untuk QRIS/Transfer tidak perlu shift."
+            : "Open shift wajib dilakukan sebelum proses order QR.",
+        );
       }
     }
 

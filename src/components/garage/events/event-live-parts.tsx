@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Check, Share2 } from "lucide-react";
 
 import { countdownParts, eventPhase } from "@/lib/event-format";
@@ -109,7 +109,18 @@ export function PosterCountdown({ startsAt, endsAt }: { startsAt: string; endsAt
             </div>
           ))}
         </div>
-      ) : null}
+      ) : (
+        <div className="flex flex-col items-center gap-3" data-testid="event-phase-message">
+          <p className="gp-display gp-h2 text-[88px] leading-none text-[#efe6d6]">
+            {phase === "live" ? "Kami sedang berpesta" : "Terima kasih"}
+          </p>
+          <p className="max-w-[560px] text-[17px] leading-relaxed text-[#d8d1c3]">
+            {phase === "live"
+              ? "Grand Opening sedang berlangsung. Langsung datang ke Garage Coffee — cek rundown di bawah."
+              : "Grand Opening Garage Coffee sudah selesai. Terima kasih sudah merayakan bersama — sampai jumpa lagi di Garage."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -136,6 +147,24 @@ function readAge() {
 // (belum terkonfirmasi) supaya tidak ada kilasan konten sebelum konfirmasi.
 export function AgeGate({ exitHref = "/" }: { exitHref?: string }) {
   const confirmed = useSyncExternalStore(subscribeAge, readAge, () => false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Selama gerbang tampil: halaman di belakang tidak bisa di-scroll atau difokus (Tab).
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (confirmed || !overlay?.parentElement) return;
+    const siblings = Array.from(overlay.parentElement.children).filter(
+      (el): el is HTMLElement => el !== overlay && el instanceof HTMLElement && !el.inert,
+    );
+    siblings.forEach((el) => (el.inert = true));
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      siblings.forEach((el) => (el.inert = false));
+      document.documentElement.style.overflow = previousOverflow;
+    };
+  }, [confirmed]);
+
   if (confirmed) return null;
 
   function confirm() {
@@ -148,7 +177,11 @@ export function AgeGate({ exitHref = "/" }: { exitHref?: string }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,10,11,0.92)] p-4 backdrop-blur-sm">
+    <div ref={overlayRef} className="gp-age-overlay fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,10,11,0.92)] p-4 backdrop-blur-sm">
+      {/* Tanpa JavaScript tombol tidak berfungsi — gerbang disembunyikan agar info acara tetap terbaca. */}
+      <noscript>
+        <style>{".gp-age-overlay{display:none!important}"}</style>
+      </noscript>
       <section
         role="dialog"
         aria-modal="true"

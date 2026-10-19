@@ -113,6 +113,25 @@ describe("event Grand Opening", () => {
     expect(
       svc.eventUpdateSchema.safeParse({ ...base, agenda: [{ start: "3 sore", end: "18:00", title: "Live Music" }] }).success,
     ).toBe(false);
+    // Jam selesai sebelum mulai & nama sesi dobel ditolak.
+    expect(svc.eventUpdateSchema.safeParse({ ...base, agenda: [{ start: "18:00", end: "15:00", title: "Live Music" }] }).success).toBe(false);
+    expect(
+      svc.eventUpdateSchema.safeParse({
+        ...base,
+        agenda: [
+          { start: "15:00", end: "16:00", title: "Live Music" },
+          { start: "16:00", end: "17:00", title: "live music" },
+        ],
+      }).success,
+    ).toBe(false);
+    // Sesi di luar jam acara (15.00–23.30 WIB) ditolak saat simpan.
+    await expect(
+      svc.updateEvent(
+        event.id,
+        svc.eventUpdateSchema.parse({ ...base, endsAt: "2026-10-24T16:30:00.000Z", agenda: [{ start: "13:00", end: "14:00", title: "Soundcheck" }] }),
+        userId,
+      ),
+    ).rejects.toMatchObject({ code: "AGENDA_OUTSIDE_EVENT" });
 
     expect(svc.eventUpdateSchema.safeParse({ ...base, endsAt: base.startsAt }).success).toBe(false);
     expect(svc.eventUpdateSchema.safeParse({ ...base, mapsUrl: "javascript:alert(1)" }).success).toBe(false);

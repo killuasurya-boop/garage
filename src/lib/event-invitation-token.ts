@@ -1,13 +1,28 @@
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from "node:crypto";
 
 // =============================================================================
-// Token undangan pribadi: 24 byte acak (base64url, 32 karakter, tidak bisa
-// ditebak). DB menyimpan sha256 untuk lookup + salinan terenkripsi AES-256-GCM
+// Token undangan pribadi: 32 karakter huruf+angka acak (~190 bit, tidak bisa
+// ditebak; tanpa "_"/"-" supaya format teks WhatsApp tidak merusak link). DB menyimpan sha256 untuk lookup + salinan terenkripsi AES-256-GCM
 // (kunci diturunkan dari BETTER_AUTH_SECRET) supaya admin bisa menyalin ulang
 // link tanpa token mentah tersimpan polos. Token tidak pernah ditulis ke log.
 // =============================================================================
 
+// Token lama (base64url) boleh mengandung "_"/"-" — tetap diterima.
 export const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
+
+const TOKEN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const TOKEN_LENGTH = 32;
+
+/** 32 karakter base62 tanpa bias (rejection sampling: byte ≥ 248 dibuang). */
+function randomAlphanumeric(length: number) {
+  let out = "";
+  while (out.length < length) {
+    for (const byte of randomBytes(length)) {
+      if (byte < 248 && out.length < length) out += TOKEN_ALPHABET[byte % 62];
+    }
+  }
+  return out;
+}
 
 function encryptionKey() {
   const secret = process.env.BETTER_AUTH_SECRET?.trim();
@@ -37,7 +52,7 @@ export function decryptInvitationToken(payload: string) {
 }
 
 export function generateInvitationToken() {
-  const token = randomBytes(24).toString("base64url");
+  const token = randomAlphanumeric(TOKEN_LENGTH);
   return {
     token,
     tokenHash: hashInvitationToken(token),

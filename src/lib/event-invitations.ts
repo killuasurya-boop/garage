@@ -464,7 +464,9 @@ async function findInvitationByToken(token: string) {
     .limit(1);
   // Bandingkan ulang hash secara constant-time (pertahanan tambahan).
   if (!row || !secretsMatch(row.invitation.tokenHash, hash)) return null;
-  if (row.invitation.status === "revoked" || row.guest.status !== "active" || row.event.status !== "published") return null;
+  // Undangan pribadi berlaku selama event belum diarsipkan (Draft maupun Terbit):
+  // tamu sering menerima link sebelum landing publik diterbitkan.
+  if (row.invitation.status === "revoked" || row.guest.status !== "active" || row.event.status === "archived") return null;
   return row;
 }
 

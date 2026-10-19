@@ -278,6 +278,16 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
 
   return (
     <div className="grid gap-5" data-testid="event-guests">
+      {event.status === "draft" ? (
+        <p role="note" data-testid="event-draft-note" className="rounded-md border border-garage-amber/50 bg-garage-amber/10 px-4 py-3 text-sm text-garage-fg">
+          Event masih <b>Draft</b>: link undangan pribadi sudah bisa dibuka tamu, tetapi halaman publik /grand-opening dan banner homepage baru tampil
+          setelah event diterbitkan.
+        </p>
+      ) : event.status === "archived" ? (
+        <p role="note" className="rounded-md border border-garage-red/50 bg-garage-red/10 px-4 py-3 text-sm text-garage-fg">
+          Event diarsipkan: semua link undangan sudah tidak berlaku.
+        </p>
+      ) : null}
       {summary ? (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7" data-testid="event-summary">
           <StatCard label="Tamu aktif" value={summary.guests} />

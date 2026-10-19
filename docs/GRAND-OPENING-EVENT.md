@@ -11,7 +11,7 @@ Data acara disimpan sebagai **satu baris** di tabel `events` dengan `slug = gran
 |---|---|
 | Banner homepage (`/`) | Tampil hanya bila status Terbit dan acara belum selesai. |
 | Landing `garagecoffee.id/grand-opening` | Mengembalikan 404 selama status masih Draft. |
-| Undangan pribadi `garagecoffee.id/undangan/<token>` | Tidak diindeks mesin pencari dan tidak tercantum di sitemap. |
+| Undangan pribadi `garagecoffee.id/undangan/<token>` | Berlaku selama event Draft maupun Terbit (mati bila event diarsipkan, undangan dicabut, atau tamu diarsip). Tidak diindeks dan tidak tercantum di sitemap. |
 
 Konten diedit di **Garage OS → Undangan Digital → Konten Event**. Selain fakta acara, panel ini juga mengatur konten poster di landing:
 
@@ -48,7 +48,7 @@ Konten diedit di **Garage OS → Undangan Digital → Konten Event**. Selain fak
 
 ## Keamanan & privasi
 
-- **Token undangan**: 24 byte acak. Database menyimpan hash sha256-nya, ditambah salinan terenkripsi AES-GCM dengan kunci turunan `BETTER_AUTH_SECRET`. Token tidak pernah ditulis ke log.
+- **Token undangan**: 32 karakter huruf+angka acak (tanpa `_`/`-` supaya format teks WhatsApp tidak merusak link; token lama tetap berlaku). Database menyimpan hash sha256-nya, ditambah salinan terenkripsi AES-GCM dengan kunci turunan `BETTER_AUTH_SECRET`. Token tidak pernah ditulis ke log.
 - **Halaman undangan** hanya menampilkan nama penerima dan informasi acara. Daftar tamu lain tidak pernah ditampilkan, dan Referer tidak dikirim (`no-referrer`).
 - **RSVP publik** dibatasi rate limit 10 permintaan per 10 menit per IP.
 - **Akses modul**: Owner dan Manajer. Ekspor CSV dan tab Log hanya untuk Owner. Ekspor dilindungi dari formula injection dan setiap ekspor tercatat di Audit.

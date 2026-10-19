@@ -520,7 +520,9 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
     const columns = deviceColumns(config);
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+    // Di luar layar tapi berukuran nyata: iframe 0×0 / visibility:hidden bisa
+    // membuat Chrome mencetak halaman kosong.
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${widthMm}mm;height:200mm;border:0;opacity:0;pointer-events:none`;
     document.body.appendChild(iframe);
     const doc = iframe.contentDocument;
     const win = iframe.contentWindow;
@@ -538,9 +540,13 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
     const printableMm = widthMm === 80 ? 72 : 48;
     const fontMm = (printableMm / columns / 0.6).toFixed(2);
     const weight = config.bold === false ? 400 : 700;
+    // Tinggi kertas eksplisit (bukan "auto" — tidak valid untuk @page size): tanpa
+    // ini driver memakai kertas default (gulungan sangat panjang) → hasil kosong.
+    const lines = escaped.split(/\r?\n/).length;
+    const heightMm = Math.ceil(lines * Number(fontMm) * 1.45 + 20);
     doc.open();
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk</title><style>
-      @page { size: ${widthMm}mm auto; margin: 0 }
+      @page { size: ${widthMm}mm ${heightMm}mm; margin: 0 }
       html, body { margin: 0; padding: 0; background: #fff; color: #000 }
       pre { margin: 0; padding: 2mm 0 2mm ${((widthMm - printableMm) / 2).toFixed(1)}mm; width: ${printableMm}mm; font: ${weight} ${fontMm}mm/1.3 "Courier New", monospace; white-space: pre; -webkit-print-color-adjust: exact; }
     </style></head><body><pre>${escaped}</pre></body></html>`);

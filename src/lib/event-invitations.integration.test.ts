@@ -72,7 +72,7 @@ describe("tamu & impor", () => {
 });
 
 describe("undangan, RSVP, rekap", () => {
-  it("token unik; draft event → tautan tidak valid; terbit → tampil nama & event", async () => {
+  it("token unik; undangan bisa dibuka saat event draft maupun terbit; arsip → tidak valid", async () => {
     const inv = await import("@/lib/event-invitations");
     const created = await inv.createInvitations(eventId, null, actor);
     expect(created.created).toBe(3);
@@ -80,12 +80,14 @@ describe("undangan, RSVP, rekap", () => {
 
     const budi = (await inv.listGuests(eventId)).find((g) => g.fullName === "Budi Santoso")!;
     const share = await inv.getInvitationShareInfo(eventId, budi.invitation!.id);
-    expect(share.url).toMatch(/^https:\/\/garagecoffee\.id\/undangan\/[A-Za-z0-9_-]{32}$/);
+    expect(share.url).toMatch(/^https:\/\/garagecoffee\.id\/undangan\/[A-Za-z0-9]{32}$/);
     const token = tokenFromUrl(share.url);
 
-    // Event masih draft → tidak ada data yang bocor.
-    expect(await inv.getPublicInvitation(token, BEFORE)).toBeNull();
+    // Event masih draft → undangan pribadi tetap bisa dibuka (link sering dikirim sebelum landing terbit).
+    expect(await inv.getPublicInvitation(token, BEFORE)).toMatchObject({ guestName: "Budi Santoso" });
     const svc = await import("@/lib/event-service");
+    await svc.setEventStatus(eventId, "archived", actor.userId);
+    expect(await inv.getPublicInvitation(token, BEFORE)).toBeNull();
     await svc.setEventStatus(eventId, "published", actor.userId);
 
     const page = await inv.getPublicInvitation(token, BEFORE);

@@ -17,10 +17,13 @@ afterAll(() => {
 });
 
 describe("token undangan", () => {
-  it("acak, 32 karakter base64url, hash & enkripsi bolak-balik", () => {
+  it("acak, 32 karakter huruf+angka (aman di WhatsApp), hash & enkripsi bolak-balik", () => {
     const a = generateInvitationToken();
     const b = generateInvitationToken();
     expect(a.token).toMatch(INVITATION_TOKEN_PATTERN);
+    for (let i = 0; i < 200; i++) expect(generateInvitationToken().token).toMatch(/^[A-Za-z0-9]{32}$/);
+    // Token lama (base64url dengan "_"/"-") tetap dikenali.
+    expect("Ab_9-".padEnd(32, "x")).toMatch(INVITATION_TOKEN_PATTERN);
     expect(a.token).not.toBe(b.token);
     expect(a.tokenHash).toBe(hashInvitationToken(a.token));
     expect(a.tokenEnc).not.toContain(a.token);

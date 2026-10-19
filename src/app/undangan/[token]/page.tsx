@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CalendarDays, Clock, MapPin } from "lucide-react";
 
 import { RsvpForm } from "@/components/garage/events/rsvp-form";
-import { formatEventDate, formatEventTimeRange } from "@/lib/event-format";
+import { agendaClock, eventZoneLabel, formatEventDate, formatEventTimeRange } from "@/lib/event-format";
 import { getPublicInvitation } from "@/lib/event-invitations";
 import { waLink } from "@/lib/whatsapp-link";
 
@@ -93,7 +93,21 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
             </div>
           </div>
         </dl>
-        {event.highlights.length ? (
+        {event.agenda.length ? (
+          <div className="mt-5 border-t border-garage-line pt-4">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-garage-amber">Rundown</p>
+            <ol data-testid="invitation-agenda" className="mt-3 grid gap-2">
+              {event.agenda.map((item) => (
+                <li key={`${item.start}-${item.title}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                  <span className="min-w-[132px] font-bold tabular-nums text-garage-fg">
+                    {agendaClock(item.start)}–{agendaClock(item.end)} {eventZoneLabel(event.timezone)}
+                  </span>
+                  <span className="font-semibold text-garage-fg">{item.title}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : event.highlights.length ? (
           <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-garage-dim">{event.highlights.join(" · ")}</p>
         ) : null}
       </section>

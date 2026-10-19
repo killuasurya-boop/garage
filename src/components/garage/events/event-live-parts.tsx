@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Check, Share2 } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { Check, Mic2, Music, Share2 } from "lucide-react";
 
-import { countdownParts, eventPhase } from "@/lib/event-format";
+import { agendaClock, agendaLiveState, countdownParts, eventPhase, type EventAgendaItem } from "@/lib/event-format";
 
 // Jam detik bersama: snapshot berubah tiap detik; di server null (placeholder)
 // supaya tidak ada hydration mismatch.
@@ -102,8 +102,13 @@ export function PosterCountdown({ startsAt, endsAt }: { startsAt: string; endsAt
         <div className="gp-count w-full max-w-[900px]" role="timer" aria-label="Hitung mundur menuju Grand Opening">
           {cells.map((cell) => (
             <div key={cell.label} className="border-l-2 border-[#e0262f] px-3 py-1.5">
-              <div className="gp-display gp-count-num text-[104px] leading-none tabular-nums text-[#efe6d6]">
-                {now === null ? "--" : String(cell.value).padStart(2, "0")}
+              <div className="gp-display gp-count-num flex text-[104px] leading-none tabular-nums text-[#efe6d6]" aria-label={`${cell.value} ${cell.label}`}>
+                {(now === null ? "--" : String(cell.value).padStart(2, "0")).split("").map((ch, index) => (
+                  // key berganti saat digit berubah → animasi flip per digit.
+                  <span key={`${index}-${ch}`} className="gp-flip" aria-hidden>
+                    {ch}
+                  </span>
+                ))}
               </div>
               <div className="gp-label mt-2.5">{cell.label}</div>
             </div>
@@ -111,8 +116,18 @@ export function PosterCountdown({ startsAt, endsAt }: { startsAt: string; endsAt
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3" data-testid="event-phase-message">
-          <p className="gp-display gp-h2 text-[88px] leading-none text-[#efe6d6]">
-            {phase === "live" ? "Kami sedang berpesta" : "Terima kasih"}
+          <p className="gp-display gp-h2 relative text-[88px] leading-none text-[#efe6d6]">
+            {phase === "ended" ? <Confetti /> : null}
+            {phase === "live" ? (
+              <>
+                <span className="gp-live-badge mr-4 align-middle" aria-hidden>
+                  <span className="gp-eq"><i /><i /><i /></span> LIVE
+                </span>
+                Kami sedang berpesta
+              </>
+            ) : (
+              "Terima kasih"
+            )}
           </p>
           <p className="max-w-[560px] text-[17px] leading-relaxed text-[#d8d1c3]">
             {phase === "live"
@@ -154,7 +169,7 @@ export function AgeGate({ exitHref = "/" }: { exitHref?: string }) {
     const overlay = overlayRef.current;
     if (confirmed || !overlay?.parentElement) return;
     const siblings = Array.from(overlay.parentElement.children).filter(
-      (el): el is HTMLElement => el !== overlay && el instanceof HTMLElement && !el.inert,
+      (el): el is HTMLElement => el !== overlay && el instanceof HTMLElement && !el.inert && !el.hasAttribute("data-age-keep"),
     );
     siblings.forEach((el) => (el.inert = true));
     const previousOverflow = document.documentElement.style.overflow;
@@ -204,6 +219,134 @@ export function AgeGate({ exitHref = "/" }: { exitHref?: string }) {
           </a>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Confetti CSS ringan (sekali jalan) untuk judul "Terima kasih". */
+export function Confetti() {
+  return (
+    <span className="gp-confetti" aria-hidden>
+      {Array.from({ length: 20 }, (_, index) => (
+        <i key={index} style={{ "--i": index } as CSSProperties} />
+      ))}
+    </span>
+  );
+}
+
+const SLOT_TAG = { done: "Selesai", live: "", next: "Berikutnya", upcoming: "" } as const;
+
+/**
+ * Rundown hidup (mode hari H): sesi berjalan diberi badge LIVE + equalizer,
+ * sesi lewat "Selesai", sesi berikut "Berikutnya"; garis waktu terisi sesuai jam.
+ * Di server/pra-hidrasi semua sesi tampil netral (tanpa status) → tanpa mismatch.
+ */
+export function AgendaLive({
+  agenda,
+  startsAt,
+  endsAt,
+  timezone,
+  zone,
+}: {
+  agenda: EventAgendaItem[];
+  startsAt: string;
+  endsAt: string;
+  timezone: string;
+  zone: string;
+}) {
+  const now = useSyncExternalStore(subscribeSecond, currentSecond, serverSecond);
+  const live = now === null ? null : agendaLiveState({ startsAt, endsAt, timezone, agenda }, now);
+  return (
+    <ol className="gp-timeline mt-2" data-testid="event-agenda" style={{ "--fill": live?.fill ?? 0 } as CSSProperties}>
+      {agenda.map((item, index) => {
+        const state = live?.states[index] ?? "upcoming";
+        return (
+          <li key={`${item.start}-${item.title}`} className="gp-slot" data-state={state} data-testid="agenda-slot">
+            <span className="flex size-12 shrink-0 items-center justify-center bg-[#e0262f] text-white">
+              {index === agenda.length - 1 ? <Mic2 aria-hidden className="size-6" /> : <Music aria-hidden className="size-6" />}
+            </span>
+            <div className="min-w-0">
+              <div className="gp-display text-[34px] leading-none">{item.title}</div>
+              <div className="mt-1.5 text-base font-bold tracking-[0.12em] text-[#c8ff9f]">
+                {agendaClock(item.start)} – {agendaClock(item.end)} {zone}
+              </div>
+            </div>
+            {state === "live" ? (
+              <span className="gp-live-badge ml-auto shrink-0" data-testid="agenda-live">
+                <span className="gp-eq" aria-hidden>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                LIVE
+              </span>
+            ) : SLOT_TAG[state] ? (
+              <span className="gp-slot-tag">{SLOT_TAG[state]}</span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const INTRO_KEY = "garage-invite-intro";
+const INTRO_EVENT = "garage-invite-intro-change";
+function subscribeIntro(callback: () => void) {
+  window.addEventListener(INTRO_EVENT, callback);
+  return () => window.removeEventListener(INTRO_EVENT, callback);
+}
+function readIntroSeen() {
+  try {
+    return window.sessionStorage.getItem(INTRO_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Intro "membuka amplop" undangan (±2 detik, sekali per sesi). Animasi CSS
+ * menyembunyikan dirinya sendiri; tombol Lewati untuk langsung ke isi.
+ * Tanpa JS / reduced motion: tidak tampil.
+ */
+export function InviteIntro({ guestName, children }: { guestName: string; children: ReactNode }) {
+  const seen = useSyncExternalStore(subscribeIntro, readIntroSeen, () => false);
+
+  useEffect(() => {
+    if (seen) return;
+    try {
+      window.sessionStorage.setItem(INTRO_KEY, "1");
+    } catch {
+      // penyimpanan diblokir — intro tetap selesai sendiri
+    }
+  }, [seen]);
+
+  if (seen) return null;
+
+  function skip() {
+    try {
+      window.sessionStorage.setItem(INTRO_KEY, "1");
+    } catch {
+      // abaikan
+    }
+    window.dispatchEvent(new Event(INTRO_EVENT));
+  }
+
+  return (
+    <div className="gp-intro" data-age-keep data-testid="invite-intro" onAnimationEnd={(event) => event.target === event.currentTarget && skip()}>
+      <noscript>
+        <style>{".gp-intro{display:none!important}"}</style>
+      </noscript>
+      <span className="gp-intro-laser" aria-hidden />
+      <span className="gp-intro-panel" aria-hidden />
+      <div className="gp-intro-content" aria-hidden>
+        {children}
+        <p className="gp-label">Undangan pribadi untuk</p>
+        <p className="gp-display text-[44px] leading-none text-[#efe6d6] sm:text-[64px]">{guestName}</p>
+      </div>
+      <button type="button" onClick={skip} className="gp-intro-skip" data-testid="invite-intro-skip">
+        Lewati
+      </button>
     </div>
   );
 }

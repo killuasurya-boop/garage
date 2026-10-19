@@ -183,3 +183,20 @@ export function buildInvitationWhatsappMessage(input: InvitationWhatsappInput): 
     "Link ini khusus untuk Anda, mohon tidak dibagikan. Terima kasih — Garage Coffee",
   ].join("\n");
 }
+
+/** Pengingat H-1 untuk tamu yang sudah konfirmasi hadir (dikirim manual lewat wa.me). */
+export function buildInvitationReminderMessage(input: InvitationWhatsappInput & { pax?: number | null }): string {
+  return [
+    `Halo ${input.guestName},`,
+    "",
+    `Mengingatkan: *${input.eventTitle}* sebentar lagi! Terima kasih sudah konfirmasi hadir${input.pax ? ` (${input.pax} orang)` : ""}.`,
+    `📅 ${input.dateLabel}`,
+    `🕒 ${input.timeLabel}`,
+    `📍 ${input.venue}`,
+    "",
+    "Rundown, lokasi & tombol simpan ke kalender ada di undangan pribadi Anda:",
+    input.url,
+    "",
+    "Sampai jumpa di Garage Coffee!",
+  ].join("\n");
+}

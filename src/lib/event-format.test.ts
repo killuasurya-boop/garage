@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   agendaClock,
+  agendaLiveState,
+  agendaSlotTimes,
   countdownParts,
   eventPhase,
   formatEventDate,
@@ -39,5 +41,37 @@ describe("format event Grand Opening (WIB)", () => {
   it("jam rundown tampil format Indonesia", () => {
     expect(agendaClock("15:00")).toBe("15.00");
     expect(agendaClock("20:30")).toBe("20.30");
+  });
+});
+
+describe("mode hari H: status sesi rundown", () => {
+  const go = {
+    startsAt: "2026-10-24T08:00:00.000Z",
+    endsAt: "2026-10-24T16:00:00.000Z",
+    timezone: "Asia/Jakarta",
+    agenda: [
+      { start: "15:00", end: "18:00", title: "Live Music" },
+      { start: "20:00", end: "23:00", title: "Diskoyoks" },
+    ],
+  };
+  const at = (iso: string) => Date.parse(iso);
+
+  it("jam sesi dihitung di zona event", () => {
+    expect(agendaSlotTimes(go, go.agenda[1])).toEqual({ start: at("2026-10-24T13:00:00Z"), end: at("2026-10-24T16:00:00Z") });
+  });
+
+  it("sebelum acara semua upcoming; 16.00 WIB Live Music live + Diskoyoks berikutnya", () => {
+    expect(agendaLiveState(go, at("2026-10-23T09:00:00Z")).states).toEqual(["upcoming", "upcoming"]);
+    const live = agendaLiveState(go, at("2026-10-24T09:00:00Z"));
+    expect(live.states).toEqual(["live", "next"]);
+    expect(live.fill).toBeCloseTo(1 / 8);
+  });
+
+  it("jeda 18–20 → Live Music selesai, Diskoyoks berikutnya; sesudah acara semua selesai", () => {
+    expect(agendaLiveState(go, at("2026-10-24T11:30:00Z")).states).toEqual(["done", "next"]);
+    const ended = agendaLiveState(go, at("2026-10-25T01:00:00Z"));
+    expect(ended.states).toEqual(["done", "done"]);
+    expect(ended.fill).toBe(1);
+    expect(ended.phase).toBe("ended");
   });
 });

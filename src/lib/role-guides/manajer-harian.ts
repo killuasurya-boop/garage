@@ -89,6 +89,10 @@ export const manajerHarianGuide: RoleGuide = {
         },
         { text: "Link tersebar ke orang lain? Tekan Link baru (link lama mati, jawaban RSVP tetap). Cabut = link tidak bisa dipakai sama sekali." },
         { text: "Pantau rekap: Hadir (undangan & total orang), Tidak hadir, Belum menjawab. Ekspor CSV hanya untuk Owner." },
+        {
+          text: "H-1 (Jumat 23 Okt): untuk tamu berstatus Hadir tekan Ingatkan H-1 — WhatsApp terbuka dengan pesan pengingat + link undangan. Kirim manual.",
+          warn: "Tombol Ingatkan H-1 hanya muncul untuk tamu yang sudah konfirmasi Hadir. Pengingat tidak mengubah status Dibagikan.",
+        },
       ],
     },
   ],

@@ -3,9 +3,10 @@ import { Permanent_Marker } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Clock, MapPin, MessageCircle, Mic2, Music } from "lucide-react";
+import { ArrowRight, AtSign, Camera, Clock, MapPin, MessageCircle } from "lucide-react";
 
-import { AgeGate, EventShareButton, PosterCountdown } from "@/components/garage/events/event-live-parts";
+import { AgeGate, AgendaLive, Confetti, EventShareButton, PosterCountdown } from "@/components/garage/events/event-live-parts";
+import { CoBrandLockup, Dust, FaqList, InfoCards, PosterFilters, ShareActions, sponsorLogoFor } from "@/components/garage/events/event-poster-parts";
 import { agendaClock, eventPhase, eventZoneLabel, formatEventDate, formatEventTimeRange } from "@/lib/event-format";
 import { GRAND_OPENING_SLUG, getPublishedEvent } from "@/lib/event-service";
 import { getBusinessInfo } from "@/lib/garage-service";
@@ -66,7 +67,16 @@ export default async function GrandOpeningPage() {
   const pageUrl = `${SITE_URL}${PAGE_PATH}`;
   const ended = eventPhase(event) === "ended";
   // Logo resmi mitra (dikirim owner, Okt 2026); sponsor lain tampil sebagai teks.
-  const sponsorLogo = event.sponsorName && /^black$/i.test(event.sponsorName.trim()) ? "/grand-opening/sponsor-black.webp" : null;
+  const sponsorLogo = sponsorLogoFor(event);
+  const instagramUrl = business?.instagram?.startsWith("https://") ? business.instagram : "https://www.instagram.com/garage_tbt.id/";
+  const icsHref = `${PAGE_PATH}/kalender`;
+  const tickerItems = [
+    "Terbuka untuk umum",
+    "Dress code smart casual",
+    event.ageGate ? "Khusus 21+" : null,
+    `${date} · ${time}`,
+    `${event.venueName} · Tebing Tinggi`,
+  ].filter((item): item is string => Boolean(item));
   // Promo hanya ditawarkan sebelum/selama acara.
   const promoText = ended ? null : event.promoText;
   const performers = event.agenda.map((item) => item.title);
@@ -99,18 +109,7 @@ export default async function GrandOpeningPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd) }} />
       {event.ageGate ? <AgeGate /> : null}
 
-      {/* Filter tekstur grunge & sapuan kuas (dipakai lewat CSS url(#…)) */}
-      <svg width="0" height="0" aria-hidden className="absolute">
-        <filter id="gp-grunge">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n" />
-          <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -0.9 1.4" result="m" />
-          <feComposite in="SourceGraphic" in2="m" operator="in" />
-        </filter>
-        <filter id="gp-brush">
-          <feTurbulence type="fractalNoise" baseFrequency="0.035 0.6" numOctaves="3" seed="3" result="t" />
-          <feDisplacementMap in="SourceGraphic" in2="t" scale="22" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </svg>
+      <PosterFilters />
 
       {/* NAV */}
       <header className="absolute inset-x-0 top-0 z-20 py-5">
@@ -120,6 +119,7 @@ export default async function GrandOpeningPage() {
           </Link>
           <nav aria-label="Navigasi acara" className="gp-nav text-xs font-bold uppercase tracking-[0.24em]">
             <a href="#rundown" className="py-2.5 text-[#d8d1c3] hover:text-white">Rundown</a>
+            <a href="#info" className="py-2.5 text-[#d8d1c3] hover:text-white">Info</a>
             {promoText ? <a href="#promo" className="py-2.5 text-[#d8d1c3] hover:text-white">Promo</a> : null}
             <a href="#lokasi" className="py-2.5 text-[#d8d1c3] hover:text-white">Lokasi</a>
           </nav>
@@ -146,10 +146,14 @@ export default async function GrandOpeningPage() {
         <span className="gp-laser l1 -z-10" style={{ left: "-5%", top: "22%", width: "60%" }} />
         <span className="gp-laser l2 -z-10" style={{ left: "48%", top: "14%", width: "58%" }} />
         <span className="gp-laser l3 -z-10" style={{ left: "4%", top: "78%", width: "40%" }} />
+        <Dust />
         <span className="gp-brush gp-hide-m -z-10" style={{ left: "-4%", top: 96, width: "34%", height: 46, rotate: "-14deg" }} />
 
         <div className="gp-wrap relative text-center">
-          <p className="u1 gp-label mb-3.5">Garage Coffee · Tebing Tinggi</p>
+          <div className="mb-5 flex flex-col items-center gap-3">
+            <CoBrandLockup event={event} />
+            <p className="u1 gp-label">{sponsorLogo ? "Garage Coffee × BLACK · Tebing Tinggi" : "Garage Coffee · Tebing Tinggi"}</p>
+          </div>
           <h1 data-testid="event-title" className="gp-display gp-title text-[190px]" aria-label={event.title}>
             <span className="s1 gp-cream block">Grand</span>
             <span className="s2 gp-red -mt-1.5 block">Opening</span>
@@ -217,14 +221,35 @@ export default async function GrandOpeningPage() {
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap justify-center gap-3.5">
-            <a href="#rundown" className="gp-btn gp-btn-red">
-              Lihat Rundown <Arrow />
-            </a>
-            <a href={event.mapsUrl} target="_blank" rel="noopener noreferrer" data-testid="event-maps" className="gp-btn gp-btn-line">
-              <MapPin aria-hidden className="size-4" /> Lihat Lokasi
-            </a>
+          <div className="gp-ticker" aria-label={tickerItems.join(" · ")} data-testid="event-ticker">
+            <div className="gp-ticker-track" aria-hidden>
+              {[0, 1].map((copy) => (
+                <span key={copy}>{tickerItems.join("  ✦  ")}</span>
+              ))}
+            </div>
           </div>
+          {ended ? (
+            <div className="gp-actions">
+              <a href={event.gallery.length ? "#galeri" : "#terima-kasih"} className="gp-btn gp-btn-red" data-testid="event-ended-cta">
+                <Camera aria-hidden className="size-4" /> {event.gallery.length ? "Lihat Galeri" : "Terima Kasih"}
+              </a>
+              <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="gp-btn gp-btn-line">
+                <AtSign aria-hidden className="size-4" /> Ikuti Instagram
+              </a>
+            </div>
+          ) : (
+            <>
+              <ShareActions event={event} pageUrl={pageUrl} icsHref={icsHref} />
+              <div className="flex flex-wrap justify-center gap-3.5">
+                <a href="#rundown" className="gp-btn gp-btn-line">
+                  Lihat Rundown <Arrow />
+                </a>
+                <a href={event.mapsUrl} target="_blank" rel="noopener noreferrer" data-testid="event-maps" className="gp-btn gp-btn-line">
+                  <MapPin aria-hidden className="size-4" /> Lihat Lokasi
+                </a>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -239,12 +264,14 @@ export default async function GrandOpeningPage() {
         </div>
       </div>
 
-      {/* COUNTDOWN */}
-      <section className="gp-sec py-[110px]">
-        <div className="gp-wrap gp-reveal flex flex-col items-center text-center">
-          <PosterCountdown startsAt={event.startsAt} endsAt={event.endsAt} />
-        </div>
-      </section>
+      {/* COUNTDOWN / LIVE (sesudah acara diganti section Terima kasih) */}
+      {!ended ? (
+        <section className="gp-sec py-[110px]">
+          <div className="gp-wrap gp-reveal flex flex-col items-center text-center">
+            <PosterCountdown startsAt={event.startsAt} endsAt={event.endsAt} />
+          </div>
+        </section>
+      ) : null}
 
       {/* SPONSOR */}
       {event.sponsorName ? (
@@ -267,6 +294,60 @@ export default async function GrandOpeningPage() {
         </section>
       ) : null}
 
+      {/* SESUDAH ACARA: terima kasih + galeri */}
+      {ended ? (
+        <section id="terima-kasih" className="gp-sec relative py-[110px]" data-testid="event-thanks">
+          <div className="gp-wrap flex flex-col items-center gap-6 text-center">
+            <p className="gp-label text-[#7cff3a]">{date}</p>
+            <h2 className="gp-display gp-h2 relative text-[80px]">
+              <Confetti />
+              <span className="gp-cream">Terima kasih,</span> <span className="gp-red">Tebing Tinggi!</span>
+            </h2>
+            <p className="max-w-[620px] text-[17px] leading-relaxed text-[#d8d1c3]">
+              Grand Opening sudah selesai. Terima kasih sudah datang dan merayakan bersama — Garage Coffee buka setiap hari, sampai jumpa lagi di meja kami.
+            </p>
+            <div className="gp-actions">
+              <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="gp-btn gp-btn-red" data-testid="event-instagram">
+                <AtSign aria-hidden className="size-4" /> Ikuti @garage_tbt.id
+              </a>
+              <Link href="/" className="gp-btn gp-btn-line">
+                Ke Beranda <Arrow />
+              </Link>
+            </div>
+            {event.gallery.length ? (
+              <div id="galeri" className="gp-gallery mt-8 w-full text-left" data-testid="event-gallery">
+                {event.gallery.map((photo) => (
+                  <figure key={photo.src} className="gp-reveal">
+                    <Image src={photo.src} alt={photo.alt} width={800} height={600} sizes="(max-width: 960px) 100vw, 400px" />
+                  </figure>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {/* INFO PENTING */}
+      {!ended ? (
+        <section id="info" className="gp-sec border-t border-[rgba(239,230,214,0.08)] py-[110px]" aria-labelledby="info-title">
+          <div className="gp-wrap flex flex-col gap-10">
+            <div className="gp-reveal flex flex-col gap-4">
+              <p className="gp-label text-[#7cff3a]">Sebelum datang</p>
+              <h2 id="info-title" className="gp-display gp-h2 text-[72px]">
+                <span className="gp-cream">Info</span> <span className="gp-red">Penting</span>
+              </h2>
+            </div>
+            <InfoCards event={event} whatsappUrl={whatsappUrl} />
+            {event.faq.length ? (
+              <div className="gp-reveal flex flex-col gap-4">
+                <p className="gp-label">Tanya jawab</p>
+                <FaqList faq={event.faq} />
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       {/* RUNDOWN */}
       <section id="rundown" className="gp-sec relative overflow-hidden border-t border-[rgba(239,230,214,0.08)] bg-[radial-gradient(60%_60%_at_70%_50%,rgba(224,38,47,0.16),transparent_70%),#0d0d0f] py-[120px]">
         <span className="gp-laser l2" style={{ left: "40%", top: "14%", width: "60%" }} />
@@ -277,21 +358,7 @@ export default async function GrandOpeningPage() {
               <span className="gp-cream">Special</span> <span className="gp-red">Performance</span>
             </h2>
             {event.agenda.length ? (
-              <ol className="mt-2 flex flex-col gap-3" data-testid="event-agenda">
-                {event.agenda.map((item, index) => (
-                  <li key={`${item.start}-${item.title}`} className="flex items-center gap-5 border border-[rgba(239,230,214,0.14)] bg-[rgba(18,18,20,0.85)] px-5 py-4">
-                    <span className="flex size-12 shrink-0 items-center justify-center bg-[#e0262f] text-white">
-                      {index === event.agenda.length - 1 ? <Mic2 aria-hidden className="size-6" /> : <Music aria-hidden className="size-6" />}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="gp-display text-[34px] leading-none">{item.title}</div>
-                      <div className="mt-1.5 text-base font-bold tracking-[0.12em] text-[#c8ff9f]">
-                        {agendaClock(item.start)} – {agendaClock(item.end)} {zone}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <AgendaLive agenda={event.agenda} startsAt={event.startsAt} endsAt={event.endsAt} timezone={event.timezone} zone={zone} />
             ) : null}
             {about ? <p className="max-w-[470px] text-[17px] leading-relaxed text-[#d8d1c3]">{about}</p> : null}
           </div>
@@ -356,6 +423,12 @@ export default async function GrandOpeningPage() {
               ) : null}
               <EventShareButton url={pageUrl} title={event.title} text={`${event.title} — ${date}, ${time}`} />
             </div>
+            {!ended ? (
+              <div className="flex flex-col gap-3">
+                <p className="gp-label">Ajak teman & simpan tanggalnya</p>
+                <ShareActions event={event} pageUrl={pageUrl} icsHref={icsHref} testIdPrefix="event-lokasi" align="start" />
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -373,6 +446,7 @@ export default async function GrandOpeningPage() {
             <nav aria-label="Navigasi bawah" className="flex flex-col gap-3 text-xs font-bold tracking-[0.24em] uppercase">
               <Link href="/" className="w-fit text-[#d8d1c3] hover:text-white">Beranda</Link>
               <a href="#rundown" className="w-fit text-[#d8d1c3] hover:text-white">Rundown</a>
+              {!ended ? <a href="#info" className="w-fit text-[#d8d1c3] hover:text-white">Info Penting</a> : null}
               <a href="#lokasi" className="w-fit text-[#d8d1c3] hover:text-white">Lokasi</a>
             </nav>
             {event.sponsorName ? (

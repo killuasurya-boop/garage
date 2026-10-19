@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  BellRing,
   Archive,
   Copy,
   Download,
@@ -29,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { formatEventDate, formatEventTimeRange } from "@/lib/event-format";
 import type { GuestRow } from "@/lib/event-invitations";
 import type { AdminEvent } from "@/lib/event-service";
-import { buildInvitationWhatsappMessage, waLink } from "@/lib/whatsapp-link";
+import { buildInvitationReminderMessage, buildInvitationWhatsappMessage, waLink } from "@/lib/whatsapp-link";
 
 type Summary = {
   guests: number;
@@ -42,7 +43,7 @@ type Summary = {
   pending: number;
 };
 
-type ShareState = { guest: GuestRow; url: string; message: string; waUrl: string | null };
+type ShareState = { guest: GuestRow; url: string; message: string; waUrl: string | null; kind: "invite" | "reminder" };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init });
@@ -195,7 +196,7 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
     });
   }
 
-  async function openShare(guest: GuestRow) {
+  async function openShare(guest: GuestRow, kind: "invite" | "reminder" = "invite") {
     if (!guest.invitation) return;
     // Buka jendela dulu (sinkron dengan klik) supaya tidak diblokir popup blocker.
     const win = guest.phone ? window.open("about:blank", "_blank") : null;
@@ -205,14 +206,18 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
       const info = await api<{ url: string; guestName: string; guestPhone: string | null }>(
         `${base}/invitations/${guest.invitation.id}/link`,
       );
-      const text = buildInvitationWhatsappMessage({
+      const input = {
         guestName: info.guestName,
         eventTitle: event.title,
         dateLabel: formatEventDate(event.startsAt, event.timezone),
         timeLabel: formatEventTimeRange(event.startsAt, event.endsAt, event.timezone),
         venue: `${event.venueName}, ${event.address}`,
         url: info.url,
-      });
+      };
+      const text =
+        kind === "reminder"
+          ? buildInvitationReminderMessage({ ...input, pax: guest.rsvp?.pax ?? null })
+          : buildInvitationWhatsappMessage(input);
       const waUrl = waLink(info.guestPhone, text);
       if (win && waUrl) {
         win.opener = null;
@@ -220,7 +225,7 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
       } else {
         win?.close();
       }
-      setShare({ guest, url: info.url, message: text, waUrl });
+      setShare({ guest, url: info.url, message: text, waUrl, kind });
     } catch (err) {
       win?.close();
       setMessage({ tone: "error", text: err instanceof Error ? err.message : "Link undangan gagal diambil." });
@@ -426,6 +431,18 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
                         </Button>
                       ) : guest.invitation ? (
                         <>
+                          {guest.rsvp?.response === "attending" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={busy !== null}
+                              onClick={() => void openShare(guest, "reminder")}
+                              data-testid="guest-remind"
+                              title="Kirim pengingat H-1 lewat WhatsApp"
+                            >
+                              <BellRing className="size-4" /> Ingatkan H-1
+                            </Button>
+                          ) : null}
                           <Button size="sm" disabled={busy !== null} onClick={() => void openShare(guest)} data-testid="guest-share">
                             {busy === `share-${guest.id}` ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Bagikan manual
                           </Button>
@@ -458,10 +475,14 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
       <Dialog open={share !== null} onOpenChange={(open) => !open && setShare(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Bagikan undangan — {share?.guest.fullName}</DialogTitle>
+            <DialogTitle>
+              {share?.kind === "reminder" ? "Pengingat H-1" : "Bagikan undangan"} — {share?.guest.fullName}
+            </DialogTitle>
             <DialogDescription>
               {share?.waUrl
-                ? "WhatsApp sudah dibuka di tab baru dengan pesan siap kirim. Kirim pesannya, lalu tandai dibagikan."
+                ? share.kind === "reminder"
+                  ? "WhatsApp sudah dibuka di tab baru dengan pesan pengingat siap kirim."
+                  : "WhatsApp sudah dibuka di tab baru dengan pesan siap kirim. Kirim pesannya, lalu tandai dibagikan."
                 : "Tamu belum punya nomor WhatsApp valid. Salin pesan/link dan kirim lewat kanal lain."}
             </DialogDescription>
           </DialogHeader>
@@ -489,12 +510,18 @@ export function EventGuestsPanel({ event, canExport }: { event: AdminEvent; canE
             </div>
           ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShare(null)}>
-              Belum dikirim
-            </Button>
-            <Button onClick={markShared} data-testid="share-confirm">
-              Sudah dikirim — tandai dibagikan
-            </Button>
+            {share?.kind === "reminder" ? (
+              <Button onClick={() => setShare(null)}>Selesai</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShare(null)}>
+                  Belum dikirim
+                </Button>
+                <Button onClick={markShared} data-testid="share-confirm">
+                  Sudah dikirim — tandai dibagikan
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

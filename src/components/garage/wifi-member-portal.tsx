@@ -81,10 +81,10 @@ export function WifiMemberPortal({
       <div className="mx-auto w-full max-w-md">
         <div className="mx-auto mb-6 w-56">
           <Image
-            src="/garage-brand/logo-garage-coffee.png"
+            src="/garage-brand/garage-coffee-logo.png"
             alt="Garage Coffee"
-            width={1024}
-            height={325}
+            width={1200}
+            height={282}
             priority
             sizes="224px"
             className="h-auto w-full object-contain"

@@ -453,10 +453,10 @@ export function MemberDashboard() {
         <div className="garage-logo-loading garage-logo-wrap">
           <div className="garage-logo-frame">
             <Image
-              src="/garage-brand/logo-garage-coffee.png"
+              src="/garage-brand/garage-coffee-logo.png"
               alt="Garage"
-              width={1024}
-              height={325}
+              width={1200}
+              height={282}
               priority
               sizes="(max-width: 640px) 82vw, 340px"
               className="garage-logo-image"
@@ -477,10 +477,10 @@ export function MemberDashboard() {
         <header className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
           <Link href="/" className="block w-[min(200px,52vw)] sm:w-[230px]" aria-label="Kembali ke website Garage">
             <Image
-              src="/garage-brand/logo-garage-coffee.png"
+              src="/garage-brand/garage-coffee-logo.png"
               alt="Garage Coffee"
-              width={1024}
-              height={325}
+              width={1200}
+              height={282}
               priority
               sizes="(max-width: 768px) 52vw, 230px"
               className="h-auto w-full object-contain drop-shadow-[0_14px_34px_rgba(0,0,0,0.5)]"

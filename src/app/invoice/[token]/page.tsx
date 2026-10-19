@@ -394,7 +394,7 @@ export default async function InvoiceTrackingPage({
       {/* ─── PRINT HEADER (logo) ─── */}
       <div className="print-only print-logo mb-3 text-center" style={{ display: "none" }}>
         <Image
-          src="/garage-brand/logo-garage-coffee.png"
+          src="/garage-brand/garage-coffee-logo-dark.png"
           alt="GARAGE Coffee"
           width={240}
           height={80}
@@ -428,7 +428,7 @@ export default async function InvoiceTrackingPage({
               {/* Desktop logo */}
               <div className="hidden sm:block">
                 <Image
-                  src="/garage-brand/logo-garage-coffee.png"
+                  src="/garage-brand/garage-coffee-logo.png"
                   alt="GARAGE Coffee"
                   width={240}
                   height={80}
@@ -438,7 +438,7 @@ export default async function InvoiceTrackingPage({
               {/* Mobile logo */}
               <div className="sm:hidden">
                 <Image
-                  src="/garage-brand/logo-icon.png"
+                  src="/garage-brand/garage-coffee-icon.png"
                   alt="GARAGE"
                   width={80}
                   height={80}

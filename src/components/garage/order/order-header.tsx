@@ -46,10 +46,10 @@ export function OrderHeader({
           aria-label="Kembali ke website Garage"
         >
           <Image
-            src="/garage-brand/logo-garage-coffee.png"
+            src="/garage-brand/garage-coffee-logo.png"
             alt="Garage Coffee"
-            width={1024}
-            height={325}
+            width={1200}
+            height={282}
             priority
             sizes="(max-width: 640px) 124px, 160px"
             className="h-auto w-full object-contain"

@@ -120,10 +120,10 @@ export function LoginFrame({
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center px-4 py-8 sm:py-12">
         <div className="flex justify-center">
           <Image
-            src="/garage-brand/logo-garage-coffee.png"
+            src="/garage-brand/garage-coffee-logo.png"
             alt="Garage Coffee"
-            width={1024}
-            height={325}
+            width={1200}
+            height={282}
             priority
             sizes="(max-width: 640px) 220px, 280px"
             className="h-auto w-[220px] object-contain sm:w-[280px]"

@@ -34,8 +34,8 @@ export const metadata: Metadata = {
   description: "Garage Coffee Tebing Tinggi — cafe & coffee shop, buka setiap hari 15.00–23.00 WIB.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/garage-brand/logo-icon.png",
-    apple: "/garage-brand/logo-icon.png",
+    icon: "/garage-brand/garage-coffee-icon.png",
+    apple: "/garage-brand/garage-coffee-icon.png",
   },
   appleWebApp: {
     capable: true,

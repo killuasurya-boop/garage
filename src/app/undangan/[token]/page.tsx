@@ -21,8 +21,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#2a1014_0%,#0a0a0c_55%)] text-garage-fg">
       <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-8 sm:py-12">
-        <span className="inline-flex w-fit rounded-md bg-[#e9e9ec] px-3 py-2">
-          <Image src="/garage-brand/logo-garage-coffee.png" alt="Garage Coffee" width={160} height={51} className="h-9 w-auto object-contain" priority />
+        <span className="inline-flex w-fit">
+          <Image src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee" width={170} height={40} className="h-9 w-auto object-contain" priority />
         </span>
         {children}
       </div>

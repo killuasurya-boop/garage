@@ -260,9 +260,9 @@ const VoiceStatusBadge = dynamic(
   { loading: PosModuleFallback },
 );
 
-const GARAGE_BRAND_LOGO_SRC = "/garage-brand/logo-garage-coffee.png";
-const GARAGE_BRAND_LOGO_WIDTH = 1024;
-const GARAGE_BRAND_LOGO_HEIGHT = 325;
+const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
+const GARAGE_BRAND_LOGO_WIDTH = 1200;
+const GARAGE_BRAND_LOGO_HEIGHT = 282;
 const GARAGE_BUSINESS_NAME = "Garage Coffee";
 type GarageThemeMode = "dark" | "bright";
 
@@ -6727,7 +6727,7 @@ export function PosView({
                         <div className="h-1.5 bg-gradient-to-r from-[#d11a2a] via-[#f5a742] to-[#111116]" />
                         <div className="flex items-center justify-between gap-3 p-3">
                           <Image
-                            src={GARAGE_BRAND_LOGO_SRC}
+                            src="/garage-brand/garage-coffee-logo-dark.png"
                             alt="Garage Coffee"
                             width={GARAGE_BRAND_LOGO_WIDTH}
                             height={GARAGE_BRAND_LOGO_HEIGHT}

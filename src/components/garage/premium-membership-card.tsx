@@ -340,7 +340,7 @@ function CardFront({
           <div className="gmc__brand">
             <div className="gmc__brand-logo" aria-hidden>
               <Image
-                src="/garage-brand/logo-icon.png"
+                src="/garage-brand/garage-coffee-icon.png"
                 alt=""
                 width={28}
                 height={28}

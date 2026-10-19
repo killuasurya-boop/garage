@@ -325,10 +325,10 @@ const GarageAiSimpleView = dynamic(
   { loading: ModuleChunkFallback },
 );
 
-const GARAGE_BRAND_LOGO_SRC = "/garage-brand/logo-garage-coffee.png";
-const GARAGE_BRAND_ICON_SRC = "/garage-brand/logo-icon.png";
-const GARAGE_BRAND_LOGO_WIDTH = 1024;
-const GARAGE_BRAND_LOGO_HEIGHT = 325;
+const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
+const GARAGE_BRAND_ICON_SRC = "/garage-brand/garage-coffee-icon.png";
+const GARAGE_BRAND_LOGO_WIDTH = 1200;
+const GARAGE_BRAND_LOGO_HEIGHT = 282;
 const GARAGE_CASHIER_THEME_STORAGE_KEY = "garage-cashier-theme";
 type GarageThemeMode = "dark" | "bright";
 

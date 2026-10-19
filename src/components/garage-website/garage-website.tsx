@@ -90,8 +90,8 @@ const tableCheckMenuUrl = (tableNumber) => ({
 });
 const LOGIN_URL = "/login";
 const MEMBER_LOGIN_URL = "/member-login";
-const BRAND_LOGO_URL = "/garage-brand/logo-garage-coffee.png";
-const BRAND_LOGO_ASPECT = 1024 / 325;
+const BRAND_LOGO_URL = "/garage-brand/garage-coffee-logo.png";
+const BRAND_LOGO_ASPECT = 1200 / 282;
 const SOCIAL_LINKS = [
   {
     id: "youtube",

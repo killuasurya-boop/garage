@@ -6,7 +6,7 @@ import { fail } from "@/lib/api-response";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const allowedBrandNames = /^(logo-website|logo-garage-coffee|logo-icon)\.png$/;
+const allowedBrandNames = /^(logo-website|logo-icon|garage-coffee-logo|garage-coffee-logo-dark|garage-coffee-icon)\.png$/;
 
 function projectRoot() {
   const cwd = process.cwd();

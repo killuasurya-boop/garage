@@ -431,17 +431,18 @@ export function buildThermalContent(
   }
 
   rows.push(line());
-  rows.push(center(receipt.settings?.receiptFooter || "TERIMA KASIH"));
+  rows.push(...centerWrapped(receipt.settings?.receiptFooter || "TERIMA KASIH"));
   if (receipt.isReprint) {
-    rows.push(center("(salinan struk — bukan transaksi baru)"));
+    rows.push(...centerWrapped("(salinan struk - bukan transaksi baru)"));
   }
   if (receipt.provisional) {
-    rows.push(center("(bukan bukti pembayaran)"));
+    rows.push(...centerWrapped("(bukan bukti pembayaran)"));
   }
   if (receipt.invoiceWebUrl) {
     rows.push("");
     rows.push(center("Cek invoice online:"));
-    rows.push(center(clean(receipt.invoiceWebUrl).slice(0, W)));
+    // Link utuh (dipecah per baris, tidak dipotong) agar bisa diketik ulang.
+    for (const part of splitUrl(absoluteInvoiceUrl(receipt.invoiceWebUrl), W)) rows.push(center(part));
   }
   rows.push("");
 
@@ -461,4 +462,19 @@ export function buildThermalContent(
   }
 
   return output;
+}
+
+/** Link invoice relatif ("/invoice/…") → absolut memakai origin aplikasi. */
+function absoluteInvoiceUrl(url: string) {
+  const value = url.trim();
+  if (/^https?:\/\//i.test(value)) return value;
+  const origin = typeof globalThis.location?.origin === "string" ? globalThis.location.origin : "";
+  return `${origin}${value.startsWith("/") ? "" : "/"}${value}`;
+}
+
+/** Pecah URL panjang per `width` karakter (URL tidak punya spasi untuk dibungkus). */
+function splitUrl(url: string, width: number) {
+  const parts: string[] = [];
+  for (let i = 0; i < url.length; i += width) parts.push(url.slice(i, i + width));
+  return parts;
 }

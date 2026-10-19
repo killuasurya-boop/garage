@@ -9,6 +9,7 @@ import {
   normalizeDevicePrinterConfig,
   saveDevicePrinterConfig,
   stripControlCodes,
+  toPrinterText,
 } from "@/lib/device-printer";
 import {
   buildDailyRecapContent,
@@ -22,24 +23,37 @@ const lines = (content: string) => content.split("\r\n");
 const longest = (content: string) =>
   Math.max(...lines(stripControlCodes(content)).map((line) => line.length));
 
+// Reset, margin kiri 0, area cetak 384 dot (58 mm), Font A.
+const BASE_58 = [0x1b, 0x40, 0x1d, 0x4c, 0x00, 0x00, 0x1d, 0x57, 0x80, 0x01, 0x1b, 0x4d, 0x00];
+const BOLD = [0x1b, 0x45, 0x01, 0x1b, 0x47, 0x01];
+const TALL = [0x1d, 0x21, 0x01];
+
 describe("escPosJob", () => {
-  it("reset + isi + umpan kertas, tanpa potong secara default", () => {
-    const bytes = Array.from(escPosJob("AB", { feedLines: 2 }));
-    expect(bytes).toEqual([0x1b, 0x40, 0x41, 0x42, 0x0a, 0x0a]);
+  it("header: reset + area cetak + Font A + tebal + tinggi 2×, lalu isi + umpan kertas", () => {
+    const bytes = Array.from(escPosJob("AB", { feedLines: 2, bold: true, textSize: "besar" }));
+    expect(bytes).toEqual([...BASE_58, ...BOLD, ...TALL, 0x41, 0x42, 0x0a, 0x0a]);
   });
 
-  it("potong kertas & salinan berulang", () => {
-    const bytes = Array.from(escPosJob("A", { feedLines: 0, cut: true, copies: 2 }));
-    expect(bytes).toEqual([0x1b, 0x40, 0x41, 0x1d, 0x56, 0x42, 0x00, 0x1b, 0x40, 0x41, 0x1d, 0x56, 0x42, 0x00]);
+  it("kertas 80 mm = area 576 dot; huruf normal tanpa tebal", () => {
+    const bytes = Array.from(escPosJob("A", { feedLines: 0, paper: "80", bold: false, textSize: "normal" }));
+    expect(bytes).toEqual([0x1b, 0x40, 0x1d, 0x4c, 0x00, 0x00, 0x1d, 0x57, 0x40, 0x02, 0x1b, 0x4d, 0x00, 0x41]);
   });
 
-  it("karakter di luar latin1 jadi '?'", () => {
-    expect(Array.from(escPosJob("☕", { feedLines: 0 }))).toEqual([0x1b, 0x40, 63]);
+  it("potong kertas & salinan berulang (header di tiap salinan)", () => {
+    const bytes = Array.from(escPosJob("A", { feedLines: 0, cut: true, copies: 2, bold: false }));
+    const one = [...BASE_58, 0x41, 0x1d, 0x56, 0x42, 0x00];
+    expect(bytes).toEqual([...one, ...one]);
+  });
+
+  it("tanda baca tipografi jadi ASCII; emoji tetap '?'", () => {
+    expect(toPrinterText("salinan — bukan · 2×…")).toBe("salinan - bukan - 2x...");
+    const bytes = Array.from(escPosJob("—☕", { feedLines: 0, bold: false }));
+    expect(bytes.slice(BASE_58.length)).toEqual([0x2d, 63]);
   });
 
   it("kode buka laci tetap ikut terkirim", () => {
-    const bytes = Array.from(escPosJob("X\x1B\x70\x00\x19\xFA", { feedLines: 0 }));
-    expect(bytes.slice(3)).toEqual([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+    const bytes = Array.from(escPosJob("X\x1B\x70\x00\x19\xFA", { feedLines: 0, bold: false }));
+    expect(bytes.slice(BASE_58.length + 1)).toEqual([0x1b, 0x70, 0x00, 0x19, 0xfa]);
   });
 });
 

@@ -876,8 +876,8 @@ export function PosView({
       window.removeEventListener("garage:open-chat", openChat);
     };
   }, []);
-  // Monitor "Status Produksi" (read-only) untuk kasir. READY adalah hak
-  // workstation Bar/Dapur di Production Hub (BR-07/08), bukan kasir.
+  // Monitor "Status Produksi" untuk kasir. Kasir POS juga boleh memproses
+  // tiket Bar & Dapur (Mulai/READY/serah-terima) di modul Production (owner Okt 2026).
   const [kitchenTickets, setKitchenTickets] = useState<KitchenOrder[]>([]);
   // Waktu sinkron terakhir monitor — dasar hitung lama tunggu (render tetap murni).
   const [kitchenTicketsAt, setKitchenTicketsAt] = useState(0);
@@ -8154,13 +8154,27 @@ export function PosView({
                 <div className="min-w-0">
                   <DialogTitle>Status Produksi</DialogTitle>
                   <DialogDescription>
-                    Pantauan Bar &amp; Dapur (urut pesan duluan). READY ditandai workstation di Production Hub setelah QC — kasir cukup memantau.
+                    Pantauan Bar &amp; Dapur (urut pesan duluan). Untuk Mulai, READY (QC), dan panggil waiter, buka Production.
                   </DialogDescription>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Badge className="border-[#4a4a54] bg-black/30 px-2 text-[11px]">
                     {kitchenTickets.length} aktif
                   </Badge>
+                  {onNavigateModule && navModules.some((m) => m.id === "kitchen") ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-testid="pos-open-production"
+                      className="garage-press h-9 bg-[#e5484d] px-3 text-xs font-bold text-white hover:bg-[#ff5c61]"
+                      onClick={() => {
+                        setKitchenPanelOpen(false);
+                        onNavigateModule("kitchen");
+                      }}
+                    >
+                      Proses di Production
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"

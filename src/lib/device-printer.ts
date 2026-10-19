@@ -16,6 +16,8 @@
 import { paperColumns, PAPER_COLUMNS, type PaperSize } from "@/lib/receipt-layout";
 
 export type DevicePrinterMode = "auto" | "serial" | "usb" | "ble" | "agent" | "browser";
+/** "besar" = tinggi huruf 2× (lebar tetap → kolom tidak berkurang). */
+export type DevicePrinterTextSize = "normal" | "besar";
 
 export interface DevicePrinterConfig {
   mode: DevicePrinterMode;
@@ -25,6 +27,10 @@ export interface DevicePrinterConfig {
   baudRate: number;
   cut: boolean;
   feedLines: number;
+  /** Ukuran huruf cetak langsung (ESC/POS). */
+  textSize: DevicePrinterTextSize;
+  /** Huruf tebal + cetak ganda → hitam pekat, tidak buram. */
+  bold: boolean;
   agentUrl: string;
   /** Nama perangkat terakhir yang terhubung (hanya tampilan). */
   deviceLabel: string | null;
@@ -39,6 +45,8 @@ export const DEFAULT_DEVICE_PRINTER_CONFIG: DevicePrinterConfig = {
   baudRate: 9600,
   cut: false,
   feedLines: 4,
+  textSize: "besar",
+  bold: true,
   agentUrl: "",
   deviceLabel: null,
 };
@@ -65,6 +73,8 @@ export function normalizeDevicePrinterConfig(raw: unknown): DevicePrinterConfig 
     baudRate: BAUD_RATES.includes(Number(value.baudRate)) ? Number(value.baudRate) : 9600,
     cut: value.cut === true,
     feedLines: Math.min(10, Math.max(0, Math.round(Number(value.feedLines ?? 4)) || 0)),
+    textSize: value.textSize === "normal" ? "normal" : "besar",
+    bold: value.bold !== false,
     agentUrl: typeof value.agentUrl === "string" ? value.agentUrl.trim().slice(0, 200) : "",
     deviceLabel: typeof value.deviceLabel === "string" ? value.deviceLabel.slice(0, 80) : null,
   };
@@ -100,22 +110,66 @@ export function deviceColumns(config: DevicePrinterConfig = loadDevicePrinterCon
 const ESC = 0x1b;
 const GS = 0x1d;
 
+// Karakter tipografi → ASCII. Codepage printer thermal (CP437/PC850) tidak
+// punya em dash, titik tengah, dll. — tanpa ini tercetak "?" atau simbol acak.
+const PRINTER_CHAR_MAP: Record<string, string> = {
+  "\u2014": "-",
+  "\u2013": "-",
+  "\u2012": "-",
+  "\u2212": "-",
+  "\u00b7": "-",
+  "\u2022": "-",
+  "\u00d7": "x",
+  "\u2026": "...",
+  "\u2018": "'",
+  "\u2019": "'",
+  "\u201c": '"',
+  "\u201d": '"',
+  "\u00a0": " ",
+  "\u202f": " ",
+};
+
+/** Teks aman untuk printer thermal: tanda baca tipografi → ASCII, sisanya apa adanya. */
+export function toPrinterText(content: string): string {
+  return content.replace(/[\u2012-\u2014\u2212\u00b7\u2022\u00d7\u2026\u2018\u2019\u201c\u201d\u00a0\u202f]/g, (ch) => PRINTER_CHAR_MAP[ch] ?? ch);
+}
+
+/**
+ * Header setiap salinan: reset, margin kiri 0 + lebar area cetak sesuai kertas
+ * (cegah teks terpotong kanan), Font A (paling jelas), tebal + cetak ganda
+ * (hitam pekat), dan tinggi 2× bila ukuran "besar".
+ */
+function escPosHeader(options: { paper?: "58" | "80"; bold?: boolean; textSize?: DevicePrinterTextSize }): number[] {
+  const dots = options.paper === "80" ? 576 : 384;
+  const header = [ESC, 0x40, GS, 0x4c, 0x00, 0x00, GS, 0x57, dots & 0xff, dots >> 8, ESC, 0x4d, 0x00];
+  if (options.bold !== false) header.push(ESC, 0x45, 0x01, ESC, 0x47, 0x01);
+  if (options.textSize === "besar") header.push(GS, 0x21, 0x01);
+  return header;
+}
+
 /** Teks struk (bisa berisi kode laci ESC p) → byte ESC/POS siap kirim. */
 export function escPosJob(
   content: string,
-  options: { copies?: number; cut?: boolean; feedLines?: number } = {},
+  options: {
+    copies?: number;
+    cut?: boolean;
+    feedLines?: number;
+    paper?: "58" | "80";
+    bold?: boolean;
+    textSize?: DevicePrinterTextSize;
+  } = {},
 ): Uint8Array {
   const copies = Math.min(5, Math.max(1, Math.round(options.copies ?? 1)));
   const feed = Math.min(10, Math.max(0, options.feedLines ?? 4));
   const body: number[] = [];
-  // Spasi tak-putus (dari format Rupiah Intl) → spasi biasa agar aman di semua codepage.
-  for (const ch of content.replace(/\u00a0/g, " ")) {
+  for (const ch of toPrinterText(content)) {
     const code = ch.codePointAt(0) ?? 63;
     body.push(code <= 0xff ? code : 63); // di luar latin1 → "?"
   }
+  const header = escPosHeader(options);
   const out: number[] = [];
   for (let i = 0; i < copies; i += 1) {
-    out.push(ESC, 0x40, ...body, ...Array(feed).fill(0x0a));
+    out.push(...header, ...body, ...Array(feed).fill(0x0a));
     if (options.cut) out.push(GS, 0x56, 0x42, 0x00); // potong sebagian + umpan
   }
   return Uint8Array.from(out);
@@ -464,18 +518,20 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
       reject(new DevicePrinterError("NOT_SUPPORTED", "Dialog print tidak tersedia."));
       return;
     }
-    const escaped = stripControlCodes(content)
+    const escaped = toPrinterText(stripControlCodes(content))
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    // Ukuran huruf dihitung agar `columns` karakter pas selebar area cetak.
-    const printableMm = widthMm - 6;
+    // Area cetak nyata printer thermal: 58 mm → ±48 mm, 80 mm → ±72 mm (bukan
+    // selebar kertas). Huruf dihitung agar `columns` karakter pas di area itu.
+    const printableMm = widthMm === 80 ? 72 : 48;
     const fontMm = (printableMm / columns / 0.6).toFixed(2);
+    const weight = config.bold === false ? 400 : 700;
     doc.open();
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk</title><style>
       @page { size: ${widthMm}mm auto; margin: 0 }
       html, body { margin: 0; padding: 0; background: #fff; color: #000 }
-      pre { margin: 0; padding: 2mm 3mm; width: ${printableMm}mm; font: ${fontMm}mm/1.25 "Courier New", monospace; white-space: pre; }
+      pre { margin: 0; padding: 2mm 0 2mm ${((widthMm - printableMm) / 2).toFixed(1)}mm; width: ${printableMm}mm; font: ${weight} ${fontMm}mm/1.3 "Courier New", monospace; white-space: pre; -webkit-print-color-adjust: exact; }
     </style></head><body><pre>${escaped}</pre></body></html>`);
     doc.close();
     const cleanup = () => window.setTimeout(() => iframe.remove(), 500);

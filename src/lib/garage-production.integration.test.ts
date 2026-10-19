@@ -140,13 +140,10 @@ describe("Production Hub — routing & identitas", () => {
 });
 
 describe("Production Hub — hak workstation & QC", () => {
-  it("Waiter & Kasir tanpa workstation tidak boleh MULAI/READY; Bar tidak boleh tiket Dapur", async () => {
+  it("Waiter tidak boleh MULAI/READY; Bar tidak boleh tiket Dapur; Kasir POS boleh semua station", async () => {
     const res = await order("4", "ANDI", [{ itemId: "itm-food", qty: 1 }]);
     const food = await ticketOf(res.orderNo, "Food");
     await expect(svc.updateKitchenStatus(food.ticketNo, "cooking", waiter())).rejects.toBeInstanceOf(
-      svc.ProductionPermissionError,
-    );
-    await expect(svc.updateKitchenStatus(food.ticketNo, "cooking", kasir())).rejects.toBeInstanceOf(
       svc.ProductionPermissionError,
     );
     await expect(svc.updateKitchenStatus(food.ticketNo, "cooking", bar())).rejects.toBeInstanceOf(
@@ -154,6 +151,22 @@ describe("Production Hub — hak workstation & QC", () => {
     );
     const started = await svc.updateKitchenStatus(food.ticketNo, "cooking", dapur());
     expect(started.status).toBe("cooking");
+  });
+
+  it("Kasir POS memproses tiket Bar & Dapur: MULAI → READY (QC) → serah-terima", async () => {
+    const res = await order("9", "KASIRPROSES", [
+      { itemId: "itm-coffee", qty: 1 },
+      { itemId: "itm-food", qty: 1 },
+    ]);
+    for (const station of ["Bar", "Food"] as const) {
+      const ticket = await ticketOf(res.orderNo, station);
+      await prod.productionTicketAction(ticket.ticketNo, "start", kasir());
+      const ready = await prod.productionTicketAction(ticket.ticketNo, "ready", kasir(), { qcConfirmed: true });
+      expect(ready.status).toBe("ready");
+      await prod.productionHandover(ticket.ticketNo, null, kasir());
+      const claimed = await svc.claimKitchenTicket(ticket.ticketNo, waiter());
+      expect(claimed.claimedBy).toBe(WAITER);
+    }
   });
 
   it("READY wajib konfirmasi QC", async () => {

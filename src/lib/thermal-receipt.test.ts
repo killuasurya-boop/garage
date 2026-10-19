@@ -89,3 +89,25 @@ describe("Struk khusus Delivery", () => {
     expect(content).not.toContain("Ongkir");
   });
 });
+
+describe("struk cetak ulang — tidak ada teks terpotong", () => {
+  const receipt = {
+    orderNo: "POS-20261019-0263",
+    items: [{ name: "Ayam Penyet", qty: 1, price: 19_000 }],
+    subtotal: 19_000,
+    total: 19_000,
+    isReprint: true,
+    invoiceWebUrl: "https://garagecoffee.id/invoice/UHs3xCyuA-btvsgcThy1x9Qk2Lm8",
+  };
+
+  it("catatan salinan dibungkus utuh, link invoice utuh, setiap baris ≤ lebar kertas", () => {
+    for (const width of [30, 32, 48]) {
+      const content = buildThermalContent(receipt as never, { width });
+      const lines = content.split("\r\n");
+      expect(lines.every((line) => line.length <= width)).toBe(true);
+      const joined = lines.map((line) => line.trim()).join(" ");
+      expect(joined).toContain("(salinan struk - bukan transaksi baru)");
+      expect(lines.map((line) => line.trim()).join("")).toContain(receipt.invoiceWebUrl);
+    }
+  });
+});

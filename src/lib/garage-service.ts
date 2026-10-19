@@ -12089,7 +12089,7 @@ export class ProductionPermissionError extends Error {
   constructor(public readonly station: string) {
     super(
       `Akun ini tidak ditugaskan ke workstation ${productionStationLabel(station)}. ` +
-        "READY hanya boleh ditandai oleh Bar/Dapur (atau Manajer).",
+        "READY hanya boleh ditandai oleh Bar/Dapur, Kasir, atau Manajer.",
     );
     this.name = "ProductionPermissionError";
   }

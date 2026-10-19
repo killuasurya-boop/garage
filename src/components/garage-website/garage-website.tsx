@@ -2556,7 +2556,7 @@ function Hero({ landingHero }) {
           <Reveal delay={900} className="hero-bottom-left">
             <div className="eyebrow" style={{ marginBottom: 18 }}>Tentang kami</div>
             <p style={{ fontSize: 18, lineHeight: 1.5, color: "var(--fg-dim)", maxWidth: 360 }}>
-              Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif — untuk mereka yang betah duduk
+              Kopi, makanan, dan tempat nongkrong bernuansa garasi industrial — untuk mereka yang betah duduk
               lama setelah seruputan terakhir.
             </p>
           </Reveal>
@@ -4802,10 +4802,10 @@ function About() {
           <div>
             <Reveal as="div" className="eyebrow" style={{ marginBottom: 28 }}>Identitas</Reveal>
             <Reveal as="div" delay={100} className="mono" style={{ marginBottom: 8 }}>SIAPA KAMI</Reveal>
-            <Reveal mask as="h2" delay={200} className="display" aria-label="Tempat kopi bertemu budaya otomotif." style={{ fontSize: "clamp(40px, 5vw, 78px)" }}>
+            <Reveal mask as="h2" delay={200} className="display" aria-label="Tempat kopi bertemu cerita Tebing Tinggi." style={{ fontSize: "clamp(40px, 5vw, 78px)" }}>
               <span style={{ display: "block" }}>Tempat kopi</span>
-              <span style={{ display: "block" }}>bertemu <span style={{ color: "var(--red)" }}>budaya</span></span>
-              <span style={{ display: "block" }}>otomotif.</span>
+              <span style={{ display: "block" }}>bertemu <span style={{ color: "var(--red)" }}>cerita</span></span>
+              <span style={{ display: "block" }}>Tebing Tinggi.</span>
             </Reveal>
 
             <Reveal delay={700} as="div" style={{ marginTop: 40, display: "flex", flexDirection: "column", gap: 24, maxWidth: 460 }}>
@@ -4836,14 +4836,14 @@ function About() {
                 border: "1px solid var(--line)",
                 overflow: "hidden",
               }}>
-                {/* coffee cup background image */}
+                {/* foto gedung Garage Coffee (foto gelas lama bertuliskan "Coffee & Motor" diganti) */}
                 <div style={{
                   position: "absolute", inset: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   <img
-                    src="/garage-website/assets/coffee-cup.png"
-                    alt="Garage Coffee Cup"
+                    src="/grand-opening/garage-venue.webp"
+                    alt="Gedung Garage Coffee Tebing Tinggi"
                     loading="lazy"
                     decoding="async"
                     style={{
@@ -4851,8 +4851,8 @@ function About() {
                       height: "100%",
                       objectFit: "cover",
                       objectPosition: "center",
-                      opacity: 0.35,
-                      filter: "brightness(0.7) contrast(1.2)",
+                      opacity: 0.55,
+                      filter: "brightness(0.8) contrast(1.1)",
                     }}
                   />
                 </div>
@@ -4881,11 +4881,11 @@ function About() {
                       textTransform: "uppercase",
                       color: "var(--fg)",
                     }}>
-                      Dibangun untuk rasa,<br/>jiwa otomotif, dan<br/>komunitas.
+                      Dibangun untuk rasa,<br/>suasana, dan<br/>komunitas.
                     </p>
                     <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
                       <span className="tag">Industrial</span>
-                      <span className="tag">Otomotif</span>
+                      <span className="tag">Nongkrong</span>
                       <span className="tag">Slow craft</span>
                     </div>
                   </div>
@@ -6340,7 +6340,7 @@ function Footer() {
             <LogoImage variant="wordmark" height={56} />
             <div className="mono" style={{ marginTop: 8 }}>COFFEE · TEBING TINGGI · EST. 2026</div>
             <p style={{ marginTop: 28, color: "var(--fg-dim)", maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
-              Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Buka setiap hari.
+              Kopi, makanan, dan tempat nongkrong bernuansa garasi industrial. Buka setiap hari.
             </p>
             <p style={{ marginTop: 16, color: "var(--fg-dim)", maxWidth: 420, fontSize: 13, lineHeight: 1.55 }}>
               {biz.address}
@@ -6516,7 +6516,7 @@ function FooterMvp() {
             <LogoImage variant="wordmark" height={56} />
             <div className="mono footer-mvp-est">COFFEE · TEBING TINGGI · EST. 2026</div>
             <p className="footer-mvp-copy">
-              Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Pesan via QR,
+              Kopi, makanan, dan tempat nongkrong bernuansa garasi industrial. Pesan via QR,
               takeaway, reservasi meja, dan event komunitas dalam satu tempat.
             </p>
             <div className="footer-mvp-social">

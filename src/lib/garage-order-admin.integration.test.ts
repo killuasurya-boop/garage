@@ -121,6 +121,12 @@ describe("order & invoice admin", () => {
     const activeList = await svc.listInvoicesForFinance({ outletId });
     expect(activeList.rows.map((r: any) => r.orderNo)).not.toContain(order.orderNo);
     await svc.setOrderArchived(order.id, { archived: false, reason: "Dipulihkan" }, as("Owner"));
+    // Cari dengan nomor invoice (INV-...) & koreksi nomor meja invoice selesai.
+    const byInvoice = await svc.listInvoicesForFinance({ outletId, search: `INV-${order.orderNo}` });
+    expect(byInvoice.rows.map((r: any) => r.orderNo)).toContain(order.orderNo);
+    await svc.updateOrderInfo(order.id, { tableNumber: "7", reason: "Salah catat meja" }, as("Manajer"));
+    const [moved] = await rowsWhere(t.schema.orders, t.schema.orders.id, order.id);
+    expect(moved.tableLabel).toBe("Meja 07");
 
     const history = await svc.getOrderChangeHistory(order.id, as("Owner"));
     const actions = history.map((h: any) => h.action).join("|");
@@ -129,7 +135,7 @@ describe("order & invoice admin", () => {
     expect(actions).toMatch(/Edit order/);
     expect(actions).toMatch(/Arsip invoice/);
     expect(actions).toMatch(/Pulihkan invoice/);
-    const edit = history.find((h: any) => /Edit order/.test(h.action));
+    const edit = history.find((h: any) => /Edit order/.test(h.action) && h.metadata?.after?.customerName);
     expect(edit.metadata.before.customerName).toBe("Eka");
     expect(edit.metadata.after.customerName).toBe("Eka Putri");
 

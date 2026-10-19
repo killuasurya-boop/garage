@@ -5678,7 +5678,8 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
     }
   }
 
-  const searchTerm = filter.search?.trim();
+  // "INV-POS-123" (nomor invoice) dicari sebagai nomor order "POS-123".
+  const searchTerm = filter.search?.trim().replace(/^inv-/i, "");
   if (searchTerm) {
     const like = `%${searchTerm}%`;
     const searchClause = or(
@@ -20782,7 +20783,13 @@ export async function confirmOrderPayment(
 /** Edit info order (nama, HP, catatan) — nominal & item tidak bisa diubah. */
 export async function updateOrderInfo(
   idOrOrderNo: string,
-  input: { customerName?: string | null; customerPhone?: string | null; customerNote?: string | null; reason: string },
+  input: {
+    customerName?: string | null;
+    customerPhone?: string | null;
+    customerNote?: string | null;
+    tableNumber?: string | null;
+    reason: string;
+  },
   garage: GarageSession,
 ) {
   assertOwnerOrManager(garage);
@@ -20794,6 +20801,21 @@ export async function updateOrderInfo(
     const patch: Partial<typeof orders.$inferInsert> = {};
     const before: Record<string, string | null> = {};
     const after: Record<string, string | null> = {};
+    // Nomor meja: koreksi catatan untuk invoice yang sudah selesai. Tagihan yang
+    // masih berjalan dipindah lewat "Pindah meja" (POS/Waiter) agar tiket & sesi ikut.
+    if (input.tableNumber !== undefined && input.tableNumber !== null && input.tableNumber.trim()) {
+      const parsed = parseTableNumber(input.tableNumber);
+      if (!parsed) throw new Error("Nomor meja tidak valid (01–50).");
+      const nextLabel = tableLabelFor(parsed);
+      if (nextLabel !== order.tableLabel) {
+        if (!["paid", "voided", "rejected", "cancelled", "refunded"].includes(order.status)) {
+          throw new Error("Tagihan masih berjalan — pindahkan meja lewat Pindah meja di POS/Waiter.");
+        }
+        before.tableLabel = order.tableLabel;
+        after.tableLabel = nextLabel;
+        patch.tableLabel = nextLabel;
+      }
+    }
     const fields = [
       ["customerName", input.customerName],
       ["customerPhone", input.customerPhone],

@@ -111,6 +111,7 @@ export function OrderAdminActions({
   const [name, setName] = useState(target.customerName ?? "");
   const [phone, setPhone] = useState(target.customerPhone ?? "");
   const [note, setNote] = useState(target.customerNote ?? "");
+  const [table, setTable] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
@@ -127,6 +128,7 @@ export function OrderAdminActions({
     setName(target.customerName ?? "");
     setPhone(target.customerPhone ?? "");
     setNote(target.customerNote ?? "");
+    setTable("");
     setMethod(target.paymentMethod && !/qris/i.test(target.paymentMethod) ? "QRIS" : "Cash");
     setMode(next);
     if (next === "history") {
@@ -155,6 +157,7 @@ export function OrderAdminActions({
           customerName: name,
           customerPhone: phone,
           customerNote: note,
+          tableNumber: table.trim() || null,
           reason,
         });
         done(`Order ${target.orderNo} diperbarui.`);
@@ -217,7 +220,7 @@ export function OrderAdminActions({
     history: "Riwayat perubahan",
   };
   const descriptions: Record<Mode, string> = {
-    edit: "Ubah nama, HP, atau catatan. Nominal & item tidak bisa diubah (pakai Refund/Batal).",
+    edit: "Ubah nama, HP, catatan, atau koreksi nomor meja. Nominal & item tidak bisa diubah (pakai Refund/Batal).",
     method: `Hanya metode yang berubah (tanpa transaksi baru, total tetap ${currency.format(target.total)}). Shift pembayaran harus masih buka.`,
     revert:
       "Untuk pelunasan yang salah input. Status kembali Pending, pembayaran tidak dihapus, total tetap. BUKAN refund — tidak ada uang keluar. Hanya bila shift pembayaran masih buka.",
@@ -335,6 +338,21 @@ export function OrderAdminActions({
                       No. HP / WhatsApp
                       <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="h-11" inputMode="tel" maxLength={30} />
                     </label>
+                    {target.paymentStatus !== "pending" ? (
+                      <label className="block space-y-1 text-sm font-semibold text-[#e4e4ea]">
+                        Koreksi nomor meja (kosong = tetap {target.tableLabel ?? "-"})
+                        <Input
+                          value={table}
+                          onChange={(e) => setTable(e.target.value)}
+                          className="h-11"
+                          inputMode="numeric"
+                          maxLength={4}
+                          placeholder="mis. 7"
+                        />
+                      </label>
+                    ) : (
+                      <p className="text-xs text-[#c4c4cc]">Tagihan masih berjalan — pindah meja lewat tombol Pindah meja di POS/Waiter.</p>
+                    )}
                     <label className="block space-y-1 text-sm font-semibold text-[#e4e4ea]">
                       Catatan
                       <Input value={note} onChange={(e) => setNote(e.target.value)} className="h-11" maxLength={240} />

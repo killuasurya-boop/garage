@@ -202,6 +202,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [method, setMethod] = useState<string>("all");
+  const [orderStatus, setOrderStatus] = useState<string>("all");
   const [channelGroup, setChannelGroup] = useState<string>("all");
   const [archived, setArchived] = useState<"exclude" | "only">("exclude");
   const [notice, setNotice] = useState<string | null>(null);
@@ -221,13 +222,14 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
     if (search.trim()) params.set("search", search.trim());
     if (status !== "all") params.set("paymentStatus", status);
     if (method !== "all") params.set("paymentMethod", method);
+    if (orderStatus !== "all") params.set("status", orderStatus);
     if (channelGroup !== "all") params.set("channelGroup", channelGroup);
     if (archived === "only") params.set("archived", "only");
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
     params.set("limit", "100");
     return params.toString();
-  }, [search, status, method, channelGroup, archived, dateFrom, dateTo]);
+  }, [search, status, method, orderStatus, channelGroup, archived, dateFrom, dateTo]);
 
   // Membaca via cache-aware hook. Auto-refetch saat tag `orders` di-invalidate
   // (mis. setelah void order / order baru di modul lain). `load` = refetch.
@@ -289,7 +291,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <Input
                 className="pl-9"
-                placeholder="Nomor order, nama, HP, atau meja…"
+                placeholder="No invoice/order, nama, HP, atau meja…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -330,6 +332,25 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
                 <SelectItem value="QRIS">QRIS</SelectItem>
                 <SelectItem value="Transfer">Transfer</SelectItem>
                 <SelectItem value="E-Wallet">E-Wallet</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-400">
+              Status order
+            </label>
+            <Select value={orderStatus} onValueChange={setOrderStatus}>
+              <SelectTrigger data-testid="history-filter-order-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua order</SelectItem>
+                <SelectItem value="pending_cashier">Menunggu kasir</SelectItem>
+                <SelectItem value="accepted">Diproses</SelectItem>
+                <SelectItem value="awaiting_payment">Menunggu bayar</SelectItem>
+                <SelectItem value="paid">Selesai (lunas)</SelectItem>
+                <SelectItem value="voided">Dibatalkan</SelectItem>
+                <SelectItem value="rejected">Ditolak</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -11,6 +11,7 @@ const editSchema = z.object({
   customerName: z.string().trim().max(80).nullable().optional(),
   customerPhone: z.string().trim().max(30).nullable().optional(),
   customerNote: z.string().trim().max(240).nullable().optional(),
+  tableNumber: z.string().trim().max(4).nullable().optional(),
   reason: z.string().trim().min(3, "Alasan minimal 3 karakter.").max(200),
 });
 

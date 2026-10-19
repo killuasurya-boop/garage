@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/pos",
     name: "Garage POS",
     short_name: "Garage POS",
-    description: "Fullscreen POS tablet untuk Garage Coffee & Motor.",
+    description: "Fullscreen POS tablet untuk Garage Coffee.",
     start_url: "/pos",
     scope: "/",
     display: "fullscreen",
@@ -15,13 +15,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#08080b",
     icons: [
       {
-        src: "/garage-brand/logo-icon.png",
+        src: "/garage-brand/garage-coffee-icon.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/garage-brand/logo-icon.png",
+        src: "/garage-brand/garage-coffee-icon.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
@@ -35,7 +35,7 @@ export default function manifest(): MetadataRoute.Manifest {
         url: "/pos",
         icons: [
           {
-            src: "/garage-brand/logo-icon.png",
+            src: "/garage-brand/garage-coffee-icon.png",
             sizes: "512x512",
             type: "image/png",
           },

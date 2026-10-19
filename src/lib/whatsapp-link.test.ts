@@ -43,7 +43,7 @@ describe("pesan WhatsApp", () => {
     const list = parseBankAccounts("BNI | 1234567890 | GARAGE Coffee\nbca|9876543210\nbaris tanpa nomor\n");
     expect(list).toEqual([
       { id: "BNI-0", bank: "BNI", number: "1234567890", holder: "GARAGE Coffee" },
-      { id: "BCA-1", bank: "BCA", number: "9876543210", holder: "GARAGE Coffee & Motor" },
+      { id: "BCA-1", bank: "BCA", number: "9876543210", holder: "GARAGE Coffee" },
     ]);
   });
 });

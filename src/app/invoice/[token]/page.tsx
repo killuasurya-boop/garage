@@ -29,8 +29,8 @@ import { InvoiceQrCode } from "./invoice-qr";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 
 export const metadata: Metadata = {
-  title: "Invoice Tracking - GARAGE Coffee & Motor",
-  description: "Tracking invoice customer GARAGE Coffee & Motor.",
+  title: "Invoice Tracking - GARAGE Coffee",
+  description: "Tracking invoice customer GARAGE Coffee.",
 };
 
 export const runtime = "nodejs";
@@ -394,8 +394,8 @@ export default async function InvoiceTrackingPage({
       {/* ─── PRINT HEADER (logo) ─── */}
       <div className="print-only print-logo mb-3 text-center" style={{ display: "none" }}>
         <Image
-          src="/garage-brand/logo-website.png"
-          alt="GARAGE Coffee & Motor"
+          src="/garage-brand/garage-coffee-logo-dark.png"
+          alt="GARAGE Coffee"
           width={240}
           height={80}
           className="mx-auto h-12 object-contain"
@@ -410,7 +410,7 @@ export default async function InvoiceTrackingPage({
           <div className="mb-5 flex items-start justify-between gap-4 print-only invoice-header-print" style={{ display: "none" }}>
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-[#f5a742]">
-                GARAGE Coffee &amp; Motor
+                GARAGE Coffee
               </p>
               <p className="mt-1 text-xs text-gray-500">
                 Outlet: {invoice.tableLabel}
@@ -428,8 +428,8 @@ export default async function InvoiceTrackingPage({
               {/* Desktop logo */}
               <div className="hidden sm:block">
                 <Image
-                  src="/garage-brand/logo-website.png"
-                  alt="GARAGE Coffee & Motor"
+                  src="/garage-brand/garage-coffee-logo.png"
+                  alt="GARAGE Coffee"
                   width={240}
                   height={80}
                   className="h-10 w-auto object-contain"
@@ -438,7 +438,7 @@ export default async function InvoiceTrackingPage({
               {/* Mobile logo */}
               <div className="sm:hidden">
                 <Image
-                  src="/garage-brand/logo-icon.png"
+                  src="/garage-brand/garage-coffee-icon.png"
                   alt="GARAGE"
                   width={80}
                   height={80}
@@ -446,7 +446,7 @@ export default async function InvoiceTrackingPage({
                 />
               </div>
               <p className="mt-3 font-mono text-xs uppercase tracking-[0.18em] text-[#f5a742]">
-                GARAGE Coffee &amp; Motor
+                GARAGE Coffee
               </p>
 
               {/* Outlet info */}
@@ -913,7 +913,7 @@ export default async function InvoiceTrackingPage({
             <div className="mb-3 flex items-center justify-center gap-2">
               <Star className="size-3 text-[#f5a742]" />
               <span className="text-xs font-semibold uppercase tracking-widest text-[#f5a742]">
-                GARAGE Coffee &amp; Motor
+                GARAGE Coffee
               </span>
               <Star className="size-3 text-[#f5a742]" />
             </div>

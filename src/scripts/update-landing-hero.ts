@@ -40,7 +40,7 @@ async function run() {
     publicUrl,
     width: imageInfo.width,
     height: imageInfo.height,
-    alt: "Premium Café Racer Motorcycle and Espresso Crema in Garage Coffee & Motor",
+    alt: "Premium Café Racer Motorcycle and Espresso Crema in Garage Coffee",
     sizeBytes: imageInfo.size,
     mimeType: "image/webp",
     version: "premium-v1",

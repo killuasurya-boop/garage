@@ -1166,7 +1166,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
               <div className="rounded-md border border-[#34343c] bg-[#f4f4f5] p-4 font-mono text-xs text-[#111116]">
                 <div className="mx-auto max-w-[280px] space-y-1">
                   <p className="text-center text-sm font-black">{merged.brandName || "GARAGE"}</p>
-                  <p className="text-center">{merged.brandTagline || "Coffee & Motor"}</p>
+                  <p className="text-center">{merged.brandTagline || "Coffee · Tebing Tinggi"}</p>
                   {merged.outletAddress ? <p className="text-center">{merged.outletAddress}</p> : null}
                   {merged.outletPhone ? <p className="text-center">{merged.outletPhone}</p> : null}
                   {merged.npwp ? <p className="text-center">NPWP {merged.npwp}</p> : null}

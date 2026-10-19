@@ -32,11 +32,11 @@ function isAcceptedImage(file: File) {
 
 function normalizeAlt(value: FormDataEntryValue | null) {
   if (typeof value !== "string") {
-    return "Hero Garage Coffee & Motor";
+    return "Hero Garage Coffee";
   }
 
   const clean = value.replace(/\s+/g, " ").trim();
-  return clean.slice(0, 140) || "Hero Garage Coffee & Motor";
+  return clean.slice(0, 140) || "Hero Garage Coffee";
 }
 
 function timestampVersion(date = new Date()) {

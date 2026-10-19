@@ -41,7 +41,7 @@ export async function generateMetadata(): Promise<Metadata> {
       url: PAGE_PATH,
       type: "website",
       locale: "id_ID",
-      siteName: "GARAGE Coffee & Motor",
+      siteName: "GARAGE Coffee",
       images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: `${event.title} — ${when}` }],
     },
     twitter: { card: "summary_large_image", title: event.title, description, images: [OG_IMAGE] },
@@ -65,6 +65,8 @@ export default async function GrandOpeningPage() {
   const about = event.about || business?.tagline || null;
   const pageUrl = `${SITE_URL}${PAGE_PATH}`;
   const ended = eventPhase(event) === "ended";
+  // Logo resmi mitra (dikirim owner, Okt 2026); sponsor lain tampil sebagai teks.
+  const sponsorLogo = event.sponsorName && /^black$/i.test(event.sponsorName.trim()) ? "/grand-opening/sponsor-black.webp" : null;
   // Promo hanya ditawarkan sebelum/selama acara.
   const promoText = ended ? null : event.promoText;
   const performers = event.agenda.map((item) => item.title);
@@ -113,8 +115,8 @@ export default async function GrandOpeningPage() {
       {/* NAV */}
       <header className="absolute inset-x-0 top-0 z-20 py-5">
         <div className="gp-wrap flex items-center justify-between gap-6">
-          <Link href="/" aria-label="Garage Coffee — beranda" className="inline-flex rounded-md bg-[#e9e9ec] px-3 py-1.5">
-            <Image src="/garage-brand/logo-website.png" alt="Garage Coffee & Motor" width={150} height={48} className="h-9 w-auto object-contain" priority />
+          <Link href="/" aria-label="Garage Coffee — beranda" className="inline-flex items-center">
+            <Image src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee" width={170} height={40} className="h-9 w-auto object-contain" priority />
           </Link>
           <nav aria-label="Navigasi acara" className="gp-nav text-xs font-bold uppercase tracking-[0.24em]">
             <a href="#rundown" className="py-2.5 text-[#d8d1c3] hover:text-white">Rundown</a>
@@ -244,6 +246,27 @@ export default async function GrandOpeningPage() {
         </div>
       </section>
 
+      {/* SPONSOR */}
+      {event.sponsorName ? (
+        <section aria-label="Sponsor" className="border-y border-[rgba(239,230,214,0.08)] bg-[#070708] py-10">
+          <div className="gp-wrap flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-center">
+            <span className="gp-label">Supported by</span>
+            {sponsorLogo ? (
+              <Image
+                src={sponsorLogo}
+                alt={event.sponsorName}
+                width={720}
+                height={957}
+                className="h-auto w-[150px] sm:w-[180px]"
+                data-testid="event-sponsor-logo"
+              />
+            ) : (
+              <span className="gp-display text-[48px] tracking-[0.04em] text-white">{event.sponsorName}</span>
+            )}
+          </div>
+        </section>
+      ) : null}
+
       {/* RUNDOWN */}
       <section id="rundown" className="gp-sec relative overflow-hidden border-t border-[rgba(239,230,214,0.08)] bg-[radial-gradient(60%_60%_at_70%_50%,rgba(224,38,47,0.16),transparent_70%),#0d0d0f] py-[120px]">
         <span className="gp-laser l2" style={{ left: "40%", top: "14%", width: "60%" }} />
@@ -342,8 +365,8 @@ export default async function GrandOpeningPage() {
         <div className="gp-wrap flex flex-col gap-11">
           <div className="gp-foot">
             <div className="flex flex-col gap-4">
-              <span className="inline-flex w-fit rounded-md bg-[#e9e9ec] px-3 py-2">
-                <Image src="/garage-brand/logo-website.png" alt="Garage Coffee & Motor" width={180} height={57} className="h-10 w-auto object-contain" />
+              <span className="inline-flex w-fit">
+                <Image src="/garage-brand/garage-coffee-logo.png" alt="Garage Coffee" width={200} height={47} className="h-10 w-auto object-contain" />
               </span>
               <p className="max-w-[340px] text-sm leading-relaxed text-[#a9a49a]">Tempat baru untuk menikmati kopi, bertemu teman, dan merayakan cerita bersama.</p>
             </div>
@@ -355,7 +378,11 @@ export default async function GrandOpeningPage() {
             {event.sponsorName ? (
               <div className="flex flex-col gap-3" data-testid="event-sponsor">
                 <span className="gp-label">Supported by</span>
-                <span className="gp-display text-[44px] tracking-[0.04em] text-white">{event.sponsorName}</span>
+                {sponsorLogo ? (
+                  <Image src={sponsorLogo} alt={event.sponsorName} width={720} height={957} className="h-auto w-[132px]" />
+                ) : (
+                  <span className="gp-display text-[44px] tracking-[0.04em] text-white">{event.sponsorName}</span>
+                )}
               </div>
             ) : null}
           </div>

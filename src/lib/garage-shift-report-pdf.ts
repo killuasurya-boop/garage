@@ -53,7 +53,7 @@ export async function generateShiftReportPdf(
         .font("Helvetica-Bold")
         .fontSize(18)
         .fillColor("#111")
-        .text("GARAGE COFFEE & MOTOR", { align: "left" });
+        .text("GARAGE COFFEE", { align: "left" });
       doc
         .font("Helvetica")
         .fontSize(10)

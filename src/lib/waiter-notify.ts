@@ -125,7 +125,7 @@ export function showBrowserNotify(title: string, body: string, tag?: string) {
   }
   // Lewat service worker: `new Notification()` melempar "Illegal constructor"
   // di Chrome Android. Tag per kejadian supaya notifikasi kedua tidak menimpa.
-  const options = { body, tag: tag ?? `garage-waiter-${Date.now()}`, icon: "/garage-brand/logo-icon.png" };
+  const options = { body, tag: tag ?? `garage-waiter-${Date.now()}`, icon: "/garage-brand/garage-coffee-icon.png" };
   if ("serviceWorker" in navigator) {
     void navigator.serviceWorker
       .getRegistration("/")

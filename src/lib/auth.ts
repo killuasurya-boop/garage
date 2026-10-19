@@ -95,7 +95,7 @@ const sessionMaxHours = Number(process.env.GARAGE_SESSION_EXPIRES_HOURS ?? 24);
 const sessionExpiresInSeconds = Math.max(1, sessionMaxHours) * 60 * 60;
 
 export const auth = betterAuth({
-  appName: "Garage Coffee & Motor OS",
+  appName: "Garage Coffee OS",
   baseURL: process.env.BETTER_AUTH_URL ?? fallbackUrl,
   secret: betterAuthSecret(),
   database: drizzleAdapter(createLazyDb(), {
@@ -126,7 +126,7 @@ export const auth = betterAuth({
   },
   plugins: [
     twoFactor({
-      issuer: "Garage Coffee & Motor",
+      issuer: "Garage Coffee",
     }),
   ],
   hooks: {

@@ -260,10 +260,10 @@ const VoiceStatusBadge = dynamic(
   { loading: PosModuleFallback },
 );
 
-const GARAGE_BRAND_LOGO_SRC = "/garage-brand/logo-website.png";
-const GARAGE_BRAND_LOGO_WIDTH = 1024;
-const GARAGE_BRAND_LOGO_HEIGHT = 325;
-const GARAGE_BUSINESS_NAME = "Garage Coffee & Motor";
+const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
+const GARAGE_BRAND_LOGO_WIDTH = 1200;
+const GARAGE_BRAND_LOGO_HEIGHT = 282;
+const GARAGE_BUSINESS_NAME = "Garage Coffee";
 type GarageThemeMode = "dark" | "bright";
 
 type ManualDiscount = {
@@ -6727,8 +6727,8 @@ export function PosView({
                         <div className="h-1.5 bg-gradient-to-r from-[#d11a2a] via-[#f5a742] to-[#111116]" />
                         <div className="flex items-center justify-between gap-3 p-3">
                           <Image
-                            src={GARAGE_BRAND_LOGO_SRC}
-                            alt="Garage Coffee & Motor"
+                            src="/garage-brand/garage-coffee-logo-dark.png"
+                            alt="Garage Coffee"
                             width={GARAGE_BRAND_LOGO_WIDTH}
                             height={GARAGE_BRAND_LOGO_HEIGHT}
                             sizes="112px"
@@ -6774,7 +6774,7 @@ export function PosView({
                         </p>
                         <div className="mx-3 mt-3 flex items-center justify-between border-t border-[#d8d0c4] py-3">
                           <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#5f554b]">
-                            GARAGE Coffee & Motor
+                            GARAGE Coffee
                           </span>
                           <strong className="text-lg text-[#d11a2a]">{selectedQrTable}</strong>
                         </div>
@@ -12383,7 +12383,7 @@ function ReceiptPreviewCard({ receipt }: { receipt: OrderReceipt }) {
   const serviceLabel = `Service ${receipt.settings?.serviceChargePct ?? 5}%`;
   const taxLabel = `PB1 ${receipt.settings?.taxPct ?? 10}%`;
   const brandName = receipt.settings?.brandName || "GARAGE";
-  const brandTagline = receipt.settings?.brandTagline || "Coffee & Motor";
+  const brandTagline = receipt.settings?.brandTagline || "Coffee · Tebing Tinggi";
   const footer = receipt.settings?.receiptFooter || "Terima kasih sudah mampir ke GARAGE.";
 
   return (
@@ -12454,7 +12454,7 @@ function PrintableReceipt({ receipt }: { receipt: OrderReceipt }) {
   const serviceLabel = `Service ${receipt.settings?.serviceChargePct ?? 5}%`;
   const taxLabel = `PB1 ${receipt.settings?.taxPct ?? 10}%`;
   const brandName = receipt.settings?.brandName || "GARAGE";
-  const brandTagline = receipt.settings?.brandTagline || "Coffee & Motor";
+  const brandTagline = receipt.settings?.brandTagline || "Coffee · Tebing Tinggi";
   const footer = receipt.settings?.receiptFooter || "Terima kasih";
 
   return (

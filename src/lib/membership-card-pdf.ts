@@ -87,7 +87,7 @@ function drawCardFace(doc: PDFKit.PDFDocument, input: MembershipCardPdfData, x: 
 
   if (title === "FRONT") {
     doc.font("Helvetica-Bold").fontSize(22).fillColor(theme.soft).text("GARAGE", x + 24, y + 24);
-    doc.font("Helvetica").fontSize(7).fillColor("#FFFFFF88").text("COFFEE & MOTOR · MEDAN", x + 26, y + 50);
+    doc.font("Helvetica").fontSize(7).fillColor("#FFFFFF88").text("COFFEE · MEDAN", x + 26, y + 50);
     doc.font("Helvetica-Bold").fontSize(9).fillColor(theme.accent).text("ACCESS TIER", x + width - 122, y + 25, { width: 92, align: "right" });
     doc.font("Helvetica-Bold").fontSize(20).fillColor(theme.soft).text(tier.toUpperCase(), x + width - 150, y + 40, { width: 120, align: "right" });
 
@@ -112,7 +112,7 @@ function drawCardFace(doc: PDFKit.PDFDocument, input: MembershipCardPdfData, x: 
       }
     }
     doc.font("Helvetica").fontSize(8).fillColor("#FFFFFF88").text("ACCESS POINT", x + 122, y + 112);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(theme.soft).text("garage-motor.id", x + 122, y + 126);
+    doc.font("Helvetica-Bold").fontSize(12).fillColor(theme.soft).text("garagecoffee.id", x + 122, y + 126);
     doc.font("Helvetica").fontSize(8).fillColor("#FFFFFF88").text("MEMBER GRADE", x + 122, y + 150);
     doc.font("Helvetica-Bold").fontSize(12).fillColor(theme.soft).text(`${tier.toUpperCase()} · ${theme.code}`, x + 122, y + 164);
     doc.font("Courier").fontSize(7).fillColor(theme.accent).text(`${code} · ${theme.concept}`, x + 24, y + 198, { width: 300 });

@@ -503,10 +503,10 @@ export const roleDisplayName: Record<Role, string> = {
 const receiptBrand = {
   deliveryWhatsapp: "085121552341",
   social: {
-    instagram: "GARAGE Coffee & Motor",
-    facebook: "GARAGE Coffee & Motor",
-    tiktok: "GARAGE Coffee & Motor",
-    youtube: "GARAGE Coffee & Motor",
+    instagram: "GARAGE Coffee",
+    facebook: "GARAGE Coffee",
+    tiktok: "GARAGE Coffee",
+    youtube: "GARAGE Coffee",
   },
 };
 
@@ -732,7 +732,7 @@ function makeFollowUpLinks(input: {
     promoUrl: makeWhatsappMessageUrl(
       input.phone,
       [
-        `Halo ${firstName}, terima kasih sudah order di GARAGE Coffee & Motor.`,
+        `Halo ${firstName}, terima kasih sudah order di GARAGE Coffee.`,
         `${favoriteLine} Untuk kunjungan berikutnya, tunjukkan pesan ini ke kasir untuk cek promo next visit.`,
         `Order ulang: ${orderAgainUrl}`,
       ].join("\n"),
@@ -740,7 +740,7 @@ function makeFollowUpLinks(input: {
     reviewUrl: makeWhatsappMessageUrl(
       input.phone,
       [
-        `Halo ${firstName}, terima kasih sudah mampir ke GARAGE Coffee & Motor.`,
+        `Halo ${firstName}, terima kasih sudah mampir ke GARAGE Coffee.`,
         "Kalau pengalaman hari ini oke, boleh bantu review kami di Google.",
         garageGoogleReviewUrl(),
       ].join("\n"),
@@ -13506,16 +13506,16 @@ export type BusinessInfo = {
 
 export const DEFAULT_BUSINESS_INFO: BusinessInfo = {
   tagline: "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE.",
-  // Kontak, alamat & link Maps dari listing Google Maps resmi (garage-location.ts). Buka 24 jam.
+  // Kontak, alamat & link Maps dari listing Google Maps resmi (garage-location.ts). Buka setiap hari 15.00–23.00 WIB.
   whatsapp: GARAGE_LOCATION.phone,
   instagram: "",
   email: "garagetebingtinggi@gmail.com",
   address: GARAGE_LOCATION.address,
-  hoursOpen: "00:00",
-  hoursClose: "23:59",
+  hoursOpen: "15:00",
+  hoursClose: "23:00",
   mapsUrl: GARAGE_LOCATION.mapsUrl,
   aboutText:
-    "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi.\n\nKami me-roasting dalam batch kecil. Buka pagi, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
+    "Dibangun untuk mereka yang menikmati ritual lambat — proses giling, seruputan pertama, dan obrolan yang tidak ingin selesai. Garage adalah bengkel yang menyamar jadi coffee shop, tempat material industrial bertemu seni meracik kopi.\n\nKami me-roasting dalam batch kecil. Buka sore, tutup larut. Tidak mengikuti tren — kami sedang membangun tempat yang layak ditempuh perjalanannya.",
 };
 
 const BUSINESS_INFO_KEY = "site.businessInfo";

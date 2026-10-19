@@ -185,7 +185,7 @@ async function buildFront(input: MembershipCardImageInput, theme: TierTheme) {
 
       <g transform="translate(58,58)">
         <text font-family="Anton, Impact, sans-serif" font-size="40" fill="${theme.text}" letter-spacing="6">GARAGE</text>
-        <text y="28" font-family="JetBrains Mono, monospace" font-size="13" fill="${theme.muted}" letter-spacing="4">COFFEE &amp; MOTOR · MEDAN</text>
+        <text y="28" font-family="JetBrains Mono, monospace" font-size="13" fill="${theme.muted}" letter-spacing="4">COFFEE · MEDAN</text>
       </g>
 
       <g transform="translate(${WIDTH - 360},58)" text-anchor="end">
@@ -261,7 +261,7 @@ function buildBack(input: MembershipCardImageInput, theme: TierTheme) {
       </g>
 
       <g transform="translate(58, ${HEIGHT - 56})">
-        <text font-family="JetBrains Mono, monospace" font-size="12" fill="${theme.muted}" letter-spacing="6">garage-motor.id</text>
+        <text font-family="JetBrains Mono, monospace" font-size="12" fill="${theme.muted}" letter-spacing="6">garagecoffee.id</text>
       </g>
     </svg>
   `;

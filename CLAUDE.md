@@ -53,10 +53,12 @@ The UI must feel like Garage Coffee & Motor operations:
 Use the existing Garage visual system. Avoid generic SaaS green/blue styling, marketing hero layouts, decorative blobs, and oversized landing-page composition.
 
 Logo usage:
-- Prefer the readable wide logo asset at `public/garage-logo-wide.png`.
-- Do not crop the Garage wordmark.
-- Render the wide logo with `object-contain` only. Use a light chrome/white backing on dark surfaces so the black wordmark stays readable.
-- Do not replace the primary app logo with the square social-media logo unless explicitly requested.
+- Brand is **Garage Coffee** (no longer "& Motor", owner Okt 2026).
+- Primary logo: `public/garage-brand/garage-coffee-logo.png` (transparent, silver/red — for dark surfaces, no light backing).
+- On white paper/PDF/light cards use `public/garage-brand/garage-coffee-logo-dark.png` (logo on its dark plate).
+- App icon: `public/garage-brand/garage-coffee-icon.png` (red triangle emblem).
+- Render logos with `object-contain` only; do not crop the wordmark.
+- Partner/sponsor logo BLACK (`public/grand-opening/sponsor-black.webp`) only on `/grand-opening` (behind the 21+ age gate), never on the homepage.
 
 ## Readability, Motion, And Scroll Policy
 

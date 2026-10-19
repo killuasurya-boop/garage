@@ -27,7 +27,7 @@ export function printWmsDoc(title: string, bodyHtml: string, meta?: string) {
   </style></head><body>
     <button class="noprint" onclick="window.print()" style="margin-bottom:14px;padding:9px 18px;background:#C8102E;color:#fff;border:0;border-radius:6px;font-weight:700;cursor:pointer">🖨 Cetak / Simpan PDF</button>
     <div class="hd">
-      <div><div class="brand">GARAGE Coffee &amp; Motor</div><h1>${escapeHtml(title)}</h1>${meta ? `<div class="sub">${escapeHtml(meta)}</div>` : ""}</div>
+      <div><div class="brand">GARAGE Coffee</div><h1>${escapeHtml(title)}</h1>${meta ? `<div class="sub">${escapeHtml(meta)}</div>` : ""}</div>
       <div class="sub" style="text-align:right">${tanggal}</div>
     </div>
     ${bodyHtml}

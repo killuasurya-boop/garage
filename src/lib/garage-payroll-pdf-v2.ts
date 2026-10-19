@@ -48,7 +48,7 @@ export async function generatePayrollSlipV2Pdf(data: PayrollSlipV2Data): Promise
       doc.on("error", reject);
 
       // Header
-      doc.fontSize(16).text("SLIP GAJI & FEE — GARAGE COFFEE & MOTOR", { align: "center" });
+      doc.fontSize(16).text("SLIP GAJI & FEE — GARAGE COFFEE", { align: "center" });
       doc.moveDown(0.3);
       doc.fontSize(9).text(`Periode: ${data.period}    Outlet: ${data.outletName}`, {
         align: "center",

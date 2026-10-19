@@ -53,7 +53,7 @@ export function MemberLevelCard({
             <h3 className="garage-display mt-2 text-5xl leading-none">{level}</h3>
           </div>
           <Image
-            src="/garage-brand/logo-icon.png"
+            src="/garage-brand/garage-coffee-icon.png"
             alt=""
             width={72}
             height={72}

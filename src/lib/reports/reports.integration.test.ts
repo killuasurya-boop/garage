@@ -149,7 +149,7 @@ describe("Laporan Pembelian Bahan Baku per divisi", () => {
     expect(csv.filename).toBe(`GARAGE_PEMBELIAN_BAHAN_BAKU_BAR_${today.slice(0, 7)}.csv`);
     const csvText = csv.body.toString("utf8");
     expect(csvText.charCodeAt(0)).toBe(0xfeff);
-    expect(csvText).toContain("GARAGE COFFEE & MOTOR");
+    expect(csvText).toContain("GARAGE COFFEE");
     expect(csvText).toContain("Laporan Pembelian Bahan Baku — Divisi Bar");
     expect(csvText).toMatch(/TOTAL,.*53000/);
 
@@ -250,7 +250,7 @@ describe("Laporan Keuangan", () => {
     await dump(pnl);
     expect(pnl.filename).toBe(`GARAGE_LAPORAN_LABA_RUGI_${today}.xlsx`);
     const book = await readXlsx(pnl.body);
-    expect(book.worksheets[0].getCell("A1").value).toBe("GARAGE COFFEE & MOTOR");
+    expect(book.worksheets[0].getCell("A1").value).toBe("GARAGE COFFEE");
 
     const rec = await reports.buildModuleReport({ module: "keuangan", type: "rekonsiliasi", range: { from: today, to: today }, division: "semua", outletId });
     expect(rec.title).toBe("Laporan Rekonsiliasi Kas & QRIS");

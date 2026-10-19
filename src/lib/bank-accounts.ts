@@ -12,6 +12,6 @@ export function parseBankAccounts(text: string | null | undefined): BankAccount[
       id: `${bank.toUpperCase()}-${index}`,
       bank: bank.toUpperCase().slice(0, 30),
       number: number.slice(0, 40),
-      holder: (holder || "GARAGE Coffee & Motor").slice(0, 80),
+      holder: (holder || "GARAGE Coffee").slice(0, 80),
     }));
 }

@@ -8,9 +8,9 @@ import { staffViewport } from "@/lib/staff-viewport";
 export const viewport = staffViewport;
 
 export const metadata: Metadata = {
-  title: "Garage Coffee & Motor OS",
+  title: "Garage Coffee OS",
   description:
-    "Operational OS for Garage Coffee & Motor with POS, inventory, finance, and audit backend.",
+    "Operational OS for Garage Coffee with POS, inventory, finance, and audit backend.",
 };
 
 // Akses session/DB saat render → opt-out static generation (build tanpa DB live).

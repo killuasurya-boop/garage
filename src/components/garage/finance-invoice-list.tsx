@@ -477,7 +477,7 @@ function InvoiceDetailModal({
     }
     const normalized = normalizeWaNumber(trimmed);
     const lines = [
-      `Invoice GARAGE Coffee & Motor`,
+      `Invoice GARAGE Coffee`,
       `No. Invoice: ${row.invoiceNo}`,
       `Total: ${currency.format(row.total)}`,
     ];

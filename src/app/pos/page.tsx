@@ -8,7 +8,7 @@ export const viewport = staffViewport;
 
 export const metadata: Metadata = {
   title: "Garage POS",
-  description: "Pintu masuk sistem POS Garage Coffee & Motor.",
+  description: "Pintu masuk sistem POS Garage Coffee.",
 };
 
 // Akses session/DB saat render → opt-out static generation (build tanpa DB live).

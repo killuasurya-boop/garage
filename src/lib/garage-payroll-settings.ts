@@ -109,7 +109,7 @@ export const PAYROLL_DEFAULTS: Record<string, unknown> = {
     cutoffHour: 22,
   },
   [PAYROLL_KEYS.slip]: {
-    headerNote: "Garage Coffee & Motor",
+    headerNote: "Garage Coffee",
     footerNote: "Terima kasih atas dedikasi Anda.",
     includeSignature: false,
   },

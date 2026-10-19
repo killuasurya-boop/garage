@@ -213,10 +213,10 @@ export function MemberLoginScreen({
         <header className="flex items-center justify-between gap-3">
           <Link href="/" className="block w-[min(176px,48vw)] shrink-0 sm:w-[230px]" aria-label="Kembali ke website Garage">
             <Image
-              src="/garage-brand/logo-website.png"
-              alt="Garage Coffee & Motor"
-              width={1024}
-              height={325}
+              src="/garage-brand/garage-coffee-logo.png"
+              alt="Garage Coffee"
+              width={1200}
+              height={282}
               priority
               sizes="(max-width: 768px) 50vw, 230px"
               className="h-auto w-full object-contain drop-shadow-[0_14px_34px_rgba(0,0,0,0.5)]"

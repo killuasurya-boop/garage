@@ -721,7 +721,7 @@ function CustomerDetailModal({
 
   const handleCheckWa = () => {
     if (!detail) return;
-    const message = `Halo ${detail.name.split(/\s+/)[0] || "Kak"}, ini Garage Coffee & Motor. Kami cek nomor WhatsApp member Garage kamu sudah aktif ya. Mohon balas "OK" — terima kasih! 🙏`;
+    const message = `Halo ${detail.name.split(/\s+/)[0] || "Kak"}, ini Garage Coffee. Kami cek nomor WhatsApp member Garage kamu sudah aktif ya. Mohon balas "OK" — terima kasih! 🙏`;
     window.open(`https://wa.me/${normalizeWaNumber(detail.phone)}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
 
@@ -801,7 +801,7 @@ function CustomerDetailModal({
 
   const handleSendWa = () => {
     if (!detail) return;
-    const message = `Halo ${detail.name.split(/\s+/)[0] || "Kak"},\n\nTerima kasih sudah jadi customer GARAGE Coffee & Motor. Ada yang bisa kami bantu?`;
+    const message = `Halo ${detail.name.split(/\s+/)[0] || "Kak"},\n\nTerima kasih sudah jadi customer GARAGE Coffee. Ada yang bisa kami bantu?`;
     const url = `https://wa.me/${normalizeWaNumber(detail.phone)}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   };

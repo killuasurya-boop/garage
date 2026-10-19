@@ -62,19 +62,19 @@ const SEGMENT_META: Record<
     icon: Award,
     tone: "border-[#f5a742]/45 bg-[#f5a742]/10 text-[#ffd79a]",
     bulkTemplate: (name) =>
-      `Halo ${name}!\n\nTerima kasih sudah jadi customer VIP GARAGE Coffee & Motor. Sebagai apresiasi, kamu dapat priority service & promo eksklusif.\n\nMampir lagi yuk untuk merasakan menu signature kami yang baru!`,
+      `Halo ${name}!\n\nTerima kasih sudah jadi customer VIP GARAGE Coffee. Sebagai apresiasi, kamu dapat priority service & promo eksklusif.\n\nMampir lagi yuk untuk merasakan menu signature kami yang baru!`,
   },
   atRisk: {
     icon: TrendingDown,
     tone: "border-[#d11a2a]/45 bg-[#d11a2a]/10 text-[#ffc2c8]",
     bulkTemplate: (name) =>
-      `Halo ${name}!\n\nKami kangen sama kamu di GARAGE Coffee & Motor 🤗 Sudah lama nggak mampir nih.\n\nKami punya menu baru & promo spesial buat reuni. Yuk balik lagi, kopi favoritmu sudah menunggu!`,
+      `Halo ${name}!\n\nKami kangen sama kamu di GARAGE Coffee 🤗 Sudah lama nggak mampir nih.\n\nKami punya menu baru & promo spesial buat reuni. Yuk balik lagi, kopi favoritmu sudah menunggu!`,
   },
   new: {
     icon: Sparkles,
     tone: "border-[#22c55e]/45 bg-[#22c55e]/10 text-[#86efac]",
     bulkTemplate: (name) =>
-      `Halo ${name}!\n\nTerima kasih sudah mampir ke GARAGE Coffee & Motor. Kami senang banget kamu mau coba kami.\n\nNext visit, jangan lupa daftar member untuk dapat poin & promo eksklusif ya! 🎁`,
+      `Halo ${name}!\n\nTerima kasih sudah mampir ke GARAGE Coffee. Kami senang banget kamu mau coba kami.\n\nNext visit, jangan lupa daftar member untuk dapat poin & promo eksklusif ya! 🎁`,
   },
   voucherReady: {
     icon: Gift,
@@ -86,7 +86,7 @@ const SEGMENT_META: Record<
     icon: Cake,
     tone: "border-[#ec4899]/45 bg-[#ec4899]/10 text-[#f9a8d4]",
     bulkTemplate: (name) =>
-      `Halo ${name}!\n\nHappy birthday week dari GARAGE Coffee & Motor! Kamu dapat birthday reward spesial: voucher Rp25.000 atau free drink pilihan.\n\nTunjukkan pesan ini ke kasir minggu ini ya.`,
+      `Halo ${name}!\n\nHappy birthday week dari GARAGE Coffee! Kamu dapat birthday reward spesial: voucher Rp25.000 atau free drink pilihan.\n\nTunjukkan pesan ini ke kasir minggu ini ya.`,
   },
   stampMission: {
     icon: BadgeCheck,

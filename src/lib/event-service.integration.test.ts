@@ -21,13 +21,14 @@ afterAll(async () => {
 });
 
 describe("event Grand Opening", () => {
-  it("migrasi membuat event draft dengan fakta PRD; draft tidak tampil di publik", async () => {
+  it("migrasi membuat event dengan fakta PRD; 0138 menerbitkannya; draft tidak tampil di publik", async () => {
     const svc = await import("@/lib/event-service");
     const [event] = await svc.listEventsForAdmin();
     expect(event).toMatchObject({
       slug: "grand-opening",
       title: "Grand Opening Garage Coffee",
-      status: "draft",
+      status: "published",
+      featuredOnHome: true,
       startsAt: "2026-10-24T08:00:00.000Z",
       endsAt: "2026-10-24T16:00:00.000Z",
       mapsUrl: "https://maps.app.goo.gl/vRtbhd7KdMhqm9Kw9?g_st=ac",
@@ -43,6 +44,8 @@ describe("event Grand Opening", () => {
       ageGate: true,
     });
     expect(event.address).toContain("Jl. Mayjen Sutoyo");
+    expect(await svc.getPublishedEvent("grand-opening")).not.toBeNull();
+    await svc.setEventStatus(event.id, "draft", userId);
     expect(await svc.getPublishedEvent("grand-opening")).toBeNull();
     expect(await svc.getHomeFeaturedEvent(new Date("2026-10-20T00:00:00Z"))).toBeNull();
   });

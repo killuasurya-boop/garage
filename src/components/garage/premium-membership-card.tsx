@@ -340,7 +340,7 @@ function CardFront({
           <div className="gmc__brand">
             <div className="gmc__brand-logo" aria-hidden>
               <Image
-                src="/garage-brand/logo-icon.png"
+                src="/garage-brand/garage-coffee-icon.png"
                 alt=""
                 width={28}
                 height={28}
@@ -359,7 +359,7 @@ function CardFront({
                 className="gmc__brand-sub"
                 style={{ color: theme.mutedText }}
               >
-                COFFEE · MOTOR
+                COFFEE · TEBING TINGGI
               </p>
             </div>
           </div>
@@ -583,7 +583,7 @@ function CardBack({
             color: theme.mutedText,
           }}
         >
-          <span>garage-motor.id</span>
+          <span>garagecoffee.id</span>
           <span className="gmc__back-footer-code">
             {formatMemberNumber(data.memberId).replace(/ /g, "·")}
           </span>

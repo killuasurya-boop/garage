@@ -101,7 +101,7 @@ async function main() {
 
   console.log("\nTes synthesize ElevenLabs…");
   const result = await synthesizeExecutiveSpeech(
-    "Perhatian CEO GARAGE Coffee and Motor. Tes suara ElevenLabs berhasil. Bahasa Indonesia siap operasional.",
+    "Perhatian CEO GARAGE Coffee. Tes suara ElevenLabs berhasil. Bahasa Indonesia siap operasional.",
     "elevenlabs",
   );
   console.log(`OK — provider=${result.usedProvider}, bytes=${result.audio.byteLength}`);

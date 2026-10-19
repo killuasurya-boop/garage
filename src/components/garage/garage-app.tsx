@@ -325,10 +325,10 @@ const GarageAiSimpleView = dynamic(
   { loading: ModuleChunkFallback },
 );
 
-const GARAGE_BRAND_LOGO_SRC = "/garage-brand/logo-website.png";
-const GARAGE_BRAND_ICON_SRC = "/garage-brand/logo-icon.png";
-const GARAGE_BRAND_LOGO_WIDTH = 1024;
-const GARAGE_BRAND_LOGO_HEIGHT = 325;
+const GARAGE_BRAND_LOGO_SRC = "/garage-brand/garage-coffee-logo.png";
+const GARAGE_BRAND_ICON_SRC = "/garage-brand/garage-coffee-icon.png";
+const GARAGE_BRAND_LOGO_WIDTH = 1200;
+const GARAGE_BRAND_LOGO_HEIGHT = 282;
 const GARAGE_CASHIER_THEME_STORAGE_KEY = "garage-cashier-theme";
 type GarageThemeMode = "dark" | "bright";
 
@@ -1856,7 +1856,7 @@ function BrandBlock({
       <div className={frameClass}>
         <Image
           src={GARAGE_BRAND_LOGO_SRC}
-          alt="Garage Coffee & Motor"
+          alt="Garage Coffee"
           width={GARAGE_BRAND_LOGO_WIDTH}
           height={GARAGE_BRAND_LOGO_HEIGHT}
           priority={shouldPrioritize}
@@ -1867,7 +1867,7 @@ function BrandBlock({
       </div>
       {brandMode === "sidebar" && (
         <p className="garage-mono truncate px-1">
-          Ops cockpit - Coffee & Motor
+          Ops cockpit - Coffee · Tebing Tinggi
         </p>
       )}
     </div>
@@ -1880,7 +1880,7 @@ function PosHeaderBrand() {
       <div className="hidden h-11 w-[min(178px,24vw)] items-center sm:flex">
         <Image
           src={GARAGE_BRAND_LOGO_SRC}
-          alt="Garage Coffee & Motor"
+          alt="Garage Coffee"
           width={GARAGE_BRAND_LOGO_WIDTH}
           height={GARAGE_BRAND_LOGO_HEIGHT}
           priority
@@ -9396,7 +9396,7 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
   const [heroError, setHeroError] = useState<string | null>(null);
   const [heroSuccess, setHeroSuccess] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [alt, setAlt] = useState("Hero Garage Coffee & Motor");
+  const [alt, setAlt] = useState("Hero Garage Coffee");
   const [uploading, setUploading] = useState(false);
 
   // Business info (C10) — info bisnis editable untuk landing publik.
@@ -9715,7 +9715,7 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
               {hero ? (
                 <Image
                   src={hero.publicUrl}
-                  alt={hero.alt || "Hero Garage Coffee & Motor"}
+                  alt={hero.alt || "Hero Garage Coffee"}
                   fill
                   sizes="(max-width: 768px) 92vw, 720px"
                   quality={75}
@@ -9812,7 +9812,7 @@ function WebsiteSettingsView({ me }: { me: GarageMe }) {
                   maxLength={140}
                   disabled={!canManageWebsite || uploading}
                   className="border-[#34343c] bg-white/[0.06]"
-                  placeholder="Contoh: Empat gelas Garage Coffee & Motor"
+                  placeholder="Contoh: Empat gelas Garage Coffee"
                 />
               </div>
 

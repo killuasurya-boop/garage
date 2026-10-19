@@ -22,9 +22,9 @@ export async function handleMcpMessage(message: JsonRpcRequest, session: GarageS
       return rpcResult(id, {
         protocolVersion: SUPPORTED_VERSIONS.has(requested) ? requested : PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "garage-os", title: "Garage Coffee & Motor OS", version: "1.0.0" },
+        serverInfo: { name: "garage-os", title: "Garage Coffee OS", version: "1.0.0" },
         instructions:
-          "Kontrol operasional Garage Coffee & Motor. Jawab owner dalam Bahasa Indonesia. Mulai dengan ringkasan_hari_ini. Untuk hal yang tidak ada tool-nya pakai garage_api. Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
+          "Kontrol operasional Garage Coffee. Jawab owner dalam Bahasa Indonesia. Mulai dengan ringkasan_hari_ini. Untuk hal yang tidak ada tool-nya pakai garage_api. Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
       });
     }
     case "ping":

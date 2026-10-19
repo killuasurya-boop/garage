@@ -10,7 +10,7 @@ export function PosMemberWaVerify({ customerId, name, phone }: { customerId: str
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
   const link = waLink(
     phone,
-    `Halo ${name.split(/\s+/)[0] || "Kak"}, ini Garage Coffee & Motor. Kami cek nomor WhatsApp member kamu sudah aktif ya. Mohon balas "OK" — terima kasih! 🙏`,
+    `Halo ${name.split(/\s+/)[0] || "Kak"}, ini Garage Coffee. Kami cek nomor WhatsApp member kamu sudah aktif ya. Mohon balas "OK" — terima kasih! 🙏`,
   );
 
   async function markActive() {

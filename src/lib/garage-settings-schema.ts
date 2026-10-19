@@ -765,7 +765,7 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         label: "Rekening transfer pelanggan",
         type: "textarea",
         defaultValue: DEFAULT_APP_SETTINGS.bankAccountsText,
-        hint: "Satu rekening per baris: BANK | NOMOR | ATAS NAMA (mis. BNI | 1234567890 | GARAGE Coffee & Motor). Tampil di menu digital saat pelanggan pilih Transfer.",
+        hint: "Satu rekening per baris: BANK | NOMOR | ATAS NAMA (mis. BNI | 1234567890 | GARAGE Coffee). Tampil di menu digital saat pelanggan pilih Transfer.",
       },
       {
         key: "unpaidOrderAutoRejectMinutes",

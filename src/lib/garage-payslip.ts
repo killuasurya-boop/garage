@@ -18,7 +18,7 @@ import { getMonthlyReport, type RecapDayStatus } from "@/lib/garage-payroll-repo
 import { getThrPaidBetween } from "@/lib/garage-payroll-thr";
 import { PAYROLL_KEYS, getPayrollSetting } from "@/lib/garage-payroll-settings";
 
-export const COMPANY_NAME = "Garage Coffee & Motor";
+export const COMPANY_NAME = "Garage Coffee";
 
 export interface PayslipLine {
   label: string;

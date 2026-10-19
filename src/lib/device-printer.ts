@@ -31,6 +31,8 @@ export interface DevicePrinterConfig {
   textSize: DevicePrinterTextSize;
   /** Huruf tebal + cetak ganda → hitam pekat, tidak buram. */
   bold: boolean;
+  /** Mode kompatibel: hanya reset + teks (cara lama) untuk printer yang menolak perintah format. */
+  compat: boolean;
   agentUrl: string;
   /** Nama perangkat terakhir yang terhubung (hanya tampilan). */
   deviceLabel: string | null;
@@ -47,6 +49,7 @@ export const DEFAULT_DEVICE_PRINTER_CONFIG: DevicePrinterConfig = {
   feedLines: 4,
   textSize: "besar",
   bold: true,
+  compat: false,
   agentUrl: "",
   deviceLabel: null,
 };
@@ -75,6 +78,7 @@ export function normalizeDevicePrinterConfig(raw: unknown): DevicePrinterConfig 
     feedLines: Math.min(10, Math.max(0, Math.round(Number(value.feedLines ?? 4)) || 0)),
     textSize: value.textSize === "normal" ? "normal" : "besar",
     bold: value.bold !== false,
+    compat: value.compat === true,
     agentUrl: typeof value.agentUrl === "string" ? value.agentUrl.trim().slice(0, 200) : "",
     deviceLabel: typeof value.deviceLabel === "string" ? value.deviceLabel.slice(0, 80) : null,
   };
@@ -139,7 +143,13 @@ export function toPrinterText(content: string): string {
  * (cegah teks terpotong kanan), Font A (paling jelas), tebal + cetak ganda
  * (hitam pekat), dan tinggi 2× bila ukuran "besar".
  */
-function escPosHeader(options: { paper?: "58" | "80"; bold?: boolean; textSize?: DevicePrinterTextSize }): number[] {
+function escPosHeader(options: {
+  paper?: "58" | "80";
+  bold?: boolean;
+  textSize?: DevicePrinterTextSize;
+  compat?: boolean;
+}): number[] {
+  if (options.compat) return [ESC, 0x40];
   const dots = options.paper === "80" ? 576 : 384;
   const header = [ESC, 0x40, GS, 0x4c, 0x00, 0x00, GS, 0x57, dots & 0xff, dots >> 8, ESC, 0x4d, 0x00];
   if (options.bold !== false) header.push(ESC, 0x45, 0x01, ESC, 0x47, 0x01);
@@ -157,6 +167,7 @@ export function escPosJob(
     paper?: "58" | "80";
     bold?: boolean;
     textSize?: DevicePrinterTextSize;
+    compat?: boolean;
   } = {},
 ): Uint8Array {
   const copies = Math.min(5, Math.max(1, Math.round(options.copies ?? 1)));

@@ -61,7 +61,7 @@ export const kasirGuide: RoleGuide = {
         { text: "Printer lain yang sudah terpasang di Windows: pilih Printer umum (Chrome)." },
         {
           text: "Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Pilih Normal bila ingin hemat kertas.",
-          tip: "Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30, lalu Tes cetak lagi.",
+          tip: "Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30. Kertas tidak keluar sama sekali? Centang Mode kompatibel, lalu Tes cetak lagi.",
         },
       ],
       faq: [
@@ -198,9 +198,9 @@ export const kasirGuide: RoleGuide = {
       title: "12. Proses pesanan Bar & Dapur",
       intro: "Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di Bar maupun Dapur.",
       steps: [
-        { text: "Di POS tekan Status Produksi untuk melihat semua tiket aktif, lalu tekan Proses di Production (atau menu Production di samping)." },
-        { text: "Tekan Mulai saat pesanan mulai dibuat. Setelah selesai, cek item/qty/varian/catatan lalu tandai READY (wajib centang QC)." },
-        { text: "Tekan Panggil waiter / serah-terima agar waiter mengambil pesanan yang sudah READY." },
+        { text: "Di POS tekan tombol Bar & Dapur: semua pesanan aktif tampil urut pesan duluan." },
+        { text: "Tekan Mulai saat pesanan mulai dibuat. Setelah jadi tekan Siap & panggil waiter, cek item/jumlah/varian/catatan, lalu Ya, siap." },
+        { text: "Pesanan READY yang belum dipanggil: tekan Panggil waiter. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama." },
         {
           text: "Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.",
           warn: "Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.",

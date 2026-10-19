@@ -882,6 +882,10 @@ export function PosView({
   // Waktu sinkron terakhir monitor — dasar hitung lama tunggu (render tetap murni).
   const [kitchenTicketsAt, setKitchenTicketsAt] = useState(0);
   const [kitchenPanelOpen, setKitchenPanelOpen] = useState(false);
+  // Aksi produksi langsung dari POS (kasir ikut memproses Bar & Dapur).
+  const [kitchenActionBusy, setKitchenActionBusy] = useState<string | null>(null);
+  const [kitchenQcTicket, setKitchenQcTicket] = useState<string | null>(null);
+  const [kitchenActionError, setKitchenActionError] = useState<string | null>(null);
   const [qrOperationsOpen, setQrOperationsOpen] = useState(false);
   const [qrInsights, setQrInsights] = useState<QrControlInsights | null>(null);
   const [qrInsightsLoading, setQrInsightsLoading] = useState(false);
@@ -1756,6 +1760,21 @@ export function PosView({
       // diam-diam — monitor produksi bukan alur kritis pembayaran
     }
   }, []);
+
+  /** Mulai / Siap (QC) + panggil waiter / Panggil waiter — API Production Hub yang sama. */
+  async function runKitchenAction(ticketNo: string, body: Record<string, unknown>) {
+    setKitchenActionBusy(ticketNo);
+    setKitchenActionError(null);
+    try {
+      await garageApi.post(`/api/production/tickets/${encodeURIComponent(ticketNo)}`, body);
+      setKitchenQcTicket(null);
+      await loadKitchenTickets();
+    } catch (error) {
+      setKitchenActionError(error instanceof Error ? error.message : "Aksi produksi gagal. Coba lagi.");
+    } finally {
+      setKitchenActionBusy(null);
+    }
+  }
 
   const loadCustomerOrders = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
@@ -4406,7 +4425,7 @@ export function PosView({
               >
                 <span className="inline-flex items-center gap-2">
                   <UtensilsCrossed className="size-4" />
-                  Status Produksi
+                  Bar &amp; Dapur
                 </span>
                 <Badge className="border-[#4a4a54] bg-black/30 px-2 text-[10px]">
                   {kitchenTickets.length}
@@ -6156,7 +6175,7 @@ export function PosView({
           <Button
             type="button"
             variant="outline"
-            aria-label="Buka monitor Status Produksi"
+            aria-label="Buka pesanan Bar &amp; Dapur"
             className={`garage-press h-10 gap-1.5 px-2.5 text-xs ${
               kitchenTickets.length
                 ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#bbf7d0] hover:bg-[#22c55e]/20"
@@ -6264,7 +6283,7 @@ export function PosView({
           <Button
             type="button"
             variant="outline"
-            aria-label="Buka monitor Status Produksi"
+            aria-label="Buka pesanan Bar &amp; Dapur"
             className={`garage-press h-11 gap-2 px-3 text-xs min-[1200px]:h-9 ${
               kitchenTickets.length
                 ? "border-[#22c55e]/55 bg-[#22c55e]/14 text-[#bbf7d0] hover:bg-[#22c55e]/20"
@@ -6276,7 +6295,7 @@ export function PosView({
             }}
           >
             <UtensilsCrossed className="size-3.5" />
-            <span className="hidden sm:inline">Status Produksi</span>
+            <span className="hidden sm:inline">Bar &amp; Dapur</span>
             <span className="sm:hidden">Siap</span>
             <Badge className="border-[#4a4a54] bg-black/30 px-1.5 text-[10px]">
               {kitchenTickets.length}
@@ -8152,12 +8171,12 @@ export function PosView({
             <DialogHeader className="border-b border-[#34343c] px-4 pb-3 pt-4 sm:px-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <DialogTitle>Status Produksi</DialogTitle>
+                  <DialogTitle>Pesanan Bar &amp; Dapur</DialogTitle>
                   <DialogDescription>
-                    Pantauan Bar &amp; Dapur (urut pesan duluan). Untuk Mulai, READY (QC), dan panggil waiter, buka Production.
+                    Proses pesanan Bar &amp; Dapur langsung di sini (urut pesan duluan): Mulai → Siap &amp; panggil waiter.
                   </DialogDescription>
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Badge className="border-[#4a4a54] bg-black/30 px-2 text-[11px]">
                     {kitchenTickets.length} aktif
                   </Badge>
@@ -8172,7 +8191,7 @@ export function PosView({
                         onNavigateModule("kitchen");
                       }}
                     >
-                      Proses di Production
+                      Layar Production penuh
                     </Button>
                   ) : null}
                   <Button
@@ -8188,6 +8207,11 @@ export function PosView({
               </div>
             </DialogHeader>
             <div className="garage-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-4 sm:p-5">
+              {kitchenActionError ? (
+                <p role="alert" className="rounded-md border border-[#d11a2a]/60 bg-[#d11a2a]/15 px-3 py-2 text-sm font-semibold text-[#ffb4bb]">
+                  {kitchenActionError}
+                </p>
+              ) : null}
               {kitchenTickets.length === 0 ? (
                 <p className="py-10 text-center text-sm text-[#b8b8c2]">
                   Tidak ada pesanan di produksi. Tiket muncul saat order dikonfirmasi kasir.
@@ -8243,6 +8267,63 @@ export function PosView({
                         >
                           {statusLabel}
                         </span>
+                      </div>
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2" data-testid="pos-kitchen-actions">
+                        {ticket.status === "queue" ? (
+                          <Button
+                            type="button"
+                            data-testid="pos-kitchen-start"
+                            disabled={kitchenActionBusy === ticket.id}
+                            className="garage-press h-11 min-w-[140px] bg-[#e5484d] px-4 text-sm font-black uppercase text-white hover:bg-[#ff5c61]"
+                            onClick={() => void runKitchenAction(ticket.id, { action: "start" })}
+                          >
+                            {kitchenActionBusy === ticket.id ? "Memproses..." : "Mulai"}
+                          </Button>
+                        ) : null}
+                        {ticket.status === "cooking" && kitchenQcTicket !== ticket.id ? (
+                          <Button
+                            type="button"
+                            data-testid="pos-kitchen-ready"
+                            disabled={kitchenActionBusy === ticket.id}
+                            className="garage-press h-11 min-w-[180px] bg-[#16a34a] px-4 text-sm font-black uppercase text-white hover:bg-[#22c55e]"
+                            onClick={() => setKitchenQcTicket(ticket.id)}
+                          >
+                            Siap &amp; panggil waiter
+                          </Button>
+                        ) : null}
+                        {ticket.status === "cooking" && kitchenQcTicket === ticket.id ? (
+                          <>
+                            <span className="text-sm font-semibold text-[#ffd08a]">Item, jumlah, varian &amp; catatan sudah dicek?</span>
+                            <Button
+                              type="button"
+                              data-testid="pos-kitchen-ready-confirm"
+                              disabled={kitchenActionBusy === ticket.id}
+                              className="garage-press h-11 bg-[#16a34a] px-4 text-sm font-black uppercase text-white hover:bg-[#22c55e]"
+                              onClick={() => void runKitchenAction(ticket.id, { action: "ready_call", qcConfirmed: true })}
+                            >
+                              {kitchenActionBusy === ticket.id ? "Memproses..." : "Ya, siap"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="garage-press h-11 border-[#4a4a54] bg-white/[0.05] px-3 text-sm"
+                              onClick={() => setKitchenQcTicket(null)}
+                            >
+                              Batal
+                            </Button>
+                          </>
+                        ) : null}
+                        {ticket.status === "ready" && !ticket.handoverAt ? (
+                          <Button
+                            type="button"
+                            data-testid="pos-kitchen-call"
+                            disabled={kitchenActionBusy === ticket.id}
+                            className="garage-press h-11 min-w-[160px] bg-[#f5a742] px-4 text-sm font-black uppercase text-black hover:bg-[#ffb85c]"
+                            onClick={() => void runKitchenAction(ticket.id, { action: "handover", waiterUserId: null })}
+                          >
+                            {kitchenActionBusy === ticket.id ? "Memproses..." : "Panggil waiter"}
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   );

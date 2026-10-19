@@ -39,6 +39,10 @@ describe("escPosJob", () => {
     expect(bytes).toEqual([0x1b, 0x40, 0x1d, 0x4c, 0x00, 0x00, 0x1d, 0x57, 0x40, 0x02, 0x1b, 0x4d, 0x00, 0x41]);
   });
 
+  it("mode kompatibel: hanya reset + teks (cara lama)", () => {
+    expect(Array.from(escPosJob("A", { feedLines: 1, compat: true, bold: true, textSize: "besar" }))).toEqual([0x1b, 0x40, 0x41, 0x0a]);
+  });
+
   it("potong kertas & salinan berulang (header di tiap salinan)", () => {
     const bytes = Array.from(escPosJob("A", { feedLines: 0, cut: true, copies: 2, bold: false }));
     const one = [...BASE_58, 0x41, 0x1d, 0x56, 0x42, 0x00];

@@ -300,6 +300,18 @@ export function DevicePrinterPanel({
           />
           Huruf tebal (lebih hitam &amp; jelas)
         </label>
+        <label className="flex min-h-10 items-start gap-2 text-sm text-[#e4e4ea] sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={config.compat}
+            onChange={(e) => update({ compat: e.target.checked })}
+            className="mt-0.5 size-4 accent-[#e5484d]"
+          />
+          <span>
+            Mode kompatibel (cara cetak lama)
+            <span className="block text-xs text-[#c4c4cc]">Centang bila Tes cetak tidak mengeluarkan kertas sama sekali.</span>
+          </span>
+        </label>
         {config.mode === "serial" ? (
           <label className="space-y-1 text-xs font-semibold text-[#d8d8de]">
             Kecepatan port (baud)

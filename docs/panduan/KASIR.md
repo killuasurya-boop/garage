@@ -38,7 +38,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 3. Pilih lebar kertas 58 mm (RPP02N) atau 80 mm, lalu tekan Tes cetak.
 4. Printer lain yang sudah terpasang di Windows: pilih Printer umum (Chrome).
 5. Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Pilih Normal bila ingin hemat kertas.
-   - Tips: Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30, lalu Tes cetak lagi.
+   - Tips: Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30. Kertas tidak keluar sama sekali? Centang Mode kompatibel, lalu Tes cetak lagi.
 
 **Tanya jawab**
 
@@ -124,9 +124,9 @@ Penutupan memakai blind count: kasir menghitung uang tanpa melihat angka sistem.
 
 Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di Bar maupun Dapur.
 
-1. Di POS tekan Status Produksi untuk melihat semua tiket aktif, lalu tekan Proses di Production (atau menu Production di samping).
-2. Tekan Mulai saat pesanan mulai dibuat. Setelah selesai, cek item/qty/varian/catatan lalu tandai READY (wajib centang QC).
-3. Tekan Panggil waiter / serah-terima agar waiter mengambil pesanan yang sudah READY.
+1. Di POS tekan tombol Bar & Dapur: semua pesanan aktif tampil urut pesan duluan.
+2. Tekan Mulai saat pesanan mulai dibuat. Setelah jadi tekan Siap & panggil waiter, cek item/jumlah/varian/catatan, lalu Ya, siap.
+3. Pesanan READY yang belum dipanggil: tekan Panggil waiter. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama.
 4. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 

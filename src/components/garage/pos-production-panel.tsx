@@ -67,9 +67,16 @@ function parseItem(label: string) {
   return match ? { qty: Number(match[1]), name: match[2] } : { qty: 1, name: label.trim() };
 }
 
-export function ticketToChit(ticket: KitchenOrder): KitchenChitInput {
+export function ticketToChit(ticket: KitchenOrder, printedBy?: string | null): KitchenChitInput {
   const station = ticket.station === "Bar" ? "Bar" : "Dapur";
   return {
+    printedBy: printedBy ?? null,
+    printedAt: new Date().toISOString(),
+    waiterName: ticket.claimedByName ?? null,
+    orderNote: ticket.internalNotes,
+    addonSequence: ticket.addonSequence ?? null,
+    priority: ticket.priority,
+    targetMinutes: ticket.targetMinutes || null,
     orderNo: ticket.orderNo ?? ticket.id,
     queueNo: ticket.queueNo ?? null,
     tableLabel: ticket.table,

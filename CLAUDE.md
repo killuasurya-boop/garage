@@ -134,6 +134,14 @@ Scroll direction:
   "Hapus invoice"). Paid invoices are never deleted — Batal/Refund. Payment status ≠ method:
   `paymentStatusOf` (`src/lib/payment-status.ts`) → Pending/Lunas/Gagal, printed on every receipt with
   method, Dibayar and Sisa tagihan.
+- Cashier speed-ups (owner, Okt 2026): Favorit strip (per-device tap counts in localStorage
+  `garage:pos-fav-counts`, bestseller fallback), menu shortcodes (`src/lib/menu-shortcode.ts`,
+  exact code first, Enter = order top result), Bayar 1 tap (take away · uang pas / QRIS via
+  `submitOrder` overrides), and a chime + notice when a kitchen ticket turns ready.
+- Receipt QR: `buildThermalContent` emits a `[[QR:<invoice url>]]` marker line (`receiptQrMarker`,
+  `src/lib/receipt-layout.ts`); Chrome dialog renders it as SVG, direct ESC/POS as a `GS v 0` raster,
+  text-only paths (agent, `/api/print/thermal`) drop it via `stripReceiptQr` (URL text stays).
+  Kitchen chits print addon no., target time, item/order notes (wrapped), item count and who printed.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

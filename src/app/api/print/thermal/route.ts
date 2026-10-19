@@ -6,6 +6,7 @@ import { execFile } from "child_process";
 
 import { readJson } from "@/lib/api-response";
 import { requirePermission } from "@/lib/server-auth";
+import { stripReceiptQr } from "@/lib/receipt-layout";
 import { buildKitchenChitContent, buildThermalContent } from "@/lib/thermal-receipt";
 
 export const runtime = "nodejs";
@@ -138,7 +139,7 @@ export async function POST(request: Request) {
   // Chit dapur/bar (tanpa harga) diprioritaskan bila ada; kalau tidak, struk.
   const content = chit
     ? buildKitchenChitContent(chit)
-    : buildThermalContent(receipt!);
+    : stripReceiptQr(buildThermalContent(receipt!));
   const copies = chit ? 1 : body.data.copies ?? receipt!.settings?.receiptCopies ?? 1;
 
   // Save to temp file

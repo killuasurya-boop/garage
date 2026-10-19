@@ -52,6 +52,7 @@ ShieldAlert,
 ShieldCheck,
 ShoppingCart,
 Square,
+Star,
 SunMedium,
 Timer,
 Trash2,
@@ -218,6 +219,7 @@ import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summar
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
+import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { claimReprint } from "@/lib/reprint-guard";
 import { isDirectHandoverMenu, productionStationFor } from "@/lib/garage-production-rules";
@@ -340,6 +342,8 @@ function chitStationFor(item: Pick<MenuItem, "category"> & { station?: string | 
 const pilotQrPrintPath = "/order/qr-print?tables=01,25,50";
 const initialVisibleProducts = 40;
 const productLoadStep = 20;
+const POS_FAVORITE_STORAGE_KEY = "garage:pos-fav-counts";
+const POS_FAVORITE_LIMIT = 8;
 
 type PaymentStep = "summary" | "table" | "customer" | "payment" | "done";
 type CashierShiftSummary = {
@@ -622,6 +626,8 @@ export function PosView({
   const [selectedTableNumber, setSelectedTableNumber] = useState("");
   const [menuCategory, setMenuCategory] = useState<MenuFilter>("All");
   const [bestsellerOnly, setBestsellerOnly] = useState(false);
+  // Tombol favorit kasir: hitungan tap per perangkat (localStorage), bukan data server.
+  const [favoriteCounts, setFavoriteCounts] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [productPageState, setProductPageState] = useState({
@@ -1147,19 +1153,57 @@ export function PosView({
           .join(" ")
           .toLowerCase(),
         isBestseller: item.tags.some((t) => t.toLowerCase() === "bestseller"),
+        shortcodes: menuShortcodes(item.name),
       })),
     [menuItems],
   );
+  const shortcodeById = useMemo(
+    () => new Map(indexedMenu.map((entry) => [entry.item.id, entry.shortcodes[0]])),
+    [indexedMenu],
+  );
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(POS_FAVORITE_STORAGE_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- baca localStorage setelah hydrate
+        setFavoriteCounts(parsed as Record<string, number>);
+      }
+    } catch {
+      // Storage diblokir / rusak → mulai dari bestseller.
+    }
+  }, []);
+  const favoriteItems = useMemo(() => {
+    const ranked = indexedMenu
+      .filter((entry) => (favoriteCounts[entry.item.id] ?? 0) > 0)
+      .sort((a, b) => (favoriteCounts[b.item.id] ?? 0) - (favoriteCounts[a.item.id] ?? 0))
+      .map((entry) => entry.item);
+    const picked = new Set(ranked.map((item) => item.id));
+    for (const entry of indexedMenu) {
+      if (ranked.length >= POS_FAVORITE_LIMIT) break;
+      if (entry.isBestseller && !picked.has(entry.item.id)) ranked.push(entry.item);
+    }
+    return ranked.slice(0, POS_FAVORITE_LIMIT);
+  }, [favoriteCounts, indexedMenu]);
   const filteredMenu = useMemo(() => {
+    // Kode singkat ("cl" → Coffee Latte) dicocokkan di samping teks biasa;
+    // kode persis tampil paling depan supaya kasir cukup tap kartu pertama.
+    const exact: MenuItem[] = [];
     const result: MenuItem[] = [];
     for (const entry of indexedMenu) {
       if (!menuFilterMatches(menuCategory, entry.item.category)) continue;
       if (bestsellerOnly && !entry.isBestseller) continue;
-      if (normalizedMenuQuery && !entry.searchIndex.includes(normalizedMenuQuery))
-        continue;
+      if (normalizedMenuQuery) {
+        const codeRank = shortcodeMatchRank(normalizedMenuQuery, entry.shortcodes);
+        if (codeRank === 2) {
+          exact.push(entry.item);
+          continue;
+        }
+        if (!codeRank && !entry.searchIndex.includes(normalizedMenuQuery)) continue;
+      }
       result.push(entry.item);
     }
-    return result;
+    return exact.length ? [...exact, ...result] : result;
   }, [bestsellerOnly, indexedMenu, menuCategory, normalizedMenuQuery]);
   const visibleProductCount =
     productPageState.filterKey === productFilterKey
@@ -1758,11 +1802,43 @@ export function PosView({
     };
   }, [unlockQrNotificationSound]);
 
+  // Suara "pesanan siap" (owner, Okt 2026): kasir dengar saat tiket Bar/Dapur
+  // berubah ke Siap. Ref dipakai agar loadKitchenTickets tetap stabil.
+  const readyTicketIdsRef = useRef<Set<string> | null>(null);
+  const readyChimeRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    readyChimeRef.current = () => {
+      if (cashierPosSettings.qrSoundMode === "off" || settings.qrSoundOn === false) return;
+      const context = getQrNotificationAudioContext();
+      if (!context) return;
+      if (context.state === "suspended") {
+        void context.resume().then(() => emitQrNotificationTone(context)).catch(() => {});
+        return;
+      }
+      emitQrNotificationTone(context);
+    };
+  }, [cashierPosSettings.qrSoundMode, settings.qrSoundOn, emitQrNotificationTone, getQrNotificationAudioContext]);
+
   const loadKitchenTickets = useCallback(async () => {
     try {
       const rows = await garageApi.get<KitchenOrder[]>("/api/kitchen/orders", {
         cache: "no-store",
       });
+      const readyRows = rows.filter((t) => t.status === "ready");
+      const previousReady = readyTicketIdsRef.current;
+      readyTicketIdsRef.current = new Set(readyRows.map((t) => t.id));
+      // Load pertama hanya mencatat — jangan bunyi untuk tiket yang sudah siap.
+      const newlyReady = previousReady ? readyRows.filter((t) => !previousReady.has(t.id)) : [];
+      if (newlyReady.length) {
+        readyChimeRef.current();
+        const labels = newlyReady
+          .slice(0, 3)
+          .map((t) => [t.queueNo ? `#${t.queueNo}` : null, t.table].filter(Boolean).join(" "))
+          .join(", ");
+        setPosNotice(
+          `Pesanan siap: ${labels}${newlyReady.length > 3 ? ` +${newlyReady.length - 3} lagi` : ""}`,
+        );
+      }
       // Monitor kasir: tiket yang belum diantar (waiting/processing/ready),
       // FIFO — yang pesan duluan di atas.
       setKitchenTickets(
@@ -1810,7 +1886,7 @@ export function PosView({
     setKitchenPrintingId(key);
     setKitchenActionError(null);
     try {
-      const res = await printKitchenChits(tickets.map(ticketToChit), settings.defaultPrinterName || undefined);
+      const res = await printKitchenChits(tickets.map((ticket) => ticketToChit(ticket, me.user.name)), settings.defaultPrinterName || undefined);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
         setKitchenActionError(`Tiket gagal dicetak: ${body.error?.message || "cek printer di Pengaturan Printer."}`);
@@ -3289,6 +3365,16 @@ export function PosView({
       return;
     }
 
+    setFavoriteCounts((current) => {
+      const next = { ...current, [item.id]: (current[item.id] ?? 0) + 1 };
+      try {
+        window.localStorage.setItem(POS_FAVORITE_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Tanpa storage favorit tetap jalan untuk sesi ini.
+      }
+      return next;
+    });
+
     if (item.variants.length === 1) {
       addItem(item.id, item.variants[0].id);
       return;
@@ -3774,13 +3860,19 @@ export function PosView({
     }
   }
 
-  async function submitOrder(paymentMethod: PaymentMethod) {
-    if (dineInTableMissing) {
+  // overrides: "Bayar 1 tap" (take away uang pas) tanpa melewati langkah wizard.
+  async function submitOrder(
+    paymentMethod: PaymentMethod,
+    overrides: { orderType?: OrderType; cashReceived?: number } = {},
+  ) {
+    const effectiveOrderType = overrides.orderType ?? orderType;
+    const effectiveCash = overrides.cashReceived ?? cashReceivedValue;
+    if (effectiveOrderType === "dine-in" && !selectedTableNumber) {
       setPaymentError("Pilih nomor meja sebelum konfirmasi bayar.");
       return;
     }
 
-    if (!cashPaymentReady) {
+    if (paymentMethod === "Cash" && effectiveCash < totalDue) {
       setPaymentError("Uang diterima belum cukup untuk pembayaran cash.");
       return;
     }
@@ -3802,13 +3894,19 @@ export function PosView({
     setOpenBillSaved(null);
 
     const orderBody = {
-      orderType,
-      tableNumber: orderType === "dine-in" ? selectedTableNumber : undefined,
-      tableLabel,
+      orderType: effectiveOrderType,
+      tableNumber: effectiveOrderType === "dine-in" ? selectedTableNumber : undefined,
+      tableLabel:
+        effectiveOrderType === orderType
+          ? tableLabel
+          : effectiveOrderType === "takeaway"
+            ? "Take away"
+            : "Delivery",
       paymentMethod,
-      paymentProvider: paymentProviderValue || undefined,
+      paymentProvider:
+        (overrides.orderType ? defaultPaymentProvider(paymentMethod) : paymentProviderValue) || undefined,
       paymentReference: paymentReference.trim() || undefined,
-      cashReceived: paymentMethod === "Cash" ? cashReceivedValue : undefined,
+      cashReceived: paymentMethod === "Cash" ? effectiveCash : undefined,
       customerId: posCustomerMode === "member" ? selectedMember?.customerId : undefined,
       memberPhone: posCustomerMode === "member" ? selectedMember?.member.phone : undefined,
       guestName: posCustomerMode === "guest" ? guestName.trim() || undefined : undefined,
@@ -5887,7 +5985,7 @@ export function PosView({
                       <Button
                         type="button"
                         variant="outline"
-                        className="garage-press h-11 border-[#22c55e]/55 bg-[#22c55e]/12 text-sm text-[#dcfce7]"
+                        className="garage-press h-12 border-[#22c55e]/55 bg-[#22c55e]/12 text-sm text-[#dcfce7]"
                         onClick={() => {
                           const target = tableDetail;
                           setTableDetail(null);
@@ -8837,8 +8935,20 @@ export function PosView({
                   <Input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      // Enter = pesan menu teratas hasil cari / kode singkat.
+                      if (event.key !== "Enter" || !query.trim() || deferredQuery !== query) return;
+                      const first = filteredMenu.find((item) => !soldOutIds.has(item.id));
+                      if (!first) return;
+                      event.preventDefault();
+                      handleProductTap(first);
+                      setQuery("");
+                    }}
+                    enterKeyHint="done"
+                    aria-label="Cari menu atau kode singkat, Enter untuk pesan menu teratas"
+                    data-testid="pos-menu-search"
                     className="h-9 border-[#34343c] bg-white/[0.06] pl-9"
-                    placeholder="Cari menu, kategori, varian"
+                    placeholder="Cari menu / kode singkat (mis. cl)"
                   />
                 </div>
                 <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
@@ -8980,6 +9090,37 @@ export function PosView({
                     })}
                   </div>
                 )}
+                {favoriteItems.length && !normalizedMenuQuery && menuCategory === "All" && !bestsellerOnly ? (
+                  <div className="garage-scroll-x flex gap-1.5 pb-0.5" data-testid="pos-favorites">
+                    <span className="flex shrink-0 items-center gap-1 self-center font-mono text-[10px] font-bold uppercase tracking-wider text-[#ffd08a]">
+                      <Star aria-hidden className="size-3.5 fill-[#f5a742] text-[#f5a742]" />
+                      Favorit
+                    </span>
+                    {favoriteItems.map((item) => {
+                      const soldOut = soldOutIds.has(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleProductTap(item)}
+                          aria-disabled={soldOut}
+                          aria-label={soldOut ? `${item.name} sedang habis` : `Pesan ${item.name}`}
+                          className={`garage-press flex min-h-11 max-w-[180px] shrink-0 flex-col justify-center rounded-md border px-2.5 py-1 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5a742]/70 ${
+                            soldOut
+                              ? "cursor-not-allowed border-[#4a4a54] bg-white/[0.02] opacity-55"
+                              : "border-[#f5a742]/40 bg-[#f5a742]/10 hover:border-[#f5a742]/70 hover:bg-[#f5a742]/18"
+                          }`}
+                        >
+                          <span className="truncate text-xs font-bold leading-4 text-white">{item.name}</span>
+                          <span className="truncate text-[11px] font-semibold leading-4 text-[#ffd08a]">
+                            {soldOut ? "HABIS" : currency.format(item.variants[0]?.price ?? 0)}
+                            {item.variants.length > 1 && !soldOut ? "+" : ""}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -8994,6 +9135,7 @@ export function PosView({
                     : currency.format(baseVariant.price);
                   const hasPromo = Boolean(item.promoActive && item.promoPrice);
                   const isSoldOut = soldOutIds.has(item.id);
+                  const shortcode = shortcodeById.get(item.id);
 
                   return (
                     <button
@@ -9014,6 +9156,15 @@ export function PosView({
                     >
                       <div className="flex h-full flex-col">
                         <div className="relative mb-2 aspect-square w-full shrink-0 overflow-hidden rounded-md border border-[#34343c] bg-[#15151b]">
+                          {shortcode ? (
+                            <span
+                              className="garage-mono absolute left-1 top-1 z-[1] rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-bold uppercase leading-4 tracking-wider text-[#ffd08a]"
+                              title={`Kode singkat: ketik "${shortcode}" di pencarian`}
+                              data-testid="pos-product-shortcode"
+                            >
+                              {shortcode}
+                            </span>
+                          ) : null}
                           {item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -9365,6 +9516,48 @@ export function PosView({
                     Bayar
                   </Button>
                 </DialogTrigger>
+                {/* Bayar 1 tap (owner, Okt 2026): take away langsung lunas tanpa 4 langkah. */}
+                <div className="mt-2 grid grid-cols-2 gap-2" data-testid="pos-quick-pay">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="pos-quick-cash"
+                    disabled={!cartLines.length || paymentPending || !shiftOpen}
+                    className="garage-press h-12 border-[#22c55e]/55 bg-[#22c55e]/12 px-2 text-xs font-bold text-[#dcfce7]"
+                    onClick={() => {
+                      resetPaymentDialog();
+                      setOrderType("takeaway");
+                      setSelectedPaymentMethod("Cash");
+                      setPaymentOpen(true);
+                      void submitOrder("Cash", { orderType: "takeaway", cashReceived: totalDue });
+                    }}
+                  >
+                    <span className="flex min-w-0 flex-col items-center leading-4">
+                      <span className="truncate text-sm">⚡ Uang pas</span>
+                      <span className="truncate text-[11px] font-semibold opacity-90">Take away</span>
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="pos-quick-qris"
+                    disabled={!cartLines.length || paymentPending || !shiftOpen}
+                    className="garage-press h-12 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-xs font-bold text-[#ffd08a]"
+                    onClick={() => {
+                      resetPaymentDialog();
+                      setOrderType("takeaway");
+                      setSelectedPaymentMethod("QRIS");
+                      setPaymentProvider(defaultPaymentProvider("QRIS"));
+                      setPaymentStep("payment");
+                      setPaymentOpen(true);
+                    }}
+                  >
+                    <span className="flex min-w-0 flex-col items-center leading-4">
+                      <span className="truncate text-sm">⚡ QRIS</span>
+                      <span className="truncate text-[11px] font-semibold opacity-90">Take away</span>
+                    </span>
+                  </Button>
+                </div>
                 <DialogContent
                   data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
                   className="flex max-h-[92svh] flex-col overflow-hidden sm:max-w-3xl"

@@ -211,6 +211,8 @@ async function seedMenu() {
       prep: item.prep,
       tags: item.tags,
       imageUrl: item.imageUrl ?? null,
+      // Rokok disembunyikan dari menu digital pelanggan.
+      showInDigitalMenu: item.showInDigitalMenu ?? true,
       sortOrder: index,
     };
     if (syncCatalog) {

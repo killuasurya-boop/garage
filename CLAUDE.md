@@ -109,6 +109,14 @@ Scroll direction:
   ingredient cost edit, supplier receiving and WMS receiving/production.
 - Cart lines must include item + variant + quantity.
 - Totals must calculate from selected variant price.
+- Categories `Minuman Botol` (Mineral) and `Rokok` (owner, Okt 2026; menu group "Lainnya") are
+  handed over by the cashier: `isDirectHandoverMenu` (`garage-production-rules.ts`) skips them
+  in production tickets/chits. Rokok has `showInDigitalMenu: false`; staff open bills pass
+  `allowHiddenItems`.
+- "Bayar nanti" = `POST /api/orders/open-bill` (staff customer order + accept with
+  `{ openBill: true }`, skipping take-away pay-first); settled later via Final Bayar.
+- Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
+  TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 
 ## Inventory Rules
 

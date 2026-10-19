@@ -20,7 +20,7 @@ import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import type { GarageSession } from "@/lib/server-auth";
 import type { ImportRowResult } from "@/lib/bulk-import";
 
-export const MENU_IMPORT_CATEGORIES: MenuCategory[] = ["Coffee", "Non-Coffee", "Makanan", "Cemilan"];
+export const MENU_IMPORT_CATEGORIES: MenuCategory[] = ["Coffee", "Non-Coffee", "Makanan", "Cemilan", "Minuman Botol", "Rokok"];
 const MAX_PRICE = 10_000_000;
 
 export const MENU_IMPORT_COLUMNS: ImportColumn[] = [
@@ -65,6 +65,8 @@ function categoryOf(raw: string): MenuCategory | null {
   if (["non-coffee", "noncoffee", "nonkopi", "non-kopi"].includes(value)) return "Non-Coffee";
   if (["makanan", "food", "makan"].includes(value)) return "Makanan";
   if (["cemilan", "snack", "camilan"].includes(value)) return "Cemilan";
+  if (["minumanbotol", "botol", "mineral"].includes(value)) return "Minuman Botol";
+  if (["rokok", "cigarette", "cigarettes"].includes(value)) return "Rokok";
   return null;
 }
 

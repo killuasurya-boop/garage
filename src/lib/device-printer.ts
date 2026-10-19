@@ -109,6 +109,43 @@ export function deviceColumns(config: DevicePrinterConfig = loadDevicePrinterCon
   return config.columns ?? PAPER_COLUMNS[config.paper];
 }
 
+/**
+ * Kolom untuk jalur dialog print Chrome. Huruf "Besar" (bawaan) = tata letak
+ * lebih sedikit kolom (58 mm → 24, 80 mm → 36) supaya hurufnya ±3,3 mm dan
+ * terbaca jelas lewat driver Windows (owner, Okt 2026). Override kolom manual
+ * tetap dihormati.
+ */
+export function browserColumns(config: DevicePrinterConfig = loadDevicePrinterConfig()): number {
+  if (config.columns != null) return config.columns;
+  if (config.textSize === "besar") return config.paper === "80" ? 36 : 24;
+  return PAPER_COLUMNS[config.paper];
+}
+
+// Baris penting yang dicetak 1,6× lebih tinggi di dialog Chrome (lebar tetap,
+// jadi tidak pernah terpotong): TOTAL, Kembali, antrian, meja, nama, station.
+const TALL_LINE = /^\s*(TOTAL\b|Kembali\b|ANTRIAN\b|MEJA\b|>>> MEJA|NAMA:|\*\*\* [A-Z ]+ \*\*\*|BELUM DIBAYAR)/;
+
+/** HTML baris struk untuk dialog print (baris penting dibuat tinggi). */
+export function browserReceiptLines(text: string): { html: string; tallCount: number; lineCount: number } {
+  const lines = text.split(/\r?\n/);
+  let tallCount = 0;
+  let brandDone = false;
+  const html = lines
+    .map((line) => {
+      const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") || " ";
+      // Baris teks pertama (bukan penanda ***) = nama toko → ikut ditinggikan.
+      const isBrand = !brandDone && line.trim() !== "" && !line.trim().startsWith("***");
+      if (line.trim() !== "" && !line.trim().startsWith("***")) brandDone = true;
+      if (isBrand || TALL_LINE.test(line)) {
+        tallCount += 1;
+        return `<div class="l t"><span>${escaped}</span></div>`;
+      }
+      return `<div class="l">${escaped}</div>`;
+    })
+    .join("");
+  return { html, tallCount, lineCount: lines.length };
+}
+
 // ── ESC/POS ─────────────────────────────────────────────────────────────────
 
 const ESC = 0x1b;
@@ -517,7 +554,7 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
       return;
     }
     const widthMm = config.paper === "80" ? 80 : 58;
-    const columns = deviceColumns(config);
+    const columns = browserColumns(config);
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
     // Di luar layar tapi berukuran nyata: iframe 0×0 / visibility:hidden bisa
@@ -531,10 +568,7 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
       reject(new DevicePrinterError("NOT_SUPPORTED", "Dialog print tidak tersedia."));
       return;
     }
-    const escaped = toPrinterText(stripControlCodes(content))
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    const body = browserReceiptLines(toPrinterText(stripControlCodes(content)));
     // Area cetak nyata printer thermal: 58 mm → ±48 mm, 80 mm → ±72 mm (bukan
     // selebar kertas). Huruf dihitung agar `columns` karakter pas di area itu.
     const printableMm = widthMm === 80 ? 72 : 48;
@@ -542,14 +576,17 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
     const weight = config.bold === false ? 400 : 700;
     // Tinggi kertas eksplisit (bukan "auto" — tidak valid untuk @page size): tanpa
     // ini driver memakai kertas default (gulungan sangat panjang) → hasil kosong.
-    const lines = escaped.split(/\r?\n/).length;
-    const heightMm = Math.ceil(lines * Number(fontMm) * 1.45 + 20);
+    const lineMm = Number(fontMm) * 1.3;
+    const heightMm = Math.ceil((body.lineCount + body.tallCount * 0.6) * lineMm + 22);
     doc.open();
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk</title><style>
       @page { size: ${widthMm}mm ${heightMm}mm; margin: 0 }
       html, body { margin: 0; padding: 0; background: #fff; color: #000 }
-      pre { margin: 0; padding: 2mm 0 2mm ${((widthMm - printableMm) / 2).toFixed(1)}mm; width: ${printableMm}mm; font: ${weight} ${fontMm}mm/1.3 "Courier New", monospace; white-space: pre; -webkit-print-color-adjust: exact; }
-    </style></head><body><pre>${escaped}</pre></body></html>`);
+      .r { margin: 0; padding: 2mm 0 2mm ${((widthMm - printableMm) / 2).toFixed(1)}mm; width: ${printableMm}mm; font: ${weight} ${fontMm}mm/1.3 "Courier New", monospace; -webkit-print-color-adjust: exact; }
+      .l { white-space: pre; height: ${lineMm.toFixed(2)}mm; overflow: visible }
+      .t { height: ${(lineMm * 1.6).toFixed(2)}mm; font-weight: 900 }
+      .t span { display: inline-block; transform: scaleY(1.6); transform-origin: 0 0 }
+    </style></head><body><div class="r">${body.html}</div></body></html>`);
     doc.close();
     const cleanup = () => window.setTimeout(() => iframe.remove(), 500);
     window.setTimeout(() => {

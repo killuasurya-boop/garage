@@ -30,12 +30,13 @@ export type CartLine = {
 };
 export type MenuItem = GarageMenuItem;
 export type MenuVariant = MenuItem["variants"][number];
-export type MenuGroup = "Dapur" | "Bar";
+export type MenuGroup = "Dapur" | "Bar" | "Lainnya";
 export type MenuFilter = "All" | MenuGroup | MenuCategory;
 
 export const MENU_GROUP_CATEGORIES: Record<MenuGroup, MenuCategory[]> = {
   Dapur: ["Makanan", "Cemilan"],
   Bar: ["Coffee", "Non-Coffee"],
+  Lainnya: ["Minuman Botol", "Rokok"],
 };
 
 export function menuFilterMatches(filter: MenuFilter, category: MenuCategory): boolean {
@@ -43,10 +44,14 @@ export function menuFilterMatches(filter: MenuFilter, category: MenuCategory): b
   if (filter === "Dapur" || filter === "Bar") {
     return MENU_GROUP_CATEGORIES[filter].includes(category);
   }
+  if (filter === "Lainnya") {
+    return MENU_GROUP_CATEGORIES.Lainnya.includes(category);
+  }
   return filter === category;
 }
 
 export function menuGroupForCategory(category: MenuCategory): MenuGroup {
+  if (MENU_GROUP_CATEGORIES.Lainnya.includes(category)) return "Lainnya";
   return MENU_GROUP_CATEGORIES.Dapur.includes(category) ? "Dapur" : "Bar";
 }
 export type OrderType = "dine-in" | "takeaway" | "delivery";

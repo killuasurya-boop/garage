@@ -10,7 +10,7 @@ const menuProductSchema = z.object({
   id: z.string().trim().min(2).max(80).optional(),
   sku: z.string().trim().max(40).optional(),
   name: z.string().trim().min(2).max(120),
-  category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee"]),
+  category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee", "Minuman Botol", "Rokok"]),
   section: z.string().trim().min(2).max(40).optional(),
   stock: z.enum(["ready", "limited", "sold_out"]).optional(),
   prep: z.string().trim().min(1).max(20).optional(),

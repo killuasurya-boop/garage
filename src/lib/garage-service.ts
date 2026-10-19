@@ -47,6 +47,7 @@ import {
   canHandoverStation,
   canOperateStation,
   productionStationFor,
+  isDirectHandoverMenu,
   productionStationLabel,
   type ProductionStation,
 } from "@/lib/garage-production-rules";
@@ -265,6 +266,8 @@ type CustomerOrderInput = {
   voucherCode?: string;
   /** Dibuat staf (waiter "Pesankan"): tanpa promo QR self-order. */
   staffOrder?: boolean;
+  /** Tagihan "Bayar nanti" dari POS: produk tersembunyi di menu digital (mis. rokok) tetap boleh. */
+  allowHiddenItems?: boolean;
   paymentMethod?: string;
   paymentProvider?: string;
   paymentReference?: string;
@@ -617,6 +620,8 @@ function productionTicketDrafts(
 ) {
   const linesByStation = new Map<ProductionStation, typeof lines>();
   for (const line of lines) {
+    // Mineral, rokok, dll. diserahkan langsung kasir — tanpa tiket Bar/Dapur.
+    if (isDirectHandoverMenu({ station: line.station, category: line.category })) continue;
     const station = productionStationFor({ station: line.station, category: line.category });
     linesByStation.set(station, [...(linesByStation.get(station) ?? []), line]);
   }
@@ -9053,7 +9058,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     if (!variant) {
       throw new Error(`Menu variant not found: ${line.itemId}/${line.variantId}`);
     }
-    if (!variant.showInDigitalMenu) {
+    if (!variant.showInDigitalMenu && !input.allowHiddenItems) {
       throw new Error(`${variant.itemName} tidak tersedia di menu digital. Silakan pesan ke kasir.`);
     }
     if (variant.stock === "sold_out") {
@@ -9581,6 +9586,9 @@ async function updateCustomerOrderStatusImpl(
   id: string,
   input: CustomerOrderActionInput,
   garage: GarageSession,
+  // openBill: "Bayar nanti" dari POS — kasir sendiri yang menahan tagihan, jadi
+  // take away boleh diterima sebelum lunas (internal, tidak lewat route status).
+  options: { openBill?: boolean } = {},
 ) {
   // Target SLA tiket baru dibaca SEBELUM transaksi (PGlite satu koneksi).
   const productionTargets = productionTargetsFrom(await getAppSettings(garage.profile.outlet.id));
@@ -9666,7 +9674,7 @@ async function updateCustomerOrderStatusImpl(
     }
 
     // Take away & delivery: WAJIB lunas dulu baru pesanan dibuat (keputusan owner).
-    if (input.action === "accept" && payFirst) {
+    if (input.action === "accept" && payFirst && !options.openBill) {
       throw new Error(
         "Pesanan take away/delivery wajib lunas dulu. Gunakan Terima Pembayaran setelah pembayaran dicek.",
       );
@@ -9944,7 +9952,7 @@ async function updateCustomerOrderStatusImpl(
         productionTargets,
       );
 
-      const insertedTickets = await tx
+      const insertedTickets = ticketDrafts.length === 0 ? [] : await tx
         .insert(kitchenTickets)
         .values(
           ticketDrafts.map((ticket) => ({
@@ -11315,7 +11323,8 @@ async function createOrderOnce(
       });
     }
 
-    const tickets = await tx
+    // Pesanan hanya berisi produk jadi (mineral, rokok) → tanpa tiket produksi.
+    const tickets = ticketDrafts.length === 0 ? [] : await tx
       .insert(kitchenTickets)
       .values(
         ticketDrafts.map((ticket) => ({

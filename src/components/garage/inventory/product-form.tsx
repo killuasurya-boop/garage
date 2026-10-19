@@ -285,6 +285,8 @@ export function ProductFormPanel({
               <SelectItem value="Cemilan">Cemilan</SelectItem>
               <SelectItem value="Coffee">Coffee</SelectItem>
               <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
+              <SelectItem value="Minuman Botol">Minuman Botol (tanpa tiket)</SelectItem>
+              <SelectItem value="Rokok">Rokok (tanpa tiket)</SelectItem>
             </SelectContent>
           </Select>
           {/* Station produksi (routing tiket Production Hub). */}

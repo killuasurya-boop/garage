@@ -37,7 +37,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 2. RPP02N via Bluetooth: pair dulu di Windows (PIN 0000/1234). Lalu pilih Kabel/Bluetooth (COM) → Hubungkan → pilih port "Standard Serial over Bluetooth".
 3. Pilih lebar kertas 58 mm (RPP02N) atau 80 mm, lalu tekan Tes cetak.
 4. Printer lain yang sudah terpasang di Windows: pilih Printer umum (Chrome).
-5. Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Pilih Normal bila ingin hemat kertas.
+5. Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Lewat dialog print Chrome, huruf Besar memakai tata letak 24 kolom (huruf lebih besar) dengan TOTAL & Kembali dicetak tinggi. Pilih Normal bila ingin hemat kertas.
    - Tips: Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30. Kertas tidak keluar sama sekali? Centang Mode kompatibel, lalu Tes cetak lagi.
 
 **Tanya jawab**
@@ -53,6 +53,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
    - Tips: Warna meja: hijau kosong, kuning sedang dipilih, merah terisi, biru reserved, abu-abu perlu dibersihkan.
 4. Delivery: isi nama, WhatsApp, alamat & titik lokasi. Ongkir dihitung otomatis (Rp5.000 untuk 2 km pertama + Rp2.000/km, maks 7 km). Minimal belanja Rp25.000. Delivery wajib dibayar dulu.
 5. Chit Dapur/Bar tercetak otomatis setelah pesanan dibayar (bila diaktifkan Owner).
+6. Kategori Lainnya: Minuman Botol (Mineral) dan Rokok diserahkan langsung oleh kasir — tidak membuat tiket Bar/Dapur. Rokok tidak tampil di menu digital pelanggan.
 
 ## 5. Member, voucher & diskon
 
@@ -76,13 +77,15 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 ## 7. Pembayaran
 
 1. Tekan Bayar, pilih metode: Tunai, QRIS, Transfer, atau E-Wallet.
-2. Tunai: masukkan uang yang diterima. Sistem menghitung kembalian dan menolak bila uang kurang.
-   - Tips: Hitung kembalian di depan pelanggan sebelum laci ditutup.
-3. QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas.
-4. Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS).
-5. Split bill: satu meja dipisah jadi beberapa tagihan per orang.
-6. Bill sementara (belum lunas) bisa dicetak dari detail meja. Struk ini bertanda BILL SEMENTARA.
-7. Setelah lunas: isi nomor WA pelanggan lalu Kirim Invoice ke Customer — WhatsApp terbuka dengan rincian pesanan & link invoice, tinggal tekan kirim.
+2. Tunai: ketuk nominal cepat (Uang pas, 5.000, 10.000, 20.000, 50.000, 100.000 — yang cukup untuk total) atau ketik uang yang diterima. Sistem menghitung kembalian dan menolak bila uang kurang.
+   - Tips: Setelah lunas, layar selesai menampilkan KEMBALIAN besar — hitung kembalian di depan pelanggan sebelum laci ditutup.
+3. Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.
+   - Tips: Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Voucher, poin & diskon dipakai saat Final Bayar.
+4. QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas.
+5. Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS).
+6. Split bill: satu meja dipisah jadi beberapa tagihan per orang.
+7. Bill sementara (belum lunas) bisa dicetak dari detail meja. Struk ini bertanda BILL SEMENTARA.
+8. Setelah lunas: isi nomor WA pelanggan lalu Kirim Invoice ke Customer — WhatsApp terbuka dengan rincian pesanan & link invoice, tinggal tekan kirim.
 
 ## 8. Cetak ulang, koreksi & pembatalan
 
@@ -124,10 +127,12 @@ Penutupan memakai blind count: kasir menghitung uang tanpa melihat angka sistem.
 
 Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di Bar maupun Dapur.
 
-1. Di POS tekan tombol Bar & Dapur: semua pesanan aktif tampil urut pesan duluan.
-2. Tekan Mulai saat pesanan mulai dibuat. Setelah jadi tekan Siap & panggil waiter, cek item/jumlah/varian/catatan, lalu Ya, siap.
-3. Pesanan READY yang belum dipanggil: tekan Panggil waiter. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama.
-4. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
+1. Di POS tekan tombol Bar & Dapur (angka = tiket aktif): semua pesanan aktif tampil urut pesan duluan. Filter Semua / Bar / Dapur, tab Diantar 1 jam untuk yang sudah selesai.
+2. Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.
+3. Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil.
+4. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
+5. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
+6. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 
 ## 13. Laporan penjualan shift saya

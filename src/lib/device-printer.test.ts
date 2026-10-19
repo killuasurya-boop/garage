@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  browserColumns,
+  browserReceiptLines,
   chunkBytes,
   DEFAULT_DEVICE_PRINTER_CONFIG,
   deviceColumns,
@@ -258,5 +260,39 @@ describe("kertas manajemen", () => {
   it("tes cetak: penggaris selebar kertas", () => {
     const content = buildTestPageContent({ printerLabel: "RPP02N", modeLabel: "Bluetooth" }, { width: 48 });
     expect(lines(content)).toContain("123456789012345678901234567890123456789012345678");
+  });
+});
+
+describe("struk besar di dialog print Chrome", () => {
+  it("huruf Besar memakai 24 kolom (58 mm) / 36 kolom (80 mm), override kolom tetap dihormati", () => {
+    expect(browserColumns({ ...DEFAULT_DEVICE_PRINTER_CONFIG })).toBe(24);
+    expect(browserColumns({ ...DEFAULT_DEVICE_PRINTER_CONFIG, paper: "80" })).toBe(36);
+    expect(browserColumns({ ...DEFAULT_DEVICE_PRINTER_CONFIG, textSize: "normal" })).toBe(32);
+    expect(browserColumns({ ...DEFAULT_DEVICE_PRINTER_CONFIG, columns: 30 })).toBe(30);
+  });
+
+  it("struk 24 kolom tidak melebihi lebar dan baris penting ditinggikan", () => {
+    const content = buildThermalContent(
+      {
+        orderNo: "POS-0001",
+        createdAt: "2026-10-19T12:00:00.000Z",
+        queueNo: 12,
+        tableLabel: "Meja 06",
+        items: [{ itemName: "Coffee Latte", variantLabel: "Cold", unitPrice: 25000, qty: 2, lineTotal: 50000 }],
+        subtotal: 50000,
+        service: 0,
+        tax: 0,
+        discount: 0,
+        total: 50000,
+        payment: { method: "Cash", cashReceived: 100000, change: 50000 },
+        settings: { brandName: "GARAGE COFFEE", brandTagline: "Tebing Tinggi" },
+      } as Parameters<typeof buildThermalContent>[0],
+      { width: 24 },
+    );
+    expect(Math.max(...content.split(/\r?\n/).map((line) => line.length))).toBeLessThanOrEqual(24);
+    const { html, tallCount } = browserReceiptLines(content);
+    expect(tallCount).toBe(5); // nama toko, antrian, meja, TOTAL, Kembali
+    expect(html).toContain('<div class="l t"><span>TOTAL');
+    expect(html).toContain('<div class="l t"><span>Kembali');
   });
 });

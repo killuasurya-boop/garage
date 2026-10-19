@@ -153,6 +153,8 @@ export function buildKitchenChitContent(
 
   const blocks: string[] = [];
   for (const station of stations) {
+    // "Langsung" (mineral, rokok) diserahkan kasir — tidak dicetak di chit.
+    if (station === "Langsung") continue;
     const items = input.items.filter((i) => i.station === station);
     if (items.length === 0) continue;
 

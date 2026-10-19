@@ -99,6 +99,15 @@ beforeAll(async () => {
       { userId: WAITER, outletId, role: "Waiter" },
       { userId: BAR, outletId, role: "Kasir", workstation: "bar" },
     ]);
+  // Produk jadi (rokok) — diserahkan langsung kasir, tanpa tiket.
+  await t.getDb().insert(t.schema.menuItems).values({
+    id: "itm-rokok",
+    name: "Rokok Test",
+    category: "Rokok",
+    section: "Rokok",
+    prep: "0m",
+  });
+  await t.getDb().insert(t.schema.menuVariants).values({ itemId: "itm-rokok", variantId: "reg", label: "Regular", price: 18000 });
   svc = await import("@/lib/garage-service");
   prod = await import("@/lib/garage-production");
 }, 60_000);
@@ -108,6 +117,18 @@ afterAll(async () => {
 });
 
 describe("Production Hub — routing & identitas", () => {
+  it("rokok / minuman botol tidak membuat tiket Bar/Dapur", async () => {
+    const mixed = await order("21", "ROKOK", [
+      { itemId: "itm-rokok", qty: 1 },
+      { itemId: "itm-food", qty: 1 },
+    ]);
+    expect(await ticketOf(mixed.orderNo, "Food")).toBeTruthy();
+    expect(await ticketOf(mixed.orderNo, "Bar")).toBeFalsy();
+    const only = await order("22", "ROKOK2", [{ itemId: "itm-rokok", qty: 2 }]);
+    expect(await ticketOf(only.orderNo, "Food")).toBeFalsy();
+    expect(await ticketOf(only.orderNo, "Bar")).toBeFalsy();
+  });
+
   it("order kasir → tiket Bar & Dapur dengan porsi + snapshot Nama/Meja/Order", async () => {
     const res = await order("3", "BUDI", [
       { itemId: "itm-coffee", qty: 1, note: "Less sugar" },

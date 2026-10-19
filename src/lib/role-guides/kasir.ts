@@ -220,6 +220,9 @@ export const kasirGuide: RoleGuide = {
         },
         { text: "Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil." },
         {
+          text: "Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.",
+        },
+        {
           text: "Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).",
         },
         { text: "Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama." },

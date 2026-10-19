@@ -40,6 +40,7 @@ import {
   getAppSettings,
   handoverKitchenTicket,
   pickupKitchenTicket,
+  serveTicketDirect,
   KitchenTransitionError,
   listCallableWaiters,
   ProductionPermissionError,
@@ -437,6 +438,11 @@ export async function productionReadyAndCall(
 /** Helper tap nama waiter yang mengambil pesanan → tiket delivered atas nama waiter. */
 export async function productionPickup(ticketNo: string, waiterUserId: string, garage: GarageSession) {
   return pickupKitchenTicket(ticketNo, waiterUserId, garage);
+}
+
+/** Serahkan langsung ke pelanggan tanpa waiter (kasir/helper) → Diantar. */
+export async function productionServeDirect(ticketNo: string, garage: GarageSession) {
+  return serveTicketDirect(ticketNo, garage);
 }
 
 /** Helper ACC serah-terima + panggil waiter (null = siapa saja). */

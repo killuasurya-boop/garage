@@ -12151,6 +12151,59 @@ async function pickupKitchenTicketImpl(
   });
 }
 
+/**
+ * Serahkan langsung (owner, Okt 2026): kasir/helper menyerahkan pesanan sendiri
+ * ke pelanggan (ambil di kasir, take away, tidak perlu waiter) → tiket langsung
+ * Diantar atas nama petugas tanpa ACC waiter. Tiket yang masih dibuat ditandai
+ * READY (QC) dulu.
+ */
+async function serveTicketDirectImpl(ticketNo: string, garage: GarageSession) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  if (ticket.status === "delivered") return ticket;
+  if (!canHandoverStation(garage.profile.role, garage.profile.workstation, ticket.station)) {
+    throw new HandoverPermissionError(ticket.station);
+  }
+  if (ticket.status === "cooking") {
+    await updateKitchenStatus(ticketNo, "ready", garage, { qcConfirmed: true });
+  } else if (ticket.status !== "ready") {
+    throw new KitchenTransitionError(ticket.status, "delivered");
+  }
+  const now = new Date();
+  await db
+    .update(kitchenTickets)
+    .set({
+      handoverAt: ticket.handoverAt ?? now,
+      handoverByName: ticket.handoverByName ?? garage.user.name,
+      claimedBy: garage.user.id,
+      claimedByName: garage.user.name,
+      claimedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(kitchenTickets.id, ticket.id), eq(kitchenTickets.status, "ready")));
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Production ticket served directly",
+    object: ticket.ticketNo,
+    device: garage.profile.deviceLabel,
+    status: "served_direct",
+    metadata: {
+      orderNo: ticket.orderNo,
+      tableLabel: ticket.tableLabel,
+      station: ticket.station,
+      workstation: garage.profile.workstation ?? null,
+    },
+  });
+  return updateKitchenStatus(ticketNo, "delivered", garage, {
+    deliveredBy: { userId: garage.user.id, name: garage.user.name },
+  });
+}
+
 async function deliverClaimedTicketImpl(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db
@@ -20637,6 +20690,7 @@ export const deliverClaimedTicket = notifyingProduction(deliverClaimedTicketImpl
 export const handoverKitchenTicket = notifyingProduction(handoverKitchenTicketImpl);
 export const moveTable = notifyingProduction(moveTableImpl);
 export const pickupKitchenTicket = notifyingProduction(pickupKitchenTicketImpl);
+export const serveTicketDirect = notifyingProduction(serveTicketDirectImpl);
 export const releaseKitchenTicket = notifyingProduction(releaseKitchenTicketImpl);
 export const voidOrder = notifyingProduction(voidOrderImpl);
 

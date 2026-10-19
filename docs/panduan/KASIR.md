@@ -133,9 +133,10 @@ Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di
 1. Di POS tekan tombol Bar & Dapur (angka = tiket aktif): semua pesanan aktif tampil urut pesan duluan. Filter Semua / Bar / Dapur, tab Diantar 1 jam untuk yang sudah selesai.
 2. Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.
 3. Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil.
-4. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
-5. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
-6. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
+4. Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.
+5. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
+6. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
+7. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 
 ## 13. Laporan penjualan shift saya

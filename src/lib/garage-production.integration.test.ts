@@ -190,6 +190,23 @@ describe("Production Hub — hak workstation & QC", () => {
     }
   });
 
+  it("Kasir serahkan langsung tanpa waiter: dari DIBUAT atau SIAP → Diantar atas nama kasir", async () => {
+    const res = await order("10", "LANGSUNG", [
+      { itemId: "itm-coffee", qty: 1 },
+      { itemId: "itm-food", qty: 1 },
+    ]);
+    const bar = await ticketOf(res.orderNo, "Bar");
+    await prod.productionTicketAction(bar.ticketNo, "start", kasir());
+    const servedFromCooking = await prod.productionServeDirect(bar.ticketNo, kasir());
+    expect(servedFromCooking.status).toBe("delivered");
+    const food = await ticketOf(res.orderNo, "Food");
+    await prod.productionTicketAction(food.ticketNo, "start", kasir());
+    await prod.productionTicketAction(food.ticketNo, "ready", kasir(), { qcConfirmed: true });
+    const served = await prod.productionServeDirect(food.ticketNo, kasir());
+    expect(served.status).toBe("delivered");
+    expect(served.deliveredByName).toBe(kasir().user.name);
+  });
+
   it("READY wajib konfirmasi QC", async () => {
     const res = await order("5", "DINA", [{ itemId: "itm-food", qty: 1 }]);
     const food = await ticketOf(res.orderNo, "Food");

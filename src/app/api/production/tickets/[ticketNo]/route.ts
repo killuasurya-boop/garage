@@ -5,6 +5,7 @@ import {
   productionHandover,
   productionPickup,
   productionReadyAndCall,
+  productionServeDirect,
   productionTicketAction,
 } from "@/lib/garage-production";
 import { productionErrorResponse } from "@/lib/garage-production-http";
@@ -29,6 +30,10 @@ const actionSchema = z.discriminatedUnion("action", [
     // Satu tombol: READY (QC) + panggil semua waiter.
     action: z.literal("ready_call"),
     qcConfirmed: z.boolean().optional(),
+  }),
+  z.object({
+    // Kasir/helper serahkan langsung ke pelanggan (tanpa waiter) → delivered.
+    action: z.literal("serve_direct"),
   }),
   z.object({
     // Helper tap nama waiter yang mengambil di meja saji → tiket delivered.
@@ -59,6 +64,8 @@ export async function POST(
         ? await productionHandover(ticketNo, data.waiterUserId, session.data)
         : data.action === "ready_call"
           ? await productionReadyAndCall(ticketNo, session.data, { qcConfirmed: data.qcConfirmed })
+          : data.action === "serve_direct"
+            ? await productionServeDirect(ticketNo, session.data)
           : data.action === "pickup"
             ? await productionPickup(ticketNo, data.waiterUserId, session.data)
             : await productionTicketAction(ticketNo, data.action, session.data, {

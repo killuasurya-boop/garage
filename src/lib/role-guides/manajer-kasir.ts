@@ -6,7 +6,7 @@ export const manajerKasirGuide: RoleGuide = {
   title: "Panduan Supervisi Kasir (Manajer & Owner)",
   summary: "Persetujuan di kasir, rekap harian, selisih kas, QRIS, dan laporan penjualan.",
   roles: ["Manajer", "Owner"],
-  updatedAt: "2026-10-13",
+  updatedAt: "2026-10-19",
   sections: [
     {
       id: "pin",
@@ -14,6 +14,10 @@ export const manajerKasirGuide: RoleGuide = {
       intro: "PIN Manajer/Owner dipakai di tablet kasir. PIN tidak boleh diberikan ke kasir.",
       steps: [
         { text: "PIN di kasir hanya untuk diskon manual, void, refund, dan selisih kas. Pengeluaran besar & stok opname diputus dari menu Persetujuan." },
+        {
+          text: "Hapus invoice BELUM lunas: di POS buka Pesanan Pelanggan atau detail meja → Hapus invoice → isi alasan → ketik nomor invoice → Ya, hapus. Pesanan Bar/Dapur ikut batal, stok kembali, tercatat di Audit Log.",
+          warn: "Invoice LUNAS tidak bisa dihapus. Gunakan Batal (void) / Refund dari Riwayat Struk Shift dengan alasan — riwayat tetap ada untuk laporan penjualan & keuangan.",
+        },
         { text: "Diskon manual: cek alasan & nominal, lalu masukkan PIN. Persetujuan hanya berlaku untuk nominal itu." },
         { text: "Void / refund: pastikan pelanggan benar-benar dikembalikan uangnya. Uang tunai otomatis dikurangkan dari laci shift asal." },
         { text: "Kas keluar/masuk kasir mulai batas nominal (default Rp50.000) butuh PIN Anda." },

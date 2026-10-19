@@ -6,7 +6,7 @@ export const ownerGuide: RoleGuide = {
   title: "Panduan Owner",
   summary: "Memantau bisnis, keputusan final persetujuan, pengaturan keuangan & gaji, dan pengawasan tim.",
   roles: ["Owner"],
-  updatedAt: "2026-10-13",
+  updatedAt: "2026-10-19",
   sections: [
     {
       id: "pantau",
@@ -50,7 +50,10 @@ export const ownerGuide: RoleGuide = {
         },
         { text: "Pelamar yang dijadikan karyawan otomatis membawa WA, alamat, tanggal lahir, foto, KTP, dan CV dari lamarannya." },
         { text: "PIN Owner/Manajer hanya untuk persetujuan di tablet kasir — jangan diberikan ke kasir." },
-        { text: "Audit: periksa void, refund, koreksi absen, penerimaan barang, dan perubahan harga." },
+        { text: "Audit: periksa void, refund, hapus invoice, koreksi absen, penerimaan barang, dan perubahan harga." },
+        {
+          text: "Hapus invoice hanya untuk tagihan BELUM lunas (Owner/Manajer, wajib alasan + ketik nomor invoice). Invoice lunas hanya bisa Batal/Refund. Semua tetap tercatat (tidak ada data yang hilang dari laporan).",
+        },
       ],
     },
     {

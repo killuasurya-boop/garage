@@ -2,17 +2,19 @@
 
 > Persetujuan di kasir, rekap harian, selisih kas, QRIS, dan laporan penjualan.
 >
-> Untuk: Manajer, Owner · Diperbarui 2026-10-13. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
+> Untuk: Manajer, Owner · Diperbarui 2026-10-19. Dokumen ini dibuat otomatis dari `src/lib/role-guides/` (`npm run docs:guides`) — ubah di sana, bukan di sini.
 
 ## 1. Persetujuan dengan PIN di tablet kasir
 
 PIN Manajer/Owner dipakai di tablet kasir. PIN tidak boleh diberikan ke kasir.
 
 1. PIN di kasir hanya untuk diskon manual, void, refund, dan selisih kas. Pengeluaran besar & stok opname diputus dari menu Persetujuan.
-2. Diskon manual: cek alasan & nominal, lalu masukkan PIN. Persetujuan hanya berlaku untuk nominal itu.
-3. Void / refund: pastikan pelanggan benar-benar dikembalikan uangnya. Uang tunai otomatis dikurangkan dari laci shift asal.
-4. Kas keluar/masuk kasir mulai batas nominal (default Rp50.000) butuh PIN Anda.
-5. Koreksi metode bayar & cetak ulang struk ke-4 dst. juga lewat Anda.
+2. Hapus invoice BELUM lunas: di POS buka Pesanan Pelanggan atau detail meja → Hapus invoice → isi alasan → ketik nomor invoice → Ya, hapus. Pesanan Bar/Dapur ikut batal, stok kembali, tercatat di Audit Log.
+   - **Penting:** Invoice LUNAS tidak bisa dihapus. Gunakan Batal (void) / Refund dari Riwayat Struk Shift dengan alasan — riwayat tetap ada untuk laporan penjualan & keuangan.
+3. Diskon manual: cek alasan & nominal, lalu masukkan PIN. Persetujuan hanya berlaku untuk nominal itu.
+4. Void / refund: pastikan pelanggan benar-benar dikembalikan uangnya. Uang tunai otomatis dikurangkan dari laci shift asal.
+5. Kas keluar/masuk kasir mulai batas nominal (default Rp50.000) butuh PIN Anda.
+6. Koreksi metode bayar & cetak ulang struk ke-4 dst. juga lewat Anda.
 
 **Tanya jawab**
 

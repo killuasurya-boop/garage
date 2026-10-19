@@ -115,6 +115,11 @@ Scroll direction:
   `allowHiddenItems`.
 - "Bayar nanti" = `POST /api/orders/open-bill` (staff customer order + accept with
   `{ openBill: true }`, skipping take-away pay-first); settled later via Final Bayar.
+- Invoice delete (owner, Okt 2026) = `deleteUnpaidInvoice` / `POST /api/orders/[id]/delete`: Owner/Manajer
+  only, unpaid only, reason + typed order no; soft delete through `voidOrder` (status `voided`, audit
+  "Hapus invoice"). Paid invoices are never deleted — Batal/Refund. Payment status ≠ method:
+  `paymentStatusOf` (`src/lib/payment-status.ts`) → Pending/Lunas/Gagal, printed on every receipt with
+  method, Dibayar and Sisa tagihan.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

@@ -123,7 +123,7 @@ export function browserColumns(config: DevicePrinterConfig = loadDevicePrinterCo
 
 // Baris penting yang dicetak 1,6× lebih tinggi di dialog Chrome (lebar tetap,
 // jadi tidak pernah terpotong): TOTAL, Kembali, antrian, meja, nama, station.
-const TALL_LINE = /^\s*(TOTAL\b|Kembali\b|ANTRIAN\b|MEJA\b|>>> MEJA|NAMA:|\*\*\* [A-Z ]+ \*\*\*|BELUM DIBAYAR)/;
+const TALL_LINE = /^\s*(TOTAL\b|STATUS\b|Sisa tagihan\b|Kembali\b|ANTRIAN\b|MEJA\b|>>> MEJA|NAMA:|\*\*\* [A-Z ]+ \*\*\*|BELUM DIBAYAR)/;
 
 /** HTML baris struk untuk dialog print (baris penting dibuat tinggi). */
 export function browserReceiptLines(text: string): { html: string; tallCount: number; lineCount: number } {

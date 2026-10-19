@@ -6,6 +6,7 @@
 // format struk supaya tampilan tidak pernah beda antar jalur cetak.
 
 import { parseTableNumber } from "@/lib/garage-tables";
+import { PAYMENT_STATUS_LABEL, paymentBalance, type PaymentStatus } from "@/lib/payment-status";
 import { paperColumns, wrapText, type ReceiptLayoutOptions } from "@/lib/receipt-layout";
 
 export interface ThermalReceiptInput {
@@ -17,6 +18,12 @@ export interface ThermalReceiptInput {
   createdAt?: string | null;
   outlet?: { name?: string | null; code?: string | null } | null;
   cashier?: { name?: string | null } | null;
+  /** Nama pelanggan (dicetak bila bukan placeholder "Guest Customer"/"Tamu"). */
+  customer?: { name?: string | null } | null;
+  /** Status pembayaran (bawaan: Pending untuk bill sementara, Lunas selain itu). */
+  paymentStatus?: PaymentStatus | null;
+  /** Jumlah sudah dibayar (bawaan: total bila Lunas, 0 bila Pending). */
+  paidAmount?: number | null;
   payment?: {
     method?: string | null;
     cashReceived?: number | null;
@@ -334,6 +341,12 @@ export function buildThermalContent(
   rows.push(`Inv   : ${clean(receipt.invoiceNo) || "-"}`.slice(0, W));
   rows.push(`Waktu : ${fmtDate(receipt.createdAt)}`.slice(0, W));
   rows.push(`Kasir : ${clean(receipt.cashier?.name) || "-"}`.slice(0, W));
+  const customerName = clean(receipt.customer?.name);
+  if (customerName && !receipt.delivery && !/^(guest customer|tamu|pelanggan)$/i.test(customerName)) {
+    for (const [index, part] of wrapText(customerName, W - 8).entries()) {
+      rows.push(`${index === 0 ? "Nama  : " : "        "}${part}`.slice(0, W));
+    }
+  }
   rows.push(line());
 
   // Blok DELIVERY: nama, WA, alamat utuh (dibungkus per kata), kurir.
@@ -409,9 +422,20 @@ export function buildThermalContent(
   }
   rows.push(row("TOTAL", fmt(receipt.total)));
 
+  // Status pembayaran terpisah dari metode (owner, Okt 2026).
+  const status: PaymentStatus = receipt.paymentStatus ?? (receipt.provisional ? "pending" : "paid");
+  const balance = paymentBalance(receipt.total || 0, status, receipt.paidAmount);
+  const method = clean(receipt.payment?.method || receipt.paymentMethod);
+  rows.push(line());
+  rows.push(row("STATUS", PAYMENT_STATUS_LABEL[status].toUpperCase()));
+  rows.push(row("Metode", status === "pending" && !balance.paid ? "-" : method || "-"));
+  rows.push(row("Dibayar", fmt(balance.paid)));
+  if (status === "pending" && balance.balanceDue > 0) {
+    rows.push(row("Sisa tagihan", fmt(balance.balanceDue)));
+  }
+
   const cash = receipt.payment?.cashReceived;
-  if (cash && cash > 0) {
-    rows.push(line());
+  if (status === "paid" && cash && cash > 0) {
     rows.push(row("Tunai", fmt(cash)));
     rows.push(row("Kembali", fmt(receipt.payment?.change || 0)));
   }

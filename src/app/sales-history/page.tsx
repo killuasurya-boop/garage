@@ -21,7 +21,9 @@ export default async function SalesHistoryPage() {
   return (
     <main className="min-h-screen bg-[#08080b] py-6">
       <div className="mx-auto max-w-7xl px-4">
-        <SalesHistoryView />
+        <SalesHistoryView
+          canDeleteInvoice={session.data.profile.role === "Owner" || session.data.profile.role === "Manajer"}
+        />
       </div>
     </main>
   );

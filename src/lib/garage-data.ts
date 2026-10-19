@@ -64,7 +64,9 @@ export type ModuleId =
   | "wallet-fee"
   | "payroll-owner";
 
-export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee";
+// "Minuman Botol" & "Rokok" (owner, Okt 2026): produk jadi, diserahkan langsung kasir —
+// tidak membuat tiket Bar/Dapur (lihat isDirectHandoverMenu).
+export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee" | "Minuman Botol" | "Rokok";
 
 export type GarageMenuItem = {
   id: string;
@@ -664,6 +666,71 @@ export const menuItems: GarageMenuItem[] = ([
     tags: ["Snack"],
   },
   ...barMenuItems,
+  // Minuman Bar baru (owner, 19 Okt 2026) — harga tunggal, resep/HPP menyusul.
+  {
+    id: "noncoffee-choco-kiss",
+    name: "Choco Kiss",
+    category: "Non-Coffee",
+    section: "Non-Coffee",
+    variants: [{ id: "regular", label: "Regular", price: 16000 }],
+    stock: "ready",
+    prep: "4m",
+    tags: ["Non-Coffee"],
+  },
+  {
+    id: "noncoffee-dark-charm",
+    name: "Dark Charm",
+    category: "Non-Coffee",
+    section: "Non-Coffee",
+    variants: [{ id: "regular", label: "Regular", price: 15000 }],
+    stock: "ready",
+    prep: "4m",
+    tags: ["Non-Coffee"],
+  },
+  // Produk jadi (owner, 19 Okt 2026) — tanpa resep/HPP, tanpa tiket produksi.
+  {
+    id: "minuman-mineral",
+    name: "Mineral",
+    category: "Minuman Botol",
+    section: "Minuman Botol",
+    variants: [{ id: "regular", label: "Regular", price: 5000 }],
+    stock: "ready",
+    prep: "0m",
+    tags: ["Minuman"],
+  },
+  {
+    id: "rokok-apel-djarum",
+    name: "Apel Djarum",
+    category: "Rokok",
+    section: "Rokok",
+    variants: [{ id: "regular", label: "Regular", price: 18000 }],
+    stock: "ready",
+    prep: "0m",
+    tags: ["Rokok"],
+    showInDigitalMenu: false,
+  },
+  {
+    id: "rokok-black-matcha",
+    name: "Black Matcha",
+    category: "Rokok",
+    section: "Rokok",
+    variants: [{ id: "regular", label: "Regular", price: 18000 }],
+    stock: "ready",
+    prep: "0m",
+    tags: ["Rokok"],
+    showInDigitalMenu: false,
+  },
+  {
+    id: "rokok-la-purple",
+    name: "LA Purple",
+    category: "Rokok",
+    section: "Rokok",
+    variants: [{ id: "regular", label: "Regular", price: 37000 }],
+    stock: "ready",
+    prep: "0m",
+    tags: ["Rokok"],
+    showInDigitalMenu: false,
+  },
 ] satisfies GarageMenuItem[]).map((item): GarageMenuItem =>
   // Foto produk owner (Okt 2026) di public/menu-photos/<id>.webp.
   MENU_PHOTO_IDS.has(item.id) ? { ...item, imageUrl: `/menu-photos/${item.id}.webp` } : item,

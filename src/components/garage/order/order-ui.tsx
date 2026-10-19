@@ -1,6 +1,6 @@
 "use client";
 
-import { Coffee, Cookie, CupSoda, Flame, Minus, Plus, Star, UtensilsCrossed } from "lucide-react";
+import { Cigarette, Coffee, Cookie, CupSoda, Flame, GlassWater, Minus, Plus, Star, UtensilsCrossed } from "lucide-react";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
@@ -46,6 +46,8 @@ export function categoryIcon(category: string, className: string) {
   if (category === "Coffee") return <Coffee strokeWidth={1.75} className={className} aria-hidden />;
   if (category === "Non-Coffee") return <CupSoda strokeWidth={1.75} className={className} aria-hidden />;
   if (category === "Cemilan") return <Cookie strokeWidth={1.75} className={className} aria-hidden />;
+  if (category === "Minuman Botol") return <GlassWater strokeWidth={1.75} className={className} aria-hidden />;
+  if (category === "Rokok") return <Cigarette strokeWidth={1.75} className={className} aria-hidden />;
   return <UtensilsCrossed strokeWidth={1.75} className={className} aria-hidden />;
 }
 

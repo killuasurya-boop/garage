@@ -54,6 +54,14 @@ export function workstationLabel(value: string | null | undefined) {
 }
 
 const BAR_CATEGORIES = new Set(["Coffee", "Non-Coffee"]);
+// Produk jadi yang diserahkan langsung kasir (owner, Okt 2026): tanpa tiket Bar/Dapur.
+const DIRECT_HANDOVER_CATEGORIES = new Set(["Minuman Botol", "Rokok"]);
+
+/** Produk tanpa produksi (mineral, rokok, station "none") → tidak membuat tiket/chit. */
+export function isDirectHandoverMenu(menu: { station?: string | null; category?: string | null }) {
+  if (menu.station?.trim().toLowerCase() === "none") return true;
+  return DIRECT_HANDOVER_CATEGORIES.has(menu.category ?? "");
+}
 
 /** Station produksi untuk satu produk: override master produk, lalu kategori. */
 export function productionStationFor(menu: {

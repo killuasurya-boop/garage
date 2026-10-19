@@ -25,7 +25,7 @@ const menuProductPatchSchema = z.object({
 const menuProductUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   sku: z.string().trim().max(40).optional(),
-  category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee"]).optional(),
+  category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee", "Minuman Botol", "Rokok"]).optional(),
   section: z.string().trim().min(2).max(40).optional(),
   stock: z.enum(["ready", "limited", "sold_out"]).optional(),
   status: z.enum(["active", "archived"]).optional(),

@@ -270,6 +270,10 @@ export function DevicePrinterPanel({
               </button>
             ))}
           </div>
+          <p className="text-xs font-normal leading-snug text-[#c8c8d0]">
+            Besar: cetak langsung = huruf 2× tinggi; lewat dialog print Chrome = tata letak {config.paper === "80" ? 36 : 24} kolom
+            (huruf lebih besar), TOTAL &amp; Kembali dicetak tebal-tinggi.
+          </p>
         </div>
         <label className="space-y-1 text-xs font-semibold text-[#d8d8de]">
           Jumlah kolom per baris

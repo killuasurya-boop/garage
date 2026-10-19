@@ -212,10 +212,12 @@ TableOrderBill,
 VoucherValidation
 } from "@/lib/garage-api-types";
 import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
-import { printDocument, printKitchenChit, printThermal } from "@/lib/print-client";
+import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
+import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
+import { quickCashOptions } from "@/lib/pos-cash";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { claimReprint } from "@/lib/reprint-guard";
-import { productionIdentityName, productionStationFor, productionStationLabel } from "@/lib/garage-production-rules";
+import { isDirectHandoverMenu, productionStationFor } from "@/lib/garage-production-rules";
 import type { KitchenChitItem } from "@/lib/thermal-receipt";
 import {
 currency
@@ -318,16 +320,18 @@ function PosHeaderClock() {
   );
 }
 
-const menuPrimaryGroups: MenuFilter[] = ["All", "Dapur", "Bar"];
-const menuSubCategories: Record<"Dapur" | "Bar", MenuFilter[]> = {
+const menuPrimaryGroups: MenuFilter[] = ["All", "Dapur", "Bar", "Lainnya"];
+const menuSubCategories: Record<"Dapur" | "Bar" | "Lainnya", MenuFilter[]> = {
   Dapur: ["Makanan", "Cemilan"],
   Bar: ["Coffee", "Non-Coffee"],
+  Lainnya: ["Minuman Botol", "Rokok"],
 };
 const qrPublicBaseUrl = process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
 const qrPrintPath = "/order/qr-print";
 
-/** Station chit = station tiket produksi (override produk, lalu kategori). */
-function chitStationFor(item: Pick<MenuItem, "category"> & { station?: string | null }): "Dapur" | "Bar" {
+/** Station chit = station tiket produksi (override produk, lalu kategori); "Langsung" = diserahkan kasir, tanpa chit. */
+function chitStationFor(item: Pick<MenuItem, "category"> & { station?: string | null }): "Dapur" | "Bar" | "Langsung" {
+  if (isDirectHandoverMenu({ station: item.station, category: item.category })) return "Langsung";
   return productionStationFor({ station: item.station, category: item.category }) === "Bar" ? "Bar" : "Dapur";
 }
 const pilotQrPrintPath = "/order/qr-print?tables=01,25,50";
@@ -777,6 +781,8 @@ export function PosView({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<string | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<OrderReceipt | null>(null);
+  // "Bayar nanti": tagihan tersimpan (belum lunas) → dilunasi lewat Final Bayar.
+  const [openBillSaved, setOpenBillSaved] = useState<OpenBillSaved | null>(null);
   const [qrisImageReady, setQrisImageReady] = useState(true);
   // Wire: shiftOpeningCashDefault dari /control/settings → Shift & Cash
   // Default settings 500K, tapi form max 500K & multiple of 50K. Coerce ke valid range.
@@ -886,6 +892,11 @@ export function PosView({
   const [kitchenActionBusy, setKitchenActionBusy] = useState<string | null>(null);
   const [kitchenQcTicket, setKitchenQcTicket] = useState<string | null>(null);
   const [kitchenActionError, setKitchenActionError] = useState<string | null>(null);
+  // Tiket yang sudah diantar dalam 1 jam terakhir (tab "Diantar 1 jam").
+  const [kitchenDoneTickets, setKitchenDoneTickets] = useState<KitchenOrder[]>([]);
+  // Cetak tiket Bar/Dapur manual oleh kasir: id tiket yang sedang/sudah dicetak di laptop ini.
+  const [kitchenPrintingId, setKitchenPrintingId] = useState<string | null>(null);
+  const [kitchenPrintedIds, setKitchenPrintedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [qrOperationsOpen, setQrOperationsOpen] = useState(false);
   const [qrInsights, setQrInsights] = useState<QrControlInsights | null>(null);
   const [qrInsightsLoading, setQrInsightsLoading] = useState(false);
@@ -1161,7 +1172,7 @@ export function PosView({
   // Nama item (lowercase) → station Dapur/Bar. Dipakai untuk chit dapur pada order
   // QR/waiter yang itemnya tidak membawa kategori.
   const stationByItemName = useMemo(() => {
-    const map = new Map<string, "Dapur" | "Bar">();
+    const map = new Map<string, "Dapur" | "Bar" | "Langsung">();
     for (const item of menuItems) {
       map.set(item.name.trim().toLowerCase(), chitStationFor(item));
     }
@@ -1316,11 +1327,7 @@ export function PosView({
     manualDiscount?.approvalStatus === "pending";
   const checkoutReady =
     paymentReady && !dineInTableMissing && !manualDiscountAwaitingApproval;
-  const quickCashAmounts = useMemo(
-    () =>
-      [10000, 20000, 50000, 100000].filter((amount) => amount >= totalDue),
-    [totalDue],
-  );
+  const quickCashAmounts = useMemo(() => quickCashOptions(totalDue), [totalDue]);
 
   useEffect(() => {
     const approvalId = manualDiscount?.approvalId;
@@ -1755,7 +1762,18 @@ export function PosView({
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
           ),
       );
-      setKitchenTicketsAt(Date.now());
+      const syncedAt = Date.now();
+      setKitchenDoneTickets(
+        rows
+          .filter(
+            (t) =>
+              (t.status === "completed" || t.status === "delivered") &&
+              t.deliveredAt &&
+              syncedAt - new Date(t.deliveredAt).getTime() <= 60 * 60_000,
+          )
+          .sort((a, b) => new Date(b.deliveredAt ?? 0).getTime() - new Date(a.deliveredAt ?? 0).getTime()),
+      );
+      setKitchenTicketsAt(syncedAt);
     } catch {
       // diam-diam — monitor produksi bukan alur kritis pembayaran
     }
@@ -1773,6 +1791,30 @@ export function PosView({
       setKitchenActionError(error instanceof Error ? error.message : "Aksi produksi gagal. Coba lagi.");
     } finally {
       setKitchenActionBusy(null);
+    }
+  }
+
+  /** Cetak tiket Bar/Dapur oleh kasir (boleh lewat dialog print Chrome). */
+  async function printProductionTickets(tickets: KitchenOrder[], key: string) {
+    if (!tickets.length || kitchenPrintingId) return;
+    setKitchenPrintingId(key);
+    setKitchenActionError(null);
+    try {
+      const res = await printKitchenChits(tickets.map(ticketToChit), settings.defaultPrinterName || undefined);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        setKitchenActionError(`Tiket gagal dicetak: ${body.error?.message || "cek printer di Pengaturan Printer."}`);
+        return;
+      }
+      setKitchenPrintedIds((current) => {
+        const next = new Set(current);
+        for (const ticket of tickets) next.add(ticket.id);
+        return next;
+      });
+    } catch (error) {
+      setKitchenActionError(error instanceof Error ? `Tiket gagal dicetak: ${error.message}` : "Tiket gagal dicetak.");
+    } finally {
+      setKitchenPrintingId(null);
     }
   }
 
@@ -2362,7 +2404,9 @@ export function PosView({
               ? `${order.orderNo} cash diterima waiter.`
               : action === "waiter_cash_deposited"
                 ? `${order.orderNo} setoran waiter menunggu konfirmasi kasir.`
-                : `${order.orderNo} ${action === "paid" ? "pembayaran diterima" : "accepted"} - ${ticketLabel}.`,
+                : action === "paid" && payMethod === "Cash" && (finalCashReceived ?? 0) > order.total
+                  ? `${order.orderNo} lunas. KEMBALIAN ${currency.format((finalCashReceived ?? 0) - order.total)}.`
+                  : `${order.orderNo} ${action === "paid" ? "pembayaran diterima" : "accepted"} - ${ticketLabel}.`,
       );
       await loadCustomerOrders({ silent: true });
       await loadQrControlInsights({ silent: true });
@@ -3005,7 +3049,9 @@ export function PosView({
         note: line.note ?? null,
         station:
           stationByItemName.get(line.name.trim().toLowerCase()) ??
-          menuGroupForCategory(line.category as MenuItem["category"]),
+          (menuGroupForCategory(line.category as MenuItem["category"]) === "Lainnya"
+            ? "Langsung"
+            : menuGroupForCategory(line.category as MenuItem["category"])),
       })),
     });
     setPosNotice(`${guestName}: ${result.orderNo} lunas ${currency.format(result.total)}.`);
@@ -3245,6 +3291,7 @@ export function PosView({
     setPaymentError(null);
     setPaymentResult(null);
     setCompletedReceipt(null);
+    setOpenBillSaved(null);
     setPaymentStep("summary");
     setOrderType("dine-in");
     setSelectedTableNumber("");
@@ -3279,6 +3326,7 @@ export function PosView({
     setPaymentOpen(false);
     setPaymentResult(null);
     setCompletedReceipt(null);
+    setOpenBillSaved(null);
     setPaymentStep("summary");
     setCart([]);
     setOrderType("dine-in");
@@ -3533,7 +3581,7 @@ export function PosView({
   // Cetak bill sementara (belum dibayar) untuk satu bill meja. Data totals
   // diambil dari server (/api/orders/{id}/receipt) supaya service/tax akurat,
   // lalu dipetakan ke format struk thermal tanpa blok pembayaran.
-  async function printProvisionalBill(bill: TableOrderBill) {
+  async function printProvisionalBill(bill: Pick<TableOrderBill, "id" | "orderNo">) {
     if (provisionalBillBusyId) return;
     setProvisionalBillBusyId(bill.id);
     try {
@@ -3608,6 +3656,86 @@ export function PosView({
   }
 
 
+  // "Bayar nanti" (owner, Okt 2026): pesanan langsung ke Bar/Dapur, tagihan
+  // tetap terbuka dan dilunasi lewat Final Bayar. Wajib meja (dine-in) atau
+  // nama pelanggan (take away). Voucher/poin/diskon manual dipakai saat Final Bayar.
+  async function submitOpenBill() {
+    if (paymentPending || !cartLines.length) return;
+    const openBillName =
+      posCustomerMode === "member" ? (selectedMember?.member.name ?? "") : guestName.trim();
+    if (orderType === "delivery") {
+      setPaymentError("Bayar nanti hanya untuk dine-in atau take away.");
+      return;
+    }
+    if (orderType === "dine-in" && !selectedTableNumber) {
+      setPaymentError("Bayar nanti dine-in wajib pilih nomor meja.");
+      return;
+    }
+    if (orderType === "takeaway" && !openBillName) {
+      setPaymentError("Bayar nanti take away wajib isi nama pelanggan.");
+      return;
+    }
+    setPaymentPending(true);
+    setPaymentError(null);
+    setPaymentResult(null);
+    setCompletedReceipt(null);
+    const body = {
+      orderType,
+      tableLabel: orderType === "dine-in" ? tableLabel : undefined,
+      customerName: openBillName || undefined,
+      items: cart.map((line) => ({
+        itemId: line.itemId,
+        variantId: line.variantId,
+        qty: line.qty,
+        note: line.note || undefined,
+      })),
+    };
+    const attempt = idempotencyAttemptFor(orderAttemptRef.current, body, makeIdempotencyKey);
+    orderAttemptRef.current = attempt;
+    try {
+      const result = await garageApi.post<OpenBillSaved>("/api/orders/open-bill", body, {
+        headers: { "X-Idempotency-Key": attempt.key },
+      });
+      orderAttemptRef.current = null;
+      setOpenBillSaved({ ...result, customerName: openBillName || null });
+      void printChitIfEnabled({
+        orderNo: result.orderNo,
+        queueNo: null,
+        tableLabel: result.tableLabel ?? openBillName,
+        orderType,
+        createdAt: new Date().toISOString(),
+        cashierName: null,
+        customerName: openBillName || null,
+        items: cartLines.map((line) => ({
+          name: line.item.name,
+          variant: line.variant.label,
+          qty: line.qty,
+          note: line.note ?? null,
+          station: chitStationFor(line.item),
+        })),
+      });
+      setPaymentStep("done");
+      setCart([]);
+      setSelectedTableNumber("");
+      setSelectedMember(null);
+      setMemberPhone("");
+      setGuestName("");
+      setGuestPhone("");
+      setPosCustomerMode("guest");
+      setPosVoucherCode("");
+      setPosVoucherResult(null);
+      setManualDiscount(null);
+      setPosNotice(`Tagihan ${result.orderNo} disimpan. Lunasi lewat Final Bayar.`);
+      await onOrderCreated();
+      await loadTableLiveData({ silent: true });
+      invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Tagihan gagal disimpan.");
+    } finally {
+      setPaymentPending(false);
+    }
+  }
+
   // Aksi cepat: siapkan bill → order aktif meja jadi "menunggu bayar".
   // Reuse endpoint minta-bill waiter (resolve order aktif di server).
   async function requestTableBill() {
@@ -3653,6 +3781,7 @@ export function PosView({
     setPaymentError(null);
     setPaymentResult(null);
     setCompletedReceipt(null);
+    setOpenBillSaved(null);
 
     const orderBody = {
       orderType,
@@ -3717,6 +3846,7 @@ export function PosView({
         const item = menuItemsById.get(line.itemId);
         if (!item) continue;
         // Sama dengan routing tiket server: override station di master produk, lalu kategori.
+        if (isDirectHandoverMenu(item)) continue;
         if (productionStationFor(item) === "Bar") hasBarItem = true;
         else hasKitchenItem = true;
         if (hasKitchenItem && hasBarItem) break;
@@ -5867,12 +5997,31 @@ export function PosView({
                     aria-label="Uang diterima"
                     className="h-11 border-[#34343c] bg-white/[0.06] text-base font-semibold"
                   />
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+                    {quickCashOptions(finalizeOrderTarget.total).map((amount) => (
+                      <button
+                        key={amount}
+                        type="button"
+                        onClick={() => setFinalizeCash(String(amount))}
+                        className={`garage-press h-10 rounded-md border text-sm font-bold tabular-nums ${
+                          finalizeCashValue === amount
+                            ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
+                            : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
+                        }`}
+                      >
+                        {currency.format(amount)}
+                      </button>
+                    ))}
+                  </div>
                   {finalizeCashShort ? (
-                    <p className="text-xs font-semibold text-[#ffc2c8]">Uang diterima kurang dari total.</p>
+                    <p className="text-sm font-semibold text-[#ffc2c8]">Uang diterima kurang dari total.</p>
                   ) : finalizeCashValue > finalizeOrderTarget.total ? (
-                    <p className="text-xs text-[#86efac]">
-                      Kembalian {currency.format(finalizeCashValue - finalizeOrderTarget.total)}
-                    </p>
+                    <div className="rounded-md border-2 border-[#f5a742]/70 bg-[#f5a742]/12 p-3 text-center">
+                      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Kembalian</p>
+                      <p className="garage-display text-3xl font-bold tabular-nums text-white">
+                        {currency.format(finalizeCashValue - finalizeOrderTarget.total)}
+                      </p>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -8167,13 +8316,13 @@ export function PosView({
           </SheetContent>
         </Sheet>
         <Dialog open={kitchenPanelOpen} onOpenChange={setKitchenPanelOpen}>
-          <DialogContent className="flex max-h-[90svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] p-0 sm:max-w-2xl">
+          <DialogContent className="flex max-h-[90svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] p-0 sm:max-w-3xl">
             <DialogHeader className="border-b border-[#34343c] px-4 pb-3 pt-4 sm:px-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <DialogTitle>Pesanan Bar &amp; Dapur</DialogTitle>
                   <DialogDescription>
-                    Proses pesanan Bar &amp; Dapur langsung di sini (urut pesan duluan): Mulai → Siap &amp; panggil waiter.
+                    Status tiap pesanan sampai diantar waiter (urut pesan duluan). Tombol besar = langkah berikutnya: Mulai buat → Siap &amp; panggil waiter. Cetak tiket untuk Bar/Dapur dari sini.
                   </DialogDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -8212,123 +8361,18 @@ export function PosView({
                   {kitchenActionError}
                 </p>
               ) : null}
-              {kitchenTickets.length === 0 ? (
-                <p className="py-10 text-center text-sm text-[#b8b8c2]">
-                  Tidak ada pesanan di produksi. Tiket muncul saat order dikonfirmasi kasir.
-                </p>
-              ) : (
-                kitchenTickets.map((ticket) => {
-                  const waitedMinutes = Math.max(
-                    0,
-                    Math.floor(
-                      (kitchenTicketsAt - new Date(ticket.createdAt).getTime()) / 60000,
-                    ),
-                  );
-                  const late = ticket.status !== "ready" && waitedMinutes > ticket.targetMinutes;
-                  const statusLabel =
-                    ticket.status === "ready"
-                      ? ticket.handoverAt
-                        ? `Dipanggil ${ticket.claimedByName ?? "· siapa saja"}`
-                        : "Ready · tunggu helper"
-                      : ticket.status === "cooking"
-                        ? "Processing"
-                        : "Waiting";
-                  return (
-                    <div
-                      key={ticket.id}
-                      className={`rounded-md border p-3 ${late ? "border-[#d11a2a]/50 bg-[#d11a2a]/10" : ticket.status === "ready" ? "border-[#22c55e]/40 bg-[#22c55e]/[0.06]" : "border-[#34343c] bg-white/[0.04]"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-base font-black uppercase leading-tight text-white">
-                            {productionIdentityName(ticket.customerName, ticket.queueNo)}
-                            <span className="ml-2 font-mono text-[#ffd08a]">{ticket.table}</span>
-                          </p>
-                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-xs text-[#b8b8c2]">
-                            <span>#{ticket.orderNo ?? ticket.id}</span>
-                            <span>{productionStationLabel(ticket.station)}</span>
-                            <span className={late ? "font-bold text-[#ff6b78]" : ""}>
-                              {late ? `Lewat SLA · ${waitedMinutes}m` : `${waitedMinutes}m`}
-                            </span>
-                          </p>
-                          <div className="mt-1.5 space-y-1">
-                            {ticket.items.map((item, i) => (
-                              <p key={`${ticket.id}-${i}`} className="text-sm font-semibold leading-snug text-[#f4f4f5]">
-                                {item}
-                                {ticket.itemNotes?.[item] ? (
-                                  <span className="ml-1 text-xs font-bold text-[#ffd08a]">({ticket.itemNotes[item]})</span>
-                                ) : null}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-sm border px-2 py-1 text-xs font-black uppercase ${kitchenStatusTone(ticket.status)}`}
-                        >
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <div className="mt-2.5 flex flex-wrap items-center gap-2" data-testid="pos-kitchen-actions">
-                        {ticket.status === "queue" ? (
-                          <Button
-                            type="button"
-                            data-testid="pos-kitchen-start"
-                            disabled={kitchenActionBusy === ticket.id}
-                            className="garage-press h-11 min-w-[140px] bg-[#e5484d] px-4 text-sm font-black uppercase text-white hover:bg-[#ff5c61]"
-                            onClick={() => void runKitchenAction(ticket.id, { action: "start" })}
-                          >
-                            {kitchenActionBusy === ticket.id ? "Memproses..." : "Mulai"}
-                          </Button>
-                        ) : null}
-                        {ticket.status === "cooking" && kitchenQcTicket !== ticket.id ? (
-                          <Button
-                            type="button"
-                            data-testid="pos-kitchen-ready"
-                            disabled={kitchenActionBusy === ticket.id}
-                            className="garage-press h-11 min-w-[180px] bg-[#16a34a] px-4 text-sm font-black uppercase text-white hover:bg-[#22c55e]"
-                            onClick={() => setKitchenQcTicket(ticket.id)}
-                          >
-                            Siap &amp; panggil waiter
-                          </Button>
-                        ) : null}
-                        {ticket.status === "cooking" && kitchenQcTicket === ticket.id ? (
-                          <>
-                            <span className="text-sm font-semibold text-[#ffd08a]">Item, jumlah, varian &amp; catatan sudah dicek?</span>
-                            <Button
-                              type="button"
-                              data-testid="pos-kitchen-ready-confirm"
-                              disabled={kitchenActionBusy === ticket.id}
-                              className="garage-press h-11 bg-[#16a34a] px-4 text-sm font-black uppercase text-white hover:bg-[#22c55e]"
-                              onClick={() => void runKitchenAction(ticket.id, { action: "ready_call", qcConfirmed: true })}
-                            >
-                              {kitchenActionBusy === ticket.id ? "Memproses..." : "Ya, siap"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="garage-press h-11 border-[#4a4a54] bg-white/[0.05] px-3 text-sm"
-                              onClick={() => setKitchenQcTicket(null)}
-                            >
-                              Batal
-                            </Button>
-                          </>
-                        ) : null}
-                        {ticket.status === "ready" && !ticket.handoverAt ? (
-                          <Button
-                            type="button"
-                            data-testid="pos-kitchen-call"
-                            disabled={kitchenActionBusy === ticket.id}
-                            className="garage-press h-11 min-w-[160px] bg-[#f5a742] px-4 text-sm font-black uppercase text-black hover:bg-[#ffb85c]"
-                            onClick={() => void runKitchenAction(ticket.id, { action: "handover", waiterUserId: null })}
-                          >
-                            {kitchenActionBusy === ticket.id ? "Memproses..." : "Panggil waiter"}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+              <PosProductionPanel
+                activeTickets={kitchenTickets}
+                doneTickets={kitchenDoneTickets}
+                now={kitchenTicketsAt}
+                busyId={kitchenActionBusy}
+                qcTicketId={kitchenQcTicket}
+                printingId={kitchenPrintingId}
+                printedIds={kitchenPrintedIds}
+                onSetQcTicket={setKitchenQcTicket}
+                onAction={(ticketId, body) => void runKitchenAction(ticketId, body)}
+                onPrint={(tickets, key) => void printProductionTickets(tickets, key)}
+              />
             </div>
           </DialogContent>
         </Dialog>
@@ -8713,7 +8757,9 @@ export function PosView({
                           ? "Semua"
                           : group === "Dapur"
                             ? "🍴 Dapur"
-                            : "☕ Bar"}
+                            : group === "Bar"
+                              ? "☕ Bar"
+                              : "Lainnya"}
                       </Button>
                     );
                   })}
@@ -8768,6 +8814,34 @@ export function PosView({
                       Bar:
                     </span>
                     {menuSubCategories.Bar.map((sub) => {
+                      const active = menuCategory === sub;
+                      return (
+                        <Button
+                          key={sub}
+                          type="button"
+                          size="sm"
+                          variant={active ? "default" : "outline"}
+                          className={`shrink-0 ${
+                            active
+                              ? "bg-[#f5a742] text-black hover:bg-[#ffc167]"
+                              : "border-[#4a4a54] bg-white/[0.04] text-[#d4d4d8]"
+                          }`}
+                          onClick={() => setMenuCategory(sub)}
+                        >
+                          {sub}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+                {(menuCategory === "Lainnya" ||
+                  menuCategory === "Minuman Botol" ||
+                  menuCategory === "Rokok") && (
+                  <div className="garage-scroll-x flex gap-1.5 pb-0.5">
+                    <span className="self-center font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
+                      Lainnya:
+                    </span>
+                    {menuSubCategories.Lainnya.map((sub) => {
                       const active = menuCategory === sub;
                       return (
                         <Button
@@ -9189,7 +9263,19 @@ export function PosView({
                         : "Selesaikan order kasir dari ringkasan, meja, pelanggan, lalu pembayaran."}
                     </DialogDescription>
                   </DialogHeader>
-                  {paymentStep === "done" && completedReceipt ? (
+                  {paymentStep === "done" && openBillSaved ? (
+                    <div className="garage-scroll min-h-0 overflow-y-auto pr-1">
+                      <OpenBillSavedPanel
+                        bill={openBillSaved}
+                        printing={provisionalBillBusyId === openBillSaved.orderId}
+                        onPrint={() =>
+                          void printProvisionalBill({ id: openBillSaved.orderId, orderNo: openBillSaved.orderNo })
+                        }
+                        onNewTransaction={startNewTransaction}
+                        onClose={startNewTransaction}
+                      />
+                    </div>
+                  ) : paymentStep === "done" && completedReceipt ? (
                     <div className="garage-scroll min-h-0 overflow-y-auto pr-1">
                       <PaymentCompletePanel
                         receipt={completedReceipt}
@@ -9590,6 +9676,19 @@ export function PosView({
                               onClick={() => setPaymentStep("payment")}
                             >
                               Lanjut Pembayaran
+                            </Button>
+                          ) : null}
+                          {paymentStep === "payment" && orderType !== "delivery" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              data-testid="pos-open-bill"
+                              className="garage-press h-11 border-[#f5a742]/70 bg-[#f5a742]/10 text-base font-semibold text-[#ffd08a] hover:bg-[#f5a742]/20 sm:min-w-44"
+                              disabled={paymentPending || !cartLines.length}
+                              onClick={() => void submitOpenBill()}
+                            >
+                              <Clock aria-hidden className="size-4" />
+                              Bayar nanti
                             </Button>
                           ) : null}
                           {paymentStep === "payment" ? (
@@ -12135,6 +12234,56 @@ interface PaymentCompletePanelProps {
 
 type PrintStatus = "idle" | "printing" | "success" | "error";
 
+type OpenBillSaved = {
+  orderId: string;
+  orderNo: string;
+  total: number;
+  tableLabel: string | null;
+  customerName?: string | null;
+};
+
+function OpenBillSavedPanel({
+  bill,
+  printing,
+  onPrint,
+  onNewTransaction,
+  onClose,
+}: {
+  bill: OpenBillSaved;
+  printing: boolean;
+  onPrint: () => void;
+  onNewTransaction: () => void;
+  onClose: () => void;
+}) {
+  const who = [bill.tableLabel, bill.customerName].filter(Boolean).join(" · ") || "Take away";
+  return (
+    <div className="space-y-3" data-testid="pos-open-bill-saved">
+      <div className="rounded-lg border-2 border-[#f5a742]/70 bg-[#f5a742]/10 p-4 text-center">
+        <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Tagihan disimpan · belum bayar</p>
+        <p className="mt-2 text-lg font-bold text-white">{who}</p>
+        <p className="garage-display mt-1 text-4xl font-bold tabular-nums text-white">{currency.format(bill.total)}</p>
+        <p className="mt-1 font-mono text-sm text-[#e5e2dc]">{bill.orderNo}</p>
+      </div>
+      <p className="rounded-md border border-[#4a4a54] bg-white/[0.04] p-3 text-sm leading-relaxed text-[#e5e2dc]">
+        Pesanan sudah masuk Bar/Dapur. Saat pelanggan selesai, buka <b>Pesanan Pelanggan</b> atau detail meja lalu tekan{" "}
+        <b>Final Bayar</b> untuk memilih Cash/QRIS/Transfer — kembalian tampil di sana. Voucher, poin, dan diskon dipakai saat Final Bayar.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button type="button" variant="outline" className="garage-press h-11 flex-1" disabled={printing} onClick={onPrint}>
+          <Printer aria-hidden className="size-4" />
+          {printing ? "Mencetak..." : "Cetak tagihan sementara"}
+        </Button>
+        <Button type="button" className="garage-press h-11 flex-1 text-base font-semibold" onClick={onNewTransaction}>
+          Transaksi baru
+        </Button>
+        <Button type="button" variant="ghost" className="garage-press h-11" onClick={onClose}>
+          Tutup
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function PaymentCompletePanel({
   receipt,
   autoPrint,
@@ -12286,6 +12435,22 @@ function PaymentCompletePanel({
           </p>
         </div>
       </div>
+
+      {/* Kembalian tunai — besar supaya kasir tidak salah memberi uang. */}
+      {receipt.payment?.cashReceived != null ? (
+        <div
+          data-testid="payment-complete-change"
+          className="rounded-md border-2 border-[#f5a742]/70 bg-[#f5a742]/12 p-4 text-center"
+        >
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Kembalian untuk pelanggan</p>
+          <p className="garage-display mt-1 text-5xl font-bold tabular-nums text-white">
+            {currency.format(receipt.payment.change ?? 0)}
+          </p>
+          <p className="mt-1 text-sm text-[#e4e4ea]">
+            Diterima {currency.format(receipt.payment.cashReceived)} · Total {currency.format(receipt.total)}
+          </p>
+        </div>
+      ) : null}
 
       {/* Print status */}
       {printStatus === "printing" && (

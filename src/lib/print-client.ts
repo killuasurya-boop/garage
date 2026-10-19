@@ -15,6 +15,7 @@
 import {
   DEVICE_PRINTER_MODE_LABELS,
   DevicePrinterError,
+  browserColumns,
   deviceColumns,
   escPosJob,
   findRememberedDirectMode,
@@ -126,10 +127,14 @@ interface DeliverOptions {
  * Selalu resolve dengan Response (bentuk sama seperti route lama).
  */
 export async function deliverPrintContent(
-  content: string,
+  source: string | ((columns: number) => string),
   options: DeliverOptions,
 ): Promise<Response> {
   const config = options.config ?? loadDevicePrinterConfig();
+  // Builder → tata letak ikut jalur: cetak langsung/agen = kolom kertas,
+  // dialog Chrome = kolom "huruf besar" (lihat browserColumns).
+  const content = typeof source === "string" ? source : source(deviceColumns(config));
+  const browserContent = typeof source === "string" ? source : source(browserColumns(config));
   const copies = Math.max(1, options.copies || 1);
   const job = () =>
     escPosJob(content, {
@@ -153,7 +158,7 @@ export async function deliverPrintContent(
 
   if (config.mode === "browser") {
     try {
-      for (let i = 0; i < copies; i += 1) await printViaBrowser(content, config);
+      for (let i = 0; i < copies; i += 1) await printViaBrowser(browserContent, config);
       return printedResponse("Dialog print Chrome", "browser");
     } catch (error) {
       return deviceErrorResponse(error, DEVICE_PRINTER_MODE_LABELS.browser);
@@ -227,7 +232,7 @@ export async function deliverPrintContent(
   // Otomatis: terakhir pakai dialog print Chrome agar struk tidak pernah macet.
   if (config.mode === "auto" && options.browserFallback !== false) {
     try {
-      for (let i = 0; i < copies; i += 1) await printViaBrowser(content, config);
+      for (let i = 0; i < copies; i += 1) await printViaBrowser(browserContent, config);
       return printedResponse("Dialog print Chrome", "browser");
     } catch {
       // jatuh ke pesan agen offline
@@ -248,7 +253,7 @@ export async function printKitchenChit(
   if (!content.trim()) {
     return jsonResponse({ success: true, skipped: true }, 200);
   }
-  return deliverPrintContent(content, {
+  return deliverPrintContent((width) => buildKitchenChitContent(payload.chit, { width }), {
     copies: 1,
     printerName: payload.printerName,
     legacyBody: { chit: payload.chit, printerName: payload.printerName },
@@ -258,11 +263,32 @@ export async function printKitchenChit(
   });
 }
 
+/**
+ * Cetak tiket Bar/Dapur MANUAL dari kasir (tombol "Cetak tiket" / "Cetak semua
+ * tiket baru"). Beberapa tiket digabung jadi satu job (dipisah garis sobek) dan
+ * boleh jatuh ke dialog print Chrome — laptop kasir mencetak lewat driver.
+ */
+export async function printKitchenChits(chits: KitchenChitInput[], printerName?: string): Promise<Response> {
+  const config = loadDevicePrinterConfig();
+  const build = (width: number) =>
+    chits
+      .map((chit) => buildKitchenChitContent(chit, { width }))
+      .filter((content) => content.trim())
+      .join(`\n${"- ".repeat(Math.floor(width / 2)).trimEnd()}\n\n\n`);
+  if (!build(deviceColumns(config)).trim()) {
+    return jsonResponse({ success: true, skipped: true }, 200);
+  }
+  return deliverPrintContent(build, {
+    copies: 1,
+    printerName,
+    config,
+  });
+}
+
 /** Drop-in pengganti fetch("/api/print/thermal") untuk struk pelanggan. */
 export async function printThermal(payload: PrintThermalPayload): Promise<Response> {
   const config = loadDevicePrinterConfig();
-  const content = buildThermalContent(payload.receipt, { width: deviceColumns(config) });
-  return deliverPrintContent(content, {
+  return deliverPrintContent((width) => buildThermalContent(payload.receipt, { width }), {
     copies: payload.copies ?? 1,
     printerName: payload.printerName,
     legacyBody: payload,
@@ -279,7 +305,7 @@ export async function printDocument(
   options: { copies?: number; printerName?: string } = {},
 ): Promise<Response> {
   const config = loadDevicePrinterConfig();
-  return deliverPrintContent(build(deviceColumns(config)), {
+  return deliverPrintContent(build, {
     copies: options.copies ?? 1,
     printerName: options.printerName,
     config,

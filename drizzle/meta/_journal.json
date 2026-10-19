@@ -981,6 +981,13 @@
       "when": 1792394034058,
       "tag": "0139_grand_opening_faq",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1792413100882,
+      "tag": "0140_menu_minuman_rokok",
+      "breakpoints": true
     }
   ]
 }

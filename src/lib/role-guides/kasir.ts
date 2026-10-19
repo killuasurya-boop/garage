@@ -60,7 +60,7 @@ export const kasirGuide: RoleGuide = {
         { text: "Pilih lebar kertas 58 mm (RPP02N) atau 80 mm, lalu tekan Tes cetak." },
         { text: "Printer lain yang sudah terpasang di Windows: pilih Printer umum (Chrome)." },
         {
-          text: "Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Pilih Normal bila ingin hemat kertas.",
+          text: "Ukuran huruf Besar + Huruf tebal (bawaan) membuat struk hitam pekat dan mudah dibaca. Lewat dialog print Chrome, huruf Besar memakai tata letak 24 kolom (huruf lebih besar) dengan TOTAL & Kembali dicetak tinggi. Pilih Normal bila ingin hemat kertas.",
           tip: "Angka di kanan struk terpotong? Ubah Jumlah kolom per baris ke 30. Kertas tidak keluar sama sekali? Centang Mode kompatibel, lalu Tes cetak lagi.",
         },
       ],
@@ -83,6 +83,9 @@ export const kasirGuide: RoleGuide = {
           text: "Delivery: isi nama, WhatsApp, alamat & titik lokasi. Ongkir dihitung otomatis (Rp5.000 untuk 2 km pertama + Rp2.000/km, maks 7 km). Minimal belanja Rp25.000. Delivery wajib dibayar dulu.",
         },
         { text: "Chit Dapur/Bar tercetak otomatis setelah pesanan dibayar (bila diaktifkan Owner)." },
+        {
+          text: "Kategori Lainnya: Minuman Botol (Mineral) dan Rokok diserahkan langsung oleh kasir — tidak membuat tiket Bar/Dapur. Rokok tidak tampil di menu digital pelanggan.",
+        },
       ],
     },
     {
@@ -126,8 +129,12 @@ export const kasirGuide: RoleGuide = {
       steps: [
         { text: "Tekan Bayar, pilih metode: Tunai, QRIS, Transfer, atau E-Wallet." },
         {
-          text: "Tunai: masukkan uang yang diterima. Sistem menghitung kembalian dan menolak bila uang kurang.",
-          tip: "Hitung kembalian di depan pelanggan sebelum laci ditutup.",
+          text: "Tunai: ketuk nominal cepat (Uang pas, 5.000, 10.000, 20.000, 50.000, 100.000 — yang cukup untuk total) atau ketik uang yang diterima. Sistem menghitung kembalian dan menolak bila uang kurang.",
+          tip: "Setelah lunas, layar selesai menampilkan KEMBALIAN besar — hitung kembalian di depan pelanggan sebelum laci ditutup.",
+        },
+        {
+          text: "Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.",
+          tip: "Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Voucher, poin & diskon dipakai saat Final Bayar.",
         },
         { text: "QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas." },
         { text: "Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS)." },
@@ -198,9 +205,15 @@ export const kasirGuide: RoleGuide = {
       title: "12. Proses pesanan Bar & Dapur",
       intro: "Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di Bar maupun Dapur.",
       steps: [
-        { text: "Di POS tekan tombol Bar & Dapur: semua pesanan aktif tampil urut pesan duluan." },
-        { text: "Tekan Mulai saat pesanan mulai dibuat. Setelah jadi tekan Siap & panggil waiter, cek item/jumlah/varian/catatan, lalu Ya, siap." },
-        { text: "Pesanan READY yang belum dipanggil: tekan Panggil waiter. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama." },
+        { text: "Di POS tekan tombol Bar & Dapur (angka = tiket aktif): semua pesanan aktif tampil urut pesan duluan. Filter Semua / Bar / Dapur, tab Diantar 1 jam untuk yang sudah selesai." },
+        {
+          text: "Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.",
+        },
+        { text: "Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil." },
+        {
+          text: "Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).",
+        },
+        { text: "Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama." },
         {
           text: "Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.",
           warn: "Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.",

@@ -1908,7 +1908,9 @@ export function InventoryView({
         category === "Makanan" ||
         category === "Cemilan" ||
         category === "Coffee" ||
-        category === "Non-Coffee"
+        category === "Non-Coffee" ||
+        category === "Minuman Botol" ||
+        category === "Rokok"
           ? category
           : "Cemilan";
       const validStock =
@@ -3098,6 +3100,8 @@ export function InventoryView({
                   <SelectItem value="Cemilan">Cemilan</SelectItem>
                   <SelectItem value="Coffee">Coffee</SelectItem>
                   <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
+                  <SelectItem value="Minuman Botol">Minuman Botol</SelectItem>
+                  <SelectItem value="Rokok">Rokok</SelectItem>
                 </SelectContent>
               </Select>
               <Select

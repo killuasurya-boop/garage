@@ -5,6 +5,7 @@ import {
   buildBatchSuggestions,
   canHandoverStation,
   canOperateStation,
+  isDirectHandoverMenu,
   productionIdentityName,
   productionStationFor,
   type BatchCandidateItem,
@@ -191,5 +192,15 @@ describe("identitas tampil", () => {
     expect(productionIdentityName("RIZI", 12)).toBe("RIZI");
     expect(productionIdentityName("Guest Customer", 12)).toBe("Antrian #12");
     expect(productionIdentityName(null, null)).toBe("Tamu");
+  });
+});
+
+describe("produk diserahkan langsung kasir (tanpa tiket)", () => {
+  it("Minuman Botol, Rokok & station none tidak masuk Bar/Dapur", () => {
+    expect(isDirectHandoverMenu({ category: "Minuman Botol" })).toBe(true);
+    expect(isDirectHandoverMenu({ category: "Rokok" })).toBe(true);
+    expect(isDirectHandoverMenu({ category: "Makanan", station: "none" })).toBe(true);
+    expect(isDirectHandoverMenu({ category: "Non-Coffee" })).toBe(false);
+    expect(isDirectHandoverMenu({ category: "Cemilan", station: "dapur" })).toBe(false);
   });
 });

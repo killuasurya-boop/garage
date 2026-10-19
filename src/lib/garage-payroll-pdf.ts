@@ -36,7 +36,7 @@ export async function generatePayrollSlipPdf(data: PayrollPdfData): Promise<Buff
       // ── HEADER SECTION ──
       doc.rect(40, 40, 515, 80).fill(darkColor);
       
-      doc.font("Helvetica-Bold").fontSize(20).fillColor("#ffffff").text("GARAGE COFFEE & MOTOR", 54, 56);
+      doc.font("Helvetica-Bold").fontSize(20).fillColor("#ffffff").text("GARAGE COFFEE", 54, 56);
       doc.font("Helvetica").fontSize(9).fillColor("#a1a1aa").text(`Outlet: ${data.outletName} · Professional Café & Workshop Services`, 56, 80);
       
       // Right-aligned Title
@@ -150,7 +150,7 @@ export async function generatePayrollSlipPdf(data: PayrollPdfData): Promise<Buff
 
       // Footer Notice
       doc.font("Helvetica").fontSize(7).fillColor("#999999").text(
-        "Dokumen ini dibuat secara elektronik oleh Garage Coffee & Motor OS dan sah tanpa tanda tangan basah.",
+        "Dokumen ini dibuat secara elektronik oleh Garage Coffee OS dan sah tanpa tanda tangan basah.",
         40,
         y + 110,
         { align: "center", width: 515 }

@@ -41,7 +41,7 @@ export async function generateMetadata(): Promise<Metadata> {
       url: PAGE_PATH,
       type: "website",
       locale: "id_ID",
-      siteName: "GARAGE Coffee & Motor",
+      siteName: "GARAGE Coffee",
       images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: `${event.title} — ${when}` }],
     },
     twitter: { card: "summary_large_image", title: event.title, description, images: [OG_IMAGE] },
@@ -114,7 +114,7 @@ export default async function GrandOpeningPage() {
       <header className="absolute inset-x-0 top-0 z-20 py-5">
         <div className="gp-wrap flex items-center justify-between gap-6">
           <Link href="/" aria-label="Garage Coffee — beranda" className="inline-flex rounded-md bg-[#e9e9ec] px-3 py-1.5">
-            <Image src="/garage-brand/logo-website.png" alt="Garage Coffee & Motor" width={150} height={48} className="h-9 w-auto object-contain" priority />
+            <Image src="/garage-brand/logo-garage-coffee.png" alt="Garage Coffee" width={150} height={48} className="h-9 w-auto object-contain" priority />
           </Link>
           <nav aria-label="Navigasi acara" className="gp-nav text-xs font-bold uppercase tracking-[0.24em]">
             <a href="#rundown" className="py-2.5 text-[#d8d1c3] hover:text-white">Rundown</a>
@@ -343,7 +343,7 @@ export default async function GrandOpeningPage() {
           <div className="gp-foot">
             <div className="flex flex-col gap-4">
               <span className="inline-flex w-fit rounded-md bg-[#e9e9ec] px-3 py-2">
-                <Image src="/garage-brand/logo-website.png" alt="Garage Coffee & Motor" width={180} height={57} className="h-10 w-auto object-contain" />
+                <Image src="/garage-brand/logo-garage-coffee.png" alt="Garage Coffee" width={180} height={57} className="h-10 w-auto object-contain" />
               </span>
               <p className="max-w-[340px] text-sm leading-relaxed text-[#a9a49a]">Tempat baru untuk menikmati kopi, bertemu teman, dan merayakan cerita bersama.</p>
             </div>

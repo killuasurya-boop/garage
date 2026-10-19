@@ -4,7 +4,7 @@ import { LazyGaragePosLogin } from "@/components/garage/garage-app-loader";
 export const metadata: Metadata = {
   title: "Masuk · Garage OS",
   description:
-    "Login karyawan Garage Coffee & Motor untuk masuk ke GARAGE OS.",
+    "Login karyawan Garage Coffee untuk masuk ke GARAGE OS.",
 };
 
 type LoginPageProps = {

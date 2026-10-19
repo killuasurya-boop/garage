@@ -304,7 +304,7 @@ export function buildThermalContent(
     }
   } else {
     rows.push(center(receipt.settings?.brandName || "GARAGE"));
-    rows.push(center(receipt.settings?.brandTagline || "Coffee & Motor"));
+    rows.push(center(receipt.settings?.brandTagline || "Coffee · Tebing Tinggi"));
     if (receipt.settings?.outletAddress) {
       rows.push(...centerWrapped(receipt.settings.outletAddress));
     }

@@ -122,7 +122,7 @@ function discrepancyLabel(value: number): string {
 function header(layout: ReturnType<typeof createLayout>, title: string, options: SlipOptions) {
   const brand = options.brand ?? {};
   layout.center((brand.brandName || "GARAGE").toUpperCase());
-  layout.center(brand.brandTagline || "Coffee & Motor");
+  layout.center(brand.brandTagline || "Coffee · Tebing Tinggi");
   const outlet = [brand.outletName, brand.outletCode].filter(Boolean).join(" - ");
   if (outlet) layout.center(outlet);
   layout.banner(title);

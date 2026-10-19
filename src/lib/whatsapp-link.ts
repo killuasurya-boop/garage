@@ -62,7 +62,7 @@ export const CUSTOMER_WHATSAPP_LABEL: Record<CustomerWhatsappKind, string> = {
 export function buildCustomerWhatsappMessage(order: CustomerWhatsappOrder, kind: CustomerWhatsappKind): string {
   const name = order.customerName?.trim() || "Kak";
   const type = order.fulfillment === "delivery" ? "Delivery" : order.fulfillment === "takeaway" ? "Take away" : "Pesanan";
-  const head = `Halo ${name}, ini Garage Coffee & Motor.`;
+  const head = `Halo ${name}, ini Garage Coffee.`;
   const ref = `Pesanan ${order.orderNo} (${type})`;
   const track = order.trackingUrl ? `\nLacak pesanan: ${order.trackingUrl}` : "";
   const fee = order.deliveryFee ? ` (sudah termasuk ongkir ${rupiah(order.deliveryFee)})` : "";
@@ -116,7 +116,7 @@ function itemLines(items: InvoiceWhatsappItem[]) {
 /** Invoice ke WA pelanggan (dipakai kasir, waiter, dan server). */
 export function buildInvoiceWhatsappMessage(input: InvoiceWhatsappInput): string {
   return [
-    "Invoice GARAGE Coffee & Motor",
+    "Invoice GARAGE Coffee",
     `Order: ${input.orderNo}`,
     input.tableLabel ? `Lokasi: ${input.tableLabel}` : null,
     "",

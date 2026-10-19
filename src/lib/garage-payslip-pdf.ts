@@ -66,7 +66,7 @@ const stamp = (iso: string) =>
 let logoPath: string | null | undefined;
 function loadLogo(): string | null {
   if (logoPath !== undefined) return logoPath;
-  const p = path.join(process.cwd(), "public", "garage-brand", "logo-website.png");
+  const p = path.join(process.cwd(), "public", "garage-brand", "logo-garage-coffee.png");
   logoPath = fs.existsSync(p) ? p : null;
   return logoPath;
 }

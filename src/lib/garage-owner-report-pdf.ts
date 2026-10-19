@@ -50,7 +50,7 @@ export async function generateOwnerReportPdf(
         .font("Helvetica-Bold")
         .fontSize(20)
         .fillColor("#ffffff")
-        .text("GARAGE COFFEE & MOTOR", left + 14, 56);
+        .text("GARAGE COFFEE", left + 14, 56);
       doc
         .font("Helvetica")
         .fontSize(9)

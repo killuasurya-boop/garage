@@ -26,10 +26,10 @@ export const paymentBrandConfig = {
   qrisImagePath: QRIS_IMAGE_SRC,
   deliveryWhatsapp: "085121552341",
   social: {
-    instagram: "GARAGE Coffee & Motor",
-    facebook: "GARAGE Coffee & Motor",
-    tiktok: "GARAGE Coffee & Motor",
-    youtube: "GARAGE Coffee & Motor",
+    instagram: "GARAGE Coffee",
+    facebook: "GARAGE Coffee",
+    tiktok: "GARAGE Coffee",
+    youtube: "GARAGE Coffee",
   },
 };
 

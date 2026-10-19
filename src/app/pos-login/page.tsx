@@ -7,7 +7,7 @@ export const viewport = staffViewport;
 
 export const metadata: Metadata = {
   title: "Masuk · POS Garage",
-  description: "Halaman khusus login tablet POS Garage Coffee & Motor.",
+  description: "Halaman khusus login tablet POS Garage Coffee.",
 };
 
 export default function PosLoginPage() {

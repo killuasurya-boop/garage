@@ -565,7 +565,7 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-4">
           <Link href="/" className="flex items-center gap-3 text-white no-underline">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/garage-brand/logo-website.png" alt="GARAGE Coffee & Motor" className="h-6 w-auto object-contain sm:h-8" />
+            <img src="/garage-brand/logo-garage-coffee.png" alt="GARAGE Coffee" className="h-6 w-auto object-contain sm:h-8" />
           </Link>
           <nav className="hidden shrink-0 rounded-full border border-zinc-800 bg-zinc-950/70 p-1 sm:flex">
             <button

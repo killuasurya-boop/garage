@@ -37,7 +37,7 @@ export function OrderHeader({
     <header className="pt-3">
       {/* Judul halaman untuk pembaca layar; tampilan visual memakai chip meja di bawah. */}
       <h1 className="sr-only">
-        Menu digital Garage Coffee &amp; Motor — {dineIn ? tableLabel : channelLabel}
+        Menu digital Garage Coffee — {dineIn ? tableLabel : channelLabel}
       </h1>
       <div className="flex items-center justify-between gap-2">
         <Link
@@ -46,8 +46,8 @@ export function OrderHeader({
           aria-label="Kembali ke website Garage"
         >
           <Image
-            src="/garage-brand/logo-website.png"
-            alt="Garage Coffee & Motor"
+            src="/garage-brand/logo-garage-coffee.png"
+            alt="Garage Coffee"
             width={1024}
             height={325}
             priority

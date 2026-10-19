@@ -17,8 +17,8 @@ import {
 } from "@/lib/garage-service";
 
 export const metadata: Metadata = {
-  title: "Digital Menu - Garage Coffee & Motor",
-  description: "QR digital menu Garage Coffee & Motor untuk guest, member, dan invoice WhatsApp.",
+  title: "Digital Menu - Garage Coffee",
+  description: "QR digital menu Garage Coffee untuk guest, member, dan invoice WhatsApp.",
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;

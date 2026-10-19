@@ -201,7 +201,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   dailyBudgetAds: 30_000,
   dailyBudgetSystem: 0,
   brandName: "GARAGE",
-  brandTagline: "Coffee & Motor",
+  brandTagline: "Coffee · Tebing Tinggi",
   receiptFooter: "TERIMA KASIH",
   // Default = lokasi resmi Google Maps (garage-location.ts); bisa diubah di Pengaturan.
   outletAddress: GARAGE_LOCATION.address,

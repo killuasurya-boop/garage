@@ -113,7 +113,7 @@ export default async function QrPrintPage({ searchParams }: QrPrintPageProps) {
     <main className="qr-mgr">
       <header className="mgr-header">
         <div className="mgr-title">
-          <span className="mgr-eyebrow">GARAGE COFFEE &amp; MOTOR</span>
+          <span className="mgr-eyebrow">GARAGE COFFEE</span>
           <h1>Cetak QR Meja</h1>
           <p className="mgr-sub">
             {requested ? `${tables.length} meja dipilih` : `${tables.length} meja aktif`} · kartu siap cetak

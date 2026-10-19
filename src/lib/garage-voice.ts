@@ -438,7 +438,7 @@ export const SCENARIO_META: Record<
     channel: "executive",
     dingKind: "soft",
     build: () =>
-      `Perhatian. Ini adalah tes suara Asisten Eksekutif Garage Coffee and Motor.`,
+      `Perhatian. Ini adalah tes suara Asisten Eksekutif Garage Coffee.`,
   },
   voice_command_ack: {
     label: "Konfirmasi voice command",

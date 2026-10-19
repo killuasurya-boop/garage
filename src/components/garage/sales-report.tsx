@@ -40,7 +40,7 @@ function csvEscape(value: string | number) {
 function downloadCsv(report: SalesReportData) {
   const lines: string[] = [];
   const push = (...cells: Array<string | number>) => lines.push(cells.map(csvEscape).join(","));
-  push("GARAGE COFFEE & MOTOR");
+  push("GARAGE COFFEE");
   push("Laporan Penjualan", `${report.range.from} s/d ${report.range.to}`);
   if (report.sessionCode) push("Shift", report.sessionCode);
   push("Omzet", report.summary.gross);

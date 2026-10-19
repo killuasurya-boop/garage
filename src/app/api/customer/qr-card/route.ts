@@ -37,7 +37,7 @@ function logoDataUri(): string | null {
   if (logoDataUriCache !== undefined) return logoDataUriCache;
   try {
     const buf = readFileSync(
-      // Wordmark GARAGE saja (tanpa tagline "Coffee & Motor") khusus kartu meja.
+      // Wordmark GARAGE saja (tanpa tagline "Coffee · Tebing Tinggi") khusus kartu meja.
       join(process.cwd(), "public", "garage-brand", "logo-wordmark.png"),
     );
     logoDataUriCache = `data:image/png;base64,${buf.toString("base64")}`;

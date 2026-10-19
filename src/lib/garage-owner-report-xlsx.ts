@@ -14,7 +14,7 @@ export async function generateOwnerReportXlsx(
 
   // ── Ringkasan ──
   const sum = wb.addWorksheet("Ringkasan");
-  sum.addRow(["Laporan Owner Harian — Garage Coffee & Motor"]);
+  sum.addRow(["Laporan Owner Harian — Garage Coffee"]);
   sum.addRow(["Tanggal", data.dateText]);
   sum.addRow(["Dibuat", new Date(data.generatedAt).toLocaleString("id-ID")]);
   sum.addRow([]);

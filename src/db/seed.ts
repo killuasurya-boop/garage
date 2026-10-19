@@ -908,7 +908,7 @@ async function seedMarketing() {
         channel: "whatsapp",
         segmentKey: "atRisk",
         templateBody:
-          "Halo {name}!\n\nKami kangen kamu di GARAGE Coffee & Motor. Pakai kode WINBACK10 untuk diskon Rp10.000 di kunjungan berikutnya.\n\nOrder: {orderUrl}",
+          "Halo {name}!\n\nKami kangen kamu di GARAGE Coffee. Pakai kode WINBACK10 untuk diskon Rp10.000 di kunjungan berikutnya.\n\nOrder: {orderUrl}",
         status: "scheduled",
         scheduledAt,
         totalRecipients: 45,
@@ -948,7 +948,7 @@ async function seedSiteAssets() {
     publicUrl: heroPublicUrl,
     width: 1400,
     height: 933,
-    alt: "Garage Coffee & Motor — hero premium",
+    alt: "Garage Coffee — hero premium",
     sizeBytes: stat.size,
     mimeType: "image/webp",
     version: "seed-v1",

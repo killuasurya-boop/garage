@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { MemberLoginScreen } from "@/components/garage/member-login-screen";
 
 export const metadata: Metadata = {
-  title: "Login Member - Garage Coffee & Motor",
+  title: "Login Member - Garage Coffee",
   description:
-    "Pintu masuk member Garage Coffee & Motor untuk rewards, promo, dan riwayat kunjungan.",
+    "Pintu masuk member Garage Coffee untuk rewards, promo, dan riwayat kunjungan.",
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;

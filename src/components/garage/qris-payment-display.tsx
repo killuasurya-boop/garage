@@ -223,7 +223,7 @@ export function QrisPaymentDisplay({
             <div className="qris-logo-img" aria-hidden>G</div>
             <div className="qris-brand-text">
               <div className="qris-brand-main">GARAGE</div>
-              <div className="qris-brand-sub">Coffee &amp; Motor</div>
+              <div className="qris-brand-sub">Coffee · Tebing Tinggi</div>
             </div>
           </div>
 
@@ -284,7 +284,7 @@ export function QrisPaymentDisplay({
               <div className="qris-inner">
                 <Image
                   src={qrisSrc}
-                  alt="QRIS Garage Coffee & Motor"
+                  alt="QRIS Garage Coffee"
                   width={260}
                   height={260}
                   priority

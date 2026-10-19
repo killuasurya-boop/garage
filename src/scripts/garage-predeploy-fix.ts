@@ -133,7 +133,7 @@ async function bootstrapAdminTwoFactor() {
     provisioned.push({
       email: admin.email,
       role: admin.role,
-      totpURI: createOTP(secret).url("Garage Coffee & Motor", admin.email),
+      totpURI: createOTP(secret).url("Garage Coffee", admin.email),
       backupCodes,
     });
   }

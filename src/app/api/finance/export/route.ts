@@ -181,12 +181,12 @@ export async function GET(request: Request) {
 
   // Build workbook.
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Garage Coffee & Motor OS";
+  wb.creator = "Garage Coffee OS";
   wb.created = new Date();
 
   // Sheet 1: Summary
   const sum = wb.addWorksheet("Ringkasan");
-  sum.addRow(["Garage Coffee & Motor — Finance Report"]);
+  sum.addRow(["Garage Coffee — Finance Report"]);
   sum.addRow(["Tanggal", dateParam]);
   sum.addRow(["Order paid", dayOrders.length]);
 

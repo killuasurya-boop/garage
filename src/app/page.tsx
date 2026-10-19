@@ -7,34 +7,35 @@ import { getHomeFeaturedEvent } from "@/lib/event-service";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "GARAGE Coffee & Motor Tebing Tinggi | Cafe, Menu Digital & Reservasi",
+  title: "Garage Coffee Tebing Tinggi | Cafe & Coffee Shop, Buka 15.00–23.00",
   description:
-    "GARAGE Coffee & Motor Tebing Tinggi. Tempat ngopi, makan, nongkrong, dan kumpul komunitas. Cek kursi kosong, pesan menu digital, pickup takeaway, dan reservasi via WhatsApp.",
+    "Garage Coffee Tebing Tinggi — cafe & coffee shop di Jl. Mayjen Sutoyo, Tebing Tinggi. Buka setiap hari 15.00–23.00 WIB. Kopi, non-coffee, makanan & cemilan; cek meja kosong, pesan menu digital, takeaway, dan reservasi via WhatsApp.",
   keywords: [
+    "Garage Coffee Tebing Tinggi",
+    "Garage Coffee",
     "cafe Tebing Tinggi",
     "coffee shop Tebing Tinggi",
-    "Garage Coffee & Motor",
-    "menu GARAGE Tebing Tinggi",
-    "reservasi cafe Tebing Tinggi",
     "tempat ngopi Tebing Tinggi",
-    "cafe motor Tebing Tinggi",
+    "tempat nongkrong Tebing Tinggi",
+    "kafe terdekat Tebing Tinggi",
+    "menu Garage Coffee",
+    "reservasi cafe Tebing Tinggi",
   ],
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "GARAGE Coffee & Motor Tebing Tinggi",
+    title: "Garage Coffee Tebing Tinggi",
     description:
-      "Ngopi, makan, nongkrong, dan kumpul komunitas di GARAGE. Cek tempat sebelum datang, pesan dari website, dan reservasi via WhatsApp.",
+      "Cafe & coffee shop di Tebing Tinggi. Buka setiap hari 15.00–23.00 WIB. Cek meja kosong, pesan dari website, dan reservasi via WhatsApp.",
     type: "website",
     locale: "id_ID",
-    siteName: "GARAGE Coffee & Motor",
+    siteName: "Garage Coffee Tebing Tinggi",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GARAGE Coffee & Motor Tebing Tinggi",
-    description:
-      "Cek tempat sebelum datang, lihat menu digital, pesan takeaway, dan reservasi via WhatsApp.",
+    title: "Garage Coffee Tebing Tinggi",
+    description: "Cafe & coffee shop di Tebing Tinggi. Buka setiap hari 15.00–23.00 WIB. Menu digital, takeaway, reservasi via WhatsApp.",
   },
 };
 
@@ -45,5 +46,7 @@ export default async function Home() {
     getHomeFeaturedEvent().catch(() => null),
   ]);
 
-  return <GarageWebsite landingHero={landingHero} businessInfo={businessInfo} featuredEvent={featuredEvent} />;
+  // Hero hanya butuh tanda "ada foto hero"; teks alt lama (brand "Coffee & Motor") tidak dikirim ke klien.
+  const hero = landingHero ? { ...landingHero, alt: "Garage Coffee Tebing Tinggi" } : null;
+  return <GarageWebsite landingHero={hero} businessInfo={businessInfo} featuredEvent={featuredEvent} />;
 }

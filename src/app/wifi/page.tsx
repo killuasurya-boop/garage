@@ -5,7 +5,7 @@ import { WifiMemberPortal } from "@/components/garage/wifi-member-portal";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "WiFi Gratis Member - Garage Coffee & Motor",
+  title: "WiFi Gratis Member - Garage Coffee",
   description: "Login atau daftar member Garage untuk menikmati WiFi gratis.",
   robots: { index: false, follow: false },
 };

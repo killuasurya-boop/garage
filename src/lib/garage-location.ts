@@ -47,7 +47,7 @@ export function formatIdPhone(phone: string): string {
 }
 
 export function formatBusinessHours(open: string, close: string): string {
-  return isOpen24h(open, close) ? "Buka 24 Jam" : `${open} — ${close}`;
+  return isOpen24h(open, close) ? "Buka 24 Jam" : `${open.replace(":", ".")}–${close.replace(":", ".")} WIB`;
 }
 
 function toMinutes(hhmm: string): number | null {

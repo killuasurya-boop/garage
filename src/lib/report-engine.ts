@@ -1,6 +1,6 @@
 // =============================================================================
 // Engine laporan standar Garage OS (Okt 2026). Satu model laporan → PDF, XLSX,
-// CSV dengan format yang sama untuk semua modul: kop Garage Coffee & Motor,
+// CSV dengan format yang sama untuk semua modul: kop Garage Coffee,
 // judul, divisi, periode, outlet, ringkasan, tabel dengan subtotal/total,
 // Rupiah (IDR), tanggal WIB, header/footer & nomor halaman.
 // Isi tiap laporan dibangun per modul (src/lib/reports/*), bukan tabel generik.
@@ -145,7 +145,7 @@ export function reportToCsv(report: ReportDoc) {
     return /[",\n;]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   const lines: string[] = [
-    escape("GARAGE COFFEE & MOTOR"),
+    escape("GARAGE COFFEE"),
     escape(report.title + (report.division ? ` — ${report.division}` : "")),
     escape(`Periode: ${report.periodLabel}`),
   ];
@@ -167,7 +167,7 @@ export function reportToCsv(report: ReportDoc) {
 export async function reportToXlsx(report: ReportDoc) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Garage OS";
-  workbook.company = "Garage Coffee & Motor";
+  workbook.company = "Garage Coffee";
   workbook.created = new Date(report.generatedAt);
   const titleLine = report.title + (report.division ? ` — ${report.division}` : "");
   const metaLine = [`Periode: ${report.periodLabel}`, report.outletName ? `Outlet: ${report.outletName}` : null, `Dibuat: ${generatedLabel(report.generatedAt)}`]
@@ -175,7 +175,7 @@ export async function reportToXlsx(report: ReportDoc) {
     .join("   ·   ");
 
   const summarySheet = workbook.addWorksheet("Ringkasan");
-  summarySheet.addRow(["GARAGE COFFEE & MOTOR"]).font = { bold: true, size: 14, color: { argb: "FFC41A1A" } };
+  summarySheet.addRow(["GARAGE COFFEE"]).font = { bold: true, size: 14, color: { argb: "FFC41A1A" } };
   summarySheet.addRow([titleLine]).font = { bold: true, size: 12 };
   summarySheet.addRow([metaLine]).font = { color: { argb: "FF6B7280" } };
   summarySheet.addRow([]);
@@ -256,7 +256,7 @@ function setupPrint(sheet: ExcelJS.Worksheet, title: string, landscape: boolean)
     margins: { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 },
   };
   sheet.headerFooter = {
-    oddHeader: `&L&"-,Bold"GARAGE COFFEE & MOTOR&R${title.replace(/&/g, "&&")}`,
+    oddHeader: `&L&"-,Bold"GARAGE COFFEE&R${title.replace(/&/g, "&&")}`,
     oddFooter: "&LGarage OS&RHalaman &P dari &N",
   };
 }
@@ -288,7 +288,7 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
     // Kop halaman pertama
     doc.rect(left, 36, width, 66).fill(DARK);
     doc.rect(left, 98, width, 4).fill(RED);
-    doc.font("Helvetica-Bold").fontSize(16).fillColor("#ffffff").text("GARAGE COFFEE & MOTOR", left + 14, 48);
+    doc.font("Helvetica-Bold").fontSize(16).fillColor("#ffffff").text("GARAGE COFFEE", left + 14, 48);
     doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(report.outletName ? `Outlet ${report.outletName}` : "Garage OS", left + 14, 70);
     doc.font("Helvetica-Bold").fontSize(12).fillColor("#f2b872").text(titleLine, left, 46, { width: width - 14, align: "right" });
     if (report.division) {
@@ -410,7 +410,7 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
       doc.page.margins.bottom = 0;
       const footerY = doc.page.height - marginBottom - 8;
       if (pageNo > 1) {
-        doc.font("Helvetica-Bold").fontSize(7.5).fillColor(MUTED).text("GARAGE COFFEE & MOTOR", left, 18, { width: width / 2, lineBreak: false });
+        doc.font("Helvetica-Bold").fontSize(7.5).fillColor(MUTED).text("GARAGE COFFEE", left, 18, { width: width / 2, lineBreak: false });
         doc
           .font("Helvetica")
           .fontSize(7.5)

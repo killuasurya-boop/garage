@@ -128,7 +128,7 @@ export function CustomerQueueDisplay() {
       <header className="flex items-end justify-between border-b border-[#2a2a32] pb-4">
         <div>
           <p className="font-mono text-sm uppercase tracking-[0.3em] text-[#f5a742]">
-            GARAGE COFFEE &amp; MOTOR
+            GARAGE COFFEE
           </p>
           <h1 className="mt-1 text-[clamp(40px,6vw,84px)] font-black leading-none tracking-tight">
             ANTREAN PESANAN

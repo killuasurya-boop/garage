@@ -40,7 +40,7 @@ function logoBuffer(): Buffer | null {
   if (logoBufCache !== undefined) return logoBufCache;
   try {
     logoBufCache = readFileSync(
-      // Wordmark GARAGE saja (tanpa tagline "Coffee & Motor") khusus kartu meja.
+      // Wordmark GARAGE saja (tanpa tagline "Coffee · Tebing Tinggi") khusus kartu meja.
       join(process.cwd(), "public", "garage-brand", "logo-wordmark.png"),
     );
   } catch {

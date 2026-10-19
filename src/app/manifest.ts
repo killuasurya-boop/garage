@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/pos",
     name: "Garage POS",
     short_name: "Garage POS",
-    description: "Fullscreen POS tablet untuk Garage Coffee & Motor.",
+    description: "Fullscreen POS tablet untuk Garage Coffee.",
     start_url: "/pos",
     scope: "/",
     display: "fullscreen",

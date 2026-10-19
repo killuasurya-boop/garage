@@ -212,7 +212,7 @@ function ReferralPanel({
     const url = typeof window !== "undefined" ? window.location.origin : "";
     const message = [
       `Halo! Pakai kode referral GARAGE aku: ${trimmed}`,
-      `Daftar member di GARAGE Coffee & Motor — dapat welcome reward, point setiap order, dan bonus referral 30 poin untuk kita berdua.`,
+      `Daftar member di GARAGE Coffee — dapat welcome reward, point setiap order, dan bonus referral 30 poin untuk kita berdua.`,
       url ? `Daftar: ${url}/member-login?mode=register&ref=${encodeURIComponent(trimmed)}` : null,
     ]
       .filter(Boolean)
@@ -453,7 +453,7 @@ export function MemberDashboard() {
         <div className="garage-logo-loading garage-logo-wrap">
           <div className="garage-logo-frame">
             <Image
-              src="/garage-brand/logo-website.png"
+              src="/garage-brand/logo-garage-coffee.png"
               alt="Garage"
               width={1024}
               height={325}
@@ -477,8 +477,8 @@ export function MemberDashboard() {
         <header className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
           <Link href="/" className="block w-[min(200px,52vw)] sm:w-[230px]" aria-label="Kembali ke website Garage">
             <Image
-              src="/garage-brand/logo-website.png"
-              alt="Garage Coffee & Motor"
+              src="/garage-brand/logo-garage-coffee.png"
+              alt="Garage Coffee"
               width={1024}
               height={325}
               priority

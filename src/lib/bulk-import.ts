@@ -252,7 +252,7 @@ export async function templateXlsx(input: {
   }
   const help = workbook.addWorksheet("Petunjuk");
   help.getColumn(1).width = 110;
-  help.addRow(["GARAGE COFFEE & MOTOR — Petunjuk impor"]).font = { bold: true, size: 13 };
+  help.addRow(["GARAGE COFFEE — Petunjuk impor"]).font = { bold: true, size: 13 };
   for (const note of input.notes) help.addRow([note]);
   help.addRow([]);
   help.addRow(["Kolom:"]).font = { bold: true };

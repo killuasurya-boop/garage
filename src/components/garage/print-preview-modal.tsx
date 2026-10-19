@@ -203,7 +203,7 @@ function ThermalPrintContent({ receipt }: { receipt: OrderReceipt }) {
       {/* Header */}
       <div className="garage-print-header">
         <p className="garage-print-brand">GARAGE</p>
-        <p>Coffee &amp; Motor</p>
+        <p>Coffee · Tebing Tinggi</p>
         <p>{receipt.outlet.name}</p>
       </div>
 
@@ -243,7 +243,7 @@ function ThermalPrintContent({ receipt }: { receipt: OrderReceipt }) {
       {/* Footer */}
       <div className="garage-print-footer">
         <p>Terima kasih atas kunjungan Anda!</p>
-        <p>GARAGE Coffee &amp; Motor - {receipt.outlet.name}</p>
+        <p>GARAGE Coffee - {receipt.outlet.name}</p>
         {receipt.invoiceWebUrl && <p>{receipt.invoiceWebUrl}</p>}
       </div>
     </div>
@@ -268,7 +268,7 @@ function InvoicePrintContent({ receipt }: { receipt: OrderReceipt }) {
       <div className="garage-print-invoice-header">
         <div className="garage-print-invoice-brand">
           <p className="garage-print-invoice-brand-name">GARAGE</p>
-          <p className="garage-print-invoice-brand-sub">Coffee &amp; Motor</p>
+          <p className="garage-print-invoice-brand-sub">Coffee · Tebing Tinggi</p>
         </div>
         <div className="garage-print-invoice-meta">
           <div><span>INVOICE</span><strong>{receipt.invoiceNo}</strong></div>
@@ -363,7 +363,7 @@ function InvoicePrintContent({ receipt }: { receipt: OrderReceipt }) {
       {/* Footer */}
       <div className="garage-print-invoice-footer">
         <p>Terima kasih atas kunjungan Anda!</p>
-        <p>GARAGE Coffee &amp; Motor &bull; {receipt.outlet.name}</p>
+        <p>GARAGE Coffee &bull; {receipt.outlet.name}</p>
         {receipt.invoiceWebUrl && <p>{receipt.invoiceWebUrl}</p>}
       </div>
     </div>

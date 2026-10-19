@@ -51,12 +51,13 @@ const BUSINESS_ADDRESS = GARAGE_LOCATION.address;
 const WHATSAPP_DEFAULT_MESSAGE = "Halo GARAGE, saya lihat status meja di website. Saya mau reservasi/order.";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_DEFAULT_MESSAGE)}`;
 const MAPS_URL = GARAGE_LOCATION.mapsUrl;
-const DEFAULT_HOURS_OPEN = "00:00";
-const DEFAULT_HOURS_CLOSE = "23:59";
+const DEFAULT_HOURS_OPEN = "15:00";
+const DEFAULT_HOURS_CLOSE = "23:00";
 // Label jam ringkas: "24 JAM" bila buka 24 jam, selain itu "HH:MM–HH:MM".
 // Baris jalan dari alamat lengkap: "Jl. Mayjen Sutoyo, Rambung, Kec. …" → "Jl. Mayjen Sutoyo, Rambung".
 const streetLine = (address) => String(address || BUSINESS_ADDRESS).split(",").slice(0, 2).join(",").trim();
-const hoursShort = (biz) => (isOpen24h(biz.hoursOpen, biz.hoursClose) ? "24 JAM" : `${biz.hoursOpen}–${biz.hoursClose}`);
+const hoursShort = (biz) =>
+  isOpen24h(biz.hoursOpen, biz.hoursClose) ? "24 JAM" : `${biz.hoursOpen.replace(":", ".")}–${biz.hoursClose.replace(":", ".")}`;
 
 // Link Maps selalu ke profil bisnis resmi (Place ID), tidak memakai mapsUrl dari DB —
 // URL tempelan manual sering hanya membuka pin/pencarian, bukan profil Google.
@@ -89,7 +90,7 @@ const tableCheckMenuUrl = (tableNumber) => ({
 });
 const LOGIN_URL = "/login";
 const MEMBER_LOGIN_URL = "/member-login";
-const BRAND_LOGO_URL = "/garage-brand/logo-website.png";
+const BRAND_LOGO_URL = "/garage-brand/logo-garage-coffee.png";
 const BRAND_LOGO_ASPECT = 1024 / 325;
 const SOCIAL_LINKS = [
   {
@@ -517,7 +518,7 @@ function LogoImage({ variant = "wordmark", height, width, shimmer = false, sizes
     >
       <Image
         src={src}
-        alt="Garage Coffee & Motor"
+        alt="Garage Coffee Tebing Tinggi"
         fill
         sizes={imageSizes}
         preload={preload}
@@ -567,7 +568,7 @@ function LogoLockup({ size = 80, withSub = true, className = "" }) {
             letterSpacing: "0.04em",
           }}
         >
-          COFFEE&nbsp;&amp;&nbsp;MOTOR
+          COFFEE
         </span>
       )}
     </span>
@@ -835,7 +836,7 @@ function CoffeeCup({ size = 360, floating = true, steam = true, className = "", 
             fontWeight="800"
             letterSpacing="5"
           >
-            COFFEE MOTOR
+            COFFEE
           </text>
         </g>
 
@@ -956,7 +957,7 @@ function Loader({ onDone }) {
             }} />
           </div>
           <div className="mono" style={{ marginTop: 14, opacity: 0.5, fontSize: 9 }}>
-            COFFEE · MOTOR · COMMUNITY
+            COFFEE · FOOD · COMMUNITY
           </div>
         </div>
       </div>
@@ -2159,7 +2160,7 @@ function Hero({ landingHero }) {
         <div className="shell hero-image-shell" style={{ position: "relative", zIndex: 3, paddingTop: 150, paddingBottom: 58 }}>
           <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 42 }}>
             <Reveal as="div" className="mono" delay={900}>
-              GARAGE COFFEE & MOTOR · TEBING TINGGI · EST. 2026
+              GARAGE COFFEE · TEBING TINGGI · EST. 2026
             </Reveal>
             <Reveal as="div" className="mono" delay={1000} style={{ textAlign: "right" }}>
               {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
@@ -2168,13 +2169,14 @@ function Hero({ landingHero }) {
 
           <div className="hero-image-layout">
             <Reveal delay={240} className="hero-image-copy">
-              <div className="hero-kicker mono">GARAGE COFFEE & MOTOR</div>
+              <div className="hero-kicker mono">GARAGE COFFEE · TEBING TINGGI</div>
               <div className="garage-steam-wrap" aria-hidden>
                 <span className="garage-steam garage-steam-1" />
                 <span className="garage-steam garage-steam-2" />
                 <span className="garage-steam garage-steam-3" />
               </div>
-              <h1 className="display hero-image-title" aria-label="Lebih dari sekadar kopi.">
+              <h1 className="display hero-image-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi.">
+                <span className="gw-sr-only">Garage Coffee Tebing Tinggi — </span>
                 <span className="hero-title-line hero-title-top">LEBIH DARI</span>
                 <span className="hero-title-line hero-title-bottom">
                   <span>SEKAD</span><span className="hero-title-red">A</span><span>R KOPI.</span>
@@ -2206,7 +2208,7 @@ function Hero({ landingHero }) {
             <span key={`d${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
             <span key={`e${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>GARAGE SPESIAL</span>,
             <span key={`f${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
-            <span key={`g${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>BUDAYA MOTOR</span>,
+            <span key={`g${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>TEBING TINGGI</span>,
             <span key={`h${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>]
             )}
           </div>
@@ -2490,7 +2492,7 @@ function Hero({ landingHero }) {
         {/* top mono row */}
         <div className="hero-meta-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 60 }}>
           <Reveal as="div" className="mono" delay={1200}>
-            ● GARAGE COFFEE & MOTOR · TEBING TINGGI · EST. 2026
+            ● GARAGE COFFEE · TEBING TINGGI · EST. 2026
           </Reveal>
           <Reveal as="div" className="mono" delay={1300} style={{ textAlign: "right" }}>
             {`${biz.address.split(",")[0].toUpperCase()} / BUKA ${hoursLabel}`}
@@ -2516,7 +2518,7 @@ function Hero({ landingHero }) {
             <span className="garage-steam garage-steam-2" />
             <span className="garage-steam garage-steam-3" />
           </div>
-          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Lebih dari sekadar kopi."
+          <Reveal mask delay={400} as="h1" className="display hero-title" aria-label="Garage Coffee Tebing Tinggi — lebih dari sekadar kopi."
           style={{ marginBottom: 8 }}>
             <span className="chrome hero-title-kicker" style={{
               display: "block",
@@ -2601,7 +2603,7 @@ function Hero({ landingHero }) {
           <span key={`d${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
           <span key={`e${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>GARAGE SPESIAL</span>,
           <span key={`f${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>,
-          <span key={`g${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>BUDAYA MOTOR</span>,
+          <span key={`g${k}`} className="display" style={{ fontSize: 36, color: "var(--silver)" }}>TEBING TINGGI</span>,
           <span key={`h${k}`} style={{ fontSize: 28, color: "var(--red)" }}>✶</span>]
           )}
         </div>
@@ -3943,9 +3945,11 @@ function HowToOrder() {
 // ---------------- PROMO BAR ----------------
 function PromoBar() {
   const [closed, setClosed] = useState(false);
+  const biz = useBiz();
   if (closed) return null;
+  const status = openStatus(biz.hoursOpen, biz.hoursClose);
   const promoMessages = [
-    "LIVE GARAGE - BUKA SEKARANG",
+    status.isOpen ? `BUKA SEKARANG · ${hoursShort(biz)} WIB` : `BUKA SETIAP HARI ${hoursShort(biz)} WIB`,
     "CEK MEJA KOSONG SEBELUM DATANG",
     "ORDER DIGITAL / TAKEAWAY TERSEDIA",
     "TRACKING ORDER AKTIF",
@@ -4934,85 +4938,6 @@ function AboutStat({ n, l }) {
 }
 
 
-// ---------------- ATMOSPHERE ----------------
-function Atmosphere({ landingHero = null }) {
-  const tiles = [
-    { src: "/garage-website/showcase/sanger.webp",       l: "Sanger", h: 360 },
-    { src: "/garage-website/showcase/v60.webp",          l: "Racikan bar GARAGE", h: 460 },
-    { src: "/garage-website/showcase/taro-milk.webp",    l: "Milk Series",         h: 400 },
-    { src: "/garage-website/showcase/coffee-latte.webp", l: "Coffee Latte",        h: 420 },
-  ];
-  const renderTile = (tile, idx) => {
-    // Tile tengah (idx 1) pakai foto hero editable bila tersedia.
-    const useHero = idx === 1 && landingHero?.publicUrl;
-    const src = useHero ? landingHero.publicUrl : tile.src;
-    const label = useHero ? (landingHero.alt || tile.l) : tile.l;
-    return (
-      <ImageSlot label={label} height={tile.h} dark={idx % 3 === 1}>
-        <Image
-          src={src}
-          alt={label}
-          fill
-          sizes="(max-width: 900px) 92vw, 420px"
-          quality={75}
-          loading="lazy"
-          style={{ objectFit: "cover", objectPosition: "center" }}
-        />
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.18) 55%, rgba(0,0,0,0.55) 100%)",
-            pointerEvents: "none",
-          }}
-        />
-      </ImageSlot>
-    );
-  };
-  return (
-    <section id="atmosphere" className="section-pad" style={{ borderTop: "1px solid var(--line)" }}>
-      <div className="shell">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 64, flexWrap: "wrap", gap: 24 }}>
-          <div>
-            <Reveal as="div" className="eyebrow" style={{ marginBottom: 24 }}>Signature</Reveal>
-            <Reveal mask as="h2" delay={100} className="display" aria-label="Yang wajib dicoba." style={{ fontSize: "clamp(48px, 8vw, 132px)" }}>
-              <span style={{ display: "block" }}>Yang wajib</span>
-              <span style={{ display: "block" }}><span style={{ color: "var(--red)" }}>dicoba.</span></span>
-            </Reveal>
-          </div>
-          <Reveal delay={400} style={{ maxWidth: 340 }}>
-            <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)" }}>
-              Sanger, Spanish Latte, Matcha, Coffee Latte, sampai Caramel Macchiato khas Garage.
-              Diracik dengan jiwa otomotif — siap nemenin nongkrong sampai larut.
-            </p>
-          </Reveal>
-        </div>
-
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1.3fr 1fr 1.1fr",
-          gridAutoRows: "minmax(0, auto)",
-          alignItems: "end",
-          gap: 16,
-        }} className="gallery-grid">
-          {tiles.map((tile, idx) => (
-            <Reveal key={tile.src} delay={idx * 120}>{renderTile(tile, idx)}</Reveal>
-          ))}
-        </div>
-      </div>
-      <style>{`
-        @media (max-width: 1100px) {
-          .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-        }
-        @media (max-width: 600px) {
-          .gallery-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-    </section>
-  );
-}
-
 // ---------------- SOCIAL PORTFOLIO ----------------
 function SocialMark({ id }) {
   if (id === "youtube") {
@@ -5347,7 +5272,7 @@ function Experience() {
     {
       n: "02",
       t: "Nyaman ditinggali lama",
-      d: "Area duduk santai untuk ngobrol berjam-jam — sendiri, bareng teman, atau satu rombongan motor.",
+      d: "Area duduk santai untuk ngobrol berjam-jam — sendiri, bareng teman, atau satu rombongan.",
       i: <PromoIcon kind="chair" />,
     },
     {
@@ -5359,7 +5284,7 @@ function Experience() {
     {
       n: "04",
       t: "Garasi komunitas",
-      d: "Kopdar motor dan acara komunitas. Info event terbaru selalu diumumkan di Instagram GARAGE.",
+      d: "Kopdar dan acara komunitas. Info event terbaru selalu diumumkan di Instagram GARAGE.",
       i: <PromoIcon kind="cog" />,
     },
     {
@@ -5525,7 +5450,7 @@ function toEventRows(list) {
   });
 }
 const EVENT_IDEAS = [
-  { title: "Kopdar & touring", desc: "Kumpul bareng rombongan motor — pesan meja & menu untuk satu rombongan sekaligus." },
+  { title: "Kopdar & touring", desc: "Kumpul bareng rombongan — pesan meja & menu untuk satu rombongan sekaligus." },
   { title: "Ulang tahun & syukuran", desc: "Booking area dan atur menu lebih dulu lewat WhatsApp." },
   { title: "Meeting & komunitas", desc: "Rapat santai, nobar, atau kumpul komunitas sambil ngopi." },
 ];
@@ -5561,7 +5486,7 @@ function Events() {
           </div>
           <Reveal delay={400}>
             <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--fg-dim)", maxWidth: 480 }}>
-              Kopdar motor, acara komunitas, dan kumpul rombongan di GARAGE. Jadwal event diumumkan di Instagram — mau bikin acara sendiri? Booking tempat lewat WhatsApp.
+              Kopdar, acara komunitas, dan kumpul rombongan di GARAGE. Jadwal event diumumkan di Instagram — mau bikin acara sendiri? Booking tempat lewat WhatsApp.
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
               <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
@@ -5982,7 +5907,7 @@ function EventRow({ e, i, hover, setHover }) {
 const TESTI = [
 { q: "Kafe yang nggak terasa kafe. Masuk ke sini rasanya kayak masuk ke bengkel — bengkel buat lidahmu.", a: "Reza A.", r: "Regular sejak '24" },
 { q: "Garage Black satu-satunya kopi yang boleh ganggu ritual pagiku. Worth dijabanin dari ujung kota.", a: "Mira H.", r: "Cafe racer rider" },
-{ q: "Datang karena motornya, balik lagi karena V60-nya. Baristanya jelasin tiga origin kayak teman ngobrol.", a: "Daffa K.", r: "Desainer / pelanggan" },
+{ q: "Datang karena tempatnya, balik lagi karena V60-nya. Baristanya jelasin tiga origin kayak teman ngobrol.", a: "Daffa K.", r: "Desainer / pelanggan" },
 { q: "Cukup tenang buat kerja. Cukup hidup buat ngerasa nggak sendiri. Kebanyakan kafe gagal di sini — Garage tepat sasaran.", a: "Vania P.", r: "Penulis lepas" },
 { q: "Octane Affogato bikin saya ubah rencana Minggu. Sekarang punya ritual baru.", a: "Bayu T.", r: "Pengunjung pertama" }];
 
@@ -6127,7 +6052,7 @@ function Location() {
               allowFullScreen
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              title="GARAGE Coffee & Motor Location"
+              title="Lokasi Garage Coffee Tebing Tinggi"
             />
           </div>
         </div>
@@ -6168,7 +6093,7 @@ function LocationMvp() {
               <li><TrainFront size={16} aria-hidden="true" /> Dekat jalur kereta api</li>
               <li><Trees size={16} aria-hidden="true" /> Area outdoor — lihat kereta lewat</li>
               <li><Clock size={16} aria-hidden="true" /> {isOpen24h(biz.hoursOpen, biz.hoursClose) ? "Buka 24 jam, setiap hari" : `Buka ${hoursShort(biz)} setiap hari`}</li>
-              <li><Bike size={16} aria-hidden="true" /> Ramah komunitas motor</li>
+              <li><Bike size={16} aria-hidden="true" /> Ramah komunitas & rombongan</li>
             </Reveal>
             <Reveal delay={360} as="div" className="location-mvp-cta-row">
               <a className="btn btn-primary" href={GARAGE_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer"><span>Rute ke GARAGE</span><ArrowRight /></a>
@@ -6256,7 +6181,7 @@ function LocalSeoBlock() {
         <Reveal className="local-seo-grid">
           <div>
             <div className="eyebrow" style={{ marginBottom: 18 }}>Tebing Tinggi</div>
-            <h2>GARAGE Coffee & Motor Tebing Tinggi</h2>
+            <h2>Garage Coffee Tebing Tinggi</h2>
             <p>
               Cafe dan coffee shop di Tebing Tinggi untuk ngopi, makan, nongkrong, pesan takeaway, reservasi WhatsApp, ikut event komunitas, dan jadi member GARAGE.
             </p>
@@ -6413,7 +6338,7 @@ function Footer() {
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 60 }} className="foot-grid">
           <div>
             <LogoImage variant="wordmark" height={56} />
-            <div className="mono" style={{ marginTop: 8 }}>COFFEE & MOTOR · EST. 2026</div>
+            <div className="mono" style={{ marginTop: 8 }}>COFFEE · TEBING TINGGI · EST. 2026</div>
             <p style={{ marginTop: 28, color: "var(--fg-dim)", maxWidth: 360, fontSize: 14, lineHeight: 1.6 }}>
               Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Buka setiap hari.
             </p>
@@ -6447,7 +6372,7 @@ function Footer() {
             </div>
             <div style={{ marginTop: 24, padding: "14px 18px", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 8, height: 8, background: "#e4e4e7", borderRadius: "50%", boxShadow: "0 0 0 4px rgba(228,228,231,0.2)" }} />
-              <span className="mono" style={{ color: "var(--fg)" }}>{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "BUKA 24 JAM" : `BUKA ${biz.hoursOpen} · TUTUP ${biz.hoursClose}`}</span>
+              <span className="mono" style={{ color: "var(--fg)" }}>{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "BUKA 24 JAM" : `BUKA SETIAP HARI ${hoursShort(biz)} WIB`}</span>
             </div>
           </div>
           {cols.map((c) =>
@@ -6469,7 +6394,7 @@ function Footer() {
         </div>
 
         <div style={{ marginTop: 80, paddingTop: 28, borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-          <div className="mono">© 2026 GARAGE COFFEE &amp; MOTOR · SEMUA HAK CIPTA DILINDUNGI</div>
+          <div className="mono">© 2026 GARAGE COFFEE TEBING TINGGI · SEMUA HAK CIPTA DILINDUNGI</div>
           <div className="mono">DIBUAT UNTUK RASA, JIWA, KOMUNITAS</div>
         </div>
       </div>
@@ -6589,7 +6514,7 @@ function FooterMvp() {
         <div className="footer-mvp-grid">
           <div className="footer-mvp-brand">
             <LogoImage variant="wordmark" height={56} />
-            <div className="mono footer-mvp-est">COFFEE & MOTOR · EST. 2026</div>
+            <div className="mono footer-mvp-est">COFFEE · TEBING TINGGI · EST. 2026</div>
             <p className="footer-mvp-copy">
               Kopi, makanan, dan tempat nongkrong dengan jiwa otomotif. Pesan via QR,
               takeaway, reservasi meja, dan event komunitas dalam satu tempat.
@@ -6620,7 +6545,7 @@ function FooterMvp() {
             <p className="footer-mvp-address">{shortAddress}</p>
             <div className="footer-mvp-open">
               <span className="footer-mvp-open-dot" />
-              <span className="mono">{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "OPEN 24 JAM" : `OPEN ${biz.hoursOpen} - ${biz.hoursClose}`}</span>
+              <span className="mono">{isOpen24h(biz.hoursOpen, biz.hoursClose) ? "BUKA 24 JAM" : `BUKA SETIAP HARI ${hoursShort(biz)} WIB`}</span>
             </div>
             <p className="footer-mvp-meta"><a href={`tel:+${biz.whatsapp}`} style={{ color: "inherit" }}>{formatIdPhone(biz.whatsapp)}</a></p>
             <p className="footer-mvp-meta">{biz.email}</p>
@@ -6655,7 +6580,7 @@ function FooterMvp() {
         </div>
 
         <div className="footer-mvp-bottom">
-          <div className="mono">© 2026 GARAGE COFFEE &amp; MOTOR · SEMUA HAK CIPTA DILINDUNGI</div>
+          <div className="mono">© 2026 GARAGE COFFEE TEBING TINGGI · SEMUA HAK CIPTA DILINDUNGI</div>
           <div className="footer-mvp-bottom-links">
             <a href={MEMBER_LOGIN_URL} className="footer-mvp-link">Login Member</a>
             <a href={LOGIN_URL} onClick={(event) => goToAccess(event, LOGIN_URL)} className="footer-mvp-link">Login Karyawan</a>
@@ -7229,10 +7154,10 @@ function GarageWebsiteRoot({
   const localBusinessJsonLd = {
     "@context": "https://schema.org",
     "@type": "CafeOrCoffeeShop",
-    name: "GARAGE Coffee & Motor",
+    name: "Garage Coffee Tebing Tinggi",
     alternateName: GARAGE_LOCATION.name,
     description:
-      "GARAGE Coffee & Motor Tebing Tinggi. Cafe, coffee shop, tempat nongkrong, menu digital, takeaway, reservasi WhatsApp, membership, dan event komunitas.",
+      `Garage Coffee Tebing Tinggi — cafe & coffee shop, buka setiap hari ${hoursShort(biz)} WIB. Coffee shop, tempat nongkrong, menu digital, takeaway, reservasi WhatsApp, membership, dan event komunitas.`,
     // Domain publik (https) dari env bila sudah ada; alamat LAN (http://192.168…) tidak dipakai untuk Google.
     url: process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.startsWith("https://")
       ? process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL
@@ -7294,7 +7219,6 @@ function GarageWebsiteRoot({
       <LiveTestimonials />
       <About />
       <MenuGallery />
-      <Atmosphere landingHero={landingHero} />
       <SocialPortfolio />
       <Experience />
       <MembershipMasterPro />

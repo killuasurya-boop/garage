@@ -51,7 +51,7 @@ export async function generateInvoicePdf(data: OrderReceiptData): Promise<Buffer
         .font("Helvetica-Bold")
         .fontSize(18)
         .fillColor("#111")
-        .text("GARAGE COFFEE & MOTOR", 48, 48);
+        .text("GARAGE COFFEE", 48, 48);
       doc
         .font("Helvetica")
         .fontSize(9)

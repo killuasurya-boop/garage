@@ -30,9 +30,8 @@ const SITE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: "Garage POS",
-  title: "Garage Coffee & Motor",
-  description:
-    "Kopi premium dengan jiwa otomotif. Bengkel yang menyamar jadi coffee shop dengan budaya komunitas motor.",
+  title: "Garage Coffee Tebing Tinggi",
+  description: "Garage Coffee Tebing Tinggi — cafe & coffee shop, buka setiap hari 15.00–23.00 WIB.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/garage-brand/logo-icon.png",

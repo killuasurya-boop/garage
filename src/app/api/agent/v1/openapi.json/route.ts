@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   }
   return Response.json({
     openapi: "3.1.0",
-    info: { title: "Garage OS Agent API", version: "1.0.0", description: "Kontrol Garage Coffee & Motor OS untuk agent AI (OpenClaw / Hermes). Autentikasi: Authorization: Bearer gk_agent_…" },
+    info: { title: "Garage OS Agent API", version: "1.0.0", description: "Kontrol Garage Coffee OS untuk agent AI (OpenClaw / Hermes). Autentikasi: Authorization: Bearer gk_agent_…" },
     servers: [{ url: origin }],
     components: { securitySchemes: { bearer: { type: "http", scheme: "bearer" } } },
     paths,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { parseReceiptQrLine, stripReceiptQr } from "@/lib/receipt-layout";
 import { buildKitchenChitContent, buildThermalContent } from "@/lib/thermal-receipt";
 
 describe("Nomor meja di struk thermal", () => {
@@ -104,10 +105,65 @@ describe("struk cetak ulang — tidak ada teks terpotong", () => {
     for (const width of [30, 32, 48]) {
       const content = buildThermalContent(receipt as never, { width });
       const lines = content.split("\r\n");
-      expect(lines.every((line) => line.length <= width)).toBe(true);
+      // Baris penanda QR digambar printer, bukan dicetak sebagai teks.
+      expect(lines.filter((line) => parseReceiptQrLine(line) === null).every((line) => line.length <= width)).toBe(true);
       const joined = lines.map((line) => line.trim()).join(" ");
       expect(joined).toContain("(salinan struk - bukan transaksi baru)");
       expect(lines.map((line) => line.trim()).join("")).toContain(receipt.invoiceWebUrl);
     }
+  });
+});
+
+describe("QR cek pesanan di struk", () => {
+  const base = {
+    orderNo: "POS-1",
+    items: [{ name: "Latte", qty: 1, price: 20_000 }],
+    subtotal: 20_000,
+    total: 20_000,
+  };
+
+  it("mencetak penanda QR + keterangan bila ada link invoice", () => {
+    const content = buildThermalContent({ ...base, invoiceWebUrl: "https://garagecoffee.id/invoice/abc" } as never);
+    const lines = content.split("\r\n");
+    expect(lines.some((line) => line.includes("SCAN UNTUK CEK PESANAN"))).toBe(true);
+    expect(lines.map(parseReceiptQrLine).filter(Boolean)).toEqual(["https://garagecoffee.id/invoice/abc"]);
+    expect(stripReceiptQr(content)).not.toContain("[[QR:");
+    const text = stripReceiptQr(content).split("\r\n").map((line) => line.trim()).join("");
+    expect(text).toContain("https://garagecoffee.id/invoice/abc");
+  });
+
+  it("tanpa link invoice tidak ada QR", () => {
+    const content = buildThermalContent(base as never);
+    expect(content).not.toContain("[[QR:");
+    expect(content).not.toContain("SCAN UNTUK CEK PESANAN");
+  });
+});
+
+describe("chit Bar/Dapur detail", () => {
+  it("mencetak tambahan, target, petugas cetak, catatan dan total item", () => {
+    const content = buildKitchenChitContent({
+      orderNo: "POS-9",
+      queueNo: 4,
+      tableLabel: "Meja 01",
+      orderType: "QR Table",
+      createdAt: "2026-10-19T20:24:00.000Z",
+      addonSequence: 2,
+      targetMinutes: 12,
+      printedBy: "Rina",
+      printedAt: "2026-10-19T20:30:00.000Z",
+      orderNote: "Pedas sedang, tanpa bawang goreng untuk semua porsi",
+      items: [
+        { name: "Ayam Penyet", qty: 2, station: "Dapur", note: "sambal dipisah" },
+        { name: "Nasi", qty: 1, station: "Dapur" },
+      ],
+    } as never);
+    expect(content).toContain("TAMBAHAN KE-2");
+    expect(content).toContain("Tipe  : Menu digital");
+    expect(content).toMatch(/Target: 12 mnt \(03[.:]36\)/);
+    expect(content).toMatch(/Cetak : 03[.:]30 Rina/);
+    expect(content).toContain("Jumlah: 3 item (2 menu)");
+    expect(content).toContain("Catatan order:");
+    expect(content).not.toContain("Kasir : -");
+    expect(content.split("\r\n").every((line) => line.length <= 32)).toBe(true);
   });
 });

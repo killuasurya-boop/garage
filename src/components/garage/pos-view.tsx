@@ -1886,7 +1886,7 @@ export function PosView({
     setKitchenPrintingId(key);
     setKitchenActionError(null);
     try {
-      const res = await printKitchenChits(tickets.map(ticketToChit), settings.defaultPrinterName || undefined);
+      const res = await printKitchenChits(tickets.map((ticket) => ticketToChit(ticket, me.user.name)), settings.defaultPrinterName || undefined);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
         setKitchenActionError(`Tiket gagal dicetak: ${body.error?.message || "cek printer di Pengaturan Printer."}`);

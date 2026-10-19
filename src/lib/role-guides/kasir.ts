@@ -223,6 +223,9 @@ export const kasirGuide: RoleGuide = {
           text: "Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.",
         },
         {
+          text: "Tiket Bar/Dapur memuat: antrian, meja, nama, tipe pesanan, jam pesan, target jam siap, TAMBAHAN KE-n untuk pesanan tambahan, catatan per item & catatan order, jumlah item, serta jam cetak + nama Anda.",
+        },
+        {
           text: "Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).",
         },
         { text: "Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama." },
@@ -243,6 +246,7 @@ export const kasirGuide: RoleGuide = {
           text: "Bayar 1 tap: di bawah tombol Bayar ada ⚡ Uang pas (take away, langsung lunas tunai, kembalian 0) dan ⚡ QRIS (take away, langsung ke layar QRIS). Di HP tombol ini ada di Keranjang.",
           warn: "Uang pas hanya bila pelanggan memberi uang tepat sejumlah total. Ada kembalian? Pakai tombol Bayar biasa.",
         },
+        { text: "QR di struk: bagian bawah struk pelanggan kini ada QR \"SCAN UNTUK CEK PESANAN\". Pelanggan scan dengan kamera HP untuk melihat status pesanan & invoice — link teks tetap dicetak di bawahnya." },
         { text: "Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan \"Pesanan siap: #antrian meja\". Suara mengikuti setelan Suara QR (Off = senyap)." },
       ],
     },

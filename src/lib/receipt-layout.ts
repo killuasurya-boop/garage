@@ -149,3 +149,23 @@ export function formatJakartaDateTime(iso: string | null | undefined): string {
     timeZone: "Asia/Jakarta",
   }).format(new Date(iso));
 }
+
+// ── QR di struk (owner, Okt 2026) ───────────────────────────────────────────
+// Baris penanda "[[QR:<url>]]" di teks struk. Jalur cetak yang bisa menggambar
+// (dialog Chrome, ESC/POS langsung) menggantinya dengan QR; jalur teks (agen,
+// route server) membuang baris ini — link teks di bawahnya tetap tercetak.
+const RECEIPT_QR_LINE = /^\s*\[\[QR:(\S+)\]\]\s*$/;
+
+export function receiptQrMarker(url: string) {
+  return `[[QR:${url.trim()}]]`;
+}
+
+/** URL dari baris penanda QR, atau null bila baris biasa. */
+export function parseReceiptQrLine(line: string): string | null {
+  return RECEIPT_QR_LINE.exec(line)?.[1] ?? null;
+}
+
+/** Buang baris penanda QR (untuk printer yang hanya menerima teks). */
+export function stripReceiptQr(text: string) {
+  return text.replace(/^[ \t]*\[\[QR:\S+\]\][ \t]*(?:\r?\n|$)/gm, "");
+}

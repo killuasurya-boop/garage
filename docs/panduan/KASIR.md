@@ -134,9 +134,10 @@ Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di
 2. Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.
 3. Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil.
 4. Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.
-5. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
-6. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
-7. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
+5. Tiket Bar/Dapur memuat: antrian, meja, nama, tipe pesanan, jam pesan, target jam siap, TAMBAHAN KE-n untuk pesanan tambahan, catatan per item & catatan order, jumlah item, serta jam cetak + nama Anda.
+6. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
+7. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
+8. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 
 ## 13. Kerja cepat kasir
@@ -147,7 +148,8 @@ Empat jalan pintas supaya antrean cepat habis.
 2. Kode singkat: ketik 2–4 huruf di kolom cari, mis. cl = Coffee Latte, ng = Nasi Goreng. Kode tertulis di pojok kiri atas tiap kartu menu. Tekan Enter untuk langsung memesan menu teratas.
 3. Bayar 1 tap: di bawah tombol Bayar ada ⚡ Uang pas (take away, langsung lunas tunai, kembalian 0) dan ⚡ QRIS (take away, langsung ke layar QRIS). Di HP tombol ini ada di Keranjang.
    - **Penting:** Uang pas hanya bila pelanggan memberi uang tepat sejumlah total. Ada kembalian? Pakai tombol Bayar biasa.
-4. Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan "Pesanan siap: #antrian meja". Suara mengikuti setelan Suara QR (Off = senyap).
+4. QR di struk: bagian bawah struk pelanggan kini ada QR "SCAN UNTUK CEK PESANAN". Pelanggan scan dengan kamera HP untuk melihat status pesanan & invoice — link teks tetap dicetak di bawahnya.
+5. Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan "Pesanan siap: #antrian meja". Suara mengikuti setelan Suara QR (Off = senyap).
 
 ## 14. Laporan penjualan shift saya
 

@@ -214,8 +214,9 @@ VoucherValidation
 import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
+import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summary";
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
-import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
+import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { claimReprint } from "@/lib/reprint-guard";
@@ -3602,7 +3603,7 @@ export function PosView({
           total: number;
           tableLabel: string | null;
           customerName: string | null;
-          paymentStatus: "pending" | "paid" | "failed";
+          paymentStatus: PaymentStatus;
           paidAmount: number;
         };
         outlet: { code: string; name: string } | null;
@@ -3618,7 +3619,7 @@ export function PosView({
       const res = await printThermal({
         receipt: {
           provisional: true,
-          paymentStatus: data.order.paymentStatus === "failed" ? "failed" : "pending",
+          paymentStatus: data.order.paymentStatus === "paid" ? "pending" : data.order.paymentStatus,
           paidAmount: data.order.paidAmount,
           tableLabel: data.order.tableLabel,
           customer: { name: data.order.customerName },
@@ -4819,6 +4820,7 @@ export function PosView({
 
           {activeCashierToolOpen === "reports" && (
             <div className="space-y-3">
+              <PosShiftSalesSummary />
               <details className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
                 <summary className="cursor-pointer px-1 py-1 text-sm font-semibold text-white">
                   Penjualan shift saya (produk, kategori, metode bayar)
@@ -7243,7 +7245,7 @@ export function PosView({
                   .map((item) => `${item.qty}x ${item.itemName}`)
                   .join(", ");
                 const canAccept = canAcceptCustomerOrder(order);
-                const canReject = canRejectCustomerOrder(order);
+                const canReject = canRejectCustomerOrder(order, me.role);
                 const canFinalize = canFinalizeCustomerOrder(order);
 
                 return (
@@ -7469,7 +7471,7 @@ export function PosView({
                     .map((item) => `${item.qty}x ${item.itemName}`)
                     .join(", ");
                   const canAccept = canAcceptCustomerOrder(order);
-                  const canReject = canRejectCustomerOrder(order);
+                  const canReject = canRejectCustomerOrder(order, me.role);
                   const canFinalize = canFinalizeCustomerOrder(order);
                   const busyAction = customerOrderActionId?.startsWith(`${order.id}:`);
 
@@ -8658,7 +8660,25 @@ export function PosView({
                     Finalkan Pembayaran
                   </Button>
                 ) : null}
-                {canRejectCustomerOrder(selectedCustomerOrder) ? (
+                {!canRejectCustomerOrder(selectedCustomerOrder, me.role) &&
+                (selectedCustomerOrder.status === "awaiting_payment" || selectedCustomerOrder.status === "accepted") ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="pos-request-cancel"
+                    className="garage-press h-11 flex-1 basis-[140px] border-[#4a4a54]"
+                    onClick={() =>
+                      setCancelTarget({
+                        orderNo: selectedCustomerOrder.orderNo,
+                        tableLabel: selectedCustomerOrder.tableLabel,
+                        total: selectedCustomerOrder.total,
+                      })
+                    }
+                  >
+                    Ajukan batal
+                  </Button>
+                ) : null}
+                {canRejectCustomerOrder(selectedCustomerOrder, me.role) ? (
                   <Button
                     type="button"
                     variant="outline"

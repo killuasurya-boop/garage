@@ -115,6 +115,20 @@ Scroll direction:
   `allowHiddenItems`.
 - "Bayar nanti" = `POST /api/orders/open-bill` (staff customer order + accept with
   `{ openBill: true }`, skipping take-away pay-first); settled later via Final Bayar.
+- Order/invoice admin (owner, Okt 2026) is Owner/Manajer only, checked in the backend
+  (`requireOwnerOrManager`, `assertOwnerOrManager`):
+  - `updateOrderInfo`: name/phone/note only; amounts and items are never edited.
+  - `revertOrderPayment`: Lunas→Pending, only while the payment's shift is open.
+    The payment goes back to `pending`, nothing is deleted and it is NOT a refund.
+  - `confirmOrderPayment`: Pending→Lunas via the Final Bayar flow.
+  - `correctPaymentMethod`: the method changes and the total stays.
+  - `voidOrder`: cancel.
+  - `setOrderArchived`: archive/restore hides the order from lists only, reports unchanged
+    (`orders.archived_at`, migration 0141).
+  - `getOrderChangeHistory`: change history read from the audit log.
+  - Audit metadata carries `orderNo`, `actionType`, `before`/`after` and `reason`.
+- Kasir never cancels/deletes a processed sale: `reject` only before acceptance, void always
+  goes through an approval (`APP-VOID`). Report "jenis pesanan" = `channelGroupOf`.
 - Invoice delete (owner, Okt 2026) = `deleteUnpaidInvoice` / `POST /api/orders/[id]/delete`: Owner/Manajer
   only, unpaid only, reason + typed order no; soft delete through `voidOrder` (status `voided`, audit
   "Hapus invoice"). Paid invoices are never deleted — Batal/Refund. Payment status ≠ method:

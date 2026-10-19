@@ -666,6 +666,11 @@ export const orders = pgTable(
     // Kunci anti-dobel dari kasir ("<userId>:<X-Idempotency-Key>"). Unik di DB
     // → tombol Bayar diulang (juga setelah server restart) tidak membuat order kedua.
     clientRequestKey: text("client_request_key"),
+    // Arsip invoice (Owner/Manajer): hanya menyembunyikan dari daftar bawaan —
+    // laporan, stok, kas, dan pembayaran tidak berubah. Bisa dipulihkan.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedBy: text("archived_by").references(() => user.id, { onDelete: "set null" }),
+    archiveReason: text("archive_reason"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -681,6 +686,7 @@ export const orders = pgTable(
     invoiceTrackingTokenIdx: uniqueIndex("orders_invoice_tracking_token_idx").on(table.invoiceTrackingToken),
     outletCreatedIdx: index("orders_outlet_created_idx").on(table.outletId, table.createdAt),
     statusCreatedIdx: index("orders_status_created_idx").on(table.status, table.createdAt),
+    archivedIdx: index("orders_archived_at_idx").on(table.archivedAt),
   }),
 );
 

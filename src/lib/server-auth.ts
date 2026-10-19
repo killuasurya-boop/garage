@@ -232,6 +232,23 @@ export async function requirePermission(permission: Permission) {
 }
 
 /**
+ * Aksi administratif order/invoice (ubah status/metode bayar, edit, batal,
+ * hapus/arsip/pulihkan, riwayat): hanya Owner/Manajer. Dicek di backend —
+ * tombol di UI hanya tampilan.
+ */
+export async function requireOwnerOrManager() {
+  const session = await requirePermission("finance:write");
+  if (session.response) return session;
+  if (session.data.profile.role !== "Owner" && session.data.profile.role !== "Manajer") {
+    return {
+      data: null,
+      response: fail(403, "FORBIDDEN", "Hanya Owner atau Manajer yang boleh melakukan aksi ini."),
+    };
+  }
+  return session;
+}
+
+/**
  * Sesi untuk aksi uang (terima/tandai lunas, split bill, voucher, serah-terima
  * kas): hanya kasir (role Kasir tanpa workstation) + Owner/Manajer.
  */

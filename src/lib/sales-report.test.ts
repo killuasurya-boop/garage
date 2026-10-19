@@ -58,7 +58,7 @@ describe("aggregateSalesReport", () => {
       ["Kasir A", 50000],
       ["Kasir B", 45000],
     ]);
-    expect(report.orderTypes.map((row) => row.label)).toEqual(["Dine in", "Delivery"]);
+    expect(report.orderTypes.map((row) => row.label)).toEqual(["Dine-in kasir", "Delivery"]);
   });
 
   it("pengelompokan metode bayar", () => {

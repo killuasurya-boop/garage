@@ -139,6 +139,7 @@ export async function deliverPrintContent(
       paper: config.paper,
       bold: config.bold,
       textSize: config.textSize,
+      compat: config.compat,
     });
 
   if (config.mode === "serial" || config.mode === "usb" || config.mode === "ble") {

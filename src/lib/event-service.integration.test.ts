@@ -34,6 +34,13 @@ describe("event Grand Opening", () => {
       contactWhatsapp: "6285121552341",
       highlights: ["Live Music", "Diskoyoks"],
       defaultMaxPax: 2,
+      agenda: [
+        { start: "15:00", end: "18:00", title: "Live Music" },
+        { start: "20:00", end: "23:00", title: "Diskoyoks" },
+      ],
+      promoText: "Diskon 20% Menu Bundling",
+      sponsorName: "BLACK",
+      ageGate: true,
     });
     expect(event.address).toContain("Jl. Mayjen Sutoyo");
     expect(await svc.getPublishedEvent("grand-opening")).toBeNull();
@@ -81,6 +88,31 @@ describe("event Grand Opening", () => {
     );
     expect(changed.changedFacts).toEqual(["endsAt"]);
     expect(changed.event.contentVersion).toBe(event.contentVersion + 1);
+    // Field konten poster tidak dikirim → nilai lama tetap.
+    expect(changed.event.agenda).toHaveLength(2);
+    expect(changed.event.ageGate).toBe(true);
+
+    const poster = await svc.updateEvent(
+      event.id,
+      svc.eventUpdateSchema.parse({
+        ...base,
+        endsAt: "2026-10-24T16:30:00.000Z",
+        agenda: [
+          { start: "20:00", end: "23:00", title: "Diskoyoks" },
+          { start: "15:00", end: "18:00", title: "Live Music" },
+        ],
+        promoText: "",
+        sponsorName: null,
+        ageGate: false,
+      }),
+      userId,
+    );
+    expect(poster.event.agenda.map((item) => item.title)).toEqual(["Live Music", "Diskoyoks"]);
+    expect(poster.event).toMatchObject({ promoText: null, sponsorName: null, ageGate: false });
+    expect(poster.changedFacts).toEqual([]);
+    expect(
+      svc.eventUpdateSchema.safeParse({ ...base, agenda: [{ start: "3 sore", end: "18:00", title: "Live Music" }] }).success,
+    ).toBe(false);
 
     expect(svc.eventUpdateSchema.safeParse({ ...base, endsAt: base.startsAt }).success).toBe(false);
     expect(svc.eventUpdateSchema.safeParse({ ...base, mapsUrl: "javascript:alert(1)" }).success).toBe(false);

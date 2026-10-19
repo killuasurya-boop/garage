@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { events } from "@/db/schema";
-import type { PublicEvent } from "@/lib/event-format";
+import { AGENDA_TIME, type PublicEvent } from "@/lib/event-format";
 import { normalizeWaNumber } from "@/lib/whatsapp-link";
 
 // =============================================================================
@@ -63,6 +63,18 @@ function cleanGallery(value: unknown) {
     .slice(0, 12);
 }
 
+function cleanAgenda(value: unknown) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => ({
+      start: String((item as { start?: unknown })?.start ?? "").trim(),
+      end: String((item as { end?: unknown })?.end ?? "").trim(),
+      title: String((item as { title?: unknown })?.title ?? "").trim(),
+    }))
+    .filter((item) => AGENDA_TIME.test(item.start) && AGENDA_TIME.test(item.end) && item.title)
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .slice(0, 12);
+}
+
 function isSafeImageSrc(src: string) {
   return (src.startsWith("/") && !src.startsWith("//")) || /^https:\/\/[^\s"'<>]+$/.test(src);
 }
@@ -84,6 +96,10 @@ export function toPublicEvent(row: EventRow): PublicEvent {
     about: row.about,
     faq: cleanFaq(row.faq),
     gallery: cleanGallery(row.gallery),
+    agenda: cleanAgenda(row.agenda),
+    promoText: row.promoText?.trim() || null,
+    sponsorName: row.sponsorName?.trim() || null,
+    ageGate: row.ageGate,
     rsvpDeadline: row.rsvpDeadline ? row.rsvpDeadline.toISOString() : null,
   };
 }
@@ -163,6 +179,19 @@ export const eventUpdateSchema = z
         }),
       )
       .max(12),
+    agenda: z
+      .array(
+        z.object({
+          start: z.string().trim().regex(AGENDA_TIME, "Jam mulai format HH:MM."),
+          end: z.string().trim().regex(AGENDA_TIME, "Jam selesai format HH:MM."),
+          title: z.string().trim().min(2).max(80),
+        }),
+      )
+      .max(12)
+      .optional(),
+    promoText: z.string().trim().max(120).nullable().optional(),
+    sponsorName: z.string().trim().max(60).nullable().optional(),
+    ageGate: z.boolean().optional(),
     featuredOnHome: z.boolean(),
     rsvpDeadline: isoDate.nullable().optional(),
     defaultMaxPax: z.number().int().min(1).max(10),
@@ -196,6 +225,10 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
     about: input.about || null,
     faq: input.faq,
     gallery: input.gallery,
+    agenda: input.agenda ? cleanAgenda(input.agenda) : current.agenda,
+    promoText: input.promoText === undefined ? current.promoText : input.promoText || null,
+    sponsorName: input.sponsorName === undefined ? current.sponsorName : input.sponsorName || null,
+    ageGate: input.ageGate ?? current.ageGate,
     featuredOnHome: input.featuredOnHome,
     rsvpDeadline: input.rsvpDeadline ? new Date(input.rsvpDeadline) : null,
     defaultMaxPax: input.defaultMaxPax,

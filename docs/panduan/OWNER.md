@@ -49,7 +49,8 @@ Satu data event untuk banner homepage, halaman /grand-opening, dan undangan prib
 2. Tekan Terbitkan setelah semua benar. Banner homepage dan halaman garagecoffee.id/grand-opening langsung tampil.
    - **Penting:** Selama status Draft, halaman /grand-opening tidak bisa dibuka publik. Perubahan tanggal/jam/alamat tercatat di Audit.
 3. FAQ dan galeri hanya tampil bila diisi; jangan isi performer/promo yang belum terkonfirmasi.
-4. Tamu & undangan pribadi: lihat panduan Manajer bab Undangan Grand Opening. Owner juga bisa Ekspor CSV dan melihat tab Log.
+4. Rundown, teks promo, sponsor, dan gerbang usia 21+ diatur di panel yang sama. Sponsor tampil sebagai teks saja; gerbang 21+ wajib aktif selama sponsor produk tembakau.
+5. Tamu & undangan pribadi: lihat panduan Manajer bab Undangan Grand Opening. Owner juga bisa Ekspor CSV dan melihat tab Log.
 
 ## 7. Agent AI (WhatsApp / Telegram)
 

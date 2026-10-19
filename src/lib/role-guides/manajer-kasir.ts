@@ -18,6 +18,9 @@ export const manajerKasirGuide: RoleGuide = {
           text: "Hapus invoice BELUM lunas: di POS buka Pesanan Pelanggan atau detail meja → Hapus invoice → isi alasan → ketik nomor invoice → Ya, hapus. Pesanan Bar/Dapur ikut batal, stok kembali, tercatat di Audit Log.",
           warn: "Invoice LUNAS tidak bisa dihapus. Gunakan Batal (void) / Refund dari Riwayat Struk Shift dengan alasan — riwayat tetap ada untuk laporan penjualan & keuangan.",
         },
+        {
+          text: "Riwayat Penjualan → filter status bayar (Pending/Lunas/Dibatalkan/Refund), metode, jenis pesanan, tanggal, arsip. Tombol ⋯ / detail: Edit info, Konfirmasi lunas, Ubah metode bayar, Batalkan pelunasan (salah input, shift masih buka — bukan refund), Batalkan order, Hapus/Arsip/Pulihkan, Riwayat perubahan. Semua wajib alasan & tercatat.",
+        },
         { text: "Diskon manual: cek alasan & nominal, lalu masukkan PIN. Persetujuan hanya berlaku untuk nominal itu." },
         { text: "Void / refund: pastikan pelanggan benar-benar dikembalikan uangnya. Uang tunai otomatis dikurangkan dari laci shift asal." },
         { text: "Kas keluar/masuk kasir mulai batas nominal (default Rp50.000) butuh PIN Anda." },

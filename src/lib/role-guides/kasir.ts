@@ -133,6 +133,9 @@ export const kasirGuide: RoleGuide = {
           tip: "Setelah lunas, layar selesai menampilkan KEMBALIAN besar — hitung kembalian di depan pelanggan sebelum laci ditutup.",
         },
         {
+          text: "Lihat hasil penjualan shift Anda: menu Laporan Shift → kartu Penjualan shift saya (Cash / QRIS / Transfer dan Dine-in kasir / Menu digital / Take away / Delivery). Kas laci tetap dihitung saat tutup shift.",
+        },
+        {
           text: "Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.",
           tip: "Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Voucher, poin & diskon dipakai saat Final Bayar.",
         },
@@ -158,7 +161,7 @@ export const kasirGuide: RoleGuide = {
           warn: "Jangan mengembalikan uang sebelum void/refund disetujui sistem. Menu yang belum dibuat: bahan kembali ke stok. Menu yang sudah dibuat/diantar: dicatat waste.",
         },
         {
-          text: "Hapus invoice yang BELUM dibayar (salah input / pelanggan batal) hanya bisa dilakukan Owner atau Manajer. Kasir tidak punya tombol hapus — panggil Manajer.",
+          text: "Kasir tidak bisa menghapus atau membatalkan penjualan. Pesanan QR yang belum diterima boleh ditolak; yang sudah diproses Bar/Dapur → tekan Ajukan batal (Manajer/Owner yang menyetujui). Hapus invoice, ubah status/metode bayar, edit, dan arsip hanya Owner/Manajer.",
         },
         {
           text: "Struk mencantumkan STATUS pembayaran (LUNAS / PENDING / GAGAL), metode (Cash/QRIS/Transfer), jumlah dibayar, dan Sisa tagihan bila belum lunas. QRIS tetap PENDING sampai Anda menekan Lunas setelah notifikasi bank masuk.",
@@ -216,6 +219,9 @@ export const kasirGuide: RoleGuide = {
           text: "Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.",
         },
         { text: "Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil." },
+        {
+          text: "Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.",
+        },
         {
           text: "Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).",
         },

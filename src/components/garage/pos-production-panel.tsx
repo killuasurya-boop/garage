@@ -335,6 +335,18 @@ export function PosProductionPanel({
                     {busy ? "Memproses..." : ticket.handoverAt ? "Panggil ulang waiter" : "Panggil waiter"}
                   </Button>
                 ) : null}
+                {(ticket.status === "ready" && !ticket.claimedAt) || ticket.status === "cooking" ? (
+                  <Button
+                    type="button"
+                    data-testid="pos-kitchen-serve-direct"
+                    disabled={busy}
+                    title="Tidak perlu waiter: pesanan diserahkan langsung ke pelanggan (ambil di kasir / take away)."
+                    className="garage-press h-11 min-w-[170px] border border-[#22c55e]/60 bg-[#22c55e]/15 px-4 text-sm font-black uppercase text-[#dcfce7] hover:bg-[#22c55e]/25"
+                    onClick={() => onAction(ticket.id, { action: "serve_direct" })}
+                  >
+                    {busy ? "Memproses..." : "Serahkan langsung"}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"

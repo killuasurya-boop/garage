@@ -275,6 +275,27 @@ export function DevicePrinterPanel({
             (huruf lebih besar), TOTAL &amp; Kembali dicetak tebal-tinggi.
           </p>
         </div>
+        <details className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/[0.08] p-2 text-xs text-[#ffe0ad] sm:col-span-2" data-testid="printer-long-paper-help">
+          <summary className="cursor-pointer text-sm font-bold">Kertas keluar panjang / tidak berhenti?</summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 leading-snug text-[#f4f4f5]">
+            <li>
+              Ini dari ukuran kertas driver Windows (bawaan gulungan 3 meter). Di dialog print Chrome buka <b>Setelan
+              lainnya</b> → <b>Ukuran kertas</b>: pilih yang pendek (mis. <b>58 x 210 mm</b> / <b>Receipt</b>), jangan
+              yang <b>x 3276</b>.
+            </li>
+            <li>
+              <b>Margin</b>: Tidak ada. Matikan <b>Header dan footer</b>. Chrome mengingat pilihan ini.
+            </li>
+            <li>
+              Masih panjang? Windows → Pengaturan → Printer → RONGTA 58mm → <b>Preferensi pencetakan</b> → Paper Size
+              58 x 210 mm (atau atur &quot;Paper feed/Page end&quot; sependek mungkin).
+            </li>
+            <li>
+              Paling rapi: pilih mode <b>Kabel/Bluetooth (port COM)</b> atau <b>Agen cetak</b> di atas — struk berhenti
+              tepat di akhir & tanpa dialog print.
+            </li>
+          </ol>
+        </details>
         <label className="space-y-1 text-xs font-semibold text-[#d8d8de]">
           Jumlah kolom per baris
           <select

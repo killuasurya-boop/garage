@@ -238,8 +238,17 @@ export function canAcceptCustomerOrder(order: CustomerOrder) {
   );
 }
 
-export function canRejectCustomerOrder(order: CustomerOrder) {
-  return order.status === "pending_cashier" || order.status === "awaiting_payment";
+/**
+ * Tolak pesanan pelanggan. Kasir/waiter hanya untuk pesanan yang BELUM diproses
+ * Bar/Dapur (owner, Okt 2026: kasir tidak boleh membatalkan penjualan); yang
+ * sudah diproses → Ajukan Batal. Owner/Manajer boleh selama belum lunas.
+ */
+export function canRejectCustomerOrder(order: CustomerOrder, role?: string | null) {
+  const open = order.status === "pending_cashier" || order.status === "awaiting_payment";
+  if (!open) return false;
+  if (role === "Owner" || role === "Manajer") return true;
+  // Belum diterima kasir = belum ada tiket Bar/Dapur (belum diproses).
+  return !order.acceptedAt;
 }
 
 export function canFinalizeCustomerOrder(order: CustomerOrder) {

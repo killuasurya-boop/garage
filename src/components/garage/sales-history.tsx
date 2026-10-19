@@ -15,12 +15,19 @@ import {
   Receipt,
   RefreshCw,
   Search,
-  Trash2,
   X,
 } from "lucide-react";
 
-import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
-import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
+import {
+  CHANNEL_GROUP_LABEL,
+  CHANNEL_GROUPS,
+  PAYMENT_STATUS_LABEL,
+  PAYMENT_STATUSES,
+  paymentStatusOf,
+  type ChannelGroup,
+  type PaymentStatus,
+} from "@/lib/payment-status";
+import { OrderAdminActions, type OrderAdminTarget } from "@/components/garage/order-admin-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,13 +85,13 @@ const labelForMethod = (method: string | null | undefined) =>
   !method ? "—" : PAYMENT_LABELS[method.toLowerCase()] ?? method.toUpperCase();
 
 /** Status pembayaran (Pending/Lunas/Gagal) + status order bila berbeda. */
-function statusBadge(status: string) {
+function statusBadge(status: string, paymentStatus?: PaymentStatus) {
   const label = STATUS_LABELS[status] ?? status;
-  const payment = paymentStatusOf({ status });
+  const payment = paymentStatus ?? paymentStatusOf({ status });
   const tone =
     payment === "paid"
       ? "border-emerald-600/40 bg-emerald-600/15 text-emerald-300"
-      : payment === "failed"
+      : payment === "cancelled" || payment === "refund"
         ? "border-rose-600/40 bg-rose-600/15 text-rose-300"
         : "border-[#f5a742]/50 bg-[#f5a742]/15 text-[#ffd08a]";
   return (
@@ -112,8 +119,11 @@ type SalesRow = {
     memberLevel: string | null;
   };
   channel: string;
+  channelGroup: ChannelGroup;
   tableLabel: string;
   status: string;
+  paymentStatus: PaymentStatus;
+  archived: boolean;
   payment: { method: string | null; status: string | null; amount: number | null };
   total: number;
 };
@@ -123,6 +133,23 @@ type ListResponse = {
   total: number;
   hasMore: boolean;
 };
+
+function adminTargetFor(data: OrderReceiptData): OrderAdminTarget {
+  const captured = data.payments.find((p) => p.status === "captured") ?? data.payments[0];
+  return {
+    id: data.order.id,
+    orderNo: data.order.orderNo,
+    status: data.order.status,
+    paymentStatus: data.order.paymentStatus,
+    paymentMethod: captured?.method ?? null,
+    archived: data.order.archived,
+    total: data.order.total,
+    tableLabel: data.order.tableLabel,
+    customerName: data.order.customerName,
+    customerPhone: data.order.customerPhone,
+    customerNote: data.order.customerNote,
+  };
+}
 
 type OrderReceiptData = {
   order: {
@@ -143,9 +170,13 @@ type OrderReceiptData = {
     discount: number;
     total: number;
     createdAt: string;
-    paymentStatus: "pending" | "paid" | "failed";
+    paymentStatus: PaymentStatus;
     paidAmount: number;
     balanceDue: number;
+    paidAt: string | null;
+    archived: boolean;
+    archiveReason: string | null;
+    channelGroup: ChannelGroup;
   };
   outlet: { code: string | null; name: string | null } | null;
   cashier: { id: string | null; name: string | null } | null;
@@ -166,8 +197,15 @@ type OrderReceiptData = {
 };
 
 export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoice?: boolean } = {}) {
+  // canDeleteInvoice = Owner/Manajer → semua aksi administratif order/invoice.
+  const isAdmin = canDeleteInvoice;
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const [method, setMethod] = useState<string>("all");
+  const [orderStatus, setOrderStatus] = useState<string>("all");
+  const [channelGroup, setChannelGroup] = useState<string>("all");
+  const [archived, setArchived] = useState<"exclude" | "only">("exclude");
+  const [notice, setNotice] = useState<string | null>(null);
   // Tanggal hari ini menurut WIB (toISOString = UTC → 00:00–07:00 WIB jadi "kemarin").
   const today = useMemo(
     () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date()),
@@ -182,12 +220,16 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
-    if (status !== "all") params.set("status", status);
+    if (status !== "all") params.set("paymentStatus", status);
+    if (method !== "all") params.set("paymentMethod", method);
+    if (orderStatus !== "all") params.set("status", orderStatus);
+    if (channelGroup !== "all") params.set("channelGroup", channelGroup);
+    if (archived === "only") params.set("archived", "only");
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
     params.set("limit", "100");
     return params.toString();
-  }, [search, status, dateFrom, dateTo]);
+  }, [search, status, method, orderStatus, channelGroup, archived, dateFrom, dateTo]);
 
   // Membaca via cache-aware hook. Auto-refetch saat tag `orders` di-invalidate
   // (mis. setelah void order / order baru di modul lain). `load` = refetch.
@@ -207,7 +249,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
     return (
       <OrderDetailView
         orderId={selectedId}
-        canDeleteInvoice={canDeleteInvoice}
+        isAdmin={isAdmin}
         onBack={() => setSelectedId(null)}
       />
     );
@@ -249,7 +291,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <Input
                 className="pl-9"
-                placeholder="Nomor order, nama, HP, atau meja…"
+                placeholder="No invoice/order, nama, HP, atau meja…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -259,21 +301,74 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
             </div>
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">
-              Status
+            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-400">
+              Status bayar
             </label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
+              <SelectTrigger data-testid="history-filter-status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua status</SelectItem>
-                <SelectItem value="paid">Lunas</SelectItem>
-                <SelectItem value="pending_cashier">Menunggu Kasir</SelectItem>
-                <SelectItem value="awaiting_payment">Menunggu Bayar</SelectItem>
+                {PAYMENT_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {PAYMENT_STATUS_LABEL[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-400">
+              Metode
+            </label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger data-testid="history-filter-method">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua metode</SelectItem>
+                <SelectItem value="Cash">Tunai (Cash)</SelectItem>
+                <SelectItem value="QRIS">QRIS</SelectItem>
+                <SelectItem value="Transfer">Transfer</SelectItem>
+                <SelectItem value="E-Wallet">E-Wallet</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-400">
+              Status order
+            </label>
+            <Select value={orderStatus} onValueChange={setOrderStatus}>
+              <SelectTrigger data-testid="history-filter-order-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua order</SelectItem>
+                <SelectItem value="pending_cashier">Menunggu kasir</SelectItem>
                 <SelectItem value="accepted">Diproses</SelectItem>
+                <SelectItem value="awaiting_payment">Menunggu bayar</SelectItem>
+                <SelectItem value="paid">Selesai (lunas)</SelectItem>
+                <SelectItem value="voided">Dibatalkan</SelectItem>
                 <SelectItem value="rejected">Ditolak</SelectItem>
-                <SelectItem value="cancelled">Dibatalkan</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-400">
+              Jenis pesanan
+            </label>
+            <Select value={channelGroup} onValueChange={setChannelGroup}>
+              <SelectTrigger data-testid="history-filter-channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua jenis</SelectItem>
+                {CHANNEL_GROUPS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {CHANNEL_GROUP_LABEL[value]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -299,6 +394,22 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
               onChange={(e) => setDateTo(e.target.value)}
             />
           </div>
+          {isAdmin ? (
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-400">
+                Arsip
+              </label>
+              <Select value={archived} onValueChange={(value) => setArchived(value as "exclude" | "only")}>
+                <SelectTrigger data-testid="history-filter-archived">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exclude">Invoice aktif</SelectItem>
+                  <SelectItem value="only">Arsip / dihapus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="flex items-end md:col-span-2">
             <Button
               className="w-full bg-[#d11a2a] hover:bg-[#b8131f]"
@@ -315,6 +426,17 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
           </div>
         </CardContent>
       </Card>
+
+      {notice ? (
+        <Card className="border-emerald-600/40 bg-emerald-950/20 text-emerald-200">
+          <CardContent className="flex items-center justify-between gap-2 p-3 text-sm" role="status">
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice(null)} aria-label="Tutup" className="text-xs opacity-70 hover:opacity-100">
+              <X className="h-4 w-4" />
+            </button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {error && (
         <GarageError
@@ -357,7 +479,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
                     <th className="px-4 py-2 text-left">Invoice</th>
                     <th className="px-4 py-2 text-left">Customer</th>
                     <th className="px-4 py-2 text-left">Meja</th>
-                    <th className="px-4 py-2 text-left">Channel</th>
+                    <th className="px-4 py-2 text-left">Jenis</th>
                     <th className="px-4 py-2 text-left">Bayar</th>
                     <th className="px-4 py-2 text-left">Status</th>
                     <th className="px-4 py-2 text-right">Total</th>
@@ -390,23 +512,52 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
                         )}
                       </td>
                       <td className="px-4 py-2">{r.tableLabel}</td>
-                      <td className="px-4 py-2 text-zinc-400">{r.channel}</td>
+                      <td className="px-4 py-2 text-zinc-300">
+                        {CHANNEL_GROUP_LABEL[r.channelGroup] ?? r.channel}
+                        {r.archived ? (
+                          <span className="ml-1 rounded border border-zinc-600 px-1 text-[10px] text-zinc-300">Arsip</span>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-2 text-xs">
                         {labelForMethod(r.payment.method)}
                       </td>
-                      <td className="px-4 py-2">{statusBadge(r.status)}</td>
+                      <td className="px-4 py-2">{statusBadge(r.status, r.paymentStatus)}</td>
                       <td className="px-4 py-2 text-right font-bold">
                         {fmtRp(r.total)}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedId(r.id)}
-                        >
-                          <FileText className="h-3 w-3" />
-                          Detail
-                        </Button>
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedId(r.id)}
+                          >
+                            <FileText className="h-3 w-3" />
+                            Detail
+                          </Button>
+                          {isAdmin ? (
+                            <OrderAdminActions
+                              variant="menu"
+                              target={{
+                                id: r.id,
+                                orderNo: r.orderNo,
+                                status: r.status,
+                                paymentStatus: r.paymentStatus,
+                                paymentMethod: r.payment.method,
+                                archived: r.archived,
+                                total: r.total,
+                                tableLabel: r.tableLabel,
+                                // "Guest Customer" = placeholder daftar, bukan nama tersimpan.
+                                customerName: r.customer.name === "Guest Customer" ? null : r.customer.name,
+                                customerPhone: r.customer.phone,
+                              }}
+                              onChanged={(message) => {
+                                setNotice(message);
+                                void load();
+                              }}
+                            />
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -422,14 +573,13 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
 
 function OrderDetailView({
   orderId,
-  canDeleteInvoice,
+  isAdmin,
   onBack,
 }: {
   orderId: string;
-  canDeleteInvoice: boolean;
+  isAdmin: boolean;
   onBack: () => void;
 }) {
-  const [deleteTarget, setDeleteTarget] = useState<InvoiceDeleteTarget | null>(null);
   const [data, setData] = useState<OrderReceiptData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -601,37 +751,22 @@ function OrderDetailView({
             <Download className="h-4 w-4" />
             Download PDF
           </Button>
-          {canDeleteInvoice && data && data.order.paymentStatus === "pending" ? (
-            <Button
-              size="sm"
-              variant="outline"
-              data-testid="history-invoice-delete"
-              className="border-rose-600/50 bg-rose-950/30 text-rose-200"
-              onClick={() =>
-                setDeleteTarget({
-                  id: data.order.id,
-                  orderNo: data.order.orderNo,
-                  total: data.order.total,
-                  label: [data.order.tableLabel, data.order.customerName].filter(Boolean).join(" · "),
-                  status: data.order.status,
-                })
-              }
-            >
-              <Trash2 className="h-4 w-4" />
-              Hapus invoice
-            </Button>
-          ) : null}
         </div>
       </header>
-      <PosInvoiceDeleteDialog
-        target={deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onDeleted={(message) => {
-          setDeleteTarget(null);
-          setPrintResult(message);
-          void load();
-        }}
-      />
+      {isAdmin && data ? (
+        <Card className="border-zinc-700 bg-zinc-900/40">
+          <CardContent className="space-y-2 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Kelola transaksi (Owner/Manajer)</p>
+            <OrderAdminActions
+              target={adminTargetFor(data)}
+              onChanged={(message) => {
+                setPrintResult(message);
+                void load();
+              }}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {printResult && (
         <Card
@@ -684,8 +819,11 @@ function OrderDetailView({
                   {fmtRp(data.order.total)}
                 </p>
                 <div className="mt-1 inline-block">
-                  {statusBadge(data.order.status)}
+                  {statusBadge(data.order.status, data.order.paymentStatus)}
                 </div>
+                {data.order.archived ? (
+                  <p className="mt-1 text-xs text-zinc-300">Diarsip{data.order.archiveReason ? ` · ${data.order.archiveReason}` : ""}</p>
+                ) : null}
               </div>
 
               <div>
@@ -702,16 +840,19 @@ function OrderDetailView({
               <div className="md:text-right">
                 <p className="text-xs uppercase text-zinc-500">Kasir</p>
                 <p className="text-white">{data.cashier?.name ?? "—"}</p>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-zinc-300">
                   <Calendar className="mr-1 inline h-3 w-3" />
-                  {fmtDateTime(data.order.createdAt)}
+                  Order {fmtDateTime(data.order.createdAt)}
+                </p>
+                <p className="text-xs text-zinc-300">
+                  Bayar {data.order.paidAt ? fmtDateTime(data.order.paidAt) : "—"}
                 </p>
               </div>
 
               <div>
                 <p className="text-xs uppercase text-zinc-500">Meja</p>
                 <p className="text-white">{data.order.tableLabel}</p>
-                <p className="text-xs text-zinc-400">{data.order.channel}</p>
+                <p className="text-xs text-zinc-300">{CHANNEL_GROUP_LABEL[data.order.channelGroup] ?? data.order.channel}</p>
               </div>
               {data.outlet && (
                 <div className="md:text-right">

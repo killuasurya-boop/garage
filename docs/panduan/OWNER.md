@@ -32,7 +32,9 @@
 3. Pelamar yang dijadikan karyawan otomatis membawa WA, alamat, tanggal lahir, foto, KTP, dan CV dari lamarannya.
 4. PIN Owner/Manajer hanya untuk persetujuan di tablet kasir — jangan diberikan ke kasir.
 5. Audit: periksa void, refund, hapus invoice, koreksi absen, penerimaan barang, dan perubahan harga.
-6. Hapus invoice hanya untuk tagihan BELUM lunas (Owner/Manajer, wajib alasan + ketik nomor invoice). Invoice lunas hanya bisa Batal/Refund. Semua tetap tercatat (tidak ada data yang hilang dari laporan).
+6. Cek POS tanpa buka shift: di layar Shift Belum Dibuka tekan Lihat POS tanpa shift (mode pantau Owner). Bisa melihat menu, pesanan, Bar & Dapur, dan laporan; transaksi & kas tetap butuh Mulai Shift.
+7. Konfirmasi lunas QRIS/Transfer dari Riwayat Penjualan bisa tanpa shift (setelah cek mutasi bank). Pelunasan Tunai tetap dari shift yang sedang buka.
+8. Hapus invoice hanya untuk tagihan BELUM lunas (Owner/Manajer, wajib alasan + ketik nomor invoice). Invoice lunas hanya bisa Batal/Refund. Semua tetap tercatat (tidak ada data yang hilang dari laporan).
 
 ## 5. WhatsApp pelanggan & WiFi member
 

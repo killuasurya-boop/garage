@@ -214,8 +214,9 @@ VoucherValidation
 import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
+import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summary";
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
-import { PAYMENT_STATUS_LABEL, paymentStatusOf } from "@/lib/payment-status";
+import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { claimReprint } from "@/lib/reprint-guard";
@@ -1065,6 +1066,10 @@ export function PosView({
     [customers],
   );
   const shiftOpen = cashSession.status === "open";
+  // Mode pantau Owner (owner, Okt 2026): Owner boleh membuka POS tanpa shift untuk
+  // memantau (Bar & Dapur, pesanan, laporan). Transaksi & kas tetap butuh shift.
+  const [ownerViewing, setOwnerViewing] = useState(false);
+  const posVisible = shiftOpen || ownerViewing;
   // Shift lupa ditutup (> 20 jam): server menolak transaksi baru; tampilkan
   // layar wajib tutup shift supaya kasir tidak bingung.
   const [staleClock, setStaleClock] = useState(() => Date.now());
@@ -2250,7 +2255,7 @@ export function PosView({
   }, []);
 
   useEffect(() => {
-    if (!shiftOpen) {
+    if (!posVisible) {
       return;
     }
 
@@ -2277,7 +2282,7 @@ export function PosView({
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, loadKitchenTickets, shiftOpen]);
+  }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, loadKitchenTickets, posVisible]);
 
   // Voice notification: trigger waiter_clear_table saat meja baru transition
   // ke "needs_cleaning" â€” tidak re-fire setiap polling untuk meja yang udah
@@ -3602,7 +3607,7 @@ export function PosView({
           total: number;
           tableLabel: string | null;
           customerName: string | null;
-          paymentStatus: "pending" | "paid" | "failed";
+          paymentStatus: PaymentStatus;
           paidAmount: number;
         };
         outlet: { code: string; name: string } | null;
@@ -3618,7 +3623,7 @@ export function PosView({
       const res = await printThermal({
         receipt: {
           provisional: true,
-          paymentStatus: data.order.paymentStatus === "failed" ? "failed" : "pending",
+          paymentStatus: data.order.paymentStatus === "paid" ? "pending" : data.order.paymentStatus,
           paidAmount: data.order.paidAmount,
           tableLabel: data.order.tableLabel,
           customer: { name: data.order.customerName },
@@ -3932,7 +3937,7 @@ export function PosView({
     }
   }
 
-  if (!shiftOpen) {
+  if (!posVisible) {
     return (
       <section className="flex h-full min-h-0 items-center justify-center p-3">
         <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
@@ -4119,6 +4124,17 @@ export function PosView({
           >
             Mulai Shift Kasir
           </Button>
+          {me.role === "Owner" ? (
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="pos-owner-view"
+              className="garage-press mt-2 h-11 w-full border-[#4a4a54] bg-white/[0.06]"
+              onClick={() => setOwnerViewing(true)}
+            >
+              Lihat POS tanpa shift (mode pantau Owner)
+            </Button>
+          ) : null}
           {/* Absen kelas satu: bisa clock-in tanpa harus buka shift dulu (NAV_ACTION_AUDIT §1.3). */}
           {canAccessModule(me.role, "absensi-v2") && (
             <Button
@@ -4819,6 +4835,7 @@ export function PosView({
 
           {activeCashierToolOpen === "reports" && (
             <div className="space-y-3">
+              <PosShiftSalesSummary />
               <details className="rounded-md border border-[#34343c] bg-white/[0.03] p-2">
                 <summary className="cursor-pointer px-1 py-1 text-sm font-semibold text-white">
                   Penjualan shift saya (produk, kategori, metode bayar)
@@ -6729,7 +6746,7 @@ export function PosView({
         </DialogContent>
       </Dialog>
 
-      {!shiftOpen ? (
+      {!posVisible ? (
         <div className="garage-panel garage-animate-in mx-auto max-w-xl rounded-md p-5">
           <div className="flex items-start gap-3">
             <div className="garage-shift-closed flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d11a2a]/55 bg-[#d11a2a]/18 text-[#ffe1e5]">
@@ -6750,6 +6767,17 @@ export function PosView({
           >
             Mulai Shift Kasir
           </Button>
+          {me.role === "Owner" ? (
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="pos-owner-view"
+              className="garage-press mt-2 h-11 w-full border-[#4a4a54] bg-white/[0.06]"
+              onClick={() => setOwnerViewing(true)}
+            >
+              Lihat POS tanpa shift (mode pantau Owner)
+            </Button>
+          ) : null}
           {canAccessModule(me.role, "absensi-v2") && (
             <Button
               type="button"
@@ -6765,6 +6793,25 @@ export function PosView({
         </div>
       ) : (
         <>
+        {!shiftOpen && ownerViewing ? (
+          <div
+            data-testid="pos-owner-view-banner"
+            className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/12 px-3 py-2 text-sm text-[#ffe0ad]"
+          >
+            <span className="text-[#ffe0ad]">
+              <b className="text-white">Mode pantau Owner</b> — tanpa shift. Bisa melihat menu, pesanan, Bar &amp; Dapur, dan laporan. Transaksi &amp; kas
+              butuh Mulai Shift.
+            </span>
+            <span className="flex gap-2">
+              <Button type="button" size="sm" className="h-9" onClick={prepareShiftDialog}>
+                Mulai Shift
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-9" onClick={() => setOwnerViewing(false)}>
+                Keluar mode pantau
+              </Button>
+            </span>
+          </div>
+        ) : null}
         {billOpen && (
           <button
             type="button"
@@ -7243,7 +7290,7 @@ export function PosView({
                   .map((item) => `${item.qty}x ${item.itemName}`)
                   .join(", ");
                 const canAccept = canAcceptCustomerOrder(order);
-                const canReject = canRejectCustomerOrder(order);
+                const canReject = canRejectCustomerOrder(order, me.role);
                 const canFinalize = canFinalizeCustomerOrder(order);
 
                 return (
@@ -7469,7 +7516,7 @@ export function PosView({
                     .map((item) => `${item.qty}x ${item.itemName}`)
                     .join(", ");
                   const canAccept = canAcceptCustomerOrder(order);
-                  const canReject = canRejectCustomerOrder(order);
+                  const canReject = canRejectCustomerOrder(order, me.role);
                   const canFinalize = canFinalizeCustomerOrder(order);
                   const busyAction = customerOrderActionId?.startsWith(`${order.id}:`);
 
@@ -8658,7 +8705,25 @@ export function PosView({
                     Finalkan Pembayaran
                   </Button>
                 ) : null}
-                {canRejectCustomerOrder(selectedCustomerOrder) ? (
+                {!canRejectCustomerOrder(selectedCustomerOrder, me.role) &&
+                (selectedCustomerOrder.status === "awaiting_payment" || selectedCustomerOrder.status === "accepted") ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="pos-request-cancel"
+                    className="garage-press h-11 flex-1 basis-[140px] border-[#4a4a54]"
+                    onClick={() =>
+                      setCancelTarget({
+                        orderNo: selectedCustomerOrder.orderNo,
+                        tableLabel: selectedCustomerOrder.tableLabel,
+                        total: selectedCustomerOrder.total,
+                      })
+                    }
+                  >
+                    Ajukan batal
+                  </Button>
+                ) : null}
+                {canRejectCustomerOrder(selectedCustomerOrder, me.role) ? (
                   <Button
                     type="button"
                     variant="outline"

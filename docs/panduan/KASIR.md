@@ -79,13 +79,14 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 1. Tekan Bayar, pilih metode: Tunai, QRIS, Transfer, atau E-Wallet.
 2. Tunai: ketuk nominal cepat (Uang pas, 5.000, 10.000, 20.000, 50.000, 100.000 — yang cukup untuk total) atau ketik uang yang diterima. Sistem menghitung kembalian dan menolak bila uang kurang.
    - Tips: Setelah lunas, layar selesai menampilkan KEMBALIAN besar — hitung kembalian di depan pelanggan sebelum laci ditutup.
-3. Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.
+3. Lihat hasil penjualan shift Anda: menu Laporan Shift → kartu Penjualan shift saya (Cash / QRIS / Transfer dan Dine-in kasir / Menu digital / Take away / Delivery). Kas laci tetap dihitung saat tutup shift.
+4. Bayar nanti (simpan tagihan): di langkah 4 tekan Bayar nanti. Wajib pilih meja (dine-in) atau isi nama pelanggan (take away). Pesanan langsung masuk Bar/Dapur, tagihan tetap terbuka.
    - Tips: Saat pelanggan selesai, buka Pesanan Pelanggan / detail meja lalu tekan Final Bayar — pilih Cash/QRIS/Transfer, kembalian tampil di sana. Voucher, poin & diskon dipakai saat Final Bayar.
-4. QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas.
-5. Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS).
-6. Split bill: satu meja dipisah jadi beberapa tagihan per orang.
-7. Bill sementara (belum lunas) bisa dicetak dari detail meja. Struk ini bertanda BILL SEMENTARA.
-8. Setelah lunas: isi nomor WA pelanggan lalu Kirim Invoice ke Customer — WhatsApp terbuka dengan rincian pesanan & link invoice, tinggal tekan kirim.
+5. QRIS: tunjukkan QR resmi Garage, tunggu notifikasi berhasil di aplikasi bank, baru tekan Lunas.
+6. Split bayar: satu tagihan dibayar dengan beberapa metode (mis. sebagian tunai, sisanya QRIS).
+7. Split bill: satu meja dipisah jadi beberapa tagihan per orang.
+8. Bill sementara (belum lunas) bisa dicetak dari detail meja. Struk ini bertanda BILL SEMENTARA.
+9. Setelah lunas: isi nomor WA pelanggan lalu Kirim Invoice ke Customer — WhatsApp terbuka dengan rincian pesanan & link invoice, tinggal tekan kirim.
 
 ## 8. Cetak ulang, koreksi & pembatalan
 
@@ -93,7 +94,7 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 2. Salah pilih metode bayar (mis. tercatat Tunai padahal QRIS): Koreksi Metode Bayar sebelum tutup shift, dengan PIN Manajer/Owner.
 3. Batal (void) / refund: ajukan dari detail order dengan alasan. Manajer/Owner menyetujui dengan PIN. Uang tunai yang dikembalikan otomatis dikurangkan dari laci.
    - **Penting:** Jangan mengembalikan uang sebelum void/refund disetujui sistem. Menu yang belum dibuat: bahan kembali ke stok. Menu yang sudah dibuat/diantar: dicatat waste.
-4. Hapus invoice yang BELUM dibayar (salah input / pelanggan batal) hanya bisa dilakukan Owner atau Manajer. Kasir tidak punya tombol hapus — panggil Manajer.
+4. Kasir tidak bisa menghapus atau membatalkan penjualan. Pesanan QR yang belum diterima boleh ditolak; yang sudah diproses Bar/Dapur → tekan Ajukan batal (Manajer/Owner yang menyetujui). Hapus invoice, ubah status/metode bayar, edit, dan arsip hanya Owner/Manajer.
 5. Struk mencantumkan STATUS pembayaran (LUNAS / PENDING / GAGAL), metode (Cash/QRIS/Transfer), jumlah dibayar, dan Sisa tagihan bila belum lunas. QRIS tetap PENDING sampai Anda menekan Lunas setelah notifikasi bank masuk.
 
 ## 9. Kas keluar / masuk laci
@@ -132,9 +133,10 @@ Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di
 1. Di POS tekan tombol Bar & Dapur (angka = tiket aktif): semua pesanan aktif tampil urut pesan duluan. Filter Semua / Bar / Dapur, tab Diantar 1 jam untuk yang sudah selesai.
 2. Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.
 3. Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil.
-4. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
-5. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
-6. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
+4. Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.
+5. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
+6. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
+7. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 
 ## 13. Laporan penjualan shift saya

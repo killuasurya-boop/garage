@@ -170,7 +170,7 @@ describe("Bayar nanti (open bill)", () => {
     expect(receipt.order.paymentStatus).toBe("paid");
     expect(receipt.items.length).toBe(1);
     const deletedReceipt = await svc.getOrderForReceipt(orderNo);
-    expect(deletedReceipt.order.paymentStatus).toBe("failed");
+    expect(deletedReceipt.order.paymentStatus).toBe("cancelled");
     expect(deletedReceipt.items.length).toBe(1);
   });
 });

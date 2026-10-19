@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -198,7 +198,14 @@ import {
   lockedMessage,
 } from "@/lib/pin-guard";
 import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
-import { paymentBalance, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
+import {
+  channelGroupOf,
+  ORDER_STATUSES_FOR_PAYMENT_STATUS,
+  paymentBalance,
+  paymentStatusOf,
+  type ChannelGroup,
+  type PaymentStatus,
+} from "@/lib/payment-status";
 import { customerTableStatusFor } from "@/lib/garage-table-status";
 import { canUseApi, canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
@@ -5583,6 +5590,12 @@ export type FinanceInvoiceListFilter = {
   offset?: number;
   /** Batasi ke outlet staf (riwayat penjualan tidak boleh lintas outlet). */
   outletId?: string;
+  /** pending | paid | cancelled | refund (status pembayaran, lihat payment-status.ts). */
+  paymentStatus?: string;
+  /** pos_dine_in | digital_menu | takeaway | delivery. */
+  channelGroup?: string;
+  /** "only" = hanya arsip, "include" = semua, bawaan = sembunyikan arsip. */
+  archived?: "only" | "include" | "exclude";
 };
 
 export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = {}) {
@@ -5596,6 +5609,59 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
   }
   if (filter.status && filter.status !== "all") {
     conditions.push(eq(orders.status, filter.status));
+  }
+  const paymentStatusFilter = filter.paymentStatus as PaymentStatus | undefined;
+  if (paymentStatusFilter && ORDER_STATUSES_FOR_PAYMENT_STATUS[paymentStatusFilter]) {
+    conditions.push(inArray(orders.status, ORDER_STATUSES_FOR_PAYMENT_STATUS[paymentStatusFilter]));
+  }
+  if (filter.archived === "only") conditions.push(isNotNull(orders.archivedAt));
+  else if (filter.archived !== "include") conditions.push(isNull(orders.archivedAt));
+  // Jenis pesanan — sama dengan channelGroupOf (payment-status.ts).
+  switch (filter.channelGroup) {
+    case "delivery":
+      conditions.push(or(eq(orders.fulfillment, "delivery"), ilike(orders.channel, "%delivery%"))!);
+      break;
+    case "takeaway":
+      conditions.push(
+        and(
+          or(isNull(orders.fulfillment), ne(orders.fulfillment, "delivery")),
+          not(ilike(orders.channel, "%delivery%")),
+          or(eq(orders.fulfillment, "takeaway"), ilike(orders.channel, "%take%away%"), ilike(orders.channel, "%takeaway%")),
+        )!,
+      );
+      break;
+    case "digital_menu":
+      conditions.push(
+        and(
+          or(isNull(orders.fulfillment), eq(orders.fulfillment, "dine-in")),
+          not(ilike(orders.channel, "%take%away%")),
+          not(ilike(orders.channel, "%delivery%")),
+          or(eq(orders.orderSource, "qr_table"), eq(orders.fulfillment, "dine-in"), ilike(orders.channel, "%qr%")),
+        )!,
+      );
+      break;
+    case "pos_dine_in":
+      conditions.push(
+        and(
+          isNull(orders.fulfillment),
+          ne(orders.orderSource, "qr_table"),
+          not(ilike(orders.channel, "%take%away%")),
+          not(ilike(orders.channel, "%takeaway%")),
+          not(ilike(orders.channel, "%delivery%")),
+          not(ilike(orders.channel, "%qr%")),
+        )!,
+      );
+      break;
+    default:
+      break;
+  }
+  // Metode bayar: order punya pembayaran dengan metode itu (QRIS/Cash/Transfer/...).
+  const methodFilter = filter.paymentMethod?.trim();
+  if (methodFilter && methodFilter !== "all") {
+    const methodLike = methodFilter.toLowerCase() === "transfer" ? "%transfer%" : `%${methodFilter}%`;
+    conditions.push(
+      sql`exists (select 1 from ${payments} p where p.order_id = ${orders.id} and p.method ilike ${methodLike})`,
+    );
   }
 
   if (filter.dateFrom) {
@@ -5612,7 +5678,8 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
     }
   }
 
-  const searchTerm = filter.search?.trim();
+  // "INV-POS-123" (nomor invoice) dicari sebagai nomor order "POS-123".
+  const searchTerm = filter.search?.trim().replace(/^inv-/i, "");
   if (searchTerm) {
     const like = `%${searchTerm}%`;
     const searchClause = or(
@@ -5644,6 +5711,9 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
         whatsappInvoiceUrl: orders.whatsappInvoiceUrl,
         whatsappInvoiceStatus: orders.whatsappInvoiceStatus,
         memberLevel: customers.tier,
+        orderSource: orders.orderSource,
+        fulfillment: orders.fulfillment,
+        archivedAt: orders.archivedAt,
       })
       .from(orders)
       .leftJoin(customers, eq(customers.id, orders.customerId))
@@ -5714,8 +5784,11 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
           memberLevel: row.memberLevel ?? null,
         },
         channel: row.channel,
+        channelGroup: channelGroupOf(row),
         tableLabel: row.tableLabel,
         status: row.status,
+        paymentStatus: paymentStatusOf(row, payment?.status ?? null),
+        archived: Boolean(row.archivedAt),
         payment: {
           method: payment?.method ?? null,
           status: payment?.status ?? null,
@@ -9589,7 +9662,7 @@ async function updateCustomerOrderStatusImpl(
   garage: GarageSession,
   // openBill: "Bayar nanti" dari POS — kasir sendiri yang menahan tagihan, jadi
   // take away boleh diterima sebelum lunas (internal, tidak lewat route status).
-  options: { openBill?: boolean } = {},
+  options: { openBill?: boolean; adminConfirm?: boolean } = {},
 ) {
   // Target SLA tiket baru dibaca SEBELUM transaksi (PGlite satu koneksi).
   const productionTargets = productionTargetsFrom(await getAppSettings(garage.profile.outlet.id));
@@ -9599,7 +9672,9 @@ async function updateCustomerOrderStatusImpl(
     // order; permintaan kedua membaca status terbaru lalu jatuh ke cabang
     // idempoten di bawah (tanpa tiket, stok, pembayaran, atau kas ganda).
     const [order] = await tx.select().from(orders).where(eq(orders.id, id)).limit(1).for("update");
-    if (!order || !customerOrderSources.includes(order.orderSource)) {
+    // adminConfirm: Owner/Manajer melunasi ulang order POS yang pelunasannya dibatalkan.
+    const adminPosConfirm = options.adminConfirm && input.action === "paid" && order?.orderSource === "pos";
+    if (!order || (!customerOrderSources.includes(order.orderSource) && !adminPosConfirm)) {
       return null;
     }
     // Kasir hanya boleh memproses pesanan outlet-nya sendiri.
@@ -9710,6 +9785,20 @@ async function updateCustomerOrderStatusImpl(
       throw new Error("Order sudah diproses dan tidak bisa ditolak ulang.");
     }
 
+    // Kasir/waiter tidak boleh membatalkan penjualan (owner, Okt 2026): tolak
+    // hanya untuk pesanan yang belum diproses Bar/Dapur. Yang sudah diproses →
+    // Ajukan Batal (approval Manajer/Owner).
+    if (input.action === "reject" && garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") {
+      const [existingTicket] = await tx
+        .select({ id: kitchenTickets.id })
+        .from(kitchenTickets)
+        .where(and(eq(kitchenTickets.orderId, order.id), ne(kitchenTickets.status, "cancelled")))
+        .limit(1);
+      if (existingTicket) {
+        throw new Error("Pesanan sudah diproses Bar/Dapur. Kasir tidak bisa membatalkan — gunakan Ajukan Batal ke Manajer/Owner.");
+      }
+    }
+
     if (input.action === "accept" && !cashierActionStatuses.includes(order.status)) {
       throw new Error("Order sudah diproses dan tidak bisa di-accept ulang.");
     }
@@ -9746,8 +9835,16 @@ async function updateCustomerOrderStatusImpl(
         .limit(1)
         .for("no key update");
       cashierOpenSession = session ?? null;
-      if (!cashierOpenSession) {
-        throw new Error("Open shift wajib dilakukan sebelum proses order QR.");
+      // Owner/Manajer mengonfirmasi QRIS/Transfer dari Riwayat Penjualan tanpa shift:
+      // tidak ada uang laci yang bergerak. Tunai tetap wajib shift (masuk laci).
+      const adminNonCash =
+        options.adminConfirm && input.action === "paid" && !isCashMethod(input.paymentMethod ?? "Cash");
+      if (!cashierOpenSession && !adminNonCash) {
+        throw new Error(
+          options.adminConfirm
+            ? "Pelunasan TUNAI wajib dari shift yang sedang buka (uang masuk laci). Untuk QRIS/Transfer tidak perlu shift."
+            : "Open shift wajib dilakukan sebelum proses order QR.",
+        );
       }
     }
 
@@ -12062,6 +12159,59 @@ async function pickupKitchenTicketImpl(
   });
 }
 
+/**
+ * Serahkan langsung (owner, Okt 2026): kasir/helper menyerahkan pesanan sendiri
+ * ke pelanggan (ambil di kasir, take away, tidak perlu waiter) → tiket langsung
+ * Diantar atas nama petugas tanpa ACC waiter. Tiket yang masih dibuat ditandai
+ * READY (QC) dulu.
+ */
+async function serveTicketDirectImpl(ticketNo: string, garage: GarageSession) {
+  const db = getDb();
+  const [ticket] = await db
+    .select()
+    .from(kitchenTickets)
+    .where(eq(kitchenTickets.ticketNo, ticketNo))
+    .limit(1);
+  if (!ticket) return null;
+  if (ticket.status === "delivered") return ticket;
+  if (!canHandoverStation(garage.profile.role, garage.profile.workstation, ticket.station)) {
+    throw new HandoverPermissionError(ticket.station);
+  }
+  if (ticket.status === "cooking") {
+    await updateKitchenStatus(ticketNo, "ready", garage, { qcConfirmed: true });
+  } else if (ticket.status !== "ready") {
+    throw new KitchenTransitionError(ticket.status, "delivered");
+  }
+  const now = new Date();
+  await db
+    .update(kitchenTickets)
+    .set({
+      handoverAt: ticket.handoverAt ?? now,
+      handoverByName: ticket.handoverByName ?? garage.user.name,
+      claimedBy: garage.user.id,
+      claimedByName: garage.user.name,
+      claimedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(kitchenTickets.id, ticket.id), eq(kitchenTickets.status, "ready")));
+  await createAuditLog({
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    action: "Production ticket served directly",
+    object: ticket.ticketNo,
+    device: garage.profile.deviceLabel,
+    status: "served_direct",
+    metadata: {
+      orderNo: ticket.orderNo,
+      tableLabel: ticket.tableLabel,
+      station: ticket.station,
+      workstation: garage.profile.workstation ?? null,
+    },
+  });
+  return updateKitchenStatus(ticketNo, "delivered", garage, {
+    deliveredBy: { userId: garage.user.id, name: garage.user.name },
+  });
+}
+
 async function deliverClaimedTicketImpl(ticketNo: string, garage: GarageSession) {
   const db = getDb();
   const [ticket] = await db
@@ -14261,9 +14411,10 @@ export async function requestOrderVoidApproval(
   }
   await assertFinanceDayOpen(order.createdAt);
 
-  // Setting requireManagerForVoid=false → kasir boleh batal langsung tanpa antrean.
+  // Setting requireManagerForVoid=false → Owner/Manajer batal langsung. Kasir
+  // SELALU lewat pengajuan (owner, Okt 2026: kasir tidak boleh menghapus penjualan).
   const policy = await getAppSettings(garage.profile.outlet.id);
-  if (!policy.requireManagerForVoid) {
+  if (!policy.requireManagerForVoid && (garage.profile.role === "Owner" || garage.profile.role === "Manajer")) {
     const result = await voidOrder(order.id, reason, garage);
     return { approvalId: null, status: "approved" as const, directVoid: true, ...result };
   }
@@ -17684,6 +17835,10 @@ export type OrderReceiptData = {
     paymentStatus: PaymentStatus;
     paidAmount: number;
     balanceDue: number;
+    paidAt: string | null;
+    archived: boolean;
+    archiveReason: string | null;
+    channelGroup: ChannelGroup;
   };
   outlet: { code: string | null; name: string | null } | null;
   cashier: { id: string | null; name: string | null } | null;
@@ -17790,6 +17945,10 @@ export async function getOrderForReceipt(
       paymentStatus,
       paidAmount,
       balanceDue,
+      paidAt: paymentRows.find((p) => p.status === "captured")?.createdAt.toISOString() ?? null,
+      archived: Boolean(row.order.archivedAt),
+      archiveReason: row.order.archiveReason ?? null,
+      channelGroup: channelGroupOf(row.order),
     },
     outlet: { code: row.outletCode ?? null, name: row.outletName ?? null },
     cashier: { id: row.order.createdBy ?? null, name: cashierName },
@@ -20539,8 +20698,304 @@ export const deliverClaimedTicket = notifyingProduction(deliverClaimedTicketImpl
 export const handoverKitchenTicket = notifyingProduction(handoverKitchenTicketImpl);
 export const moveTable = notifyingProduction(moveTableImpl);
 export const pickupKitchenTicket = notifyingProduction(pickupKitchenTicketImpl);
+export const serveTicketDirect = notifyingProduction(serveTicketDirectImpl);
 export const releaseKitchenTicket = notifyingProduction(releaseKitchenTicketImpl);
 export const voidOrder = notifyingProduction(voidOrderImpl);
+
+function assertOwnerOrManager(garage: GarageSession) {
+  if (garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") {
+    throw new Error("Hanya Owner atau Manajer yang boleh melakukan aksi ini.");
+  }
+}
+
+function orderAdminActor(garage: GarageSession) {
+  return `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+}
+
+/**
+ * Batalkan pelunasan (Lunas → Pending) karena salah input — Owner/Manajer.
+ * BUKAN refund: tidak ada uang keluar, total tagihan tetap. Pembayaran tercatat
+ * kembali menjadi "pending" (tidak dihapus), kas seharusnya shift dikurangi untuk
+ * tunai, poin belanja ditarik. Hanya bila shift pembayaran masih open & belum
+ * ada refund. Selanjutnya dilunasi lagi lewat Final Bayar / Konfirmasi Lunas.
+ */
+export async function revertOrderPayment(idOrOrderNo: string, reason: string, garage: GarageSession) {
+  assertOwnerOrManager(garage);
+  const trimmed = reason.trim();
+  if (trimmed.length < 5) throw new Error("Alasan minimal 5 karakter.");
+  await assertOrderDayOpen(idOrOrderNo, garage);
+  const actor = orderAdminActor(garage);
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    const order = await findOutletOrder(tx, idOrOrderNo, garage, { forUpdate: true });
+    if (!order) throw new Error("Order tidak ditemukan.");
+    if (order.status !== "paid") throw new Error("Hanya invoice LUNAS yang bisa dibatalkan pelunasannya.");
+    if ((await sumMovementsBySku(tx, "refund_reverse", outletRefundNote(order.orderNo))).size > 0) {
+      throw new Error("Order sudah pernah direfund — gunakan Batal/Refund, bukan batalkan pelunasan.");
+    }
+    const rows = await tx.select().from(payments).where(eq(payments.orderId, order.id));
+    const captured = rows.filter((row) => row.status === "captured");
+    if (!captured.length) throw new Error("Tidak ada pembayaran lunas yang bisa dibatalkan.");
+    for (const payment of captured) {
+      if (!payment.cashSessionId) continue;
+      const [session] = await tx
+        .select({ id: cashSessions.id, status: cashSessions.status })
+        .from(cashSessions)
+        .where(eq(cashSessions.id, payment.cashSessionId))
+        .limit(1)
+        .for("update");
+      if (session && session.status !== "open") {
+        throw new Error("Shift pembayaran sudah ditutup — pelunasan tidak bisa dibatalkan. Gunakan Batal/Refund.");
+      }
+      if (isCashMethod(payment.method)) {
+        await tx
+          .update(cashSessions)
+          .set({ expectedCash: sql`${cashSessions.expectedCash} - ${payment.amount}` })
+          .where(eq(cashSessions.id, payment.cashSessionId));
+      }
+    }
+    for (const payment of captured) {
+      await tx
+        .update(payments)
+        .set({
+          status: "pending",
+          metadata: {
+            ...(payment.metadata ?? {}),
+            invoiceStatus: "pending",
+            paymentReverts: [
+              ...(Array.isArray((payment.metadata as Record<string, unknown>)?.paymentReverts)
+                ? ((payment.metadata as Record<string, unknown>).paymentReverts as unknown[])
+                : []),
+              { at: now.toISOString(), by: garage.user.id, byName: garage.user.name, reason: trimmed, method: payment.method },
+            ],
+          },
+        })
+        .where(eq(payments.id, payment.id));
+    }
+    await reverseLoyaltyForOrder(tx, order.id, { ratio: 1, source: "VOID" });
+    await tx.update(orders).set({ status: "awaiting_payment", updatedAt: now }).where(eq(orders.id, order.id));
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor,
+      action: `Batalkan pelunasan ${order.orderNo}`,
+      object: order.orderNo,
+      device: garage.profile.deviceLabel,
+      status: "warning",
+      metadata: {
+        orderNo: order.orderNo,
+        invoiceNo: invoiceNoForOrder(order.orderNo),
+        actionType: "payment_revert",
+        before: { paymentStatus: "Lunas", methods: captured.map((p) => p.method) },
+        after: { paymentStatus: "Pending" },
+        amount: order.total,
+        reason: trimmed,
+        actorId: garage.user.id,
+      },
+    });
+    return { orderId: order.id, orderNo: order.orderNo, status: "awaiting_payment" as const };
+  });
+}
+
+/**
+ * Konfirmasi lunas (Pending → Lunas) oleh Owner/Manajer — memakai alur Final Bayar
+ * yang sama (wajib shift open milik yang mengonfirmasi, metode & uang diterima),
+ * termasuk order POS yang pelunasannya dibatalkan.
+ */
+export async function confirmOrderPayment(
+  idOrOrderNo: string,
+  input: { paymentMethod: string; cashReceived?: number | null; reason: string },
+  garage: GarageSession,
+) {
+  assertOwnerOrManager(garage);
+  const [order] = await getDb()
+    .select({ id: orders.id, orderNo: orders.orderNo, status: orders.status, outletId: orders.outletId, total: orders.total })
+    .from(orders)
+    .where(isUuidLike(idOrOrderNo) ? eq(orders.id, idOrOrderNo) : eq(orders.orderNo, idOrOrderNo))
+    .limit(1);
+  if (!order || (order.outletId && order.outletId !== garage.profile.outlet.id)) throw new Error("Order tidak ditemukan.");
+  if (order.status === "paid") throw new Error("Order sudah lunas.");
+  const result = await updateCustomerOrderStatus(
+    order.id,
+    { action: "paid", paymentMethod: input.paymentMethod, cashReceived: input.cashReceived ?? undefined },
+    garage,
+    { adminConfirm: true },
+  );
+  if (!result) throw new Error("Order ini tidak bisa dilunasi dari sini.");
+  await getDb().insert(auditLogs).values({
+    time: nowTimeLabel(),
+    actor: orderAdminActor(garage),
+    action: `Konfirmasi lunas ${order.orderNo}`,
+    object: order.orderNo,
+    device: garage.profile.deviceLabel,
+    status: "success",
+    metadata: {
+      orderNo: order.orderNo,
+      invoiceNo: invoiceNoForOrder(order.orderNo),
+      actionType: "payment_confirm",
+      before: { paymentStatus: "Pending" },
+      after: { paymentStatus: "Lunas", method: input.paymentMethod },
+      amount: order.total,
+      reason: input.reason.trim(),
+      actorId: garage.user.id,
+    },
+  });
+  return { orderId: order.id, orderNo: order.orderNo, status: "paid" as const };
+}
+
+/** Edit info order (nama, HP, catatan) — nominal & item tidak bisa diubah. */
+export async function updateOrderInfo(
+  idOrOrderNo: string,
+  input: {
+    customerName?: string | null;
+    customerPhone?: string | null;
+    customerNote?: string | null;
+    tableNumber?: string | null;
+    reason: string;
+  },
+  garage: GarageSession,
+) {
+  assertOwnerOrManager(garage);
+  const trimmed = input.reason.trim();
+  if (trimmed.length < 3) throw new Error("Alasan minimal 3 karakter.");
+  return getDb().transaction(async (tx) => {
+    const order = await findOutletOrder(tx, idOrOrderNo, garage, { forUpdate: true });
+    if (!order) throw new Error("Order tidak ditemukan.");
+    const patch: Partial<typeof orders.$inferInsert> = {};
+    const before: Record<string, string | null> = {};
+    const after: Record<string, string | null> = {};
+    // Nomor meja: koreksi catatan untuk invoice yang sudah selesai. Tagihan yang
+    // masih berjalan dipindah lewat "Pindah meja" (POS/Waiter) agar tiket & sesi ikut.
+    if (input.tableNumber !== undefined && input.tableNumber !== null && input.tableNumber.trim()) {
+      const parsed = parseTableNumber(input.tableNumber);
+      if (!parsed) throw new Error("Nomor meja tidak valid (01–50).");
+      const nextLabel = tableLabelFor(parsed);
+      if (nextLabel !== order.tableLabel) {
+        if (!["paid", "voided", "rejected", "cancelled", "refunded"].includes(order.status)) {
+          throw new Error("Tagihan masih berjalan — pindahkan meja lewat Pindah meja di POS/Waiter.");
+        }
+        before.tableLabel = order.tableLabel;
+        after.tableLabel = nextLabel;
+        patch.tableLabel = nextLabel;
+      }
+    }
+    const fields = [
+      ["customerName", input.customerName],
+      ["customerPhone", input.customerPhone],
+      ["customerNote", input.customerNote],
+    ] as const;
+    for (const [key, raw] of fields) {
+      if (raw === undefined) continue;
+      const next = raw?.trim() ? raw.trim() : null;
+      const prev = (order[key] as string | null) ?? null;
+      if (next === prev) continue;
+      before[key] = prev;
+      after[key] = next;
+      (patch as Record<string, unknown>)[key] = next;
+    }
+    if (!Object.keys(patch).length) throw new Error("Tidak ada perubahan.");
+    await tx.update(orders).set({ ...patch, updatedAt: new Date() }).where(eq(orders.id, order.id));
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor: orderAdminActor(garage),
+      action: `Edit order ${order.orderNo}`,
+      object: order.orderNo,
+      device: garage.profile.deviceLabel,
+      status: "success",
+      metadata: {
+        orderNo: order.orderNo,
+        invoiceNo: invoiceNoForOrder(order.orderNo),
+        actionType: "order_edit",
+        before,
+        after,
+        reason: trimmed,
+        actorId: garage.user.id,
+      },
+    });
+    return { orderId: order.id, orderNo: order.orderNo, changed: Object.keys(after) };
+  });
+}
+
+const ARCHIVABLE_STATUSES = new Set(["paid", "voided", "rejected", "cancelled", "refunded"]);
+
+/**
+ * Arsip / pulihkan invoice — hanya menyembunyikan dari daftar bawaan. Tidak
+ * mengubah laporan, stok, kas, maupun pembayaran.
+ */
+export async function setOrderArchived(
+  idOrOrderNo: string,
+  input: { archived: boolean; reason: string },
+  garage: GarageSession,
+) {
+  assertOwnerOrManager(garage);
+  const trimmed = input.reason.trim();
+  if (trimmed.length < 3) throw new Error("Alasan minimal 3 karakter.");
+  return getDb().transaction(async (tx) => {
+    const order = await findOutletOrder(tx, idOrOrderNo, garage, { forUpdate: true });
+    if (!order) throw new Error("Order tidak ditemukan.");
+    if (input.archived && !ARCHIVABLE_STATUSES.has(order.status)) {
+      throw new Error("Invoice yang masih Pending tidak bisa diarsip. Lunasi atau hapus (batalkan) dulu.");
+    }
+    if (input.archived === Boolean(order.archivedAt)) {
+      throw new Error(input.archived ? "Invoice sudah diarsip." : "Invoice tidak sedang diarsip.");
+    }
+    const now = new Date();
+    await tx
+      .update(orders)
+      .set(
+        input.archived
+          ? { archivedAt: now, archivedBy: garage.user.id, archiveReason: trimmed, updatedAt: now }
+          : { archivedAt: null, archivedBy: null, archiveReason: null, updatedAt: now },
+      )
+      .where(eq(orders.id, order.id));
+    await tx.insert(auditLogs).values({
+      time: nowTimeLabel(),
+      actor: orderAdminActor(garage),
+      action: `${input.archived ? "Arsip invoice" : "Pulihkan invoice"} ${order.orderNo}`,
+      object: order.orderNo,
+      device: garage.profile.deviceLabel,
+      status: "success",
+      metadata: {
+        orderNo: order.orderNo,
+        invoiceNo: invoiceNoForOrder(order.orderNo),
+        actionType: input.archived ? "invoice_archive" : "invoice_restore",
+        before: { archived: Boolean(order.archivedAt) },
+        after: { archived: input.archived },
+        reason: trimmed,
+        actorId: garage.user.id,
+      },
+    });
+    return { orderId: order.id, orderNo: order.orderNo, archived: input.archived };
+  });
+}
+
+/** Riwayat perubahan satu order dari Audit Log (hanya-baca). */
+export async function getOrderChangeHistory(idOrOrderNo: string, garage: GarageSession) {
+  assertOwnerOrManager(garage);
+  const db = getDb();
+  const order = await findOutletOrder(db, idOrOrderNo, garage);
+  if (!order) throw new Error("Order tidak ditemukan.");
+  const rows = await db
+    .select()
+    .from(auditLogs)
+    .where(
+      or(
+        sql`${auditLogs.metadata}->>'orderNo' = ${order.orderNo}`,
+        sql`${auditLogs.metadata}->>'orderId' = ${order.id}`,
+        ilike(auditLogs.action, `%${order.orderNo}%`),
+        eq(auditLogs.object, order.orderNo),
+      ),
+    )
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(200);
+  return rows.map((row) => ({
+    id: row.id,
+    at: row.createdAt.toISOString(),
+    actor: row.actor,
+    action: row.action,
+    status: row.status,
+    metadata: row.metadata ?? null,
+  }));
+}
 
 const UNPAID_DELETABLE_STATUSES = new Set(["pending_cashier", "awaiting_payment", "accepted", "pending", "open"]);
 
@@ -20577,5 +21032,11 @@ export async function deleteUnpaidInvoice(
   if (!UNPAID_DELETABLE_STATUSES.has(order.status)) {
     throw new Error("Invoice ini sudah dibatalkan/ditolak sebelumnya.");
   }
-  return voidOrder(order.id, `Hapus invoice: ${input.reason}`, garage, { auditAction: "Hapus invoice" });
+  const result = await voidOrder(order.id, `Hapus invoice: ${input.reason}`, garage, { auditAction: "Hapus invoice" });
+  // Dihapus = dibatalkan + diarsip (tetap bisa dilihat lewat filter Arsip & dipulihkan ke daftar).
+  await getDb()
+    .update(orders)
+    .set({ archivedAt: new Date(), archivedBy: garage.user.id, archiveReason: `Hapus invoice: ${input.reason}` })
+    .where(eq(orders.id, order.id));
+  return result;
 }

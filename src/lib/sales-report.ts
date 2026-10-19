@@ -12,6 +12,7 @@ import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { cashSessions, menuItems, orderItems, orders, payments, user } from "@/db/schema";
 import { isCalendarDateKey } from "@/lib/date-range";
+import { CHANNEL_GROUP_LABEL, channelGroupOf } from "@/lib/payment-status";
 
 export type SalesReportRange = { from: string; to: string };
 
@@ -24,6 +25,9 @@ export type SalesReportOrder = {
   deliveryFee: number;
   total: number;
   channel: string;
+  /** Sumber & fulfillment untuk jenis pesanan (Dine-in kasir/Menu digital/Take away/Delivery). */
+  orderSource?: string | null;
+  fulfillment?: string | null;
   createdAt: Date;
 };
 
@@ -150,7 +154,8 @@ export function aggregateSalesReport(input: {
     const hour = wibHour(order.createdAt);
     const key = String(hour).padStart(2, "0");
     bump(hours, key, `${key}.00`, 0, order.total);
-    bump(orderTypes, order.channel, order.channel, 0, order.total);
+    const group = channelGroupOf(order);
+    bump(orderTypes, group, CHANNEL_GROUP_LABEL[group], 0, order.total);
     const cashier = cashierByOrder.get(order.id) ?? "Tanpa kasir";
     bump(cashiers, cashier, cashier, 0, order.total);
   }
@@ -290,6 +295,8 @@ export async function getSalesReport(params: {
             deliveryFee: orders.deliveryFee,
             total: orders.total,
             channel: orders.channel,
+            orderSource: orders.orderSource,
+            fulfillment: orders.fulfillment,
             createdAt: orders.createdAt,
           })
           .from(orders)

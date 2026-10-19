@@ -405,7 +405,15 @@ describe("Tolak order QR setelah diterima dapur", () => {
     expect(await wmsTotal("A-MILK")).toBe(before - 240);
 
     await svc.updateCustomerOrderStatus(order.id, { action: "request_bill" }, session());
-    await svc.updateCustomerOrderStatus(order.id, { action: "reject", reason: "Tamu pergi sebelum dibuat" }, session());
+    // Kasir tidak boleh membatalkan pesanan yang sudah diproses (owner, Okt 2026) → Manajer.
+    await expect(
+      svc.updateCustomerOrderStatus(order.id, { action: "reject", reason: "Tamu pergi sebelum dibuat" }, session()),
+    ).rejects.toThrow(/Ajukan Batal/);
+    await svc.updateCustomerOrderStatus(
+      order.id,
+      { action: "reject", reason: "Tamu pergi sebelum dibuat" },
+      session("Manajer" as Role),
+    );
     expect(await wmsTotal("A-MILK")).toBe(before);
 
     const { eq } = await import("drizzle-orm");

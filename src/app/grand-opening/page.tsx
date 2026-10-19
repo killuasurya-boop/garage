@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, Clock, MapPin, MessageCircle, Mic2, Music } from "lucide-react";
 
 import { AgeGate, EventShareButton, PosterCountdown } from "@/components/garage/events/event-live-parts";
-import { agendaClock, eventZoneLabel, formatEventDate, formatEventTimeRange } from "@/lib/event-format";
+import { agendaClock, eventPhase, eventZoneLabel, formatEventDate, formatEventTimeRange } from "@/lib/event-format";
 import { GRAND_OPENING_SLUG, getPublishedEvent } from "@/lib/event-service";
 import { getBusinessInfo } from "@/lib/garage-service";
 import { waLink } from "@/lib/whatsapp-link";
@@ -21,6 +21,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.startsWith("htt
   ? process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL.replace(/\/+$/, "")
   : "https://garagecoffee.id";
 const PAGE_PATH = `/${GRAND_OPENING_SLUG}`;
+// Gambar preview link (WA/IG/FB) khusus Grand Opening, 1200×630.
+const OG_IMAGE = "/grand-opening/og-grand-opening.jpg";
 
 export async function generateMetadata(): Promise<Metadata> {
   const event = await getPublishedEvent(GRAND_OPENING_SLUG).catch(() => null);
@@ -40,9 +42,9 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       locale: "id_ID",
       siteName: "GARAGE Coffee & Motor",
-      images: [{ url: "/opengraph-image.jpg", alt: event.title }],
+      images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: `${event.title} — ${when}` }],
     },
-    twitter: { card: "summary_large_image", title: event.title, description, images: ["/twitter-image.jpg"] },
+    twitter: { card: "summary_large_image", title: event.title, description, images: [OG_IMAGE] },
   };
 }
 
@@ -62,8 +64,11 @@ export default async function GrandOpeningPage() {
   const whatsappUrl = waLink(event.contactWhatsapp, `Halo Garage Coffee, saya mau tanya tentang ${event.title} (${date}).`);
   const about = event.about || business?.tagline || null;
   const pageUrl = `${SITE_URL}${PAGE_PATH}`;
+  const ended = eventPhase(event) === "ended";
+  // Promo hanya ditawarkan sebelum/selama acara.
+  const promoText = ended ? null : event.promoText;
   const performers = event.agenda.map((item) => item.title);
-  const marqueeItems = [...event.agenda.map((item) => `${item.title} ${agendaClock(item.start)}`), event.title, event.promoText, date].filter(
+  const marqueeItems = [...event.agenda.map((item) => `${item.title} ${agendaClock(item.start)}`), event.title, promoText, date].filter(
     (item): item is string => Boolean(item),
   );
 
@@ -77,6 +82,7 @@ export default async function GrandOpeningPage() {
     eventStatus: "https://schema.org/EventScheduled",
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     url: pageUrl,
+    image: [`${SITE_URL}${OG_IMAGE}`],
     location: {
       "@type": "Place",
       name: event.venueName,
@@ -95,7 +101,7 @@ export default async function GrandOpeningPage() {
       <svg width="0" height="0" aria-hidden className="absolute">
         <filter id="gp-grunge">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n" />
-          <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.6 1.5" result="m" />
+          <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -0.9 1.4" result="m" />
           <feComposite in="SourceGraphic" in2="m" operator="in" />
         </filter>
         <filter id="gp-brush">
@@ -112,7 +118,7 @@ export default async function GrandOpeningPage() {
           </Link>
           <nav aria-label="Navigasi acara" className="gp-nav text-xs font-bold uppercase tracking-[0.24em]">
             <a href="#rundown" className="py-2.5 text-[#d8d1c3] hover:text-white">Rundown</a>
-            {event.promoText ? <a href="#promo" className="py-2.5 text-[#d8d1c3] hover:text-white">Promo</a> : null}
+            {promoText ? <a href="#promo" className="py-2.5 text-[#d8d1c3] hover:text-white">Promo</a> : null}
             <a href="#lokasi" className="py-2.5 text-[#d8d1c3] hover:text-white">Lokasi</a>
           </nav>
           {whatsappUrl ? (
@@ -160,9 +166,9 @@ export default async function GrandOpeningPage() {
               className="block h-auto w-full drop-shadow-[0_30px_40px_rgba(0,0,0,0.65)]"
             />
           </div>
-          {event.promoText ? (
+          {promoText ? (
             <div className="gp-badge" data-testid="event-promo-badge">
-              <PromoBadge text={event.promoText} />
+              <PromoBadge text={promoText} />
             </div>
           ) : null}
         </div>
@@ -171,7 +177,7 @@ export default async function GrandOpeningPage() {
           <div className="gp-wrap gp-overlay-script relative z-[2] -mt-[140px] text-center">
             <div className="u2 inline-flex flex-col items-center">
               {event.agenda.slice(0, -1).map((item) => (
-                <span key={item.title} className="gp-script gp-script-md -rotate-[5deg] text-[44px] text-[#ff3540] [text-shadow:0_4px_18px_rgba(0,0,0,0.7)]">
+                <span key={`${item.start}-${item.title}`} className="gp-script gp-script-md -rotate-[5deg] text-[44px] text-[#ff3540] [text-shadow:0_4px_18px_rgba(0,0,0,0.7)]">
                   {item.title}
                 </span>
               ))}
@@ -243,7 +249,7 @@ export default async function GrandOpeningPage() {
         <span className="gp-laser l2" style={{ left: "40%", top: "14%", width: "60%" }} />
         <div className="gp-wrap gp-split">
           <div className="gp-reveal flex flex-col gap-5">
-            <p className="gp-label text-[#7cff3a]">Rundown · {weekday}, {day} {month}</p>
+            <p className="gp-label text-[#7cff3a]">{ended ? "Rundown yang sudah berlangsung" : "Rundown"} · {weekday}, {day} {month}</p>
             <h2 className="gp-display gp-h2 text-[72px]">
               <span className="gp-cream">Special</span> <span className="gp-red">Performance</span>
             </h2>
@@ -281,14 +287,14 @@ export default async function GrandOpeningPage() {
       </section>
 
       {/* PROMO */}
-      {event.promoText ? (
+      {promoText ? (
         <section id="promo" className="gp-sec py-[110px]">
           <div className="gp-wrap">
             <div className="gp-reveal gp-promo-card relative flex flex-wrap items-center justify-between gap-10 overflow-hidden border border-[rgba(224,38,47,0.45)] bg-[linear-gradient(120deg,#1a0b0d,#121214_60%)] px-14 py-16">
               <span className="gp-laser l1" style={{ left: "50%", top: "30%", width: "60%" }} />
               <div className="relative flex max-w-[600px] flex-col gap-4">
                 <p className="gp-label text-[#ff6b72]">Promo Grand Opening</p>
-                <h2 className="gp-display gp-h2 gp-cream text-[68px]">{event.promoText}</h2>
+                <h2 className="gp-display gp-h2 text-[68px] text-[#efe6d6]">{promoText}</h2>
                 <p className="text-[17px] leading-relaxed text-[#d8d1c3]">Berlaku selama Grand Opening, {date}. Tanyakan menu bundling ke kasir atau pesan lewat menu digital.</p>
               </div>
               <Link href="/order" className="gp-btn gp-btn-red relative">

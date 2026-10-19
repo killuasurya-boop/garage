@@ -376,11 +376,13 @@
     padding-top: 80px !important;
     padding-bottom: 80px !important;
   }
+  /* Badge di bawah-kanan foto supaya tidak menutup wajah personel. */
   .gp-badge {
-    right: 8px;
-    top: 4%;
-    width: 132px;
-    padding: 10px 8px;
+    right: 10px;
+    top: auto;
+    bottom: 34%;
+    width: 118px;
+    padding: 9px 8px;
   }
   .gp-badge .gp-badge-big {
     font-size: 44px !important;
@@ -391,8 +393,9 @@
   .gp-badge .gp-badge-sub {
     font-size: 9px !important;
   }
+  /* Teks sesi di bawah foto (tidak menimpa badan artis). */
   .gp-overlay-script {
-    margin-top: -64px !important;
+    margin-top: -12px !important;
   }
   .gp-promo-card {
     padding: 36px 24px !important;

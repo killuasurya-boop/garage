@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, MapPin, Music } from "lucide-react";
 
-import { formatEventDate, formatEventTimeRange, type PublicEvent } from "@/lib/event-format";
+import { agendaClock, formatEventDate, formatEventTimeRange, type PublicEvent } from "@/lib/event-format";
 
 // Ringkasan event di homepage (FR-HOME-001). Data dari tabel `events` yang sama
 // dengan landing /grand-opening — tidak ada tanggal/alamat yang ditulis di sini.
@@ -27,7 +27,19 @@ export function GrandOpeningBanner({ event }: { event: PublicEvent }) {
               {formatEventTimeRange(event.startsAt, event.endsAt, event.timezone)}
             </span>
           </li>
-          {event.highlights.length ? (
+          {event.agenda.length ? (
+            <li className="flex items-start gap-2" data-testid="home-event-agenda">
+              <Music aria-hidden className="mt-0.5 size-4 shrink-0 text-garage-red-bright" />
+              <span>
+                {event.agenda.map((item, index) => (
+                  <span key={`${item.start}-${item.title}`}>
+                    {index ? <br /> : null}
+                    {agendaClock(item.start)}–{agendaClock(item.end)} {item.title}
+                  </span>
+                ))}
+              </span>
+            </li>
+          ) : event.highlights.length ? (
             <li className="flex items-start gap-2">
               <Music aria-hidden className="mt-0.5 size-4 shrink-0 text-garage-red-bright" />
               <span>{event.highlights.join(" · ")}</span>

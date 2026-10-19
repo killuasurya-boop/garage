@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { events } from "@/db/schema";
-import { AGENDA_TIME, type PublicEvent } from "@/lib/event-format";
+import { AGENDA_TIME, toZonedInputValue, type PublicEvent } from "@/lib/event-format";
 import { normalizeWaNumber } from "@/lib/whatsapp-link";
 
 // =============================================================================
@@ -188,7 +188,19 @@ export const eventUpdateSchema = z
         }),
       )
       .max(12)
-      .optional(),
+      .optional()
+      .superRefine((agenda, ctx) => {
+        if (!agenda) return;
+        const seen = new Set<string>();
+        agenda.forEach((item, index) => {
+          if (item.end <= item.start) {
+            ctx.addIssue({ code: "custom", path: [index, "end"], message: `Sesi "${item.title}": jam selesai harus setelah jam mulai.` });
+          }
+          const key = item.title.trim().toLowerCase();
+          if (seen.has(key)) ctx.addIssue({ code: "custom", path: [index, "title"], message: `Nama sesi "${item.title}" dobel.` });
+          seen.add(key);
+        });
+      }),
     promoText: z.string().trim().max(120).nullable().optional(),
     sponsorName: z.string().trim().max(60).nullable().optional(),
     ageGate: z.boolean().optional(),
@@ -211,6 +223,21 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
   const [current] = await db.select().from(events).where(eq(events.id, id)).limit(1);
   if (!current) throw new EventError(404, "EVENT_NOT_FOUND", "Event tidak ditemukan.");
   if (current.status === "archived") throw new EventError(409, "EVENT_ARCHIVED", "Event sudah diarsipkan.");
+
+  if (input.agenda?.length) {
+    // Sesi rundown harus berada di dalam jam acara (zona event).
+    const startClock = toZonedInputValue(input.startsAt, current.timezone).slice(11);
+    const endClock = toZonedInputValue(input.endsAt, current.timezone).slice(11);
+    const sameDay = toZonedInputValue(input.startsAt, current.timezone).slice(0, 10) === toZonedInputValue(input.endsAt, current.timezone).slice(0, 10);
+    const outside = sameDay ? input.agenda.find((item) => item.start < startClock || item.end > endClock) : undefined;
+    if (outside) {
+      throw new EventError(
+        400,
+        "AGENDA_OUTSIDE_EVENT",
+        `Sesi "${outside.title}" (${outside.start}–${outside.end}) di luar jam acara ${startClock}–${endClock}.`,
+      );
+    }
+  }
 
   const next = {
     title: input.title,

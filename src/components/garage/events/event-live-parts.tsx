@@ -350,3 +350,51 @@ export function InviteIntro({ guestName, children }: { guestName: string; childr
     </div>
   );
 }
+
+/**
+ * Hitung mundur di banner beranda (hari/jam/menit/detik). Sebelum hidrasi tampil
+ * "--" dengan ukuran sama (tanpa lompatan layout); saat acara berjalan → badge LIVE.
+ */
+export function HomeCountdown({ startsAt, endsAt }: { startsAt: string; endsAt: string }) {
+  const now = useSyncExternalStore(subscribeSecond, currentSecond, serverSecond);
+  const phase = now === null ? "upcoming" : eventPhase({ startsAt, endsAt }, now);
+  if (phase === "ended") return null;
+  if (phase === "live") {
+    return (
+      <p className="go-count__live" data-testid="home-event-live">
+        <span className="go-count__eq" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+        Sedang berlangsung — langsung datang!
+      </p>
+    );
+  }
+  const parts = now === null ? null : countdownParts(startsAt, now);
+  const cells = [
+    { label: "Hari", value: parts?.days },
+    { label: "Jam", value: parts?.hours },
+    { label: "Menit", value: parts?.minutes },
+    { label: "Detik", value: parts?.seconds },
+  ];
+  return (
+    <div className="go-count" role="timer" aria-label="Hitung mundur menuju Grand Opening" data-testid="home-event-countdown">
+      {cells.map((cell) => {
+        const text = cell.value === undefined ? "--" : String(cell.value).padStart(2, "0");
+        return (
+          <div key={cell.label} className="go-count__cell">
+            <span className="go-count__num" aria-label={`${text} ${cell.label}`}>
+              {text.split("").map((ch, index) => (
+                <span key={`${index}-${ch}`} className="go-count__digit" aria-hidden>
+                  {ch}
+                </span>
+              ))}
+            </span>
+            <span className="go-count__label">{cell.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

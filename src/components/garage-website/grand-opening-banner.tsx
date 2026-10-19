@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Clock, MapPin } from "lucide-react";
 
+import { HomeCountdown } from "@/components/garage/events/event-live-parts";
 import { agendaClock, eventZoneLabel, formatEventDate, formatEventTimeRange, type PublicEvent } from "@/lib/event-format";
 
 // Ringkasan event di homepage (FR-HOME-001). Data dari tabel `events` yang sama
@@ -19,6 +20,7 @@ export function GrandOpeningBanner({ event }: { event: PublicEvent }) {
           <h2 id="home-event-title" className="go-banner__title">
             {event.title}
           </h2>
+          <HomeCountdown startsAt={event.startsAt} endsAt={event.endsAt} />
           <ul className="go-banner__facts">
             <li>
               <CalendarDays aria-hidden className="go-banner__icon" />

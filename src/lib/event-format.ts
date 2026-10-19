@@ -120,3 +120,38 @@ export function fromZonedInputValue(value: string, timezone = "Asia/Jakarta") {
   const date = new Date(`${value}:00${ZONE_OFFSET[timezone] ?? "+07:00"}`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
+
+export type AgendaSlotState = "upcoming" | "next" | "live" | "done";
+
+/** Jam sesi rundown ("15:00") → epoch ms di tanggal acara (zona event); sesi lewat tengah malam pindah ke hari berikutnya. */
+export function agendaSlotTimes(event: Pick<PublicEvent, "startsAt" | "timezone">, item: EventAgendaItem) {
+  const day = toZonedInputValue(event.startsAt, event.timezone).slice(0, 10);
+  const at = (clock: string) => Date.parse(fromZonedInputValue(`${day}T${clock}`, event.timezone) ?? event.startsAt);
+  const start = at(item.start);
+  let end = at(item.end);
+  if (end <= start) end += 86_400_000;
+  return { start, end };
+}
+
+/**
+ * Status tiap sesi untuk mode hari H: done / live / next (sesi berikut saat acara
+ * berjalan) / upcoming, plus `fill` 0–1 untuk garis waktu rundown.
+ */
+export function agendaLiveState(event: Pick<PublicEvent, "startsAt" | "endsAt" | "timezone" | "agenda">, now = Date.now()) {
+  const slots = event.agenda.map((item) => agendaSlotTimes(event, item));
+  const phase = eventPhase(event, now);
+  let nextMarked = false;
+  const states: AgendaSlotState[] = slots.map((slot) => {
+    if (now >= slot.end) return "done";
+    if (now >= slot.start) return "live";
+    if (phase === "live" && !nextMarked) {
+      nextMarked = true;
+      return "next";
+    }
+    return "upcoming";
+  });
+  const first = slots[0]?.start ?? Date.parse(event.startsAt);
+  const last = slots.at(-1)?.end ?? Date.parse(event.endsAt);
+  const fill = last > first ? Math.min(1, Math.max(0, (now - first) / (last - first))) : 0;
+  return { states, fill, phase };
+}

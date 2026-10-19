@@ -1261,6 +1261,33 @@ html { scroll-behavior: smooth; }
 .garage-website .go-banner__facts { margin-top: 16px; list-style: none; }
 .garage-website .go-banner__actions { margin-top: 20px; }
 .garage-website .go-banner__btn { padding: 0 20px; }
+/* Hitung mundur banner beranda (HomeCountdown). */
+.garage-website .go-count { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: 460px; margin-top: 14px; }
+.garage-website .go-count__cell {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
+  padding: 10px 4px 8px; border: 1px solid rgba(255, 255, 255, 0.14); border-top: 3px solid var(--red);
+  background: rgba(255, 255, 255, 0.06);
+}
+.garage-website .go-count__num {
+  display: flex; font-family: var(--font-display); font-size: clamp(30px, 4vw, 44px); line-height: 1;
+  color: var(--fg); font-variant-numeric: tabular-nums;
+}
+.garage-website .go-count__digit { display: inline-block; animation: go-count-flip 0.4s cubic-bezier(0.2, 0.9, 0.2, 1) both; }
+.garage-website .go-count__label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fg-dim); }
+.garage-website .go-count__live {
+  display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; margin-top: 14px;
+  padding: 8px 14px; background: var(--red); color: #fff;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.garage-website .go-count__eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.garage-website .go-count__eq i { width: 3px; height: 100%; background: #fff; transform-origin: bottom; animation: go-count-eq 0.9s ease-in-out infinite; }
+.garage-website .go-count__eq i:nth-child(2) { animation-delay: -0.3s; }
+.garage-website .go-count__eq i:nth-child(3) { animation-delay: -0.6s; }
+@keyframes go-count-flip { from { opacity: 0; transform: translateY(-40%) rotateX(80deg); } to { opacity: 1; transform: none; } }
+@keyframes go-count-eq { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .garage-website .go-count__digit, .garage-website .go-count__eq i { animation: none; }
+}
 @media (min-width: 640px) {
   .garage-website .go-banner { padding: 24px; }
   .garage-website .go-banner__card { padding: 28px; }

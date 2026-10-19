@@ -21,7 +21,7 @@ afterAll(async () => {
 });
 
 describe("event Grand Opening", () => {
-  it("migrasi membuat event dengan fakta PRD; 0138 menerbitkannya; draft tidak tampil di publik", async () => {
+  it("migrasi membuat event dengan fakta PRD; 0138 menerbitkannya; 0139 mengisi FAQ; draft tidak tampil di publik", async () => {
     const svc = await import("@/lib/event-service");
     const [event] = await svc.listEventsForAdmin();
     expect(event).toMatchObject({
@@ -44,6 +44,9 @@ describe("event Grand Opening", () => {
       ageGate: true,
     });
     expect(event.address).toContain("Jl. Mayjen Sutoyo");
+    // 0139: FAQ info penting (umum 21+, smart casual).
+    expect(event.faq.map((item) => item.q)).toContain("Dress code?");
+    expect(event.faq.find((item) => item.q === "Dress code?")?.a).toBe("Smart casual.");
     expect(await svc.getPublishedEvent("grand-opening")).not.toBeNull();
     await svc.setEventStatus(event.id, "draft", userId);
     expect(await svc.getPublishedEvent("grand-opening")).toBeNull();

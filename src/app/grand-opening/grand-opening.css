@@ -339,6 +339,555 @@
   }
 }
 
+
+/* ===== GO7: co-branding, info penting, hari H, sesudah acara, undangan ===== */
+.gp-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+}
+.gp-lockup-garage {
+  position: relative;
+  display: inline-flex;
+  overflow: hidden;
+}
+.gp-lockup-garage::after {
+  /* kilau chrome melintas di logo Garage */
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% -60%;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-18deg);
+  animation: gp-shine 6s ease-in-out 2.2s infinite;
+  pointer-events: none;
+}
+.gp-lockup-x {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  color: var(--gp-red-hot);
+  animation: gp-spin-in 0.9s cubic-bezier(0.2, 0.9, 0.2, 1) 0.35s both;
+}
+.gp-lockup-black {
+  display: inline-flex;
+  animation: gp-glow 3.2s ease-in-out 1.2s infinite;
+}
+.gp-lockup-stamp {
+  animation: gp-stamp 0.9s cubic-bezier(0.2, 0.9, 0.2, 1) 0.1s both;
+}
+
+/* Tombol: kilau + tekan */
+.gp-btn {
+  position: relative;
+  overflow: hidden;
+}
+.gp-btn-red::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -70%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-18deg);
+  animation: gp-shine 4.5s ease-in-out 1.5s infinite;
+  pointer-events: none;
+}
+.gp-btn:active {
+  transform: scale(0.97);
+}
+.gp-btn:hover svg {
+  animation: gp-bounce 0.5s ease;
+}
+.gp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.gp-actions[data-align="start"] {
+  justify-content: flex-start;
+}
+
+/* Kartu Info Penting */
+.gp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.gp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 24px 22px;
+  border: 1px solid rgba(239, 230, 214, 0.16);
+  background: rgba(22, 22, 25, 0.92);
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.gp-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--gp-red), var(--gp-green));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s ease;
+}
+.gp-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(124, 255, 58, 0.45);
+  box-shadow: 0 18px 40px -22px rgba(124, 255, 58, 0.45);
+}
+.gp-card:hover::before {
+  transform: scaleX(1);
+}
+.gp-card-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  background: var(--gp-red);
+  color: #fff;
+}
+.gp-card-title {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 26px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--gp-cream);
+  overflow-wrap: anywhere;
+}
+.gp-card p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--gp-text);
+}
+.gp-faq {
+  display: grid;
+  gap: 10px;
+}
+.gp-faq details {
+  border: 1px solid rgba(239, 230, 214, 0.14);
+  background: rgba(18, 18, 20, 0.85);
+  padding: 0 18px;
+}
+.gp-faq summary {
+  display: flex;
+  min-height: 52px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+  color: var(--gp-cream);
+  list-style: none;
+}
+.gp-faq summary::-webkit-details-marker {
+  display: none;
+}
+.gp-faq summary::after {
+  content: "+";
+  font-size: 22px;
+  color: var(--gp-green);
+  transition: transform 0.2s ease;
+}
+.gp-faq details[open] summary::after {
+  transform: rotate(45deg);
+}
+.gp-faq details p {
+  margin: 0 0 16px;
+  line-height: 1.6;
+  color: var(--gp-text);
+}
+
+/* Ticker info di bawah strip tanggal */
+.gp-ticker {
+  width: 100%;
+  max-width: 760px;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.gp-ticker-track {
+  display: flex;
+  width: max-content;
+  gap: 0;
+  animation: gp-marquee 22s linear infinite;
+}
+.gp-ticker-track span {
+  padding-right: 36px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #c8ff9f;
+  white-space: nowrap;
+}
+
+/* Partikel debu hero */
+.gp-dust {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.gp-dust i {
+  position: absolute;
+  bottom: -10px;
+  left: calc(var(--i) * 12.5% + 4%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(239, 230, 214, 0.55);
+  box-shadow: 0 0 6px rgba(124, 255, 58, 0.6);
+  animation: gp-dust calc(9s + var(--i) * 0.9s) linear calc(var(--i) * -1.3s) infinite;
+}
+
+/* Flip digit countdown */
+.gp-flip {
+  display: inline-block;
+  animation: gp-flip 0.45s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+/* Badge LIVE + equalizer */
+.gp-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--gp-red);
+  color: #fff;
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  vertical-align: middle;
+  animation: gp-live 1.6s ease-in-out infinite;
+}
+.gp-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.gp-eq i {
+  display: block;
+  width: 3px;
+  height: 100%;
+  background: #fff;
+  transform-origin: bottom;
+  animation: gp-eq 0.9s ease-in-out infinite;
+}
+.gp-eq i:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.gp-eq i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+
+/* Rundown hidup: garis waktu terisi sampai sesi berjalan */
+.gp-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 22px;
+}
+.gp-timeline::before,
+.gp-timeline::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: rgba(239, 230, 214, 0.18);
+}
+.gp-timeline::after {
+  background: linear-gradient(180deg, var(--gp-red), var(--gp-green));
+  box-shadow: 0 0 10px rgba(124, 255, 58, 0.6);
+  transform: scaleY(var(--fill, 0));
+  transform-origin: top;
+  transition: transform 0.8s ease;
+}
+.gp-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid rgba(239, 230, 214, 0.14);
+  background: rgba(18, 18, 20, 0.85);
+  padding: 16px 18px;
+  transition:
+    border-color 0.3s ease,
+    background 0.3s ease,
+    opacity 0.3s ease;
+}
+.gp-slot::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border: 2px solid rgba(239, 230, 214, 0.4);
+  background: var(--gp-bg);
+  border-radius: 50%;
+  z-index: 1;
+}
+.gp-slot[data-state="live"] {
+  border-color: var(--gp-red);
+  background: linear-gradient(120deg, rgba(224, 38, 47, 0.22), rgba(18, 18, 20, 0.9) 70%);
+}
+.gp-slot[data-state="live"]::before {
+  border-color: var(--gp-red-hot);
+  background: var(--gp-red-hot);
+  box-shadow: 0 0 0 6px rgba(224, 38, 47, 0.25);
+}
+.gp-slot[data-state="done"] {
+  opacity: 0.72;
+}
+.gp-slot[data-state="done"]::before {
+  border-color: var(--gp-green);
+  background: var(--gp-green);
+}
+.gp-slot-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #c4bfb4;
+}
+
+/* Confetti sekali jalan */
+.gp-confetti {
+  position: absolute;
+  inset: -40px 0 auto;
+  height: 0;
+  pointer-events: none;
+}
+.gp-confetti i {
+  position: absolute;
+  top: 0;
+  left: calc(50% + (var(--i) - 10) * 4.5%);
+  width: 8px;
+  height: 14px;
+  background: var(--gp-red);
+  opacity: 0;
+  animation: gp-confetti 2.2s cubic-bezier(0.2, 0.6, 0.4, 1) calc(var(--i) * 0.04s) 1 both;
+}
+.gp-confetti i:nth-child(3n) {
+  background: var(--gp-green);
+}
+.gp-confetti i:nth-child(3n + 1) {
+  background: var(--gp-cream);
+  width: 6px;
+}
+
+/* Galeri sesudah acara */
+.gp-gallery {
+  columns: 3 260px;
+  column-gap: 14px;
+}
+.gp-gallery figure {
+  margin: 0 0 14px;
+  break-inside: avoid;
+  border: 1px solid rgba(239, 230, 214, 0.12);
+  overflow: hidden;
+}
+.gp-gallery img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 0.5s ease;
+}
+.gp-gallery figure:hover img {
+  transform: scale(1.04);
+}
+
+/* Undangan: intro "membuka amplop" (sekali per sesi) */
+.gp-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #050506;
+  animation: gp-intro-out 0.5s ease 2.1s both;
+}
+.gp-intro-panel {
+  position: absolute;
+  inset: 0;
+  background: var(--gp-red);
+  animation: gp-split 0.9s cubic-bezier(0.7, 0, 0.2, 1) 0.45s both;
+}
+.gp-intro-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gp-green), #e6ffd6, var(--gp-green), transparent);
+  box-shadow: 0 0 18px var(--gp-green);
+  animation: gp-scan 0.55s ease-out both;
+}
+.gp-intro-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 0 20px;
+  text-align: center;
+  animation: gp-stamp 0.8s cubic-bezier(0.2, 0.9, 0.2, 1) 0.9s both;
+}
+.gp-intro-skip {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(239, 230, 214, 0.4);
+  background: rgba(10, 10, 11, 0.6);
+  color: var(--gp-cream);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.gp-intro-skip:focus-visible {
+  outline: 2px solid var(--gp-green);
+  outline-offset: 3px;
+}
+.gp-guest-name .gp-ch {
+  display: inline-block;
+  animation: gp-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) calc(0.5s + var(--i) * 0.035s) both;
+}
+.gp-invite-card {
+  position: relative;
+  border: 1px solid rgba(239, 230, 214, 0.16);
+  border-top: 4px solid var(--gp-red);
+  background: linear-gradient(160deg, rgba(26, 11, 13, 0.95), rgba(18, 18, 20, 0.96) 55%);
+  box-shadow: 0 40px 80px -40px rgba(224, 38, 47, 0.6);
+}
+
+@keyframes gp-shine {
+  0%,
+  70% {
+    left: -60%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+@keyframes gp-spin-in {
+  from {
+    opacity: 0;
+    transform: rotate(-270deg) scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gp-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(124, 255, 58, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(124, 255, 58, 0.55));
+  }
+}
+@keyframes gp-bounce {
+  40% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes gp-dust {
+  from {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translateY(-110vh) translateX(30px);
+    opacity: 0;
+  }
+}
+@keyframes gp-flip {
+  from {
+    opacity: 0;
+    transform: translateY(-45%) rotateX(80deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gp-live {
+  50% {
+    box-shadow: 0 0 0 6px rgba(224, 38, 47, 0.25);
+  }
+}
+@keyframes gp-eq {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes gp-confetti {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(220px) translateX(calc((var(--i) - 10) * 6px)) rotate(calc(var(--i) * 70deg));
+  }
+}
+@keyframes gp-split {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 50% 0 50%);
+  }
+}
+@keyframes gp-scan {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes gp-intro-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 @media (max-width: 960px) {
   .gp-wrap {
     padding: 0 20px;
@@ -400,6 +949,12 @@
   .gp-promo-card {
     padding: 36px 24px !important;
   }
+  .gp-lockup {
+    gap: 12px;
+  }
+  .gp-lockup-x {
+    font-size: 26px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .gp *,
@@ -407,5 +962,10 @@
   .gp *::after {
     animation: none !important;
     transition: none !important;
+  }
+  .gp-intro,
+  .gp-dust,
+  .gp-confetti {
+    display: none !important;
   }
 }

@@ -58,3 +58,5 @@ Menu Undangan Digital: tamu, link undangan pribadi, dan rekap RSVP.
    - **Penting:** Status Dibagikan hanya catatan petugas, bukan bukti pesan terkirim/terbaca. Jangan tandai sebelum benar-benar mengirim.
 4. Link tersebar ke orang lain? Tekan Link baru (link lama mati, jawaban RSVP tetap). Cabut = link tidak bisa dipakai sama sekali.
 5. Pantau rekap: Hadir (undangan & total orang), Tidak hadir, Belum menjawab. Ekspor CSV hanya untuk Owner.
+6. H-1 (Jumat 23 Okt): untuk tamu berstatus Hadir tekan Ingatkan H-1 — WhatsApp terbuka dengan pesan pengingat + link undangan. Kirim manual.
+   - **Penting:** Tombol Ingatkan H-1 hanya muncul untuk tamu yang sudah konfirmasi Hadir. Pengingat tidak mengubah status Dibagikan.

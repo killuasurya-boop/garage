@@ -1195,6 +1195,19 @@ export const cashSessions = pgTable(
     // dan disetor ke Owner/brankas (= uang dihitung − ditinggal).
     floatLeft: integer("float_left"),
     depositAmount: integer("deposit_amount"),
+    // Laporan pertanggungjawaban kasir (owner, Okt 2026): hitungan pecahan saat
+    // buka shift + siapa yang memverifikasi modal awal.
+    openingDenominations: jsonb("opening_denominations")
+      .$type<Record<string, number>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    openingVerifiedBy: text("opening_verified_by").references(() => user.id, { onDelete: "set null" }),
+    openingVerifiedAt: timestamp("opening_verified_at", { withTimezone: true }),
+    // Pemeriksaan laporan shift oleh Manajer/Owner: pending | verified | needs_followup.
+    reviewStatus: text("review_status").notNull().default("pending"),
+    reviewNote: text("review_note"),
+    reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
@@ -1383,6 +1396,10 @@ export const cashMovements = pgTable(
     description: text("description").notNull(),
     amount: integer("amount").notNull(),
     status: text("status").notNull().default("recorded"),
+    // Buku kas: sumber/penerima uang, nomor bukti, dan invoice terkait.
+    counterparty: text("counterparty"),
+    referenceNo: text("reference_no"),
+    orderNo: text("order_no"),
     movementAt: timestamp("movement_at", { withTimezone: true }).notNull().defaultNow(),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
@@ -1394,6 +1411,67 @@ export const cashMovements = pgTable(
     outletIdx: index("cash_movements_outlet_idx").on(table.outletId),
     typeIdx: index("cash_movements_type_idx").on(table.type),
     movementAtIdx: index("cash_movements_at_idx").on(table.movementAt),
+  }),
+);
+
+// Petty cash (kas kecil) — dana operasional TERPISAH dari laci kasir: tidak
+// mengubah expectedCash shift. Saldo = top-up disetujui − pengeluaran disetujui
+// ± penyesuaian. Status: submitted | approved | rejected | cancelled.
+export const pettyCashEntries = pgTable(
+  "petty_cash_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryNo: text("entry_no").notNull().unique(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    cashSessionId: uuid("cash_session_id").references(() => cashSessions.id, { onDelete: "set null" }),
+    type: text("type").notNull(), // topup | expense | adjustment
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    amount: integer("amount").notNull(),
+    recipient: text("recipient"),
+    receiptNo: text("receipt_no"),
+    receiptUrl: text("receipt_url"),
+    status: text("status").notNull().default("submitted"),
+    decisionNote: text("decision_note"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    entryAt: timestamp("entry_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletIdx: index("petty_cash_outlet_idx").on(table.outletId),
+    sessionIdx: index("petty_cash_session_idx").on(table.cashSessionId),
+    entryAtIdx: index("petty_cash_entry_at_idx").on(table.entryAt),
+  }),
+);
+
+// Catatan kejadian shift (selisih kas, gangguan QRIS/printer, komplain, dll.).
+// Status: open | follow_up | resolved.
+export const shiftIncidents = pgTable(
+  "shift_incidents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    cashSessionId: uuid("cash_session_id").references(() => cashSessions.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    orderNo: text("order_no"),
+    financialImpact: integer("financial_impact"),
+    actionTaken: text("action_taken"),
+    status: text("status").notNull().default("open"),
+    responsibleName: text("responsible_name"),
+    managerNote: text("manager_note"),
+    reportedBy: text("reported_by").references(() => user.id, { onDelete: "set null" }),
+    resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sessionIdx: index("shift_incidents_session_idx").on(table.cashSessionId),
+    occurredIdx: index("shift_incidents_occurred_idx").on(table.occurredAt),
   }),
 );
 

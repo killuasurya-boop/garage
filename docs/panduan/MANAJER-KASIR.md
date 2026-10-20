@@ -30,13 +30,24 @@ PIN Manajer/Owner dipakai di tablet kasir. PIN tidak boleh diberikan ke kasir.
 5. Shift yang lupa ditutup muncul di atas. Hitung uangnya, lalu tutup shift dari sini.
 6. Cetak slip per shift atau Cetak rekap ke printer struk untuk arsip.
 
-## 3. Laporan penjualan
+## 3. Laporan pertanggungjawaban kasir (PDF)
+
+Satu PDF A4 berisi seluruh aktivitas kasir, uang, produk, void, refund, petty cash & kejadian.
+
+1. Riwayat & Laporan Shift → tab Laporan Lengkap → pilih tanggal operasional.
+2. Unduh per shift, per kasir, Seluruh kasir, Kas & Petty cash, atau Gabungan harian. Nama file: Laporan_Shift_[Kasir]_YYYY-MM-DD_Shift-N.pdf, Laporan_Kasir_…, Laporan_Kas_PettyCash_…, Laporan_Operasional_Kasir_Garage_….
+3. Buka detail shift yang sudah ditutup → Pemeriksaan Manajer → tulis hasil, lalu Verifikasi laporan atau Perlu tindak lanjut. Status ini tercetak apa adanya di PDF.
+4. Verifikasi modal awal dari kartu yang sama (siapa menghitung & siapa memverifikasi tercatat).
+5. Petty cash: tab Petty Cash → Setujui / Tolak pengajuan kasir (tolak wajib alasan). Isi dana lewat jenis Penambahan dana.
+6. Catatan kejadian: beri Catatan Manajer & tandai selesai dari detail shift.
+
+## 4. Laporan penjualan
 
 1. Tab Laporan Penjualan: pilih Hari ini, Kemarin, 7 hari, Bulan ini, atau tanggal sendiri.
 2. Lihat produk terlaris, kategori, metode bayar, jam ramai, per kasir, dan tipe order.
 3. Unduh CSV untuk Excel, atau Cetak ringkasan ke printer struk.
 
-## 4. Pengaturan yang mempengaruhi kasir
+## 5. Pengaturan yang mempengaruhi kasir
 
 1. Pengaturan → Shift & Cash: batas PIN kas keluar/masuk, wajib tanda tangan saat selisih.
 2. Pengaturan → Receipt: kolom tanda tangan slip manajemen & jumlah cetak slip.

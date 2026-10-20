@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Banknote,
   Calendar,
   CircleDollarSign,
   Download,
@@ -133,6 +134,32 @@ type SessionSummary = {
     discount: number;
   };
   byMethod: Array<{ method: string; count: number; total: number }>;
+  cashMovements?: {
+    cashIn: number;
+    cashOut: number;
+    pendingCount: number;
+    pendingAmount: number;
+    byGroup: Array<{ group: string; label: string; cashIn: number; cashOut: number; count: number }>;
+  };
+  movements?: Array<{
+    id: string;
+    refNo: string | null;
+    type: "out" | "in";
+    category: string;
+    description: string;
+    counterparty: string | null;
+    amount: number;
+    status: string;
+    movementAt: string;
+    createdByName: string | null;
+  }>;
+};
+
+const MOVEMENT_STATUS_LABEL: Record<string, string> = {
+  recorded: "Tercatat",
+  pending_approval: "Menunggu persetujuan",
+  rejected: "Ditolak",
+  voided: "Dibatalkan",
 };
 
 type StaleOpenShift = {
@@ -743,6 +770,77 @@ function ShiftDetailView({
               </CardContent>
             </Card>
           </div>
+
+          {summary.cashMovements && summary.movements ? (
+            <Card className="border-zinc-700 bg-zinc-900/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Banknote className="h-4 w-4 text-[#d11a2a]" />
+                  Kas Masuk / Keluar Laci ({summary.movements.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {summary.movements.length === 0 ? (
+                  <p className="text-zinc-400">Tidak ada kas masuk/keluar laci di shift ini.</p>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <Row label="Total kas masuk" value={fmtRp(summary.cashMovements.cashIn)} />
+                      <Row label="Total kas keluar" value={`-${fmtRp(summary.cashMovements.cashOut)}`} />
+                      {summary.cashMovements.byGroup.map((group) => (
+                        <Row
+                          key={group.group}
+                          label={`${group.label} (${group.count}x)`}
+                          value={[
+                            group.cashIn ? `+${fmtRp(group.cashIn)}` : null,
+                            group.cashOut ? `-${fmtRp(group.cashOut)}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" / ")}
+                        />
+                      ))}
+                      {summary.cashMovements.pendingCount ? (
+                        <Row
+                          label={`Pending persetujuan (${summary.cashMovements.pendingCount}x) — uang belum bergerak`}
+                          value={fmtRp(summary.cashMovements.pendingAmount)}
+                          tone="warn"
+                        />
+                      ) : null}
+                    </div>
+                    <ul className="max-h-72 divide-y divide-zinc-800/60 overflow-y-auto rounded-md border border-zinc-800">
+                      {summary.movements.map((m) => (
+                        <li key={m.id} className="flex items-start justify-between gap-3 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="font-mono text-xs text-zinc-400">
+                              {m.refNo ?? "—"} · {fmtTime(m.movementAt)} · {MOVEMENT_STATUS_LABEL[m.status] ?? m.status}
+                            </p>
+                            <p className="break-words font-medium text-zinc-100">{m.description}</p>
+                            <p className="text-xs text-zinc-300">
+                              {m.category}
+                              {m.counterparty ? ` · ${m.counterparty}` : ""}
+                              {m.createdByName ? ` · ${m.createdByName}` : ""}
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 font-mono font-semibold ${
+                              m.status !== "recorded"
+                                ? "text-zinc-400"
+                                : m.type === "out"
+                                  ? "text-rose-300"
+                                  : "text-amber-300"
+                            }`}
+                          >
+                            {m.type === "out" ? "-" : "+"}
+                            {fmtRp(m.amount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card className="border-zinc-700 bg-zinc-900/40">
             <CardHeader>

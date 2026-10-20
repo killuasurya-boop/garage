@@ -426,7 +426,7 @@ export async function GET(request: Request) {
         amount: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int`,
       })
       .from(cashMovements)
-      .where(eq(cashMovements.cashSessionId, cashSession.id))
+      .where(and(eq(cashMovements.cashSessionId, cashSession.id), eq(cashMovements.status, "recorded")))
       .groupBy(cashMovements.type);
     const cashSales = Number(paymentAgg?.cashSales ?? 0);
     const cashIn = Number(movementAgg.find((row) => row.type === "cash_in")?.amount ?? 0);

@@ -995,6 +995,13 @@
       "when": 1792425916138,
       "tag": "0141_order_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1792443679392,
+      "tag": "0142_cash_drawer_smart",
+      "breakpoints": true
     }
   ]
 }

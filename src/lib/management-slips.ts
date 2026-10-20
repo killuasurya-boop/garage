@@ -320,16 +320,20 @@ export interface CashMovementSlipInput {
   createdByName?: string | null;
   approvedByName?: string | null;
   movementAt?: string | null;
+  refNo?: string | null;
+  counterparty?: string | null;
 }
 
 /** Slip Kas Keluar / Masuk laci (bukti fisik untuk Owner). */
 export function buildCashMovementSlipContent(input: CashMovementSlipInput, options: SlipOptions = {}): string {
   const layout = createLayout(options);
   header(layout, input.type === "out" ? "SLIP KAS KELUAR" : "SLIP KAS MASUK", options);
+  if (input.refNo) layout.field("Ref", input.refNo);
   layout.field("Shift", input.cashSessionCode);
   layout.field("Waktu", formatJakartaDateTime(input.movementAt ?? new Date().toISOString()));
   layout.field("Kategori", input.category);
   layout.field("Ket", input.description);
+  if (input.counterparty) layout.field("Pihak", input.counterparty);
   layout.field("Petugas", input.createdByName || "-");
   if (input.approvedByName) layout.field("Setuju", input.approvedByName);
   layout.divider();

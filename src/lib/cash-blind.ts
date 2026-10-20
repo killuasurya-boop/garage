@@ -24,3 +24,31 @@ export function redactOpenShiftCash<T extends CashFigures>(session: T, role: str
     cashFiguresHidden: true,
   };
 }
+
+type SummaryWithDrawer = {
+  session: CashFigures;
+  reconciliation?: { expectedCash: number; otherAdjustments: number } & Record<string, unknown>;
+  movements?: Array<{ balanceBefore: number | null; balanceAfter: number | null } & Record<string, unknown>>;
+};
+
+/** Ringkasan shift: ikut sembunyikan saldo laci per transaksi & kas akhir rekonsiliasi. */
+export function redactOpenShiftSummary<T extends SummaryWithDrawer>(summary: T, role: string | null | undefined): T {
+  if (!hidesOpenShiftCash(role) || summary.session.status !== "open") return summary;
+  return {
+    ...summary,
+    session: redactOpenShiftCash(summary.session, role),
+    ...(summary.reconciliation
+      ? { reconciliation: { ...summary.reconciliation, expectedCash: 0, otherAdjustments: 0, hidden: true } }
+      : {}),
+    ...(summary.movements
+      ? {
+          movements: summary.movements.map((row) => ({
+            ...row,
+            balanceBefore: null,
+            balanceAfter: null,
+            balanceHidden: row.balanceBefore != null,
+          })),
+        }
+      : {}),
+  };
+}

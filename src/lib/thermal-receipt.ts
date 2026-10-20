@@ -7,7 +7,7 @@
 
 import { parseTableNumber } from "@/lib/garage-tables";
 import { PAYMENT_STATUS_LABEL, paymentBalance, type PaymentStatus } from "@/lib/payment-status";
-import { paperColumns, wrapText, type ReceiptLayoutOptions } from "@/lib/receipt-layout";
+import { paperColumns, receiptQrMarker, wrapText, type ReceiptLayoutOptions } from "@/lib/receipt-layout";
 
 export interface ThermalReceiptInput {
   invoiceNo?: string | null;
@@ -107,6 +107,18 @@ export interface KitchenChitInput {
   // Delivery: dicetak di setiap chit supaya kurir/kasir tidak salah antar.
   customerPhone?: string | null;
   deliveryAddress?: string | null;
+  // Detail tambahan tiket (owner, Okt 2026) — semua opsional.
+  /** Catatan order umum (bukan per item). */
+  orderNote?: string | null;
+  /** 2+ = pesanan tambahan di meja yang sama. */
+  addonSequence?: number | null;
+  /** "high"/"rush"/"urgent" → banner PRIORITAS. */
+  priority?: string | null;
+  /** Target menit produksi (SLA) → jam target siap. */
+  targetMinutes?: number | null;
+  /** Petugas yang mencetak + waktu cetak (cetak manual dari kasir). */
+  printedBy?: string | null;
+  printedAt?: string | null;
   items: KitchenChitItem[];
 }
 
@@ -120,6 +132,9 @@ function orderTypeLabel(raw: string): string {
     delivery: "Delivery",
     qr_table: "QR Meja",
     qr_takeaway: "QR Takeaway",
+    "qr table": "Menu digital",
+    qr: "Menu digital (QR)",
+    pos: "Kasir (POS)",
     instagram: "Instagram",
     campaign: "Campaign",
   };
@@ -148,6 +163,16 @@ export function buildKitchenChitContent(
         }).format(new Date(iso))
       : "-";
 
+  // "Label : nilai" — nilai panjang dibungkus ke baris berikut, tidak dipotong.
+  const field = (label: string, value: string) => {
+    const prefix = `${label.padEnd(6)}: `;
+    return wrapText(value, W - prefix.length).map((part, index) =>
+      `${index === 0 ? prefix : " ".repeat(prefix.length)}${part}`,
+    );
+  };
+  const fmtTime = (iso: string) =>
+    new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(iso));
+
   // Urutan station: Dapur dulu, lalu Bar, lalu lainnya.
   const order = ["Dapur", "Bar"];
   const stations = Array.from(new Set(input.items.map((i) => i.station))).sort(
@@ -172,6 +197,12 @@ export function buildKitchenChitContent(
     if (input.queueNo != null) {
       rows.push(center(`ANTRIAN  #${input.queueNo}`));
       rows.push("=".repeat(W));
+    }
+    if ((input.addonSequence ?? 1) > 1) {
+      rows.push(center(`+ TAMBAHAN KE-${input.addonSequence} +`));
+    }
+    if (/^(high|rush|urgent|tinggi)$/i.test(clean(input.priority))) {
+      rows.push(center("!! PRIORITAS !!"));
     }
     // Nomor meja dibuat banner besar agar dapur/bar langsung tahu tujuan antar.
     const chitTable = parseTableNumber(input.tableLabel ?? null);
@@ -199,14 +230,27 @@ export function buildKitchenChitContent(
       rows.push("-".repeat(W));
     }
     if (input.orderType) {
-      rows.push(`Tipe  : ${orderTypeLabel(input.orderType)}`.slice(0, W));
+      rows.push(...field("Tipe", orderTypeLabel(input.orderType)));
     }
-    rows.push(`Order : ${clean(input.orderNo) || "-"}`.slice(0, W));
+    rows.push(...field("Order", clean(input.orderNo) || "-"));
     rows.push(`Waktu : ${fmtDate(input.createdAt)}`.slice(0, W));
-    if (input.waiterName) {
-      rows.push(`Waiter: ${clean(input.waiterName)}`.slice(0, W));
+    const target = input.targetMinutes && input.createdAt
+      ? new Date(new Date(input.createdAt).getTime() + input.targetMinutes * 60_000).toISOString()
+      : null;
+    if (target) {
+      rows.push(`Target: ${input.targetMinutes} mnt (${fmtTime(target)})`.slice(0, W));
     }
-    rows.push(`Kasir : ${clean(input.cashierName) || "-"}`.slice(0, W));
+    if (input.waiterName) {
+      rows.push(...field("Waiter", clean(input.waiterName)));
+    }
+    if (clean(input.cashierName)) {
+      rows.push(...field("Kasir", clean(input.cashierName)));
+    }
+    if (clean(input.printedBy)) {
+      rows.push(...field("Cetak", `${fmtTime(input.printedAt ?? new Date().toISOString())} ${clean(input.printedBy)}`));
+    } else if (!clean(input.cashierName)) {
+      rows.push("Kasir : -");
+    }
     rows.push("-".repeat(W));
 
     for (const item of items) {
@@ -219,10 +263,19 @@ export function buildKitchenChitContent(
       rows.push(`${qty}x ${name}${variantText}`.slice(0, W));
       const note = clean(item.note);
       if (note) {
-        rows.push(`   >> ${note}`.slice(0, W));
+        // Catatan dipecah per baris, tidak dipotong.
+        for (const part of wrapText(note, W - 6)) rows.push(`   >> ${part}`);
       }
     }
 
+    rows.push("-".repeat(W));
+    const totalQty = items.reduce((sum, item) => sum + (item.qty || 1), 0);
+    rows.push(`Jumlah: ${totalQty} item (${items.length} menu)`.slice(0, W));
+    const orderNote = clean(input.orderNote);
+    if (orderNote) {
+      rows.push("Catatan order:");
+      for (const part of wrapText(orderNote, W - 2)) rows.push(`  ${part}`);
+    }
     rows.push("-".repeat(W));
     rows.push("");
     rows.push("");
@@ -465,10 +518,16 @@ export function buildThermalContent(
     rows.push(...centerWrapped("(bukan bukti pembayaran)"));
   }
   if (receipt.invoiceWebUrl) {
+    // QR tracking invoice (owner, Okt 2026): pelanggan scan untuk cek status
+    // pesanan & invoice. Link teks tetap dicetak sebagai cadangan.
+    const invoiceUrl = absoluteInvoiceUrl(receipt.invoiceWebUrl);
     rows.push("");
-    rows.push(center("Cek invoice online:"));
+    rows.push(center("SCAN UNTUK CEK PESANAN"));
+    rows.push(receiptQrMarker(invoiceUrl));
+    rows.push(...centerWrapped("Status pesanan & invoice"));
+    rows.push(center("Atau buka link:"));
     // Link utuh (dipecah per baris, tidak dipotong) agar bisa diketik ulang.
-    for (const part of splitUrl(absoluteInvoiceUrl(receipt.invoiceWebUrl), W)) rows.push(center(part));
+    for (const part of splitUrl(invoiceUrl, W)) rows.push(center(part));
   }
   rows.push("");
 

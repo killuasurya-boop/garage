@@ -43,7 +43,7 @@ export const KEEP_TABLES = [
   // outlet & pengaturan
   "outlets", "dining_tables", "app_settings", "pos_terminals", "agent_api_keys", "staff_personal", "site_assets", "operation_locations", "operation_glossary",
   // menu, resep, katalog
-  "menu_items", "menu_variants", "menu_recipes", "menu_research",
+  "product_categories", "menu_items", "menu_variants", "menu_recipes", "menu_research",
   // pelanggan & member (poin dipertahankan kecuali --reset-member-points)
   "customers", "customer_tags", "member_accounts", "custom_segments", "custom_segment_customers",
   // marketing (definisi), voucher (definisi; used_count di-reset)
@@ -79,7 +79,7 @@ export const CLEAR_TABLES = [
   "order_push_subscriptions", "staff_notifications", "staff_notification_reads",
   "voucher_redemptions",
   // kas & finance transaksional
-  "cash_sessions", "cash_movements", "expenses", "supplier_invoices", "supplier_receivings",
+  "cash_sessions", "cash_movements", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",
   // stok transaksional
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",

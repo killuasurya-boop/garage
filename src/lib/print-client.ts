@@ -12,6 +12,7 @@
 // Fungsi ini mengembalikan `Response` agar jadi pengganti drop-in untuk
 // `fetch("/api/print/thermal", ...)` di seluruh pemanggil lama.
 
+import { stripReceiptQr } from "@/lib/receipt-layout";
 import {
   DEVICE_PRINTER_MODE_LABELS,
   DevicePrinterError,
@@ -182,7 +183,7 @@ export async function deliverPrintContent(
     const res = await fetch(`${agentBaseUrl(config)}/print`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: toPrinterText(content), copies, printerName: options.printerName }),
+      body: JSON.stringify({ content: toPrinterText(stripReceiptQr(content)), copies, printerName: options.printerName }),
     });
     if (res.ok) {
       const data = (await res.json().catch(() => ({}))) as { printer?: string };

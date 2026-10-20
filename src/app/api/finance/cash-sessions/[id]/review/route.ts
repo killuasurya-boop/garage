@@ -1,0 +1,27 @@
+import { z } from "zod";
+
+import { accountabilityFailure } from "@/lib/accountability-route";
+import { ok, readJson } from "@/lib/api-response";
+import { reviewCashSession } from "@/lib/cashier-accountability";
+import { requireOwnerOrManager } from "@/lib/server-auth";
+
+export const runtime = "nodejs";
+
+const reviewSchema = z.object({
+  status: z.enum(["verified", "needs_followup"]),
+  note: z.string().trim().max(1000).optional(),
+});
+
+/** Pemeriksaan laporan shift oleh Manajer/Owner (status verifikasi di PDF). */
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const session = await requireOwnerOrManager();
+  if (session.response) return session.response;
+  const body = await readJson(request, reviewSchema);
+  if (body.error) return body.error;
+  const { id } = await context.params;
+  try {
+    return ok(await reviewCashSession(id, body.data, session.data));
+  } catch (error) {
+    return accountabilityFailure(error);
+  }
+}

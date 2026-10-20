@@ -134,8 +134,41 @@ Scroll direction:
   "Hapus invoice"). Paid invoices are never deleted — Batal/Refund. Payment status ≠ method:
   `paymentStatusOf` (`src/lib/payment-status.ts`) → Pending/Lunas/Gagal, printed on every receipt with
   method, Dibayar and Sisa tagihan.
+- Cashier speed-ups (owner, Okt 2026): Favorit strip (per-device tap counts in localStorage
+  `garage:pos-fav-counts`, bestseller fallback), menu shortcodes (`src/lib/menu-shortcode.ts`,
+  exact code first, Enter = order top result), Bayar 1 tap (take away · uang pas / QRIS via
+  `submitOrder` overrides), and a chime + notice when a kitchen ticket turns ready.
+- Receipt QR: `buildThermalContent` emits a `[[QR:<invoice url>]]` marker line (`receiptQrMarker`,
+  `src/lib/receipt-layout.ts`); Chrome dialog renders it as SVG, direct ESC/POS as a `GS v 0` raster,
+  text-only paths (agent, `/api/print/thermal`) drop it via `stripReceiptQr` (URL text stays).
+  Kitchen chits print addon no., target time, item/order notes (wrapped), item count and who printed.
+- Cashier accountability (owner, Okt 2026, migration 0142): opening denomination count
+  (`cash_sessions.opening_denominations`, total must equal opening cash; coin Rp1.000 key `1000k`),
+  petty cash = separate fund in `petty_cash_entries` (Kasir submits expense, Owner/Manajer approve/topup;
+  never touches drawer `expectedCash`), `shift_incidents`, manager review (`review_status`). Full A4 PDF
+  `GET /api/reports/cashier-accountability` (`shift-accountability-report.ts` data, `-pdf.ts` render),
+  file names by operational date. Logic in `src/lib/cashier-accountability.ts`.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
+
+## Product Management Rules
+
+- Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),
+  never a hardcoded list. `menu_items.category_id` is the relation; `menu_items.category` keeps the display name
+  (rename updates it, `order_items` snapshots untouched). Category carries kind (fnb/retail/operational), default
+  product type, station (`bar`/`dapur`/`none` = handed over by cashier), POS group (Dapur/Bar/Lainnya, POS sub-tabs
+  are built from it) and SKU prefix. Categories are never deleted: archive, and an archive with active products
+  requires moving them (`archiveProductCategory`). Seeded categories = the 6 that already existed (migration 0143).
+- `menu_items.product_type`: `menu` (recipe HPP), `retail` (rokok, mineral — cost = harga modal per variant, no
+  recipe needed), `bundle`. Variants carry `sku`, `barcode`, `sell_unit`, `unit_contents`; SKU & barcode are unique
+  across products AND variants (`assertUniqueProductCodes`).
+- HPP status (`hppStatusFor`): complete only when every variant cost is valid (recipe for menu/bundle, harga modal
+  for retail); manual menu HPP = "unverified". Margin is shown only for complete HPP — never as final otherwise.
+- Catalog/KPI (`GET /api/products/catalog`), bulk actions (`POST /api/products/bulk`, audited per product) and
+  exports (`GET /api/products/export?type=&format=xlsx|pdf&<filters>`, file `GarageOS_<Jenis>_YYYY-MM-DD.<ext>`)
+  are Owner/Manajer only and always use every row matching the filter (`loadCatalogRows` = single source).
+- Physical stock quantity/stock card/opname/purchasing stay in the warehouse module (being replaced); the product
+  module only uses the ready/limited/sold_out status.
 
 ## Inventory Rules
 

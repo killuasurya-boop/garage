@@ -19,12 +19,16 @@ export const cashMovementBodySchema = z.object({
   description: z.string().trim().min(3, "Deskripsi wajib diisi (min. 3 huruf).").max(180),
   amount: z.number().int("Nominal harus angka bulat.").positive("Nominal harus lebih dari 0.").max(100_000_000),
   note: optionalText(300),
-  counterparty: optionalText(80),
+  counterparty: optionalText(120),
   vendorName: optionalText(80),
   receiptNo: optionalText(60),
   orderRef: optionalText(60),
   employeeUserId: optionalText(80),
   relatedRef: optionalText(40),
+  // Alias dari klien lama / laporan akuntabilitas shift.
+  referenceNo: optionalText(80),
+  orderNo: optionalText(60),
+  countAsPurchase: z.boolean().optional(),
 });
 
 export function cashMovementErrorResponse(error: unknown) {

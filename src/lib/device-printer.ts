@@ -13,7 +13,9 @@
 // Konfigurasi disimpan per perangkat (localStorage), bukan per outlet.
 // =============================================================================
 
-import { paperColumns, PAPER_COLUMNS, type PaperSize } from "@/lib/receipt-layout";
+import QRCode from "qrcode";
+
+import { paperColumns, PAPER_COLUMNS, parseReceiptQrLine, type PaperSize } from "@/lib/receipt-layout";
 
 export type DevicePrinterMode = "auto" | "serial" | "usb" | "ble" | "agent" | "browser";
 /** "besar" = tinggi huruf 2× (lebar tetap → kolom tidak berkurang). */
@@ -125,13 +127,76 @@ export function browserColumns(config: DevicePrinterConfig = loadDevicePrinterCo
 // jadi tidak pernah terpotong): TOTAL, Kembali, antrian, meja, nama, station.
 const TALL_LINE = /^\s*(TOTAL\b|STATUS\b|Sisa tagihan\b|Kembali\b|ANTRIAN\b|MEJA\b|>>> MEJA|NAMA:|\*\*\* [A-Z ]+ \*\*\*|BELUM DIBAYAR)/;
 
+// ── QR di struk ─────────────────────────────────────────────────────────────
+
+const QR_QUIET = 4;
+
+/** Matriks QR (true = modul hitam) termasuk quiet zone 4 modul. */
+export function receiptQrModules(url: string): boolean[][] {
+  const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  const total = n + QR_QUIET * 2;
+  return Array.from({ length: total }, (_, y) =>
+    Array.from({ length: total }, (_, x) => {
+      const mx = x - QR_QUIET;
+      const my = y - QR_QUIET;
+      return mx >= 0 && my >= 0 && mx < n && my < n && Boolean(qr.modules.get(my, mx));
+    }),
+  );
+}
+
+function receiptQrSvg(url: string, sizeMm: number) {
+  const modules = receiptQrModules(url);
+  const total = modules.length;
+  let path = "";
+  modules.forEach((row, y) => row.forEach((dark, x) => {
+    if (dark) path += `M${x} ${y}h1v1h-1z`;
+  }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="${sizeMm}mm" height="${sizeMm}mm" shape-rendering="crispEdges"><rect width="${total}" height="${total}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+}
+
+/** Gambar raster ESC/POS (GS v 0) QR, rata tengah. */
+function escPosQrRaster(url: string, paper?: PaperSize): number[] {
+  const modules = receiptQrModules(url);
+  const total = modules.length;
+  const dots = paper === "80" ? 576 : 384;
+  const scale = Math.max(2, Math.floor(Math.min(240, dots * 0.6) / total));
+  const widthDots = total * scale;
+  const bytesPerRow = Math.ceil(widthDots / 8);
+  const heightDots = total * scale;
+  const out = [ESC, 0x61, 0x01, GS, 0x76, 0x30, 0x00, bytesPerRow & 0xff, bytesPerRow >> 8, heightDots & 0xff, heightDots >> 8];
+  for (let y = 0; y < heightDots; y += 1) {
+    const row = modules[Math.floor(y / scale)];
+    for (let b = 0; b < bytesPerRow; b += 1) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit += 1) {
+        const x = b * 8 + bit;
+        if (x < widthDots && row[Math.floor(x / scale)]) byte |= 0x80 >> bit;
+      }
+      out.push(byte);
+    }
+  }
+  out.push(0x0a, ESC, 0x61, 0x00);
+  return out;
+}
+
+
 /** HTML baris struk untuk dialog print (baris penting dibuat tinggi). */
-export function browserReceiptLines(text: string): { html: string; tallCount: number; lineCount: number } {
+export function browserReceiptLines(
+  text: string,
+  qrSizeMm = 28,
+): { html: string; tallCount: number; lineCount: number; qrMm: number } {
   const lines = text.split(/\r?\n/);
   let tallCount = 0;
+  let qrMm = 0;
   let brandDone = false;
   const html = lines
     .map((line) => {
+      const qrUrl = parseReceiptQrLine(line);
+      if (qrUrl) {
+        qrMm += qrSizeMm + 2;
+        return `<div class="q" style="text-align:center;padding:1mm 0">${receiptQrSvg(qrUrl, qrSizeMm)}</div>`;
+      }
       const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") || " ";
       // Baris teks pertama (bukan penanda ***) = nama toko → ikut ditinggikan.
       const isBrand = !brandDone && line.trim() !== "" && !line.trim().startsWith("***");
@@ -143,7 +208,7 @@ export function browserReceiptLines(text: string): { html: string; tallCount: nu
       return `<div class="l">${escaped}</div>`;
     })
     .join("");
-  return { html, tallCount, lineCount: lines.length };
+  return { html, tallCount, lineCount: lines.length, qrMm };
 }
 
 // ── ESC/POS ─────────────────────────────────────────────────────────────────
@@ -210,9 +275,16 @@ export function escPosJob(
   const copies = Math.min(5, Math.max(1, Math.round(options.copies ?? 1)));
   const feed = Math.min(10, Math.max(0, options.feedLines ?? 4));
   const body: number[] = [];
-  for (const ch of toPrinterText(content)) {
-    const code = ch.codePointAt(0) ?? 63;
-    body.push(code <= 0xff ? code : 63); // di luar latin1 → "?"
+  for (const segment of content.split(/^[ \t]*(\[\[QR:\S+\]\])[ \t]*\r?\n?/m)) {
+    const qrUrl = parseReceiptQrLine(segment);
+    if (qrUrl) {
+      body.push(...escPosQrRaster(qrUrl, options.paper));
+      continue;
+    }
+    for (const ch of toPrinterText(segment)) {
+      const code = ch.codePointAt(0) ?? 63;
+      body.push(code <= 0xff ? code : 63); // di luar latin1 → "?"
+    }
   }
   const header = escPosHeader(options);
   const out: number[] = [];
@@ -568,7 +640,7 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
       reject(new DevicePrinterError("NOT_SUPPORTED", "Dialog print tidak tersedia."));
       return;
     }
-    const body = browserReceiptLines(toPrinterText(stripControlCodes(content)));
+    const body = browserReceiptLines(toPrinterText(stripControlCodes(content)), widthMm === 80 ? 34 : 28);
     // Area cetak nyata printer thermal: 58 mm → ±48 mm, 80 mm → ±72 mm (bukan
     // selebar kertas). Huruf dihitung agar `columns` karakter pas di area itu.
     const printableMm = widthMm === 80 ? 72 : 48;
@@ -577,7 +649,7 @@ export function printViaBrowser(content: string, config: DevicePrinterConfig): P
     // Tinggi kertas eksplisit (bukan "auto" — tidak valid untuk @page size): tanpa
     // ini driver memakai kertas default (gulungan sangat panjang) → hasil kosong.
     const lineMm = Number(fontMm) * 1.3;
-    const heightMm = Math.ceil((body.lineCount + body.tallCount * 0.6) * lineMm + 22);
+    const heightMm = Math.ceil((body.lineCount + body.tallCount * 0.6) * lineMm + body.qrMm + 22);
     doc.open();
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk</title><style>
       @page { size: ${widthMm}mm ${heightMm}mm; margin: 0 }

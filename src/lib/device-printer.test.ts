@@ -9,6 +9,7 @@ import {
   escPosJob,
   loadDevicePrinterConfig,
   normalizeDevicePrinterConfig,
+  receiptQrModules,
   saveDevicePrinterConfig,
   stripControlCodes,
   toPrinterText,
@@ -18,7 +19,7 @@ import {
   buildShiftSlipContent,
   buildTestPageContent,
 } from "@/lib/management-slips";
-import { createLayout, paperColumns, wrapText } from "@/lib/receipt-layout";
+import { createLayout, paperColumns, receiptQrMarker, wrapText } from "@/lib/receipt-layout";
 import { buildKitchenChitContent, buildThermalContent } from "@/lib/thermal-receipt";
 
 const lines = (content: string) => content.split("\r\n");
@@ -336,5 +337,36 @@ describe("struk: status pembayaran terpisah dari metode", () => {
     );
     expect(qris).toMatch(/STATUS\s+PENDING/);
     expect(qris).not.toMatch(/Kembali/);
+  });
+});
+
+describe("QR di struk", () => {
+  const url = "https://garagecoffee.id/invoice/Em4yEAn1as2D2EmK2tUjj7ok";
+  const content = `TERIMA KASIH\r\n${receiptQrMarker(url)}\r\nAtau buka link:\r\n`;
+
+  it("ESC/POS menggambar QR sebagai raster GS v 0, bukan teks penanda", () => {
+    const bytes = Array.from(escPosJob(content, { paper: "58" }));
+    const text = String.fromCharCode(...bytes);
+    expect(text).not.toContain("[[QR:");
+    expect(text).toContain("\x1dv0");
+    expect(text).toContain("Atau buka link:");
+  });
+
+  it("dialog Chrome merender SVG QR dan menambah tinggi kertas", () => {
+    const body = browserReceiptLines(content, 28);
+    expect(body.html).toContain("<svg");
+    expect(body.html).not.toContain("[[QR:");
+    expect(body.qrMm).toBe(30);
+  });
+
+  it("matriks QR punya quiet zone dan isi", () => {
+    const modules = receiptQrModules(url);
+    expect(modules.length).toBeGreaterThan(29);
+    expect(modules[0].every((dark) => !dark)).toBe(true);
+    expect(modules.flat().some(Boolean)).toBe(true);
+  });
+
+  it("struk tanpa QR tidak berubah", () => {
+    expect(browserReceiptLines("A\r\nB").qrMm).toBe(0);
   });
 });

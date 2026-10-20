@@ -319,6 +319,40 @@ export const staffPersonal = pgTable(
   },
 );
 
+// Master kategori produk jual (owner, Okt 2026) — dinamis, bukan daftar di kode.
+// menu_items.category tetap menyimpan nama (snapshot tampilan & kompatibilitas);
+// relasi resmi lewat menu_items.category_id. Kategori tidak pernah dihapus permanen:
+// arsip (status "archived") + pindah produk supaya riwayat transaksi tetap utuh.
+export const productCategories = pgTable(
+  "product_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    description: text("description"),
+    // fnb | retail | operational — jenis bisnis kategori.
+    kind: text("kind").notNull().default("fnb"),
+    // Tipe default produk baru di kategori ini: menu | retail | bundle.
+    defaultProductType: text("default_product_type").notNull().default("menu"),
+    // Routing produksi default: bar | dapur | none (diserahkan kasir, tanpa tiket).
+    station: text("station").notNull().default("dapur"),
+    // Kelompok tombol POS: Dapur | Bar | Lainnya.
+    posGroup: text("pos_group").notNull().default("Dapur"),
+    // Prefix SKU otomatis (COF-001); kosong = GEN.
+    skuPrefix: text("sku_prefix"),
+    icon: text("icon"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    // active | inactive | archived
+    status: text("status").notNull().default("active"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    nameIdx: uniqueIndex("product_categories_name_idx").on(sql`lower(${table.name})`),
+    statusIdx: index("product_categories_status_idx").on(table.status),
+  }),
+);
+
 export const menuItems = pgTable(
   "menu_items",
   {
@@ -328,6 +362,13 @@ export const menuItems = pgTable(
     sku: text("sku"),
     name: text("name").notNull(),
     category: text("category").notNull(),
+    categoryId: uuid("category_id").references(() => productCategories.id, { onDelete: "set null" }),
+    // menu = menu siap jual (resep/HPP), retail = barang jadi (rokok, mineral),
+    // bundle = paket. Menentukan field form, HPP, dan kelengkapan data.
+    productType: text("product_type").notNull().default("menu"),
+    brand: text("brand"),
+    // Barcode produk (EAN/UPC); unik bila terisi. Varian bisa punya barcode sendiri.
+    barcode: text("barcode"),
     section: text("section").notNull(),
     stock: text("stock").notNull().default("ready"),
     status: text("status").notNull().default("active"),
@@ -356,6 +397,8 @@ export const menuItems = pgTable(
   },
   (table) => ({
     skuIdx: uniqueIndex("menu_items_sku_idx").on(table.sku),
+    barcodeIdx: uniqueIndex("menu_items_barcode_idx").on(table.barcode),
+    categoryIdIdx: index("menu_items_category_id_idx").on(table.categoryId),
   }),
 );
 
@@ -370,6 +413,12 @@ export const menuVariants = pgTable(
     label: text("label").notNull(),
     price: integer("price").notNull(),
     baseCost: integer("base_cost").notNull().default(0),
+    // SKU & barcode per varian (mis. rokok per bungkus vs per slop). Unik bila terisi.
+    sku: text("sku"),
+    barcode: text("barcode"),
+    // Satuan jual varian (cup, porsi, bungkus, batang, botol) + isi dalam satuan dasar.
+    sellUnit: text("sell_unit"),
+    unitContents: real("unit_contents"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -380,6 +429,8 @@ export const menuVariants = pgTable(
       table.variantId,
     ),
     itemIdx: index("menu_variants_item_id_idx").on(table.itemId),
+    skuIdx: uniqueIndex("menu_variants_sku_idx").on(table.sku),
+    barcodeIdx: uniqueIndex("menu_variants_barcode_idx").on(table.barcode),
   }),
 );
 
@@ -1195,6 +1246,19 @@ export const cashSessions = pgTable(
     // dan disetor ke Owner/brankas (= uang dihitung − ditinggal).
     floatLeft: integer("float_left"),
     depositAmount: integer("deposit_amount"),
+    // Laporan pertanggungjawaban kasir (owner, Okt 2026): hitungan pecahan saat
+    // buka shift + siapa yang memverifikasi modal awal.
+    openingDenominations: jsonb("opening_denominations")
+      .$type<Record<string, number>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    openingVerifiedBy: text("opening_verified_by").references(() => user.id, { onDelete: "set null" }),
+    openingVerifiedAt: timestamp("opening_verified_at", { withTimezone: true }),
+    // Pemeriksaan laporan shift oleh Manajer/Owner: pending | verified | needs_followup.
+    reviewStatus: text("review_status").notNull().default("pending"),
+    reviewNote: text("review_note"),
+    reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
@@ -1391,13 +1455,14 @@ export const cashMovements = pgTable(
     // recorded (uang sudah bergerak) | pending_approval (pengajuan, uang BELUM
     // bergerak) | rejected | voided. Hanya `recorded` memengaruhi saldo laci.
     status: text("status").notNull().default("recorded"),
+    // Buku kas: sumber/penerima uang, nomor bukti/nota, dan invoice terkait.
     counterparty: text("counterparty"),
+    referenceNo: text("reference_no"),
+    orderNo: text("order_no"),
     vendorName: text("vendor_name"),
-    receiptNo: text("receipt_no"),
     // Foto nota/bukti: path relatif di storage/cash-receipts (non-publik).
     receiptPhoto: text("receipt_photo"),
     orderId: uuid("order_id"),
-    orderNo: text("order_no"),
     employeeUserId: text("employee_user_id").references(() => user.id, { onDelete: "set null" }),
     relatedMovementId: uuid("related_movement_id"),
     correctsMovementId: uuid("corrects_movement_id"),
@@ -1427,6 +1492,67 @@ export const cashMovements = pgTable(
     outletIdx: index("cash_movements_outlet_idx").on(table.outletId),
     typeIdx: index("cash_movements_type_idx").on(table.type),
     movementAtIdx: index("cash_movements_at_idx").on(table.movementAt),
+  }),
+);
+
+// Petty cash (kas kecil) — dana operasional TERPISAH dari laci kasir: tidak
+// mengubah expectedCash shift. Saldo = top-up disetujui − pengeluaran disetujui
+// ± penyesuaian. Status: submitted | approved | rejected | cancelled.
+export const pettyCashEntries = pgTable(
+  "petty_cash_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryNo: text("entry_no").notNull().unique(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    cashSessionId: uuid("cash_session_id").references(() => cashSessions.id, { onDelete: "set null" }),
+    type: text("type").notNull(), // topup | expense | adjustment
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    amount: integer("amount").notNull(),
+    recipient: text("recipient"),
+    receiptNo: text("receipt_no"),
+    receiptUrl: text("receipt_url"),
+    status: text("status").notNull().default("submitted"),
+    decisionNote: text("decision_note"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    entryAt: timestamp("entry_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    outletIdx: index("petty_cash_outlet_idx").on(table.outletId),
+    sessionIdx: index("petty_cash_session_idx").on(table.cashSessionId),
+    entryAtIdx: index("petty_cash_entry_at_idx").on(table.entryAt),
+  }),
+);
+
+// Catatan kejadian shift (selisih kas, gangguan QRIS/printer, komplain, dll.).
+// Status: open | follow_up | resolved.
+export const shiftIncidents = pgTable(
+  "shift_incidents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    cashSessionId: uuid("cash_session_id").references(() => cashSessions.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    orderNo: text("order_no"),
+    financialImpact: integer("financial_impact"),
+    actionTaken: text("action_taken"),
+    status: text("status").notNull().default("open"),
+    responsibleName: text("responsible_name"),
+    managerNote: text("manager_note"),
+    reportedBy: text("reported_by").references(() => user.id, { onDelete: "set null" }),
+    resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sessionIdx: index("shift_incidents_session_idx").on(table.cashSessionId),
+    occurredIdx: index("shift_incidents_occurred_idx").on(table.occurredAt),
   }),
 );
 

@@ -160,6 +160,7 @@ import {
   operationalSignals,
   serviceRules,
   type MenuCategory,
+  type MenuGroupName,
   type Role,
 } from "@/lib/garage-data";
 import {
@@ -192,6 +193,13 @@ import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, retur
 import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import {
+  categoryPosInfo,
+  ensureCategoryLinks,
+  resolveCategoryForProduct,
+  sectionForCategoryRecord,
+} from "@/lib/product-management";
+import type { ProductType } from "@/lib/product-catalog-types";
 import {
   APPROVAL_CATEGORY_LABEL,
   approvalCategoryOf,
@@ -388,7 +396,18 @@ type CashSessionInput = {
   shiftNumber?: number;
   /** PIN Manajer/Owner yang hadir: izinkan shift tambahan setelah Shift 1 & 2 terpakai. */
   managerPin?: string;
+  /** Hitungan lembar/keping modal awal; bila diisi, totalnya wajib = openingCash. */
+  openingDenominations?: Record<string, number>;
 };
+
+export class OpeningDenominationMismatchError extends Error {
+  code = "OPENING_DENOMINATION_MISMATCH";
+  constructor(counted: number, openingCash: number) {
+    super(
+      `Hitungan pecahan ${idrFormatter.format(counted)} tidak sama dengan modal awal ${idrFormatter.format(openingCash)}. Hitung ulang uang di laci.`,
+    );
+  }
+}
 
 type CloseCashSessionInput = {
   actualCash: number;
@@ -426,6 +445,11 @@ export type MenuProductInput = {
   sku?: string;
   name: string;
   category: MenuCategory;
+  // Relasi resmi ke product_categories (prioritas di atas nama kategori).
+  categoryId?: string | null;
+  productType?: ProductType;
+  brand?: string | null;
+  barcode?: string | null;
   section?: string;
   stock?: "ready" | "limited" | "sold_out";
   status?: "active" | "archived";
@@ -434,8 +458,8 @@ export type MenuProductInput = {
   sortOrder?: number;
   promoActive?: boolean;
   promoPrice?: number | null;
-  // Production Hub: "bar" | "dapur" | null (otomatis dari kategori).
-  station?: "bar" | "dapur" | null;
+  // Production Hub: "bar" | "dapur" | "none" (langsung kasir) | null (ikut kategori).
+  station?: "bar" | "dapur" | "none" | null;
   batchEligible?: boolean;
   showInDigitalMenu?: boolean;
   featured?: boolean;
@@ -446,6 +470,10 @@ export type MenuProductInput = {
     price: number;
     baseCost?: number;
     sortOrder?: number;
+    sku?: string | null;
+    barcode?: string | null;
+    sellUnit?: string | null;
+    unitContents?: number | null;
   }>;
   recipes?: Array<{
     variantId?: string;
@@ -1482,17 +1510,29 @@ export async function getMenuData(params?: {
     ]);
   }
 
+  const posInfo = await categoryPosInfo(db);
   const baseRows = itemRows.map((item) => ({
     id: item.id,
     sku: item.sku ?? undefined,
     name: item.name,
     category: item.category as MenuCategory,
+    categoryId: item.categoryId ?? undefined,
+    // Kelompok tombol POS dari master kategori (kategori baru tampil otomatis).
+    menuGroup: (posInfo.get(item.category.toLowerCase())?.posGroup ?? undefined) as MenuGroupName | undefined,
+    categorySortOrder: posInfo.get(item.category.toLowerCase())?.sortOrder ?? undefined,
+    productType: (item.productType ?? "menu") as ProductType,
+    brand: item.brand ?? undefined,
+    barcode: item.barcode ?? undefined,
     section: item.section,
     variants: (variantsByItem.get(item.id) ?? []).map((variant) => ({
       id: variant.variantId,
       label: variant.label,
       price: variant.price,
       ...(params?.includeCosting ? { baseCost: variant.baseCost } : {}),
+      ...(variant.sku ? { sku: variant.sku } : {}),
+      ...(variant.barcode ? { barcode: variant.barcode } : {}),
+      ...(variant.sellUnit ? { sellUnit: variant.sellUnit } : {}),
+      ...(variant.unitContents != null ? { unitContents: Number(variant.unitContents) } : {}),
     })),
     stock: item.stock as "ready" | "limited" | "sold_out",
     status: item.status as "active" | "archived",
@@ -1502,9 +1542,10 @@ export async function getMenuData(params?: {
     description: item.description?.trim() || undefined,
     promoActive: item.promoActive ?? false,
     promoPrice: item.promoPrice ?? undefined,
-    station: (item.station === "bar" || item.station === "dapur" ? item.station : null) as
+    station: (item.station === "bar" || item.station === "dapur" || item.station === "none" ? item.station : null) as
       | "bar"
       | "dapur"
+      | "none"
       | null,
     batchEligible: item.batchEligible ?? true,
     showInDigitalMenu: item.showInDigitalMenu ?? true,
@@ -1659,8 +1700,9 @@ function menuSkuPrefix(category: string) {
 
 // Auto-generate SKU unik format <PREFIX>-<urut 3 digit> berdasar kategori.
 // Cari nomor tertinggi yang sudah dipakai prefix tsb lalu +1 (toleran gap).
-export async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
-  const prefix = menuSkuPrefix(category);
+// Prefix dari master kategori (skuPrefix) bila diisi, lalu tabel bawaan.
+export async function nextMenuSku(tx: GarageDb | GarageTx, category: string, categoryPrefix?: string | null) {
+  const prefix = categoryPrefix?.trim() || menuSkuPrefix(category);
   const rows = await tx
     .select({ sku: menuItems.sku })
     .from(menuItems)
@@ -1718,15 +1760,30 @@ function normalizeMenuProductVariants(input: MenuProductInput["variants"], itemI
     if (!Number.isFinite(baseCost)) {
       throw new Error("Harga dasar/HPP wajib angka valid.");
     }
+    const unitContents =
+      variant.unitContents === undefined || variant.unitContents === null ? null : Number(variant.unitContents);
+    if (unitContents !== null && (!Number.isFinite(unitContents) || unitContents <= 0)) {
+      throw new Error(`Isi per satuan jual varian "${variant.label}" harus lebih dari 0.`);
+    }
     return {
       itemId,
       variantId: normalizeVariantId(variant.id || variant.label, index),
       label: variant.label.trim() || "Regular",
       price,
       baseCost,
+      sku: normalizeMenuSku(variant.sku),
+      barcode: normalizeBarcode(variant.barcode),
+      sellUnit: variant.sellUnit?.trim().toLowerCase() || null,
+      unitContents,
       sortOrder: variant.sortOrder ?? index,
     };
   });
+
+  for (const key of ["sku", "barcode"] as const) {
+    const values = variants.map((variant) => variant[key]).filter((value): value is string => Boolean(value));
+    const dup = values.find((value, index) => values.indexOf(value) !== index);
+    if (dup) throw new Error(`${key === "sku" ? "SKU" : "Barcode"} varian duplikat: ${dup}.`);
+  }
 
   const duplicateVariant = variants.find(
     (variant, index) =>
@@ -1737,6 +1794,59 @@ function normalizeMenuProductVariants(input: MenuProductInput["variants"], itemI
   }
 
   return variants;
+}
+
+// Barcode: hanya angka/huruf (EAN/UPC/kode internal). Kosong → null.
+export function normalizeBarcode(raw: string | undefined | null) {
+  const trimmed = (raw ?? "").trim().replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  return trimmed || null;
+}
+
+/**
+ * SKU & barcode unik lintas produk DAN varian (satu kode = satu barang). Kode
+ * milik produk itu sendiri (itemId) diabaikan supaya edit tidak bentrok.
+ */
+async function assertUniqueProductCodes(
+  tx: GarageDb | GarageTx,
+  itemId: string,
+  codes: { sku?: string | null; barcode?: string | null; variants?: Array<{ sku: string | null; barcode: string | null }> },
+) {
+  const skus = [codes.sku ?? null, ...(codes.variants ?? []).map((variant) => variant.sku)].filter(
+    (value): value is string => Boolean(value),
+  );
+  const barcodes = [codes.barcode ?? null, ...(codes.variants ?? []).map((variant) => variant.barcode)].filter(
+    (value): value is string => Boolean(value),
+  );
+  if (skus.length) {
+    const [itemHit] = await tx
+      .select({ id: menuItems.id, name: menuItems.name, sku: menuItems.sku })
+      .from(menuItems)
+      .where(and(inArray(menuItems.sku, skus), ne(menuItems.id, itemId)))
+      .limit(1);
+    const [variantHit] = await tx
+      .select({ id: menuVariants.itemId, sku: menuVariants.sku })
+      .from(menuVariants)
+      .where(and(inArray(menuVariants.sku, skus), ne(menuVariants.itemId, itemId)))
+      .limit(1);
+    const hit = itemHit?.sku ?? variantHit?.sku;
+    if (hit) throw new Error(`SKU "${hit}" sudah dipakai produk lain.`);
+  }
+  if (barcodes.length) {
+    const [itemHit] = await tx
+      .select({ barcode: menuItems.barcode })
+      .from(menuItems)
+      .where(and(inArray(menuItems.barcode, barcodes), ne(menuItems.id, itemId)))
+      .limit(1);
+    const [variantHit] = await tx
+      .select({ barcode: menuVariants.barcode })
+      .from(menuVariants)
+      .where(and(inArray(menuVariants.barcode, barcodes), ne(menuVariants.itemId, itemId)))
+      .limit(1);
+    const hit = itemHit?.barcode ?? variantHit?.barcode;
+    if (hit) throw new Error(`Barcode "${hit}" sudah dipakai produk lain.`);
+    const dup = barcodes.find((value, index) => barcodes.indexOf(value) !== index);
+    if (dup) throw new Error(`Barcode "${dup}" dipakai lebih dari sekali di produk ini.`);
+  }
 }
 
 function normalizeMenuProductRecipes(
@@ -1815,20 +1925,18 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
       throw new Error("ID produk sudah ada. Gunakan nama/ID lain.");
     }
 
+    // Kategori wajib terdaftar & aktif di master kategori (bukan daftar di kode).
+    await ensureCategoryLinks(tx);
+    const category = await resolveCategoryForProduct(tx, { categoryId: input.categoryId, category: input.category });
+    const productType = input.productType ?? (category.defaultProductType as ProductType);
+
     // SKU: pakai input manual bila ada (cek unik), kalau tidak auto-generate.
     let sku = normalizeMenuSku(input.sku);
-    if (sku) {
-      const [dupSku] = await tx
-        .select({ id: menuItems.id })
-        .from(menuItems)
-        .where(eq(menuItems.sku, sku))
-        .limit(1);
-      if (dupSku) {
-        throw new Error(`SKU "${sku}" sudah dipakai produk lain.`);
-      }
-    } else {
-      sku = await nextMenuSku(tx, input.category);
+    if (!sku) {
+      sku = await nextMenuSku(tx, category.name, category.skuPrefix);
     }
+    const barcode = normalizeBarcode(input.barcode);
+    await assertUniqueProductCodes(tx, id, { sku, barcode, variants });
 
     const promo = normalizeMenuPromo(input.promoActive, input.promoPrice);
     const inserted = await tx
@@ -1837,15 +1945,20 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         id,
         sku,
         name,
-        category: input.category,
-        section: input.section?.trim() || sectionForMenuCategory(input.category),
+        category: category.name,
+        categoryId: category.id,
+        productType,
+        brand: input.brand?.trim() || null,
+        barcode,
+        section: input.section?.trim() || sectionForCategoryRecord(category),
         stock: input.stock ?? "ready",
         status: input.status ?? "active",
         prep: input.prep?.trim() || "10m",
         tags: input.tags ?? [],
         promoActive: promo.promoActive,
         promoPrice: promo.promoPrice,
-        station: input.station ?? null,
+        // Routing produksi: override produk, kalau tidak ikut kategori.
+        station: input.station ?? category.station,
         batchEligible: input.batchEligible ?? true,
         showInDigitalMenu: input.showInDigitalMenu ?? true,
         featured: input.featured ?? false,
@@ -1870,12 +1983,20 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
       status: "recorded",
       metadata: {
         productId: id,
-        category: input.category,
+        category: category.name,
+        categoryId: category.id,
+        productType,
+        sku,
+        barcode,
         variants: variants.map((variant) => ({
           id: variant.variantId,
           label: variant.label,
           price: variant.price,
           baseCost: variant.baseCost,
+          sku: variant.sku,
+          barcode: variant.barcode,
+          sellUnit: variant.sellUnit,
+          unitContents: variant.unitContents,
         })),
         recipeLines: recipes.length,
       },
@@ -2025,12 +2146,26 @@ export async function updateMenuProduct(
 
   const update: Partial<typeof menuItems.$inferInsert> = { updatedAt: new Date() };
   if (nextName !== undefined) update.name = nextName;
-  if (input.category !== undefined) update.category = input.category;
+  const categoryChanged =
+    (input.categoryId !== undefined && input.categoryId !== existing.categoryId) ||
+    (input.category !== undefined && input.category.trim().toLowerCase() !== existing.category.toLowerCase());
+  let nextCategory: Awaited<ReturnType<typeof resolveCategoryForProduct>> | null = null;
+  if (categoryChanged) {
+    nextCategory = await resolveCategoryForProduct(db, { categoryId: input.categoryId, category: input.category });
+    update.category = nextCategory.name;
+    update.categoryId = nextCategory.id;
+    // Pindah kategori → routing & section ikut kategori baru kecuali station dikirim eksplisit.
+    if (input.station === undefined) update.station = nextCategory.station;
+    if (input.section === undefined) update.section = sectionForCategoryRecord(nextCategory);
+  }
   if (input.section !== undefined) {
     update.section =
       input.section.trim() ||
-      sectionForMenuCategory(input.category ?? (existing.category as MenuCategory));
+      (nextCategory ? sectionForCategoryRecord(nextCategory) : sectionForMenuCategory(existing.category as MenuCategory));
   }
+  if (input.productType !== undefined) update.productType = input.productType;
+  if (input.brand !== undefined) update.brand = input.brand?.trim() || null;
+  if (input.barcode !== undefined) update.barcode = normalizeBarcode(input.barcode);
   if (input.stock !== undefined) update.stock = input.stock;
   if (input.status !== undefined) update.status = input.status;
   if (input.prep !== undefined) update.prep = input.prep.trim() || "10m";
@@ -2043,18 +2178,7 @@ export async function updateMenuProduct(
   if (input.featured !== undefined) update.featured = input.featured;
   if (input.description !== undefined) update.description = input.description?.trim() || null;
   if (input.sku !== undefined) {
-    const nextSku = normalizeMenuSku(input.sku);
-    if (nextSku) {
-      const [dupSku] = await db
-        .select({ id: menuItems.id })
-        .from(menuItems)
-        .where(and(eq(menuItems.sku, nextSku), ne(menuItems.id, safeId)))
-        .limit(1);
-      if (dupSku) {
-        throw new Error(`SKU "${nextSku}" sudah dipakai produk lain.`);
-      }
-    }
-    update.sku = nextSku;
+    update.sku = normalizeMenuSku(input.sku);
   }
   if (input.promoActive !== undefined || input.promoPrice !== undefined) {
     // Pakai nilai existing bila salah satu field tidak dikirim, supaya partial
@@ -2086,7 +2210,37 @@ export async function updateMenuProduct(
         )
       : null;
 
+  const beforeVariants = await db
+    .select()
+    .from(menuVariants)
+    .where(eq(menuVariants.itemId, safeId))
+    .orderBy(menuVariants.sortOrder);
+  const snapshotVariant = (variant: {
+    variantId: string;
+    label: string;
+    price: number;
+    baseCost: number;
+    sku: string | null;
+    barcode: string | null;
+    sellUnit: string | null;
+    unitContents: number | null;
+  }) => ({
+    id: variant.variantId,
+    label: variant.label,
+    price: variant.price,
+    baseCost: variant.baseCost,
+    sku: variant.sku,
+    barcode: variant.barcode,
+    sellUnit: variant.sellUnit,
+    unitContents: variant.unitContents,
+  });
+
   await db.transaction(async (tx) => {
+    await assertUniqueProductCodes(tx, safeId, {
+      sku: update.sku !== undefined ? update.sku : null,
+      barcode: update.barcode !== undefined ? update.barcode : null,
+      variants: variants ?? [],
+    });
     await tx.update(menuItems).set(update).where(eq(menuItems.id, safeId));
     if (variants) {
       await tx.delete(menuVariants).where(eq(menuVariants.itemId, safeId));
@@ -2109,13 +2263,25 @@ export async function updateMenuProduct(
       metadata: {
         productId: safeId,
         fields: Object.keys(input),
-        variants: variants?.map((variant) => ({
-          id: variant.variantId,
-          label: variant.label,
-          price: variant.price,
-          baseCost: variant.baseCost,
-        })),
+        variants: variants?.map(snapshotVariant),
         recipeLines: recipes?.length,
+        // Nilai sebelum & sesudah (riwayat harga, SKU/barcode, kategori, status).
+        before: {
+          name: existing.name,
+          category: existing.category,
+          productType: existing.productType,
+          sku: existing.sku,
+          barcode: existing.barcode,
+          brand: existing.brand,
+          status: existing.status,
+          variants: beforeVariants.map(snapshotVariant),
+        },
+        after: {
+          ...Object.fromEntries(
+            Object.entries(update).filter(([key]) => key !== "updatedAt"),
+          ),
+          ...(variants ? { variants: variants.map(snapshotVariant) } : {}),
+        },
       },
     });
   });
@@ -15707,6 +15873,11 @@ export type CashMovementInput = {
   managerPin?: string;
   /** Kasir tanpa PIN di tempat: kirim sebagai pengajuan (uang belum bergerak). */
   submitForApproval?: boolean;
+  /** Alias lama/laporan akuntabilitas: nomor bukti (= receiptNo) & invoice terkait (teks bebas). */
+  referenceNo?: string | null;
+  orderNo?: string | null;
+  /** Diabaikan — katalog kategori yang menentukan belanja bahan. */
+  countAsPurchase?: boolean;
 };
 
 export class CashMovementPinRequiredError extends Error {
@@ -15726,6 +15897,8 @@ type PreparedCashMovement = {
   vendorName: string | null;
   receiptNo: string | null;
   order: { id: string; orderNo: string } | null;
+  /** Invoice terkait (teks bebas) untuk kategori selain refund pelanggan. */
+  orderNoText: string | null;
   employee: { userId: string; name: string } | null;
   related: { id: string; refNo: string | null; expenseId: string | null } | null;
 };
@@ -15755,17 +15928,18 @@ async function prepareCashMovement(input: CashMovementInput, garage: GarageSessi
     description,
     amount: input.amount,
     note: cleanText(input.note, 300),
-    counterparty: def.fields.includes("counterparty") ? cleanText(input.counterparty, 80) : null,
-    vendorName: def.fields.includes("vendorName") ? cleanText(input.vendorName, 80) : null,
-    receiptNo: def.fields.includes("receiptNo") ? cleanText(input.receiptNo, 60) : null,
+    counterparty: cleanText(input.counterparty, 120),
+    vendorName: cleanText(input.vendorName, 80),
+    receiptNo: cleanText(input.receiptNo ?? input.referenceNo, 80),
     order: null,
+    orderNoText: def.fields.includes("orderRef") ? null : cleanText(input.orderNo ?? input.orderRef, 60),
     employee: null,
     related: null,
   };
   for (const field of def.required) {
     const missing =
       (field === "counterparty" && !prepared.counterparty) ||
-      (field === "orderRef" && !input.orderRef?.trim()) ||
+      (field === "orderRef" && !(input.orderRef ?? input.orderNo)?.trim()) ||
       (field === "employee" && !input.employeeUserId?.trim()) ||
       (field === "relatedRef" && !input.relatedRef?.trim());
     if (missing) {
@@ -15774,7 +15948,7 @@ async function prepareCashMovement(input: CashMovementInput, garage: GarageSessi
     }
   }
 
-  const orderRef = def.fields.includes("orderRef") ? input.orderRef?.trim() : "";
+  const orderRef = def.fields.includes("orderRef") ? (input.orderRef ?? input.orderNo)?.trim() : "";
   if (orderRef) {
     const order = await findOutletOrder(getDb(), orderRef.toUpperCase(), garage);
     if (!order) throw new CashMovementError("ORDER_NOT_FOUND", `Order ${orderRef} tidak ditemukan di outlet ini.`);
@@ -16125,9 +16299,9 @@ async function insertCashMovementInTx(
       status: params.status,
       counterparty: prepared.counterparty ?? prepared.employee?.name ?? null,
       vendorName: prepared.vendorName,
-      receiptNo: prepared.receiptNo,
+      referenceNo: prepared.receiptNo,
       orderId: prepared.order?.id ?? null,
-      orderNo: prepared.order?.orderNo ?? null,
+      orderNo: prepared.order?.orderNo ?? prepared.orderNoText,
       employeeUserId: prepared.employee?.userId ?? null,
       relatedMovementId: prepared.related?.id ?? null,
       correctsMovementId: params.correctsMovementId ?? null,
@@ -16267,8 +16441,9 @@ async function preparedFromRow(row: typeof cashMovements.$inferSelect, garage: G
       note: row.note,
       counterparty: row.counterparty,
       vendorName: row.vendorName,
-      receiptNo: row.receiptNo,
+      receiptNo: row.referenceNo,
       orderRef: row.orderNo,
+      orderNo: row.orderNo,
       employeeUserId: row.employeeUserId,
       relatedRef: related,
     },
@@ -16511,7 +16686,7 @@ function cashMovementSelect() {
     status: cashMovements.status,
     counterparty: cashMovements.counterparty,
     vendorName: cashMovements.vendorName,
-    receiptNo: cashMovements.receiptNo,
+    receiptNo: cashMovements.referenceNo,
     receiptPhoto: cashMovements.receiptPhoto,
     orderNo: cashMovements.orderNo,
     employeeName: movementEmployee.name,
@@ -17700,6 +17875,15 @@ export async function getTodayCashShiftStatus(garage: GarageSession) {
 }
 
 export async function createCashSession(input: CashSessionInput, garage: GarageSession) {
+  const openingDenominations = Object.fromEntries(
+    Object.entries(input.openingDenominations ?? {}).filter(
+      ([key, qty]) => isValidDenominationKey(key) && Number.isInteger(qty) && qty > 0,
+    ),
+  );
+  if (Object.keys(openingDenominations).length) {
+    const counted = sumDenominations(openingDenominations);
+    if (counted !== input.openingCash) throw new OpeningDenominationMismatchError(counted, input.openingCash);
+  }
   const db = getDb();
   const outletId = garage.profile.outlet.id;
   let shiftNumber = input.shiftNumber;
@@ -17811,6 +17995,7 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
         // Kas seharusnya selalu mulai dari modal awal; tidak diterima dari client.
         expectedCash: input.openingCash,
         checklist: fallbackClosingChecklist,
+        openingDenominations,
         openedBy: garage.user.id,
       })
       .returning();
@@ -17826,6 +18011,7 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
     metadata: {
       shiftNumber: shiftNumber ?? null,
       openingCash: input.openingCash,
+      openingDenominations: Object.keys(openingDenominations).length ? openingDenominations : null,
       ...(extra.approver
         ? { extraShiftApprovedBy: extra.approver.name, extraShiftApproverId: extra.approver.userId }
         : {}),
@@ -18464,6 +18650,11 @@ export type CashSessionTransactionsResult = {
     outletCode: string | null;
     openedByName: string | null;
     closedByName: string | null;
+    reviewStatus: string;
+    reviewNote: string | null;
+    reviewedAt: string | null;
+    openingVerifiedAt: string | null;
+    openingCounted: boolean;
   };
   orders: Array<{
     id: string;
@@ -18604,6 +18795,11 @@ export async function getCashSessionTransactions(
       outletCode: session.outletCode,
       openedByName,
       closedByName,
+      reviewStatus: session.session.reviewStatus,
+      reviewNote: session.session.reviewNote,
+      reviewedAt: session.session.reviewedAt?.toISOString() ?? null,
+      openingVerifiedAt: session.session.openingVerifiedAt?.toISOString() ?? null,
+      openingCounted: Object.keys(session.session.openingDenominations ?? {}).length > 0,
     },
     orders: orderRows.map((o) => ({
       ...o,

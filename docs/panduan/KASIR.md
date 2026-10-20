@@ -27,8 +27,9 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 1. Di layar POS tekan Buka Shift.
 2. Hitung uang di laci, lalu isi Modal Awal (Rp50.000–Rp500.000, kelipatan Rp50.000).
    - Tips: Sistem menampilkan sisa uang laci yang ditinggal shift sebelumnya. Pastikan jumlah fisiknya sama.
-3. Pilih Shift 1 atau Shift 2. Shift ke-3 dan seterusnya dalam satu hari butuh PIN Manajer/Owner.
-4. Bila shift kemarin belum ditutup, POS menampilkan layar "Shift belum ditutup". Tutup shift lama dulu, baru buka shift baru.
+3. Buka "Hitung pecahan modal awal" lalu isi jumlah lembar/keping per pecahan (Rp100.000 … Rp100 koin, koin Rp1.000 terpisah). Totalnya harus sama dengan modal awal — tercatat di laporan pertanggungjawaban.
+4. Pilih Shift 1 atau Shift 2. Shift ke-3 dan seterusnya dalam satu hari butuh PIN Manajer/Owner.
+5. Bila shift kemarin belum ditutup, POS menampilkan layar "Shift belum ditutup". Tutup shift lama dulu, baru buka shift baru.
    - **Penting:** Shift yang terbuka lebih dari 20 jam tidak bisa dipakai transaksi.
 
 ## 3. Printer struk (laptop)
@@ -134,17 +135,39 @@ Kasir ikut mengontrol pesanan masuk: boleh Mulai, READY, dan memanggil waiter di
 2. Tiap tiket punya baris status: Antri → Dibuat → Siap → Waiter dipanggil → Diambil waiter → Diantar, lengkap dengan jam dan nama petugas. Tulisan besar di kanan atas = status sekarang.
 3. Tombol besar = langkah berikutnya: Mulai buat → Siap & panggil waiter (cek item/jumlah/varian/catatan, lalu Ya, siap) → Panggil ulang waiter bila belum diambil.
 4. Tidak perlu waiter (pelanggan ambil di kasir / take away)? Tekan Serahkan langsung — pesanan langsung berstatus Diantar atas nama Anda tanpa menunggu ACC waiter.
-5. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
-6. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
-7. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
+5. Tiket Bar/Dapur memuat: antrian, meja, nama, tipe pesanan, jam pesan, target jam siap, TAMBAHAN KE-n untuk pesanan tambahan, catatan per item & catatan order, jumlah item, serta jam cetak + nama Anda.
+6. Cetak tiket: cetak chit satu pesanan untuk Bar/Dapur. Cetak semua tiket baru: cetak semua tiket Antri yang belum dicetak di laptop ini sekaligus (boleh lewat dialog print Chrome).
+7. Layar Production penuh tetap bisa dibuka dari tombol di panel yang sama. Owner & Manajer memakai panel yang sama.
+8. Salah tandai READY? Buka ulang tiket dengan alasan, selama belum diambil waiter.
    - **Penting:** Semua tindakan tercatat atas nama akun Anda. Pastikan pesanan benar-benar siap sebelum READY.
 
-## 13. Laporan penjualan shift saya
+## 13. Kerja cepat kasir
+
+Empat jalan pintas supaya antrean cepat habis.
+
+1. Favorit: baris ⭐ Favorit di atas menu berisi 8 menu yang paling sering Anda tekan di perangkat ini (awal: menu Bestseller). Tekan sekali = masuk keranjang.
+2. Kode singkat: ketik 2–4 huruf di kolom cari, mis. cl = Coffee Latte, ng = Nasi Goreng. Kode tertulis di pojok kiri atas tiap kartu menu. Tekan Enter untuk langsung memesan menu teratas.
+3. Bayar 1 tap: di bawah tombol Bayar ada ⚡ Uang pas (take away, langsung lunas tunai, kembalian 0) dan ⚡ QRIS (take away, langsung ke layar QRIS). Di HP tombol ini ada di Keranjang.
+   - **Penting:** Uang pas hanya bila pelanggan memberi uang tepat sejumlah total. Ada kembalian? Pakai tombol Bayar biasa.
+4. QR di struk: bagian bawah struk pelanggan kini ada QR "SCAN UNTUK CEK PESANAN". Pelanggan scan dengan kamera HP untuk melihat status pesanan & invoice — link teks tetap dicetak di bawahnya.
+5. Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan "Pesanan siap: #antrian meja". Suara mengikuti setelan Suara QR (Off = senyap).
+
+## 14. Petty cash, catatan kejadian & laporan lengkap
+
+Semua aktivitas uang & kejadian shift masuk ke satu PDF pertanggungjawaban.
+
+1. Petty cash (kas kecil, terpisah dari laci): Menu Kasir → Petty Cash → isi kategori, uraian, nominal, penerima, no. nota → Ajukan. Saldo baru berubah setelah disetujui Owner/Manajer.
+2. Uang laci keluar/masuk tetap lewat Kas Keluar / Masuk (isi sumber/penerima & no. bukti bila ada).
+3. Catatan kejadian: Menu Kasir → Catatan Kejadian → pilih kategori (selisih kas, gangguan QRIS/printer, komplain, produk habis, pergantian kasir, dll.), tulis kejadian, invoice terkait, dampak Rp, dan tindakan.
+4. Setelah tutup shift: Riwayat & Laporan Shift → buka shift → Laporan Lengkap (PDF). Nama file mengikuti tanggal operasional & nomor shift.
+   - **Penting:** Laporan lengkap baru bisa diunduh kasir setelah shift ditutup (kas seharusnya dirahasiakan selama shift).
+
+## 15. Laporan penjualan shift saya
 
 1. Buka POS → Laporan Shift → "Penjualan shift saya" untuk melihat produk terlaris, kategori dan metode bayar shift Anda.
 2. Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh.
 
-## 14. Masalah umum
+## 16. Masalah umum
 
 1. Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali.
 2. "Open shift wajib dilakukan": buka shift dulu.

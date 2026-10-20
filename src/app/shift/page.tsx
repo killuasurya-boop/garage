@@ -17,7 +17,8 @@ export const metadata: Metadata = {
 // Akses session/DB saat render → opt-out static generation (build tanpa DB live).
 export const dynamic = "force-dynamic";
 
-export default async function ShiftPage() {
+export default async function ShiftPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
   const session = await requireGarageSession(["Owner", "Manajer", "Kasir"]);
   if (session.response) {
     redirect("/login");
@@ -31,7 +32,11 @@ export default async function ShiftPage() {
   return (
     <main className="min-h-screen bg-[#08080b] py-6">
       <div className="mx-auto max-w-5xl px-4">
-        <CashierShiftReport blindOpenShift={session.data.profile.role === "Kasir"} />
+        <CashierShiftReport
+          blindOpenShift={session.data.profile.role === "Kasir"}
+          canSupervise={session.data.profile.role === "Owner" || session.data.profile.role === "Manajer"}
+          initialTab={tab && ["active", "history", "sales", "full", "petty", "incident"].includes(tab) ? tab : undefined}
+        />
       </div>
     </main>
   );

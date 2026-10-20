@@ -5,6 +5,9 @@
 // Rupiah (IDR), tanggal WIB, header/footer & nomor halaman.
 // Isi tiap laporan dibangun per modul (src/lib/reports/*), bukan tabel generik.
 // =============================================================================
+import fs from "node:fs";
+import path from "node:path";
+
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
 
@@ -30,6 +33,8 @@ export type ReportTable = {
   totals?: ReportRow;
   /** Kolom pengelompok: baris SUBTOTAL disisipkan tiap ganti nilai kolom ini. */
   subtotalBy?: string;
+  /** PDF: maks. baris teks per sel (default 2). Naikkan agar isi panjang tidak terpotong. */
+  maxLines?: number;
 };
 
 export type ReportDoc = {
@@ -42,6 +47,14 @@ export type ReportDoc = {
   summary: Array<{ label: string; value: string }>;
   tables: ReportTable[];
   notes: string[];
+  /** Filter yang dipakai (tampil di kop PDF & sheet Ringkasan XLSX). */
+  filters?: string[];
+  /** Nama pembuat laporan. */
+  generatedBy?: string | null;
+  /** PDF: tampilkan logo Garage Coffee di kop (bila file logo tersedia). */
+  showLogo?: boolean;
+  /** Paksa orientasi PDF; default otomatis (landscape bila tabel > 6 kolom). */
+  orientation?: "portrait" | "landscape";
 };
 
 export const EXPORT_FORMATS = ["pdf", "xlsx", "csv"] as const;
@@ -178,6 +191,8 @@ export async function reportToXlsx(report: ReportDoc) {
   summarySheet.addRow(["GARAGE COFFEE"]).font = { bold: true, size: 14, color: { argb: "FFC41A1A" } };
   summarySheet.addRow([titleLine]).font = { bold: true, size: 12 };
   summarySheet.addRow([metaLine]).font = { color: { argb: "FF6B7280" } };
+  if (report.generatedBy) summarySheet.addRow([`Dibuat oleh: ${report.generatedBy}`]).font = { color: { argb: "FF6B7280" } };
+  if (report.filters?.length) summarySheet.addRow([`Filter: ${report.filters.join(" · ")}`]).font = { color: { argb: "FF6B7280" } };
   summarySheet.addRow([]);
   for (const item of report.summary) {
     const row = summarySheet.addRow([item.label, item.value]);
@@ -269,7 +284,7 @@ function generatedLabel(iso: string) {
 
 export function reportToPdf(report: ReportDoc): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const wide = report.tables.some((t) => t.columns.length > 6);
+    const wide = report.orientation ? report.orientation === "landscape" : report.tables.some((t) => t.columns.length > 6);
     const doc = new PDFDocument({ size: "A4", layout: wide ? "landscape" : "portrait", margin: 36, bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -288,14 +303,33 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
     // Kop halaman pertama
     doc.rect(left, 36, width, 66).fill(DARK);
     doc.rect(left, 98, width, 4).fill(RED);
-    doc.font("Helvetica-Bold").fontSize(16).fillColor("#ffffff").text("GARAGE COFFEE", left + 14, 48);
-    doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(report.outletName ? `Outlet ${report.outletName}` : "Garage OS", left + 14, 70);
+    const logo = report.showLogo ? readLogo() : null;
+    const outletLabel = report.outletName ? `Outlet ${report.outletName.replace(/^outlet\s+/i, "")}` : "Garage OS";
+    if (logo) {
+      // Logo wordmark (rasio ±4,3:1) di atas, label outlet di bawahnya — tidak bertumpuk.
+      doc.image(logo, left + 12, 42, { fit: [132, 31] });
+      doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(outletLabel, left + 14, 82);
+    } else {
+      doc.font("Helvetica-Bold").fontSize(16).fillColor("#ffffff").text("GARAGE COFFEE", left + 14, 48);
+      doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(outletLabel, left + 14, 70);
+    }
     doc.font("Helvetica-Bold").fontSize(12).fillColor("#f2b872").text(titleLine, left, 46, { width: width - 14, align: "right" });
     if (report.division) {
       doc.font("Helvetica-Bold").fontSize(9).fillColor("#ffffff").text(report.division.toUpperCase(), left, 62, { width: width - 14, align: "right" });
     }
     doc.font("Helvetica").fontSize(9).fillColor("#ffffff").text(`Periode: ${report.periodLabel}`, left, report.division ? 76 : 66, { width: width - 14, align: "right" });
     doc.y = 116;
+    const metaParts = [
+      report.generatedBy ? `Dibuat oleh: ${report.generatedBy}` : null,
+      `Tanggal pembuatan: ${generatedLabel(report.generatedAt)}`,
+    ].filter(Boolean);
+    if (report.generatedBy || report.filters?.length) {
+      doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(metaParts.join("   ·   "), left, doc.y, { width });
+      if (report.filters?.length) {
+        doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(`Filter: ${report.filters.join(" · ")}`, left, doc.y + 2, { width });
+      }
+      doc.y += 8;
+    }
 
     // Ringkasan
     if (report.summary.length) {
@@ -325,9 +359,10 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
       // Tinggi header & baris mengikuti teks terpanjang (maks. 2 baris) supaya
       // label/isi tidak terpotong atau saling tumpuk.
       const LINE = 9;
-      const linesFor = (text: string, colWidth: number, bold: boolean) => {
+      const maxLines = Math.max(2, table.maxLines ?? 2);
+      const linesFor = (text: string, colWidth: number, bold: boolean, cap = 2) => {
         doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(7.5);
-        return Math.min(2, Math.max(1, Math.ceil(doc.heightOfString(text || " ", { width: colWidth - 8 }) / LINE - 0.01)));
+        return Math.min(cap, Math.max(1, Math.ceil(doc.heightOfString(text || " ", { width: colWidth - 8 }) / LINE - 0.01)));
       };
       const headerLines = Math.max(...table.columns.map((c, i) => linesFor(c.label, widths[i], true)));
       const headerH = 11 + headerLines * LINE;
@@ -360,7 +395,7 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
           if (kind !== "row" && (value === null || value === undefined)) return "";
           return cellText(value, c.type);
         });
-        const lines = Math.max(...table.columns.map((c, i) => (NUMERIC.includes(c.type) ? 1 : linesFor(texts[i], widths[i], kind !== "row"))));
+        const lines = Math.max(...table.columns.map((c, i) => (NUMERIC.includes(c.type) ? 1 : linesFor(texts[i], widths[i], kind !== "row", maxLines))));
         const rowH = 7 + lines * LINE;
         if (doc.y + rowH > bottom()) {
           doc.addPage();
@@ -427,16 +462,37 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
         .font("Helvetica")
         .fontSize(7)
         .fillColor(MUTED)
-        .text(`Dibuat ${generatedLabel(report.generatedAt)} · Garage OS`, left, footerY, { width: width / 2, lineBreak: false });
+        .text(
+          `Dokumen internal Garage Coffee · Dibuat ${generatedLabel(report.generatedAt)}${report.generatedBy ? ` oleh ${report.generatedBy}` : ""} · Garage OS`,
+          left,
+          footerY,
+          { width: (width * 2) / 3, lineBreak: false, ellipsis: true },
+        );
       doc
         .font("Helvetica")
         .fontSize(7)
         .fillColor(MUTED)
-        .text(`Halaman ${pageNo} dari ${range.count}`, left + width / 2, footerY, { width: width / 2, align: "right", lineBreak: false });
+        .text(`Halaman ${pageNo} dari ${range.count}`, left + (width * 2) / 3, footerY, { width: width / 3, align: "right", lineBreak: false });
       doc.page.margins.bottom = marginBottom;
     }
     doc.end();
   });
+}
+
+let logoCache: string | null | undefined;
+/**
+ * Logo Garage Coffee (transparan, untuk kop gelap) sebagai data URI — build
+ * standalone PDFKit tidak mengenali Buffer Node. null bila file tidak ada.
+ */
+function readLogo() {
+  if (logoCache !== undefined) return logoCache;
+  try {
+    const file = fs.readFileSync(path.join(process.cwd(), "public", "garage-brand", "garage-coffee-logo.png"));
+    logoCache = `data:image/png;base64,${file.toString("base64")}`;
+  } catch {
+    logoCache = null;
+  }
+  return logoCache;
 }
 
 /** Render laporan ke format yang diminta + nama file standar. */

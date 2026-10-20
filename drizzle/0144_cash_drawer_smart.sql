@@ -2,11 +2,9 @@ ALTER TABLE "cash_movements" ADD COLUMN "ref_no" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "category_key" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "cash_group" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "note" text;--> statement-breakpoint
-ALTER TABLE "cash_movements" ADD COLUMN "counterparty" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "vendor_name" text;--> statement-breakpoint
-ALTER TABLE "cash_movements" ADD COLUMN "receipt_no" text;--> statement-breakpoint
+ALTER TABLE "cash_movements" ADD COLUMN "receipt_photo" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "order_id" uuid;--> statement-breakpoint
-ALTER TABLE "cash_movements" ADD COLUMN "order_no" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "employee_user_id" text;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "related_movement_id" uuid;--> statement-breakpoint
 ALTER TABLE "cash_movements" ADD COLUMN "corrects_movement_id" uuid;--> statement-breakpoint

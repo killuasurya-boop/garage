@@ -1,1 +1,0 @@
-ALTER TABLE "cash_movements" ADD COLUMN "receipt_photo" text;

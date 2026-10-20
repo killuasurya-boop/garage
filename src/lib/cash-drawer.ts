@@ -281,6 +281,7 @@ const LEGACY_LABELS: Record<string, string> = {
   kasbon: "kasbon",
   "tambah uang kecil": "kembalian",
   "setoran owner": "modal",
+  operasional: "perlengkapan",
 };
 
 export function cashDrawerCategory(key: string | null | undefined): CashDrawerCategory | null {

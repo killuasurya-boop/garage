@@ -66,20 +66,35 @@ export type ModuleId =
 
 // "Minuman Botol" & "Rokok" (owner, Okt 2026): produk jadi, diserahkan langsung kasir —
 // tidak membuat tiket Bar/Dapur (lihat isDirectHandoverMenu).
-export type MenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee" | "Minuman Botol" | "Rokok";
+// Kategori kini dinamis (tabel product_categories, Okt 2026): nama bawaan di bawah
+// hanya untuk autocomplete/seed; kategori baru buatan owner juga valid.
+export type BuiltInMenuCategory = "Makanan" | "Cemilan" | "Coffee" | "Non-Coffee" | "Minuman Botol" | "Rokok";
+export type MenuCategory = BuiltInMenuCategory | (string & {});
+export type MenuGroupName = "Dapur" | "Bar" | "Lainnya";
 
 export type GarageMenuItem = {
   id: string;
   sku?: string;
   name: string;
   category: MenuCategory;
+  categoryId?: string;
+  // Kelompok POS (Dapur/Bar/Lainnya) dari master kategori.
+  menuGroup?: MenuGroupName;
+  categorySortOrder?: number;
+  productType?: "menu" | "retail" | "bundle";
+  brand?: string;
+  barcode?: string;
   section: string;
   variants: Array<{
     id: string;
     label: string;
     price: number;
     baseCost?: number;
-  }>; 
+    sku?: string;
+    barcode?: string;
+    sellUnit?: string;
+    unitContents?: number;
+  }>;
   stock: "ready" | "limited" | "sold_out";
   status?: "active" | "archived";
   prep: string;
@@ -90,7 +105,7 @@ export type GarageMenuItem = {
   promoActive?: boolean;
   promoPrice?: number;
   // Production Hub: override station (null = otomatis dari kategori).
-  station?: "bar" | "dapur" | null;
+  station?: "bar" | "dapur" | "none" | null;
   batchEligible?: boolean;
   // Menu digital: false = disembunyikan dari QR order; featured = banner unggulan.
   showInDigitalMenu?: boolean;

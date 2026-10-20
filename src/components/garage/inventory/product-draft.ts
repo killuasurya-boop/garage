@@ -11,6 +11,11 @@ export type ProductVariantDraft = {
   label: string;
   price: string;
   baseCost: string;
+  // Master data varian (retail: rokok per bungkus/slop, mineral per botol/karton).
+  sku?: string;
+  barcode?: string;
+  sellUnit?: string;
+  unitContents?: string;
 };
 
 export type ProductRecipeDraft = {
@@ -29,7 +34,10 @@ export type ProductDraftState = {
   promoActive?: boolean;
   promoPrice?: string;
   // Production Hub: "" = otomatis dari kategori.
-  station?: "" | "bar" | "dapur";
+  station?: "" | "bar" | "dapur" | "none";
+  productType?: "" | "menu" | "retail" | "bundle";
+  brand?: string;
+  barcode?: string;
   batchEligible?: boolean;
   // Menu digital (QR): tampil ke pelanggan & banner unggulan.
   showInDigitalMenu?: boolean;

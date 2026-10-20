@@ -145,6 +145,25 @@ Scroll direction:
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 
+## Product Management Rules
+
+- Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),
+  never a hardcoded list. `menu_items.category_id` is the relation; `menu_items.category` keeps the display name
+  (rename updates it, `order_items` snapshots untouched). Category carries kind (fnb/retail/operational), default
+  product type, station (`bar`/`dapur`/`none` = handed over by cashier), POS group (Dapur/Bar/Lainnya, POS sub-tabs
+  are built from it) and SKU prefix. Categories are never deleted: archive, and an archive with active products
+  requires moving them (`archiveProductCategory`). Seeded categories = the 6 that already existed (migration 0142).
+- `menu_items.product_type`: `menu` (recipe HPP), `retail` (rokok, mineral — cost = harga modal per variant, no
+  recipe needed), `bundle`. Variants carry `sku`, `barcode`, `sell_unit`, `unit_contents`; SKU & barcode are unique
+  across products AND variants (`assertUniqueProductCodes`).
+- HPP status (`hppStatusFor`): complete only when every variant cost is valid (recipe for menu/bundle, harga modal
+  for retail); manual menu HPP = "unverified". Margin is shown only for complete HPP — never as final otherwise.
+- Catalog/KPI (`GET /api/products/catalog`), bulk actions (`POST /api/products/bulk`, audited per product) and
+  exports (`GET /api/products/export?type=&format=xlsx|pdf&<filters>`, file `GarageOS_<Jenis>_YYYY-MM-DD.<ext>`)
+  are Owner/Manajer only and always use every row matching the filter (`loadCatalogRows` = single source).
+- Physical stock quantity/stock card/opname/purchasing stay in the warehouse module (being replaced); the product
+  module only uses the ready/limited/sold_out status.
+
 ## Inventory Rules
 
 - Inventory is raw-material and consumable stock. The old PDF-derived mock catalog

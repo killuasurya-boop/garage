@@ -148,6 +148,7 @@ import {
   operationalSignals,
   serviceRules,
   type MenuCategory,
+  type MenuGroupName,
   type Role,
 } from "@/lib/garage-data";
 import {
@@ -180,6 +181,13 @@ import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, retur
 import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import {
+  categoryPosInfo,
+  ensureCategoryLinks,
+  resolveCategoryForProduct,
+  sectionForCategoryRecord,
+} from "@/lib/product-management";
+import type { ProductType } from "@/lib/product-catalog-types";
 import {
   APPROVAL_CATEGORY_LABEL,
   approvalCategoryOf,
@@ -414,6 +422,11 @@ export type MenuProductInput = {
   sku?: string;
   name: string;
   category: MenuCategory;
+  // Relasi resmi ke product_categories (prioritas di atas nama kategori).
+  categoryId?: string | null;
+  productType?: ProductType;
+  brand?: string | null;
+  barcode?: string | null;
   section?: string;
   stock?: "ready" | "limited" | "sold_out";
   status?: "active" | "archived";
@@ -422,8 +435,8 @@ export type MenuProductInput = {
   sortOrder?: number;
   promoActive?: boolean;
   promoPrice?: number | null;
-  // Production Hub: "bar" | "dapur" | null (otomatis dari kategori).
-  station?: "bar" | "dapur" | null;
+  // Production Hub: "bar" | "dapur" | "none" (langsung kasir) | null (ikut kategori).
+  station?: "bar" | "dapur" | "none" | null;
   batchEligible?: boolean;
   showInDigitalMenu?: boolean;
   featured?: boolean;
@@ -434,6 +447,10 @@ export type MenuProductInput = {
     price: number;
     baseCost?: number;
     sortOrder?: number;
+    sku?: string | null;
+    barcode?: string | null;
+    sellUnit?: string | null;
+    unitContents?: number | null;
   }>;
   recipes?: Array<{
     variantId?: string;
@@ -1470,17 +1487,29 @@ export async function getMenuData(params?: {
     ]);
   }
 
+  const posInfo = await categoryPosInfo(db);
   const baseRows = itemRows.map((item) => ({
     id: item.id,
     sku: item.sku ?? undefined,
     name: item.name,
     category: item.category as MenuCategory,
+    categoryId: item.categoryId ?? undefined,
+    // Kelompok tombol POS dari master kategori (kategori baru tampil otomatis).
+    menuGroup: (posInfo.get(item.category.toLowerCase())?.posGroup ?? undefined) as MenuGroupName | undefined,
+    categorySortOrder: posInfo.get(item.category.toLowerCase())?.sortOrder ?? undefined,
+    productType: (item.productType ?? "menu") as ProductType,
+    brand: item.brand ?? undefined,
+    barcode: item.barcode ?? undefined,
     section: item.section,
     variants: (variantsByItem.get(item.id) ?? []).map((variant) => ({
       id: variant.variantId,
       label: variant.label,
       price: variant.price,
       ...(params?.includeCosting ? { baseCost: variant.baseCost } : {}),
+      ...(variant.sku ? { sku: variant.sku } : {}),
+      ...(variant.barcode ? { barcode: variant.barcode } : {}),
+      ...(variant.sellUnit ? { sellUnit: variant.sellUnit } : {}),
+      ...(variant.unitContents != null ? { unitContents: Number(variant.unitContents) } : {}),
     })),
     stock: item.stock as "ready" | "limited" | "sold_out",
     status: item.status as "active" | "archived",
@@ -1490,9 +1519,10 @@ export async function getMenuData(params?: {
     description: item.description?.trim() || undefined,
     promoActive: item.promoActive ?? false,
     promoPrice: item.promoPrice ?? undefined,
-    station: (item.station === "bar" || item.station === "dapur" ? item.station : null) as
+    station: (item.station === "bar" || item.station === "dapur" || item.station === "none" ? item.station : null) as
       | "bar"
       | "dapur"
+      | "none"
       | null,
     batchEligible: item.batchEligible ?? true,
     showInDigitalMenu: item.showInDigitalMenu ?? true,
@@ -1647,8 +1677,9 @@ function menuSkuPrefix(category: string) {
 
 // Auto-generate SKU unik format <PREFIX>-<urut 3 digit> berdasar kategori.
 // Cari nomor tertinggi yang sudah dipakai prefix tsb lalu +1 (toleran gap).
-export async function nextMenuSku(tx: GarageDb | GarageTx, category: string) {
-  const prefix = menuSkuPrefix(category);
+// Prefix dari master kategori (skuPrefix) bila diisi, lalu tabel bawaan.
+export async function nextMenuSku(tx: GarageDb | GarageTx, category: string, categoryPrefix?: string | null) {
+  const prefix = categoryPrefix?.trim() || menuSkuPrefix(category);
   const rows = await tx
     .select({ sku: menuItems.sku })
     .from(menuItems)
@@ -1706,15 +1737,30 @@ function normalizeMenuProductVariants(input: MenuProductInput["variants"], itemI
     if (!Number.isFinite(baseCost)) {
       throw new Error("Harga dasar/HPP wajib angka valid.");
     }
+    const unitContents =
+      variant.unitContents === undefined || variant.unitContents === null ? null : Number(variant.unitContents);
+    if (unitContents !== null && (!Number.isFinite(unitContents) || unitContents <= 0)) {
+      throw new Error(`Isi per satuan jual varian "${variant.label}" harus lebih dari 0.`);
+    }
     return {
       itemId,
       variantId: normalizeVariantId(variant.id || variant.label, index),
       label: variant.label.trim() || "Regular",
       price,
       baseCost,
+      sku: normalizeMenuSku(variant.sku),
+      barcode: normalizeBarcode(variant.barcode),
+      sellUnit: variant.sellUnit?.trim().toLowerCase() || null,
+      unitContents,
       sortOrder: variant.sortOrder ?? index,
     };
   });
+
+  for (const key of ["sku", "barcode"] as const) {
+    const values = variants.map((variant) => variant[key]).filter((value): value is string => Boolean(value));
+    const dup = values.find((value, index) => values.indexOf(value) !== index);
+    if (dup) throw new Error(`${key === "sku" ? "SKU" : "Barcode"} varian duplikat: ${dup}.`);
+  }
 
   const duplicateVariant = variants.find(
     (variant, index) =>
@@ -1725,6 +1771,59 @@ function normalizeMenuProductVariants(input: MenuProductInput["variants"], itemI
   }
 
   return variants;
+}
+
+// Barcode: hanya angka/huruf (EAN/UPC/kode internal). Kosong → null.
+export function normalizeBarcode(raw: string | undefined | null) {
+  const trimmed = (raw ?? "").trim().replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  return trimmed || null;
+}
+
+/**
+ * SKU & barcode unik lintas produk DAN varian (satu kode = satu barang). Kode
+ * milik produk itu sendiri (itemId) diabaikan supaya edit tidak bentrok.
+ */
+async function assertUniqueProductCodes(
+  tx: GarageDb | GarageTx,
+  itemId: string,
+  codes: { sku?: string | null; barcode?: string | null; variants?: Array<{ sku: string | null; barcode: string | null }> },
+) {
+  const skus = [codes.sku ?? null, ...(codes.variants ?? []).map((variant) => variant.sku)].filter(
+    (value): value is string => Boolean(value),
+  );
+  const barcodes = [codes.barcode ?? null, ...(codes.variants ?? []).map((variant) => variant.barcode)].filter(
+    (value): value is string => Boolean(value),
+  );
+  if (skus.length) {
+    const [itemHit] = await tx
+      .select({ id: menuItems.id, name: menuItems.name, sku: menuItems.sku })
+      .from(menuItems)
+      .where(and(inArray(menuItems.sku, skus), ne(menuItems.id, itemId)))
+      .limit(1);
+    const [variantHit] = await tx
+      .select({ id: menuVariants.itemId, sku: menuVariants.sku })
+      .from(menuVariants)
+      .where(and(inArray(menuVariants.sku, skus), ne(menuVariants.itemId, itemId)))
+      .limit(1);
+    const hit = itemHit?.sku ?? variantHit?.sku;
+    if (hit) throw new Error(`SKU "${hit}" sudah dipakai produk lain.`);
+  }
+  if (barcodes.length) {
+    const [itemHit] = await tx
+      .select({ barcode: menuItems.barcode })
+      .from(menuItems)
+      .where(and(inArray(menuItems.barcode, barcodes), ne(menuItems.id, itemId)))
+      .limit(1);
+    const [variantHit] = await tx
+      .select({ barcode: menuVariants.barcode })
+      .from(menuVariants)
+      .where(and(inArray(menuVariants.barcode, barcodes), ne(menuVariants.itemId, itemId)))
+      .limit(1);
+    const hit = itemHit?.barcode ?? variantHit?.barcode;
+    if (hit) throw new Error(`Barcode "${hit}" sudah dipakai produk lain.`);
+    const dup = barcodes.find((value, index) => barcodes.indexOf(value) !== index);
+    if (dup) throw new Error(`Barcode "${dup}" dipakai lebih dari sekali di produk ini.`);
+  }
 }
 
 function normalizeMenuProductRecipes(
@@ -1803,20 +1902,18 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
       throw new Error("ID produk sudah ada. Gunakan nama/ID lain.");
     }
 
+    // Kategori wajib terdaftar & aktif di master kategori (bukan daftar di kode).
+    await ensureCategoryLinks(tx);
+    const category = await resolveCategoryForProduct(tx, { categoryId: input.categoryId, category: input.category });
+    const productType = input.productType ?? (category.defaultProductType as ProductType);
+
     // SKU: pakai input manual bila ada (cek unik), kalau tidak auto-generate.
     let sku = normalizeMenuSku(input.sku);
-    if (sku) {
-      const [dupSku] = await tx
-        .select({ id: menuItems.id })
-        .from(menuItems)
-        .where(eq(menuItems.sku, sku))
-        .limit(1);
-      if (dupSku) {
-        throw new Error(`SKU "${sku}" sudah dipakai produk lain.`);
-      }
-    } else {
-      sku = await nextMenuSku(tx, input.category);
+    if (!sku) {
+      sku = await nextMenuSku(tx, category.name, category.skuPrefix);
     }
+    const barcode = normalizeBarcode(input.barcode);
+    await assertUniqueProductCodes(tx, id, { sku, barcode, variants });
 
     const promo = normalizeMenuPromo(input.promoActive, input.promoPrice);
     const inserted = await tx
@@ -1825,15 +1922,20 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
         id,
         sku,
         name,
-        category: input.category,
-        section: input.section?.trim() || sectionForMenuCategory(input.category),
+        category: category.name,
+        categoryId: category.id,
+        productType,
+        brand: input.brand?.trim() || null,
+        barcode,
+        section: input.section?.trim() || sectionForCategoryRecord(category),
         stock: input.stock ?? "ready",
         status: input.status ?? "active",
         prep: input.prep?.trim() || "10m",
         tags: input.tags ?? [],
         promoActive: promo.promoActive,
         promoPrice: promo.promoPrice,
-        station: input.station ?? null,
+        // Routing produksi: override produk, kalau tidak ikut kategori.
+        station: input.station ?? category.station,
         batchEligible: input.batchEligible ?? true,
         showInDigitalMenu: input.showInDigitalMenu ?? true,
         featured: input.featured ?? false,
@@ -1858,12 +1960,20 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
       status: "recorded",
       metadata: {
         productId: id,
-        category: input.category,
+        category: category.name,
+        categoryId: category.id,
+        productType,
+        sku,
+        barcode,
         variants: variants.map((variant) => ({
           id: variant.variantId,
           label: variant.label,
           price: variant.price,
           baseCost: variant.baseCost,
+          sku: variant.sku,
+          barcode: variant.barcode,
+          sellUnit: variant.sellUnit,
+          unitContents: variant.unitContents,
         })),
         recipeLines: recipes.length,
       },
@@ -2013,12 +2123,26 @@ export async function updateMenuProduct(
 
   const update: Partial<typeof menuItems.$inferInsert> = { updatedAt: new Date() };
   if (nextName !== undefined) update.name = nextName;
-  if (input.category !== undefined) update.category = input.category;
+  const categoryChanged =
+    (input.categoryId !== undefined && input.categoryId !== existing.categoryId) ||
+    (input.category !== undefined && input.category.trim().toLowerCase() !== existing.category.toLowerCase());
+  let nextCategory: Awaited<ReturnType<typeof resolveCategoryForProduct>> | null = null;
+  if (categoryChanged) {
+    nextCategory = await resolveCategoryForProduct(db, { categoryId: input.categoryId, category: input.category });
+    update.category = nextCategory.name;
+    update.categoryId = nextCategory.id;
+    // Pindah kategori → routing & section ikut kategori baru kecuali station dikirim eksplisit.
+    if (input.station === undefined) update.station = nextCategory.station;
+    if (input.section === undefined) update.section = sectionForCategoryRecord(nextCategory);
+  }
   if (input.section !== undefined) {
     update.section =
       input.section.trim() ||
-      sectionForMenuCategory(input.category ?? (existing.category as MenuCategory));
+      (nextCategory ? sectionForCategoryRecord(nextCategory) : sectionForMenuCategory(existing.category as MenuCategory));
   }
+  if (input.productType !== undefined) update.productType = input.productType;
+  if (input.brand !== undefined) update.brand = input.brand?.trim() || null;
+  if (input.barcode !== undefined) update.barcode = normalizeBarcode(input.barcode);
   if (input.stock !== undefined) update.stock = input.stock;
   if (input.status !== undefined) update.status = input.status;
   if (input.prep !== undefined) update.prep = input.prep.trim() || "10m";
@@ -2031,18 +2155,7 @@ export async function updateMenuProduct(
   if (input.featured !== undefined) update.featured = input.featured;
   if (input.description !== undefined) update.description = input.description?.trim() || null;
   if (input.sku !== undefined) {
-    const nextSku = normalizeMenuSku(input.sku);
-    if (nextSku) {
-      const [dupSku] = await db
-        .select({ id: menuItems.id })
-        .from(menuItems)
-        .where(and(eq(menuItems.sku, nextSku), ne(menuItems.id, safeId)))
-        .limit(1);
-      if (dupSku) {
-        throw new Error(`SKU "${nextSku}" sudah dipakai produk lain.`);
-      }
-    }
-    update.sku = nextSku;
+    update.sku = normalizeMenuSku(input.sku);
   }
   if (input.promoActive !== undefined || input.promoPrice !== undefined) {
     // Pakai nilai existing bila salah satu field tidak dikirim, supaya partial
@@ -2074,7 +2187,37 @@ export async function updateMenuProduct(
         )
       : null;
 
+  const beforeVariants = await db
+    .select()
+    .from(menuVariants)
+    .where(eq(menuVariants.itemId, safeId))
+    .orderBy(menuVariants.sortOrder);
+  const snapshotVariant = (variant: {
+    variantId: string;
+    label: string;
+    price: number;
+    baseCost: number;
+    sku: string | null;
+    barcode: string | null;
+    sellUnit: string | null;
+    unitContents: number | null;
+  }) => ({
+    id: variant.variantId,
+    label: variant.label,
+    price: variant.price,
+    baseCost: variant.baseCost,
+    sku: variant.sku,
+    barcode: variant.barcode,
+    sellUnit: variant.sellUnit,
+    unitContents: variant.unitContents,
+  });
+
   await db.transaction(async (tx) => {
+    await assertUniqueProductCodes(tx, safeId, {
+      sku: update.sku !== undefined ? update.sku : null,
+      barcode: update.barcode !== undefined ? update.barcode : null,
+      variants: variants ?? [],
+    });
     await tx.update(menuItems).set(update).where(eq(menuItems.id, safeId));
     if (variants) {
       await tx.delete(menuVariants).where(eq(menuVariants.itemId, safeId));
@@ -2097,13 +2240,25 @@ export async function updateMenuProduct(
       metadata: {
         productId: safeId,
         fields: Object.keys(input),
-        variants: variants?.map((variant) => ({
-          id: variant.variantId,
-          label: variant.label,
-          price: variant.price,
-          baseCost: variant.baseCost,
-        })),
+        variants: variants?.map(snapshotVariant),
         recipeLines: recipes?.length,
+        // Nilai sebelum & sesudah (riwayat harga, SKU/barcode, kategori, status).
+        before: {
+          name: existing.name,
+          category: existing.category,
+          productType: existing.productType,
+          sku: existing.sku,
+          barcode: existing.barcode,
+          brand: existing.brand,
+          status: existing.status,
+          variants: beforeVariants.map(snapshotVariant),
+        },
+        after: {
+          ...Object.fromEntries(
+            Object.entries(update).filter(([key]) => key !== "updatedAt"),
+          ),
+          ...(variants ? { variants: variants.map(snapshotVariant) } : {}),
+        },
       },
     });
   });

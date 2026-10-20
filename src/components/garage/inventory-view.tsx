@@ -77,9 +77,12 @@ import {
   type Role,
 } from "@/lib/garage-data";
 import type { InventoryItem, MenuItem } from "@/lib/garage-api-types";
+import type { ProductCategoryRow, ProductType } from "@/lib/product-catalog-types";
 import { GarageConnectedNav } from "@/components/garage/garage-connected-nav";
 import { ProductFormPanel } from "@/components/garage/inventory/product-form";
 import { DigitalMenuManager } from "@/components/garage/inventory/digital-menu-manager";
+import { CategoryManagerDialog } from "@/components/garage/inventory/category-manager-dialog";
+import { ProductCatalogCenter } from "@/components/garage/inventory/product-catalog-center";
 import {
   productVariantDraftId,
   recipeCostForVariantDraft,
@@ -574,7 +577,10 @@ export function InventoryView({
   const [productItems, setProductItems] = useState<ManagedProductItem[]>(
     menuItems as ManagedProductItem[],
   );
-  const [productListMode, setProductListMode] = useState<"active" | "archived" | "digital">("active");
+  const [productListMode, setProductListMode] = useState<"catalog" | "active" | "archived" | "digital">("catalog");
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+  const [catalogFocusCategoryId, setCatalogFocusCategoryId] = useState<string | null>(null);
   // Filter & sort daftar produk (B2). Default urut A-Z by nama.
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState<"all" | MenuCategory>("all");
@@ -587,7 +593,13 @@ export function InventoryView({
   const [productPromoActive, setProductPromoActive] = useState(false);
   const [productPromoPrice, setProductPromoPrice] = useState("");
   // Production Hub: "" = station otomatis dari kategori.
-  const [productStation, setProductStation] = useState<"" | "bar" | "dapur">("");
+  const [productStation, setProductStation] = useState<"" | "bar" | "dapur" | "none">("");
+  // Master data produk (Okt 2026): tipe ("" = ikut kategori), merek, barcode.
+  const [productType, setProductType] = useState<"" | ProductType>("");
+  const [productBrand, setProductBrand] = useState("");
+  const [productBarcode, setProductBarcode] = useState("");
+  // Master kategori dinamis (product_categories) untuk form & filter.
+  const [productCategories, setProductCategories] = useState<ProductCategoryRow[]>([]);
   const [productBatchEligible, setProductBatchEligible] = useState(true);
   const [productShowInDigitalMenu, setProductShowInDigitalMenu] = useState(true);
   const [productFeatured, setProductFeatured] = useState(false);
@@ -1728,7 +1740,7 @@ export function InventoryView({
         return false;
       }
       if (q) {
-        const haystack = `${item.name} ${item.sku ?? ""} ${item.category} ${item.section}`.toLowerCase();
+        const haystack = `${item.name} ${item.sku ?? ""} ${item.barcode ?? ""} ${item.brand ?? ""} ${item.category} ${item.section} ${item.variants.map((variant) => `${variant.sku ?? ""} ${variant.barcode ?? ""}`).join(" ")}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
@@ -1807,11 +1819,13 @@ export function InventoryView({
     if (!canManageMenuProducts) return;
     setProductLoading(true);
     try {
-      const rows = await garageApi.get<ManagedProductItem[]>(
-        `/api/menu?includeArchived=1&_=${Date.now()}`,
-        { cache: "no-store" },
-      );
+      const [rows, categoryData] = await Promise.all([
+        garageApi.get<ManagedProductItem[]>(`/api/menu?includeArchived=1&_=${Date.now()}`, { cache: "no-store" }),
+        garageApi.get<{ categories: ProductCategoryRow[] }>("/api/products/categories?includeArchived=1", { cache: "no-store" }),
+      ]);
       setProductItems(rows);
+      setProductCategories(categoryData.categories);
+      setCatalogRefreshKey((key) => key + 1);
     } catch (err) {
       setProductError(err instanceof Error ? err.message : "Gagal memuat produk.");
     } finally {
@@ -1826,11 +1840,14 @@ export function InventoryView({
     setProductPromoActive(false);
     setProductPromoPrice("");
     setProductStation("");
+    setProductType("");
+    setProductBrand("");
+    setProductBarcode("");
     setProductBatchEligible(true);
     setProductShowInDigitalMenu(true);
     setProductFeatured(false);
     setProductDescription("");
-    setProductCategory("Cemilan");
+    setProductCategory(productCategories.find((entry) => entry.status === "active")?.name ?? "Cemilan");
     setProductSection("Dapur");
     setProductPrep("10m");
     setProductStock("ready");
@@ -1871,6 +1888,9 @@ export function InventoryView({
       promoActive: productPromoActive,
       promoPrice: productPromoPrice,
       station: productStation,
+      productType,
+      brand: productBrand,
+      barcode: productBarcode,
       batchEligible: productBatchEligible,
       showInDigitalMenu: productShowInDigitalMenu,
       featured: productFeatured,
@@ -1904,15 +1924,12 @@ export function InventoryView({
     try {
       const draft = JSON.parse(raw) as Partial<ProductDraftState>;
       const category = draft.category ?? "Cemilan";
+      // Kategori draft harus masih aktif di master kategori.
+      const activeCategories = productCategories.filter((entry) => entry.status === "active");
       const validCategory: MenuCategory =
-        category === "Makanan" ||
-        category === "Cemilan" ||
-        category === "Coffee" ||
-        category === "Non-Coffee" ||
-        category === "Minuman Botol" ||
-        category === "Rokok"
+        !activeCategories.length || activeCategories.some((entry) => entry.name === category)
           ? category
-          : "Cemilan";
+          : activeCategories[0].name;
       const validStock =
         draft.stock === "ready" ||
         draft.stock === "limited" ||
@@ -1925,7 +1942,10 @@ export function InventoryView({
       setProductSku(typeof draft.sku === "string" ? draft.sku : "");
       setProductPromoActive(Boolean(draft.promoActive));
       setProductPromoPrice(typeof draft.promoPrice === "string" ? draft.promoPrice : "");
-      setProductStation(draft.station === "bar" || draft.station === "dapur" ? draft.station : "");
+      setProductStation(draft.station === "bar" || draft.station === "dapur" || draft.station === "none" ? draft.station : "");
+      setProductType(draft.productType === "menu" || draft.productType === "retail" || draft.productType === "bundle" ? draft.productType : "");
+      setProductBrand(typeof draft.brand === "string" ? draft.brand : "");
+      setProductBarcode(typeof draft.barcode === "string" ? draft.barcode : "");
       setProductBatchEligible(draft.batchEligible !== false);
       setProductShowInDigitalMenu(draft.showInDigitalMenu !== false);
       setProductFeatured(Boolean(draft.featured));
@@ -1967,7 +1987,7 @@ export function InventoryView({
 
   function updateProductVariant(
     key: string,
-    field: "label" | "price" | "baseCost",
+    field: "label" | "price" | "baseCost" | "sku" | "barcode" | "sellUnit" | "unitContents",
     value: string,
   ) {
     setProductVariants((current) =>
@@ -2072,12 +2092,17 @@ export function InventoryView({
         // Varian ber-resep: HPP dari bahan (server juga menghitung ulang live).
         const baseCost = Number(recipeBaseCost || variant.baseCost || 0);
         if (!Number.isFinite(price) || price <= 0) return null;
+        const unitContents = Number(variant.unitContents);
         return {
           id: variantId,
           label,
           price: Math.round(price),
           baseCost: Number.isFinite(baseCost) ? Math.max(0, Math.round(baseCost)) : 0,
           sortOrder: index,
+          sku: variant.sku?.trim() || null,
+          barcode: variant.barcode?.trim() || null,
+          sellUnit: variant.sellUnit?.trim() || null,
+          unitContents: Number.isFinite(unitContents) && unitContents > 0 ? unitContents : null,
         };
       })
       .filter(
@@ -2089,6 +2114,10 @@ export function InventoryView({
           price: number;
           baseCost: number;
           sortOrder: number;
+          sku: string | null;
+          barcode: string | null;
+          sellUnit: string | null;
+          unitContents: number | null;
         } => Boolean(variant),
       );
     return variants;
@@ -2127,7 +2156,17 @@ export function InventoryView({
     setProductSku(product.sku ?? "");
     setProductPromoActive(Boolean(product.promoActive));
     setProductPromoPrice(product.promoPrice ? String(product.promoPrice) : "");
-    setProductStation(product.station === "bar" || product.station === "dapur" ? product.station : "");
+    // Station sama dengan default kategori = "ikut kategori" (tampil Otomatis).
+    const productCategoryRow = productCategories.find((entry) => entry.name === product.category);
+    setProductStation(
+      (product.station === "bar" || product.station === "dapur" || product.station === "none") &&
+        product.station !== productCategoryRow?.station
+        ? product.station
+        : "",
+    );
+    setProductType(product.productType && product.productType !== productCategoryRow?.defaultProductType ? product.productType : "");
+    setProductBrand(product.brand ?? "");
+    setProductBarcode(product.barcode ?? "");
     setProductBatchEligible(product.batchEligible !== false);
     setProductShowInDigitalMenu(product.showInDigitalMenu !== false);
     setProductFeatured(Boolean(product.featured));
@@ -2147,6 +2186,10 @@ export function InventoryView({
             label: variant.label,
             price: String(variant.price),
             baseCost: String(variant.baseCost ?? ""),
+            sku: variant.sku ?? "",
+            barcode: variant.barcode ?? "",
+            sellUnit: variant.sellUnit ?? "",
+            unitContents: variant.unitContents ? String(variant.unitContents) : "",
           }))
         : [{ key: "regular", label: "Regular", price: "", baseCost: "" }],
     );
@@ -2233,13 +2276,17 @@ export function InventoryView({
           productPromoActive && Number.isFinite(promoPriceNum) && promoPriceNum > 0
             ? Math.round(promoPriceNum)
             : null,
-        station: productStation || null,
+        // Kosong = ikut kategori: kirim station/tipe default kategori agar edit
+        // tidak mengunci nilai lama saat kategori diganti.
+        station: productStation || productCategories.find((entry) => entry.name === productCategory)?.station || null,
+        productType: productType || productCategories.find((entry) => entry.name === productCategory)?.defaultProductType || undefined,
+        brand: productBrand.trim() || null,
+        barcode: productBarcode.trim() || null,
         batchEligible: productBatchEligible,
         showInDigitalMenu: productShowInDigitalMenu,
         featured: productFeatured,
         description: productDescription.trim() || null,
         category: productCategory,
-        section: productSection.trim() || (productCategory === "Coffee" || productCategory === "Non-Coffee" ? "Bar" : "Dapur"),
         stock: productStock,
         status: "active" as const,
         prep: productPrep.trim() || "10m",
@@ -2807,7 +2854,7 @@ export function InventoryView({
               <div>
                 <CardTitle>Produk Manajemen</CardTitle>
                 <CardDescription>
-                  Produk F&B lengkap: harga jual, HPP, resep bahan dari Gudang, status POS/QR, dan delete permanen.
+                  Produk F&B & retail: kategori dinamis, tipe produk, harga jual, HPP/harga modal, SKU/barcode, status POS/QR, dan ekspor Excel/PDF.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2818,6 +2865,15 @@ export function InventoryView({
                 >
                   <Plus className="size-3.5" />
                   Add Produk
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="garage-press h-8 gap-1.5 border-[#f5a742]/55 bg-[#f5a742]/10 px-3 text-xs text-[#ffd08a]"
+                  onClick={() => setCategoryManagerOpen(true)}
+                >
+                  <Boxes className="size-3.5" />
+                  Kelola Kategori
                 </Button>
                 <Button
                   type="button"
@@ -2913,10 +2969,18 @@ export function InventoryView({
                   category={productCategory}
                   onCategoryChange={(value) => {
                     setProductCategory(value);
-                    setProductSection(value === "Coffee" || value === "Non-Coffee" ? "Bar" : "Dapur");
+                    // Section ikut kategori di server (bar → Bar, dapur → Dapur, lainnya → nama kategori).
+                    setProductSection("");
                   }}
                   station={productStation}
                   onStationChange={setProductStation}
+                  categories={productCategories}
+                  productType={productType}
+                  onProductTypeChange={setProductType}
+                  brand={productBrand}
+                  onBrandChange={setProductBrand}
+                  barcode={productBarcode}
+                  onBarcodeChange={setProductBarcode}
                   batchEligible={productBatchEligible}
                   onBatchEligibleChange={setProductBatchEligible}
                   showInDigitalMenu={productShowInDigitalMenu}
@@ -3042,7 +3106,7 @@ export function InventoryView({
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex gap-1 rounded-md border border-[#34343c] bg-white/[0.04] p-1">
-                {(["active", "archived", "digital"] as const).map((mode) => (
+                {(["catalog", "active", "archived", "digital"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -3053,7 +3117,13 @@ export function InventoryView({
                         : "text-garage-dim hover:text-white"
                     }`}
                   >
-                    {mode === "active" ? "Produk Aktif" : mode === "archived" ? "Produk Arsip" : "Menu Digital"}
+                    {mode === "catalog"
+                      ? "Dashboard Produk"
+                      : mode === "active"
+                        ? "Produk Aktif"
+                        : mode === "archived"
+                          ? "Produk Arsip"
+                          : "Menu Digital"}
                   </button>
                 ))}
               </div>
@@ -3069,7 +3139,38 @@ export function InventoryView({
               </Button>
             </div>
 
-            {productListMode === "digital" ? (
+            <CategoryManagerDialog
+              open={categoryManagerOpen}
+              onOpenChange={setCategoryManagerOpen}
+              categories={productCategories}
+              products={productItems}
+              onChanged={async () => {
+                await loadProductItems();
+                await onMenuChanged();
+              }}
+              onShowProducts={(categoryId) => {
+                setCatalogFocusCategoryId(categoryId);
+                setProductListMode("catalog");
+                setCategoryManagerOpen(false);
+              }}
+            />
+
+            {productListMode === "catalog" ? (
+              <ProductCatalogCenter
+                refreshKey={catalogRefreshKey}
+                focusCategoryId={catalogFocusCategoryId}
+                onOpenCategories={() => setCategoryManagerOpen(true)}
+                onChanged={async () => {
+                  await loadProductItems();
+                  await onMenuChanged();
+                }}
+                onEditProduct={(productId) => {
+                  const product = productItems.find((item) => item.id === productId);
+                  if (product) beginEditProduct(product);
+                  else setProductError("Produk belum termuat. Klik Refresh lalu coba lagi.");
+                }}
+              />
+            ) : productListMode === "digital" ? (
               <DigitalMenuManager
                 items={activeProductItems}
                 onChanged={async () => {
@@ -3096,12 +3197,13 @@ export function InventoryView({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua kategori</SelectItem>
-                  <SelectItem value="Makanan">Makanan</SelectItem>
-                  <SelectItem value="Cemilan">Cemilan</SelectItem>
-                  <SelectItem value="Coffee">Coffee</SelectItem>
-                  <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
-                  <SelectItem value="Minuman Botol">Minuman Botol</SelectItem>
-                  <SelectItem value="Rokok">Rokok</SelectItem>
+                  {productCategories
+                    .filter((entry) => entry.status !== "archived")
+                    .map((entry) => (
+                      <SelectItem key={entry.id} value={entry.name}>
+                        {entry.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <Select

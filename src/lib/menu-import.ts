@@ -17,6 +17,8 @@ import {
   slugifyMenuId,
 } from "@/lib/garage-service";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import { listProductCategories, sectionForCategoryRecord } from "@/lib/product-management";
+import type { ProductCategoryRow } from "@/lib/product-catalog-types";
 import type { GarageSession } from "@/lib/server-auth";
 import type { ImportRowResult } from "@/lib/bulk-import";
 
@@ -59,6 +61,14 @@ type RowInput = {
   description: string;
 };
 
+/** Kategori aktif dari master (nama persis dulu, lalu alias kategori bawaan). */
+function categoryRecordOf(raw: string, categories: ProductCategoryRow[]): ProductCategoryRow | null {
+  const exact = categories.find((c) => c.name.toLowerCase() === raw.trim().toLowerCase());
+  if (exact) return exact;
+  const alias = categoryOf(raw);
+  return alias ? categories.find((c) => c.name === alias) ?? null : null;
+}
+
 function categoryOf(raw: string): MenuCategory | null {
   const value = raw.trim().toLowerCase().replace(/\s+/g, "");
   if (["coffee", "kopi"].includes(value)) return "Coffee";
@@ -99,6 +109,8 @@ export async function importMenuProducts(
     mapping: sheet.mapping,
     ignored: sheet.ignored,
   };
+  const activeCategories = (await listProductCategories()).filter((c) => c.status === "active");
+  const categoryByName = new Map(activeCategories.map((c) => [c.name, c]));
   const rowResult = new Map<number, ImportRowResult>();
   const setRow = (r: ImportRowResult) => rowResult.set(r.row, r);
 
@@ -115,9 +127,9 @@ export async function importMenuProducts(
       error("Nama Produk maksimal 80 karakter.");
       continue;
     }
-    const category = categoryOf(values.category ?? "");
+    const category = categoryRecordOf(values.category ?? "", activeCategories)?.name ?? null;
     if (!category) {
-      error(`Kategori "${values.category ?? ""}" tidak dikenal. Pilih: ${MENU_IMPORT_CATEGORIES.join(", ")}.`);
+      error(`Kategori "${values.category ?? ""}" tidak dikenal / tidak aktif. Pilih: ${activeCategories.map((c) => c.name).join(", ")}.`);
       continue;
     }
     const price = parseLocaleNumber(values.price ?? "");
@@ -241,8 +253,10 @@ export async function importMenuProducts(
     const itemPatch: Partial<typeof menuItems.$inferInsert> = {};
     const productChanges: string[] = [];
     if (first.category !== existing.category) {
+      const record = categoryByName.get(first.category);
       itemPatch.category = first.category;
-      itemPatch.section = sectionForMenuCategory(first.category);
+      itemPatch.section = record ? sectionForCategoryRecord(record) : sectionForMenuCategory(first.category);
+      if (record) itemPatch.categoryId = record.id;
       productChanges.push(`Kategori: ${existing.category} → ${first.category}`);
     }
     if (first.station && first.station !== existing.station) {
@@ -293,24 +307,27 @@ export async function importMenuProducts(
     for (const plan of plans) {
       if (plan.kind === "create") {
         const first = plan.rows[0];
+        const record = categoryByName.get(first.category);
         let sku = first.sku;
         if (sku) {
           const [dup] = await tx.select({ id: menuItems.id }).from(menuItems).where(eq(menuItems.sku, sku)).limit(1);
           if (dup) throw new Error(`SKU ${sku} sudah dipakai produk lain.`);
         } else {
-          sku = await nextMenuSku(tx as never, first.category);
+          sku = await nextMenuSku(tx as never, first.category, record?.skuPrefix);
         }
         await tx.insert(menuItems).values({
           id: plan.id,
           sku,
           name: first.name,
           category: first.category,
-          section: sectionForMenuCategory(first.category),
+          categoryId: record?.id ?? null,
+          productType: record?.defaultProductType ?? "menu",
+          section: record ? sectionForCategoryRecord(record) : sectionForMenuCategory(first.category),
           stock: "ready",
           status: "active",
           prep: "10m",
           tags: [],
-          station: first.station,
+          station: first.station ?? record?.station ?? null,
           showInDigitalMenu: first.digital ?? true,
           description: first.description || null,
           sortOrder: 999,
@@ -384,7 +401,13 @@ export async function menuImportTemplate(format: "xlsx" | "csv") {
     sheetName: "Produk",
     columns: MENU_IMPORT_COLUMNS,
     examples,
-    lists: { category: MENU_IMPORT_CATEGORIES, station: ["Bar", "Dapur"], digital: ["Ya", "Tidak"] },
+    lists: {
+      category: await listProductCategories()
+        .then((rows) => rows.filter((c) => c.status === "active").map((c) => c.name))
+        .catch(() => MENU_IMPORT_CATEGORIES),
+      station: ["Bar", "Dapur"],
+      digital: ["Ya", "Tidak"],
+    },
     notes: [
       "1 baris = 1 varian harga. Produk dengan beberapa varian (Hot/Cold) ditulis beberapa baris dengan Nama Produk yang sama.",
       "Produk yang sudah ada dicocokkan lewat SKU, lalu Nama Produk — tidak dibuat ganda. Harga varian yang cocok diperbarui, varian baru ditambahkan, varian lama tidak dihapus.",

@@ -13,6 +13,13 @@ import {
 import { currency, type MenuCategory, unitCostCurrency } from "@/lib/garage-data";
 import type { InventoryItem } from "@/lib/garage-api-types";
 import {
+  CATEGORY_STATION_LABEL,
+  PRODUCT_TYPE_LABEL,
+  SELL_UNIT_SUGGESTIONS,
+  type ProductCategoryRow,
+  type ProductType,
+} from "@/lib/product-catalog-types";
+import {
   Camera,
   ChefHat,
   Coffee,
@@ -40,8 +47,16 @@ export interface ProductFormPanelProps {
   promoPrice: string;
   onPromoPriceChange: (value: string) => void;
   // Production Hub: routing station ("" = otomatis dari kategori) & Smart Batch.
-  station: "" | "bar" | "dapur";
-  onStationChange: (value: "" | "bar" | "dapur") => void;
+  station: "" | "bar" | "dapur" | "none";
+  onStationChange: (value: "" | "bar" | "dapur" | "none") => void;
+  // Master kategori dinamis + tipe produk ("" = ikut default kategori).
+  categories: ProductCategoryRow[];
+  productType: "" | ProductType;
+  onProductTypeChange: (value: "" | ProductType) => void;
+  brand: string;
+  onBrandChange: (value: string) => void;
+  barcode: string;
+  onBarcodeChange: (value: string) => void;
   batchEligible: boolean;
   onBatchEligibleChange: (value: boolean) => void;
   // Menu digital (QR /order).
@@ -66,7 +81,7 @@ export interface ProductFormPanelProps {
   onAddVariant: () => void;
   onUpdateVariant: (
     key: string,
-    field: "label" | "price" | "baseCost",
+    field: "label" | "price" | "baseCost" | "sku" | "barcode" | "sellUnit" | "unitContents",
     value: string,
   ) => void;
   onRemoveVariant: (key: string) => void;
@@ -104,6 +119,13 @@ export function ProductFormPanel({
   onPromoPriceChange,
   station,
   onStationChange,
+  categories,
+  productType,
+  onProductTypeChange,
+  brand,
+  onBrandChange,
+  barcode,
+  onBarcodeChange,
   batchEligible,
   onBatchEligibleChange,
   showInDigitalMenu,
@@ -137,13 +159,67 @@ export function ProductFormPanel({
   onImageSelected,
   onClearImage,
 }: ProductFormPanelProps) {
+  const selectedCategory = categories.find((entry) => entry.name.toLowerCase() === category.toLowerCase()) ?? null;
+  const categoryOptions = categories.filter((entry) => entry.status === "active" || entry.id === selectedCategory?.id);
+  const effectiveType: ProductType = productType || selectedCategory?.defaultProductType || "menu";
+  const isRetail = effectiveType === "retail";
+  const autoStationLabel = selectedCategory
+    ? CATEGORY_STATION_LABEL[selectedCategory.station]
+    : category === "Coffee" || category === "Non-Coffee"
+      ? "Bar"
+      : "Dapur";
   return (
     <div className="garage-scrollbar grid min-h-0 flex-1 gap-4 overflow-y-auto bg-[#0b0b0e] p-4 lg:grid-cols-[1fr_320px]">
       {/* === FORM PANEL === */}
       <div className="space-y-4 rounded-md border border-[#34343c] bg-[#18181f] p-4 shadow-sm">
         <div>
           <p className="text-sm font-black text-white">Detail Produk</p>
-          <p className="text-xs text-[#a1a1aa]">SKU, nama, kategori, station, stok, dan waktu prep.</p>
+          <p className="text-xs text-[#a1a1aa]">SKU, nama, kategori, tipe, station, stok, dan waktu prep.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="grid gap-1">
+            <span className="text-xs font-semibold text-[#d4d4d8]">Tipe produk</span>
+            <Select
+              value={productType || "auto"}
+              onValueChange={(value) => onProductTypeChange(value === "auto" ? "" : (value as ProductType))}
+            >
+              <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]" aria-label="Tipe produk">
+                <SelectValue placeholder="Tipe produk" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">
+                  Ikut kategori ({PRODUCT_TYPE_LABEL[selectedCategory?.defaultProductType ?? "menu"]})
+                </SelectItem>
+                {(Object.keys(PRODUCT_TYPE_LABEL) as ProductType[]).map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {PRODUCT_TYPE_LABEL[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="grid gap-1">
+            <span className="text-xs font-semibold text-[#d4d4d8]">Merek / brand</span>
+            <Input
+              value={brand}
+              onChange={(event) => onBrandChange(event.target.value)}
+              maxLength={60}
+              className="h-10 border-[#34343c] bg-white/[0.06]"
+              placeholder={isRetail ? "Mis. Djarum, Aqua" : "Opsional"}
+            />
+          </label>
+          <label className="grid gap-1 sm:col-span-2 xl:col-span-2">
+            <span className="text-xs font-semibold text-[#d4d4d8]">
+              Barcode produk {isRetail ? "(retail: wajib di produk atau varian)" : "(opsional)"}
+            </span>
+            <Input
+              value={barcode}
+              onChange={(event) => onBarcodeChange(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+              maxLength={40}
+              className="h-10 border-[#34343c] bg-white/[0.06] font-mono"
+              placeholder="Scan / ketik EAN kemasan"
+            />
+          </label>
         </div>
         <div className="grid gap-1 sm:max-w-[260px]">
           <label className="text-xs font-semibold text-[#d4d4d8]">SKU Produk</label>
@@ -153,10 +229,10 @@ export function ProductFormPanel({
               onSkuChange(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))
             }
             className="h-10 border-[#34343c] bg-white/[0.06] font-mono"
-            placeholder="Auto (COF-001)"
+            placeholder={`Auto (${selectedCategory?.skuPrefix ?? "GEN"}-001)`}
           />
-          <p className="text-[10px] leading-4 text-[#a1a1aa]">
-            Kosongkan untuk auto sesuai kategori. Bisa diubah manual, wajib unik.
+          <p className="text-[11px] leading-4 text-[#a1a1aa]">
+            Kosongkan untuk auto sesuai prefix kategori. Bisa diubah manual, wajib unik.
           </p>
         </div>
 
@@ -209,8 +285,8 @@ export function ProductFormPanel({
         <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
           <p className="text-sm font-bold text-white">Production Hub</p>
           <p className="text-[11px] leading-4 text-[#a1a1aa]">
-            Station di bawah menentukan tiket masuk BAR atau DAPUR. Otomatis: Coffee &amp;
-            Non-Coffee ke BAR, Makanan &amp; Cemilan ke DAPUR.
+            Station di bawah menentukan tiket masuk BAR, DAPUR, atau langsung diserahkan kasir
+            (retail). Otomatis = mengikuti pengaturan kategori.
           </p>
           <button
             type="button"
@@ -274,37 +350,41 @@ export function ProductFormPanel({
             placeholder="Nama produk"
           />
           <Select
-            value={category}
+            value={selectedCategory?.name ?? category}
             onValueChange={(value) => onCategoryChange(value as MenuCategory)}
           >
-            <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]">
+            <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]" aria-label="Kategori">
               <SelectValue placeholder="Kategori" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Makanan">Makanan</SelectItem>
-              <SelectItem value="Cemilan">Cemilan</SelectItem>
-              <SelectItem value="Coffee">Coffee</SelectItem>
-              <SelectItem value="Non-Coffee">Non-Coffee</SelectItem>
-              <SelectItem value="Minuman Botol">Minuman Botol (tanpa tiket)</SelectItem>
-              <SelectItem value="Rokok">Rokok (tanpa tiket)</SelectItem>
+              {categoryOptions.length ? (
+                categoryOptions.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.name}>
+                    {entry.name}
+                    {entry.station === "none" ? " (tanpa tiket)" : ""}
+                    {entry.status !== "active" ? " — nonaktif" : ""}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value={category}>{category}</SelectItem>
+              )}
             </SelectContent>
           </Select>
           {/* Station produksi (routing tiket Production Hub). */}
           <Select
             value={station || "auto"}
             onValueChange={(value) =>
-              onStationChange(value === "bar" || value === "dapur" ? value : "")
+              onStationChange(value === "bar" || value === "dapur" || value === "none" ? value : "")
             }
           >
             <SelectTrigger className="h-10 border-[#34343c] bg-white/[0.06]" aria-label="Station produksi">
               <SelectValue placeholder="Station" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto">
-                Otomatis ({category === "Coffee" || category === "Non-Coffee" ? "Bar" : "Dapur"})
-              </SelectItem>
+              <SelectItem value="auto">Otomatis ({autoStationLabel})</SelectItem>
               <SelectItem value="bar">Bar</SelectItem>
               <SelectItem value="dapur">Dapur</SelectItem>
+              <SelectItem value="none">Langsung kasir</SelectItem>
             </SelectContent>
           </Select>
           <Input
@@ -345,7 +425,7 @@ export function ProductFormPanel({
         <div className="space-y-2 rounded-md border border-[#34343c] bg-black/15 p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-mono text-[10px] uppercase tracking-wider text-[#888]">
-              Harga jual &amp; HPP varian
+              {isRetail ? "Harga jual, harga modal & kode varian" : "Harga jual & HPP varian"}
             </p>
             <Button
               type="button"
@@ -358,6 +438,11 @@ export function ProductFormPanel({
               Tambah Varian
             </Button>
           </div>
+          <datalist id="garage-sell-units">
+            {SELL_UNIT_SUGGESTIONS.map((unit) => (
+              <option key={unit} value={unit} />
+            ))}
+          </datalist>
           {variants.map((variant, index) => {
             const variantId = productVariantDraftId(variant, index);
             const autoBaseCost = recipeCostForVariantDraft(recipes, inventoryItems, variantId);
@@ -393,7 +478,8 @@ export function ProductFormPanel({
                     aria-readonly={hasRecipe}
                     title={hasRecipe ? "HPP otomatis dari bahan baku resep" : undefined}
                     className={`h-10 border-[#34343c] ${hasRecipe ? "cursor-not-allowed bg-black/30 text-[#bbf7d0]" : "bg-white/[0.06]"}`}
-                    placeholder="HPP (isi resep agar otomatis)"
+                    placeholder={isRetail ? "Harga modal / unit" : "HPP (isi resep agar otomatis)"}
+                    aria-label={isRetail ? "Harga modal per unit" : "HPP"}
                   />
                   <Button
                     type="button"
@@ -406,10 +492,56 @@ export function ProductFormPanel({
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_120px_100px]">
+                  <Input
+                    value={variant.sku ?? ""}
+                    onChange={(event) =>
+                      onUpdateVariant(variant.key, "sku", event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))
+                    }
+                    maxLength={40}
+                    className="h-9 border-[#34343c] bg-white/[0.04] font-mono text-xs"
+                    placeholder="SKU varian (opsional)"
+                    aria-label="SKU varian"
+                  />
+                  <Input
+                    value={variant.barcode ?? ""}
+                    onChange={(event) =>
+                      onUpdateVariant(variant.key, "barcode", event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))
+                    }
+                    maxLength={40}
+                    className="h-9 border-[#34343c] bg-white/[0.04] font-mono text-xs"
+                    placeholder="Barcode varian"
+                    aria-label="Barcode varian"
+                  />
+                  <Input
+                    value={variant.sellUnit ?? ""}
+                    onChange={(event) => onUpdateVariant(variant.key, "sellUnit", event.target.value)}
+                    list="garage-sell-units"
+                    maxLength={20}
+                    className="h-9 border-[#34343c] bg-white/[0.04] text-xs"
+                    placeholder={isRetail ? "Satuan jual*" : "Satuan jual"}
+                    aria-label="Satuan jual"
+                  />
+                  <Input
+                    inputMode="decimal"
+                    value={variant.unitContents ?? ""}
+                    onChange={(event) =>
+                      onUpdateVariant(variant.key, "unitContents", event.target.value.replace(/[^\d.]/g, ""))
+                    }
+                    className="h-9 border-[#34343c] bg-white/[0.04] text-xs"
+                    placeholder="Isi"
+                    aria-label="Isi per satuan jual"
+                    title="Isi per satuan jual dalam satuan dasar (mis. 1 bungkus = 16 batang, 1 karton = 24 botol)"
+                  />
+                </div>
                 <p className="text-[11px] text-[#a1a1aa]">
-                  {hasRecipe
-                    ? `HPP dari bahan baku resep ${currency.format(autoBaseCost)} — ikut berubah otomatis saat harga bahan berubah.`
-                    : "Belum ada resep — isi bahan baku di bawah agar HPP dihitung otomatis."}
+                  {isRetail
+                    ? variant.baseCost && Number(variant.price) > 0
+                      ? `Margin kotor ${currency.format(Number(variant.price) - Number(variant.baseCost))} (${Math.round(((Number(variant.price) - Number(variant.baseCost)) / Number(variant.price)) * 1000) / 10}%) dari harga modal.`
+                      : "Produk retail: isi harga modal per satuan jual (harga beli valid, bukan tebakan). Resep tidak diperlukan."
+                    : hasRecipe
+                      ? `HPP dari bahan baku resep ${currency.format(autoBaseCost)} — ikut berubah otomatis saat harga bahan berubah.`
+                      : "Belum ada resep — isi bahan baku di bawah agar HPP dihitung otomatis."}
                 </p>
               </div>
             );

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { PRODUCT_TYPES } from "@/lib/product-catalog-types";
 import { fail, ok } from "@/lib/api-response";
 import {
   deleteMenuProduct,
@@ -25,7 +26,12 @@ const menuProductPatchSchema = z.object({
 const menuProductUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   sku: z.string().trim().max(40).optional(),
-  category: z.enum(["Makanan", "Cemilan", "Coffee", "Non-Coffee", "Minuman Botol", "Rokok"]).optional(),
+  // Kategori dinamis: divalidasi terhadap master product_categories di service.
+  category: z.string().trim().min(2).max(60).optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  productType: z.enum(PRODUCT_TYPES).optional(),
+  brand: z.string().trim().max(60).nullable().optional(),
+  barcode: z.string().trim().max(40).nullable().optional(),
   section: z.string().trim().min(2).max(40).optional(),
   stock: z.enum(["ready", "limited", "sold_out"]).optional(),
   status: z.enum(["active", "archived"]).optional(),
@@ -35,7 +41,7 @@ const menuProductUpdateSchema = z.object({
   promoActive: z.boolean().optional(),
   promoPrice: z.number().int().min(0).max(50_000_000).nullable().optional(),
   // Production Hub: routing station (null = otomatis dari kategori) & Smart Batch.
-  station: z.enum(["bar", "dapur"]).nullable().optional(),
+  station: z.enum(["bar", "dapur", "none"]).nullable().optional(),
   batchEligible: z.boolean().optional(),
   // Menu digital: tampil di QR order & banner unggulan.
   showInDigitalMenu: z.boolean().optional(),
@@ -52,6 +58,10 @@ const menuProductUpdateSchema = z.object({
         price: z.number().int().min(1).max(50_000_000),
         baseCost: z.number().int().min(0).max(50_000_000).optional(),
         sortOrder: z.number().int().min(0).max(9999).optional(),
+        sku: z.string().trim().max(40).nullable().optional(),
+        barcode: z.string().trim().max(40).nullable().optional(),
+        sellUnit: z.string().trim().max(20).nullable().optional(),
+        unitContents: z.number().positive().max(100_000).nullable().optional(),
       }),
     )
     .min(1)

@@ -2970,6 +2970,9 @@ export async function adjustInventoryLocationStock(
       .where(eq(inventoryLocationStocks.id, input.id))
       .limit(1);
     if (!current) throw new Error("Stok lokasi tidak ditemukan.");
+    // SKU gudang (WMS) hanya boleh berubah lewat ledger WMS; jalur lokasi lama
+    // menulis onHand mirror langsung → stok WMS dan laporan jadi tidak cocok.
+    if (await isWmsManaged(tx, current.itemSku)) throw new InventoryWmsManagedError(current.itemSku);
 
     const signedQty =
       input.mode === "clear" ? -current.onHand : input.mode === "subtract" ? -qty : qty;
@@ -12702,6 +12705,15 @@ export async function deleteInventoryItem(sku: string) {
       "Bahan ini sudah punya histori stok. Tidak bisa dihapus permanen — Arsipkan saja.",
     );
   }
+  // Histori stok sekarang ada di ledger gudang (WMS); cek juga di sana.
+  if (await isWmsManaged(db, sku)) {
+    const { wmsSkuHasLedger } = await import("@/lib/wms-service");
+    if (await wmsSkuHasLedger(sku)) {
+      throw new InventoryDeleteBlockedError(
+        "Bahan ini sudah punya histori stok gudang. Tidak bisa dihapus permanen — Arsipkan saja.",
+      );
+    }
+  }
 
   const [recipes] = await db
     .select({ n: count() })
@@ -13309,6 +13321,11 @@ export async function decideInventoryTransferRequest(
 
     for (const { item, issueQty } of issueLines) {
       if (!item.itemSku) continue;
+      if (await isWmsManaged(tx, item.itemSku)) {
+        throw new Error(
+          `Bahan ${item.itemName} dikelola gudang (WMS). Kirim lewat Gudang → Internal Order (/warehouse/internal-order).`,
+        );
+      }
       const [warehouse] = await tx
         .select()
         .from(inventoryLocationStocks)
@@ -17335,8 +17352,14 @@ export async function createSupplierInvoice(input: SupplierInvoiceInput, garage:
         notes: input.notes?.trim() || null,
         updatedAt: new Date(),
       },
+      // Invoice yang sudah (sebagian) dibayar tidak boleh diubah nominalnya
+      // lewat input ulang nomor invoice yang sama.
+      setWhere: eq(supplierInvoices.paidAmount, 0),
     })
     .returning();
+  if (!invoice) {
+    throw new Error(`Invoice ${input.invoiceNo.trim()} sudah dibayar (sebagian/lunas) dan tidak bisa diubah.`);
+  }
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
@@ -17379,24 +17402,10 @@ export async function markSupplierInvoicePaid(input: {
   const status = paidAmount >= current.amount ? "paid" : "partial";
   const now = new Date();
 
-  // Uang keluar dicatat DULU: bila gagal (mis. hari keuangan sudah di-closing),
-  // invoice tidak ikut berubah jadi lunas tanpa pengeluaran.
-  await createExpense(
-    {
-      supplierId: current.supplierId,
-      supplierInvoiceId: current.id,
-      category: current.category,
-      description: `Bayar invoice ${current.invoiceNo}${status === "partial" ? " (sebagian)" : ""}`,
-      // Hanya pembayaran kali ini yang jadi uang keluar (bukan total terbayar).
-      amount: payNow,
-      paymentMethod: input.paymentMethod?.trim() || "Transfer",
-      expenseDate: now.toISOString(),
-      notes: input.paymentRef,
-    },
-    garage,
-  );
-
-  const [invoice] = await db
+  // Klaim pembayaran secara atomik dulu: update hanya berhasil bila paidAmount
+  // belum berubah sejak dibaca. Dua klik/permintaan bersamaan → hanya satu yang
+  // lolos (dulu keduanya membuat pengeluaran → uang keluar dobel).
+  const [claimed] = await db
     .update(supplierInvoices)
     .set({
       paidAmount,
@@ -17406,8 +17415,44 @@ export async function markSupplierInvoicePaid(input: {
       paymentRef: input.paymentRef?.trim() || null,
       updatedAt: now,
     })
-    .where(eq(supplierInvoices.id, input.id))
+    .where(and(eq(supplierInvoices.id, input.id), eq(supplierInvoices.paidAmount, alreadyPaid)))
     .returning();
+  if (!claimed) {
+    throw new Error(`Pembayaran invoice ${current.invoiceNo} sedang/sudah diproses. Muat ulang data.`);
+  }
+
+  // Bila pencatatan uang keluar gagal (mis. hari keuangan sudah di-closing),
+  // klaim dikembalikan supaya invoice tidak lunas tanpa pengeluaran.
+  try {
+    await createExpense(
+      {
+        supplierId: current.supplierId,
+        supplierInvoiceId: current.id,
+        category: current.category,
+        description: `Bayar invoice ${current.invoiceNo}${status === "partial" ? " (sebagian)" : ""}`,
+        // Hanya pembayaran kali ini yang jadi uang keluar (bukan total terbayar).
+        amount: payNow,
+        paymentMethod: input.paymentMethod?.trim() || "Transfer",
+        expenseDate: now.toISOString(),
+        notes: input.paymentRef,
+      },
+      garage,
+    );
+  } catch (error) {
+    await db
+      .update(supplierInvoices)
+      .set({
+        paidAmount: alreadyPaid,
+        status: current.status,
+        paidAt: current.paidAt,
+        paidBy: current.paidBy,
+        paymentRef: current.paymentRef,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(supplierInvoices.id, input.id), eq(supplierInvoices.paidAmount, paidAmount)));
+    throw error;
+  }
+  const invoice = claimed;
 
   await createAuditLog({
     actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,

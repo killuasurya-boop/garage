@@ -1,23 +1,12 @@
-import { z } from "zod";
-
-import { fail, ok, readJson } from "@/lib/api-response";
+import { fail, ok } from "@/lib/api-response";
 import {
   getWarehouseDailyReportLock,
   listWarehouseDailyReportLocks,
-  lockWarehouseDailyReport,
-  unlockWarehouseDailyReport,
 } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
+import { legacyInventoryGone } from "@/lib/legacy-inventory-api";
 
 export const runtime = "nodejs";
-
-const lockSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal harus format YYYY-MM-DD."),
-});
-
-function canLockWarehouseReport(role: string) {
-  return role === "Owner" || role === "Manajer" || role === "Kasir";
-}
 
 export async function GET(request: Request) {
   const session = await requirePermission("inventory:read");
@@ -40,44 +29,10 @@ export async function GET(request: Request) {
   return ok({ lock: await getWarehouseDailyReportLock(date, session.data) });
 }
 
-export async function POST(request: Request) {
-  const session = await requirePermission("inventory:write");
-  if (session.response) return session.response;
-  if (!canLockWarehouseReport(session.data.profile.role)) {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer/Kasir yang bisa kunci laporan harian.");
-  }
-
-  const body = await readJson(request, lockSchema);
-  if (body.error) return body.error;
-
-  try {
-    return ok(await lockWarehouseDailyReport(body.data.date, session.data), { status: 201 });
-  } catch (error) {
-    return fail(
-      400,
-      "WAREHOUSE_DAILY_LOCK_FAILED",
-      error instanceof Error ? error.message : "Laporan harian gagal dikunci.",
-    );
-  }
+export async function POST() {
+  return legacyInventoryGone("Laporan gudang (/warehouse/reports)");
 }
 
-export async function DELETE(request: Request) {
-  const session = await requirePermission("inventory:write");
-  if (session.response) return session.response;
-  if (session.data.profile.role !== "Owner" && session.data.profile.role !== "Manajer") {
-    return fail(403, "FORBIDDEN", "Hanya Owner/Manajer yang bisa reopen laporan harian.");
-  }
-
-  const body = await readJson(request, lockSchema);
-  if (body.error) return body.error;
-
-  try {
-    return ok(await unlockWarehouseDailyReport(body.data.date, session.data));
-  } catch (error) {
-    return fail(
-      400,
-      "WAREHOUSE_DAILY_UNLOCK_FAILED",
-      error instanceof Error ? error.message : "Laporan harian gagal dibuka ulang.",
-    );
-  }
+export async function DELETE() {
+  return legacyInventoryGone("Laporan gudang (/warehouse/reports)");
 }

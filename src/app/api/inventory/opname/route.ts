@@ -1,26 +1,9 @@
-import { z } from "zod";
-
-import { ok, readJson } from "@/lib/api-response";
-import { createStockOpname, listStockOpnameSessions } from "@/lib/garage-service";
+import { ok } from "@/lib/api-response";
+import { listStockOpnameSessions } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
+import { legacyInventoryGone } from "@/lib/legacy-inventory-api";
 
 export const runtime = "nodejs";
-
-const opnameSchema = z.object({
-  locationType: z.enum(["warehouse", "outlet"]).optional(),
-  outletId: z.string().uuid().nullable().optional(),
-  note: z.string().trim().max(500).optional(),
-  items: z
-    .array(
-      z.object({
-        sku: z.string().trim().min(1),
-        systemQty: z.number().nonnegative(),
-        physicalQty: z.number().nonnegative(),
-        note: z.string().trim().max(240).optional(),
-      }),
-    )
-    .min(1),
-});
 
 export async function GET(request: Request) {
   const session = await requirePermission("inventory:read");
@@ -38,12 +21,6 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
-  const session = await requirePermission("inventory:write");
-  if (session.response) return session.response;
-
-  const body = await readJson(request, opnameSchema);
-  if (body.error) return body.error;
-
-  return ok(await createStockOpname(body.data, session.data), { status: 201 });
+export async function POST() {
+  return legacyInventoryGone("Gudang → Stok Opname (/warehouse/opname)");
 }

@@ -7,7 +7,7 @@ import { Check, Pencil, Plus, Printer, ScanLine, Trash2, Truck } from "lucide-re
 
 import { WmsReceivingChecklistDialog } from "@/components/wms/wms-receiving-checklist-dialog";
 import { ScanModal } from "@/components/wms/scan-modal";
-import { garageApi } from "@/lib/api-client";
+import { GarageApiError, garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import {
   isPerishableProduct,
@@ -460,7 +460,7 @@ export default function WmsReceivingPage() {
       }
 
       if (complete) {
-        await garageApi.post(`/api/wms/receiving/${recId}/complete`, {});
+        await postComplete(recId);
         setMsg(`Penerimaan ${recDoc} selesai — stok & HPP diperbarui.`);
         await offerPrintLabels(async () => labelItemsFromDraft());
       } else {
@@ -473,6 +473,19 @@ export default function WmsReceivingPage() {
       setMsg(e instanceof Error ? e.message : "Gagal menyimpan penerimaan.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Selisih qty >10% → server minta konfirmasi; tanya lalu kirim ulang.
+  async function postComplete(id: string) {
+    try {
+      await garageApi.post(`/api/wms/receiving/${id}/complete`, {});
+    } catch (e) {
+      if (!(e instanceof GarageApiError) || e.code !== "RECEIVING_DISCREPANCY") throw e;
+      if (!window.confirm(`${e.message}\n\nLanjutkan dengan qty yang diterima?`)) {
+        throw new Error("Penerimaan belum diselesaikan — periksa lagi qty yang diterima.");
+      }
+      await garageApi.post(`/api/wms/receiving/${id}/complete`, { confirmDiscrepancy: true });
     }
   }
 
@@ -498,7 +511,7 @@ export default function WmsReceivingPage() {
     setBusy(true);
     setMsg(null);
     try {
-      await garageApi.post(`/api/wms/receiving/${id}/complete`, {});
+      await postComplete(id);
       setMsg("Penerimaan selesai — stok & HPP diperbarui.");
       await offerPrintLabels(() => labelItemsFromReceivingId(id));
       await load();

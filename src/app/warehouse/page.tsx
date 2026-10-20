@@ -275,29 +275,19 @@ export default function WmsDashboardPage() {
         <Card title="Aksi Cepat">
           <div className="grid grid-cols-2 gap-2">
             {[
-              { label: "Terima Barang", soon: true },
-              { label: "Internal Order", soon: true },
-              { label: "Stock Opname", soon: true },
+              { label: "Terima Barang", href: "/warehouse/receiving" },
+              { label: "Internal Order", href: "/warehouse/internal-order" },
+              { label: "Stock Opname", href: "/warehouse/opname" },
               { label: "Lihat Inventory", href: "/warehouse/inventory" },
-            ].map((q) =>
-              q.href ? (
-                <a
-                  key={q.label}
-                  href={q.href}
-                  className="rounded-lg border border-[#E8E8E8] bg-white px-3 py-4 text-center text-[13px] font-semibold text-[#111111] transition hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(16,24,40,0.08)]"
-                >
-                  {q.label}
-                </a>
-              ) : (
-                <div
-                  key={q.label}
-                  className="cursor-not-allowed rounded-lg border border-dashed border-[#E8E8E8] bg-[#F8F9FB] px-3 py-4 text-center text-[13px] font-semibold text-[#9CA3AF]"
-                  title="Fase berikutnya"
-                >
-                  {q.label}
-                </div>
-              ),
-            )}
+            ].map((q) => (
+              <a
+                key={q.label}
+                href={q.href}
+                className="rounded-lg border border-[#E8E8E8] bg-white px-3 py-4 text-center text-[13px] font-semibold text-[#111111] transition hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(16,24,40,0.08)]"
+              >
+                {q.label}
+              </a>
+            ))}
           </div>
         </Card>
       </div>

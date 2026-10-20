@@ -145,6 +145,20 @@ async function ensureAuthUser(email: string, name: string) {
 // saat memasukkan data Excel baru sebelum live).
 const syncCatalog = process.argv.includes("--sync-catalog");
 
+// --sync-catalog menimpa harga jual & kategori POS dari garage-data.ts. Setelah ada
+// transaksi, itu melanggar aturan data POS terlindungi (owner, Okt 2026) — wajib
+// konfirmasi eksplisit `--confirm-overwrite-pos` (cek dulu GET /api/admin/pos-baseline).
+async function assertCatalogOverwriteAllowed() {
+  if (process.argv.includes("--confirm-overwrite-pos")) return;
+  const [{ n }] = await getDb().select({ n: count() }).from(orders);
+  if (Number(n) > 0) {
+    throw new Error(
+      `--sync-catalog dibatalkan: sudah ada ${n} order. Ini akan menimpa harga & kategori POS yang berjalan. ` +
+        "Tambahkan --confirm-overwrite-pos bila owner memang menyetujuinya.",
+    );
+  }
+}
+
 async function seedOutletAndStaff() {
   const db = getDb();
   const outletValues = {
@@ -1016,6 +1030,7 @@ async function main() {
 
   // --- Struktural (selalu) ---
   const outlet = await seedOutletAndStaff();
+  if (syncCatalog) await assertCatalogOverwriteAllowed();
   await seedMenu();
   await seedInventory(seedDemo);
   await seedBusinessSettings();

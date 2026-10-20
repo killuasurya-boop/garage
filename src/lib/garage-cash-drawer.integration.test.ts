@@ -451,3 +451,54 @@ describe("Kas laci — rekonsiliasi, tutup & ganti shift, PDF", () => {
     expect(await expectedCash(opened.id)).toBe(74_000);
   });
 });
+
+describe("Kas laci — foto nota", () => {
+  it("foto nota dikompres ke WebP di storage privat; hanya pencatat/Manajer & bukan baris batal", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const sharp = (await import("sharp")).default;
+    const storage = await import("@/lib/cash-receipt-storage");
+    const cwd = process.cwd();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cash-receipt-"));
+    process.chdir(tmp);
+    try {
+      const photo = await sharp({ create: { width: 2400, height: 3200, channels: 3, background: "#f2efe6" } })
+        .jpeg()
+        .toBuffer();
+      const relative = await storage.storeCashReceipt(ids.bar, photo);
+      expect(relative).toMatch(/^\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}-[0-9a-f]{16}\.webp$/);
+      const stored = await storage.readCashReceipt(relative);
+      expect(stored!.length).toBeLessThanOrEqual(350 * 1024);
+      expect((await sharp(stored!).metadata()).width).toBe(1280);
+      expect(await storage.readCashReceipt("../../etc/passwd")).toBeNull();
+
+      await expect(svc.setCashMovementReceiptPhoto(ids.bar, relative, as(KASIR_LAIN, "Kasir"))).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(svc.setCashMovementReceiptPhoto(ids.dapur, relative, kasir())).rejects.toMatchObject({
+        code: "NOT_ACTIVE",
+      });
+      await svc.setCashMovementReceiptPhoto(ids.bar, relative, kasir());
+      expect(await svc.getCashMovementReceiptPhoto(ids.bar, kasir())).toBe(relative);
+      expect(await svc.getCashMovementReceiptPhoto(ids.bar, manajer())).toBe(relative);
+      expect(await svc.getCashMovementReceiptPhoto(ids.bar, as(KASIR_LAIN, "Kasir"))).toBeNull();
+      const listed = await svc.listCashMovements({ q: belanjaBarRef }, manajer());
+      expect(listed.items[0].hasReceiptPhoto).toBe(true);
+      const detail = await svc.getCashMovementDetail(ids.bar, manajer());
+      expect(detail!.history.some((h) => h.action === "Foto nota kas laci dilampirkan")).toBe(true);
+    } finally {
+      process.chdir(cwd);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("filter query string riwayat/ekspor dipetakan konsisten", async () => {
+    const { cashMovementFiltersFrom } = await import("@/lib/cash-movement-http");
+    const filters = cashMovementFiltersFrom(
+      new URLSearchParams("q=susu&from=2026-10-01&to=2026-10-20&type=out&category=belanja_bar&status=recorded&type2=x"),
+    );
+    expect(filters).toMatchObject({ q: "susu", type: "out", categoryKey: "belanja_bar", status: "recorded" });
+    expect(cashMovementFiltersFrom(new URLSearchParams("type=semua")).type).toBeUndefined();
+  });
+});

@@ -118,3 +118,6 @@ testsprite_tests\tmp\config.json
 .pglite-data-backup*/
 .next-verify/
 .next-start.err
+
+# foto nota kas laci (privat, disajikan lewat API berautentikasi)
+/storage/cash-receipts/

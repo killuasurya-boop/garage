@@ -1002,6 +1002,13 @@
       "when": 1792443679392,
       "tag": "0142_cash_drawer_smart",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1792462990884,
+      "tag": "0143_cash_receipt_photo",
+      "breakpoints": true
     }
   ]
 }

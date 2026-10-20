@@ -16512,6 +16512,7 @@ function cashMovementSelect() {
     counterparty: cashMovements.counterparty,
     vendorName: cashMovements.vendorName,
     receiptNo: cashMovements.receiptNo,
+    receiptPhoto: cashMovements.receiptPhoto,
     orderNo: cashMovements.orderNo,
     employeeName: movementEmployee.name,
     relatedMovementId: cashMovements.relatedMovementId,
@@ -16572,6 +16573,7 @@ function shapeCashMovement(row: CashMovementSelectRow, hideBalance: boolean) {
     counterparty: row.counterparty ?? null,
     vendorName: row.vendorName ?? null,
     receiptNo: row.receiptNo ?? null,
+    hasReceiptPhoto: Boolean(row.receiptPhoto),
     orderNo: row.orderNo ?? null,
     employeeName: row.employeeName ?? null,
     correctsMovementId: row.correctsMovementId ?? null,
@@ -16627,7 +16629,7 @@ export async function listCashMovements(filters: CashMovementFilters, garage: Ga
       )!,
     );
   }
-  const limit = Math.min(Math.max(filters.limit ?? 100, 1), 300);
+  const limit = Math.min(Math.max(filters.limit ?? 100, 1), 5_000);
   const rows = await cashMovementBaseQuery()
     .where(and(...conditions))
     .orderBy(desc(cashMovements.createdAt))
@@ -16707,6 +16709,8 @@ export async function getCashMovementDetail(id: string, garage: GarageSession) {
     }),
     linked: linked.map((linkedRow) => shapeCashMovement(linkedRow, !supervisor && linkedRow.sessionStatus === "open")),
     canManage: supervisor,
+    canAttachReceipt:
+      (supervisor || row.createdBy === garage.user.id) && row.status !== "rejected" && row.status !== "voided",
   };
 }
 
@@ -16762,6 +16766,48 @@ export async function getCashMovementOptions(garage: GarageSession) {
     })),
     recentCashOut: recentOut,
   };
+}
+
+/**
+ * Foto nota/bukti (path relatif storage/cash-receipts). Hanya pembuat transaksi
+ * atau Owner/Manajer outlet; baris ditolak/dibatalkan tidak bisa diberi bukti.
+ */
+export async function setCashMovementReceiptPhoto(id: string, relativePath: string, garage: GarageSession) {
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    const row = await lockOutletCashMovement(tx, id, garage);
+    if (!isCashSupervisor(garage) && row.createdBy !== garage.user.id) {
+      throw new CashMovementError("FORBIDDEN", "Hanya pencatat transaksi atau Owner/Manajer yang bisa melampirkan bukti.", 403);
+    }
+    if (row.status === "rejected" || row.status === "voided") {
+      throw new CashMovementError("NOT_ACTIVE", "Transaksi ditolak/dibatalkan tidak bisa diberi bukti.", 409);
+    }
+    await tx
+      .update(cashMovements)
+      .set({ receiptPhoto: relativePath, updatedAt: now })
+      .where(eq(cashMovements.id, row.id));
+    await tx.insert(auditLogs).values({
+      ...cashMovementAuditBase(garage),
+      action: row.receiptPhoto ? "Foto nota kas laci diganti" : "Foto nota kas laci dilampirkan",
+      object: `${row.refNo ?? row.id} · ${row.category}: ${row.description}`,
+      status: row.status,
+      metadata: { cashMovementId: row.id, refNo: row.refNo, actionType: "receipt", previousPhoto: row.receiptPhoto },
+    });
+    return { previous: row.receiptPhoto };
+  });
+}
+
+/** Path foto nota bila peminta berhak melihatnya (pembuat atau Owner/Manajer). */
+export async function getCashMovementReceiptPhoto(id: string, garage: GarageSession) {
+  if (!isUuidLike(id)) return null;
+  const [row] = await getDb()
+    .select({ receiptPhoto: cashMovements.receiptPhoto, createdBy: cashMovements.createdBy })
+    .from(cashMovements)
+    .where(and(eq(cashMovements.id, id), eq(cashMovements.outletId, garage.profile.outlet.id)))
+    .limit(1);
+  if (!row?.receiptPhoto) return null;
+  if (!isCashSupervisor(garage) && row.createdBy !== garage.user.id) return null;
+  return row.receiptPhoto;
 }
 
 /** Semua kas laci sesi (untuk laporan shift; saldo selalu tampil). */

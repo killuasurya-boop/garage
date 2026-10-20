@@ -1394,6 +1394,8 @@ export const cashMovements = pgTable(
     counterparty: text("counterparty"),
     vendorName: text("vendor_name"),
     receiptNo: text("receipt_no"),
+    // Foto nota/bukti: path relatif di storage/cash-receipts (non-publik).
+    receiptPhoto: text("receipt_photo"),
     orderId: uuid("order_id"),
     orderNo: text("order_no"),
     employeeUserId: text("employee_user_id").references(() => user.id, { onDelete: "set null" }),

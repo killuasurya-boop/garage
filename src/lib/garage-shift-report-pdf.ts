@@ -414,6 +414,7 @@ export async function generateShiftReportPdf(
             m.counterparty ? `Pihak: ${m.counterparty}` : null,
             m.vendorName ? `Toko: ${m.vendorName}` : null,
             m.receiptNo ? `Nota: ${m.receiptNo}` : null,
+            m.hasReceiptPhoto ? "Bukti: foto nota terlampir" : null,
             m.orderNo ? `Order: ${m.orderNo}` : null,
             m.note ? `Catatan: ${m.note}` : null,
             m.status === "rejected" && m.decisionNote ? `Alasan tolak: ${m.decisionNote}` : null,

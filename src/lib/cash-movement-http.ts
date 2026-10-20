@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail } from "@/lib/api-response";
 import {
+  type CashMovementFilters,
   CashMovementError,
   CashMovementPinRequiredError,
   CashSessionRequiredForCashOutError,
@@ -38,4 +39,19 @@ export function cashMovementErrorResponse(error: unknown) {
   }
   if (error instanceof Error && error.name === "ClosingError") return fail(409, "DAY_LOCKED", error.message);
   return null;
+}
+
+/** Query string riwayat → filter service (dipakai daftar & ekspor CSV). */
+export function cashMovementFiltersFrom(params: URLSearchParams): CashMovementFilters {
+  const type = params.get("type");
+  return {
+    q: params.get("q")?.slice(0, 80) || undefined,
+    from: params.get("from") || undefined,
+    to: params.get("to") || undefined,
+    type: type === "out" || type === "in" ? type : undefined,
+    categoryKey: params.get("category") || undefined,
+    cashierId: params.get("cashier") || undefined,
+    status: params.get("status") || undefined,
+    sessionId: params.get("session") || undefined,
+  };
 }

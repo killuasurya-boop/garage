@@ -3,6 +3,8 @@
 import {
   AlertTriangle,
   ArrowDownToLine,
+  Camera,
+  Download,
   ArrowLeft,
   ArrowUpFromLine,
   Ban,
@@ -194,6 +196,7 @@ function CashMovementForm({
   const [managerPin, setManagerPin] = useState("");
   const [reason, setReason] = useState("");
   const [result, setResult] = useState<CashMovementRecorded | null>(null);
+  const [receiptAttached, setReceiptAttached] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   const isKasir = role === "Kasir";
@@ -317,6 +320,7 @@ function CashMovementForm({
   function resetForAnother() {
     setValues({ ...EMPTY_FORM, direction: values.direction });
     setResult(null);
+    setReceiptAttached(false);
     setManagerPin("");
     setApprovalMode("pin");
     setErrors({});
@@ -364,7 +368,16 @@ function CashMovementForm({
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <div className="mr-auto">
+            {receiptAttached ? (
+              <p className="flex h-11 items-center gap-1.5 text-sm font-semibold text-[#ececf0]">
+                <CheckCircle2 className="size-4" /> Foto nota terlampir
+              </p>
+            ) : (
+              <ReceiptUploader movementId={result.id} hasPhoto={false} onUploaded={() => setReceiptAttached(true)} />
+            )}
+          </div>
           <Button type="button" variant="outline" className={`garage-press h-11 ${chipIdle}`} onClick={resetForAnother}>
             Catat lagi
           </Button>
@@ -860,6 +873,73 @@ function CashMovementForm({
   );
 }
 
+// ─── Foto nota ──────────────────────────────────────────────────────────────
+
+/** Ambil/ganti foto nota (kamera belakang di tablet/HP). Server mengompres ke WebP. */
+function ReceiptUploader({
+  movementId,
+  hasPhoto,
+  onUploaded,
+}: {
+  movementId: string;
+  hasPhoto: boolean;
+  onUploaded: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append("image", file);
+      const response = await fetch(`/api/finance/cash-movements/${encodeURIComponent(movementId)}/receipt`, {
+        method: "POST",
+        body,
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+      if (!response.ok) throw new Error(payload.error?.message ?? "Gagal mengunggah foto nota.");
+      onUploaded();
+    } catch (err) {
+      setError(errorMessage(err, "Gagal mengunggah foto nota."));
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        aria-label="Pilih foto nota"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className={`garage-press h-11 ${chipIdle}`}
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+      >
+        {busy ? <RefreshCw className="mr-1.5 size-4 animate-spin" /> : <Camera className="mr-1.5 size-4" />}
+        {busy ? "Mengunggah…" : hasPhoto ? "Ganti foto nota" : "Lampirkan foto nota"}
+      </Button>
+      {error ? <p className="mt-1 text-sm text-[#ff9b9b]">{error}</p> : null}
+    </div>
+  );
+}
+
 // ─── Riwayat ────────────────────────────────────────────────────────────────
 
 type ListResponse = {
@@ -883,6 +963,7 @@ type DetailResponse = {
   }>;
   linked: CashMovementView[];
   canManage: boolean;
+  canAttachReceipt: boolean;
 };
 
 function describeChange(before: Record<string, unknown> | null, after: Record<string, unknown> | null) {
@@ -1184,6 +1265,32 @@ function CashMovementDetail({
         </Alert>
       ) : null}
 
+      {m.hasReceiptPhoto || detail.canAttachReceipt ? (
+        <div className="space-y-2 rounded-md border border-[#3c3c46] bg-white/[0.04] p-3">
+          <p className="garage-mono text-[11px] uppercase tracking-wide text-[#c4c4cc]">Foto nota / bukti</p>
+          {m.hasReceiptPhoto ? (
+            <a
+              href={`/api/finance/cash-movements/${encodeURIComponent(m.id)}/receipt?v=${reloadKey}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block w-fit cursor-pointer"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- foto privat lewat API berautentikasi */}
+              <img
+                src={`/api/finance/cash-movements/${encodeURIComponent(m.id)}/receipt?v=${reloadKey}`}
+                alt={`Foto nota ${m.refNo ?? ""}`}
+                className="max-h-56 w-auto rounded-md border border-[#3c3c46] object-contain"
+              />
+            </a>
+          ) : (
+            <p className="text-sm text-[#d0d0d6]">Belum ada foto nota.</p>
+          )}
+          {detail.canAttachReceipt ? (
+            <ReceiptUploader movementId={m.id} hasPhoto={m.hasReceiptPhoto} onUploaded={reload} />
+          ) : null}
+        </div>
+      ) : null}
+
       <div>
         <p className="garage-mono mb-1.5 text-[11px] uppercase tracking-wide text-[#c4c4cc]">Riwayat perubahan</p>
         <ol className="space-y-1.5">
@@ -1211,6 +1318,27 @@ function CashMovementDetail({
       </div>
     </div>
   );
+}
+
+type HistoryFilters = {
+  q: string;
+  from: string;
+  to: string;
+  type: string;
+  category: string;
+  cashier: string;
+  status: string;
+};
+
+function historyParams(filters: HistoryFilters) {
+  const params = new URLSearchParams();
+  if (filters.q.trim()) params.set("q", filters.q.trim());
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  for (const key of ["type", "category", "cashier", "status"] as const) {
+    if (filters[key] !== "all") params.set(key, filters[key]);
+  }
+  return params;
 }
 
 function CashMovementHistory({
@@ -1245,13 +1373,7 @@ function CashMovementHistory({
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams();
-    if (filters.q.trim()) params.set("q", filters.q.trim());
-    if (filters.from) params.set("from", filters.from);
-    if (filters.to) params.set("to", filters.to);
-    for (const key of ["type", "category", "cashier", "status"] as const) {
-      if (filters[key] !== "all") params.set(key, filters[key]);
-    }
+    const params = historyParams(filters);
     garageApi
       .get<ListResponse>(`/api/finance/cash-movements?${params.toString()}`)
       .then((response) => {
@@ -1475,7 +1597,12 @@ function CashMovementHistory({
           </ul>
         )}
       </div>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button asChild variant="outline" className={`h-10 ${chipIdle}`}>
+          <a href={`/api/finance/cash-movements/export?${historyParams(filters).toString()}`} download>
+            <Download className="mr-1.5 size-4" /> Ekspor CSV
+          </a>
+        </Button>
         <Button type="button" variant="outline" className={`h-10 ${chipIdle}`} onClick={reload} disabled={loading}>
           <RefreshCw className={`mr-1.5 size-4 ${loading ? "animate-spin" : ""}`} /> Muat ulang
         </Button>

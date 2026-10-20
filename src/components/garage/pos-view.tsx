@@ -179,14 +179,6 @@ SheetDescription,
 SheetHeader,
 SheetTitle
 } from "@/components/ui/sheet";
-import {
-Table,
-TableBody,
-TableCell,
-TableHead,
-TableHeader,
-TableRow,
-} from "@/components/ui/table";
 import { Tabs,TabsContent,TabsList,TabsTrigger } from "@/components/ui/tabs";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import { canAccessModule } from "@/lib/role-access";
@@ -718,27 +710,10 @@ export function PosView({
   const [reprintError, setReprintError] = useState<string | null>(null);
   // Kas Keluar / Masuk Laci — dialog CashDrawerDialog.
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
-  // Quick Count Stok (hanya tampil utk role yg punya inventory:write)
+  // Hitung stok bahan = Stok Opname gudang (ledger WMS); jalur "Quick Count"
+  // lama menulis stok OS langsung dan ditolak untuk bahan gudang.
   const canQuickCount =
     me.role === "Manajer" || me.role === "Kasir" || me.role === "Owner";
-  type QuickCountItem = {
-    sku: string;
-    name: string;
-    category: string;
-    onHand: number;
-    unit: string;
-  };
-  const [quickCountOpen, setQuickCountOpen] = useState(false);
-  const [quickCountItems, setQuickCountItems] = useState<QuickCountItem[]>([]);
-  const [quickCountLoading, setQuickCountLoading] = useState(false);
-  const [quickCountQuery, setQuickCountQuery] = useState("");
-  const [quickCountDraft, setQuickCountDraft] = useState<Record<string, string>>({});
-  const [quickCountSubmitting, setQuickCountSubmitting] = useState(false);
-  const [quickCountError, setQuickCountError] = useState<string | null>(null);
-  const [quickCountResult, setQuickCountResult] = useState<{
-    success: number;
-    failed: number;
-  } | null>(null);
   // now-snapshot untuk hitung "X menit lalu" di parked list (refresh tiap 30s)
   const [parkedListNowTick, setParkedListNowTick] = useState<number>(() => Date.now());
   useEffect(() => {
@@ -3201,88 +3176,8 @@ export function PosView({
     setExpenseDialogOpen(true);
   }
 
-  // â”€â”€â”€ Quick Count Stok â”€â”€â”€
-  async function openQuickCount() {
-    setQuickCountQuery("");
-    setQuickCountDraft({});
-    setQuickCountError(null);
-    setQuickCountResult(null);
-    setQuickCountOpen(true);
-    setQuickCountLoading(true);
-    try {
-      const items = await garageApi.get<QuickCountItem[]>("/api/inventory");
-      setQuickCountItems(items);
-    } catch (error) {
-      setQuickCountError(
-        error instanceof Error ? error.message : "Gagal memuat inventory.",
-      );
-    } finally {
-      setQuickCountLoading(false);
-    }
-  }
-
-  async function submitQuickCount() {
-    const entries = Object.entries(quickCountDraft)
-      .map(([sku, value]) => {
-        const fisik = Number(value);
-        const item = quickCountItems.find((i) => i.sku === sku);
-        if (!item || value === "" || !Number.isFinite(fisik) || fisik < 0) return null;
-        return { item, fisik, delta: fisik - item.onHand };
-      })
-      .filter((e): e is { item: QuickCountItem; fisik: number; delta: number } =>
-        Boolean(e),
-      );
-
-    if (!entries.length) {
-      setQuickCountError("Isi minimal 1 item sebelum submit.");
-      return;
-    }
-
-    setQuickCountSubmitting(true);
-    setQuickCountError(null);
-    let success = 0;
-    let failed = 0;
-    const baseNote = `Hitung cepat POS oleh ${me.user.name}`;
-    for (const entry of entries) {
-      try {
-        const patch = await fetch(
-          `/api/inventory/${encodeURIComponent(entry.item.sku)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              onHand: entry.fisik,
-              movement: `${baseNote} (selisih ${entry.delta >= 0 ? "+" : ""}${entry.delta})`,
-            }),
-          },
-        );
-        if (!patch.ok) {
-          failed += 1;
-          continue;
-        }
-        await fetch("/api/inventory/movements", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            itemSku: entry.item.sku,
-            type: entry.delta >= 0 ? "stock_in" : "stock_out",
-            qty: entry.delta,
-            note: `${baseNote}: sistem ${entry.item.onHand} → fisik ${entry.fisik} ${entry.item.unit}`,
-          }),
-        }).catch(() => {
-          /* movement gagal tapi onHand sudah update */
-        });
-        success += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-    setQuickCountSubmitting(false);
-    setQuickCountResult({ success, failed });
-    if (success > 0) {
-      setPosNotice(`Hitung cepat: ${success} item disimpan.`);
-      await onOrderCreated();
-    }
+  function openQuickCount() {
+    window.location.assign("/warehouse/opname");
   }
 
   function handleCashMovementRecorded(result: CashMovementRecorded) {
@@ -4511,11 +4406,11 @@ export function PosView({
                   className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
                   onClick={() => {
                     setCashierMenuOpen(false);
-                    void openQuickCount();
+                    openQuickCount();
                   }}
                 >
                   <ClipboardCheck className="size-4" />
-                  Hitung Cepat Stok
+                  Stok Opname Gudang
                 </Button>
               ) : null}
               {canManagePosSettings ? (
@@ -4790,10 +4685,10 @@ export function PosView({
                   type="button"
                   variant="outline"
                   className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
-                  onClick={() => void openQuickCount()}
+                  onClick={() => openQuickCount()}
                 >
                   <ClipboardCheck className="size-4" />
-                  Hitung Cepat Stok
+                  Stok Opname Gudang
                 </Button>
               ) : null}
               <Button
@@ -10985,241 +10880,6 @@ export function PosView({
         onRecorded={handleCashMovementRecorded}
       />
 
-      {/* Dialog: Quick Count Stok (POS â€” manager/gudang/supervisor) */}
-      <Dialog
-        open={quickCountOpen}
-        onOpenChange={(open) => {
-          setQuickCountOpen(open);
-          if (!open) {
-            setQuickCountError(null);
-            setQuickCountResult(null);
-          }
-        }}
-      >
-        <DialogContent
-          data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
-          className="flex max-h-[92svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] sm:max-w-3xl"
-        >
-          <DialogHeader>
-            <DialogTitle>Hitung Cepat Stok</DialogTitle>
-            <DialogDescription>
-              Hitung cepat stok fisik dari POS. Input qty fisik per item; sistem
-              hitung selisih & log movement saat submit.
-            </DialogDescription>
-          </DialogHeader>
-
-          {quickCountResult ? (
-            <div className="space-y-3">
-              <Alert
-                className={
-                  quickCountResult.failed > 0
-                    ? "border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f4f4f5]"
-                    : "border-[#22c55e]/45 bg-[#22c55e]/12 text-[#f4f4f5]"
-                }
-              >
-                {quickCountResult.failed > 0 ? (
-                  <AlertTriangle className="size-4" />
-                ) : (
-                  <Check className="size-4" />
-                )}
-                <AlertTitle>Hitung cepat selesai</AlertTitle>
-                <AlertDescription>
-                  {quickCountResult.success} item berhasil diupdate
-                  {quickCountResult.failed > 0
-                    ? `, ${quickCountResult.failed} gagal.`
-                    : "."}
-                </AlertDescription>
-              </Alert>
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-10 border-[#4a4a54] bg-white/[0.055]"
-                  onClick={() => {
-                    setQuickCountResult(null);
-                    setQuickCountDraft({});
-                    void openQuickCount();
-                  }}
-                >
-                  Count lagi
-                </Button>
-                <Button
-                  type="button"
-                  className="garage-press h-10"
-                  onClick={() => setQuickCountOpen(false)}
-                >
-                  Tutup
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={quickCountQuery}
-                  onChange={(event) => setQuickCountQuery(event.target.value)}
-                  className="h-10 border-[#34343c] bg-white/[0.06] pl-9"
-                  placeholder="Cari item untuk di-count..."
-                />
-              </div>
-
-              <div className="garage-scroll min-h-[200px] flex-1 overflow-auto rounded-md border border-[#34343c] bg-black/10">
-                {quickCountLoading ? (
-                  <p className="py-8 text-center text-xs text-[#8f8f99]">
-                    Memuat inventory...
-                  </p>
-                ) : (
-                  (() => {
-                    const q = quickCountQuery.trim().toLowerCase();
-                    const filtered = quickCountItems.filter((item) =>
-                      q
-                        ? `${item.name} ${item.sku} ${item.category}`
-                            .toLowerCase()
-                            .includes(q)
-                        : true,
-                    );
-                    if (!filtered.length) {
-                      return (
-                        <p className="py-8 text-center text-xs text-[#8f8f99]">
-                          Tidak ada item.
-                        </p>
-                      );
-                    }
-                    return (
-                      <Table className="min-w-[560px]">
-                        <TableHeader className="sticky top-0 z-10 bg-[#1b1b21]">
-                          <TableRow>
-                            <TableHead>Item</TableHead>
-                            <TableHead className="text-right">Sistem</TableHead>
-                            <TableHead className="text-right">Fisik</TableHead>
-                            <TableHead className="text-right">Selisih</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filtered.map((item) => {
-                            const draftStr = quickCountDraft[item.sku] ?? "";
-                            const draftNum = Number(draftStr);
-                            const hasInput =
-                              draftStr !== "" && Number.isFinite(draftNum);
-                            const delta = hasInput ? draftNum - item.onHand : 0;
-                            return (
-                              <TableRow key={item.sku}>
-                                <TableCell className="min-w-[200px]">
-                                  <p className="text-sm font-medium text-white">
-                                    {item.name}
-                                  </p>
-                                  <p className="text-[11px] text-muted-foreground">
-                                    {item.sku} · {item.category}
-                                  </p>
-                                </TableCell>
-                                <TableCell className="text-right text-zinc-200">
-                                  {item.onHand} {item.unit}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Input
-                                    type="number"
-                                    inputMode="numeric"
-                                    min={0}
-                                    value={draftStr}
-                                    onChange={(event) =>
-                                      setQuickCountDraft((current) => ({
-                                        ...current,
-                                        [item.sku]: event.target.value,
-                                      }))
-                                    }
-                                    placeholder="—"
-                                    className="ml-auto h-9 w-24 border-[#34343c] bg-white/[0.06] text-right"
-                                  />
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {hasInput ? (
-                                    <span
-                                      className={`garage-mono text-sm font-semibold ${
-                                        delta === 0
-                                          ? "text-[#86efac]"
-                                          : delta > 0
-                                            ? "text-[#7dd3fc]"
-                                            : "text-[#ffc2c8]"
-                                      }`}
-                                    >
-                                      {delta > 0 ? "+" : ""}
-                                      {delta}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[11px] text-[#8f8f99]">
-                                      —
-                                    </span>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    );
-                  })()
-                )}
-              </div>
-
-              {quickCountError ? (
-                <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
-                  <AlertTriangle className="size-4" />
-                  <AlertTitle>Hitung cepat</AlertTitle>
-                  <AlertDescription>{quickCountError}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <p className="text-xs text-[#b8b8bf]">
-                  <span className="garage-mono text-[#ffd08a]">
-                    {
-                      Object.values(quickCountDraft).filter(
-                        (v) => v !== "" && Number.isFinite(Number(v)),
-                      ).length
-                    }
-                  </span>{" "}
-                  item siap submit
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="garage-press h-10 border-[#4a4a54] bg-white/[0.055]"
-                    onClick={() => setQuickCountOpen(false)}
-                    disabled={quickCountSubmitting}
-                  >
-                    Batal
-                  </Button>
-                  <Button
-                    type="button"
-                    className="garage-press h-10"
-                    onClick={() => void submitQuickCount()}
-                    disabled={
-                      quickCountSubmitting ||
-                      Object.values(quickCountDraft).filter(
-                        (v) => v !== "" && Number.isFinite(Number(v)),
-                      ).length === 0
-                    }
-                  >
-                    {quickCountSubmitting ? (
-                      <>
-                        <RefreshCw className="mr-2 size-4 animate-spin" />
-                        Menyimpan...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="mr-2 size-4" />
-                        Simpan
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }

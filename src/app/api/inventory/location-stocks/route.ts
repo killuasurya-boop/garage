@@ -1,17 +1,9 @@
-import { z } from "zod";
-
-import { fail, ok, readJson } from "@/lib/api-response";
-import { adjustInventoryLocationStock, getInventoryLocationStockData } from "@/lib/garage-service";
+import { ok } from "@/lib/api-response";
+import { getInventoryLocationStockData } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
+import { legacyInventoryGone } from "@/lib/legacy-inventory-api";
 
 export const runtime = "nodejs";
-
-const locationStockAdjustSchema = z.object({
-  id: z.string().uuid(),
-  mode: z.enum(["add", "subtract", "clear"]),
-  qty: z.number().positive().optional(),
-  note: z.string().trim().min(3).max(240),
-});
 
 export async function GET(request: Request) {
   const session = await requirePermission("inventory:read");
@@ -28,20 +20,6 @@ export async function GET(request: Request) {
   });
 }
 
-export async function PATCH(request: Request) {
-  const session = await requirePermission("inventory:write");
-  if (session.response) return session.response;
-
-  const body = await readJson(request, locationStockAdjustSchema);
-  if (body.error) return body.error;
-
-  try {
-    return ok(await adjustInventoryLocationStock(body.data, session.data));
-  } catch (error) {
-    return fail(
-      400,
-      "LOCATION_STOCK_ADJUST_FAILED",
-      error instanceof Error ? error.message : "Adjustment stok lokasi gagal.",
-    );
-  }
+export async function PATCH() {
+  return legacyInventoryGone("Gudang → Penyesuaian (/warehouse/adjustment)");
 }

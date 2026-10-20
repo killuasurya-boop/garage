@@ -11,6 +11,7 @@ import {
   wmsCategory,
   wmsProduct,
   wmsRecipe,
+  wmsStockMovement,
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
@@ -236,7 +237,14 @@ export async function syncOsInventoryToWms(opts?: { bootstrapStock?: boolean }):
 > {
   await ensureBridgeWarehouses();
   const db = getDb();
-  const bootstrapStock = opts?.bootstrapStock !== false;
+  // Bootstrap stok dari data OS lama hanya boleh sekali: saat ledger WMS masih
+  // kosong total (instalasi pertama). Setelah ada transaksi, ledger WMS adalah
+  // satu-satunya sumber stok — jangan pernah menyuntik stok "OS-SYNC" lagi
+  // (dulu terjadi tiap server cold start untuk ruang ber-qty ≤ 0).
+  const [{ ledgerRows }] = await db
+    .select({ ledgerRows: sql<number>`count(*)::int` })
+    .from(wmsStockMovement);
+  const bootstrapStock = opts?.bootstrapStock !== false && Number(ledgerRows) === 0;
   const wh = await warehouseMap(db);
 
   const items = await db
@@ -271,19 +279,16 @@ export async function syncOsInventoryToWms(opts?: { bootstrapStock?: boolean }):
         hpp: hppValue,
       });
       created++;
-    } else {
+    } else if (Number(existing[0].hpp) <= 0 && hppValue > 0) {
+      // Produk WMS yang sudah ada adalah master (diubah lewat /warehouse); OS
+      // tidak boleh menimpa nama/kategori/satuan/min. Hanya isi HPP yang kosong.
       await db
         .update(wmsProduct)
-        .set({
-          name: item.name,
-          category: catName,
-          unit: item.unit,
-          minStock: Number(item.min) || 0,
-          hpp: hppValue > 0 ? hppValue : existing[0].hpp,
-          updatedAt: new Date(),
-        })
+        .set({ hpp: hppValue, updatedAt: new Date() })
         .where(eq(wmsProduct.sku, item.sku));
       updated++;
+    } else {
+      skipped++;
     }
 
     if (!bootstrapStock) continue;

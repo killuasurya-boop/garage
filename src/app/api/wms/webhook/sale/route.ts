@@ -24,8 +24,9 @@ function checkWebhookSecret(request: Request): boolean {
 
 // Webhook penjualan POS → potong bahan gudang via BOM resep WMS.
 const schema = z.object({
-  // ref = penanda penjualan (mis. orderId) untuk idempotensi (retry tak dobel potong).
-  ref: z.string().trim().min(1).max(120).optional(),
+  // ref = penanda penjualan dari POS eksternal (wajib) untuk idempotensi: retry
+  // dengan ref sama tidak memotong dua kali. Order Garage OS sendiri ditolak.
+  ref: z.string().trim().min(1).max(120),
   items: z.array(z.object({ name: z.string().trim().min(1).max(140), qty: z.number().positive() })).min(1).max(100),
 });
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   if (checkWebhookSecret(request)) {
     const parsed = await readJson(request, schema);
     if (parsed.error) return parsed.error;
-    return ok(await processPosSale(parsed.data, null));
+    return run(parsed.data, null);
   }
   // Jalur 2: sesi ber-izin. Bila keduanya gagal → tolak.
   const session = await requirePermission("inventory:write");
@@ -45,5 +46,13 @@ export async function POST(request: Request) {
   }
   const parsed = await readJson(request, schema);
   if (parsed.error) return parsed.error;
-  return ok(await processPosSale(parsed.data, session.data.user.id));
+  return run(parsed.data, session.data.user.id);
+}
+
+async function run(data: z.infer<typeof schema>, userId: string | null) {
+  try {
+    return ok(await processPosSale(data, userId));
+  } catch (e) {
+    return fail(409, "SALE_REJECTED", e instanceof Error ? e.message : "Penjualan ditolak.");
+  }
 }

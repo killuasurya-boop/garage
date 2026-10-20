@@ -1,26 +1,7 @@
-import { fail, ok } from "@/lib/api-response";
-import { approveStockOpname } from "@/lib/garage-service";
-import { requireAnyPermission } from "@/lib/server-auth";
+import { legacyInventoryGone } from "@/lib/legacy-inventory-api";
 
 export const runtime = "nodejs";
 
-export async function PATCH(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const session = await requireAnyPermission(["approvals:decide"]);
-  if (session.response) return session.response;
-
-  const { id } = await context.params;
-  try {
-    const result = await approveStockOpname(id, session.data);
-    if (!result) return fail(404, "OPNAME_NOT_FOUND", "Stok opname tidak ditemukan.");
-    return ok(result);
-  } catch (error) {
-    return fail(
-      409,
-      "OPNAME_APPROVAL_FAILED",
-      error instanceof Error ? error.message : "Approval opname gagal.",
-    );
-  }
+export async function PATCH() {
+  return legacyInventoryGone("Gudang → Stok Opname (/warehouse/opname)");
 }

@@ -199,6 +199,11 @@ Scroll direction:
 - `npm run db:seed` is insert-only (safe after go-live); `npm run db:seed:catalog`
   (`--sync-catalog`) overwrites catalog/prices/recipes/unit costs from
   `garage-data.ts` and archives menu items not in the seed.
+- WMS hardening (owner, Okt 2026, `docs/WMS-AUDIT-2026-10.md`): OS→WMS stock bootstrap only when the WMS
+  ledger is empty; legacy `/api/inventory` write endpoints (supplier-receivings, transfers, opname, location-stocks,
+  smart-reorder, audit-daily lock) return 410 → use `/warehouse`. POS data (products, variants, prices, categories)
+  is protected: `GET /api/admin/pos-baseline` (Owner) = snapshot + SHA-256 before/after changes;
+  `db:seed:catalog` refuses once orders exist unless `--confirm-overwrite-pos`. Recipes are archived, never deleted.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

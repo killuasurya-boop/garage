@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { importWmsRecipesFromBundle } from "@/lib/wms-service";
-import { requirePermission } from "@/lib/server-auth";
+import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -45,7 +46,8 @@ const importSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await requirePermission("inventory:write");
+  // Impor massal resep mengubah HPP banyak menu sekaligus → Owner/Manajer saja.
+  const session = await requireGarageSession([...WMS_ELEVATED_ROLES]);
   if (session.response) return session.response;
   const parsed = await readJson(request, importSchema);
   if (parsed.error) return parsed.error;

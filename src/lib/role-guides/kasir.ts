@@ -42,6 +42,9 @@ export const kasirGuide: RoleGuide = {
           text: "Hitung uang di laci, lalu isi Modal Awal (Rp50.000–Rp500.000, kelipatan Rp50.000).",
           tip: "Sistem menampilkan sisa uang laci yang ditinggal shift sebelumnya. Pastikan jumlah fisiknya sama.",
         },
+        {
+          text: "Buka \"Hitung pecahan modal awal\" lalu isi jumlah lembar/keping per pecahan (Rp100.000 … Rp100 koin, koin Rp1.000 terpisah). Totalnya harus sama dengan modal awal — tercatat di laporan pertanggungjawaban.",
+        },
         { text: "Pilih Shift 1 atau Shift 2. Shift ke-3 dan seterusnya dalam satu hari butuh PIN Manajer/Owner." },
         {
           text: "Bila shift kemarin belum ditutup, POS menampilkan layar \"Shift belum ditutup\". Tutup shift lama dulu, baru buka shift baru.",
@@ -251,8 +254,28 @@ export const kasirGuide: RoleGuide = {
       ],
     },
     {
+      id: "pertanggungjawaban",
+      title: "14. Petty cash, catatan kejadian & laporan lengkap",
+      intro: "Semua aktivitas uang & kejadian shift masuk ke satu PDF pertanggungjawaban.",
+      steps: [
+        {
+          text: "Petty cash (kas kecil, terpisah dari laci): Menu Kasir → Petty Cash → isi kategori, uraian, nominal, penerima, no. nota → Ajukan. Saldo baru berubah setelah disetujui Owner/Manajer.",
+        },
+        {
+          text: "Uang laci keluar/masuk tetap lewat Kas Keluar / Masuk (isi sumber/penerima & no. bukti bila ada).",
+        },
+        {
+          text: "Catatan kejadian: Menu Kasir → Catatan Kejadian → pilih kategori (selisih kas, gangguan QRIS/printer, komplain, produk habis, pergantian kasir, dll.), tulis kejadian, invoice terkait, dampak Rp, dan tindakan.",
+        },
+        {
+          text: "Setelah tutup shift: Riwayat & Laporan Shift → buka shift → Laporan Lengkap (PDF). Nama file mengikuti tanggal operasional & nomor shift.",
+          warn: "Laporan lengkap baru bisa diunduh kasir setelah shift ditutup (kas seharusnya dirahasiakan selama shift).",
+        },
+      ],
+    },
+    {
       id: "laporan",
-      title: "14. Laporan penjualan shift saya",
+      title: "15. Laporan penjualan shift saya",
       steps: [
         { text: "Buka POS → Laporan Shift → \"Penjualan shift saya\" untuk melihat produk terlaris, kategori dan metode bayar shift Anda." },
         { text: "Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh." },
@@ -260,7 +283,7 @@ export const kasirGuide: RoleGuide = {
     },
     {
       id: "masalah",
-      title: "15. Masalah umum",
+      title: "16. Masalah umum",
       steps: [
         { text: "Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali." },
         { text: "\"Open shift wajib dilakukan\": buka shift dulu." },

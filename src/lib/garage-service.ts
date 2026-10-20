@@ -384,7 +384,18 @@ type CashSessionInput = {
   shiftNumber?: number;
   /** PIN Manajer/Owner yang hadir: izinkan shift tambahan setelah Shift 1 & 2 terpakai. */
   managerPin?: string;
+  /** Hitungan lembar/keping modal awal; bila diisi, totalnya wajib = openingCash. */
+  openingDenominations?: Record<string, number>;
 };
+
+export class OpeningDenominationMismatchError extends Error {
+  code = "OPENING_DENOMINATION_MISMATCH";
+  constructor(counted: number, openingCash: number) {
+    super(
+      `Hitungan pecahan ${idrFormatter.format(counted)} tidak sama dengan modal awal ${idrFormatter.format(openingCash)}. Hitung ulang uang di laci.`,
+    );
+  }
+}
 
 type CloseCashSessionInput = {
   actualCash: number;
@@ -15822,6 +15833,10 @@ export type CashMovementInput = {
   amount: number;
   managerPin?: string;
   countAsPurchase?: boolean;
+  /** Buku kas: sumber/penerima uang, nomor bukti, invoice terkait (opsional). */
+  counterparty?: string | null;
+  referenceNo?: string | null;
+  orderNo?: string | null;
 };
 
 export class CashMovementPinRequiredError extends Error {
@@ -15909,6 +15924,9 @@ export async function recordCashMovement(input: CashMovementInput, garage: Garag
         description: input.description,
         amount: input.amount,
         status: "recorded",
+        counterparty: input.counterparty?.trim() || null,
+        referenceNo: input.referenceNo?.trim() || null,
+        orderNo: input.orderNo?.trim() || null,
         movementAt: now,
         createdBy: garage.user.id,
         approvedBy: approver?.userId ?? null,
@@ -16836,6 +16854,15 @@ export async function getTodayCashShiftStatus(garage: GarageSession) {
 }
 
 export async function createCashSession(input: CashSessionInput, garage: GarageSession) {
+  const openingDenominations = Object.fromEntries(
+    Object.entries(input.openingDenominations ?? {}).filter(
+      ([key, qty]) => isValidDenominationKey(key) && Number.isInteger(qty) && qty > 0,
+    ),
+  );
+  if (Object.keys(openingDenominations).length) {
+    const counted = sumDenominations(openingDenominations);
+    if (counted !== input.openingCash) throw new OpeningDenominationMismatchError(counted, input.openingCash);
+  }
   const db = getDb();
   const outletId = garage.profile.outlet.id;
   let shiftNumber = input.shiftNumber;
@@ -16947,6 +16974,7 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
         // Kas seharusnya selalu mulai dari modal awal; tidak diterima dari client.
         expectedCash: input.openingCash,
         checklist: fallbackClosingChecklist,
+        openingDenominations,
         openedBy: garage.user.id,
       })
       .returning();
@@ -16962,6 +16990,7 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
     metadata: {
       shiftNumber: shiftNumber ?? null,
       openingCash: input.openingCash,
+      openingDenominations: Object.keys(openingDenominations).length ? openingDenominations : null,
       ...(extra.approver
         ? { extraShiftApprovedBy: extra.approver.name, extraShiftApproverId: extra.approver.userId }
         : {}),
@@ -17600,6 +17629,11 @@ export type CashSessionTransactionsResult = {
     outletCode: string | null;
     openedByName: string | null;
     closedByName: string | null;
+    reviewStatus: string;
+    reviewNote: string | null;
+    reviewedAt: string | null;
+    openingVerifiedAt: string | null;
+    openingCounted: boolean;
   };
   orders: Array<{
     id: string;
@@ -17740,6 +17774,11 @@ export async function getCashSessionTransactions(
       outletCode: session.outletCode,
       openedByName,
       closedByName,
+      reviewStatus: session.session.reviewStatus,
+      reviewNote: session.session.reviewNote,
+      reviewedAt: session.session.reviewedAt?.toISOString() ?? null,
+      openingVerifiedAt: session.session.openingVerifiedAt?.toISOString() ?? null,
+      openingCounted: Object.keys(session.session.openingDenominations ?? {}).length > 0,
     },
     orders: orderRows.map((o) => ({
       ...o,

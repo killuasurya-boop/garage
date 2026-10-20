@@ -50,6 +50,8 @@ const TABLES_TO_CLEAR = [
   // finance
   "cash_sessions",
   "cash_movements",
+  "petty_cash_entries",
+  "shift_incidents",
   "suppliers",
   "supplier_invoices",
   "supplier_receivings",

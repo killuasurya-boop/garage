@@ -142,6 +142,12 @@ Scroll direction:
   `src/lib/receipt-layout.ts`); Chrome dialog renders it as SVG, direct ESC/POS as a `GS v 0` raster,
   text-only paths (agent, `/api/print/thermal`) drop it via `stripReceiptQr` (URL text stays).
   Kitchen chits print addon no., target time, item/order notes (wrapped), item count and who printed.
+- Cashier accountability (owner, Okt 2026, migration 0142): opening denomination count
+  (`cash_sessions.opening_denominations`, total must equal opening cash; coin Rp1.000 key `1000k`),
+  petty cash = separate fund in `petty_cash_entries` (Kasir submits expense, Owner/Manajer approve/topup;
+  never touches drawer `expectedCash`), `shift_incidents`, manager review (`review_status`). Full A4 PDF
+  `GET /api/reports/cashier-accountability` (`shift-accountability-report.ts` data, `-pdf.ts` render),
+  file names by operational date. Logic in `src/lib/cashier-accountability.ts`.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 
@@ -152,7 +158,7 @@ Scroll direction:
   (rename updates it, `order_items` snapshots untouched). Category carries kind (fnb/retail/operational), default
   product type, station (`bar`/`dapur`/`none` = handed over by cashier), POS group (Dapur/Bar/Lainnya, POS sub-tabs
   are built from it) and SKU prefix. Categories are never deleted: archive, and an archive with active products
-  requires moving them (`archiveProductCategory`). Seeded categories = the 6 that already existed (migration 0142).
+  requires moving them (`archiveProductCategory`). Seeded categories = the 6 that already existed (migration 0143).
 - `menu_items.product_type`: `menu` (recipe HPP), `retail` (rokok, mineral — cost = harga modal per variant, no
   recipe needed), `bundle`. Variants carry `sku`, `barcode`, `sell_unit`, `unit_contents`; SKU & barcode are unique
   across products AND variants (`assertUniqueProductCodes`).

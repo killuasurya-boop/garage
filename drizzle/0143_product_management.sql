@@ -29,7 +29,8 @@ ALTER TABLE "menu_items" ADD CONSTRAINT "menu_items_category_id_product_categori
 CREATE UNIQUE INDEX "menu_items_barcode_idx" ON "menu_items" USING btree ("barcode");--> statement-breakpoint
 CREATE INDEX "menu_items_category_id_idx" ON "menu_items" USING btree ("category_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "menu_variants_sku_idx" ON "menu_variants" USING btree ("sku");--> statement-breakpoint
-CREATE UNIQUE INDEX "menu_variants_barcode_idx" ON "menu_variants" USING btree ("barcode");--> statement-breakpoint
+CREATE UNIQUE INDEX "menu_variants_barcode_idx" ON "menu_variants" USING btree ("barcode");
+--> statement-breakpoint
 -- Kategori awal = kategori yang SUDAH dipakai Garage OS (audit Okt 2026), tanpa
 -- menambah kategori tebakan. Owner menambah kategori baru lewat Manajemen Kategori.
 INSERT INTO "product_categories" ("name", "description", "kind", "default_product_type", "station", "pos_group", "sku_prefix", "sort_order")

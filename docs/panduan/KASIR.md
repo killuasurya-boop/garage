@@ -27,8 +27,9 @@ Transaksi hanya bisa dilakukan setelah shift dibuka. Satu kasir = satu shift ter
 1. Di layar POS tekan Buka Shift.
 2. Hitung uang di laci, lalu isi Modal Awal (Rp50.000–Rp500.000, kelipatan Rp50.000).
    - Tips: Sistem menampilkan sisa uang laci yang ditinggal shift sebelumnya. Pastikan jumlah fisiknya sama.
-3. Pilih Shift 1 atau Shift 2. Shift ke-3 dan seterusnya dalam satu hari butuh PIN Manajer/Owner.
-4. Bila shift kemarin belum ditutup, POS menampilkan layar "Shift belum ditutup". Tutup shift lama dulu, baru buka shift baru.
+3. Buka "Hitung pecahan modal awal" lalu isi jumlah lembar/keping per pecahan (Rp100.000 … Rp100 koin, koin Rp1.000 terpisah). Totalnya harus sama dengan modal awal — tercatat di laporan pertanggungjawaban.
+4. Pilih Shift 1 atau Shift 2. Shift ke-3 dan seterusnya dalam satu hari butuh PIN Manajer/Owner.
+5. Bila shift kemarin belum ditutup, POS menampilkan layar "Shift belum ditutup". Tutup shift lama dulu, baru buka shift baru.
    - **Penting:** Shift yang terbuka lebih dari 20 jam tidak bisa dipakai transaksi.
 
 ## 3. Printer struk (laptop)
@@ -151,12 +152,22 @@ Empat jalan pintas supaya antrean cepat habis.
 4. QR di struk: bagian bawah struk pelanggan kini ada QR "SCAN UNTUK CEK PESANAN". Pelanggan scan dengan kamera HP untuk melihat status pesanan & invoice — link teks tetap dicetak di bawahnya.
 5. Suara pesanan siap: saat Bar/Dapur menandai pesanan Siap, POS berbunyi dan muncul pesan "Pesanan siap: #antrian meja". Suara mengikuti setelan Suara QR (Off = senyap).
 
-## 14. Laporan penjualan shift saya
+## 14. Petty cash, catatan kejadian & laporan lengkap
+
+Semua aktivitas uang & kejadian shift masuk ke satu PDF pertanggungjawaban.
+
+1. Petty cash (kas kecil, terpisah dari laci): Menu Kasir → Petty Cash → isi kategori, uraian, nominal, penerima, no. nota → Ajukan. Saldo baru berubah setelah disetujui Owner/Manajer.
+2. Uang laci keluar/masuk tetap lewat Kas Keluar / Masuk (isi sumber/penerima & no. bukti bila ada).
+3. Catatan kejadian: Menu Kasir → Catatan Kejadian → pilih kategori (selisih kas, gangguan QRIS/printer, komplain, produk habis, pergantian kasir, dll.), tulis kejadian, invoice terkait, dampak Rp, dan tindakan.
+4. Setelah tutup shift: Riwayat & Laporan Shift → buka shift → Laporan Lengkap (PDF). Nama file mengikuti tanggal operasional & nomor shift.
+   - **Penting:** Laporan lengkap baru bisa diunduh kasir setelah shift ditutup (kas seharusnya dirahasiakan selama shift).
+
+## 15. Laporan penjualan shift saya
 
 1. Buka POS → Laporan Shift → "Penjualan shift saya" untuk melihat produk terlaris, kategori dan metode bayar shift Anda.
 2. Tekan Cetak ringkasan untuk mencetak ke printer struk, atau CSV untuk diunduh.
 
-## 15. Masalah umum
+## 16. Masalah umum
 
 1. Internet putus: pesanan disimpan di antrean offline dan dikirim otomatis saat online kembali.
 2. "Open shift wajib dilakukan": buka shift dulu.

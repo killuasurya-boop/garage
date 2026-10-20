@@ -60,6 +60,7 @@ UserPlus,
 Users,
 Volume2,
 Wallet,
+ClipboardList,
 WalletCards,
 X
 } from "lucide-react";
@@ -215,6 +216,7 @@ VoucherValidation
 import { menuFilterMatches, menuGroupForCategory, menuSubCategoriesFrom } from "@/lib/garage-api-types";
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
+import { denominationTotals, OpeningDenominationCount } from "@/components/garage/cash-denomination-grid";
 import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summary";
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
@@ -798,6 +800,7 @@ export function PosView({
     return Math.round(capped / 50000) * 50000;
   })();
   const [openingCash, setOpeningCash] = useState(String(_shiftOpeningDefault));
+  const [openingCounts, setOpeningCounts] = useState<Record<string, string>>({});
   const [openingShiftNumber, setOpeningShiftNumber] = useState<number>(1);
   const [openShiftManagerPin, setOpenShiftManagerPin] = useState("");
   const [shiftStatusRefresh, setShiftStatusRefresh] = useState(0);
@@ -3499,6 +3502,14 @@ export function PosView({
       return;
     }
 
+    const opening = denominationTotals(openingCounts);
+    if (opening.anyCounted && opening.total !== openingCashValue) {
+      setShiftError(
+        `Hitungan pecahan ${currency.format(opening.total)} belum sama dengan modal awal ${currency.format(openingCashValue)}. Hitung ulang atau kosongkan hitungan.`,
+      );
+      return;
+    }
+
     setShiftPending(true);
     setShiftError(null);
     try {
@@ -3506,7 +3517,9 @@ export function PosView({
         openingCash: openingCashValue,
         shiftNumber: openingShiftNumber,
         ...(openShiftManagerPin ? { managerPin: openShiftManagerPin } : {}),
+        ...(opening.anyCounted ? { openingDenominations: opening.parsed } : {}),
       });
+      setOpeningCounts({});
       await onCashSessionOpened();
       setShiftDialogOpen(false);
       setLastShiftCloseResult(null);
@@ -4069,6 +4082,11 @@ export function PosView({
                 refreshKey={shiftStatusRefresh}
               />
               <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
+              <OpeningDenominationCount
+                counts={openingCounts}
+                onChange={setOpeningCounts}
+                openingCash={Number(openingCash) || null}
+              />
               {shiftError && (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                   <AlertTriangle className="size-4" />
@@ -4736,6 +4754,26 @@ export function PosView({
               >
                 <FileText className="size-4" />
                 Riwayat & Laporan Shift
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
+                onClick={() => window.open("/shift?tab=petty", "_blank")}
+                data-testid="pos-menu-petty"
+              >
+                <Wallet className="size-4" />
+                Petty Cash
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-11 justify-start gap-2 border-[#4a4a54] bg-white/[0.055] px-3 text-sm"
+                onClick={() => window.open("/shift?tab=incident", "_blank")}
+                data-testid="pos-menu-incident"
+              >
+                <ClipboardList className="size-4" />
+                Catatan Kejadian
               </Button>
               <Button
                 type="button"
@@ -6842,6 +6880,11 @@ export function PosView({
                 refreshKey={shiftStatusRefresh}
               />
               <OpeningCashPresetPicker value={openingCash} onChange={setOpeningCash} />
+              <OpeningDenominationCount
+                counts={openingCounts}
+                onChange={setOpeningCounts}
+                openingCash={Number(openingCash) || null}
+              />
               {shiftError && (
                 <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
                   <AlertTriangle className="size-4" />

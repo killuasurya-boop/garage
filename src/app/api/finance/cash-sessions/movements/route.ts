@@ -19,6 +19,9 @@ const movementSchema = z.object({
   amount: z.number().int().positive().max(100_000_000),
   managerPin: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4–8 digit angka.").optional(),
   countAsPurchase: z.boolean().optional(),
+  counterparty: z.string().trim().max(120).optional(),
+  referenceNo: z.string().trim().max(80).optional(),
+  orderNo: z.string().trim().max(60).optional(),
 });
 
 /** Kas keluar/masuk laci shift kasir yang sedang buka. */

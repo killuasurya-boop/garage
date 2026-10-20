@@ -148,6 +148,17 @@ Scroll direction:
   never touches drawer `expectedCash`), `shift_incidents`, manager review (`review_status`). Full A4 PDF
   `GET /api/reports/cashier-accountability` (`shift-accountability-report.ts` data, `-pdf.ts` render),
   file names by operational date. Logic in `src/lib/cashier-accountability.ts`.
+- Kas Keluar / Masuk Laci (owner, Okt 2026, migration 0144): category catalog = `src/lib/cash-drawer.ts`
+  only (direction, report group, Finance expense category, required fields). Only operational categories
+  create an `expenses` row; Kasbon → `staff_cash_advances` (non-P&L, deducted at payroll); refund/setoran/
+  brankas are never costs; cash-in is never sales. Logic in `recordCashMovement` / `decideCashMovement` /
+  `voidCashMovement` / `correctCashMovement` (`garage-service.ts`): ref `KAS-YYMMDD-0001`, balance before/after
+  from session `expectedCash`; only status `recorded` moves money (`pending_approval` = Kasir request, money not
+  moved yet; rejected/voided kept, never deleted). Kasir ≥ `cashMovementPinThreshold` or refund/setoran needs a
+  Manager PIN or a request; void/correct = Owner/Manajer, session still open, reason + audit before/after.
+  Drawer expenses can't be cancelled from Finance/Payroll (`cancelExpenseInTx` guard). Kasir never sees drawer
+  balance while the shift is open (`redactOpenShiftSummary`). Receipt photos live in non-public
+  `storage/cash-receipts`, served only via `/api/finance/cash-movements/[id]/receipt`.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

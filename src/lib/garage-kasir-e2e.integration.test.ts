@@ -137,16 +137,16 @@ describe("Kasir end-to-end", () => {
     expect(await expectedCash()).toBe(140_000);
 
     await expect(
-      svc.recordCashMovement({ type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000 }, kasir()),
+      svc.recordCashMovement({ type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner" }, kasir()),
     ).rejects.toBeInstanceOf(svc.CashMovementPinRequiredError);
     await expect(
       svc.recordCashMovement(
-        { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, managerPin: "000000" },
+        { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner", managerPin: "000000" },
         kasir(),
       ),
     ).rejects.toThrow(/PIN salah/);
     const inMove = await svc.recordCashMovement(
-      { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, managerPin: MANAGER_PIN },
+      { type: "in", category: "Tambah Uang Kecil", description: "Pecahan dari Owner", amount: 100_000, counterparty: "Owner", managerPin: MANAGER_PIN },
       kasir(),
     );
     expect(inMove.approvedByName).toBe("Manajer E2E");
@@ -155,7 +155,7 @@ describe("Kasir end-to-end", () => {
 
   it("kas keluar/masuk tanpa shift terbuka ditolak", async () => {
     await expect(
-      svc.recordCashMovement({ type: "out", category: "Lain-lain", description: "tes", amount: 5_000 }, as(KASIR_LAIN, "Kasir")),
+      svc.recordCashMovement({ type: "out", category: "Beli Air/Es", description: "tes", amount: 5_000 }, as(KASIR_LAIN, "Kasir")),
     ).rejects.toBeInstanceOf(svc.CashSessionRequiredForCashOutError);
   });
 
@@ -204,7 +204,7 @@ describe("Kasir end-to-end", () => {
     expect(summary.sales.gross).toBe(80_000);
     const byMethod = Object.fromEntries(summary.byMethod.map((m: any) => [m.method, m.total]));
     expect(byMethod).toEqual({ QRIS: 60_000, Cash: 20_000 });
-    expect(summary.cashMovements).toEqual({ cashIn: 100_000, cashOut: 20_000 });
+    expect(summary.cashMovements).toMatchObject({ cashIn: 100_000, cashOut: 20_000 });
   });
 
   it("laporan penjualan outlet konsisten dengan ringkasan shift", async () => {

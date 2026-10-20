@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -71,6 +72,16 @@ import {
   getFinanceEngineSummary,
 } from "@/lib/finance-control";
 import { assertFinanceDayOpen } from "@/lib/finance-closing";
+import {
+  CASH_DRAWER_FIELD_LABELS,
+  CASH_DRAWER_GROUP_LABELS,
+  CASH_DRAWER_GROUP_ORDER,
+  cashDrawerDelta,
+  cashDrawerGroupOf,
+  cashDrawerNeedsApproval,
+  resolveCashDrawerCategory,
+  type CashDrawerCategory,
+} from "@/lib/cash-drawer";
 
 export { DEFAULT_APP_SETTINGS, type AppSettings };
 
@@ -127,6 +138,7 @@ import {
   customerChatThreads,
   customerChatMessages,
   suppliers,
+  staffCashAdvances,
   staffProfiles,
   staffEarnings,
   staffEarningPayouts,
@@ -15820,58 +15832,545 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
 
 // =============================================================================
 // Kas keluar / masuk laci oleh kasir (owner, Okt 2026). Uang fisik di laci
-// berubah di luar penjualan: beli es batu/gas (keluar), tambah uang kecil dari
-// Owner (masuk). Tercatat di sesi kas yang buka → kas seharusnya ikut berubah,
-// sehingga blind count tutup shift tetap pas. Kas keluar juga jadi pengeluaran
-// tunai di Finance. Kasir di atas `cashMovementPinThreshold` wajib PIN Manajer.
+// berubah di luar penjualan: belanja kecil, kasbon, setoran (keluar); tambahan
+// modal/kembalian, pengembalian kasbon/sisa belanja (masuk). Katalog kategori &
+// klasifikasi keuangan ada di `src/lib/cash-drawer.ts`.
+//
+// - `recorded` = uang SUDAH bergerak: saldo laci (expectedCash sesi) berubah,
+//   saldo sebelum/sesudah disimpan, efek Finance/kasbon dibuat.
+// - `pending_approval` = pengajuan Kasir, uang BELUM bergerak, tanpa efek apa pun
+//   sampai Manajer/Owner menyetujui (saat shift masih buka).
+// - `rejected` / `voided` tetap tersimpan (tidak pernah dihapus) + audit log.
+// Kasir di atas `cashMovementPinThreshold` (atau kategori wajib persetujuan)
+// memakai PIN Manajer di tempat, atau mengirim pengajuan.
 // =============================================================================
+
+export class CashMovementError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public status = 400,
+  ) {
+    super(message);
+    this.name = "CashMovementError";
+  }
+}
 
 export type CashMovementInput = {
   type: "out" | "in";
-  category: string;
+  /** Kunci katalog (`cash-drawer.ts`). Bila kosong, `category` dicocokkan. */
+  categoryKey?: string;
+  category?: string;
   description: string;
   amount: number;
-  managerPin?: string;
-  countAsPurchase?: boolean;
-  /** Buku kas: sumber/penerima uang, nomor bukti, invoice terkait (opsional). */
+  note?: string | null;
   counterparty?: string | null;
+  vendorName?: string | null;
+  receiptNo?: string | null;
+  orderRef?: string | null;
+  employeeUserId?: string | null;
+  relatedRef?: string | null;
+  managerPin?: string;
+  /** Kasir tanpa PIN di tempat: kirim sebagai pengajuan (uang belum bergerak). */
+  submitForApproval?: boolean;
+  /** Alias lama/laporan akuntabilitas: nomor bukti (= receiptNo) & invoice terkait (teks bebas). */
   referenceNo?: string | null;
   orderNo?: string | null;
+  /** Diabaikan — katalog kategori yang menentukan belanja bahan. */
+  countAsPurchase?: boolean;
 };
 
 export class CashMovementPinRequiredError extends Error {
   code = "MANAGER_PIN_REQUIRED";
-  constructor(threshold: number) {
-    super(`Kas keluar/masuk mulai ${idrFormatter.format(threshold)} perlu PIN Manajer/Owner.`);
+  constructor(message: string) {
+    super(message);
   }
 }
 
-export async function recordCashMovement(input: CashMovementInput, garage: GarageSession) {
+type PreparedCashMovement = {
+  def: CashDrawerCategory;
+  type: "out" | "in";
+  description: string;
+  amount: number;
+  note: string | null;
+  counterparty: string | null;
+  vendorName: string | null;
+  receiptNo: string | null;
+  order: { id: string; orderNo: string } | null;
+  /** Invoice terkait (teks bebas) untuk kategori selain refund pelanggan. */
+  orderNoText: string | null;
+  employee: { userId: string; name: string } | null;
+  related: { id: string; refNo: string | null; expenseId: string | null } | null;
+};
+
+const cleanText = (value: string | null | undefined, max: number) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+};
+
+/** Validasi & lookup (di LUAR transaksi — PGlite satu koneksi). */
+async function prepareCashMovement(input: CashMovementInput, garage: GarageSession): Promise<PreparedCashMovement> {
+  const def = resolveCashDrawerCategory(input.type, input.categoryKey ?? input.category ?? "");
+  if (!def) throw new CashMovementError("CATEGORY_INVALID", "Kategori tidak sesuai dengan jenis transaksi.");
   if (!Number.isInteger(input.amount) || input.amount <= 0) {
-    throw new Error("Nominal harus lebih dari 0.");
+    throw new CashMovementError("AMOUNT_INVALID", "Nominal harus angka bulat lebih dari 0.");
   }
+  if (input.amount > 100_000_000) {
+    throw new CashMovementError("AMOUNT_INVALID", "Nominal terlalu besar (maks Rp100.000.000).");
+  }
+  const description = cleanText(input.description, 180);
+  if (!description || description.length < 3) {
+    throw new CashMovementError("DESCRIPTION_REQUIRED", "Deskripsi wajib diisi (min. 3 huruf).");
+  }
+  const prepared: PreparedCashMovement = {
+    def,
+    type: def.direction,
+    description,
+    amount: input.amount,
+    note: cleanText(input.note, 300),
+    counterparty: cleanText(input.counterparty, 120),
+    vendorName: cleanText(input.vendorName, 80),
+    receiptNo: cleanText(input.receiptNo ?? input.referenceNo, 80),
+    order: null,
+    orderNoText: def.fields.includes("orderRef") ? null : cleanText(input.orderNo ?? input.orderRef, 60),
+    employee: null,
+    related: null,
+  };
+  for (const field of def.required) {
+    const missing =
+      (field === "counterparty" && !prepared.counterparty) ||
+      (field === "orderRef" && !(input.orderRef ?? input.orderNo)?.trim()) ||
+      (field === "employee" && !input.employeeUserId?.trim()) ||
+      (field === "relatedRef" && !input.relatedRef?.trim());
+    if (missing) {
+      const label = field === "counterparty" ? def.counterpartyLabel ?? CASH_DRAWER_FIELD_LABELS[field] : CASH_DRAWER_FIELD_LABELS[field];
+      throw new CashMovementError("FIELD_REQUIRED", `${label} wajib diisi untuk ${def.label}.`);
+    }
+  }
+
+  const orderRef = def.fields.includes("orderRef") ? (input.orderRef ?? input.orderNo)?.trim() : "";
+  if (orderRef) {
+    const order = await findOutletOrder(getDb(), orderRef.toUpperCase(), garage);
+    if (!order) throw new CashMovementError("ORDER_NOT_FOUND", `Order ${orderRef} tidak ditemukan di outlet ini.`);
+    if (["refunded", "void", "voided", "cancelled"].includes(order.status)) {
+      throw new CashMovementError(
+        "ORDER_ALREADY_REFUNDED",
+        `Order ${order.orderNo} sudah ${order.status === "refunded" ? "direfund" : "dibatalkan"} lewat POS — kas tunainya sudah tercatat, jangan dicatat ulang.`,
+        409,
+      );
+    }
+    if (order.status !== "paid") {
+      throw new CashMovementError("ORDER_NOT_PAID", `Order ${order.orderNo} belum lunas — tidak ada uang yang bisa dikembalikan.`);
+    }
+    if (input.amount > order.total) {
+      throw new CashMovementError("AMOUNT_INVALID", `Pengembalian melebihi total order ${order.orderNo}.`);
+    }
+    prepared.order = { id: order.id, orderNo: order.orderNo };
+  }
+
+  const employeeId = def.fields.includes("employee") ? input.employeeUserId?.trim() : "";
+  if (employeeId) {
+    const [employee] = await getDb()
+      .select({ userId: staffProfiles.userId, name: user.name })
+      .from(staffProfiles)
+      .innerJoin(user, eq(user.id, staffProfiles.userId))
+      .where(and(eq(staffProfiles.userId, employeeId), eq(staffProfiles.outletId, garage.profile.outlet.id)))
+      .limit(1);
+    if (!employee) throw new CashMovementError("EMPLOYEE_NOT_FOUND", "Karyawan tidak ditemukan di outlet ini.");
+    prepared.employee = employee;
+  }
+
+  const relatedRef = def.fields.includes("relatedRef") ? input.relatedRef?.trim().toUpperCase() : "";
+  if (relatedRef) {
+    const [related] = await getDb()
+      .select({
+        id: cashMovements.id,
+        refNo: cashMovements.refNo,
+        type: cashMovements.type,
+        status: cashMovements.status,
+        expenseId: cashMovements.expenseId,
+        amount: cashMovements.amount,
+      })
+      .from(cashMovements)
+      .where(and(eq(cashMovements.outletId, garage.profile.outlet.id), eq(cashMovements.refNo, relatedRef)))
+      .limit(1);
+    if (!related) throw new CashMovementError("RELATED_NOT_FOUND", `Ref ${relatedRef} tidak ditemukan.`);
+    if (related.type !== "cash_out" || related.status !== "recorded") {
+      throw new CashMovementError("RELATED_INVALID", `Ref ${relatedRef} bukan kas keluar yang tercatat.`);
+    }
+    if (input.amount > related.amount) {
+      throw new CashMovementError("AMOUNT_INVALID", `Pengembalian melebihi kas keluar ${relatedRef}.`);
+    }
+    if (related.expenseId) {
+      const [expense] = await getDb()
+        .select({ expenseDate: expenses.expenseDate })
+        .from(expenses)
+        .where(eq(expenses.id, related.expenseId))
+        .limit(1);
+      if (expense) await assertFinanceDayOpen(expense.expenseDate);
+    }
+    prepared.related = { id: related.id, refNo: related.refNo, expenseId: related.expenseId };
+  }
+  return prepared;
+}
+
+/** KAS-YYMMDD-0001 per outlet, diserialkan advisory lock transaksi. */
+async function nextCashMovementRefNo(tx: GarageTx, outletId: string, now: Date) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`cash-ref:${outletId}`}))`);
+  const prefix = `KAS-${jakartaDateKey(now).slice(2).replaceAll("-", "")}-`;
+  const [row] = await tx
+    .select({ n: count() })
+    .from(cashMovements)
+    .where(and(eq(cashMovements.outletId, outletId), sql`${cashMovements.refNo} like ${`${prefix}%`}`));
+  return `${prefix}${String(Number(row?.n ?? 0) + 1).padStart(4, "0")}`;
+}
+
+const deductibleCashAdvance = sql`(${staffCashAdvances.status} = 'active' AND (${staffCashAdvances.expenseId} IS NULL OR EXISTS (SELECT 1 FROM expenses e WHERE e.id = ${staffCashAdvances.expenseId} AND e.status IN ('recorded', 'approved', 'paid'))))`;
+
+type CashMovementEffects = {
+  advanceId?: string;
+  advanceAllocations?: Array<{ advanceId: string; amount: number }>;
+  expenseReduction?: { expenseId: string; amount: number };
+};
+
+/**
+ * Gerakkan uang: saldo laci, pengeluaran Finance, kasbon. Dipanggil di dalam
+ * transaksi setelah sesi dikunci; tidak memanggil getDb().
+ */
+async function applyCashMovementEffectsInTx(
+  tx: GarageTx,
+  params: {
+    sessionId: string;
+    sessionCode: string;
+    outletId: string;
+    refNo: string;
+    prepared: PreparedCashMovement;
+    actorUserId: string;
+    approverName: string | null;
+    now: Date;
+  },
+) {
+  const { prepared, now } = params;
+  const delta = cashDrawerDelta(prepared.type, prepared.amount);
+  const [updated] = await tx
+    .update(cashSessions)
+    .set({ expectedCash: sql`${cashSessions.expectedCash} + ${delta}` })
+    .where(and(eq(cashSessions.id, params.sessionId), eq(cashSessions.status, "open")))
+    .returning({ expectedCash: cashSessions.expectedCash });
+  if (!updated) throw new CashSessionRequiredForCashOutError();
+  const balanceAfter = updated.expectedCash;
+  const balanceBefore = balanceAfter - delta;
+  const effects: CashMovementEffects = {};
+
+  let expenseId: string | null = null;
+  if (prepared.type === "out" && prepared.def.expenseCategory) {
+    const purchaseArea = prepared.def.countAsPurchase ? purchaseAreaForCategory(prepared.def.expenseCategory) : null;
+    const [expense] = await tx
+      .insert(expenses)
+      .values({
+        outletId: params.outletId,
+        category: prepared.def.expenseCategory,
+        description: prepared.employee ? `Kasbon ${prepared.employee.name} — ${prepared.description}` : prepared.description,
+        amount: prepared.amount,
+        paymentMethod: "Cash",
+        // Uang sudah keluar dari laci → tercatat, bukan menunggu approval.
+        status: "recorded",
+        expenseDate: now,
+        notes: [
+          `Kas keluar laci ${params.refNo} · shift ${params.sessionCode}`,
+          prepared.vendorName ? `Toko: ${prepared.vendorName}` : null,
+          prepared.receiptNo ? `Nota: ${prepared.receiptNo}` : null,
+          params.approverName ? `disetujui ${params.approverName}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        sourceDoc: purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null,
+        createdBy: params.actorUserId,
+      })
+      .returning({ id: expenses.id });
+    expenseId = expense.id;
+  }
+
+  if (prepared.def.key === "kasbon" && prepared.employee) {
+    // Masuk buku kasbon Payroll → dipotong otomatis saat gajian (FIFO).
+    const [advance] = await tx
+      .insert(staffCashAdvances)
+      .values({
+        staffUserId: prepared.employee.userId,
+        date: jakartaDateKey(now),
+        amount: prepared.amount,
+        method: "Cash",
+        note: `Kas laci ${params.refNo}: ${prepared.description}`,
+        expenseId,
+        createdBy: params.actorUserId,
+      })
+      .returning({ id: staffCashAdvances.id });
+    effects.advanceId = advance.id;
+  }
+
+  if (prepared.def.key === "bayar_kasbon" && prepared.employee) {
+    const open = await tx
+      .select({ id: staffCashAdvances.id, amount: staffCashAdvances.amount, settled: staffCashAdvances.settledAmount })
+      .from(staffCashAdvances)
+      .where(and(eq(staffCashAdvances.staffUserId, prepared.employee.userId), deductibleCashAdvance))
+      .orderBy(asc(staffCashAdvances.date), asc(staffCashAdvances.createdAt))
+      .for("update");
+    const outstanding = open.reduce((sum, row) => sum + Math.max(0, row.amount - row.settled), 0);
+    if (prepared.amount > outstanding) {
+      throw new CashMovementError(
+        "ADVANCE_EXCEEDED",
+        outstanding > 0
+          ? `Pengembalian melebihi sisa kasbon ${prepared.employee.name} (${idrFormatter.format(outstanding)}).`
+          : `${prepared.employee.name} tidak punya kasbon yang belum lunas.`,
+      );
+    }
+    let remaining = prepared.amount;
+    const allocations: Array<{ advanceId: string; amount: number }> = [];
+    for (const row of open) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, row.amount - row.settled);
+      if (take <= 0) continue;
+      await tx
+        .update(staffCashAdvances)
+        .set({ settledAmount: sql`${staffCashAdvances.settledAmount} + ${take}` })
+        .where(eq(staffCashAdvances.id, row.id));
+      allocations.push({ advanceId: row.id, amount: take });
+      remaining -= take;
+    }
+    effects.advanceAllocations = allocations;
+  }
+
+  if (prepared.def.key === "sisa_belanja" && prepared.related?.expenseId) {
+    // Sisa uang belanja kembali → biaya belanja asal berkurang (bukan pendapatan).
+    const [expense] = await tx
+      .select({ id: expenses.id, amount: expenses.amount, status: expenses.status })
+      .from(expenses)
+      .where(eq(expenses.id, prepared.related.expenseId))
+      .for("update")
+      .limit(1);
+    if (expense && expense.status === "recorded") {
+      const reduce = Math.min(prepared.amount, expense.amount);
+      if (reduce > 0) {
+        await tx
+          .update(expenses)
+          .set({ amount: sql`${expenses.amount} - ${reduce}`, updatedAt: now })
+          .where(eq(expenses.id, expense.id));
+        effects.expenseReduction = { expenseId: expense.id, amount: reduce };
+      }
+    }
+  }
+
+  return { balanceBefore, balanceAfter, expenseId, effects };
+}
+
+/** Kebalikan `applyCashMovementEffectsInTx` (pembatalan/koreksi saat shift buka). */
+async function reverseCashMovementEffectsInTx(
+  tx: GarageTx,
+  movement: typeof cashMovements.$inferSelect,
+  reason: string,
+  now: Date,
+) {
+  if (!movement.cashSessionId) {
+    throw new CashMovementError("SESSION_CLOSED", "Transaksi tanpa shift tidak bisa dibatalkan otomatis.", 409);
+  }
+  const [session] = await tx
+    .select({ id: cashSessions.id, status: cashSessions.status })
+    .from(cashSessions)
+    .where(eq(cashSessions.id, movement.cashSessionId))
+    .for("update")
+    .limit(1);
+  if (!session || session.status !== "open") {
+    throw new CashMovementError(
+      "SESSION_CLOSED",
+      "Shift transaksi ini sudah ditutup — hitungan kas final. Catat transaksi penyesuaian di shift aktif.",
+      409,
+    );
+  }
+  const delta = movement.type === "cash_out" ? -movement.amount : movement.amount;
+  await tx
+    .update(cashSessions)
+    .set({ expectedCash: sql`${cashSessions.expectedCash} - ${delta}` })
+    .where(eq(cashSessions.id, session.id));
+
+  if (movement.expenseId) {
+    // Langsung batalkan (BUKAN cancelExpenseInTx — itu juga mengoreksi kas sesi).
+    await tx
+      .update(expenses)
+      .set({ status: "cancelled", updatedAt: now, notes: sql`coalesce(${expenses.notes}, '') || ${` · dibatalkan: ${reason}`}` })
+      .where(eq(expenses.id, movement.expenseId));
+  }
+  const effects = (movement.effects ?? {}) as CashMovementEffects;
+  if (effects.advanceId) {
+    const [advance] = await tx
+      .select({ settled: staffCashAdvances.settledAmount, status: staffCashAdvances.status })
+      .from(staffCashAdvances)
+      .where(eq(staffCashAdvances.id, effects.advanceId))
+      .for("update")
+      .limit(1);
+    if (advance && advance.settled > 0) {
+      throw new CashMovementError(
+        "ADVANCE_SETTLED",
+        "Kasbon ini sudah dipotong/dicicil. Batalkan pelunasannya dulu.",
+        409,
+      );
+    }
+    if (advance?.status === "active") {
+      await tx
+        .update(staffCashAdvances)
+        .set({ status: "cancelled", cancelledAt: now, cancelReason: reason })
+        .where(eq(staffCashAdvances.id, effects.advanceId));
+    }
+  }
+  for (const allocation of effects.advanceAllocations ?? []) {
+    await tx
+      .update(staffCashAdvances)
+      .set({ settledAmount: sql`greatest(0, ${staffCashAdvances.settledAmount} - ${allocation.amount})` })
+      .where(eq(staffCashAdvances.id, allocation.advanceId));
+  }
+  if (effects.expenseReduction) {
+    await tx
+      .update(expenses)
+      .set({ amount: sql`${expenses.amount} + ${effects.expenseReduction.amount}`, updatedAt: now })
+      .where(eq(expenses.id, effects.expenseReduction.expenseId));
+  }
+}
+
+function cashMovementAuditBase(garage: GarageSession) {
+  return {
+    time: nowTimeLabel(),
+    actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
+    device: garage.profile.deviceLabel,
+  };
+}
+
+function cashMovementSnapshot(row: Pick<typeof cashMovements.$inferSelect, "type" | "category" | "description" | "amount" | "status" | "counterparty" | "note">) {
+  return {
+    type: row.type,
+    category: row.category,
+    description: row.description,
+    amount: row.amount,
+    status: row.status,
+    counterparty: row.counterparty,
+    note: row.note,
+  };
+}
+
+async function insertCashMovementInTx(
+  tx: GarageTx,
+  params: {
+    garage: GarageSession;
+    session: { id: string; code: string };
+    prepared: PreparedCashMovement;
+    status: "recorded" | "pending_approval";
+    approver: { userId: string; name: string } | null;
+    correctsMovementId?: string | null;
+    now: Date;
+  },
+) {
+  const { garage, session, prepared, now } = params;
+  const outletId = garage.profile.outlet.id;
+  const refNo = await nextCashMovementRefNo(tx, outletId, now);
+  const applied =
+    params.status === "recorded"
+      ? await applyCashMovementEffectsInTx(tx, {
+          sessionId: session.id,
+          sessionCode: session.code,
+          outletId,
+          refNo,
+          prepared,
+          actorUserId: garage.user.id,
+          approverName: params.approver?.name ?? null,
+          now,
+        })
+      : null;
+  const [movement] = await tx
+    .insert(cashMovements)
+    .values({
+      cashSessionId: session.id,
+      outletId,
+      refNo,
+      type: prepared.type === "out" ? "cash_out" : "cash_in",
+      category: prepared.def.label,
+      categoryKey: prepared.def.key,
+      cashGroup: prepared.def.group,
+      description: prepared.description,
+      note: prepared.note,
+      amount: prepared.amount,
+      status: params.status,
+      counterparty: prepared.counterparty ?? prepared.employee?.name ?? null,
+      vendorName: prepared.vendorName,
+      referenceNo: prepared.receiptNo,
+      orderId: prepared.order?.id ?? null,
+      orderNo: prepared.order?.orderNo ?? prepared.orderNoText,
+      employeeUserId: prepared.employee?.userId ?? null,
+      relatedMovementId: prepared.related?.id ?? null,
+      correctsMovementId: params.correctsMovementId ?? null,
+      expenseId: applied?.expenseId ?? null,
+      balanceBefore: applied?.balanceBefore ?? null,
+      balanceAfter: applied?.balanceAfter ?? null,
+      effects: applied ? applied.effects : null,
+      movementAt: now,
+      createdBy: garage.user.id,
+      approvedBy: params.approver?.userId ?? null,
+      approvedAt: params.approver ? now : null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  await tx.insert(auditLogs).values({
+    ...cashMovementAuditBase(garage),
+    action:
+      params.status === "pending_approval"
+        ? "Pengajuan kas laci"
+        : prepared.type === "out"
+          ? "Kas keluar laci"
+          : "Kas masuk laci",
+    object: `${refNo} · ${prepared.def.label}: ${prepared.description}`,
+    status: params.status,
+    metadata: {
+      cashMovementId: movement.id,
+      refNo,
+      cashSessionId: session.id,
+      actionType: params.status === "pending_approval" ? "request" : "record",
+      amount: prepared.amount,
+      categoryKey: prepared.def.key,
+      expenseId: applied?.expenseId ?? null,
+      balanceBefore: applied?.balanceBefore ?? null,
+      balanceAfter: applied?.balanceAfter ?? null,
+      approvedBy: params.approver?.name ?? null,
+      correctsMovementId: params.correctsMovementId ?? null,
+    },
+  });
+  return movement;
+}
+
+export async function recordCashMovement(input: CashMovementInput, garage: GarageSession) {
+  const prepared = await prepareCashMovement(input, garage);
   const settings = await getAppSettings(garage.profile.outlet.id);
   const isSupervisor = garage.profile.role === "Owner" || garage.profile.role === "Manajer";
   let approver: { userId: string; name: string } | null = null;
-  if (!isSupervisor && input.amount >= settings.cashMovementPinThreshold) {
-    if (!input.managerPin?.trim()) throw new CashMovementPinRequiredError(settings.cashMovementPinThreshold);
-    const found = await resolveApproverByPin(
-      input.managerPin.trim(),
-      garage,
-      `Kas ${input.type === "out" ? "keluar" : "masuk"} ${idrFormatter.format(input.amount)}`,
-    );
-    approver = { userId: found.userId, name: found.name };
-  }
-  const purchaseArea =
-    input.type === "out" && input.countAsPurchase ? purchaseAreaForCategory(input.category) : null;
-  if (input.type === "out" && input.countAsPurchase && !purchaseArea) {
-    throw new Error("Belanja bahan hanya untuk kategori Belanja Bar / Belanja Dapur / Belanja Umum.");
+  let status: "recorded" | "pending_approval" = "recorded";
+  if (!isSupervisor && cashDrawerNeedsApproval(prepared.def, prepared.amount, settings.cashMovementPinThreshold)) {
+    if (input.managerPin?.trim()) {
+      const found = await resolveApproverByPin(
+        input.managerPin.trim(),
+        garage,
+        `${prepared.def.label} ${idrFormatter.format(prepared.amount)}`,
+      );
+      approver = { userId: found.userId, name: found.name };
+    } else if (input.submitForApproval) {
+      status = "pending_approval";
+    } else {
+      throw new CashMovementPinRequiredError(
+        prepared.def.requiresApproval
+          ? `${prepared.def.label} perlu persetujuan Manajer/Owner (PIN atau kirim pengajuan).`
+          : `Kas keluar/masuk mulai ${idrFormatter.format(settings.cashMovementPinThreshold)} perlu PIN Manajer/Owner atau kirim pengajuan.`,
+      );
+    }
   }
 
-  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const now = new Date();
-  const db = getDb();
-  const result = await db.transaction(async (tx) => {
+  const movement = await getDb().transaction(async (tx) => {
     // Laci = sesi kas milik pengguna ini yang masih buka di outlet ini.
     const [session] = await tx
       .select({ id: cashSessions.id, code: cashSessions.code })
@@ -15886,103 +16385,613 @@ export async function recordCashMovement(input: CashMovementInput, garage: Garag
       .for("update")
       .limit(1);
     if (!session) throw new CashSessionRequiredForCashOutError();
-
-    const delta = input.type === "out" ? -input.amount : input.amount;
-    await tx
-      .update(cashSessions)
-      .set({ expectedCash: sql`${cashSessions.expectedCash} + ${delta}` })
-      .where(and(eq(cashSessions.id, session.id), eq(cashSessions.status, "open")));
-
-    let expenseId: string | null = null;
-    if (input.type === "out") {
-      const [expense] = await tx
-        .insert(expenses)
-        .values({
-          outletId: garage.profile.outlet.id,
-          category: input.category,
-          description: input.description,
-          amount: input.amount,
-          paymentMethod: "Cash",
-          // Uang sudah keluar dari laci → tercatat, bukan menunggu approval.
-          status: "recorded",
-          expenseDate: now,
-          notes: `Kas keluar laci shift ${session.code}${approver ? ` · disetujui ${approver.name}` : ""}`,
-          sourceDoc: purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null,
-          createdBy: garage.user.id,
-        })
-        .returning({ id: expenses.id });
-      expenseId = expense.id;
-    }
-
-    const [movement] = await tx
-      .insert(cashMovements)
-      .values({
-        cashSessionId: session.id,
-        outletId: garage.profile.outlet.id,
-        type: input.type === "out" ? "cash_out" : "cash_in",
-        category: input.category,
-        description: input.description,
-        amount: input.amount,
-        status: "recorded",
-        counterparty: input.counterparty?.trim() || null,
-        referenceNo: input.referenceNo?.trim() || null,
-        orderNo: input.orderNo?.trim() || null,
-        movementAt: now,
-        createdBy: garage.user.id,
-        approvedBy: approver?.userId ?? null,
-        approvedAt: approver ? now : null,
-      })
-      .returning();
-
-    await tx.insert(auditLogs).values({
-      time: nowTimeLabel(),
-      actor,
-      action: input.type === "out" ? "Kas keluar laci" : "Kas masuk laci",
-      object: `${input.category}: ${input.description}`,
-      device: garage.profile.deviceLabel,
-      status: "recorded",
-      metadata: {
-        cashMovementId: movement.id,
-        cashSessionId: session.id,
-        amount: input.amount,
-        expenseId,
-        approvedBy: approver?.name ?? null,
-      },
-    });
-    return { movement, session, expenseId };
+    const row = await insertCashMovementInTx(tx, { garage, session, prepared, status, approver, now });
+    return { row, session };
   });
 
   return {
-    id: result.movement.id,
-    type: input.type,
-    category: input.category,
-    description: input.description,
-    amount: input.amount,
-    movementAt: result.movement.movementAt.toISOString(),
-    cashSessionId: result.session.id,
-    cashSessionCode: result.session.code,
-    expenseId: result.expenseId,
+    id: movement.row.id,
+    refNo: movement.row.refNo,
+    status: movement.row.status,
+    type: prepared.type,
+    categoryKey: prepared.def.key,
+    category: prepared.def.label,
+    description: prepared.description,
+    counterparty: movement.row.counterparty,
+    amount: prepared.amount,
+    movementAt: movement.row.movementAt.toISOString(),
+    cashSessionId: movement.session.id,
+    cashSessionCode: movement.session.code,
+    expenseId: movement.row.expenseId,
     approvedByName: approver?.name ?? null,
     createdByName: garage.user.name,
   };
 }
 
-export async function listCashMovementsForSession(sessionId: string) {
-  const rows = await getDb()
-    .select({
-      id: cashMovements.id,
-      type: cashMovements.type,
-      category: cashMovements.category,
-      description: cashMovements.description,
-      amount: cashMovements.amount,
-      movementAt: cashMovements.movementAt,
-      createdByName: user.name,
-    })
+async function lockOutletCashMovement(tx: GarageTx, id: string, garage: GarageSession) {
+  if (!isUuidLike(id)) throw new CashMovementError("NOT_FOUND", "Transaksi kas tidak ditemukan.", 404);
+  const [row] = await tx
+    .select()
     .from(cashMovements)
-    .leftJoin(user, eq(user.id, cashMovements.createdBy))
+    .where(and(eq(cashMovements.id, id), eq(cashMovements.outletId, garage.profile.outlet.id)))
+    .for("update")
+    .limit(1);
+  if (!row) throw new CashMovementError("NOT_FOUND", "Transaksi kas tidak ditemukan.", 404);
+  return row;
+}
+
+/** Re-hidrasi baris tersimpan menjadi input tervalidasi (untuk menyetujui pengajuan). */
+async function preparedFromRow(row: typeof cashMovements.$inferSelect, garage: GarageSession) {
+  const related = row.relatedMovementId
+    ? (
+        await getDb()
+          .select({ refNo: cashMovements.refNo })
+          .from(cashMovements)
+          .where(eq(cashMovements.id, row.relatedMovementId))
+          .limit(1)
+      )[0]?.refNo
+    : null;
+  return prepareCashMovement(
+    {
+      type: row.type === "cash_out" ? "out" : "in",
+      categoryKey: row.categoryKey ?? undefined,
+      category: row.category,
+      description: row.description,
+      amount: row.amount,
+      note: row.note,
+      counterparty: row.counterparty,
+      vendorName: row.vendorName,
+      receiptNo: row.referenceNo,
+      orderRef: row.orderNo,
+      orderNo: row.orderNo,
+      employeeUserId: row.employeeUserId,
+      relatedRef: related,
+    },
+    garage,
+  );
+}
+
+/** Manajer/Owner memutus pengajuan Kasir. Setuju = uang bergerak SEKARANG. */
+export async function decideCashMovement(
+  id: string,
+  input: { action: "approve" | "reject"; note?: string | null },
+  garage: GarageSession,
+) {
+  assertOwnerOrManager(garage);
+  const note = cleanText(input.note, 300);
+  if (input.action === "reject" && !note) {
+    throw new CashMovementError("REASON_REQUIRED", "Alasan penolakan wajib diisi.");
+  }
+  const [current] = await getDb()
+    .select()
+    .from(cashMovements)
+    .where(and(eq(cashMovements.id, isUuidLike(id) ? id : randomUUID()), eq(cashMovements.outletId, garage.profile.outlet.id)))
+    .limit(1);
+  if (!current) throw new CashMovementError("NOT_FOUND", "Transaksi kas tidak ditemukan.", 404);
+  if (current.status !== "pending_approval") {
+    throw new CashMovementError("NOT_PENDING", "Transaksi ini tidak sedang menunggu persetujuan.", 409);
+  }
+  const prepared = input.action === "approve" ? await preparedFromRow(current, garage) : null;
+  const now = new Date();
+
+  return getDb().transaction(async (tx) => {
+    const row = await lockOutletCashMovement(tx, id, garage);
+    if (row.status !== "pending_approval") {
+      throw new CashMovementError("NOT_PENDING", "Transaksi ini tidak sedang menunggu persetujuan.", 409);
+    }
+    if (input.action === "reject") {
+      const [updated] = await tx
+        .update(cashMovements)
+        .set({ status: "rejected", rejectedBy: garage.user.id, rejectedAt: now, decisionNote: note, updatedAt: now })
+        .where(eq(cashMovements.id, row.id))
+        .returning();
+      await tx.insert(auditLogs).values({
+        ...cashMovementAuditBase(garage),
+        action: "Pengajuan kas laci ditolak",
+        object: `${row.refNo} · ${row.category}: ${row.description}`,
+        status: "rejected",
+        metadata: { cashMovementId: row.id, refNo: row.refNo, actionType: "reject", amount: row.amount, reason: note },
+      });
+      return updated;
+    }
+    const [session] = await tx
+      .select({ id: cashSessions.id, code: cashSessions.code, status: cashSessions.status })
+      .from(cashSessions)
+      .where(eq(cashSessions.id, row.cashSessionId ?? randomUUID()))
+      .for("update")
+      .limit(1);
+    if (!session || session.status !== "open") {
+      throw new CashMovementError(
+        "SESSION_CLOSED",
+        "Shift pengajuan ini sudah ditutup — tolak pengajuannya lalu catat ulang di shift aktif.",
+        409,
+      );
+    }
+    const applied = await applyCashMovementEffectsInTx(tx, {
+      sessionId: session.id,
+      sessionCode: session.code,
+      outletId: garage.profile.outlet.id,
+      refNo: row.refNo ?? row.id,
+      prepared: prepared!,
+      actorUserId: row.createdBy ?? garage.user.id,
+      approverName: garage.user.name,
+      now,
+    });
+    const [updated] = await tx
+      .update(cashMovements)
+      .set({
+        status: "recorded",
+        approvedBy: garage.user.id,
+        approvedAt: now,
+        decisionNote: note,
+        movementAt: now,
+        expenseId: applied.expenseId,
+        balanceBefore: applied.balanceBefore,
+        balanceAfter: applied.balanceAfter,
+        effects: applied.effects,
+        updatedAt: now,
+      })
+      .where(eq(cashMovements.id, row.id))
+      .returning();
+    await tx.insert(auditLogs).values({
+      ...cashMovementAuditBase(garage),
+      action: "Pengajuan kas laci disetujui",
+      object: `${row.refNo} · ${row.category}: ${row.description}`,
+      status: "recorded",
+      metadata: {
+        cashMovementId: row.id,
+        refNo: row.refNo,
+        cashSessionId: session.id,
+        actionType: "approve",
+        amount: row.amount,
+        expenseId: applied.expenseId,
+        balanceBefore: applied.balanceBefore,
+        balanceAfter: applied.balanceAfter,
+        note,
+      },
+    });
+    return updated;
+  });
+}
+
+/** Batalkan transaksi tercatat (salah input) — Owner/Manajer, shift masih buka. */
+export async function voidCashMovement(id: string, reason: string, garage: GarageSession) {
+  assertOwnerOrManager(garage);
+  const cleanReason = cleanText(reason, 300);
+  if (!cleanReason || cleanReason.length < 3) {
+    throw new CashMovementError("REASON_REQUIRED", "Alasan pembatalan wajib diisi.");
+  }
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    const row = await lockOutletCashMovement(tx, id, garage);
+    if (row.status !== "recorded") {
+      throw new CashMovementError("NOT_RECORDED", "Hanya transaksi tercatat yang bisa dibatalkan.", 409);
+    }
+    await reverseCashMovementEffectsInTx(tx, row, cleanReason, now);
+    const [updated] = await tx
+      .update(cashMovements)
+      .set({ status: "voided", voidedBy: garage.user.id, voidedAt: now, voidReason: cleanReason, updatedAt: now })
+      .where(eq(cashMovements.id, row.id))
+      .returning();
+    await tx.insert(auditLogs).values({
+      ...cashMovementAuditBase(garage),
+      action: "Kas laci dibatalkan",
+      object: `${row.refNo ?? row.id} · ${row.category}: ${row.description}`,
+      status: "voided",
+      metadata: {
+        cashMovementId: row.id,
+        refNo: row.refNo,
+        cashSessionId: row.cashSessionId,
+        actionType: "void",
+        amount: row.amount,
+        reason: cleanReason,
+        before: cashMovementSnapshot(row),
+        after: cashMovementSnapshot(updated),
+      },
+    });
+    return updated;
+  });
+}
+
+/**
+ * Koreksi = batalkan baris lama + catat baris baru di shift yang sama (satu
+ * transaksi). Riwayat lama tetap ada; baris baru menunjuk `correctsMovementId`.
+ */
+export async function correctCashMovement(
+  id: string,
+  input: Omit<CashMovementInput, "managerPin" | "submitForApproval"> & { reason: string },
+  garage: GarageSession,
+) {
+  assertOwnerOrManager(garage);
+  const reason = cleanText(input.reason, 300);
+  if (!reason || reason.length < 3) throw new CashMovementError("REASON_REQUIRED", "Alasan koreksi wajib diisi.");
+  const prepared = await prepareCashMovement(input, garage);
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    const row = await lockOutletCashMovement(tx, id, garage);
+    if (row.status !== "recorded") {
+      throw new CashMovementError("NOT_RECORDED", "Hanya transaksi tercatat yang bisa dikoreksi.", 409);
+    }
+    await reverseCashMovementEffectsInTx(tx, row, `Koreksi: ${reason}`, now);
+    await tx
+      .update(cashMovements)
+      .set({ status: "voided", voidedBy: garage.user.id, voidedAt: now, voidReason: `Koreksi: ${reason}`, updatedAt: now })
+      .where(eq(cashMovements.id, row.id));
+    const [session] = await tx
+      .select({ id: cashSessions.id, code: cashSessions.code })
+      .from(cashSessions)
+      .where(eq(cashSessions.id, row.cashSessionId!))
+      .limit(1);
+    const replacement = await insertCashMovementInTx(tx, {
+      garage,
+      session,
+      prepared,
+      status: "recorded",
+      approver: null,
+      correctsMovementId: row.id,
+      now,
+    });
+    await tx.insert(auditLogs).values({
+      ...cashMovementAuditBase(garage),
+      action: "Koreksi kas laci",
+      object: `${row.refNo ?? row.id} → ${replacement.refNo}`,
+      status: "corrected",
+      metadata: {
+        cashMovementId: row.id,
+        replacementId: replacement.id,
+        refNo: row.refNo,
+        replacementRefNo: replacement.refNo,
+        cashSessionId: row.cashSessionId,
+        actionType: "correct",
+        reason,
+        before: cashMovementSnapshot(row),
+        after: cashMovementSnapshot(replacement),
+      },
+    });
+    return replacement;
+  });
+}
+
+export type CashMovementFilters = {
+  q?: string;
+  from?: string;
+  to?: string;
+  type?: "out" | "in";
+  categoryKey?: string;
+  cashierId?: string;
+  status?: string;
+  sessionId?: string;
+  limit?: number;
+};
+
+const movementCreator = alias(user, "cash_movement_creator");
+const movementApprover = alias(user, "cash_movement_approver");
+const movementEmployee = alias(user, "cash_movement_employee");
+const movementRejecter = alias(user, "cash_movement_rejecter");
+const movementVoider = alias(user, "cash_movement_voider");
+
+function cashMovementSelect() {
+  return {
+    id: cashMovements.id,
+    refNo: cashMovements.refNo,
+    cashSessionId: cashMovements.cashSessionId,
+    sessionCode: cashSessions.code,
+    sessionStatus: cashSessions.status,
+    type: cashMovements.type,
+    category: cashMovements.category,
+    categoryKey: cashMovements.categoryKey,
+    description: cashMovements.description,
+    note: cashMovements.note,
+    amount: cashMovements.amount,
+    status: cashMovements.status,
+    counterparty: cashMovements.counterparty,
+    vendorName: cashMovements.vendorName,
+    receiptNo: cashMovements.referenceNo,
+    receiptPhoto: cashMovements.receiptPhoto,
+    orderNo: cashMovements.orderNo,
+    employeeName: movementEmployee.name,
+    relatedMovementId: cashMovements.relatedMovementId,
+    correctsMovementId: cashMovements.correctsMovementId,
+    expenseId: cashMovements.expenseId,
+    balanceBefore: cashMovements.balanceBefore,
+    balanceAfter: cashMovements.balanceAfter,
+    movementAt: cashMovements.movementAt,
+    createdAt: cashMovements.createdAt,
+    createdBy: cashMovements.createdBy,
+    createdByName: movementCreator.name,
+    approvedByName: movementApprover.name,
+    approvedAt: cashMovements.approvedAt,
+    rejectedByName: movementRejecter.name,
+    rejectedAt: cashMovements.rejectedAt,
+    decisionNote: cashMovements.decisionNote,
+    voidedByName: movementVoider.name,
+    voidedAt: cashMovements.voidedAt,
+    voidReason: cashMovements.voidReason,
+  };
+}
+
+function cashMovementBaseQuery() {
+  return getDb()
+    .select(cashMovementSelect())
+    .from(cashMovements)
+    .leftJoin(cashSessions, eq(cashSessions.id, cashMovements.cashSessionId))
+    .leftJoin(movementCreator, eq(movementCreator.id, cashMovements.createdBy))
+    .leftJoin(movementApprover, eq(movementApprover.id, cashMovements.approvedBy))
+    .leftJoin(movementEmployee, eq(movementEmployee.id, cashMovements.employeeUserId))
+    .leftJoin(movementRejecter, eq(movementRejecter.id, cashMovements.rejectedBy))
+    .leftJoin(movementVoider, eq(movementVoider.id, cashMovements.voidedBy));
+}
+
+type CashMovementSelectRow = Awaited<ReturnType<typeof cashMovementBaseQuery>>[number];
+
+/**
+ * Bentuk baris untuk UI/PDF. `hideBalance`: Kasir tidak melihat saldo laci
+ * selama shift masih buka (blind count tutup shift).
+ */
+function shapeCashMovement(row: CashMovementSelectRow, hideBalance: boolean) {
+  const iso = (value: Date | null) => (value ? value.toISOString() : null);
+  const type = row.type === "cash_out" ? ("out" as const) : ("in" as const);
+  return {
+    id: row.id!,
+    refNo: row.refNo ?? null,
+    cashSessionId: row.cashSessionId ?? null,
+    sessionCode: row.sessionCode ?? null,
+    sessionStatus: row.sessionStatus ?? null,
+    type,
+    category: row.category ?? "",
+    categoryKey: row.categoryKey ?? null,
+    group: cashDrawerGroupOf({ categoryKey: row.categoryKey, category: row.category ?? "" }),
+    description: row.description ?? "",
+    note: row.note ?? null,
+    amount: row.amount ?? 0,
+    status: row.status ?? "recorded",
+    counterparty: row.counterparty ?? null,
+    vendorName: row.vendorName ?? null,
+    receiptNo: row.receiptNo ?? null,
+    hasReceiptPhoto: Boolean(row.receiptPhoto),
+    orderNo: row.orderNo ?? null,
+    employeeName: row.employeeName ?? null,
+    correctsMovementId: row.correctsMovementId ?? null,
+    hasExpense: Boolean(row.expenseId),
+    balanceBefore: hideBalance ? null : row.balanceBefore ?? null,
+    balanceAfter: hideBalance ? null : row.balanceAfter ?? null,
+    balanceHidden: hideBalance && row.balanceBefore != null,
+    movementAt: iso(row.movementAt)!,
+    createdAt: iso(row.createdAt)!,
+    createdById: row.createdBy ?? null,
+    createdByName: row.createdByName ?? null,
+    approvedByName: row.approvedByName ?? null,
+    approvedAt: iso(row.approvedAt),
+    rejectedByName: row.rejectedByName ?? null,
+    rejectedAt: iso(row.rejectedAt),
+    decisionNote: row.decisionNote ?? null,
+    voidedByName: row.voidedByName ?? null,
+    voidedAt: iso(row.voidedAt),
+    voidReason: row.voidReason ?? null,
+  };
+}
+
+export type CashMovementView = ReturnType<typeof shapeCashMovement>;
+
+const isCashSupervisor = (garage: GarageSession) =>
+  garage.profile.role === "Owner" || garage.profile.role === "Manajer";
+
+/** Riwayat kas laci. Kasir: hanya catatannya sendiri; Owner/Manajer: seluruh outlet. */
+export async function listCashMovements(filters: CashMovementFilters, garage: GarageSession) {
+  const supervisor = isCashSupervisor(garage);
+  const conditions = [eq(cashMovements.outletId, garage.profile.outlet.id)];
+  if (!supervisor) conditions.push(eq(cashMovements.createdBy, garage.user.id));
+  else if (filters.cashierId) conditions.push(eq(cashMovements.createdBy, filters.cashierId));
+  if (filters.type) conditions.push(eq(cashMovements.type, filters.type === "out" ? "cash_out" : "cash_in"));
+  if (filters.categoryKey) conditions.push(eq(cashMovements.categoryKey, filters.categoryKey));
+  if (filters.status) conditions.push(eq(cashMovements.status, filters.status));
+  if (filters.sessionId && isUuidLike(filters.sessionId)) conditions.push(eq(cashMovements.cashSessionId, filters.sessionId));
+  if (filters.from && /^\d{4}-\d{2}-\d{2}$/.test(filters.from)) {
+    conditions.push(gte(cashMovements.createdAt, jakartaDayRange(filters.from).start));
+  }
+  if (filters.to && /^\d{4}-\d{2}-\d{2}$/.test(filters.to)) {
+    conditions.push(lt(cashMovements.createdAt, jakartaDayRange(filters.to).end));
+  }
+  const q = filters.q?.trim();
+  if (q) {
+    const pattern = `%${q.replace(/[%_\\]/g, (ch) => `\\${ch}`)}%`;
+    conditions.push(
+      or(
+        ilike(cashMovements.description, pattern),
+        ilike(cashMovements.refNo, pattern),
+        ilike(cashMovements.counterparty, pattern),
+        ilike(cashMovements.note, pattern),
+      )!,
+    );
+  }
+  const limit = Math.min(Math.max(filters.limit ?? 100, 1), 5_000);
+  const rows = await cashMovementBaseQuery()
+    .where(and(...conditions))
+    .orderBy(desc(cashMovements.createdAt))
+    .limit(limit);
+  const items = rows.map((row) => shapeCashMovement(row, !supervisor && row.sessionStatus === "open"));
+
+  const recorded = items.filter((row) => row.status === "recorded");
+  const cashiers = supervisor
+    ? await getDb()
+        .selectDistinct({ id: user.id, name: user.name })
+        .from(cashMovements)
+        .innerJoin(user, eq(user.id, cashMovements.createdBy))
+        .where(eq(cashMovements.outletId, garage.profile.outlet.id))
+        .orderBy(asc(user.name))
+    : [];
+  return {
+    items,
+    totals: {
+      cashIn: recorded.filter((row) => row.type === "in").reduce((sum, row) => sum + row.amount, 0),
+      cashOut: recorded.filter((row) => row.type === "out").reduce((sum, row) => sum + row.amount, 0),
+      pending: items.filter((row) => row.status === "pending_approval").length,
+    },
+    cashiers,
+    canManage: supervisor,
+  };
+}
+
+/** Detail + riwayat perubahan (audit log ber-cashMovementId). */
+export async function getCashMovementDetail(id: string, garage: GarageSession) {
+  if (!isUuidLike(id)) return null;
+  const supervisor = isCashSupervisor(garage);
+  const [row] = await cashMovementBaseQuery()
+    .where(and(eq(cashMovements.id, id), eq(cashMovements.outletId, garage.profile.outlet.id)))
+    .limit(1);
+  if (!row) return null;
+  if (!supervisor && row.createdBy !== garage.user.id) return null;
+  const history = await getDb()
+    .select({
+      id: auditLogs.id,
+      action: auditLogs.action,
+      actor: auditLogs.actor,
+      status: auditLogs.status,
+      metadata: auditLogs.metadata,
+      createdAt: auditLogs.createdAt,
+    })
+    .from(auditLogs)
+    .where(
+      or(
+        sql`${auditLogs.metadata}->>'cashMovementId' = ${id}`,
+        sql`${auditLogs.metadata}->>'replacementId' = ${id}`,
+      ),
+    )
+    .orderBy(asc(auditLogs.createdAt));
+  const linked = await cashMovementBaseQuery()
+    .where(
+      and(
+        eq(cashMovements.outletId, garage.profile.outlet.id),
+        or(eq(cashMovements.correctsMovementId, id), eq(cashMovements.relatedMovementId, id)),
+      ),
+    )
+    .orderBy(asc(cashMovements.createdAt));
+  const hide = !supervisor && row.sessionStatus === "open";
+  return {
+    movement: shapeCashMovement(row, hide),
+    history: history.map((entry) => {
+      const meta = (entry.metadata ?? {}) as Record<string, unknown>;
+      return {
+        id: entry.id,
+        action: entry.action,
+        actor: entry.actor,
+        status: entry.status,
+        reason: typeof meta.reason === "string" ? meta.reason : typeof meta.note === "string" ? meta.note : null,
+        before: hide ? null : (meta.before as Record<string, unknown> | undefined) ?? null,
+        after: hide ? null : (meta.after as Record<string, unknown> | undefined) ?? null,
+        createdAt: entry.createdAt.toISOString(),
+      };
+    }),
+    linked: linked.map((linkedRow) => shapeCashMovement(linkedRow, !supervisor && linkedRow.sessionStatus === "open")),
+    canManage: supervisor,
+    canAttachReceipt:
+      (supervisor || row.createdBy === garage.user.id) && row.status !== "rejected" && row.status !== "voided",
+  };
+}
+
+/** Pilihan form: karyawan outlet (+ sisa kasbon) & kas keluar shift aktif (ref sisa belanja). */
+export async function getCashMovementOptions(garage: GarageSession) {
+  const db = getDb();
+  const staff = await db
+    .select({ userId: staffProfiles.userId, name: user.name, role: staffProfiles.role })
+    .from(staffProfiles)
+    .innerJoin(user, eq(user.id, staffProfiles.userId))
+    .where(and(eq(staffProfiles.outletId, garage.profile.outlet.id), eq(staffProfiles.status, "active")))
+    .orderBy(asc(user.name));
+  const userIds = staff.map((row) => row.userId);
+  const outstandingRows = userIds.length
+    ? await db
+        .select({
+          userId: staffCashAdvances.staffUserId,
+          outstanding: sql<number>`coalesce(sum(${staffCashAdvances.amount} - ${staffCashAdvances.settledAmount}), 0)::int`,
+        })
+        .from(staffCashAdvances)
+        .where(and(inArray(staffCashAdvances.staffUserId, userIds), deductibleCashAdvance))
+        .groupBy(staffCashAdvances.staffUserId)
+    : [];
+  const outstanding = new Map(outstandingRows.map((row) => [row.userId, row.outstanding]));
+  const active = await getActiveCashSessionForCashier(garage.user.id);
+  const recentOut = active
+    ? await db
+        .select({
+          refNo: cashMovements.refNo,
+          category: cashMovements.category,
+          description: cashMovements.description,
+          amount: cashMovements.amount,
+        })
+        .from(cashMovements)
+        .where(
+          and(
+            eq(cashMovements.cashSessionId, active.id),
+            eq(cashMovements.type, "cash_out"),
+            eq(cashMovements.status, "recorded"),
+            eq(cashMovements.cashGroup, "operational"),
+            isNotNull(cashMovements.refNo),
+          ),
+        )
+        .orderBy(desc(cashMovements.createdAt))
+        .limit(20)
+    : [];
+  return {
+    employees: staff.map((row) => ({
+      userId: row.userId,
+      name: row.name,
+      role: row.role,
+      outstandingAdvance: outstanding.get(row.userId) ?? 0,
+    })),
+    recentCashOut: recentOut,
+  };
+}
+
+/**
+ * Foto nota/bukti (path relatif storage/cash-receipts). Hanya pembuat transaksi
+ * atau Owner/Manajer outlet; baris ditolak/dibatalkan tidak bisa diberi bukti.
+ */
+export async function setCashMovementReceiptPhoto(id: string, relativePath: string, garage: GarageSession) {
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    const row = await lockOutletCashMovement(tx, id, garage);
+    if (!isCashSupervisor(garage) && row.createdBy !== garage.user.id) {
+      throw new CashMovementError("FORBIDDEN", "Hanya pencatat transaksi atau Owner/Manajer yang bisa melampirkan bukti.", 403);
+    }
+    if (row.status === "rejected" || row.status === "voided") {
+      throw new CashMovementError("NOT_ACTIVE", "Transaksi ditolak/dibatalkan tidak bisa diberi bukti.", 409);
+    }
+    await tx
+      .update(cashMovements)
+      .set({ receiptPhoto: relativePath, updatedAt: now })
+      .where(eq(cashMovements.id, row.id));
+    await tx.insert(auditLogs).values({
+      ...cashMovementAuditBase(garage),
+      action: row.receiptPhoto ? "Foto nota kas laci diganti" : "Foto nota kas laci dilampirkan",
+      object: `${row.refNo ?? row.id} · ${row.category}: ${row.description}`,
+      status: row.status,
+      metadata: { cashMovementId: row.id, refNo: row.refNo, actionType: "receipt", previousPhoto: row.receiptPhoto },
+    });
+    return { previous: row.receiptPhoto };
+  });
+}
+
+/** Path foto nota bila peminta berhak melihatnya (pembuat atau Owner/Manajer). */
+export async function getCashMovementReceiptPhoto(id: string, garage: GarageSession) {
+  if (!isUuidLike(id)) return null;
+  const [row] = await getDb()
+    .select({ receiptPhoto: cashMovements.receiptPhoto, createdBy: cashMovements.createdBy })
+    .from(cashMovements)
+    .where(and(eq(cashMovements.id, id), eq(cashMovements.outletId, garage.profile.outlet.id)))
+    .limit(1);
+  if (!row?.receiptPhoto) return null;
+  if (!isCashSupervisor(garage) && row.createdBy !== garage.user.id) return null;
+  return row.receiptPhoto;
+}
+
+/** Semua kas laci sesi (untuk laporan shift; saldo selalu tampil). */
+export async function listCashMovementsForSession(sessionId: string) {
+  if (!isUuidLike(sessionId)) return [];
+  const rows = await cashMovementBaseQuery()
     .where(eq(cashMovements.cashSessionId, sessionId))
-    .orderBy(asc(cashMovements.movementAt));
-  return rows.map((row) => ({ ...row, movementAt: row.movementAt.toISOString() }));
+    .orderBy(asc(cashMovements.createdAt));
+  return rows.map((row) => shapeCashMovement(row, false));
 }
 
 export async function createExpense(input: ExpenseInput, garage: GarageSession) {
@@ -16228,6 +17237,18 @@ export async function cancelExpenseInTx(
 ) {
   const [current] = await tx.select().from(expenses).where(eq(expenses.id, expenseId)).limit(1);
   if (!current || current.status === "rejected" || current.status === "cancelled") return null;
+  // Pengeluaran dari kas laci dibatalkan lewat Riwayat Kas Laci (saldo laci,
+  // kasbon & audit ikut dibalik di sana) — jangan dua kali mengoreksi kas sesi.
+  const [drawerMovement] = await tx
+    .select({ refNo: cashMovements.refNo })
+    .from(cashMovements)
+    .where(and(eq(cashMovements.expenseId, expenseId), eq(cashMovements.status, "recorded")))
+    .limit(1);
+  if (drawerMovement) {
+    throw new Error(
+      `Pengeluaran ini berasal dari kas laci ${drawerMovement.refNo ?? ""} — batalkan lewat Riwayat Kas Laci di POS.`.replace("  ", " "),
+    );
+  }
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const now = new Date();
   let cashSessionId: string | null = null;
@@ -17825,19 +18846,55 @@ export async function getCashSessionSummary(
     }
   }
 
-  const movementRows = await getDb()
-    .select({ type: cashMovements.type, amount: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int` })
-    .from(cashMovements)
-    .where(eq(cashMovements.cashSessionId, sessionId))
-    .groupBy(cashMovements.type);
+  // Penerimaan tunai penjualan yang masuk laci sesi ini (sama dengan rekon export).
+  const [cashSalesRow] = await getDb()
+    .select({
+      total: sql<number>`coalesce(sum(case when lower(${payments.method}) like '%cash%' or lower(${payments.method}) like '%tunai%' then ${payments.amount} else 0 end), 0)::int`,
+    })
+    .from(payments)
+    .where(and(eq(payments.cashSessionId, sessionId), eq(payments.status, "captured")));
+  const cashSales = Number(cashSalesRow?.total ?? 0);
+
+  // Hanya `recorded` yang menggerakkan uang; pengajuan/ditolak/dibatalkan tidak.
+  const movementRows = await listCashMovementsForSession(sessionId);
+  const recordedMovements = movementRows.filter((row) => row.status === "recorded");
   const cashMovementTotals = {
-    cashIn: movementRows.find((row) => row.type === "cash_in")?.amount ?? 0,
-    cashOut: movementRows.find((row) => row.type === "cash_out")?.amount ?? 0,
+    cashIn: recordedMovements.filter((row) => row.type === "in").reduce((sum, row) => sum + row.amount, 0),
+    cashOut: recordedMovements.filter((row) => row.type === "out").reduce((sum, row) => sum + row.amount, 0),
+    pendingCount: movementRows.filter((row) => row.status === "pending_approval").length,
+    pendingAmount: movementRows
+      .filter((row) => row.status === "pending_approval")
+      .reduce((sum, row) => sum + row.amount, 0),
+    byGroup: CASH_DRAWER_GROUP_ORDER.map((group) => {
+      const rows = recordedMovements.filter((row) => row.group === group);
+      return {
+        group,
+        label: CASH_DRAWER_GROUP_LABELS[group],
+        cashIn: rows.filter((row) => row.type === "in").reduce((sum, row) => sum + row.amount, 0),
+        cashOut: rows.filter((row) => row.type === "out").reduce((sum, row) => sum + row.amount, 0),
+        count: rows.length,
+      };
+    }).filter((row) => row.count > 0),
   };
+
+  // Kas akhir = modal + tunai penjualan + kas masuk − kas keluar + penyesuaian lain
+  // (refund/void tunai, pengeluaran Finance tunai, koreksi metode bayar).
+  const otherAdjustments =
+    data.session.expectedCash -
+    (data.session.openingCash + cashSales + cashMovementTotals.cashIn - cashMovementTotals.cashOut);
 
   return {
     session: data.session,
     cashMovements: cashMovementTotals,
+    movements: movementRows,
+    reconciliation: {
+      openingCash: data.session.openingCash,
+      cashSales,
+      cashIn: cashMovementTotals.cashIn,
+      cashOut: cashMovementTotals.cashOut,
+      otherAdjustments,
+      expectedCash: data.session.expectedCash,
+    },
     counts: {
       total: data.orders.length,
       paid: paid.length,

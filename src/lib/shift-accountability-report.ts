@@ -307,8 +307,10 @@ export function buildShiftAccountability(raw: ShiftRaw) {
   const cashSales = sum(cashPayments.map(originalOf));
   const cashStillHeld = sum(cashPayments.filter((p) => LIVE_PAYMENT.has(p.status)).map((p) => p.amount));
   const cashRefundsVoids = Math.max(0, cashSales - cashStillHeld);
-  const cashIn = sum(raw.movements.filter((m) => m.type === "cash_in").map((m) => m.amount));
-  const cashOut = sum(raw.movements.filter((m) => m.type === "cash_out").map((m) => m.amount));
+  // Hanya kas laci yang uangnya sudah bergerak; pengajuan/ditolak/dibatalkan tidak dihitung.
+  const recordedMovements = raw.movements.filter((m) => m.status === "recorded");
+  const cashIn = sum(recordedMovements.filter((m) => m.type === "cash_in").map((m) => m.amount));
+  const cashOut = sum(recordedMovements.filter((m) => m.type === "cash_out").map((m) => m.amount));
   const formulaExpected = session.openingCash + cashSales + cashIn - cashOut - cashRefundsVoids;
   const cash = {
     openingCash: session.openingCash,

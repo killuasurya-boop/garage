@@ -223,6 +223,7 @@ import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib
 import { quickCashOptions } from "@/lib/pos-cash";
 import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
+import { CashDrawerDialog, type CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
 import { claimReprint } from "@/lib/reprint-guard";
 import { isDirectHandoverMenu, productionStationFor } from "@/lib/garage-production-rules";
 import type { KitchenChitItem } from "@/lib/thermal-receipt";
@@ -715,17 +716,8 @@ export function PosView({
     "idle" | "printing" | "success" | "error"
   >("idle");
   const [reprintError, setReprintError] = useState<string | null>(null);
-  // Catat Pengeluaran (kasbon laci kasir) â€” POST /api/finance/expenses
+  // Kas Keluar / Masuk Laci — dialog CashDrawerDialog.
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
-  const [expenseCategory, setExpenseCategory] = useState("Kasbon");
-  const [expenseDescription, setExpenseDescription] = useState("");
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseNote, setExpenseNote] = useState("");
-  // "out" = kas keluar laci, "in" = kas masuk (tambah uang kecil).
-  const [expensePaymentMethod, setExpensePaymentMethod] = useState<"out" | "in">("out");
-  const [expenseManagerPin, setExpenseManagerPin] = useState("");
-  const [expensePending, setExpensePending] = useState(false);
-  const [expenseError, setExpenseError] = useState<string | null>(null);
   // Quick Count Stok (hanya tampil utk role yg punya inventory:write)
   const canQuickCount =
     me.role === "Manajer" || me.role === "Kasir" || me.role === "Owner";
@@ -3204,15 +3196,8 @@ export function PosView({
       GARAGE_TAGS.dashboard,
     ]);
   }
-  // â”€â”€â”€ Catat Pengeluaran (kasbon kasir) â”€â”€â”€
-  function openExpenseDialog(presetCategory?: string) {
-    setExpenseError(null);
-    setExpenseCategory(presetCategory ?? "Kasbon");
-    setExpenseDescription("");
-    setExpenseAmount("");
-    setExpenseNote("");
-    setExpensePaymentMethod("out");
-    setExpenseManagerPin("");
+  // â”€â”€â”€ Kas Keluar / Masuk Laci â”€â”€â”€
+  function openExpenseDialog() {
     setExpenseDialogOpen(true);
   }
 
@@ -3300,70 +3285,35 @@ export function PosView({
     }
   }
 
-  async function submitExpense() {
-    if (!shiftOpen) {
-      setExpenseError("Buka shift terlebih dahulu sebelum mencatat pengeluaran.");
+  function handleCashMovementRecorded(result: CashMovementRecorded) {
+    if (result.status === "pending_approval") {
+      setPosNotice(`Pengajuan ${result.refNo ?? ""} ${currency.format(result.amount)} terkirim — menunggu persetujuan Manajer/Owner.`);
       return;
     }
-    const amount = Number(expenseAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setExpenseError("Nominal pengeluaran tidak valid.");
-      return;
-    }
-    const description = expenseDescription.trim();
-    if (description.length < 2) {
-      setExpenseError("Deskripsi pengeluaran wajib diisi.");
-      return;
-    }
-    setExpensePending(true);
-    setExpenseError(null);
-    try {
-      const note = expenseNote.trim();
-      const type = expensePaymentMethod;
-      const result = await garageApi.post<{
-        id: string;
-        amount: number;
-        cashSessionCode: string;
-        approvedByName: string | null;
-        movementAt: string;
-      }>("/api/finance/cash-sessions/movements", {
-        type,
-        category: expenseCategory.trim() || "Lain-lain",
-        description: note ? `${description} — ${note}` : description,
-        amount: Math.round(amount),
-        managerPin: expenseManagerPin.trim() || undefined,
-        countAsPurchase: type === "out" && expenseCategory.startsWith("Belanja") ? true : undefined,
-      });
-      setExpenseDialogOpen(false);
-      setPosNotice(
-        `${type === "out" ? "Kas keluar" : "Kas masuk"} ${currency.format(Math.round(amount))} dicatat di laci shift ${result.cashSessionCode}.`,
-      );
-      void printDocument((width) =>
-        buildCashMovementSlipContent(
-          {
-            type,
-            category: expenseCategory,
-            description: note ? `${description} — ${note}` : description,
-            amount: Math.round(amount),
-            cashSessionCode: result.cashSessionCode,
-            createdByName: me.user.name,
-            approvedByName: result.approvedByName,
-            movementAt: result.movementAt,
-          },
-          {
-            width,
-            brand: { brandName: settings.brandName, brandTagline: settings.brandTagline, outletName: me.outlet.name, outletCode: me.outlet.code },
-            showSignature: settings.receiptShowSignature,
-          },
-        ),
-      ).catch(() => undefined);
-    } catch (error) {
-      setExpenseError(
-        error instanceof Error ? error.message : "Gagal mencatat pengeluaran.",
-      );
-    } finally {
-      setExpensePending(false);
-    }
+    setPosNotice(
+      `${result.type === "out" ? "Kas keluar" : "Kas masuk"} ${currency.format(result.amount)} tercatat · Ref ${result.refNo ?? "-"} · shift ${result.cashSessionCode}.`,
+    );
+    void printDocument((width) =>
+      buildCashMovementSlipContent(
+        {
+          type: result.type,
+          category: result.category,
+          description: result.description,
+          amount: result.amount,
+          cashSessionCode: result.cashSessionCode,
+          createdByName: me.user.name,
+          approvedByName: result.approvedByName,
+          movementAt: result.movementAt,
+          refNo: result.refNo,
+          counterparty: result.counterparty,
+        },
+        {
+          width,
+          brand: { brandName: settings.brandName, brandTagline: settings.brandTagline, outletName: me.outlet.name, outletCode: me.outlet.code },
+          showSignature: settings.receiptShowSignature,
+        },
+      ),
+    ).catch(() => undefined);
   }
 
   function handleProductTap(item: MenuItem) {
@@ -11024,194 +10974,16 @@ export function PosView({
         onSplit={(result) => void handleTableBillSplit(result)}
       />
 
-      {/* Dialog: Catat Pengeluaran (kasbon kasir) */}
-      <Dialog
+      {/* Dialog: Kas Keluar / Masuk Laci */}
+      <CashDrawerDialog
         open={expenseDialogOpen}
-        onOpenChange={(open) => {
-          setExpenseDialogOpen(open);
-          if (!open) setExpenseError(null);
-        }}
-      >
-        <DialogContent
-          data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
-          className="border-[#34343c] bg-[#111116] sm:max-w-md"
-        >
-          <DialogHeader>
-            <DialogTitle>Kas Keluar / Masuk Laci</DialogTitle>
-            <DialogDescription>
-              Uang laci yang keluar (belanja kecil, kasbon) atau masuk (tambah uang
-              kecil) selama shift. Ikut dihitung saat tutup shift; kas keluar juga
-              tercatat sebagai pengeluaran tunai.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitExpense();
-            }}
-          >
-            <div>
-              <p className="garage-mono mb-1.5 text-[10px] text-[#b8b8bf]">
-                Kategori
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(expensePaymentMethod === "out"
-                  ? [
-                      "Belanja Bar",
-                      "Belanja Dapur",
-                      "Kasbon",
-                      "Beli Air/Es",
-                      "Transport",
-                      "Lain-lain",
-                    ]
-                  : ["Tambah Uang Kecil", "Setoran Owner", "Lain-lain"]
-                ).map((cat) => (
-                  <Button
-                    key={cat}
-                    type="button"
-                    variant="outline"
-                    className={`garage-press h-9 px-2 text-[11px] ${
-                      expenseCategory === cat
-                        ? "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]"
-                        : "border-[#4a4a54] bg-white/[0.055]"
-                    }`}
-                    onClick={() => setExpenseCategory(cat)}
-                  >
-                    {cat}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                Deskripsi (wajib)
-              </p>
-              <Input
-                value={expenseDescription}
-                onChange={(event) =>
-                  setExpenseDescription(event.target.value.slice(0, 180))
-                }
-                placeholder="mis. Beli galon Aqua, isi parkir, beli kantong plastik"
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-                maxLength={180}
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                  Nominal (Rp)
-                </p>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  value={expenseAmount}
-                  onChange={(event) => setExpenseAmount(event.target.value)}
-                  placeholder="50000"
-                  className="h-11 border-[#34343c] bg-white/[0.06]"
-                />
-              </div>
-              <div>
-                <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                  Jenis
-                </p>
-                <div className="grid grid-cols-2 gap-1">
-                  {([
-                    ["out", "Kas keluar"],
-                    ["in", "Kas masuk"],
-                  ] as const).map(([value, label]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      variant="outline"
-                      aria-pressed={expensePaymentMethod === value}
-                      className={`garage-press h-11 px-2 text-xs ${
-                        expensePaymentMethod === value
-                          ? "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]"
-                          : "border-[#4a4a54] bg-white/[0.055]"
-                      }`}
-                      onClick={() => {
-                        setExpensePaymentMethod(value);
-                        setExpenseCategory(value === "out" ? "Belanja Bar" : "Tambah Uang Kecil");
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div>
-              <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
-                Catatan (opsional)
-              </p>
-              <Input
-                value={expenseNote}
-                onChange={(event) =>
-                  setExpenseNote(event.target.value.slice(0, 200))
-                }
-                placeholder="Detail tambahan untuk audit"
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-                maxLength={200}
-              />
-            </div>
-            {me.role === "Kasir" &&
-            Number(expenseAmount) >= settings.cashMovementPinThreshold ? (
-              <div>
-                <p className="garage-mono mb-1 text-[10px] text-[#ffd08a]">
-                  PIN Manajer/Owner (mulai {currency.format(settings.cashMovementPinThreshold)})
-                </p>
-                <Input
-                  type="password"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={expenseManagerPin}
-                  onChange={(event) => setExpenseManagerPin(event.target.value.replace(/\D/g, "").slice(0, 8))}
-                  placeholder="PIN Manajer"
-                  className="h-11 border-[#f5a742]/45 bg-white/[0.06]"
-                />
-              </div>
-            ) : null}
-            {expenseError ? (
-              <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
-                <AlertTriangle className="size-4" />
-                <AlertTitle>Pengeluaran</AlertTitle>
-                <AlertDescription>{expenseError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-10 border-[#4a4a54] bg-white/[0.055]"
-                onClick={() => setExpenseDialogOpen(false)}
-                disabled={expensePending}
-              >
-                Batal
-              </Button>
-              <Button
-                type="submit"
-                className="garage-press h-10"
-                disabled={expensePending}
-              >
-                {expensePending ? (
-                  <>
-                    <RefreshCw className="mr-2 size-4 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 size-4" />
-                    Simpan
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setExpenseDialogOpen}
+        role={me.role}
+        threshold={settings.cashMovementPinThreshold}
+        shiftOpen={shiftOpen}
+        themeScope={isCashierKiosk ? cashierTheme : undefined}
+        onRecorded={handleCashMovementRecorded}
+      />
 
       {/* Dialog: Quick Count Stok (POS â€” manager/gudang/supervisor) */}
       <Dialog

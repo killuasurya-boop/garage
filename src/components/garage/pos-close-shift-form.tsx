@@ -5,14 +5,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRightLeft,
-  Banknote,
   CheckCircle2,
-  Coins,
   KeyRound,
   Landmark,
   Loader2,
-  Minus,
-  Plus,
   QrCode,
   RotateCcw,
   Vault,
@@ -23,7 +19,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { IDR_CASH_DENOMINATIONS, sumDenominations } from "@/lib/cash-denominations";
+import { CashDenominationGrid, denominationTotals } from "@/components/garage/cash-denomination-grid";
+import { denominationLabel, denominationValue } from "@/lib/cash-denominations";
 import { freshClosingChecklist } from "@/lib/cash-closing";
 
 export type CloseShiftPayload = {
@@ -108,18 +105,7 @@ export function CloseShiftForm({
   const [confirming, setConfirming] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
 
-  const parsedCounts = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(counts)
-          .filter(([, raw]) => raw.trim() !== "")
-          .map(([key, raw]) => [key, Math.max(0, Math.floor(Number(raw) || 0))]),
-      ) as Record<string, number>,
-    [counts],
-  );
-  const total = sumDenominations(parsedCounts);
-  const pieces = Object.values(parsedCounts).reduce((sum, qty) => sum + qty, 0);
-  const anyCounted = Object.keys(parsedCounts).length > 0;
+  const { parsed: parsedCounts, total, pieces, anyCounted } = useMemo(() => denominationTotals(counts), [counts]);
 
   // Default: tinggalkan modal yang sama dengan modal awal (bila uang cukup).
   const effectiveFloat =
@@ -128,15 +114,6 @@ export function CloseShiftForm({
       : floatChoice ?? (total >= openingCash ? openingCash : 0);
   const deposit = Math.max(0, total - effectiveFloat);
   const checklistDone = checklist.every((item) => item.done);
-
-  function setCount(key: string, value: string) {
-    setCounts((current) => ({ ...current, [key]: value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 5) }));
-    setLocalError(null);
-  }
-  function step(key: string, delta: number) {
-    const next = Math.max(0, (parsedCounts[key] ?? 0) + delta);
-    setCount(key, String(next));
-  }
 
   function validate() {
     if (!anyCounted) return "Isi jumlah lembar/keping uang di laci (isi 0 bila laci kosong).";
@@ -172,8 +149,6 @@ export function CloseShiftForm({
   }
 
   const shownError = localError ?? error;
-  const notes = IDR_CASH_DENOMINATIONS.filter((d) => d >= 1_000);
-  const coins = IDR_CASH_DENOMINATIONS.filter((d) => d < 1_000);
 
   if (confirming) {
     return (
@@ -209,13 +184,13 @@ export function CloseShiftForm({
           <ul className="mt-3 space-y-1 text-xs text-[#d6d6dc]">
             {Object.entries(parsedCounts)
               .filter(([, qty]) => qty > 0)
-              .sort((a, b) => Number(b[0]) - Number(a[0]))
+              .sort((a, b) => denominationValue(b[0]) - denominationValue(a[0]))
               .map(([key, qty]) => (
                 <li key={key} className="flex justify-between gap-3 border-b border-white/5 py-1 last:border-0">
                   <span>
-                    {rupiah(Number(key))} × {qty}
+                    {denominationLabel(key)} × {qty}
                   </span>
-                  <span className="font-semibold text-white">{rupiah(Number(key) * qty)}</span>
+                  <span className="font-semibold text-white">{rupiah(denominationValue(key) * qty)}</span>
                 </li>
               ))}
           </ul>
@@ -290,57 +265,7 @@ export function CloseShiftForm({
       {/* 1. Hitung laci */}
       <section className="space-y-3">
         <SectionTitle step={1} title="Hitung uang di laci" hint="Isi jumlah lembar/keping per pecahan. Kosong = 0." />
-        {[
-          { label: "Uang kertas", Icon: Banknote, list: notes },
-          { label: "Uang koin", Icon: Coins, list: coins },
-        ].map((group) => (
-          <div key={group.label} className="overflow-hidden rounded-lg border border-[#34343c]">
-            <p className="flex items-center gap-1.5 border-b border-[#34343c] bg-white/[0.05] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#d6d6dc]">
-              <group.Icon className="size-3.5 text-[#f5a742]" /> {group.label}
-            </p>
-            <ul className="divide-y divide-white/5">
-              {group.list.map((denomination) => {
-                const key = String(denomination);
-                const qty = parsedCounts[key] ?? 0;
-                return (
-                  <li key={key} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(84px,auto)] items-center gap-2 px-3 py-1.5">
-                    <span className="text-sm font-semibold text-white">{rupiah(denomination)}</span>
-                    <div className="flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => step(key, -1)}
-                        className="grid size-10 place-items-center rounded-l-md border border-[#4a4a54] bg-white/[0.05] text-white hover:bg-white/10 disabled:opacity-40"
-                        disabled={qty === 0}
-                        aria-label={`Kurangi ${rupiah(denomination)}`}
-                      >
-                        <Minus className="size-4" />
-                      </button>
-                      <input
-                        inputMode="numeric"
-                        value={counts[key] ?? ""}
-                        onChange={(event) => setCount(key, event.target.value)}
-                        placeholder="0"
-                        aria-label={`Jumlah ${rupiah(denomination)}`}
-                        className="h-10 w-14 border-y border-[#4a4a54] bg-black/30 text-center font-mono text-base font-bold text-white outline-none placeholder:text-[#6b6b75] focus:bg-black/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => step(key, 1)}
-                        className="grid size-10 place-items-center rounded-r-md border border-[#4a4a54] bg-white/[0.05] text-white hover:bg-white/10"
-                        aria-label={`Tambah ${rupiah(denomination)}`}
-                      >
-                        <Plus className="size-4" />
-                      </button>
-                    </div>
-                    <span className={`text-right font-mono text-sm ${qty ? "font-bold text-white" : "text-[#6b6b75]"}`}>
-                      {rupiah(denomination * qty)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        <CashDenominationGrid counts={counts} onChange={(next) => { setCounts(next); setLocalError(null); }} testIdPrefix="close-denom" />
         <div className="flex items-center justify-between rounded-lg border border-[#f5a742]/55 bg-[#f5a742]/10 px-4 py-3">
           <div>
             <p className="text-xs font-semibold text-[#ffd08a]">Total uang di laci</p>

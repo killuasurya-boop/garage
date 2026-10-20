@@ -1,12 +1,14 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { isValidDenominationKey } from "@/lib/cash-denominations";
 import {
   CashSessionAlreadyOpenError,
   CashSessionDailyLimitError,
   CashSessionOutletAlreadyOpenError,
   CashSessionShiftMismatchError,
   createCashSession,
+  OpeningDenominationMismatchError,
 } from "@/lib/garage-service";
 import { requireAnyPermission } from "@/lib/server-auth";
 
@@ -23,6 +25,9 @@ const cashSessionSchema = z.object({
     }),
   shiftNumber: z.number().int().min(1).max(9).optional(),
   managerPin: z.string().trim().regex(/^\d{4,8}$/, "PIN harus 4–8 digit angka.").optional(),
+  openingDenominations: z
+    .record(z.string().refine(isValidDenominationKey, "Pecahan uang tidak dikenal."), z.number().int().min(0).max(9999))
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -39,6 +44,9 @@ export async function POST(request: Request) {
   try {
     return ok(await createCashSession(body.data, session.data), { status: 201 });
   } catch (error) {
+    if (error instanceof OpeningDenominationMismatchError) {
+      return fail(422, error.code, error.message);
+    }
     if (error instanceof CashSessionAlreadyOpenError) {
       return fail(409, "CASH_SESSION_ALREADY_OPEN", error.message);
     }

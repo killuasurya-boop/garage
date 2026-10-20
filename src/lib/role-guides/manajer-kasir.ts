@@ -43,8 +43,23 @@ export const manajerKasirGuide: RoleGuide = {
       ],
     },
     {
+      id: "pertanggungjawaban",
+      title: "3. Laporan pertanggungjawaban kasir (PDF)",
+      intro: "Satu PDF A4 berisi seluruh aktivitas kasir, uang, produk, void, refund, petty cash & kejadian.",
+      steps: [
+        { text: "Riwayat & Laporan Shift → tab Laporan Lengkap → pilih tanggal operasional." },
+        {
+          text: "Unduh per shift, per kasir, Seluruh kasir, Kas & Petty cash, atau Gabungan harian. Nama file: Laporan_Shift_[Kasir]_YYYY-MM-DD_Shift-N.pdf, Laporan_Kasir_…, Laporan_Kas_PettyCash_…, Laporan_Operasional_Kasir_Garage_….",
+        },
+        { text: "Buka detail shift yang sudah ditutup → Pemeriksaan Manajer → tulis hasil, lalu Verifikasi laporan atau Perlu tindak lanjut. Status ini tercetak apa adanya di PDF." },
+        { text: "Verifikasi modal awal dari kartu yang sama (siapa menghitung & siapa memverifikasi tercatat)." },
+        { text: "Petty cash: tab Petty Cash → Setujui / Tolak pengajuan kasir (tolak wajib alasan). Isi dana lewat jenis Penambahan dana." },
+        { text: "Catatan kejadian: beri Catatan Manajer & tandai selesai dari detail shift." },
+      ],
+    },
+    {
       id: "laporan",
-      title: "3. Laporan penjualan",
+      title: "4. Laporan penjualan",
       steps: [
         { text: "Tab Laporan Penjualan: pilih Hari ini, Kemarin, 7 hari, Bulan ini, atau tanggal sendiri." },
         { text: "Lihat produk terlaris, kategori, metode bayar, jam ramai, per kasir, dan tipe order." },
@@ -53,7 +68,7 @@ export const manajerKasirGuide: RoleGuide = {
     },
     {
       id: "pengaturan",
-      title: "4. Pengaturan yang mempengaruhi kasir",
+      title: "5. Pengaturan yang mempengaruhi kasir",
       steps: [
         { text: "Pengaturan → Shift & Cash: batas PIN kas keluar/masuk, wajib tanda tangan saat selisih." },
         { text: "Pengaturan → Receipt: kolom tanda tangan slip manajemen & jumlah cetak slip." },

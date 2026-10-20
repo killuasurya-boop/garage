@@ -32,6 +32,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalesReport } from "@/components/garage/sales-report";
+import {
+  AccountabilityExportCard,
+  PettyCashPanel,
+  ShiftIncidentsPanel,
+  ShiftReviewCard,
+} from "@/components/garage/shift-accountability-panel";
 import { GarageApiError, garageApi } from "@/lib/api-client";
 import type { AppSettings } from "@/lib/garage-app-settings-types";
 import {
@@ -123,6 +129,10 @@ type SessionSummary = {
   session: SessionListItem & {
     openedByName: string | null;
     closedByName: string | null;
+    reviewStatus?: string;
+    reviewNote?: string | null;
+    openingVerifiedAt?: string | null;
+    openingCounted?: boolean;
   };
   counts: { total: number; paid: number; refunded: number };
   sales: {
@@ -250,7 +260,15 @@ const HIDDEN_UNTIL_CLOSE = "Tampil setelah tutup";
  * metode bayar) disembunyikan selama shift masih open supaya hitungan laci
  * saat tutup shift tidak dicocok-cocokkan dengan angka sistem.
  */
-export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?: boolean }) {
+export function CashierShiftReport({
+  blindOpenShift = false,
+  canSupervise = false,
+  initialTab,
+}: {
+  blindOpenShift?: boolean;
+  canSupervise?: boolean;
+  initialTab?: string;
+}) {
   const [active, setActive] = useState<SessionListItem | null>(null);
   const [history, setHistory] = useState<SessionListItem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -274,6 +292,8 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
       ]);
       setActive(activeRes.session);
       setHistory(historyRes.rows);
+      // Dari POS "Catatan Kejadian": langsung buka detail shift aktif.
+      if (initialTab === "incident" && activeRes.session) setSelectedId((current) => current ?? activeRes.session!.id);
     } catch (error) {
       setListError(
         error instanceof Error ? error.message : "Gagal memuat data shift.",
@@ -281,7 +301,7 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [initialTab]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
@@ -343,6 +363,7 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
       <ShiftDetailView
         sessionId={selectedId}
         blindOpenShift={blindOpenShift}
+        canSupervise={canSupervise}
         onBack={() => {
           setSelectedId(null);
           void loadList();
@@ -380,7 +401,7 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
         </Card>
       )}
 
-      <Tabs defaultValue={active ? "active" : "history"} className="min-w-0 space-y-4">
+      <Tabs defaultValue={initialTab ?? (active ? "active" : "history")} className="min-w-0 space-y-4">
         <TabsList className="h-auto max-w-full flex-wrap justify-start">
           <TabsTrigger value="active">Sesi Aktif</TabsTrigger>
           <TabsTrigger value="history">Riwayat ({history.length})</TabsTrigger>
@@ -388,7 +409,17 @@ export function CashierShiftReport({ blindOpenShift = false }: { blindOpenShift?
             <TabsTrigger value="daily">Rekap Harian</TabsTrigger>
           ) : null}
           <TabsTrigger value="sales">Laporan Penjualan</TabsTrigger>
+          <TabsTrigger value="full" data-testid="tab-full-report">Laporan Lengkap</TabsTrigger>
+          <TabsTrigger value="petty" data-testid="tab-petty">Petty Cash</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="full" className="space-y-3">
+          <AccountabilityExportCard canSupervise={canSupervise} />
+        </TabsContent>
+
+        <TabsContent value="petty" className="space-y-3">
+          <PettyCashPanel canSupervise={canSupervise} />
+        </TabsContent>
 
         <TabsContent value="sales" className="space-y-3">
           <SalesReport />
@@ -537,10 +568,12 @@ function SessionCard({
 function ShiftDetailView({
   sessionId,
   blindOpenShift,
+  canSupervise,
   onBack,
 }: {
   sessionId: string;
   blindOpenShift: boolean;
+  canSupervise: boolean;
   onBack: () => void;
 }) {
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -587,8 +620,8 @@ function ShiftDetailView({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between gap-3">
-        <Button variant="outline" size="sm" onClick={onBack}>
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="outline" size="sm" onClick={onBack} className="mr-auto">
           <ArrowLeft className="h-4 w-4" />
           Kembali
         </Button>
@@ -604,9 +637,21 @@ function ShiftDetailView({
               : undefined
           }
           onClick={() => window.open(pdfUrl, "_blank")}
+          variant="outline"
         >
           <Download className="h-4 w-4" />
-          Cetak PDF
+          PDF ringkas
+        </Button>
+        <Button
+          size="sm"
+          className="bg-[#d11a2a] hover:bg-[#b8131f]"
+          disabled={loading || !summary || (blindOpenShift && summary.session.status === "open")}
+          title="Laporan lengkap: transaksi, produk, kas, petty cash, pecahan, void, refund, kejadian, verifikasi"
+          onClick={() => window.open(`/api/reports/cashier-accountability?sessionId=${sessionId}`, "_blank")}
+          data-testid="shift-full-pdf"
+        >
+          <FileText className="h-4 w-4" />
+          Laporan Lengkap
         </Button>
       </header>
 
@@ -800,6 +845,18 @@ function ShiftDetailView({
               )}
             </CardContent>
           </Card>
+          <ShiftIncidentsPanel sessionId={sessionId} canSupervise={canSupervise} canAdd />
+          {canSupervise ? (
+            <ShiftReviewCard
+              sessionId={sessionId}
+              shiftOpen={summary.session.status === "open"}
+              reviewStatus={summary.session.reviewStatus ?? "pending"}
+              reviewNote={summary.session.reviewNote ?? null}
+              openingVerifiedAt={summary.session.openingVerifiedAt ?? null}
+              openingCounted={Boolean(summary.session.openingCounted)}
+              onChanged={() => void load()}
+            />
+          ) : null}
         </>
       )}
     </div>

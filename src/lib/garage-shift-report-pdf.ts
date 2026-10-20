@@ -47,7 +47,7 @@ export async function generateShiftReportPdf(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: "A4", margin: 48 });
+      const doc = new PDFDocument({ size: "A4", margin: 48, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
@@ -179,7 +179,7 @@ export async function generateShiftReportPdf(
         .font("Helvetica-Bold")
         .fontSize(12)
         .fillColor("#111")
-        .text("Ringkasan Penjualan");
+        .text("Ringkasan Penjualan", 48, doc.y);
       doc.moveDown(0.3);
 
       const salesRows: Array<[string, string]> = [
@@ -232,7 +232,7 @@ export async function generateShiftReportPdf(
           .font("Helvetica-Bold")
           .fontSize(12)
           .fillColor("#111")
-          .text("Rincian Metode Pembayaran");
+          .text("Rincian Metode Pembayaran", 48, doc.y);
         doc.moveDown(0.3);
 
         // Header row
@@ -257,6 +257,7 @@ export async function generateShiftReportPdf(
         drawMethodHeader();
 
         for (const m of summary.byMethod) {
+          if (doc.y > 770) doc.addPage();
           const ry = doc.y;
           doc
             .font("Helvetica")
@@ -351,6 +352,7 @@ export async function generateShiftReportPdf(
         doc.moveDown(0.3);
 
         if (summary.cashMovements.byGroup.length) {
+          if (doc.y > 740) doc.addPage();
           const gy = doc.y;
           doc
             .font("Helvetica-Bold")
@@ -363,6 +365,7 @@ export async function generateShiftReportPdf(
           doc.moveDown(0.2);
           rule();
           for (const group of summary.cashMovements.byGroup) {
+            if (doc.y > 770) doc.addPage();
             const ry = doc.y;
             doc
               .font("Helvetica")
@@ -424,7 +427,7 @@ export async function generateShiftReportPdf(
           const amountText = `${m.type === "out" ? "-" : "+"}${fmtRp(m.amount)}`;
           const balanceText =
             m.balanceBefore != null && m.balanceAfter != null
-              ? `${fmtRp(m.balanceBefore)}\n→ ${fmtRp(m.balanceAfter)}`
+              ? `${fmtRp(m.balanceBefore)}\n-> ${fmtRp(m.balanceAfter)}`
               : "-";
           doc.font("Helvetica").fontSize(8);
           const rowHeight = Math.max(
@@ -526,6 +529,8 @@ export async function generateShiftReportPdf(
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i += 1) {
         doc.switchToPage(i);
+        // Footer di bawah margin: tanpa ini PDFKit membuat halaman kosong baru.
+        doc.page.margins.bottom = 0;
         doc
           .font("Helvetica")
           .fontSize(8)

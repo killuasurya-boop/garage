@@ -437,6 +437,7 @@ describe("Kas laci — rekonsiliasi, tutup & ganti shift, PDF", () => {
     const pdf = await generateShiftReportPdf(summary!, transactions!);
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
     expect(pdf.length).toBeGreaterThan(2_000);
+    if (process.env.CASH_PDF_OUT) (await import("node:fs")).writeFileSync(process.env.CASH_PDF_OUT, pdf);
   });
 
   it("ganti shift: transaksi berikutnya masuk shift baru, nomor ref tetap berlanjut", async () => {

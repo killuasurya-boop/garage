@@ -13,7 +13,6 @@ import {
 import { currency, type MenuCategory, unitCostCurrency } from "@/lib/garage-data";
 import type { InventoryItem } from "@/lib/garage-api-types";
 import {
-  CATEGORY_STATION_LABEL,
   PRODUCT_TYPE_LABEL,
   SELL_UNIT_SUGGESTIONS,
   type ProductCategoryRow,
@@ -99,7 +98,7 @@ export interface ProductFormPanelProps {
   // Konteks & preview
   inventoryItems: InventoryItem[];
   recipeCostPreview: number;
-  marginPreview: { margin: number; marginPct: number; label: string } | null;
+  marginPreview: { margin: number; marginPct: number; label: string; baseCost?: number } | null;
 
   // Foto
   imagePreview: string | null;
@@ -153,7 +152,7 @@ export function ProductFormPanel({
   onRemoveRecipe,
   inventoryItems,
   recipeCostPreview,
-  marginPreview,
+  marginPreview: rawMarginPreview,
   imagePreview,
   imageInputRef,
   onImageSelected,
@@ -163,11 +162,15 @@ export function ProductFormPanel({
   const categoryOptions = categories.filter((entry) => entry.status === "active" || entry.id === selectedCategory?.id);
   const effectiveType: ProductType = productType || selectedCategory?.defaultProductType || "menu";
   const isRetail = effectiveType === "retail";
+  // Margin hanya ditampilkan bila HPP/harga modal sudah ada (bukan 100% palsu dari biaya 0).
+  const marginPreview = rawMarginPreview && Number(rawMarginPreview.baseCost ?? 0) > 0 ? rawMarginPreview : null;
+  const shortStation = { bar: "Bar", dapur: "Dapur", none: "Langsung" } as const;
   const autoStationLabel = selectedCategory
-    ? CATEGORY_STATION_LABEL[selectedCategory.station]
+    ? shortStation[selectedCategory.station]
     : category === "Coffee" || category === "Non-Coffee"
       ? "Bar"
       : "Dapur";
+  const effectiveStationLabel = station ? shortStation[station] : autoStationLabel;
   return (
     <div className="garage-scrollbar grid min-h-0 flex-1 gap-4 overflow-y-auto bg-[#0b0b0e] p-4 lg:grid-cols-[1fr_320px]">
       {/* === FORM PANEL === */}
@@ -176,7 +179,7 @@ export function ProductFormPanel({
           <p className="text-sm font-black text-white">Detail Produk</p>
           <p className="text-xs text-[#a1a1aa]">SKU, nama, kategori, tipe, station, stok, dan waktu prep.</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1">
             <span className="text-xs font-semibold text-[#d4d4d8]">Tipe produk</span>
             <Select
@@ -188,7 +191,7 @@ export function ProductFormPanel({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">
-                  Ikut kategori ({PRODUCT_TYPE_LABEL[selectedCategory?.defaultProductType ?? "menu"]})
+                  Ikut kategori: {PRODUCT_TYPE_LABEL[selectedCategory?.defaultProductType ?? "menu"]}
                 </SelectItem>
                 {(Object.keys(PRODUCT_TYPE_LABEL) as ProductType[]).map((type) => (
                   <SelectItem key={type} value={type}>
@@ -208,7 +211,7 @@ export function ProductFormPanel({
               placeholder={isRetail ? "Mis. Djarum, Aqua" : "Opsional"}
             />
           </label>
-          <label className="grid gap-1 sm:col-span-2 xl:col-span-2">
+          <label className="grid gap-1 sm:col-span-2">
             <span className="text-xs font-semibold text-[#d4d4d8]">
               Barcode produk {isRetail ? "(retail: wajib di produk atau varian)" : "(opsional)"}
             </span>
@@ -342,7 +345,7 @@ export function ProductFormPanel({
             </span>
           </label>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_150px_130px_100px_130px]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(200px,1.5fr)_170px_130px_90px_120px]">
           <Input
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
@@ -361,8 +364,7 @@ export function ProductFormPanel({
                 categoryOptions.map((entry) => (
                   <SelectItem key={entry.id} value={entry.name}>
                     {entry.name}
-                    {entry.station === "none" ? " (tanpa tiket)" : ""}
-                    {entry.status !== "active" ? " — nonaktif" : ""}
+                    {entry.status !== "active" ? " (nonaktif)" : ""}
                   </SelectItem>
                 ))
               ) : (
@@ -381,7 +383,7 @@ export function ProductFormPanel({
               <SelectValue placeholder="Station" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto">Otomatis ({autoStationLabel})</SelectItem>
+              <SelectItem value="auto">Auto: {autoStationLabel}</SelectItem>
               <SelectItem value="bar">Bar</SelectItem>
               <SelectItem value="dapur">Dapur</SelectItem>
               <SelectItem value="none">Langsung kasir</SelectItem>
@@ -536,7 +538,7 @@ export function ProductFormPanel({
                 </div>
                 <p className="text-[11px] text-[#a1a1aa]">
                   {isRetail
-                    ? variant.baseCost && Number(variant.price) > 0
+                    ? Number(variant.baseCost) > 0 && Number(variant.price) > 0
                       ? `Margin kotor ${currency.format(Number(variant.price) - Number(variant.baseCost))} (${Math.round(((Number(variant.price) - Number(variant.baseCost)) / Number(variant.price)) * 1000) / 10}%) dari harga modal.`
                       : "Produk retail: isi harga modal per satuan jual (harga beli valid, bukan tebakan). Resep tidak diperlukan."
                     : hasRecipe
@@ -554,13 +556,13 @@ export function ProductFormPanel({
             <div className="rounded border border-[#34343c] bg-black/20 p-3">
               <p className="garage-mono text-[10px] text-[#888]">MARGIN PREVIEW</p>
               <p className="mt-1 font-black text-white">
-                {marginPreview ? currency.format(marginPreview.margin) : "Rp 0"}
+                {marginPreview ? currency.format(marginPreview.margin) : "— (HPP belum ada)"}
               </p>
             </div>
             <div className="rounded border border-[#34343c] bg-black/20 p-3">
               <p className="garage-mono text-[10px] text-[#888]">RASIO MARGIN</p>
               <p className={`mt-1 font-black ${marginPreview && marginPreview.marginPct < 55 ? "text-[#ffd08a]" : "text-[#bbf7d0]"}`}>
-                {marginPreview ? `${marginPreview.marginPct}%` : "0%"}
+                {marginPreview ? `${marginPreview.marginPct}%` : "—"}
               </p>
             </div>
           </div>
@@ -776,7 +778,7 @@ export function ProductFormPanel({
           <div className="flex aspect-[4/3] items-center justify-center bg-[radial-gradient(circle_at_top,#34343c_0%,#18181f_42%,#0b0b0e_100%)] p-5 text-center">
             <div>
               <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[#f5a742]/45 bg-[#f5a742]/12 text-[#f5a742]">
-                {category === "Coffee" || category === "Non-Coffee" ? (
+                {effectiveStationLabel === "Bar" ? (
                   <Coffee className="size-8" />
                 ) : (
                   <ChefHat className="size-8" />
@@ -787,13 +789,7 @@ export function ProductFormPanel({
               </p>
               <p className="mt-1 text-xs text-[#d4d4d8]">
                 {category} ·{" "}
-                {station === "bar"
-                  ? "Bar"
-                  : station === "dapur"
-                    ? "Dapur"
-                    : category === "Coffee" || category === "Non-Coffee"
-                      ? "Bar"
-                      : "Dapur"}{" "}
+                {effectiveStationLabel}{" "}
                 · {prep || "10m"}
               </p>
             </div>
@@ -814,7 +810,7 @@ export function ProductFormPanel({
             <div className="rounded border border-[#34343c] bg-white/[0.04] p-2">
               <p className="text-[10px] font-bold uppercase text-[#8f8f99]">Margin</p>
               <p className={`mt-1 text-xs font-black ${marginPreview && marginPreview.marginPct < 55 ? "text-[#ffd08a]" : "text-[#bbf7d0]"}`}>
-                {marginPreview ? `${marginPreview.marginPct}%` : "0%"}
+                {marginPreview ? `${marginPreview.marginPct}%` : "—"}
               </p>
             </div>
           </div>

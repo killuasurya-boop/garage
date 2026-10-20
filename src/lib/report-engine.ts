@@ -304,12 +304,15 @@ export function reportToPdf(report: ReportDoc): Promise<Buffer> {
     doc.rect(left, 36, width, 66).fill(DARK);
     doc.rect(left, 98, width, 4).fill(RED);
     const logo = report.showLogo ? readLogo() : null;
+    const outletLabel = report.outletName ? `Outlet ${report.outletName.replace(/^outlet\s+/i, "")}` : "Garage OS";
     if (logo) {
-      doc.image(logo, left + 12, 44, { fit: [150, 30] });
+      // Logo wordmark (rasio ±4,3:1) di atas, label outlet di bawahnya — tidak bertumpuk.
+      doc.image(logo, left + 12, 42, { fit: [132, 31] });
+      doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(outletLabel, left + 14, 82);
     } else {
       doc.font("Helvetica-Bold").fontSize(16).fillColor("#ffffff").text("GARAGE COFFEE", left + 14, 48);
+      doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(outletLabel, left + 14, 70);
     }
-    doc.font("Helvetica").fontSize(8.5).fillColor("#d4d4d8").text(report.outletName ? `Outlet ${report.outletName}` : "Garage OS", left + 14, 70);
     doc.font("Helvetica-Bold").fontSize(12).fillColor("#f2b872").text(titleLine, left, 46, { width: width - 14, align: "right" });
     if (report.division) {
       doc.font("Helvetica-Bold").fontSize(9).fillColor("#ffffff").text(report.division.toUpperCase(), left, 62, { width: width - 14, align: "right" });

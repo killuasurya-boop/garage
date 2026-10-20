@@ -43,7 +43,7 @@ export const KEEP_TABLES = [
   // outlet & pengaturan
   "outlets", "dining_tables", "app_settings", "pos_terminals", "agent_api_keys", "staff_personal", "site_assets", "operation_locations", "operation_glossary",
   // menu, resep, katalog
-  "menu_items", "menu_variants", "menu_recipes", "menu_research",
+  "product_categories", "menu_items", "menu_variants", "menu_recipes", "menu_research",
   // pelanggan & member (poin dipertahankan kecuali --reset-member-points)
   "customers", "customer_tags", "member_accounts", "custom_segments", "custom_segment_customers",
   // marketing (definisi), voucher (definisi; used_count di-reset)

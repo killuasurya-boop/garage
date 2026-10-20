@@ -3105,7 +3105,7 @@ export function InventoryView({
             <Separator className="bg-[#34343c]" />
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-1 rounded-md border border-[#34343c] bg-white/[0.04] p-1">
+              <div className="flex flex-wrap gap-1 rounded-md border border-[#34343c] bg-white/[0.04] p-1">
                 {(["catalog", "active", "archived", "digital"] as const).map((mode) => (
                   <button
                     key={mode}

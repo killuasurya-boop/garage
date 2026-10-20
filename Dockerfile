@@ -27,6 +27,9 @@ ENV GARAGE_STANDALONE=true
 ENV BETTER_AUTH_SECRET=build-time-placeholder-not-used-at-runtime
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 # DB tidak dihubungi saat build (init Drizzle lazy/build-safe).
+# Build Next.js butuh heap > batas bawaan Node (~2 GB) sejak modul laporan
+# bertambah (deploy PR #56 gagal: JavaScript heap out of memory).
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 # ---- Stage 3: migrator (punya tsx + drizzle/*.sql, untuk one-shot migrate) --

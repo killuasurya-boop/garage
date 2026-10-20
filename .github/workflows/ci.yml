@@ -23,6 +23,9 @@ jobs:
       - run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit -p .
+        env:
+          # Proyek ±3.500 file: tsc butuh >2 GB heap (batas default runner) — beri ruang 6 GB.
+          NODE_OPTIONS: --max-old-space-size=6144
       - name: Lint
         run: npm run lint
       - name: Tes (PGlite, tanpa database eksternal)

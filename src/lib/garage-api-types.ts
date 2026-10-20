@@ -39,21 +39,45 @@ export const MENU_GROUP_CATEGORIES: Record<MenuGroup, MenuCategory[]> = {
   Lainnya: ["Minuman Botol", "Rokok"],
 };
 
-export function menuFilterMatches(filter: MenuFilter, category: MenuCategory): boolean {
+/**
+ * Kelompok POS sebuah produk: dari master kategori (item.menuGroup) bila ada,
+ * lalu daftar bawaan; kategori baru tanpa info grup → "Lainnya" (tetap terlihat).
+ */
+export function menuGroupForCategory(category: MenuCategory, group?: MenuGroup | null): MenuGroup {
+  if (group) return group;
+  if (MENU_GROUP_CATEGORIES.Lainnya.includes(category)) return "Lainnya";
+  if (MENU_GROUP_CATEGORIES.Dapur.includes(category)) return "Dapur";
+  if (MENU_GROUP_CATEGORIES.Bar.includes(category)) return "Bar";
+  return "Lainnya";
+}
+
+export function menuFilterMatches(filter: MenuFilter, category: MenuCategory, group?: MenuGroup | null): boolean {
   if (filter === "All") return true;
-  if (filter === "Dapur" || filter === "Bar") {
-    return MENU_GROUP_CATEGORIES[filter].includes(category);
-  }
-  if (filter === "Lainnya") {
-    return MENU_GROUP_CATEGORIES.Lainnya.includes(category);
+  if (filter === "Dapur" || filter === "Bar" || filter === "Lainnya") {
+    return menuGroupForCategory(category, group) === filter;
   }
   return filter === category;
 }
 
-export function menuGroupForCategory(category: MenuCategory): MenuGroup {
-  if (MENU_GROUP_CATEGORIES.Lainnya.includes(category)) return "Lainnya";
-  return MENU_GROUP_CATEGORIES.Dapur.includes(category) ? "Dapur" : "Bar";
+/** Sub-kategori per kelompok POS dari menu yang sedang aktif (urut master kategori). */
+export function menuSubCategoriesFrom(
+  items: Array<{ category: MenuCategory; menuGroup?: MenuGroup; categorySortOrder?: number }>,
+): Record<MenuGroup, MenuCategory[]> {
+  const order = new Map<string, { group: MenuGroup; sort: number }>();
+  for (const item of items) {
+    if (order.has(item.category)) continue;
+    order.set(item.category, {
+      group: menuGroupForCategory(item.category, item.menuGroup),
+      sort: item.categorySortOrder ?? 9999,
+    });
+  }
+  const result: Record<MenuGroup, MenuCategory[]> = { Dapur: [], Bar: [], Lainnya: [] };
+  for (const [category, info] of [...order.entries()].sort((a, b) => a[1].sort - b[1].sort || a[0].localeCompare(b[0]))) {
+    result[info.group].push(category);
+  }
+  return result;
 }
+
 export type OrderType = "dine-in" | "takeaway" | "delivery";
 
 export type DashboardMetric = {

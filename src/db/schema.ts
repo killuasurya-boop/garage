@@ -319,6 +319,40 @@ export const staffPersonal = pgTable(
   },
 );
 
+// Master kategori produk jual (owner, Okt 2026) — dinamis, bukan daftar di kode.
+// menu_items.category tetap menyimpan nama (snapshot tampilan & kompatibilitas);
+// relasi resmi lewat menu_items.category_id. Kategori tidak pernah dihapus permanen:
+// arsip (status "archived") + pindah produk supaya riwayat transaksi tetap utuh.
+export const productCategories = pgTable(
+  "product_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    description: text("description"),
+    // fnb | retail | operational — jenis bisnis kategori.
+    kind: text("kind").notNull().default("fnb"),
+    // Tipe default produk baru di kategori ini: menu | retail | bundle.
+    defaultProductType: text("default_product_type").notNull().default("menu"),
+    // Routing produksi default: bar | dapur | none (diserahkan kasir, tanpa tiket).
+    station: text("station").notNull().default("dapur"),
+    // Kelompok tombol POS: Dapur | Bar | Lainnya.
+    posGroup: text("pos_group").notNull().default("Dapur"),
+    // Prefix SKU otomatis (COF-001); kosong = GEN.
+    skuPrefix: text("sku_prefix"),
+    icon: text("icon"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    // active | inactive | archived
+    status: text("status").notNull().default("active"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    nameIdx: uniqueIndex("product_categories_name_idx").on(sql`lower(${table.name})`),
+    statusIdx: index("product_categories_status_idx").on(table.status),
+  }),
+);
+
 export const menuItems = pgTable(
   "menu_items",
   {
@@ -328,6 +362,13 @@ export const menuItems = pgTable(
     sku: text("sku"),
     name: text("name").notNull(),
     category: text("category").notNull(),
+    categoryId: uuid("category_id").references(() => productCategories.id, { onDelete: "set null" }),
+    // menu = menu siap jual (resep/HPP), retail = barang jadi (rokok, mineral),
+    // bundle = paket. Menentukan field form, HPP, dan kelengkapan data.
+    productType: text("product_type").notNull().default("menu"),
+    brand: text("brand"),
+    // Barcode produk (EAN/UPC); unik bila terisi. Varian bisa punya barcode sendiri.
+    barcode: text("barcode"),
     section: text("section").notNull(),
     stock: text("stock").notNull().default("ready"),
     status: text("status").notNull().default("active"),
@@ -356,6 +397,8 @@ export const menuItems = pgTable(
   },
   (table) => ({
     skuIdx: uniqueIndex("menu_items_sku_idx").on(table.sku),
+    barcodeIdx: uniqueIndex("menu_items_barcode_idx").on(table.barcode),
+    categoryIdIdx: index("menu_items_category_id_idx").on(table.categoryId),
   }),
 );
 
@@ -370,6 +413,12 @@ export const menuVariants = pgTable(
     label: text("label").notNull(),
     price: integer("price").notNull(),
     baseCost: integer("base_cost").notNull().default(0),
+    // SKU & barcode per varian (mis. rokok per bungkus vs per slop). Unik bila terisi.
+    sku: text("sku"),
+    barcode: text("barcode"),
+    // Satuan jual varian (cup, porsi, bungkus, batang, botol) + isi dalam satuan dasar.
+    sellUnit: text("sell_unit"),
+    unitContents: real("unit_contents"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -380,6 +429,8 @@ export const menuVariants = pgTable(
       table.variantId,
     ),
     itemIdx: index("menu_variants_item_id_idx").on(table.itemId),
+    skuIdx: uniqueIndex("menu_variants_sku_idx").on(table.sku),
+    barcodeIdx: uniqueIndex("menu_variants_barcode_idx").on(table.barcode),
   }),
 );
 

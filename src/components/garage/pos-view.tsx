@@ -213,7 +213,7 @@ TableLiveRow,
 TableOrderBill,
 VoucherValidation
 } from "@/lib/garage-api-types";
-import { menuFilterMatches, menuGroupForCategory } from "@/lib/garage-api-types";
+import { menuFilterMatches, menuGroupForCategory, menuSubCategoriesFrom } from "@/lib/garage-api-types";
 import { printDocument, printKitchenChit, printKitchenChits, printThermal } from "@/lib/print-client";
 import { PosProductionPanel, ticketToChit } from "@/components/garage/pos-production-panel";
 import { denominationTotals, OpeningDenominationCount } from "@/components/garage/cash-denomination-grid";
@@ -328,11 +328,7 @@ function PosHeaderClock() {
 }
 
 const menuPrimaryGroups: MenuFilter[] = ["All", "Dapur", "Bar", "Lainnya"];
-const menuSubCategories: Record<"Dapur" | "Bar" | "Lainnya", MenuFilter[]> = {
-  Dapur: ["Makanan", "Cemilan"],
-  Bar: ["Coffee", "Non-Coffee"],
-  Lainnya: ["Minuman Botol", "Rokok"],
-};
+const menuGroupLabels = { Dapur: "Dapur", Bar: "Bar", Lainnya: "Lainnya" } as const;
 const qrPublicBaseUrl = process.env.NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
 const qrPrintPath = "/order/qr-print";
 
@@ -1142,6 +1138,19 @@ export function PosView({
   const productFilterKey = `${menuCategory}\u0000${normalizedMenuQuery}\u0000${menuItems.length}`;
   // Precompute searchIndex + isBestseller per item â€” sebelumnya di-rebuild
   // tiap render filter untuk SEMUA item walau cuma kategori yg berubah.
+  // Sub-kategori POS dari master kategori (kategori baru tampil otomatis).
+  const menuSubCategories = useMemo(() => menuSubCategoriesFrom(menuItems), [menuItems]);
+  const activeMenuGroup = useMemo<keyof typeof menuGroupLabels | null>(() => {
+    if (menuCategory === "All") return null;
+    if (menuCategory === "Dapur" || menuCategory === "Bar" || menuCategory === "Lainnya") {
+      return menuCategory as keyof typeof menuGroupLabels;
+    }
+    return (
+      (Object.keys(menuSubCategories) as Array<keyof typeof menuGroupLabels>).find((group) =>
+        menuSubCategories[group].includes(menuCategory),
+      ) ?? null
+    );
+  }, [menuCategory, menuSubCategories]);
   const indexedMenu = useMemo(
     () =>
       menuItems.map((item) => ({
@@ -1152,6 +1161,10 @@ export function PosView({
           item.section,
           item.tags.join(" "),
           item.variants.map((variant) => variant.label).join(" "),
+          // SKU & barcode (scanner / ketik kode) — produk & varian.
+          item.sku ?? "",
+          item.barcode ?? "",
+          item.variants.map((variant) => `${variant.sku ?? ""} ${variant.barcode ?? ""}`).join(" "),
         ]
           .join(" ")
           .toLowerCase(),
@@ -1194,7 +1207,7 @@ export function PosView({
     const exact: MenuItem[] = [];
     const result: MenuItem[] = [];
     for (const entry of indexedMenu) {
-      if (!menuFilterMatches(menuCategory, entry.item.category)) continue;
+      if (!menuFilterMatches(menuCategory, entry.item.category, entry.item.menuGroup)) continue;
       if (bestsellerOnly && !entry.isBestseller) continue;
       if (normalizedMenuQuery) {
         const codeRank = shortcodeMatchRank(normalizedMenuQuery, entry.shortcodes);
@@ -9049,70 +9062,12 @@ export function PosView({
                     ⭐ Bestseller
                   </Button>
                 </div>
-                {(menuCategory === "Dapur" ||
-                  menuCategory === "Makanan" ||
-                  menuCategory === "Cemilan") && (
+                {activeMenuGroup && menuSubCategories[activeMenuGroup].length > 0 && (
                   <div className="garage-scroll-x flex gap-1.5 pb-0.5">
                     <span className="self-center font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
-                      Dapur:
+                      {menuGroupLabels[activeMenuGroup]}:
                     </span>
-                    {menuSubCategories.Dapur.map((sub) => {
-                      const active = menuCategory === sub;
-                      return (
-                        <Button
-                          key={sub}
-                          type="button"
-                          size="sm"
-                          variant={active ? "default" : "outline"}
-                          className={`shrink-0 ${
-                            active
-                              ? "bg-[#f5a742] text-black hover:bg-[#ffc167]"
-                              : "border-[#4a4a54] bg-white/[0.04] text-[#d4d4d8]"
-                          }`}
-                          onClick={() => setMenuCategory(sub)}
-                        >
-                          {sub}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                )}
-                {(menuCategory === "Bar" ||
-                  menuCategory === "Coffee" ||
-                  menuCategory === "Non-Coffee") && (
-                  <div className="garage-scroll-x flex gap-1.5 pb-0.5">
-                    <span className="self-center font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
-                      Bar:
-                    </span>
-                    {menuSubCategories.Bar.map((sub) => {
-                      const active = menuCategory === sub;
-                      return (
-                        <Button
-                          key={sub}
-                          type="button"
-                          size="sm"
-                          variant={active ? "default" : "outline"}
-                          className={`shrink-0 ${
-                            active
-                              ? "bg-[#f5a742] text-black hover:bg-[#ffc167]"
-                              : "border-[#4a4a54] bg-white/[0.04] text-[#d4d4d8]"
-                          }`}
-                          onClick={() => setMenuCategory(sub)}
-                        >
-                          {sub}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                )}
-                {(menuCategory === "Lainnya" ||
-                  menuCategory === "Minuman Botol" ||
-                  menuCategory === "Rokok") && (
-                  <div className="garage-scroll-x flex gap-1.5 pb-0.5">
-                    <span className="self-center font-mono text-[10px] uppercase tracking-wider text-[#8f8f99]">
-                      Lainnya:
-                    </span>
-                    {menuSubCategories.Lainnya.map((sub) => {
+                    {menuSubCategories[activeMenuGroup].map((sub) => {
                       const active = menuCategory === sub;
                       return (
                         <Button

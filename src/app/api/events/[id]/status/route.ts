@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const body = await readJson(request, z.object({ status: z.enum(EVENT_STATUSES) }));
   if (body.error) return body.error;
   try {
-    const event = await setEventStatus(id, body.data.status, session.data.user.id);
+    const event = await setEventStatus(id, body.data.status, session.data.user.id, session.data.profile.outlet.id);
     await createAuditLog({
       actor: `${session.data.user.name} / ${session.data.profile.role}`,
       action: `Event: ${LABEL[body.data.status]}`,

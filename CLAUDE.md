@@ -240,6 +240,15 @@ Scroll direction:
   in tx). Occupied tables only via 4-digit `join_code` (cleared when emptied).
   `/api/customer/orders` sets `enforceTableClaim`; staff orders don't.
 
+## Event Menu Rules
+
+- Event prices and bundles reference existing products/variants; never overwrite regular prices or create parallel event transactions.
+- Unlimited physical stock is the owner policy. Event quota is optional and separate; never add a second inventory decrement.
+- Checkout reserves optional quota atomically and stores price/component/cost snapshots on normal orders. Durable request keys must reject payload mismatch.
+- Reject/void before acceptance restores event quota once. Accept event orders before split bill; accepted orders/refunds follow the existing stock pipeline.
+- Public responses must not expose HPP snapshots. Missing verified historical costs must be reported as unavailable.
+- Release and rollback checklist: `docs/event-menu-release.md`. Production deployment requires separate owner approval and verified backup.
+
 ## Verification
 
 After app code changes, run:

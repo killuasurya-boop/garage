@@ -7,6 +7,9 @@ import { EventActivityPanel } from "@/components/garage/events/event-activity-pa
 import { EventGuestsPanel } from "@/components/garage/events/event-guests-panel";
 import { EventImportPanel } from "@/components/garage/events/event-import-panel";
 import { EventSettingsPanel } from "@/components/garage/events/event-settings-panel";
+import { EventMenuPanel } from "@/components/garage/events/event-menu-panel";
+import { EventCreateDialog } from "@/components/garage/events/event-create-dialog";
+import { EventSalesPanel } from "@/components/garage/events/event-sales-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AdminEvent } from "@/lib/event-service";
 
@@ -44,10 +47,11 @@ export function EventsView({ canExport }: { canExport: boolean }) {
         <div className="flex items-center gap-3">
           <PartyPopper className="size-6 text-garage-red-bright" aria-hidden />
           <div>
-            <h1 className="text-xl font-black uppercase text-garage-fg">Undangan Digital</h1>
-            <p className="text-sm text-garage-dim">Konten event, tamu, undangan pribadi, dan RSVP.</p>
+            <h1 className="text-xl font-black uppercase text-garage-fg">Event & Menu Digital</h1>
+            <p className="text-sm text-garage-dim">Konten, menu khusus, paket, penjualan, dan undangan event.</p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
         {events && events.length > 1 ? (
           <select
             aria-label="Pilih event"
@@ -62,6 +66,8 @@ export function EventsView({ canExport }: { canExport: boolean }) {
             ))}
           </select>
         ) : null}
+        <EventCreateDialog template={selected} onCreated={(event) => { setEvents((current) => [...(current ?? []), event]); setSelectedId(event.id); setTab("menu"); }} />
+        </div>
       </header>
 
       {error ? <p className="rounded-md border border-garage-red/50 p-4 text-garage-red-bright">{error}</p> : null}
@@ -78,6 +84,8 @@ export function EventsView({ canExport }: { canExport: boolean }) {
             <TabsTrigger value="guests" data-testid="tab-guests">Tamu & Undangan</TabsTrigger>
             <TabsTrigger value="import" data-testid="tab-import">Impor</TabsTrigger>
             <TabsTrigger value="event" data-testid="tab-event">Konten Event</TabsTrigger>
+            <TabsTrigger value="menu" data-testid="tab-menu">Menu Event</TabsTrigger>
+            <TabsTrigger value="sales" data-testid="tab-sales">Penjualan</TabsTrigger>
             {canExport ? <TabsTrigger value="log" data-testid="tab-log">Log</TabsTrigger> : null}
           </TabsList>
           <div className="rounded-xl border border-garage-line bg-garage-bg-1 p-4 sm:p-5">
@@ -95,6 +103,8 @@ export function EventsView({ canExport }: { canExport: boolean }) {
             <TabsContent value="event">
               <EventSettingsPanel key={selected.id} event={selected} onChanged={replaceEvent} />
             </TabsContent>
+            <TabsContent value="menu"><EventMenuPanel key={selected.id} event={selected} /></TabsContent>
+            <TabsContent value="sales"><EventSalesPanel key={selected.id} eventId={selected.id} canExport={canExport} /></TabsContent>
             {canExport ? (
               <TabsContent value="log">
                 <EventActivityPanel eventId={selected.id} />

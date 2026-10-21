@@ -8152,6 +8152,7 @@ export function PosView({
                                 <p className="mt-0.5 truncate text-xs text-[#d0d0d6]">
                                   {order.customerName ?? "Pelanggan"} - {order.customerPhone ?? "Tanpa WA"}
                                 </p>
+                                {order.eventTitle ? <p className="mt-1 break-words text-sm font-semibold text-amber-200">Event: {order.eventTitle}</p> : null}
                                 <div className="mt-1 flex flex-wrap gap-1.5">
                                   <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[10px]`}>
                                     {customerOrderPaymentStatusLabel(order)}
@@ -8512,6 +8513,7 @@ export function PosView({
                   ["Source", selectedCustomerOrder.orderSource],
                   ["Mode", selectedCustomerOrder.customerMode],
                   ["Campaign", selectedCustomerOrder.campaign ?? "-"],
+                  ["Event", selectedCustomerOrder.eventTitle ?? "-"],
                   ["Invoice WA", selectedCustomerOrder.whatsappInvoiceStatus],
                   ["Status Pembayaran", customerOrderPaymentStatusLabel(selectedCustomerOrder)],
                   ["Pembayaran", customerOrderPaymentLabel(selectedCustomerOrder)],

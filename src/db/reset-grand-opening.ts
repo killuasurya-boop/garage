@@ -108,7 +108,7 @@ export const CLEAR_TABLES = [
 
 /** Baris dipertahankan, nilai tertentu di-nol-kan (lihat RESET_SQL). */
 export const RESET_TABLES = [
-  "inventory_items", "inventory_location_stocks", "wms_warehouse_stock", "vouchers",
+  "inventory_items", "inventory_location_stocks", "wms_warehouse_stock", "vouchers", "event_menu_entries",
 ] as const;
 
 /** Riwayat poin member — KEEP secara default, CLEAR dengan --reset-member-points. */
@@ -119,6 +119,7 @@ const RESET_SQL: Record<(typeof RESET_TABLES)[number], string> = {
   inventory_location_stocks: `UPDATE "inventory_location_stocks" SET "on_hand" = 0, "status" = CASE WHEN "min_stock" > 0 THEN 'low' ELSE 'safe' END, "movement" = '', "updated_at" = now()`,
   wms_warehouse_stock: `UPDATE "wms_warehouse_stock" SET "qty" = 0, "updated_at" = now()`,
   vouchers: `UPDATE "vouchers" SET "used_count" = 0, "updated_at" = now()`,
+  event_menu_entries: `UPDATE "event_menu_entries" SET "used_quantity" = 0, "updated_at" = now()`,
 };
 
 type Row = Record<string, unknown>;

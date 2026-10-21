@@ -1016,6 +1016,13 @@
       "when": 1792475560308,
       "tag": "0144_cash_drawer_smart",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1792592718342,
+      "tag": "0145_event_menu_commerce",
+      "breakpoints": true
     }
   ]
 }

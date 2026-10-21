@@ -630,6 +630,8 @@ export type CustomerOrderItem = {
 };
 
 export type CustomerOrder = {
+  eventId?: string | null;
+  eventTitle?: string | null;
   id: string;
   orderNo: string;
   queueNo?: number | null;

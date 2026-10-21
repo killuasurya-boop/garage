@@ -8,6 +8,8 @@ import {
   getCustomerOrderData,
 } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
+import { eventCartItemSchema } from "@/lib/event-menu-service";
+import { EventError } from "@/lib/event-service";
 import { requireMemberAuth } from "@/lib/member-auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/server-auth";
@@ -53,7 +55,17 @@ const customerOrderSchema = z.object({
   tableJoinCode: z.string().regex(/^\d{4}$/, "Kode gabung 4 angka.").optional(),
   customerLat: z.number().min(-90).max(90).optional(),
   customerLng: z.number().min(-180).max(180).optional(),
-  items: z.array(itemSchema).min(1).max(40),
+  eventId: z.string().uuid().optional(),
+  eventItems: z.array(eventCartItemSchema).min(1).max(40).optional(),
+  items: z.array(itemSchema).max(40).default([]),
+}).superRefine((value, ctx) => {
+  if (value.eventId) {
+    if (!value.eventItems?.length) ctx.addIssue({ code: "custom", path: ["eventItems"], message: "Pilih menu event sebelum checkout." });
+    if (value.items.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Checkout event memakai keranjang event." });
+  } else {
+    if (!value.items.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Keranjang masih kosong." });
+    if (value.eventItems?.length) ctx.addIssue({ code: "custom", path: ["eventId"], message: "Event belum dipilih." });
+  }
 });
 
 export async function GET(request: Request) {
@@ -95,8 +107,11 @@ export async function POST(request: Request) {
 
   // Anti double-tap QR ordering: klien kirim X-Idempotency-Key per submission.
   const key = readIdempotencyKey(request);
+  if (body.data.eventId && !key) return fail(400, "EVENT_REQUEST_KEY_REQUIRED", "Muat ulang keranjang lalu coba checkout kembali.");
   const idemNamespace = `customer-order:${memberCustomerId ?? body.data.guestPhone ?? "guest"}`;
-  const cache = key ? checkIdempotency<CustomerOrderResult>(idemNamespace, key) : null;
+  // Event requests use the durable DB key and payload fingerprint, never the
+  // process cache which cannot distinguish the same key with a different cart.
+  const cache = key && !body.data.eventId ? checkIdempotency<CustomerOrderResult>(idemNamespace, key) : null;
   if (cache?.kind === "hit") return ok(cache.result, { status: 200 });
   if (cache?.kind === "pending") {
     return fail(409, "CUSTOMER_ORDER_IN_PROGRESS", "Order kamu masih diproses.");
@@ -106,6 +121,7 @@ export async function POST(request: Request) {
     const result = await createCustomerOrder({
       ...body.data,
       memberCustomerId,
+      clientRequestKey: body.data.eventId ? key ?? undefined : undefined,
       // Dine-in dari menu digital wajib kunci meja / kode gabung (bukan order staf).
       enforceTableClaim: body.data.orderType === "dine-in",
     });
@@ -116,6 +132,7 @@ export async function POST(request: Request) {
     if (error instanceof TableClaimError) {
       return fail(409, error.code, error.message);
     }
+    if (error instanceof EventError) return fail(error.status, error.code, error.message);
     return fail(
       400,
       "CUSTOMER_ORDER_CREATE_FAILED",

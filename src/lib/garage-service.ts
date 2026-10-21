@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { releaseEventQuotaForOrder, resolveEventCart } from "@/lib/event-menu-service";
+import type { EventCartItem } from "@/lib/event-menu-types";
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -108,6 +110,7 @@ import {
   customSegments,
   customerTags,
   customers,
+  events,
   expenses,
   inventoryLocationStocks,
   inventoryItems,
@@ -279,6 +282,10 @@ type OrderInput = {
 type CustomerOrderSource = "qr_table" | "qr_takeaway" | "instagram" | "campaign";
 
 type CustomerOrderInput = {
+  eventId?: string;
+  eventItems?: EventCartItem[];
+  /** Event checkout persists this key in the same transaction as quota/order. */
+  clientRequestKey?: string;
   orderType: OrderInput["orderType"];
   tableLabel?: string;
   outletId?: string;
@@ -977,6 +984,8 @@ function customerOrderResponse(
     channel: row.channel,
     status: row.status,
     orderSource: row.orderSource,
+    eventId: row.eventId ?? null,
+    eventTitle: items.find((item) => item.eventSnapshot)?.eventSnapshot?.eventTitle ?? null,
     customerMode: row.customerMode,
     customerName: row.customerName,
     customerPhone: row.customerPhone,
@@ -9285,9 +9294,68 @@ export async function getCustomerOrderingStatus(outletId?: string) {
   return { open: Boolean(outlet) && open };
 }
 
+function eventCheckoutRequestKey(input: CustomerOrderInput) {
+  return input.eventId && input.clientRequestKey ? `event:${input.eventId}:${input.clientRequestKey}` : null;
+}
+
+function eventCheckoutFingerprint(input: CustomerOrderInput) {
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)]));
+    }
+    return value;
+  };
+  const { clientRequestKey: _key, items: _items, ...payload } = input;
+  void _key; void _items;
+  return createHash("sha256").update(JSON.stringify(canonical(payload))).digest("hex");
+}
+
+async function replayEventCheckout(db: GarageDb | GarageTx, input: CustomerOrderInput) {
+  const key = eventCheckoutRequestKey(input);
+  if (!key) return null;
+  const [row] = await db.select().from(orders).where(eq(orders.clientRequestKey, key)).limit(1);
+  if (!row) return null;
+  if (row.clientRequestFingerprint !== eventCheckoutFingerprint(input)) {
+    throw new Error("Kunci checkout sudah digunakan untuk pesanan berbeda. Muat ulang keranjang.");
+  }
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, row.id));
+  const [payment] = await db.select().from(payments).where(eq(payments.orderId, row.id)).orderBy(desc(payments.createdAt)).limit(1);
+  return {
+    order: {
+      ...customerOrderResponse(row, items, payment),
+      invoicePdfUrl: row.invoicePdfUrl,
+      invoiceWebUrl: row.invoiceTrackingToken ? invoiceWebPath(row.invoiceTrackingToken) : null,
+      invoicePdfGeneratedAt: row.invoicePdfGeneratedAt?.toISOString() ?? null,
+      whatsappInvoiceUrl: row.whatsappInvoiceUrl,
+    },
+    whatsapp: { status: row.whatsappInvoiceStatus, url: row.whatsappInvoiceUrl },
+    memberCta: input.customerMode === "member"
+      ? "Points member akan diproses setelah kasir menandai order paid."
+      : "Daftar member, points dari order ini langsung masuk.",
+    // Never reveal a newer party's current table code on an old checkout replay.
+    joinCode: typeof payment?.metadata?.tableJoinCode === "string" ? payment.metadata.tableJoinCode : null,
+  };
+}
+
 export async function createCustomerOrder(input: CustomerOrderInput) {
   const db = getDb();
-  const itemIds = [...new Set(input.items.map((item) => item.itemId))];
+  if (input.eventItems?.length && !input.eventId) throw new Error("Event wajib dipilih untuk menu event.");
+  if (input.eventId && (!input.clientRequestKey || input.clientRequestKey.length < 8)) throw new Error("Kunci checkout event wajib dikirim.");
+  if (input.eventId) {
+    const [event] = await db.select({ outletId: events.outletId }).from(events).where(eq(events.id, input.eventId)).limit(1);
+    if (event?.outletId) {
+      if (input.outletId && input.outletId !== event.outletId) throw new Error("Outlet event tidak sesuai.");
+      input = { ...input, outletId: event.outletId };
+    }
+    const replay = await replayEventCheckout(db, input);
+    if (replay) return replay;
+  }
+  const eventQuotedLines = input.eventId ? await resolveEventCart(db, {
+    eventId: input.eventId, items: input.eventItems ?? [], outletId: input.outletId, reserveQuota: false,
+  }) : null;
+  const requestedItems = eventQuotedLines ?? input.items;
+  const itemIds = [...new Set(requestedItems.map((item) => item.itemId))];
   const variantRows = await db
     .select({
       itemId: menuVariants.itemId,
@@ -9305,7 +9373,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
     .where(and(inArray(menuVariants.itemId, itemIds), eq(menuItems.status, "active")));
 
-  const lines = input.items.map((line) => {
+  const lines = requestedItems.map((line, index) => {
     const variant = variantRows.find(
       (row) => row.itemId === line.itemId && row.variantId === line.variantId,
     );
@@ -9320,7 +9388,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       throw new Error(`${variant.itemName} sedang habis dan tidak bisa dipesan.`);
     }
 
-    const unitPrice = effectiveMenuPrice(
+    const unitPrice = eventQuotedLines?.[index].price ?? effectiveMenuPrice(
       variant.price,
       variant.promoActive,
       variant.promoPrice,
@@ -9330,6 +9398,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       ...variant,
       price: unitPrice,
       lineTotal: unitPrice * line.qty,
+      eventSnapshot: eventQuotedLines?.[index].eventSnapshot ?? null,
     };
   });
 
@@ -9507,6 +9576,24 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
   const dineInTableNumber = input.orderType === "dine-in" ? tableNumberFromOrderLabel(tableLabel) : null;
 
   const created = await db.transaction(async (tx) => {
+    let eventConfirmedLines = eventQuotedLines;
+    if (input.eventId) {
+      // Serialise event checkout with admin edits and concurrent duplicate requests.
+      // Prices, schedule and optional event quota are checked inside the order transaction.
+      await tx.select({ id: events.id }).from(events).where(eq(events.id, input.eventId)).for("update");
+      const replay = await replayEventCheckout(tx, input);
+      if (replay) return { replay };
+      eventConfirmedLines = await resolveEventCart(tx, {
+        eventId: input.eventId, items: input.eventItems ?? [], outletId: outlet.id, reserveQuota: true,
+      });
+      const signature = (entries: typeof eventQuotedLines) => JSON.stringify(entries?.map((line) => ({
+        itemId: line.itemId, variantId: line.variantId, qty: line.qty, price: line.price,
+        entryId: line.eventSnapshot.entryId, entryQuantity: line.eventSnapshot.entryQuantity,
+      })));
+      if (signature(eventConfirmedLines) !== signature(eventQuotedLines)) {
+        throw new Error("Menu atau harga event berubah. Muat ulang keranjang sebelum checkout.");
+      }
+    }
     // Meja dine-in: kunci sesi meja, cek aturan pilih meja (pelanggan), lalu
     // lepas kunci "Sedang dipilih" & siapkan kode gabung untuk teman semeja.
     let joinCode: string | null = null;
@@ -9575,6 +9662,9 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         orderNo,
         queueNo,
         outletId: outlet.id,
+        eventId: input.eventId ?? null,
+        clientRequestKey: eventCheckoutRequestKey(input),
+        clientRequestFingerprint: input.eventId ? eventCheckoutFingerprint(input) : null,
         customerId: customer?.id ?? null,
         tableLabel,
         channel,
@@ -9604,7 +9694,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     const insertedItems = await tx
       .insert(orderItems)
       .values(
-        lines.map((line) => ({
+        lines.map((line, index) => ({
           orderId: order.id,
           menuItemId: line.itemId,
           variantId: line.variantId,
@@ -9614,6 +9704,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
           qty: line.qty,
           lineTotal: line.lineTotal,
           note: line.note?.trim() || null,
+          eventSnapshot: eventConfirmedLines?.[index].eventSnapshot ?? null,
         })),
       )
       .returning();
@@ -9629,6 +9720,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
           provider: paymentProvider,
           reference: paymentReference,
           source: "customer_qr",
+          tableJoinCode: joinCode,
           orderType: input.orderType,
           invoiceNo,
           invoiceStatus: "pending",
@@ -9692,6 +9784,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       metadata: {
         orderId: order.id,
         source,
+        eventId: input.eventId ?? null,
         customerMode: input.customerMode,
         campaign: input.campaign ?? null,
         paymentMethod,
@@ -9724,6 +9817,10 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     };
   });
 
+  if ("replay" in created) {
+    if (!created.replay) throw new Error("Hasil pengulangan checkout tidak tersedia.");
+    return created.replay;
+  }
   const trackingToken = created.orderRow.invoiceTrackingToken ?? makeInvoiceTrackingToken();
   const invoiceWhatsappInput = initialWhatsappInvoiceInput
     ? {
@@ -10121,6 +10218,7 @@ async function updateCustomerOrderStatusImpl(
     }
 
     if (input.action === "reject") {
+      if (order.eventId && !order.acceptedAt) await releaseEventQuotaForOrder(tx, order.id);
       // Order non-tunai bisa ditolak dari "awaiting_payment" SETELAH diterima dapur
       // (accept → minta bill). Saat itu stok sudah dipotong & tiket produksi jalan:
       // kembalikan stok (juga ke WMS) dan batalkan tiket yang belum diantar, sama
@@ -15296,6 +15394,9 @@ export async function splitCustomerOrder(
     if (!SPLITTABLE_BILL_STATUSES.includes(order.status)) {
       throw new Error("Bill ini sudah tidak bisa dipisah (sudah lunas, ditolak, atau dibatalkan).");
     }
+    if (order.eventId && !order.acceptedAt) {
+      throw new Error("Terima order event terlebih dahulu sebelum pisah bill agar kuota paket tetap konsisten.");
+    }
 
     const paymentRows = await tx.select().from(payments).where(eq(payments.orderId, order.id));
     if (paymentRows.some((payment) => payment.status === "captured")) {
@@ -15382,6 +15483,7 @@ export async function splitCustomerOrder(
         acceptedBy: order.acceptedBy,
         acceptedAt: order.acceptedAt,
         parentOrderId: rootId,
+        eventId: order.eventId,
         createdBy: garage.user.id,
         // Tetap di jendela sesi meja yang sama dengan bill asal.
         createdAt: order.createdAt,
@@ -15409,6 +15511,7 @@ export async function splitCustomerOrder(
         unitPrice: item.unitPrice,
         qty: line.qty,
         lineTotal: item.unitPrice * line.qty,
+        eventSnapshot: item.eventSnapshot,
         note: item.note,
       });
     }
@@ -15491,6 +15594,7 @@ async function voidOrderImpl(
     if (order.status === "voided") {
       throw new Error("Order ini sudah dibatalkan sebelumnya.");
     }
+    if (order.eventId && !order.acceptedAt) await releaseEventQuotaForOrder(tx, order.id);
     const outletId = order.outletId ?? garage.profile.outlet.id;
     let stockReversed = 0;
 

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import type { GarageSession } from "@/lib/server-auth";
@@ -8,6 +8,7 @@ let t: GarageTestDb;
 let outletId = "";
 let eventId = "";
 let entryId = "";
+let bundleId = "";
 
 beforeAll(async () => {
   t = await setupGarageTestDb();
@@ -29,6 +30,14 @@ beforeAll(async () => {
     startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 3_600_000),
   }).returning();
   entryId = entry.id;
+  const [bundle] = await t.getDb().insert(t.schema.eventMenuEntries).values({
+    eventId, kind: "bundle", name: "Paket Kopi Nasi", price: 40000, status: "active", quota: null,
+    startsAt: event.startsAt, endsAt: event.endsAt, groups: [
+      { id: "drink", name: "Minuman", quantity: 1, options: [{ itemId: "itm-coffee", variantId: "reg" }] },
+      { id: "food", name: "Makanan", quantity: 1, options: [{ itemId: "itm-food", variantId: "reg" }] },
+    ],
+  }).returning();
+  bundleId = bundle.id;
 }, 120_000);
 
 afterAll(async () => { if (t) await teardownGarageTestDb(t); });
@@ -43,6 +52,62 @@ const owner = () => ({
 }) as unknown as GarageSession;
 
 describe("checkout menu event memakai order Garage existing", () => {
+  const bundleCart = () => [{ entryId: bundleId, qty: 1, selections: [
+    { groupId: "drink", itemId: "itm-coffee", variantId: "reg" },
+    { groupId: "food", itemId: "itm-food", variantId: "reg" },
+  ] }];
+  it("menggabungkan paket, harga kontekstual satuan, dan harga reguler dalam satu order", async () => {
+    const { createCustomerOrder } = await import("@/lib/garage-service");
+    const request = { ...input("main-mixed-cart-001"), eventItems: bundleCart(), items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }, { itemId: "itm-food", variantId: "reg", qty: 1 }] };
+    const result = await createCustomerOrder(request);
+    const [order] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, result.order.id));
+    const lines = await t.getDb().select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, result.order.id));
+    expect(order).toMatchObject({ eventId, subtotal: 85000 });
+    expect(lines.filter((line: { eventSnapshot: unknown }) => !line.eventSnapshot)).toMatchObject([{ menuItemId: "itm-food", unitPrice: 30000 }]);
+    expect(lines.find((line: { eventSnapshot?: { kind: string } }) => line.eventSnapshot?.kind === "item")).toMatchObject({ menuItemId: "itm-coffee", unitPrice: 15000 });
+    expect(lines.filter((line: { eventSnapshot?: { kind: string } }) => line.eventSnapshot?.kind === "bundle")).toHaveLength(2);
+    const replay = await createCustomerOrder(request);
+    expect(replay.order.id).toBe(result.order.id);
+    await expect(createCustomerOrder({ ...request, items: [{ itemId: "itm-food", variantId: "reg", qty: 2 }] })).rejects.toThrow(/berbeda/);
+  });
+
+  it("menerima keranjang satuan tanpa paket dan hanya memberi label event pada item kontekstual", async () => {
+    const { createCustomerOrder } = await import("@/lib/garage-service");
+    const contextual = await createCustomerOrder({ ...input("main-single-only-002"), eventItems: [], items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }] });
+    const regularRequest = { ...input("main-regular-only-003"), eventItems: [], items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }] };
+    const regular = await createCustomerOrder(regularRequest);
+    const [eventOrder] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, contextual.order.id));
+    const [regularOrder] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, regular.order.id));
+    expect(eventOrder).toMatchObject({ eventId, subtotal: 15000 });
+    expect(regularOrder).toMatchObject({ eventId: null, subtotal: 30000 });
+    expect((await createCustomerOrder(regularRequest)).order.id).toBe(regular.order.id);
+  });
+
+  it("menyembunyikan produk satuan tetap mengizinkan komponen paket aktif", async () => {
+    const { createCustomerOrder } = await import("@/lib/garage-service");
+    const { getPublicEventMenu } = await import("@/lib/event-menu-service");
+    await t.getDb().update(t.schema.menuItems).set({ showInDigitalMenu: false }).where(eq(t.schema.menuItems.id, "itm-food"));
+    try {
+      const result = await createCustomerOrder({ ...input("main-hidden-bundle-004"), eventItems: bundleCart() });
+      const [order] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, result.order.id));
+      expect(order.subtotal).toBe(40000);
+      const menu = await getPublicEventMenu("checkout-food-event");
+      expect(menu.products.find(product => product.id === "itm-food")?.showInDigitalMenu).toBe(false);
+      expect(menu.entries.some(entry => entry.id === bundleId)).toBe(true);
+      await expect(createCustomerOrder({ ...input("main-hidden-single-005"), eventItems: [], items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }] })).rejects.toThrow("tidak tersedia di menu digital");
+    } finally { await t.getDb().update(t.schema.menuItems).set({ showInDigitalMenu: true }).where(eq(t.schema.menuItems.id, "itm-food")); }
+  });
+
+  it("harga event mengalahkan promo produk hanya pada varian yang cocok", async () => {
+    const { createCustomerOrder } = await import("@/lib/garage-service");
+    await t.getDb().insert(t.schema.menuVariants).values({ itemId: "itm-coffee", variantId: "hot", label: "Hot", price: 25000 });
+    await t.getDb().update(t.schema.menuItems).set({ promoActive: true, promoPrice: 18000 }).where(eq(t.schema.menuItems.id, "itm-coffee"));
+    try {
+      const result = await createCustomerOrder({ ...input("main-event-promo-006"), eventItems: [], items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }, { itemId: "itm-coffee", variantId: "hot", qty: 1 }] });
+      const [order] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, result.order.id));
+      expect(order.subtotal).toBe(33000);
+    } finally { await t.getDb().update(t.schema.menuItems).set({ promoActive: false, promoPrice: null }).where(eq(t.schema.menuItems.id, "itm-coffee")); }
+  });
   it("menyimpan harga event tanpa mengubah harga reguler dan tanpa pemotongan stok saat checkout", async () => {
     const { createCustomerOrder } = await import("@/lib/garage-service");
     const result = await createCustomerOrder(input("event-price-check-0001"));
@@ -96,6 +161,30 @@ describe("checkout menu event memakai order Garage existing", () => {
     const [entry] = await t.getDb().select().from(t.schema.eventMenuEntries).where(eq(t.schema.eventMenuEntries.id, entryId));
     expect(entry.usedQuantity).toBe(before.usedQuantity + 2);
     await expect(createCustomerOrder({ ...input("event-durable-retry-0002"), eventItems: [{ entryId, qty: 3 }] })).rejects.toThrow(/berbeda|digunakan/i);
+  });
+
+  it.each(["quota", "messaging"])("merekonsiliasi order yang commit setelah lookup retry sebelum kegagalan %s", async (failure) => {
+    const { createCustomerOrder } = await import("@/lib/garage-service");
+    const menuService = await import("@/lib/event-menu-service");
+    const { EventError } = await import("@/lib/event-service");
+    const request = input(`event-replay-quote-race-0008-${failure}`);
+    const resolver = menuService.resolveEventCheckoutCart;
+    let committedOrderId = "";
+    const spy = vi.spyOn(menuService, "resolveEventCheckoutCart");
+    spy.mockImplementationOnce(async () => {
+      // The original request commits while recovery has already missed its
+      // optimistic lookup but has not yet reached the locked replay lookup.
+      committedOrderId = (await createCustomerOrder(request)).order.id;
+      if (failure === "quota") throw new EventError(409, "EVENT_MENU_QUOTA", "Kuota sudah terpakai percobaan pertama.");
+      throw new Error("Invoice messaging connection interrupted after commit.");
+    }).mockImplementation(resolver);
+    const [before] = await t.getDb().select().from(t.schema.eventMenuEntries).where(eq(t.schema.eventMenuEntries.id, entryId));
+    try {
+      const recovered = await createCustomerOrder(request);
+      expect(recovered.order.id).toBe(committedOrderId);
+      const [after] = await t.getDb().select().from(t.schema.eventMenuEntries).where(eq(t.schema.eventMenuEntries.id, entryId));
+      expect(after.usedQuantity).toBe(before.usedQuantity + 2);
+    } finally { spy.mockRestore(); }
   });
 
   it("menolak event berakhir, tapi tetap bisa mengulang hasil order yang sudah sah", async () => {

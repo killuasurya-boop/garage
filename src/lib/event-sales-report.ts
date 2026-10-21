@@ -35,6 +35,10 @@ export function aggregateEventSales(input: {
   const byId = new Map(input.orders.map((row) => [row.id, row]));
   const paid = input.orders.filter((row) => row.status === "paid");
   const paidIds = new Set(paid.map((row) => row.id));
+  const eventGrossByOrder = new Map<string, number>();
+  for (const item of input.items) if (item.eventSnapshot && item.qty > 0) eventGrossByOrder.set(item.orderId, (eventGrossByOrder.get(item.orderId) ?? 0) + nonNegative(item.lineTotal));
+  const eventGross = (order: EventSalesOrder) => eventGrossByOrder.get(order.id) ?? 0;
+  const eventDiscount = (order: EventSalesOrder) => order.subtotal > 0 ? Math.min(eventGross(order), Math.round(nonNegative(order.discount) * eventGross(order) / order.subtotal)) : 0;
   const methods = new Map<string, { method: string; captured: number; pending: number; failed: number }>();
   let paidRevenue = 0, pendingAmount = 0, failedAmount = 0, refundAmount = 0, voidReturnAmount = 0;
   for (const payment of input.payments) {
@@ -59,7 +63,7 @@ export function aggregateEventSales(input: {
   const countedGroups = new Set<string>();
   let componentUnits = 0, knownCost = 0, knownComponentUnits = 0, missingComponentUnits = 0;
   for (const item of input.items) {
-    if (!paidIds.has(item.orderId) || item.qty <= 0) continue;
+    if (!paidIds.has(item.orderId) || item.qty <= 0 || !item.eventSnapshot) continue;
     const order = byId.get(item.orderId)!;
     componentUnits += item.qty;
     const snapshot = item.eventSnapshot;
@@ -86,7 +90,7 @@ export function aggregateEventSales(input: {
       knownComponentUnits += item.qty;
     } else missingComponentUnits += item.qty;
   }
-  const netSales = paid.reduce((sum, row) => sum + row.subtotal - row.discount, 0);
+  const netSales = paid.reduce((sum, row) => sum + eventGross(row) - eventDiscount(row), 0);
   const completeCost = componentUnits > 0 && missingComponentUnits === 0;
   return {
     summary: {
@@ -95,8 +99,8 @@ export function aggregateEventSales(input: {
       pendingBills: input.orders.filter((row) => !cancelled.has(row.status) && row.status !== "paid" && row.status !== "refunded").length,
       cancelledBills: input.orders.filter((row) => cancelled.has(row.status)).length,
       refundedBills: input.orders.filter((row) => row.status === "refunded").length,
-      grossItemSales: paid.reduce((sum, row) => sum + row.subtotal, 0),
-      discounts: paid.reduce((sum, row) => sum + row.discount, 0),
+      grossItemSales: paid.reduce((sum, row) => sum + eventGross(row), 0),
+      discounts: paid.reduce((sum, row) => sum + eventDiscount(row), 0),
       netSales, paidRevenue, pendingAmount, failedAmount, refundAmount, voidReturnAmount, componentUnits,
     },
     cost: {
@@ -115,6 +119,8 @@ export function aggregateEventSales(input: {
       "Refund sudah mengurangi nilai order/pembayaran utama. Angka refund disajikan sebagai informasi dan tidak dikurangi dua kali.",
       "Jumlah paket/item dipesan berasal dari snapshot grup; setelah refund sebagian paket, gunakan rincian komponen tersisa untuk rekonsiliasi.",
       "HPP dan margin hanya tersedia bila setiap komponen lunas memiliki snapshot biaya yang valid. Margin kotor bukan laba bersih keuangan.",
+      "Penjualan menu dan HPP hanya menghitung item dengan snapshot event. Diskon bill campuran dialokasikan proporsional terhadap subtotal item event, dibulatkan ke rupiah.",
+      "Pembayaran diterima/pending/gagal dan refund menunjukkan seluruh bill terkait, termasuk menu reguler pada keranjang campuran; bukan alokasi kas khusus item event.",
     ],
   };
 }
@@ -167,7 +173,7 @@ export function eventSalesCsv(report: ReturnType<typeof aggregateEventSales>) {
   const rows: Array<Array<string | number | null>> = [
     ["Metrik", "Nilai"], ["Penjualan menu sebelum diskon (saldo terkini)", report.summary.grossItemSales],
     ["Diskon", report.summary.discounts], ["Penjualan bersih menu", report.summary.netSales],
-    ["Pembayaran diterima (saldo terkini)", report.summary.paidRevenue], ["Pembayaran pending", report.summary.pendingAmount],
+    ["Pembayaran seluruh bill terkait (saldo terkini)", report.summary.paidRevenue], ["Pembayaran pending seluruh bill terkait", report.summary.pendingAmount],
     ["Pembayaran gagal", report.summary.failedAmount], ["Refund (sudah diperhitungkan)", report.summary.refundAmount],
     ["Pengembalian karena pembatalan", report.summary.voidReturnAmount], ["HPP snapshot lengkap", report.cost.total],
     ["Margin kotor", report.cost.grossMargin], [],

@@ -63,6 +63,8 @@ export type EventMenuProduct = {
   imageUrl: string | null;
   description: string | null;
   stock: string;
+  /** Hiding a standalone product does not disable its use as a bundle component. */
+  showInDigitalMenu?: boolean;
   variants: Array<{ id: string; label: string; price: number }>;
 };
 

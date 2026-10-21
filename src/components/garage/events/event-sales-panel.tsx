@@ -84,12 +84,12 @@ export function EventSalesPanel({ eventId, canExport = false }: { eventId: strin
       {loading ? <div role="status" aria-label="Memuat laporan" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((key) => <div key={key} className="h-24 animate-pulse rounded-lg border border-garage-line bg-garage-bg-3 motion-reduce:animate-none" />)}
       </div> : !error && current && <>
-        <p className="text-sm text-garage-dim">Outlet aktif · {current.range.from} sampai {current.range.to} (WIB). Nilai mengikuti saldo transaksi terkini.</p>
+        <p className="text-sm leading-relaxed text-garage-dim">Outlet aktif · {current.range.from} sampai {current.range.to} (WIB). Penjualan dan HPP hanya untuk menu event. Pembayaran mencakup seluruh bill terkait, termasuk menu reguler dalam keranjang campuran.</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ["Penjualan bersih menu", money(current.summary.netSales)],
-            ["Pembayaran diterima", money(current.summary.paidRevenue)],
-            ["Pembayaran pending", money(current.summary.pendingAmount)],
+            ["Pembayaran bill terkait", money(current.summary.paidRevenue)],
+            ["Pending bill terkait", money(current.summary.pendingAmount)],
             ["Order / bill lunas", `${current.summary.originalOrders} order / ${current.summary.paidBills} bill`],
           ].map(([label, value]) => <div key={label} className="min-w-0 rounded-lg border border-garage-line bg-garage-bg-2 p-4">
             <p className="text-sm text-garage-dim">{label}</p><p className="mt-2 break-words text-lg font-semibold tabular-nums text-garage-fg">{value}</p>

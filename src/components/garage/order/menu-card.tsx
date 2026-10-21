@@ -64,7 +64,7 @@ export function MenuPhoto({
           loading={eager ? "eager" : "lazy"}
           decoding="async"
           onLoad={() => setLoadedSrc(item.imageUrl ?? null)}
-          className={`h-full w-full object-cover transition-[opacity,transform] duration-300 ${
+          className={`h-full w-full object-cover transition-[opacity,transform] duration-300 motion-reduce:transition-none ${
             loaded ? "opacity-100" : "opacity-0"
           } ${className}`}
         />
@@ -121,6 +121,7 @@ export function MenuPrice({ item, size = "base" }: { item: MenuItem; size?: "bas
 // Stok terbatas. (Habis punya overlay sendiri.)
 function CardBadge({ item, popular }: { item: MenuItem; popular: boolean }) {
   if (item.stock === "sold_out") return null;
+  if (item.tags.includes("Menu Event")) return <span className="rounded-md border border-garage-amber/40 bg-garage-bg-0 px-2 py-1 text-sm font-bold text-garage-amber">Harga event</span>;
   if (itemHasPromo(item)) return <PromoBadge />;
   if (item.featured) return <FeaturedBadge />;
   if (popular) return <PopularBadge />;
@@ -161,12 +162,12 @@ export function MenuCard({
         cartQty > 0 ? "border-garage-red/70" : "border-garage-line hover:border-garage-line-2"
       }`}
     >
-      <div className="relative aspect-square w-full overflow-hidden bg-garage-bg-1">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-garage-bg-1">
         <button
           type="button"
           onClick={onOpen}
           disabled={soldOut}
-          className="block h-full w-full cursor-pointer disabled:cursor-not-allowed"
+          className="block h-full w-full cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-garage-amber disabled:cursor-not-allowed"
           aria-label={`Lihat detail ${item.name}`}
         >
           <MenuPhoto
@@ -185,48 +186,27 @@ export function MenuCard({
               Habis
             </span>
           </span>
-        ) : multiVariant ? (
-          <button
-            type="button"
-            onClick={onOpen}
-            className="garage-press absolute bottom-2 right-2 flex size-11 cursor-pointer items-center justify-center rounded-md bg-garage-red text-white shadow-[0_8px_20px_rgba(0,0,0,0.45)] transition-colors hover:bg-garage-red-bright"
-            aria-label={`Pilih varian ${item.name}`}
-          >
-            <Plus className="size-5" strokeWidth={2.5} />
-            {cartQty > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 flex min-w-5 items-center justify-center rounded-sm bg-white px-1 text-[11px] font-bold tabular-nums text-garage-bg-0">
-                {cartQty}
-              </span>
-            ) : null}
-          </button>
-        ) : (
-          <span className="absolute bottom-2 right-2 rounded-md bg-garage-bg-0 shadow-[0_8px_20px_rgba(0,0,0,0.45)]">
-            <QuantityControl
-              compact
-              label={item.name}
-              qty={cartQty}
-              onMinus={() => singleVariantId && onAdd(singleVariantId, -1)}
-              onPlus={() => singleVariantId && onAdd(singleVariantId, 1)}
-            />
-          </span>
-        )}
+        ) : null}
       </div>
 
       <button
         type="button"
         onClick={onOpen}
         disabled={soldOut}
-        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 p-3 text-left disabled:cursor-not-allowed"
+        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-garage-amber disabled:cursor-not-allowed sm:p-4"
       >
-        <h3 className="line-clamp-2 min-h-[2.5em] text-[15px] font-bold leading-tight text-white">
+        <h3 className="min-h-[2.75em] break-words text-base font-bold leading-snug text-white">
           {item.name}
         </h3>
         {/* Selalu 1 baris (walau kosong) supaya tinggi kartu dalam satu baris grid sama. */}
-        <p className="min-h-[1.25rem] truncate text-[13px] leading-5 text-garage-dim">{subtitle}</p>
+        <p className="line-clamp-2 min-h-[2.5rem] text-sm leading-5 text-garage-dim">{subtitle}</p>
         <span className="mt-auto pt-1">
           <MenuPrice item={item} />
         </span>
       </button>
+      <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+        {multiVariant ? <button type="button" onClick={onOpen} disabled={soldOut} aria-label={`Pilih varian ${item.name}`} className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-garage-line-2 bg-garage-bg-3 px-2 text-sm font-bold text-white transition-colors hover:border-garage-amber focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-garage-amber disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4 shrink-0" aria-hidden />{soldOut ? "Tidak tersedia" : "Pilih varian"}{cartQty ? <span className="font-mono tabular-nums">({cartQty})</span> : null}</button> : <div className="[&>button]:w-full [&>div]:w-full [&>div>span]:flex-1"><QuantityControl label={item.name} qty={cartQty} disabled={soldOut} onMinus={() => singleVariantId && onAdd(singleVariantId, -1)} onPlus={() => singleVariantId && onAdd(singleVariantId, 1)} /></div>}
+      </div>
     </article>
   );
 }
@@ -244,4 +224,4 @@ export function MenuCardSkeleton() {
   );
 }
 
-export const MENU_GRID_CLASS = "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4";
+export const MENU_GRID_CLASS = "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4";

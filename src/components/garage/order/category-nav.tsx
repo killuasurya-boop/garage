@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 
 export type CategoryTab = { id: string; label: string };
 
 // Jarak dari atas viewport tempat judul seksi dianggap "aktif" (tinggi bar sticky + napas).
-const SPY_OFFSET = 132;
+const SPY_OFFSET = 136;
 
 function scrollBehavior(): ScrollBehavior {
   if (typeof window === "undefined") return "auto";
@@ -28,9 +28,24 @@ export function CategoryNav({
 }) {
   const [activeId, setActiveId] = useState<string | null>(tabs[0]?.id ?? null);
   const stripRef = useRef<HTMLDivElement | null>(null);
+  const navRef = useRef<HTMLDivElement | null>(null);
+  const [edges, setEdges] = useState({ overflow: false, left: false, right: false });
   const lockRef = useRef(false);
   const unlockTimerRef = useRef<number | null>(null);
   const searching = query.trim().length > 0;
+
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip || searching) return;
+    const update = () => setEdges({ overflow: strip.scrollWidth > strip.clientWidth + 4, left: strip.scrollLeft > 4, right: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 4 });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(strip);
+    strip.addEventListener("scroll", update, { passive: true });
+    return () => { observer.disconnect(); strip.removeEventListener("scroll", update); };
+  }, [tabs, searching]);
+
+  useEffect(() => () => { if (unlockTimerRef.current) window.clearTimeout(unlockTimerRef.current); }, []);
 
   useEffect(() => {
     if (searching || !tabs.length) return;
@@ -41,7 +56,7 @@ export function CategoryNav({
       let current = tabs[0].id;
       for (const tab of tabs) {
         const el = document.getElementById(tab.id);
-        if (el && el.getBoundingClientRect().top - SPY_OFFSET <= 1) current = tab.id;
+        if (el && el.getBoundingClientRect().top - (navRef.current?.offsetHeight ?? SPY_OFFSET) - 16 <= 1) current = tab.id;
       }
       // Sudah mentok bawah halaman → kategori terakhir aktif.
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
@@ -68,7 +83,7 @@ export function CategoryNav({
     if (!strip || !activeId) return;
     const button = strip.querySelector<HTMLElement>(`[data-tab="${activeId}"]`);
     if (!button) return;
-    strip.scrollTo({ left: Math.max(0, button.offsetLeft - 16), behavior: scrollBehavior() });
+    strip.scrollTo({ left: Math.max(0, button.offsetLeft - strip.clientWidth / 2 + button.offsetWidth / 2), behavior: scrollBehavior() });
   }, [activeId]);
 
   function jumpTo(id: string) {
@@ -81,11 +96,11 @@ export function CategoryNav({
     unlockTimerRef.current = window.setTimeout(() => {
       lockRef.current = false;
     }, 800);
-    el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+    window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - (navRef.current?.offsetHeight ?? SPY_OFFSET) - 16), behavior: scrollBehavior() });
   }
 
   return (
-    <div className="sticky top-0 z-20 -mx-4 border-b border-garage-line bg-garage-bg-0/95 px-4 pb-2 pt-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-b-lg lg:px-0">
+    <div ref={navRef} className="sticky top-0 z-20 -mx-4 border-b border-garage-line bg-garage-bg-1 px-4 pb-2 pt-3 shadow-[0_8px_16px_rgba(0,0,0,0.12)] sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-lg lg:border lg:px-3">
       <div className="relative">
         <Search
           className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-garage-mute"
@@ -96,7 +111,7 @@ export function CategoryNav({
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           className="h-11 w-full rounded-md border border-garage-line bg-garage-bg-2 pl-10 pr-11 text-base text-white outline-none transition-colors placeholder:text-garage-mute focus:border-garage-amber [&::-webkit-search-cancel-button]:hidden"
-          placeholder="Cari kopi, nasi, cemilan..."
+          placeholder="Cari menu atau paket…"
           aria-label="Cari menu"
         />
         {query ? (
@@ -117,10 +132,12 @@ export function CategoryNav({
           &nbsp;hasil untuk &ldquo;{query.trim()}&rdquo;
         </p>
       ) : (
+        <div className="mt-2 flex min-w-0 items-center gap-1">
+        {edges.overflow && <button type="button" aria-label="Geser kategori ke kiri" disabled={!edges.left} onClick={() => stripRef.current?.scrollBy({ left: -220, behavior: scrollBehavior() })} className="flex size-11 shrink-0 items-center justify-center rounded-md border border-garage-line text-garage-fg hover:bg-garage-bg-3 focus-visible:outline-2 focus-visible:outline-garage-amber disabled:opacity-30"><ChevronLeft className="size-4" aria-hidden /></button>}
         <nav
           ref={stripRef}
           aria-label="Kategori menu"
-          className="garage-scroll-x -mx-1 mt-2 flex gap-1 px-1"
+          className="garage-scroll-x relative flex min-w-0 flex-1 gap-1"
         >
           {tabs.map((tab) => {
             const active = tab.id === activeId;
@@ -131,8 +148,8 @@ export function CategoryNav({
                 data-tab={tab.id}
                 aria-current={active ? "true" : undefined}
                 onClick={() => jumpTo(tab.id)}
-                className={`relative h-11 shrink-0 cursor-pointer px-3 text-sm font-bold transition-colors ${
-                  active ? "text-white" : "text-garage-dim hover:text-white"
+                className={`relative min-h-11 shrink-0 cursor-pointer rounded-md px-3 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-garage-amber ${
+                  active ? "bg-garage-red/15 text-white" : "text-garage-dim hover:bg-garage-bg-3 hover:text-white"
                 }`}
               >
                 {tab.label}
@@ -146,6 +163,8 @@ export function CategoryNav({
             );
           })}
         </nav>
+        {edges.overflow && <button type="button" aria-label="Geser kategori ke kanan" disabled={!edges.right} onClick={() => stripRef.current?.scrollBy({ left: 220, behavior: scrollBehavior() })} className="flex size-11 shrink-0 items-center justify-center rounded-md border border-garage-line text-garage-fg hover:bg-garage-bg-3 focus-visible:outline-2 focus-visible:outline-garage-amber disabled:opacity-30"><ChevronRight className="size-4" aria-hidden /></button>}
+        </div>
       )}
     </div>
   );

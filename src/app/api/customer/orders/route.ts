@@ -56,12 +56,12 @@ const customerOrderSchema = z.object({
   customerLat: z.number().min(-90).max(90).optional(),
   customerLng: z.number().min(-180).max(180).optional(),
   eventId: z.string().uuid().optional(),
-  eventItems: z.array(eventCartItemSchema).min(1).max(40).optional(),
+  eventItems: z.array(eventCartItemSchema).max(40).optional(),
   items: z.array(itemSchema).max(40).default([]),
 }).superRefine((value, ctx) => {
   if (value.eventId) {
-    if (!value.eventItems?.length) ctx.addIssue({ code: "custom", path: ["eventItems"], message: "Pilih menu event sebelum checkout." });
-    if (value.items.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Checkout event memakai keranjang event." });
+    if (!value.eventItems?.length && !value.items.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Keranjang masih kosong." });
+    if ((value.eventItems?.length ?? 0) + value.items.length > 40) ctx.addIssue({ code: "custom", path: ["items"], message: "Maksimal 40 pilihan dalam satu pesanan." });
   } else {
     if (!value.items.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Keranjang masih kosong." });
     if (value.eventItems?.length) ctx.addIssue({ code: "custom", path: ["eventId"], message: "Event belum dipilih." });
@@ -133,10 +133,25 @@ export async function POST(request: Request) {
       return fail(409, error.code, error.message);
     }
     if (error instanceof EventError) return fail(error.status, error.code, error.message);
+    const databaseCause = error instanceof Error ? error.cause : undefined;
+    // A database failure can happen after the order transaction commits (for
+    // example while attaching the invoice token). Keep it retryable so the
+    // client preserves its durable request key and recovers the same order.
+    const databaseFailure = Boolean(databaseCause) || (error instanceof Error && error.message.startsWith("Failed query:"));
+    if (databaseCause && typeof databaseCause === "object") {
+      const cause = databaseCause as Record<string, unknown>;
+      console.error("Customer order database failure", {
+        code: cause.code,
+        constraint: cause.constraint,
+        table: cause.table,
+      });
+    }
     return fail(
-      400,
+      databaseFailure ? 503 : 400,
       "CUSTOMER_ORDER_CREATE_FAILED",
-      error instanceof Error ? error.message : "Customer order gagal dibuat.",
+      databaseFailure
+        ? "Pesanan belum berhasil dibuat. Silakan coba kembali."
+        : error instanceof Error ? error.message : "Customer order gagal dibuat.",
     );
   }
 }

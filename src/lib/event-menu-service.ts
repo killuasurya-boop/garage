@@ -65,7 +65,7 @@ async function eventById(db: Executor, eventId: string, outletId?: string, lock 
 
 /** Event commerce never exposes or sells restricted tobacco/vape products. */
 function allowedProduct(row: { name: string; category: string; brand: string | null; status: string; showInDigitalMenu: boolean }) {
-  return row.status === "active" && row.showInDigitalMenu && !/rokok|tobacco|cigarette|nikotin|vape|black\s*matcha/i.test(`${row.name} ${row.category} ${row.brand ?? ""}`);
+  return row.status === "active" && !/rokok|tobacco|cigarette|nikotin|vape|black\s*matcha/i.test(`${row.name} ${row.category} ${row.brand ?? ""}`);
 }
 async function products(db: Executor, includeUnavailable = true) {
   const rows = await db.select({ item: menuItems, variant: menuVariants }).from(menuVariants).innerJoin(menuItems, eq(menuItems.id, menuVariants.itemId));
@@ -76,7 +76,7 @@ async function productDtos(db: Executor): Promise<EventMenuProduct[]> {
   const map = new Map<string, EventMenuProduct>();
   for (const { item, variant } of rows) {
     let value = map.get(item.id);
-    if (!value) { value = { id: item.id, name: item.name, category: item.category, imageUrl: item.imageUrl, description: item.description, stock: item.stock, variants: [] }; map.set(item.id, value); }
+    if (!value) { value = { id: item.id, name: item.name, category: item.category, imageUrl: item.imageUrl, description: item.description, stock: item.stock, showInDigitalMenu: item.showInDigitalMenu, variants: [] }; map.set(item.id, value); }
     value.variants.push({ id: variant.variantId, label: variant.label, price: variant.price });
   }
   return [...map.values()];
@@ -101,10 +101,11 @@ export async function getEventMenuData(eventId: string, options: { outletId?: st
   if (options.publicOnly && event.status !== "published") throw new EventError(404, "EVENT_NOT_FOUND", "Event belum tersedia.");
   const allEntries = await db.select().from(eventMenuEntries).where(eq(eventMenuEntries.eventId, eventId)).orderBy(eventMenuEntries.sortOrder, eventMenuEntries.name);
   const catalog = await productDtos(db);
-  const valid = (row: MenuRow) => row.kind === "item" ? catalog.some(p => p.id === row.menuItemId && p.variants.some(v => v.id === row.variantId)) : row.groups.every(g => g.options.some(o => catalog.some(p => p.id === o.itemId && p.variants.some(v => v.id === o.variantId))));
+  const valid = (row: MenuRow) => row.kind === "item" ? catalog.some(p => p.id === row.menuItemId && p.showInDigitalMenu !== false && p.variants.some(v => v.id === row.variantId)) : row.groups.every(g => g.options.some(o => catalog.some(p => p.id === o.itemId && p.variants.some(v => v.id === o.variantId))));
   const entries = allEntries.filter(e => !options.publicOnly || (e.status === "active" && valid(e))).map(entryDto);
   if (options.publicOnly) for (const entry of entries) entry.groups = entry.groups.map(group => ({ ...group, options: group.options.filter(option => catalog.some(product => product.id === option.itemId && product.variants.some(variant => variant.id === option.variantId))) }));
-  return { event: eventContext(event, options.now ?? new Date()), entries, products: catalog };
+  const bundleReferences = new Set(entries.filter(entry => entry.kind === "bundle").flatMap(entry => entry.groups.flatMap(group => group.options.map(option => option.itemId))));
+  return { event: eventContext(event, options.now ?? new Date()), entries, products: options.publicOnly ? catalog.filter(product => product.showInDigitalMenu !== false || bundleReferences.has(product.id)) : catalog };
 }
 export async function getPublicEventMenu(slug: string) {
   const [event] = await getDb().select({ id: events.id }).from(events).where(and(eq(events.slug, slug), eq(events.status, "published"))).limit(1);
@@ -126,6 +127,7 @@ export async function saveEventMenuEntry(eventId: string, input: EventMenuEntryI
     const catalog = await products(tx);
     const references = value.kind === "item" ? [{ itemId: value.menuItemId!, variantId: value.variantId! }] : value.groups.flatMap(g => g.options);
     for (const ref of references) if (!catalog.some(p => p.item.id === ref.itemId && p.variant.variantId === ref.variantId)) throw new EventError(400, "EVENT_PRODUCT_UNAVAILABLE", "Pilih produk/varian aktif makanan atau minuman yang terlihat di menu digital.");
+    if (value.kind === "item" && !catalog.some(product => product.item.id === value.menuItemId && product.item.showInDigitalMenu)) throw new EventError(400, "EVENT_PRODUCT_HIDDEN", "Produk disembunyikan dari menu satuan. Aktifkan tampil di menu digital atau gunakan sebagai komponen paket.");
     if (value.kind === "item" && value.status === "active") {
       const conflicts = await tx.select().from(eventMenuEntries).where(and(eq(eventMenuEntries.eventId, eventId), eq(eventMenuEntries.status, "active"), eq(eventMenuEntries.menuItemId, value.menuItemId!), eq(eventMenuEntries.variantId, value.variantId!), entryId ? ne(eventMenuEntries.id, entryId) : undefined));
       if (conflicts.some(c => startsAt < c.endsAt && endsAt > c.startsAt)) throw new EventError(409, "EVENT_MENU_OVERLAP", "Jadwal harga produk/varian ini bertabrakan dengan menu event lain.");
@@ -202,6 +204,7 @@ export async function resolveEventCart(db: Executor, input: { eventId: string; i
     const selected = components.map(component => {
       const product = catalog.find(p => p.item.id === component.itemId && p.variant.variantId === component.variantId);
       if (!product) throw new EventError(409, "EVENT_PRODUCT_UNAVAILABLE", "Produk/varian paket tidak tersedia. Muat ulang menu.");
+      if (entry.kind === "item" && !product.item.showInDigitalMenu) throw new EventError(409, "EVENT_PRODUCT_HIDDEN", "Produk disembunyikan dari menu digital.");
       return product;
     });
     const prices = allocate(entry.price, selected.map(p => Math.max(1, p.variant.price)));
@@ -222,6 +225,28 @@ export async function resolveEventCart(db: Executor, input: { eventId: string; i
   if (result.length > 120) throw new EventError(400, "EVENT_CART_TOO_LARGE", "Terlalu banyak komponen paket dalam satu order.");
   if (input.reserveQuota) for (const [id, quantity] of used) await db.update(eventMenuEntries).set({ usedQuantity: sql`${eventMenuEntries.usedQuantity} + ${quantity}`, updatedAt: now }).where(eq(eventMenuEntries.id, id));
   return result;
+}
+
+type RegularCheckoutItem = { itemId: string; variantId: string; qty: number; note?: string };
+/** Resolve a shared cart without trusting contextual prices sent by the client. */
+export async function resolveEventCheckoutCart(db: Executor, input: { eventId: string; items: EventCartItem[]; regularItems: RegularCheckoutItem[]; outletId?: string; now?: Date; reserveQuota?: boolean }) {
+  const event = await eventById(db, input.eventId, input.outletId, input.reserveQuota);
+  const now = input.now ?? new Date();
+  if (event.status !== "published" || now < event.startsAt || now >= event.endsAt) throw new EventError(409, "EVENT_NOT_ACTIVE", "Event belum aktif atau sudah berakhir. Muat ulang menu untuk memakai harga reguler.");
+  const regularItems = z.array(productOption.extend({ qty: z.number().int().min(1).max(25), note: z.string().trim().max(160).optional() })).max(40).parse(input.regularItems);
+  if (!regularItems.length && !input.items.length) throw new EventError(400, "EVENT_CART_EMPTY", "Keranjang masih kosong.");
+  if (regularItems.length + input.items.length > 40) throw new EventError(400, "EVENT_CART_TOO_LARGE", "Maksimal 40 pilihan dalam satu pesanan.");
+  const rows = await db.select().from(eventMenuEntries).where(and(eq(eventMenuEntries.eventId, event.id), eq(eventMenuEntries.kind, "item"), eq(eventMenuEntries.status, "active")));
+  const eventItems = [...input.items];
+  const regular: RegularCheckoutItem[] = [];
+  for (const item of regularItems) {
+    const matches = rows.filter(row => row.menuItemId === item.itemId && row.variantId === item.variantId && now >= row.startsAt && now < row.endsAt);
+    if (matches.length > 1) throw new EventError(409, "EVENT_MENU_OVERLAP", "Harga event bertabrakan. Hubungi kasir untuk memperbaiki jadwal menu.");
+    if (matches.length) eventItems.push({ entryId: matches[0].id, qty: item.qty, note: item.note });
+    else regular.push(item);
+  }
+  const eventLines = eventItems.length ? await resolveEventCart(db, { ...input, items: eventItems, now }) : [];
+  return { regularItems: regular, eventLines };
 }
 
 /** Release only rejected, never-produced orders; caller already locks the order. */

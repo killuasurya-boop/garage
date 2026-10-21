@@ -111,6 +111,14 @@ describe("Event menu persistence and safe checkout", () => {
     const data = await getPublicEventMenu("event-kuliner");
     expect(data.products.some(p => p.id === "itm-restricted")).toBe(false);
   });
+  it("allows only one concurrent checkout to claim the final optional quota", async () => {
+    const entry = await saveEventMenuEntry(eventId, bundle({ quota: 1 }), actor);
+    const claim = () => t.getDb().transaction((tx: Parameters<typeof resolveEventCart>[0]) => resolveEventCart(tx, { eventId, now, reserveQuota: true, items: [{ entryId: entry.id, qty: 1, selections }] }));
+    const results = await Promise.allSettled([claim(), claim()]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect((await getEventMenuData(eventId)).entries.find(row => row.id === entry.id)?.usedQuantity).toBe(1);
+  });
   it("releases rejected-order quota once per package group", async () => {
     const entry = await saveEventMenuEntry(eventId, bundle({ quota: 2 }), actor);
     await t.getDb().transaction(async (tx: Parameters<typeof resolveEventCart>[0]) => {

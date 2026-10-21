@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { EventMenuGroup, EventOrderSnapshot } from "@/lib/event-menu-types";
 import {
   type AnyPgColumn,
   boolean,
@@ -656,6 +657,7 @@ export const orders = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orderNo: text("order_no").notNull().unique(),
+    eventId: uuid("event_id").references((): AnyPgColumn => events.id, { onDelete: "restrict" }),
     // Nomor antrian harian (reset tiap hari, per outlet) — nomor pendek yang mudah
     // dicek: tampil di struk & papan Siap. Nullable untuk baris lama.
     queueNo: integer("queue_no"),
@@ -717,6 +719,7 @@ export const orders = pgTable(
     // Kunci anti-dobel dari kasir ("<userId>:<X-Idempotency-Key>"). Unik di DB
     // → tombol Bayar diulang (juga setelah server restart) tidak membuat order kedua.
     clientRequestKey: text("client_request_key"),
+    clientRequestFingerprint: text("client_request_fingerprint"),
     // Arsip invoice (Owner/Manajer): hanya menyembunyikan dari daftar bawaan —
     // laporan, stok, kas, dan pembayaran tidak berubah. Bisa dipulihkan.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -733,6 +736,7 @@ export const orders = pgTable(
     statusIdx: index("orders_status_idx").on(table.status),
     outletIdx: index("orders_outlet_id_idx").on(table.outletId),
     sourceIdx: index("orders_order_source_idx").on(table.orderSource),
+    eventIdx: index("orders_event_id_idx").on(table.eventId),
     customerPhoneIdx: index("orders_customer_phone_idx").on(table.customerPhone),
     invoiceTrackingTokenIdx: uniqueIndex("orders_invoice_tracking_token_idx").on(table.invoiceTrackingToken),
     outletCreatedIdx: index("orders_outlet_created_idx").on(table.outletId, table.createdAt),
@@ -754,6 +758,7 @@ export const orderItems = pgTable(
     variantId: text("variant_id").notNull(),
     itemName: text("item_name").notNull(),
     variantLabel: text("variant_label").notNull(),
+    eventSnapshot: jsonb("event_snapshot").$type<EventOrderSnapshot>(),
     unitPrice: integer("unit_price").notNull(),
     qty: integer("qty").notNull(),
     lineTotal: integer("line_total").notNull(),
@@ -3876,6 +3881,8 @@ export const events = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "restrict" }),
+    bannerUrl: text("banner_url"),
     tagline: text("tagline"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
@@ -3911,6 +3918,30 @@ export const events = pgTable(
     slugUnique: uniqueIndex("events_slug_unique").on(t.slug),
     statusIdx: index("events_status_idx").on(t.status),
   }),
+);
+
+export const eventMenuEntries = pgTable(
+  "event_menu_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "restrict" }),
+    kind: text("kind").notNull().default("item"),
+    name: text("name").notNull(),
+    description: text("description"),
+    menuItemId: text("menu_item_id").references(() => menuItems.id, { onDelete: "restrict" }),
+    variantId: text("variant_id"),
+    price: integer("price").notNull(),
+    status: text("status").notNull().default("active"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    quota: integer("quota"),
+    usedQuantity: integer("used_quantity").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    groups: jsonb("groups").$type<EventMenuGroup[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ eventIdx: index("event_menu_entries_event_idx").on(t.eventId, t.status) }),
 );
 
 export const eventGuests = pgTable(

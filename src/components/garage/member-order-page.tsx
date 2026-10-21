@@ -88,6 +88,9 @@ import { parseBankAccounts } from "@/lib/bank-accounts";
 import { PaymentProofPanel } from "@/components/garage/order/payment-proof-panel";
 import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
 import { OrderPushButton } from "@/components/garage/order-push-button";
+import { EventBundlePicker } from "@/components/garage/events/event-bundle-picker";
+import { eventEntryAvailable, type EventDigitalMenuContext, type EventMenuSelection } from "@/lib/event-menu-display";
+import type { EventMenuEntry } from "@/lib/event-menu-types";
 import {
   adoptChatTokenForOrder,
   CustomerChatPanel,
@@ -197,10 +200,10 @@ class ApiError extends Error {
   }
 }
 
-async function postJson<T>(url: string, payload: unknown) {
+async function postJson<T>(url: string, payload: unknown, idempotencyKey?: string) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {}) },
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -760,6 +763,7 @@ export function MemberOrderPage({
   billing,
   initialOrderingOpen,
   staffOrder,
+  eventContext,
 }: {
   initialQrContext?: QrContext;
   initialReturnPath?: string;
@@ -802,17 +806,34 @@ export function MemberOrderPage({
   // Mode waiter (/order?mode=waiter, sesi staf dicek server): nama pemesan otomatis,
   // order dikirim ke /api/waiter/orders (menunggu kasir), lalu kembali ke daftar meja.
   staffOrder?: { name: string; backHref: string } | null;
+  eventContext?: EventDigitalMenuContext;
 }) {
-  const hasInitialMenuItems = Boolean(initialMenuItems?.length);
+  const hasInitialMenuItems = Boolean(eventContext || initialMenuItems?.length);
   const bestSellerSet = useMemo(() => new Set(bestSellerIds ?? []), [bestSellerIds]);
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [mode, setMode] = useState<"guest" | "member">("guest");
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => initialMenuItems ?? []);
+  const [menuItemState, setMenuItems] = useState<MenuItem[]>(() => initialMenuItems ?? []);
   const [cart, setCart] = useState<Record<string, number>>({});
   // Catatan per-item keranjang (mis. "less ice"), keyed by cartKey item::variant.
   const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
   // Item yang dibuka di sheet detail (pilih varian + qty).
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
+  const [bundleEntry, setBundleEntry] = useState<EventMenuEntry | null>(null);
+  const [eventSelections, setEventSelections] = useState<Record<string, EventMenuSelection[]>>({});
+  const eventSubmission = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [eventNow, setEventNow] = useState(() => Date.now());
+  const menuItems = useMemo(() => {
+    if (!eventContext) return menuItemState;
+    return menuItemState.map((item) => {
+      const entry = eventContext.entries.find((row) => `event:${row.id}` === item.id);
+      return entry ? { ...item, stock: eventEntryAvailable(entry, eventContext.products, eventNow) ? "ready" as const : "sold_out" as const } : item;
+    });
+  }, [menuItemState, eventContext, eventNow]);
+  useEffect(() => {
+    if (!eventContext) return;
+    const timer = window.setInterval(() => setEventNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, [eventContext]);
   // false = kasir belum buka shift → menu tetap bisa dilihat, tapi order belum bisa dikirim.
   const [orderingOpen, setOrderingOpen] = useState(initialOrderingOpen !== false);
   // Konfirmasi singkat "X masuk keranjang" di bar keranjang mobile (hilang setelah 2,2 dtk).
@@ -1285,6 +1306,7 @@ export function MemberOrderPage({
   // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
+  const eventUnavailable = Boolean(eventContext && (eventContext.preview || eventNow < Date.parse(eventContext.startsAt) || eventNow >= Date.parse(eventContext.endsAt)));
   const cashPaymentLabel =
     effectiveOrderType === "takeaway" ? "Bayar di kasir" : "Bayar di Meja / Kasir";
   const paymentProviderValue =
@@ -1301,6 +1323,7 @@ export function MemberOrderPage({
     !guestNameMissing &&
     !memberMissing &&
     !soldOutCartLine &&
+    !eventUnavailable &&
     orderingOpen &&
     !qrContext.tableIssue &&
     !(needsTable && !tableHold) &&
@@ -1308,7 +1331,9 @@ export function MemberOrderPage({
     !deliveryAddressMissing &&
     !deliveryBelowMin &&
     !deliveryOutOfRange;
-  const checkoutBlockReason = qrContext.tableIssue
+  const checkoutBlockReason = eventUnavailable
+    ? "Menu event belum dibuka atau sudah berakhir. Kembali ke menu reguler untuk pesanan baru."
+    : qrContext.tableIssue
     ? qrContext.tableIssue
     : needsTable && !tableHold
     ? "Pilih meja dulu."
@@ -1345,7 +1370,17 @@ export function MemberOrderPage({
 
   function add(itemId: string, variantId: string, delta: number) {
     const item = menuItems.find((entry) => entry.id === itemId);
-    if (item?.stock === "sold_out") {
+    const entry = eventContext?.entries.find((row) => `event:${row.id}` === itemId);
+    if (delta > 0 && entry && !eventEntryAvailable(entry, eventContext!.products)) {
+      setMessage("Menu event sedang tidak tersedia atau jadwalnya sudah berakhir.");
+      return;
+    }
+    if (delta > 0 && entry?.kind === "bundle" && variantId === "event") {
+      setDetailItem(null);
+      setBundleEntry(entry);
+      return;
+    }
+    if (delta > 0 && item?.stock === "sold_out") {
       setMessage(`${item.name} sedang habis.`);
       return;
     }
@@ -1434,6 +1469,9 @@ export function MemberOrderPage({
     setLastOrder(null);
     setOrderStatus(null);
     try {
+      if (eventUnavailable) {
+        throw new Error("Menu event belum dibuka atau sudah berakhir. Silakan kembali ke menu reguler.");
+      }
       if (!cartLines.length) {
         throw new Error("Pilih menu terlebih dahulu.");
       }
@@ -1471,7 +1509,7 @@ export function MemberOrderPage({
       }
 
       const existingChatToken = existingGenericChatToken();
-      const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", {
+      const orderPayload = {
         orderType: effectiveOrderType,
         tableLabel: isDelivery ? undefined : qrContext.tableLabel,
         tableHoldToken: needsTable && tableHold?.mode === "new" ? tableHold.token ?? undefined : undefined,
@@ -1496,13 +1534,28 @@ export function MemberOrderPage({
         paymentProvider: paymentProviderValue || undefined,
         paymentReference: paymentReference.trim() || undefined,
         chatToken: existingChatToken,
-        items: cartLines.map((line) => ({
+        ...(eventContext ? {
+          eventId: eventContext.eventId,
+          eventItems: cartLines.map((line) => ({
+            entryId: line.item.id.slice("event:".length),
+            qty: line.qty,
+            note: line.note.trim() || undefined,
+            selections: eventSelections[line.variant.id],
+          })),
+        } : {}),
+        items: eventContext ? [] : cartLines.map((line) => ({
           itemId: line.item.id,
           variantId: line.variant.id,
           qty: line.qty,
           note: line.note.trim() || undefined,
         })),
-      });
+      };
+      if (eventContext) {
+        const fingerprint = JSON.stringify(orderPayload);
+        if (eventSubmission.current?.fingerprint !== fingerprint) eventSubmission.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", orderPayload, eventContext ? eventSubmission.current?.key : undefined);
+      eventSubmission.current = null;
 
       setCart({});
       setCartNotes({});
@@ -2139,6 +2192,7 @@ export function MemberOrderPage({
           onHelp={() => setHelpOpen(true)}
           staff={staffOrder}
         />
+        {eventContext ? <div className="mt-4 rounded-lg border border-garage-amber/50 bg-garage-amber/10 p-4"><p className="font-bold text-white">{eventContext.preview ? "Preview · " : "Menu Event · "}{eventContext.title}</p><p className="mt-1 text-sm text-garage-dim">{eventContext.preview ? "Preview hanya untuk meninjau tampilan. Pengiriman order dinonaktifkan." : eventUnavailable ? "Event belum dibuka atau sudah berakhir. Checkout event tidak tersedia." : "Harga khusus event. Pesanan diproses kasir, bar, dan dapur Garage."}</p><Link href="/order" className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-garage-amber underline">Buka menu reguler</Link></div> : null}
 
         {!voucherResult?.valid && qrContext.campaign === "landing_menu" ? (
           <div className="mt-4 flex items-center gap-3 rounded-md border border-garage-amber/40 bg-garage-amber/10 px-3.5 py-3">
@@ -2544,6 +2598,16 @@ export function MemberOrderPage({
         onAdjust={add}
         onClose={() => setDetailItem(null)}
       />
+      {bundleEntry && eventContext ? <EventBundlePicker key={bundleEntry.id} entry={bundleEntry} products={eventContext.products} onClose={() => setBundleEntry(null)} onConfirm={(selections, label) => {
+        const itemId = `event:${bundleEntry.id}`;
+        const variantId = `bundle-${encodeURIComponent(JSON.stringify(selections))}`;
+        setEventSelections((current) => ({ ...current, [variantId]: selections }));
+        setMenuItems((current) => current.map((item) => item.id !== itemId || item.variants.some((variant) => variant.id === variantId) ? item : { ...item, variants: [...item.variants, { id: variantId, label, price: bundleEntry.price }] }));
+        const key = cartKey(itemId, variantId);
+        setCart((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }));
+        setBundleEntry(null);
+        setLastAdded({ name: bundleEntry.name, stamp: Date.now() });
+      }} /> : null}
 
       {qrContext.orderType === "dine-in" && !staffOrder ? (
         <OrderHelpSheet

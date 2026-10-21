@@ -14,7 +14,7 @@ export async function GET(_request: Request, context: Context) {
   if (session.response) return session.response;
   const { id } = await context.params;
   if (!z.string().uuid().safeParse(id).success) return fail(400, "INVALID_EVENT_ID", "ID event tidak valid.");
-  const event = await getEventForAdmin(id);
+  const event = await getEventForAdmin(id, session.data.profile.outlet.id);
   if (!event) return fail(404, "EVENT_NOT_FOUND", "Event tidak ditemukan.");
   return ok({ event });
 }
@@ -27,7 +27,7 @@ export async function PATCH(request: Request, context: Context) {
   const body = await readJson(request, eventUpdateSchema);
   if (body.error) return body.error;
   try {
-    const result = await updateEvent(id, body.data, session.data.user.id);
+    const result = await updateEvent(id, body.data, session.data.user.id, session.data.profile.outlet.id);
     await createAuditLog({
       actor: `${session.data.user.name} / ${session.data.profile.role}`,
       action: result.changedFacts.length ? "Event: fakta acara diubah" : "Event: konten diperbarui",

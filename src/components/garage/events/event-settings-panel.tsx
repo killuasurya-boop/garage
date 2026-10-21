@@ -17,6 +17,7 @@ import type { AdminEvent } from "@/lib/event-service";
 type Draft = {
   title: string;
   tagline: string;
+  bannerUrl: string;
   startsAt: string;
   endsAt: string;
   rsvpDeadline: string;
@@ -39,6 +40,7 @@ function toDraft(event: AdminEvent): Draft {
   return {
     title: event.title,
     tagline: event.tagline ?? "",
+    bannerUrl: event.bannerUrl ?? "",
     startsAt: toZonedInputValue(event.startsAt, event.timezone),
     endsAt: toZonedInputValue(event.endsAt, event.timezone),
     rsvpDeadline: event.rsvpDeadline ? toZonedInputValue(event.rsvpDeadline, event.timezone) : "",
@@ -108,6 +110,7 @@ export function EventSettingsPanel({
         body: JSON.stringify({
           title: draft.title,
           tagline: draft.tagline || null,
+          bannerUrl: draft.bannerUrl.trim() || null,
           startsAt,
           endsAt,
           rsvpDeadline,
@@ -142,7 +145,7 @@ export function EventSettingsPanel({
   async function setStatus(status: AdminEvent["status"]) {
     const confirmText =
       status === "published"
-        ? "Terbitkan event? Banner homepage & halaman /grand-opening langsung tampil untuk publik."
+        ? "Terbitkan event? Konten publik dan menu khusus dapat diakses sesuai jadwal yang disimpan."
         : status === "draft"
           ? "Tarik event ke draft? Banner & landing akan disembunyikan dari publik."
           : "Arsipkan event? Konten tidak bisa diubah lagi.";
@@ -188,7 +191,7 @@ export function EventSettingsPanel({
           {event.status === "published" ? (
             <>
               <Button asChild variant="outline">
-                <a href={`/${event.slug}`} target="_blank" rel="noopener noreferrer">
+                <a href={event.slug === "grand-opening" ? "/grand-opening" : `/events/${event.slug}/menu`} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="size-4" /> Lihat halaman
                 </a>
               </Button>
@@ -202,6 +205,7 @@ export function EventSettingsPanel({
               {busy === "status" ? <Loader2 className="size-4 animate-spin" /> : null} Terbitkan
             </Button>
           ) : null}
+          {event.status !== "archived" ? <Button variant="outline" disabled={busy !== null} onClick={() => setStatus("archived")}>Arsipkan Event</Button> : null}
         </div>
       </div>
 
@@ -212,6 +216,7 @@ export function EventSettingsPanel({
         <Field label="Tagline (opsional)" hint="Kosongkan bila belum ada copy final dari owner.">
           <Input className={inputClass} value={draft.tagline} onChange={(e) => patch("tagline", e.target.value)} />
         </Field>
+        <div className="md:col-span-2"><Field label="URL banner menu event (opsional)" hint="Gunakan path /garage-uploads/… atau URL https. Kosongkan untuk menyembunyikan banner."><Input className={inputClass} value={draft.bannerUrl} onChange={(e) => patch("bannerUrl", e.target.value)} /></Field></div>
         <Field label="Mulai (WIB)">
           <Input type="datetime-local" className={inputClass} value={draft.startsAt} onChange={(e) => patch("startsAt", e.target.value)} />
         </Field>

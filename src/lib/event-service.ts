@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { events } from "@/db/schema";
+import { auditLogs, eventMenuEntries, events } from "@/db/schema";
 import { AGENDA_TIME, toZonedInputValue, type PublicEvent } from "@/lib/event-format";
 import { normalizeWaNumber } from "@/lib/whatsapp-link";
 
@@ -29,6 +29,8 @@ export class EventError extends Error {
 type EventRow = typeof events.$inferSelect;
 
 export type AdminEvent = PublicEvent & {
+  outletId: string | null;
+  bannerUrl: string | null;
   status: EventStatus;
   featuredOnHome: boolean;
   defaultMaxPax: number;
@@ -107,6 +109,8 @@ export function toPublicEvent(row: EventRow): PublicEvent {
 function toAdminEvent(row: EventRow): AdminEvent {
   return {
     ...toPublicEvent(row),
+    outletId: row.outletId,
+    bannerUrl: row.bannerUrl,
     status: (EVENT_STATUSES as readonly string[]).includes(row.status) ? (row.status as EventStatus) : "draft",
     featuredOnHome: row.featuredOnHome,
     defaultMaxPax: row.defaultMaxPax,
@@ -137,14 +141,14 @@ export async function getHomeFeaturedEvent(now = new Date()): Promise<PublicEven
   return upcoming[0] ? toPublicEvent(upcoming[0]) : null;
 }
 
-export async function listEventsForAdmin(): Promise<AdminEvent[]> {
+export async function listEventsForAdmin(outletId?: string): Promise<AdminEvent[]> {
   const rows = await getDb().select().from(events);
-  return rows.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).map(toAdminEvent);
+  return rows.filter(row => !outletId || !row.outletId || row.outletId === outletId).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).map(toAdminEvent);
 }
 
-export async function getEventForAdmin(id: string): Promise<AdminEvent | null> {
+export async function getEventForAdmin(id: string, outletId?: string): Promise<AdminEvent | null> {
   const [row] = await getDb().select().from(events).where(eq(events.id, id)).limit(1);
-  return row ? toAdminEvent(row) : null;
+  return row && (!outletId || !row.outletId || row.outletId === outletId) ? toAdminEvent(row) : null;
 }
 
 const isoDate = z
@@ -154,6 +158,8 @@ const isoDate = z
 export const eventUpdateSchema = z
   .object({
     title: z.string().trim().min(3, "Judul minimal 3 huruf.").max(120),
+    outletId: z.string().uuid().nullable().optional(),
+    bannerUrl: z.string().trim().max(800).refine(value => !value || isSafeImageSrc(value), "URL banner tidak valid.").nullable().optional(),
     tagline: z.string().trim().max(160).nullable().optional(),
     startsAt: isoDate,
     endsAt: isoDate,
@@ -218,11 +224,17 @@ export type EventUpdateInput = z.infer<typeof eventUpdateSchema>;
 /** Field yang mengubah fakta acara — perubahan menaikkan contentVersion. */
 const FACT_FIELDS = ["title", "startsAt", "endsAt", "venueName", "address", "mapsUrl", "contactWhatsapp"] as const;
 
-export async function updateEvent(id: string, input: EventUpdateInput, userId: string) {
-  const db = getDb();
-  const [current] = await db.select().from(events).where(eq(events.id, id)).limit(1);
-  if (!current) throw new EventError(404, "EVENT_NOT_FOUND", "Event tidak ditemukan.");
+export async function updateEvent(id: string, input: EventUpdateInput, userId: string, outletId?: string) {
+  return getDb().transaction(async db => {
+  const [current] = await db.select().from(events).where(eq(events.id, id)).limit(1).for("update");
+  if (!current || (outletId && current.outletId && current.outletId !== outletId)) throw new EventError(404, "EVENT_NOT_FOUND", "Event tidak ditemukan.");
+  if (outletId && input.outletId && input.outletId !== outletId) throw new EventError(403, "EVENT_OUTLET_FORBIDDEN", "Pilih outlet aktif sebelum memindahkan event.");
   if (current.status === "archived") throw new EventError(409, "EVENT_ARCHIVED", "Event sudah diarsipkan.");
+
+  const menuEntries = await db.select().from(eventMenuEntries).where(eq(eventMenuEntries.eventId, id));
+  if (menuEntries.some(entry => entry.status === "active" && (entry.startsAt < new Date(input.startsAt) || entry.endsAt > new Date(input.endsAt)))) {
+    throw new EventError(409, "EVENT_MENU_OUTSIDE_PERIOD", "Sesuaikan jadwal menu aktif sebelum mengubah periode event.");
+  }
 
   if (input.agenda?.length) {
     // Sesi rundown harus berada di dalam jam acara (zona event).
@@ -241,6 +253,8 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
 
   const next = {
     title: input.title,
+    outletId: input.outletId === undefined ? current.outletId : input.outletId,
+    bannerUrl: input.bannerUrl === undefined ? current.bannerUrl : input.bannerUrl || null,
     tagline: input.tagline || null,
     startsAt: new Date(input.startsAt),
     endsAt: new Date(input.endsAt),
@@ -279,13 +293,15 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
     })
     .where(eq(events.id, id))
     .returning();
+  await db.insert(auditLogs).values({ time: new Date().toISOString(), actor: userId, action: "Update event configuration", object: row.title, device: "Event Manager", status: "recorded", metadata: { eventId: id, before: current, after: row } });
   return { event: toAdminEvent(row), changedFacts: [...changedFacts] };
+  });
 }
 
-export async function setEventStatus(id: string, status: EventStatus, userId: string) {
-  const db = getDb();
-  const [current] = await db.select().from(events).where(eq(events.id, id)).limit(1);
-  if (!current) throw new EventError(404, "EVENT_NOT_FOUND", "Event tidak ditemukan.");
+export async function setEventStatus(id: string, status: EventStatus, userId: string, outletId?: string) {
+  return getDb().transaction(async db => {
+  const [current] = await db.select().from(events).where(eq(events.id, id)).limit(1).for("update");
+  if (!current || (outletId && current.outletId && current.outletId !== outletId)) throw new EventError(404, "EVENT_NOT_FOUND", "Event tidak ditemukan.");
   if (status === "published") {
     const event = toPublicEvent(current);
     if (!event.address || !event.mapsUrl || !normalizeWaNumber(event.contactWhatsapp)) {
@@ -297,5 +313,7 @@ export async function setEventStatus(id: string, status: EventStatus, userId: st
     .set({ status, updatedBy: userId, updatedAt: new Date() })
     .where(eq(events.id, id))
     .returning();
+  await db.insert(auditLogs).values({ time: new Date().toISOString(), actor: userId, action: "Change event status", object: row.title, device: "Event Manager", status: "recorded", metadata: { eventId: id, before: current.status, after: status } });
   return toAdminEvent(row);
+  });
 }

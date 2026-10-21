@@ -90,6 +90,8 @@ describe("Reset grand opening", () => {
       movement: "stok awal uji",
     });
     expect(await count("orders")).toBeGreaterThan(0);
+    const [event] = await t.getDb().insert(t.schema.events).values({ slug: "reset-menu-test", title: "Reset Menu Test", startsAt: new Date(), endsAt: new Date(Date.now() + 86400000), venueName: "Garage", address: "Test", mapsUrl: "", contactWhatsapp: "" }).returning();
+    await t.getDb().insert(t.schema.eventMenuEntries).values({ eventId: event.id, kind: "item", name: "Menu Uji", menuItemId: "itm-coffee", variantId: "reg", price: 15000, startsAt: event.startsAt, endsAt: event.endsAt, usedQuantity: 3 });
     expect(await count("production_ticket_items")).toBeGreaterThan(0);
     const masterTables = ["menu_items", "menu_variants", "outlets", "user", "inventory_items"];
     const before = Object.fromEntries(
@@ -113,5 +115,7 @@ describe("Reset grand opening", () => {
       .from(t.schema.inventoryItems)
       .where(eq(t.schema.inventoryItems.sku, "SKU-RESET"));
     expect(stock).toMatchObject({ onHand: 0, status: "low" });
+    const [entry] = await t.getDb().select().from(t.schema.eventMenuEntries);
+    expect(entry).toMatchObject({ eventId: event.id, name: "Menu Uji", price: 15000, usedQuantity: 0 });
   });
 });

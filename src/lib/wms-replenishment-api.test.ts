@@ -70,7 +70,7 @@ describe("Closing API authorization and retry boundary", () => {
     report.mockResolvedValue({ generatedAt: "2026-10-23T16:00:00Z", totalRequests: 0, lateRequests: 0, openRequests: 0, lines: [] });
     const xlsx = await exportReport(new Request("https://garage.test/?format=xlsx&neededDate=2026-10-24"));
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(Buffer.from(await xlsx.arrayBuffer()));
+    await workbook.xlsx.load(Buffer.from(await xlsx.arrayBuffer()) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
     expect(workbook.getWorksheet("Ringkasan")?.getCell("A1").value).toBe("GARAGE COFFEE");
     expect(JSON.stringify(workbook.getWorksheet("Ringkasan")?.getSheetValues())).toContain("Bar Staff");
     const pdf = await exportReport(new Request("https://garage.test/?format=pdf&neededDate=2026-10-24"));

@@ -24,7 +24,7 @@ export function buildClosingReport(data: ClosingReportData, filters: ClosingFilt
     { key: "name", label: "Bahan", type: "text" as const, weight: 2 },
     { key: "unit", label: "Satuan", type: "text" as const },
   ];
-  const rows = data.lines.map((l) => ({ ...l, division: l.division === "bar" ? "Bar" : "Dapur" }));
+  const rows = data.lines.map((l) => ({ ...l, completedAt:l.completedAt ? new Date(l.completedAt).toISOString() : null, fulfillmentTiming:l.fulfillmentTiming ?? "", division: l.division === "bar" ? "Bar" : "Dapur" }));
   const quantity = (key: string, label: string) => ({ key, label, type: "qty" as const, noSum: true });
   return {
     title: "Closing Stock & Pemenuhan Bahan",

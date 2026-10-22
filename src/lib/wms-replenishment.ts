@@ -253,7 +253,7 @@ async function receive(tx:Db,actor:ClosingActor,request:Request,input:ClosingTra
   const after=await requestItems(tx,request.id);return after.every(i=>n(i.receivedQty)>=n(i.requestedQty))?"completed":"partially_received";
 }
 export async function transitionReplenishment(actor:ClosingActor,id:string,input:ClosingTransitionInput){
-  return transact(actor,input.idempotencyKey,{action:"transition",id,...input},async tx=>{
+  return transact(actor,input.idempotencyKey,{operation:"transition",id,...input},async tx=>{
     const request=await findRequest(tx,actor,id,true);assertVersion(request,input.version);if(terminals.includes(request.status))error("Permintaan sudah ditutup.");let status=request.status;
     if(input.action==="receive")status=await receive(tx,actor,request,input);
     else if(input.action==="approve")status=await reserveItems(tx,actor,request,input);
@@ -279,7 +279,7 @@ export async function listShortages(actor:ClosingActor,filters:ClosingFilters={}
 }
 export async function decideShortage(actor:ClosingActor,id:string,input:ShortageDecisionInput){
   if(!elevated(actor))error("Persetujuan pembelian hanya untuk Owner/Manajer.",403,"FORBIDDEN");
-  return transact(actor,input.idempotencyKey,{action:"shortage",id,...input},async tx=>{
+  return transact(actor,input.idempotencyKey,{operation:"shortage",id,...input},async tx=>{
     const [shortage]=await tx.select().from(shortagesTable).where(eq(shortagesTable.id,id)).for("update");if(!shortage)error("Kekurangan tidak ditemukan.",404);const [item]=await tx.select().from(itemsTable).where(eq(itemsTable.id,shortage.itemId));const request=await findRequest(tx,actor,item.requestId,true);if(terminals.includes(request.status))error("Permintaan sudah ditutup.");if(shortage.status!=="draft")error("Usulan pembelian sudah diputuskan.");
     if(input.action==="approve"){if(!input.supplierId)error("Pilih supplier terdaftar.",400);const [supplier]=await tx.select().from(wmsSupplier).where(and(eq(wmsSupplier.id,input.supplierId),isNull(wmsSupplier.archivedAt)));if(!supplier)error("Supplier tidak aktif/tidak ditemukan.",400);}
     if(input.action!=="approve"&&!input.note?.trim())error("Catatan penolakan/pembatalan diperlukan.",400);

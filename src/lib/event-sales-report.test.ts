@@ -54,6 +54,16 @@ describe("event sales financial integrity", () => {
     });
     expect(report.cost).toMatchObject({ complete: false, total: null, grossMargin: null, missingComponentUnits: 2, knownSubtotal: 0 });
   });
+  it("attributes only contextual event items and proportional discounts in a mixed bill", () => {
+    const report = aggregateEventSales({ orders: [order("mixed", { subtotal: 100000, discount: 10000, total: 90000 })], items: [
+      { orderId: "mixed", itemName: "Paket", variantLabel: "Pilihan", qty: 1, lineTotal: 40000, eventSnapshot: { ...snapshot, entryQuantity: 1, unitCost: 15000 } },
+      { orderId: "mixed", itemName: "Menu Reguler", variantLabel: "Regular", qty: 2, lineTotal: 60000, eventSnapshot: null },
+    ], payments: [{ orderId: "mixed", method: "Cash", amount: 90000, status: "captured", metadata: {} }] });
+    expect(report.summary).toMatchObject({ grossItemSales: 40000, discounts: 4000, netSales: 36000, paidRevenue: 90000, componentUnits: 1 });
+    expect(report.cost).toMatchObject({ complete: true, total: 15000, grossMargin: 21000 });
+    expect(report.components).toHaveLength(1);
+    expect(report.components[0].name).toBe("Paket");
+  });
 
   it("validates calendar dates and an inclusive maximum range", () => {
     expect(() => eventSalesRange("2026-02-31", "2026-03-01")).toThrow();

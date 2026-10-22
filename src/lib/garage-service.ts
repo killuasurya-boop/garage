@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { releaseEventQuotaForOrder, resolveEventCart } from "@/lib/event-menu-service";
+import { releaseEventQuotaForOrder, resolveEventCheckoutCart } from "@/lib/event-menu-service";
 import type { EventCartItem } from "@/lib/event-menu-types";
 
 import {
@@ -9306,9 +9306,10 @@ function eventCheckoutFingerprint(input: CustomerOrderInput) {
     }
     return value;
   };
-  const { clientRequestKey: _key, items: _items, ...payload } = input;
-  void _key; void _items;
-  return createHash("sha256").update(JSON.stringify(canonical(payload))).digest("hex");
+  const { clientRequestKey: _key, items, ...payload } = input;
+  void _key;
+  // Keep event-only replay compatibility; mixed carts additionally bind regular lines.
+  return createHash("sha256").update(JSON.stringify(canonical({ ...payload, ...(items.length ? { items } : {}) }))).digest("hex");
 }
 
 async function replayEventCheckout(db: GarageDb | GarageTx, input: CustomerOrderInput) {
@@ -9340,20 +9341,46 @@ async function replayEventCheckout(db: GarageDb | GarageTx, input: CustomerOrder
 
 export async function createCustomerOrder(input: CustomerOrderInput) {
   const db = getDb();
-  if (input.eventItems?.length && !input.eventId) throw new Error("Event wajib dipilih untuk menu event.");
-  if (input.eventId && (!input.clientRequestKey || input.clientRequestKey.length < 8)) throw new Error("Kunci checkout event wajib dikirim.");
   if (input.eventId) {
     const [event] = await db.select({ outletId: events.outletId }).from(events).where(eq(events.id, input.eventId)).limit(1);
     if (event?.outletId) {
       if (input.outletId && input.outletId !== event.outletId) throw new Error("Outlet event tidak sesuai.");
       input = { ...input, outletId: event.outletId };
     }
+  }
+  try {
+    return await createCustomerOrderImpl(input);
+  } catch (error) {
+    if (!input.eventId || !input.clientRequestKey || input.clientRequestKey.length < 8) throw error;
+    // An earlier attempt may commit between the optimistic replay lookup and
+    // quote validation. Reconcile after waiting for its event lock before a
+    // definitive rejection lets the customer discard the original request key.
+    // Also recover a committed order when later invoice or messaging work fails.
+    return db.transaction(async tx => {
+      await tx.select({ id: events.id }).from(events).where(eq(events.id, input.eventId!)).for("update");
+      const replay = await replayEventCheckout(tx, input);
+      if (replay) return replay;
+      throw error;
+    });
+  }
+}
+
+async function createCustomerOrderImpl(input: CustomerOrderInput) {
+  const db = getDb();
+  if (input.eventItems?.length && !input.eventId) throw new Error("Event wajib dipilih untuk menu event.");
+  if (input.eventId && (!input.clientRequestKey || input.clientRequestKey.length < 8)) throw new Error("Kunci checkout event wajib dikirim.");
+  if (input.eventId) {
     const replay = await replayEventCheckout(db, input);
     if (replay) return replay;
   }
-  const eventQuotedLines = input.eventId ? await resolveEventCart(db, {
-    eventId: input.eventId, items: input.eventItems ?? [], outletId: input.outletId, reserveQuota: false,
-  }) : null;
+  const resolveCheckout = async (executor: GarageDb | GarageTx, reserveQuota: boolean, outletId?: string) => {
+    if (!input.eventId) return null;
+    const resolved = await resolveEventCheckoutCart(executor, {
+      eventId: input.eventId, items: input.eventItems ?? [], regularItems: input.items, outletId, reserveQuota,
+    });
+    return [...resolved.regularItems.map(item => ({ ...item, price: null, eventSnapshot: null })), ...resolved.eventLines];
+  };
+  const eventQuotedLines = await resolveCheckout(db, false, input.outletId);
   const requestedItems = eventQuotedLines ?? input.items;
   const itemIds = [...new Set(requestedItems.map((item) => item.itemId))];
   const variantRows = await db
@@ -9381,7 +9408,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
     if (!variant) {
       throw new Error(`Menu variant not found: ${line.itemId}/${line.variantId}`);
     }
-    if (!variant.showInDigitalMenu && !input.allowHiddenItems) {
+    if (!variant.showInDigitalMenu && eventQuotedLines?.[index].eventSnapshot?.kind !== "bundle" && !input.allowHiddenItems) {
       throw new Error(`${variant.itemName} tidak tersedia di menu digital. Silakan pesan ke kasir.`);
     }
     if (variant.stock === "sold_out") {
@@ -9583,12 +9610,10 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
       await tx.select({ id: events.id }).from(events).where(eq(events.id, input.eventId)).for("update");
       const replay = await replayEventCheckout(tx, input);
       if (replay) return { replay };
-      eventConfirmedLines = await resolveEventCart(tx, {
-        eventId: input.eventId, items: input.eventItems ?? [], outletId: outlet.id, reserveQuota: true,
-      });
+      eventConfirmedLines = await resolveCheckout(tx, true, outlet.id);
       const signature = (entries: typeof eventQuotedLines) => JSON.stringify(entries?.map((line) => ({
         itemId: line.itemId, variantId: line.variantId, qty: line.qty, price: line.price,
-        entryId: line.eventSnapshot.entryId, entryQuantity: line.eventSnapshot.entryQuantity,
+        entryId: line.eventSnapshot?.entryId, entryQuantity: line.eventSnapshot?.entryQuantity,
       })));
       if (signature(eventConfirmedLines) !== signature(eventQuotedLines)) {
         throw new Error("Menu atau harga event berubah. Muat ulang keranjang sebelum checkout.");
@@ -9662,7 +9687,7 @@ export async function createCustomerOrder(input: CustomerOrderInput) {
         orderNo,
         queueNo,
         outletId: outlet.id,
-        eventId: input.eventId ?? null,
+        eventId: eventConfirmedLines?.some(line => line.eventSnapshot) ? input.eventId ?? null : null,
         clientRequestKey: eventCheckoutRequestKey(input),
         clientRequestFingerprint: input.eventId ? eventCheckoutFingerprint(input) : null,
         customerId: customer?.id ?? null,

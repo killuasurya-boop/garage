@@ -20,6 +20,7 @@ export function cartKey(itemId: string, variantId: string) {
 // Harga efektif varian — SAMA dengan server (effectiveMenuPrice di garage-service):
 // promo per produk aktif bila promoPrice > 0 dan lebih murah dari harga varian.
 export function variantPrice(item: MenuItem, variant: MenuItem["variants"][number]) {
+  if ("eventPrice" in variant && variant.eventPrice === true) return variant.price;
   const promo = item.promoPrice;
   if (item.promoActive && promo != null && promo > 0 && promo < variant.price) return promo;
   return variant.price;

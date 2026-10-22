@@ -10,6 +10,7 @@ import { EventSettingsPanel } from "@/components/garage/events/event-settings-pa
 import { EventMenuPanel } from "@/components/garage/events/event-menu-panel";
 import { EventCreateDialog } from "@/components/garage/events/event-create-dialog";
 import { EventSalesPanel } from "@/components/garage/events/event-sales-panel";
+import { EventMainMenuPanel } from "@/components/garage/events/event-main-menu-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AdminEvent } from "@/lib/event-service";
 
@@ -103,7 +104,7 @@ export function EventsView({ canExport }: { canExport: boolean }) {
             <TabsContent value="event">
               <EventSettingsPanel key={selected.id} event={selected} onChanged={replaceEvent} />
             </TabsContent>
-            <TabsContent value="menu"><EventMenuPanel key={selected.id} event={selected} /></TabsContent>
+            <TabsContent value="menu"><div className="grid gap-5"><EventMainMenuPanel key={`main-${selected.id}`} event={selected} /><EventMenuPanel key={selected.id} event={selected} /></div></TabsContent>
             <TabsContent value="sales"><EventSalesPanel key={selected.id} eventId={selected.id} canExport={canExport} /></TabsContent>
             {canExport ? (
               <TabsContent value="log">

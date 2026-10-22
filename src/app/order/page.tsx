@@ -6,6 +6,8 @@ import {
 } from "@/components/garage/member-order-page";
 import type { MenuItem } from "@/lib/garage-api-types";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
+import { getMainDigitalMenuEvent } from "@/lib/event-main-menu-service";
+import { mergeMainEventMenu, type EventDigitalMenuContext } from "@/lib/event-menu-display";
 import { requireGarageSession } from "@/lib/server-auth";
 import { parseTableNumber, tableLabelFor } from "@/lib/garage-tables";
 import {
@@ -151,12 +153,23 @@ export default async function OrderPage({
     getCustomerOrderingStatus(qrContext.outletId).catch(() => undefined),
     getStaffOrder(params),
   ]);
+  // Staff orders retain their existing waiter endpoint and menu contract.
+  const featured = staffOrder ? null : await getMainDigitalMenuEvent(qrContext.outletId).catch((error) => {
+    console.error("[order] main event unavailable", error);
+    return null;
+  });
+  const eventContext: EventDigitalMenuContext | undefined = featured ? {
+    mode: "main", eventId: featured.event.id, slug: featured.event.slug, title: featured.event.title,
+    startsAt: featured.event.startsAt, endsAt: featured.event.endsAt, entries: featured.entries, products: featured.products,
+  } : undefined;
+  const menuItems = eventContext && initialMenuItems ? mergeMainEventMenu(initialMenuItems, eventContext) : initialMenuItems;
   return (
     <MemberOrderPage
       initialQrContext={qrContext}
       initialReturnPath={buildReturnPath(params)}
       initialSearchQuery={buildInitialSearchQuery(params)}
-      initialMenuItems={initialMenuItems}
+      initialMenuItems={menuItems}
+      eventContext={eventContext}
       bestSellerIds={bestSellerIds}
       billing={billing}
       initialOrderingOpen={ordering?.open}

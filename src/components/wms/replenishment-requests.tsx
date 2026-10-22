@@ -61,7 +61,7 @@ export function RequestDetailView({ id, access, onBack, sourceLocations = [] }: 
       {doc.status === "draft" && <Link className={styles.primary} href={`/warehouse/closing?id=${doc.id}`}>Lanjutkan draft closing</Link>}
       {!terminal && doc.status !== "draft" && !action && <div className={styles.actions}>
         {warehouse && doc.status === "submitted" && <button type="button" className={styles.primary} onClick={() => choose("review")}>Mulai tinjau</button>}
-        {warehouse && ["submitted", "under_review", "partially_available", "partially_received"].includes(doc.status) && <button type="button" className={styles.primary} onClick={() => choose("approve")}>Setujui & reservasi</button>}
+        {manager && ["submitted", "under_review", "partially_available", "partially_received"].includes(doc.status) && <button type="button" className={styles.primary} onClick={() => choose("approve")}>Setujui & reservasi</button>}
         {warehouse && ["approved", "partially_available", "preparing", "partially_received"].includes(doc.status) && <button type="button" className={styles.primary} onClick={() => choose("prepare")}>Mulai siapkan</button>}
         {warehouse && doc.status === "preparing" && <button type="button" className={styles.primary} onClick={() => choose("ready")}>Tandai siap diserahkan</button>}
         {warehouse && ["ready", "partially_received", "dispatched"].includes(doc.status) && doc.items.some(i => i.reservedQty > 0) && <button type="button" className={styles.primary} onClick={() => choose("dispatch")}><Truck size={18} />Kirim bahan</button>}

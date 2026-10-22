@@ -204,6 +204,11 @@ Scroll direction:
   smart-reorder, audit-daily lock) return 410 → use `/warehouse`. POS data (products, variants, prices, categories)
   is protected: `GET /api/admin/pos-baseline` (Owner) = snapshot + SHA-256 before/after changes;
   `db:seed:catalog` refuses once orders exist unless `--confirm-overwrite-pos`. Recipes are archived, never deleted.
+- Master Excel import (Owner, Gudang → Kelola Master; `master-import*.ts`, `master_imports`/`master_crosswalk`,
+  migration 0146): insert-only materials (Excel `BAR-9NN` = Garage `BAR-0NN`), kitchen recipes land as
+  `menu_recipes.status = 'draft'` (no stock deduction, no baseCost) until Owner/Manajer approves; `V-*`
+  allowances are not stock. Never touches POS products/prices/categories. See `docs/WMS-DATA-RECONCILIATION.md`.
+- W2 integration (migration 0146, after event 0145): apply/import decisions share a transaction advisory lock and replan inside the transaction. Archived/rejected recipes remain skipped on reimport. Normalize only explicit same-dimension units; reject nonpositive quantities and invalid unit lines. Approval revalidates material/BOM readiness and syncs only this menu to WMS in the same transaction, so a sync failure rolls back activation/HPP. See `docs/wms-w2-release.md`.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

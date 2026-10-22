@@ -4045,5 +4045,46 @@ export const eventActivityLogs = pgTable(
   }),
 );
 
+// Impor master Excel (owner, Okt 2026): log setiap preview/terapkan + crosswalk
+// kode Excel → SKU/menu Garage yang dapat diaudit. Data POS tidak pernah diubah.
+export const masterImports = pgTable(
+  "master_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fileName: text("file_name").notNull(),
+    fileHash: text("file_hash").notNull(),
+    mode: text("mode").notNull(), // preview | apply
+    summary: jsonb("summary").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index("master_imports_created_idx").on(t.createdAt),
+  }),
+);
+
+export const masterCrosswalk = pgTable(
+  "master_crosswalk",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // material | recipe
+    kind: text("kind").notNull(),
+    sourceKey: text("source_key").notNull(),
+    sourceName: text("source_name").notNull().default(""),
+    targetSku: text("target_sku"),
+    targetMenuItemId: text("target_menu_item_id"),
+    targetVariantId: text("target_variant_id"),
+    // created | existing | unverified | skipped | draft | approved
+    status: text("status").notNull(),
+    validated: boolean("validated").notNull().default(false),
+    note: text("note").notNull().default(""),
+    importId: uuid("import_id").references(() => masterImports.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    keyUnique: uniqueIndex("master_crosswalk_kind_key_unique").on(t.kind, t.sourceKey),
+  }),
+);
+
 // Garage Financial Control System (PRD V2.0) — tabel di file terpisah.
 export * from "./schema-finance";

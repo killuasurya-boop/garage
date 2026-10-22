@@ -66,6 +66,8 @@ export const KEEP_TABLES = [
   // WMS master
   "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_recipe", "wms_recipe_version",
   "wms_recipe_audit_log", "wms_bom_item", "wms_production_recipe", "wms_production_bom",
+  // impor master Excel (log + crosswalk kode Excel → SKU/menu)
+  "master_imports", "master_crosswalk",
   // event & undangan Grand Opening — dibuat sebelum hari H, tidak boleh terhapus saat reset H-1
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
 ] as const;

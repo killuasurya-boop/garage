@@ -11,6 +11,7 @@ import {
   orders,
   outlets,
   wmsBatch,
+  wmsClosingReservation,
   wmsBomItem,
   wmsCategory,
   wmsChecklistRun,
@@ -107,6 +108,7 @@ async function consumeBatchesFefo(
   warehouseId: string,
   qty: number,
   fallbackHpp: number,
+  batchId?: string,
 ): Promise<number> {
   const batches = await tx
     .select()
@@ -116,9 +118,11 @@ async function consumeBatchesFefo(
         eq(wmsBatch.productId, productId),
         eq(wmsBatch.warehouseId, warehouseId),
         sql`${wmsBatch.qty} > 0`,
+        batchId ? eq(wmsBatch.id, batchId) : undefined,
       ),
     )
-    .orderBy(sql`${wmsBatch.expiredAt} ASC NULLS LAST`, wmsBatch.receivedAt);
+    .orderBy(sql`${wmsBatch.expiredAt} ASC NULLS LAST`, wmsBatch.receivedAt)
+    .for("update");
 
   let remaining = qty;
   let cost = 0;
@@ -134,6 +138,7 @@ async function consumeBatchesFefo(
       .where(eq(wmsBatch.id, b.id));
   }
   // Batch kurang dari permintaan (mis. stok awal tanpa batch) → sisanya pakai HPP produk.
+  if (remaining > 0 && batchId) throw new Error("Jumlah batch sumber tidak cukup.");
   if (remaining > 0) cost += remaining * fallbackHpp;
   return cost;
 }
@@ -156,6 +161,10 @@ export async function recordStockMovement(
     refDoc?: string;
     userId?: string | null;
     batchNo?: string;
+    /** Exact batch allocation for traceable internal shipment/reversal. */
+    batchId?: string;
+    /** Internal allocation may spend its own reservation, never another request. */
+    reservationId?: string;
     expiredAt?: Date | null;
     location?: string;
     /**
@@ -165,7 +174,7 @@ export async function recordStockMovement(
      */
     allowNegative?: boolean;
   },
-): Promise<{ cost: number }> {
+): Promise<{ cost: number; batchId?: string }> {
   const delta = Number(input.deltaQty);
 
   // Kunci baris stok terkait supaya order/opname paralel tidak oversell.
@@ -180,18 +189,24 @@ export async function recordStockMovement(
     )
     .for("update");
   const current = Number(cur?.qty ?? 0);
+  // Reservations protect non-sale operations. POS retains its explicit negative-stock policy.
+  if (delta < 0 && !input.allowNegative && (["transfer", "internal_out", "adjustment", "waste"].includes(input.type) || input.refDoc?.startsWith("BATAL "))) {
+    const [held] = await tx.select({ qty: sql<number>`coalesce(sum(${wmsClosingReservation.qty}),0)` }).from(wmsClosingReservation).where(and(eq(wmsClosingReservation.productId,input.productId),eq(wmsClosingReservation.warehouseId,input.warehouseId),input.reservationId ? ne(wmsClosingReservation.id,input.reservationId) : undefined));
+    if (current + delta < Number(held.qty)) throw new Error("Stok tersedia tidak cukup; sebagian stok sudah direservasi permintaan lain.");
+  }
   const next = current + delta;
   if (next < 0 && !input.allowNegative) {
     throw new Error(`Stok tidak cukup (tersedia ${current}, diminta ${-delta}).`);
   }
 
   let cost: number;
+  let createdBatchId: string | undefined;
   if (delta < 0) {
-    cost = await consumeBatchesFefo(tx, input.productId, input.warehouseId, -delta, input.hpp);
+    cost = await consumeBatchesFefo(tx, input.productId, input.warehouseId, -delta, input.hpp, input.batchId);
   } else {
     cost = delta * input.hpp;
     if (delta > 0) {
-      await tx.insert(wmsBatch).values({
+      const [createdBatch] = await tx.insert(wmsBatch).values({
         productId: input.productId,
         warehouseId: input.warehouseId,
         batchNo: input.batchNo ?? makeWmsDoc("BATCH"),
@@ -199,7 +214,8 @@ export async function recordStockMovement(
         qty: delta,
         hpp: input.hpp,
         location: input.location?.trim() || "",
-      });
+      }).returning({ id: wmsBatch.id });
+      createdBatchId = createdBatch.id;
     }
   }
 
@@ -229,7 +245,7 @@ export async function recordStockMovement(
       .values({ productId: input.productId, warehouseId: input.warehouseId, qty: next });
   }
   await mirrorWmsStockToOs(tx, input.productId);
-  return { cost };
+  return { cost, batchId: createdBatchId };
 }
 
 /**
@@ -493,7 +509,7 @@ export async function listWmsWarehouses(opts?: {
   const rows = await getDb().select().from(wmsWarehouse).orderBy(desc(wmsWarehouse.isPrimary), wmsWarehouse.code);
   const allowed = opts?.allowedTypes;
   return rows
-    .filter((r) => !allowed || allowed === "all" || allowed.includes(r.type as WmsWarehouse["type"]))
+    .filter((r) => ["main", "bar", "kitchen"].includes(r.type) && (!allowed || allowed === "all" || allowed.includes(r.type as WmsWarehouse["type"])))
     .map((r) => ({
       id: r.id,
       code: r.code,

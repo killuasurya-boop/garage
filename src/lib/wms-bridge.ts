@@ -341,11 +341,11 @@ export async function syncOsInventoryToWms(opts?: { bootstrapStock?: boolean }):
 }
 
 /** Sinkron menu_recipes → wms_recipe + BOM (1 resep per varian bila perlu). */
-export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "recipes">> {
-  await ensureBridgeWarehouses();
-  const db = getDb();
+export async function syncOsRecipesToWms(opts?: { db?: ReturnType<typeof getDb>; menuItemId?: string }): Promise<Pick<WmsBridgeSyncResult, "recipes">> {
+  if (!opts?.db) await ensureBridgeWarehouses();
+  const db = opts?.db ?? getDb();
 
-  const menus = await db.select().from(menuItems).where(eq(menuItems.status, "active"));
+  const menus = await db.select().from(menuItems).where(and(eq(menuItems.status, "active"), opts?.menuItemId ? eq(menuItems.id, opts.menuItemId) : undefined));
   const allRecipes = await db
     .select()
     .from(menuRecipes)
@@ -430,6 +430,7 @@ export async function syncOsRecipesToWms(): Promise<Pick<WmsBridgeSyncResult, "r
     .where(
       and(
         like(wmsRecipe.version, "os:%"),
+        opts?.menuItemId ? sql`${wmsRecipe.version} like ${`os:${opts.menuItemId.replace(/[\\%_]/g, "\\$&") }:%`}` : undefined,
         ne(wmsRecipe.recipeStatus, "archived"),
         syncedVersionKeys.length > 0 ? notInArray(wmsRecipe.version, syncedVersionKeys) : undefined,
       ),

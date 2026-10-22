@@ -51,7 +51,7 @@ function logoDataUri(): string | null {
  * Kartu QR meja (SVG vektor 600×900) — desain "Scan & Pesan dari Meja".
  * Tata letak tunggal di lib/qr-table-card (dipakai juga oleh PDF cetak).
  */
-export async function buildQrCardSvg(table: string, orderUrl: string): Promise<string> {
+async function buildQrCardSvg(table: string, orderUrl: string): Promise<string> {
   return renderCardSvg(buildCardLayout(table, orderUrl), logoDataUri());
 }
 

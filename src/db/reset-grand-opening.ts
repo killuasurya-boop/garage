@@ -66,6 +66,14 @@ export const KEEP_TABLES = [
   // WMS master
   "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_recipe", "wms_recipe_version",
   "wms_recipe_audit_log", "wms_bom_item", "wms_production_recipe", "wms_production_bom",
+  // Closing/replenishment: preserve approvals, reservations, counts and provenance.
+  // Live documents also block reset below; never orphan their batch allocations.
+  "wms_closing_settings", "wms_closing_location", "wms_closing_access",
+  "wms_closing_request", "wms_closing_request_item", "wms_closing_reservation",
+  "wms_closing_shipment", "wms_closing_allocation", "wms_closing_shortage",
+  "wms_closing_event", "wms_closing_mutation",
+  // impor master Excel (log + crosswalk kode Excel → SKU/menu)
+  "master_imports", "master_crosswalk",
   // event & undangan Grand Opening — dibuat sebelum hari H, tidak boleh terhapus saat reset H-1
   "events", "event_guests", "event_invitations", "event_rsvps", "event_activity_logs",
 ] as const;
@@ -228,6 +236,10 @@ export async function applyGrandOpeningReset(
   options: { resetMemberPoints: boolean },
 ) {
   await db.transaction(async (tx) => {
+    if (plan.keep.includes("wms_closing_request")) {
+      const existing = rowsOf(await tx.execute(sql.raw('SELECT id FROM "wms_closing_request" LIMIT 1')));
+      if (existing.length) throw new Error("Reset diblokir: histori closing/replenishment sudah ada. Gunakan prosedur arsip/restore yang disetujui Owner.");
+    }
     let pending = [...plan.clear];
     for (let round = 0; pending.length && round < plan.clear.length + 1; round++) {
       const next: string[] = [];

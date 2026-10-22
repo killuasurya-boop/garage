@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Tags, Trash2, Truck } from "lucide-react";
 
+import { WmsMasterImport } from "@/components/wms/wms-master-import";
 import { garageApi } from "@/lib/api-client";
 
 type Category = { id: string; name: string; area: "bar" | "dapur" | "umum" };
@@ -34,20 +35,22 @@ export default function WmsMasterPage() {
 
   function flash(m: string) { setMsg(m); setTimeout(() => setMsg(null), 2500); }
 
-  const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]";
+  const input = "h-9 rounded-md border border-[#E8E8E8] bg-white px-3 text-base text-[#111111] outline-none sm:text-[13px] focus:border-[#C8102E]";
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <div>
         <h1 className="text-[22px] font-extrabold text-[#111111]">Kelola Master</h1>
-        <p className="text-[13px] text-[#6B7280]">Atur kategori bahan (area Bar/Dapur) & supplier. Dipakai di seluruh sistem.</p>
+        <p className="text-[13px] text-[#6B7280]">Atur kategori bahan (area Bar/Dapur), supplier, impor master Excel & persetujuan resep draft.</p>
       </div>
       {msg && <p className="text-[12.5px] font-semibold text-[#16A34A]">{msg}</p>}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <CategorySection cats={cats} input={input} reload={loadCats} onFlash={flash} />
         <SupplierSection sups={sups} input={input} reload={loadSups} onFlash={flash} />
       </div>
+
+      <WmsMasterImport />
     </div>
   );
 }
@@ -84,10 +87,10 @@ function CategorySection({ cats, input, reload, onFlash }: { cats: Category[]; i
   }
 
   return (
-    <section className="rounded-xl border border-[#E8E8E8] bg-white">
+    <section className="min-w-0 rounded-xl border border-[#E8E8E8] bg-white">
       <p className="flex items-center gap-2 border-b border-[#E8E8E8] px-4 py-2.5 text-[14px] font-bold text-[#111111]"><Tags className="size-4 text-[#C8102E]" /> Kategori Bahan</p>
-      <div className="flex gap-2 border-b border-[#F0F1F4] p-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama kategori baru" className={`${input} flex-1`} />
+      <div className="flex flex-wrap gap-2 border-b border-[#F0F1F4] p-3">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama kategori baru" className={`${input} min-w-0 flex-1 basis-40`} />
         <select value={area} onChange={(e) => setArea(e.target.value as "bar" | "dapur" | "umum")} className={input}>
           <option value="bar">Bar</option>
           <option value="dapur">Dapur</option>
@@ -98,7 +101,7 @@ function CategorySection({ cats, input, reload, onFlash }: { cats: Category[]; i
       <div className="max-h-[420px] divide-y divide-[#F0F1F4] overflow-y-auto">
         {cats.map((c) => (
           <div key={c.id} className="flex items-center gap-2 px-4 py-2">
-            <span className="flex-1 text-[13px] font-semibold text-[#111111]">{c.name}</span>
+            <span className="min-w-0 flex-1 break-words text-[13px] font-semibold text-[#111111]">{c.name}</span>
             <select value={c.area} onChange={(e) => void setCatArea(c, e.target.value as "bar" | "dapur" | "umum")} className={`${input} h-8`}>
               <option value="bar">Bar</option>
               <option value="dapur">Dapur</option>
@@ -140,10 +143,10 @@ function SupplierSection({ sups, input, reload, onFlash }: { sups: Supplier[]; i
   }
 
   return (
-    <section className="rounded-xl border border-[#E8E8E8] bg-white">
+    <section className="min-w-0 rounded-xl border border-[#E8E8E8] bg-white">
       <p className="flex items-center gap-2 border-b border-[#E8E8E8] px-4 py-2.5 text-[14px] font-bold text-[#111111]"><Truck className="size-4 text-[#2563EB]" /> Supplier</p>
-      <div className="flex gap-2 border-b border-[#F0F1F4] p-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama supplier" className={`${input} flex-1`} />
+      <div className="flex flex-wrap gap-2 border-b border-[#F0F1F4] p-3">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama supplier" className={`${input} min-w-0 flex-1 basis-40`} />
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telp" className={`${input} w-28`} />
         <button type="button" disabled={busy} onClick={() => void add()} className="flex items-center gap-1 rounded-md bg-[#C8102E] px-3 text-[12px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50"><Plus className="size-3.5" /> Tambah</button>
       </div>
@@ -151,7 +154,7 @@ function SupplierSection({ sups, input, reload, onFlash }: { sups: Supplier[]; i
         {sups.length === 0 && <p className="px-4 py-6 text-center text-[12.5px] text-[#9CA3AF]">Belum ada supplier.</p>}
         {sups.map((s) => (
           <div key={s.id} className="flex items-center gap-2 px-4 py-2">
-            <span className="flex-1 text-[13px] font-semibold text-[#111111]">{s.name}</span>
+            <span className="min-w-0 flex-1 break-words text-[13px] font-semibold text-[#111111]">{s.name}</span>
             <input defaultValue={s.phone} onBlur={(e) => { if (e.target.value !== s.phone) void savePhone(s, e.target.value); }} placeholder="Telp" className={`${input} h-8 w-28`} />
             <button type="button" onClick={() => void archive(s)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
           </div>

@@ -113,11 +113,11 @@ export function WmsMasterImport() {
   }
 
   const plan = result?.plan;
-  const btn = "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold disabled:opacity-50";
+  const btn = "inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold disabled:opacity-50";
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-[#E8E8E8] bg-white p-4" data-testid="master-import">
+    <div className="min-w-0 space-y-4">
+      <section className="min-w-0 rounded-xl border border-[#E8E8E8] bg-white p-4" data-testid="master-import">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-[15px] font-bold text-[#111111]">
@@ -136,6 +136,7 @@ export function WmsMasterImport() {
             type="file"
             accept=".xlsx"
             data-testid="master-import-file"
+            aria-label="File master Excel"
             onChange={(e) => {
               setFile(e.target.files?.[0] ?? null);
               setResult(null);
@@ -156,7 +157,7 @@ export function WmsMasterImport() {
             Terapkan
           </button>
         </div>
-        {msg && <p className={`mt-2 text-[12.5px] font-semibold ${msg.tone === "ok" ? "text-[#16A34A]" : "text-[#C8102E]"}`}>{msg.text}</p>}
+        {msg && <p role="status" aria-live="polite" className={`mt-2 text-[12.5px] font-semibold ${msg.tone === "ok" ? "text-[#16A34A]" : "text-[#C8102E]"}`}>{msg.text}</p>}
 
         {plan && (
           <div className="mt-4 space-y-3" data-testid="master-import-preview">
@@ -242,7 +243,7 @@ export function WmsMasterImport() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#E8E8E8] bg-white p-4" data-testid="draft-recipes">
+      <section className="min-w-0 rounded-xl border border-[#E8E8E8] bg-white p-4" data-testid="draft-recipes">
         <h2 className="text-[15px] font-bold text-[#111111]">Resep draft menunggu persetujuan ({drafts.length})</h2>
         <p className="mt-0.5 text-[12.5px] text-[#4B5563]">
           Draft belum memotong stok dan belum masuk HPP menu. Setujui setelah uji resep (min. 3 batch) oleh Head Bar/Kitchen.
@@ -250,7 +251,7 @@ export function WmsMasterImport() {
         {drafts.length === 0 ? (
           <p className="mt-3 text-[12.5px] text-[#4B5563]">Tidak ada resep draft.</p>
         ) : (
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
             {drafts.map((d) => (
               <div key={d.menuItemId} className="rounded-lg border border-[#E8E8E8] p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">

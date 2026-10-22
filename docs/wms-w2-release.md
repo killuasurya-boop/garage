@@ -19,7 +19,7 @@ Lanjutan pekerjaan Claude Code PR #60 (head `23413f9e1407b86df6d8d1ba21ce692c7c1
 - TypeScript lulus; lint penuh 0 error dan 1 warning lama POS.
 - Build menemukan dua export helper route lama yang tidak sah menurut Next.js. Helper QR card dan schema kategori dibuat internal; perilaku endpoint tetap. Tes kategori (12) dan kartu QR (4) lulus.
 - GitHub CI pertama pada PR #63 gagal sebelum langkah runner tersedia (steps kosong); log mengembalikan 404. Penyebab belum terverifikasi. Jangan menyebut CI lulus.
-- UAT browser belum terverifikasi: executable Chromium tidak tersedia pada host ini; server dev webpack juga menemui masalah bundling Node bawaan pada instrumentation existing. Tetap lakukan UAT desktop/mobile sebelum rilis.
+- UAT browser memakai Chromium headless dan server production webpack dengan database PGlite terisolasi. Hasil dan batas verifikasi dicatat di `docs/wms-w2-browser-uat.md`. UAT produksi tetap diperlukan sebelum rilis.
 
 ## Gate rilis (belum dijalankan di VPS)
 

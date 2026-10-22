@@ -42,14 +42,14 @@ export function ClosingEditor({ access }: { access: AccessInfo }) {
       }).catch(e => setSaveError(message(e)));
       return;
     }
-    if (!catalog) return;
+    if (!catalog || catalog.division !== division) return;
     const location = catalog.locations[0];
     if (location) {
       setWarehouseId(location.id); setBusinessDate(catalog.businessDate); setNeededDate(catalog.neededDate);
       const items = catalog.stocks.find(s => s.warehouseId === location.id)?.products ?? catalog.products;
       setLines(items.map(defaults)); setInitialLoad(true);
     }
-  }, [catalog, initialLoad, defaults]);
+  }, [catalog, initialLoad, defaults, division]);
   function changed() { revision.current++; setDirty(true); setReview(null); }
   function updateLine(id: string, patch: Partial<Line>) { changed(); setLines(old => old.map(l => l.productId === id ? { ...l, ...patch } : l)); }
   function suggestion(l: Line) { const p = byId.get(l.productId); return Math.max(0, (number(l.target) ?? 0) - (number(l.physical) ?? p?.systemQty ?? 0) - (p?.incomingQty ?? 0)); }

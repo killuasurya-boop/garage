@@ -12,6 +12,15 @@ Lanjutan pekerjaan Claude Code PR #60 (head `23413f9e1407b86df6d8d1ba21ce692c7c1
 - Approval menyinkronkan BOM hanya untuk menu terkait dalam transaksi yang sama; kegagalan sinkron mengembalikan draft/HPP semula.
 - Decoder ZIP dibatasi ukuran input, jumlah entri, ukuran hasil dekompresi per entri/total dan memeriksa offset ZIP.
 
+## Verifikasi pada branch integrasi
+
+- 29 tes W2 lulus; 51 tes regresi WMS/event/reset lulus.
+- Suite penuh menghasilkan 955 lulus dan 6 tes PIN tertahan enumerasi jaringan host. Rerun 6 tes itu dengan shim host lokal lulus. Tidak ada shim yang masuk source repository.
+- TypeScript lulus; lint penuh 0 error dan 1 warning lama POS.
+- Build menemukan dua export helper route lama yang tidak sah menurut Next.js. Helper QR card dan schema kategori dibuat internal; perilaku endpoint tetap. Tes kategori (12) dan kartu QR (4) lulus.
+- GitHub CI pertama pada PR #63 gagal sebelum langkah runner tersedia (steps kosong); log mengembalikan 404. Penyebab belum terverifikasi. Jangan menyebut CI lulus.
+- UAT browser belum terverifikasi: executable Chromium tidak tersedia pada host ini; server dev webpack juga menemui masalah bundling Node bawaan pada instrumentation existing. Tetap lakukan UAT desktop/mobile sebelum rilis.
+
 ## Gate rilis (belum dijalankan di VPS)
 
 1. Review PR dan CI; jangan merge PR #60 lama secara terpisah setelah integrasi ini.

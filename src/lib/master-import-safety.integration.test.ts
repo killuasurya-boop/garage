@@ -143,4 +143,17 @@ describe("Master import safety", () => {
     } finally { failSync.mockRestore(); }
   });
 
+  it("syncs an approved menu without archiving an unrelated WMS recipe", async () => {
+    const f = await fixture();
+    await service.applyMasterImport(f.input, actor);
+    const [other] = await t.getDb().insert(t.schema.wmsRecipe).values({
+      name: "Unrelated published recipe", version: "os:outside:all", recipeStatus: "published",
+    }).returning();
+    await service.approveDraftRecipe(f.menuItemId, actor);
+    const [unchanged] = await t.getDb().select().from(t.schema.wmsRecipe).where(eq(t.schema.wmsRecipe.id, other.id));
+    expect(unchanged.recipeStatus).toBe("published");
+    const [variant] = await t.getDb().select().from(t.schema.menuVariants).where(eq(t.schema.menuVariants.itemId, f.menuItemId));
+    expect(Number(variant.baseCost)).toBe(500);
+  });
+
 });

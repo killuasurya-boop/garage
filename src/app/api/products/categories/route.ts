@@ -8,7 +8,7 @@ import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-export const categorySchema = z.object({
+const categorySchema = z.object({
   name: z.string().trim().min(2).max(60),
   description: z.string().trim().max(240).nullable().optional(),
   kind: z.enum(CATEGORY_KINDS).optional(),

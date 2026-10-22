@@ -61,7 +61,6 @@ test "$limits" = '2147483648 3221225472 100000 40000 no'
 warnings=$(docker info --format '{{json .Warnings}}')
 if printf '%s' "$warnings" | grep -Ei 'no (memory|swap).*limit support|no cpu.*(quota|period|limit|shares).*support'; then
   echo RESOURCE_LIMIT_SUPPORT_MISSING
-  docker buildx stop "$builder"
   exit 1
 fi
 pid=$(docker inspect "$container" --format '{{.State.Pid}}')

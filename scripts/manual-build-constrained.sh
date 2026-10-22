@@ -20,6 +20,7 @@ flock -n 9
 test ! -e "$failure"
 test ! -e "$release"
 exec >> "$log" 2>&1
+trap 'echo "CANDIDATE_BUILD_FAILED line=$LINENO exit=$?"' ERR
 echo "source=$revision"
 echo "$archive_hash  $archive" | sha256sum -c -
 available_kb() { awk '/^MemAvailable:/ { print $2 }' /proc/meminfo; }
@@ -64,8 +65,18 @@ if printf '%s' "$warnings" | grep -Ei 'no (memory|swap).*limit support|no cpu.*(
   exit 1
 fi
 pid=$(docker inspect "$container" --format '{{.State.Pid}}')
+container_id=$(docker inspect "$container" --format '{{.Id}}')
 cgroup=$(awk -F: '$1 == "0" {print $3}' "/proc/$pid/cgroup")
 [[ "$cgroup" = /* && "$cgroup" != / && "$cgroup" != *..* ]]
+# BuildKit may move its daemon into a child /init cgroup after bootstrap.
+# Limits are enforced by the enclosing Docker container cgroup and inherited.
+while test "$cgroup" != /; do
+  group_name=$(basename "$cgroup")
+  if test "$group_name" = "docker-$container_id.scope" || test "$group_name" = "$container_id"; then break; fi
+  cgroup=$(dirname "$cgroup")
+done
+test "$cgroup" != /
+echo "enforced_container_cgroup=$cgroup"
 test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = 2147483648
 test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = 1073741824
 test "$(cat "/sys/fs/cgroup$cgroup/cpu.max")" = '40000 100000'

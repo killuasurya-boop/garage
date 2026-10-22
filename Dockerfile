@@ -29,7 +29,11 @@ ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 # DB tidak dihubungi saat build (init Drizzle lazy/build-safe).
 # Build Next.js butuh heap > batas bawaan Node (~2 GB) sejak modul laporan
 # bertambah (deploy PR #56 gagal: JavaScript heap out of memory).
-ENV NODE_OPTIONS=--max-old-space-size=4096
+ARG GARAGE_BUILD_NODE_OPTIONS=--max-old-space-size=4096
+ENV NODE_OPTIONS=$GARAGE_BUILD_NODE_OPTIONS
+# Opt-in only after an external typecheck of the exact source; never set in runner.
+ARG GARAGE_BUILD_TYPECHECK_VERIFIED=false
+ENV GARAGE_BUILD_TYPECHECK_VERIFIED=$GARAGE_BUILD_TYPECHECK_VERIFIED
 RUN npm run build
 
 # ---- Stage 3: migrator (punya tsx + drizzle/*.sql, untuk one-shot migrate) --

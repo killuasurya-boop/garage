@@ -2598,7 +2598,7 @@ export function MemberOrderPage({
         onAdjust={add}
         onClose={() => setDetailItem(null)}
       />
-      {bundleEntry && eventContext ? <EventBundlePicker key={bundleEntry.id} entry={bundleEntry} products={eventContext.products} now={nowMs} onClose={() => setBundleEntry(null)} onConfirm={(selections, label) => {
+      {bundleEntry && eventContext ? <EventBundlePicker key={bundleEntry.id} entry={bundleEntry} products={eventContext.products} now={eventNow} onClose={() => setBundleEntry(null)} onConfirm={(selections, label) => {
         const itemId = `event:${bundleEntry.id}`;
         const variantId = `bundle-${encodeURIComponent(JSON.stringify(selections))}`;
         setEventSelections((current) => ({ ...current, [variantId]: selections }));

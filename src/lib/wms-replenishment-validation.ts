@@ -51,7 +51,7 @@ const actionItemSchema = z.object({
 });
 
 export const replenishmentActionSchema = z.object({
-  action: z.enum(["review", "approve", "prepare", "ready", "dispatch", "receive", "reject", "cancel"]),
+  action: z.enum(["review", "approve", "prepare", "ready", "dispatch", "receive", "resolve_difference", "reject", "cancel"]),
   idempotencyKey: key,
   version,
   sourceWarehouseId: z.string().uuid().optional(),
@@ -62,7 +62,7 @@ export const replenishmentActionSchema = z.object({
   const lines = v.items ?? [];
   const ids = lines.map((i) => i.itemId ?? i.allocationId);
   if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Baris tindakan tidak boleh duplikat." });
-  if ((v.action === "reject" || v.action === "cancel") && (v.reason?.length ?? 0) < 3) ctx.addIssue({ code: "custom", path: ["reason"], message: "Alasan minimal tiga karakter." });
+  if ((v.action === "reject" || v.action === "cancel" || v.action === "resolve_difference") && (v.reason?.length ?? 0) < 3) ctx.addIssue({ code: "custom", path: ["reason"], message: "Alasan minimal tiga karakter." });
   if (v.action === "receive") {
     if (!v.shipmentId) ctx.addIssue({ code: "custom", path: ["shipmentId"], message: "Pengiriman wajib dipilih." });
     if (!lines.length || lines.some((i) => !i.allocationId)) ctx.addIssue({ code: "custom", path: ["items"], message: "Isi alokasi batch yang diterima." });

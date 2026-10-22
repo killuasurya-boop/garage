@@ -127,6 +127,31 @@ describe("Closing stock: isolated ledger integration", () => {
     expect(await balance(f.productId, wh.main)).toBe(10);
   });
 
+  it("consolidates demand once across compatible sources and excludes draft documents", async () => {
+    const f = await fixture();
+    const [secondSource] = await t.getDb().insert(t.schema.wmsWarehouse).values({ code: `CLOSE-SECOND-${sequence}`, name: "Gudang kompatibel kedua", type: "main", area: "umum" }).returning();
+    await svc.updateClosingSettings(owner, { idempotencyKey: key(), locations: [{ warehouseId: secondSource.id, kind: "main", area: "umum" }] });
+    const draft = await svc.saveClosing(bar, f.input);
+    const draftPreparation = await svc.getPreparation(owner, { businessDate: f.input.businessDate });
+    expect(draftPreparation.sourceLocations.map(source => source.id)).toEqual(expect.arrayContaining([wh.main, secondSource.id]));
+    expect(draftPreparation.requests).toHaveLength(0);
+    expect(draftPreparation.pickList).toHaveLength(0);
+    expect(draftPreparation.notifications.some(notification => notification.requestId === draft.id)).toBe(false);
+    let request = await svc.saveClosing(bar, { ...f.input, id: draft.id, version: draft.version, idempotencyKey: key(), submit: true });
+    const submittedPreparation = await svc.getPreparation(owner, { businessDate: f.input.businessDate });
+    const submittedLines = submittedPreparation.pickList.filter(line => line.productId === f.productId);
+    expect(submittedLines.reduce((sum, line) => sum + line.totalRequested, 0)).toBe(8);
+    expect(submittedLines.flatMap(line => line.requests)).toEqual([expect.objectContaining({ requestId: request.id, qty: 8, reservedQty: 0 })]);
+    request = await step(request, "approve", owner, { sourceWarehouseId: wh.main });
+    const approvedPreparation = await svc.getPreparation(owner, { businessDate: f.input.businessDate });
+    const approvedLines = approvedPreparation.pickList.filter(line => line.productId === f.productId);
+    expect(approvedLines.reduce((sum, line) => sum + line.totalRequested, 0)).toBe(8);
+    expect(approvedLines).toEqual([expect.objectContaining({ sourceWarehouseId: wh.main, totalRequested: 8, totalReserved: 8, onHand: 10, available: 2 })]);
+    expect(approvedLines.flatMap(line => line.requests)).toEqual([expect.objectContaining({ requestId: request.id, qty: 8, reservedQty: 8 })]);
+    expect(await balance(f.productId, wh.main)).toBe(10);
+    expect(await balance(f.productId, secondSource.id)).toBe(0);
+  });
+
   it("serializes competing approvals without over-reserving or moving physical stock", async () => {
     const f = await fixture(10, 0);
     const one = await svc.saveClosing(bar, { ...f.input, submit: true });
@@ -177,6 +202,38 @@ describe("Closing stock: isolated ledger integration", () => {
     request = await step(request, "receive", kitchen, { shipmentId: shipment.id, items: [{ allocationId: shipment.allocations[0].id, qty: 6 }] });
     expect(request.status).toBe("completed"); expect(request.shipments[0].status).toBe("completed");
     expect(await balance(f.productId, wh.dapur)).toBe(10); expect(await balance(f.productId, wh.transit)).toBe(0);
+  });
+
+  it("lets management resolve fully accounted damage without another stock or financial movement", async () => {
+    const f = await fixture(10, 0);
+    let request = await ready(f.input);
+    await expect(step(request, "resolve_difference", owner, { reason: "Selisih diperiksa" })).rejects.toMatchObject({ status: 409 });
+    request = await step(request, "dispatch", warehouse, { sourceWarehouseId: wh.main });
+    const shipment = request.shipments[0], allocation = shipment.allocations[0];
+    request = await step(request, "receive", bar, { shipmentId: shipment.id, reason: "Satu kemasan bocor", items: [{ allocationId: allocation.id, qty: 8, damagedQty: 1 }] });
+    await expect(step(request, "resolve_difference", owner, { reason: "Selisih diperiksa" })).rejects.toMatchObject({ status: 409 });
+    expect(await balance(f.productId, wh.transit)).toBe(1);
+    request = await step(request, "receive", bar, { shipmentId: shipment.id, items: [{ allocationId: allocation.id, qty: 1 }] });
+    expect(request.status).toBe("partially_received");
+    await expect(step(request, "resolve_difference", bar, { reason: "Selisih diperiksa" })).rejects.toMatchObject({ status: 403 });
+    await expect(step(request, "resolve_difference", owner, { reason: "  a " })).rejects.toMatchObject({ status: 400 });
+    const reservation = request.reservations[0];
+    await t.getDb().update(t.schema.wmsClosingReservation).set({ qty: 1 }).where(eq(t.schema.wmsClosingReservation.id, reservation.id));
+    await expect(step(request, "resolve_difference", owner, { reason: "Selisih diperiksa" })).rejects.toMatchObject({ status: 409 });
+    await t.getDb().update(t.schema.wmsClosingReservation).set({ qty: 0 }).where(eq(t.schema.wmsClosingReservation.id, reservation.id));
+    const beforeItems = request.items, beforeShipments = request.shipments, beforeMoves = await moves(f.productId);
+    const beforeBalances = await Promise.all(Object.values(wh).map(id => balance(f.productId, id)));
+    const input: ClosingTransitionInput = { action: "resolve_difference", version: request.version, idempotencyKey: key(), reason: "Kerusakan diverifikasi; tidak ada penggantian diperlukan" };
+    const manager = { ...owner, role: "Manajer" };
+    const resolved = await svc.transitionReplenishment(manager, request.id, input);
+    expect(resolved.status).toBe("completed"); expect(resolved.version).toBe(request.version + 1);
+    expect(resolved.items).toEqual(beforeItems); expect(resolved.shipments).toEqual(beforeShipments);
+    expect(resolved.items[0]).toMatchObject({ requestedQty: 10, receivedQty: 9, damagedQty: 1 });
+    expect(resolved.history.at(-1)).toMatchObject({ action: "Closing resolve_difference", actorId: owner.id, detail: { reason: input.reason, before: "partially_received", after: "completed" } });
+    await svc.transitionReplenishment(manager, request.id, input);
+    expect((await svc.getReplenishment(owner, request.id)).history).toHaveLength(resolved.history.length);
+    expect(await moves(f.productId)).toEqual(beforeMoves);
+    expect(await Promise.all(Object.values(wh).map(id => balance(f.productId, id)))).toEqual(beforeBalances);
   });
 
   it("rolls back the entire dispatch document and ledger when a later line has no eligible batch", async () => {

@@ -234,7 +234,7 @@ export function WmsShell({
         role={mobileExpanded ? "dialog" : undefined}
         aria-modal={mobileExpanded || undefined}
         aria-label="Navigasi gudang"
-        className={`${collapsed ? "relative" : "fixed inset-y-0 left-0 z-40 md:relative md:inset-auto md:z-auto"} flex h-dvh shrink-0 flex-col bg-[#2F3136] text-white transition-[width] duration-300 motion-reduce:transition-none`}
+        className={`${collapsed ? "relative" : "fixed inset-y-0 left-0 z-40 md:relative md:inset-auto md:z-auto"} ${isMobile && collapsed ? "hidden" : "flex"} h-dvh shrink-0 flex-col bg-[#2F3136] text-white transition-[width] duration-300 motion-reduce:transition-none`}
         style={{ width: collapsed ? 64 : 240, transitionTimingFunction: "cubic-bezier(.22,1,.36,1)" }}
       >
         <div className="absolute inset-x-0 top-0 h-1 bg-[#C8102E]" />

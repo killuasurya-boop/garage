@@ -256,6 +256,21 @@ export async function transitionReplenishment(actor:ClosingActor,id:string,input
   return transact(actor,input.idempotencyKey,{operation:"transition",id,...input},async tx=>{
     const request=await findRequest(tx,actor,id,true);assertVersion(request,input.version);if(terminals.includes(request.status))error("Permintaan sudah ditutup.");let status=request.status;
     if(input.action==="receive")status=await receive(tx,actor,request,input);
+    else if(input.action==="resolve_difference"){
+      if(!elevated(actor))error("Penyelesaian selisih hanya untuk Owner/Manajer.",403,"FORBIDDEN");
+      if((input.reason?.trim().length??0)<3)error("Alasan penyelesaian selisih minimal tiga karakter.",400);
+      if(request.status!=="partially_received")error("Hanya penerimaan berselisih yang dapat diselesaikan.");
+      const items=await requestItems(tx,id);
+      if(!items.length||!items.some(item=>n(item.damagedQty)>0)||!items.every(item=>round(n(item.receivedQty)+n(item.damagedQty))>=n(item.requestedQty)))error("Seluruh kebutuhan harus sudah tercatat diterima atau rusak sebelum selisih diselesaikan.");
+      const reservations=await tx.select().from(reservationsTable).where(inArray(reservationsTable.itemId,items.map(item=>item.id))).for("update");
+      if(reservations.some(reservation=>n(reservation.qty)!==0))error("Masih ada reservasi aktif yang harus diselesaikan.");
+      const shipments=await tx.select().from(shipmentsTable).where(eq(shipmentsTable.requestId,id)).for("update");
+      if(!shipments.length)error("Pengiriman belum tercatat.");
+      const allocations=await tx.select().from(allocationsTable).where(inArray(allocationsTable.shipmentId,shipments.map(shipment=>shipment.id))).for("update");
+      if(shipments.some(shipment=>!allocations.some(allocation=>allocation.shipmentId===shipment.id))||!allocations.every(allocation=>round(n(allocation.receivedQty)+n(allocation.damagedQty))===n(allocation.qty)))error("Seluruh barang dalam pengiriman harus sudah dipertanggungjawabkan.");
+      // Administrative closure only: preserve quantities, batches, reservations and financial ledgers.
+      status="completed";
+    }
     else if(input.action==="approve")status=await reserveItems(tx,actor,request,input);
     else if(input.action==="dispatch")status=await dispatch(tx,actor,request,input);
     else if(input.action==="review"){await warehouseOperator(tx,actor);if(request.status!=="submitted")error("Hanya permintaan terkirim yang dapat direview.");status="under_review";}
@@ -275,7 +290,7 @@ export async function transitionReplenishment(actor:ClosingActor,id:string,input
 }
 export async function listShortages(actor:ClosingActor,filters:ClosingFilters={}){
   await warehouseOperator(getDb(),actor);const requests=await listReplenishments(actor,filters);const ids=requests.flatMap(r=>r.items.map(i=>i.id));if(!ids.length)return [];
-  const rows=await getDb().select().from(shortagesTable).where(inArray(shortagesTable.itemId,ids));const result=[];for(const row of rows){const request=requests.find(r=>r.items.some(i=>i.id===row.itemId))!;const item=request.items.find(i=>i.id===row.itemId)!;const [inventory]=await getDb().select({purchasePrice:inventoryItems.purchasePrice,packageQty:inventoryItems.packageQty,packageSize:inventoryItems.packageSize}).from(inventoryItems).where(eq(inventoryItems.sku,item.sku)).limit(1);result.push({...row,requestId:request.id,doc:request.doc,division:request.division,neededDate:request.neededDate,sku:item.sku,name:item.name,unit:item.unit,stockUnit:item.unit,purchaseUnit:inventory?.packageSize||item.unit,packQty:n(inventory?.packageQty)||1,lastPurchasePrice:n(inventory?.purchasePrice),estimatedCost:round(n(row.qty)*n(row.lastUnitPrice))});}return result;
+  const rows=await getDb().select().from(shortagesTable).where(inArray(shortagesTable.itemId,ids));const result=[];for(const row of rows){const request=requests.find(r=>r.items.some(i=>i.id===row.itemId))!;const item=request.items.find(i=>i.id===row.itemId)!;const [inventory]=await getDb().select({purchasePrice:inventoryItems.purchasePrice,packageQty:inventoryItems.packageQty,packageSize:inventoryItems.packageSize}).from(inventoryItems).where(eq(inventoryItems.sku,item.sku)).limit(1);const [supplier]=row.supplierId?await getDb().select({name:wmsSupplier.name}).from(wmsSupplier).where(eq(wmsSupplier.id,row.supplierId)):[];result.push({...row,supplierName:supplier?.name??null,requestId:request.id,doc:request.doc,division:request.division,neededDate:request.neededDate,sku:item.sku,name:item.name,unit:item.unit,stockUnit:item.unit,purchaseUnit:inventory?.packageSize||item.unit,packQty:n(inventory?.packageQty)||1,lastPurchasePrice:n(inventory?.purchasePrice),estimatedCost:round(n(row.qty)*n(row.lastUnitPrice))});}return result;
 }
 export async function decideShortage(actor:ClosingActor,id:string,input:ShortageDecisionInput){
   if(!elevated(actor))error("Persetujuan pembelian hanya untuk Owner/Manajer.",403,"FORBIDDEN");
@@ -286,16 +301,52 @@ export async function decideShortage(actor:ClosingActor,id:string,input:Shortage
     const [updated]=await tx.update(shortagesTable).set({status:input.action==="approve"?"approved":input.action==="reject"?"rejected":"cancelled",supplierId:input.supplierId??shortage.supplierId,note:input.note?.trim()??"",updatedAt:new Date()}).where(eq(shortagesTable.id,id)).returning();await event(tx,actor,request.id,`Usulan pembelian ${input.action}`,{shortageId:id,qty:shortage.qty,supplierId:updated.supplierId});return updated;
   });
 }
-export async function getPreparation(actor:ClosingActor,filters:ClosingFilters={}){
-  const db=getDb();await warehouseOperator(db,actor);const requests=(await listReplenishments(actor,filters)).filter(r=>r.status!=="draft");const reservations=await db.select().from(reservationsTable);const sources=await db.select().from(locationsTable).where(and(eq(locationsTable.outletId,actor.outletId),eq(locationsTable.kind,"main")));
-  const pickList=[];for(const source of sources){try{await warehouseOperator(db,actor,source.warehouseId);}catch(e){if(e instanceof ClosingError)continue;throw e;}
-    const productIds=[...new Set(requests.filter(r=>!terminals.includes(r.status) && (source.area==="umum" || source.area===r.division)).flatMap(r=>r.items.filter(i=>n(i.requestedQty)>n(i.dispatchedQty)).map(i=>i.productId)))];for(const productId of productIds){const contributions=requests.filter(r=>!terminals.includes(r.status) && (source.area==="umum" || source.area===r.division)).flatMap(r=>r.items.filter(i=>i.productId===productId && n(i.requestedQty)>n(i.dispatchedQty)).map(i=>({requestId:r.id,doc:r.doc,division:r.division,itemId:i.id,qty:Math.max(0,n(i.requestedQty)-n(i.dispatchedQty)),reservedQty:reservations.filter(x=>x.itemId===i.id&&x.warehouseId===source.warehouseId).reduce((s,x)=>s+n(x.qty),0)})));if(!contributions.length)continue;const product=requests.flatMap(r=>r.items).find(i=>i.productId===productId)!;const onHand=await stock(db,productId,source.warehouseId);const reservedQty=await reserved(db,productId,source.warehouseId);pickList.push({productId,sku:product.sku,name:product.name,unit:product.unit,sourceWarehouseId:source.warehouseId,onHand,reserved:reservedQty,available:Math.max(0,round(onHand-reservedQty)),totalRequested:contributions.reduce((s,c)=>s+c.qty,0),totalReserved:contributions.reduce((s,c)=>s+c.reservedQty,0),requests:contributions});}}
-  const notifications=requests.filter(r=>!terminals.includes(r.status)).map(r=>({id:`closing:${r.id}:${r.version}`,requestId:r.id,doc:r.doc,division:r.division,status:r.status,late:r.late,title:r.status==="submitted"?"Permintaan baru":r.status==="ready"?"Bahan siap diserahkan":r.status==="dispatched"||r.status==="partially_received"?"Menunggu konfirmasi penerimaan":r.status==="partially_available"?"Stok belum mencukupi":"Permintaan perlu ditindaklanjuti",href:`/warehouse/requests?id=${r.id}`,updatedAt:r.updatedAt}));
-  const sourceLocations=[];for(const source of sources){try{await warehouseOperator(db,actor,source.warehouseId);const loc=await location(db,actor,source.warehouseId);sourceLocations.push({id:source.warehouseId,name:loc.warehouse.name});}catch(e){if(!(e instanceof ClosingError))throw e;}}
-  return {requests,pickList,sourceLocations,capabilities:{manage:elevated(actor),warehouse:true},shortages:await listShortages(actor,filters),notifications,generatedAt:new Date().toISOString()};
+export async function getPreparation(actor:ClosingActor,filters:ClosingFilters={}) {
+  const db=getDb();
+  await warehouseOperator(db,actor);
+  const requests=(await listReplenishments(actor,filters)).filter(r=>r.status!=="draft");
+  const reservations=await db.select().from(reservationsTable);
+  const mapped=await db.select().from(locationsTable).where(and(eq(locationsTable.outletId,actor.outletId),eq(locationsTable.kind,"main")));
+  const sources:typeof mapped=[];
+  const sourceLocations=[];
+  for (const source of mapped) {
+    try {
+      await warehouseOperator(db,actor,source.warehouseId);
+      const loc=await location(db,actor,source.warehouseId);
+      sources.push(source);
+      sourceLocations.push({id:source.warehouseId,name:loc.warehouse.name});
+    } catch(e) { if(!(e instanceof ClosingError))throw e; }
+  }
+  const pickList=[];
+  for (const source of sources) {
+    const contributions=[];
+    for (const request of requests) {
+      if(terminals.includes(request.status)||![request.division,"umum"].includes(source.area))continue;
+      const preferred=sources.find(s=>s.area===request.division)??sources.find(s=>s.area==="umum");
+      for (const item of request.items) {
+        const remaining=Math.max(0,round(n(item.requestedQty)-n(item.dispatchedQty)));
+        if(!remaining)continue;
+        const held=reservations.filter(r=>r.itemId===item.id&&n(r.qty)>0);
+        const sourceQty=held.filter(r=>r.warehouseId===source.warehouseId).reduce((sum,r)=>sum+n(r.qty),0);
+        // A reserved line belongs only to its actual sources. Unassigned demand
+        // appears once at the preferred compatible source, never once per warehouse.
+        const qty=held.length?sourceQty:preferred?.warehouseId===source.warehouseId?remaining:0;
+        if(qty<=0)continue;
+        contributions.push({productId:item.productId,requestId:request.id,doc:request.doc,division:request.division,itemId:item.id,qty,reservedQty:sourceQty});
+      }
+    }
+    for(const productId of new Set(contributions.map(c=>c.productId))) {
+      const lines=contributions.filter(c=>c.productId===productId);
+      const product=requests.flatMap(r=>r.items).find(i=>i.productId===productId)!;
+      const onHand=await stock(db,productId,source.warehouseId);
+      const reservedQty=await reserved(db,productId,source.warehouseId);
+      pickList.push({productId,sku:product.sku,name:product.name,unit:product.unit,sourceWarehouseId:source.warehouseId,onHand,reserved:reservedQty,available:Math.max(0,round(onHand-reservedQty)),totalRequested:round(lines.reduce((sum,c)=>sum+c.qty,0)),totalReserved:round(lines.reduce((sum,c)=>sum+c.reservedQty,0)),requests:lines});
+    }
+  }
+  return {requests,pickList,sourceLocations,capabilities:{manage:elevated(actor),warehouse:true},shortages:await listShortages(actor,filters),notifications:await getClosingNotifications(actor),generatedAt:new Date().toISOString()};
 }
 export async function getClosingReport(actor:ClosingActor,filters:ClosingFilters={}){
-  const requests=await listReplenishments(actor,filters);const lines=requests.flatMap(r=>r.items.filter(i=>!filters.productId||i.productId===filters.productId).map(i=>({doc:r.doc,division:r.division,businessDate:r.businessDate,neededDate:r.neededDate,status:r.status,late:r.late,sku:i.sku,name:i.name,unit:i.unit,systemQty:i.systemQty,physicalQty:i.physicalQty,variance:i.variance,targetQty:i.targetQty,incomingQty:i.incomingQty,requestedQty:i.requestedQty,approvedQty:i.approvedQty,dispatchedQty:i.dispatchedQty,receivedQty:i.receivedQty,damagedQty:i.damagedQty,shortageQty:i.shortageQty,estimatedCost:round(i.shortageQty*i.hpp),submittedAt:r.submittedAt,updatedAt:r.updatedAt,completedAt:r.status==="completed" ? r.updatedAt : null,fulfillmentTiming:r.noRequest?"Tidak ada permintaan":r.status==="completed"?(new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Jakarta",year:"numeric",month:"2-digit",day:"2-digit"}).format(r.updatedAt)<=r.neededDate?"Tepat waktu":"Terlambat"):"Belum selesai"})));
+  const requests=await listReplenishments(actor,filters);const config=await getSettings(getDb(),actor);const lines=requests.flatMap(r=>r.items.filter(i=>!filters.productId||i.productId===filters.productId).map(i=>({doc:r.doc,division:r.division,businessDate:r.businessDate,neededDate:r.neededDate,status:r.status,late:r.late,sku:i.sku,name:i.name,unit:i.unit,systemQty:i.systemQty,physicalQty:i.physicalQty,variance:i.variance,targetQty:i.targetQty,incomingQty:i.incomingQty,requestedQty:i.requestedQty,approvedQty:i.approvedQty,dispatchedQty:i.dispatchedQty,receivedQty:i.receivedQty,damagedQty:i.damagedQty,shortageQty:i.shortageQty,estimatedCost:round(i.shortageQty*i.hpp),submittedAt:r.submittedAt,updatedAt:r.updatedAt,completedAt:r.status==="completed" ? r.updatedAt : null,fulfillmentTiming:r.noRequest?"Tidak ada permintaan":r.status==="completed"?(r.items.some(item=>n(item.damagedQty)>0)?"Selisih disetujui":new Date(r.updatedAt).getTime()<=new Date(`${r.neededDate}T${config.openTime}:00+07:00`).getTime()?"Tepat waktu":"Terlambat"):"Belum selesai"})));
   return {generatedAt:new Date().toISOString(),filters,requests,totalRequests:requests.length,lateRequests:requests.filter(r=>r.late).length,openRequests:requests.filter(r=>!terminals.includes(r.status)).length,lines};
 }
 

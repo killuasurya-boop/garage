@@ -9,7 +9,7 @@ export type SaveClosingInput = {
   items: Array<{ productId: string; physicalQty: number | null; targetQty: number; requestedQty: number; overrideReason?: string; note?: string }>;
 };
 export type ClosingTransitionInput = {
-  action: "review" | "approve" | "prepare" | "ready" | "dispatch" | "receive" | "reject" | "cancel";
+  action: "review" | "approve" | "prepare" | "ready" | "dispatch" | "receive" | "resolve_difference" | "reject" | "cancel";
   idempotencyKey: string; version?: number; sourceWarehouseId?: string; shipmentId?: string; reason?: string;
   items?: Array<{ itemId?: string; allocationId?: string; qty: number; damagedQty?: number }>;
 };

@@ -43,7 +43,7 @@ export function buildClosingReport(data: ClosingReportData, filters: ClosingFilt
     ],
     filters: Object.entries(filters).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}: ${v}`),
     notes: [
-      "Garage Coffee · Zona waktu Asia/Jakarta (WIB).",
+      "Garage Coffee · Zona waktu Asia/Jakarta (WIB). Pemenuhan tepat waktu bila penerimaan selesai sebelum jam mulai operasional pada tanggal kebutuhan.",
       "Stok aktual adalah hasil pemeriksaan; laporan ini tidak mengubah saldo stok.",
       "Jumlah bahan dengan satuan berbeda tidak dijumlahkan. Estimasi pembelian bukan pembayaran atau biaya yang sudah diposting.",
       "Baris tanpa hitungan aktual tetap kosong, bukan nol. Laporan memuat seluruh baris yang sesuai filter dan hak akses.",

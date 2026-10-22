@@ -31,3 +31,13 @@ Use the provider console to identify/cancel this candidate build, inspect memory
 - Kernel logs confirmed global out-of-memory events killed the original Next server during the unbounded build. The candidate build had completed compilation and was running TypeScript; no candidate image existed.
 - Follow-up build tooling introduces a dedicated builder capped at 2 GiB RAM + 1 GiB swap and 0.4 CPU, one BuildKit worker, a 1536 MiB Node heap, health/memory watchdog and immutable candidate tags. Its resource settings must be inspected before any build. A default-off standalone-only flag permits skipping duplicate Next typechecking only after the exact release source has passed a separate full local typecheck.
 - Full local TypeScript passed after this configuration change, and three build-policy tests passed. The default CI/local build behavior still checks types.
+
+## Bounded candidate follow-up
+
+- Exact candidate source: `02e7021a27ddd32bedce0bdd474a993b8b9290a7`; archive SHA256 `b8773f66f8a8fdb64cc3e45c07c741fe5d03cc2eaf5c9a6901a7ad0a91f3390c`. Full separate TypeScript passed on this exact revision.
+- Docker and the enclosing kernel cgroup both verified 2 GiB RAM, 1 GiB additional swap and 0.4 CPU. BuildKit has one worker. An exclusive lock and health/available-memory watchdog protect production; builds never retag the production image.
+- The bounded Turbopack attempt was stopped after sustained memory pressure and slow compilation. Production stayed healthy; available RAM returned to about 2.9 GiB.
+- A build-only Webpack recipe preserves the archived application source and changes only `RUN npm run build` to `RUN npm run build -- --webpack`. Recipe diff and hashes are recorded remotely. An initial CRLF matching issue was caught by inspecting the compiler banner and corrected with an explicit command assertion.
+- Webpack with a 1536 MiB Node heap hit its isolated JavaScript heap limit. The next attempt uses a 2048 MiB heap inside the same unchanged container limits. This does not raise host limits or change application logic. Its log is `/root/garage/backups/manual-order-02e7021a27dd-webpack-v3-build.log`.
+- Final deploy-script review added bounded health/Compose/post-switch checks, EXIT/signal rollback, immutable running-image verification, restore-check cleanup and a disk-space guard. Rollback reports success only after the original running image and public health are verified.
+- No successful candidate promotion is recorded by these steps; record final release evidence below only after verification.

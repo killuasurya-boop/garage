@@ -238,6 +238,19 @@ describe("checkout menu event memakai order Garage existing", () => {
     expect(split.child.total).toBe(40000);
   });
 
+  it("pisah 1 dari 2 paket identik boleh bila semua komponen ikut proporsional", async () => {
+    const { createCustomerOrder, updateCustomerOrderStatus, splitCustomerOrder } = await import("@/lib/garage-service");
+    const twoPackages = bundleCart().map((line) => ({ ...line, qty: 2 }));
+    const order = await createCustomerOrder({ ...input("bundle-split-half-0001"), orderType: "dine-in", tableLabel: "Meja 10", eventItems: twoPackages });
+    await updateCustomerOrderStatus(order.order.id, { action: "accept" }, owner(), { openBill: true });
+    const lines = await t.getDb().select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, order.order.id));
+    expect(lines.every((line: { qty: number }) => line.qty === 2)).toBe(true);
+    await expect(splitCustomerOrder(order.order.id, { items: [{ orderItemId: lines[0].id, qty: 1 }] }, owner())).rejects.toThrow("satu paket utuh");
+    const split = await splitCustomerOrder(order.order.id, { items: lines.map((line: { id: string }) => ({ orderItemId: line.id, qty: 1 })) }, owner());
+    expect(split.child.total).toBe(40000);
+    expect(split.source.total).toBe(40000);
+  });
+
   it("perpanjangan jam event ikut memperpanjang paket yang berakhir bersama event", async () => {
     const svc = await import("@/lib/event-service");
     const [event] = await t.getDb().select().from(t.schema.events).where(eq(t.schema.events.id, eventId));

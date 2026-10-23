@@ -14997,7 +14997,11 @@ function packageRefundContext(
   }
   for (const members of groups.values()) {
     if (!members.some((member) => qtyById.has(member.id))) continue;
-    if (!members.every((member) => qtyById.get(member.id) === member.qty)) {
+    // Boleh sebagian paket (mis. 1 dari 2 paket identik) asal SEMUA komponen dipilih dengan
+    // proporsi yang sama terhadap qty tersisa — tidak boleh hanya rokok/minumannya saja.
+    const [first] = members;
+    const firstSelected = qtyById.get(first.id) ?? 0;
+    if (!members.every((member) => (qtyById.get(member.id) ?? 0) > 0 && (qtyById.get(member.id) ?? 0) * first.qty === firstSelected * member.qty)) {
       throw new Error(`${purpose === "refund" ? "Refund" : "Pisah bill"} paket harus satu paket utuh (${members[0].eventSnapshot!.entryName}).`);
     }
   }

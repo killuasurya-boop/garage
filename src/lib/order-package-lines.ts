@@ -35,6 +35,11 @@ export function groupOrderLines<T extends PackageAwareLine>(lines: T[]): Array<G
     // Jumlah komponen = harga paket × qty (alokasi server selalu pas ke rupiah).
     group.total += line.lineTotal;
   }
+  // Jumlah paket dari total ÷ harga paket — tetap benar setelah refund/pisah sebagian paket.
+  for (const group of packages.values()) {
+    const price = group.components[0]?.package?.packagePrice ?? 0;
+    if (price > 0) group.qty = Math.max(1, Math.round(group.total / price));
+  }
   return result;
 }
 

@@ -447,13 +447,15 @@ export function buildThermalContent(
       printedPackages.add(pkg.groupId);
       const members = (receipt.items || []).filter((row) => row.package?.groupId === pkg.groupId);
       const pkgTotal = members.reduce((sum, row) => sum + (row.lineTotal || (row.unitPrice || 0) * (row.qty || 1)), 0);
+      // Jumlah paket dari total ÷ harga paket (benar juga untuk bill pisahan/refund sebagian).
+      const pkgQty = pkg.packagePrice > 0 ? Math.max(1, Math.round(pkgTotal / pkg.packagePrice)) : pkg.entryQuantity;
       const pkgTotalText = fmt(pkgTotal);
-      const pkgLines = wrapText(`${pkg.entryQuantity}x ${clean(pkg.entryName)}`, W - pkgTotalText.length - 1);
+      const pkgLines = wrapText(`${pkgQty}x ${clean(pkg.entryName)}`, W - pkgTotalText.length - 1);
       rows.push(row(pkgLines[0] ?? "", pkgTotalText));
       for (const extra of pkgLines.slice(1)) rows.push(`   ${extra}`.slice(0, W));
       for (const member of members) {
         const memberVariant = clean(member.variant || member.variantLabel);
-        const perPackage = Math.max(1, Math.round((member.qty || 1) / Math.max(1, pkg.entryQuantity)));
+        const perPackage = Math.max(1, Math.round((member.qty || 1) / Math.max(1, pkgQty)));
         const label = `${perPackage > 1 ? `${perPackage}x ` : ""}${clean(member.name || member.itemName || "Item")}${memberVariant && memberVariant !== "Regular" ? ` ${memberVariant}` : ""}`;
         for (const [index, part] of wrapText(label, W - 5).entries()) rows.push(`${index === 0 ? "   - " : "     "}${part}`.slice(0, W));
       }

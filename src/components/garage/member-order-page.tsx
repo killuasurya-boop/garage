@@ -1320,12 +1320,13 @@ export function MemberOrderPage({
       : 0;
   const canUsePoints = maxPointsUsable >= billingSettings.memberRedeemMinPoints;
   const pointsUsed = usePoints && canUsePoints ? maxPointsUsable : 0;
+  // Semua potongan (promo, voucher, poin) hanya dari menu reguler; paket event tetap utuh (sama dgn server).
+  const regularDiscount = Math.min(regularGrossTotal, promoDiscount + voucherDiscount);
   const pointsDiscount = Math.min(
-    Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount)),
+    Math.max(0, regularGrossTotal - regularDiscount),
     pointsUsed * billingSettings.memberPointValue,
   );
-  const total =
-    Math.max(0, grossTotal - Math.min(grossTotal, promoDiscount + voucherDiscount) - pointsDiscount) + deliveryFee;
+  const total = Math.max(0, regularGrossTotal - regularDiscount - pointsDiscount) + packageSubtotal + deliveryFee;
   const itemCount = cartLines.reduce((sum, line) => sum + line.qty, 0);
   const allowedPaymentMethods: CustomerPaymentMethod[] = isDelivery ? ["QRIS"] : customerPaymentMethods;
   const phoneDigits = guestPhone.replace(/\D/g, "");

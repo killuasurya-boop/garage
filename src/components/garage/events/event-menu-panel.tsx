@@ -152,7 +152,16 @@ export function EventMenuPanel({ event }: { event: AdminEvent }) {
     setBusy(true); setFormError("");
     try {
       const saved = await request<EventMenuEntry>(editId ? `${endpoint}/${editId}` : endpoint, editId ? "PUT" : "POST", form);
-      if (pendingImage) await uploadImage(`${endpoint}/${saved.id}/image`, pendingImage);
+      // Menu sudah tersimpan: retry sesudah ini harus mengedit entri yang sama, bukan membuat paket ganda.
+      setEditId(saved.id);
+      if (pendingImage) {
+        try { await uploadImage(`${endpoint}/${saved.id}/image`, pendingImage); }
+        catch (err) {
+          setFormError(`Menu tersimpan, tetapi foto gagal diunggah: ${err instanceof Error ? err.message : "coba lagi"}. Pilih foto lain atau tekan Simpan untuk mencoba lagi.`);
+          await load();
+          return;
+        }
+      }
       setForm(null); setPendingImage(null); toast.success(editId ? "Menu event diperbarui." : "Menu event ditambahkan."); await load();
     } catch (err) { setFormError(err instanceof Error ? err.message : "Menu gagal disimpan."); }
     finally { setBusy(false); }

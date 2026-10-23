@@ -104,12 +104,32 @@ describe("Event menu persistence and safe checkout", () => {
     await t.getDb().transaction((tx: Parameters<typeof resolveEventCart>[0]) => resolveEventCart(tx, { eventId, now, reserveQuota: true, items: [{ entryId: entry.id, qty: 2, selections }] }));
     await expect(t.getDb().transaction((tx: Parameters<typeof resolveEventCart>[0]) => resolveEventCart(tx, { eventId, now, reserveQuota: true, items: [{ entryId: entry.id, qty: 1, selections }] }))).rejects.toThrow("Kuota");
   });
-  it("rejects hidden and restricted tobacco products even inside bundles", async () => {
-    await t.getDb().insert(t.schema.menuItems).values({ id: "itm-restricted", name: "Rokok", category: "Rokok", section: "Lainnya", prep: "0m", showInDigitalMenu: true });
-    await t.getDb().insert(t.schema.menuVariants).values({ itemId: "itm-restricted", variantId: "reg", label: "Regular", price: 20_000 });
-    await expect(saveEventMenuEntry(eventId, item({ menuItemId: "itm-restricted" }), actor)).rejects.toThrow("makanan atau minuman");
+  it("allows rokok only as a bundle component and always rejects vape/nicotine", async () => {
+    await t.getDb().insert(t.schema.menuItems).values([
+      { id: "itm-rokok", name: "Black Matcha", category: "Rokok", section: "Rokok", prep: "0m", showInDigitalMenu: false },
+      { id: "itm-vape", name: "Liquid Vape", category: "Lainnya", section: "Lainnya", prep: "0m", showInDigitalMenu: true },
+    ]);
+    await t.getDb().insert(t.schema.menuVariants).values([
+      { itemId: "itm-rokok", variantId: "reg", label: "Regular", price: 18_000 },
+      { itemId: "itm-vape", variantId: "reg", label: "Regular", price: 50_000 },
+    ]);
+    const before = await getPublicEventMenu("event-kuliner");
+    expect(before.products.some(p => p.id === "itm-rokok")).toBe(false);
+    await t.getDb().update(t.schema.menuItems).set({ showInDigitalMenu: true }).where(eq(t.schema.menuItems.id, "itm-rokok"));
+    await expect(saveEventMenuEntry(eventId, item({ menuItemId: "itm-rokok" }), actor)).rejects.toThrow("komponen paket");
+    await t.getDb().update(t.schema.menuItems).set({ showInDigitalMenu: false }).where(eq(t.schema.menuItems.id, "itm-rokok"));
+    await expect(saveEventMenuEntry(eventId, bundle({ groups: [{ id: "vape", name: "Vape", quantity: 1, options: [{ itemId: "itm-vape", variantId: "reg" }] }] }), actor)).rejects.toThrow("makanan atau minuman");
+    const rokokBundle = bundle({ name: "Paket Rokok", price: 45_000, groups: [
+      { id: "rokok", name: "Rokok", quantity: 1, options: [{ itemId: "itm-rokok", variantId: "reg" }] },
+      { id: "drink", name: "Minuman", quantity: 1, options: [{ itemId: "itm-coffee", variantId: "reg" }] },
+    ] });
+    const entry = await saveEventMenuEntry(eventId, rokokBundle, actor);
+    const lines = await resolveEventCart(t.getDb(), { eventId, now, items: [{ entryId: entry.id, qty: 1, selections: [{ groupId: "rokok", itemId: "itm-rokok", variantId: "reg" }, { groupId: "drink", itemId: "itm-coffee", variantId: "reg" }] }] });
+    expect(lines.reduce((n, line) => n + line.lineTotal, 0)).toBe(45_000);
     const data = await getPublicEventMenu("event-kuliner");
-    expect(data.products.some(p => p.id === "itm-restricted")).toBe(false);
+    expect(data.products.find(p => p.id === "itm-rokok")?.bundleOnly).toBe(true);
+    expect(data.products.some(p => p.id === "itm-vape")).toBe(false);
+    await archiveEventMenuEntry(eventId, entry.id, actor);
   });
   it("allows only one concurrent checkout to claim the final optional quota", async () => {
     const entry = await saveEventMenuEntry(eventId, bundle({ quota: 1 }), actor);

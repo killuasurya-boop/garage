@@ -239,6 +239,7 @@ import {
   type OrderCancelTarget,
 } from "@/components/garage/pos-order-cancel-dialog";
 import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
+import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
 import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
 import {
   PosTableBillSplitDialog,
@@ -2546,7 +2547,7 @@ export function PosView({
   }
 
   // Bayar satu bill meja (termasuk bill pisahan) dari detail meja.
-  async function payTableBill(bill: TableOrderBill) {
+  async function payTableBill(bill: Pick<TableOrderBill, "id" | "orderNo">) {
     const known = customerOrders.find((order) => order.id === bill.id);
     if (known) {
       openFinalizeDialog(known);
@@ -3709,6 +3710,34 @@ export function PosView({
     } finally {
       setPaymentPending(false);
     }
+  }
+
+  // Paket Event (owner, Okt 2026): tagihan disimpan lewat open-bill, lalu langsung Final Bayar.
+  async function handleEventBundleSaved(saved: PosBundleSaved, includedCart: boolean) {
+    const cartChit = includedCart
+      ? cartLines.map((line) => ({ name: line.item.name, variant: line.variant.label, qty: line.qty, note: line.note ?? null, station: chitStationFor(line.item) }))
+      : [];
+    if (includedCart) setCart([]);
+    void printChitIfEnabled({
+      orderNo: saved.orderNo,
+      queueNo: null,
+      tableLabel: saved.tableLabel ?? saved.customerName,
+      orderType: saved.tableLabel ? "dine-in" : "takeaway",
+      createdAt: new Date().toISOString(),
+      cashierName: null,
+      customerName: saved.customerName,
+      items: [
+        ...saved.chitLines.map((line) => {
+          const item = menuItemsById.get(line.itemId);
+          return { name: line.name, variant: line.variant, qty: line.qty, note: null, station: item ? chitStationFor(item) : ("Langsung" as const) };
+        }),
+        ...cartChit,
+      ],
+    });
+    setPosNotice(`Paket ${saved.orderNo} disimpan & masuk Bar/Dapur. Selesaikan di Final Bayar.`);
+    await onOrderCreated();
+    invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+    await payTableBill({ id: saved.orderId, orderNo: saved.orderNo });
   }
 
   // Aksi cepat: siapkan bill → order aktif meja jadi "menunggu bayar".
@@ -8854,6 +8883,13 @@ export function PosView({
                     placeholder="Cari menu / kode singkat (mis. cl)"
                   />
                 </div>
+                <PosEventBundles
+                  shiftOpen={shiftOpen}
+                  regularCart={cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined }))}
+                  regularCartTotal={subtotal}
+                  makeKey={makeIdempotencyKey}
+                  onSaved={handleEventBundleSaved}
+                />
                 <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
                   <CreditCard className="size-4 shrink-0 text-[#f5a742]" />
                   <div className="min-w-0">

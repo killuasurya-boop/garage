@@ -89,8 +89,10 @@ import { PaymentProofPanel } from "@/components/garage/order/payment-proof-panel
 import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
 import { OrderPushButton } from "@/components/garage/order-push-button";
 import { EventBundlePicker } from "@/components/garage/events/event-bundle-picker";
-import { eventEntryAvailable, type EventDigitalMenuContext, type EventMenuSelection } from "@/lib/event-menu-display";
+import { EventBundleSection } from "@/components/garage/order/event-bundle-section";
+import { eventEntryAvailable, mergeMainEventMenu, type EventDigitalMenuContext, type EventMenuSelection, type EventDisplayVariant } from "@/lib/event-menu-display";
 import type { EventMenuEntry } from "@/lib/event-menu-types";
+import { checkoutNeedsRecovery, checkoutRejectionIsDefinitive, freezeEventSubmission, restoreEventSubmission, type FrozenEventSubmission } from "@/lib/event-checkout-submission";
 import {
   adoptChatTokenForOrder,
   CustomerChatPanel,
@@ -195,7 +197,7 @@ async function getJson<T>(url: string) {
 
 /** Error API dengan kode (mis. TABLE_OCCUPIED) supaya UI bisa bereaksi tepat. */
 class ApiError extends Error {
-  constructor(message: string, public code?: string) {
+  constructor(message: string, public code?: string, public status?: number) {
     super(message);
   }
 }
@@ -209,9 +211,9 @@ async function postJson<T>(url: string, payload: unknown, idempotencyKey?: strin
   });
   const json = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok) {
-    if ("error" in json && json.error) throw new ApiError(json.error.message, json.error.code);
-    if ("success" in json && !json.success) throw new Error(json.message);
-    throw new Error("Request gagal.");
+    if ("error" in json && json.error) throw new ApiError(json.error.message, json.error.code, response.status);
+    if ("success" in json && !json.success) throw new ApiError(json.message, undefined, response.status);
+    throw new ApiError("Request gagal.", undefined, response.status);
   }
   if ("success" in json) {
     if (!json.success) throw new Error(json.message);
@@ -234,15 +236,16 @@ function canVibrate() {
   return typeof navigator.vibrate === "function" && (activation ? activation.hasBeenActive : true);
 }
 
-function ChatLaunchButton({ label, unread, onClick }: { label: string; unread: number; onClick: () => void }) {
+function ChatLaunchButton({ label, unread, onClick, compact = false }: { label: string; unread: number; onClick: () => void; compact?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="garage-press mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-garage-red/45 bg-garage-red/12 px-3 py-2.5 text-sm font-bold text-[#ffc9c9] transition hover:bg-garage-red/20"
+      aria-label={label}
+      className={compact ? "garage-press inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-garage-line px-3 text-sm font-bold text-garage-dim transition-colors hover:bg-garage-bg-3 focus-visible:outline-2 focus-visible:outline-garage-amber" : "garage-press mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-garage-red/45 bg-garage-red/12 px-3 py-2.5 text-sm font-bold text-[#ffc9c9] transition hover:bg-garage-red/20"}
     >
       <MessageCircle className="size-4" aria-hidden />
-      {label}
+      {compact ? "Chat kasir" : label}
       {unread > 0 ? (
         <span className="rounded-full bg-garage-amber px-2 py-0.5 text-xs font-black text-black" aria-label={`${unread} pesan baru dari kasir`}>
           {unread} baru
@@ -509,9 +512,10 @@ function MenuDetailSheet({
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="line-clamp-1 text-base font-bold text-white">
+                        <p className="break-words text-base font-bold text-white">
                           {multiVariant ? variant.label : item.name}
                         </p>
+                        {(variant as EventDisplayVariant).eventUnavailable ? <p className="mt-1 text-sm font-semibold text-garage-amber">{(variant as EventDisplayVariant).eventUnavailable === "quota" ? "Kuota event habis" : "Menu event tidak tersedia"}</p> : null}
                         <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-sm font-bold tabular-nums text-garage-dim">
                           {variantPrice(item, variant) < variant.price ? (
                             <>
@@ -530,7 +534,7 @@ function MenuDetailSheet({
                         qty={qty}
                         onMinus={() => onAdjust(item.id, variant.id, -1)}
                         onPlus={() => onAdjust(item.id, variant.id, 1)}
-                        disabled={item.stock === "sold_out"}
+                        disabled={item.stock === "sold_out" || Boolean((variant as EventDisplayVariant).eventUnavailable)}
                       />
                     </div>
                   );
@@ -808,7 +812,7 @@ export function MemberOrderPage({
   staffOrder?: { name: string; backHref: string } | null;
   eventContext?: EventDigitalMenuContext;
 }) {
-  const hasInitialMenuItems = Boolean(eventContext || initialMenuItems?.length);
+  const hasInitialMenuItems = initialMenuItems !== undefined || Boolean(eventContext && eventContext.mode !== "main");
   const bestSellerSet = useMemo(() => new Set(bestSellerIds ?? []), [bestSellerIds]);
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [mode, setMode] = useState<"guest" | "member">("guest");
@@ -820,10 +824,17 @@ export function MemberOrderPage({
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [bundleEntry, setBundleEntry] = useState<EventMenuEntry | null>(null);
   const [eventSelections, setEventSelections] = useState<Record<string, EventMenuSelection[]>>({});
-  const eventSubmission = useRef<{ fingerprint: string; key: string } | null>(null);
+  const eventSubmission = useRef<FrozenEventSubmission | null>(null);
+  const [uncertainSubmission, setUncertainSubmission] = useState<FrozenEventSubmission | null>(null);
+  const [pendingRestored, setPendingRestored] = useState(false);
   const [eventNow, setEventNow] = useState(() => Date.now());
+  const mainEventMenu = eventContext?.mode === "main";
   const menuItems = useMemo(() => {
     if (!eventContext) return menuItemState;
+    if (eventContext.mode === "main") return mergeMainEventMenu(menuItemState, eventContext, eventNow).map(item => {
+      const stored = menuItemState.find(row => row.id === item.id);
+      return item.id.startsWith("event:") && stored ? { ...item, variants: stored.variants } : item;
+    });
     return menuItemState.map((item) => {
       const entry = eventContext.entries.find((row) => `event:${row.id}` === item.id);
       return entry ? { ...item, stock: eventEntryAvailable(entry, eventContext.products, eventNow) ? "ready" as const : "sold_out" as const } : item;
@@ -913,6 +924,23 @@ export function MemberOrderPage({
   const [showVoucherField, setShowVoucherField] = useState(false);
   const [showNoteField, setShowNoteField] = useState(false);
   const deferredQuery = useDeferredValue(query);
+  const pendingStorageKey = `garage:eventCheckout:pending:${qrContext.outletId ?? "default"}`;
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const frozen = restoreEventSubmission(window.sessionStorage.getItem(pendingStorageKey));
+        if (frozen) { eventSubmission.current = frozen; setUncertainSubmission(frozen); }
+      } catch { /* Retain in-memory protection when session storage is unavailable. */ }
+      setPendingRestored(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pendingStorageKey]);
+
+  function clearPendingSubmission() {
+    eventSubmission.current = null;
+    setUncertainSubmission(null);
+    try { window.sessionStorage.removeItem(pendingStorageKey); } catch { /* session storage unavailable */ }
+  }
 
   async function callService(type: "call" | "bill" | "water" | "move", label: string) {
     setHelpBusy(type);
@@ -962,7 +990,7 @@ export function MemberOrderPage({
       getJson<MenuItem[]>("/api/customer/menu")
         .then((menu) => {
           if (alive) {
-            setMenuItems(menu);
+            setMenuItems(eventContext?.mode === "main" ? mergeMainEventMenu(menu, eventContext) : menu);
           }
         })
         .catch((error) => {
@@ -980,7 +1008,7 @@ export function MemberOrderPage({
       window.clearTimeout(profileTimeoutId);
       window.clearTimeout(menuTimeoutId);
     };
-  }, [hasInitialMenuItems, loadProfile]);
+  }, [hasInitialMenuItems, loadProfile, eventContext]);
 
   // Cek ulang status buka/tutup outlet: tiap 60 dtk + saat checkout dibuka, supaya banner
   // "Belum buka" hilang sendiri begitu kasir membuka shift (tanpa refresh halaman).
@@ -1306,7 +1334,14 @@ export function MemberOrderPage({
   // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
-  const eventUnavailable = Boolean(eventContext && (eventContext.preview || eventNow < Date.parse(eventContext.startsAt) || eventNow >= Date.parse(eventContext.endsAt)));
+  const hasEventCartLines = cartLines.some(line => line.item.id.startsWith("event:") || (line.variant as EventDisplayVariant).eventPrice);
+  const staleEventLine = eventContext && cartLines.find(line => {
+    const entryId = line.item.id.startsWith("event:") ? line.item.id.slice(6) : (line.variant as EventDisplayVariant).eventEntryId;
+    const entry = eventContext.entries.find(row => row.id === entryId);
+    return entry && !eventEntryAvailable(entry, eventContext.products, eventNow);
+  });
+  const eventTimeUnavailable = Boolean(eventContext && (eventNow < Date.parse(eventContext.startsAt) || eventNow >= Date.parse(eventContext.endsAt)));
+  const eventUnavailable = Boolean(eventContext && (eventContext.preview || staleEventLine || (eventTimeUnavailable && (!mainEventMenu || hasEventCartLines))));
   const cashPaymentLabel =
     effectiveOrderType === "takeaway" ? "Bayar di kasir" : "Bayar di Meja / Kasir";
   const paymentProviderValue =
@@ -1320,6 +1355,8 @@ export function MemberOrderPage({
   const canCheckout =
     cartLines.length > 0 &&
     !busy &&
+    pendingRestored &&
+    !uncertainSubmission &&
     !guestNameMissing &&
     !memberMissing &&
     !soldOutCartLine &&
@@ -1331,8 +1368,10 @@ export function MemberOrderPage({
     !deliveryAddressMissing &&
     !deliveryBelowMin &&
     !deliveryOutOfRange;
-  const checkoutBlockReason = eventUnavailable
-    ? "Menu event belum dibuka atau sudah berakhir. Kembali ke menu reguler untuk pesanan baru."
+  const checkoutBlockReason = uncertainSubmission
+    ? "Periksa pesanan sebelumnya sebelum mengirim pesanan baru."
+    : eventUnavailable
+    ? mainEventMenu ? "Paket atau harga event di keranjang sudah tidak berlaku. Muat ulang menu sebelum melanjutkan." : "Menu event belum dibuka atau sudah berakhir. Kembali ke menu reguler untuk pesanan baru."
     : qrContext.tableIssue
     ? qrContext.tableIssue
     : needsTable && !tableHold
@@ -1370,7 +1409,8 @@ export function MemberOrderPage({
 
   function add(itemId: string, variantId: string, delta: number) {
     const item = menuItems.find((entry) => entry.id === itemId);
-    const entry = eventContext?.entries.find((row) => `event:${row.id}` === itemId);
+    const displayVariant = item?.variants.find(row => row.id === variantId) as EventDisplayVariant | undefined;
+    const entry = eventContext?.entries.find((row) => `event:${row.id}` === itemId || row.id === displayVariant?.eventEntryId);
     if (delta > 0 && entry && !eventEntryAvailable(entry, eventContext!.products)) {
       setMessage("Menu event sedang tidak tersedia atau jadwalnya sudah berakhir.");
       return;
@@ -1386,6 +1426,7 @@ export function MemberOrderPage({
     }
 
     if (delta > 0 && item) {
+      if (mainEventMenu && displayVariant?.eventPrice) setMenuItems(current => current.map(row => row.id === item.id ? item : row));
       const variant = item.variants.find((entry) => entry.id === variantId);
       const name = variant && item.variants.length > 1 ? `${item.name} (${variant.label})` : item.name;
       setLastAdded({ name, stamp: Date.now() });
@@ -1463,7 +1504,53 @@ export function MemberOrderPage({
     }
   }
 
+  function adoptCustomerOrder(result: CustomerOrderCreateResponse, submitted?: FrozenEventSubmission) {
+    const cartUnchanged = !submitted || submitted.cartSignature === JSON.stringify(cart) || !cartLines.length;
+    if (cartUnchanged) {
+      setCart({});
+      setCartNotes({});
+      setCustomerNote("");
+      setPaymentReference("");
+    }
+    clearPendingSubmission();
+    setCheckoutOpen(false);
+    setMessage(`${result.order.orderNo} masuk ke kasir. Pembayaran menunggu konfirmasi.${cartUnchanged ? "" : " Perubahan keranjang belum dikirim."}`);
+    setLastOrder(result);
+    const submittedTable = submitted?.payload.tableLabel ?? qrContext.tableLabel;
+    if (needsTable && tableHold && result.joinCode && submittedTable === tableHold.tableLabel) {
+      saveTableHold({ ...tableHold, mode: "join", token: null, joinCode: result.joinCode, expiresAt: null });
+    }
+    adoptChatTokenForOrder(result.order.id);
+    try {
+      window.localStorage.setItem("garage:trackedOrder", JSON.stringify({ id: result.order.id, orderNo: result.order.orderNo }));
+    } catch { /* localStorage tidak tersedia */ }
+  }
+
+  async function recoverPreviousOrder() {
+    if (!uncertainSubmission || busy || eventContext?.preview) return;
+    const frozen = uncertainSubmission;
+    setBusy(true);
+    try {
+      // Reconcile the original attempt even if the event ended or the cart was edited.
+      const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", frozen.payload, frozen.key);
+      adoptCustomerOrder(result, frozen);
+    } catch (error) {
+      if (error instanceof ApiError && checkoutRejectionIsDefinitive(error.code, error.status)) {
+        clearPendingSubmission();
+        if (error.code?.startsWith("TABLE_")) {
+          saveTableHold(null);
+          setCheckoutOpen(false);
+        }
+        setMessage(`${error.message} Pesanan sebelumnya tidak dapat dibuat. Muat ulang menu sebelum mencoba lagi.`);
+      } else {
+        setMessage(error instanceof ApiError && !checkoutNeedsRecovery(error.status) ? `${error.message} Hubungi kasir untuk memastikan pesanan sebelumnya sebelum membuat pesanan baru.` : "Konfirmasi pesanan sebelumnya belum diterima. Periksa kembali dengan tombol di bawah; jangan kirim pesanan baru.");
+      }
+    } finally { setBusy(false); }
+  }
+
   async function checkout() {
+    if (busy || uncertainSubmission || !pendingRestored) return;
+    let attemptedSubmission: FrozenEventSubmission | undefined;
     setBusy(true);
     setMessage("");
     setLastOrder(null);
@@ -1534,53 +1621,38 @@ export function MemberOrderPage({
         paymentProvider: paymentProviderValue || undefined,
         paymentReference: paymentReference.trim() || undefined,
         chatToken: existingChatToken,
-        ...(eventContext ? {
+        ...(eventContext && (!mainEventMenu || !eventTimeUnavailable) ? {
           eventId: eventContext.eventId,
-          eventItems: cartLines.map((line) => ({
+          eventItems: cartLines.filter(line => !mainEventMenu || line.item.id.startsWith("event:")).map((line) => ({
             entryId: line.item.id.slice("event:".length),
             qty: line.qty,
             note: line.note.trim() || undefined,
             selections: eventSelections[line.variant.id],
           })),
         } : {}),
-        items: eventContext ? [] : cartLines.map((line) => ({
+        items: eventContext && !mainEventMenu ? [] : cartLines.filter(line => !line.item.id.startsWith("event:")).map((line) => ({
           itemId: line.item.id,
           variantId: line.variant.id,
           qty: line.qty,
           note: line.note.trim() || undefined,
         })),
       };
-      if (eventContext) {
+      if (orderPayload.eventId) {
         const fingerprint = JSON.stringify(orderPayload);
-        if (eventSubmission.current?.fingerprint !== fingerprint) eventSubmission.current = { fingerprint, key: crypto.randomUUID() };
+        if (eventSubmission.current?.fingerprint !== fingerprint) eventSubmission.current = freezeEventSubmission(orderPayload, crypto.randomUUID(), JSON.stringify(cart));
+        attemptedSubmission = eventSubmission.current;
+        try { window.sessionStorage.setItem(pendingStorageKey, JSON.stringify(attemptedSubmission)); } catch { /* In-memory retry protection remains active. */ }
       }
-      const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", orderPayload, eventContext ? eventSubmission.current?.key : undefined);
-      eventSubmission.current = null;
-
-      setCart({});
-      setCartNotes({});
-      setCustomerNote("");
-      setPaymentReference("");
-      setCheckoutOpen(false);
-      setMessage(`${result.order.orderNo} masuk ke kasir. Pembayaran menunggu konfirmasi.`);
-      setLastOrder(result);
-      // Meja kini terisi: pesanan tambahan dari HP ini memakai kode gabung meja.
-      if (needsTable && tableHold && result.joinCode) {
-        saveTableHold({ ...tableHold, mode: "join", token: null, joinCode: result.joinCode, expiresAt: null });
-      }
-      // Percakapan sebelum memesan kini milik pesanan ini; kunjungan berikutnya mulai baru.
-      adoptChatTokenForOrder(result.order.id);
-      // Persist supaya tracker tetap ada walau halaman di-refresh.
-      try {
-        window.localStorage.setItem(
-          "garage:trackedOrder",
-          JSON.stringify({ id: result.order.id, orderNo: result.order.orderNo }),
-        );
-      } catch {
-        /* localStorage tidak tersedia */
-      }
+      const result = await postJson<CustomerOrderCreateResponse>("/api/customer/orders", attemptedSubmission?.payload ?? orderPayload, attemptedSubmission?.key);
+      adoptCustomerOrder(result, attemptedSubmission);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Checkout gagal.");
+      if (attemptedSubmission && checkoutNeedsRecovery(error instanceof ApiError ? error.status : undefined)) {
+        setUncertainSubmission(attemptedSubmission);
+        setMessage("Konfirmasi pesanan belum diterima. Periksa pesanan sebelumnya sebelum mengirim lagi agar pesanan tidak ganda.");
+      } else {
+        clearPendingSubmission();
+        setMessage(error instanceof Error ? error.message : "Checkout gagal.");
+      }
       // Meja tidak valid lagi (diambil orang lain / kode salah) → pilih meja ulang.
       if (error instanceof ApiError && error.code?.startsWith("TABLE_")) {
         saveTableHold(null);
@@ -1591,11 +1663,21 @@ export function MemberOrderPage({
     }
   }
 
+  const recoveryPanel = uncertainSubmission ? (
+    <section className="rounded-lg border border-garage-amber/50 bg-garage-bg-2 p-3 sm:p-4" aria-label="Pemulihan pesanan sebelumnya">
+      <p className="text-sm font-bold text-garage-fg">Pastikan pesanan sebelumnya terlebih dahulu</p>
+      <p className="mt-1 text-sm leading-relaxed text-garage-dim">Koneksi terputus saat mengirim. Tombol ini memeriksa percobaan yang sama, termasuk setelah jadwal event berakhir.</p>
+      {eventContext?.preview ? <Link href={qrContext.outletId ? `/order?outletId=${encodeURIComponent(qrContext.outletId)}` : "/order"} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-garage-line px-4 text-sm font-bold text-white hover:bg-garage-bg-3">Periksa di menu utama</Link> : <button type="button" disabled={busy} onClick={() => void recoverPreviousOrder()} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-sm font-bold text-white hover:bg-garage-red-bright disabled:cursor-wait disabled:opacity-60 sm:w-auto">{busy ? "Memeriksa…" : "Periksa pesanan sebelumnya"}</button>}
+    </section>
+  ) : null;
+
   const searching = normalizedQuery.length > 0;
-  const menuGroups = useMemo(() => buildMenuGroups(menuItems), [menuItems]);
+  const bundleItems = useMemo(() => menuItems.filter(item => item.id.startsWith("event:") && item.productType === "bundle"), [menuItems]);
+  const menuGroups = useMemo(() => buildMenuGroups(menuItems.filter(item => !item.id.startsWith("event:") || item.productType !== "bundle")), [menuItems]);
   // Banner atas: item "Unggulan" pilihan admin → kalau belum ada, item promo → Terlaris.
   const hero = useMemo<{ kind: HeroKind; items: MenuItem[] }>(() => {
-    const available = menuItems.filter((item) => item.stock !== "sold_out");
+    if (bundleItems.length) return { kind: "featured", items: [] };
+    const available = menuItems.filter((item) => item.stock !== "sold_out" && !item.id.startsWith("event:"));
     const featured = available.filter((item) => item.featured);
     if (featured.length) return { kind: "featured", items: featured.slice(0, 8) };
     const promo = available.filter(itemHasPromo);
@@ -1605,18 +1687,25 @@ export function MemberOrderPage({
       .filter((item): item is MenuItem => Boolean(item))
       .slice(0, 6);
     return { kind: "best", items: best };
-  }, [bestSellerIds, menuItems]);
+  }, [bestSellerIds, menuItems, bundleItems.length]);
   const heroLabel = hero.kind === "featured" ? "Unggulan" : hero.kind === "promo" ? "Promo" : "Terlaris";
   const categoryTabs = useMemo<CategoryTab[]>(
     () => [
+      ...(bundleItems.length ? [{ id: "menu-paket-event", label: "Paket Bundling" }] : []),
       ...(hero.items.length ? [{ id: HERO_SECTION_ID, label: heroLabel }] : []),
       ...menuGroups.map((group) => ({ id: categorySectionId(group.category), label: group.category })),
     ],
-    [hero.items.length, heroLabel, menuGroups],
+    [bundleItems.length, hero.items.length, heroLabel, menuGroups],
   );
 
   function quickAdd(item: MenuItem) {
     if (item.variants.length === 1) add(item.id, item.variants[0].id, 1);
+    else setDetailItem(item);
+  }
+
+  function openMenuItem(item: MenuItem) {
+    const entry = eventContext?.entries.find(row => row.kind === "bundle" && `event:${row.id}` === item.id);
+    if (entry) setBundleEntry(entry);
     else setDetailItem(item);
   }
 
@@ -2141,6 +2230,7 @@ export function MemberOrderPage({
         </>
       )}
 
+      {recoveryPanel}
       {message ? (
         <p className="rounded-md border border-garage-red/45 bg-garage-red/12 p-3 text-sm leading-6 text-[#ffd6d6]" role="alert">
           {message}
@@ -2177,7 +2267,7 @@ export function MemberOrderPage({
   return (
     <main
       className={`garage-shell min-h-screen overflow-x-clip text-white ${
-        cartLines.length ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12" : "pb-12"
+        cartLines.length ? "pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12" : "pb-12"
       }`}
     >
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -2192,7 +2282,8 @@ export function MemberOrderPage({
           onHelp={() => setHelpOpen(true)}
           staff={staffOrder}
         />
-        {eventContext ? <div className="mt-4 rounded-lg border border-garage-amber/50 bg-garage-amber/10 p-4"><p className="font-bold text-white">{eventContext.preview ? "Preview · " : "Menu Event · "}{eventContext.title}</p><p className="mt-1 text-sm text-garage-dim">{eventContext.preview ? "Preview hanya untuk meninjau tampilan. Pengiriman order dinonaktifkan." : eventUnavailable ? "Event belum dibuka atau sudah berakhir. Checkout event tidak tersedia." : "Harga khusus event. Pesanan diproses kasir, bar, dan dapur Garage."}</p><Link href="/order" className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-garage-amber underline">Buka menu reguler</Link></div> : null}
+        {eventContext ? <div className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-garage-amber/35 bg-garage-bg-2 px-4 py-2.5"><div className="min-w-0"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><p className="text-sm font-semibold text-garage-amber">{eventContext.preview ? "Preview internal" : eventTimeUnavailable ? "Periode event selesai" : "Spesial event"}</p><p className="break-words text-base font-bold text-white">{eventContext.title}</p></div><p className="mt-1 text-sm leading-5 text-garage-dim">{eventContext.preview ? "Tinjau tampilan. Pengiriman order dinonaktifkan." : eventTimeUnavailable ? "Muat ulang untuk melihat menu dan harga yang berlaku saat ini." : mainEventMenu ? "Paket pilihan dan menu satuan, satu keranjang." : "Harga khusus event sesuai periode yang berlaku."}</p></div>{eventTimeUnavailable && mainEventMenu ? <button type="button" disabled={Boolean(uncertainSubmission)} onClick={() => window.location.reload()} className="min-h-11 shrink-0 rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white hover:bg-garage-bg-3 disabled:opacity-40">Muat ulang menu</button> : !mainEventMenu ? <Link href="/order" className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-garage-line-2 px-4 text-sm font-bold text-white hover:bg-garage-bg-3">Menu utama</Link> : null}</div> : null}
+        {uncertainSubmission ? <div className="mb-3">{recoveryPanel}</div> : null}
 
         {!voucherResult?.valid && qrContext.campaign === "landing_menu" ? (
           <div className="mt-4 flex items-center gap-3 rounded-md border border-garage-amber/40 bg-garage-amber/10 px-3.5 py-3">
@@ -2207,9 +2298,13 @@ export function MemberOrderPage({
         <div className="mt-2 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
             {!staffOrder && !qrContext.tableIssue ? (
-              <div className="mb-4 space-y-2" role="status">
+              <div className="mb-3 space-y-2" role="status">
                 {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
-                <FulfillmentBadge fulfillment={effectiveOrderType} tableLabel={qrContext.tableLabel} />
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-garage-line bg-garage-bg-1 p-2.5">
+                  <div className="flex min-w-[130px] flex-1 items-center gap-2.5"><span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-garage-line text-garage-amber">{effectiveOrderType === "takeaway" ? <ShoppingBag className="size-5" aria-hidden /> : effectiveOrderType === "delivery" ? <Bike className="size-5" aria-hidden /> : <UtensilsCrossed className="size-5" aria-hidden />}</span><div className="min-w-0"><p className="text-sm font-bold text-garage-fg">{effectiveOrderType === "takeaway" ? "Take away" : effectiveOrderType === "delivery" ? "Delivery" : qrContext.tableLabel}</p><p className="text-sm text-garage-dim">{effectiveOrderType === "takeaway" ? "Ambil di kasir" : effectiveOrderType === "delivery" ? "Diantar ke alamatmu" : "Diantar ke meja"}</p></div></div>
+                  {qrContext.chooseType && typeChosen && !lastOrder ? <button type="button" aria-label="Ubah tipe pesanan" onClick={() => setTypeChosen(false)} className="garage-press min-h-11 shrink-0 rounded-md border border-garage-line px-3 text-sm font-bold text-garage-fg hover:bg-garage-bg-3 focus-visible:outline-2 focus-visible:outline-garage-amber">Ubah</button> : null}
+                  {canChooseFulfillment ? <ChatLaunchButton compact label="Chat kasir (take away & delivery)" unread={chatUnread} onClick={() => setChatOpen(true)} /> : null}
+                </div>
                 {needsTable && tableHold ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-white/12 bg-garage-bg-1 px-3 py-2">
                     <p className="min-w-0 text-sm text-garage-dim">
@@ -2227,30 +2322,14 @@ export function MemberOrderPage({
                       <button
                         type="button"
                         onClick={() => setTablePickerRequested(true)}
-                        className="garage-press rounded-md border border-white/20 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
+                        className="garage-press min-h-11 rounded-md border border-white/20 px-3 text-sm font-bold text-white hover:bg-white/10"
                       >
                         Ganti meja
                       </button>
                     ) : null}
                   </div>
                 ) : null}
-                {qrContext.chooseType && typeChosen && !lastOrder ? (
-                  <button
-                    type="button"
-                    onClick={() => setTypeChosen(false)}
-                    className="garage-press px-1 text-sm font-bold text-garage-amber underline-offset-4 hover:underline"
-                  >
-                    Ubah tipe pesanan (Dine-in / Take away / Delivery)
-                  </button>
-                ) : null}
                 {qrContext.tableHint ? <p className="px-1 text-sm leading-6 text-garage-dim">{qrContext.tableHint}</p> : null}
-                {canChooseFulfillment ? (
-                  <ChatLaunchButton
-                    label="Chat kasir (take away & delivery)"
-                    unread={chatUnread}
-                    onClick={() => setChatOpen(true)}
-                  />
-                ) : null}
               </div>
             ) : null}
             {qrContext.tableIssue ? (
@@ -2478,7 +2557,7 @@ export function MemberOrderPage({
                       popular={bestSellerSet.has(item.id)}
                       cartQty={itemCartQty(item, cart)}
                       onAdd={(variantId, delta) => add(item.id, variantId, delta)}
-                      onOpen={() => setDetailItem(item)}
+                      onOpen={() => openMenuItem(item)}
                     />
                   ))}
                 </div>
@@ -2496,22 +2575,23 @@ export function MemberOrderPage({
                   </button>
                 </div>
               )
-            ) : menuGroups.length ? (
+            ) : menuGroups.length || bundleItems.length ? (
               <>
+                <EventBundleSection items={bundleItems} entries={eventContext?.entries ?? []} products={eventContext?.products ?? []} cart={cart} onChoose={openMenuItem} />
                 <HeroRail
                   id={HERO_SECTION_ID}
                   kind={hero.kind}
                   items={hero.items}
                   cart={cart}
                   onQuickAdd={quickAdd}
-                  onOpen={setDetailItem}
+                  onOpen={openMenuItem}
                 />
                 <MenuSectionList
                   groups={menuGroups}
                   cart={cart}
                   bestSellerSet={bestSellerSet}
                   onAdd={add}
-                  onOpen={setDetailItem}
+                  onOpen={openMenuItem}
                 />
                 <p className="mt-8 border-t border-garage-line pt-4 text-center text-sm text-garage-mute">
                   Pesanan dikonfirmasi kasir sebelum diproses dapur &amp; bar.
@@ -2524,8 +2604,8 @@ export function MemberOrderPage({
             )}
           </div>
 
-          <aside className="hidden lg:sticky lg:top-4 lg:block">
-            <div className="rounded-lg border border-garage-line bg-garage-bg-1 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.35)]">
+          <aside className="hidden lg:sticky lg:top-4 lg:block" aria-label="Ringkasan pesanan">
+            <div className="flex max-h-[calc(100dvh-2rem)] flex-col rounded-lg border border-garage-line-2 bg-garage-bg-2 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.25)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-lg font-bold text-white">Pesanan Anda</h2>
@@ -2538,7 +2618,7 @@ export function MemberOrderPage({
                 </span>
               </div>
 
-              <div className="mt-3 max-h-[40vh] overflow-y-auto pr-1">
+              <div className="mt-4 min-h-0 max-h-[38dvh] overflow-y-auto overscroll-contain pr-1">
                 <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
               </div>
 
@@ -2578,8 +2658,8 @@ export function MemberOrderPage({
         <button
           type="button"
           aria-label="Kembali ke atas"
-          className={`garage-press fixed right-4 z-30 flex size-11 cursor-pointer items-center justify-center rounded-md border border-garage-line-2 bg-garage-bg-1/95 text-white shadow-[0_12px_32px_rgba(0,0,0,0.4)] transition-colors hover:border-garage-amber/60 ${
-            cartLines.length ? "bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-6" : "bottom-5 lg:bottom-6"
+          className={`garage-press fixed right-4 z-30 hidden size-11 cursor-pointer items-center justify-center rounded-md border border-garage-line-2 bg-garage-bg-1/95 text-white shadow-[0_12px_32px_rgba(0,0,0,0.4)] transition-colors hover:border-garage-amber/60 lg:flex ${
+            cartLines.length ? "bottom-[calc(8rem+env(safe-area-inset-bottom))] lg:bottom-6" : "bottom-5 lg:bottom-6"
           }`}
           onClick={() =>
             window.scrollTo({

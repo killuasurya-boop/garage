@@ -252,6 +252,9 @@ Scroll direction:
 - Checkout reserves optional quota atomically and stores price/component/cost snapshots on normal orders. Durable request keys must reject payload mismatch.
 - Reject/void before acceptance restores event quota once. Accept event orders before split bill; accepted orders/refunds follow the existing stock pipeline.
 - Public responses must not expose HPP snapshots. Missing verified historical costs must be reported as unavailable.
+- Rokok (owner, Okt 2026) is allowed ONLY as a bundle component (`bundleOnlyProduct`, `event-menu-service.ts`), never as a standalone
+  event item; vape/nicotine always blocked. POS sells bundles via `Paket Event` (`pos/pos-event-bundles.tsx`, `GET /api/pos/event-menu`)
+  → `POST /api/orders/open-bill` with `eventId`/`eventItems` (idempotency key = checkout key) → Final Bayar.
 - Release and rollback checklist: `docs/event-menu-release.md`. Production deployment requires separate owner approval and verified backup.
 
 ## Verification

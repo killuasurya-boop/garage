@@ -80,7 +80,10 @@ describe("Master workbook v3.1", () => {
   it("rekonsiliasi POS dua arah tanpa membuat produk", () => {
     const plan = planMasterImport(data, seedState());
     const missing = plan.posReconciliation.excelNotInGarage.map((p) => p.name);
-    expect(missing).toEqual(expect.arrayContaining(["Strawberry Tea (Cold)", "Red Velvet (Cold)", "Taro (Hot)"]));
+    // Menu Event GARAGE (migrasi 0148) menambah Red Velvet, Taro, Strawberry Tea → kini cocok dengan register POS.
+    expect(missing).not.toEqual(expect.arrayContaining(["Strawberry Tea (Cold)"]));
+    expect(missing).not.toEqual(expect.arrayContaining(["Red Velvet (Cold)"]));
+    expect(missing).not.toEqual(expect.arrayContaining(["Taro (Hot)"]));
     const extra = plan.posReconciliation.garageNotInExcel.map((m) => m.name);
     expect(extra).toEqual(expect.arrayContaining(["Choco Kiss", "Dark Charm", "Mineral"]));
     expect(plan.posReconciliation.priceDifferences).toEqual([]);

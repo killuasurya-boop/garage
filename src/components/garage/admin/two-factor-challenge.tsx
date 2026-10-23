@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginFrame } from "@/components/garage/login/garage-login";
 import { authClient } from "@/lib/auth-client";
+import { twoFactorChallengeError } from "@/lib/two-factor-challenge-error";
 
 type Mode = "totp" | "backup";
 
@@ -16,8 +17,11 @@ export function TwoFactorChallenge({ next }: { next: string }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [restartRequired, setRestartRequired] = useState(false);
+  const loginUrl = `/login?next=${encodeURIComponent(next)}`;
 
   async function verify() {
+    if (busy || restartRequired) return;
     if (mode === "totp" && code.length !== 6) {
       setError("Kode harus 6 digit.");
       return;
@@ -35,11 +39,9 @@ export function TwoFactorChallenge({ next }: { next: string }) {
           : await authClient.twoFactor.verifyBackupCode({ code });
 
       if (result.error) {
-        setError(
-          /invalid|incorrect|expired/i.test(result.error.message ?? "")
-            ? "Kode salah atau sudah kedaluwarsa. Coba lagi."
-            : result.error.message ?? "Kode salah, coba lagi.",
-        );
+        const recovery = twoFactorChallengeError(result.error, mode);
+        setError(recovery.message);
+        setRestartRequired(recovery.restartRequired);
         setBusy(false);
         return;
       }
@@ -71,7 +73,7 @@ export function TwoFactorChallenge({ next }: { next: string }) {
           : "Masukkan salah satu backup code yang Anda simpan saat setup. Tiap kode hanya bisa dipakai sekali."
       }
       footer={
-        <Link href="/login" className="inline-flex min-h-11 items-center gap-1.5 hover:text-white">
+        <Link href={loginUrl} className="inline-flex min-h-11 items-center gap-1.5 hover:text-white">
           <ArrowLeft className="size-3.5" aria-hidden /> Kembali ke login
         </Link>
       }
@@ -119,9 +121,11 @@ export function TwoFactorChallenge({ next }: { next: string }) {
           </p>
         ) : null}
 
+        {restartRequired && <Link href={loginUrl} className="flex min-h-12 items-center justify-center rounded-md bg-[#d11a2a] px-4 font-semibold text-white">Login ulang &amp; buat sesi baru</Link>}
+
         <Button
           onClick={verify}
-          disabled={busy || !code}
+          disabled={busy || restartRequired || !code}
           className="garage-press h-12 w-full rounded-md bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a] active:bg-[#a3141f]"
         >
           {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ShieldCheck className="mr-2 size-4" />}

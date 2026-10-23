@@ -37,7 +37,7 @@ jobs:
         run: |
           python3 - <<'PYTHON'
           import json, os, time, urllib.request
-          required = {".github/workflows/ci.yml", ".github/workflows/wms-postgres-concurrency.yml"}
+          required = {".github/workflows/ci.yml", ".github/workflows/wms-postgres-concurrency.yml", ".github/workflows/wms-browser.yml"}
           endpoint = f"https://api.github.com/repos/{os.environ['GH_REPO']}/actions/runs?head_sha={os.environ['GH_SHA']}&event=push&per_page=100"
           for attempt in range(90):
               request = urllib.request.Request(endpoint, headers={
@@ -56,7 +56,7 @@ jobs:
                   if run["status"] == "completed" and run["conclusion"] != "success":
                       raise SystemExit(f"Release blocked: {path} concluded {run['conclusion']}")
               if required <= latest.keys() and all(latest[p]["status"] == "completed" and latest[p]["conclusion"] == "success" for p in required):
-                  print("Both required workflows passed for exact release commit")
+                  print("All required workflows passed for exact release commit")
                   break
               print(f"Waiting for exact-commit verification ({attempt + 1}/90)", flush=True)
               time.sleep(10)
@@ -65,6 +65,14 @@ jobs:
           PYTHON
 
       - uses: actions/checkout@v4
+
+      - name: Validasi lokasi dan staf produksi sebelum perubahan server
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$VPS_USER@$VPS_HOST" "cd $APP_DIR && docker compose --env-file .env.production exec -T db sh -c 'exec psql -Xq -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'" < scripts/wms-readiness-preflight.sql
 
       - uses: docker/setup-buildx-action@v3
 

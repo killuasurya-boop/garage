@@ -26,14 +26,16 @@ Risiko utama: salah mengartikan HPP/Min Stok/kemasan, duplikasi BAR9xx, lebih-te
 
 ## Checklist pengujian
 
-- [ ] Parse 76 baris persis, harga berkoma, stok kosong tetap unknown.
-- [ ] Pemetaan BAR9NN→BAR0NN, satuan berbeda/kemasan ambigu, konflik harga.
-- [ ] Impor idempoten, RBAC Owner, POS hash sebelum/sesudah.
-- [ ] Coverage resep hanya hubungan existing; tidak menebak BOM/HPP.
-- [ ] Readiness lokasi/akses scope outlet dan peran backend.
-- [ ] PostgreSQL multi-koneksi: reservasi bersaing, idempotency, saldo/rollback.
-- [ ] PO dibuat/approved eksplisit, receipt parsial/lebih/replay dan biaya tunggal.
+- [x] Parse 76 baris persis, harga berkoma, stok kosong tetap unknown.
+- [x] Pemetaan BAR9NN→BAR0NN, satuan berbeda/kemasan ambigu, konflik harga.
+- [x] Impor idempoten, RBAC Owner, POS hash sebelum/sesudah.
+- [x] Coverage resep hanya hubungan existing; tidak menebak BOM/HPP.
+- [x] Readiness lokasi/akses scope outlet dan peran backend.
+- [x] PostgreSQL multi-koneksi: reservasi bersaing, idempotency, saldo/rollback.
+- [x] PO dibuat/approved eksplisit, receipt parsial/lebih/replay dan biaya tunggal.
 - [ ] db:generate, typecheck, lint, tests, build.
 - [ ] UI desktop1366 dan mobile390 tanpa teks/aksi terpotong.
 
 Bukti hasil diisi setelah pelaksanaan, bukan asumsi audit awal. Lingkungan saat audit tidak mempunyai sesi manajemen produksi; tidak ada impor, perubahan akses atau transaksi produksi dilakukan.
+
+Hasil CI dan batas kesiapan operasional: [audit operasional](../WMS-OPERATIONAL-AUDIT-2026-10-23.md). Build final dan UAT revisi ini dicatat sebagai gate terpisah.

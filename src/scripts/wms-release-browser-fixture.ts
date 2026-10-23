@@ -24,6 +24,14 @@ async function main() {
     await db.insert(schema.account).values({id:randomUUID(),userId:id,accountId:id,providerId:"credential",password:await hashPassword(password)});
     await db.insert(schema.staffProfiles).values({userId:id,outletId:outlet.id,role,workstation,position});
   }
+  let blockedMissingConfiguration=false;
+  try { await pool.exec(fs.readFileSync("scripts/wms-readiness-preflight.sql","utf8")); }
+  catch(error) {
+    await pool.exec("ROLLBACK");
+    if (!String(error).includes("WMS release blocked")) throw error;
+    blockedMissingConfiguration=true;
+  }
+  if(!blockedMissingConfiguration) throw new Error("Preflight must block an outlet without mappings or assignments.");
   const locations=await db.insert(schema.wmsWarehouse).values([
     {code:"UAT-MAIN-BAR",name:"UAT Gudang Bar",type:"main",area:"bar"},
     {code:"UAT-MAIN-DAPUR",name:"UAT Gudang Dapur",type:"main",area:"dapur"},

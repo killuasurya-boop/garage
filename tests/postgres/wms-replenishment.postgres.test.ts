@@ -112,7 +112,22 @@ suite("REAL PostgreSQL multi-connection WMS races (requires explicit loopback te
   afterAll(async () => {
     if (pool) await pool.end();
     if (admin) {
-      try { if (databaseName) await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`); }
+      try {
+        if (databaseName) {
+          // Pool.end can finish just before PostgreSQL observes every socket close.
+          // Wait for orderly disconnect; FORCE would emit unhandled client errors.
+          let connections = 0;
+          const deadline = Date.now() + 5000;
+          do {
+            const result = await admin.query<{ count: number }>("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = $1", [databaseName]);
+            connections = result.rows[0].count;
+            if (!connections) break;
+            await new Promise(resolve => setTimeout(resolve, 25));
+          } while (Date.now() < deadline);
+          expect(connections, "all test database connections must drain before cleanup").toBe(0);
+          await admin.query(`DROP DATABASE "${databaseName}"`);
+        }
+      }
       finally { await admin.end(); }
     }
   });

@@ -69,7 +69,7 @@ export function MaterialReferencePanel() {
     finally { setBusy(false); }
   }
   function changeConfirmation(sku: string, patch: Partial<ConfirmationInput>) {
-    setConfirmations(v => ({ ...v, [sku]: { enabled: false, unit: "", quantity: "", ...v[sku], ...patch } }));
+    setConfirmations(v => ({ ...v, [sku]: { ...(v[sku] ?? { enabled: false, unit: "", quantity: "" }), ...patch } }));
     setNeedsPreview(true); setAcknowledged(false); setSaved(false);
   }
   const plan: MaterialReferencePlan | undefined = result?.plan;

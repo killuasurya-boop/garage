@@ -1037,6 +1037,13 @@
       "when": 1792702942707,
       "tag": "0147_closing_replenishment",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1792733373918,
+      "tag": "0148_shortage_purchase_links",
+      "breakpoints": true
     }
   ]
 }

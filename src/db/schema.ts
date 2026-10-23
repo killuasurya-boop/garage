@@ -4151,3 +4151,27 @@ export const wmsClosingMutation = pgTable("wms_closing_mutation", {
   id: uuid("id").primaryKey().defaultRandom(), outletId: uuid("outlet_id").notNull().references(() => outlets.id), key: text("key").notNull(),
   payloadHash: text("payload_hash").notNull(), response: jsonb("response").$type<unknown>().notNull(), actorId: text("actor_id").notNull().references(() => user.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => ({ replay: uniqueIndex("wms_closing_mutation_replay").on(t.outletId,t.key) }));
+
+// Explicit purchasing documents; Goods Receipt remains the sole stock/cash posting.
+export const wmsPurchaseOrder = pgTable("wms_purchase_order", {
+  id: uuid("id").primaryKey().defaultRandom(), doc: text("doc").notNull().unique(),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+  supplierId: uuid("supplier_id").notNull().references(() => wmsSupplier.id),
+  status: text("status").notNull().default("draft"), note: text("note").notNull().default(""),
+  createdBy: text("created_by").notNull().references(() => user.id), approvedBy: text("approved_by").references(() => user.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => ({status:check("wms_purchase_order_status_check",sql`${t.status} in ('draft','approved','cancelled')`)}));
+export const wmsPurchaseOrderItem = pgTable("wms_purchase_order_item", {
+  id: uuid("id").primaryKey().defaultRandom(), orderId: uuid("order_id").notNull().references(() => wmsPurchaseOrder.id),
+  shortageId: uuid("shortage_id").notNull().unique().references(() => wmsClosingShortage.id),
+  productId: uuid("product_id").notNull().references(() => wmsProduct.id),
+  qty: wmsNum("qty").notNull(), unit: text("unit").notNull(), unitPrice: wmsNum("unit_price").notNull(),
+}, t => ({amounts:check("wms_purchase_item_amounts_check",sql`${t.qty} > 0 and ${t.unitPrice} > 0`)}));
+export const wmsPurchaseReceipt = pgTable("wms_purchase_receipt", {
+  receivingId: uuid("receiving_id").primaryKey().references(() => wmsReceiving.id),
+  orderId: uuid("order_id").notNull().references(() => wmsPurchaseOrder.id),
+});
+export const wmsPurchaseReceiptItem = pgTable("wms_purchase_receipt_item", {
+  receivingItemId: uuid("receiving_item_id").primaryKey().references(() => wmsReceivingItem.id),
+  orderItemId: uuid("order_item_id").notNull().references(() => wmsPurchaseOrderItem.id),
+});

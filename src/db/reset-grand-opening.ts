@@ -80,6 +80,7 @@ export const KEEP_TABLES = [
 
 /** Transaksi & log uji coba — dihapus. */
 export const CLEAR_TABLES = [
+  "wms_purchase_receipt_item", "wms_purchase_receipt", "wms_purchase_order_item", "wms_purchase_order",
   // order & produksi
   "orders", "order_items", "payments", "payment_settlements", "kitchen_tickets",
   "production_ticket_items", "production_batches", "production_batch_allocations",

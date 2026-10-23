@@ -7,3 +7,23 @@
 
 .contextDetails>summary{padding:14px 18px;cursor:pointer;min-height:44px;font-size:14px}.contextDetails>summary>strong,.contextDetails>summary>span{display:block}.contextDetails>summary>span{font-size:13px;margin-top:3px}.contextDetails>summary:focus-visible{outline:3px solid var(--rep-focus);outline-offset:3px}.contextDetails[open]>summary{border-bottom:1px solid var(--rep-line)}
 @media(max-width:767px){.stickyActions{padding:10px;gap:8px}.stickyActions>div:first-child{font-size:12px}.stickyActions>div:first-child>p+p{display:none}.stickyActions>.actions{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.stickyActions>.actions>button{font-size:13px;gap:5px;padding:8px 6px}.stickyActions>.actions>button>svg{display:none}.contextDetails>summary{padding:12px 14px}.notice{font-size:13px}.pageHeader p{font-size:14px}}
+
+/* Existing categories become work groups; disclosure never removes draft values. */
+.materialGroup{border-top:1px solid var(--rep-line);min-width:0}
+.materialGroup>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:64px;padding:14px 18px;background:#f1f2f5;color:var(--rep-ink);cursor:pointer;list-style:none;touch-action:manipulation}
+.materialGroup>summary::-webkit-details-marker{display:none}
+.materialGroup>summary>div{display:grid;gap:3px;min-width:0}
+.materialGroup>summary strong{font-size:16px;font-weight:750;overflow-wrap:anywhere}
+.materialGroup>summary span{font-size:13px;color:var(--rep-muted)}
+.materialGroup>summary>svg{flex-shrink:0;transition:transform .15s ease}
+.materialGroup[open]>summary>svg{transform:rotate(180deg)}
+.materialGroup>summary:hover{background:#e9ebef}
+.materialGroup>summary:focus-visible{outline:3px solid var(--rep-focus);outline-offset:-3px}
+.materialGroup .material:last-child{border-bottom:0}
+.root [aria-invalid=true]{border-color:#a71430;background:#fff5f6}
+@media(max-width:767px){.materialGroup>summary{padding:14px;min-height:68px}.materialGroup>summary span{font-size:13px}}
+
+.readiness{display:grid;gap:12px;border-top:1px solid var(--rep-line);border-bottom:1px solid var(--rep-line);padding:18px 0}
+.readinessIssues{margin:0;padding-left:20px;display:grid;gap:12px;font-size:14px}
+.readinessIssues li>strong,.readinessIssues li>span{display:block}
+@media(max-width:767px){.readinessIssues{font-size:16px}}

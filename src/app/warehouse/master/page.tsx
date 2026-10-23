@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Tags, Trash2, Truck } from "lucide-react";
 
+import { MaterialReferencePanel } from "@/components/wms/material-reference-panel";
 import { WmsMasterImport } from "@/components/wms/wms-master-import";
 import { garageApi } from "@/lib/api-client";
 
@@ -41,9 +42,11 @@ export default function WmsMasterPage() {
     <div className="min-w-0 space-y-5">
       <div>
         <h1 className="text-[22px] font-extrabold text-[#111111]">Kelola Master</h1>
-        <p className="text-[13px] text-[#6B7280]">Atur kategori bahan (area Bar/Dapur), supplier, impor master Excel & persetujuan resep draft.</p>
+        <p className="text-[13px] text-[#6B7280]">Atur kategori bahan (area Bar/Dapur), supplier, acuan CSV, impor master Excel & persetujuan resep draft.</p>
       </div>
       {msg && <p className="text-[12.5px] font-semibold text-[#16A34A]">{msg}</p>}
+
+      <MaterialReferencePanel />
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <CategorySection cats={cats} input={input} reload={loadCats} onFlash={flash} />

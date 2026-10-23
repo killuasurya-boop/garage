@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
@@ -31,7 +31,8 @@ import { escapeHtml } from "@/lib/wms-print";
 import { WMS_STATUS_COLOR, type WmsProductRow, type WmsWarehouse } from "@/lib/wms-types";
 
 type WmsCategory = { id: string; name: string; area: "bar" | "dapur" | "umum" };
-const AREA_LABEL: Record<string, string> = { bar: "Bar", dapur: "Dapur", umum: "Umum" };
+const AREA_LABEL: Record<string, string> = { bar: "Bar", dapur: "Dapur", umum: "Umum", unmapped: "Belum terpetakan" };
+const AREA_ORDER = ["bar", "dapur", "umum", "unmapped"] as const;
 
 /** Prefix SKU dari nama kategori (3 huruf/angka pertama). */
 function catPrefix(name: string): string {
@@ -83,6 +84,7 @@ export default function WmsInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
+  const [area, setArea] = useState("all");
   const [selected, setSelected] = useState<Record<string, true>>({});
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<WmsProductRow | null>(null);
@@ -203,18 +205,30 @@ export default function WmsInventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived, wh]);
 
-  const categories = useMemo(() => {
-    // Kategori master + kategori lain yang muncul di data.
-    const base = cats.map((c) => c.name);
-    const fromData = rows.map((r) => r.category);
-    return ["all", ...Array.from(new Set([...base, ...fromData]))];
-  }, [rows, cats]);
+  const categoryAreas = useMemo(() => new Map(cats.map(c => [c.name, c.area])), [cats]);
+  const categoryGroups = useMemo(() => {
+    const names = [...new Set([...cats.map(c => c.name), ...rows.map(r => r.category)])];
+    return AREA_ORDER.map(areaKey => ({
+      area: areaKey,
+      categories: names.filter(name => (categoryAreas.get(name) ?? "unmapped") === areaKey)
+        .sort((a, b) => a.localeCompare(b, "id-ID", { numeric: true })),
+    })).filter(group => group.categories.length > 0);
+  }, [rows, cats, categoryAreas]);
 
   const needle = q.trim().toLowerCase();
   const filtered = rows.filter((r) => {
+    if (area !== "all" && (categoryAreas.get(r.category) ?? "unmapped") !== area) return false;
     if (cat !== "all" && r.category !== cat) return false;
     if (needle && !`${r.sku} ${r.name} ${r.category}`.toLowerCase().includes(needle)) return false;
     return true;
+  });
+  const groupedRows = AREA_ORDER.flatMap(areaKey => {
+    const areaRows = filtered.filter(r => (categoryAreas.get(r.category) ?? "unmapped") === areaKey);
+    const names = [...new Set(areaRows.map(r => r.category))].sort((a, b) => a.localeCompare(b, "id-ID", { numeric: true }));
+    return names.map((name, index) => ({
+      key: `${areaKey}:${name}`, area: areaKey, category: name, firstInArea: index === 0, areaCount: areaRows.length,
+      rows: areaRows.filter(r => r.category === name).sort((a, b) => a.sku.localeCompare(b.sku, "id-ID", { numeric: true }) || a.name.localeCompare(b.name, "id-ID")),
+    }));
   });
   const selectedCount = Object.keys(selected).length;
 
@@ -321,34 +335,36 @@ export default function WmsInventoryPage() {
         />
       )}
 
-      {/* Filter bar */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[#E8E8E8] bg-white/95 p-2 backdrop-blur">
-        <div className="relative min-w-[180px] flex-1">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#9CA3AF]" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Cari SKU / nama…"
-            className="h-9 w-full rounded-md border border-[#E8E8E8] bg-white pl-8 pr-3 text-[13px] text-[#111111] outline-none focus:border-[#C8102E]"
-          />
-        </div>
-        <div className="flex gap-1.5 overflow-x-auto">
-          {categories.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCat(c)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
-                cat === c
-                  ? "border-[#C8102E] bg-[#FDF1F3] text-[#C8102E]"
-                  : "border-[#E8E8E8] bg-white text-[#6B7280] hover:bg-[#F8F9FB]"
-              }`}
-            >
-              {c === "all" ? "Semua kategori" : c}
+      {/* Filters use actual category-area metadata; no master values are changed. */}
+      <section aria-label="Filter bahan gudang" className="sticky top-0 z-10 space-y-3 rounded-lg border border-[#E8E8E8] bg-white p-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Area bahan">
+          {["all", ...categoryGroups.map(group => group.area)].map(areaKey => (
+            <button key={areaKey} type="button" aria-pressed={area === areaKey}
+              onClick={() => { setArea(areaKey); setCat("all"); }}
+              className={`min-h-11 rounded-md border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8102E] ${area === areaKey ? "border-[#C8102E] bg-[#FDF1F3] text-[#A50D25]" : "border-[#D4D7DD] bg-white text-[#454B56] hover:bg-[#F8F9FB]"}`}>
+              {areaKey === "all" ? "Semua area" : AREA_LABEL[areaKey]}
+              <span className="ml-2 font-mono text-xs">{areaKey === "all" ? rows.length : rows.filter(r => (categoryAreas.get(r.category) ?? "unmapped") === areaKey).length}</span>
             </button>
           ))}
         </div>
-      </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-0 basis-full space-y-1 text-sm font-semibold text-[#454B56] sm:flex-1 sm:basis-auto">
+            <span className="block">Cari bahan</span>
+            <span className="relative block"><Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#626977]" />
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Nama, kode bahan, atau kategori"
+                className="min-h-11 w-full rounded-md border border-[#BFC3CC] bg-white pl-9 pr-3 text-base text-[#111111] outline-none focus:border-[#C8102E] sm:text-sm" />
+            </span>
+          </label>
+          <label className="min-w-0 basis-full space-y-1 text-sm font-semibold text-[#454B56] sm:w-72 sm:basis-auto">
+            <span className="block">Kategori</span>
+            <select value={cat} onChange={e => setCat(e.target.value)} className="min-h-11 w-full rounded-md border border-[#BFC3CC] bg-white px-3 text-base text-[#111111] outline-none focus:border-[#C8102E] sm:text-sm">
+              <option value="all">Semua kategori</option>
+              {categoryGroups.filter(group => area === "all" || group.area === area).map(group => <optgroup key={group.area} label={AREA_LABEL[group.area]}>{group.categories.map(name => <option value={name} key={name}>{name || "Tanpa kategori"}</option>)}</optgroup>)}
+            </select>
+          </label>
+        </div>
+        <p aria-live="polite" className="text-xs text-[#525866]">{filtered.length} bahan ditampilkan · dikelompokkan per area dan kategori, diurutkan menurut kode bahan.</p>
+      </section>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-[#E8E8E8] bg-white">
@@ -375,11 +391,14 @@ export default function WmsInventoryPage() {
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-3 py-10 text-center text-[#6B7280]">
-                  Tidak ada produk. Tambahkan produk untuk mulai.
+                  {rows.length ? "Tidak ada bahan yang cocok. Ubah area, kategori, atau pencarian." : "Belum ada bahan pada daftar ini."}
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => {
+              groupedRows.map(group => <Fragment key={group.key}>
+                {group.firstInArea && <tr className="bg-[#2F3136] text-white"><th scope="colgroup" colSpan={10} className="px-3 py-3 text-left text-base font-bold">{AREA_LABEL[group.area]}<span className="ml-3 text-sm font-normal text-white/90">{group.areaCount} bahan</span></th></tr>}
+                <tr className="bg-[#F1F2F5]"><th scope="colgroup" colSpan={10} className="px-3 py-2.5 text-left text-sm font-semibold text-[#303640]">{group.category || "Tanpa kategori"}<span className="ml-3 font-normal text-[#525866]">{group.rows.length} bahan</span></th></tr>
+                {group.rows.map((r) => {
                 const sc = WMS_STATUS_COLOR[r.status];
                 const pct = r.minStock > 0 ? Math.min(100, Math.round((r.onHand / (r.minStock * 2)) * 100)) : 100;
                 return (
@@ -500,7 +519,8 @@ export default function WmsInventoryPage() {
                     </td>
                   </tr>
                 );
-              })
+              })}
+              </Fragment>)
             )}
           </tbody>
         </table>

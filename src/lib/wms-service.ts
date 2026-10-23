@@ -12,6 +12,7 @@ import {
   outlets,
   wmsBatch,
   wmsClosingReservation,
+  wmsPurchaseReceipt,
   wmsBomItem,
   wmsCategory,
   wmsChecklistRun,
@@ -1536,6 +1537,9 @@ export async function updateReceiving(
 ) {
   const db = getDb();
   const [rec] = await db.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).limit(1);
+
+  const [purchaseLink] = await db.select().from(wmsPurchaseReceipt).where(eq(wmsPurchaseReceipt.receivingId,id));
+  if (purchaseLink) throw new Error("Penerimaan tertaut PO tidak dapat diedit dari formulir bebas. Batalkan draft dari Pembelian lalu buat ulang.");
   if (!rec) return null;
   if (rec.status !== "draft" && rec.status !== "pending_approval") {
     throw new Error("Hanya draft yang bisa diedit.");
@@ -1659,6 +1663,8 @@ export async function completeReceiving(
     await assertFinanceDayOpen(purchaseDateFor(String(pre.receivedDate)));
   }
   return runInTx(async (tx) => {
+    const { validatePurchaseReceipt } = await import("@/lib/wms-purchasing");
+    const linkedPurchaseOrder = await validatePurchaseReceipt(tx, id, userId);
     const [rec] = await tx
       .select()
       .from(wmsReceiving)
@@ -1673,6 +1679,7 @@ export async function completeReceiving(
     }
     const whId = rec.warehouseId;
     if (!whId) throw new Error("Receiving tanpa warehouse tidak bisa diselesaikan.");
+
 
     const items = await tx
       .select({
@@ -1807,7 +1814,7 @@ export async function completeReceiving(
     const purchaseDate = rec.receivedDate ? purchaseDateFor(String(rec.receivedDate)) : new Date();
     await recordCashPurchases(tx, {
       sourceDoc: `WMS:${rec.doc}`,
-      outletId: outlet?.id ?? null,
+      outletId: linkedPurchaseOrder?.outletId ?? outlet?.id ?? null,
       paymentMethod: rec.paymentMethod,
       date: purchaseDate,
       description: `Belanja gudang ${rec.doc}${rec.poNumber?.trim() ? ` / ${rec.poNumber.trim()}` : ""}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
@@ -1849,6 +1856,8 @@ export async function cancelReceiving(
     for (const row of rows) await assertFinanceDayOpen(new Date(row.expenseDate));
   }
   return runInTx(async (tx) => {
+    const { validatePurchaseReceipt } = await import("@/lib/wms-purchasing");
+    await validatePurchaseReceipt(tx, id, input.userId);
     const [rec] = await tx.select().from(wmsReceiving).where(eq(wmsReceiving.id, id)).for("update").limit(1);
     if (!rec) return null;
     if (rec.status === "cancelled") throw new Error("Penerimaan sudah dibatalkan.");

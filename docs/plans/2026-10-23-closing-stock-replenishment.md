@@ -2,7 +2,7 @@
 
 ## Audit dan batas
 
-Basis kode: main `2288176269eacd2271b8cd6012c5c50fc847448d` ditambah integrasi W2 PR63 `b60a045b929551dcee843e94cc6e2c2815a90a71`. PR63 belum merged; branch baru harus ditinjau terhadap perubahan main berikutnya. Kondisi deployed/imported tidak dibuktikan oleh audit source.
+Basis kode: main `2288176269eacd2271b8cd6012c5c50fc847448d` ditambah integrasi W2 PR63 `b60a045b929551dcee843e94cc6e2c2815a90a71`. Pada saat audit awal, PR63 belum merged; branch baru harus ditinjau terhadap perubahan main berikutnya. Kondisi deployed/imported tidak dibuktikan oleh audit source.
 
 Dipakai ulang: master `wms_product`, kategori/area, `wms_warehouse`, `wms_batch`, `wms_stock_movement`, `wms_warehouse_stock`, auth staff_profiles, audit, receiving supplier dan report engine. Gap: belum ada observasi closing per tanggal/divisi, reservasi, dokumen penerimaan internal dan shortage persisten. Internal Order lama langsung memindahkan stok. UI opname lama memiliki risiko save/finalize; receiving lama berpotensi membuat draft lagi setelah completion gagal. Perbaikan jalur lama yang tidak terkait tidak dijalankan diam-diam.
 
@@ -56,15 +56,17 @@ Risiko tertinggi: duplikasi replay, alokasi melebihi saldo saat paralel, expiry 
 
 ## Checklist bukti pengujian
 
-- [ ] Bar/Dapur terpisah; staff salahscope ditolak backend.
-- [ ] Draft/submit/no-request tidak mengubah ledger atau pembayaran.
-- [ ] Incoming/rekomendasi, cutoff dan neededDate benar pada batas WIB.
-- [ ] Reserved mengurangi available, bukan onHand; konflik/retry aman.
-- [ ] Dispatch/receive parsial/damaged mempertahankan qty, biaya, batch, expiry.
-- [ ] Shortage/approval tidak membuat stok atau kas.
-- [ ] Baseline POS SHA-256 identik; order/payment existing tidak berubah.
-- [ ] Report/CSV/XLSX/PDF memakai seluruh hasilfilter dan identitas Garage Coffee.
-- [ ] DDL147 strict, chain0145→0146→0147 konsisten; generate berikutnya nochange.
-- [ ] TypeScript/lint/build dan UAT1366×900/390×844 lulus atau keterbatasan dicatat.
+- [x] Bar/Dapur terpisah; staff salahscope ditolak backend.
+- [x] Draft/submit/no-request tidak mengubah ledger atau pembayaran.
+- [x] Incoming/rekomendasi, cutoff dan neededDate benar pada batas WIB.
+- [x] Reserved mengurangi available, bukan onHand; konflik/retry aman.
+- [x] Dispatch/receive parsial/damaged mempertahankan qty, biaya, batch, expiry.
+- [x] Shortage/approval tidak membuat stok atau kas.
+- [x] Baseline POS SHA-256 identik; order/payment existing tidak berubah.
+- [x] Report/CSV/XLSX/PDF memakai seluruh hasilfilter dan identitas Garage Coffee.
+- [x] DDL147 strict, chain0145→0146→0147 konsisten; generate berikutnya nochange.
+- [x] TypeScript/lint/build dan UAT1366×900/390×844 lulus atau keterbatasan dicatat.
 
 Bukti aktual setelah development dicatat terpisah; checklist ini spesifikasi, bukan klaim tes sudah lulus.
+
+Hasil aktual: lihat `docs/WMS-CLOSING-VALIDATION-2026-10-23.md`. Pengujian memakai DB sementara; status merge/deployment harus dibaca dari catatan validasi terbaru, bukan asumsi audit awal.

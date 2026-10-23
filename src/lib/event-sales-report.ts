@@ -136,7 +136,7 @@ export function eventSalesRange(from: string, to: string) {
 export async function getEventSalesReport(input: { eventId: string; outletId: string; from: string; to: string }) {
   const { and, eq, gte, inArray, lt } = await import("drizzle-orm");
   const { getDb } = await import("@/db");
-  const { events, orderItems, orders, payments } = await import("@/db/schema");
+  const { eventMenuEntries, events, orderItems, orders, payments } = await import("@/db/schema");
   const db = getDb();
   const { start, end } = eventSalesRange(input.from, input.to);
   const [event] = await db.select().from(events).where(eq(events.id, input.eventId)).limit(1);
@@ -155,9 +155,13 @@ export async function getEventSalesReport(input: { eventId: string; outletId: st
     db.select({ orderId: payments.orderId, method: payments.method, amount: payments.amount, status: payments.status, metadata: payments.metadata })
       .from(payments).where(inArray(payments.orderId, ids)),
   ]) : [[], []];
+  // Pemakaian kuota per menu/paket (seluruh event, bukan hanya rentang) — sisa kuota untuk kasir/owner.
+  const quotaRows = await db.select({ id: eventMenuEntries.id, name: eventMenuEntries.name, kind: eventMenuEntries.kind, status: eventMenuEntries.status, quota: eventMenuEntries.quota, used: eventMenuEntries.usedQuantity })
+    .from(eventMenuEntries).where(eq(eventMenuEntries.eventId, input.eventId));
   return {
     event: { id: event.id, title: event.title, slug: event.slug }, range: { from: input.from, to: input.to },
     ...aggregateEventSales({ orders: orderRows, items: itemRows, payments: paymentRows }),
+    quotas: quotaRows.filter((row) => row.status !== "archived").map((row) => ({ ...row, remaining: row.quota === null ? null : Math.max(0, row.quota - row.used) })),
   };
 }
 

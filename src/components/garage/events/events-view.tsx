@@ -105,7 +105,7 @@ export function EventsView({ canExport }: { canExport: boolean }) {
               <EventSettingsPanel key={selected.id} event={selected} onChanged={replaceEvent} />
             </TabsContent>
             <TabsContent value="menu"><div className="grid gap-5"><EventMainMenuPanel key={`main-${selected.id}`} event={selected} /><EventMenuPanel key={selected.id} event={selected} /></div></TabsContent>
-            <TabsContent value="sales"><EventSalesPanel key={selected.id} eventId={selected.id} canExport={canExport} /></TabsContent>
+            <TabsContent value="sales"><EventSalesPanel key={selected.id} eventId={selected.id} startsAt={selected.startsAt} endsAt={selected.endsAt} canExport={canExport} /></TabsContent>
             {canExport ? (
               <TabsContent value="log">
                 <EventActivityPanel eventId={selected.id} />

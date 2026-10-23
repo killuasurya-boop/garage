@@ -28,7 +28,7 @@ describe("POS open bill with event bundles", () => {
     const response = await POST(request({ eventId, eventItems: [{ entryId, qty: 2, selections }] }, "pos-bundle-fixed-key"));
     expect(response.status).toBe(201);
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
-      eventId, eventItems: [{ entryId, qty: 2, selections }], items: [], clientRequestKey: "pos-bundle-fixed-key", staffOrder: true, allowHiddenItems: true,
+      eventId, eventItems: [{ entryId, qty: 2, selections }], items: [], clientRequestKey: "pos-bundle-fixed-key", staffOrder: true, allowHiddenItems: true, skipCashierNotify: true,
     }));
     expect(mocks.accept).toHaveBeenCalledWith("order-1", { action: "accept" }, expect.anything(), { openBill: true });
   });

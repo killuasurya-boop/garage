@@ -12,6 +12,7 @@ import type { AdminEvent } from "@/lib/event-service";
 import type { EventMenuEntry, EventMenuProduct } from "@/lib/event-menu-types";
 import { toZonedInputValue } from "@/lib/event-format";
 import { EventBundleVisual } from "@/components/garage/events/event-bundle-visual";
+import { randomId } from "@/lib/random-id";
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 const control = "min-h-11 w-full rounded-md border border-garage-line bg-garage-bg-2 px-3 text-base text-garage-fg";
@@ -22,11 +23,7 @@ function editable(entry: EventMenuEntry): EntryForm {
   return { kind: entry.kind, name: entry.name, description: entry.description, menuItemId: entry.menuItemId, variantId: entry.variantId, price: entry.price, status: entry.status, startsAt: entry.startsAt, endsAt: entry.endsAt, quota: entry.quota, sortOrder: entry.sortOrder, groups: entry.groups, imageUrl: entry.imageUrl };
 }
 
-/** randomUUID hanya ada di origin aman (https/localhost); fallback untuk LAN http. */
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
+const newId = () => randomId("grp");
 
 async function uploadImage(path: string, file: File) {
   const body = new FormData();

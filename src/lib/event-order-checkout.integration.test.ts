@@ -226,6 +226,33 @@ describe("checkout menu event memakai order Garage existing", () => {
     expect(entry.usedQuantity).toBe(1);
   });
 
+  it("pisah bill paket harus satu paket utuh", async () => {
+    const { createCustomerOrder, updateCustomerOrderStatus, splitCustomerOrder } = await import("@/lib/garage-service");
+    const order = await createCustomerOrder({ ...input("bundle-split-whole-0001"), orderType: "dine-in", tableLabel: "Meja 09", eventItems: bundleCart(), items: [{ itemId: "itm-food", variantId: "reg", qty: 1 }] });
+    await updateCustomerOrderStatus(order.order.id, { action: "accept" }, owner(), { openBill: true });
+    const lines = await t.getDb().select().from(t.schema.orderItems).where(eq(t.schema.orderItems.orderId, order.order.id));
+    const bundleLines = lines.filter((line: { eventSnapshot: { kind: string } | null }) => line.eventSnapshot?.kind === "bundle");
+    await expect(splitCustomerOrder(order.order.id, { items: [{ orderItemId: bundleLines[0].id, qty: 1 }] }, owner())).rejects.toThrow("satu paket utuh");
+    const split = await splitCustomerOrder(order.order.id, { items: bundleLines.map((line: { id: string; qty: number }) => ({ orderItemId: line.id, qty: line.qty })) }, owner());
+    // Bill pisahan berisi paket = harga paket final (tanpa service/pajak).
+    expect(split.child.total).toBe(40000);
+  });
+
+  it("perpanjangan jam event ikut memperpanjang paket yang berakhir bersama event", async () => {
+    const svc = await import("@/lib/event-service");
+    const [event] = await t.getDb().select().from(t.schema.events).where(eq(t.schema.events.id, eventId));
+    const [bundleBefore] = await t.getDb().select().from(t.schema.eventMenuEntries).where(eq(t.schema.eventMenuEntries.id, bundleId));
+    expect(bundleBefore.endsAt.getTime()).toBe(event.endsAt.getTime());
+    const newEnd = new Date(event.endsAt.getTime() + 2 * 3_600_000);
+    await svc.updateEvent(eventId, svc.eventUpdateSchema.parse({
+      title: event.title, tagline: null, startsAt: event.startsAt.toISOString(), endsAt: newEnd.toISOString(), venueName: event.venueName,
+      address: event.address, mapsUrl: event.mapsUrl, contactWhatsapp: event.contactWhatsapp, highlights: [], about: null, faq: [], gallery: [],
+      featuredOnHome: false, rsvpDeadline: null, defaultMaxPax: 2,
+    }), "user-itest");
+    const [bundleAfter] = await t.getDb().select().from(t.schema.eventMenuEntries).where(eq(t.schema.eventMenuEntries.id, bundleId));
+    expect(bundleAfter.endsAt.getTime()).toBe(newEnd.getTime());
+  });
+
   it("menolak event berakhir, tapi tetap bisa mengulang hasil order yang sudah sah", async () => {
     const { createCustomerOrder } = await import("@/lib/garage-service");
     const valid = await createCustomerOrder(input("event-before-end-0003"));

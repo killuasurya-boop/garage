@@ -2457,13 +2457,18 @@ export function PosView({
           customerName: order.customerName,
           customerPhone: order.fulfillment === "delivery" ? order.customerPhone : null,
           deliveryAddress: order.fulfillment === "delivery" ? order.deliveryAddress ?? null : null,
-          items: order.items.map((item) => ({
-            name: item.itemName,
-            variant: item.variantLabel,
-            qty: item.qty,
-            note: item.note ?? null,
-            station: stationByItemName.get(item.itemName.trim().toLowerCase()) ?? "Dapur",
-          })),
+          items: order.items.map((item) => {
+            // Station dari id produk (paling akurat), fallback nama; paket diberi keterangan.
+            const menu = item.menuItemId ? menuItemsById.get(item.menuItemId) : undefined;
+            const note = [item.package ? `Paket: ${item.package.entryName}` : "", item.note ?? ""].filter(Boolean).join(" · ");
+            return {
+              name: item.itemName,
+              variant: item.variantLabel,
+              qty: item.qty,
+              note: note || null,
+              station: menu ? chitStationFor(menu) : stationByItemName.get(item.itemName.trim().toLowerCase()) ?? "Dapur",
+            };
+          }),
         });
       }
       setPosNotice(
@@ -3733,7 +3738,7 @@ export function PosView({
       items: [
         ...saved.chitLines.map((line) => {
           const item = menuItemsById.get(line.itemId);
-          return { name: line.name, variant: line.variant, qty: line.qty, note: null, station: item ? chitStationFor(item) : ("Langsung" as const) };
+          return { name: line.name, variant: line.variant, qty: line.qty, note: `Paket: ${line.packageName}`, station: item ? chitStationFor(item) : ("Langsung" as const) };
         }),
         ...cartChit,
       ],
@@ -8622,24 +8627,36 @@ export function PosView({
                   </Badge>
                 </div>
                 <div className="garage-scroll mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {selectedCustomerOrder.items.map((item) => (
+                  {groupOrderLines(selectedCustomerOrder.items).map((group) =>
+                    group.kind === "package" ? (
+                      <div key={group.groupId} className="rounded-md border border-[#f5a742]/40 bg-[#f5a742]/8 p-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 break-words text-sm font-semibold text-white">{group.qty}x {group.name} <span className="ml-1 rounded border border-[#f5a742]/50 px-1 text-xs text-[#ffd08a]">Paket</span></p>
+                          <p className="garage-mono shrink-0 text-sm font-semibold text-white">{currency.format(group.total)}</p>
+                        </div>
+                        <ul className="mt-1 space-y-0.5 text-sm text-[#d0d0d6]">
+                          {group.components.map((line) => <li key={line.id} className="break-words">• {componentLabel(line, group.qty)}</li>)}
+                        </ul>
+                      </div>
+                    ) : (
                     <div
-                      key={item.id}
+                      key={group.line.id}
                       className="flex items-start justify-between gap-3 rounded-md border border-[#303038] bg-black/12 p-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">
-                          {item.qty}x {item.itemName}
+                        <p className="break-words text-sm font-semibold text-white">
+                          {group.line.qty}x {group.line.itemName}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-[#b8b8bf]">
-                          {item.variantLabel !== "Regular" ? item.variantLabel : "Regular"} - {currency.format(item.unitPrice)}
+                        <p className="mt-0.5 break-words text-sm text-[#c8c8cc]">
+                          {group.line.variantLabel !== "Regular" ? group.line.variantLabel : "Regular"} - {currency.format(group.line.unitPrice)}
                         </p>
                       </div>
                       <p className="garage-mono shrink-0 text-sm font-semibold text-white">
-                        {currency.format(item.lineTotal)}
+                        {currency.format(group.line.lineTotal)}
                       </p>
                     </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               </div>
 

@@ -90,6 +90,7 @@ import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/ga
 import { OrderPushButton } from "@/components/garage/order-push-button";
 import { EventBundlePicker } from "@/components/garage/events/event-bundle-picker";
 import { BundleAgeConfirm, bundleAgeConfirmed } from "@/components/garage/events/bundle-age-confirm";
+import { randomId } from "@/lib/random-id";
 import { EventBundleSection } from "@/components/garage/order/event-bundle-section";
 import { bundleHasRestricted, eventEntryAvailable, mergeMainEventMenu, type EventDigitalMenuContext, type EventMenuSelection, type EventDisplayVariant } from "@/lib/event-menu-display";
 import type { EventMenuEntry } from "@/lib/event-menu-types";
@@ -1650,7 +1651,7 @@ export function MemberOrderPage({
       };
       if (orderPayload.eventId) {
         const fingerprint = JSON.stringify(orderPayload);
-        if (eventSubmission.current?.fingerprint !== fingerprint) eventSubmission.current = freezeEventSubmission(orderPayload, crypto.randomUUID(), JSON.stringify(cart));
+        if (eventSubmission.current?.fingerprint !== fingerprint) eventSubmission.current = freezeEventSubmission(orderPayload, randomId("checkout"), JSON.stringify(cart));
         attemptedSubmission = eventSubmission.current;
         try { window.sessionStorage.setItem(pendingStorageKey, JSON.stringify(attemptedSubmission)); } catch { /* In-memory retry protection remains active. */ }
       }

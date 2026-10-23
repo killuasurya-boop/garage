@@ -567,6 +567,7 @@ export type OrderReceipt = {
     qty: number;
     unitPrice: number;
     lineTotal: number;
+    package?: OrderItemPackage | null;
   }>;
   subtotal: number;
   service: number;

@@ -27,7 +27,7 @@ type BundleLine = {
 };
 
 /** Komponen paket untuk tiket Bar/Dapur (rokok/minuman botol disaring pemanggil). */
-export type PosBundleChitLine = { itemId: string; variantId: string; name: string; variant: string; qty: number };
+export type PosBundleChitLine = { itemId: string; variantId: string; name: string; variant: string; qty: number; packageName: string };
 
 export type PosBundleSaved = { orderId: string; orderNo: string; total: number; tableLabel: string | null; customerName: string | null; chitLines: PosBundleChitLine[] };
 
@@ -151,6 +151,7 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
           name: product?.name ?? selection.itemId,
           variant: product?.variants.find((variant) => variant.id === selection.variantId)?.label ?? selection.variantId,
           qty: line.qty * (group?.quantity ?? 1),
+          packageName: line.entry.name,
         };
       }));
       const saved = { ...result, customerName: customerName.trim() || null, chitLines };

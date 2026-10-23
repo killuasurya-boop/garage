@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import {
@@ -716,9 +717,24 @@ export default async function InvoiceTrackingPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.items.map((item, idx) => (
+                  {groupOrderLines(invoice.items).map((group, idx) =>
+                    group.kind === "package" ? (
+                      <tr key={group.groupId} className="invoice-item-row border-b border-[#23232a] last:border-b-0 align-top">
+                        <td className="py-2.5 pr-2 font-mono text-xs text-[#b8b8bf]">{idx + 1}</td>
+                        <td className="py-2.5 pr-2">
+                          <span className="font-semibold text-white">{group.name}</span>
+                          <span className="ml-1.5 rounded border border-[#f5a742]/40 px-1.5 py-0.5 font-mono text-[11px] text-[#ffd79a]">Paket</span>
+                          <ul className="mt-1 space-y-0.5 text-xs text-[#d0d0d6]">
+                            {group.components.map((line) => <li key={line.id}>– {componentLabel(line, group.qty)}</li>)}
+                          </ul>
+                        </td>
+                        <td className="py-2.5 pr-2 text-right font-mono text-xs text-[#d6d6dc]">{rupiah.format(Math.round(group.total / Math.max(1, group.qty)))}</td>
+                        <td className="py-2.5 pr-2 text-center font-mono text-xs font-semibold text-white">{group.qty}x</td>
+                        <td className="py-2.5 text-right font-mono text-sm font-semibold text-[#ffd79a]">{rupiah.format(group.total)}</td>
+                      </tr>
+                    ) : (
                     <tr
-                      key={item.id}
+                      key={group.line.id}
                       className="invoice-item-row border-b border-[#23232a] last:border-b-0 align-top"
                     >
                       <td className="py-2.5 pr-2 font-mono text-xs text-[#8f8f99]">
@@ -726,31 +742,32 @@ export default async function InvoiceTrackingPage({
                       </td>
                       <td className="py-2.5 pr-2">
                         <span className="font-semibold text-white">
-                          {item.itemName}
+                          {group.line.itemName}
                         </span>
-                        {item.variantLabel ? (
+                        {group.line.variantLabel ? (
                           <span className="text-[#b8b8bf]">
                             {" "}
-                            &middot; {item.variantLabel}
+                            &middot; {group.line.variantLabel}
                           </span>
                         ) : null}
-                        {item.note ? (
+                        {group.line.note ? (
                           <p className="mt-0.5 text-[11px] italic text-[#f5a742]/85">
-                            {item.note}
+                            {group.line.note}
                           </p>
                         ) : null}
                       </td>
                       <td className="py-2.5 pr-2 text-right font-mono text-xs text-[#d6d6dc]">
-                        {rupiah.format(item.unitPrice)}
+                        {rupiah.format(group.line.unitPrice)}
                       </td>
                       <td className="py-2.5 pr-2 text-center font-mono text-xs font-semibold text-white">
-                        {item.qty}x
+                        {group.line.qty}x
                       </td>
                       <td className="py-2.5 text-right font-mono text-sm font-semibold text-[#ffd79a]">
-                        {rupiah.format(item.lineTotal)}
+                        {rupiah.format(group.line.lineTotal)}
                       </td>
                     </tr>
-                  ))}
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>

@@ -167,3 +167,36 @@ describe("chit Bar/Dapur detail", () => {
     expect(content.split("\r\n").every((line) => line.length <= 32)).toBe(true);
   });
 });
+
+describe("struk paket event", () => {
+  it("mencetak satu baris paket berharga final dan isi paket tanpa harga", () => {
+    const pkg = { groupId: "g1", entryName: "Bundling 45.000", packagePrice: 45000, entryQuantity: 1 };
+    const content = buildThermalContent({
+      orderNo: "ORD-1",
+      tableLabel: "Take away",
+      items: [
+        { name: "Black Matcha", variant: "Regular", qty: 1, unitPrice: 13846, lineTotal: 13846, package: pkg },
+        { name: "Sanger", variant: "Hot", qty: 1, unitPrice: 11538, lineTotal: 11538, package: pkg },
+        { name: "Kentang Ori", variant: "Regular", qty: 1, unitPrice: 19616, lineTotal: 19616, package: pkg },
+        { name: "Americano", variant: "Cold", qty: 1, unitPrice: 15000, lineTotal: 15000 },
+      ],
+    });
+    expect(content).toContain("1x Bundling 45.000");
+    expect(content).toContain("- Sanger Hot");
+    expect(content).toContain("- Black Matcha");
+    expect(content).not.toContain("13.846");
+    expect(content).toContain("1x Americano Cold");
+  });
+
+  it("chit mencetak blok SERAHKAN KASIR untuk rokok", () => {
+    const chit = buildKitchenChitContent({
+      orderNo: "ORD-2",
+      tableLabel: "Take away",
+      createdAt: new Date().toISOString(),
+      items: [{ name: "Sanger", variant: "Hot", qty: 1, station: "Bar" }, { name: "Black Matcha", qty: 1, station: "Langsung" }],
+    } as never);
+    expect(chit).toContain("*** BAR ***");
+    expect(chit).toContain("*** SERAHKAN KASIR ***");
+    expect(chit).toContain("1x BLACK MATCHA");
+  });
+});

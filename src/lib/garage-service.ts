@@ -673,6 +673,8 @@ function productionTicketDrafts(
     note?: string | null;
     category: string | null;
     station?: string | null;
+    /** Nama paket event — tampil di tiket supaya runner tahu komponen satu paket. */
+    packageName?: string | null;
   }>,
   targets: Record<KitchenTargetGroup, number> = kitchenTargetMinutes,
 ) {
@@ -687,8 +689,10 @@ function productionTicketDrafts(
     const targetGroup: KitchenTargetGroup = station === "Bar" ? "drink" : "food";
     const itemNotes: Record<string, string> = {};
     for (const line of groupLines) {
-      if (line.note && line.note.trim()) {
-        itemNotes[kitchenItemLabel(line)] = line.note.trim();
+      const parts = [line.packageName ? `Paket: ${line.packageName}` : "", line.note?.trim() ?? ""].filter(Boolean);
+      if (parts.length) {
+        const label = kitchenItemLabel(line);
+        itemNotes[label] = [itemNotes[label], ...parts].filter(Boolean).join(" · ");
       }
     }
     return {
@@ -8456,6 +8460,7 @@ export async function getPublicInvoiceTracking(token: string) {
       unitPrice: item.unitPrice,
       lineTotal: item.lineTotal,
       note: (item as { note?: string | null }).note ?? null,
+      package: orderItemPackage(item.eventSnapshot),
     })),
     subtotal: invoiceReadyOrder.subtotal,
     service: invoiceReadyOrder.service,
@@ -10355,6 +10360,7 @@ async function updateCustomerOrderStatusImpl(
           variantLabel: orderItems.variantLabel,
           qty: orderItems.qty,
           note: orderItems.note,
+          eventSnapshot: orderItems.eventSnapshot,
           category: menuItems.category,
           station: menuItems.station,
           batchEligible: menuItems.batchEligible,
@@ -10364,7 +10370,7 @@ async function updateCustomerOrderStatusImpl(
         .where(eq(orderItems.orderId, order.id));
       // Catatan per-item pelanggan ikut ke tiket & porsi produksi.
       const ticketDrafts = productionTicketDrafts(
-        menuRows.map((line) => ({ ...line, category: line.category ?? "Makanan" })),
+        menuRows.map((line) => ({ ...line, category: line.category ?? "Makanan", packageName: orderItemPackage(line.eventSnapshot)?.entryName ?? null })),
         productionTargets,
       );
 
@@ -10954,6 +10960,7 @@ async function updateCustomerOrderStatusImpl(
           qty: item.qty,
           unitPrice: item.unitPrice,
           lineTotal: item.lineTotal,
+          package: orderItemPackage(item.eventSnapshot),
         })),
         subtotal: order.subtotal,
         service: order.service,

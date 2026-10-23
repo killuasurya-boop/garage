@@ -1176,7 +1176,7 @@ export function MemberOrderPage({
   // Paket event = harga final (tanpa service/PB1/promo/voucher), sama dengan server.
   const packageSubtotal = cartLines.reduce((sum, line) => sum + (line.item.id.startsWith("event:") && line.item.productType === "bundle" ? variantPrice(line.item, line.variant) * line.qty : 0), 0);
   const regularSubtotal = subtotal - packageSubtotal;
-  const { service, tax, grossTotal, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, billingSettings);
+  const { service, tax, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, billingSettings);
   const roundingAdjustment = regularGrossTotal - (regularSubtotal + service + tax);
   const promoDiscount = qrPromoDiscount(regularSubtotal, billingSettings);
   const voucherDiscount = voucherResult?.valid

@@ -32,3 +32,21 @@ jobs:
         run: npx vitest run
         env:
           GARAGE_DB_DRIVER: pglite
+
+      - name: Audit dependensi produksi (blokir high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build produksi standalone
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          GARAGE_STANDALONE: "true"
+          # Typecheck source yang sama sudah lulus pada langkah sebelumnya.
+          GARAGE_BUILD_TYPECHECK_VERIFIED: "true"
+          BETTER_AUTH_SECRET: ci-build-only-never-used-for-production-signing
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build
+          GARAGE_DB_DRIVER: postgres
+          GARAGE_DISABLE_AUTO_REJECT: "true"
+          GARAGE_DISABLE_WARMUP: "true"
+          GARAGE_DISABLE_BACKUPS: "true"
+

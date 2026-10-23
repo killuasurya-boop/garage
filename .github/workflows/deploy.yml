@@ -8,6 +8,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -25,6 +29,41 @@ jobs:
     timeout-minutes: 40
     environment: production
     steps:
+      - name: Tunggu CI dan PostgreSQL untuk commit rilis yang persis sama
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, time, urllib.request
+          required = {".github/workflows/ci.yml", ".github/workflows/wms-postgres-concurrency.yml"}
+          endpoint = f"https://api.github.com/repos/{os.environ['GH_REPO']}/actions/runs?head_sha={os.environ['GH_SHA']}&event=push&per_page=100"
+          for attempt in range(90):
+              request = urllib.request.Request(endpoint, headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              })
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  runs = json.load(response)["workflow_runs"]
+              latest = {}
+              for run in sorted(runs, key=lambda r: (r["run_number"], r.get("run_attempt", 1)), reverse=True):
+                  path = run.get("path", "").split("@", 1)[0]
+                  if path in required and run["head_sha"] == os.environ["GH_SHA"] and run["head_branch"] == "main":
+                      latest.setdefault(path, run)
+              for path, run in latest.items():
+                  if run["status"] == "completed" and run["conclusion"] != "success":
+                      raise SystemExit(f"Release blocked: {path} concluded {run['conclusion']}")
+              if required <= latest.keys() and all(latest[p]["status"] == "completed" and latest[p]["conclusion"] == "success" for p in required):
+                  print("Both required workflows passed for exact release commit")
+                  break
+              print(f"Waiting for exact-commit verification ({attempt + 1}/90)", flush=True)
+              time.sleep(10)
+          else:
+              raise SystemExit("Release blocked: required verification did not finish within 15 minutes")
+          PYTHON
+
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
@@ -46,10 +85,10 @@ jobs:
           SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST"
           # Simpan versi sebelumnya untuk rollback cepat.
           $SSH 'docker tag garage-app:latest garage-app:previous 2>/dev/null || true; docker tag garage-migrate:latest garage-migrate:previous 2>/dev/null || true'
-          docker save garage-app:latest garage-migrate:latest | gzip | $SSH 'gunzip | docker load'
+          docker save garage-app:latest garage-app:${{ github.sha }} garage-migrate:latest garage-migrate:${{ github.sha }} | gzip | $SSH 'gunzip | docker load'
           scp -i ~/.ssh/deploy_key docker-compose.yml Caddyfile $VPS_USER@$VPS_HOST:$APP_DIR/
           $SSH "mkdir -p $APP_DIR/scripts $APP_DIR/backups"
-          scp -i ~/.ssh/deploy_key scripts/pg-backup.sh $VPS_USER@$VPS_HOST:$APP_DIR/scripts/
+          scp -i ~/.ssh/deploy_key scripts/pg-backup.sh scripts/release-safety.sh scripts/pos-release-baseline.sql $VPS_USER@$VPS_HOST:$APP_DIR/scripts/
 
       - name: Jalankan ulang (backup, migrasi, lalu aplikasi)
         run: |
@@ -59,6 +98,7 @@ jobs:
             docker compose --env-file .env.production up -d --no-build db
             # Backup sebelum migrasi — deploy berhenti bila backup gagal.
             docker compose --env-file .env.production run --rm backup once pre-deploy
+            bash scripts/release-safety.sh pre ${{ github.sha }}
             docker compose --env-file .env.production run --rm migrate
             docker compose --env-file .env.production up -d --no-build app caddy backup
             # Skrip backup di-mount dari host: restart agar versi terbaru dipakai.
@@ -66,14 +106,35 @@ jobs:
             docker image prune -f >/dev/null
           "
 
-      - name: Cek kesehatan (rollback bila gagal)
+      - name: Verifikasi release dan kesehatan (rollback bila gagal)
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes $VPS_USER@$VPS_HOST"
+          if $SSH "cd $APP_DIR && bash scripts/release-safety.sh post ${{ github.sha }}"; then
           for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' https://garagecoffee.id/api/health || true)
+            code=$(curl --connect-timeout 5 --max-time 10 -s -o /dev/null -w '%{http_code}' https://garagecoffee.id/api/health || true)
             [ "$code" = "200" ] && echo "Sehat (HTTP 200)" && exit 0
             sleep 6
           done
-          echo "Kesehatan gagal — rollback ke versi sebelumnya"
-          $SSH "cd $APP_DIR && docker tag garage-app:previous garage-app:latest && docker compose --env-file .env.production up -d --no-build app"
+          fi
+          echo "Verifikasi release/kesehatan gagal — rollback aplikasi ke versi sebelumnya"
+          $SSH bash -s -- "$APP_DIR" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          expected=$(docker image inspect garage-app:previous --format '{{.Id}}')
+          docker tag garage-app:previous garage-app:latest
+          docker compose --env-file .env.production up -d --no-build app
+          container=$(docker compose --env-file .env.production ps -q app)
+          test -n "$container"
+          test "$(docker inspect "$container" --format '{{.Image}}')" = "$expected"
+          for i in $(seq 1 20); do
+            if curl --connect-timeout 5 --max-time 10 -fsS https://garagecoffee.id/api/health >/dev/null; then
+              echo "Rollback image and health verified"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "Rollback health could not be verified" >&2
           exit 1
+          REMOTE
+          exit 1
+

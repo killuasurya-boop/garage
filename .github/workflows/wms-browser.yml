@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      GARAGE_PLAYWRIGHT_ROOT: ${{ runner.temp }}/garage-wms-playwright
+      GARAGE_PLAYWRIGHT_ROOT: /tmp/garage-wms-playwright
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

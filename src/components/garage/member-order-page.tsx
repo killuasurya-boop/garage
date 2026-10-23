@@ -349,8 +349,8 @@ function CartRow({
     <div className="border-b border-garage-line/70 py-3 last:border-b-0">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-bold leading-snug text-white">{line.item.name}</p>
-          <p className="mt-0.5 text-sm text-garage-dim">
+          <p className="break-words text-sm font-bold leading-snug text-white">{line.item.name}</p>
+          <p className="mt-0.5 break-words text-sm text-garage-dim">
             {line.item.variants.length > 1 ? `${line.variant.label} · ` : ""}
             <span className="font-mono tabular-nums text-white">
               {rupiah.format(variantPrice(line.item, line.variant) * line.qty)}
@@ -2259,7 +2259,7 @@ export function MemberOrderPage({
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-garage-dim">Total estimasi</p>
-          <p className="truncate font-mono text-xl font-bold tabular-nums text-white">{rupiah.format(total)}</p>
+          <p className="font-mono text-xl font-bold tabular-nums text-white">{rupiah.format(total)}</p>
         </div>
         <button
           className="garage-press flex h-12 min-w-[168px] cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-[15px] font-bold text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"

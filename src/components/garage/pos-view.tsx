@@ -7053,7 +7053,7 @@ export function PosView({
                             sizes="112px"
                             className="h-auto w-28 object-contain"
                           />
-                          <span className="border border-[#d11a2a] px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-[#d11a2a]">
+                          <span className="border border-[#d11a2a] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#d11a2a]">
                             QR Tetap
                           </span>
                         </div>
@@ -7092,7 +7092,7 @@ export function PosView({
                           {selectedQrOrderDisplayUrl}
                         </p>
                         <div className="mx-3 mt-3 flex items-center justify-between border-t border-[#d8d0c4] py-3">
-                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#5f554b]">
+                          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5f554b]">
                             GARAGE Coffee
                           </span>
                           <strong className="text-lg text-[#d11a2a]">{selectedQrTable}</strong>
@@ -7177,7 +7177,7 @@ export function PosView({
                       Retention + operasional
                     </h3>
                   </div>
-                  <Badge className={`${qrInsights?.shiftReport.gate === "WATCH" ? statusClass.warning : statusClass.ready} shrink-0 px-2 text-[9px]`}>
+                  <Badge className={`${qrInsights?.shiftReport.gate === "WATCH" ? statusClass.warning : statusClass.ready} shrink-0 px-2 text-[11px]`}>
                     {qrInsights?.shiftReport.gate ?? "Memuat"}
                   </Badge>
                 </div>
@@ -7194,7 +7194,7 @@ export function PosView({
                     ["SLA >3m", qrInsights ? String(qrInsights.summary.pendingOverSla) : "-"],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-md border border-[#303038] bg-black/12 px-2 py-1">
-                      <p className="garage-mono text-[9px] uppercase tracking-[0.1em] text-[#8f8f98]">
+                      <p className="garage-mono text-[11px] uppercase tracking-[0.1em] text-[#8f8f98]">
                         {label}
                       </p>
                       <p className="text-sm font-black text-white">{value}</p>
@@ -8206,42 +8206,42 @@ export function PosView({
                                 {compactTableNumber(order.tableLabel)}
                               </span>
                               <div className="min-w-0">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <h3 className="truncate text-base font-black text-white">{order.tableLabel}</h3>
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <h3 className="break-words text-base font-black text-white">{order.tableLabel}</h3>
                                   {customerOrderFulfillmentLabel(order) ? (
-                                    <Badge className="shrink-0 border-[#f5a742]/55 bg-[#f5a742]/16 px-2 text-[10px] font-black text-[#ffd79a]">
+                                    <Badge className="shrink-0 border-[#f5a742]/55 bg-[#f5a742]/16 px-2 text-xs font-black text-[#ffd79a]">
                                       {customerOrderFulfillmentLabel(order)}
                                     </Badge>
                                   ) : null}
-                                  <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
+                                  <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-xs`}>
                                     {order.customerMode}
                                   </Badge>
                                 </div>
-                                <p className="garage-mono mt-0.5 truncate text-[10px] text-[#8f8f98]">
+                                <p className="garage-mono mt-0.5 break-all text-xs text-[#d0d0d6]">
                                   {order.orderNo}
                                 </p>
-                                <p className="mt-0.5 truncate text-xs text-[#d0d0d6]">
+                                <p className="mt-0.5 break-words text-sm text-[#e4e4ea]">
                                   {order.customerName ?? "Pelanggan"} - {order.customerPhone ?? "Tanpa WA"}
                                 </p>
-                                {order.eventTitle ? <p className="mt-1 break-words text-sm font-semibold text-amber-200">Event: {order.eventTitle}</p> : null}
+                                {order.eventTitle ? <p className="mt-1 break-words text-sm font-semibold text-[#ffd08a]">Event: {order.eventTitle}</p> : null}
                                 <div className="mt-1 flex flex-wrap gap-1.5">
-                                  <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[10px]`}>
+                                  <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-xs`}>
                                     {customerOrderPaymentStatusLabel(order)}
                                   </Badge>
-                                  <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                                  <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-xs text-[#ffd08a]">
                                     {customerOrderPaymentLabel(order)}
                                   </Badge>
                                   {order.paymentProvider ? (
-                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-xs text-[#d6d6dc]">
                                       {order.paymentProvider}
                                     </Badge>
                                   ) : null}
                                   {order.paymentReference ? (
-                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-xs text-[#d6d6dc]">
                                       Ref {order.paymentReference}
                                     </Badge>
                                   ) : null}
-                                  <Badge className="garage-mono border-[#22c55e]/35 bg-[#22c55e]/10 px-2 text-[10px] text-[#dcfce7]">
+                                  <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-xs text-[#d6d6dc]">
                                     {customerOrderInvoiceNo(order)}
                                   </Badge>
                                 </div>
@@ -8251,7 +8251,7 @@ export function PosView({
                               </p>
                             </div>
                             <div className="mt-3 rounded-md border border-[#303038] bg-black/12 px-3 py-2">
-                              <p className="truncate text-xs text-[#d6d6dc]">{itemSummary}</p>
+                              <p className="line-clamp-3 break-words text-sm text-[#e4e4ea]">{itemSummary}</p>
                             </div>
                             {order.customerNote ? (
                               <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#ffd08a]">
@@ -8944,13 +8944,13 @@ export function PosView({
                   makeKey={makeIdempotencyKey}
                   onSaved={handleEventBundleSaved}
                 />
-                <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
+                <div className="flex min-h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
                   <CreditCard className="size-4 shrink-0 text-[#f5a742]" />
                   <div className="min-w-0">
-                    <p className="garage-mono truncate text-[9px] uppercase tracking-[0.14em] text-[#8f8f98]">
+                    <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
                       Checkout
                     </p>
-                    <p className="truncate text-xs font-semibold text-white">
+                    <p className="break-words text-xs font-semibold text-white">
                       {tableLabel}
                     </p>
                   </div>
@@ -9335,10 +9335,10 @@ export function PosView({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="pos-cart-title truncate text-[15px] font-semibold leading-5 text-white">
+                          <p className="pos-cart-title break-words text-[15px] font-semibold leading-5 text-white">
                             {line.item.name}
                           </p>
-                          <p className="pos-cart-meta mt-0.5 truncate text-xs text-[#c8c8cc]">
+                          <p className="pos-cart-meta mt-0.5 break-words text-sm text-[#d0d0d6]">
                             {line.variant.label !== "Regular"
                               ? `${line.variant.label} - `
                               : ""}
@@ -9350,7 +9350,7 @@ export function PosView({
                         </p>
                       </div>
                       <div className="mt-3 flex items-center justify-between gap-3">
-                        <p className="pos-muted-label garage-mono text-[11px] text-[#8f8f99]">
+                        <p className="pos-muted-label garage-mono text-xs text-[#c8c8cc]">
                           Qty
                         </p>
                         <div className="pos-qty-control inline-flex h-9 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
@@ -11000,7 +11000,7 @@ function PaymentWizardProgress({ step }: { step: PaymentStep }) {
             }`}
             title={`Step ${index + 1}: ${item.label}`}
           >
-            <p className="garage-mono text-[9px]">Step {index + 1}</p>
+            <p className="garage-mono text-[11px]">Step {index + 1}</p>
             <p className="mt-0.5 text-[11px] font-semibold leading-tight">
               <span className="sm:hidden">{item.shortLabel}</span>
               <span className="hidden sm:inline">{item.label}</span>
@@ -11346,7 +11346,7 @@ function TableSessionInfoCard({
               <p className="garage-mono text-[11px] font-bold uppercase tracking-wide text-[#ffd79a]">
                 ORDER TAMBAHAN
               </p>
-              <span className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/14 px-1.5 py-0.5 font-mono text-[9px] text-[#ffd79a]">
+              <span className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/14 px-1.5 py-0.5 font-mono text-[11px] text-[#ffd79a]">
                 {tableLabel}
               </span>
             </div>
@@ -11572,19 +11572,19 @@ function CheckoutCustomerStep({
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Poin</p>
+                  <p className="garage-mono text-[11px] text-[#8f8f99]">Poin</p>
                   <p className="text-xs font-semibold text-white">
                     {selectedMember.member.totalPoints}
                   </p>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Pengali</p>
+                  <p className="garage-mono text-[11px] text-[#8f8f99]">Pengali</p>
                   <p className="text-xs font-semibold text-white">
                     x{selectedMember.member.multiplier}
                   </p>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Estimasi</p>
+                  <p className="garage-mono text-[11px] text-[#8f8f99]">Estimasi</p>
                   <p className="text-xs font-semibold text-[#ffd08a]">+{estimatedMemberPoints}</p>
                 </div>
               </div>
@@ -11760,7 +11760,7 @@ function CartLineNoteRow({
         className="mt-1 h-9 w-full rounded-md border border-[#34343c] bg-white/[0.06] px-2 text-xs text-white placeholder:text-[#6e6e76] focus:border-[#f5a742] focus:outline-none"
         autoFocus={!note}
       />
-      <p className="mt-1 text-right text-[9px] text-[#8f8f99]">{draft.length}/120</p>
+      <p className="mt-1 text-right text-[11px] text-[#8f8f99]">{draft.length}/120</p>
     </div>
   );
 }

@@ -111,7 +111,7 @@ function StatusStepper({ ticket }: { ticket: KitchenOrder }) {
             }`}
           >
             <p className={`flex items-center gap-1 text-xs font-bold leading-tight ${done ? "text-white" : "text-[#9a9aa4]"}`}>
-              {done && !isCurrent ? <Check aria-hidden className="size-3 shrink-0 text-[#4ade80]" /> : null}
+              {done && !isCurrent ? <Check aria-hidden className="size-3 shrink-0 text-[#ffd08a]" /> : null}
               <span className="truncate">{step.label}</span>
             </p>
             <p className="mt-0.5 font-mono text-[11px] text-[#d4d4d8]">{done ? (clock(step.at) ?? "✓") : "—"}</p>
@@ -257,7 +257,7 @@ export function PosProductionPanel({
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-xs text-[#c4c4cc]">
                     <span>#{ticket.orderNo ?? ticket.id}</span>
-                    <span className={ticket.station === "Bar" ? "font-bold text-[#7dd3fc]" : "font-bold text-[#fdba74]"}>
+                    <span className={ticket.station === "Bar" ? "font-bold text-[#ffd08a]" : "font-bold text-[#fdba74]"}>
                       {productionStationLabel(ticket.station)}
                     </span>
                     {!isDone ? (
@@ -265,7 +265,7 @@ export function PosProductionPanel({
                         {late ? `Lewat SLA · ${waitedMinutes} mnt` : `${waitedMinutes} mnt`}
                       </span>
                     ) : null}
-                    {printedIds.has(ticket.id) ? <span className="text-[#86efac]">Tiket tercetak</span> : null}
+                    {printedIds.has(ticket.id) ? <span className="text-[#d4d4d8]">Tiket tercetak</span> : null}
                   </p>
                 </div>
                 <p

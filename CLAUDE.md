@@ -255,6 +255,10 @@ Scroll direction:
 - Rokok (owner, Okt 2026) is allowed ONLY as a bundle component (`bundleOnlyProduct`, `event-menu-service.ts`), never as a standalone
   event item; vape/nicotine always blocked. POS sells bundles via `Paket Event` (`pos/pos-event-bundles.tsx`, `GET /api/pos/event-menu`)
   → `POST /api/orders/open-bill` with `eventId`/`eventItems` (idempotency key = checkout key) → Final Bayar.
+- Bundle price is FINAL (owner, Okt 2026): `calculateOrderBilling` puts service/PB1/rounding, QR promo, voucher and points on
+  regular lines only; refund/split of a bundle must be the whole package (`packageRefundContext`) and returns its own value.
+  Order item DTOs carry `package` (`orderItemPackage`, never HPP); receipts/invoice/POS group by it (`groupOrderLines`).
+  Bundle photo = `event_menu_entries.image_url` (migration 0149), fallback collage of component photos.
 - Release and rollback checklist: `docs/event-menu-release.md`. Production deployment requires separate owner approval and verified backup.
 
 ## Verification

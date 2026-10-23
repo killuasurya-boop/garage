@@ -1051,6 +1051,13 @@
       "when": 1792774577030,
       "tag": "0149_event_menu_image",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1792788224505,
+      "tag": "0150_event_garage_coffee_2026_10_24",
+      "breakpoints": true
     }
   ]
 }

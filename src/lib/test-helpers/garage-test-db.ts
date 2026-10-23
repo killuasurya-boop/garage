@@ -49,6 +49,21 @@ export async function setupGarageTestDb(): Promise<GarageTestDb> {
     }
   }
 
+  // 0150 = data satu acara (Garage Coffee Event 24 Okt 2026), bukan skema → buang supaya suite lain
+  // tidak melihat event tambahan. Tes seed-nya menjalankan ulang migrasi itu sendiri.
+  for (const stmt of [
+    `DELETE FROM "event_menu_entries" WHERE "event_id" IN (SELECT "id" FROM "events" WHERE "slug" = 'garage-coffee-event-2026-10-24')`,
+    `DELETE FROM "app_settings" WHERE "key" = 'digitalMenu.featuredEventId' AND "updated_by" = 'migration-0150'`,
+    `DELETE FROM "audit_logs" WHERE "action" = 'Seed event menu (Menu_Event_GARAGE_1.xlsx)'`,
+    `DELETE FROM "events" WHERE "slug" = 'garage-coffee-event-2026-10-24'`,
+  ]) {
+    try {
+      await client.exec(stmt);
+    } catch {
+      /* tabel belum ada di harness lama — abaikan */
+    }
+  }
+
   return { tmpDir, getDb: db.getDb, getPgPool: db.getPgPool, schema: db.schema };
 }
 

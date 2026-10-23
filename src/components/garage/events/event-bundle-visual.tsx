@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Package } from "lucide-react";
 
 import { bundleImageSources } from "@/lib/event-menu-display";
@@ -14,7 +15,9 @@ export function EventBundleVisual({ entry, products, className = "" }: {
   products: EventMenuProduct[];
   className?: string;
 }) {
-  const sources = bundleImageSources(entry, products);
+  // Foto yang gagal dimuat disembunyikan → kolase/ikon, tidak pernah ikon gambar rusak.
+  const [failed, setFailed] = useState<string[]>([]);
+  const sources = bundleImageSources(entry, products).filter((src) => !failed.includes(src));
   return (
     <div className={`relative overflow-hidden rounded-md border border-garage-line-2 bg-garage-bg-3 ${className}`}>
       {sources.length ? (
@@ -28,6 +31,7 @@ export function EventBundleVisual({ entry, products, className = "" }: {
               alt={index === 0 ? `Foto ${entry.name}` : ""}
               loading="lazy"
               decoding="async"
+              onError={() => setFailed((current) => (current.includes(src) ? current : [...current, src]))}
               className={`h-full w-full object-cover ${sources.length === 3 && index === 0 ? "row-span-2" : ""}`}
             />
           ))}

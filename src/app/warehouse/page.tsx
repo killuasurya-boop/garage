@@ -70,6 +70,7 @@ export default function WmsDashboardPage() {
 
   return (
     <div className="space-y-5">
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dedfe4] bg-white p-4"><div><h2 className="font-bold text-[#17191d]">Closing bahan baku</h2><p className="text-sm text-[#525866]">Periksa kebutuhan bahan baku untuk operasional besok.</p></div><Link href="/warehouse/closing" className="inline-flex min-h-11 items-center rounded-md bg-[#bd1230] px-4 py-2 font-semibold text-white">Buka Closing Stock</Link></section>
       {k.lowStock > 0 && (
         <div
           className="flex flex-col gap-3 rounded-xl bg-gradient-to-r from-[#2F3136] to-[#1a1b1f] p-4 text-white sm:flex-row sm:items-center sm:justify-between"

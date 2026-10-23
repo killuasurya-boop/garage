@@ -3,6 +3,7 @@ import type { EventMenuGroup, EventOrderSnapshot } from "@/lib/event-menu-types"
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -4045,5 +4046,108 @@ export const eventActivityLogs = pgTable(
   }),
 );
 
+// Impor master Excel (owner, Okt 2026): log setiap preview/terapkan + crosswalk
+// kode Excel → SKU/menu Garage yang dapat diaudit. Data POS tidak pernah diubah.
+export const masterImports = pgTable(
+  "master_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fileName: text("file_name").notNull(),
+    fileHash: text("file_hash").notNull(),
+    mode: text("mode").notNull(), // preview | apply
+    summary: jsonb("summary").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index("master_imports_created_idx").on(t.createdAt),
+  }),
+);
+
+export const masterCrosswalk = pgTable(
+  "master_crosswalk",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // material | recipe
+    kind: text("kind").notNull(),
+    sourceKey: text("source_key").notNull(),
+    sourceName: text("source_name").notNull().default(""),
+    targetSku: text("target_sku"),
+    targetMenuItemId: text("target_menu_item_id"),
+    targetVariantId: text("target_variant_id"),
+    // created | existing | unverified | skipped | draft | approved
+    status: text("status").notNull(),
+    validated: boolean("validated").notNull().default(false),
+    note: text("note").notNull().default(""),
+    importId: uuid("import_id").references(() => masterImports.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    keyUnique: uniqueIndex("master_crosswalk_kind_key_unique").on(t.kind, t.sourceKey),
+  }),
+);
+
 // Garage Financial Control System (PRD V2.0) — tabel di file terpisah.
 export * from "./schema-finance";
+
+// Closing observations and replenishment documents reuse WMS products/warehouses/ledger.
+export const wmsClosingSettings = pgTable("wms_closing_settings", {
+  outletId: uuid("outlet_id").primaryKey().references(() => outlets.id),
+  openTime: text("open_time").notNull().default("15:00"), closeTime: text("close_time").notNull().default("23:00"),
+  cutoffTime: text("cutoff_time").notNull().default("23:59"), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const wmsClosingLocation = pgTable("wms_closing_location", {
+  warehouseId: uuid("warehouse_id").primaryKey().references(() => wmsWarehouse.id), outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+  kind: text("kind").notNull(), area: text("area").notNull(),
+}, t => ({ kind: check("wms_closing_location_kind_check", sql`${t.kind} in ('main','bar','dapur','transit','damaged')`), area: check("wms_closing_location_area_check", sql`${t.area} in ('bar','dapur','umum')`) }));
+export const wmsClosingAccess = pgTable("wms_closing_access", {
+  id: uuid("id").primaryKey().defaultRandom(), userId: text("user_id").notNull().references(() => user.id),
+  outletId: uuid("outlet_id").notNull().references(() => outlets.id), warehouseId: uuid("warehouse_id").notNull().references(() => wmsWarehouse.id),
+  capability: text("capability").notNull(),
+}, t => ({ scope: uniqueIndex("wms_closing_access_scope").on(t.userId,t.warehouseId,t.capability), capability: check("wms_closing_access_capability_check", sql`${t.capability} in ('bar','dapur','warehouse')`) }));
+export const wmsClosingRequest = pgTable("wms_closing_request", {
+  id: uuid("id").primaryKey().defaultRandom(), doc: text("doc").notNull().unique(), outletId: uuid("outlet_id").notNull().references(() => outlets.id),
+  warehouseId: uuid("warehouse_id").notNull().references(() => wmsWarehouse.id), division: text("division").notNull(),
+  businessDate: date("business_date").notNull(), neededDate: date("needed_date").notNull(),
+  status: text("status").notNull().default("draft"), version: integer("version").notNull().default(1),
+  noRequest: boolean("no_request").notNull().default(false), late: boolean("late").notNull().default(false), priority: text("priority").notNull().default("normal"),
+  note: text("note").notNull().default(""), createdBy: text("created_by").notNull().references(() => user.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => ({ closing: uniqueIndex("wms_closing_request_daily").on(t.outletId,t.warehouseId,t.businessDate), needed: index("wms_closing_request_needed").on(t.outletId,t.neededDate,t.status), division: check("wms_closing_request_division_check", sql`${t.division} in ('bar','dapur')`), status: check("wms_closing_request_status_check", sql`${t.status} in ('draft','submitted','under_review','approved','partially_available','preparing','ready','dispatched','partially_received','completed','rejected','cancelled')`), dates: check("wms_closing_request_dates_check",sql`${t.neededDate} >= ${t.businessDate}`) }));
+export const wmsClosingRequestItem = pgTable("wms_closing_request_item", {
+  id: uuid("id").primaryKey().defaultRandom(), requestId: uuid("request_id").notNull().references(() => wmsClosingRequest.id), productId: uuid("product_id").notNull().references(() => wmsProduct.id),
+  systemQty: wmsNum("system_qty").notNull(), physicalQty: wmsNum("physical_qty"), targetQty: wmsNum("target_qty").notNull(), incomingQty: wmsNum("incoming_qty").notNull().default(0),
+  recommendationQty: wmsNum("recommendation_qty").notNull(), requestedQty: wmsNum("requested_qty").notNull(), approvedQty: wmsNum("approved_qty").notNull().default(0),
+  preparedQty: wmsNum("prepared_qty").notNull().default(0), dispatchedQty: wmsNum("dispatched_qty").notNull().default(0), receivedQty: wmsNum("received_qty").notNull().default(0), damagedQty: wmsNum("damaged_qty").notNull().default(0),
+  overrideReason: text("override_reason").notNull().default(""), note: text("note").notNull().default(""),
+}, t => ({ material: uniqueIndex("wms_closing_request_item_material").on(t.requestId,t.productId), amounts: check("wms_closing_item_amount_check", sql`(${t.physicalQty} is null or ${t.physicalQty} >= 0) and ${t.targetQty} >= 0 and ${t.incomingQty} >= 0 and ${t.recommendationQty} >= 0 and ${t.requestedQty} >= 0 and ${t.approvedQty} >= 0 and ${t.approvedQty} <= ${t.requestedQty} and ${t.preparedQty} >= 0 and ${t.preparedQty} <= ${t.approvedQty} and ${t.dispatchedQty} >= 0 and ${t.dispatchedQty} <= ${t.preparedQty} and ${t.receivedQty} >= 0 and ${t.damagedQty} >= 0 and ${t.receivedQty} + ${t.damagedQty} <= ${t.dispatchedQty}`) }));
+export const wmsClosingReservation = pgTable("wms_closing_reservation", {
+  id: uuid("id").primaryKey().defaultRandom(), itemId: uuid("item_id").notNull().references(() => wmsClosingRequestItem.id), productId: uuid("product_id").notNull().references(() => wmsProduct.id),
+  warehouseId: uuid("warehouse_id").notNull().references(() => wmsWarehouse.id), qty: wmsNum("qty").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => ({ itemSource: uniqueIndex("wms_closing_reservation_item_source").on(t.itemId,t.warehouseId), source: index("wms_closing_reservation_source").on(t.productId,t.warehouseId), qty:check("wms_closing_reservation_qty_check",sql`${t.qty} >= 0`) }));
+export const wmsClosingShipment = pgTable("wms_closing_shipment", {
+  id: uuid("id").primaryKey().defaultRandom(), doc: text("doc").notNull().unique(), requestId: uuid("request_id").notNull().references(() => wmsClosingRequest.id),
+  sourceWarehouseId: uuid("source_warehouse_id").notNull().references(() => wmsWarehouse.id), transitWarehouseId: uuid("transit_warehouse_id").notNull().references(() => wmsWarehouse.id),
+  destinationWarehouseId: uuid("destination_warehouse_id").notNull().references(() => wmsWarehouse.id), status: text("status").notNull().default("dispatched"),
+  createdBy: text("created_by").notNull().references(() => user.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const wmsClosingAllocation = pgTable("wms_closing_allocation", {
+  id: uuid("id").primaryKey().defaultRandom(), shipmentId: uuid("shipment_id").notNull().references(() => wmsClosingShipment.id), itemId: uuid("item_id").notNull().references(() => wmsClosingRequestItem.id),
+  sourceBatchId: uuid("source_batch_id").notNull().references(() => wmsBatch.id), transitBatchId: uuid("transit_batch_id").notNull().references(() => wmsBatch.id),
+  batchNo: text("batch_no").notNull(), expiredAt: timestamp("expired_at", { withTimezone: true }), hpp: wmsNum("hpp").notNull(), qty: wmsNum("qty").notNull(),
+  receivedQty: wmsNum("received_qty").notNull().default(0), damagedQty: wmsNum("damaged_qty").notNull().default(0),
+}, t => ({amounts:check("wms_closing_allocation_amount_check",sql`${t.qty} > 0 and ${t.hpp} >= 0 and ${t.receivedQty} >= 0 and ${t.damagedQty} >= 0 and ${t.receivedQty} + ${t.damagedQty} <= ${t.qty}`)}));
+export const wmsClosingShortage = pgTable("wms_closing_shortage", {
+  id: uuid("id").primaryKey().defaultRandom(), itemId: uuid("item_id").notNull().unique().references(() => wmsClosingRequestItem.id),
+  qty: wmsNum("qty").notNull(), status: text("status").notNull().default("draft"), supplierId: uuid("supplier_id").references(() => wmsSupplier.id),
+  lastUnitPrice: wmsNum("last_unit_price").notNull().default(0), note: text("note").notNull().default(""), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const wmsClosingEvent = pgTable("wms_closing_event", {
+  id: uuid("id").primaryKey().defaultRandom(), outletId: uuid("outlet_id").notNull().references(() => outlets.id), requestId: uuid("request_id").references(() => wmsClosingRequest.id),
+  action: text("action").notNull(), actorId: text("actor_id").notNull().references(() => user.id), actorName: text("actor_name").notNull(),
+  detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const wmsClosingMutation = pgTable("wms_closing_mutation", {
+  id: uuid("id").primaryKey().defaultRandom(), outletId: uuid("outlet_id").notNull().references(() => outlets.id), key: text("key").notNull(),
+  payloadHash: text("payload_hash").notNull(), response: jsonb("response").$type<unknown>().notNull(), actorId: text("actor_id").notNull().references(() => user.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => ({ replay: uniqueIndex("wms_closing_mutation_replay").on(t.outletId,t.key) }));

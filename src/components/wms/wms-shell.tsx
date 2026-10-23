@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -55,10 +55,14 @@ const NAV: NavGroup[] = [
     title: "Main",
     items: [
       { label: "Dashboard", href: "/warehouse", icon: LayoutDashboard },
+      { label: "Closing Stock", href: "/warehouse/closing", icon: ClipboardCheck },
+      { label: "Permintaan Bahan", href: "/warehouse/requests", icon: ListChecks },
+      { label: "Persiapan Besok", href: "/warehouse/preparation", icon: Layers },
+      { label: "Pembelian", href: "/warehouse/purchasing", icon: ShoppingCart },
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
       { label: "Scan Barcode", href: "/warehouse/scan", icon: ScanLine },
       { label: "Receiving", href: "/warehouse/receiving", icon: Truck, managementOnly: true },
-      { label: "Transfer", href: "/warehouse/transfer", icon: ArrowLeftRight, managementOnly: true },
+      { label: "Transfer Stok", href: "/warehouse/transfer", icon: ArrowLeftRight, managementOnly: true },
     ],
   },
   {
@@ -77,8 +81,8 @@ const NAV: NavGroup[] = [
       { label: "Stock Opname", href: "/warehouse/opname", icon: ClipboardCheck },
       { label: "Checklist", href: "/warehouse/checklist", icon: ListChecks },
       { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders, managementOnly: true },
-      { label: "Log Aktivitas", href: "/warehouse/activity-log", icon: Clock },
-      { label: "Reports", href: "/warehouse/reports", icon: FileBarChart },
+      { label: "Riwayat", href: "/warehouse/activity-log", icon: Clock },
+      { label: "Laporan", href: "/warehouse/reports", icon: FileBarChart },
       { label: "Keuangan & HPP", href: "/warehouse/keuangan", icon: Wallet, managementOnly: true },
     ],
   },
@@ -112,6 +116,10 @@ export function WmsShell({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const mobileExpanded = isMobile && !collapsed;
   const palette = useWmsCommandPalette();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
@@ -138,14 +146,42 @@ export function WmsShell({
     }
   }
 
-  // HP (< 768px): sidebar 240px menutupi isi halaman → otomatis jadi rel ikon
-  // saat dibuka & setiap pindah halaman (tombol di header tetap bisa membuka).
+  // Collapse on mobile navigation and when a desktop window enters mobile.
+  // Expanding manually on mobile opens an overlay, never squeezes the content.
   useEffect(() => {
-    if (window.matchMedia("(max-width: 767px)").matches) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sinkron lebar layar setelah hidrasi
-      setCollapsed(true);
-    }
+    const media = window.matchMedia("(max-width: 767px)");
+    const collapseOnMobile = () => {
+      setIsMobile(media.matches);
+      if (media.matches) setCollapsed(true);
+    };
+    collapseOnMobile();
+    media.addEventListener("change", collapseOnMobile);
+    return () => media.removeEventListener("change", collapseOnMobile);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileExpanded) return;
+    const sidebar = sidebarRef.current;
+    const toggle = toggleRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const controls = () => Array.from(sidebar?.querySelectorAll<HTMLElement>('a[href],button:not([disabled])') ?? []);
+    controls()[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setCollapsed(true); }
+      if (event.key !== "Tab") return;
+      const elements = controls();
+      const first = elements[0], last = elements.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = previousOverflow;
+      toggle?.focus();
+    };
+  }, [mobileExpanded]);
 
   useEffect(() => {
     let alive = true;
@@ -186,11 +222,19 @@ export function WmsShell({
   return (
     <div
       style={{ fontFamily: "var(--font-wms-sans), Inter, system-ui, sans-serif" }}
-      className="flex min-h-screen bg-[#F8F9FB] text-[#111111]"
+      className="flex h-dvh min-h-0 w-full min-w-0 bg-[#F8F9FB] text-[#111111]"
     >
+      {!collapsed && (
+        <button type="button" onClick={() => setCollapsed(true)}
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          aria-label="Tutup navigasi gudang" />
+      )}
       {/* Sidebar */}
-      <aside
-        className="relative flex shrink-0 flex-col bg-[#2F3136] text-white transition-[width] duration-300"
+      <aside id="wms-navigation" ref={sidebarRef}
+        role={mobileExpanded ? "dialog" : undefined}
+        aria-modal={mobileExpanded || undefined}
+        aria-label="Navigasi gudang"
+        className={`${collapsed ? "relative" : "fixed inset-y-0 left-0 z-40 md:relative md:inset-auto md:z-auto"} ${isMobile && collapsed ? "hidden" : "flex"} h-dvh shrink-0 flex-col bg-[#2F3136] text-white transition-[width] duration-300 motion-reduce:transition-none`}
         style={{ width: collapsed ? 64 : 240, transitionTimingFunction: "cubic-bezier(.22,1,.36,1)" }}
       >
         <div className="absolute inset-x-0 top-0 h-1 bg-[#C8102E]" />
@@ -209,7 +253,11 @@ export function WmsShell({
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 pb-3 [scrollbar-width:thin]">
+        {mobileExpanded && <button type="button" onClick={() => setCollapsed(true)}
+          className="mx-2 mb-2 flex min-h-11 items-center gap-2 rounded-md px-3 text-sm text-white hover:bg-white/10">
+          <ArrowLeft className="size-4" /> Tutup navigasi
+        </button>}
+        <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 [scrollbar-width:thin]">
           {visibleNav.map((group) => (
             <div key={group.title} className="mb-3">
               {!collapsed && (
@@ -242,7 +290,7 @@ export function WmsShell({
                   </span>
                 );
                 return item.href ? (
-                  <Link key={item.label} href={item.href}>
+                  <Link key={item.label} href={item.href} aria-label={item.label} aria-current={active ? "page" : undefined}>
                     {inner}
                   </Link>
                 ) : (
@@ -272,31 +320,35 @@ export function WmsShell({
       </aside>
 
       {/* Kanan: header + content */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[60px] shrink-0 items-center justify-between gap-3 border-b border-[#E8E8E8] bg-white px-4 shadow-sm">
-          <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" inert={mobileExpanded}>
+        <header className="flex min-h-[60px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#E8E8E8] bg-white px-2 py-2 shadow-sm sm:h-[60px] sm:flex-nowrap sm:gap-3 sm:px-4 sm:py-0">
+          <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1 sm:gap-3">
             <button
               type="button"
+              ref={toggleRef}
               onClick={() => setCollapsed((v) => !v)}
-              className="grid size-9 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"
+              className="grid size-11 shrink-0 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"
               aria-label="Toggle sidebar"
+              aria-controls="wms-navigation"
+              aria-expanded={!collapsed}
             >
               {collapsed ? <Menu className="size-5" /> : <PanelLeft className="size-5" />}
             </button>
             <div className="min-w-0">
-              <p className="text-[11px] text-[#6B7280]">WMS · {isAll ? "Semua ruang" : wh?.name ?? "Gudang"}</p>
+              <p className="truncate text-[11px] text-[#6B7280]">WMS · {isAll ? "Semua ruang" : wh?.name ?? "Gudang"}</p>
               <p className="truncate text-[15px] font-bold leading-tight text-[#111111]">
                 {pageTitle(pathname)}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="relative flex w-full min-w-0 items-center gap-1 sm:w-auto sm:gap-2">
             {/* Kembali ke Garage OS (keluar dari sub-app WMS) */}
             <Link
               href="/os"
-              className="flex items-center gap-1.5 rounded-md border border-[#E8E8E8] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#E8E8E8] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
               title="Kembali ke Garage OS"
+              aria-label="Kembali ke Garage OS"
             >
               <ArrowLeft className="size-3.5 text-[#C8102E]" />
               <span className="hidden sm:inline">Garage OS</span>
@@ -305,26 +357,29 @@ export function WmsShell({
             {canAbsen && (
               <Link
                 href="/absen"
-                className="flex items-center gap-1.5 rounded-md border border-[#F59E0B]/50 bg-[#FEF3C7] px-2.5 py-1.5 text-[12px] font-semibold text-[#B45309] hover:bg-[#FDE68A]"
+                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#F59E0B]/50 bg-[#FEF3C7] px-2.5 py-1.5 text-[12px] font-semibold text-[#B45309] hover:bg-[#FDE68A]"
                 title="Absen kehadiran"
+                aria-label="Absen kehadiran"
               >
                 <Fingerprint className="size-3.5" />
                 <span className="hidden sm:inline">Absen</span>
               </Link>
             )}
             {/* Warehouse selector */}
-            <div className="relative">
+            <div className="static min-w-0 flex-1 sm:relative sm:flex-none">
               <button
                 type="button"
+                aria-label="Pilih gudang"
+                aria-expanded={whOpen}
                 onClick={() => setWhOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-full border border-[#E8E8E8] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB]"
+                className="flex min-h-11 w-full min-w-0 items-center gap-1.5 rounded-full border border-[#E8E8E8] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#111111] hover:bg-[#F8F9FB] sm:px-3"
               >
                 <span className="size-2 rounded-full bg-[#C8102E]" />
-                {isAll ? "Semua ruang" : wh ? `${wh.code} · ${wh.name}` : "Pilih gudang"}
+                <span className="truncate">{isAll ? "Semua ruang" : wh ? `${wh.code} · ${wh.name}` : "Pilih gudang"}</span>
                 <ChevronDown className="size-3.5 text-[#6B7280]" />
               </button>
               {whOpen && (
-                <div className="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-[#E8E8E8] bg-white py-1 shadow-lg">
+                <div className="absolute right-0 top-full z-20 mt-1 w-72 max-w-[calc(100vw-5rem)] rounded-lg border border-[#E8E8E8] bg-white py-1 shadow-lg">
                   {/* Agregat semua ruang */}
                   <button
                     type="button"
@@ -406,7 +461,7 @@ export function WmsShell({
             <button
               type="button"
               onClick={() => setNotifOpen(true)}
-              className="relative grid size-9 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"
+              className="relative grid size-11 shrink-0 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"
               aria-label="Notifikasi"
             >
               <Bell className="size-5" />
@@ -421,7 +476,7 @@ export function WmsShell({
               type="button"
               onClick={() => void handleSignOut()}
               disabled={signingOut}
-              className="flex items-center gap-1.5 rounded-md border border-[#C8102E]/40 bg-[#FDECEC] px-2.5 py-1.5 text-[12px] font-semibold text-[#C8102E] hover:bg-[#FBDADA] disabled:opacity-60"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#C8102E]/40 bg-[#FDECEC] px-2.5 py-1.5 text-[12px] font-semibold text-[#C8102E] hover:bg-[#FBDADA] disabled:opacity-60"
               aria-label="Keluar"
             >
               <LogOut className="size-3.5" />
@@ -431,9 +486,9 @@ export function WmsShell({
         </header>
 
         {/* Content — wms-scope: scrollbar modern 2026 (light) untuk seluruh area konten */}
-        <div className="wms-scope relative flex-1 overflow-y-auto">
+        <div className="wms-scope relative min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="absolute inset-x-0 top-0 h-1 bg-[#C8102E]" />
-          <main className="p-6">{children}</main>
+          <main className="min-w-0 p-3 sm:p-6">{children}</main>
         </div>
       </div>
       <WmsCommandPalette open={palette.open} onClose={() => palette.setOpen(false)} />

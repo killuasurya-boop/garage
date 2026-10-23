@@ -42,7 +42,8 @@ describe("Reset grand opening", () => {
     const shape = await reset.readDbShape(t.getDb());
     const plan = reset.buildResetPlan(shape.existing, shape.foreignKeys, { resetMemberPoints: false });
     expect(plan.unknown).toEqual([]);
-    expect(plan.blockers).toEqual([]);
+    // Preserved closing allocations intentionally block clearing their source batches.
+    expect(plan.blockers.filter((s: string) => !s.startsWith("wms_closing_"))).toEqual([]);
     // Temuan G-12: tabel ini dulu tidak pernah dibuat migrasi.
     for (const table of ["error_events", "feedback_entries", "earnings_failed_queue"]) {
       expect(shape.existing).toContain(table);

@@ -67,7 +67,7 @@ Workflow Deploy VPS https://github.com/killuasurya-boop/garage/actions/runs/3990
 - Aplikasi direstart dan pemeriksaan health workflow menghasilkan HTTP 200 pukul 11.46.31 WIB; cabang rollback tidak dijalankan.
 - Pemeriksaan HTTP publik terpisah pukul 11.49 WIB: `/api/health`200 dengan JSON, serta `/api/wms/replenishment/catalog?division=bar`401 tanpa sesi. Ini membuktikan server sehat dan endpoint baru terlindungi, bukan pengujian transaksi memakai akun produksi.
 
-CI push-main: https://github.com/killuasurya-boop/garage/actions/runs/39901375172 , tes penuh masih berjalan saat catatan ini disiapkan; Typecheck dan lint telah lulus. Kode tree sama dengan PR head yang sudah lulus 1.021 tes.
+CI push-main: https://github.com/killuasurya-boop/garage/actions/runs/39901375172 **SUCCESS** pada commit main `3f434b9`. Seluruh 157 file tes dan 1.021 tes lulus; Typecheck dan lint lulus. Pengujian selesai 23 Oktober 2026 pukul 11.51.58 WIB. Tersisa satu peringatan lint lama tentang logo POS yang tidak digunakan serta peringatan deprecation Actions Node20; tidak ada kegagalan pemeriksaan.
 
 ## Capture UAT terisolasi
 

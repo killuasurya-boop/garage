@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -293,6 +293,14 @@ export async function updateEvent(id: string, input: EventUpdateInput, userId: s
     })
     .where(eq(events.id, id))
     .returning();
+  // Event diperpanjang → menu/paket aktif yang berakhir bersama event ikut diperpanjang,
+  // supaya paket tidak mendadak "tidak tersedia" saat acara molor.
+  if (next.endsAt > current.endsAt) {
+    await db
+      .update(eventMenuEntries)
+      .set({ endsAt: next.endsAt, updatedAt: new Date() })
+      .where(and(eq(eventMenuEntries.eventId, id), eq(eventMenuEntries.endsAt, current.endsAt), ne(eventMenuEntries.status, "archived")));
+  }
   await db.insert(auditLogs).values({ time: new Date().toISOString(), actor: userId, action: "Update event configuration", object: row.title, device: "Event Manager", status: "recorded", metadata: { eventId: id, before: current, after: row } });
   return { event: toAdminEvent(row), changedFacts: [...changedFacts] };
   });

@@ -13,6 +13,7 @@ type Actor = { userId: string; name: string; outletId?: string };
 type MenuRow = typeof eventMenuEntries.$inferSelect;
 
 const isoDate = z.string().datetime({ offset: true });
+const imageUrl = z.string().trim().max(800).refine(v => !v || (v.startsWith("/") && !v.startsWith("//")) || /^https:\/\/[^\s"'<>]+$/.test(v), "URL gambar tidak valid.");
 const productOption = z.object({ itemId: z.string().trim().min(1).max(120), variantId: z.string().trim().min(1).max(100) });
 export const eventCartItemSchema = z.object({
   entryId: z.string().uuid(), qty: z.number().int().min(1).max(25), note: z.string().trim().max(160).optional(),
@@ -25,6 +26,7 @@ export const eventMenuEntrySchema = z.object({
   price: z.number().int().min(1).max(100_000_000), status: z.enum(["active", "inactive", "archived"]).default("active"),
   startsAt: isoDate, endsAt: isoDate, quota: z.number().int().min(1).max(1_000_000).nullable().default(null),
   sortOrder: z.number().int().min(0).max(100_000).default(0),
+  imageUrl: imageUrl.nullable().optional(),
   groups: z.array(z.object({ id: z.string().trim().min(1).max(80), name: z.string().trim().min(1).max(100), quantity: z.number().int().min(1).max(10), options: z.array(productOption).min(1).max(40) })).max(8).default([]),
 }).superRefine((v, ctx) => {
   if (Date.parse(v.endsAt) <= Date.parse(v.startsAt)) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "Jam selesai harus setelah jam mulai." });
@@ -35,7 +37,6 @@ export const eventMenuEntrySchema = z.object({
 });
 export type EventMenuEntryInput = z.input<typeof eventMenuEntrySchema>;
 
-const imageUrl = z.string().trim().max(800).refine(v => !v || (v.startsWith("/") && !v.startsWith("//")) || /^https:\/\/[^\s"'<>]+$/.test(v), "URL gambar tidak valid.");
 export const eventCreateSchema = z.object({
   title: z.string().trim().min(3).max(120), slug: z.string().trim().min(3).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   startsAt: isoDate, endsAt: isoDate,
@@ -63,9 +64,15 @@ async function eventById(db: Executor, eventId: string, outletId?: string, lock 
   return event;
 }
 
-/** Event commerce never exposes or sells restricted tobacco/vape products. */
-function allowedProduct(row: { name: string; category: string; brand: string | null; status: string; showInDigitalMenu: boolean }) {
-  return row.status === "active" && !/rokok|tobacco|cigarette|nikotin|vape|black\s*matcha/i.test(`${row.name} ${row.category} ${row.brand ?? ""}`);
+type ProductRow = { name: string; category: string; brand: string | null; status: string; showInDigitalMenu: boolean };
+const productText = (row: ProductRow) => `${row.name} ${row.category} ${row.brand ?? ""}`;
+/** Event commerce never sells vape/nicotine products. */
+function allowedProduct(row: ProductRow) {
+  return row.status === "active" && !/nikotin|vape/i.test(productText(row));
+}
+/** Rokok (owner, Okt 2026): only as a bundle component, handed over by the cashier; never a standalone event item. */
+export function bundleOnlyProduct(row: ProductRow) {
+  return /rokok|tobacco|cigarette|black\s*matcha/i.test(productText(row));
 }
 async function products(db: Executor, includeUnavailable = true) {
   const rows = await db.select({ item: menuItems, variant: menuVariants }).from(menuVariants).innerJoin(menuItems, eq(menuItems.id, menuVariants.itemId));
@@ -76,7 +83,7 @@ async function productDtos(db: Executor): Promise<EventMenuProduct[]> {
   const map = new Map<string, EventMenuProduct>();
   for (const { item, variant } of rows) {
     let value = map.get(item.id);
-    if (!value) { value = { id: item.id, name: item.name, category: item.category, imageUrl: item.imageUrl, description: item.description, stock: item.stock, showInDigitalMenu: item.showInDigitalMenu, variants: [] }; map.set(item.id, value); }
+    if (!value) { value = { id: item.id, name: item.name, category: item.category, imageUrl: item.imageUrl, description: item.description, stock: item.stock, showInDigitalMenu: item.showInDigitalMenu, bundleOnly: bundleOnlyProduct(item) || undefined, variants: [] }; map.set(item.id, value); }
     value.variants.push({ id: variant.variantId, label: variant.label, price: variant.price });
   }
   return [...map.values()];
@@ -101,7 +108,7 @@ export async function getEventMenuData(eventId: string, options: { outletId?: st
   if (options.publicOnly && event.status !== "published") throw new EventError(404, "EVENT_NOT_FOUND", "Event belum tersedia.");
   const allEntries = await db.select().from(eventMenuEntries).where(eq(eventMenuEntries.eventId, eventId)).orderBy(eventMenuEntries.sortOrder, eventMenuEntries.name);
   const catalog = await productDtos(db);
-  const valid = (row: MenuRow) => row.kind === "item" ? catalog.some(p => p.id === row.menuItemId && p.showInDigitalMenu !== false && p.variants.some(v => v.id === row.variantId)) : row.groups.every(g => g.options.some(o => catalog.some(p => p.id === o.itemId && p.variants.some(v => v.id === o.variantId))));
+  const valid = (row: MenuRow) => row.kind === "item" ? catalog.some(p => p.id === row.menuItemId && p.showInDigitalMenu !== false && !p.bundleOnly && p.variants.some(v => v.id === row.variantId)) : row.groups.every(g => g.options.some(o => catalog.some(p => p.id === o.itemId && p.variants.some(v => v.id === o.variantId))));
   const entries = allEntries.filter(e => !options.publicOnly || (e.status === "active" && valid(e))).map(entryDto);
   if (options.publicOnly) for (const entry of entries) entry.groups = entry.groups.map(group => ({ ...group, options: group.options.filter(option => catalog.some(product => product.id === option.itemId && product.variants.some(variant => variant.id === option.variantId))) }));
   const bundleReferences = new Set(entries.filter(entry => entry.kind === "bundle").flatMap(entry => entry.groups.flatMap(group => group.options.map(option => option.itemId))));
@@ -127,14 +134,26 @@ export async function saveEventMenuEntry(eventId: string, input: EventMenuEntryI
     const catalog = await products(tx);
     const references = value.kind === "item" ? [{ itemId: value.menuItemId!, variantId: value.variantId! }] : value.groups.flatMap(g => g.options);
     for (const ref of references) if (!catalog.some(p => p.item.id === ref.itemId && p.variant.variantId === ref.variantId)) throw new EventError(400, "EVENT_PRODUCT_UNAVAILABLE", "Pilih produk/varian aktif makanan atau minuman yang terlihat di menu digital.");
+    if (value.kind === "item" && catalog.some(product => product.item.id === value.menuItemId && bundleOnlyProduct(product.item))) throw new EventError(400, "EVENT_PRODUCT_BUNDLE_ONLY", "Rokok hanya boleh dijual sebagai komponen paket event.");
     if (value.kind === "item" && !catalog.some(product => product.item.id === value.menuItemId && product.item.showInDigitalMenu)) throw new EventError(400, "EVENT_PRODUCT_HIDDEN", "Produk disembunyikan dari menu satuan. Aktifkan tampil di menu digital atau gunakan sebagai komponen paket.");
     if (value.kind === "item" && value.status === "active") {
       const conflicts = await tx.select().from(eventMenuEntries).where(and(eq(eventMenuEntries.eventId, eventId), eq(eventMenuEntries.status, "active"), eq(eventMenuEntries.menuItemId, value.menuItemId!), eq(eventMenuEntries.variantId, value.variantId!), entryId ? ne(eventMenuEntries.id, entryId) : undefined));
       if (conflicts.some(c => startsAt < c.endsAt && endsAt > c.startsAt)) throw new EventError(409, "EVENT_MENU_OVERLAP", "Jadwal harga produk/varian ini bertabrakan dengan menu event lain.");
     }
-    const values = { ...value, menuItemId: value.kind === "item" ? value.menuItemId! : null, variantId: value.kind === "item" ? value.variantId! : null, description: value.description || null, startsAt, endsAt, updatedAt: new Date() };
+    const values = { ...value, menuItemId: value.kind === "item" ? value.menuItemId! : null, variantId: value.kind === "item" ? value.variantId! : null, description: value.description || null, imageUrl: value.imageUrl === undefined ? undefined : value.imageUrl || null, startsAt, endsAt, updatedAt: new Date() };
     const [row] = before ? await tx.update(eventMenuEntries).set(values).where(eq(eventMenuEntries.id, before.id)).returning() : await tx.insert(eventMenuEntries).values({ ...values, eventId }).returning();
     await audit(tx, actor, before ? "Update event menu" : "Create event menu", row.name, before ?? null, row);
+    return entryDto(row);
+  });
+}
+/** Simpan/hapus foto paket tanpa menyentuh konfigurasi menu lain. */
+export async function setEventMenuEntryImage(eventId: string, entryId: string, image: string | null, actor: Actor) {
+  return getDb().transaction(async tx => {
+    await eventById(tx, eventId, actor.outletId, true);
+    const [before] = await tx.select().from(eventMenuEntries).where(and(eq(eventMenuEntries.id, entryId), eq(eventMenuEntries.eventId, eventId))).limit(1);
+    if (!before) throw new EventError(404, "EVENT_MENU_NOT_FOUND", "Menu event tidak ditemukan.");
+    const [row] = await tx.update(eventMenuEntries).set({ imageUrl: image, updatedAt: new Date() }).where(eq(eventMenuEntries.id, entryId)).returning();
+    await audit(tx, actor, image ? "Update event menu image" : "Remove event menu image", row.name, { imageUrl: before.imageUrl }, { imageUrl: row.imageUrl });
     return entryDto(row);
   });
 }
@@ -204,7 +223,7 @@ export async function resolveEventCart(db: Executor, input: { eventId: string; i
     const selected = components.map(component => {
       const product = catalog.find(p => p.item.id === component.itemId && p.variant.variantId === component.variantId);
       if (!product) throw new EventError(409, "EVENT_PRODUCT_UNAVAILABLE", "Produk/varian paket tidak tersedia. Muat ulang menu.");
-      if (entry.kind === "item" && !product.item.showInDigitalMenu) throw new EventError(409, "EVENT_PRODUCT_HIDDEN", "Produk disembunyikan dari menu digital.");
+      if (entry.kind === "item" && (!product.item.showInDigitalMenu || bundleOnlyProduct(product.item))) throw new EventError(409, "EVENT_PRODUCT_HIDDEN", "Produk disembunyikan dari menu digital.");
       return product;
     });
     const prices = allocate(entry.price, selected.map(p => Math.max(1, p.variant.price)));

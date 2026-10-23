@@ -28,8 +28,8 @@ export function OrderCartBar({
           role="status"
           className="garage-toast-in mx-auto mb-2 flex max-w-lg items-center gap-1.5 text-[13px] text-garage-dim"
         >
-          <Check className="size-3.5 shrink-0 text-[#86efac]" aria-hidden />
-          <span className="min-w-0 truncate">
+          <Check className="size-3.5 shrink-0 text-garage-amber" aria-hidden />
+          <span className="line-clamp-2 min-w-0 break-words">
             <strong className="font-semibold text-white">{lastAdded.name}</strong> masuk keranjang
           </span>
         </p>
@@ -49,7 +49,7 @@ export function OrderCartBar({
             <span key={itemCount} className="garage-cart-bump origin-left text-xs font-semibold text-white">
               {itemCount} item
             </span>
-            <span className="truncate font-mono text-lg font-bold tabular-nums">{rupiah.format(total)}</span>
+            <span className="whitespace-nowrap font-mono text-lg font-bold tabular-nums">{rupiah.format(total)}</span>
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-1 text-[15px] font-bold">

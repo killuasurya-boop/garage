@@ -567,6 +567,7 @@ export type OrderReceipt = {
     qty: number;
     unitPrice: number;
     lineTotal: number;
+    package?: OrderItemPackage | null;
   }>;
   subtotal: number;
   service: number;
@@ -619,14 +620,24 @@ export type OrderCreateResponse = {
   receipt: OrderReceipt;
 };
 
+/** Cuplikan paket event di baris order (tanpa HPP — aman untuk respons publik). */
+export type OrderItemPackage = {
+  groupId: string;
+  entryName: string;
+  packagePrice: number;
+  entryQuantity: number;
+};
+
 export type CustomerOrderItem = {
   id: string;
+  menuItemId?: string | null;
   itemName: string;
   variantLabel: string;
   qty: number;
   unitPrice: number;
   lineTotal: number;
   note?: string | null;
+  package?: OrderItemPackage | null;
 };
 
 export type CustomerOrder = {

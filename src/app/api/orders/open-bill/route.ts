@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { eventCartItemSchema } from "@/lib/event-menu-service";
 import { createCustomerOrder, updateCustomerOrderStatus } from "@/lib/garage-service";
 import { checkIdempotency, readIdempotencyKey } from "@/lib/idempotency";
 import { requireCashierSession } from "@/lib/server-auth";
@@ -24,8 +25,17 @@ const openBillSchema = z
           note: z.string().trim().max(160).optional(),
         }),
       )
-      .min(1)
-      .max(60),
+      .max(60)
+      .default([]),
+    // Paket event dari POS (owner, Okt 2026): harga/kuota/komponen dihitung ulang di server.
+    eventId: z.string().uuid().optional(),
+    eventItems: z.array(eventCartItemSchema).max(40).optional(),
+  })
+  .refine((value) => value.items.length > 0 || Boolean(value.eventItems?.length), {
+    message: "Keranjang masih kosong.",
+  })
+  .refine((value) => !value.eventItems?.length || Boolean(value.eventId), {
+    message: "Event wajib dipilih untuk paket event.",
   })
   .refine((value) => (value.orderType === "dine-in" ? Boolean(value.tableLabel) : Boolean(value.customerName)), {
     message: "Bayar nanti wajib pilih meja (dine-in) atau isi nama pelanggan (takeaway).",
@@ -41,12 +51,15 @@ export async function POST(request: Request) {
   if (body.error) return body.error;
 
   const key = readIdempotencyKey(request);
+  if (body.data.eventId && (!key || key.length < 8)) {
+    return fail(400, "IDEMPOTENCY_KEY_REQUIRED", "Kunci transaksi paket event wajib dikirim.");
+  }
   const cache = key ? checkIdempotency<OpenBillResult>(`open-bill:${session.data.user.id}`, key) : null;
   if (cache?.kind === "hit") return ok(cache.result);
   if (cache?.kind === "pending") return fail(409, "OPEN_BILL_IN_PROGRESS", "Tagihan masih diproses.");
 
   try {
-    const { orderType, tableLabel, customerName, customerNote, items } = body.data;
+    const { orderType, tableLabel, customerName, customerNote, items, eventId, eventItems } = body.data;
     const table =
       orderType === "dine-in" && tableLabel
         ? tableLabel.toLowerCase().startsWith("meja")
@@ -64,11 +77,16 @@ export async function POST(request: Request) {
       source: orderType === "dine-in" ? "qr_table" : "qr_takeaway",
       staffOrder: true,
       allowHiddenItems: true,
+      skipCashierNotify: true,
       paymentMethod: "Cash",
       items,
+      ...(eventId ? { eventId, eventItems: eventItems ?? [], clientRequestKey: key! } : {}),
     });
     // Kasir sendiri yang membuat → langsung diterima & masuk Bar/Dapur.
-    await updateCustomerOrderStatus(created.order.id, { action: "accept" }, session.data, { openBill: true });
+    // Replay paket event (kunci sama) mengembalikan order yang mungkin sudah diterima.
+    if (created.order.status === "pending_cashier" || created.order.status === "awaiting_payment") {
+      await updateCustomerOrderStatus(created.order.id, { action: "accept" }, session.data, { openBill: true });
+    }
     const result: OpenBillResult = {
       orderId: created.order.id,
       orderNo: created.order.orderNo,

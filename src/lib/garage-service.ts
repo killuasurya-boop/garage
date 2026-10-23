@@ -39,6 +39,7 @@ import {
   kitchenTargetMinutes,
   applyRoundingMode,
   calculateBillingTotals,
+  calculateOrderBilling,
   capVoucherDiscountBySettings,
   computeManualDiscountAmount,
   computeRefundSplit,
@@ -286,6 +287,8 @@ type CustomerOrderInput = {
   eventItems?: EventCartItem[];
   /** Event checkout persists this key in the same transaction as quota/order. */
   clientRequestKey?: string;
+  /** Bill dibuat kasir sendiri (open bill POS): jangan kirim notifikasi "order QR baru" ke kasir. */
+  skipCashierNotify?: boolean;
   orderType: OrderInput["orderType"];
   tableLabel?: string;
   outletId?: string;
@@ -670,6 +673,8 @@ function productionTicketDrafts(
     note?: string | null;
     category: string | null;
     station?: string | null;
+    /** Nama paket event — tampil di tiket supaya runner tahu komponen satu paket. */
+    packageName?: string | null;
   }>,
   targets: Record<KitchenTargetGroup, number> = kitchenTargetMinutes,
 ) {
@@ -684,8 +689,10 @@ function productionTicketDrafts(
     const targetGroup: KitchenTargetGroup = station === "Bar" ? "drink" : "food";
     const itemNotes: Record<string, string> = {};
     for (const line of groupLines) {
-      if (line.note && line.note.trim()) {
-        itemNotes[kitchenItemLabel(line)] = line.note.trim();
+      const parts = [line.packageName ? `Paket: ${line.packageName}` : "", line.note?.trim() ?? ""].filter(Boolean);
+      if (parts.length) {
+        const label = kitchenItemLabel(line);
+        itemNotes[label] = [itemNotes[label], ...parts].filter(Boolean).join(" · ");
       }
     }
     return {
@@ -1034,13 +1041,21 @@ function customerOrderResponse(
     cashierConfirmedAt,
     items: items.map((item) => ({
       id: item.id,
+      menuItemId: item.menuItemId,
       itemName: item.itemName,
       variantLabel: item.variantLabel,
       qty: item.qty,
       unitPrice: item.unitPrice,
       lineTotal: item.lineTotal,
+      package: orderItemPackage(item.eventSnapshot),
     })),
   };
+}
+
+/** Cuplikan paket untuk DTO/struk; unitCost (HPP) tidak pernah ikut. */
+export function orderItemPackage(snapshot: (typeof orderItems.$inferSelect)["eventSnapshot"]) {
+  if (!snapshot || snapshot.kind !== "bundle") return null;
+  return { groupId: snapshot.groupId, entryName: snapshot.entryName, packagePrice: snapshot.packagePrice, entryQuantity: snapshot.entryQuantity };
 }
 
 function minutesBetween(start: Date | null | undefined, end: Date | null | undefined) {
@@ -8445,6 +8460,7 @@ export async function getPublicInvoiceTracking(token: string) {
       unitPrice: item.unitPrice,
       lineTotal: item.lineTotal,
       note: (item as { note?: string | null }).note ?? null,
+      package: orderItemPackage(item.eventSnapshot),
     })),
     subtotal: invoiceReadyOrder.subtotal,
     service: invoiceReadyOrder.service,
@@ -9436,15 +9452,18 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
     .orderBy(outlets.code)
     .limit(1);
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  // Paket event = harga final: tanpa service/PB1/promo/voucher/poin (owner, Okt 2026).
+  const packageSubtotal = lines.reduce((sum, line) => sum + (line.eventSnapshot?.kind === "bundle" ? line.lineTotal : 0), 0);
+  const regularSubtotal = subtotal - packageSubtotal;
   const settings = await getAppSettings(settingsOutlet?.id ?? null);
-  const { service, tax, grossTotal } = calculateBillingTotals(subtotal, settings);
+  const { service, tax, grossTotal, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, settings);
   // Promo QR dari Pengaturan (dulu tertanam: 10% maks Rp25.000).
   // Promo QR untuk pelanggan yang memesan sendiri — bukan pesanan yang dibuat staf (waiter).
-  const promoDiscount = input.staffOrder ? 0 : qrPromoDiscount(subtotal, settings);
+  const promoDiscount = input.staffOrder ? 0 : qrPromoDiscount(regularSubtotal, settings);
   const voucherValidation = input.voucherCode
     ? await validateVoucher({
         code: input.voucherCode,
-        subtotal,
+        subtotal: regularSubtotal,
         customerMode: input.customerMode,
         // Hanya id dari sesi member (bukan input bebas) yang membuka voucher pribadi.
         customerId: input.memberCustomerId ?? null,
@@ -9454,7 +9473,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
     throw new Error(voucherValidation?.message ?? "Voucher tidak valid.");
   }
   const voucherDiscountValue = voucherValidation?.valid
-    ? capVoucherDiscountBySettings(voucherValidation.discount, subtotal, settings)
+    ? capVoucherDiscountBySettings(voucherValidation.discount, regularSubtotal, settings)
     : 0;
   // Pakai poin: hanya member login (memberCustomerId dari sesi member, bukan input bebas).
   let pointsRedeem = { points: 0, discount: 0 };
@@ -9469,12 +9488,12 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
       .limit(1);
     pointsRedeem = pointsDiscountFor({
       requested: input.pointsToRedeem,
-      base: Math.max(0, subtotal - promoDiscount - voucherDiscountValue),
+      base: Math.max(0, regularSubtotal - promoDiscount - voucherDiscountValue),
       balance: balanceRow?.points ?? 0,
       settings,
     });
   }
-  const discount = Math.min(grossTotal, promoDiscount + voucherDiscountValue + pointsRedeem.discount);
+  const discount = Math.min(regularGrossTotal, promoDiscount + voucherDiscountValue + pointsRedeem.discount);
   const isDelivery = input.orderType === "delivery";
   const paymentMethod = input.paymentMethod?.trim() || "Cash";
   const deliveryAddress = input.deliveryAddress?.replace(/\s+/g, " ").trim() ?? "";
@@ -9867,7 +9886,7 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
     .where(eq(orders.id, created.order.id));
 
   // Pusat notifikasi: kasir di modul mana pun tahu ada order QR baru.
-  {
+  if (!input.skipCashierNotify) {
     const payFirst = created.order.fulfillment === "takeaway" || created.order.fulfillment === "delivery";
     const typeLabel =
       created.order.fulfillment === "delivery" ? "Delivery" : created.order.fulfillment === "takeaway" ? "Take away" : created.order.tableLabel;
@@ -10341,6 +10360,7 @@ async function updateCustomerOrderStatusImpl(
           variantLabel: orderItems.variantLabel,
           qty: orderItems.qty,
           note: orderItems.note,
+          eventSnapshot: orderItems.eventSnapshot,
           category: menuItems.category,
           station: menuItems.station,
           batchEligible: menuItems.batchEligible,
@@ -10350,7 +10370,7 @@ async function updateCustomerOrderStatusImpl(
         .where(eq(orderItems.orderId, order.id));
       // Catatan per-item pelanggan ikut ke tiket & porsi produksi.
       const ticketDrafts = productionTicketDrafts(
-        menuRows.map((line) => ({ ...line, category: line.category ?? "Makanan" })),
+        menuRows.map((line) => ({ ...line, category: line.category ?? "Makanan", packageName: orderItemPackage(line.eventSnapshot)?.entryName ?? null })),
         productionTargets,
       );
 
@@ -10940,6 +10960,7 @@ async function updateCustomerOrderStatusImpl(
           qty: item.qty,
           unitPrice: item.unitPrice,
           lineTotal: item.lineTotal,
+          package: orderItemPackage(item.eventSnapshot),
         })),
         subtotal: order.subtotal,
         service: order.service,
@@ -14878,9 +14899,11 @@ export async function requestOrderRefundApproval(
   const payloadItems = resolveRefundItems(refundable.items, input.items);
   assertPartialRefund(refundable.items, payloadItems);
   const refundSubtotal = payloadItems.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const snapshotItems = await db.select().from(orderItems).where(eq(orderItems.orderId, refundable.orderId));
   const { refundAmount } = computeRefundSplit(
     await getOrderMoney(db, refundable.orderId),
     refundSubtotal,
+    packageRefundContext(snapshotItems, payloadItems),
   );
 
   const approvalId = `APP-RFD-${randomUUID()}`;
@@ -14955,6 +14978,37 @@ function resolveRefundItems(
       unitPrice: item.unitPrice,
     };
   });
+}
+
+/**
+ * Paket event (owner, Okt 2026): refund/pisah bill harus satu paket utuh, dan bagian paket berharga final
+ * (tanpa service/pajak). Mengembalikan subtotal paket untuk computeRefundSplit.
+ */
+function packageRefundContext(
+  items: Array<{ id: string; qty: number; unitPrice: number; eventSnapshot?: { kind: string; groupId: string; entryName: string } | null }>,
+  lines: RefundPayloadItem[],
+  purpose: "refund" | "pisah" = "refund",
+) {
+  const qtyById = new Map(lines.map((line) => [line.orderItemId, line.qty]));
+  const groups = new Map<string, typeof items>();
+  for (const item of items) {
+    if (item.eventSnapshot?.kind !== "bundle" || item.qty <= 0) continue;
+    groups.set(item.eventSnapshot.groupId, [...(groups.get(item.eventSnapshot.groupId) ?? []), item]);
+  }
+  for (const members of groups.values()) {
+    if (!members.some((member) => qtyById.has(member.id))) continue;
+    // Boleh sebagian paket (mis. 1 dari 2 paket identik) asal SEMUA komponen dipilih dengan
+    // proporsi yang sama terhadap qty tersisa — tidak boleh hanya rokok/minumannya saja.
+    const [first] = members;
+    const firstSelected = qtyById.get(first.id) ?? 0;
+    if (!members.every((member) => (qtyById.get(member.id) ?? 0) > 0 && (qtyById.get(member.id) ?? 0) * first.qty === firstSelected * member.qty)) {
+      throw new Error(`${purpose === "refund" ? "Refund" : "Pisah bill"} paket harus satu paket utuh (${members[0].eventSnapshot!.entryName}).`);
+    }
+  }
+  const bundleIds = new Set([...groups.values()].flat().map((item) => item.id));
+  const orderPackageSubtotal = [...groups.values()].flat().reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const refundPackageSubtotal = lines.reduce((sum, line) => sum + (bundleIds.has(line.orderItemId) ? line.unitPrice * line.qty : 0), 0);
+  return orderPackageSubtotal > 0 ? { orderPackageSubtotal, refundPackageSubtotal } : undefined;
 }
 
 function assertPartialRefund(
@@ -15445,7 +15499,7 @@ export async function splitCustomerOrder(
     const lines = resolveRefundItems(currentItems, input.items, "pisah");
     assertPartialRefund(currentItems, lines, "Semua item dipilih — sisakan minimal satu item di bill asal.");
     const splitSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
-    const split = computeRefundSplit(order, splitSubtotal);
+    const split = computeRefundSplit(order, splitSubtotal, packageRefundContext(currentItems, lines, "pisah"));
     // Bill pisahan ikut aturan pembulatan outlet supaya nominal tunai wajar
     // (mis. Rp 10.600, bukan Rp 10.567). Bill asal menerima sisanya → jumlah tetap pas.
     const childTotal = Math.min(
@@ -15819,7 +15873,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
     );
     assertPartialRefund(currentItems.filter((item) => item.qty > 0), lines);
     const refundSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
-    const split = computeRefundSplit(order, refundSubtotal);
+    const split = computeRefundSplit(order, refundSubtotal, packageRefundContext(currentItems, lines));
 
     // Bill pisahan memakai catatan stok induknya (lihat inheritedLedgerOf).
     const ledgerNo = (await inheritedLedgerOf(tx, order)) ?? order.orderNo;

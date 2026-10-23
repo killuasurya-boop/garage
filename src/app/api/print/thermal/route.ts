@@ -64,6 +64,13 @@ const thermalSchema = z.object({
       qty: optionalNumber,
       unitPrice: optionalNumber,
       lineTotal: optionalNumber,
+      // Paket event: struk dikelompokkan per paket (harga final).
+      package: z.object({
+        groupId: z.string().max(80),
+        entryName: z.string().max(160),
+        packagePrice: z.number().int().nonnegative(),
+        entryQuantity: z.number().int().positive(),
+      }).nullish(),
     })).nullish(),
     subtotal: optionalNumber,
     service: optionalNumber,

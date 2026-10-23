@@ -454,6 +454,7 @@ const barMenuItems: GarageMenuItem[] = [
   ]),
   barDrink("bar-gula-aren", "Gula Aren", "Kopi Susu", [
     { id: "cold", price: 23000, lines: [["BAR-009", 15], ["BAR-018", 60], ["BAR-016", 10], ["BAR-021", 20], ["BAR-027", 18], ...ICED_PACK] },
+    { id: "hot", price: 23000, lines: [["BAR-009", 15], ["BAR-018", 60], ["BAR-016", 10], ["BAR-021", 20], ["BAR-027", 18], ...HOT_PACK] },
   ]),
   barDrink("bar-creamy-nutty", "Creamy Nutty", "Kopi Susu", [
     { id: "cold", price: 28000, lines: [["BAR-024", 15], ["BAR-021", 40], ["BAR-018", 90], ["BAR-010", 18], ["BAR-027", 18], ...ICED_PACK] },
@@ -474,15 +475,18 @@ const barMenuItems: GarageMenuItem[] = [
   ]),
   barDrink("bar-sanger", "Sanger", "Kopi Susu", [
     { id: "cold", price: 16000, lines: [["BAR-026", 25], ["BAR-016", 10], ["BAR-027", 16], ...ICED_PACK] },
+    { id: "hot", price: 15000, lines: [["BAR-026", 25], ["BAR-016", 10], ["BAR-027", 16], ...HOT_PACK] },
   ]),
   barDrink("bar-biscoff", "Biscoff", "Kopi Susu", [
     { id: "cold", price: 31000, lines: [["BAR-022", 2], ["BAR-021", 40], ["BAR-018", 90], ["BAR-016", 10], ["BAR-025", 15], ["BAR-027", 18], ...ICED_PACK] },
   ]),
   barDrink("bar-hazelnut-latte", "Hazelnut Latte", "Kopi Susu", [
     { id: "cold", price: 23000, lines: [["BAR-010", 20], ["BAR-021", 20], ["BAR-018", 90], ["BAR-027", 18], ...ICED_PACK] },
+    { id: "hot", price: 23000, lines: [["BAR-010", 20], ["BAR-021", 20], ["BAR-018", 90], ["BAR-027", 18], ...HOT_PACK] },
   ]),
   barDrink("bar-vanilla-latte", "Vanilla Latte", "Kopi Susu", [
     { id: "cold", price: 23000, lines: [["BAR-005", 20], ["BAR-021", 20], ["BAR-018", 90], ["BAR-027", 18], ...ICED_PACK] },
+    { id: "hot", price: 23000, lines: [["BAR-005", 20], ["BAR-021", 20], ["BAR-018", 90], ["BAR-027", 18], ...HOT_PACK] },
   ]),
   barDrink("bar-mocca-peanut", "Mocca Peanut", "Kopi Susu", [
     { id: "cold", price: 30000, lines: [["BAR-014", 20], ["BAR-010", 20], ["BAR-018", 100], ["BAR-027", 18], ...ICED_PACK] },
@@ -506,11 +510,13 @@ const barMenuItems: GarageMenuItem[] = [
   // --- Non-Coffee ("NON COFFEE.xlsx", sheet HHP bagian NON COFFEE) ---
   barDrink("bar-matcha", "Matcha", "Milk Series", [
     { id: "cold", price: 22000, lines: [["BAR-013", 20], ["BAR-018", 100], ...ICED_PACK] },
+    { id: "hot", price: 20000, lines: [["BAR-013", 20], ["BAR-018", 100], ...HOT_PACK] },
   ], "Non-Coffee"),
   // Sheet Coklat belum berharga (POWDER/UHT tanpa referensi); disusun sama dengan
   // Matcha di sebelahnya: Drip Powder Coklat 20 gr + Fresh Milk 100 ml.
   barDrink("bar-coklat", "Coklat", "Milk Series", [
     { id: "cold", price: 22000, lines: [["BAR-014", 20], ["BAR-018", 100], ...ICED_PACK] },
+    { id: "hot", price: 20000, lines: [["BAR-014", 20], ["BAR-018", 100], ...HOT_PACK] },
   ], "Non-Coffee"),
   barDrink("bar-strawberry-milk", "Strawberry Milk", "Milk Series", [
     { id: "cold", price: 20000, lines: [["BAR-011", 15], ["BAR-021", 20], ["BAR-018", 80], ["BAR-006", 10], ...ICED_PACK] },
@@ -530,12 +536,32 @@ const barMenuItems: GarageMenuItem[] = [
   // Sheet menulis "POWDER" tapi merujuk Drip Lemon (sirup, ml).
   barDrink("bar-lemon-tea", "Lemon Tea", "Tea Series", [
     { id: "cold", price: 15000, lines: [["BAR-004", 25], ["BAR-035", 30], ...ICED_PACK] },
+    { id: "hot", price: 15000, lines: [["BAR-004", 25], ["BAR-035", 30], ...HOT_PACK] },
   ], "Non-Coffee"),
   barDrink("bar-peach-tea", "Peach Tea", "Tea Series", [
     { id: "cold", price: 15000, lines: [["BAR-007", 20], ["BAR-035", 100], ["BAR-017", 15], ...ICED_PACK] },
+    { id: "hot", price: 15000, lines: [["BAR-007", 20], ["BAR-035", 100], ["BAR-017", 15], ...HOT_PACK] },
   ], "Non-Coffee"),
   barDrink("bar-ice-tea", "Ice Tea", "Tea Series", [
     { id: "cold", price: 8000, lines: [["BAR-017", 20], ["BAR-035", 130], ...ICED_PACK] },
+    { id: "hot", price: 8000, lines: [["BAR-017", 20], ["BAR-035", 130], ...HOT_PACK] },
+  ], "Non-Coffee"),
+  // Menu Event GARAGE (owner, Okt 2026): belum ada resep → HPP 0 sampai resep diisi.
+  barDrink("bar-red-velvet", "Red Velvet", "Milk Series", [
+    { id: "cold", price: 22000, lines: [] },
+    { id: "hot", price: 20000, lines: [] },
+  ], "Non-Coffee"),
+  barDrink("bar-taro", "Taro", "Milk Series", [
+    { id: "cold", price: 22000, lines: [] },
+    { id: "hot", price: 20000, lines: [] },
+  ], "Non-Coffee"),
+  barDrink("bar-tea-pahit", "Tea Pahit", "Tea Series", [
+    { id: "cold", price: 8000, lines: [] },
+    { id: "hot", price: 8000, lines: [] },
+  ], "Non-Coffee"),
+  barDrink("bar-strawberry-tea", "Strawberry Tea", "Tea Series", [
+    { id: "cold", price: 15000, lines: [] },
+    { id: "hot", price: 8000, lines: [] },
   ], "Non-Coffee"),
 ];
 
@@ -738,6 +764,18 @@ export const menuItems: GarageMenuItem[] = ([
   {
     id: "rokok-la-purple",
     name: "LA Purple",
+    category: "Rokok",
+    section: "Rokok",
+    variants: [{ id: "regular", label: "Regular", price: 37000 }],
+    stock: "ready",
+    prep: "0m",
+    tags: ["Rokok"],
+    showInDigitalMenu: false,
+  },
+  // Menu Event GARAGE (owner, Okt 2026).
+  {
+    id: "rokok-la-manggo",
+    name: "LA Manggo",
     category: "Rokok",
     section: "Rokok",
     variants: [{ id: "regular", label: "Regular", price: 37000 }],

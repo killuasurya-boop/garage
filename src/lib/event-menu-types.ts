@@ -21,6 +21,8 @@ export type EventMenuEntry = {
   usedQuantity: number;
   sortOrder: number;
   groups: EventMenuGroup[];
+  /** Foto paket; null = kolase foto komponen. */
+  imageUrl: string | null;
 };
 
 export type EventCartItem = {
@@ -65,6 +67,8 @@ export type EventMenuProduct = {
   stock: string;
   /** Hiding a standalone product does not disable its use as a bundle component. */
   showInDigitalMenu?: boolean;
+  /** Rokok: only allowed as a bundle component, never as a standalone event item. */
+  bundleOnly?: boolean;
   variants: Array<{ id: string; label: string; price: number }>;
 };
 

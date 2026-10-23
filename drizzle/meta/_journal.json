@@ -1037,6 +1037,20 @@
       "when": 1792702942707,
       "tag": "0147_closing_replenishment",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1792771456632,
+      "tag": "0148_menu_event_hot_variants",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1792774577030,
+      "tag": "0149_event_menu_image",
+      "breakpoints": true
     }
   ]
 }

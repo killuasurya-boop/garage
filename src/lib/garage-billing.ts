@@ -46,6 +46,23 @@ export function calculateBillingTotals(subtotal: number, settings: AppSettings) 
   return { service, tax, grossTotal };
 }
 
+/**
+ * Harga paket event = final (owner, Okt 2026): service, PB1 & pembulatan hanya dari menu reguler;
+ * subtotal paket ditambahkan utuh ke total.
+ */
+export function calculateOrderBilling(
+  input: { regularSubtotal: number; packageSubtotal: number },
+  settings: AppSettings,
+) {
+  const regular = calculateBillingTotals(input.regularSubtotal, settings);
+  return {
+    service: regular.service,
+    tax: regular.tax,
+    regularGrossTotal: regular.grossTotal,
+    grossTotal: regular.grossTotal + input.packageSubtotal,
+  };
+}
+
 /** Promo otomatis order QR/online dari Pengaturan (qrPromoPct, maks qrPromoMaxAmount). */
 export function qrPromoDiscount(
   subtotal: number,
@@ -101,12 +118,34 @@ export function manualDiscountNeedsApproval(
 export function computeRefundSplit(
   order: { subtotal: number; service: number; tax: number; discount: number; total: number },
   refundSubtotal: number,
+  packages?: { orderPackageSubtotal: number; refundPackageSubtotal: number },
 ) {
   if (order.subtotal <= 0 || refundSubtotal <= 0) {
     throw new Error("Tidak ada nilai item yang bisa direfund.");
   }
   if (refundSubtotal > order.subtotal) {
     throw new Error("Nilai refund melebihi subtotal order.");
+  }
+  if (packages && packages.orderPackageSubtotal > 0) {
+    // Paket event berharga final: bagian paket dikembalikan sebesar nilainya; service/pajak/diskon
+    // hanya ikut proporsi menu reguler.
+    const orderRegular = order.subtotal - packages.orderPackageSubtotal;
+    const refundRegular = refundSubtotal - packages.refundPackageSubtotal;
+    const keepRegular = orderRegular > 0 ? (orderRegular - refundRegular) / orderRegular : 0;
+    const regularTotal = order.total - packages.orderPackageSubtotal;
+    const nextPackage = packages.orderPackageSubtotal - packages.refundPackageSubtotal;
+    const nextRegularTotal = Math.max(0, Math.round(regularTotal * keepRegular));
+    const nextTotal = nextRegularTotal + nextPackage;
+    return {
+      refundAmount: order.total - nextTotal,
+      next: {
+        subtotal: order.subtotal - refundSubtotal,
+        service: Math.round(order.service * keepRegular),
+        tax: Math.round(order.tax * keepRegular),
+        discount: Math.round(order.discount * keepRegular),
+        total: nextTotal,
+      },
+    };
   }
   const keepRatio = (order.subtotal - refundSubtotal) / order.subtotal;
   const nextSubtotal = order.subtotal - refundSubtotal;

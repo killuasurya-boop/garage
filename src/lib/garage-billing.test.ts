@@ -4,6 +4,7 @@ import { DEFAULT_APP_SETTINGS } from "@/lib/garage-app-settings-types";
 import {
   applyRoundingMode,
   calculateBillingTotals,
+  calculateOrderBilling,
   capVoucherDiscountBySettings,
   computeManualDiscountAmount,
   computeRefundSplit,
@@ -163,5 +164,30 @@ describe("computeRefundSplit", () => {
   it("menolak refund melebihi subtotal atau nol", () => {
     expect(() => computeRefundSplit(order, 100_001)).toThrow();
     expect(() => computeRefundSplit(order, 0)).toThrow();
+  });
+});
+
+describe("paket event berharga final", () => {
+  it("service & PB1 hanya dari menu reguler; paket ditambahkan utuh", () => {
+    const result = calculateOrderBilling({ regularSubtotal: 100_000, packageSubtotal: 45_000 }, settings);
+    expect(result).toMatchObject({ service: 5_000, tax: 10_500, regularGrossTotal: 115_500, grossTotal: 160_500 });
+  });
+
+  it("order paket saja = harga paket persis", () => {
+    expect(calculateOrderBilling({ regularSubtotal: 0, packageSubtotal: 50_000 }, settings)).toMatchObject({ service: 0, tax: 0, grossTotal: 50_000 });
+  });
+
+  it("refund paket mengembalikan harga paket utuh, service/pajak hanya ikut proporsi reguler", () => {
+    const order = { subtotal: 145_000, service: 5_000, tax: 10_500, discount: 0, total: 160_500 };
+    const split = computeRefundSplit(order, 45_000, { orderPackageSubtotal: 45_000, refundPackageSubtotal: 45_000 });
+    expect(split.refundAmount).toBe(45_000);
+    expect(split.next).toMatchObject({ subtotal: 100_000, service: 5_000, tax: 10_500, total: 115_500 });
+  });
+
+  it("refund menu reguler pada order berpaket tidak menyentuh nilai paket", () => {
+    const order = { subtotal: 145_000, service: 5_000, tax: 10_500, discount: 0, total: 160_500 };
+    const split = computeRefundSplit(order, 100_000, { orderPackageSubtotal: 45_000, refundPackageSubtotal: 0 });
+    expect(split.refundAmount).toBe(115_500);
+    expect(split.next).toMatchObject({ subtotal: 45_000, service: 0, tax: 0, total: 45_000 });
   });
 });

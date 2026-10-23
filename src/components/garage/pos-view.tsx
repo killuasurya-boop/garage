@@ -239,6 +239,8 @@ import {
   type OrderCancelTarget,
 } from "@/components/garage/pos-order-cancel-dialog";
 import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
+import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
+import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
 import {
   PosTableBillSplitDialog,
@@ -2455,13 +2457,18 @@ export function PosView({
           customerName: order.customerName,
           customerPhone: order.fulfillment === "delivery" ? order.customerPhone : null,
           deliveryAddress: order.fulfillment === "delivery" ? order.deliveryAddress ?? null : null,
-          items: order.items.map((item) => ({
-            name: item.itemName,
-            variant: item.variantLabel,
-            qty: item.qty,
-            note: item.note ?? null,
-            station: stationByItemName.get(item.itemName.trim().toLowerCase()) ?? "Dapur",
-          })),
+          items: order.items.map((item) => {
+            // Station dari id produk (paling akurat), fallback nama; paket diberi keterangan.
+            const menu = item.menuItemId ? menuItemsById.get(item.menuItemId) : undefined;
+            const note = [item.package ? `Paket: ${item.package.entryName}` : "", item.note ?? ""].filter(Boolean).join(" · ");
+            return {
+              name: item.itemName,
+              variant: item.variantLabel,
+              qty: item.qty,
+              note: note || null,
+              station: menu ? chitStationFor(menu) : stationByItemName.get(item.itemName.trim().toLowerCase()) ?? "Dapur",
+            };
+          }),
         });
       }
       setPosNotice(
@@ -2546,7 +2553,7 @@ export function PosView({
   }
 
   // Bayar satu bill meja (termasuk bill pisahan) dari detail meja.
-  async function payTableBill(bill: TableOrderBill) {
+  async function payTableBill(bill: Pick<TableOrderBill, "id" | "orderNo">) {
     const known = customerOrders.find((order) => order.id === bill.id);
     if (known) {
       openFinalizeDialog(known);
@@ -3672,6 +3679,8 @@ export function PosView({
         headers: { "X-Idempotency-Key": attempt.key },
       });
       orderAttemptRef.current = null;
+      // Bill buatan kasir sendiri bukan "order QR baru" → tanpa suara/toast.
+      previousCustomerOrderIdsRef.current.add(result.orderId);
       setOpenBillSaved({ ...result, customerName: openBillName || null });
       void printChitIfEnabled({
         orderNo: result.orderNo,
@@ -3709,6 +3718,35 @@ export function PosView({
     } finally {
       setPaymentPending(false);
     }
+  }
+
+  // Paket Event (owner, Okt 2026): tagihan disimpan lewat open-bill, lalu langsung Final Bayar.
+  async function handleEventBundleSaved(saved: PosBundleSaved, includedCart: boolean) {
+    previousCustomerOrderIdsRef.current.add(saved.orderId);
+    const cartChit = includedCart
+      ? cartLines.map((line) => ({ name: line.item.name, variant: line.variant.label, qty: line.qty, note: line.note ?? null, station: chitStationFor(line.item) }))
+      : [];
+    if (includedCart) setCart([]);
+    void printChitIfEnabled({
+      orderNo: saved.orderNo,
+      queueNo: null,
+      tableLabel: saved.tableLabel ?? saved.customerName,
+      orderType: saved.tableLabel ? "dine-in" : "takeaway",
+      createdAt: new Date().toISOString(),
+      cashierName: null,
+      customerName: saved.customerName,
+      items: [
+        ...saved.chitLines.map((line) => {
+          const item = menuItemsById.get(line.itemId);
+          return { name: line.name, variant: line.variant, qty: line.qty, note: `Paket: ${line.packageName}`, station: item ? chitStationFor(item) : ("Langsung" as const) };
+        }),
+        ...cartChit,
+      ],
+    });
+    setPosNotice(`Paket ${saved.orderNo} disimpan & masuk Bar/Dapur. Selesaikan di Final Bayar.`);
+    await onOrderCreated();
+    invalidateGarageCache([GARAGE_TAGS.orders, GARAGE_TAGS.kitchen, GARAGE_TAGS.dashboard]);
+    await payTableBill({ id: saved.orderId, orderNo: saved.orderNo });
   }
 
   // Aksi cepat: siapkan bill → order aktif meja jadi "menunggu bayar".
@@ -5979,7 +6017,7 @@ export function PosView({
           if (!open) setFinalizeOrderTarget(null);
         }}
       >
-        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+        <DialogContent className="garage-scroll max-h-[92svh] overflow-y-auto border-[#34343c] bg-[#111116] max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader className="text-left">
             <DialogTitle>Konfirmasi pembayaran</DialogTitle>
             <DialogDescription>
@@ -5994,6 +6032,39 @@ export function PosView({
                   {finalizeOrderTarget.tableLabel} · {finalizeOrderTarget.orderNo}
                 </span>
               </div>
+              {finalizeOrderTarget.items.length ? (
+                <ul className="garage-scroll max-h-44 space-y-1.5 overflow-y-auto border-t border-[#34343c] pt-2" aria-label="Isi pesanan">
+                  {groupOrderLines(finalizeOrderTarget.items).map((group) =>
+                    group.kind === "package" ? (
+                      <li key={group.groupId} className="text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 break-words font-semibold text-white">{group.qty}× {group.name}</span>
+                          <span className="garage-mono shrink-0 text-white">{currency.format(group.total)}</span>
+                        </div>
+                        <p className="break-words text-[13px] leading-5 text-[#d0d0d6]">
+                          {group.components.map((line) => componentLabel(line, group.qty)).join(" · ")}
+                        </p>
+                      </li>
+                    ) : (
+                      <li key={group.line.id} className="flex items-start justify-between gap-2 text-sm">
+                        <span className="min-w-0 break-words text-[#e4e4ea]">{group.line.qty}× {group.line.itemName}{group.line.variantLabel && group.line.variantLabel !== "Regular" ? ` ${group.line.variantLabel}` : ""}</span>
+                        <span className="garage-mono shrink-0 text-white">{currency.format(group.line.lineTotal)}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              ) : null}
+              {(() => {
+                const handover = finalizeOrderTarget.items.filter((line) => {
+                  const menu = line.menuItemId ? menuItemsById.get(line.menuItemId) : undefined;
+                  return menu ? chitStationFor(menu) === "Langsung" : false;
+                });
+                return handover.length ? (
+                  <p className="rounded-md border border-[#f5a742]/60 bg-[#f5a742]/14 p-2 text-sm font-bold text-[#ffd08a]" data-testid="finalize-handover">
+                    Serahkan langsung: {handover.map((line) => `${line.qty}× ${line.itemName}`).join(", ")}
+                  </p>
+                ) : null;
+              })()}
               <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
                 <span className="text-[#b8b8bf]">Total</span>
                 <span className="garage-mono text-base font-black text-[#ffd08a]">
@@ -6004,7 +6075,7 @@ export function PosView({
           ) : null}
           {finalizeOrderTarget ? (
             <div className="space-y-2">
-              <p className="garage-mono text-[11px] uppercase tracking-wide text-[#b8b8bf]">
+              <p className="garage-mono text-xs uppercase tracking-wide text-[#c8c8cc]">
                 Metode bayar
               </p>
               {finalizeOrderTarget.fulfillment === "delivery" ? (
@@ -6022,7 +6093,7 @@ export function PosView({
                     type="button"
                     onClick={() => setFinalizeMethod(method)}
                     disabled={method === "QRIS" && !qrisImageReady && finalizeOrderTarget.fulfillment !== "delivery"}
-                    className={`garage-press h-10 rounded-md border text-sm font-bold disabled:opacity-40 ${
+                    className={`garage-press h-11 rounded-md border text-sm font-bold disabled:opacity-40 ${
                       finalizeMethod === method
                         ? "border-[#f5a742] bg-[#f5a742] text-black"
                         : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
@@ -6048,7 +6119,7 @@ export function PosView({
                         key={amount}
                         type="button"
                         onClick={() => setFinalizeCash(String(amount))}
-                        className={`garage-press h-10 rounded-md border text-sm font-bold tabular-nums ${
+                        className={`garage-press h-11 rounded-md border text-sm font-bold tabular-nums ${
                           finalizeCashValue === amount
                             ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
                             : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
@@ -6075,7 +6146,7 @@ export function PosView({
           <div className="flex flex-col gap-2 sm:flex-row-reverse">
             <Button
               type="button"
-              className="garage-press h-11 flex-1 bg-[#22c55e] text-sm text-white hover:bg-[#16a34a]"
+              className="garage-press h-12 flex-1 bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a]"
               onClick={confirmFinalizeOrder}
               disabled={finalizeCashShort}
             >
@@ -6982,7 +7053,7 @@ export function PosView({
                             sizes="112px"
                             className="h-auto w-28 object-contain"
                           />
-                          <span className="border border-[#d11a2a] px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-[#d11a2a]">
+                          <span className="border border-[#d11a2a] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#d11a2a]">
                             QR Tetap
                           </span>
                         </div>
@@ -7021,7 +7092,7 @@ export function PosView({
                           {selectedQrOrderDisplayUrl}
                         </p>
                         <div className="mx-3 mt-3 flex items-center justify-between border-t border-[#d8d0c4] py-3">
-                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#5f554b]">
+                          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5f554b]">
                             GARAGE Coffee
                           </span>
                           <strong className="text-lg text-[#d11a2a]">{selectedQrTable}</strong>
@@ -7106,7 +7177,7 @@ export function PosView({
                       Retention + operasional
                     </h3>
                   </div>
-                  <Badge className={`${qrInsights?.shiftReport.gate === "WATCH" ? statusClass.warning : statusClass.ready} shrink-0 px-2 text-[9px]`}>
+                  <Badge className={`${qrInsights?.shiftReport.gate === "WATCH" ? statusClass.warning : statusClass.ready} shrink-0 px-2 text-[11px]`}>
                     {qrInsights?.shiftReport.gate ?? "Memuat"}
                   </Badge>
                 </div>
@@ -7123,7 +7194,7 @@ export function PosView({
                     ["SLA >3m", qrInsights ? String(qrInsights.summary.pendingOverSla) : "-"],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-md border border-[#303038] bg-black/12 px-2 py-1">
-                      <p className="garage-mono text-[9px] uppercase tracking-[0.1em] text-[#8f8f98]">
+                      <p className="garage-mono text-[11px] uppercase tracking-[0.1em] text-[#8f8f98]">
                         {label}
                       </p>
                       <p className="text-sm font-black text-white">{value}</p>
@@ -8135,42 +8206,42 @@ export function PosView({
                                 {compactTableNumber(order.tableLabel)}
                               </span>
                               <div className="min-w-0">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <h3 className="truncate text-base font-black text-white">{order.tableLabel}</h3>
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <h3 className="break-words text-base font-black text-white">{order.tableLabel}</h3>
                                   {customerOrderFulfillmentLabel(order) ? (
-                                    <Badge className="shrink-0 border-[#f5a742]/55 bg-[#f5a742]/16 px-2 text-[10px] font-black text-[#ffd79a]">
+                                    <Badge className="shrink-0 border-[#f5a742]/55 bg-[#f5a742]/16 px-2 text-xs font-black text-[#ffd79a]">
                                       {customerOrderFulfillmentLabel(order)}
                                     </Badge>
                                   ) : null}
-                                  <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
+                                  <Badge className={`${statusClass[order.orderSource] ?? statusClass.info} shrink-0 px-2 text-xs`}>
                                     {order.customerMode}
                                   </Badge>
                                 </div>
-                                <p className="garage-mono mt-0.5 truncate text-[10px] text-[#8f8f98]">
+                                <p className="garage-mono mt-0.5 break-all text-xs text-[#d0d0d6]">
                                   {order.orderNo}
                                 </p>
-                                <p className="mt-0.5 truncate text-xs text-[#d0d0d6]">
+                                <p className="mt-0.5 break-words text-sm text-[#e4e4ea]">
                                   {order.customerName ?? "Pelanggan"} - {order.customerPhone ?? "Tanpa WA"}
                                 </p>
-                                {order.eventTitle ? <p className="mt-1 break-words text-sm font-semibold text-amber-200">Event: {order.eventTitle}</p> : null}
+                                {order.eventTitle ? <p className="mt-1 break-words text-sm font-semibold text-[#ffd08a]">Event: {order.eventTitle}</p> : null}
                                 <div className="mt-1 flex flex-wrap gap-1.5">
-                                  <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-[10px]`}>
+                                  <Badge className={`${statusClass[order.status] ?? statusClass.warning} px-2 text-xs`}>
                                     {customerOrderPaymentStatusLabel(order)}
                                   </Badge>
-                                  <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                                  <Badge className="border-[#f5a742]/40 bg-[#f5a742]/12 px-2 text-xs text-[#ffd08a]">
                                     {customerOrderPaymentLabel(order)}
                                   </Badge>
                                   {order.paymentProvider ? (
-                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-xs text-[#d6d6dc]">
                                       {order.paymentProvider}
                                     </Badge>
                                   ) : null}
                                   {order.paymentReference ? (
-                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-[10px] text-[#d6d6dc]">
+                                    <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-xs text-[#d6d6dc]">
                                       Ref {order.paymentReference}
                                     </Badge>
                                   ) : null}
-                                  <Badge className="garage-mono border-[#22c55e]/35 bg-[#22c55e]/10 px-2 text-[10px] text-[#dcfce7]">
+                                  <Badge className="garage-mono border-[#4a4a54] bg-[#202027] px-2 text-xs text-[#d6d6dc]">
                                     {customerOrderInvoiceNo(order)}
                                   </Badge>
                                 </div>
@@ -8180,7 +8251,7 @@ export function PosView({
                               </p>
                             </div>
                             <div className="mt-3 rounded-md border border-[#303038] bg-black/12 px-3 py-2">
-                              <p className="truncate text-xs text-[#d6d6dc]">{itemSummary}</p>
+                              <p className="line-clamp-3 break-words text-sm text-[#e4e4ea]">{itemSummary}</p>
                             </div>
                             {order.customerNote ? (
                               <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#ffd08a]">
@@ -8556,24 +8627,36 @@ export function PosView({
                   </Badge>
                 </div>
                 <div className="garage-scroll mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {selectedCustomerOrder.items.map((item) => (
+                  {groupOrderLines(selectedCustomerOrder.items).map((group) =>
+                    group.kind === "package" ? (
+                      <div key={group.groupId} className="rounded-md border border-[#f5a742]/40 bg-[#f5a742]/8 p-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 break-words text-sm font-semibold text-white">{group.qty}x {group.name} <span className="ml-1 rounded border border-[#f5a742]/50 px-1 text-xs text-[#ffd08a]">Paket</span></p>
+                          <p className="garage-mono shrink-0 text-sm font-semibold text-white">{currency.format(group.total)}</p>
+                        </div>
+                        <ul className="mt-1 space-y-0.5 text-sm text-[#d0d0d6]">
+                          {group.components.map((line) => <li key={line.id} className="break-words">• {componentLabel(line, group.qty)}</li>)}
+                        </ul>
+                      </div>
+                    ) : (
                     <div
-                      key={item.id}
+                      key={group.line.id}
                       className="flex items-start justify-between gap-3 rounded-md border border-[#303038] bg-black/12 p-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">
-                          {item.qty}x {item.itemName}
+                        <p className="break-words text-sm font-semibold text-white">
+                          {group.line.qty}x {group.line.itemName}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-[#b8b8bf]">
-                          {item.variantLabel !== "Regular" ? item.variantLabel : "Regular"} - {currency.format(item.unitPrice)}
+                        <p className="mt-0.5 break-words text-sm text-[#c8c8cc]">
+                          {group.line.variantLabel !== "Regular" ? group.line.variantLabel : "Regular"} - {currency.format(group.line.unitPrice)}
                         </p>
                       </div>
                       <p className="garage-mono shrink-0 text-sm font-semibold text-white">
-                        {currency.format(item.lineTotal)}
+                        {currency.format(group.line.lineTotal)}
                       </p>
                     </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               </div>
 
@@ -8854,13 +8937,20 @@ export function PosView({
                     placeholder="Cari menu / kode singkat (mis. cl)"
                   />
                 </div>
-                <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
+                <PosEventBundles
+                  shiftOpen={shiftOpen}
+                  regularCart={cart.map((line) => ({ itemId: line.itemId, variantId: line.variantId, qty: line.qty, note: line.note || undefined }))}
+                  regularCartTotal={subtotal}
+                  makeKey={makeIdempotencyKey}
+                  onSaved={handleEventBundleSaved}
+                />
+                <div className="flex min-h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
                   <CreditCard className="size-4 shrink-0 text-[#f5a742]" />
                   <div className="min-w-0">
-                    <p className="garage-mono truncate text-[9px] uppercase tracking-[0.14em] text-[#8f8f98]">
+                    <p className="garage-mono text-[11px] uppercase tracking-[0.14em] text-[#b8b8bf]">
                       Checkout
                     </p>
-                    <p className="truncate text-xs font-semibold text-white">
+                    <p className="break-words text-xs font-semibold text-white">
                       {tableLabel}
                     </p>
                   </div>
@@ -9245,10 +9335,10 @@ export function PosView({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="pos-cart-title truncate text-[15px] font-semibold leading-5 text-white">
+                          <p className="pos-cart-title break-words text-[15px] font-semibold leading-5 text-white">
                             {line.item.name}
                           </p>
-                          <p className="pos-cart-meta mt-0.5 truncate text-xs text-[#c8c8cc]">
+                          <p className="pos-cart-meta mt-0.5 break-words text-sm text-[#d0d0d6]">
                             {line.variant.label !== "Regular"
                               ? `${line.variant.label} - `
                               : ""}
@@ -9260,7 +9350,7 @@ export function PosView({
                         </p>
                       </div>
                       <div className="mt-3 flex items-center justify-between gap-3">
-                        <p className="pos-muted-label garage-mono text-[11px] text-[#8f8f99]">
+                        <p className="pos-muted-label garage-mono text-xs text-[#c8c8cc]">
                           Qty
                         </p>
                         <div className="pos-qty-control inline-flex h-9 shrink-0 items-center overflow-hidden rounded-md border border-[#4a4a54] bg-[#15151b]">
@@ -10910,7 +11000,7 @@ function PaymentWizardProgress({ step }: { step: PaymentStep }) {
             }`}
             title={`Step ${index + 1}: ${item.label}`}
           >
-            <p className="garage-mono text-[9px]">Step {index + 1}</p>
+            <p className="garage-mono text-[11px]">Step {index + 1}</p>
             <p className="mt-0.5 text-[11px] font-semibold leading-tight">
               <span className="sm:hidden">{item.shortLabel}</span>
               <span className="hidden sm:inline">{item.label}</span>
@@ -11256,7 +11346,7 @@ function TableSessionInfoCard({
               <p className="garage-mono text-[11px] font-bold uppercase tracking-wide text-[#ffd79a]">
                 ORDER TAMBAHAN
               </p>
-              <span className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/14 px-1.5 py-0.5 font-mono text-[9px] text-[#ffd79a]">
+              <span className="rounded-md border border-[#f5a742]/45 bg-[#f5a742]/14 px-1.5 py-0.5 font-mono text-[11px] text-[#ffd79a]">
                 {tableLabel}
               </span>
             </div>
@@ -11482,19 +11572,19 @@ function CheckoutCustomerStep({
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Poin</p>
+                  <p className="garage-mono text-[11px] text-[#8f8f99]">Poin</p>
                   <p className="text-xs font-semibold text-white">
                     {selectedMember.member.totalPoints}
                   </p>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Pengali</p>
+                  <p className="garage-mono text-[11px] text-[#8f8f99]">Pengali</p>
                   <p className="text-xs font-semibold text-white">
                     x{selectedMember.member.multiplier}
                   </p>
                 </div>
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-2">
-                  <p className="garage-mono text-[9px] text-[#8f8f99]">Estimasi</p>
+                  <p className="garage-mono text-[11px] text-[#8f8f99]">Estimasi</p>
                   <p className="text-xs font-semibold text-[#ffd08a]">+{estimatedMemberPoints}</p>
                 </div>
               </div>
@@ -11670,7 +11760,7 @@ function CartLineNoteRow({
         className="mt-1 h-9 w-full rounded-md border border-[#34343c] bg-white/[0.06] px-2 text-xs text-white placeholder:text-[#6e6e76] focus:border-[#f5a742] focus:outline-none"
         autoFocus={!note}
       />
-      <p className="mt-1 text-right text-[9px] text-[#8f8f99]">{draft.length}/120</p>
+      <p className="mt-1 text-right text-[11px] text-[#8f8f99]">{draft.length}/120</p>
     </div>
   );
 }

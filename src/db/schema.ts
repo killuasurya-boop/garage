@@ -3939,6 +3939,8 @@ export const eventMenuEntries = pgTable(
     usedQuantity: integer("used_quantity").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
     groups: jsonb("groups").$type<EventMenuGroup[]>().notNull().default(sql`'[]'::jsonb`),
+    // Foto paket (owner, Okt 2026). Kosong = kolase foto komponen di menu digital/POS.
+    imageUrl: text("image_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

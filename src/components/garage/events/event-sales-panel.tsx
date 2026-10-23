@@ -10,11 +10,17 @@ import type { EventSalesReport } from "@/lib/event-sales-report";
 
 const money = (value: number | null) => value == null ? "Belum tersedia" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 
-export function EventSalesPanel({ eventId, canExport = false }: { eventId: string; canExport?: boolean }) {
+// Default rentang = tanggal acara (WIB), supaya event yang lewat tengah malam tidak terpotong.
+function eventRange(startsAt?: string, endsAt?: string) {
+  if (!startsAt || !endsAt) return { from: todayWibKey(), to: todayWibKey() };
+  return { from: todayWibKey(new Date(startsAt)), to: todayWibKey(new Date(Date.parse(endsAt) - 1)) };
+}
+
+export function EventSalesPanel({ eventId, startsAt, endsAt, canExport = false }: { eventId: string; startsAt?: string; endsAt?: string; canExport?: boolean }) {
   const formId = useId();
-  const [from, setFrom] = useState(todayWibKey);
-  const [to, setTo] = useState(todayWibKey);
-  const [query, setQuery] = useState(() => ({ from: todayWibKey(), to: todayWibKey(), revision: 0 }));
+  const [from, setFrom] = useState(() => eventRange(startsAt, endsAt).from);
+  const [to, setTo] = useState(() => eventRange(startsAt, endsAt).to);
+  const [query, setQuery] = useState(() => ({ ...eventRange(startsAt, endsAt), revision: 0 }));
   const [report, setReport] = useState<EventSalesReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -119,6 +125,13 @@ export function EventSalesPanel({ eventId, canExport = false }: { eventId: strin
             </tr>)}</tbody>
           </table>
         </div>
+        {current.quotas?.length ? <div className="grid gap-2 rounded-lg border border-garage-line p-3">
+          <p className="font-semibold text-garage-fg">Kuota menu & paket (seluruh event)</p>
+          <ul className="grid gap-2 sm:grid-cols-2">{current.quotas.map((row) => <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-2 rounded-md bg-garage-bg-2 px-3 py-2 text-sm">
+            <span className="min-w-0 break-words text-garage-fg">{row.name}{row.status !== "active" ? " (nonaktif)" : ""}</span>
+            <span className={`tabular-nums font-semibold ${row.remaining === 0 ? "text-garage-red-bright" : "text-garage-amber"}`}>{row.quota === null ? `${row.used} terjual · tanpa batas` : `Sisa ${row.remaining} dari ${row.quota}`}</span>
+          </li>)}</ul>
+        </div> : null}
         <div className="max-h-[45vh] overflow-auto rounded-lg border border-garage-line">
           <table className="w-full min-w-[520px] text-left text-sm">
             <caption className="px-3 py-3 text-left font-semibold text-garage-fg">Rincian komponen tersisa pada bill lunas</caption>

@@ -77,6 +77,7 @@ export async function POST(request: Request) {
       source: orderType === "dine-in" ? "qr_table" : "qr_takeaway",
       staffOrder: true,
       allowHiddenItems: true,
+      skipCashierNotify: true,
       paymentMethod: "Cash",
       items,
       ...(eventId ? { eventId, eventItems: eventItems ?? [], clientRequestKey: key! } : {}),

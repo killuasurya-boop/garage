@@ -81,7 +81,7 @@ import type {
 import { maxRedeemablePoints, type MemberLevel } from "@/lib/member-types";
 import { deliveryQuote } from "@/lib/garage-delivery-rules";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/garage-app-settings-types";
-import { calculateBillingTotals, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
+import { calculateOrderBilling, capVoucherDiscountBySettings, qrPromoDiscount } from "@/lib/garage-billing";
 import { resolveOrderCampaign } from "@/lib/order-campaign";
 import { QRIS_IMAGE_SRC } from "@/lib/garage-qris";
 import { parseBankAccounts } from "@/lib/bank-accounts";
@@ -89,8 +89,9 @@ import { PaymentProofPanel } from "@/components/garage/order/payment-proof-panel
 import { CourierLiveCard, FulfillmentBadge, TrackerSteps } from "@/components/garage/order-progress";
 import { OrderPushButton } from "@/components/garage/order-push-button";
 import { EventBundlePicker } from "@/components/garage/events/event-bundle-picker";
+import { BundleAgeConfirm, bundleAgeConfirmed } from "@/components/garage/events/bundle-age-confirm";
 import { EventBundleSection } from "@/components/garage/order/event-bundle-section";
-import { eventEntryAvailable, mergeMainEventMenu, type EventDigitalMenuContext, type EventMenuSelection, type EventDisplayVariant } from "@/lib/event-menu-display";
+import { bundleHasRestricted, eventEntryAvailable, mergeMainEventMenu, type EventDigitalMenuContext, type EventMenuSelection, type EventDisplayVariant } from "@/lib/event-menu-display";
 import type { EventMenuEntry } from "@/lib/event-menu-types";
 import { checkoutNeedsRecovery, checkoutRejectionIsDefinitive, freezeEventSubmission, restoreEventSubmission, type FrozenEventSubmission } from "@/lib/event-checkout-submission";
 import {
@@ -823,6 +824,7 @@ export function MemberOrderPage({
   // Item yang dibuka di sheet detail (pilih varian + qty).
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [bundleEntry, setBundleEntry] = useState<EventMenuEntry | null>(null);
+  const [ageGateEntry, setAgeGateEntry] = useState<EventMenuEntry | null>(null);
   const [eventSelections, setEventSelections] = useState<Record<string, EventMenuSelection[]>>({});
   const eventSubmission = useRef<FrozenEventSubmission | null>(null);
   const [uncertainSubmission, setUncertainSubmission] = useState<FrozenEventSubmission | null>(null);
@@ -1170,13 +1172,16 @@ export function MemberOrderPage({
   // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
   const customerBankAccounts = parseBankAccounts(billingSettings.bankAccountsText);
   const selectedBank = customerBankAccounts.find((account) => account.id === paymentProvider) ?? customerBankAccounts[0] ?? null;
-  const { service, tax, grossTotal } = calculateBillingTotals(subtotal, billingSettings);
-  const roundingAdjustment = grossTotal - (subtotal + service + tax);
-  const promoDiscount = qrPromoDiscount(subtotal, billingSettings);
+  // Paket event = harga final (tanpa service/PB1/promo/voucher), sama dengan server.
+  const packageSubtotal = cartLines.reduce((sum, line) => sum + (line.item.id.startsWith("event:") && line.item.productType === "bundle" ? variantPrice(line.item, line.variant) * line.qty : 0), 0);
+  const regularSubtotal = subtotal - packageSubtotal;
+  const { service, tax, grossTotal, regularGrossTotal } = calculateOrderBilling({ regularSubtotal, packageSubtotal }, billingSettings);
+  const roundingAdjustment = regularGrossTotal - (regularSubtotal + service + tax);
+  const promoDiscount = qrPromoDiscount(regularSubtotal, billingSettings);
   const voucherDiscount = voucherResult?.valid
-    ? capVoucherDiscountBySettings(voucherResult.discount, subtotal, billingSettings)
+    ? capVoucherDiscountBySettings(voucherResult.discount, regularSubtotal, billingSettings)
     : 0;
-  const discount = Math.min(grossTotal, promoDiscount);
+  const discount = Math.min(regularGrossTotal, promoDiscount);
   // ---------------------------------------------------------------------------
   // Pilih meja (PDF owner, Okt 2026): dine-in pelanggan wajib memilih/konfirmasi
   // meja sebelum menu; meja dikunci di server & diperpanjang selama aktif.
@@ -1307,7 +1312,7 @@ export function MemberOrderPage({
     mode === "member" && member && !staffOrder
       ? maxRedeemablePoints({
           balance: member.points ?? member.totalPoints,
-          base: Math.max(0, subtotal - promoDiscount - voucherDiscount),
+          base: Math.max(0, regularSubtotal - promoDiscount - voucherDiscount),
           pointValue: billingSettings.memberPointValue,
           maxPct: billingSettings.memberRedeemMaxPct,
         })
@@ -1407,6 +1412,12 @@ export function MemberOrderPage({
         ? "Diantar kurir Garage"
         : "Diantar ke meja";
 
+  // Paket berisi rokok → konfirmasi 21+ dulu (sekali per sesi); menu biasa tetap bebas.
+  function openBundle(entry: EventMenuEntry) {
+    if (eventContext && bundleHasRestricted(entry, eventContext.products) && !bundleAgeConfirmed()) setAgeGateEntry(entry);
+    else setBundleEntry(entry);
+  }
+
   function add(itemId: string, variantId: string, delta: number) {
     const item = menuItems.find((entry) => entry.id === itemId);
     const displayVariant = item?.variants.find(row => row.id === variantId) as EventDisplayVariant | undefined;
@@ -1417,7 +1428,7 @@ export function MemberOrderPage({
     }
     if (delta > 0 && entry?.kind === "bundle" && variantId === "event") {
       setDetailItem(null);
-      setBundleEntry(entry);
+      openBundle(entry);
       return;
     }
     if (delta > 0 && item?.stock === "sold_out") {
@@ -1487,7 +1498,7 @@ export function MemberOrderPage({
     try {
       const result = await postJson<VoucherValidation>("/api/vouchers/validate", {
         code,
-        subtotal,
+        subtotal: regularSubtotal,
         customerMode: mode,
       });
       setVoucherResult(result);
@@ -1705,13 +1716,16 @@ export function MemberOrderPage({
 
   function openMenuItem(item: MenuItem) {
     const entry = eventContext?.entries.find(row => row.kind === "bundle" && `event:${row.id}` === item.id);
-    if (entry) setBundleEntry(entry);
+    if (entry) openBundle(entry);
     else setDetailItem(item);
   }
 
   const billLines = (
     <>
-      <BillLine label="Subtotal" value={rupiah.format(subtotal)} />
+      {packageSubtotal > 0 ? <>
+        <BillLine label="Paket event (harga final)" value={rupiah.format(packageSubtotal)} />
+        {regularSubtotal > 0 ? <BillLine label="Menu reguler" value={rupiah.format(regularSubtotal)} /> : null}
+      </> : <BillLine label="Subtotal" value={rupiah.format(subtotal)} />}
       {service > 0 ? <BillLine label="Service" value={rupiah.format(service)} /> : null}
       {tax > 0 ? <BillLine label="PB1" value={rupiah.format(tax)} /> : null}
       {roundingAdjustment !== 0 ? (
@@ -2577,7 +2591,7 @@ export function MemberOrderPage({
               )
             ) : menuGroups.length || bundleItems.length ? (
               <>
-                <EventBundleSection items={bundleItems} entries={eventContext?.entries ?? []} products={eventContext?.products ?? []} cart={cart} onChoose={openMenuItem} />
+                <EventBundleSection items={bundleItems} entries={eventContext?.entries ?? []} products={eventContext?.products ?? []} cart={cart} now={eventNow} onChoose={openMenuItem} />
                 <HeroRail
                   id={HERO_SECTION_ID}
                   kind={hero.kind}
@@ -2678,6 +2692,7 @@ export function MemberOrderPage({
         onAdjust={add}
         onClose={() => setDetailItem(null)}
       />
+      {ageGateEntry ? <BundleAgeConfirm onCancel={() => setAgeGateEntry(null)} onConfirm={() => { setBundleEntry(ageGateEntry); setAgeGateEntry(null); }} /> : null}
       {bundleEntry && eventContext ? <EventBundlePicker key={bundleEntry.id} entry={bundleEntry} products={eventContext.products} now={eventNow} onClose={() => setBundleEntry(null)} onConfirm={(selections, label) => {
         const itemId = `event:${bundleEntry.id}`;
         const variantId = `bundle-${encodeURIComponent(JSON.stringify(selections))}`;

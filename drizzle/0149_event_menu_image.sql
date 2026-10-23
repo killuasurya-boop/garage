@@ -1,0 +1,1 @@
+ALTER TABLE "event_menu_entries" ADD COLUMN "image_url" text;

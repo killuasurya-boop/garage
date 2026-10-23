@@ -1,5 +1,5 @@
 import type { MenuItem } from "@/lib/garage-api-types";
-import type { EventMenuEntry, EventMenuProduct } from "@/lib/event-menu-types";
+import type { EventMenuEntry, EventMenuGroup, EventMenuProduct } from "@/lib/event-menu-types";
 
 export type EventMenuSelection = { groupId: string; itemId: string; variantId: string };
 export type EventDigitalMenuContext = {
@@ -59,9 +59,71 @@ export function eventDisplayMenu(entries: EventMenuEntry[], products: EventMenuP
       prep: "Sesuai menu",
       tags: [entry.kind === "bundle" ? "Paket Event" : "Menu Event"],
       description: entry.description ?? product?.description ?? undefined,
-      imageUrl: product?.imageUrl ?? undefined,
+      imageUrl: (entry.kind === "bundle" ? entry.imageUrl : null) ?? product?.imageUrl ?? undefined,
       productType: entry.kind === "bundle" ? "bundle" : "menu",
       showInDigitalMenu: true,
     };
   });
+}
+
+const variantText = (label: string | undefined) => (label && label.toLowerCase() !== "regular" ? label : "");
+const timeFormat = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+
+/** Ringkasan satu grup paket untuk kartu: "Minuman: pilih 1 dari 5" + daftar nama · Hot/Cold. */
+export function bundleGroupSummary(group: EventMenuGroup, products: EventMenuProduct[]) {
+  const label = group.name.replace(/^pilih(an)?\s+/i, "").trim() || group.name;
+  const options = group.options.flatMap((option) => {
+    const product = products.find((p) => p.id === option.itemId);
+    const variant = product?.variants.find((v) => v.id === option.variantId);
+    return product && variant ? [{ product, variant }] : [];
+  });
+  const count = group.quantity > 1 ? `${group.quantity}× ` : "";
+  if (options.length === 1) {
+    const { product, variant } = options[0];
+    return { label, choice: `${count}${[product.name, variantText(variant.label)].filter(Boolean).join(" · ")}`, detail: null as string | null };
+  }
+  const names = [...new Set(options.map((o) => o.product.name))];
+  const labels = [...new Set(options.map((o) => variantText(o.variant.label)).filter(Boolean))];
+  const multiVariant = names.some((name) => options.filter((o) => o.product.name === name).length > 1);
+  return {
+    label,
+    choice: `${count}pilih 1 dari ${names.length}`,
+    detail: `${names.join(", ")}${multiVariant && labels.length ? ` · ${labels.join("/")}` : ""}`,
+  };
+}
+
+/** Alasan paket tidak bisa dipesan (null = tersedia). */
+export function bundleUnavailableReason(entry: EventMenuEntry, products: EventMenuProduct[], now = Date.now()): string | null {
+  if (entry.status !== "active") return "Tidak aktif";
+  if (now < Date.parse(entry.startsAt)) return `Mulai ${timeFormat.format(new Date(entry.startsAt))}`;
+  if (now >= Date.parse(entry.endsAt)) return "Sudah berakhir";
+  if (entry.quota !== null && entry.usedQuantity >= entry.quota) return "Kuota habis";
+  return eventEntryAvailable(entry, products, now) ? null : "Komponen habis";
+}
+
+/** Foto paket; tanpa foto → foto komponen (bukan rokok) untuk kolase, maks 3. */
+export function bundleImageSources(entry: EventMenuEntry, products: EventMenuProduct[]): string[] {
+  if (entry.imageUrl) return [entry.imageUrl];
+  const sources: string[] = [];
+  for (const group of entry.groups) {
+    const photo = group.options.map((option) => products.find((p) => p.id === option.itemId)).find((p) => p?.imageUrl && !p.bundleOnly)?.imageUrl;
+    if (photo && !sources.includes(photo)) sources.push(photo);
+  }
+  return sources.slice(0, 3);
+}
+
+/** Paket berisi produk khusus paket (rokok) → perlu konfirmasi 21+. */
+export function bundleHasRestricted(entry: EventMenuEntry, products: EventMenuProduct[]) {
+  return entry.groups.some((group) => group.options.some((option) => products.find((p) => p.id === option.itemId)?.bundleOnly));
+}
+
+/** Label isi paket di keranjang/struk: "Black Matcha · Gula Aren Hot · Kentang Ori". */
+export function bundleSelectionLabel(entry: EventMenuEntry, selections: EventMenuSelection[], products: EventMenuProduct[]) {
+  return entry.groups.map((group) => {
+    const selection = selections.find((s) => s.groupId === group.id);
+    const product = products.find((p) => p.id === selection?.itemId);
+    const variant = product?.variants.find((v) => v.id === selection?.variantId);
+    const name = [product?.name ?? selection?.itemId ?? group.name, variantText(variant?.label)].filter(Boolean).join(" ");
+    return group.quantity > 1 ? `${group.quantity}× ${name}` : name;
+  }).join(" · ");
 }

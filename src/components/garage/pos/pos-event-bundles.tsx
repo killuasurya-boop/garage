@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Minus, Package, Plus, Trash2 } from "lucide-react";
+import { Minus, Package, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { EventBundlePicker } from "@/components/garage/events/event-bundle-picker";
+import { EventBundleVisual } from "@/components/garage/events/event-bundle-visual";
 import { garageApi } from "@/lib/api-client";
-import { eventEntryAvailable, type EventMenuSelection } from "@/lib/event-menu-display";
+import { bundleUnavailableReason, type EventMenuSelection } from "@/lib/event-menu-display";
 import type { EventMenuContext, EventMenuEntry, EventMenuProduct } from "@/lib/event-menu-types";
 import { MAX_TABLE_NUMBER, parseTableNumber, tableLabelFor } from "@/lib/garage-tables";
 import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
@@ -55,6 +56,7 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [loadFailed, setLoadFailed] = useState(false);
   const attemptRef = useRef<IdempotencyAttempt | null>(null);
 
   const load = useCallback(async () => {
@@ -62,8 +64,10 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
       const data = await garageApi.get<PosEventMenu | null>("/api/pos/event-menu", { cache: "no-store" });
       setMenu(data && data.entries.length ? data : null);
       setNow(Date.now());
+      setLoadFailed(false);
     } catch {
-      /* Paket event opsional: POS reguler tetap jalan. */
+      // Paket event opsional: POS reguler tetap jalan, tapi kasir diberi tahu & bisa coba lagi.
+      setLoadFailed(true);
     }
   }, []);
 
@@ -73,13 +77,25 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
     return () => { window.clearTimeout(first); window.clearInterval(timer); };
   }, [load]);
 
-  if (!menu) return null;
+  if (!menu) {
+    return loadFailed ? (
+      <Button type="button" variant="outline" className="garage-press h-11 shrink-0 gap-2 border-[#f5a742]/60 bg-[#f5a742]/10 px-3 text-sm font-bold text-[#ffd08a]" onClick={() => void load()}>
+        <RefreshCw aria-hidden className="size-4" /> Paket event gagal dimuat · Coba lagi
+      </Button>
+    ) : null;
+  }
   const products = menu.products;
   const productOf = (itemId: string) => products.find((product) => product.id === itemId);
   const bundleTotal = lines.reduce((sum, line) => sum + line.entry.price * line.qty, 0);
   const withCart = includeCart && regularCart.length > 0;
   const parsedTable = parseTableNumber(tableNumber);
   const ready = lines.length > 0 && shiftOpen && !busy && (orderType === "takeaway" ? customerName.trim().length > 0 : Boolean(parsedTable));
+  // Alasan tombol simpan belum aktif — ditampilkan, bukan diam-diam.
+  const blocker = !lines.length ? "Pilih minimal satu paket."
+    : !shiftOpen ? "Buka shift kasir dulu."
+    : orderType === "takeaway" && !customerName.trim() ? "Isi nama pelanggan untuk take away."
+    : orderType === "dine-in" && !parsedTable ? `Isi nomor meja 1–${MAX_TABLE_NUMBER}.`
+    : null;
 
   function addLine(entry: EventMenuEntry, selections: EventMenuSelection[], label: string) {
     const key = `${entry.id}:${JSON.stringify(selections)}`;
@@ -156,8 +172,8 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
         type="button"
         variant="outline"
         data-testid="pos-event-bundles"
-        className="garage-press h-10 shrink-0 gap-2 border-[#f5a742]/60 bg-[#f5a742]/12 px-3 text-sm font-bold text-[#ffd08a] hover:bg-[#f5a742]/20"
-        onClick={() => { setNow(Date.now()); setOpen(true); }}
+        className="garage-press h-11 shrink-0 gap-2 border-[#f5a742]/60 bg-[#f5a742]/12 px-3 text-sm font-bold text-[#ffd08a] hover:bg-[#f5a742]/20"
+        onClick={() => { setNow(Date.now()); setOpen(true); void load(); }}
       >
         <Package aria-hidden className="size-4" />
         Paket Event
@@ -171,27 +187,30 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
               Paket Event · {menu.event.title}
             </DialogTitle>
             <DialogDescription className="text-sm text-[#d4d4d8]">
-              Tap paket, pilih isinya, lalu Simpan &amp; Final Bayar. Rokok diserahkan kasir; minuman &amp; cemilan masuk Bar/Dapur.
+              Tap paket, pilih isinya, lalu Simpan &amp; Final Bayar. Harga paket sudah final (termasuk layanan &amp; pajak). Rokok diserahkan kasir; minuman &amp; cemilan masuk Bar/Dapur.
             </DialogDescription>
           </DialogHeader>
           <div className="garage-scroll grid min-h-0 flex-1 gap-4 overflow-y-auto px-5 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
             <div className="grid content-start gap-2 sm:grid-cols-2">
               {menu.entries.map((entry) => {
-                const available = eventEntryAvailable(entry, products, now);
+                const reason = bundleUnavailableReason(entry, products, now);
                 const quotaLeft = entry.quota === null ? null : Math.max(0, entry.quota - entry.usedQuantity);
                 return (
                   <button
                     key={entry.id}
                     type="button"
-                    disabled={!available}
+                    disabled={Boolean(reason)}
                     onClick={() => setPicking(entry)}
-                    className="garage-press flex min-h-24 flex-col justify-between gap-2 rounded-md border border-[#4a4a54] bg-[#25252d] p-3 text-left transition hover:border-[#f5a742]/70 disabled:cursor-not-allowed disabled:opacity-55"
+                    className="garage-press flex min-w-0 flex-col overflow-hidden rounded-md border border-[#4a4a54] bg-[#25252d] text-left transition hover:border-[#f5a742]/70 disabled:cursor-not-allowed"
                   >
-                    <span className="break-words text-base font-bold leading-5 text-white">{entry.name}</span>
-                    <span className="flex flex-wrap items-end justify-between gap-1">
-                      <span className="font-mono text-lg font-bold tabular-nums text-[#ffd08a]">{currency.format(entry.price)}</span>
-                      <span className="text-xs font-semibold text-[#c8c8cc]">
-                        {!available ? "Tidak tersedia" : quotaLeft !== null ? `Sisa ${quotaLeft}` : `${entry.groups.length} komponen`}
+                    <EventBundleVisual entry={entry} products={products} className="aspect-[16/9] w-full rounded-none border-0 border-b" />
+                    <span className="flex flex-1 flex-col justify-between gap-2 p-3">
+                      <span className="break-words text-base font-bold leading-5 text-white">{entry.name}</span>
+                      <span className="flex flex-wrap items-end justify-between gap-1">
+                        <span className="font-mono text-lg font-bold tabular-nums text-[#ffd08a]">{currency.format(entry.price)}</span>
+                        <span className={`text-sm font-semibold ${reason ? "rounded bg-[#f5a742]/15 px-1.5 text-[#ffd08a]" : "text-[#d4d4d8]"}`}>
+                          {reason ?? (quotaLeft !== null ? `Sisa ${quotaLeft}` : `${entry.groups.length} komponen`)}
+                        </span>
                       </span>
                     </span>
                   </button>
@@ -206,13 +225,15 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
                     <p className="min-w-0 break-words text-sm font-semibold text-white">{line.entry.name}</p>
                     <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{currency.format(line.entry.price * line.qty)}</p>
                   </div>
-                  <p className="mt-1 break-words text-xs leading-5 text-[#d4d4d8]">{line.label}</p>
+                  <ul className="mt-1.5 grid gap-0.5 text-sm leading-6 text-[#e4e4e7]">
+                    {line.label.split(" · ").map((part, index) => <li key={`${part}-${index}`} className="break-words">• {part}</li>)}
+                  </ul>
                   <div className="mt-2 flex items-center justify-end gap-1">
-                    <Button type="button" size="icon" variant="outline" className="size-9" aria-label={`Kurangi ${line.entry.name}`} onClick={() => changeQty(line.key, -1)}>
+                    <Button type="button" size="icon" variant="outline" className="size-11" aria-label={`Kurangi ${line.entry.name}`} onClick={() => changeQty(line.key, -1)}>
                       {line.qty === 1 ? <Trash2 className="size-4" /> : <Minus className="size-4" />}
                     </Button>
-                    <span className="min-w-8 text-center font-mono text-sm font-bold text-white">{line.qty}</span>
-                    <Button type="button" size="icon" variant="outline" className="size-9" aria-label={`Tambah ${line.entry.name}`} onClick={() => changeQty(line.key, 1)}>
+                    <span className="min-w-10 text-center font-mono text-base font-bold text-white">{line.qty}</span>
+                    <Button type="button" size="icon" variant="outline" className="size-11" aria-label={`Tambah ${line.entry.name}`} onClick={() => changeQty(line.key, 1)}>
                       <Plus className="size-4" />
                     </Button>
                   </div>
@@ -220,15 +241,15 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
               )) : <p className="text-sm text-[#c8c8cc]">Belum ada paket.</p>}
               <div className="grid grid-cols-2 gap-2">
                 {(["takeaway", "dine-in"] as const).map((type) => (
-                  <Button key={type} type="button" variant={orderType === type ? "default" : "outline"} className="h-10" onClick={() => setOrderType(type)}>
+                  <Button key={type} type="button" variant={orderType === type ? "default" : "outline"} className="h-11 text-base" onClick={() => setOrderType(type)}>
                     {type === "takeaway" ? "Take away" : "Dine-in"}
                   </Button>
                 ))}
               </div>
               {orderType === "dine-in" ? (
-                <Input aria-label="Nomor meja" inputMode="numeric" placeholder={`Nomor meja (1–${MAX_TABLE_NUMBER})`} value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} />
+                <Input aria-label="Nomor meja" aria-invalid={Boolean(tableNumber) && !parsedTable} className="h-12 text-base" inputMode="numeric" placeholder={`Nomor meja (1–${MAX_TABLE_NUMBER})`} value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} />
               ) : null}
-              <Input aria-label="Nama pelanggan" placeholder={orderType === "takeaway" ? "Nama pelanggan (wajib)" : "Nama pelanggan (opsional)"} value={customerName} onChange={(event) => setCustomerName(event.target.value)} maxLength={60} />
+              <Input aria-label="Nama pelanggan" className="h-12 text-base" placeholder={orderType === "takeaway" ? "Nama pelanggan (wajib)" : "Nama pelanggan (opsional)"} value={customerName} onChange={(event) => setCustomerName(event.target.value)} maxLength={60} />
               {regularCart.length ? (
                 <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-[#e5e2dc]">
                   <input type="checkbox" className="size-4" checked={includeCart} onChange={(event) => setIncludeCart(event.target.checked)} />
@@ -239,8 +260,8 @@ export function PosEventBundles({ shiftOpen, regularCart, regularCartTotal, make
                 <span className="text-sm text-[#d4d4d8]">Subtotal</span>
                 <span className="font-mono text-xl font-bold tabular-nums text-white">{currency.format(bundleTotal + (withCart ? regularCartTotal : 0))}</span>
               </div>
-              <p className="text-xs leading-5 text-[#c8c8cc]">Service/PB1 &amp; pembulatan dihitung server; total final tampil di Final Bayar.</p>
-              {!shiftOpen ? <p role="alert" className="text-sm font-semibold text-[#ff8a92]">Buka shift kasir dulu.</p> : null}
+              <p className="text-sm leading-5 text-[#d4d4d8]">Paket: harga final. {withCart ? "Menu reguler: + service/PB1 sesuai pengaturan. " : ""}Total pasti tampil di Final Bayar.</p>
+              {blocker && !busy ? <p role="status" className="text-sm font-semibold text-[#ffd08a]">{blocker}</p> : null}
               {error ? <p role="alert" className="rounded-md border border-[#d11a2a]/50 bg-[#d11a2a]/12 p-2 text-sm text-[#ffd6d6]">{error}</p> : null}
               <Button type="button" className="h-12 text-base font-semibold" disabled={!ready} onClick={() => void save()}>
                 {busy ? "Menyimpan…" : "Simpan & Final Bayar"}

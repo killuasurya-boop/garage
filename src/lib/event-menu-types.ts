@@ -21,6 +21,8 @@ export type EventMenuEntry = {
   usedQuantity: number;
   sortOrder: number;
   groups: EventMenuGroup[];
+  /** Foto paket; null = kolase foto komponen. */
+  imageUrl: string | null;
 };
 
 export type EventCartItem = {

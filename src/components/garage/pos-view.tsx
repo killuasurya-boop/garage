@@ -240,6 +240,7 @@ import {
 } from "@/components/garage/pos-order-cancel-dialog";
 import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
 import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
+import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
 import {
   PosTableBillSplitDialog,
@@ -3673,6 +3674,8 @@ export function PosView({
         headers: { "X-Idempotency-Key": attempt.key },
       });
       orderAttemptRef.current = null;
+      // Bill buatan kasir sendiri bukan "order QR baru" → tanpa suara/toast.
+      previousCustomerOrderIdsRef.current.add(result.orderId);
       setOpenBillSaved({ ...result, customerName: openBillName || null });
       void printChitIfEnabled({
         orderNo: result.orderNo,
@@ -3714,6 +3717,7 @@ export function PosView({
 
   // Paket Event (owner, Okt 2026): tagihan disimpan lewat open-bill, lalu langsung Final Bayar.
   async function handleEventBundleSaved(saved: PosBundleSaved, includedCart: boolean) {
+    previousCustomerOrderIdsRef.current.add(saved.orderId);
     const cartChit = includedCart
       ? cartLines.map((line) => ({ name: line.item.name, variant: line.variant.label, qty: line.qty, note: line.note ?? null, station: chitStationFor(line.item) }))
       : [];
@@ -6008,7 +6012,7 @@ export function PosView({
           if (!open) setFinalizeOrderTarget(null);
         }}
       >
-        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
+        <DialogContent className="garage-scroll max-h-[92svh] overflow-y-auto border-[#34343c] bg-[#111116] max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader className="text-left">
             <DialogTitle>Konfirmasi pembayaran</DialogTitle>
             <DialogDescription>
@@ -6023,6 +6027,39 @@ export function PosView({
                   {finalizeOrderTarget.tableLabel} · {finalizeOrderTarget.orderNo}
                 </span>
               </div>
+              {finalizeOrderTarget.items.length ? (
+                <ul className="garage-scroll max-h-44 space-y-1.5 overflow-y-auto border-t border-[#34343c] pt-2" aria-label="Isi pesanan">
+                  {groupOrderLines(finalizeOrderTarget.items).map((group) =>
+                    group.kind === "package" ? (
+                      <li key={group.groupId} className="text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 break-words font-semibold text-white">{group.qty}× {group.name}</span>
+                          <span className="garage-mono shrink-0 text-white">{currency.format(group.total)}</span>
+                        </div>
+                        <p className="break-words text-[13px] leading-5 text-[#d0d0d6]">
+                          {group.components.map((line) => componentLabel(line, group.qty)).join(" · ")}
+                        </p>
+                      </li>
+                    ) : (
+                      <li key={group.line.id} className="flex items-start justify-between gap-2 text-sm">
+                        <span className="min-w-0 break-words text-[#e4e4ea]">{group.line.qty}× {group.line.itemName}{group.line.variantLabel && group.line.variantLabel !== "Regular" ? ` ${group.line.variantLabel}` : ""}</span>
+                        <span className="garage-mono shrink-0 text-white">{currency.format(group.line.lineTotal)}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              ) : null}
+              {(() => {
+                const handover = finalizeOrderTarget.items.filter((line) => {
+                  const menu = line.menuItemId ? menuItemsById.get(line.menuItemId) : undefined;
+                  return menu ? chitStationFor(menu) === "Langsung" : false;
+                });
+                return handover.length ? (
+                  <p className="rounded-md border border-[#f5a742]/60 bg-[#f5a742]/14 p-2 text-sm font-bold text-[#ffd08a]" data-testid="finalize-handover">
+                    Serahkan langsung: {handover.map((line) => `${line.qty}× ${line.itemName}`).join(", ")}
+                  </p>
+                ) : null;
+              })()}
               <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
                 <span className="text-[#b8b8bf]">Total</span>
                 <span className="garage-mono text-base font-black text-[#ffd08a]">
@@ -6033,7 +6070,7 @@ export function PosView({
           ) : null}
           {finalizeOrderTarget ? (
             <div className="space-y-2">
-              <p className="garage-mono text-[11px] uppercase tracking-wide text-[#b8b8bf]">
+              <p className="garage-mono text-xs uppercase tracking-wide text-[#c8c8cc]">
                 Metode bayar
               </p>
               {finalizeOrderTarget.fulfillment === "delivery" ? (
@@ -6051,7 +6088,7 @@ export function PosView({
                     type="button"
                     onClick={() => setFinalizeMethod(method)}
                     disabled={method === "QRIS" && !qrisImageReady && finalizeOrderTarget.fulfillment !== "delivery"}
-                    className={`garage-press h-10 rounded-md border text-sm font-bold disabled:opacity-40 ${
+                    className={`garage-press h-11 rounded-md border text-sm font-bold disabled:opacity-40 ${
                       finalizeMethod === method
                         ? "border-[#f5a742] bg-[#f5a742] text-black"
                         : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
@@ -6077,7 +6114,7 @@ export function PosView({
                         key={amount}
                         type="button"
                         onClick={() => setFinalizeCash(String(amount))}
-                        className={`garage-press h-10 rounded-md border text-sm font-bold tabular-nums ${
+                        className={`garage-press h-11 rounded-md border text-sm font-bold tabular-nums ${
                           finalizeCashValue === amount
                             ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
                             : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
@@ -6104,7 +6141,7 @@ export function PosView({
           <div className="flex flex-col gap-2 sm:flex-row-reverse">
             <Button
               type="button"
-              className="garage-press h-11 flex-1 bg-[#22c55e] text-sm text-white hover:bg-[#16a34a]"
+              className="garage-press h-12 flex-1 bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a]"
               onClick={confirmFinalizeOrder}
               disabled={finalizeCashShort}
             >

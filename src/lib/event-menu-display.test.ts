@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { eventDisplayMenu, eventEntryAvailable, mergeMainEventMenu } from "@/lib/event-menu-display";
+import { bundleGroupSummary, bundleHasRestricted, bundleImageSources, bundleSelectionLabel, bundleUnavailableReason, eventDisplayMenu, eventEntryAvailable, mergeMainEventMenu } from "@/lib/event-menu-display";
 import type { EventMenuEntry, EventMenuProduct } from "@/lib/event-menu-types";
 
 const now = Date.parse("2026-10-24T10:00:00Z");
 const products: EventMenuProduct[] = [{ id: "coffee", name: "Kopi", category: "Coffee", imageUrl: null, description: null, stock: "ready", variants: [{ id: "cold", label: "Cold", price: 20000 }] }];
-const entry: EventMenuEntry = { id: "entry", eventId: "event", kind: "item", name: "Kopi Event", description: null, menuItemId: "coffee", variantId: "cold", price: 15000, status: "active", startsAt: "2026-10-24T09:00:00Z", endsAt: "2026-10-24T11:00:00Z", quota: null, usedQuantity: 10000, sortOrder: 0, groups: [] };
+const entry: EventMenuEntry = { id: "entry", eventId: "event", kind: "item", name: "Kopi Event", description: null, menuItemId: "coffee", variantId: "cold", price: 15000, status: "active", startsAt: "2026-10-24T09:00:00Z", endsAt: "2026-10-24T11:00:00Z", quota: null, usedQuantity: 10000, sortOrder: 0, groups: [], imageUrl: null };
 
 describe("event menu display", () => {
   it("merges bundles first and contextual variants without duplicate or revived standalone products", () => {
@@ -50,5 +50,40 @@ describe("event menu display", () => {
     expect(eventEntryAvailable({ ...entry, variantId: "missing" }, products, now)).toBe(false);
     expect(eventEntryAvailable(entry, [{ ...products[0], showInDigitalMenu: false }], now)).toBe(false);
     expect(eventEntryAvailable(bundle, [{ ...products[0], showInDigitalMenu: false }], now)).toBe(true);
+  });
+});
+
+describe("bundle display helpers", () => {
+  const catalog: EventMenuProduct[] = [
+    { id: "rokok", name: "Black Matcha", category: "Rokok", imageUrl: null, description: null, stock: "ready", showInDigitalMenu: false, bundleOnly: true, variants: [{ id: "regular", label: "Regular", price: 18000 }] },
+    { id: "aren", name: "Gula Aren", category: "Coffee", imageUrl: "/menu-photos/aren.webp", description: null, stock: "ready", variants: [{ id: "cold", label: "Cold", price: 23000 }, { id: "hot", label: "Hot", price: 23000 }] },
+    { id: "matcha", name: "Matcha", category: "Non-Coffee", imageUrl: null, description: null, stock: "ready", variants: [{ id: "cold", label: "Cold", price: 22000 }, { id: "hot", label: "Hot", price: 20000 }] },
+    { id: "nugget", name: "Nugget", category: "Cemilan", imageUrl: "/menu-photos/nugget.webp", description: null, stock: "ready", variants: [{ id: "regular", label: "Regular", price: 12000 }] },
+  ];
+  const paket: EventMenuEntry = { ...entry, id: "paket", kind: "bundle", name: "Bundling 50.000", menuItemId: null, variantId: null, price: 50000, usedQuantity: 0, groups: [
+    { id: "r", name: "Rokok", quantity: 1, options: [{ itemId: "rokok", variantId: "regular" }] },
+    { id: "m", name: "Pilihan Minuman", quantity: 1, options: [{ itemId: "aren", variantId: "hot" }, { itemId: "aren", variantId: "cold" }, { itemId: "matcha", variantId: "hot" }, { itemId: "matcha", variantId: "cold" }] },
+    { id: "c", name: "Cemilan", quantity: 1, options: [{ itemId: "nugget", variantId: "regular" }] },
+  ] };
+
+  it("summarises groups without the 'Pilihan … pilihan' duplication", () => {
+    expect(bundleGroupSummary(paket.groups[1], catalog)).toEqual({ label: "Minuman", choice: "pilih 1 dari 2", detail: "Gula Aren, Matcha · Hot/Cold" });
+    expect(bundleGroupSummary(paket.groups[0], catalog)).toEqual({ label: "Rokok", choice: "Black Matcha", detail: null });
+  });
+
+  it("explains why a bundle cannot be ordered", () => {
+    expect(bundleUnavailableReason(paket, catalog, now)).toBeNull();
+    expect(bundleUnavailableReason({ ...paket, startsAt: "2026-10-24T12:00:00Z", endsAt: "2026-10-24T15:00:00Z" }, catalog, now)).toBe("Mulai 19.00");
+    expect(bundleUnavailableReason({ ...paket, quota: 5, usedQuantity: 5 }, catalog, now)).toBe("Kuota habis");
+  });
+
+  it("uses the bundle photo, else a collage of non-tobacco component photos", () => {
+    expect(bundleImageSources({ ...paket, imageUrl: "/garage-uploads/event-menu/p.webp" }, catalog)).toEqual(["/garage-uploads/event-menu/p.webp"]);
+    expect(bundleImageSources(paket, catalog)).toEqual(["/menu-photos/aren.webp", "/menu-photos/nugget.webp"]);
+  });
+
+  it("flags tobacco bundles and builds a short cart label", () => {
+    expect(bundleHasRestricted(paket, catalog)).toBe(true);
+    expect(bundleSelectionLabel(paket, [{ groupId: "r", itemId: "rokok", variantId: "regular" }, { groupId: "m", itemId: "aren", variantId: "hot" }, { groupId: "c", itemId: "nugget", variantId: "regular" }], catalog)).toBe("Black Matcha · Gula Aren Hot · Nugget");
   });
 });

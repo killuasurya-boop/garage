@@ -13,6 +13,7 @@ type Actor = { userId: string; name: string; outletId?: string };
 type MenuRow = typeof eventMenuEntries.$inferSelect;
 
 const isoDate = z.string().datetime({ offset: true });
+const imageUrl = z.string().trim().max(800).refine(v => !v || (v.startsWith("/") && !v.startsWith("//")) || /^https:\/\/[^\s"'<>]+$/.test(v), "URL gambar tidak valid.");
 const productOption = z.object({ itemId: z.string().trim().min(1).max(120), variantId: z.string().trim().min(1).max(100) });
 export const eventCartItemSchema = z.object({
   entryId: z.string().uuid(), qty: z.number().int().min(1).max(25), note: z.string().trim().max(160).optional(),
@@ -25,6 +26,7 @@ export const eventMenuEntrySchema = z.object({
   price: z.number().int().min(1).max(100_000_000), status: z.enum(["active", "inactive", "archived"]).default("active"),
   startsAt: isoDate, endsAt: isoDate, quota: z.number().int().min(1).max(1_000_000).nullable().default(null),
   sortOrder: z.number().int().min(0).max(100_000).default(0),
+  imageUrl: imageUrl.nullable().optional(),
   groups: z.array(z.object({ id: z.string().trim().min(1).max(80), name: z.string().trim().min(1).max(100), quantity: z.number().int().min(1).max(10), options: z.array(productOption).min(1).max(40) })).max(8).default([]),
 }).superRefine((v, ctx) => {
   if (Date.parse(v.endsAt) <= Date.parse(v.startsAt)) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "Jam selesai harus setelah jam mulai." });
@@ -35,7 +37,6 @@ export const eventMenuEntrySchema = z.object({
 });
 export type EventMenuEntryInput = z.input<typeof eventMenuEntrySchema>;
 
-const imageUrl = z.string().trim().max(800).refine(v => !v || (v.startsWith("/") && !v.startsWith("//")) || /^https:\/\/[^\s"'<>]+$/.test(v), "URL gambar tidak valid.");
 export const eventCreateSchema = z.object({
   title: z.string().trim().min(3).max(120), slug: z.string().trim().min(3).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   startsAt: isoDate, endsAt: isoDate,
@@ -139,9 +140,20 @@ export async function saveEventMenuEntry(eventId: string, input: EventMenuEntryI
       const conflicts = await tx.select().from(eventMenuEntries).where(and(eq(eventMenuEntries.eventId, eventId), eq(eventMenuEntries.status, "active"), eq(eventMenuEntries.menuItemId, value.menuItemId!), eq(eventMenuEntries.variantId, value.variantId!), entryId ? ne(eventMenuEntries.id, entryId) : undefined));
       if (conflicts.some(c => startsAt < c.endsAt && endsAt > c.startsAt)) throw new EventError(409, "EVENT_MENU_OVERLAP", "Jadwal harga produk/varian ini bertabrakan dengan menu event lain.");
     }
-    const values = { ...value, menuItemId: value.kind === "item" ? value.menuItemId! : null, variantId: value.kind === "item" ? value.variantId! : null, description: value.description || null, startsAt, endsAt, updatedAt: new Date() };
+    const values = { ...value, menuItemId: value.kind === "item" ? value.menuItemId! : null, variantId: value.kind === "item" ? value.variantId! : null, description: value.description || null, imageUrl: value.imageUrl === undefined ? undefined : value.imageUrl || null, startsAt, endsAt, updatedAt: new Date() };
     const [row] = before ? await tx.update(eventMenuEntries).set(values).where(eq(eventMenuEntries.id, before.id)).returning() : await tx.insert(eventMenuEntries).values({ ...values, eventId }).returning();
     await audit(tx, actor, before ? "Update event menu" : "Create event menu", row.name, before ?? null, row);
+    return entryDto(row);
+  });
+}
+/** Simpan/hapus foto paket tanpa menyentuh konfigurasi menu lain. */
+export async function setEventMenuEntryImage(eventId: string, entryId: string, image: string | null, actor: Actor) {
+  return getDb().transaction(async tx => {
+    await eventById(tx, eventId, actor.outletId, true);
+    const [before] = await tx.select().from(eventMenuEntries).where(and(eq(eventMenuEntries.id, entryId), eq(eventMenuEntries.eventId, eventId))).limit(1);
+    if (!before) throw new EventError(404, "EVENT_MENU_NOT_FOUND", "Menu event tidak ditemukan.");
+    const [row] = await tx.update(eventMenuEntries).set({ imageUrl: image, updatedAt: new Date() }).where(eq(eventMenuEntries.id, entryId)).returning();
+    await audit(tx, actor, image ? "Update event menu image" : "Remove event menu image", row.name, { imageUrl: before.imageUrl }, { imageUrl: row.imageUrl });
     return entryDto(row);
   });
 }

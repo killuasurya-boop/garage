@@ -3329,6 +3329,9 @@ export const wmsPurchaseOrderItem = pgTable(
     orderedQty: wmsNum("ordered_qty").notNull(),
     receivedQty: wmsNum("received_qty").notNull().default(0),
     unitPrice: wmsNum("unit_price").notNull().default(0), // Rp per satuan simpan
+    // Kemasan saat dipesan (cetak "4 kotak @ Rp45.000"); null = satuan dasar.
+    uom: text("uom"),
+    uomFactor: wmsNum("uom_factor"),
   },
   (t) => ({ poIdx: index("wms_purchase_order_item_po_idx").on(t.purchaseOrderId) }),
 );
@@ -3666,6 +3669,71 @@ export const wmsWaste = pgTable(
     statusIdx: index("wms_waste_status_idx").on(t.status, t.createdAt),
     productIdx: index("wms_waste_product_idx").on(t.productId),
   }),
+);
+
+// Kemasan per bahan (konsep ERPNext UOM Conversion): 1 kotak = 1000 ml, 1 dus = 24 botol.
+// Satuan dasar wms_product.unit tetap kebenaran stok/HPP; kemasan hanya untuk input &
+// tampilan (hitung opname, minta bahan, PO, surat jalan).
+export const wmsProductUom = pgTable(
+  "wms_product_uom",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    uom: text("uom").notNull(),
+    factor: wmsNum("factor").notNull(), // isi dalam satuan dasar
+    isPurchase: boolean("is_purchase").notNull().default(false), // default beli/terima/PO
+    isCount: boolean("is_count").notNull().default(false), // default hitung/minta bahan
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ productUomIdx: uniqueIndex("wms_product_uom_product_uom_idx").on(t.productId, sql`lower(${t.uom})`) }),
+);
+
+// Permintaan bahan Bar/Dapur → gudang (daftar belanja dari layar produksi, ala ERPNext
+// Material Request "Material Transfer"). Tanpa approval: gudang kirim, divisi konfirmasi.
+// Bagian yang tidak tersedia di gudang = kekurangan → manajer buat PO.
+export const wmsMaterialRequest = pgTable(
+  "wms_material_request",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    division: text("division").notNull(), // bar | dapur
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }), // ruang Bar/Dapur
+    sourceWarehouseId: uuid("source_warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("submitted"), // submitted | sent | received | cancelled
+    urgent: boolean("urgent").notNull().default(false),
+    note: text("note").notNull().default(""),
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    requestedByName: text("requested_by_name").notNull().default(""),
+    sentBy: text("sent_by").references(() => user.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    receivedBy: text("received_by").references(() => user.id, { onDelete: "set null" }),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    receiveNote: text("receive_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index("wms_material_request_status_idx").on(t.status, t.createdAt) }),
+);
+
+export const wmsMaterialRequestItem = pgTable(
+  "wms_material_request_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => wmsMaterialRequest.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    qty: wmsNum("qty").notNull(),
+    stockAtRequest: wmsNum("stock_at_request").notNull().default(0), // stok ruang saat diminta
+    sentQty: wmsNum("sent_qty").notNull().default(0),
+    shortQty: wmsNum("short_qty").notNull().default(0), // tidak ada di gudang → perlu beli
+    purchaseOrderId: uuid("purchase_order_id").references(() => wmsPurchaseOrder.id, { onDelete: "set null" }),
+    note: text("note").notNull().default(""),
+  },
+  (t) => ({ requestIdx: index("wms_material_request_item_request_idx").on(t.requestId) }),
 );
 
 // Jejak batch per penjualan (ala ERPNext "return against"): void/refund mengembalikan

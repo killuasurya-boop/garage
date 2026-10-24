@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
+import { formatPacks } from "@/lib/stock-uom";
 import { currency } from "@/lib/garage-data";
 import { printDeliveryNote, printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
@@ -226,7 +227,7 @@ export default function WmsInternalOrderPage() {
                 <option value="">Pilih bahan…</option>
                 {products.filter((p) => !cart.some((l) => l.product.id === p.id)).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} (stok {p.onHand} {p.unit})
+                    {p.name} (stok {formatPacks(p.onHand, p.unit, p.uoms)})
                   </option>
                 ))}
               </select>

@@ -16,6 +16,7 @@ import {
   wmsWarehouseStock,
 } from "@/db/schema";
 import { createReceiving, makeWmsDoc, runInTx, writeWmsAudit } from "@/lib/wms-service";
+import { loadProductUoms } from "@/lib/wms-uom";
 
 // =============================================================================
 // GARAGE WMS — pembelian & reorder (konsep ERPNext: Purchase Order, Item Reorder
@@ -34,23 +35,34 @@ export type PurchaseOrderInput = {
   warehouseId?: string | null;
   expectedDate?: string | null;
   note?: string;
-  items: Array<{ productId: string; orderedQty: number; unitPrice: number }>;
+  /** orderedQty & unitPrice dalam satuan dasar; uom/uomFactor = kemasan saat dipesan (cetak). */
+  items: Array<{ productId: string; orderedQty: number; unitPrice: number; uom?: string | null; uomFactor?: number | null }>;
 };
 
 export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: string | null) {
+  return runInTx((tx) => createPurchaseOrderInTx(tx, input, userId));
+}
+
+/** Sama dengan createPurchaseOrder, di dalam transaksi pemanggil (atomik dengan klaim kekurangan). */
+export async function createPurchaseOrderInTx(tx: Db, input: PurchaseOrderInput, userId?: string | null) {
   // Satu baris per bahan: baris ganda digabung (qty dijumlah, harga rata-rata tertimbang)
   // supaya penerimaan selalu jatuh ke baris yang tepat.
-  const merged = new Map<string, { productId: string; orderedQty: number; value: number }>();
+  const merged = new Map<string, { productId: string; orderedQty: number; value: number; uom: string | null; uomFactor: number | null }>();
   for (const it of input.items) {
     if (!(it.orderedQty > 0)) continue;
-    const cur = merged.get(it.productId) ?? { productId: it.productId, orderedQty: 0, value: 0 };
+    const cur = merged.get(it.productId) ?? { productId: it.productId, orderedQty: 0, value: 0, uom: it.uom ?? null, uomFactor: it.uomFactor ?? null };
     cur.orderedQty += it.orderedQty;
     cur.value += it.orderedQty * Math.max(0, it.unitPrice);
+    // Baris ganda beda kemasan → cetak pakai satuan dasar.
+    if ((cur.uom ?? null) !== (it.uom ?? null)) {
+      cur.uom = null;
+      cur.uomFactor = null;
+    }
     merged.set(it.productId, cur);
   }
-  const items = [...merged.values()].map((m) => ({ productId: m.productId, orderedQty: m.orderedQty, unitPrice: m.value / m.orderedQty }));
+  const items = [...merged.values()].map((m) => ({ productId: m.productId, orderedQty: m.orderedQty, unitPrice: m.value / m.orderedQty, uom: m.uom, uomFactor: m.uomFactor }));
   if (!items.length) throw new Error("PO butuh minimal 1 bahan.");
-  return runInTx(async (tx) => {
+  {
     const [supplier] = await tx.select().from(wmsSupplier).where(eq(wmsSupplier.id, input.supplierId)).limit(1);
     if (!supplier || supplier.archivedAt) throw new Error("Supplier tidak ditemukan / diarsipkan.");
     const [po] = await tx
@@ -66,11 +78,18 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
       })
       .returning();
     await tx.insert(wmsPurchaseOrderItem).values(
-      items.map((it) => ({ purchaseOrderId: po.id, productId: it.productId, orderedQty: round4(it.orderedQty), unitPrice: round4(Math.max(0, it.unitPrice)) })),
+      items.map((it) => ({
+        purchaseOrderId: po.id,
+        productId: it.productId,
+        orderedQty: round4(it.orderedQty),
+        unitPrice: round4(Math.max(0, it.unitPrice)),
+        uom: it.uom && it.uomFactor && it.uomFactor > 1 ? it.uom : null,
+        uomFactor: it.uom && it.uomFactor && it.uomFactor > 1 ? round4(it.uomFactor) : null,
+      })),
     );
     await writeWmsAudit(tx, { userId, action: "PO dibuat", object: po.doc, metadata: { supplier: supplier.name, items: items.length } });
     return po;
-  });
+  }
 }
 
 export async function listPurchaseOrders(limit = 100) {
@@ -106,10 +125,14 @@ export async function getPurchaseOrder(id: string) {
     .from(wmsReceiving)
     .where(eq(wmsReceiving.purchaseOrderId, id))
     .orderBy(desc(wmsReceiving.createdAt));
+  const uoms = await loadProductUoms(items.map((r) => r.item.productId).filter((id): id is string => !!id), db);
   return {
     ...po,
     supplierPhone: supplier?.phone ?? "",
     items: items.map((r) => ({
+      uoms: r.item.productId ? (uoms.get(r.item.productId) ?? []) : [],
+      uom: r.item.uom,
+      uomFactor: r.item.uomFactor === null ? null : Number(r.item.uomFactor),
       id: r.item.id,
       productId: r.item.productId,
       name: r.name,
@@ -198,9 +221,9 @@ export async function applyReceivingToPurchaseOrder(
 }
 
 /** Riwayat harga beli per bahan per supplier (dari penerimaan selesai): terakhir & rata-rata. */
-export async function getSupplierPriceHistory(productIds: string[]) {
+export async function getSupplierPriceHistory(productIds: string[], db: Db = getDb()) {
   if (!productIds.length) return [];
-  const rows = await getDb()
+  const rows = await db
     .select({
       productId: wmsReceivingItem.productId,
       supplierId: wmsReceiving.supplierId,
@@ -432,6 +455,7 @@ export async function getStockDocumentLines(refDoc: string) {
       expiredAt: wmsBatch.expiredAt,
       location: wmsBatch.location,
       createdAt: wmsStockMovement.createdAt,
+      productId: wmsStockMovement.productId,
     })
     .from(wmsStockMovement)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsStockMovement.productId))
@@ -439,6 +463,7 @@ export async function getStockDocumentLines(refDoc: string) {
     .leftJoin(wmsBatch, eq(wmsBatch.id, wmsStockMovement.batchId))
     .where(eq(wmsStockMovement.refDoc, refDoc))
     .orderBy(wmsProduct.name);
+  const uoms = await loadProductUoms(rows.map((r) => r.productId).filter((id): id is string => !!id));
   const from = rows.find((r) => Number(r.qty) < 0)?.warehouseName ?? null;
   const to = rows.find((r) => Number(r.qty) > 0)?.warehouseName ?? null;
   return {
@@ -452,6 +477,7 @@ export async function getStockDocumentLines(refDoc: string) {
       .map((r) => ({
         name: r.productName ?? "-",
         sku: r.sku ?? "",
+        uoms: r.productId ? (uoms.get(r.productId) ?? []) : [],
         unit: r.unit ?? "",
         qty: Number(r.qty),
         batchNo: r.batchNo ?? "",

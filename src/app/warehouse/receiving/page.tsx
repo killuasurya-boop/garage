@@ -8,6 +8,7 @@ import { Check, Pencil, Plus, Printer, ScanLine, Trash2, Truck } from "lucide-re
 import { WmsReceivingChecklistDialog } from "@/components/wms/wms-receiving-checklist-dialog";
 import { ScanModal } from "@/components/wms/scan-modal";
 import { GarageApiError, garageApi } from "@/lib/api-client";
+import { purchasePack } from "@/lib/stock-uom";
 import { currency } from "@/lib/garage-data";
 import {
   isPerishableProduct,
@@ -82,8 +83,10 @@ function parseIdNumber(value: string): number {
 function productDefaults(p: WmsProductRow | undefined): Pick<ItemDraft, "packSize" | "hpp"> {
   if (!p) return { packSize: "", hpp: "" };
   const hasPack = p.packQty > 0 && p.packPrice > 0;
+  // Kemasan beli dari master (kotak/dus) lebih dulu, lalu isi kemasan katalog.
+  const buyPack = purchasePack(p.uoms);
   return {
-    packSize: p.packQty > 0 ? String(p.packQty) : "",
+    packSize: buyPack ? String(buyPack.factor) : p.packQty > 0 ? String(p.packQty) : "",
     hpp: String(hasPack ? Math.round((p.packPrice / p.packQty) * 10_000) / 10_000 : p.hpp || ""),
   };
 }

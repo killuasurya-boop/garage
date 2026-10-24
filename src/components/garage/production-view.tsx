@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ProductionMaterialRequestDialog } from "@/components/garage/production-material-request-dialog";
 import { ProductionSoldOutDialog } from "@/components/garage/production-sold-out-dialog";
 import { StationPrintPanel } from "@/components/garage/station-print-panel";
 import { TablePlate } from "@/components/garage/table-plate";
@@ -147,6 +148,14 @@ export function ProductionView({
   const soldOutStations = (["Bar", "Food"] as const).filter((st) =>
     canOperateStation(me.role, me.workstation, st),
   );
+  // Minta Bahan: tablet Bar → gudang Bar, tablet Dapur → gudang Dapur; akun tanpa
+  // station tetap (Owner/Manajer/semua) memilih divisi di dialog.
+  const materialDivisions: Array<"bar" | "dapur"> =
+    workstation === "bar" || workstation === "helper_bar"
+      ? ["bar"]
+      : workstation === "dapur" || workstation === "helper_dapur"
+        ? ["dapur"]
+        : ["bar", "dapur"];
   // Cetak chit mengikuti station PERANGKAT (workstation akun), bukan filter
   // tampilan — tablet Bar tidak boleh mencetak & menandai tiket Dapur.
   const printStation: "Bar" | "Food" | "all" =
@@ -960,6 +969,7 @@ export function ProductionView({
             {soldOutStations.length ? (
               <ProductionSoldOutDialog menuItems={menuItems} stations={soldOutStations} />
             ) : null}
+            <ProductionMaterialRequestDialog divisions={materialDivisions} />
             <button
               type="button"
               onClick={() => void (lcd.active ? lcd.exit() : lcd.enter())}

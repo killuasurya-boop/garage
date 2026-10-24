@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Sliders } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
+import { formatPacks } from "@/lib/stock-uom";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
 
 type Move = { id: string; productName: string; qty: number; refDoc: string; warehouseName: string; createdAt: string };
@@ -81,7 +82,7 @@ export default function WmsAdjustmentPage() {
           <div className="space-y-2.5">
             <select value={productId} onChange={(e) => setProductId(e.target.value)} className={input}>
               <option value="">Pilih produk…</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name} (stok {p.onHand} {p.unit})</option>)}
+              {products.map((p) => <option key={p.id} value={p.id}>{p.name} (stok {formatPacks(p.onHand, p.unit, p.uoms)})</option>)}
             </select>
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={input}>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}

@@ -1,3 +1,5 @@
+import type { PackUom } from "@/lib/stock-uom";
+
 // Tipe & konstanta WMS yang AMAN untuk client (tanpa import DB/server).
 
 export type WhType = "main" | "bar" | "kitchen";
@@ -33,6 +35,8 @@ export type WmsProductRow = {
   packPrice: number;
   packQty: number;
   packageLabel: string | null; // mis. "botol 760 ml"
+  /** Kemasan untuk input/tampilan (kotak = 1000 ml); satuan dasar tetap `unit`. */
+  uoms?: PackUom[];
   onHand: number; // di warehouse aktif (atau total bila scope semua)
   status: StockStatus;
   imageUrl: string | null;

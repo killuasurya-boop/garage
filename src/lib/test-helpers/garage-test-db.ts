@@ -56,6 +56,13 @@ export async function setupGarageTestDb(): Promise<GarageTestDb> {
     `DELETE FROM "app_settings" WHERE "key" = 'digitalMenu.featuredEventId' AND "updated_by" = 'migration-0150'`,
     `DELETE FROM "audit_logs" WHERE "action" = 'Seed event menu (Menu_Event_GARAGE_1.xlsx)'`,
     `DELETE FROM "events" WHERE "slug" = 'garage-coffee-event-2026-10-24'`,
+    // 0158 = data resep usulan & bahan Dapur/retail (bukan skema) → dibuang juga; tesnya
+    // (recipe-proposals.integration.test.ts) menjalankan ulang migrasi itu sendiri.
+    `DELETE FROM "menu_recipes" WHERE "status" = 'draft'`,
+    `DELETE FROM "wms_product" WHERE "sku" LIKE 'KIT-%' OR "sku" LIKE 'RTL-%'`,
+    `DELETE FROM "inventory_items" WHERE "sku" LIKE 'KIT-%' OR "sku" LIKE 'RTL-%'`,
+    `DELETE FROM "wms_category" WHERE "name" IN ('Dapur · Kemasan', 'Dapur · Gas & Kebersihan', 'Retail · Minuman Botol', 'Retail · Rokok')`,
+    `DELETE FROM "audit_logs" WHERE "action" = 'Resep usulan dipasang (draft)'`,
   ]) {
     try {
       await client.exec(stmt);

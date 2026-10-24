@@ -1018,7 +1018,10 @@ export async function getWmsProducts(params?: {
     .where(and(...filters))
     .orderBy(wmsProduct.category, wmsProduct.name);
 
+  const { loadProductUoms } = await import("@/lib/wms-uom");
+  const uomsById = await loadProductUoms(rows.map((r) => r.id), db);
   return rows.map((r) => ({
+    uoms: uomsById.get(r.id) ?? [],
     id: r.id,
     sku: r.sku,
     name: r.name,
@@ -1301,6 +1304,42 @@ export async function createWmsProduct(
     }
   }
   return prod;
+}
+
+/**
+ * Stok awal (saldo pembukaan) bahan yang sudah ada — dari form produk/resep. Masuk ke
+ * gudang utama area kategorinya (atau ruang dipilih) dengan HPP rata-rata saat ini,
+ * jadi rata-rata tidak berubah & tidak tercatat sebagai belanja (beli = Receiving).
+ */
+export async function recordOpeningStock(
+  input: { sku: string; qty: number; warehouseId?: string | null; expiredAt?: Date | null },
+  userId?: string | null,
+) {
+  const qty = Number(input.qty);
+  if (!(qty > 0)) throw new Error("Jumlah stok awal harus lebih dari 0.");
+  await ensureWmsSeeded();
+  return runInTx(async (tx) => {
+    const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.sku, input.sku.trim())).limit(1);
+    if (!prod || prod.archivedAt) throw new Error("Bahan tidak ditemukan di gudang.");
+    let target = input.warehouseId ?? null;
+    if (!target) {
+      const [cat] = await tx.select({ area: wmsCategory.area }).from(wmsCategory).where(eq(wmsCategory.name, prod.category)).limit(1);
+      target = await mainWarehouseForArea(tx, cat?.area ?? "umum");
+    }
+    if (!target) throw new Error("Gudang utama untuk bahan ini belum ada.");
+    await recordStockMovement(tx, {
+      type: "in",
+      productId: prod.id,
+      warehouseId: target,
+      deltaQty: qty,
+      hpp: Number(prod.hpp),
+      refDoc: "STOK-AWAL",
+      userId: userId ?? null,
+      batchNo: `INIT-${prod.sku}`,
+      expiredAt: input.expiredAt ?? null,
+    });
+    return { sku: prod.sku, qty, warehouseId: target };
+  });
 }
 
 // =============================================================================
@@ -4505,6 +4544,8 @@ export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
     .where(eq(wmsOpnameLine.opnameId, id))
     .orderBy(wmsProduct.name);
   const blind = !!opts.blind && op.status !== "completed";
+  const { loadProductUoms } = await import("@/lib/wms-uom");
+  const uoms = await loadProductUoms(lines.map((l) => l.productId).filter((id): id is string => !!id), db);
   return {
     id: op.id,
     doc: op.doc,
@@ -4525,6 +4566,7 @@ export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
         sku: l.sku,
         barcode: l.barcode,
         unit: l.unit,
+        uoms: l.productId ? (uoms.get(l.productId) ?? []) : [],
         counted,
         systemQty: blind ? null : Number(l.systemQty),
         physicalQty: blind && !counted ? null : Number(l.physicalQty),

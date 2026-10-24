@@ -227,6 +227,27 @@ Scroll direction:
     - supplier price history
     - min–max per room (`wms_reorder_rule`): an outlet is filled from the main room of its area first, the rest becomes a draft PO per supplier
     - delivery note per batch (`/api/wms/documents/[doc]`)
+- Minta Bahan (owner, Okt 2026, migration 0156) = `src/lib/wms-material-request.ts` (`wms_material_request`/`_item`, doc `MRQ-`):
+  - Bar/Dapur staff build a shopping list from the production screen (`production-material-request-dialog.tsx`, permission `kitchen:write`). There is no approval step; management gets a notification.
+  - The warehouse sends from `/warehouse/material-requests` (`inventory:write`). Stock moves from the area's main room to the Bar/Dapur room via `moveStockBetweenWarehouses`, with FEFO, expired batches rejected and the batch carried over. Anything not sent becomes `shortQty`.
+  - The division confirms receipt. Shortages turn into a draft PO per last supplier (`createPurchaseOrdersFromShortages`). The delivery note comes from `/api/wms/documents/MRQ-…`.
+- Kemasan bertingkat (owner, Okt 2026, migration 0157, ERPNext UOM Conversion): base unit (ml/gr/pcs) stays
+  the truth for stock, HPP, POS/recipe deductions. `wms_product_uom` (kotak/botol/dus, `factor` = base units, one
+  `is_purchase` + one `is_count` default) is only for input/display; no rows → default from `inventory_items.packageQty`
+  > 1 (`loadProductUoms`, `src/lib/wms-uom.ts`). Helpers `src/lib/stock-uom.ts` (`formatPacks` "3 kotak + 250 ml"),
+  UI `PackQtyInput`/`PackQtyText` (`src/components/wms/pack-qty.tsx`) for opname, Minta Bahan, waste, PO, lists.
+  PO per kotak stores base qty + per-base price plus `uom`/`uom_factor` snapshot for printing. Portions per pack =
+  factor ÷ (recipe qty × (1 + waste%)) (`getPortionYield`). Biang Teh BAR-035 = kotak 1000 ml; Fresh Milk = dus beli,
+  botol 946 ml hitung.
+- Resep usulan (owner, Okt 2026, migration 0158, `docs/RESEP-USULAN-2026-10.md`): every product without a recipe
+  got a DRAFT recipe (barista/koki proposal) + insert-only Dapur materials `KIT-001…052` and finished-goods stock
+  `RTL-001…005` (Mineral btl/dus, Rokok bks/slop; 1 per sale). Drafts never deduct stock/HPP until approved
+  (`approveDraftRecipe`, error names each bad line) or activated from the product form ("Pakai resep usulan").
+  `listDraftRecipes` is per variant (HPP = 'all' lines + variant lines). Product save never deletes draft/archived
+  recipe rows unless it saves new recipe lines (which supersede drafts). Retail with one recipe line and stock cost 0:
+  harga modal seeds the stock cost (`seedRetailStockCosts`). Product form shows ingredient stock in packs, portions
+  left, "+ Stok awal" (`recordOpeningStock`, STOK-AWAL at current HPP, Owner/Manajer) and "Bahan Baru". The test
+  harness strips 0158 data; `recipe-proposals.integration.test.ts` re-runs it.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

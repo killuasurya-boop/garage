@@ -5,7 +5,9 @@ import { ClipboardCheck, Plus, Printer, ScanLine } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 import { printWmsDoc, escapeHtml } from "@/lib/wms-print";
+import { PackQtyInput, PackQtyText } from "@/components/wms/pack-qty";
 import { ScanModal } from "@/components/wms/scan-modal";
+import { countPack, formatPacks, type PackUom } from "@/lib/stock-uom";
 import type { WmsWarehouse } from "@/lib/wms-types";
 
 type OpnameRow = { id: string; doc: string; status: string; rejected: boolean; warehouse: string; lines: number; createdAt: string };
@@ -15,6 +17,7 @@ type OpnameLine = {
   sku: string | null;
   barcode: string | null;
   unit: string;
+  uoms?: PackUom[];
   counted: boolean;
   /** null = hitung buta (penghitung non-manajer tidak melihat stok sistem). */
   systemQty: number | null;
@@ -38,6 +41,8 @@ export default function WmsOpnamePage() {
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Hitungan yang sedang diketik (satuan dasar), disimpan saat input ditinggalkan.
+  const [entries, setEntries] = useState<Record<string, number>>({});
 
   function focusByCode(code: string) {
     setScanning(false);
@@ -45,7 +50,7 @@ export default function WmsOpnamePage() {
     const q = code.trim().toLowerCase();
     const line = active.lines.find((l) => (l.sku ?? "").toLowerCase() === q || (l.barcode ?? "").toLowerCase() === q);
     if (!line) { window.alert(`Produk kode "${code}" tak ada di sesi opname ini.`); return; }
-    const el = document.getElementById(`opl-${line.id}`) as HTMLInputElement | null;
+    const el = (document.getElementById(`opl-${line.id}-count`) ?? document.getElementById(`opl-${line.id}-rest`)) as HTMLInputElement | null;
     if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus(); el.select(); }
   }
 
@@ -89,10 +94,15 @@ export default function WmsOpnamePage() {
     setActive(await garageApi.get<OpnameDetail>(`/api/wms/opname/${id}`));
   }
 
-  async function saveLine(lineId: string, raw: string) {
-    if (!active || raw.trim() === "") return;
-    const physicalQty = Number(raw.replace(",", "."));
+  async function saveLine(lineId: string) {
+    const physicalQty = entries[lineId];
+    if (!active || physicalQty === undefined) return;
     if (!Number.isFinite(physicalQty) || physicalQty < 0) return;
+    setEntries((current) => {
+      const next = { ...current };
+      delete next[lineId];
+      return next;
+    });
     try {
       await garageApi.patch(`/api/wms/opname/${active.id}`, { lineId, physicalQty });
       // Stok sistem dicatat saat dihitung → baca ulang supaya selisih akurat.
@@ -129,13 +139,18 @@ export default function WmsOpnamePage() {
     const counted = active.lines.filter((l) => l.counted).length;
     const totalVar = active.lines.filter((l) => (l.variance ?? 0) !== 0).length;
     const varianceValue = active.lines.reduce((sum, l) => sum + (l.varianceValue ?? 0), 0);
+    // Lembar hitung menyebut isi kemasan supaya penghitung bisa menulis "2 kotak + 300 ml".
+    const unitHint = (l: OpnameLine) => {
+      const pack = countPack(l.uoms);
+      return pack ? `${l.unit} (1 ${pack.uom} = ${pack.factor} ${l.unit})` : l.unit;
+    };
     const printSheet = () => {
       // Lembar hitung buta: kolom stok sistem hanya untuk manajer.
       const rows = active.lines
         .map((l) =>
           active.blind
-            ? `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(l.unit)}</td><td style="width:110px"></td></tr>`
-            : `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(l.unit)}</td><td class="r">${l.systemQty ?? ""}</td><td class="r">${l.counted ? l.physicalQty : ""}</td><td class="r">${l.counted ? l.variance : ""}</td><td class="r">${l.counted && l.varianceValue ? rupiah.format(l.varianceValue) : ""}</td></tr>`,
+            ? `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(unitHint(l))}</td><td style="width:110px"></td></tr>`
+            : `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(unitHint(l))}</td><td class="r">${l.systemQty === null ? "" : escapeHtml(formatPacks(l.systemQty, l.unit, l.uoms))}</td><td class="r">${l.counted && l.physicalQty !== null ? escapeHtml(formatPacks(l.physicalQty, l.unit, l.uoms)) : ""}</td><td class="r">${l.counted ? l.variance : ""}</td><td class="r">${l.counted && l.varianceValue ? rupiah.format(l.varianceValue) : ""}</td></tr>`,
         )
         .join("");
       const head = active.blind
@@ -214,17 +229,22 @@ export default function WmsOpnamePage() {
                       {l.productName} <span className="text-[11px] text-[#525866]">{l.unit}</span>
                       {!l.counted && <span className="ml-1 text-[11px] font-semibold text-[#B45309]">belum dihitung</span>}
                     </td>
-                    {!active.blind && <td className="px-3 py-2 text-right font-mono text-[#525866]">{l.systemQty}</td>}
+                    {!active.blind && (
+                      <td className="px-3 py-2 text-right font-mono text-[#525866]">
+                        <PackQtyText qty={l.systemQty ?? 0} unit={l.unit} uoms={l.uoms} />
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right">
-                      <input
-                        key={`${l.id}-${l.physicalQty ?? "x"}`}
-                        id={`opl-${l.id}`}
-                        defaultValue={l.physicalQty ?? ""}
-                        placeholder="hitung"
+                      {/* Hitung per kemasan + sisa (2 kotak + 300 ml) → disimpan dalam satuan dasar. */}
+                      <PackQtyInput
+                        idPrefix={`opl-${l.id}`}
+                        label={`Hitung fisik ${l.productName}`}
+                        value={entries[l.id] ?? l.physicalQty}
+                        unit={l.unit}
+                        uoms={l.uoms}
                         disabled={!editable}
-                        onBlur={(e) => void saveLine(l.id, e.target.value)}
-                        inputMode="decimal"
-                        className="h-9 w-24 rounded-md border border-[#E8E8E8] text-right font-mono text-[13px] outline-none focus:border-[#C8102E] focus:ring-2 focus:ring-[#C8102E]/30 disabled:bg-[#F8F9FB]"
+                        onChange={(base) => setEntries((current) => ({ ...current, [l.id]: base }))}
+                        onBlur={() => void saveLine(l.id)}
                       />
                     </td>
                     {!active.blind && (

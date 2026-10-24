@@ -1093,6 +1093,27 @@
       "when": 1792818445509,
       "tag": "0155_wms_sale_allocation",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1792867565208,
+      "tag": "0156_wms_material_request",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1792873221612,
+      "tag": "0157_wms_product_uom",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1792875395083,
+      "tag": "0158_recipe_proposals",
+      "breakpoints": true
     }
   ]
 }

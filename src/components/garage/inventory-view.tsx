@@ -90,7 +90,7 @@ type ProductHistoryRow = {
 export function InventoryView({
   role,
   menuItems,
-  inventoryItems,
+  inventoryItems: inventoryItemsProp,
   onMenuChanged,
   onNavigateModule,
 }: {
@@ -180,6 +180,11 @@ export function InventoryView({
     { key: "regular", label: "Regular", price: "", baseCost: "" },
   ]);
   const [productRecipes, setProductRecipes] = useState<ProductRecipeDraft[]>([]);
+  // Resep usulan (draft) produk yang sedang diedit + daftar bahan terbaru setelah
+  // stok awal / bahan baru dibuat dari form (prop dari app shell tidak ikut refresh).
+  const [productDraftRecipes, setProductDraftRecipes] = useState<ProductRecipeDraft[]>([]);
+  const [freshInventory, setFreshInventory] = useState<InventoryItem[] | null>(null);
+  const inventoryItems = freshInventory ?? inventoryItemsProp;
   const [productTags, setProductTags] = useState("");
   // Foto produk: file dipilih owner saat tambah/edit; di-upload setelah produk
   // tersimpan (butuh id). Preview menampilkan file baru atau imageUrl existing.
@@ -311,7 +316,27 @@ export function InventoryView({
     }
   }
 
+  async function refreshInventoryItems() {
+    try {
+      setFreshInventory(await garageApi.get<InventoryItem[]>(`/api/inventory?_=${Date.now()}`, { cache: "no-store" }));
+    } catch {
+      /* daftar lama tetap dipakai */
+    }
+  }
+
+  function applyDraftRecipes() {
+    setProductRecipes(productDraftRecipes.map((recipe, index) => ({ ...recipe, key: `draft-${Date.now()}-${index}` })));
+  }
+
+  function addRecipeLineFor(sku: string, unit: string) {
+    setProductRecipes((current) => [
+      ...current,
+      { key: `recipe-${Date.now()}`, variantId: "all", inventorySku: sku, qty: "", unit, wastePct: "0" },
+    ]);
+  }
+
   function resetProductForm() {
+    setProductDraftRecipes([]);
     setProductEditId("");
     setProductName("");
     setProductSku("");
@@ -682,6 +707,16 @@ export function InventoryView({
             wastePct: String(recipe.wastePct ?? 0),
           }))
         : [],
+    );
+    setProductDraftRecipes(
+      (product.draftRecipes ?? []).map((recipe, index) => ({
+        key: `${product.id}-draft-${index}`,
+        variantId: recipe.variantId || "all",
+        inventorySku: recipe.inventorySku,
+        qty: String(recipe.qty),
+        unit: recipe.unit,
+        wastePct: String(recipe.wastePct ?? 0),
+      })),
     );
     setProductError(null);
     setProductNotice(null);
@@ -1162,6 +1197,10 @@ export function InventoryView({
                   onAddRecipe={addProductRecipe}
                   onUpdateRecipe={updateProductRecipe}
                   onRemoveRecipe={removeProductRecipe}
+                  draftRecipes={productDraftRecipes}
+                  onUseDraftRecipes={applyDraftRecipes}
+                  onAddRecipeLine={addRecipeLineFor}
+                  onInventoryChanged={refreshInventoryItems}
                   inventoryItems={inventoryItems}
                   recipeCostPreview={recipeCostPreview}
                   marginPreview={marginPreview}

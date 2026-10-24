@@ -22,7 +22,10 @@ import {
   X,
 } from "lucide-react";
 
+import { PackQtyText } from "@/components/wms/pack-qty";
+import { WmsProductPackSection } from "@/components/wms/wms-product-pack-section";
 import { garageApi } from "@/lib/api-client";
+import { formatPacks } from "@/lib/stock-uom";
 import { currency, unitCostCurrency } from "@/lib/garage-data";
 import { ScanModal } from "@/components/wms/scan-modal";
 import { BulkImportDialog } from "@/components/garage/bulk-import-dialog";
@@ -420,7 +423,7 @@ export default function WmsInventoryPage() {
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-[#111111]">
-                          {r.onHand} <span className="text-[11px] font-normal text-[#9CA3AF]">{r.unit}</span>
+                          <PackQtyText qty={r.onHand} unit={r.unit} uoms={r.uoms} />
                         </span>
                         <span
                           className="rounded-full px-1.5 py-px text-[9.5px] font-bold"
@@ -1037,13 +1040,16 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
             <input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan/ketik barcode fisik" className={`${input} w-full font-mono`} />
           </div>
 
+          <WmsProductPackSection productId={product.id} unit={product.unit} canEdit />
+
           {/* Stok saat ini (per ruang) + kelola */}
           <div className="rounded-lg border border-[#E8E8E8] bg-[#F8F9FB] p-3 sm:col-span-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-semibold text-[#6B7280]">Stok saat ini</p>
                 <p className="text-[16px] font-extrabold text-[#111111]">
-                  {totalStock === null ? "…" : totalStock} <span className="text-[12px] font-normal text-[#9CA3AF]">{product.unit}</span>
+                  {totalStock === null ? "…" : formatPacks(totalStock, product.unit, product.uoms)}
+                  {totalStock !== null && product.uoms?.length ? <span className="ml-1 text-[12px] font-normal text-[#525866]">({totalStock} {product.unit})</span> : null}
                 </p>
               </div>
               <button

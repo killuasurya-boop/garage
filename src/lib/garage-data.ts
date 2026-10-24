@@ -121,6 +121,15 @@ export type GarageMenuItem = {
     unitCost?: number;
     lineCost?: number;
   }>;
+  // Resep usulan menunggu persetujuan (belum memotong stok / masuk HPP).
+  draftRecipes?: Array<{
+    variantId: string;
+    inventorySku: string;
+    inventoryName?: string;
+    qty: number;
+    unit: string;
+    wastePct: number;
+  }>;
 };
 
 export const roles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];
@@ -365,8 +374,9 @@ const barIngredientSource = [
   ["BAR-032", "Es Batu", "Es batu — 1 karung untuk 50 cup", "Bar · Es Batu", "cup", 50, "karung", 20000, 20000],
   ["BAR-033", "Buavita Cranberry", "Jus Buavita cranberry", "Bar · Jus & Buah", "ml", 245, "kotak", 12000, 12000],
   ["BAR-034", "Buavita Jeruk", "Jus Buavita jeruk", "Bar · Jus & Buah", "ml", 245, "kotak", 12000, 12000],
-  // Tambahan "NON COFFEE.xlsx": biang teh = seduhan Prendjak (Rp3/ml per sheet).
-  ["BAR-035", "Biang Teh Prendjak", "Seduhan teh Prendjak (biang)", "Bar · Powder & Topping", "ml", 1, "seduhan", 0, 3],
+  // Owner Okt 2026: biang teh Prendjak dibeli jadi, 1 kotak = 1000 ml (Rp3/ml → Rp3.000/kotak;
+  // ubah harga beli di Inventory bila berbeda). Es Teh 250 ml → 1 kotak = 4 porsi.
+  ["BAR-035", "Biang Teh Prendjak", "Biang teh Prendjak (kotak 1000 ml)", "Bar · Powder & Topping", "ml", 1000, "kotak", 3000, 3000],
   ["BAR-036", "Longan Sunlee", "Buah longan kaleng Sunlee", "Bar · Jus & Buah", "pcs", 43, "kaleng", 31000, 35000],
 ] as const;
 

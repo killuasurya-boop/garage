@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,6 +23,7 @@ import {
   ChefHat,
   Coffee,
   Image as ImageIcon,
+  PackagePlus,
   Plus,
   Trash2,
   X,
@@ -34,6 +35,12 @@ import {
   type ProductRecipeDraft,
   type ProductVariantDraft,
 } from "@/components/garage/inventory/product-draft";
+import {
+  NewMaterialPanel,
+  OpeningStockPanel,
+  RecipeLineStock,
+  materialStockLabel,
+} from "@/components/garage/inventory/recipe-stock-tools";
 
 export interface ProductFormPanelProps {
   // Detail
@@ -94,6 +101,13 @@ export interface ProductFormPanelProps {
     value: string,
   ) => void;
   onRemoveRecipe: (key: string) => void;
+  /** Resep usulan (draft) produk ini — dipakai bila belum ada resep aktif. */
+  draftRecipes?: ProductRecipeDraft[];
+  onUseDraftRecipes?: () => void;
+  /** Tambah baris resep untuk bahan yang baru dibuat dari form. */
+  onAddRecipeLine?: (sku: string, unit: string) => void;
+  /** Muat ulang daftar bahan setelah stok awal / bahan baru. */
+  onInventoryChanged?: () => Promise<void> | void;
 
   // Konteks & preview
   inventoryItems: InventoryItem[];
@@ -150,6 +164,10 @@ export function ProductFormPanel({
   onAddRecipe,
   onUpdateRecipe,
   onRemoveRecipe,
+  draftRecipes = [],
+  onUseDraftRecipes,
+  onAddRecipeLine,
+  onInventoryChanged,
   inventoryItems,
   recipeCostPreview,
   marginPreview: rawMarginPreview,
@@ -160,8 +178,14 @@ export function ProductFormPanel({
 }: ProductFormPanelProps) {
   const selectedCategory = categories.find((entry) => entry.name.toLowerCase() === category.toLowerCase()) ?? null;
   const categoryOptions = categories.filter((entry) => entry.status === "active" || entry.id === selectedCategory?.id);
+  const [openingSku, setOpeningSku] = useState<string | null>(null);
+  const [newMaterialOpen, setNewMaterialOpen] = useState(false);
+  const [stockNotice, setStockNotice] = useState<string | null>(null);
+  const openingItem = openingSku ? inventoryItems.find((item) => item.sku === openingSku) ?? null : null;
   const effectiveType: ProductType = productType || selectedCategory?.defaultProductType || "menu";
   const isRetail = effectiveType === "retail";
+  const materialArea: "bar" | "dapur" | "umum" =
+    selectedCategory?.station === "bar" ? "bar" : selectedCategory?.station === "dapur" ? "dapur" : isRetail ? "bar" : "dapur";
   // Margin hanya ditampilkan bila HPP/harga modal sudah ada (bukan 100% palsu dari biaya 0).
   const marginPreview = rawMarginPreview && Number(rawMarginPreview.baseCost ?? 0) > 0 ? rawMarginPreview : null;
   const shortStation = { bar: "Bar", dapur: "Dapur", none: "Langsung" } as const;
@@ -579,17 +603,69 @@ export function ProductFormPanel({
             <p className="font-mono text-[10px] uppercase tracking-wider text-[#888]">
               Resep bahan stok
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-8 gap-1.5 border-[#34343c] bg-white/[0.04] px-2 text-xs"
-              onClick={onAddRecipe}
-              disabled={!inventoryItems.length || recipes.length >= 24}
-            >
-              <Plus className="size-3.5" />
-              Tambah Bahan
-            </Button>
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-8 gap-1.5 border-[#34343c] bg-white/[0.04] px-2 text-xs"
+                onClick={() => setNewMaterialOpen((open) => !open)}
+              >
+                <PackagePlus className="size-3.5" />
+                Bahan Baru
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="garage-press h-8 gap-1.5 border-[#34343c] bg-white/[0.04] px-2 text-xs"
+                onClick={onAddRecipe}
+                disabled={!inventoryItems.length || recipes.length >= 24}
+              >
+                <Plus className="size-3.5" />
+                Tambah Bahan
+              </Button>
+            </div>
           </div>
+          {isRetail && (
+            <p className="text-[11px] text-[#c4c4cc]">
+              Produk jadi: hubungkan ke stok barangnya (mis. 1 btl Air Mineral / 1 bks rokok per jual) supaya stok gudang terpotong saat terjual.
+            </p>
+          )}
+          {recipes.length === 0 && draftRecipes.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-md border border-[#f5a742]/45 bg-[#f5a742]/10 p-3 text-xs text-[#ffd08a] sm:flex-row sm:items-center sm:justify-between" data-testid="draft-recipe-banner">
+              <span>
+                Ada <b>resep usulan</b> ({draftRecipes.length} bahan) menunggu persetujuan — belum memotong stok. Pakai lalu Simpan untuk
+                mengaktifkan, atau setujui di Gudang → Kelola Master.
+              </span>
+              <Button type="button" onClick={onUseDraftRecipes} className="garage-press h-8 shrink-0 bg-[#f5a742] px-3 text-xs font-bold text-black hover:bg-[#ffb85c]">
+                Pakai resep usulan
+              </Button>
+            </div>
+          )}
+          {newMaterialOpen && (
+            <NewMaterialPanel
+              inventoryItems={inventoryItems}
+              defaultArea={materialArea}
+              onCancel={() => setNewMaterialOpen(false)}
+              onCreated={async (newSku, unit, message) => {
+                setNewMaterialOpen(false);
+                setStockNotice(message);
+                await onInventoryChanged?.();
+                onAddRecipeLine?.(newSku, unit);
+              }}
+            />
+          )}
+          {openingItem && (
+            <OpeningStockPanel
+              item={openingItem}
+              onCancel={() => setOpeningSku(null)}
+              onDone={async (message) => {
+                setOpeningSku(null);
+                setStockNotice(message);
+                await onInventoryChanged?.();
+              }}
+            />
+          )}
+          {stockNotice && <p className="text-[11px] font-semibold text-[#8be0a4]">{stockNotice}</p>}
           {recipes.length === 0 ? (
             <div className="rounded border border-dashed border-[#34343c] p-3 text-xs text-[#888]">
               Resep opsional. Jika diisi, HPP dihitung dari bahan dan stok bahan akan berkurang saat transaksi POS/QR selesai.
@@ -642,7 +718,7 @@ export function ProductFormPanel({
                         <SelectItem value="__none">Pilih bahan</SelectItem>
                         {inventoryItems.map((item) => (
                           <SelectItem key={item.sku} value={item.sku}>
-                            {item.name} - stok {item.onHand} {item.unit} - HPP {unitCostCurrency.format(Number(item.unitCost ?? 0))}/{item.unit}
+                            {item.name} - stok {materialStockLabel(item)} - HPP {unitCostCurrency.format(Number(item.unitCost ?? 0))}/{item.unit}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -685,9 +761,14 @@ export function ProductFormPanel({
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#a1a1aa]">
                     {selectedItem ? (
                       <>
-                        <span>
-                          Stok {selectedItem.onHand} {selectedItem.unit}
-                        </span>
+                        <RecipeLineStock item={selectedItem} qty={qty} wastePct={wastePct} />
+                        <button
+                          type="button"
+                          onClick={() => setOpeningSku(selectedItem.sku)}
+                          className="font-semibold text-[#f5a742] underline-offset-2 hover:underline"
+                        >
+                          + Stok awal
+                        </button>
                         <span>Unit cost {unitCostCurrency.format(Number(selectedItem.unitCost ?? 0))}/{selectedItem.unit}</span>
                         <span>Line HPP {currency.format(lineCost)}</span>
                         {Number(selectedItem.unitCost ?? 0) <= 0 && (

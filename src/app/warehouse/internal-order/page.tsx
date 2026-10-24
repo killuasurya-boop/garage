@@ -5,7 +5,7 @@ import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
-import { printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
+import { printDeliveryNote, printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
 
 type IoRow = {
@@ -141,12 +141,13 @@ export default function WmsInternalOrderPage() {
               <th className="px-3 py-2.5 text-right">Item</th>
               <th className="px-3 py-2.5 text-right">Total HPP</th>
               <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5 text-right"><span className="sr-only">Cetak</span></th>
             </tr>
           </thead>
           <tbody>
             {list.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-10 text-center text-[#6B7280]">
+                <td colSpan={6} className="px-3 py-10 text-center text-[#6B7280]">
                   <ShoppingCart className="mx-auto mb-2 size-6 text-[#D1D5DB]" />
                   Belum ada internal order.
                 </td>
@@ -166,6 +167,15 @@ export default function WmsInternalOrderPage() {
                     <span className="rounded-full bg-[#DBEAFE] px-2 py-0.5 text-[10px] font-bold uppercase text-[#2563EB]">
                       {r.status}
                     </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => void garageApi.get<Parameters<typeof printDeliveryNote>[0]>(`/api/wms/documents/${encodeURIComponent(r.doc)}`).then(printDeliveryNote).catch(() => window.alert("Surat jalan tidak tersedia untuk dokumen ini."))}
+                      className="min-h-9 rounded-md border border-[#E8E8E8] px-2.5 text-[12px] font-semibold text-[#17191d] hover:bg-[#F8F9FB]"
+                    >
+                      Surat jalan
+                    </button>
                   </td>
                 </tr>
               ))

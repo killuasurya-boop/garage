@@ -15,6 +15,7 @@ import {
   Coffee,
   Command,
   FileBarChart,
+  FileText,
   Factory,
   Fingerprint,
   Layers,
@@ -31,6 +32,7 @@ import {
   Sparkles,
   Tags,
   Thermometer,
+  Trash2,
   TrendingUp,
   Truck,
   Wallet,
@@ -59,6 +61,7 @@ const NAV: NavGroup[] = [
       { label: "Permintaan Bahan", href: "/warehouse/requests", icon: ListChecks },
       { label: "Persiapan Besok", href: "/warehouse/preparation", icon: Layers },
       { label: "Pembelian", href: "/warehouse/purchasing", icon: ShoppingCart },
+      { label: "Purchase Order", href: "/warehouse/purchase-orders", icon: FileText, managementOnly: true },
       { label: "Inventory", href: "/warehouse/inventory", icon: Package },
       { label: "Scan Barcode", href: "/warehouse/scan", icon: ScanLine },
       { label: "Receiving", href: "/warehouse/receiving", icon: Truck, managementOnly: true },
@@ -80,6 +83,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Stock Opname", href: "/warehouse/opname", icon: ClipboardCheck },
       { label: "Checklist", href: "/warehouse/checklist", icon: ListChecks },
+      { label: "Waste", href: "/warehouse/waste", icon: Trash2 },
       { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders, managementOnly: true },
       { label: "Riwayat", href: "/warehouse/activity-log", icon: Clock },
       { label: "Laporan", href: "/warehouse/reports", icon: FileBarChart },
@@ -536,6 +540,8 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/opname")) return "Stock Opname";
   if (pathname.startsWith("/warehouse/checklist")) return "Checklist Gudang";
   if (pathname.startsWith("/warehouse/adjustment")) return "Adjustment";
+  if (pathname.startsWith("/warehouse/waste")) return "Waste · Bahan Terbuang";
+  if (pathname.startsWith("/warehouse/purchase-orders")) return "Purchase Order";
   if (pathname.startsWith("/warehouse/reorder")) return "Smart Reorder";
   if (pathname.startsWith("/warehouse/cold-chain")) return "Cold Chain";
   if (pathname.startsWith("/warehouse/analytics")) return "Owner Analytics";

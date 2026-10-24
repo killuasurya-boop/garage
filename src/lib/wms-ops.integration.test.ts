@@ -51,6 +51,8 @@ describe("Adjustment & Opname & Reports", () => {
     const reread = await svc.getWmsOpname(op.id);
     expect(reread.lines.find((l: any) => l.id === beanLine.id).variance).toBe(-500);
 
+    await expect(svc.finalizeWmsOpname(op.id)).rejects.toThrow(/dikirim penghitung/);
+    await svc.submitWmsOpname(op.id);
     await svc.finalizeWmsOpname(op.id);
     const after = await bean();
     expect(after.onHand).toBe(7000); // stok = fisik

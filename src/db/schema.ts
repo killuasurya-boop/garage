@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { EventMenuGroup, EventOrderSnapshot } from "@/lib/event-menu-types";
 import {
   type AnyPgColumn,
+  bigserial,
   boolean,
   check,
   date,
@@ -3296,11 +3297,68 @@ export const wmsBatch = pgTable(
   }),
 );
 
+// Purchase Order tersimpan (ala ERPNext Purchase Order): draft → sent → partial →
+// received | cancelled. Penerimaan merujuk PO; qty diterima diakumulasi per baris.
+export const wmsPurchaseOrder = pgTable(
+  "wms_purchase_order",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
+    supplierName: text("supplier_name").notNull().default(""),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("draft"),
+    expectedDate: text("expected_date"), // YYYY-MM-DD
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index("wms_purchase_order_status_idx").on(t.status, t.createdAt) }),
+);
+
+export const wmsPurchaseOrderItem = pgTable(
+  "wms_purchase_order_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    purchaseOrderId: uuid("purchase_order_id")
+      .notNull()
+      .references(() => wmsPurchaseOrder.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    orderedQty: wmsNum("ordered_qty").notNull(),
+    receivedQty: wmsNum("received_qty").notNull().default(0),
+    unitPrice: wmsNum("unit_price").notNull().default(0), // Rp per satuan simpan
+  },
+  (t) => ({ poIdx: index("wms_purchase_order_item_po_idx").on(t.purchaseOrderId) }),
+);
+
+// Aturan reorder per ruang (ala ERPNext Item Reorder per warehouse): stok ruang ≤ min →
+// isi sampai max. Outlet Bar/Dapur diisi dari gudang utama areanya dulu, sisanya beli.
+export const wmsReorderRule = pgTable(
+  "wms_reorder_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    warehouseId: uuid("warehouse_id")
+      .notNull()
+      .references(() => wmsWarehouse.id, { onDelete: "cascade" }),
+    minQty: wmsNum("min_qty").notNull(),
+    maxQty: wmsNum("max_qty").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ pwIdx: uniqueIndex("wms_reorder_rule_product_wh_idx").on(t.productId, t.warehouseId) }),
+);
+
 export const wmsReceiving = pgTable("wms_receiving", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull().unique(),
-  supplier: text("supplier").notNull().default(""),
+  supplier: text("supplier").notNull().default(""), // snapshot nama (tampil di dokumen lama)
+  supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
   poNumber: text("po_number").notNull().default(""), // No. PO / referensi order
+  purchaseOrderId: uuid("purchase_order_id").references(() => wmsPurchaseOrder.id, { onDelete: "set null" }),
   additionalCost: wmsNum("additional_cost").notNull().default(0), // ongkir/pajak → landed cost
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
   status: text("status").notNull().default("draft"), // draft|pending_approval|completed|cancelled
@@ -3465,6 +3523,7 @@ export const wmsProductionRecipe = pgTable("wms_production_recipe", {
   name: text("name").notNull(),
   outputProductId: uuid("output_product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
   outputQty: wmsNum("output_qty").notNull().default(1), // hasil per 1 batch produksi
+  shelfLifeHours: integer("shelf_life_hours"), // umur simpan hasil (jam); null = ikut bahan input
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -3486,8 +3545,15 @@ export const wmsStockOpname = pgTable("wms_stock_opname", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull(),
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+  // draft → submitted (penghitung kirim) → completed (Owner/Manajer setujui & posting);
+  // ditolak → kembali draft dengan reject_reason. Stok hanya berubah saat completed.
   status: text("status").notNull().default("draft"),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  submittedBy: text("submitted_by").references(() => user.id, { onDelete: "set null" }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  rejectReason: text("reject_reason").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -3504,6 +3570,7 @@ export const wmsOpnameLine = pgTable(
     // Diisi saat petugas memasukkan hitungan fisik. Baris yang tidak dihitung
     // tidak di-adjust saat finalisasi (penjualan selama opname tidak dibatalkan).
     countedAt: timestamp("counted_at", { withTimezone: true }),
+    countedBy: text("counted_by").references(() => user.id, { onDelete: "set null" }),
   },
   (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
 );
@@ -3558,12 +3625,88 @@ export const wmsStockMovement = pgTable(
     valueHpp: wmsNum("value_hpp").notNull().default(0),
     refDoc: text("ref_doc").notNull().default(""),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    // Saldo ruang setelah mutasi & biaya/unit (ala Stock Ledger Entry). Null = baris lama (sebelum 0151).
+    balanceAfter: wmsNum("balance_after"),
+    valuationRate: wmsNum("valuation_rate"),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     productIdx: index("wms_stock_movement_product_idx").on(t.productId),
     typeIdx: index("wms_stock_movement_type_idx").on(t.type),
     createdAtIdx: index("wms_stock_movement_created_at_idx").on(t.createdAt),
+  }),
+);
+
+// Waste / write-off bahan (ala ERPNext Stock Entry "Material Issue"): rusak, kedaluwarsa,
+// tumpah, susut prep. Hanya status "recorded" yang memotong stok (movement type waste).
+export const wmsWaste = pgTable(
+  "wms_waste",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
+    qty: wmsNum("qty").notNull(),
+    unit: text("unit").notNull().default(""),
+    reason: text("reason").notNull(), // expired | damaged | spill | prep_loss | other
+    note: text("note").notNull().default(""),
+    estimatedValue: wmsNum("estimated_value").notNull().default(0),
+    value: wmsNum("value").notNull().default(0), // biaya aktual FEFO saat dicatat
+    status: text("status").notNull().default("recorded"), // recorded | pending_approval | rejected
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    requestedByName: text("requested_by_name").notNull().default(""),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    statusIdx: index("wms_waste_status_idx").on(t.status, t.createdAt),
+    productIdx: index("wms_waste_product_idx").on(t.productId),
+  }),
+);
+
+// Jejak batch per penjualan (ala ERPNext "return against"): void/refund mengembalikan
+// stok ke ruang & batch asal. batch_id null = bagian tanpa batch / terjual minus.
+export const wmsSaleAllocation = pgTable(
+  "wms_sale_allocation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    refDoc: text("ref_doc").notNull(), // SALE <orderNo>
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
+    qty: wmsNum("qty").notNull(),
+    returnedQty: wmsNum("returned_qty").notNull().default(0),
+    // Urutan potong (satu transaksi = created_at sama) → retur LIFO: yang terakhir terpotong kembali dulu.
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ refIdx: index("wms_sale_allocation_ref_idx").on(t.refDoc, t.productId) }),
+);
+
+// Masalah stok yang dulu terlewat diam-diam (bahan belum di WMS, satuan resep ≠ satuan
+// gudang, terjual melebihi stok). Tampil di dashboard gudang sampai ditandai beres.
+export const wmsStockIssue = pgTable(
+  "wms_stock_issue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(), // not_in_wms | unit_mismatch | oversold | batch_gap
+    sku: text("sku").notNull().default(""),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    refDoc: text("ref_doc").notNull().default(""),
+    detail: text("detail").notNull().default(""),
+    qty: wmsNum("qty").notNull().default(0),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    openIdx: index("wms_stock_issue_open_idx").on(t.resolvedAt, t.createdAt),
   }),
 );
 

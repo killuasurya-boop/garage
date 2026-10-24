@@ -195,6 +195,25 @@ export async function generateOwnerReportPdf(
       }
       y += 12;
 
+      // ── WASTE BAHAN ──
+      section("Waste Bahan");
+      if (data.waste.total <= 0) {
+        doc.font("Helvetica").fontSize(9).fillColor(MUTED).text("Tidak ada waste tercatat.", left + 4, y);
+        y += 18;
+      } else {
+        for (const r of data.waste.byReason) {
+          doc.font("Helvetica").fontSize(9).fillColor(DARK);
+          doc.text(`${r.label} (${r.count}x)`, left + 4, y, { width: 300 });
+          doc.text(`Rp ${Math.round(r.value).toLocaleString("id-ID")}`, left + 350, y, { width: width - 350, align: "right" });
+          y += 15;
+        }
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(WARN);
+        doc.text("Total waste", left + 4, y, { width: 300 });
+        doc.text(`Rp ${Math.round(data.waste.total).toLocaleString("id-ID")}`, left + 350, y, { width: width - 350, align: "right" });
+        y += 15;
+      }
+      y += 12;
+
       // ── TIKET DAPUR TELAT ──
       section("Tiket Dapur Telat");
       if (data.kitchen.lateList.length === 0) {

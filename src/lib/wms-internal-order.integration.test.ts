@@ -63,15 +63,16 @@ describe("Internal Order + FEFO", () => {
     // dua batch: B-LATE (expired jauh, hpp 0.05) & B-SOON (expired dekat, hpp 0.01)
     await t.getDb().insert(t.schema.wmsBatch).values([
       { productId: p.id, warehouseId: main.id, batchNo: "B-LATE", qty: 1000, hpp: 0.05, expiredAt: new Date("2030-01-01") },
-      { productId: p.id, warehouseId: main.id, batchNo: "B-SOON", qty: 1000, hpp: 0.01, expiredAt: new Date("2026-01-01") },
+      { productId: p.id, warehouseId: main.id, batchNo: "B-SOON", qty: 1000, hpp: 0.01, expiredAt: new Date("2029-01-01") },
     ]);
 
-    // ambil 800 → harus dari B-SOON (0.01) duluan → biaya 800×0.01 = 8
+    // ambil 800 → batch B-SOON (expired terdekat) terpotong duluan; nilai = 800 × HPP
+    // rata-rata produk (satu metode biaya: rata-rata gerak, batch hanya untuk FEFO).
     const io = await svc.createInternalOrder({
       outletWarehouseId: bar.id,
       items: [{ productId: p.id, qty: 800 }],
     });
-    expect(Number(io.totalHpp)).toBeCloseTo(8, 2);
+    expect(Number(io.totalHpp)).toBeCloseTo(800 * Number(p.hpp), 2);
 
     const { eq } = await import("drizzle-orm");
     const [soon] = await t.getDb().select().from(t.schema.wmsBatch).where(eq(t.schema.wmsBatch.batchNo, "B-SOON"));

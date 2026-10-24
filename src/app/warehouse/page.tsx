@@ -24,6 +24,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { WmsStockHealthPanel } from "@/components/wms/wms-stock-health-panel";
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import type { WmsDashboard } from "@/lib/wms-types";
@@ -41,6 +42,7 @@ export default function WmsDashboardPage() {
   const [data, setData] = useState<WmsDashboard | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [expiring, setExpiring] = useState<{ total: number; expired: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -60,6 +62,10 @@ export default function WmsDashboardPage() {
   useEffect(() => {
     let alive = true;
     void garageApi.get<Summary>("/api/wms/summary").then((s) => { if (alive) setSummary(s); }).catch(() => {});
+    void garageApi
+      .get<{ expiring: Array<{ expired: boolean }> }>("/api/wms/waste")
+      .then((w) => { if (alive) setExpiring({ total: w.expiring.length, expired: w.expiring.filter((b) => b.expired).length }); })
+      .catch(() => {});
     return () => { alive = false; };
   }, []);
 
@@ -99,6 +105,22 @@ export default function WmsDashboardPage() {
         <h1 className="text-[22px] font-extrabold text-[#111111]">Dashboard Gudang</h1>
         <p className="text-[13px] text-[#6B7280]">Ringkasan stok, nilai inventory, dan pergerakan hari ini.</p>
       </div>
+
+      {expiring && expiring.total > 0 && (
+        <Link
+          href="/warehouse/waste"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#FCD34D] bg-[#FFFBEB] p-4 text-[#78350F] hover:bg-[#FEF3C7]"
+        >
+          <span className="text-[14px] font-semibold">
+            {expiring.expired > 0 ? `${expiring.expired} batch sudah kedaluwarsa` : ""}
+            {expiring.expired > 0 && expiring.total > expiring.expired ? " · " : ""}
+            {expiring.total > expiring.expired ? `${expiring.total - expiring.expired} batch kedaluwarsa ≤3 hari` : ""}
+          </span>
+          <span className="text-[13px] font-bold">Buka Waste →</span>
+        </Link>
+      )}
+
+      <WmsStockHealthPanel />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

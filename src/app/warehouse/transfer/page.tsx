@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeftRight, Plus, Printer, Trash2 } from "lucide-react";
 
-import { printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
+import { printDeliveryNote, printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
 
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
@@ -176,9 +176,20 @@ export default function WmsTransferPage() {
                   <p className="font-mono font-bold text-[#C8102E]">{h.doc}</p>
                   <p className="text-[11px] text-[#9CA3AF]">{new Date(h.createdAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}</p>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-[#111111]">{h.items} item · {h.qtyOut} qty</p>
-                  <p className="text-[11px] text-[#6B7280]">{currency.format(h.valueHpp)}</p>
+                <div className="flex items-center gap-2 text-right">
+                  <div>
+                    <p className="font-semibold text-[#111111]">{h.items} item · {h.qtyOut} qty</p>
+                    <p className="text-[11px] text-[#525866]">{currency.format(h.valueHpp)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`Cetak surat jalan ${h.doc}`}
+                    title="Cetak surat jalan"
+                    onClick={() => void garageApi.get<Parameters<typeof printDeliveryNote>[0]>(`/api/wms/documents/${encodeURIComponent(h.doc)}`).then(printDeliveryNote).catch(() => window.alert("Surat jalan tidak tersedia untuk dokumen ini."))}
+                    className="grid size-9 place-items-center rounded-md border border-[#E8E8E8] text-[#17191d] hover:bg-[#F8F9FB]"
+                  >
+                    <Printer className="size-4" />
+                  </button>
                 </div>
               </div>
             ))}

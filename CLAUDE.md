@@ -209,6 +209,24 @@ Scroll direction:
   `menu_recipes.status = 'draft'` (no stock deduction, no baseCost) until Owner/Manajer approves; `V-*`
   allowances are not stock. Never touches POS products/prices/categories. See `docs/WMS-DATA-RECONCILIATION.md`.
 - W2 integration (migration 0146, after event 0145): apply/import decisions share a transaction advisory lock and replan inside the transaction. Archived/rejected recipes remain skipped on reimport. Normalize only explicit same-dimension units; reject nonpositive quantities and invalid unit lines. Approval revalidates material/BOM readiness and syncs only this menu to WMS in the same transaction, so a sync failure rolls back activation/HPP. See `docs/wms-w2-release.md`.
+- WMS ERPNext-style overhaul (owner, Okt 2026, migrations 0151–0154):
+  - Ledger: every `wms_stock_movement` row stores `balance_after`, `valuation_rate` and `batch_id`.
+  - Negative stock: an inbound movement first nets off negative stock; batch qty is only the part above 0, so Σ batch = room balance.
+  - Batch integrity: `getWmsBatchIntegrity` / `fixWmsBatchIntegrity`, endpoint `/api/wms/integrity` (fix is Owner only, no ledger change).
+  - Units: sale qty is converted from the recipe unit to the WMS unit via `saleQtyInWmsUnit` (`src/lib/stock-units.ts`). A unit from a different dimension is logged as `unit_mismatch`.
+  - Issues that used to be skipped silently are recorded in `wms_stock_issue`: not_in_wms, unit_mismatch, oversold, expired_sold.
+  - Valuation (owner): **moving average only**. Every outflow is valued at qty × `wms_product.hpp`; only receiving/production change the average. Batches are for FEFO, expiry and traceability, and a batch's `hpp` is informational. Moving stock between rooms keeps the value.
+  - Sale returns: each sale records `wms_sale_allocation` (ref `SALE <orderNo>`, batch per room, a null batch for the unbatched/negative part, `seq` for LIFO). Void, refund and reject pass `saleOrderNo` and return stock to the original room and batch (`restoreToBatchId`). Old sales without allocations fall back to a `RETUR-` batch.
+  - Opname approver ≠ submitter, except the Owner.
+  - FEFO picking: usable batches go first and expired batches last for sales. Transfer, internal order and production use `pick: "usable"`, which rejects expired batches. `moveStockBetweenWarehouses` carries batch no, expiry and HPP to the destination.
+  - Waste = `src/lib/wms-waste.ts` (`wms_waste`, movement type `waste`, picks expired batches first). Staff waste ≥ Rp 50.000 is `pending_approval` until Owner/Manajer decides. Waste never creates an expense (cogs is on a purchase basis); its value shows in the owner report.
+  - Opname: draft → submitted → completed, or rejected back to draft with a reason. Counters get a blind view. Variance = physical − stock at count time (`systemQty` is captured on save). Posting happens only via Owner/Manajer finalize.
+  - Purchasing = `src/lib/wms-purchase.ts`:
+    - stored PO (`wms_purchase_order`), partially or fully received through a receiving with `purchase_order_id`; a cancelled receiving reverses the PO qty
+    - `wms_receiving.supplier_id` FK, resolved by supplier name
+    - supplier price history
+    - min–max per room (`wms_reorder_rule`): an outlet is filled from the main room of its area first, the rest becomes a draft PO per supplier
+    - delivery note per batch (`/api/wms/documents/[doc]`)
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

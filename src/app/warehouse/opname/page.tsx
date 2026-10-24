@@ -8,9 +8,28 @@ import { printWmsDoc, escapeHtml } from "@/lib/wms-print";
 import { ScanModal } from "@/components/wms/scan-modal";
 import type { WmsWarehouse } from "@/lib/wms-types";
 
-type OpnameRow = { id: string; doc: string; status: string; warehouse: string; lines: number; createdAt: string };
-type OpnameLine = { id: string; productName: string; sku: string | null; barcode: string | null; unit: string; systemQty: number; physicalQty: number; variance: number };
-type OpnameDetail = { id: string; doc: string; status: string; lines: OpnameLine[] };
+type OpnameRow = { id: string; doc: string; status: string; rejected: boolean; warehouse: string; lines: number; createdAt: string };
+type OpnameLine = {
+  id: string;
+  productName: string;
+  sku: string | null;
+  barcode: string | null;
+  unit: string;
+  counted: boolean;
+  /** null = hitung buta (penghitung non-manajer tidak melihat stok sistem). */
+  systemQty: number | null;
+  physicalQty: number | null;
+  variance: number | null;
+  varianceValue: number | null;
+};
+type OpnameDetail = { id: string; doc: string; status: string; blind: boolean; rejectReason: string; lines: OpnameLine[] };
+
+const STATUS_LABEL: Record<string, { label: string; bg: string; fg: string }> = {
+  draft: { label: "Draft", bg: "#FEF3C7", fg: "#92400E" },
+  submitted: { label: "Menunggu manajer", bg: "#DBEAFE", fg: "#1E40AF" },
+  completed: { label: "Selesai", bg: "#DCFCE7", fg: "#166534" },
+};
+const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
 export default function WmsOpnamePage() {
   const [list, setList] = useState<OpnameRow[]>([]);
@@ -18,6 +37,7 @@ export default function WmsOpnamePage() {
   const [active, setActive] = useState<OpnameDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
   function focusByCode(code: string) {
     setScanning(false);
@@ -69,35 +89,64 @@ export default function WmsOpnamePage() {
     setActive(await garageApi.get<OpnameDetail>(`/api/wms/opname/${id}`));
   }
 
-  async function saveLine(lineId: string, physicalQty: number) {
-    if (!active) return;
-    await garageApi.patch(`/api/wms/opname/${active.id}`, { lineId, physicalQty });
-    setActive((a) => a && { ...a, lines: a.lines.map((l) => (l.id === lineId ? { ...l, physicalQty, variance: physicalQty - l.systemQty } : l)) });
+  async function saveLine(lineId: string, raw: string) {
+    if (!active || raw.trim() === "") return;
+    const physicalQty = Number(raw.replace(",", "."));
+    if (!Number.isFinite(physicalQty) || physicalQty < 0) return;
+    try {
+      await garageApi.patch(`/api/wms/opname/${active.id}`, { lineId, physicalQty });
+      // Stok sistem dicatat saat dihitung → baca ulang supaya selisih akurat.
+      setActive(await garageApi.get<OpnameDetail>(`/api/wms/opname/${active.id}`));
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Gagal menyimpan hitungan.");
+    }
   }
 
-  async function finalize() {
+  async function act(path: "submit" | "finalize" | "reject") {
     if (!active || busy) return;
+    let body: Record<string, string> = {};
+    if (path === "reject") {
+      const reason = window.prompt("Alasan penolakan (hitung ulang)?")?.trim() ?? "";
+      if (reason.length < 3) return;
+      body = { reason };
+    }
     setBusy(true);
+    setMsg(null);
     try {
-      await garageApi.post(`/api/wms/opname/${active.id}/finalize`, {});
-      setActive(null);
+      await garageApi.post(`/api/wms/opname/${active.id}/${path}`, body);
+      if (path === "finalize") setActive(null);
+      else setActive(await garageApi.get<OpnameDetail>(`/api/wms/opname/${active.id}`));
       await loadList();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Aksi opname gagal.");
     } finally {
       setBusy(false);
     }
   }
 
   if (active) {
-    const totalVar = active.lines.filter((l) => l.variance !== 0).length;
+    const editable = active.status === "draft";
+    const counted = active.lines.filter((l) => l.counted).length;
+    const totalVar = active.lines.filter((l) => (l.variance ?? 0) !== 0).length;
+    const varianceValue = active.lines.reduce((sum, l) => sum + (l.varianceValue ?? 0), 0);
     const printSheet = () => {
+      // Lembar hitung buta: kolom stok sistem hanya untuk manajer.
       const rows = active.lines
-        .map((l) => `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(l.unit)}</td><td class="r">${l.systemQty}</td><td style="width:90px"></td><td style="width:90px"></td></tr>`)
+        .map((l) =>
+          active.blind
+            ? `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(l.unit)}</td><td style="width:110px"></td></tr>`
+            : `<tr><td>${escapeHtml(l.productName)}</td><td class="c">${escapeHtml(l.unit)}</td><td class="r">${l.systemQty ?? ""}</td><td class="r">${l.counted ? l.physicalQty : ""}</td><td class="r">${l.counted ? l.variance : ""}</td><td class="r">${l.counted && l.varianceValue ? rupiah.format(l.varianceValue) : ""}</td></tr>`,
+        )
         .join("");
+      const head = active.blind
+        ? `<th>Produk</th><th class="c">Satuan</th><th class="c">Hitung Fisik</th>`
+        : `<th>Produk</th><th class="c">Satuan</th><th class="r">Stok Sistem</th><th class="r">Fisik</th><th class="r">Selisih</th><th class="r">Nilai Selisih</th>`;
       printWmsDoc(
         `Lembar Opname · ${active.doc}`,
-        `<table><thead><tr><th>Produk</th><th class="c">Satuan</th><th class="r">Stok Sistem</th><th class="c">Hitung Fisik</th><th class="c">Selisih</th></tr></thead><tbody>${rows}</tbody></table>
-         <div class="sign"><div><div class="line">Penghitung</div></div><div><div class="line">Diperiksa Manajer</div></div></div>`,
-        `${active.doc} · untuk hitung fisik manual`,
+        `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>
+         ${active.blind ? "" : `<p><b>Total nilai selisih: ${rupiah.format(varianceValue)}</b></p>`}
+         <div class="sign"><div><div class="line">Penghitung</div></div><div><div class="line">Disetujui Manajer</div></div></div>`,
+        `${active.doc} · ${active.blind ? "hitung buta" : "hasil hitung"}`,
       );
     };
     return (
@@ -106,10 +155,18 @@ export default function WmsOpnamePage() {
           <div>
             <button type="button" onClick={() => setActive(null)} className="text-[12px] font-semibold text-[#C8102E]">← Kembali</button>
             <h1 className="font-mono text-[20px] font-extrabold text-[#111111]">{active.doc}</h1>
-            <p className="text-[13px] text-[#6B7280]">{totalVar} item ada selisih · {active.status}</p>
+            <p className="text-[13px] text-[#525866]">
+              {counted}/{active.lines.length} dihitung
+              {active.blind ? " · hitung buta (stok sistem disembunyikan)" : ` · ${totalVar} selisih · nilai ${rupiah.format(varianceValue)}`}
+              {" · "}{STATUS_LABEL[active.status]?.label ?? active.status}
+            </p>
+            {active.rejectReason && active.status === "draft" && (
+              <p className="mt-1 text-[13px] font-semibold text-[#C8102E]">Ditolak manajer: {active.rejectReason} — hitung ulang lalu kirim lagi.</p>
+            )}
+            {msg && <p className="mt-1 text-[13px] font-semibold text-[#C8102E]">{msg}</p>}
           </div>
-          <div className="flex gap-2">
-            {active.status !== "completed" && (
+          <div className="flex flex-wrap gap-2">
+            {editable && (
               <button type="button" onClick={() => setScanning(true)} className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]">
                 <ScanLine className="size-4 text-[#C8102E]" /> Scan
               </button>
@@ -117,10 +174,20 @@ export default function WmsOpnamePage() {
             <button type="button" onClick={printSheet} className="flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-white px-3 py-2 text-[13px] font-semibold text-[#111111] hover:bg-[#F8F9FB]">
               <Printer className="size-4 text-[#2563EB]" /> Cetak Lembar
             </button>
-            {active.status !== "completed" && (
-              <button type="button" disabled={busy} onClick={() => void finalize()} className="rounded-lg bg-[#16A34A] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#15803d] disabled:opacity-50">
-                Finalisasi &amp; Reconcile Stok
+            {editable && (
+              <button type="button" disabled={busy || counted === 0} onClick={() => void act("submit")} className="min-h-10 rounded-lg bg-[#C8102E] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
+                Kirim ke manajer
               </button>
+            )}
+            {active.status === "submitted" && !active.blind && (
+              <>
+                <button type="button" disabled={busy} onClick={() => void act("reject")} className="min-h-10 rounded-lg border border-[#E8E8E8] bg-white px-4 py-2 text-[13px] font-semibold text-[#111111] disabled:opacity-50">
+                  Tolak, hitung ulang
+                </button>
+                <button type="button" disabled={busy} onClick={() => void act("finalize")} className="min-h-10 rounded-lg bg-[#C8102E] px-4 py-2 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">
+                  Setujui &amp; posting stok
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -130,31 +197,44 @@ export default function WmsOpnamePage() {
             <thead>
               <tr className="border-b border-[#E8E8E8] bg-[#F8F9FB] text-left text-[10.5px] font-bold uppercase tracking-wide text-[#6B7280]">
                 <th className="px-3 py-2.5">Produk</th>
-                <th className="px-3 py-2.5 text-right">Sistem</th>
+                {!active.blind && <th className="px-3 py-2.5 text-right">Sistem</th>}
                 <th className="px-3 py-2.5 text-right">Fisik</th>
-                <th className="px-3 py-2.5 text-right">Selisih</th>
+                {!active.blind && <th className="px-3 py-2.5 text-right">Selisih</th>}
+                {!active.blind && <th className="px-3 py-2.5 text-right">Nilai</th>}
               </tr>
             </thead>
             <tbody>
               {active.lines.map((l) => {
-                const big = Math.abs(l.variance) > l.systemQty * 0.1 && l.systemQty > 0;
+                const variance = l.variance ?? 0;
+                const system = l.systemQty ?? 0;
+                const big = l.counted && Math.abs(variance) > system * 0.1 && system > 0;
                 return (
                   <tr key={l.id} className="border-b border-[#F0F1F4] last:border-0" style={{ background: big ? "#FEF4F4" : undefined }}>
-                    <td className="px-3 py-2 font-semibold text-[#111111]">{l.productName} <span className="text-[11px] text-[#9CA3AF]">{l.unit}</span></td>
-                    <td className="px-3 py-2 text-right font-mono text-[#6B7280]">{l.systemQty}</td>
+                    <td className="px-3 py-2 font-semibold text-[#111111]">
+                      {l.productName} <span className="text-[11px] text-[#525866]">{l.unit}</span>
+                      {!l.counted && <span className="ml-1 text-[11px] font-semibold text-[#B45309]">belum dihitung</span>}
+                    </td>
+                    {!active.blind && <td className="px-3 py-2 text-right font-mono text-[#525866]">{l.systemQty}</td>}
                     <td className="px-3 py-2 text-right">
                       <input
+                        key={`${l.id}-${l.physicalQty ?? "x"}`}
                         id={`opl-${l.id}`}
-                        defaultValue={l.physicalQty}
-                        disabled={active.status === "completed"}
-                        onBlur={(e) => void saveLine(l.id, Number(e.target.value) || 0)}
+                        defaultValue={l.physicalQty ?? ""}
+                        placeholder="hitung"
+                        disabled={!editable}
+                        onBlur={(e) => void saveLine(l.id, e.target.value)}
                         inputMode="decimal"
-                        className="h-8 w-24 rounded-md border border-[#E8E8E8] text-right font-mono text-[13px] outline-none focus:border-[#C8102E] focus:ring-2 focus:ring-[#C8102E]/30 disabled:bg-[#F8F9FB]"
+                        className="h-9 w-24 rounded-md border border-[#E8E8E8] text-right font-mono text-[13px] outline-none focus:border-[#C8102E] focus:ring-2 focus:ring-[#C8102E]/30 disabled:bg-[#F8F9FB]"
                       />
                     </td>
-                    <td className={`px-3 py-2 text-right font-mono font-bold ${l.variance === 0 ? "text-[#9CA3AF]" : l.variance > 0 ? "text-[#16A34A]" : "text-[#C8102E]"}`}>
-                      {l.variance > 0 ? "+" : ""}{l.variance}
-                    </td>
+                    {!active.blind && (
+                      <td className={`px-3 py-2 text-right font-mono font-bold ${!l.counted || variance === 0 ? "text-[#525866]" : variance > 0 ? "text-[#15803D]" : "text-[#C8102E]"}`}>
+                        {l.counted ? `${variance > 0 ? "+" : ""}${variance}` : "–"}
+                      </td>
+                    )}
+                    {!active.blind && (
+                      <td className="px-3 py-2 text-right font-mono text-[#17191d]">{l.counted && l.varianceValue ? rupiah.format(l.varianceValue) : "–"}</td>
+                    )}
                   </tr>
                 );
               })}
@@ -171,7 +251,7 @@ export default function WmsOpnamePage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-extrabold text-[#111111]">Stock Opname</h1>
-          <p className="text-[13px] text-[#6B7280]">Hitung fisik vs sistem → finalisasi untuk reconcile stok.</p>
+          <p className="text-[13px] text-[#525866]">Hitung fisik → kirim ke manajer → manajer setujui, baru stok berubah.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {warehouses.map((w) => (
@@ -202,7 +282,11 @@ export default function WmsOpnamePage() {
                   <td className="px-3 py-2.5 font-mono text-[12px] font-bold text-[#C8102E]">{r.doc}</td>
                   <td className="px-3 py-2.5 text-[#111111]">{r.warehouse}</td>
                   <td className="px-3 py-2.5 text-right font-mono text-[#6B7280]">{r.lines}</td>
-                  <td className="px-3 py-2.5"><span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: r.status === "completed" ? "#DCFCE7" : "#FEF3C7", color: r.status === "completed" ? "#16A34A" : "#D97706" }}>{r.status === "completed" ? "Selesai" : "Draft"}</span></td>
+                  <td className="px-3 py-2.5">
+                    <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: STATUS_LABEL[r.status]?.bg ?? "#F3F4F6", color: STATUS_LABEL[r.status]?.fg ?? "#374151" }}>
+                      {r.rejected ? "Ditolak · hitung ulang" : (STATUS_LABEL[r.status]?.label ?? r.status)}
+                    </span>
+                  </td>
                   <td className="px-3 py-2.5 text-right"><button type="button" onClick={() => void open(r.id)} className="rounded-md border border-[#E8E8E8] px-2.5 py-1.5 text-[12px] font-semibold text-[#374151] hover:bg-[#F8F9FB]">Buka</button></td>
                 </tr>
               ))

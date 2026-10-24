@@ -91,9 +91,10 @@ describe("Minta Bahan Bar → gudang", () => {
     await wms.completeReceiving(rec.id);
     const shortages = await mr.listMaterialShortages();
     expect(shortages.find((s: any) => s.productId === beanId)).toMatchObject({ qty: 1000, supplierId: supplier.id, lastPrice: 0.3 });
-    const { created, skipped } = await mr.createPurchaseOrdersFromShortages();
-    expect(skipped).toEqual([]);
-    expect(created).toHaveLength(1);
+    // Dua manajer menekan "Buat PO draft" bersamaan → kekurangan hanya dibelikan sekali.
+    const [first, second] = await Promise.all([mr.createPurchaseOrdersFromShortages(), mr.createPurchaseOrdersFromShortages()]);
+    expect([...first.skipped, ...second.skipped]).toEqual([]);
+    expect(first.created.length + second.created.length).toBe(1);
     expect(await mr.listMaterialShortages()).toEqual([]); // sudah dibuatkan PO
   });
 

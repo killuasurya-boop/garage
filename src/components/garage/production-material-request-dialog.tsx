@@ -68,6 +68,8 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
   const [query, setQuery] = useState("");
   const [onlyNeeded, setOnlyNeeded] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
+  // Teks mentah saat mengetik (mis. "1," / "0.") supaya desimal tidak hilang per ketukan.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [urgent, setUrgent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -130,6 +132,15 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
   const activeCount = requests.filter((r) => r.status === "submitted" || r.status === "sent").length;
   const toReceive = requests.filter((r) => r.status === "sent").length;
 
+  function setDraft(product: CatalogProduct, raw: string | null) {
+    setDrafts((current) => {
+      const next = { ...current };
+      if (raw === null) delete next[product.id];
+      else next[product.id] = raw;
+      return next;
+    });
+  }
+
   function setQty(product: CatalogProduct, qty: number) {
     setCart((current) => {
       const next = { ...current };
@@ -152,6 +163,7 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
       });
       setMessage({ ok: true, text: `${row.doc} terkirim ke gudang. Pantau di tab Permintaan.` });
       setCart({});
+      setDrafts({});
       setNote("");
       setUrgent(false);
       await loadRequests(division);
@@ -266,18 +278,23 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
                             <Badge className={p.status === "out" ? "bg-[#d11a2a] text-white" : "bg-[#f5a742] text-black"}>{p.status === "out" ? "HABIS" : "MENIPIS"}</Badge>
                           )}
                           <div className="flex items-center gap-1">
-                            <button type="button" aria-label={`Kurangi ${p.name}`} disabled={!qty} onClick={() => setQty(p, Math.max(0, qty - step))} className="grid size-9 place-items-center rounded-md border border-[#34343c] text-white disabled:opacity-40">
+                            <button type="button" aria-label={`Kurangi ${p.name}`} disabled={!qty} onClick={() => { setDraft(p, null); setQty(p, Math.max(0, qty - step)); }} className="grid size-9 place-items-center rounded-md border border-[#34343c] text-white disabled:opacity-40">
                               <Minus className="size-4" />
                             </button>
                             <input
                               aria-label={`Jumlah ${p.name}`}
                               inputMode="decimal"
-                              value={qty ? String(qty) : ""}
+                              value={drafts[p.id] ?? (qty ? String(qty).replace(".", ",") : "")}
                               placeholder="0"
-                              onChange={(e) => setQty(p, Number(e.target.value.replace(",", ".")) || 0)}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/[^\d.,]/g, "");
+                                setDraft(p, raw);
+                                setQty(p, Number(raw.replace(",", ".")) || 0);
+                              }}
+                              onBlur={() => setDraft(p, null)}
                               className="h-9 w-20 rounded-md border border-[#34343c] bg-[#1b1b21] text-center text-sm font-bold text-white"
                             />
-                            <button type="button" aria-label={`Tambah ${p.name}`} onClick={() => setQty(p, qty + step)} className="grid size-9 place-items-center rounded-md border border-[#34343c] text-white">
+                            <button type="button" aria-label={`Tambah ${p.name}`} onClick={() => { setDraft(p, null); setQty(p, qty + step); }} className="grid size-9 place-items-center rounded-md border border-[#34343c] text-white">
                               <Plus className="size-4" />
                             </button>
                             <span className="w-8 text-xs text-[#c4c4cc]">{p.unit}</span>

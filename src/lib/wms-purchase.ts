@@ -38,6 +38,11 @@ export type PurchaseOrderInput = {
 };
 
 export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: string | null) {
+  return runInTx((tx) => createPurchaseOrderInTx(tx, input, userId));
+}
+
+/** Sama dengan createPurchaseOrder, di dalam transaksi pemanggil (atomik dengan klaim kekurangan). */
+export async function createPurchaseOrderInTx(tx: Db, input: PurchaseOrderInput, userId?: string | null) {
   // Satu baris per bahan: baris ganda digabung (qty dijumlah, harga rata-rata tertimbang)
   // supaya penerimaan selalu jatuh ke baris yang tepat.
   const merged = new Map<string, { productId: string; orderedQty: number; value: number }>();
@@ -50,7 +55,7 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
   }
   const items = [...merged.values()].map((m) => ({ productId: m.productId, orderedQty: m.orderedQty, unitPrice: m.value / m.orderedQty }));
   if (!items.length) throw new Error("PO butuh minimal 1 bahan.");
-  return runInTx(async (tx) => {
+  {
     const [supplier] = await tx.select().from(wmsSupplier).where(eq(wmsSupplier.id, input.supplierId)).limit(1);
     if (!supplier || supplier.archivedAt) throw new Error("Supplier tidak ditemukan / diarsipkan.");
     const [po] = await tx
@@ -70,7 +75,7 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
     );
     await writeWmsAudit(tx, { userId, action: "PO dibuat", object: po.doc, metadata: { supplier: supplier.name, items: items.length } });
     return po;
-  });
+  }
 }
 
 export async function listPurchaseOrders(limit = 100) {
@@ -198,9 +203,9 @@ export async function applyReceivingToPurchaseOrder(
 }
 
 /** Riwayat harga beli per bahan per supplier (dari penerimaan selesai): terakhir & rata-rata. */
-export async function getSupplierPriceHistory(productIds: string[]) {
+export async function getSupplierPriceHistory(productIds: string[], db: Db = getDb()) {
   if (!productIds.length) return [];
-  const rows = await getDb()
+  const rows = await db
     .select({
       productId: wmsReceivingItem.productId,
       supplierId: wmsReceiving.supplierId,

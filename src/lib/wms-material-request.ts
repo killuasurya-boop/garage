@@ -9,7 +9,7 @@ import {
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
-import { createPurchaseOrder, getSupplierPriceHistory } from "@/lib/wms-purchase";
+import { createPurchaseOrderInTx, getSupplierPriceHistory } from "@/lib/wms-purchase";
 import { makeWmsDoc, moveStockBetweenWarehouses, runInTx, writeWmsAudit } from "@/lib/wms-service";
 
 // =============================================================================
@@ -317,9 +317,9 @@ export async function cancelMaterialRequest(id: string, actor: { userId: string 
   });
 }
 
-/** Kekurangan terbuka (belum dibuatkan PO), dijumlah per bahan. */
-export async function listMaterialShortages() {
-  const rows = await getDb()
+/** Kekurangan terbuka (belum dibuatkan PO), dijumlah per bahan. `lock` = kunci baris (klaim). */
+export async function listMaterialShortages(db: Db = getDb(), opts: { lock?: boolean } = {}) {
+  const query = db
     .select({
       itemId: wmsMaterialRequestItem.id,
       productId: wmsMaterialRequestItem.productId,
@@ -333,6 +333,7 @@ export async function listMaterialShortages() {
     .innerJoin(wmsMaterialRequest, eq(wmsMaterialRequest.id, wmsMaterialRequestItem.requestId))
     .innerJoin(wmsProduct, eq(wmsProduct.id, wmsMaterialRequestItem.productId))
     .where(and(gt(wmsMaterialRequestItem.shortQty, 0), isNull(wmsMaterialRequestItem.purchaseOrderId), inArray(wmsMaterialRequest.status, ["sent", "received"])));
+  const rows = opts.lock ? await query.for("update", { of: wmsMaterialRequestItem }) : await query;
   const byProduct = new Map<string, { productId: string; name: string; unit: string; qty: number; docs: string[]; itemIds: string[] }>();
   for (const r of rows) {
     const cur = byProduct.get(r.productId) ?? { productId: r.productId, name: r.name, unit: r.unit, qty: 0, docs: [], itemIds: [] };
@@ -341,7 +342,7 @@ export async function listMaterialShortages() {
     cur.itemIds.push(r.itemId);
     byProduct.set(r.productId, cur);
   }
-  const prices = await getSupplierPriceHistory([...byProduct.keys()]);
+  const prices = await getSupplierPriceHistory([...byProduct.keys()], db);
   return [...byProduct.values()]
     .map((s) => {
       const last = prices.filter((p) => p.productId === s.productId).sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""))[0];
@@ -350,29 +351,35 @@ export async function listMaterialShortages() {
     .sort((a, b) => a.name.localeCompare(b.name, "id"));
 }
 
-/** Kekurangan → PO draft per supplier terakhir; baris tertandai sudah dibuatkan PO. */
+/**
+ * Kekurangan → PO draft per supplier terakhir. Klaim baris (FOR UPDATE) + buat PO +
+ * tautkan dalam satu transaksi: klik bersamaan tidak bisa membeli kekurangan yang sama dua kali.
+ */
 export async function createPurchaseOrdersFromShortages(userId?: string | null) {
-  const shortages = await listMaterialShortages();
-  const bySupplier = new Map<string, typeof shortages>();
-  const skipped: string[] = [];
-  for (const s of shortages) {
-    if (!s.supplierId) {
-      skipped.push(s.name);
-      continue;
+  return runInTx(async (tx) => {
+    const shortages = await listMaterialShortages(tx, { lock: true });
+    const bySupplier = new Map<string, typeof shortages>();
+    const skipped: string[] = [];
+    for (const s of shortages) {
+      if (!s.supplierId) {
+        skipped.push(s.name);
+        continue;
+      }
+      bySupplier.set(s.supplierId, [...(bySupplier.get(s.supplierId) ?? []), s]);
     }
-    bySupplier.set(s.supplierId, [...(bySupplier.get(s.supplierId) ?? []), s]);
-  }
-  const created = [];
-  for (const [supplierId, list] of bySupplier) {
-    const po = await createPurchaseOrder(
-      { supplierId, note: `Kekurangan permintaan Bar/Dapur: ${[...new Set(list.flatMap((s) => s.docs))].join(", ")}`, items: list.map((s) => ({ productId: s.productId, orderedQty: s.qty, unitPrice: s.lastPrice ?? 0 })) },
-      userId,
-    );
-    await getDb()
-      .update(wmsMaterialRequestItem)
-      .set({ purchaseOrderId: po.id })
-      .where(inArray(wmsMaterialRequestItem.id, list.flatMap((s) => s.itemIds)));
-    created.push(po);
-  }
-  return { created, skipped };
+    const created = [];
+    for (const [supplierId, list] of bySupplier) {
+      const po = await createPurchaseOrderInTx(
+        tx,
+        { supplierId, note: `Kekurangan permintaan Bar/Dapur: ${[...new Set(list.flatMap((s) => s.docs))].join(", ")}`, items: list.map((s) => ({ productId: s.productId, orderedQty: s.qty, unitPrice: s.lastPrice ?? 0 })) },
+        userId,
+      );
+      await tx
+        .update(wmsMaterialRequestItem)
+        .set({ purchaseOrderId: po.id })
+        .where(and(inArray(wmsMaterialRequestItem.id, list.flatMap((s) => s.itemIds)), isNull(wmsMaterialRequestItem.purchaseOrderId)));
+      created.push(po);
+    }
+    return { created, skipped };
+  });
 }

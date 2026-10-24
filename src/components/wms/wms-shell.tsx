@@ -31,6 +31,7 @@ import {
   Sparkles,
   Tags,
   Thermometer,
+  Trash2,
   TrendingUp,
   Truck,
   Wallet,
@@ -80,6 +81,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Stock Opname", href: "/warehouse/opname", icon: ClipboardCheck },
       { label: "Checklist", href: "/warehouse/checklist", icon: ListChecks },
+      { label: "Waste", href: "/warehouse/waste", icon: Trash2 },
       { label: "Adjustment", href: "/warehouse/adjustment", icon: Sliders, managementOnly: true },
       { label: "Riwayat", href: "/warehouse/activity-log", icon: Clock },
       { label: "Laporan", href: "/warehouse/reports", icon: FileBarChart },
@@ -536,6 +538,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/opname")) return "Stock Opname";
   if (pathname.startsWith("/warehouse/checklist")) return "Checklist Gudang";
   if (pathname.startsWith("/warehouse/adjustment")) return "Adjustment";
+  if (pathname.startsWith("/warehouse/waste")) return "Waste · Bahan Terbuang";
   if (pathname.startsWith("/warehouse/reorder")) return "Smart Reorder";
   if (pathname.startsWith("/warehouse/cold-chain")) return "Cold Chain";
   if (pathname.startsWith("/warehouse/analytics")) return "Owner Analytics";

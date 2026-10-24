@@ -3465,6 +3465,7 @@ export const wmsProductionRecipe = pgTable("wms_production_recipe", {
   name: text("name").notNull(),
   outputProductId: uuid("output_product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
   outputQty: wmsNum("output_qty").notNull().default(1), // hasil per 1 batch produksi
+  shelfLifeHours: integer("shelf_life_hours"), // umur simpan hasil (jam); null = ikut bahan input
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -3568,6 +3569,36 @@ export const wmsStockMovement = pgTable(
     productIdx: index("wms_stock_movement_product_idx").on(t.productId),
     typeIdx: index("wms_stock_movement_type_idx").on(t.type),
     createdAtIdx: index("wms_stock_movement_created_at_idx").on(t.createdAt),
+  }),
+);
+
+// Waste / write-off bahan (ala ERPNext Stock Entry "Material Issue"): rusak, kedaluwarsa,
+// tumpah, susut prep. Hanya status "recorded" yang memotong stok (movement type waste).
+export const wmsWaste = pgTable(
+  "wms_waste",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
+    qty: wmsNum("qty").notNull(),
+    unit: text("unit").notNull().default(""),
+    reason: text("reason").notNull(), // expired | damaged | spill | prep_loss | other
+    note: text("note").notNull().default(""),
+    estimatedValue: wmsNum("estimated_value").notNull().default(0),
+    value: wmsNum("value").notNull().default(0), // biaya aktual FEFO saat dicatat
+    status: text("status").notNull().default("recorded"), // recorded | pending_approval | rejected
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    requestedByName: text("requested_by_name").notNull().default(""),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    statusIdx: index("wms_waste_status_idx").on(t.status, t.createdAt),
+    productIdx: index("wms_waste_product_idx").on(t.productId),
   }),
 );
 

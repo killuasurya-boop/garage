@@ -27,9 +27,7 @@ import {
 //   - Tiket dapur telat
 //   - Approvals & Audit ringkas + Finance Guard
 //
-// CATATAN: belum ada "waste" sebagai jenis stock movement di sistem, jadi
-// laporan ini tidak menampilkan waste. Tambahkan saat modul pencatatan
-// waste/spoilage dibuat.
+//   - Waste bahan (modul Waste WMS, status tercatat) per alasan
 // ============================================================================
 
 export type OwnerReportData = {
@@ -49,6 +47,8 @@ export type OwnerReportData = {
     qty: number;
     revenue: number;
   }>;
+  /** Waste bahan tercatat hari itu (biaya aktual FEFO), per alasan. */
+  waste: { total: number; byReason: Array<{ label: string; count: number; value: number }> };
   lowStock: Array<{
     sku: string;
     name: string;
@@ -287,6 +287,9 @@ export async function getOwnerReportData(
   if (approvals?.pending && approvals.pending > 0) {
     points.push(`${approvals.pending} approval menunggu.`);
   }
+  const { summarizeWmsWaste } = await import("@/lib/wms-waste");
+  const waste = await summarizeWmsWaste(start, end).catch(() => ({ total: 0, byReason: [] }));
+  if (waste.total > 0) points.push(`Waste bahan ${idrCompact(waste.total)}.`);
   const headline = points.join(" ");
 
   // Action prioritas.
@@ -345,6 +348,7 @@ export async function getOwnerReportData(
       qty: Number(r.qty),
       revenue: Number(r.revenue),
     })),
+    waste: { total: waste.total, byReason: waste.byReason.map((r) => ({ label: r.label, count: r.count, value: r.value })) },
     lowStock: lowStockRows.map((i) => ({
       sku: i.sku,
       name: i.name,

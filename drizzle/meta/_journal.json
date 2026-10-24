@@ -1065,6 +1065,13 @@
       "when": 1792815780148,
       "tag": "0151_wms_ledger_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1792816415908,
+      "tag": "0152_wms_waste_expiry",
+      "breakpoints": true
     }
   ]
 }

@@ -63,7 +63,7 @@ describe("Internal Order + FEFO", () => {
     // dua batch: B-LATE (expired jauh, hpp 0.05) & B-SOON (expired dekat, hpp 0.01)
     await t.getDb().insert(t.schema.wmsBatch).values([
       { productId: p.id, warehouseId: main.id, batchNo: "B-LATE", qty: 1000, hpp: 0.05, expiredAt: new Date("2030-01-01") },
-      { productId: p.id, warehouseId: main.id, batchNo: "B-SOON", qty: 1000, hpp: 0.01, expiredAt: new Date("2026-01-01") },
+      { productId: p.id, warehouseId: main.id, batchNo: "B-SOON", qty: 1000, hpp: 0.01, expiredAt: new Date("2029-01-01") },
     ]);
 
     // ambil 800 → harus dari B-SOON (0.01) duluan → biaya 800×0.01 = 8

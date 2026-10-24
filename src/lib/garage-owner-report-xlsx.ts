@@ -72,6 +72,16 @@ export async function generateOwnerReportXlsx(
   low.getColumn(4).width = 12;
   low.getColumn(5).width = 10;
 
+  // ── Waste Bahan ──
+  const waste = wb.addWorksheet("Waste");
+  waste.addRow(["Alasan", "Jumlah catatan", "Nilai (Rp)"]);
+  waste.getRow(1).font = { bold: true };
+  for (const r of data.waste.byReason) waste.addRow([r.label, r.count, r.value]);
+  waste.addRow(["Total", "", data.waste.total]).font = { bold: true };
+  waste.getColumn(1).width = 24;
+  waste.getColumn(2).width = 16;
+  waste.getColumn(3).width = 16;
+
   // ── Tiket Telat ──
   const late = wb.addWorksheet("Tiket Telat");
   late.addRow(["Tiket", "Station", "Meja", "Status", "Elapsed (mnt)", "Lewat (mnt)"]);

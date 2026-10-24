@@ -11,6 +11,7 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
   outputProductId: z.string().uuid(),
   outputQty: z.number().positive().max(10_000_000),
+  shelfLifeHours: z.number().int().positive().max(24 * 365).nullable().optional(),
   bom: z
     .array(z.object({ inputProductId: z.string().uuid(), qty: z.number().positive() }))
     .min(1)

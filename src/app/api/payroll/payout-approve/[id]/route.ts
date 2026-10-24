@@ -94,6 +94,8 @@ export async function POST(request: Request, { params }: Ctx) {
             description: `Payout gaji ${staffName} (payout ${result.id})`,
             amount: result.amountGaji,
             paymentMethod: "Cash",
+            // Payout dibayar dari uang Owner, bukan dari laci kasir.
+            cashSource: "external",
             notes: body.data.note ?? undefined,
           },
           session.data!,
@@ -107,6 +109,8 @@ export async function POST(request: Request, { params }: Ctx) {
             description: `Payout fee ${staffName} (payout ${result.id})`,
             amount: result.amountFee,
             paymentMethod: "Cash",
+            // Payout dibayar dari uang Owner, bukan dari laci kasir.
+            cashSource: "external",
             notes: body.data.note ?? undefined,
           },
           session.data!,

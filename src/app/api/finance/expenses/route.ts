@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { ClosingError } from "@/lib/finance-closing";
-import { createExpense, listExpenses } from "@/lib/garage-service";
+import { EXPENSE_CASH_SOURCES } from "@/lib/cash-ledger";
+import { createExpense, ExpenseCashSourceError, listExpenses } from "@/lib/garage-service";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -12,6 +13,8 @@ const expenseSchema = z.object({
   description: z.string().trim().min(2).max(180),
   amount: z.number().int().positive(),
   paymentMethod: z.string().trim().min(2).max(60).optional(),
+  // Biaya tunai: sumber dananya (buku kas). Wajib bila tidak punya shift sendiri.
+  cashSource: z.enum(EXPENSE_CASH_SOURCES).nullable().optional(),
   supplierId: z.string().uuid().nullable().optional(),
   supplierInvoiceId: z.string().uuid().nullable().optional(),
   expenseDate: z.string().datetime({ offset: true }).optional(),
@@ -57,6 +60,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ClosingError) {
       return fail(409, error.code, error.message);
+    }
+    if (error instanceof ExpenseCashSourceError) {
+      return fail(400, error.code, error.message);
     }
     throw error;
   }

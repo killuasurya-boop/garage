@@ -108,14 +108,16 @@ describe("Bayar THR", () => {
     expect((await getThrList(HOLIDAY.holidayDate)).find((r) => r.code === "LAMA")!.paid).toBeNull();
   });
 
-  it("batalkan THR (salah input): pengeluaran dibatalkan, uang tunai kembali ke kas", async () => {
+  it("batalkan THR (salah input): pengeluaran dibatalkan, laci kasir tidak tersentuh", async () => {
     const { eq } = await import("drizzle-orm");
     const { cancelThr, getThrHistory } = await import("@/lib/garage-payroll-thr");
     const paid = (await getThrHistory()).find((h) => h.code === "BARU" && h.status === "paid")!;
     const [cashBefore] = await t.getDb().select().from(t.schema.cashSessions);
     await cancelThr(paid.id, "Salah nominal", manajer(), NOW);
     const [cashAfter] = await t.getDb().select().from(t.schema.cashSessions);
-    expect(cashAfter.expectedCash - cashBefore.expectedCash).toBe(750_000);
+    // Buku kas (owner, Okt 2026): THR tunai dibayar dari uang Owner, bukan laci shift
+    // orang lain → laci tidak berubah saat dibayar maupun dibatalkan.
+    expect(cashAfter.expectedCash - cashBefore.expectedCash).toBe(0);
     const [exp] = await t.getDb().select().from(t.schema.expenses).where(eq(t.schema.expenses.description, "THR Idul Fitri 2027 Nama BARU"));
     expect(exp.status).toBe("cancelled");
     await expect(cancelThr(paid.id, "lagi", manajer(), NOW)).rejects.toMatchObject({ code: "ALREADY_CANCELLED" });

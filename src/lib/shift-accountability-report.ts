@@ -21,6 +21,7 @@ import {
   user,
 } from "@/db/schema";
 import { sumDenominations } from "@/lib/cash-denominations";
+import { getDrawerLedger, type CashSourceType } from "@/lib/cash-ledger";
 import {
   listPettyCashEntries,
   listShiftIncidents,
@@ -189,6 +190,8 @@ export type RawSession = {
   qrisRecorded: number | null;
   qrisCounted: number | null;
   qrisDiscrepancy: number | null;
+  /** true = kas laci dari buku kas (cash_ledger_entries); false = format lama. */
+  ledgerMode: boolean;
 };
 
 export type HandoverPeer = {
@@ -212,6 +215,8 @@ export type ShiftRaw = {
   incidents: Awaited<ReturnType<typeof listShiftIncidents>>;
   previous: HandoverPeer | null;
   next: HandoverPeer | null;
+  /** Buku kas laci shift (null = shift format lama). */
+  ledger: Awaited<ReturnType<typeof getDrawerLedger>> | null;
 };
 
 // ── Agregasi murni ──────────────────────────────────────────────────────────
@@ -304,33 +309,68 @@ export function buildShiftAccountability(raw: ShiftRaw) {
   // dikurangi refund); refund/void tunai dihitung terpisah agar tidak ganda.
   const cashPayments = sessionPayments.filter((p) => paymentGroupOf(p.method) === "Tunai" && p.status !== "pending" && p.status !== "failed");
   const originalOf = (p: RawPayment) => Number(p.metadata?.originalAmount ?? p.amount) || 0;
-  const cashSales = sum(cashPayments.map(originalOf));
-  const cashStillHeld = sum(cashPayments.filter((p) => LIVE_PAYMENT.has(p.status)).map((p) => p.amount));
-  const cashRefundsVoids = Math.max(0, cashSales - cashStillHeld);
-  // Hanya kas laci yang uangnya sudah bergerak; pengajuan/ditolak/dibatalkan tidak dihitung.
   const recordedMovements = raw.movements.filter((m) => m.status === "recorded");
-  const cashIn = sum(recordedMovements.filter((m) => m.type === "cash_in").map((m) => m.amount));
-  const cashOut = sum(recordedMovements.filter((m) => m.type === "cash_out").map((m) => m.amount));
-  const formulaExpected = session.openingCash + cashSales + cashIn - cashOut - cashRefundsVoids;
+  const ledgerNet = (types: CashSourceType[]) =>
+    (raw.ledger?.summary ?? []).filter((row) => types.includes(row.sourceType)).reduce((acc, row) => acc + row.net, 0);
+  const ledgerOut = (types: CashSourceType[]) =>
+    (raw.ledger?.summary ?? []).filter((row) => types.includes(row.sourceType)).reduce((acc, row) => acc + row.outflow, 0);
+  const ledgerIn = (types: CashSourceType[]) =>
+    (raw.ledger?.summary ?? []).filter((row) => types.includes(row.sourceType)).reduce((acc, row) => acc + row.inflow, 0);
+  const reversalIn = ledgerIn(["drawer_reversal"]);
+  const reversalOut = ledgerOut(["drawer_reversal"]);
+  // Shift buku kas: semua komponen dari buku kas laci (sumber tunggal) — snapshot shift
+  // tidak berubah oleh refund/void di shift lain. Format lama: rumus dari pembayaran.
+  const ledgerCash = raw.ledger
+    ? {
+        openingBase: ledgerNet(["opening", "legacy_opening"]),
+        cashSales: ledgerIn(["sale", "final_pay"]) - ledgerOut(["sale", "final_pay"]),
+        cashIn: ledgerIn(["drawer_in"]) - reversalOut,
+        cashOut: ledgerOut(["drawer_out"]) - reversalIn,
+        cashRefundsVoids: ledgerOut(["refund", "void", "payment_revert"]) - ledgerIn(["refund", "void", "payment_revert"]),
+        financeCashOut: -ledgerNet(["expense", "expense_cancel"]),
+        methodCorrections: ledgerNet(["method_fix"]),
+        balance: raw.ledger.balance,
+      }
+    : null;
+  const cashSales = ledgerCash ? ledgerCash.cashSales : sum(cashPayments.map(originalOf));
+  const cashStillHeld = sum(cashPayments.filter((p) => LIVE_PAYMENT.has(p.status)).map((p) => p.amount));
+  const cashRefundsVoids = ledgerCash ? ledgerCash.cashRefundsVoids : Math.max(0, cashSales - cashStillHeld);
+  // Hanya kas laci yang uangnya sudah bergerak; pengajuan/ditolak/dibatalkan tidak dihitung.
+  const cashIn = ledgerCash ? ledgerCash.cashIn : sum(recordedMovements.filter((m) => m.type === "cash_in").map((m) => m.amount));
+  const cashOut = ledgerCash ? ledgerCash.cashOut : sum(recordedMovements.filter((m) => m.type === "cash_out").map((m) => m.amount));
+  const financeCashOut = ledgerCash?.financeCashOut ?? 0;
+  const methodCorrections = ledgerCash?.methodCorrections ?? 0;
+  const openingBase = ledgerCash ? ledgerCash.openingBase : session.openingCash;
+  const formulaExpected = openingBase + cashSales + cashIn - cashOut - cashRefundsVoids - financeCashOut + methodCorrections;
+  // Shift buku kas: kas seharusnya = saldo buku kas (open) / nilai saat tutup (closed).
+  const expected = ledgerCash ? (session.status === "open" ? ledgerCash.balance : session.expectedCash) : session.expectedCash;
   const cash = {
+    ledgerMode: Boolean(ledgerCash),
     openingCash: session.openingCash,
     openingCounted: sumCounts(session.openingDenominations),
+    /** Saldo awal buku kas bila shift sudah berjalan saat buku kas aktif (selain modal). */
+    legacyOpening: ledgerCash ? ledgerNet(["legacy_opening"]) : 0,
     cashSales,
     cashIn,
     cashOut,
     cashRefundsVoids,
-    // Selisih antara catatan sistem & rumus = pengeluaran Finance tunai,
-    // koreksi metode, pembatalan pelunasan, dll. Ditampilkan apa adanya.
-    otherAdjustments: session.expectedCash - formulaExpected,
-    expected: session.expectedCash,
+    /** Biaya Finance yang dibayar dari laci shift ini (net pembatalan). */
+    financeCashOut,
+    /** Koreksi metode bayar (Cash ⇄ non-tunai) — + masuk laci, − keluar. */
+    methodCorrections,
+    // Format lama: selisih catatan sistem vs rumus (pengeluaran Finance tunai,
+    // koreksi metode, pembatalan pelunasan). Shift buku kas: selalu 0.
+    otherAdjustments: expected - formulaExpected,
+    expected,
     actual: session.actualCash,
-    variance: session.actualCash === null ? null : session.actualCash - session.expectedCash,
+    variance: session.actualCash === null ? null : session.actualCash - expected,
     qris: groupTotal("QRIS"),
     transfer: groupTotal("Transfer"),
     otherNonCash: groupTotal("Lainnya"),
     nonCashTotal: groupTotal("QRIS") + groupTotal("Transfer") + groupTotal("Lainnya"),
     floatLeft: session.floatLeft,
     deposit: session.depositAmount,
+    ledgerLines: raw.ledger?.lines ?? [],
   };
 
   // ── Produk terjual ──
@@ -533,6 +573,7 @@ export function buildShiftAccountability(raw: ShiftRaw) {
   if (!Object.keys(session.openingDenominations ?? {}).length) dataGaps.push("Hitungan pecahan modal awal tidak dicatat saat buka shift.");
   if (session.status === "closed" && !Object.keys(session.denominations ?? {}).length) dataGaps.push("Hitungan pecahan saat tutup tidak tersedia (kas aktual diketik manual).");
   if (session.status === "open") dataGaps.push("Shift masih berlangsung — kas aktual & selisih belum ada.");
+  if (!cash.ledgerMode) dataGaps.push("Shift format lama (sebelum buku kas) — kas diharapkan dari catatan sistem, bukan buku kas per transaksi.");
   if (cash.otherAdjustments !== 0) dataGaps.push("Kas diharapkan memuat penyesuaian di luar buku kas (pengeluaran Finance tunai / koreksi metode / pembatalan pelunasan) — lihat baris Penyesuaian lain.");
 
   return {
@@ -734,6 +775,7 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
       openingVerifiedAt: s.openingVerifiedAt?.toISOString() ?? null,
       denominations: s.denominations ?? {},
       expectedCash: s.expectedCash,
+      ledgerMode: s.ledgerMode,
       actualCash: s.actualCash,
       discrepancy: s.discrepancy,
       discrepancyStatus: s.discrepancyStatus,
@@ -800,6 +842,7 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
     incidents,
     previous: peerOf(previous),
     next: peerOf(next),
+    ledger: s.ledgerMode ? await getDrawerLedger(s.id) : null,
   };
 }
 

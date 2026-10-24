@@ -409,6 +409,8 @@ export async function payEmployee(input: PayEmployeeInput, garage: GarageSession
           description: `Gaji ${emp.name} s/d ${input.until}`,
           amount: settled.netPaid,
           paymentMethod: input.method,
+          // Payroll dibayar dari uang Owner/rekening, bukan dari laci kasir.
+          cashSource: "external",
           notes: [
             `Gajian ${settled.id}`,
             `gaji ${rp(settled.grossGaji)} + fee ${rp(settled.grossFee)}`,
@@ -639,6 +641,8 @@ export async function giveAdvance(input: GiveAdvanceInput, garage: GarageSession
         description: `Kasbon ${emp.name}`,
         amount: input.amount,
         paymentMethod: input.method,
+          // Payroll dibayar dari uang Owner/rekening, bukan dari laci kasir.
+          cashSource: "external",
         notes: [`Kasbon ${advance.id}`, input.note?.trim() || null].filter(Boolean).join(" · "),
       },
       garage,

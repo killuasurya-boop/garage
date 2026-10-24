@@ -104,6 +104,7 @@ import {
   approvals,
   auditCases,
   auditLogs,
+  cashLedgerEntries,
   cashMovements,
   cashSessions,
   crmCampaignLogs,
@@ -197,6 +198,7 @@ import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, retur
 import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { seedRetailStockCosts, syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import { drawerBalance, getDrawerLedger, postAccountCash, postDrawerCash, type CashAccount, type CashSourceType, type ExpenseCashSource } from "@/lib/cash-ledger";
 import {
   categoryPosInfo,
   ensureCategoryLinks,
@@ -439,6 +441,12 @@ type ExpenseInput = {
   description: string;
   amount: number;
   paymentMethod?: string;
+  /**
+   * Sumber dana biaya TUNAI (buku kas): laci shift sendiri, Rekening Jago/BNI, atau
+   * uang pribadi Owner. Kosong + punya shift sendiri = laci sendiri; kosong tanpa
+   * shift = ditolak (tidak pernah lagi memotong laci kasir lain diam-diam).
+   */
+  cashSource?: ExpenseCashSource | null;
   supplierId?: string | null;
   supplierInvoiceId?: string | null;
   expenseDate?: string;
@@ -10678,7 +10686,10 @@ async function updateCustomerOrderStatusImpl(
         throw new Error("Nominal setoran waiter kurang dari total tagihan.");
       }
 
+      // Nominal pembayaran yang benar-benar dikonfirmasi sekarang (masuk laci bila tunai).
+      let capturedNowAmount = 0;
       if (!existingPayments.length) {
+        capturedNowAmount = order.total;
         await tx.insert(payments).values({
           orderId: order.id,
           cashSessionId: cashierOpenSession?.id ?? null,
@@ -10745,6 +10756,7 @@ async function updateCustomerOrderStatusImpl(
             cashierConfirmedByName: garage.user.name,
             cashierConfirmedAt: invoiceIssuedAt,
           };
+          capturedNowAmount = pendingPayment.amount;
           await tx
             .update(payments)
             .set({
@@ -10757,22 +10769,18 @@ async function updateCustomerOrderStatusImpl(
         }
       }
 
-      if (
-        cashierOpenSession &&
-        confirmingIsCash
-      ) {
-        await tx
-          .update(cashSessions)
-          .set({
-            expectedCash: sql`${cashSessions.expectedCash} + ${order.total}`,
-          })
-          .where(
-            and(
-              eq(cashSessions.id, cashierOpenSession.id),
-              eq(cashSessions.status, "open"),
-              eq(cashSessions.openedBy, garage.user.id),
-            ),
-          );
+      if (cashierOpenSession && confirmingIsCash && capturedNowAmount > 0) {
+        // Buku kas: nominal pembayaran tunai yang dikonfirmasi (bukan total order —
+        // sebagian bisa sudah dibayar metode lain).
+        await postDrawerCash(tx, {
+          sessionId: cashierOpenSession.id,
+          delta: capturedNowAmount,
+          sourceType: "final_pay",
+          sourceId: order.id,
+          sourceRef: order.orderNo,
+          actorUserId: garage.user.id,
+          idempotencyKey: `final_pay:${order.id}:${now.getTime()}`,
+        });
       }
 
       if (order.status !== "paid" && order.customerId) {
@@ -11720,18 +11728,16 @@ async function createOrderOnce(
     }
 
     if (cashContribution > 0) {
-      await tx
-        .update(cashSessions)
-        .set({
-          expectedCash: sql`${cashSessions.expectedCash} + ${cashContribution}`,
-        })
-        .where(
-          and(
-            eq(cashSessions.id, openCashSession.id),
-            eq(cashSessions.status, "open"),
-            eq(cashSessions.openedBy, garage.user.id),
-          ),
-        );
+      // Buku kas: hanya bagian tunai (split → bagian Cash saja; kembalian tidak masuk).
+      await postDrawerCash(tx, {
+        sessionId: openCashSession.id,
+        delta: cashContribution,
+        sourceType: "sale",
+        sourceId: order.id,
+        sourceRef: order.orderNo,
+        actorUserId: garage.user.id,
+        idempotencyKey: `sale:${order.id}`,
+      });
     }
 
     if (voucherValidation?.valid) {
@@ -14626,6 +14632,7 @@ export async function listExpenses(
       description: expenses.description,
       amount: expenses.amount,
       paymentMethod: expenses.paymentMethod,
+      cashSource: expenses.cashSource,
       status: expenses.status,
       expenseDate: expenses.expenseDate,
       receiptUrl: expenses.receiptUrl,
@@ -14662,7 +14669,13 @@ async function applyCashExpenseToOpenSession(
   tx: GarageDb | GarageTx,
   amount: number,
   garage: GarageSession,
-  options: { required?: boolean; preferSessionIds?: string[]; preferUserId?: string | null } = {},
+  options: {
+    required?: boolean;
+    preferSessionIds?: string[];
+    preferUserId?: string | null;
+    /** Baris buku kas: jenis + referensi (order/biaya) supaya tiap uang keluar tertelusur. */
+    ledger: { sourceType: CashSourceType; sourceId: string; sourceRef?: string | null; note?: string | null };
+  },
 ) {
   // Urutan laci: (1) shift asal pembayaran tunai bila masih buka — uangnya
   // keluar dari laci itu; (2) kasir yang meminta void/refund; (3) pengguna
@@ -14688,15 +14701,24 @@ async function applyCashExpenseToOpenSession(
     return null;
   }
 
-  // Atomik di SQL: menulis nilai hasil hitung JS menimpa penjualan tunai yang
-  // masuk bersamaan. Tidak di-clamp ke 0 — kas minus harus terlihat sebagai selisih.
-  const [updated] = await tx
-    .update(cashSessions)
-    .set({ expectedCash: sql`${cashSessions.expectedCash} - ${amount}` })
-    .where(and(eq(cashSessions.id, openSession.id), eq(cashSessions.status, "open")))
-    .returning({ id: cashSessions.id, code: cashSessions.code, expectedCash: cashSessions.expectedCash });
-  if (!updated && options.required) throw new CashSessionRequiredForCashOutError();
-  return updated ?? null;
+  // Buku kas: baris keluar di laci yang benar-benar mengeluarkan uang (shift asal bila
+  // masih buka, kalau tidak shift yang sedang berjalan). Shift asal yang sudah tutup tidak
+  // disentuh, jadi laporannya tetap. Tidak di-clamp ke 0 — kas minus terlihat sebagai selisih.
+  const fromOriginSession = (options.preferSessionIds ?? []).includes(openSession.id);
+  const posted = await postDrawerCash(tx, {
+    sessionId: openSession.id,
+    delta: -amount,
+    sourceType: options.ledger.sourceType,
+    sourceId: options.ledger.sourceId,
+    sourceRef: options.ledger.sourceRef ?? null,
+    actorUserId: garage.user.id,
+    note:
+      options.ledger.note ??
+      (options.preferSessionIds?.length && !fromOriginSession ? "Uang keluar dari shift berjalan (shift asal sudah tutup)" : null),
+    metadata: options.preferSessionIds?.length ? { originSessionIds: options.preferSessionIds } : undefined,
+  });
+  if (!posted && options.required) throw new CashSessionRequiredForCashOutError();
+  return posted ? { id: openSession.id, code: openSession.code, expectedCash: posted.balanceAfter } : null;
 }
 
 const idrFormatter = new Intl.NumberFormat("id-ID", {
@@ -15840,7 +15862,11 @@ async function voidOrderImpl(
     const { cashOut, cashSessionIds } = await reducePaymentsForRefund(tx, order.id, order.total, "void");
     const cashSession =
       cashOut > 0
-        ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true, preferSessionIds: cashSessionIds })
+        ? await applyCashExpenseToOpenSession(tx, cashOut, garage, {
+            required: true,
+            preferSessionIds: cashSessionIds,
+            ledger: { sourceType: "void", sourceId: order.id, sourceRef: order.orderNo },
+          })
         : null;
 
     // Poin member dari order ini ditarik & kuota voucher yang dipakai dikembalikan.
@@ -16038,7 +16064,11 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
     const { cashOut, cashSessionIds } = await reducePaymentsForRefund(tx, order.id, split.refundAmount, "refund");
     const cashSession =
       cashOut > 0
-        ? await applyCashExpenseToOpenSession(tx, cashOut, garage, { required: true, preferSessionIds: cashSessionIds })
+        ? await applyCashExpenseToOpenSession(tx, cashOut, garage, {
+            required: true,
+            preferSessionIds: cashSessionIds,
+            ledger: { sourceType: "refund", sourceId: order.id, sourceRef: order.orderNo },
+          })
         : null;
 
     // Poin member ditarik proporsional terhadap nilai yang dikembalikan.
@@ -16314,14 +16344,23 @@ async function applyCashMovementEffectsInTx(
 ) {
   const { prepared, now } = params;
   const delta = cashDrawerDelta(prepared.type, prepared.amount);
-  const [updated] = await tx
-    .update(cashSessions)
-    .set({ expectedCash: sql`${cashSessions.expectedCash} + ${delta}` })
-    .where(and(eq(cashSessions.id, params.sessionId), eq(cashSessions.status, "open")))
-    .returning({ expectedCash: cashSessions.expectedCash });
-  if (!updated) throw new CashSessionRequiredForCashOutError();
-  const balanceAfter = updated.expectedCash;
-  const balanceBefore = balanceAfter - delta;
+  // Buku kas laci: satu baris per kas keluar/masuk yang benar-benar terjadi.
+  const posted = await postDrawerCash(tx, {
+    sessionId: params.sessionId,
+    delta,
+    sourceType: prepared.type === "out" ? "drawer_out" : "drawer_in",
+    sourceId: params.refNo,
+    sourceRef: `${params.refNo} · ${prepared.def.label}`,
+    actorUserId: params.actorUserId,
+    note: prepared.description,
+    metadata: { categoryKey: prepared.def.key, cashGroup: prepared.def.group, approverName: params.approverName },
+    idempotencyKey: `drawer:${params.sessionId}:${params.refNo}`,
+    occurredAt: now,
+  });
+  if (!posted) throw new CashSessionRequiredForCashOutError();
+  const balanceAfter = posted.balanceAfter;
+  const balanceBefore = posted.balanceBefore;
+  const ledgerEntryId = posted.entryId;
   const effects: CashMovementEffects = {};
 
   let expenseId: string | null = null;
@@ -16347,6 +16386,8 @@ async function applyCashMovementEffectsInTx(
           .filter(Boolean)
           .join(" · "),
         sourceDoc: purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null,
+        // Uangnya sudah keluar lewat baris buku kas laci di atas (bukan diposting ulang).
+        cashSource: "drawer",
         createdBy: params.actorUserId,
       })
       .returning({ id: expenses.id });
@@ -16422,7 +16463,7 @@ async function applyCashMovementEffectsInTx(
     }
   }
 
-  return { balanceBefore, balanceAfter, expenseId, effects };
+  return { balanceBefore, balanceAfter, expenseId, effects, ledgerEntryId };
 }
 
 /** Kebalikan `applyCashMovementEffectsInTx` (pembatalan/koreksi saat shift buka). */
@@ -16449,10 +16490,18 @@ async function reverseCashMovementEffectsInTx(
     );
   }
   const delta = movement.type === "cash_out" ? -movement.amount : movement.amount;
-  await tx
-    .update(cashSessions)
-    .set({ expectedCash: sql`${cashSessions.expectedCash} - ${delta}` })
-    .where(eq(cashSessions.id, session.id));
+  // Buku kas: baris pembalik (bukan mengubah baris lama).
+  await postDrawerCash(tx, {
+    sessionId: session.id,
+    delta: -delta,
+    sourceType: "drawer_reversal",
+    sourceId: movement.refNo ?? movement.id,
+    sourceRef: `${movement.refNo ?? ""} · batal ${movement.category}`.trim(),
+    reversesId: movement.ledgerEntryId,
+    note: reason,
+    idempotencyKey: `drawer_reversal:${movement.id}`,
+    occurredAt: now,
+  });
 
   if (movement.expenseId) {
     // Langsung batalkan (BUKAN cancelExpenseInTx — itu juga mengoreksi kas sesi).
@@ -16568,6 +16617,7 @@ async function insertCashMovementInTx(
       relatedMovementId: prepared.related?.id ?? null,
       correctsMovementId: params.correctsMovementId ?? null,
       expenseId: applied?.expenseId ?? null,
+      ledgerEntryId: applied?.ledgerEntryId ?? null,
       balanceBefore: applied?.balanceBefore ?? null,
       balanceAfter: applied?.balanceAfter ?? null,
       effects: applied ? applied.effects : null,
@@ -16788,6 +16838,7 @@ export async function decideCashMovement(
         decisionNote: note,
         movementAt: now,
         expenseId: applied.expenseId,
+        ledgerEntryId: applied.ledgerEntryId,
         balanceBefore: applied.balanceBefore,
         balanceAfter: applied.balanceAfter,
         effects: applied.effects,
@@ -17256,6 +17307,82 @@ export async function listCashMovementsForSession(sessionId: string) {
   return rows.map((row) => shapeCashMovement(row, false));
 }
 
+export class ExpenseCashSourceError extends Error {
+  code = "CASH_SOURCE_REQUIRED";
+  constructor(message: string) {
+    super(message);
+    this.name = "ExpenseCashSourceError";
+  }
+}
+
+async function ownOpenSessionId(db: GarageDb | GarageTx, userId: string, outletId: string) {
+  const [row] = await db
+    .select({ id: cashSessions.id })
+    .from(cashSessions)
+    .where(and(eq(cashSessions.openedBy, userId), eq(cashSessions.outletId, outletId), eq(cashSessions.status, "open")))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** Sumber dana biaya tunai; null untuk biaya non-tunai. */
+async function resolveExpenseCashSource(
+  db: GarageDb | GarageTx,
+  paymentMethod: string,
+  requested: ExpenseCashSource | null | undefined,
+  garage: GarageSession,
+): Promise<ExpenseCashSource | null> {
+  if (!isCashMethod(paymentMethod)) return null;
+  const ownSession = await ownOpenSessionId(db, garage.user.id, garage.profile.outlet.id);
+  const source = requested ?? (ownSession ? "drawer" : null);
+  if (!source) {
+    throw new ExpenseCashSourceError(
+      "Pilih sumber dana biaya tunai: laci shift sendiri, Rekening Jago, Rekening BNI, atau uang pribadi Owner. Biaya tidak lagi memotong laci kasir lain.",
+    );
+  }
+  if (source === "drawer" && !ownSession) {
+    throw new ExpenseCashSourceError("Shift Anda belum buka — biaya dari laci hanya dari laci shift sendiri. Pilih sumber dana lain.");
+  }
+  return source;
+}
+
+/** Uang biaya tunai benar-benar keluar: laci pencatat (buku kas laci) atau rekening/uang pribadi. */
+async function applyExpenseCash(
+  tx: GarageTx,
+  expense: { id: string; amount: number; description: string; cashSource: string | null; createdBy: string | null; outletId: string | null },
+  garage: GarageSession,
+) {
+  const source = expense.cashSource as ExpenseCashSource | null;
+  if (!source) return null;
+  if (source === "drawer") {
+    const sessionId = await ownOpenSessionId(tx, expense.createdBy ?? garage.user.id, expense.outletId ?? garage.profile.outlet.id);
+    if (!sessionId) throw new CashSessionRequiredForCashOutError();
+    const posted = await postDrawerCash(tx, {
+      sessionId,
+      delta: -expense.amount,
+      sourceType: "expense",
+      sourceId: expense.id,
+      sourceRef: expense.description,
+      actorUserId: garage.user.id,
+      idempotencyKey: `expense:${expense.id}`,
+    });
+    if (!posted) throw new CashSessionRequiredForCashOutError();
+    return { id: sessionId, expectedCash: posted.balanceAfter };
+  }
+  // Uang pribadi Owner tidak lewat akun usaha mana pun → cukup tercatat di biaya (cash_source).
+  if (source === "external") return null;
+  await postAccountCash(tx, {
+    from: source,
+    to: "external",
+    amount: expense.amount,
+    outletId: expense.outletId,
+    sourceType: "expense",
+    sourceId: expense.id,
+    sourceRef: expense.description,
+    actorUserId: garage.user.id,
+  });
+  return null;
+}
+
 export async function createExpense(input: ExpenseInput, garage: GarageSession) {
   const expenseDate = input.expenseDate ? new Date(input.expenseDate) : new Date();
   // Backdate ke hari yang sudah Daily Closing ditolak (PRD §16 LOCK DAY).
@@ -17273,6 +17400,7 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
   }
   const purchaseSourceDoc = purchaseArea ? `EXP:${randomUUID()}#${purchaseArea}` : null;
   const db = getDb();
+  const cashSource = await resolveExpenseCashSource(db, paymentMethod, input.cashSource, garage);
   const { expense, cashSession } = await db.transaction(async (tx) => {
     const [createdExpense] = await tx
       .insert(expenses)
@@ -17288,14 +17416,12 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
         expenseDate,
         notes: input.notes?.trim() || null,
         sourceDoc: purchaseSourceDoc,
+        cashSource,
         createdBy: garage.user.id,
       })
       .returning();
 
-    const affectedCashSession =
-      status === "recorded" && isCashMethod(paymentMethod)
-        ? await applyCashExpenseToOpenSession(tx, input.amount, garage)
-        : null;
+    const affectedCashSession = status === "recorded" ? await applyExpenseCash(tx, createdExpense, garage) : null;
 
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),
@@ -17309,6 +17435,7 @@ export async function createExpense(input: ExpenseInput, garage: GarageSession) 
         amount: createdExpense.amount,
         category: createdExpense.category,
         paymentMethod,
+        cashSource,
         cashSessionId: affectedCashSession?.id ?? null,
       },
     });
@@ -17427,10 +17554,10 @@ async function decideExpense(id: string, garage: GarageSession, decision: "appro
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
   const now = new Date();
   const result = await db.transaction(async (tx) => {
-    const affectedCashSession =
-      decision === "approved" && isCashMethod(current.paymentMethod)
-        ? await applyCashExpenseToOpenSession(tx, current.amount, garage)
-        : null;
+    // Biaya lama tanpa sumber dana (sebelum buku kas) & tunai: laci pengaju sendiri.
+    const expenseForCash =
+      current.cashSource || !isCashMethod(current.paymentMethod) ? current : { ...current, cashSource: "drawer" };
+    const affectedCashSession = decision === "approved" ? await applyExpenseCash(tx, expenseForCash, garage) : null;
     const [updated] = await tx
       .update(expenses)
       .set({
@@ -17518,30 +17645,75 @@ export async function cancelExpenseInTx(
   if (current.status !== "pending_approval") {
     await assertFinanceDayOpen(current.expenseDate);
     if (isCashMethod(current.paymentMethod)) {
-      const hitAt = current.approvedAt ?? current.createdAt;
-      const [session] = await tx
-        .select({ id: cashSessions.id, status: cashSessions.status, expectedCash: cashSessions.expectedCash })
-        .from(cashSessions)
-        .where(
-          and(
-            eq(cashSessions.outletId, current.outletId ?? garage.profile.outlet.id),
-            lte(cashSessions.openedAt, hitAt),
-            or(sql`${cashSessions.closedAt} IS NULL`, gte(cashSessions.closedAt, hitAt)),
-          ),
-        )
-        .orderBy(desc(cashSessions.openedAt))
+      // Buku kas: balik baris uang keluar biaya ini di akun asalnya (bukan menebak sesi).
+      const [posted] = await tx
+        .select()
+        .from(cashLedgerEntries)
+        .where(and(eq(cashLedgerEntries.sourceType, "expense"), eq(cashLedgerEntries.sourceId, expenseId)))
         .limit(1);
-      if (session && session.status !== "open") {
-        throw new Error(
-          "Sesi kas saat uang keluar sudah ditutup — pembatalan tidak bisa otomatis. Catat penyesuaian di Keuangan.",
-        );
-      }
-      if (session) {
-        await tx
-          .update(cashSessions)
-          .set({ expectedCash: sql`${cashSessions.expectedCash} + ${current.amount}` })
-          .where(and(eq(cashSessions.id, session.id), eq(cashSessions.status, "open")));
-        cashSessionId = session.id;
+      if (posted?.cashSessionId) {
+        const reversed = await postDrawerCash(tx, {
+          sessionId: posted.cashSessionId,
+          delta: posted.amount,
+          sourceType: "expense_cancel",
+          sourceId: expenseId,
+          sourceRef: current.description,
+          reversesId: posted.id,
+          actorUserId: garage.user.id,
+          note: reason,
+          idempotencyKey: `expense_cancel:${expenseId}`,
+        });
+        if (!reversed) {
+          throw new Error(
+            "Sesi kas saat uang keluar sudah ditutup — pembatalan tidak bisa otomatis. Catat penyesuaian di Keuangan.",
+          );
+        }
+        cashSessionId = posted.cashSessionId;
+      } else if (posted) {
+        await postAccountCash(tx, {
+          from: "external",
+          to: posted.fromAccount as CashAccount,
+          amount: posted.amount,
+          outletId: posted.outletId,
+          sourceType: "expense_cancel",
+          sourceId: expenseId,
+          sourceRef: current.description,
+          reversesId: posted.id,
+          actorUserId: garage.user.id,
+          note: reason,
+        });
+      } else if (!current.cashSource) {
+        // Biaya lama (sebelum buku kas): laci yang buka saat uang keluar.
+        const hitAt = current.approvedAt ?? current.createdAt;
+        const [session] = await tx
+          .select({ id: cashSessions.id, status: cashSessions.status })
+          .from(cashSessions)
+          .where(
+            and(
+              eq(cashSessions.outletId, current.outletId ?? garage.profile.outlet.id),
+              lte(cashSessions.openedAt, hitAt),
+              or(sql`${cashSessions.closedAt} IS NULL`, gte(cashSessions.closedAt, hitAt)),
+            ),
+          )
+          .orderBy(desc(cashSessions.openedAt))
+          .limit(1);
+        if (session && session.status !== "open") {
+          throw new Error(
+            "Sesi kas saat uang keluar sudah ditutup — pembatalan tidak bisa otomatis. Catat penyesuaian di Keuangan.",
+          );
+        }
+        if (session) {
+          await postDrawerCash(tx, {
+            sessionId: session.id,
+            delta: current.amount,
+            sourceType: "expense_cancel",
+            sourceId: expenseId,
+            sourceRef: current.description,
+            actorUserId: garage.user.id,
+            note: reason,
+          });
+          cashSessionId = session.id;
+        }
       }
     }
   }
@@ -18282,15 +18454,27 @@ export async function createCashSession(input: CashSessionInput, garage: GarageS
         code,
         outletId,
         openingCash: input.openingCash,
-        // Kas seharusnya selalu mulai dari modal awal; tidak diterima dari client.
-        expectedCash: input.openingCash,
+        // Kas seharusnya = buku kas: mulai 0 lalu modal awal diposting sebagai baris
+        // "opening" (nominal dari server, tidak diterima dari client).
+        expectedCash: 0,
+        ledgerMode: true,
         checklist: fallbackClosingChecklist,
         openingDenominations,
         openedBy: garage.user.id,
       })
       .returning();
 
-    return created;
+    const opening = await postDrawerCash(tx, {
+      sessionId: created.id,
+      delta: input.openingCash,
+      sourceType: "opening",
+      sourceId: created.id,
+      sourceRef: created.code,
+      actorUserId: garage.user.id,
+      idempotencyKey: `opening:${created.id}`,
+    });
+
+    return { ...created, expectedCash: opening?.balanceAfter ?? created.expectedCash };
   });
 
   await createAuditLog({
@@ -18434,10 +18618,18 @@ export async function correctPaymentMethod(
     // Laci: keluar dari Cash → kas seharusnya berkurang; masuk ke Cash → bertambah.
     const cashDelta = (toGroup === "cash" ? target.amount : 0) - (fromGroup === "cash" ? target.amount : 0);
     if (cashDelta !== 0) {
-      await tx
-        .update(cashSessions)
-        .set({ expectedCash: sql`${cashSessions.expectedCash} + ${cashDelta}` })
-        .where(eq(cashSessions.id, session.id));
+      // Buku kas: koreksi metode = baris tersendiri (bukan mengubah penjualan lama).
+      await postDrawerCash(tx, {
+        sessionId: session.id,
+        delta: cashDelta,
+        sourceType: "method_fix",
+        sourceId: target.id,
+        sourceRef: `${target.method} → ${input.method}`,
+        actorUserId: garage.user.id,
+        approverUserId: approver?.userId ?? null,
+        note: reason,
+        requireOpen: false,
+      });
     }
     const correction = {
       from: target.method,
@@ -18548,7 +18740,20 @@ export async function closeCashSession(
       throw new CashSessionAlreadyClosedError();
     }
 
-    const discrepancy = actualCash - current.expectedCash;
+    // Shift buku kas: kas seharusnya = Σ buku kas laci (sumber tunggal); cache harus sama.
+    const expectedCash = current.ledgerMode ? await drawerBalance(id, tx) : current.expectedCash;
+    if (current.ledgerMode && expectedCash !== current.expectedCash) {
+      await tx.insert(auditLogs).values({
+        time: nowTimeLabel(),
+        actor: "Sistem",
+        action: "Cache kas laci beda dengan buku kas",
+        object: current.code,
+        device: garage.profile.deviceLabel,
+        status: "warning",
+        metadata: { cashSessionId: id, cache: current.expectedCash, ledger: expectedCash },
+      });
+    }
+    const discrepancy = actualCash - expectedCash;
     const discrepancyStatus = cashDiscrepancyStatus(
       discrepancy,
       Number(policy.shiftDiscrepancyThreshold) || 50_000,
@@ -18574,6 +18779,8 @@ export async function closeCashSession(
     const [closedSession] = await tx
       .update(cashSessions)
       .set({
+        // Kas seharusnya yang dipakai menghitung selisih (buku kas untuk shift buku kas).
+        expectedCash,
         actualCash,
         discrepancy,
         discrepancyStatus,
@@ -18667,7 +18874,7 @@ export async function closeCashSession(
           requester: actor,
           requesterPhone: null,
           amount: idrFormatter.format(Math.abs(discrepancy)),
-          reason: `Kas ${direction} saat tutup shift ${current.code}: seharusnya ${idrFormatter.format(current.expectedCash)}, dihitung ${idrFormatter.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${signer ? ` · sudah sign-off ${signer.name}` : ""}`,
+          reason: `Kas ${direction} saat tutup shift ${current.code}: seharusnya ${idrFormatter.format(expectedCash)}, dihitung ${idrFormatter.format(actualCash)}${input.closingNote?.trim() ? ` · ${input.closingNote.trim()}` : ""}${signer ? ` · sudah sign-off ${signer.name}` : ""}`,
           risk: discrepancyStatus === "critical" ? "high" : "medium",
           age: "baru saja",
           status: "pending",
@@ -19167,11 +19374,27 @@ export async function getCashSessionSummary(
     }).filter((row) => row.count > 0),
   };
 
-  // Kas akhir = modal + tunai penjualan + kas masuk − kas keluar + penyesuaian lain
+  // Kas akhir = modal + tunai penjualan + kas masuk − kas keluar + penyesuaian
   // (refund/void tunai, pengeluaran Finance tunai, koreksi metode bayar).
+  // Shift buku kas: semua dari buku kas laci, penyesuaian dirinci per jenis.
+  const [modeRow] = await getDb()
+    .select({ ledgerMode: cashSessions.ledgerMode })
+    .from(cashSessions)
+    .where(eq(cashSessions.id, sessionId))
+    .limit(1);
+  const ledgerMode = Boolean(modeRow?.ledgerMode);
+  const ledger = await getDrawerLedger(sessionId);
+  const ledgerNet = (types: CashSourceType[]) =>
+    ledger.summary.filter((row) => types.includes(row.sourceType)).reduce((sum, row) => sum + row.net, 0);
+  const adjustmentsBreakdown = ledgerMode
+    ? ledger.summary
+        .filter((row) => ["refund", "void", "payment_revert", "expense", "expense_cancel", "method_fix", "legacy_opening"].includes(row.sourceType))
+        .map((row) => ({ sourceType: row.sourceType, label: row.label, net: row.net }))
+    : [];
+  const reconciledCashSales = ledgerMode ? ledgerNet(["sale", "final_pay"]) : cashSales;
+  const expectedCash = ledgerMode && data.session.status === "open" ? ledger.balance : data.session.expectedCash;
   const otherAdjustments =
-    data.session.expectedCash -
-    (data.session.openingCash + cashSales + cashMovementTotals.cashIn - cashMovementTotals.cashOut);
+    expectedCash - (data.session.openingCash + reconciledCashSales + cashMovementTotals.cashIn - cashMovementTotals.cashOut);
 
   return {
     session: data.session,
@@ -19179,11 +19402,14 @@ export async function getCashSessionSummary(
     movements: movementRows,
     reconciliation: {
       openingCash: data.session.openingCash,
-      cashSales,
+      cashSales: reconciledCashSales,
       cashIn: cashMovementTotals.cashIn,
       cashOut: cashMovementTotals.cashOut,
       otherAdjustments,
-      expectedCash: data.session.expectedCash,
+      /** Rincian penyesuaian dari buku kas (refund/void, biaya Finance, koreksi metode). */
+      adjustmentsBreakdown,
+      ledgerMode,
+      expectedCash,
     },
     counts: {
       total: data.orders.length,
@@ -22289,10 +22515,17 @@ export async function revertOrderPayment(idOrOrderNo: string, reason: string, ga
         throw new Error("Shift pembayaran sudah ditutup — pelunasan tidak bisa dibatalkan. Gunakan Batal/Refund.");
       }
       if (isCashMethod(payment.method)) {
-        await tx
-          .update(cashSessions)
-          .set({ expectedCash: sql`${cashSessions.expectedCash} - ${payment.amount}` })
-          .where(eq(cashSessions.id, payment.cashSessionId));
+        // Buku kas: uang pelunasan tunai dianggap keluar lagi dari laci (Lunas → Pending).
+        await postDrawerCash(tx, {
+          sessionId: payment.cashSessionId,
+          delta: -payment.amount,
+          sourceType: "payment_revert",
+          sourceId: order.id,
+          sourceRef: order.orderNo,
+          actorUserId: garage.user.id,
+          note: trimmed,
+          requireOpen: false,
+        });
       }
     }
     for (const payment of captured) {

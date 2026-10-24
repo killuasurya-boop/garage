@@ -241,7 +241,7 @@ describe("Kas keluar — atomik dan tidak di-clamp", () => {
 });
 
 describe("Kas keluar — laci yang benar & wajib shift untuk refund tunai", () => {
-  it("pengeluaran tanpa sesi sendiri dipotong dari laci Kasir, bukan sesi Manajer", async () => {
+  it("biaya tunai tanpa shift sendiri TIDAK memotong laci Kasir: wajib pilih sumber dana (buku kas)", async () => {
     const { and, eq } = await import("drizzle-orm");
     const d = t.getDb();
     const kasirSession = await openSessionFor(KASIR_LAIN, 200_000);
@@ -252,11 +252,17 @@ describe("Kas keluar — laci yang benar & wajib shift untuk refund tunai", () =
         and(eq(t.schema.cashSessions.openedBy, MANAJER), eq(t.schema.cashSessions.status, "open")),
       );
 
+    await expect(
+      svc.createExpense(
+        { category: "Operasional", description: "Beli gas", amount: 25_000, paymentMethod: "cash" },
+        sessionFor(OWNER, "Owner"),
+      ),
+    ).rejects.toBeInstanceOf(svc.ExpenseCashSourceError);
     await svc.createExpense(
-      { category: "Operasional", description: "Beli gas", amount: 25_000, paymentMethod: "cash" },
+      { category: "Operasional", description: "Beli gas", amount: 25_000, paymentMethod: "cash", cashSource: "bank_jago" },
       sessionFor(OWNER, "Owner"),
     );
-    expect((await sessionRow(kasirSession.id)).expectedCash).toBe(175_000);
+    expect((await sessionRow(kasirSession.id)).expectedCash).toBe(200_000);
     expect((await sessionRow(managerSession.id)).expectedCash).toBe(managerSession.expectedCash);
   });
 

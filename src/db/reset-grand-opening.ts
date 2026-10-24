@@ -64,7 +64,7 @@ export const KEEP_TABLES = [
   "finance_settings", "finance_cost_items", "finance_payroll_positions", "finance_expense_categories",
   "finance_scenarios", "capital_transactions",
   // WMS master
-  "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_product_uom", "wms_recipe", "wms_recipe_version",
+  "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_product_uom", "cash_accounts", "wms_recipe", "wms_recipe_version",
   "wms_recipe_audit_log", "wms_bom_item", "wms_production_recipe", "wms_production_bom",
   "wms_reorder_rule",
   // Closing/replenishment: preserve approvals, reservations, counts and provenance.
@@ -88,7 +88,7 @@ export const CLEAR_TABLES = [
   "order_push_subscriptions", "staff_notifications", "staff_notification_reads",
   "voucher_redemptions",
   // kas & finance transaksional
-  "cash_sessions", "cash_movements", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
+  "cash_sessions", "cash_movements", "cash_ledger_entries", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",
   // stok transaksional
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",
@@ -238,6 +238,8 @@ export async function applyGrandOpeningReset(
   options: { resetMemberPoints: boolean },
 ) {
   await db.transaction(async (tx) => {
+    // Buku kas immutable (trigger) — hapus massal hanya diizinkan di transaksi reset ini.
+    await tx.execute(sql.raw(`SET LOCAL garage.cash_ledger_purge = 'on'`));
     if (plan.keep.includes("wms_closing_request")) {
       const existing = rowsOf(await tx.execute(sql.raw('SELECT id FROM "wms_closing_request" LIMIT 1')));
       if (existing.length) throw new Error("Reset diblokir: histori closing/replenishment sudah ada. Gunakan prosedur arsip/restore yang disetujui Owner.");

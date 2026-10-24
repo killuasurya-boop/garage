@@ -1114,6 +1114,13 @@
       "when": 1792875395083,
       "tag": "0158_recipe_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1792881007582,
+      "tag": "0159_cash_ledger",
+      "breakpoints": true
     }
   ]
 }

@@ -496,6 +496,29 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
     { empty: "Tidak ada kas masuk/keluar di shift ini.", totals: ["TOTAL", "", "", "", `+${num(cash.cashIn)} / −${num(cash.cashOut)}`, "", "", "", "", "", "", ""] },
   );
 
+  if (cash.ledgerMode) {
+    w.section("Buku Kas Laci", "portrait", "Setiap uang yang masuk/keluar laci shift ini, berurutan. Koreksi muncul sebagai baris pembalik, bukan mengubah baris lama.");
+    w.table(
+      [
+        { label: "No", width: 6 },
+        { label: "Waktu", width: 12 },
+        { label: "Jenis", width: 22 },
+        { label: "Referensi", width: 26 },
+        { label: "Masuk/keluar", width: 16, align: "right" },
+        { label: "Saldo", width: 16, align: "right" },
+      ],
+      cash.ledgerLines.map((line) => [
+        `#${line.seq}`,
+        dateTime(line.at),
+        line.label,
+        [line.sourceRef, line.note].filter(Boolean).join(" · ") || "-",
+        `${line.signed > 0 ? "+" : "−"}${num(Math.abs(line.signed))}`,
+        num(line.running),
+      ]),
+      { empty: "Belum ada uang yang bergerak di laci shift ini.", totals: ["", "", "", "SALDO", "", num(cash.expected)] },
+    );
+  }
+
   // 9. Petty cash shift
   w.section("Petty Cash (tercatat di shift ini)", "landscape", "Dana kas kecil terpisah dari laci — tidak mengubah kas laci. Pengajuan yang belum diputuskan tidak dihitung sebagai pengeluaran final.");
   w.table(
@@ -626,14 +649,26 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
   );
 
   // 14. Rekonsiliasi
-  w.section("Rekonsiliasi Kas & Selisih", "portrait", "Kas diharapkan = Kas awal + Penerimaan tunai + Kas masuk − Kas keluar − Refund/void tunai ± Penyesuaian lain. Selisih = Kas aktual − Kas diharapkan.");
+  w.section(
+    "Rekonsiliasi Kas & Selisih",
+    "portrait",
+    cash.ledgerMode
+      ? "Sumber: buku kas laci (setiap uang masuk/keluar = satu baris, tidak bisa diubah). Kas diharapkan = jumlah semua baris. Selisih = Kas aktual − Kas diharapkan."
+      : "Shift format lama (sebelum buku kas). Kas diharapkan = Kas awal + Penerimaan tunai + Kas masuk − Kas keluar − Refund/void tunai ± Penyesuaian lain. Selisih = Kas aktual − Kas diharapkan.",
+  );
   w.keyValues([
     ["Kas awal", rp(cash.openingCash)],
+    ...(cash.legacyOpening ? ([["+ Saldo laci saat buku kas diaktifkan", rp(cash.legacyOpening)]] as [string, string][]) : []),
     ["+ Penerimaan tunai penjualan", rp(cash.cashSales)],
     ["+ Kas masuk lainnya", rp(cash.cashIn)],
     ["− Kas keluar (operasional/setoran di tengah shift)", rp(cash.cashOut)],
-    ["− Refund / void tunai", rp(cash.cashRefundsVoids)],
-    ["± Penyesuaian lain (pengeluaran Finance tunai, koreksi metode, pembatalan pelunasan)", rp(cash.otherAdjustments)],
+    ["− Refund / void / batal pelunasan tunai", rp(cash.cashRefundsVoids)],
+    ...(cash.ledgerMode
+      ? ([
+          ["− Biaya Finance dibayar dari laci", rp(cash.financeCashOut)],
+          ["± Koreksi metode bayar", rp(cash.methodCorrections)],
+        ] as [string, string][])
+      : ([["± Penyesuaian lain (pengeluaran Finance tunai, koreksi metode, pembatalan pelunasan)", rp(cash.otherAdjustments)]] as [string, string][])),
     ["= Kas yang diharapkan", rp(cash.expected), true],
     ["Kas aktual (hitung pecahan)", rp(cash.actual), true],
     ["Selisih kas", cash.variance === null ? "Belum ditutup" : rp(cash.variance), true],

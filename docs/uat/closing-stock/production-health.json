@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-23T11:49:00+07:00",
+  "main": "3f434b9a1d48870e52b6696b7cb5cf52f1b2392b",
+  "checks": [
+    {
+      "url": "https://garagecoffee.id/api/health",
+      "http": 200,
+      "contentType": "application/json"
+    },
+    {
+      "url": "https://garagecoffee.id/api/wms/replenishment/catalog?division=bar",
+      "http": 401,
+      "authentication": "none"
+    }
+  ]
+}

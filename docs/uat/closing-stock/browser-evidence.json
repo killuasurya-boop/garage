@@ -1,0 +1,51 @@
+{
+  "mode": "production-standalone",
+  "screenshots": [
+    {
+      "name": "closing-mobile",
+      "path": "/warehouse/closing",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "preparation-desktop",
+      "path": "/warehouse/preparation",
+      "width": 1366,
+      "scroll": 1366
+    },
+    {
+      "name": "configuration-desktop",
+      "path": "/warehouse/preparation?setup=1",
+      "width": 1366,
+      "scroll": 1366
+    },
+    {
+      "name": "preparation-mobile",
+      "path": "/warehouse/preparation",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "receive-mobile",
+      "path": "/warehouse/requests?id=c63b5faa-b157-490b-ade1-3ae669b0b804",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "purchasing-desktop",
+      "path": "/warehouse/purchasing",
+      "width": 1366,
+      "scroll": 1366
+    }
+  ],
+  "checks": [
+    "Mobile Bar submit + real authorized request",
+    "Warehouse approval controls follow management policy",
+    "Owner approval + Warehouse Staff prepare/ready/dispatch through UI",
+    "Mobile receipt completed; division balance2→10 only after receipt",
+    "Shortage supplier approval through UI",
+    "Live CSV/XLSX/PDF exports",
+    "Staff settings403"
+  ],
+  "errors": []
+}

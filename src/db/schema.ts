@@ -3487,8 +3487,15 @@ export const wmsStockOpname = pgTable("wms_stock_opname", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull(),
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+  // draft → submitted (penghitung kirim) → completed (Owner/Manajer setujui & posting);
+  // ditolak → kembali draft dengan reject_reason. Stok hanya berubah saat completed.
   status: text("status").notNull().default("draft"),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  submittedBy: text("submitted_by").references(() => user.id, { onDelete: "set null" }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  rejectReason: text("reject_reason").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -3505,6 +3512,7 @@ export const wmsOpnameLine = pgTable(
     // Diisi saat petugas memasukkan hitungan fisik. Baris yang tidak dihitung
     // tidak di-adjust saat finalisasi (penjualan selama opname tidak dibatalkan).
     countedAt: timestamp("counted_at", { withTimezone: true }),
+    countedBy: text("counted_by").references(() => user.id, { onDelete: "set null" }),
   },
   (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
 );

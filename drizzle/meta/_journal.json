@@ -1072,6 +1072,13 @@
       "when": 1792816415908,
       "tag": "0152_wms_waste_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1792816766911,
+      "tag": "0153_wms_opname_approval",
+      "breakpoints": true
     }
   ]
 }

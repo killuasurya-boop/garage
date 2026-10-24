@@ -455,6 +455,8 @@ async function uatOpnameCycle(): Promise<UatResult> {
       };
     }
 
+    // Penghitung kirim → manajer setujui & posting.
+    await request(`/api/wms/opname/${op.id}/submit`, { method: "POST" }, gudangJar);
     const finalized = await request(`/api/wms/opname/${op.id}/finalize`, { method: "POST" }, managerJar);
     if (!finalized.response.ok) {
       return {

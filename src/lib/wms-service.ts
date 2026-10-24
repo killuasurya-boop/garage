@@ -4353,7 +4353,11 @@ export async function createWmsOpname(warehouseId: string, userId?: string | nul
   return op;
 }
 
-export async function getWmsOpname(id: string) {
+/**
+ * Detail opname. `blind` (penghitung non-manajer): stok sistem & selisih disembunyikan,
+ * baris yang belum dihitung tampil kosong — hitung fisik tanpa melihat angka sistem.
+ */
+export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
   const db = getDb();
   const [op] = await db.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).limit(1);
   if (!op) return null;
@@ -4365,24 +4369,43 @@ export async function getWmsOpname(id: string) {
       sku: wmsProduct.sku,
       barcode: wmsProduct.barcode,
       unit: wmsProduct.unit,
+      hpp: wmsProduct.hpp,
       systemQty: wmsOpnameLine.systemQty,
       physicalQty: wmsOpnameLine.physicalQty,
+      countedAt: wmsOpnameLine.countedAt,
     })
     .from(wmsOpnameLine)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsOpnameLine.productId))
-    .where(eq(wmsOpnameLine.opnameId, id));
+    .where(eq(wmsOpnameLine.opnameId, id))
+    .orderBy(wmsProduct.name);
+  const blind = !!opts.blind && op.status !== "completed";
   return {
     id: op.id,
     doc: op.doc,
     warehouseId: op.warehouseId,
     status: op.status,
+    blind,
+    rejectReason: op.rejectReason,
+    submittedAt: op.submittedAt?.toISOString() ?? null,
+    approvedAt: op.approvedAt?.toISOString() ?? null,
     createdAt: op.createdAt.toISOString(),
-    lines: lines.map((l) => ({
-      ...l,
-      systemQty: Number(l.systemQty),
-      physicalQty: Number(l.physicalQty),
-      variance: Number(l.physicalQty) - Number(l.systemQty),
-    })),
+    lines: lines.map((l) => {
+      const counted = !!l.countedAt;
+      const variance = counted ? Number((Number(l.physicalQty) - Number(l.systemQty)).toFixed(4)) : 0;
+      return {
+        id: l.id,
+        productId: l.productId,
+        productName: l.productName,
+        sku: l.sku,
+        barcode: l.barcode,
+        unit: l.unit,
+        counted,
+        systemQty: blind ? null : Number(l.systemQty),
+        physicalQty: blind && !counted ? null : Number(l.physicalQty),
+        variance: blind ? null : variance,
+        varianceValue: blind ? null : Math.round(variance * Number(l.hpp ?? 0)),
+      };
+    }),
   };
 }
 
@@ -4393,6 +4416,7 @@ export async function listWmsOpnames() {
       id: wmsStockOpname.id,
       doc: wmsStockOpname.doc,
       status: wmsStockOpname.status,
+      rejectReason: wmsStockOpname.rejectReason,
       createdAt: wmsStockOpname.createdAt,
       warehouseName: wmsWarehouse.name,
       lines: sql<number>`count(${wmsOpnameLine.id})::int`,
@@ -4407,34 +4431,87 @@ export async function listWmsOpnames() {
     id: r.id,
     doc: r.doc,
     status: r.status,
+    rejected: r.status === "draft" && !!r.rejectReason,
     warehouse: r.warehouseName ?? "-",
     lines: Number(r.lines),
     createdAt: r.createdAt.toISOString(),
   }));
 }
 
-export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opnameId?: string) {
+/**
+ * Simpan hitungan fisik. Stok sistem dicatat SAAT dihitung (ala posting time ERPNext
+ * Stock Reconciliation): penjualan sesudahnya tetap berlaku, selisih = fisik − stok
+ * saat itu. Hanya bisa selama draft (setelah dikirim, tunggu keputusan manajer).
+ */
+export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opnameId?: string, userId?: string | null) {
   const db = getDb();
   const [line] = await db
-    .select({ id: wmsOpnameLine.id, opnameId: wmsOpnameLine.opnameId, status: wmsStockOpname.status })
+    .select({
+      id: wmsOpnameLine.id,
+      opnameId: wmsOpnameLine.opnameId,
+      productId: wmsOpnameLine.productId,
+      status: wmsStockOpname.status,
+      warehouseId: wmsStockOpname.warehouseId,
+    })
     .from(wmsOpnameLine)
     .innerJoin(wmsStockOpname, eq(wmsStockOpname.id, wmsOpnameLine.opnameId))
     .where(eq(wmsOpnameLine.id, lineId))
     .limit(1);
   if (!line || (opnameId && line.opnameId !== opnameId)) return null;
   if (line.status === "completed") throw new Error("Opname sudah difinalisasi — hitungan tidak bisa diubah.");
+  if (line.status === "submitted") throw new Error("Opname sedang menunggu persetujuan manajer — hitungan terkunci.");
+  const systemQty = line.productId && line.warehouseId ? await warehouseOnHand(db, line.productId, line.warehouseId) : 0;
   const [row] = await db
     .update(wmsOpnameLine)
-    .set({ physicalQty, countedAt: new Date() })
+    .set({ physicalQty, systemQty, countedAt: new Date(), countedBy: userId ?? null })
     .where(eq(wmsOpnameLine.id, lineId))
     .returning();
   return row ?? null;
 }
 
+/** Penghitung mengirim hasil ke Owner/Manajer. Butuh minimal 1 baris terhitung. */
+export async function submitWmsOpname(id: string, userId?: string | null) {
+  return runInTx(async (tx) => {
+    const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
+    if (!op) return null;
+    if (op.status !== "draft") throw new Error(op.status === "submitted" ? "Opname sudah dikirim." : "Opname sudah selesai.");
+    const [counted] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(wmsOpnameLine)
+      .where(and(eq(wmsOpnameLine.opnameId, id), sql`${wmsOpnameLine.countedAt} is not null`));
+    if (!Number(counted?.n)) throw new Error("Belum ada bahan yang dihitung.");
+    const [updated] = await tx
+      .update(wmsStockOpname)
+      .set({ status: "submitted", submittedBy: userId ?? null, submittedAt: new Date() })
+      .where(eq(wmsStockOpname.id, id))
+      .returning();
+    await writeWmsAudit(tx, { userId, action: "Opname dikirim ke manajer", object: op.doc, metadata: { opnameId: id, counted: Number(counted.n) } });
+    return updated;
+  });
+}
+
+/** Manajer menolak → kembali draft untuk dihitung ulang (alasan wajib). */
+export async function rejectWmsOpname(id: string, reason: string, userId?: string | null) {
+  const why = reason.trim();
+  if (why.length < 3) throw new Error("Alasan penolakan wajib diisi.");
+  return runInTx(async (tx) => {
+    const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
+    if (!op) return null;
+    if (op.status !== "submitted") throw new Error("Hanya opname yang sudah dikirim yang bisa ditolak.");
+    const [updated] = await tx
+      .update(wmsStockOpname)
+      .set({ status: "draft", rejectReason: why })
+      .where(eq(wmsStockOpname.id, id))
+      .returning();
+    await writeWmsAudit(tx, { userId, action: "Opname ditolak", object: op.doc, status: "warning", metadata: { opnameId: id, reason: why } });
+    return updated;
+  });
+}
+
 /**
- * Finalize: setel stok ke hasil hitung fisik. Variance dihitung terhadap stok
- * LIVE saat finalize (bukan snapshot systemQty yang bisa basi bila ada mutasi
- * selama penghitungan), di dalam transaksi + kunci dokumen (anti double-finalize).
+ * Setujui & posting (Owner/Manajer): tiap baris terhitung → adjustment sebesar
+ * fisik − stok saat dihitung, diterapkan ke stok live (mutasi sesudah hitung tetap).
+ * Baris yang tidak dihitung dilewati. Dikunci + idempoten (anti double-finalize).
  */
 export async function finalizeWmsOpname(id: string, userId?: string | null) {
   return runInTx(async (tx) => {
@@ -4446,25 +4523,17 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
       .limit(1);
     if (!op) return null;
     if (op.status === "completed") return op;
+    if (op.status !== "submitted") throw new Error("Opname harus dikirim penghitung dulu sebelum disetujui.");
     if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
 
     const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
+    const adjusted: Array<{ sku: string; systemQty: number; physicalQty: number; variance: number; value: number; before: number; after: number }> = [];
     for (const l of lines) {
-      if (!l.productId) continue;
-      // Baris yang tidak dihitung dilewati: stok tetap sesuai ledger (penjualan
-      // selama opname berlangsung tidak "dikembalikan").
-      if (!l.countedAt) continue;
-      // Variance vs stok LIVE — recordStockMovement mengunci baris stok, jadi
-      // nilai yang dibaca di sini konsisten dengan mutasi lain.
-      const liveQty = await warehouseOnHand(tx, l.productId, op.warehouseId);
-      const variance = Number(l.physicalQty) - liveQty;
-      // Simpan systemQty final = stok live saat rekonsiliasi (jejak audit akurat).
-      await tx
-        .update(wmsOpnameLine)
-        .set({ systemQty: liveQty })
-        .where(eq(wmsOpnameLine.id, l.id));
+      if (!l.productId || !l.countedAt) continue;
+      const variance = Number((Number(l.physicalQty) - Number(l.systemQty)).toFixed(4));
       if (variance === 0) continue;
       const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, l.productId)).limit(1);
+      const before = await warehouseOnHand(tx, l.productId, op.warehouseId);
       await recordStockMovement(tx, {
         type: "adjustment",
         productId: l.productId,
@@ -4473,18 +4542,30 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
         hpp: Number(prod?.hpp ?? 0),
         refDoc: `${op.doc} · opname`,
         userId: userId ?? null,
+        // Hitung fisik = kebenaran saat itu; penjualan sesudahnya boleh membuat minus.
+        allowNegative: true,
+      });
+      adjusted.push({
+        sku: prod?.sku ?? "",
+        systemQty: Number(l.systemQty),
+        physicalQty: Number(l.physicalQty),
+        variance,
+        value: Math.round(variance * Number(prod?.hpp ?? 0)),
+        before,
+        after: Number((before + variance).toFixed(4)),
       });
     }
     const [updated] = await tx
       .update(wmsStockOpname)
-      .set({ status: "completed" })
+      .set({ status: "completed", approvedBy: userId ?? null, approvedAt: new Date() })
       .where(eq(wmsStockOpname.id, id))
       .returning();
     await writeWmsAudit(tx, {
       userId,
-      action: "Finalisasi stok opname",
+      action: "Opname disetujui & diposting",
       object: op.doc,
-      metadata: { opnameId: id },
+      status: adjusted.length ? "warning" : "recorded",
+      metadata: { opnameId: id, varianceValue: adjusted.reduce((sum, a) => sum + a.value, 0), lines: adjusted },
     });
     return updated;
   });

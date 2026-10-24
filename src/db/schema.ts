@@ -1262,6 +1262,8 @@ export const cashSessions = pgTable(
     openingVerifiedBy: text("opening_verified_by").references(() => user.id, { onDelete: "set null" }),
     openingVerifiedAt: timestamp("opening_verified_at", { withTimezone: true }),
     // Pemeriksaan laporan shift oleh Manajer/Owner: pending | verified | needs_followup.
+    // true = saldo laci dari buku kas (cash_ledger_entries); false = shift format lama.
+    ledgerMode: boolean("ledger_mode").notNull().default(false),
     reviewStatus: text("review_status").notNull().default("pending"),
     reviewNote: text("review_note"),
     reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
@@ -1397,6 +1399,9 @@ export const expenses = pgTable(
     // Belanja bahan dari penerimaan gudang (dibayar cash langsung): "<doc>#<area>".
     // Hanya baris ber-sourceDoc yang menjadi biaya "Belanja bahan" di laba rugi.
     sourceDoc: text("source_doc"),
+    // Sumber dana biaya tunai (buku kas): drawer | bank_jago | bank_bni | external.
+    // null = data lama / bukan tunai.
+    cashSource: text("cash_source"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -1474,6 +1479,8 @@ export const cashMovements = pgTable(
     relatedMovementId: uuid("related_movement_id"),
     correctsMovementId: uuid("corrects_movement_id"),
     expenseId: uuid("expense_id"),
+    // Baris buku kas yang menggerakkan uang mutasi ini (null = data lama / belum bergerak).
+    ledgerEntryId: uuid("ledger_entry_id"),
     // Saldo laci (expectedCash sesi) tepat sebelum/sesudah uang bergerak.
     balanceBefore: integer("balance_before"),
     balanceAfter: integer("balance_after"),
@@ -1531,6 +1538,52 @@ export const pettyCashEntries = pgTable(
     outletIdx: index("petty_cash_outlet_idx").on(table.outletId),
     sessionIdx: index("petty_cash_session_idx").on(table.cashSessionId),
     entryAtIdx: index("petty_cash_entry_at_idx").on(table.entryAt),
+  }),
+);
+
+// Buku kas tunggal (owner, Okt 2026, P1 closing): akun uang + satu baris per
+// perpindahan uang yang benar-benar terjadi. Saldo laci = Σ baris akun drawer per
+// sesi; cash_sessions.expected_cash hanya cache. Baris TIDAK pernah diubah/dihapus
+// (trigger DB) — koreksi = baris pembalik (reverses_id). Lihat src/lib/cash-ledger.ts.
+export const cashAccounts = pgTable("cash_accounts", {
+  code: text("code").primaryKey(), // drawer | petty | bank_jago | bank_bni | qris_clearing | external
+  kind: text("kind").notNull(), // drawer | petty | bank | clearing | external
+  name: text("name").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cashLedgerEntries = pgTable(
+  "cash_ledger_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
+    businessDate: text("business_date").notNull(), // YYYY-MM-DD Asia/Jakarta
+    outletId: uuid("outlet_id"),
+    cashSessionId: uuid("cash_session_id"),
+    fromAccount: text("from_account").notNull(),
+    toAccount: text("to_account").notNull(),
+    amount: integer("amount").notNull(),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id"),
+    sourceRef: text("source_ref"),
+    reversesId: uuid("reverses_id"),
+    actorUserId: text("actor_user_id"),
+    approverUserId: text("approver_user_id"),
+    note: text("note"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  },
+  (table) => ({
+    idempotencyIdx: uniqueIndex("cash_ledger_idempotency_idx").on(table.idempotencyKey),
+    seqIdx: uniqueIndex("cash_ledger_seq_idx").on(table.seq),
+    sessionIdx: index("cash_ledger_session_idx").on(table.cashSessionId),
+    outletDateIdx: index("cash_ledger_outlet_date_idx").on(table.outletId, table.businessDate),
+    sourceIdx: index("cash_ledger_source_idx").on(table.sourceType, table.sourceId),
+    reversesIdx: index("cash_ledger_reverses_idx").on(table.reversesId),
   }),
 );
 

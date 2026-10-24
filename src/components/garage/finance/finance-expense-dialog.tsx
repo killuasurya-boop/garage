@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Check, Plus, RefreshCw, Wallet } from "lucide-react";
 import { currency } from "@/lib/garage-data";
 import { garageApi } from "@/lib/api-client";
+import { EXPENSE_CASH_SOURCE_LABEL, EXPENSE_CASH_SOURCES, type ExpenseCashSource } from "@/lib/cash-sources";
 import { GarageEmpty } from "@/components/garage/garage-state-display";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ type ExpenseRow = {
   description: string;
   amount: number;
   paymentMethod: string;
+  cashSource?: string | null;
   status: string;
   expenseDate: string;
   receiptUrl: string | null;
@@ -74,6 +76,8 @@ export function FinanceExpenseDialog({
   const [formDescription, setFormDescription] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formPaymentMethod, setFormPaymentMethod] = useState("Cash");
+  // Biaya tunai: dari mana uangnya (buku kas). Kosong = laci shift sendiri bila ada.
+  const [formCashSource, setFormCashSource] = useState<ExpenseCashSource | "">("");
   const [formNote, setFormNote] = useState("");
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -162,6 +166,7 @@ export function FinanceExpenseDialog({
     setFormDescription("");
     setFormAmount("");
     setFormPaymentMethod("Cash");
+    setFormCashSource("");
     setFormNote("");
     setFormError(null);
     setFormOpen(true);
@@ -186,6 +191,7 @@ export function FinanceExpenseDialog({
         description,
         amount: Math.round(amount),
         paymentMethod: formPaymentMethod || "Cash",
+        cashSource: formPaymentMethod === "Cash" && formCashSource ? formCashSource : undefined,
         notes: formNote.trim() || undefined,
         countAsPurchase: isPurchaseCategory(formCategory) ? formNonStockPurchase : undefined,
       });
@@ -359,6 +365,11 @@ export function FinanceExpenseDialog({
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm font-semibold text-white">
                         {currency.format(row.amount)}
+                        {row.cashSource && row.cashSource in EXPENSE_CASH_SOURCE_LABEL ? (
+                          <span className="mt-0.5 block font-sans text-[10px] font-normal text-[#c4c4cc]">
+                            {EXPENSE_CASH_SOURCE_LABEL[row.cashSource as ExpenseCashSource]}
+                          </span>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -557,6 +568,28 @@ export function FinanceExpenseDialog({
                 </Select>
               </div>
             </div>
+            {formPaymentMethod === "Cash" ? (
+              <div>
+                <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+                  Sumber dana (uang tunai dari mana?)
+                </p>
+                <Select value={formCashSource} onValueChange={(value) => setFormCashSource(value as ExpenseCashSource)}>
+                  <SelectTrigger className="h-11 border-[#34343c] bg-white/[0.06]" aria-label="Sumber dana">
+                    <SelectValue placeholder="Pilih sumber dana" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPENSE_CASH_SOURCES.map((source) => (
+                      <SelectItem key={source} value={source}>
+                        {EXPENSE_CASH_SOURCE_LABEL[source]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-[11px] text-[#c4c4cc]">
+                  Hanya &quot;Laci shift saya&quot; yang memotong kas laci — dan hanya laci shift Anda sendiri. Belanja kasir dari laci tetap lewat Kas Keluar di POS.
+                </p>
+              </div>
+            ) : null}
             <div>
               <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
                 Catatan (opsional)

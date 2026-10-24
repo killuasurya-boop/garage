@@ -192,7 +192,7 @@ describe("Gajian", () => {
 });
 
 describe("Pembatalan & kasbon menunggu Approvals", () => {
-  it("batalkan gajian: gaji/fee belum dibayar lagi, kasbon kembali persis, uang tunai kembali ke kas", async () => {
+  it("batalkan gajian: gaji/fee belum dibayar lagi, kasbon kembali persis, laci kasir tidak tersentuh", async () => {
     const { eq } = await import("drizzle-orm");
     const { cancelPayment, getPayables } = await import("@/lib/garage-payroll-payments");
     const [payment] = await t
@@ -209,7 +209,9 @@ describe("Pembatalan & kasbon menunggu Approvals", () => {
     const [exp] = await expensesFor("Gaji Nama PAY1");
     expect(exp.status).toBe("cancelled");
     const [cashAfter] = await t.getDb().select().from(t.schema.cashSessions);
-    expect(cashAfter.expectedCash - cashBefore.expectedCash).toBe(90_000);
+    // Buku kas (owner, Okt 2026): gaji tunai dibayar dari uang Owner, bukan laci shift
+    // orang lain → laci tidak berubah saat dibayar maupun dibatalkan.
+    expect(cashAfter.expectedCash - cashBefore.expectedCash).toBe(0);
     await expect(cancelPayment(payment.id, "lagi", manajer(), NOW)).rejects.toMatchObject({ code: "ALREADY_CANCELLED" });
 
     // Bisa dibayar ulang dengan benar.

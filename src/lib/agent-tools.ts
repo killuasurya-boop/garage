@@ -204,6 +204,8 @@ const tools: AgentTool[] = [
           description: String(args.deskripsi),
           amount: Number(args.nominal),
           paymentMethod: (args.metodeBayar as string | undefined) ?? "Cash",
+          // Biaya dari agent tidak memotong laci kasir; uang tunai = uang pribadi Owner.
+          cashSource: "external",
           expenseDate: args.tanggal as string | undefined,
           notes: (args.catatan as string | undefined) ?? "Dicatat lewat agent AI",
         },

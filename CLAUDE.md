@@ -159,6 +159,21 @@ Scroll direction:
   Drawer expenses can't be cancelled from Finance/Payroll (`cancelExpenseInTx` guard). Kasir never sees drawer
   balance while the shift is open (`redactOpenShiftSummary`). Receipt photos live in non-public
   `storage/cash-receipts`, served only via `/api/finance/cash-movements/[id]/receipt`.
+- Buku kas tunggal (owner, Okt 2026, P1 closing, migration 0159, `docs/AUDIT-P0-CLOSING-2026-10.md`):
+  - Every rupiah that moves = one immutable row in `cash_ledger_entries` (from/to `cash_accounts`: drawer, petty,
+    bank_jago, bank_bni, qris_clearing, external). DB trigger blocks UPDATE/DELETE; corrections = reversal rows
+    (`reverses_id`). Only the grand-opening reset may purge (`SET LOCAL garage.cash_ledger_purge = 'on'`).
+  - Never write `cash_sessions.expected_cash` directly: use `postDrawerCash` (`src/lib/cash-ledger.ts`), which posts
+    the row and updates the cache in the same tx. Writers: opening, sale (cash part only), final_pay (confirmed
+    payment amount, not order total), refund/void (drawer actually paying out, origin shift untouched), method_fix,
+    payment_revert, drawer_out/in + drawer_reversal, expense/expense_cancel.
+  - `cash_sessions.ledger_mode`: shift reports/closing use the ledger (`getDrawerLedger`, `drawerBalance`); old-format
+    shifts keep the legacy formula with a label. Open shifts at migration got a `legacy_opening` row.
+  - Finance cash expenses need `cashSource` (`src/lib/cash-sources.ts`): drawer = only the recorder's own open shift;
+    bank_jago/bank_bni posted as account rows; external (Owner personal money) not posted. No shift + no source =
+    `ExpenseCashSourceError` — never cut another cashier's drawer. Payroll/agent expenses default to external.
+  - Probe `closing-audit-probe.integration.test.ts`: remaining `it.fails` = gaps for P2–P4 (petty cash, closing
+    status, access control).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

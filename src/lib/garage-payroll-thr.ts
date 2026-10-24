@@ -221,6 +221,8 @@ export async function payThr(input: PayThrInput, garage: GarageSession, now = ne
         description: `THR ${holidayName} ${emp.name}`,
         amount,
         paymentMethod: input.method,
+        // Payroll dibayar dari uang Owner/rekening, bukan dari laci kasir.
+        cashSource: "external",
         notes: [
           `THR ${row.id}`,
           monthsWorked >= 12 ? "masa kerja ≥ 12 bulan" : `masa kerja ${monthsWorked}/12 bulan`,

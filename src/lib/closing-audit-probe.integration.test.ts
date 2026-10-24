@@ -47,10 +47,6 @@ async function session(id: string) {
   const [row] = await t.getDb().select().from(t.schema.cashSessions).where(eq(t.schema.cashSessions.id, id));
   return row;
 }
-async function movementsOf(id: string) {
-  const { eq } = await import("drizzle-orm");
-  return t.getDb().select().from(t.schema.cashMovements).where(eq(t.schema.cashMovements.cashSessionId, id));
-}
 const orderNoOf = (r: any) => r.orderNo ?? r.order?.orderNo ?? r.receipt?.orderNo;
 async function sell(price: number, cashReceived: number, by = kasir(), method = "Cash") {
   const qty = price / 1_000;
@@ -120,17 +116,16 @@ describe("Kas laci — rumus (T01–T06)", () => {
     expect((await session(id)).expectedCash).toBe(before + 30_000);
   });
 
-  it.fails("T02: biaya tunai dicatat Owner di Finance TIDAK diam-diam memotong laci kasir (atau tercatat sebagai kas keluar laci)", async () => {
+  it("T02: biaya tunai Owner tanpa shift tidak lagi diam-diam memotong laci kasir — wajib sumber dana", async () => {
     const before = (await session(id)).expectedCash;
-    const movementsBefore = (await movementsOf(id)).length;
-    await svc.createExpense({ category: "Operasional", description: "Beli galon (uang owner)", amount: 200_000, paymentMethod: "Cash" }, owner());
-    const after = (await session(id)).expectedCash;
-    const movementsAfter = (await movementsOf(id)).length;
-    // Yang diminta: laci tidak berubah, ATAU berubah dengan baris kas keluar yang bisa ditelusuri.
-    expect(after === before || movementsAfter === movementsBefore + 1).toBe(true);
+    await expect(
+      svc.createExpense({ category: "Operasional", description: "Beli galon (uang owner)", amount: 200_000, paymentMethod: "Cash" }, owner()),
+    ).rejects.toThrow(/sumber dana/);
+    await svc.createExpense({ category: "Operasional", description: "Beli galon (uang owner)", amount: 200_000, paymentMethod: "Cash", cashSource: "external" } as any, owner());
+    expect((await session(id)).expectedCash).toBe(before);
   });
 
-  it.fails("Satu sumber saldo: laporan shift tidak punya 'penyesuaian lain' tanpa penjelasan", async () => {
+  it("Satu sumber saldo: laporan shift tidak punya 'penyesuaian lain' tanpa penjelasan", async () => {
     const data: any = await report.getShiftAccountability(id);
     expect(data.cash.otherAdjustments).toBe(0);
   });
@@ -149,7 +144,7 @@ describe("Closing (T15, T17–T19)", () => {
     await expect(svc.closeCashSession(s.id, { actualCash: 100_000 } as any, kasir2())).rejects.toThrow();
   });
 
-  it.fails("T15: refund tunai setelah shift asal ditutup → snapshot shift lama tetap & laci baru punya baris kas keluar", async () => {
+  it("T15: refund tunai setelah shift asal ditutup → snapshot shift lama tetap & laci baru punya baris kas keluar", async () => {
     const a: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
     const sale: any = await sell(40_000, 40_000);
     await svc.closeCashSession(a.id, { actualCash: 140_000 } as any, kasir());
@@ -159,7 +154,10 @@ describe("Closing (T15, T17–T19)", () => {
     const afterA: any = await report.getShiftAccountability(a.id);
     expect(afterA.cash.cashSales - afterA.cash.cashRefundsVoids).toBe(snapshotA.cash.cashSales - snapshotA.cash.cashRefundsVoids);
     expect((await session(b.id)).expectedCash).toBe(60_000);
-    expect((await movementsOf(b.id)).length).toBe(1);
+    const { getDrawerLedger } = await import("@/lib/cash-ledger");
+    const ledgerB = await getDrawerLedger(b.id);
+    expect(ledgerB.lines.map((l) => [l.sourceType, l.signed])).toEqual([["opening", 100_000], ["void", -40_000]]);
+    expect(ledgerB.balance).toBe(60_000);
   });
 
   it.fails("Verifikasi: Manajer tidak bisa memverifikasi shift miliknya sendiri", async () => {

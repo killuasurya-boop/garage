@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlarmClock, Trash2 } from "lucide-react";
 
+import { PackQtyInput } from "@/components/wms/pack-qty";
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
@@ -112,7 +113,7 @@ export default function WmsWastePage() {
   }
 
   async function submit() {
-    const amount = Number(qty.replace(",", "."));
+    const amount = Number(qty);
     if (!productId || !warehouseId || !(amount > 0) || busy) return;
     setBusy(true);
     setMsg(null);
@@ -185,11 +186,20 @@ export default function WmsWastePage() {
                 {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block text-[12px] font-semibold text-[#525866]">
-                Jumlah {selected ? `(${selected.unit})` : ""}
-                <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="0" className={`${input} mt-1`} />
-              </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="block text-[12px] font-semibold text-[#525866]">
+                Jumlah
+                <div className="mt-1">
+                  <PackQtyInput
+                    idPrefix="waste-qty"
+                    label="Jumlah waste"
+                    value={qty === "" ? null : Number(qty)}
+                    unit={selected?.unit ?? ""}
+                    uoms={selected?.uoms}
+                    onChange={(base) => setQty(String(base))}
+                  />
+                </div>
+              </div>
               <label className="block text-[12px] font-semibold text-[#525866]">
                 Alasan
                 <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)} className={`${input} mt-1`}>
@@ -206,7 +216,7 @@ export default function WmsWastePage() {
             {msg && <p className={`text-[13px] font-semibold ${msg.ok ? "text-[#15803D]" : "text-[#C8102E]"}`}>{msg.text}</p>}
             <button
               type="button"
-              disabled={!productId || !(Number(qty.replace(",", ".")) > 0) || busy}
+              disabled={!productId || !(Number(qty) > 0) || busy}
               onClick={() => void submit()}
               className="min-h-11 w-full rounded-lg bg-[#C8102E] py-2.5 text-[14px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50"
             >

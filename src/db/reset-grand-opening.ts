@@ -64,7 +64,7 @@ export const KEEP_TABLES = [
   "finance_settings", "finance_cost_items", "finance_payroll_positions", "finance_expense_categories",
   "finance_scenarios", "capital_transactions",
   // WMS master
-  "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_recipe", "wms_recipe_version",
+  "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_product_uom", "wms_recipe", "wms_recipe_version",
   "wms_recipe_audit_log", "wms_bom_item", "wms_production_recipe", "wms_production_bom",
   "wms_reorder_rule",
   // Closing/replenishment: preserve approvals, reservations, counts and provenance.

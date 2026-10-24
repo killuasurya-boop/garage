@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Boxes, PackageX } from "lucide-react";
 
+import { PackQtyText } from "@/components/wms/pack-qty";
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import { WMS_STATUS_COLOR, type WmsProductRow, type WmsWarehouse } from "@/lib/wms-types";
@@ -92,7 +93,7 @@ export function OutletStockView({ whType, title, subtitle }: { whType: "kitchen"
                       <p className="text-[11px] text-[#9CA3AF]">{r.sku} · {r.category}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[13px] font-bold text-[#111111]">{r.onHand} <span className="text-[11px] font-normal text-[#9CA3AF]">{r.unit}</span></span>
+                      <span className="font-mono text-[13px] font-bold text-[#111111]"><PackQtyText qty={r.onHand} unit={r.unit} uoms={r.uoms} /></span>
                       <span className="rounded-full px-1.5 py-px text-[9.5px] font-bold" style={{ background: sc.bg, color: sc.text }}>{sc.label}</span>
                     </div>
                   </div>

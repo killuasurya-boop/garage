@@ -6,6 +6,7 @@ import { ArrowLeftRight, Plus, Printer, Trash2 } from "lucide-react";
 import { printDeliveryNote, printWmsDoc, escapeHtml, signatureRow } from "@/lib/wms-print";
 
 import { garageApi } from "@/lib/api-client";
+import { formatPacks } from "@/lib/stock-uom";
 import { currency } from "@/lib/garage-data";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
 
@@ -115,7 +116,7 @@ export default function WmsTransferPage() {
           <div className="mt-3 flex gap-2">
             <select value={pick} onChange={(e) => setPick(e.target.value)} className={`${input} flex-1`}>
               <option value="">Pilih bahan…</option>
-              {available.map((p) => <option key={p.id} value={p.id}>{p.name} (stok {p.onHand} {p.unit})</option>)}
+              {available.map((p) => <option key={p.id} value={p.id}>{p.name} (stok {formatPacks(p.onHand, p.unit, p.uoms)})</option>)}
             </select>
             <button type="button" disabled={!pick} onClick={addItem} className="flex items-center gap-1 rounded-md bg-[#2F3136] px-3 text-[13px] font-semibold text-white hover:bg-black disabled:opacity-50"><Plus className="size-4" /> Tambah</button>
           </div>

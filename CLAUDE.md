@@ -231,6 +231,14 @@ Scroll direction:
   - Bar/Dapur staff build a shopping list from the production screen (`production-material-request-dialog.tsx`, permission `kitchen:write`). There is no approval step; management gets a notification.
   - The warehouse sends from `/warehouse/material-requests` (`inventory:write`). Stock moves from the area's main room to the Bar/Dapur room via `moveStockBetweenWarehouses`, with FEFO, expired batches rejected and the batch carried over. Anything not sent becomes `shortQty`.
   - The division confirms receipt. Shortages turn into a draft PO per last supplier (`createPurchaseOrdersFromShortages`). The delivery note comes from `/api/wms/documents/MRQ-…`.
+- Kemasan bertingkat (owner, Okt 2026, migration 0157, ERPNext UOM Conversion): base unit (ml/gr/pcs) stays
+  the truth for stock, HPP, POS/recipe deductions. `wms_product_uom` (kotak/botol/dus, `factor` = base units, one
+  `is_purchase` + one `is_count` default) is only for input/display; no rows → default from `inventory_items.packageQty`
+  > 1 (`loadProductUoms`, `src/lib/wms-uom.ts`). Helpers `src/lib/stock-uom.ts` (`formatPacks` "3 kotak + 250 ml"),
+  UI `PackQtyInput`/`PackQtyText` (`src/components/wms/pack-qty.tsx`) for opname, Minta Bahan, waste, PO, lists.
+  PO per kotak stores base qty + per-base price plus `uom`/`uom_factor` snapshot for printing. Portions per pack =
+  factor ÷ (recipe qty × (1 + waste%)) (`getPortionYield`). Biang Teh BAR-035 = kotak 1000 ml; Fresh Milk = dus beli,
+  botol 946 ml hitung.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { garageApi } from "@/lib/api-client";
+import { countPack, formatPacks, type PackUom } from "@/lib/stock-uom";
 
 type Division = "bar" | "dapur";
 
@@ -17,6 +18,7 @@ type CatalogProduct = {
   name: string;
   category: string;
   unit: string;
+  uoms?: PackUom[];
   minStock: number;
   onHand: number;
   sourceOnHand: number;
@@ -33,7 +35,7 @@ type RequestRow = {
   note: string;
   requestedByName: string;
   createdAt: string;
-  items: Array<{ id: string; name: string; unit: string; qty: number; sentQty: number; shortQty: number }>;
+  items: Array<{ id: string; name: string; unit: string; uoms?: PackUom[]; qty: number; sentQty: number; shortQty: number }>;
 };
 
 const DIVISION_LABEL: Record<Division, string> = { bar: "Bar", dapur: "Dapur" };
@@ -263,15 +265,18 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
                   <ul className="divide-y divide-[#26262d]">
                     {products.map((p) => {
                       const qty = cart[p.id] ?? 0;
-                      const step = stepFor(p.unit);
+                      // +/− per kemasan hitung (1 kotak = 1000 ml); tanpa kemasan → langkah satuan.
+                      const pack = countPack(p.uoms);
+                      const step = pack ? pack.factor : stepFor(p.unit);
                       return (
                         <li key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                           <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                             <p className="text-sm font-bold text-white">{p.name}</p>
                             <p className="text-xs text-[#c4c4cc]">
-                              Sisa {qtyFormat.format(p.onHand)} {p.unit}
-                              {p.minStock > 0 ? ` · min ${qtyFormat.format(p.minStock)}` : ""} · gudang {qtyFormat.format(p.sourceOnHand)}
+                              Sisa {formatPacks(p.onHand, p.unit, p.uoms)}
+                              {p.minStock > 0 ? ` · min ${formatPacks(p.minStock, p.unit, p.uoms)}` : ""} · gudang {formatPacks(p.sourceOnHand, p.unit, p.uoms)}
                             </p>
+                            {pack && <p className="text-[11px] text-[#9c9ca6]">1 {pack.uom} = {qtyFormat.format(pack.factor)} {p.unit}</p>}
                           </div>
                           <div className="ml-auto flex items-center gap-2">
                           {p.status !== "ok" && (
@@ -300,6 +305,7 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
                             <span className="w-8 text-xs text-[#c4c4cc]">{p.unit}</span>
                           </div>
                           </div>
+                          {pack && qty > 0 && <span className="w-full text-right text-xs font-semibold text-[#ffd58f]">= {formatPacks(qty, p.unit, p.uoms)}</span>}
                         </li>
                       );
                     })}
@@ -352,8 +358,8 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
                             <span className="min-w-0">{i.name}</span>
                             <span className="shrink-0 tabular-nums">
                               {r.status === "submitted" || r.status === "cancelled"
-                                ? `${qtyFormat.format(i.qty)} ${i.unit}`
-                                : `${qtyFormat.format(i.sentQty)}/${qtyFormat.format(i.qty)} ${i.unit}${i.shortQty > 0 ? " · kurang, dibelikan" : ""}`}
+                                ? formatPacks(i.qty, i.unit, i.uoms)
+                                : `${formatPacks(i.sentQty, i.unit, i.uoms)} dari ${formatPacks(i.qty, i.unit, i.uoms)}${i.shortQty > 0 ? " · kurang, dibelikan" : ""}`}
                             </span>
                           </li>
                         ))}

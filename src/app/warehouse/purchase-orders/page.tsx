@@ -7,6 +7,7 @@ import { WmsRoomReorderPanel } from "@/components/wms/wms-room-reorder-panel";
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import { printPurchaseOrder } from "@/lib/wms-print";
+import { formatPacks, purchasePack, type PackUom } from "@/lib/stock-uom";
 import type { WmsProductRow, WmsWarehouse } from "@/lib/wms-types";
 
 type Supplier = { id: string; name: string; phone: string };
@@ -19,11 +20,25 @@ type PoDetail = {
   status: string;
   expectedDate: string | null;
   note: string;
-  items: Array<{ id: string; productId: string | null; name: string | null; sku: string | null; unit: string | null; orderedQty: number; receivedQty: number; remainingQty: number; unitPrice: number }>;
+  items: Array<{
+    id: string;
+    productId: string | null;
+    name: string | null;
+    sku: string | null;
+    unit: string | null;
+    uoms?: PackUom[];
+    uom?: string | null;
+    uomFactor?: number | null;
+    orderedQty: number;
+    receivedQty: number;
+    remainingQty: number;
+    unitPrice: number;
+  }>;
   receivings: Array<{ id: string; doc: string; status: string }>;
 };
 type PriceRow = { productId: string; supplierId: string | null; supplier: string; lastPrice: number; avgPrice: number; receipts: number };
-type Line = { productId: string; qty: string; price: string };
+/** qty & harga per `uom` terpilih ("" = satuan dasar); dikonversi ke satuan dasar saat simpan. */
+type Line = { productId: string; qty: string; price: string; uom: string };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: "Draft", cls: "bg-[#F3F4F6] text-[#374151]" },
@@ -45,7 +60,7 @@ export default function WmsPurchaseOrdersPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [expectedDate, setExpectedDate] = useState("");
   const [note, setNote] = useState("");
-  const [lines, setLines] = useState<Line[]>([{ productId: "", qty: "", price: "" }]);
+  const [lines, setLines] = useState<Line[]>([{ productId: "", qty: "", price: "", uom: "" }]);
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -97,26 +112,48 @@ export default function WmsPurchaseOrdersPage() {
     return own;
   }
 
+  const factorOf = (line: Line) => {
+    const product = products.find((p) => p.id === line.productId);
+    return product?.uoms?.find((u) => u.uom === line.uom)?.factor ?? 1;
+  };
+
   function setLine(index: number, patch: Partial<Line>) {
     setLines((current) =>
       current.map((line, i) => {
         if (i !== index) return line;
         const next = { ...line, ...patch };
-        if (patch.productId && !line.price) {
+        if (patch.productId) {
+          // Default beli per kemasan beli (kotak/dus); harga terakhir dikonversi ke kemasan itu.
+          const product = products.find((p) => p.id === patch.productId);
+          next.uom = purchasePack(product?.uoms)?.uom ?? "";
           const hint = priceHint(patch.productId);
-          if (hint) next.price = String(hint.lastPrice);
+          if (hint && !line.price) next.price = String(Math.round(hint.lastPrice * factorOf(next) * 100) / 100);
+        }
+        if (patch.uom !== undefined && patch.uom !== line.uom && line.price) {
+          const perBase = num(line.price) / factorOf(line);
+          next.price = String(Math.round(perBase * factorOf(next) * 100) / 100);
         }
         return next;
       }),
     );
   }
 
-  const total = lines.reduce((sum, l) => sum + (Number(l.qty) || 0) * (Number(l.price) || 0), 0);
+  const num = (raw: string) => Number(raw.replace(",", ".")) || 0;
+  const total = lines.reduce((sum, l) => sum + num(l.qty) * num(l.price), 0);
 
   async function create() {
     const items = lines
-      .filter((l) => l.productId && Number(l.qty) > 0)
-      .map((l) => ({ productId: l.productId, orderedQty: Number(l.qty), unitPrice: Number(l.price) || 0 }));
+      .filter((l) => l.productId && num(l.qty) > 0)
+      .map((l) => {
+        const factor = factorOf(l);
+        return {
+          productId: l.productId,
+          orderedQty: Math.round(num(l.qty) * factor * 10_000) / 10_000,
+          unitPrice: Math.round((num(l.price) / factor) * 10_000) / 10_000,
+          uom: factor > 1 ? l.uom : null,
+          uomFactor: factor > 1 ? factor : null,
+        };
+      });
     if (!supplierId || !items.length || busy) return;
     setBusy(true);
     setMsg(null);
@@ -129,7 +166,7 @@ export default function WmsPurchaseOrdersPage() {
         items,
       });
       setMsg({ ok: true, text: `${po.doc} dibuat.` });
-      setLines([{ productId: "", qty: "", price: "" }]);
+      setLines([{ productId: "", qty: "", price: "", uom: "" }]);
       setNote("");
       await reload();
       setDetail(await garageApi.get<PoDetail>(`/api/wms/purchase-orders/${po.id}`));
@@ -209,25 +246,34 @@ export default function WmsPurchaseOrdersPage() {
               const product = products.find((p) => p.id === line.productId);
               const hint = line.productId ? priceHint(line.productId) : undefined;
               return (
-                <div key={i} className="grid grid-cols-[1fr_88px_110px_36px] items-end gap-2">
+                <div key={i} className="grid grid-cols-[1fr_88px_36px] items-end gap-2 sm:grid-cols-[1fr_88px_96px_110px_36px]">
                   <label className="text-[12px] font-semibold text-[#525866]">
                     Bahan
                     <select value={line.productId} onChange={(e) => setLine(i, { productId: e.target.value })} className={`${input} mt-1`}>
                       <option value="">Pilih bahan…</option>
-                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} · stok {qtyFormat.format(p.onHand)} {p.unit}</option>)}
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} · stok {formatPacks(p.onHand, p.unit, p.uoms)}</option>)}
                     </select>
                     {hint && (
                       <span className="mt-0.5 block text-[11px] font-normal text-[#525866]">
-                        Terakhir {currency.format(hint.lastPrice)}/{product?.unit} ({hint.supplier}) · rata-rata {currency.format(hint.avgPrice)}
+                        Terakhir {currency.format(hint.lastPrice * factorOf(line))}/{line.uom || product?.unit} ({hint.supplier}) · rata-rata {currency.format(hint.avgPrice * factorOf(line))}
                       </span>
                     )}
                   </label>
                   <label className="text-[12px] font-semibold text-[#525866]">
-                    Qty {product ? `(${product.unit})` : ""}
+                    Jumlah
                     <input value={line.qty} onChange={(e) => setLine(i, { qty: e.target.value })} inputMode="decimal" className={`${input} mt-1 text-right`} />
                   </label>
-                  <label className="text-[12px] font-semibold text-[#525866]">
-                    Harga/satuan
+                  <label className="order-last col-span-2 text-[12px] font-semibold text-[#525866] sm:order-none sm:col-span-1">
+                    Satuan beli
+                    <select value={line.uom} onChange={(e) => setLine(i, { uom: e.target.value })} disabled={!product} className={`${input} mt-1`}>
+                      <option value="">{product?.unit ?? "satuan"}</option>
+                      {(product?.uoms ?? []).map((u) => (
+                        <option key={u.uom} value={u.uom}>{u.uom} ({qtyFormat.format(u.factor)} {product?.unit})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="order-last col-span-1 text-[12px] font-semibold text-[#525866] sm:order-none">
+                    Harga/{line.uom || product?.unit || "satuan"}
                     <input value={line.price} onChange={(e) => setLine(i, { price: e.target.value })} inputMode="decimal" className={`${input} mt-1 text-right`} />
                   </label>
                   <button
@@ -242,7 +288,7 @@ export default function WmsPurchaseOrdersPage() {
               );
             })}
           </div>
-          <button type="button" onClick={() => setLines((c) => [...c, { productId: "", qty: "", price: "" }])} className="mt-2 text-[13px] font-semibold text-[#C8102E]">
+          <button type="button" onClick={() => setLines((c) => [...c, { productId: "", qty: "", price: "", uom: "" }])} className="mt-2 text-[13px] font-semibold text-[#C8102E]">
             + Tambah bahan
           </button>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan untuk supplier (opsional)" className={`${input} mt-3`} />
@@ -274,8 +320,8 @@ export default function WmsPurchaseOrdersPage() {
                     {detail.items.map((it) => (
                       <tr key={it.id}>
                         <td className="py-1.5 pr-2">{it.name}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{qtyFormat.format(it.orderedQty)} {it.unit}</td>
-                        <td className={`py-1.5 pr-2 text-right tabular-nums ${it.remainingQty > 0 ? "text-[#B45309]" : "text-[#15803D]"}`}>{qtyFormat.format(it.receivedQty)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{formatPacks(it.orderedQty, it.unit ?? "", it.uoms)}</td>
+                        <td className={`py-1.5 pr-2 text-right tabular-nums ${it.remainingQty > 0 ? "text-[#B45309]" : "text-[#15803D]"}`}>{formatPacks(it.receivedQty, it.unit ?? "", it.uoms)}</td>
                         <td className="py-1.5 text-right tabular-nums">{currency.format(it.unitPrice)}</td>
                       </tr>
                     ))}

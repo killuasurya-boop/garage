@@ -3329,6 +3329,9 @@ export const wmsPurchaseOrderItem = pgTable(
     orderedQty: wmsNum("ordered_qty").notNull(),
     receivedQty: wmsNum("received_qty").notNull().default(0),
     unitPrice: wmsNum("unit_price").notNull().default(0), // Rp per satuan simpan
+    // Kemasan saat dipesan (cetak "4 kotak @ Rp45.000"); null = satuan dasar.
+    uom: text("uom"),
+    uomFactor: wmsNum("uom_factor"),
   },
   (t) => ({ poIdx: index("wms_purchase_order_item_po_idx").on(t.purchaseOrderId) }),
 );
@@ -3666,6 +3669,25 @@ export const wmsWaste = pgTable(
     statusIdx: index("wms_waste_status_idx").on(t.status, t.createdAt),
     productIdx: index("wms_waste_product_idx").on(t.productId),
   }),
+);
+
+// Kemasan per bahan (konsep ERPNext UOM Conversion): 1 kotak = 1000 ml, 1 dus = 24 botol.
+// Satuan dasar wms_product.unit tetap kebenaran stok/HPP; kemasan hanya untuk input &
+// tampilan (hitung opname, minta bahan, PO, surat jalan).
+export const wmsProductUom = pgTable(
+  "wms_product_uom",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    uom: text("uom").notNull(),
+    factor: wmsNum("factor").notNull(), // isi dalam satuan dasar
+    isPurchase: boolean("is_purchase").notNull().default(false), // default beli/terima/PO
+    isCount: boolean("is_count").notNull().default(false), // default hitung/minta bahan
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ productUomIdx: uniqueIndex("wms_product_uom_product_uom_idx").on(t.productId, sql`lower(${t.uom})`) }),
 );
 
 // Permintaan bahan Bar/Dapur → gudang (daftar belanja dari layar produksi, ala ERPNext

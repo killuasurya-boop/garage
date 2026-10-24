@@ -13,7 +13,15 @@ const schema = z.object({
   expectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   note: z.string().trim().max(300).optional(),
   items: z
-    .array(z.object({ productId: z.string().uuid(), orderedQty: z.number().positive().max(10_000_000), unitPrice: z.number().nonnegative().max(100_000_000) }))
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        orderedQty: z.number().positive().max(10_000_000), // satuan dasar
+        unitPrice: z.number().nonnegative().max(100_000_000), // Rp per satuan dasar
+        uom: z.string().trim().max(20).nullable().optional(),
+        uomFactor: z.number().positive().max(10_000_000).nullable().optional(),
+      }),
+    )
     .min(1)
     .max(100),
 });

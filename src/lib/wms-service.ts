@@ -1018,7 +1018,10 @@ export async function getWmsProducts(params?: {
     .where(and(...filters))
     .orderBy(wmsProduct.category, wmsProduct.name);
 
+  const { loadProductUoms } = await import("@/lib/wms-uom");
+  const uomsById = await loadProductUoms(rows.map((r) => r.id), db);
   return rows.map((r) => ({
+    uoms: uomsById.get(r.id) ?? [],
     id: r.id,
     sku: r.sku,
     name: r.name,
@@ -4505,6 +4508,8 @@ export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
     .where(eq(wmsOpnameLine.opnameId, id))
     .orderBy(wmsProduct.name);
   const blind = !!opts.blind && op.status !== "completed";
+  const { loadProductUoms } = await import("@/lib/wms-uom");
+  const uoms = await loadProductUoms(lines.map((l) => l.productId).filter((id): id is string => !!id), db);
   return {
     id: op.id,
     doc: op.doc,
@@ -4525,6 +4530,7 @@ export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
         sku: l.sku,
         barcode: l.barcode,
         unit: l.unit,
+        uoms: l.productId ? (uoms.get(l.productId) ?? []) : [],
         counted,
         systemQty: blind ? null : Number(l.systemQty),
         physicalQty: blind && !counted ? null : Number(l.physicalQty),

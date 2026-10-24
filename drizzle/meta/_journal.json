@@ -1100,6 +1100,13 @@
       "when": 1792867565208,
       "tag": "0156_wms_material_request",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1792873221612,
+      "tag": "0157_wms_product_uom",
+      "breakpoints": true
     }
   ]
 }

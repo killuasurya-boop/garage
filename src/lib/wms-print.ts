@@ -1,3 +1,5 @@
+import { countPack, formatPacks, type PackUom } from "@/lib/stock-uom";
+
 // Helper cetak dokumen WMS (client-only): buka jendela + layout print seragam.
 // Dipanggil dari event handler (onClick) — aman, tak mengakses window saat import.
 
@@ -54,17 +56,17 @@ export function printDeliveryNote(data: {
   doc: string;
   from: string | null;
   to: string | null;
-  lines: Array<{ name: string; sku: string; unit: string; qty: number; batchNo: string; expiredAt: string | null; location: string }>;
+  lines: Array<{ name: string; sku: string; unit: string; uoms?: PackUom[]; qty: number; batchNo: string; expiredAt: string | null; location: string }>;
 }) {
   const rows = data.lines
     .map(
       (l) =>
-        `<tr><td>${escapeHtml(l.name)}<div style="font-size:10px;color:#666">${escapeHtml(l.sku)}</div></td><td>${escapeHtml(l.batchNo || "-")}</td><td class="c">${escapeHtml(dateText(l.expiredAt))}</td><td class="r">${qtyText(l.qty)}</td><td class="c">${escapeHtml(l.unit)}</td><td style="width:70px"></td></tr>`,
+        `<tr><td>${escapeHtml(l.name)}<div style="font-size:10px;color:#666">${escapeHtml(l.sku)}</div></td><td>${escapeHtml(l.batchNo || "-")}</td><td class="c">${escapeHtml(dateText(l.expiredAt))}</td><td class="r">${escapeHtml(formatPacks(l.qty, l.unit, l.uoms))}${countPack(l.uoms) ? `<div style="font-size:10px;color:#666">${qtyText(l.qty)} ${escapeHtml(l.unit)}</div>` : ""}</td><td style="width:70px"></td></tr>`,
     )
     .join("");
   printWmsDoc(
     `Surat Jalan · ${data.doc}`,
-    `<table><thead><tr><th>Bahan</th><th>No. Batch</th><th class="c">Expired</th><th class="r">Qty</th><th class="c">Satuan</th><th class="c">Cek</th></tr></thead><tbody>${rows}</tbody></table>
+    `<table><thead><tr><th>Bahan</th><th>No. Batch</th><th class="c">Expired</th><th class="r">Jumlah</th><th class="c">Cek</th></tr></thead><tbody>${rows}</tbody></table>
      ${signatureRow(["Disiapkan (Gudang)", "Dibawa", "Diterima (Outlet)"])}`,
     `${data.from ?? "-"} → ${data.to ?? "-"} · ambil sesuai no. batch (expired terdekat dulu)`,
   );
@@ -77,14 +79,19 @@ export function printPurchaseOrder(po: {
   supplierPhone?: string;
   expectedDate: string | null;
   note: string;
-  items: Array<{ name: string | null; sku: string | null; unit: string | null; orderedQty: number; unitPrice: number }>;
+  items: Array<{ name: string | null; sku: string | null; unit: string | null; orderedQty: number; unitPrice: number; uom?: string | null; uomFactor?: number | null }>;
 }) {
   const total = po.items.reduce((sum, it) => sum + it.orderedQty * it.unitPrice, 0);
+  // Dipesan per kemasan → cetak "4 kotak @ Rp45.000"; selain itu per satuan dasar.
   const rows = po.items
-    .map(
-      (it, i) =>
-        `<tr><td class="c">${i + 1}</td><td>${escapeHtml(it.name ?? "-")}<div style="font-size:10px;color:#666">${escapeHtml(it.sku ?? "")}</div></td><td class="r">${qtyText(it.orderedQty)}</td><td class="c">${escapeHtml(it.unit ?? "")}</td><td class="r">${it.unitPrice ? rupiah(it.unitPrice) : "-"}</td><td class="r">${it.unitPrice ? rupiah(it.orderedQty * it.unitPrice) : "-"}</td></tr>`,
-    )
+    .map((it, i) => {
+      const packed = it.uom && it.uomFactor && it.uomFactor > 1;
+      const qty = packed ? it.orderedQty / (it.uomFactor as number) : it.orderedQty;
+      const unit = packed ? (it.uom as string) : (it.unit ?? "");
+      const price = packed ? it.unitPrice * (it.uomFactor as number) : it.unitPrice;
+      const content = packed ? `<div style="font-size:10px;color:#666">1 ${escapeHtml(unit)} = ${qtyText(it.uomFactor as number)} ${escapeHtml(it.unit ?? "")}</div>` : "";
+      return `<tr><td class="c">${i + 1}</td><td>${escapeHtml(it.name ?? "-")}<div style="font-size:10px;color:#666">${escapeHtml(it.sku ?? "")}</div></td><td class="r">${qtyText(qty)}</td><td class="c">${escapeHtml(unit)}${content}</td><td class="r">${it.unitPrice ? rupiah(price) : "-"}</td><td class="r">${it.unitPrice ? rupiah(it.orderedQty * it.unitPrice) : "-"}</td></tr>`;
+    })
     .join("");
   printWmsDoc(
     `Purchase Order · ${po.doc}`,
@@ -93,6 +100,6 @@ export function printPurchaseOrder(po: {
      <tfoot><tr><th colspan="5" class="r">Perkiraan total</th><th class="r">${rupiah(total)}</th></tr></tfoot></table>
      ${po.note ? `<p style="font-size:12px">Catatan: ${escapeHtml(po.note)}</p>` : ""}
      ${signatureRow(["Dipesan (Garage Coffee)", "Disetujui Supplier"])}`,
-    "Harga per satuan simpan gudang (gr/ml/pcs). Pembayaran tunai saat barang diterima.",
+    "Pembayaran tunai saat barang diterima.",
   );
 }

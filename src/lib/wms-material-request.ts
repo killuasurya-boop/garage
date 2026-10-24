@@ -10,6 +10,7 @@ import {
   wmsWarehouseStock,
 } from "@/db/schema";
 import { createPurchaseOrderInTx, getSupplierPriceHistory } from "@/lib/wms-purchase";
+import { loadProductUoms } from "@/lib/wms-uom";
 import { makeWmsDoc, moveStockBetweenWarehouses, runInTx, writeWmsAudit } from "@/lib/wms-service";
 
 // =============================================================================
@@ -62,7 +63,7 @@ export async function getMaterialCatalog(division: MaterialDivision) {
     .where(and(isNull(wmsProduct.archivedAt), or(eq(wmsCategory.area, division), eq(wmsCategory.area, "umum"), isNull(wmsCategory.area))))
     .orderBy(wmsProduct.name);
   const ids = products.map((p) => p.id);
-  const [roomStock, sourceStock] = await Promise.all([stockMap(db, room.id, ids), stockMap(db, source?.id, ids)]);
+  const [roomStock, sourceStock, uoms] = await Promise.all([stockMap(db, room.id, ids), stockMap(db, source?.id, ids), loadProductUoms(ids, db)]);
   return {
     division,
     room: { id: room.id, name: room.name },
@@ -72,6 +73,7 @@ export async function getMaterialCatalog(division: MaterialDivision) {
       const minStock = Number(p.minStock);
       return {
         ...p,
+        uoms: uoms.get(p.id) ?? [],
         minStock,
         onHand,
         sourceOnHand: sourceStock.get(p.id) ?? 0,
@@ -172,6 +174,7 @@ export async function listMaterialRequests(filter: { division?: MaterialDivision
     .orderBy(wmsProduct.name);
   const sourceIds = [...new Set(requests.map((r) => r.request.sourceWarehouseId).filter((id): id is string => !!id))];
   const productIds = [...new Set(items.map((i) => i.item.productId))];
+  const uoms = await loadProductUoms(productIds, db);
   const sourceStock = new Map<string, number>();
   if (sourceIds.length && productIds.length) {
     const rows = await db
@@ -191,6 +194,7 @@ export async function listMaterialRequests(filter: { division?: MaterialDivision
         name: i.name,
         sku: i.sku,
         unit: i.unit,
+        uoms: uoms.get(i.item.productId) ?? [],
         qty: Number(i.item.qty),
         stockAtRequest: Number(i.item.stockAtRequest),
         sentQty: Number(i.item.sentQty),
@@ -343,10 +347,11 @@ export async function listMaterialShortages(db: Db = getDb(), opts: { lock?: boo
     byProduct.set(r.productId, cur);
   }
   const prices = await getSupplierPriceHistory([...byProduct.keys()], db);
+  const uoms = await loadProductUoms([...byProduct.keys()], db);
   return [...byProduct.values()]
     .map((s) => {
       const last = prices.filter((p) => p.productId === s.productId).sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""))[0];
-      return { ...s, supplierId: last?.supplierId ?? null, supplier: last?.supplier ?? null, lastPrice: last?.lastPrice ?? null };
+      return { ...s, uoms: uoms.get(s.productId) ?? [], supplierId: last?.supplierId ?? null, supplier: last?.supplier ?? null, lastPrice: last?.lastPrice ?? null };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "id"));
 }

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { PackageCheck, Printer, ShoppingCart, Truck } from "lucide-react";
 
+import { PackQtyInput, PackQtyText } from "@/components/wms/pack-qty";
 import { garageApi } from "@/lib/api-client";
+import { formatPacks, type PackUom } from "@/lib/stock-uom";
 import { currency } from "@/lib/garage-data";
 import { printDeliveryNote } from "@/lib/wms-print";
 
@@ -13,6 +15,7 @@ type Item = {
   name: string;
   sku: string;
   unit: string;
+  uoms?: PackUom[];
   qty: number;
   stockAtRequest: number;
   sentQty: number;
@@ -35,7 +38,7 @@ type Request = {
   receiveNote: string;
   items: Item[];
 };
-type Shortage = { productId: string; name: string; unit: string; qty: number; docs: string[]; supplier: string | null; lastPrice: number | null };
+type Shortage = { productId: string; name: string; unit: string; uoms?: PackUom[]; qty: number; docs: string[]; supplier: string | null; lastPrice: number | null };
 
 const STATUS: Record<Request["status"], { label: string; cls: string }> = {
   submitted: { label: "Perlu dikirim", cls: "bg-[#FEF3C7] text-[#92400E]" },
@@ -44,13 +47,12 @@ const STATUS: Record<Request["status"], { label: string; cls: string }> = {
   cancelled: { label: "Batal", cls: "bg-[#F3F4F6] text-[#374151]" },
 };
 const DIVISION = { bar: "Bar", dapur: "Dapur" } as const;
-const qtyFormat = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const timeFormat = new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jakarta" });
 
 export default function WmsMaterialRequestsPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [shortages, setShortages] = useState<Shortage[] | null>(null);
-  const [sendQty, setSendQty] = useState<Record<string, string>>({});
+  const [sendQty, setSendQty] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<"open" | "all">("open");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -61,7 +63,7 @@ export default function WmsMaterialRequestsPage() {
     // Default kirim = min(diminta, stok gudang utama).
     setSendQty((current) => {
       const next = { ...current };
-      for (const r of rows) for (const i of r.items) if (next[i.id] === undefined) next[i.id] = String(Math.max(0, Math.min(i.qty, i.sourceOnHand)));
+      for (const r of rows) for (const i of r.items) if (next[i.id] === undefined) next[i.id] = Math.max(0, Math.min(i.qty, i.sourceOnHand));
       return next;
     });
     setShortages(await garageApi.get<Shortage[]>("/api/wms/material-requests/shortages").catch(() => null));
@@ -77,8 +79,8 @@ export default function WmsMaterialRequestsPage() {
         if (!alive) return;
         setRequests(rows);
         setShortages(short);
-        const init: Record<string, string> = {};
-        for (const r of rows) for (const i of r.items) init[i.id] = String(Math.max(0, Math.min(i.qty, i.sourceOnHand)));
+        const init: Record<string, number> = {};
+        for (const r of rows) for (const i of r.items) init[i.id] = Math.max(0, Math.min(i.qty, i.sourceOnHand));
         setSendQty(init);
       })
       .catch(() => {
@@ -95,7 +97,7 @@ export default function WmsMaterialRequestsPage() {
     setMsg(null);
     try {
       await garageApi.post(`/api/wms/material-requests/${r.id}/send`, {
-        lines: r.items.map((i) => ({ itemId: i.id, qty: Number((sendQty[i.id] ?? "0").replace(",", ".")) || 0 })),
+        lines: r.items.map((i) => ({ itemId: i.id, qty: sendQty[i.id] ?? 0 })),
       });
       setMsg({ ok: true, text: `${r.doc} dikirim ke ${r.roomName ?? DIVISION[r.division]}. Cetak surat jalan untuk dibawa.` });
       await load(filter);
@@ -129,7 +131,6 @@ export default function WmsMaterialRequestsPage() {
     }
   }
 
-  const input = "h-10 w-24 rounded-md border border-[#dedfe4] bg-white px-2 text-right text-[14px] text-[#17191d] outline-none focus:border-[#C8102E]";
 
   return (
     <div className="space-y-5">
@@ -171,7 +172,7 @@ export default function WmsMaterialRequestsPage() {
               <li key={s.productId} className="flex flex-wrap justify-between gap-2">
                 <span>{s.name} <span className="text-[#525866]">· {s.docs.join(", ")}</span></span>
                 <span className="font-semibold tabular-nums">
-                  {qtyFormat.format(s.qty)} {s.unit}
+                  {formatPacks(s.qty, s.unit, s.uoms)}
                   {s.supplier ? <span className="font-normal text-[#525866]"> · {s.supplier}{s.lastPrice ? ` ${currency.format(s.lastPrice)}/${s.unit}` : ""}</span> : <span className="font-normal text-[#B45309]"> · supplier belum ada</span>}
                 </span>
               </li>
@@ -213,22 +214,23 @@ export default function WmsMaterialRequestsPage() {
                     {r.items.map((i) => (
                       <tr key={i.id}>
                         <td className="py-1.5 pr-2">{i.name}{i.note ? <span className="block text-[11px] text-[#525866]">{i.note}</span> : null}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{qtyFormat.format(i.qty)} {i.unit}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{qtyFormat.format(i.stockAtRequest)}</td>
-                        <td className={`py-1.5 pr-2 text-right tabular-nums ${i.sourceOnHand < i.qty ? "font-semibold text-[#B45309]" : ""}`}>{qtyFormat.format(i.sourceOnHand)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums"><PackQtyText qty={i.qty} unit={i.unit} uoms={i.uoms} /></td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{formatPacks(i.stockAtRequest, i.unit, i.uoms)}</td>
+                        <td className={`py-1.5 pr-2 text-right tabular-nums ${i.sourceOnHand < i.qty ? "font-semibold text-[#B45309]" : ""}`}>{formatPacks(i.sourceOnHand, i.unit, i.uoms)}</td>
                         <td className="py-1.5 text-right">
                           {r.status === "submitted" ? (
-                            <input
-                              aria-label={`Jumlah kirim ${i.name}`}
-                              inputMode="decimal"
-                              value={sendQty[i.id] ?? ""}
-                              onChange={(e) => setSendQty((c) => ({ ...c, [i.id]: e.target.value }))}
-                              className={input}
+                            <PackQtyInput
+                              idPrefix={`send-${i.id}`}
+                              label={`Jumlah kirim ${i.name}`}
+                              value={sendQty[i.id] ?? 0}
+                              unit={i.unit}
+                              uoms={i.uoms}
+                              onChange={(base) => setSendQty((c) => ({ ...c, [i.id]: base }))}
                             />
                           ) : (
                             <span className="tabular-nums">
-                              {qtyFormat.format(i.sentQty)}
-                              {i.shortQty > 0 ? <span className="block text-[11px] text-[#B45309]">kurang {qtyFormat.format(i.shortQty)}</span> : null}
+                              {formatPacks(i.sentQty, i.unit, i.uoms)}
+                              {i.shortQty > 0 ? <span className="block text-[11px] text-[#B45309]">kurang {formatPacks(i.shortQty, i.unit, i.uoms)}</span> : null}
                             </span>
                           )}
                         </td>

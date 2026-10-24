@@ -29,6 +29,7 @@ import {
   wmsRecipe,
   wmsRecipeAuditLog,
   wmsRecipeVersion,
+  wmsStockIssue,
   wmsStockMovement,
   wmsStockOpname,
   wmsWarehouse,
@@ -44,6 +45,7 @@ import {
   type PurchaseArea,
   type PurchasePaymentMethod,
 } from "@/lib/finance-purchases";
+import { garageUnit, recipeQuantity } from "@/lib/stock-units";
 import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import { WMS_CHECKLIST_TEMPLATES, type ChecklistType } from "@/lib/wms-checklist-templates";
 import {
@@ -109,7 +111,7 @@ async function consumeBatchesFefo(
   qty: number,
   fallbackHpp: number,
   batchId?: string,
-): Promise<number> {
+): Promise<{ cost: number; used: Array<{ batchId: string; qty: number }> }> {
   const batches = await tx
     .select()
     .from(wmsBatch)
@@ -126,21 +128,23 @@ async function consumeBatchesFefo(
 
   let remaining = qty;
   let cost = 0;
+  const used: Array<{ batchId: string; qty: number }> = [];
   for (const b of batches) {
     if (remaining <= 0) break;
     const take = Math.min(Number(b.qty), remaining);
     if (take <= 0) continue;
     cost += take * Number(b.hpp);
-    remaining -= take;
+    remaining = Number((remaining - take).toFixed(4));
+    used.push({ batchId: b.id, qty: take });
     await tx
       .update(wmsBatch)
-      .set({ qty: Number(b.qty) - take })
+      .set({ qty: Number((Number(b.qty) - take).toFixed(4)) })
       .where(eq(wmsBatch.id, b.id));
   }
   // Batch kurang dari permintaan (mis. stok awal tanpa batch) → sisanya pakai HPP produk.
   if (remaining > 0 && batchId) throw new Error("Jumlah batch sumber tidak cukup.");
   if (remaining > 0) cost += remaining * fallbackHpp;
-  return cost;
+  return { cost, used };
 }
 
 /**
@@ -201,21 +205,28 @@ export async function recordStockMovement(
 
   let cost: number;
   let createdBatchId: string | undefined;
+  let ledgerBatchId: string | undefined = input.batchId;
   if (delta < 0) {
-    cost = await consumeBatchesFefo(tx, input.productId, input.warehouseId, -delta, input.hpp, input.batchId);
+    const consumed = await consumeBatchesFefo(tx, input.productId, input.warehouseId, -delta, input.hpp, input.batchId);
+    cost = consumed.cost;
+    ledgerBatchId ??= consumed.used[0]?.batchId;
   } else {
     cost = delta * input.hpp;
-    if (delta > 0) {
+    // Stok minus (terjual sebelum barang dicatat masuk) dilunasi dulu: batch hanya
+    // menampung bagian di atas nol, supaya Σ batch selalu = saldo ruang.
+    const batchQty = Number(Math.min(delta, Math.max(0, next)).toFixed(4));
+    if (batchQty > 0) {
       const [createdBatch] = await tx.insert(wmsBatch).values({
         productId: input.productId,
         warehouseId: input.warehouseId,
         batchNo: input.batchNo ?? makeWmsDoc("BATCH"),
         expiredAt: input.expiredAt ?? null,
-        qty: delta,
+        qty: batchQty,
         hpp: input.hpp,
         location: input.location?.trim() || "",
       }).returning({ id: wmsBatch.id });
       createdBatchId = createdBatch.id;
+      ledgerBatchId = createdBatch.id;
     }
   }
 
@@ -227,6 +238,9 @@ export async function recordStockMovement(
     valueHpp: cost,
     refDoc: input.refDoc ?? "",
     userId: input.userId ?? null,
+    balanceAfter: Number(next.toFixed(4)),
+    valuationRate: delta !== 0 ? Math.round((Math.abs(cost) / Math.abs(delta)) * 10_000) / 10_000 : input.hpp,
+    batchId: ledgerBatchId ?? null,
   });
 
   if (cur) {
@@ -273,12 +287,52 @@ async function mirrorWmsStockToOs(tx: Tx, productId: string) {
     .where(eq(inventoryItems.sku, prod.sku));
 }
 
-type SaleStockInput = { sku: string; qty: number; refDoc: string; userId?: string | null };
+type SaleStockInput = {
+  sku: string;
+  qty: number;
+  refDoc: string;
+  userId?: string | null;
+  /** Satuan qty dari resep/katalog OS; dikonversi ke satuan gudang bila dimensinya sama. */
+  unit?: string | null;
+};
+
+export type WmsStockIssueKind = "not_in_wms" | "unit_mismatch" | "oversold" | "batch_gap";
+
+/**
+ * Catat masalah stok (dulu terlewat diam-diam). Satu baris terbuka per (jenis, SKU):
+ * kejadian berikutnya menambah qty & memperbarui referensi, tidak membanjiri dashboard.
+ */
+export async function recordWmsStockIssue(
+  tx: Tx,
+  input: { kind: WmsStockIssueKind; sku: string; productId?: string | null; refDoc: string; detail: string; qty?: number },
+) {
+  const qty = Number(input.qty ?? 0);
+  const [open] = await tx
+    .select({ id: wmsStockIssue.id, qty: wmsStockIssue.qty })
+    .from(wmsStockIssue)
+    .where(and(eq(wmsStockIssue.kind, input.kind), eq(wmsStockIssue.sku, input.sku), sql`${wmsStockIssue.resolvedAt} is null`))
+    .limit(1);
+  if (open) {
+    await tx
+      .update(wmsStockIssue)
+      .set({ qty: Number((Number(open.qty) + qty).toFixed(4)), refDoc: input.refDoc, detail: input.detail })
+      .where(eq(wmsStockIssue.id, open.id));
+    return;
+  }
+  await tx.insert(wmsStockIssue).values({
+    kind: input.kind,
+    sku: input.sku,
+    productId: input.productId ?? null,
+    refDoc: input.refDoc,
+    detail: input.detail,
+    qty,
+  });
+}
 
 /** Produk WMS + area (bar/dapur/umum) untuk SKU katalog; null bila bahan belum ada di WMS. */
 async function wmsProductForSku(tx: Tx, sku: string) {
   const [prod] = await tx
-    .select({ id: wmsProduct.id, hpp: wmsProduct.hpp, area: wmsCategory.area })
+    .select({ id: wmsProduct.id, hpp: wmsProduct.hpp, area: wmsCategory.area, unit: wmsProduct.unit })
     .from(wmsProduct)
     .leftJoin(wmsCategory, eq(wmsCategory.name, wmsProduct.category))
     // Termasuk produk terarsip: stoknya tetap di ledger WMS. Dulu disaring →
@@ -286,7 +340,7 @@ async function wmsProductForSku(tx: Tx, sku: string) {
     .where(eq(wmsProduct.sku, sku))
     .limit(1);
   if (!prod) return null;
-  return { id: prod.id, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea };
+  return { id: prod.id, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea, unit: prod.unit };
 }
 
 async function wmsProductById(tx: Tx, id: string) {
@@ -320,11 +374,58 @@ async function saleWarehouseOrder(tx: Tx, area: WmsArea) {
  * tidak ada stoknya dipotong minus di ruang pertama. Mengembalikan false bila
  * SKU belum terdaftar di WMS (pemanggil memakai logika stok lama).
  */
-export async function consumeWmsStockForSale(tx: Tx, input: SaleStockInput): Promise<{ handled: boolean; shortage: number }> {
+export async function consumeWmsStockForSale(
+  tx: Tx,
+  input: SaleStockInput,
+): Promise<{ handled: boolean; shortage: number; unitMismatch?: boolean }> {
   const prod = await wmsProductForSku(tx, input.sku);
-  if (!prod) return { handled: false, shortage: 0 };
-  const shortage = await consumeProductForSale(tx, prod, Number(input.qty), input.refDoc, input.userId ?? null);
-  return { handled: true, shortage };
+  if (!prod) {
+    if (Number(input.qty) > 0) {
+      await recordWmsStockIssue(tx, {
+        kind: "not_in_wms",
+        sku: input.sku,
+        refDoc: input.refDoc,
+        detail: "Bahan resep belum terdaftar di gudang WMS — stok gudang tidak terpotong.",
+        qty: Number(input.qty),
+      });
+    }
+    return { handled: false, shortage: 0 };
+  }
+  const { qty, mismatch } = saleQtyInWmsUnit(Number(input.qty), input.unit, prod.unit);
+  if (mismatch) {
+    await recordWmsStockIssue(tx, {
+      kind: "unit_mismatch",
+      sku: input.sku,
+      productId: prod.id,
+      refDoc: input.refDoc,
+      detail: `Satuan resep "${input.unit}" tidak bisa dikonversi ke satuan gudang "${prod.unit}" — dipotong apa adanya, cek satuan bahan.`,
+      qty,
+    });
+  }
+  const shortage = await consumeProductForSale(tx, prod, qty, input.refDoc, input.userId ?? null);
+  if (shortage > 0) {
+    await recordWmsStockIssue(tx, {
+      kind: "oversold",
+      sku: input.sku,
+      productId: prod.id,
+      refDoc: input.refDoc,
+      detail: "Terjual melebihi stok gudang tercatat — cek penerimaan/opname.",
+      qty: shortage,
+    });
+  }
+  return { handled: true, shortage, unitMismatch: mismatch || undefined };
+}
+
+/**
+ * Qty penjualan (satuan resep OS) → satuan gudang. Dimensi sama (gr↔kg, ml↔liter)
+ * dikonversi; satuan kosong/sama dipakai apa adanya; dimensi beda = mismatch.
+ */
+export function saleQtyInWmsUnit(qty: number, fromUnit: string | null | undefined, wmsUnit: string) {
+  const from = (fromUnit ?? "").trim();
+  if (!from || !wmsUnit.trim() || garageUnit(from) === garageUnit(wmsUnit)) return { qty, mismatch: false };
+  const converted = recipeQuantity(qty, from, wmsUnit);
+  if (converted === null) return { qty, mismatch: true };
+  return { qty: Number(converted.toFixed(4)), mismatch: false };
 }
 
 /** Konsumsi 1 produk WMS untuk penjualan; kembalikan jumlah yang terpotong minus (kekurangan). */
@@ -373,9 +474,9 @@ async function consumeProductForSale(
 
 /** Kembalikan bahan penjualan (void/refund) ke ruang pengambilan utama area. */
 export async function returnWmsStockForSale(tx: Tx, input: SaleStockInput): Promise<{ handled: boolean }> {
-  const qty = Number(input.qty);
   const prod = await wmsProductForSku(tx, input.sku);
   if (!prod) return { handled: false };
+  const { qty } = saleQtyInWmsUnit(Number(input.qty), input.unit, prod.unit);
   if (!(qty > 0)) return { handled: true };
   const [target] = await saleWarehouseOrder(tx, prod.area);
   if (!target) return { handled: false };
@@ -390,6 +491,123 @@ export async function returnWmsStockForSale(tx: Tx, input: SaleStockInput): Prom
     batchNo: `RETUR-${input.refDoc}`.slice(0, 60),
   });
   return { handled: true };
+}
+
+export type WmsBatchGap = {
+  productId: string;
+  sku: string;
+  name: string;
+  unit: string;
+  warehouseId: string;
+  warehouseName: string;
+  balance: number;
+  batchTotal: number;
+  /** + = saldo lebih besar dari total batch (stok tanpa batch); − = batch berlebih. */
+  gap: number;
+};
+
+/**
+ * Cek integritas ala ERPNext (Stock Ledger vs Batch): Σ batch per ruang harus =
+ * saldo ruang (saldo minus → batch 0). Selisih muncul dari data lama sebelum 0151.
+ */
+export async function getWmsBatchIntegrity(db: Db = getDb()): Promise<WmsBatchGap[]> {
+  const rows = await db
+    .select({
+      productId: wmsWarehouseStock.productId,
+      warehouseId: wmsWarehouseStock.warehouseId,
+      balance: wmsWarehouseStock.qty,
+      sku: wmsProduct.sku,
+      name: wmsProduct.name,
+      unit: wmsProduct.unit,
+      warehouseName: wmsWarehouse.name,
+      batchTotal: sql<number>`coalesce((select sum(b.qty) from wms_batch b where b.product_id = ${wmsWarehouseStock.productId} and b.warehouse_id = ${wmsWarehouseStock.warehouseId} and b.qty > 0), 0)`,
+    })
+    .from(wmsWarehouseStock)
+    .innerJoin(wmsProduct, eq(wmsProduct.id, wmsWarehouseStock.productId))
+    .innerJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsWarehouseStock.warehouseId));
+  return rows
+    .map((r) => {
+      const balance = Number(r.balance);
+      const batchTotal = Number(r.batchTotal);
+      return { ...r, balance, batchTotal, gap: Number((Math.max(0, balance) - batchTotal).toFixed(4)) };
+    })
+    .filter((r) => Math.abs(r.gap) >= 0.0001)
+    .sort((a, b) => a.name.localeCompare(b.name, "id"));
+}
+
+/**
+ * Samakan batch dengan saldo (saldo = kebenaran ledger, tidak ada mutasi stok baru):
+ * kurang batch → batch "SALDO" berbiaya HPP rata-rata; batch berlebih → kurangi batch
+ * yang paling akhir kedaluwarsa dulu (FEFO terbalik). Dicatat di audit log.
+ */
+export async function fixWmsBatchIntegrity(input: { userId?: string | null; actorName?: string }) {
+  return runInTx(async (tx) => {
+    const gaps = await getWmsBatchIntegrity(tx);
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    for (const g of gaps) {
+      if (g.gap > 0) {
+        const [prod] = await tx.select({ hpp: wmsProduct.hpp }).from(wmsProduct).where(eq(wmsProduct.id, g.productId)).limit(1);
+        await tx.insert(wmsBatch).values({
+          productId: g.productId,
+          warehouseId: g.warehouseId,
+          batchNo: `SALDO-${stamp}`,
+          qty: g.gap,
+          hpp: Number(prod?.hpp ?? 0),
+        });
+        continue;
+      }
+      let excess = -g.gap;
+      const batches = await tx
+        .select({ id: wmsBatch.id, qty: wmsBatch.qty })
+        .from(wmsBatch)
+        .where(and(eq(wmsBatch.productId, g.productId), eq(wmsBatch.warehouseId, g.warehouseId), sql`${wmsBatch.qty} > 0`))
+        .orderBy(sql`${wmsBatch.expiredAt} DESC NULLS FIRST`, desc(wmsBatch.receivedAt))
+        .for("update");
+      for (const b of batches) {
+        if (excess <= 0) break;
+        const take = Math.min(Number(b.qty), excess);
+        excess = Number((excess - take).toFixed(4));
+        await tx.update(wmsBatch).set({ qty: Number((Number(b.qty) - take).toFixed(4)) }).where(eq(wmsBatch.id, b.id));
+      }
+    }
+    if (gaps.length) {
+      await tx.insert(auditLogs).values({
+        time: new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date()),
+        actor: input.actorName ?? "Gudang",
+        action: "Batch gudang disamakan dengan saldo",
+        object: `${gaps.length} bahan/ruang`,
+        device: "WMS",
+        status: "warning",
+        metadata: {
+          gaps: gaps.map((g) => ({ sku: g.sku, warehouse: g.warehouseName, balance: g.balance, batchTotal: g.batchTotal, gap: g.gap })),
+        },
+      });
+    }
+    return { fixed: gaps.length, gaps };
+  });
+}
+
+export type WmsStockIssueRow = typeof wmsStockIssue.$inferSelect & { productName: string | null };
+
+/** Masalah stok yang belum ditandai beres (terbaru dulu). */
+export async function listOpenWmsStockIssues(limit = 100): Promise<WmsStockIssueRow[]> {
+  const rows = await getDb()
+    .select({ issue: wmsStockIssue, productName: wmsProduct.name })
+    .from(wmsStockIssue)
+    .leftJoin(wmsProduct, eq(wmsProduct.sku, wmsStockIssue.sku))
+    .where(sql`${wmsStockIssue.resolvedAt} is null`)
+    .orderBy(desc(wmsStockIssue.createdAt))
+    .limit(limit);
+  return rows.map((r) => ({ ...r.issue, qty: Number(r.issue.qty), productName: r.productName }));
+}
+
+export async function resolveWmsStockIssue(id: string, userId: string | null) {
+  const [row] = await getDb()
+    .update(wmsStockIssue)
+    .set({ resolvedAt: new Date(), resolvedBy: userId })
+    .where(and(eq(wmsStockIssue.id, id), sql`${wmsStockIssue.resolvedAt} is null`))
+    .returning();
+  return row ?? null;
 }
 
 /** True bila SKU dikelola WMS (stok fisiknya dicatat di WMS). */
@@ -1883,15 +2101,38 @@ export async function cancelReceiving(
       const area = areaByCat.get((category ?? "").trim().toLowerCase()) ?? "umum";
       const target =
         inMove?.warehouseId ?? (area === "umum" ? whId : ((await mainWarehouseForArea(tx, area)) ?? whId));
+      // Keluarkan batch milik penerimaan ini sendiri (bukan batch FEFO lain) bila masih utuh.
+      const [ownBatch] = it.batchNo
+        ? await tx
+            .select({ id: wmsBatch.id, qty: wmsBatch.qty, hpp: wmsBatch.hpp })
+            .from(wmsBatch)
+            .where(and(eq(wmsBatch.productId, it.productId), eq(wmsBatch.warehouseId, target), eq(wmsBatch.batchNo, it.batchNo)))
+            .orderBy(desc(wmsBatch.receivedAt))
+            .limit(1)
+        : [];
+      const receivedHpp = ownBatch ? Number(ownBatch.hpp) : Number(it.hpp);
+      // Rata-rata HPP dikembalikan: keluarkan nilai penerimaan ini dari nilai stok.
+      const [prod] = await tx.select({ hpp: wmsProduct.hpp }).from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+      if (prod) {
+        const oldQty = Math.max(0, await totalOnHand(tx, it.productId));
+        const newQty = oldQty - qty;
+        if (newQty > 0) {
+          const newHpp = Math.max(0, (oldQty * Number(prod.hpp) - qty * receivedHpp) / newQty);
+          const rounded = Math.round(newHpp * 10_000) / 10_000;
+          await tx.update(wmsProduct).set({ hpp: rounded, updatedAt: new Date() }).where(eq(wmsProduct.id, it.productId));
+          await propagateHppToOs(tx, it.productId, rounded);
+        }
+      }
       try {
         await recordStockMovement(tx, {
           type: "out",
           productId: it.productId,
           warehouseId: target,
           deltaQty: -qty,
-          hpp: Number(it.hpp),
+          hpp: receivedHpp,
           refDoc: `BATAL ${rec.doc}`,
           userId: input.userId ?? null,
+          batchId: ownBatch && Number(ownBatch.qty) >= qty ? ownBatch.id : undefined,
         });
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);

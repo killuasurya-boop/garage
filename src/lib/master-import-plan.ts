@@ -1,4 +1,7 @@
 import { readXlsxSheets, sheetRecords } from "@/lib/master-workbook";
+import { garageUnit, recipeQuantity } from "@/lib/stock-units";
+
+export { garageUnit, recipeQuantity };
 
 // =============================================================================
 // Impor master Excel Garage Coffee (v3.1+) → rencana (preview) yang bisa
@@ -213,32 +216,6 @@ const norm = (s: string) =>
     .replace(/\(.*?\)/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
-
-/** Satuan resep/bahan Excel → satuan Garage. */
-export function garageUnit(unit: string) {
-  const u = unit.trim().toLowerCase().replace(/\*$/, "");
-  if (u === "g" || u === "gram" || u === "gr") return "gr";
-  if (u === "ml") return "ml";
-  if (u === "pcs" || u === "pc") return "pcs";
-  return u;
-}
-
-/** Convert only known units of the same dimension; never infer density. */
-export function recipeQuantity(qty: number, from: string, to: string): number | null {
-  if (!Number.isFinite(qty) || qty <= 0) return null;
-  const source = garageUnit(from);
-  const target = garageUnit(to);
-  const scales: Record<string, { dimension: string; factor: number }> = {
-    gr: { dimension: "mass", factor: 1 }, kg: { dimension: "mass", factor: 1000 },
-    ml: { dimension: "volume", factor: 1 }, l: { dimension: "volume", factor: 1000 },
-    liter: { dimension: "volume", factor: 1000 }, litre: { dimension: "volume", factor: 1000 },
-    pcs: { dimension: "count", factor: 1 },
-  };
-  if (!source || !target) return null;
-  if (source === target) return qty;
-  const a = scales[source], b = scales[target];
-  return a && b && a.dimension === b.dimension ? qty * a.factor / b.factor : null;
-}
 
 /** BAR-9NN di workbook = BAR-0NN di Garage (urutan bahan bar sama, 1:1). */
 export function excelKeyToGarageSku(key: string) {

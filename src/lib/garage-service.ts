@@ -10495,7 +10495,7 @@ async function updateCustomerOrderStatusImpl(
           actor,
         });
         // Stok fisik tunggal = WMS: bahan yang dikelola WMS ikut terpotong di gudang.
-        const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id);
+        const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id, recipe.recipeUnit);
         if (wmsResult.shortage > 0) {
           stockWarnings.push({
             sku: recipe.inventorySku,
@@ -11854,7 +11854,7 @@ async function createOrderOnce(
         actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
       });
       // Stok fisik tunggal = WMS: bahan yang dikelola WMS ikut terpotong di gudang.
-      const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id);
+      const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id, recipe.recipeUnit);
       if (wmsResult.shortage > 0) {
         stockWarnings.push({
           sku: recipe.inventorySku,
@@ -15091,14 +15091,21 @@ async function reducePaymentsForRefund(
 // (inventory_items.onHand) otomatis jadi cermin total WMS.
 // =============================================================================
 
-async function consumeSaleStockInWms(tx: GarageTx, sku: string, qty: number, orderNo: string, userId: string | null) {
+async function consumeSaleStockInWms(
+  tx: GarageTx,
+  sku: string,
+  qty: number,
+  orderNo: string,
+  userId: string | null,
+  unit?: string | null,
+) {
   const { consumeWmsStockForSale } = await import("@/lib/wms-service");
-  return consumeWmsStockForSale(tx as never, { sku, qty, refDoc: `SALE ${orderNo}`, userId });
+  return consumeWmsStockForSale(tx as never, { sku, qty, refDoc: `SALE ${orderNo}`, userId, unit });
 }
 
-async function returnSaleStockInWms(tx: GarageTx, sku: string, qty: number, refDoc: string) {
+async function returnSaleStockInWms(tx: GarageTx, sku: string, qty: number, refDoc: string, unit?: string | null) {
   const { returnWmsStockForSale } = await import("@/lib/wms-service");
-  return returnWmsStockForSale(tx as never, { sku, qty, refDoc });
+  return returnWmsStockForSale(tx as never, { sku, qty, refDoc, unit });
 }
 
 async function isWmsManaged(tx: GarageTx | GarageDb, sku: string) {
@@ -15119,13 +15126,13 @@ async function restoreOutletStock(
     now: Date;
   },
 ) {
-  // Void/refund: bahan yang dikelola WMS dikembalikan ke gudang WMS juga.
-  await returnSaleStockInWms(tx, input.sku, input.qty, input.movementLabel);
   const [inventory] = await tx
-    .select({ min: inventoryItems.min })
+    .select({ min: inventoryItems.min, unit: inventoryItems.unit })
     .from(inventoryItems)
     .where(eq(inventoryItems.sku, input.sku))
     .limit(1);
+  // Void/refund: bahan yang dikelola WMS dikembalikan ke gudang WMS juga (satuan katalog → satuan gudang).
+  await returnSaleStockInWms(tx, input.sku, input.qty, input.movementLabel, inventory?.unit);
   const outletStock = await ensureLocationStock(tx, {
     sku: input.sku,
     locationType: "outlet",

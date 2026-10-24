@@ -24,6 +24,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { WmsStockHealthPanel } from "@/components/wms/wms-stock-health-panel";
 import { garageApi } from "@/lib/api-client";
 import { currency } from "@/lib/garage-data";
 import type { WmsDashboard } from "@/lib/wms-types";
@@ -99,6 +100,8 @@ export default function WmsDashboardPage() {
         <h1 className="text-[22px] font-extrabold text-[#111111]">Dashboard Gudang</h1>
         <p className="text-[13px] text-[#6B7280]">Ringkasan stok, nilai inventory, dan pergerakan hari ini.</p>
       </div>
+
+      <WmsStockHealthPanel />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

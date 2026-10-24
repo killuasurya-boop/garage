@@ -3558,12 +3558,37 @@ export const wmsStockMovement = pgTable(
     valueHpp: wmsNum("value_hpp").notNull().default(0),
     refDoc: text("ref_doc").notNull().default(""),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    // Saldo ruang setelah mutasi & biaya/unit (ala Stock Ledger Entry). Null = baris lama (sebelum 0151).
+    balanceAfter: wmsNum("balance_after"),
+    valuationRate: wmsNum("valuation_rate"),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     productIdx: index("wms_stock_movement_product_idx").on(t.productId),
     typeIdx: index("wms_stock_movement_type_idx").on(t.type),
     createdAtIdx: index("wms_stock_movement_created_at_idx").on(t.createdAt),
+  }),
+);
+
+// Masalah stok yang dulu terlewat diam-diam (bahan belum di WMS, satuan resep ≠ satuan
+// gudang, terjual melebihi stok). Tampil di dashboard gudang sampai ditandai beres.
+export const wmsStockIssue = pgTable(
+  "wms_stock_issue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(), // not_in_wms | unit_mismatch | oversold | batch_gap
+    sku: text("sku").notNull().default(""),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    refDoc: text("ref_doc").notNull().default(""),
+    detail: text("detail").notNull().default(""),
+    qty: wmsNum("qty").notNull().default(0),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    openIdx: index("wms_stock_issue_open_idx").on(t.resolvedAt, t.createdAt),
   }),
 );
 

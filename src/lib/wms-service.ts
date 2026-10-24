@@ -27,6 +27,7 @@ import {
   wmsReceiving,
   wmsReceivingItem,
   wmsRecipe,
+  wmsSaleAllocation,
   wmsRecipeAuditLog,
   wmsRecipeVersion,
   wmsStockIssue,
@@ -212,6 +213,8 @@ export async function recordStockMovement(
     allowNegative?: boolean;
     /** Transfer/produksi/internal: "usable" (tolak kedaluwarsa); waste: "expired_first". */
     pick?: BatchPick;
+    /** Masuk (retur penjualan): tambahkan ke batch asal ini, bukan batch baru. */
+    restoreToBatchId?: string;
   },
 ): Promise<{ cost: number; batchId?: string; used: ConsumedBatch[] }> {
   const delta = Number(input.deltaQty);
@@ -242,6 +245,10 @@ export async function recordStockMovement(
   let createdBatchId: string | undefined;
   let ledgerBatchId: string | undefined = input.batchId;
   let used: ConsumedBatch[] = [];
+  // Satu metode biaya (owner, Okt 2026): rata-rata gerak. Batch hanya untuk FEFO,
+  // kedaluwarsa & jejak; nilai keluar selalu qty × HPP rata-rata produk saat itu.
+  const [valuation] = await tx.select({ hpp: wmsProduct.hpp }).from(wmsProduct).where(eq(wmsProduct.id, input.productId)).limit(1);
+  const avgHpp = Number(valuation?.hpp ?? input.hpp);
   if (delta < 0) {
     const consumed = await consumeBatchesFefo(
       tx,
@@ -252,7 +259,7 @@ export async function recordStockMovement(
       input.batchId,
       input.pick,
     );
-    cost = consumed.cost;
+    cost = -delta * avgHpp;
     used = consumed.used;
     ledgerBatchId ??= consumed.used[0]?.batchId;
   } else {
@@ -260,7 +267,20 @@ export async function recordStockMovement(
     // Stok minus (terjual sebelum barang dicatat masuk) dilunasi dulu: batch hanya
     // menampung bagian di atas nol, supaya Σ batch selalu = saldo ruang.
     const batchQty = Number(Math.min(delta, Math.max(0, next)).toFixed(4));
-    if (batchQty > 0) {
+    const [restoreBatch] =
+      batchQty > 0 && input.restoreToBatchId
+        ? await tx
+            .select({ id: wmsBatch.id, qty: wmsBatch.qty })
+            .from(wmsBatch)
+            .where(and(eq(wmsBatch.id, input.restoreToBatchId), eq(wmsBatch.productId, input.productId), eq(wmsBatch.warehouseId, input.warehouseId)))
+            .for("update")
+            .limit(1)
+        : [];
+    if (restoreBatch) {
+      // Retur penjualan: kembali ke batch asal (no. batch & expired tetap).
+      await tx.update(wmsBatch).set({ qty: Number((Number(restoreBatch.qty) + batchQty).toFixed(4)) }).where(eq(wmsBatch.id, restoreBatch.id));
+      ledgerBatchId = restoreBatch.id;
+    } else if (batchQty > 0) {
       const [createdBatch] = await tx.insert(wmsBatch).values({
         productId: input.productId,
         warehouseId: input.warehouseId,
@@ -335,13 +355,15 @@ export async function moveStockBetweenWarehouses(
     userId: input.userId ?? null,
     pick: "usable",
   });
+  // Pindah ruang tidak mengubah nilai: masuk dengan HPP rata-rata yang sama dengan keluarnya.
+  const rate = input.qty > 0 ? out.cost / input.qty : input.fallbackHpp;
   for (const batch of out.used) {
     await recordStockMovement(tx, {
       type: "in",
       productId: input.productId,
       warehouseId: input.toWarehouseId,
       deltaQty: batch.qty,
-      hpp: batch.hpp,
+      hpp: rate,
       refDoc: input.refDoc,
       userId: input.userId ?? null,
       batchNo: batch.batchNo,
@@ -355,7 +377,7 @@ export async function moveStockBetweenWarehouses(
       productId: input.productId,
       warehouseId: input.toWarehouseId,
       deltaQty: unbatched,
-      hpp: input.fallbackHpp,
+      hpp: rate,
       refDoc: input.refDoc,
       userId: input.userId ?? null,
     });
@@ -395,6 +417,8 @@ type SaleStockInput = {
   userId?: string | null;
   /** Satuan qty dari resep/katalog OS; dikonversi ke satuan gudang bila dimensinya sama. */
   unit?: string | null;
+  /** Retur: dokumen penjualan asal ("SALE <orderNo>") → kembali ke batch asal. */
+  saleRefDoc?: string | null;
 };
 
 export type WmsStockIssueKind = "not_in_wms" | "unit_mismatch" | "oversold" | "expired_sold" | "batch_gap";
@@ -559,6 +583,7 @@ async function consumeProductForSale(
     // Batch layak selalu dipakai dulu; yang terambil dari batch kedaluwarsa = stok layak habis.
     const now = Date.now();
     expiredQty += used.filter((b) => b.expiredAt && b.expiredAt.getTime() < now).reduce((sum, b) => sum + b.qty, 0);
+    await recordSaleAllocations(tx, { refDoc, productId: prod.id, warehouseId: wh.id, qty: take, used });
     remaining = Number((remaining - take).toFixed(4));
   }
   if (expiredQty > 0) {
@@ -583,8 +608,26 @@ async function consumeProductForSale(
       userId: input.userId ?? null,
       allowNegative: true,
     });
+    await recordSaleAllocations(tx, { refDoc, productId: prod.id, warehouseId: order[0].id, qty: shortage, used: [] });
   }
   return shortage;
+}
+
+/** Simpan batch yang dipakai penjualan; sisa tanpa batch (stok lama / minus) = baris batch null. */
+async function recordSaleAllocations(
+  tx: Tx,
+  input: { refDoc: string; productId: string; warehouseId: string; qty: number; used: ConsumedBatch[] },
+) {
+  const rows: Array<typeof wmsSaleAllocation.$inferInsert> = input.used.map((b) => ({
+    refDoc: input.refDoc,
+    productId: input.productId,
+    warehouseId: input.warehouseId,
+    batchId: b.batchId,
+    qty: b.qty,
+  }));
+  const unbatched = Number((input.qty - input.used.reduce((sum, b) => sum + b.qty, 0)).toFixed(4));
+  if (unbatched > 0) rows.push({ refDoc: input.refDoc, productId: input.productId, warehouseId: input.warehouseId, batchId: null, qty: unbatched });
+  if (rows.length) await tx.insert(wmsSaleAllocation).values(rows);
 }
 
 /** Kembalikan bahan penjualan (void/refund) ke ruang pengambilan utama area. */
@@ -593,18 +636,53 @@ export async function returnWmsStockForSale(tx: Tx, input: SaleStockInput): Prom
   if (!prod) return { handled: false };
   const { qty } = saleQtyInWmsUnit(Number(input.qty), input.unit, prod.unit);
   if (!(qty > 0)) return { handled: true };
-  const [target] = await saleWarehouseOrder(tx, prod.area);
-  if (!target) return { handled: false };
-  await recordStockMovement(tx, {
-    type: "in",
-    productId: prod.id,
-    warehouseId: target.id,
-    deltaQty: qty,
-    hpp: prod.hpp,
-    refDoc: input.refDoc,
-    userId: input.userId ?? null,
-    batchNo: `RETUR-${input.refDoc}`.slice(0, 60),
-  });
+  let remaining = qty;
+  // Retur terhadap penjualan asal: kembali ke ruang & batch yang dulu terpotong (terbaru dulu).
+  if (input.saleRefDoc) {
+    const allocations = await tx
+      .select()
+      .from(wmsSaleAllocation)
+      .where(and(eq(wmsSaleAllocation.refDoc, input.saleRefDoc), eq(wmsSaleAllocation.productId, prod.id)))
+      .orderBy(desc(wmsSaleAllocation.seq))
+      .for("update");
+    for (const a of allocations) {
+      if (remaining <= 0) break;
+      const open = Number((Number(a.qty) - Number(a.returnedQty)).toFixed(4));
+      const back = Math.min(open, remaining);
+      if (back <= 0 || !a.warehouseId) continue;
+      await recordStockMovement(tx, {
+        type: "in",
+        productId: prod.id,
+        warehouseId: a.warehouseId,
+        deltaQty: back,
+        hpp: prod.hpp,
+        refDoc: input.refDoc,
+        userId: input.userId ?? null,
+        restoreToBatchId: a.batchId ?? undefined,
+        batchNo: `RETUR-${input.refDoc}`.slice(0, 60),
+      });
+      await tx
+        .update(wmsSaleAllocation)
+        .set({ returnedQty: Number((Number(a.returnedQty) + back).toFixed(4)) })
+        .where(eq(wmsSaleAllocation.id, a.id));
+      remaining = Number((remaining - back).toFixed(4));
+    }
+  }
+  if (remaining > 0) {
+    // Penjualan lama (sebelum jejak batch) → ruang pengambilan utama area, batch RETUR baru.
+    const [target] = await saleWarehouseOrder(tx, prod.area);
+    if (!target) return { handled: false };
+    await recordStockMovement(tx, {
+      type: "in",
+      productId: prod.id,
+      warehouseId: target.id,
+      deltaQty: remaining,
+      hpp: prod.hpp,
+      refDoc: input.refDoc,
+      userId: input.userId ?? null,
+      batchNo: `RETUR-${input.refDoc}`.slice(0, 60),
+    });
+  }
   return { handled: true };
 }
 

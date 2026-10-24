@@ -1086,6 +1086,13 @@
       "when": 1792816828124,
       "tag": "0154_wms_purchase_order_reorder",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1792818445509,
+      "tag": "0155_wms_sale_allocation",
+      "breakpoints": true
     }
   ]
 }

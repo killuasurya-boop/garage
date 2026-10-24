@@ -214,7 +214,10 @@ Scroll direction:
   - Negative stock: an inbound movement first nets off negative stock; batch qty is only the part above 0, so Σ batch = room balance.
   - Batch integrity: `getWmsBatchIntegrity` / `fixWmsBatchIntegrity`, endpoint `/api/wms/integrity` (fix is Owner only, no ledger change).
   - Units: sale qty is converted from the recipe unit to the WMS unit via `saleQtyInWmsUnit` (`src/lib/stock-units.ts`). A unit from a different dimension is logged as `unit_mismatch`.
-  - Issues that used to be skipped silently are recorded in `wms_stock_issue`: not_in_wms, unit_mismatch, oversold.
+  - Issues that used to be skipped silently are recorded in `wms_stock_issue`: not_in_wms, unit_mismatch, oversold, expired_sold.
+  - Valuation (owner): **moving average only**. Every outflow is valued at qty × `wms_product.hpp`; only receiving/production change the average. Batches are for FEFO, expiry and traceability, and a batch's `hpp` is informational. Moving stock between rooms keeps the value.
+  - Sale returns: each sale records `wms_sale_allocation` (ref `SALE <orderNo>`, batch per room, a null batch for the unbatched/negative part, `seq` for LIFO). Void, refund and reject pass `saleOrderNo` and return stock to the original room and batch (`restoreToBatchId`). Old sales without allocations fall back to a `RETUR-` batch.
+  - Opname approver ≠ submitter, except the Owner.
   - FEFO picking: usable batches go first and expired batches last for sales. Transfer, internal order and production use `pick: "usable"`, which rejects expired batches. `moveStockBetweenWarehouses` carries batch no, expiry and HPP to the destination.
   - Waste = `src/lib/wms-waste.ts` (`wms_waste`, movement type `waste`, picks expired batches first). Staff waste ≥ Rp 50.000 is `pending_approval` until Owner/Manajer decides. Waste never creates an expense (cogs is on a purchase basis); its value shows in the owner report.
   - Opname: draft → submitted → completed, or rejected back to draft with a reason. Counters get a blind view. Variance = physical − stock at count time (`systemQty` is captured on save). Posting happens only via Owner/Manajer finalize.

@@ -10285,6 +10285,7 @@ async function updateCustomerOrderStatusImpl(
           movementLabel: `Tolak ${order.orderNo}: stok dikembalikan`,
           actor,
           now,
+          saleOrderNo: order.orderNo,
         });
       }
       await cancelProductionForOrder(tx, order.id, `Order ditolak: ${rejectReason}`, now);
@@ -15103,9 +15104,17 @@ async function consumeSaleStockInWms(
   return consumeWmsStockForSale(tx as never, { sku, qty, refDoc: `SALE ${orderNo}`, userId, unit });
 }
 
-async function returnSaleStockInWms(tx: GarageTx, sku: string, qty: number, refDoc: string, unit?: string | null) {
+async function returnSaleStockInWms(
+  tx: GarageTx,
+  sku: string,
+  qty: number,
+  refDoc: string,
+  unit?: string | null,
+  saleOrderNo?: string | null,
+) {
   const { returnWmsStockForSale } = await import("@/lib/wms-service");
-  return returnWmsStockForSale(tx as never, { sku, qty, refDoc, unit });
+  // Retur terhadap penjualan asal (consumeSaleStockInWms memakai ref "SALE <orderNo>").
+  return returnWmsStockForSale(tx as never, { sku, qty, refDoc, unit, saleRefDoc: saleOrderNo ? `SALE ${saleOrderNo}` : null });
 }
 
 async function isWmsManaged(tx: GarageTx | GarageDb, sku: string) {
@@ -15124,6 +15133,8 @@ async function restoreOutletStock(
     movementLabel: string;
     actor: string;
     now: Date;
+    /** Order yang dulu memotong stok (untuk retur ke batch asal di WMS). */
+    saleOrderNo?: string | null;
   },
 ) {
   const [inventory] = await tx
@@ -15132,7 +15143,7 @@ async function restoreOutletStock(
     .where(eq(inventoryItems.sku, input.sku))
     .limit(1);
   // Void/refund: bahan yang dikelola WMS dikembalikan ke gudang WMS juga (satuan katalog → satuan gudang).
-  await returnSaleStockInWms(tx, input.sku, input.qty, input.movementLabel, inventory?.unit);
+  await returnSaleStockInWms(tx, input.sku, input.qty, input.movementLabel, inventory?.unit, input.saleOrderNo);
   const outletStock = await ensureLocationStock(tx, {
     sku: input.sku,
     locationType: "outlet",
@@ -15740,6 +15751,7 @@ async function voidOrderImpl(
           movementLabel: `Batal ${order.orderNo}: stok dikembalikan`,
           actor,
           now,
+          saleOrderNo: ledgerOrderNo,
         });
         stockReversed += 1;
       }
@@ -15765,6 +15777,7 @@ async function voidOrderImpl(
         movementLabel: `Batal ${order.orderNo}: stok dikembalikan`,
         actor,
         now,
+        saleOrderNo: order.orderNo,
       });
       stockReversed += 1;
     }
@@ -15960,6 +15973,7 @@ async function executeOrderRefund(payload: ApprovalPayload, reason: string, gara
             movementLabel: `Refund ${order.orderNo}: stok dikembalikan`,
             actor,
             now,
+            saleOrderNo: ledgerNo,
           });
         }
         if (hadGlobalDeduct) {

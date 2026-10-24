@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { EventMenuGroup, EventOrderSnapshot } from "@/lib/event-menu-types";
 import {
   type AnyPgColumn,
+  bigserial,
   boolean,
   check,
   date,
@@ -3665,6 +3666,27 @@ export const wmsWaste = pgTable(
     statusIdx: index("wms_waste_status_idx").on(t.status, t.createdAt),
     productIdx: index("wms_waste_product_idx").on(t.productId),
   }),
+);
+
+// Jejak batch per penjualan (ala ERPNext "return against"): void/refund mengembalikan
+// stok ke ruang & batch asal. batch_id null = bagian tanpa batch / terjual minus.
+export const wmsSaleAllocation = pgTable(
+  "wms_sale_allocation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    refDoc: text("ref_doc").notNull(), // SALE <orderNo>
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    batchId: uuid("batch_id").references(() => wmsBatch.id, { onDelete: "set null" }),
+    qty: wmsNum("qty").notNull(),
+    returnedQty: wmsNum("returned_qty").notNull().default(0),
+    // Urutan potong (satu transaksi = created_at sama) → retur LIFO: yang terakhir terpotong kembali dulu.
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ refIdx: index("wms_sale_allocation_ref_idx").on(t.refDoc, t.productId) }),
 );
 
 // Masalah stok yang dulu terlewat diam-diam (bahan belum di WMS, satuan resep ≠ satuan

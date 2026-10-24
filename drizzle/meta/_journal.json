@@ -1093,6 +1093,13 @@
       "when": 1792818445509,
       "tag": "0155_wms_sale_allocation",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1792867565208,
+      "tag": "0156_wms_material_request",
+      "breakpoints": true
     }
   ]
 }

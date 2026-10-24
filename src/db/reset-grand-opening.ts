@@ -111,7 +111,7 @@ export const CLEAR_TABLES = [
   "wms_batch", "wms_receiving", "wms_receiving_item", "wms_internal_order", "wms_internal_order_item",
   "wms_stock_movement", "wms_stock_opname", "wms_opname_line", "wms_checklist_run", "wms_checklist_run_item",
   "wms_cold_chain_reading", "wms_stock_issue", "wms_waste", "wms_purchase_order_item", "wms_purchase_order",
-  "wms_sale_allocation",
+  "wms_sale_allocation", "wms_material_request_item", "wms_material_request",
   // AI log
   "ai_agent_runs", "ai_action_drafts", "ai_agent_events", "ai_context_snapshots", "ai_owner_chat_history",
 ] as const;

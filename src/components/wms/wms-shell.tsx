@@ -59,6 +59,7 @@ const NAV: NavGroup[] = [
       { label: "Dashboard", href: "/warehouse", icon: LayoutDashboard },
       { label: "Closing Stock", href: "/warehouse/closing", icon: ClipboardCheck },
       { label: "Permintaan Bahan", href: "/warehouse/requests", icon: ListChecks },
+      { label: "Permintaan Bar/Dapur", href: "/warehouse/material-requests", icon: Truck },
       { label: "Persiapan Besok", href: "/warehouse/preparation", icon: Layers },
       { label: "Pembelian", href: "/warehouse/purchasing", icon: ShoppingCart },
       { label: "Purchase Order", href: "/warehouse/purchase-orders", icon: FileText, managementOnly: true },
@@ -541,6 +542,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/warehouse/checklist")) return "Checklist Gudang";
   if (pathname.startsWith("/warehouse/adjustment")) return "Adjustment";
   if (pathname.startsWith("/warehouse/waste")) return "Waste · Bahan Terbuang";
+  if (pathname.startsWith("/warehouse/material-requests")) return "Permintaan Bar & Dapur";
   if (pathname.startsWith("/warehouse/purchase-orders")) return "Purchase Order";
   if (pathname.startsWith("/warehouse/reorder")) return "Smart Reorder";
   if (pathname.startsWith("/warehouse/cold-chain")) return "Cold Chain";

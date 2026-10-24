@@ -227,6 +227,10 @@ Scroll direction:
     - supplier price history
     - min–max per room (`wms_reorder_rule`): an outlet is filled from the main room of its area first, the rest becomes a draft PO per supplier
     - delivery note per batch (`/api/wms/documents/[doc]`)
+- Minta Bahan (owner, Okt 2026, migration 0156) = `src/lib/wms-material-request.ts` (`wms_material_request`/`_item`, doc `MRQ-`):
+  - Bar/Dapur staff build a shopping list from the production screen (`production-material-request-dialog.tsx`, permission `kitchen:write`). There is no approval step; management gets a notification.
+  - The warehouse sends from `/warehouse/material-requests` (`inventory:write`). Stock moves from the area's main room to the Bar/Dapur room via `moveStockBetweenWarehouses`, with FEFO, expired batches rejected and the batch carried over. Anything not sent becomes `shortQty`.
+  - The division confirms receipt. Shortages turn into a draft PO per last supplier (`createPurchaseOrdersFromShortages`). The delivery note comes from `/api/wms/documents/MRQ-…`.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

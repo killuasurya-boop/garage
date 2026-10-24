@@ -145,4 +145,15 @@ describe("Stok WMS sebagai catatan tunggal", () => {
     menu = await svc.getMenuData();
     expect(menu.find((m: any) => m.id === "itm-coffee").stock).not.toBe("sold_out");
   });
+
+  it("katalog liter vs gudang ml: jual & void simetris (potong 120 ml, kembali 120 ml)", async () => {
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.inventoryItems).set({ unit: "liter" }).where(eq(t.schema.inventoryItems.sku, "T-MILK"));
+    await t.getDb().update(t.schema.menuRecipes).set({ qty: 0.12, unit: "liter" }).where(eq(t.schema.menuRecipes.inventorySku, "T-MILK"));
+    const before = await wmsTotal("T-MILK");
+    const order = await sell(1);
+    expect(await wmsTotal("T-MILK")).toBeCloseTo(before - 120, 4);
+    await svc.voidOrder(order.orderNo, "Tes satuan", session("Owner" as Role));
+    expect(await wmsTotal("T-MILK")).toBeCloseTo(before, 4);
+  });
 });

@@ -136,6 +136,11 @@ describe("Ledger WMS akurat", () => {
 
     await wms.cancelReceiving(second.id, { reason: "Salah harga" });
     expect(await hppOf()).toBeCloseTo(10, 4);
+    // Ledger membalik nilai beli penerimaan itu sendiri (1000 × 30), bukan rata-rata baru.
+    const { eq: eqOp } = await import("drizzle-orm");
+    const [reversal] = await t.getDb().select().from(t.schema.wmsStockMovement).where(eqOp(t.schema.wmsStockMovement.refDoc, `BATAL ${second.doc}`));
+    expect(Number(reversal.valueHpp)).toBe(30_000);
+    expect(Number(reversal.valuationRate)).toBe(30);
     const { and, eq, sql } = await import("drizzle-orm");
     const batches = await t
       .getDb()

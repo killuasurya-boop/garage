@@ -38,7 +38,17 @@ export type PurchaseOrderInput = {
 };
 
 export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: string | null) {
-  const items = input.items.filter((it) => it.orderedQty > 0);
+  // Satu baris per bahan: baris ganda digabung (qty dijumlah, harga rata-rata tertimbang)
+  // supaya penerimaan selalu jatuh ke baris yang tepat.
+  const merged = new Map<string, { productId: string; orderedQty: number; value: number }>();
+  for (const it of input.items) {
+    if (!(it.orderedQty > 0)) continue;
+    const cur = merged.get(it.productId) ?? { productId: it.productId, orderedQty: 0, value: 0 };
+    cur.orderedQty += it.orderedQty;
+    cur.value += it.orderedQty * Math.max(0, it.unitPrice);
+    merged.set(it.productId, cur);
+  }
+  const items = [...merged.values()].map((m) => ({ productId: m.productId, orderedQty: m.orderedQty, unitPrice: m.value / m.orderedQty }));
   if (!items.length) throw new Error("PO butuh minimal 1 bahan.");
   return runInTx(async (tx) => {
     const [supplier] = await tx.select().from(wmsSupplier).where(eq(wmsSupplier.id, input.supplierId)).limit(1);

@@ -83,6 +83,20 @@ describe("Purchase Order", () => {
     expect(history.avgPrice).toBeCloseTo((1900 * 30 + 100 * 34) / 2000, 4);
   });
 
+  it("baris PO ganda untuk bahan yang sama digabung (penerimaan tidak salah baris)", async () => {
+    const order = await po.createPurchaseOrder({
+      supplierId,
+      items: [
+        { productId: milkId, orderedQty: 10, unitPrice: 30 },
+        { productId: milkId, orderedQty: 30, unitPrice: 40 },
+      ],
+    });
+    const detail = await po.getPurchaseOrder(order.id);
+    expect(detail.items).toHaveLength(1);
+    expect(detail.items[0]).toMatchObject({ orderedQty: 40, unitPrice: 37.5 });
+    await po.setPurchaseOrderStatus(order.id, "cancel");
+  });
+
   it("PO tidak bisa dibatalkan selama ada penerimaan draft", async () => {
     const order = await po.createPurchaseOrder({ supplierId, items: [{ productId: milkId, orderedQty: 10, unitPrice: 30 }] });
     await po.createReceivingFromPurchaseOrder(order.id);

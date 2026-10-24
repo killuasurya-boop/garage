@@ -124,6 +124,19 @@ describe("Waste", () => {
     await expect(waste.decideWmsWaste(row.id, { approve: true }, { userId: null })).rejects.toThrow(/sudah diputuskan/);
   });
 
+  it("ambang approval memakai HPP rata-rata (sama dengan nilai yang diposting), bukan HPP batch", async () => {
+    const p = await wms.createWmsProduct({ sku: "T-AVG-WASTE", name: "Biji Rata", category: "Bar · Waste Test", unit: "gr", packPrice: 0, packQty: 1 });
+    await addBatch(p.id, outletBar, 100, null, "CHEAP-1", 400);
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.wmsProduct).set({ hpp: 800 }).where(eq(t.schema.wmsProduct.id, p.id));
+    const [batch] = await t.getDb().select().from(t.schema.wmsBatch).where(eq(t.schema.wmsBatch.batchNo, "CHEAP-1"));
+    // 100 gr × Rp400 (batch) = 40.000 < ambang, tapi nilai sebenarnya 100 × Rp800 = 80.000 → wajib approval.
+    const row = await waste.recordWmsWaste({ warehouseId: outletBar, productId: p.id, batchId: batch.id, qty: 100, reason: "damaged" }, staff);
+    expect(row.status).toBe("pending_approval");
+    expect(Number(row.estimatedValue)).toBe(80_000);
+    await waste.decideWmsWaste(row.id, { approve: false, note: "tes ambang" }, { userId: null });
+  });
+
   it("menolak waste melebihi stok ruang & alasan 'Lainnya' tanpa keterangan", async () => {
     await expect(waste.recordWmsWaste({ warehouseId: mainBar, productId: syrupId, qty: 9999, reason: "damaged" }, owner)).rejects.toThrow(/hanya/);
     await expect(waste.recordWmsWaste({ warehouseId: mainBar, productId: syrupId, qty: 1, reason: "other" }, owner)).rejects.toThrow(/keterangan/);

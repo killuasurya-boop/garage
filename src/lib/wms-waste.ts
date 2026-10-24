@@ -33,11 +33,8 @@ export type WmsWasteRow = typeof wmsWaste.$inferSelect & {
   batchNo: string | null;
 };
 
-async function estimateValue(tx: ReturnType<typeof getDb>, productId: string, qty: number, batchId?: string | null) {
-  if (batchId) {
-    const [batch] = await tx.select({ hpp: wmsBatch.hpp }).from(wmsBatch).where(eq(wmsBatch.id, batchId)).limit(1);
-    if (batch) return qty * Number(batch.hpp);
-  }
+/** Nilai waste = qty × HPP rata-rata (basis yang sama dengan posting ledger). */
+async function estimateValue(tx: ReturnType<typeof getDb>, productId: string, qty: number) {
   const [prod] = await tx.select({ hpp: wmsProduct.hpp }).from(wmsProduct).where(eq(wmsProduct.id, productId)).limit(1);
   return qty * Number(prod?.hpp ?? 0);
 }
@@ -97,7 +94,7 @@ export async function recordWmsWaste(
       .limit(1);
     if (qty > Number(stock?.qty ?? 0)) throw new Error(`Stok ${prod.name} di ruang ini hanya ${Number(stock?.qty ?? 0)} ${prod.unit}.`);
 
-    const estimatedValue = Math.round((await estimateValue(tx, input.productId, qty, input.batchId)) * 100) / 100;
+    const estimatedValue = Math.round((await estimateValue(tx, input.productId, qty)) * 100) / 100;
     const needsApproval = !actor.elevated && estimatedValue >= WMS_WASTE_APPROVAL_THRESHOLD;
     const [row] = await tx
       .insert(wmsWaste)

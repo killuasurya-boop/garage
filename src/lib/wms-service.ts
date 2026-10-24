@@ -215,6 +215,8 @@ export async function recordStockMovement(
     pick?: BatchPick;
     /** Masuk (retur penjualan): tambahkan ke batch asal ini, bukan batch baru. */
     restoreToBatchId?: string;
+    /** Keluar: nilai per unit eksplisit (batal penerimaan membalik nilai belinya sendiri). */
+    outflowRate?: number;
   },
 ): Promise<{ cost: number; batchId?: string; used: ConsumedBatch[] }> {
   const delta = Number(input.deltaQty);
@@ -259,7 +261,7 @@ export async function recordStockMovement(
       input.batchId,
       input.pick,
     );
-    cost = -delta * avgHpp;
+    cost = -delta * (input.outflowRate ?? avgHpp);
     used = consumed.used;
     ledgerBatchId ??= consumed.used[0]?.batchId;
   } else {
@@ -2344,6 +2346,8 @@ export async function cancelReceiving(
           warehouseId: target,
           deltaQty: -qty,
           hpp: receivedHpp,
+          // Nilai keluar = nilai beli penerimaan ini (bukan rata-rata baru) supaya ledger membalik persis.
+          outflowRate: receivedHpp,
           refDoc: `BATAL ${rec.doc}`,
           userId: input.userId ?? null,
           batchId: ownBatch && Number(ownBatch.qty) >= qty ? ownBatch.id : undefined,

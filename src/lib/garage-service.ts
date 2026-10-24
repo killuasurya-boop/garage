@@ -10433,6 +10433,7 @@ async function updateCustomerOrderStatusImpl(
           inventorySku: menuRecipes.inventorySku,
           inventoryName: inventoryItems.name,
           inventoryMin: inventoryItems.min,
+          inventoryUnit: inventoryItems.unit,
         })
         .from(orderItems)
         .innerJoin(
@@ -10496,7 +10497,7 @@ async function updateCustomerOrderStatusImpl(
           actor,
         });
         // Stok fisik tunggal = WMS: bahan yang dikelola WMS ikut terpotong di gudang.
-        const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id, recipe.recipeUnit);
+        const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id, recipe.inventoryUnit, recipe.recipeUnit);
         if (wmsResult.shortage > 0) {
           stockWarnings.push({
             sku: recipe.inventorySku,
@@ -11788,6 +11789,7 @@ async function createOrderOnce(
         inventorySku: menuRecipes.inventorySku,
         inventoryName: inventoryItems.name,
         inventoryMin: inventoryItems.min,
+        inventoryUnit: inventoryItems.unit,
       })
       .from(orderItems)
       .innerJoin(
@@ -11855,7 +11857,7 @@ async function createOrderOnce(
         actor: `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`,
       });
       // Stok fisik tunggal = WMS: bahan yang dikelola WMS ikut terpotong di gudang.
-      const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id, recipe.recipeUnit);
+      const wmsResult = await consumeSaleStockInWms(tx, recipe.inventorySku, deductQty, order.orderNo, garage.user.id, recipe.inventoryUnit, recipe.recipeUnit);
       if (wmsResult.shortage > 0) {
         stockWarnings.push({
           sku: recipe.inventorySku,
@@ -15098,10 +15100,23 @@ async function consumeSaleStockInWms(
   qty: number,
   orderNo: string,
   userId: string | null,
-  unit?: string | null,
+  catalogUnit?: string | null,
+  recipeUnit?: string | null,
 ) {
-  const { consumeWmsStockForSale } = await import("@/lib/wms-service");
-  return consumeWmsStockForSale(tx as never, { sku, qty, refDoc: `SALE ${orderNo}`, userId, unit });
+  const { consumeWmsStockForSale, recordWmsStockIssue } = await import("@/lib/wms-service");
+  const { garageUnit } = await import("@/lib/stock-units");
+  // Qty resep dipotong dari stok katalog apa adanya (satuan katalog), jadi WMS memakai
+  // satuan katalog juga — potong & retur selalu simetris. Resep bersatuan lain = masalah stok.
+  if (recipeUnit && catalogUnit && garageUnit(recipeUnit) !== garageUnit(catalogUnit)) {
+    await recordWmsStockIssue(tx as never, {
+      kind: "unit_mismatch",
+      sku,
+      refDoc: `SALE ${orderNo}`,
+      detail: `Satuan resep "${recipeUnit}" berbeda dengan satuan bahan "${catalogUnit}" — samakan satuan resep.`,
+      qty,
+    });
+  }
+  return consumeWmsStockForSale(tx as never, { sku, qty, refDoc: `SALE ${orderNo}`, userId, unit: catalogUnit });
 }
 
 async function returnSaleStockInWms(

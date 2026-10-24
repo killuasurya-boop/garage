@@ -196,7 +196,7 @@ import { verifyMemberRedeemToken } from "@/lib/member-redeem-token";
 import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, returnPointsForOrder } from "@/lib/member-points";
 import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
-import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import { seedRetailStockCosts, syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import {
   categoryPosInfo,
   ensureCategoryLinks,
@@ -1641,6 +1641,7 @@ export async function getMenuData(params?: {
       qty: menuRecipes.qty,
       unit: menuRecipes.unit,
       wastePct: menuRecipes.wastePct,
+      status: menuRecipes.status,
       inventoryName: inventoryItems.name,
       unitCost: inventoryItems.unitCost,
     })
@@ -1652,7 +1653,7 @@ export async function getMenuData(params?: {
           menuRecipes.menuItemId,
           itemRows.map((item) => item.id),
         ),
-        eq(menuRecipes.status, "active"),
+        inArray(menuRecipes.status, ["active", "draft"]),
       ),
     )
     .orderBy(menuRecipes.menuItemId, menuRecipes.variantId, menuRecipes.inventorySku);
@@ -1667,7 +1668,7 @@ export async function getMenuData(params?: {
   }
 
   return baseRows.map((item) => {
-    const recipes = (recipesByItem.get(item.id) ?? []).map((recipe) => {
+    const toLine = (recipe: (typeof recipeRows)[number]) => {
       const wasteMultiplier = 1 + Number(recipe.wastePct ?? 0) / 100;
       const lineCost = Math.round(
         Number(recipe.qty ?? 0) * Number(recipe.unitCost ?? 0) * wasteMultiplier,
@@ -1682,10 +1683,14 @@ export async function getMenuData(params?: {
         unitCost: Number(recipe.unitCost ?? 0),
         lineCost,
       };
-    });
+    };
+    const lines = recipesByItem.get(item.id) ?? [];
+    const recipes = lines.filter((recipe) => recipe.status === "active").map(toLine);
     return {
       ...item,
       recipes,
+      // Resep usulan menunggu persetujuan (belum memotong stok / masuk HPP).
+      draftRecipes: lines.filter((recipe) => recipe.status === "draft").map(toLine),
       recipeCost: recipes.reduce((sum, recipe) => sum + recipe.lineCost, 0),
     };
   });
@@ -1996,6 +2001,7 @@ export async function createMenuProduct(input: MenuProductInput, garage: GarageS
     if (recipes.length) {
       await tx.insert(menuRecipes).values(recipes);
     }
+    await seedRetailStockCosts(tx, [id]);
     await syncRecipeBaseCosts(tx, { itemIds: [id] });
 
     await tx.insert(auditLogs).values({
@@ -2271,11 +2277,31 @@ export async function updateMenuProduct(
       await tx.insert(menuVariants).values(variants);
     }
     if (recipes) {
-      await tx.delete(menuRecipes).where(eq(menuRecipes.menuItemId, safeId));
+      // Form produk hanya mengelola resep AKTIF. Draft (resep usulan menunggu persetujuan)
+      // & arsip (riwayat ditolak) tidak ikut terhapus saat produk disimpan tanpa resep.
+      // Resep baru dari form menggantikan draft (sudah diperiksa Owner/Manajer di form);
+      // baris arsip hanya dibuang bila kuncinya bentrok dengan baris baru (unique index).
       if (recipes.length) {
+        await tx
+          .delete(menuRecipes)
+          .where(and(eq(menuRecipes.menuItemId, safeId), inArray(menuRecipes.status, ["active", "draft"])));
+        for (const line of recipes) {
+          await tx
+            .delete(menuRecipes)
+            .where(
+              and(
+                eq(menuRecipes.menuItemId, safeId),
+                eq(menuRecipes.variantId, line.variantId ?? "all"),
+                eq(menuRecipes.inventorySku, line.inventorySku ?? ""),
+              ),
+            );
+        }
         await tx.insert(menuRecipes).values(recipes);
+      } else {
+        await tx.delete(menuRecipes).where(and(eq(menuRecipes.menuItemId, safeId), eq(menuRecipes.status, "active")));
       }
     }
+    await seedRetailStockCosts(tx, [safeId]);
     await syncRecipeBaseCosts(tx, { itemIds: [safeId] });
     await tx.insert(auditLogs).values({
       time: nowTimeLabel(),

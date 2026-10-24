@@ -239,6 +239,15 @@ Scroll direction:
   PO per kotak stores base qty + per-base price plus `uom`/`uom_factor` snapshot for printing. Portions per pack =
   factor ÷ (recipe qty × (1 + waste%)) (`getPortionYield`). Biang Teh BAR-035 = kotak 1000 ml; Fresh Milk = dus beli,
   botol 946 ml hitung.
+- Resep usulan (owner, Okt 2026, migration 0158, `docs/RESEP-USULAN-2026-10.md`): every product without a recipe
+  got a DRAFT recipe (barista/koki proposal) + insert-only Dapur materials `KIT-001…052` and finished-goods stock
+  `RTL-001…005` (Mineral btl/dus, Rokok bks/slop; 1 per sale). Drafts never deduct stock/HPP until approved
+  (`approveDraftRecipe`, error names each bad line) or activated from the product form ("Pakai resep usulan").
+  `listDraftRecipes` is per variant (HPP = 'all' lines + variant lines). Product save never deletes draft/archived
+  recipe rows unless it saves new recipe lines (which supersede drafts). Retail with one recipe line and stock cost 0:
+  harga modal seeds the stock cost (`seedRetailStockCosts`). Product form shows ingredient stock in packs, portions
+  left, "+ Stok awal" (`recordOpeningStock`, STOK-AWAL at current HPP, Owner/Manajer) and "Bahan Baru". The test
+  harness strips 0158 data; `recipe-proposals.integration.test.ts` re-runs it.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

@@ -320,6 +320,9 @@ export type InventoryItem = {
   min: number;
   unit: string;
   packageSize: string;
+  /** Isi per kemasan dalam satuan stok (mis. 1000 ml per kotak); 0/1 = tanpa kemasan. */
+  packageQty?: number;
+  purchasePrice?: number;
   unitCost?: number;
   status: string;
   stage?: string;

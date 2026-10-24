@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -14,7 +14,7 @@ import {
   wmsCategory,
   wmsProduct,
 } from "@/db/schema";
-import { syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
+import { seedRetailStockCosts, syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
 import {
   parseMasterWorkbook,
   garageUnit,
@@ -231,7 +231,22 @@ export async function applyMasterImport(input: { buffer: Buffer; fileName: strin
 
 }
 
-/** Resep draft per menu + HPP referensi (biaya bahan saat ini). */
+export type DraftLineProblem = "no_material" | "no_cost" | "unit_mismatch" | "bad_qty";
+
+/** Masalah satu baris draft yang akan membuat tombol Setujui ditolak. */
+function draftLineProblem(line: { qty: number; unit: string; wastePct: number }, material: { unit: string | null; unitCost: number | null; hasWms: boolean }): DraftLineProblem | null {
+  if (!material.unit || !material.hasWms) return "no_material";
+  if (!Number.isFinite(line.qty) || line.qty <= 0 || !Number.isFinite(line.wastePct) || line.wastePct < 0) return "bad_qty";
+  if (garageUnit(line.unit) !== garageUnit(material.unit)) return "unit_mismatch";
+  if (!Number.isFinite(Number(material.unitCost)) || Number(material.unitCost) <= 0) return "no_cost";
+  return null;
+}
+
+/**
+ * Resep draft per menu, dirinci per varian: HPP referensi varian = baris "Semua varian"
+ * + baris khusus varian itu (sama dengan syncRecipeBaseCosts). Baris bermasalah ditandai
+ * supaya owner tahu apa yang harus diperbaiki sebelum Setujui.
+ */
 export async function listDraftRecipes() {
   const db = getDb();
   const rows = await db
@@ -243,36 +258,74 @@ export async function listDraftRecipes() {
       unit: menuRecipes.unit,
       wastePct: menuRecipes.wastePct,
       itemName: inventoryItems.name,
+      itemUnit: inventoryItems.unit,
       unitCost: inventoryItems.unitCost,
+      wmsId: wmsProduct.id,
       menuName: menuItems.name,
+      category: menuItems.category,
     })
     .from(menuRecipes)
     .leftJoin(inventoryItems, eq(inventoryItems.sku, menuRecipes.inventorySku))
+    .leftJoin(wmsProduct, eq(wmsProduct.sku, menuRecipes.inventorySku))
     .leftJoin(menuItems, eq(menuItems.id, menuRecipes.menuItemId))
     .where(eq(menuRecipes.status, "draft"));
-  const prices = await db.select({ itemId: menuVariants.itemId, price: menuVariants.price }).from(menuVariants);
-  const byMenu = new Map<string, { menuItemId: string; menuName: string; variantId: string; price: number; referenceHpp: number; lines: Array<{ sku: string; name: string; qty: number; unit: string; unitCost: number; cost: number }> }>();
+  const menuIds = [...new Set(rows.map((r) => r.menuItemId).filter((id): id is string => Boolean(id)))];
+  const variantRows = menuIds.length
+    ? await db
+        .select({ itemId: menuVariants.itemId, variantId: menuVariants.variantId, label: menuVariants.label, price: menuVariants.price, sortOrder: menuVariants.sortOrder })
+        .from(menuVariants)
+        .where(inArray(menuVariants.itemId, menuIds))
+    : [];
+
+  type Line = { variantId: string; sku: string; name: string; qty: number; unit: string; materialUnit: string | null; unitCost: number; rawCost: number; cost: number; problem: DraftLineProblem | null };
+  const byMenu = new Map<string, { menuItemId: string; menuName: string; category: string; lines: Line[] }>();
   for (const r of rows) {
     if (!r.menuItemId || !r.sku) continue;
-    const entry =
-      byMenu.get(r.menuItemId) ??
-      {
-        menuItemId: r.menuItemId,
-        menuName: r.menuName ?? r.menuItemId,
-        variantId: r.variantId,
-        price: Math.min(...prices.filter((p) => p.itemId === r.menuItemId).map((p) => Number(p.price))),
-        referenceHpp: 0,
-        lines: [],
-      };
+    const entry = byMenu.get(r.menuItemId) ?? { menuItemId: r.menuItemId, menuName: r.menuName ?? r.menuItemId, category: r.category ?? "", lines: [] };
     const unitCost = Number(r.unitCost ?? 0);
-    const cost = Number(r.qty) * (1 + Number(r.wastePct) / 100) * unitCost;
-    entry.lines.push({ sku: r.sku, name: r.itemName ?? r.sku, qty: Number(r.qty), unit: r.unit, unitCost, cost: Math.round(cost) });
-    entry.referenceHpp += cost;
+    const qty = Number(r.qty);
+    const wastePct = Number(r.wastePct);
+    entry.lines.push({
+      variantId: r.variantId,
+      sku: r.sku,
+      name: r.itemName ?? r.sku,
+      qty,
+      unit: r.unit,
+      materialUnit: r.itemUnit ?? null,
+      unitCost,
+      rawCost: qty * (1 + wastePct / 100) * unitCost,
+      cost: Math.round(qty * (1 + wastePct / 100) * unitCost),
+      problem: draftLineProblem({ qty, unit: r.unit, wastePct }, { unit: r.itemUnit, unitCost: r.unitCost, hasWms: Boolean(r.wmsId) }),
+    });
     byMenu.set(r.menuItemId, entry);
   }
+
   return [...byMenu.values()]
-    .map((e) => ({ ...e, referenceHpp: Math.round(e.referenceHpp) }))
-    .sort((a, b) => a.menuName.localeCompare(b.menuName));
+    .map((e) => {
+      const variants = variantRows
+        .filter((v) => v.itemId === e.menuItemId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((v) => {
+          const lines = e.lines.filter((l) => l.variantId === "all" || l.variantId === v.variantId);
+          const hpp = Math.round(lines.reduce((sum, l) => sum + l.rawCost, 0));
+          const price = Number(v.price);
+          return { variantId: v.variantId, label: v.label, price, hpp, foodCostPct: price > 0 ? Math.round((hpp / price) * 100) : null, hasLines: lines.length > 0 };
+        });
+      const cheapest = [...variants].sort((a, b) => a.price - b.price)[0];
+      return {
+        menuItemId: e.menuItemId,
+        menuName: e.menuName,
+        category: e.category,
+        variantId: e.lines[0]?.variantId ?? "all",
+        // Kompatibel: harga & HPP varian termurah.
+        price: cheapest?.price ?? 0,
+        referenceHpp: cheapest?.hpp ?? Math.round(e.lines.reduce((s, l) => s + l.rawCost, 0)),
+        variants,
+        problems: e.lines.filter((l) => l.problem).length,
+        lines: e.lines.sort((a, b) => (a.variantId === "all" ? -1 : 0) - (b.variantId === "all" ? -1 : 0) || a.variantId.localeCompare(b.variantId)),
+      };
+    })
+    .sort((a, b) => a.category.localeCompare(b.category, "id") || a.menuName.localeCompare(b.menuName, "id"));
 }
 
 /**
@@ -289,17 +342,28 @@ export async function approveDraftRecipe(menuItemId: string, actor: MasterImport
       .where(and(eq(menuRecipes.menuItemId, menuItemId), eq(menuRecipes.status, "draft")))
       .for("update");
     if (!lines.length) throw new MasterImportError("Tidak ada resep draft untuk menu ini.");
+    // Produk jadi: harga modal yang sudah diisi di produk menjadi harga beli stoknya bila masih 0.
+    await seedRetailStockCosts(tx as never, [menuItemId], "draft");
+    const PROBLEM_TEXT: Record<DraftLineProblem, string> = {
+      no_material: "bahan belum ada di gudang",
+      bad_qty: "jumlah tidak valid",
+      unit_mismatch: "satuan resep beda dengan satuan bahan",
+      no_cost: "harga beli bahan masih 0 — isi di Inventory",
+    };
+    const problems: string[] = [];
     for (const line of lines) {
-      const [material] = await tx.select({ unit: inventoryItems.unit, cost: inventoryItems.unitCost })
+      const [material] = await tx.select({ name: inventoryItems.name, unit: inventoryItems.unit, cost: inventoryItems.unitCost })
         .from(inventoryItems).where(eq(inventoryItems.sku, line.sku ?? "")).for("update");
       const [product] = await tx.select({ id: wmsProduct.id }).from(wmsProduct)
         .where(eq(wmsProduct.sku, line.sku ?? "")).limit(1);
-      if (!product || !material || !Number.isFinite(Number(line.qty)) || Number(line.qty) <= 0 ||
-        garageUnit(line.unit) !== garageUnit(material.unit) ||
-        !Number.isFinite(Number(material.cost)) || Number(material.cost) <= 0 ||
-        !Number.isFinite(Number(line.wastePct)) || Number(line.wastePct) < 0) {
-        throw new MasterImportError("Jumlah, satuan, atau biaya bahan draft belum valid. Perbaiki sebelum persetujuan.");
-      }
+      const problem = draftLineProblem(
+        { qty: Number(line.qty), unit: line.unit, wastePct: Number(line.wastePct) },
+        { unit: material?.unit ?? null, unitCost: material?.cost ?? null, hasWms: Boolean(product) },
+      );
+      if (problem) problems.push(`${material?.name ?? line.sku}: ${PROBLEM_TEXT[problem]}`);
+    }
+    if (problems.length) {
+      throw new MasterImportError(`Draft belum bisa disetujui. Perbaiki dulu: ${[...new Set(problems)].join("; ")}.`);
     }
     const active = await tx
       .select({ id: menuRecipes.id })

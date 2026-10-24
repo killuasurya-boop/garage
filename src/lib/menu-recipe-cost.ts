@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { inventoryItems, menuRecipes, menuVariants } from "@/db/schema";
+import { inventoryItems, menuItems, menuRecipes, menuVariants, wmsProduct } from "@/db/schema";
 
 type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -80,4 +80,45 @@ export async function syncRecipeBaseCosts(
     updated++;
   }
   return updated;
+}
+
+/**
+ * Produk jadi (retail: rokok, mineral) yang terhubung ke SATU baris stok berharga beli 0:
+ * harga modal varian yang diketik owner menjadi harga beli stok itu (per satuan stok),
+ * supaya syncRecipeBaseCosts tidak menimpa harga modal menjadi 0. Harga beli stok yang
+ * sudah terisi (Receiving / Inventory) tidak pernah ditimpa.
+ */
+export async function seedRetailStockCosts(db: Db | Tx, itemIds: string[], recipeStatus: "active" | "draft" = "active") {
+  if (!itemIds.length) return 0;
+  const items = await db
+    .select({ id: menuItems.id })
+    .from(menuItems)
+    .where(and(inArray(menuItems.id, itemIds), eq(menuItems.productType, "retail")));
+  let seeded = 0;
+  for (const item of items) {
+    const [variants, lines] = await Promise.all([
+      db.select({ variantId: menuVariants.variantId, baseCost: menuVariants.baseCost }).from(menuVariants).where(eq(menuVariants.itemId, item.id)),
+      db
+        .select({ variantId: menuRecipes.variantId, sku: menuRecipes.inventorySku, qty: menuRecipes.qty })
+        .from(menuRecipes)
+        .where(and(eq(menuRecipes.menuItemId, item.id), eq(menuRecipes.status, recipeStatus))),
+    ]);
+    for (const variant of variants) {
+      const own = lines.filter((line) => line.variantId === "all" || line.variantId === variant.variantId);
+      if (own.length !== 1 || !own[0].sku || !(Number(own[0].qty) > 0) || !(Number(variant.baseCost) > 0)) continue;
+      const [material] = await db
+        .select({ unitCost: inventoryItems.unitCost, packageQty: inventoryItems.packageQty })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.sku, own[0].sku));
+      if (!material || Number(material.unitCost) > 0) continue;
+      const unitCost = Math.round((Number(variant.baseCost) / Number(own[0].qty)) * 10_000) / 10_000;
+      await db
+        .update(inventoryItems)
+        .set({ unitCost, purchasePrice: Math.round(unitCost * Math.max(1, Number(material.packageQty)) * 10_000) / 10_000, updatedAt: new Date() })
+        .where(eq(inventoryItems.sku, own[0].sku));
+      await db.update(wmsProduct).set({ hpp: unitCost, updatedAt: new Date() }).where(eq(wmsProduct.sku, own[0].sku));
+      seeded++;
+    }
+  }
+  return seeded;
 }

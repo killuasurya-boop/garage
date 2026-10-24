@@ -121,6 +121,15 @@ export type GarageMenuItem = {
     unitCost?: number;
     lineCost?: number;
   }>;
+  // Resep usulan menunggu persetujuan (belum memotong stok / masuk HPP).
+  draftRecipes?: Array<{
+    variantId: string;
+    inventorySku: string;
+    inventoryName?: string;
+    qty: number;
+    unit: string;
+    wastePct: number;
+  }>;
 };
 
 export const roles: Role[] = ["Owner", "Manajer", "Kasir", "Waiter"];

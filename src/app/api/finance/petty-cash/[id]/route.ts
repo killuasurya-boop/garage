@@ -8,11 +8,14 @@ import { requireAnyPermission } from "@/lib/server-auth";
 export const runtime = "nodejs";
 
 const decideSchema = z.object({
-  decision: z.enum(["approve", "reject", "cancel"]),
+  decision: z.enum(["approve", "reject", "cancel", "pay"]),
   note: z.string().trim().max(500).optional(),
+  // Bayar: penerima dana & nomor nota saat uang diserahkan.
+  recipient: z.string().trim().max(120).optional(),
+  receiptNo: z.string().trim().max(80).optional(),
 });
 
-/** Setujui / tolak (Owner/Manajer) atau batalkan (pengaju) entri petty cash. */
+/** Setujui / tolak / bayar (Owner/Manajer) atau batalkan entri petty cash. */
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requireAnyPermission(["finance:write", "shift:cash"]);
   if (session.response) return session.response;

@@ -212,4 +212,26 @@ describe("migrasi 0159", () => {
     expect((await sessionRow(open.id)).ledgerMode).toBe(true);
     await expectCacheMatchesLedger(open.id);
   });
+
+  it("0160: petty cash lama yang disetujui = dibayar pada waktu aslinya; saldo historis sama; idempoten", async () => {
+    const acc = await import("@/lib/cashier-accountability");
+    const at = new Date("2026-10-20T03:00:00Z");
+    const [e1] = await q(`insert into petty_cash_entries (entry_no, outlet_id, type, category, description, amount, status, entry_at, approved_at)
+      values ('PC-LEGACY-1', '${outletId}', 'topup', 'Pengisian dana', 'Dana lama', 300000, 'approved', '${at.toISOString()}', '${at.toISOString()}') returning id`);
+    await q(`insert into petty_cash_entries (entry_no, outlet_id, type, category, description, amount, status, entry_at, approved_at)
+      values ('PC-LEGACY-2', '${outletId}', 'expense', 'Kebersihan', 'Sabun lama', 40000, 'approved', '${new Date(at.getTime() + 3_600_000).toISOString()}', null)`);
+    await q(`insert into petty_cash_entries (entry_no, outlet_id, type, category, description, amount, status, entry_at)
+      values ('PC-LEGACY-3', '${outletId}', 'expense', 'Lain-lain', 'Ditolak lama', 99000, 'rejected', '${at.toISOString()}')`);
+    const sql = fs.readFileSync("./drizzle/0160_petty_cash_payment.sql", "utf8");
+    const data = sql.split("--> statement-breakpoint").map((x) => x.trim()).filter((x) => /petty_legacy/.test(x));
+    expect(data.length).toBe(2);
+    for (let run = 0; run < 2; run++) for (const stmt of data) await (t.getPgPool() as any).exec(stmt);
+    const [row] = await q(`select paid_at, ledger_entry_id from petty_cash_entries where id = '${e1.id}'`);
+    expect(row.ledger_entry_id).toBeTruthy();
+    expect(new Date(row.paid_at).toISOString()).toBe(at.toISOString());
+    expect(await acc.pettyCashBalanceBefore(outletId, new Date(at.getTime() + 1_000))).toBe(300_000);
+    expect(await acc.pettyCashBalanceBefore(outletId, new Date(at.getTime() + 7_200_000))).toBe(260_000);
+    const count = await q(`select count(*)::int n from cash_ledger_entries where idempotency_key like 'petty_legacy:%'`);
+    expect(count[0].n).toBe(2);
+  });
 });

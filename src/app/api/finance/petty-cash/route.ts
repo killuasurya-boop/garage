@@ -6,6 +6,8 @@ import {
   createPettyCashEntry,
   listPettyCashEntries,
   PETTY_CASH_TYPES,
+  PETTY_FUND_SOURCES,
+  pettyCashBalance,
   pettyCashBalanceBefore,
   summarizePettyCash,
 } from "@/lib/cashier-accountability";
@@ -21,6 +23,7 @@ const entrySchema = z.object({
   recipient: z.string().trim().max(120).optional(),
   receiptNo: z.string().trim().max(80).optional(),
   receiptUrl: z.string().trim().max(500).optional(),
+  fundSource: z.enum(PETTY_FUND_SOURCES).optional(),
 });
 
 /** Buku petty cash outlet: ?from=YYYY-MM-DD&to=YYYY-MM-DD (default hari ini). */
@@ -33,11 +36,12 @@ export async function GET(request: Request) {
   const toDay = new Date(`${params.get("to") || params.get("from") || today}T00:00:00+07:00`);
   const to = new Date(toDay.getTime() + 86_400_000);
   const outletId = session.data.profile.outlet.id;
-  const [entries, openingBalance] = await Promise.all([
+  const [entries, openingBalance, closingBalance] = await Promise.all([
     listPettyCashEntries({ outletId, from, to }),
     pettyCashBalanceBefore(outletId, from),
+    pettyCashBalance(outletId, to),
   ]);
-  return ok(summarizePettyCash(entries, openingBalance));
+  return ok(summarizePettyCash(entries, openingBalance, closingBalance));
 }
 
 export async function POST(request: Request) {

@@ -45,6 +45,9 @@ const INCIDENT_CATEGORIES = [
 const PETTY_STATUS: Record<string, { label: string; className: string }> = {
   submitted: { label: "Diajukan", className: "border-[#f5a742]/55 bg-[#f5a742]/15 text-[#ffd08a]" },
   approved: { label: "Disetujui", className: "border-[#4a4a54] bg-white/10 text-white" },
+  awaiting: { label: "Disetujui · belum dibayar", className: "border-[#f5a742]/55 bg-[#f5a742]/10 text-[#ffd08a]" },
+  paid: { label: "Dibayar", className: "border-[#4a4a54] bg-white/10 text-white" },
+  reversed: { label: "Dibatalkan (dibalik)", className: "border-[#4a4a54] bg-white/5 text-[#c8c8cf]" },
   rejected: { label: "Ditolak", className: "border-[#d11a2a]/55 bg-[#d11a2a]/15 text-[#ffc2c8]" },
   cancelled: { label: "Dibatalkan", className: "border-[#4a4a54] bg-white/5 text-[#c8c8cf]" },
 };
@@ -181,6 +184,24 @@ type PettyEntry = {
   approvedByName: string | null;
   entryAt: string;
   runningBalance: number | null;
+  paidAt: string | null;
+  paidByName: string | null;
+  reversed: boolean;
+  fundSource: string | null;
+  selfApproved: boolean;
+};
+
+/** Status jujur petty cash: disetujui ≠ dibayar. */
+function pettyStatusKey(entry: PettyEntry) {
+  if (entry.reversed) return "reversed";
+  if (entry.status === "approved") return entry.paidAt ? "paid" : "awaiting";
+  return entry.status;
+}
+
+const FUND_SOURCE_LABEL: Record<string, string> = {
+  bank_jago: "Rekening Jago",
+  bank_bni: "Rekening BNI",
+  external: "Uang pribadi Owner",
 };
 type PettySummary = {
   openingBalance: number;
@@ -190,17 +211,20 @@ type PettySummary = {
   closingBalance: number;
   pendingCount: number;
   pendingExpenseTotal: number;
+  awaitingPaymentCount: number;
+  awaitingPaymentTotal: number;
+  otherDayReversals: number;
   ledger: PettyEntry[];
 };
 
 /** Kas kecil terpisah dari laci: kasir mengajukan, Owner/Manajer menyetujui / mengisi dana. */
-export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
+export function PettyCashPanel({ canSupervise, isOwner = false }: { canSupervise: boolean; isOwner?: boolean }) {
   const [date, setDate] = useState(todayKey);
   const [data, setData] = useState<PettySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ type: "expense", category: PETTY_EXPENSE_CATEGORIES[0], description: "", amount: "", recipient: "", receiptNo: "" });
+  const [form, setForm] = useState({ type: "expense", category: PETTY_EXPENSE_CATEGORIES[0], description: "", amount: "", recipient: "", receiptNo: "", fundSource: "bank_jago" });
 
   const load = useCallback(async () => {
     setError(null);
@@ -233,8 +257,13 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
         amount,
         ...(form.recipient.trim() ? { recipient: form.recipient } : {}),
         ...(form.receiptNo.trim() ? { receiptNo: form.receiptNo } : {}),
+        ...(form.type === "topup" ? { fundSource: form.fundSource } : {}),
       });
-      setMessage(canSupervise ? "Petty cash dicatat." : "Pengajuan terkirim — menunggu persetujuan Owner/Manajer.");
+      setMessage(
+        isOwner
+          ? "Petty cash dicatat & dibayar (Owner — tanpa pemeriksa kedua)."
+          : "Pengajuan terkirim — menunggu persetujuan Owner/Manajer lain, lalu uang diserahkan.",
+      );
       setForm((current) => ({ ...current, description: "", amount: "", recipient: "", receiptNo: "" }));
       await load();
     } catch (err) {
@@ -244,13 +273,26 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
     }
   }
 
-  async function decide(id: string, decision: "approve" | "reject" | "cancel") {
-    const note = decision === "approve" ? "" : window.prompt(decision === "reject" ? "Alasan menolak:" : "Alasan membatalkan:") ?? "";
-    if (decision !== "approve" && !note.trim()) return;
+  async function decide(entry: PettyEntry, decision: "approve" | "reject" | "cancel" | "pay") {
+    const id = entry.id;
+    let note = "";
+    let recipient = "";
+    if (decision === "reject" || decision === "cancel") {
+      note = window.prompt(decision === "reject" ? "Alasan menolak:" : "Alasan membatalkan:") ?? "";
+      if (!note.trim()) return;
+    }
+    if (decision === "pay" && entry.type === "expense" && !entry.recipient) {
+      recipient = window.prompt("Uang diserahkan kepada siapa?") ?? "";
+      if (!recipient.trim()) return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await garageApi.patch(`/api/finance/petty-cash/${id}`, { decision, ...(note.trim() ? { note } : {}) });
+      await garageApi.patch(`/api/finance/petty-cash/${id}`, {
+        decision,
+        ...(note.trim() ? { note } : {}),
+        ...(recipient.trim() ? { recipient } : {}),
+      });
       await load();
     } catch (err) {
       setError(errorText(err, "Gagal memproses petty cash."));
@@ -268,7 +310,7 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
           <Wallet className="size-4 text-[#f5a742]" /> Petty Cash (kas kecil)
         </CardTitle>
         <CardDescription className="text-[#c8c8cf]">
-          Terpisah dari uang laci kasir. Saldo hanya berubah setelah pengajuan disetujui Owner/Manajer.
+          Terpisah dari uang laci kasir. Alur: diajukan → disetujui Owner/Manajer lain → uang diserahkan (Bayar). Saldo hanya berubah saat uang benar-benar diserahkan/diterima.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -296,6 +338,14 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
             Saldo petty cash minus {rp(data.closingBalance)} — pengeluaran disetujui melebihi dana. Catat Penambahan dana yang sudah diberikan.
           </p>
         ) : null}
+        {data?.awaitingPaymentCount ? (
+          <p className="rounded-md border border-[#f5a742]/50 bg-[#f5a742]/10 px-3 py-2 text-sm font-semibold text-[#ffd08a]">
+            {data.awaitingPaymentCount} disetujui tapi uang belum diserahkan · {rp(data.awaitingPaymentTotal)} (belum mengurangi saldo)
+          </p>
+        ) : null}
+        {data?.otherDayReversals ? (
+          <p className="text-xs text-[#c8c8cf]">Termasuk pembatalan entri hari lain: {rp(data.otherDayReversals)}.</p>
+        ) : null}
         {data?.pendingCount ? (
           <p className="rounded-md border border-[#f5a742]/50 bg-[#f5a742]/10 px-3 py-2 text-sm font-semibold text-[#ffd08a]">
             {data.pendingCount} pengajuan menunggu persetujuan · {rp(data.pendingExpenseTotal)} (belum mengurangi saldo)
@@ -303,7 +353,7 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
         ) : null}
 
         <form onSubmit={(event) => void submit(event)} className="grid gap-2 rounded-lg border border-[#34343c] bg-white/[0.03] p-3 sm:grid-cols-2">
-          <p className="text-sm font-bold text-white sm:col-span-2">{canSupervise ? "Catat petty cash" : "Ajukan pengeluaran petty cash"}</p>
+          <p className="text-sm font-bold text-white sm:col-span-2">{isOwner ? "Catat petty cash (langsung dibayar)" : canSupervise ? "Ajukan petty cash" : "Ajukan pengeluaran petty cash"}</p>
           {canSupervise ? (
             <label className="flex flex-col gap-1 text-xs font-semibold text-[#d6d6dc]">
               Jenis
@@ -321,6 +371,18 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
                 <option value="expense">Pengeluaran</option>
                 <option value="topup">Penambahan dana</option>
                 <option value="adjustment">Penyesuaian (±)</option>
+              </select>
+            </label>
+          ) : null}
+          {form.type === "topup" ? (
+            <label className="flex flex-col gap-1 text-xs font-semibold text-[#d6d6dc]">
+              Sumber dana
+              <select className={selectClass} value={form.fundSource} onChange={(event) => setForm((current) => ({ ...current, fundSource: event.target.value }))}>
+                {Object.entries(FUND_SOURCE_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
@@ -350,7 +412,7 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
           </label>
           <div className="flex items-end">
             <Button type="submit" disabled={busy} className="h-10 w-full bg-[#d11a2a] text-white hover:bg-[#e5484d]" data-testid="petty-submit">
-              <Plus className="size-4" /> {canSupervise ? "Simpan" : "Ajukan"}
+              <Plus className="size-4" /> {isOwner ? "Simpan" : "Ajukan"}
             </Button>
           </div>
         </form>
@@ -375,11 +437,14 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
                         {entry.recipient ? ` · ke ${entry.recipient}` : ""}
                         {entry.receiptNo ? ` · nota ${entry.receiptNo}` : ""}
                         {entry.approvedByName ? ` · disetujui ${entry.approvedByName}` : ""}
+                        {entry.selfApproved ? " (tanpa pemeriksa kedua)" : ""}
+                        {entry.paidByName ? ` · dibayar ${entry.paidByName}` : ""}
+                        {entry.fundSource ? ` · dari ${FUND_SOURCE_LABEL[entry.fundSource] ?? entry.fundSource}` : ""}
                         {entry.decisionNote ? ` · ${entry.decisionNote}` : ""}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <Badge className={PETTY_STATUS[entry.status]?.className}>{PETTY_STATUS[entry.status]?.label ?? entry.status}</Badge>
+                      <Badge className={PETTY_STATUS[pettyStatusKey(entry)]?.className}>{PETTY_STATUS[pettyStatusKey(entry)]?.label ?? entry.status}</Badge>
                       {entry.runningBalance !== null ? <span className="text-xs text-[#c8c8cf]">Saldo {rp(entry.runningBalance)}</span> : null}
                     </div>
                   </div>
@@ -387,16 +452,28 @@ export function PettyCashPanel({ canSupervise }: { canSupervise: boolean }) {
                     <div className="mt-2 flex flex-wrap gap-2">
                       {canSupervise ? (
                         <>
-                          <Button type="button" size="sm" disabled={busy} className="h-9 bg-[#f5a742] text-black hover:bg-[#ffc167]" onClick={() => void decide(entry.id, "approve")}>
+                          <Button type="button" size="sm" disabled={busy} className="h-9 bg-[#f5a742] text-black hover:bg-[#ffc167]" onClick={() => void decide(entry, "approve")}>
                             <CheckCircle2 className="size-4" /> Setujui
                           </Button>
-                          <Button type="button" size="sm" variant="outline" disabled={busy} className="h-9 border-[#d11a2a]/60 text-[#ffc2c8]" onClick={() => void decide(entry.id, "reject")}>
+                          <Button type="button" size="sm" variant="outline" disabled={busy} className="h-9 border-[#d11a2a]/60 text-[#ffc2c8]" onClick={() => void decide(entry, "reject")}>
                             <XCircle className="size-4" /> Tolak
                           </Button>
                         </>
                       ) : null}
-                      <Button type="button" size="sm" variant="outline" disabled={busy} className="h-9 border-[#4a4a54]" onClick={() => void decide(entry.id, "cancel")}>
+                      <Button type="button" size="sm" variant="outline" disabled={busy} className="h-9 border-[#4a4a54]" onClick={() => void decide(entry, "cancel")}>
                         Batalkan
+                      </Button>
+                    </div>
+                  ) : null}
+                  {entry.status === "approved" && canSupervise && !entry.reversed ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {!entry.paidAt ? (
+                        <Button type="button" size="sm" disabled={busy} className="h-9 bg-[#f5a742] text-black hover:bg-[#ffc167]" onClick={() => void decide(entry, "pay")} data-testid="petty-pay">
+                          <Wallet className="size-4" /> {entry.type === "topup" ? "Dana diterima" : "Serahkan uang"}
+                        </Button>
+                      ) : null}
+                      <Button type="button" size="sm" variant="outline" disabled={busy} className="h-9 border-[#4a4a54]" onClick={() => void decide(entry, "cancel")}>
+                        {entry.paidAt ? "Batalkan (dibalik)" : "Batalkan"}
                       </Button>
                     </div>
                   ) : null}

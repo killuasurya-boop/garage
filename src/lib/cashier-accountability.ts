@@ -10,6 +10,7 @@ import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { cashSessions, pettyCashEntries, shiftIncidents, user } from "@/db/schema";
+import { accountBalance, postAccountCash, type CashAccount } from "@/lib/cash-ledger";
 import { createAuditLog, roleDisplayName } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -117,6 +118,14 @@ export async function assertSessionAccess(sessionId: string, garage: GarageSessi
 }
 
 // ── Petty cash ──────────────────────────────────────────────────────────────
+// P2 (owner, Okt 2026): status persetujuan ≠ pembayaran. Saldo petty cash = buku
+// kas akun `petty` (cash_ledger_entries) — hanya bergerak saat uang benar-benar
+// diserahkan/diterima ("Bayar"). Pengaju ≠ penyetuju (Owner = pengecualian
+// tercatat "tanpa pemeriksa kedua"). Bayar dikunci per outlet & tidak boleh
+// melebihi saldo. Batal setelah dibayar = baris pembalik (riwayat tetap).
+
+export const PETTY_FUND_SOURCES = ["bank_jago", "bank_bni", "external"] as const;
+export type PettyFundSource = (typeof PETTY_FUND_SOURCES)[number];
 
 export type PettyCashEntryRow = {
   id: string;
@@ -135,6 +144,13 @@ export type PettyCashEntryRow = {
   approvedByName: string | null;
   approvedAt: string | null;
   entryAt: string;
+  /** Uang sudah diserahkan/diterima (buku kas). null = belum. */
+  paidAt?: string | null;
+  paidByName?: string | null;
+  /** Dibatalkan setelah dibayar — ada baris pembalik di buku kas. */
+  reversed?: boolean;
+  fundSource?: string | null;
+  selfApproved?: boolean;
 };
 
 /** Efek entri ke saldo: top-up +, pengeluaran −, penyesuaian ± (amount bertanda). */
@@ -144,35 +160,49 @@ export function pettyCashDelta(entry: Pick<PettyCashEntryRow, "type" | "amount">
   return entry.amount;
 }
 
+/** Uangnya bergerak (dibayar & tidak dibalik). Data tanpa info pembayaran = aturan lama (disetujui). */
+function moved(entry: PettyCashEntryRow) {
+  if (entry.paidAt === undefined) return entry.status === "approved";
+  return Boolean(entry.paidAt) && !entry.reversed;
+}
+
 /**
- * Saldo akhir = saldo awal + penambahan disetujui − pengeluaran disetujui
- * (± penyesuaian). Pengajuan yang belum diputuskan TIDAK mengubah saldo.
+ * Saldo akhir = saldo awal + dana masuk dibayar − pengeluaran dibayar (± penyesuaian).
+ * Pengajuan/disetujui-belum-dibayar TIDAK mengubah saldo. `closingFromLedger` (buku
+ * kas) menjadi saldo akhir resmi; beda dengan hitungan entri = pembatalan entri hari lain.
  */
-export function summarizePettyCash(entries: PettyCashEntryRow[], openingBalance: number) {
-  const approved = entries.filter((entry) => entry.status === "approved");
-  const topups = approved.filter((entry) => entry.type === "topup").reduce((sum, entry) => sum + entry.amount, 0);
-  const expenses = approved.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.amount, 0);
-  const adjustments = approved.filter((entry) => entry.type === "adjustment").reduce((sum, entry) => sum + entry.amount, 0);
+export function summarizePettyCash(entries: PettyCashEntryRow[], openingBalance: number, closingFromLedger?: number) {
+  const paid = entries.filter(moved);
+  const topups = paid.filter((entry) => entry.type === "topup").reduce((sum, entry) => sum + entry.amount, 0);
+  const expenses = paid.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.amount, 0);
+  const adjustments = paid.filter((entry) => entry.type === "adjustment").reduce((sum, entry) => sum + entry.amount, 0);
   const pending = entries.filter((entry) => entry.status === "submitted");
+  const awaitingPayment = entries.filter((entry) => entry.status === "approved" && entry.paidAt === null);
   let running = openingBalance;
   const ledger = entries.map((entry) => {
-    if (entry.status === "approved") running += pettyCashDelta(entry);
-    return { ...entry, runningBalance: entry.status === "approved" ? running : null };
+    if (moved(entry)) running += pettyCashDelta(entry);
+    return { ...entry, runningBalance: moved(entry) ? running : null };
   });
+  const computedClosing = openingBalance + topups - expenses + adjustments;
   return {
     openingBalance,
     topups,
     expenses,
     adjustments,
-    closingBalance: openingBalance + topups - expenses + adjustments,
+    closingBalance: closingFromLedger ?? computedClosing,
+    /** Pembatalan (baris pembalik) atas entri di luar rentang tanggal ini. */
+    otherDayReversals: closingFromLedger === undefined ? 0 : closingFromLedger - computedClosing,
     pendingCount: pending.length,
     pendingExpenseTotal: pending.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.amount, 0),
+    awaitingPaymentCount: awaitingPayment.length,
+    awaitingPaymentTotal: awaitingPayment.reduce((sum, entry) => sum + Math.abs(pettyCashDelta(entry)), 0),
     rejectedCount: entries.filter((entry) => entry.status === "rejected").length,
     ledger,
   };
 }
 
 const approverUser = sql<string | null>`(select name from "user" where id = ${pettyCashEntries.approvedBy})`;
+const payerUser = sql<string | null>`(select name from "user" where id = ${pettyCashEntries.paidBy})`;
 
 export async function listPettyCashEntries(filter: {
   outletId: string | null;
@@ -190,12 +220,13 @@ export async function listPettyCashEntries(filter: {
       entry: pettyCashEntries,
       createdByName: user.name,
       approvedByName: approverUser,
+      paidByName: payerUser,
     })
     .from(pettyCashEntries)
     .leftJoin(user, eq(user.id, pettyCashEntries.createdBy))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(asc(pettyCashEntries.entryAt));
-  return rows.map(({ entry, createdByName, approvedByName }) => ({
+  return rows.map(({ entry, createdByName, approvedByName, paidByName }) => ({
     id: entry.id,
     entryNo: entry.entryNo,
     type: entry.type as PettyCashType,
@@ -212,23 +243,22 @@ export async function listPettyCashEntries(filter: {
     approvedByName: approvedByName ?? null,
     approvedAt: entry.approvedAt?.toISOString() ?? null,
     entryAt: entry.entryAt.toISOString(),
+    paidAt: entry.paidAt?.toISOString() ?? null,
+    paidByName: paidByName ?? null,
+    reversed: Boolean(entry.reversalLedgerEntryId),
+    fundSource: entry.fundSource,
+    selfApproved: entry.selfApproved,
   }));
 }
 
-/** Saldo petty cash outlet sebelum `before` (hanya entri disetujui). */
+/** Saldo petty cash outlet sebelum `before` menurut buku kas (riwayat tidak berubah). */
 export async function pettyCashBalanceBefore(outletId: string | null, before: Date) {
-  const conditions = [eq(pettyCashEntries.status, "approved"), lt(pettyCashEntries.entryAt, before)];
-  if (outletId) conditions.push(eq(pettyCashEntries.outletId, outletId));
-  const [row] = await getDb()
-    .select({
-      balance: sql<number>`coalesce(sum(case
-        when ${pettyCashEntries.type} = 'topup' then ${pettyCashEntries.amount}
-        when ${pettyCashEntries.type} = 'expense' then -${pettyCashEntries.amount}
-        else ${pettyCashEntries.amount} end), 0)::int`,
-    })
-    .from(pettyCashEntries)
-    .where(and(...conditions));
-  return Number(row?.balance ?? 0);
+  return accountBalance("petty", outletId, before);
+}
+
+/** Saldo petty cash outlet sampai `at` (default sekarang). */
+export async function pettyCashBalance(outletId: string | null, at?: Date) {
+  return accountBalance("petty", outletId, at);
 }
 
 export type PettyCashInput = {
@@ -239,10 +269,58 @@ export type PettyCashInput = {
   recipient?: string | null;
   receiptNo?: string | null;
   receiptUrl?: string | null;
+  /** Top-up: sumber dana (Rekening Jago/BNI/uang pribadi Owner). */
+  fundSource?: PettyFundSource | null;
 };
+
+type PettyRow = typeof pettyCashEntries.$inferSelect;
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+async function lockPettyOutlet(tx: Tx, outletId: string | null) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`petty:${outletId ?? "-"}`}))`);
+}
+
+/** Uang bergerak: posting buku kas akun petty (cek saldo untuk uang keluar). */
+async function postPettyMovement(tx: Tx, entry: PettyRow, garage: GarageSession, at: Date) {
+  const outflow = pettyCashDelta({ type: entry.type as PettyCashType, amount: entry.amount }) < 0;
+  await lockPettyOutlet(tx, entry.outletId);
+  if (outflow) {
+    const balance = await accountBalance("petty", entry.outletId, undefined, tx as never);
+    if (Math.abs(entry.amount) > balance) {
+      throw new AccountabilityError(
+        "PETTY_INSUFFICIENT",
+        `Saldo petty cash ${rupiah(balance)} tidak cukup untuk ${rupiah(Math.abs(entry.amount))}. Isi dana dulu.`,
+        409,
+      );
+    }
+  }
+  const from: CashAccount =
+    entry.type === "topup" ? ((entry.fundSource as CashAccount | null) ?? "external") : outflow ? "petty" : "external";
+  const to: CashAccount = outflow ? "external" : "petty";
+  const posted = await postAccountCash(tx as never, {
+    from,
+    to,
+    amount: Math.abs(entry.amount),
+    outletId: entry.outletId,
+    sourceType: entry.type === "topup" ? "petty_topup" : entry.type === "expense" ? "petty_expense" : "petty_adjustment",
+    sourceId: entry.id,
+    sourceRef: entry.entryNo,
+    actorUserId: garage.user.id,
+    approverUserId: entry.approvedBy,
+    note: entry.description,
+    occurredAt: at,
+    idempotencyKey: `petty:${entry.id}`,
+  });
+  return posted.id;
+}
+
+function rupiah(value: number) {
+  return `Rp${Math.round(value).toLocaleString("id-ID")}`;
+}
 
 export async function createPettyCashEntry(input: PettyCashInput, garage: GarageSession) {
   const admin = isAdmin(garage);
+  const owner = garage.profile.role === "Owner";
   if (!admin && input.type !== "expense") {
     throw new AccountabilityError("FORBIDDEN", "Kasir hanya bisa mengajukan pengeluaran petty cash.", 403);
   }
@@ -252,90 +330,176 @@ export async function createPettyCashEntry(input: PettyCashInput, garage: Garage
   if (input.description.trim().length < 3) {
     throw new AccountabilityError("DESCRIPTION_REQUIRED", "Uraian kebutuhan wajib diisi.");
   }
+  if (input.type === "expense" && owner && !input.recipient?.trim()) {
+    throw new AccountabilityError("RECIPIENT_REQUIRED", "Isi penerima dana — uang langsung diserahkan saat dicatat Owner.");
+  }
   const now = new Date();
   const entryNo = `PC-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${randomUUID().slice(0, 6).toUpperCase()}`;
-  // Owner/Manajer mencatat langsung (sudah disetujui); pengajuan kasir menunggu keputusan.
-  const status: PettyCashStatus = admin ? "approved" : "submitted";
-  const [row] = await getDb()
-    .insert(pettyCashEntries)
-    .values({
-      entryNo,
-      outletId: garage.profile.outlet.id,
-      cashSessionId: await openSessionIdFor(garage),
-      type: input.type,
-      category: input.category.trim(),
-      description: input.description.trim(),
-      amount: input.amount,
-      recipient: input.recipient?.trim() || null,
-      receiptNo: input.receiptNo?.trim() || null,
-      receiptUrl: input.receiptUrl?.trim() || null,
-      status,
-      createdBy: garage.user.id,
-      approvedBy: admin ? garage.user.id : null,
-      approvedAt: admin ? now : null,
-      entryAt: now,
-    })
-    .returning();
+  // Owner mencatat = disetujui & dibayar sekarang (pengecualian tercatat, tanpa pemeriksa
+  // kedua). Manajer & Kasir = pengajuan → disetujui Owner/Manajer lain → dibayar.
+  const status: PettyCashStatus = owner ? "approved" : "submitted";
+  // Di luar transaksi: query lewat koneksi lain di dalam tx bisa saling menunggu.
+  const cashSessionId = await openSessionIdFor(garage);
+  const row = await getDb().transaction(async (tx) => {
+    const [created] = await tx
+      .insert(pettyCashEntries)
+      .values({
+        entryNo,
+        outletId: garage.profile.outlet.id,
+        cashSessionId,
+        type: input.type,
+        category: input.category.trim(),
+        description: input.description.trim(),
+        amount: input.amount,
+        recipient: input.recipient?.trim() || null,
+        receiptNo: input.receiptNo?.trim() || null,
+        receiptUrl: input.receiptUrl?.trim() || null,
+        fundSource: input.type === "topup" ? (input.fundSource ?? "external") : null,
+        status,
+        selfApproved: owner,
+        createdBy: garage.user.id,
+        approvedBy: owner ? garage.user.id : null,
+        approvedAt: owner ? now : null,
+        entryAt: now,
+      })
+      .returning();
+    if (!owner) return created;
+    const ledgerEntryId = await postPettyMovement(tx, created, garage, now);
+    const [paid] = await tx
+      .update(pettyCashEntries)
+      .set({ paidAt: now, paidBy: garage.user.id, ledgerEntryId })
+      .where(eq(pettyCashEntries.id, created.id))
+      .returning();
+    return paid;
+  });
   await createAuditLog({
     actor: actorLabel(garage),
-    action: admin ? "Petty cash dicatat" : "Petty cash diajukan",
+    action: owner ? "Petty cash dicatat (Owner, tanpa pemeriksa kedua)" : "Petty cash diajukan",
     object: `${entryNo} · ${input.category}: ${input.description}`,
     device: garage.profile.deviceLabel,
-    metadata: { pettyCashId: row.id, entryNo, type: input.type, amount: input.amount, status },
+    metadata: { pettyCashId: row.id, entryNo, type: input.type, amount: input.amount, status, selfApproved: owner },
   });
   return row;
 }
 
+export type PettyCashDecision = "approve" | "reject" | "cancel" | "pay";
+
 export async function decidePettyCashEntry(
   id: string,
-  input: { decision: "approve" | "reject" | "cancel"; note?: string | null },
+  input: { decision: PettyCashDecision; note?: string | null; recipient?: string | null; receiptNo?: string | null },
   garage: GarageSession,
 ) {
-  const db = getDb();
-  const [entry] = await db.select().from(pettyCashEntries).where(eq(pettyCashEntries.id, id)).limit(1);
-  if (!entry) throw new AccountabilityError("NOT_FOUND", "Entri petty cash tidak ditemukan.", 404);
-  if (entry.status !== "submitted" && !(input.decision === "cancel" && entry.status === "approved" && isAdmin(garage))) {
-    throw new AccountabilityError("INVALID_STATE", `Entri sudah ${PETTY_CASH_STATUS_LABEL[entry.status as PettyCashStatus] ?? entry.status}.`, 409);
-  }
-  if (input.decision === "cancel") {
-    if (!isAdmin(garage) && entry.createdBy !== garage.user.id) {
-      throw new AccountabilityError("FORBIDDEN", "Hanya pengaju atau Owner/Manajer yang bisa membatalkan.", 403);
-    }
-  } else {
-    assertAdmin(garage, "Persetujuan petty cash");
-  }
-  if (input.decision !== "approve" && !(input.note ?? "").trim()) {
-    throw new AccountabilityError("NOTE_REQUIRED", "Alasan wajib diisi.");
-  }
-  const status: PettyCashStatus =
-    input.decision === "approve" ? "approved" : input.decision === "reject" ? "rejected" : "cancelled";
+  const note = input.note?.trim() || null;
   const now = new Date();
-  const [updated] = await db
-    .update(pettyCashEntries)
-    .set({
-      status,
-      decisionNote: input.note?.trim() || null,
-      approvedBy: input.decision === "approve" ? garage.user.id : entry.approvedBy,
-      approvedAt: input.decision === "approve" ? now : entry.approvedAt,
-    })
-    .where(eq(pettyCashEntries.id, id))
-    .returning();
+  const result = await getDb().transaction(async (tx) => {
+    // Kunci baris: dua keputusan bersamaan → hanya satu yang sah.
+    const [entry] = await tx.select().from(pettyCashEntries).where(eq(pettyCashEntries.id, id)).for("update");
+    if (!entry) throw new AccountabilityError("NOT_FOUND", "Entri petty cash tidak ditemukan.", 404);
+    if (isAdmin(garage) && garage.profile.role !== "Owner" && entry.outletId && entry.outletId !== garage.profile.outlet.id) {
+      throw new AccountabilityError("FORBIDDEN", "Entri petty cash outlet lain.", 403);
+    }
+    const label = PETTY_CASH_STATUS_LABEL[entry.status as PettyCashStatus] ?? entry.status;
+    const before = { status: entry.status, paidAt: entry.paidAt?.toISOString() ?? null };
+
+    if (input.decision === "approve" || input.decision === "reject") {
+      assertAdmin(garage, "Persetujuan petty cash");
+      if (entry.status !== "submitted") throw new AccountabilityError("INVALID_STATE", `Entri sudah ${label}.`, 409);
+      if (entry.createdBy === garage.user.id) {
+        throw new AccountabilityError("SELF_APPROVAL", "Pengajuan sendiri harus diputuskan Owner atau Manajer lain.", 403);
+      }
+      if (input.decision === "reject" && !note) throw new AccountabilityError("NOTE_REQUIRED", "Alasan wajib diisi.");
+      const [updated] = await tx
+        .update(pettyCashEntries)
+        .set(
+          input.decision === "approve"
+            ? { status: "approved", approvedBy: garage.user.id, approvedAt: now, decisionNote: note }
+            : { status: "rejected", decisionNote: note },
+        )
+        .where(and(eq(pettyCashEntries.id, id), eq(pettyCashEntries.status, "submitted")))
+        .returning();
+      return { entry, updated, action: input.decision === "approve" ? "Petty cash disetujui (belum dibayar)" : "Petty cash ditolak", before };
+    }
+
+    if (input.decision === "pay") {
+      assertAdmin(garage, "Pembayaran petty cash");
+      if (entry.status !== "approved") throw new AccountabilityError("INVALID_STATE", `Entri ${label} — hanya yang disetujui bisa dibayar.`, 409);
+      if (entry.paidAt) throw new AccountabilityError("ALREADY_PAID", "Entri ini sudah dibayar.", 409);
+      const recipient = input.recipient?.trim() || entry.recipient;
+      if (entry.type === "expense" && !recipient) {
+        throw new AccountabilityError("RECIPIENT_REQUIRED", "Isi penerima dana saat uang diserahkan.");
+      }
+      const prepared = { ...entry, recipient, receiptNo: input.receiptNo?.trim() || entry.receiptNo };
+      const ledgerEntryId = await postPettyMovement(tx, prepared, garage, now);
+      const [updated] = await tx
+        .update(pettyCashEntries)
+        .set({ paidAt: now, paidBy: garage.user.id, ledgerEntryId, recipient, receiptNo: prepared.receiptNo })
+        .where(eq(pettyCashEntries.id, id))
+        .returning();
+      return { entry, updated, action: entry.type === "topup" ? "Dana petty cash diterima" : "Petty cash dibayar", before };
+    }
+
+    // cancel
+    if (!note) throw new AccountabilityError("NOTE_REQUIRED", "Alasan wajib diisi.");
+    if (entry.status === "submitted") {
+      if (!isAdmin(garage) && entry.createdBy !== garage.user.id) {
+        throw new AccountabilityError("FORBIDDEN", "Hanya pengaju atau Owner/Manajer yang bisa membatalkan.", 403);
+      }
+    } else if (entry.status === "approved") {
+      assertAdmin(garage, "Pembatalan petty cash");
+    } else {
+      throw new AccountabilityError("INVALID_STATE", `Entri sudah ${label}.`, 409);
+    }
+    let reversalLedgerEntryId: string | null = null;
+    if (entry.paidAt && entry.ledgerEntryId) {
+      // Sudah dibayar → baris pembalik di buku kas (saldo historis tetap).
+      const inflowBack = pettyCashDelta({ type: entry.type as PettyCashType, amount: entry.amount }) < 0;
+      await lockPettyOutlet(tx, entry.outletId);
+      if (!inflowBack) {
+        const balance = await accountBalance("petty", entry.outletId, undefined, tx as never);
+        if (Math.abs(entry.amount) > balance) {
+          throw new AccountabilityError("PETTY_INSUFFICIENT", `Saldo petty cash ${rupiah(balance)} tidak cukup untuk membatalkan penambahan dana ini.`, 409);
+        }
+      }
+      const reversal = await postAccountCash(tx as never, {
+        from: inflowBack ? "external" : "petty",
+        to: inflowBack ? "petty" : entry.type === "topup" ? ((entry.fundSource as CashAccount | null) ?? "external") : "external",
+        amount: Math.abs(entry.amount),
+        outletId: entry.outletId,
+        sourceType: "petty_reversal",
+        sourceId: entry.id,
+        sourceRef: entry.entryNo,
+        reversesId: entry.ledgerEntryId,
+        actorUserId: garage.user.id,
+        note,
+        occurredAt: now,
+        idempotencyKey: `petty_reversal:${entry.id}`,
+      });
+      reversalLedgerEntryId = reversal.id;
+    }
+    const [updated] = await tx
+      .update(pettyCashEntries)
+      .set({ status: "cancelled", decisionNote: note, reversalLedgerEntryId })
+      .where(eq(pettyCashEntries.id, id))
+      .returning();
+    return { entry, updated, action: reversalLedgerEntryId ? "Petty cash dibatalkan (dibalik)" : "Petty cash dibatalkan", before };
+  });
+
   await createAuditLog({
     actor: actorLabel(garage),
-    action: `Petty cash ${PETTY_CASH_STATUS_LABEL[status].toLowerCase()}`,
-    object: `${entry.entryNo} · ${entry.description}`,
+    action: result.action,
+    object: `${result.entry.entryNo} · ${result.entry.description}`,
     device: garage.profile.deviceLabel,
-    status: status === "approved" ? "recorded" : "warning",
+    status: result.updated.status === "approved" ? "recorded" : "warning",
     metadata: {
       pettyCashId: id,
-      entryNo: entry.entryNo,
-      before: { status: entry.status },
-      after: { status },
-      reason: input.note?.trim() || null,
-      amount: entry.amount,
+      entryNo: result.entry.entryNo,
+      before: result.before,
+      after: { status: result.updated.status, paidAt: result.updated.paidAt?.toISOString() ?? null },
+      reason: note,
+      amount: result.entry.amount,
     },
   });
-  return updated;
+  return result.updated;
 }
 
 // ── Catatan kejadian ────────────────────────────────────────────────────────

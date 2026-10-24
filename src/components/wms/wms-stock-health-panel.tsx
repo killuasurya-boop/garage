@@ -7,7 +7,7 @@ import { garageApi } from "@/lib/api-client";
 
 type Issue = {
   id: string;
-  kind: "not_in_wms" | "unit_mismatch" | "oversold" | "batch_gap";
+  kind: "not_in_wms" | "unit_mismatch" | "oversold" | "expired_sold" | "batch_gap";
   sku: string;
   productName: string | null;
   refDoc: string;
@@ -22,6 +22,7 @@ const KIND_LABEL: Record<Issue["kind"], string> = {
   not_in_wms: "Belum di gudang",
   unit_mismatch: "Satuan beda",
   oversold: "Terjual melebihi stok",
+  expired_sold: "Terjual dari bahan kedaluwarsa",
   batch_gap: "Selisih batch",
 };
 

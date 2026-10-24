@@ -76,4 +76,16 @@ describe("Opname dengan approval", () => {
     await wms.finalizeWmsOpname(op.id); // idempoten
     expect(await onHand()).toBe(920);
   });
+
+  it("manajer tidak bisa menyetujui opname yang ia kirim sendiri (Owner boleh)", async () => {
+    await t.getDb().insert(t.schema.user).values({ id: "user-opname-mgr", name: "Manajer Test", email: "user-opname-mgr@garage.id" });
+    const op = await wms.createWmsOpname(barId);
+    const detail = await wms.getWmsOpname(op.id);
+    const line = detail.lines.find((l: any) => l.productId === productId);
+    await wms.saveWmsOpnameLine(line.id, 900, op.id, "user-opname-mgr");
+    await wms.submitWmsOpname(op.id, "user-opname-mgr");
+    await expect(wms.finalizeWmsOpname(op.id, "user-opname-mgr")).rejects.toThrow(/manajer lain/);
+    await wms.finalizeWmsOpname(op.id, "user-opname-mgr", { allowSelfApproval: true });
+    expect((await wms.getWmsOpname(op.id)).status).toBe("completed");
+  });
 });

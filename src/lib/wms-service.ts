@@ -397,7 +397,7 @@ type SaleStockInput = {
   unit?: string | null;
 };
 
-export type WmsStockIssueKind = "not_in_wms" | "unit_mismatch" | "oversold" | "batch_gap";
+export type WmsStockIssueKind = "not_in_wms" | "unit_mismatch" | "oversold" | "expired_sold" | "batch_gap";
 
 /**
  * Catat masalah stok (dulu terlewat diam-diam). Satu baris terbuka per (jenis, SKU):
@@ -433,7 +433,7 @@ export async function recordWmsStockIssue(
 /** Produk WMS + area (bar/dapur/umum) untuk SKU katalog; null bila bahan belum ada di WMS. */
 async function wmsProductForSku(tx: Tx, sku: string) {
   const [prod] = await tx
-    .select({ id: wmsProduct.id, hpp: wmsProduct.hpp, area: wmsCategory.area, unit: wmsProduct.unit })
+    .select({ id: wmsProduct.id, sku: wmsProduct.sku, hpp: wmsProduct.hpp, area: wmsCategory.area, unit: wmsProduct.unit })
     .from(wmsProduct)
     .leftJoin(wmsCategory, eq(wmsCategory.name, wmsProduct.category))
     // Termasuk produk terarsip: stoknya tetap di ledger WMS. Dulu disaring →
@@ -441,18 +441,18 @@ async function wmsProductForSku(tx: Tx, sku: string) {
     .where(eq(wmsProduct.sku, sku))
     .limit(1);
   if (!prod) return null;
-  return { id: prod.id, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea, unit: prod.unit };
+  return { id: prod.id, sku: prod.sku, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea, unit: prod.unit };
 }
 
 async function wmsProductById(tx: Tx, id: string) {
   const [prod] = await tx
-    .select({ id: wmsProduct.id, hpp: wmsProduct.hpp, area: wmsCategory.area })
+    .select({ id: wmsProduct.id, sku: wmsProduct.sku, hpp: wmsProduct.hpp, area: wmsCategory.area })
     .from(wmsProduct)
     .leftJoin(wmsCategory, eq(wmsCategory.name, wmsProduct.category))
     .where(eq(wmsProduct.id, id))
     .limit(1);
   if (!prod) return null;
-  return { id: prod.id, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea };
+  return { id: prod.id, sku: prod.sku, hpp: Number(prod.hpp), area: (prod.area ?? "umum") as WmsArea };
 }
 
 /** Urutan ruang pengambilan bahan jual: outlet area → gudang utama area → ruang lain. */
@@ -532,7 +532,7 @@ export function saleQtyInWmsUnit(qty: number, fromUnit: string | null | undefine
 /** Konsumsi 1 produk WMS untuk penjualan; kembalikan jumlah yang terpotong minus (kekurangan). */
 async function consumeProductForSale(
   tx: Tx,
-  prod: { id: string; hpp: number; area: WmsArea },
+  prod: { id: string; sku: string; hpp: number; area: WmsArea },
   qty: number,
   refDoc: string,
   userId: string | null,
@@ -541,12 +541,13 @@ async function consumeProductForSale(
   const input = { refDoc, userId };
   const order = await saleWarehouseOrder(tx, prod.area);
   let remaining = qty;
+  let expiredQty = 0;
   for (const wh of order) {
     if (remaining <= 0) break;
     const avail = await warehouseOnHand(tx, prod.id, wh.id);
     const take = Math.min(avail, remaining);
     if (take <= 0) continue;
-    await recordStockMovement(tx, {
+    const { used } = await recordStockMovement(tx, {
       type: "out",
       productId: prod.id,
       warehouseId: wh.id,
@@ -555,7 +556,20 @@ async function consumeProductForSale(
       refDoc: input.refDoc,
       userId: input.userId ?? null,
     });
+    // Batch layak selalu dipakai dulu; yang terambil dari batch kedaluwarsa = stok layak habis.
+    const now = Date.now();
+    expiredQty += used.filter((b) => b.expiredAt && b.expiredAt.getTime() < now).reduce((sum, b) => sum + b.qty, 0);
     remaining = Number((remaining - take).toFixed(4));
+  }
+  if (expiredQty > 0) {
+    await recordWmsStockIssue(tx, {
+      kind: "expired_sold",
+      sku: prod.sku,
+      productId: prod.id,
+      refDoc,
+      detail: "Terjual dari batch kedaluwarsa (stok layak habis) — cek bahan fisik, buang yang basi lewat Waste, lalu terima stok baru.",
+      qty: Number(expiredQty.toFixed(4)),
+    });
   }
   const shortage = remaining > 0 ? remaining : 0;
   if (shortage > 0 && order[0]) {
@@ -4543,7 +4557,7 @@ export async function rejectWmsOpname(id: string, reason: string, userId?: strin
  * fisik − stok saat dihitung, diterapkan ke stok live (mutasi sesudah hitung tetap).
  * Baris yang tidak dihitung dilewati. Dikunci + idempoten (anti double-finalize).
  */
-export async function finalizeWmsOpname(id: string, userId?: string | null) {
+export async function finalizeWmsOpname(id: string, userId?: string | null, opts: { allowSelfApproval?: boolean } = {}) {
   return runInTx(async (tx) => {
     const [op] = await tx
       .select()
@@ -4554,6 +4568,10 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
     if (!op) return null;
     if (op.status === "completed") return op;
     if (op.status !== "submitted") throw new Error("Opname harus dikirim penghitung dulu sebelum disetujui.");
+    // Pemisahan tugas: yang mengirim hitungan tidak menyetujui sendiri (kecuali Owner).
+    if (!opts.allowSelfApproval && userId && op.submittedBy === userId) {
+      throw new Error("Opname yang kamu kirim sendiri harus disetujui Owner atau manajer lain.");
+    }
     if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
 
     const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));

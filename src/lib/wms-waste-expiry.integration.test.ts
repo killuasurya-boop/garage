@@ -136,3 +136,13 @@ describe("Waste", () => {
     expect(summary.byReason.map((r: any) => r.label).sort()).toEqual(["Kedaluwarsa", "Tumpah / jatuh"]);
   });
 });
+
+describe("Penjualan dari bahan kedaluwarsa", () => {
+  it("kasir tidak diblokir, tapi tercatat sebagai masalah stok", async () => {
+    const p = await wms.createWmsProduct({ sku: "T-EXP-SALE", name: "Sirup Basi", category: "Bar · Waste Test", unit: "ml", packPrice: 10_000, packQty: 1000 });
+    await addBatch(p.id, outletBar, 100, new Date(Date.now() - DAY), "EXP-ONLY");
+    await wms.runInTx((tx: any) => wms.consumeWmsStockForSale(tx, { sku: "T-EXP-SALE", qty: 30, unit: "ml", refDoc: "SALE EXP" }));
+    const issue = (await wms.listOpenWmsStockIssues()).find((i: any) => i.kind === "expired_sold" && i.sku === "T-EXP-SALE");
+    expect(issue).toMatchObject({ qty: 30, refDoc: "SALE EXP" });
+  });
+});

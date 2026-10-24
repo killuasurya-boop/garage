@@ -150,8 +150,12 @@ export default function WmsPurchaseOrdersPage() {
     setBusy(true);
     setMsg(null);
     try {
-      const result = await garageApi.post<{ doc?: string }>(`/api/wms/purchase-orders/${detail.id}/${action}`, {});
-      if (action === "receive") setMsg({ ok: true, text: `Penerimaan ${result.doc ?? ""} dibuat (draft). Lanjutkan di menu Receiving: cek qty, expired, lalu Selesai.` });
+      const result = await garageApi.post<{ id?: string; doc?: string }>(`/api/wms/purchase-orders/${detail.id}/${action}`, {});
+      if (action === "receive" && result.id) {
+        // Lanjut langsung ke draft penerimaan: cek qty, isi expired, lalu Selesai.
+        window.location.assign(`/warehouse/receiving?edit=${result.id}`);
+        return;
+      }
       await reload();
       await open(detail.id);
     } catch (e) {

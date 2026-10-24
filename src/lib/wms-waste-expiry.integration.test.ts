@@ -24,14 +24,14 @@ async function addBatch(productId: string, warehouseId: string, qty: number, exp
   );
 }
 
-async function batches(productId: string, warehouseId: string) {
+async function batches(productId: string, warehouseId: string): Promise<Array<{ batchNo: string; qty: number; expiredAt: Date }>> {
   const { and, eq, sql } = await import("drizzle-orm");
   const rows = await t
     .getDb()
     .select()
     .from(t.schema.wmsBatch)
     .where(and(eq(t.schema.wmsBatch.productId, productId), eq(t.schema.wmsBatch.warehouseId, warehouseId), sql`${t.schema.wmsBatch.qty} > 0`));
-  return rows.map((b: any) => ({ batchNo: b.batchNo, qty: Number(b.qty), expiredAt: b.expiredAt }));
+  return rows.map((b: any) => ({ batchNo: b.batchNo as string, qty: Number(b.qty), expiredAt: b.expiredAt as Date }));
 }
 
 const owner = { userId: null, name: "Owner Test", elevated: true };

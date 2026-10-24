@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
+import { wmsIsElevated } from "@/lib/wms-access";
 import { createInternalOrder, listInternalOrders } from "@/lib/wms-service";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -8,6 +9,7 @@ export const runtime = "nodejs";
 
 const createSchema = z.object({
   outletWarehouseId: z.string().uuid(),
+  sourceWarehouseId: z.string().uuid().nullable().optional(),
   items: z
     .array(z.object({ productId: z.string().uuid(), qty: z.number().positive() }))
     .min(1)
@@ -26,7 +28,9 @@ export async function POST(request: Request) {
   const parsed = await readJson(request, createSchema);
   if (parsed.error) return parsed.error;
   try {
-    return ok(await createInternalOrder(parsed.data, session.data.user.id), { status: 201 });
+    // Ruang sumber khusus hanya untuk Owner/Manajer (saran reorder); staf → gudang utama area.
+    const input = wmsIsElevated(session.data.profile.role) ? parsed.data : { ...parsed.data, sourceWarehouseId: null };
+    return ok(await createInternalOrder(input, session.data.user.id), { status: 201 });
   } catch (e) {
     return fail(400, "IO_FAILED", e instanceof Error ? e.message : "Gagal membuat internal order.");
   }

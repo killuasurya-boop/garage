@@ -43,3 +43,56 @@ export function escapeHtml(s: string): string {
 export function signatureRow(labels: string[]): string {
   return `<div class="sign">${labels.map((l) => `<div><div class="line">${escapeHtml(l)}</div></div>`).join("")}</div>`;
 }
+
+const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString("id-ID")}`;
+const qtyText = (n: number) => n.toLocaleString("id-ID", { maximumFractionDigits: 4 });
+const dateText = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("id-ID", { dateStyle: "medium", timeZone: "Asia/Jakarta" }) : "-";
+
+/** Surat jalan + pick list pindah stok: tiap baris per batch (no. batch & expired). */
+export function printDeliveryNote(data: {
+  doc: string;
+  from: string | null;
+  to: string | null;
+  lines: Array<{ name: string; sku: string; unit: string; qty: number; batchNo: string; expiredAt: string | null; location: string }>;
+}) {
+  const rows = data.lines
+    .map(
+      (l) =>
+        `<tr><td>${escapeHtml(l.name)}<div style="font-size:10px;color:#666">${escapeHtml(l.sku)}</div></td><td>${escapeHtml(l.batchNo || "-")}</td><td class="c">${escapeHtml(dateText(l.expiredAt))}</td><td class="r">${qtyText(l.qty)}</td><td class="c">${escapeHtml(l.unit)}</td><td style="width:70px"></td></tr>`,
+    )
+    .join("");
+  printWmsDoc(
+    `Surat Jalan · ${data.doc}`,
+    `<table><thead><tr><th>Bahan</th><th>No. Batch</th><th class="c">Expired</th><th class="r">Qty</th><th class="c">Satuan</th><th class="c">Cek</th></tr></thead><tbody>${rows}</tbody></table>
+     ${signatureRow(["Disiapkan (Gudang)", "Dibawa", "Diterima (Outlet)"])}`,
+    `${data.from ?? "-"} → ${data.to ?? "-"} · ambil sesuai no. batch (expired terdekat dulu)`,
+  );
+}
+
+/** Cetak Purchase Order untuk dikirim ke supplier. */
+export function printPurchaseOrder(po: {
+  doc: string;
+  supplierName: string;
+  supplierPhone?: string;
+  expectedDate: string | null;
+  note: string;
+  items: Array<{ name: string | null; sku: string | null; unit: string | null; orderedQty: number; unitPrice: number }>;
+}) {
+  const total = po.items.reduce((sum, it) => sum + it.orderedQty * it.unitPrice, 0);
+  const rows = po.items
+    .map(
+      (it, i) =>
+        `<tr><td class="c">${i + 1}</td><td>${escapeHtml(it.name ?? "-")}<div style="font-size:10px;color:#666">${escapeHtml(it.sku ?? "")}</div></td><td class="r">${qtyText(it.orderedQty)}</td><td class="c">${escapeHtml(it.unit ?? "")}</td><td class="r">${it.unitPrice ? rupiah(it.unitPrice) : "-"}</td><td class="r">${it.unitPrice ? rupiah(it.orderedQty * it.unitPrice) : "-"}</td></tr>`,
+    )
+    .join("");
+  printWmsDoc(
+    `Purchase Order · ${po.doc}`,
+    `<p style="font-size:12px;margin:0 0 6px">Kepada: <b>${escapeHtml(po.supplierName)}</b>${po.supplierPhone ? ` · ${escapeHtml(po.supplierPhone)}` : ""}<br/>Tanggal kirim diharapkan: <b>${escapeHtml(po.expectedDate ?? "-")}</b></p>
+     <table><thead><tr><th class="c">No</th><th>Bahan</th><th class="r">Qty</th><th class="c">Satuan</th><th class="r">Harga</th><th class="r">Jumlah</th></tr></thead><tbody>${rows}</tbody>
+     <tfoot><tr><th colspan="5" class="r">Perkiraan total</th><th class="r">${rupiah(total)}</th></tr></tfoot></table>
+     ${po.note ? `<p style="font-size:12px">Catatan: ${escapeHtml(po.note)}</p>` : ""}
+     ${signatureRow(["Dipesan (Garage Coffee)", "Disetujui Supplier"])}`,
+    "Harga per satuan simpan gudang (gr/ml/pcs). Pembayaran tunai saat barang diterima.",
+  );
+}

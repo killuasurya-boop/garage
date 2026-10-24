@@ -1702,6 +1702,17 @@ export type ReceivingItemInput = {
   putAwayLocation?: string;
 };
 
+/** Nama supplier (teks) → id master supplier; null bila belum terdaftar. */
+export async function supplierIdForName(db: Db, name: string): Promise<string | null> {
+  if (!name.trim()) return null;
+  const [row] = await db
+    .select({ id: wmsSupplier.id })
+    .from(wmsSupplier)
+    .where(sql`lower(trim(${wmsSupplier.name})) = ${name.trim().toLowerCase()}`)
+    .limit(1);
+  return row?.id ?? null;
+}
+
 export async function createReceiving(
   input: {
     supplier?: string;
@@ -1710,6 +1721,7 @@ export async function createReceiving(
     warehouseId?: string;
     paymentMethod?: PurchasePaymentMethod;
     receivedDate?: string | null;
+    purchaseOrderId?: string | null;
     items: ReceivingItemInput[];
   },
   userId?: string | null,
@@ -1717,11 +1729,14 @@ export async function createReceiving(
   const db = getDb();
   const whId = input.warehouseId ?? (await primaryWarehouseId(db));
   const receivedDate = normalizeReceivedDate(input.receivedDate);
+  const supplierName = input.supplier?.trim() ?? "";
   const [rec] = await db
     .insert(wmsReceiving)
     .values({
       doc: makeWmsDoc("RCV"),
-      supplier: input.supplier?.trim() ?? "",
+      supplier: supplierName,
+      supplierId: await supplierIdForName(db, supplierName),
+      purchaseOrderId: input.purchaseOrderId ?? null,
       poNumber: input.poNumber?.trim() ?? "",
       additionalCost: input.additionalCost ?? 0,
       warehouseId: whId,
@@ -1863,6 +1878,7 @@ export async function updateReceiving(
     .update(wmsReceiving)
     .set({
       supplier: input.supplier?.trim() ?? rec.supplier,
+      supplierId: input.supplier !== undefined ? await supplierIdForName(db, input.supplier.trim()) : rec.supplierId,
       poNumber: input.poNumber?.trim() ?? rec.poNumber,
       additionalCost: input.additionalCost ?? rec.additionalCost,
       warehouseId: input.warehouseId ?? rec.warehouseId,
@@ -2135,6 +2151,11 @@ export async function completeReceiving(
       notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
     });
 
+    if (rec.purchaseOrderId) {
+      const { applyReceivingToPurchaseOrder } = await import("@/lib/wms-purchase");
+      await applyReceivingToPurchaseOrder(tx, rec.purchaseOrderId, accepted.map((x) => ({ productId: x.row.productId as string, qty: Number(x.row.receivedQty) })), 1);
+    }
+
     const [updated] = await tx
       .update(wmsReceiving)
       .set({ status: "completed", completedAt: new Date() })
@@ -2243,6 +2264,15 @@ export async function cancelReceiving(
       }
     }
 
+    if (rec.purchaseOrderId) {
+      const { applyReceivingToPurchaseOrder } = await import("@/lib/wms-purchase");
+      await applyReceivingToPurchaseOrder(
+        tx,
+        rec.purchaseOrderId,
+        items.filter((x) => x.row.productId && x.row.qc !== "reject").map((x) => ({ productId: x.row.productId as string, qty: Number(x.row.receivedQty) })),
+        -1,
+      );
+    }
     const voided = await voidCashPurchases(tx, { sourceDoc: `WMS:${rec.doc}`, reason });
 
     const [updated] = await tx

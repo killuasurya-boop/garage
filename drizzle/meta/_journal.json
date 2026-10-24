@@ -1079,6 +1079,13 @@
       "when": 1792816766911,
       "tag": "0153_wms_opname_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1792816828124,
+      "tag": "0154_wms_purchase_order_reorder",
+      "breakpoints": true
     }
   ]
 }

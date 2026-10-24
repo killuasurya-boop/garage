@@ -3296,11 +3296,68 @@ export const wmsBatch = pgTable(
   }),
 );
 
+// Purchase Order tersimpan (ala ERPNext Purchase Order): draft → sent → partial →
+// received | cancelled. Penerimaan merujuk PO; qty diterima diakumulasi per baris.
+export const wmsPurchaseOrder = pgTable(
+  "wms_purchase_order",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
+    supplierName: text("supplier_name").notNull().default(""),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("draft"),
+    expectedDate: text("expected_date"), // YYYY-MM-DD
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index("wms_purchase_order_status_idx").on(t.status, t.createdAt) }),
+);
+
+export const wmsPurchaseOrderItem = pgTable(
+  "wms_purchase_order_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    purchaseOrderId: uuid("purchase_order_id")
+      .notNull()
+      .references(() => wmsPurchaseOrder.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    orderedQty: wmsNum("ordered_qty").notNull(),
+    receivedQty: wmsNum("received_qty").notNull().default(0),
+    unitPrice: wmsNum("unit_price").notNull().default(0), // Rp per satuan simpan
+  },
+  (t) => ({ poIdx: index("wms_purchase_order_item_po_idx").on(t.purchaseOrderId) }),
+);
+
+// Aturan reorder per ruang (ala ERPNext Item Reorder per warehouse): stok ruang ≤ min →
+// isi sampai max. Outlet Bar/Dapur diisi dari gudang utama areanya dulu, sisanya beli.
+export const wmsReorderRule = pgTable(
+  "wms_reorder_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    warehouseId: uuid("warehouse_id")
+      .notNull()
+      .references(() => wmsWarehouse.id, { onDelete: "cascade" }),
+    minQty: wmsNum("min_qty").notNull(),
+    maxQty: wmsNum("max_qty").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ pwIdx: uniqueIndex("wms_reorder_rule_product_wh_idx").on(t.productId, t.warehouseId) }),
+);
+
 export const wmsReceiving = pgTable("wms_receiving", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull().unique(),
-  supplier: text("supplier").notNull().default(""),
+  supplier: text("supplier").notNull().default(""), // snapshot nama (tampil di dokumen lama)
+  supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
   poNumber: text("po_number").notNull().default(""), // No. PO / referensi order
+  purchaseOrderId: uuid("purchase_order_id").references(() => wmsPurchaseOrder.id, { onDelete: "set null" }),
   additionalCost: wmsNum("additional_cost").notNull().default(0), // ongkir/pajak → landed cost
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
   status: text("status").notNull().default("draft"), // draft|pending_approval|completed|cancelled

@@ -214,7 +214,7 @@ type PettySummary = {
   pendingExpenseTotal: number;
   awaitingPaymentCount: number;
   awaitingPaymentTotal: number;
-  otherDayReversals: number;
+  reversals: number;
   ledger: PettyEntry[];
 };
 
@@ -344,8 +344,8 @@ export function PettyCashPanel({ canSupervise, isOwner = false }: { canSupervise
             {data.awaitingPaymentCount} disetujui tapi uang belum diserahkan · {rp(data.awaitingPaymentTotal)} (belum mengurangi saldo)
           </p>
         ) : null}
-        {data?.otherDayReversals ? (
-          <p className="text-xs text-[#c8c8cf]">Termasuk pembatalan entri hari lain: {rp(data.otherDayReversals)}.</p>
+        {data?.reversals ? (
+          <p className="text-xs text-[#c8c8cf]">Termasuk pembatalan entri yang sudah dibayar (baris pembalik): {rp(data.reversals)}.</p>
         ) : null}
         {data?.pendingCount ? (
           <p className="rounded-md border border-[#f5a742]/50 bg-[#f5a742]/10 px-3 py-2 text-sm font-semibold text-[#ffd08a]">

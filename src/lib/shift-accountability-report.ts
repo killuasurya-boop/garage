@@ -23,11 +23,9 @@ import {
 import { sumDenominations } from "@/lib/cash-denominations";
 import { getDrawerLedger, type CashSourceType } from "@/lib/cash-ledger";
 import {
+  getPettyCashPeriod,
   listPettyCashEntries,
   listShiftIncidents,
-  pettyCashBalance,
-  pettyCashBalanceBefore,
-  summarizePettyCash,
   type PettyCashEntryRow,
 } from "@/lib/cashier-accountability";
 import { getCashSessionTransactions } from "@/lib/garage-service";
@@ -205,6 +203,17 @@ export type RawSession = {
   /** true = kas laci dari buku kas (cash_ledger_entries); false = format lama. */
   ledgerMode: boolean;
 };
+
+/** Ada selisih (hitungan pertama atau hitung ulang pemeriksa) terhadap kas seharusnya. */
+export function shiftHasDiscrepancy(s: Pick<RawSession, "discrepancy" | "recountCash" | "expectedCash">) {
+  return s.discrepancy !== 0 || (s.recountCash !== null && s.recountCash !== s.expectedCash);
+}
+
+/** Keterangan selisih shift terverifikasi; verifikasi lama (sebelum P3) bisa berselisih tanpa pengakuan. */
+export function verifiedDiscrepancyNote(s: Pick<RawSession, "discrepancy" | "recountCash" | "expectedCash" | "discrepancyAcknowledged">) {
+  if (!shiftHasDiscrepancy(s)) return "";
+  return s.discrepancyAcknowledged ? " · selisih diakui" : " · selisih belum diakui (verifikasi lama)";
+}
 
 export type HandoverPeer = {
   code: string;
@@ -576,7 +585,7 @@ export function buildShiftAccountability(raw: ShiftRaw) {
     session.status === "open"
       ? "Berlangsung"
       : session.reviewStatus === "verified"
-        ? `Diverifikasi${session.discrepancyAcknowledged ? " · selisih diakui" : ""}${session.reviewSelfVerified ? " · tanpa pemeriksa kedua" : ""}`
+        ? `Diverifikasi${verifiedDiscrepancyNote(session)}${session.reviewSelfVerified ? " · tanpa pemeriksa kedua" : ""}`
         : session.reviewStatus === "needs_followup"
           ? "Ditutup · perlu tindak lanjut"
           : "Ditutup · menunggu verifikasi";
@@ -904,10 +913,5 @@ export async function listSessionsForBusinessDate(params: { outletId: string; da
 export async function getPettyCashDay(outletId: string, date: string) {
   const from = new Date(`${date}T00:00:00+07:00`);
   const to = new Date(from.getTime() + 86_400_000);
-  const [entries, openingBalance, closingBalance] = await Promise.all([
-    listPettyCashEntries({ outletId, from, to }),
-    pettyCashBalanceBefore(outletId, from),
-    pettyCashBalance(outletId, to),
-  ]);
-  return summarizePettyCash(entries, openingBalance, closingBalance);
+  return getPettyCashPeriod(outletId, from, to);
 }

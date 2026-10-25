@@ -220,6 +220,28 @@ describe("Closing & verifikasi — P3/P4", () => {
     await expect(acc.reviewCashSession(s.id, { status: "verified" }, other)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("verifikasi ditolak selama setoran shift belum dikonfirmasi masuk rekening", async () => {
+    const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
+    await sell(50_000, 50_000);
+    const dep: any = await svc.recordCashMovement(
+      { type: "out", categoryKey: "setoran", description: "Setor sore", amount: 50_000, counterparty: "Kasir", depositAccount: "bank_bni", managerPin: PIN } as any,
+      kasir(),
+    );
+    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000) } as any, kasir());
+    await expect(acc.reviewCashSession(s.id, { status: "verified" }, manajer())).rejects.toMatchObject({ code: "DEPOSIT_UNCONFIRMED" });
+    await svc.confirmCashDeposit(dep.id, { bankRef: "BNI-123456" }, owner());
+    await expect(acc.reviewCashSession(s.id, { status: "verified" }, manajer())).resolves.toMatchObject({ reviewStatus: "verified" });
+  });
+
+  it("verifikasi lama yang berselisih tanpa pengakuan tidak dilabel 'tidak ada selisih'", async () => {
+    const { eq } = await import("drizzle-orm");
+    const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
+    await svc.closeCashSession(s.id, { actualCash: 90_000, denominations: cashCount(90_000) } as any, kasir());
+    await t.getDb().update(t.schema.cashSessions).set({ reviewStatus: "verified", discrepancyAcknowledged: false }).where(eq(t.schema.cashSessions.id, s.id));
+    const data: any = await report.getShiftAccountability(s.id);
+    expect(data.session.shiftStatus).toBe("Diverifikasi · selisih belum diakui (verifikasi lama)");
+  });
+
   it("tutup darurat tanpa pecahan: wajib alasan + PIN Manajer, tercatat di shift", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir2());
     await expect(

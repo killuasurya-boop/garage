@@ -11,7 +11,7 @@ import path from "node:path";
 import { denominationRows } from "@/lib/cash-denominations";
 import { discrepancyStatusLabel } from "@/lib/cash-discrepancy";
 import { INCIDENT_STATUS_LABEL, PETTY_CASH_STATUS_LABEL, type IncidentStatus } from "@/lib/cashier-accountability";
-import { SHIFT_REPORT_DEFINITIONS, type ShiftAccountability } from "@/lib/shift-accountability-report";
+import { SHIFT_REPORT_DEFINITIONS, shiftHasDiscrepancy, type ShiftAccountability } from "@/lib/shift-accountability-report";
 
 const nodeRequire = createRequire(import.meta.url);
 type PDFDocumentConstructor = new (options?: PDFKit.PDFDocumentOptions) => PDFKit.PDFDocument;
@@ -89,6 +89,8 @@ type PettyDay = {
   topups: number;
   expenses: number;
   adjustments: number;
+  /** Pembatalan entri yang sudah dibayar (baris pembalik) di periode ini. */
+  reversals?: number;
   closingBalance: number;
   pendingCount: number;
   pendingExpenseTotal: number;
@@ -700,7 +702,14 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
     ["Status pemeriksaan", s.reviewLabel, true],
     ...(s.reviewStatus === "verified"
       ? ([
-          ["Selisih", s.discrepancyAcknowledged ? "Diakui pemeriksa (lihat catatan)" : "Tidak ada selisih"],
+          [
+            "Selisih",
+            !shiftHasDiscrepancy(s)
+              ? "Tidak ada selisih"
+              : s.discrepancyAcknowledged
+                ? "Diakui pemeriksa (lihat catatan)"
+                : "Ada selisih — belum diakui (diverifikasi sebelum aturan selisih diakui)",
+          ],
           ...(s.reviewSelfVerified ? [["Pemeriksa", "Owner memeriksa shift sendiri — tanpa pemeriksa kedua"]] : []),
         ] as [string, string][])
       : []),
@@ -760,6 +769,7 @@ function pettyDaySection(w: Writer, petty: PettyDay, date: string) {
     ["Penambahan dana", rp(petty.topups)],
     ["Pengeluaran dibayar", rp(petty.expenses)],
     ["Penyesuaian", rp(petty.adjustments)],
+    ...(petty.reversals ? ([["Pembatalan (dibalik)", rp(petty.reversals)]] as [string, string][]) : []),
     ["Saldo akhir", rp(petty.closingBalance)],
     ["Menunggu persetujuan", `${petty.pendingCount} · ${rp(petty.pendingExpenseTotal)}`, petty.pendingCount ? "warn" : undefined],
     ["Disetujui, belum dibayar", `${petty.awaitingPaymentCount ?? 0} · ${rp(petty.awaitingPaymentTotal ?? 0)}`, petty.awaitingPaymentCount ? "warn" : undefined],

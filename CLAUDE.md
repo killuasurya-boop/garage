@@ -172,8 +172,14 @@ Scroll direction:
   - Finance cash expenses need `cashSource` (`src/lib/cash-sources.ts`): drawer = only the recorder's own open shift;
     bank_jago/bank_bni posted as account rows; external (Owner personal money) not posted. No shift + no source =
     `ExpenseCashSourceError` — never cut another cashier's drawer. Payroll/agent expenses default to external.
-  - Probe `closing-audit-probe.integration.test.ts`: remaining `it.fails` = gaps for P2–P4 (petty cash, closing
-    status, access control).
+  - Petty cash (P2, migration 0160): approval ≠ payment. Balance = ledger account `petty` (`pettyCashBalance*` via
+    `accountBalance`), moves only on "pay" (`decidePettyCashEntry` decision `pay`, recipient required for expenses,
+    advisory lock per outlet, never below 0). Kasir/Manajer entries are submitted; approver ≠ creator. Owner entries
+    are approved+paid at once with `self_approved` ("tanpa pemeriksa kedua"). Top-up has `fund_source`
+    (bank_jago/bank_bni/external). Cancel after pay = `petty_reversal` ledger row; history never changes. Old approved
+    entries were backfilled as paid at their entry time.
+  - Probe `closing-audit-probe.integration.test.ts`: remaining `it.fails` = gaps for P3–P4 (closing status,
+    denominations, independent verification).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

@@ -25,6 +25,7 @@ import { getDrawerLedger, type CashSourceType } from "@/lib/cash-ledger";
 import {
   listPettyCashEntries,
   listShiftIncidents,
+  pettyCashBalance,
   pettyCashBalanceBefore,
   summarizePettyCash,
   type PettyCashEntryRow,
@@ -878,9 +879,10 @@ export async function listSessionsForBusinessDate(params: { outletId: string; da
 export async function getPettyCashDay(outletId: string, date: string) {
   const from = new Date(`${date}T00:00:00+07:00`);
   const to = new Date(from.getTime() + 86_400_000);
-  const [entries, openingBalance] = await Promise.all([
+  const [entries, openingBalance, closingBalance] = await Promise.all([
     listPettyCashEntries({ outletId, from, to }),
     pettyCashBalanceBefore(outletId, from),
+    pettyCashBalance(outletId, to),
   ]);
-  return summarizePettyCash(entries, openingBalance);
+  return summarizePettyCash(entries, openingBalance, closingBalance);
 }

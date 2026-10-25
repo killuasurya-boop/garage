@@ -173,42 +173,68 @@ describe("Closing (T15, T17–T19)", () => {
   });
 });
 
-describe("Petty cash (T07, T08, T11, T14)", () => {
-  it("baseline: pengajuan kasir belum mengubah saldo; disetujui baru mengurangi", async () => {
-    await acc.createPettyCashEntry({ type: "topup", category: "Pengisian dana", description: "Dana awal", amount: 500_000 }, owner());
+describe("Petty cash (T07, T08, T11, T14) — P2", () => {
+  const later = () => new Date(Date.now() + 1000);
+  it("baseline: pengajuan & persetujuan belum mengubah saldo; baru berkurang saat uang diserahkan", async () => {
+    await acc.createPettyCashEntry({ type: "topup", category: "Pengisian dana", description: "Dana awal", amount: 500_000, fundSource: "bank_jago" }, owner());
     const req: any = await acc.createPettyCashEntry({ type: "expense", category: "Kebersihan", description: "Sabun", amount: 50_000 }, kasir());
-    const now = new Date(Date.now() + 1000);
-    expect(await acc.pettyCashBalanceBefore(outletId, now)).toBe(500_000);
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(500_000);
     await acc.decidePettyCashEntry(req.id, { decision: "approve" }, manajer());
-    expect(await acc.pettyCashBalanceBefore(outletId, new Date(Date.now() + 1000))).toBe(450_000);
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(500_000);
+    await acc.decidePettyCashEntry(req.id, { decision: "pay", recipient: "Kasir P0" }, manajer());
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(450_000);
   });
 
-  it.fails("T14: Manajer tidak bisa mencatat pengeluaran petty cash untuk dirinya sendiri tanpa pemeriksa kedua", async () => {
+  it("T14: pengajuan Manajer menunggu pemeriksa lain; Manajer tidak bisa menyetujui miliknya sendiri", async () => {
     const row: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Belanja manajer", amount: 40_000 }, manajer());
-    expect(row.status).not.toBe("approved");
+    expect(row.status).toBe("submitted");
+    await expect(acc.decidePettyCashEntry(row.id, { decision: "approve" }, manajer())).rejects.toThrow(/Owner atau Manajer lain/);
+    const approved: any = await acc.decidePettyCashEntry(row.id, { decision: "approve" }, owner());
+    expect(approved.status).toBe("approved");
   });
 
-  it.fails("T08: disetujui ≠ dibayar — saldo fisik baru berkurang saat uang diserahkan", async () => {
-    const before = await acc.pettyCashBalanceBefore(outletId, new Date(Date.now() + 1000));
+  it("T08: disetujui ≠ dibayar — saldo fisik baru berkurang saat uang diserahkan", async () => {
+    const before = await acc.pettyCashBalanceBefore(outletId, later());
     const req: any = await acc.createPettyCashEntry({ type: "expense", category: "Transport / ongkir", description: "Ongkir", amount: 30_000 }, kasir());
     await acc.decidePettyCashEntry(req.id, { decision: "approve" }, owner());
-    // Belum ada event "dibayar" → saldo fisik harus tetap.
-    expect(await acc.pettyCashBalanceBefore(outletId, new Date(Date.now() + 1000))).toBe(before);
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(before);
+    await expect(acc.decidePettyCashEntry(req.id, { decision: "pay" }, owner())).rejects.toThrow(/penerima/);
+    await acc.decidePettyCashEntry(req.id, { decision: "pay", recipient: "Kurir" }, owner());
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(before - 30_000);
   });
 
-  it.fails("T11: pengeluaran melebihi saldo petty cash ditolak (saldo tidak boleh negatif)", async () => {
-    const balance = await acc.pettyCashBalanceBefore(outletId, new Date(Date.now() + 1000));
-    const req: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Terlalu besar", amount: balance + 100_000 }, kasir());
-    await expect(acc.decidePettyCashEntry(req.id, { decision: "approve" }, owner())).rejects.toThrow();
-  });
-
-  it.fails("T15 (petty): membatalkan entri yang sudah disetujui membuat reversal, saldo historis tidak berubah", async () => {
-    const req: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Salah catat", amount: 10_000 }, kasir());
+  it("T11: pembayaran melebihi saldo petty cash ditolak (saldo tidak boleh negatif)", async () => {
+    const balance = await acc.pettyCashBalanceBefore(outletId, later());
+    const req: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Terlalu besar", amount: balance + 100_000, recipient: "Toko" }, kasir());
     await acc.decidePettyCashEntry(req.id, { decision: "approve" }, owner());
-    const at = new Date(Date.now() + 500);
+    await expect(acc.decidePettyCashEntry(req.id, { decision: "pay" }, owner())).rejects.toThrow(/tidak cukup/);
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(balance);
+  });
+
+  it("T12: dua pembayaran bersamaan melebihi saldo → hanya satu yang lolos", async () => {
+    const balance = await acc.pettyCashBalanceBefore(outletId, later());
+    const half = Math.floor(balance / 2) + 1_000;
+    const a: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Bersamaan A", amount: half, recipient: "A" }, kasir());
+    const b: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Bersamaan B", amount: half, recipient: "B" }, kasir());
+    await acc.decidePettyCashEntry(a.id, { decision: "approve" }, owner());
+    await acc.decidePettyCashEntry(b.id, { decision: "approve" }, owner());
+    const results = await Promise.allSettled([
+      acc.decidePettyCashEntry(a.id, { decision: "pay" }, owner()),
+      acc.decidePettyCashEntry(b.id, { decision: "pay" }, owner()),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(balance - half);
+  });
+
+  it("T15 (petty): membatalkan entri yang sudah dibayar membuat baris pembalik, saldo historis tidak berubah", async () => {
+    const req: any = await acc.createPettyCashEntry({ type: "expense", category: "Lain-lain", description: "Salah catat", amount: 10_000, recipient: "X" }, kasir());
+    await acc.decidePettyCashEntry(req.id, { decision: "approve" }, owner());
+    await acc.decidePettyCashEntry(req.id, { decision: "pay" }, owner());
+    const at = new Date(Date.now() + 300);
+    await new Promise((r) => setTimeout(r, 400));
     const balanceAtThatTime = await acc.pettyCashBalanceBefore(outletId, at);
-    await new Promise((r) => setTimeout(r, 600));
     await acc.decidePettyCashEntry(req.id, { decision: "cancel", note: "salah" }, owner());
     expect(await acc.pettyCashBalanceBefore(outletId, at)).toBe(balanceAtThatTime);
+    expect(await acc.pettyCashBalanceBefore(outletId, later())).toBe(balanceAtThatTime + 10_000);
   });
 });

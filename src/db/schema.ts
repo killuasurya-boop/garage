@@ -1531,6 +1531,16 @@ export const pettyCashEntries = pgTable(
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
+    // P2 (owner, Okt 2026): disetujui ≠ dibayar. Saldo hanya berubah saat uang
+    // benar-benar diserahkan/diterima (baris buku kas akun `petty`).
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paidBy: text("paid_by").references(() => user.id, { onDelete: "set null" }),
+    ledgerEntryId: uuid("ledger_entry_id"),
+    reversalLedgerEntryId: uuid("reversal_ledger_entry_id"),
+    // Top-up: dari mana dananya (bank_jago | bank_bni | external = uang pribadi Owner).
+    fundSource: text("fund_source"),
+    // true = dicatat & disetujui orang yang sama (Owner) — tidak diperiksa independen.
+    selfApproved: boolean("self_approved").notNull().default(false),
     entryAt: timestamp("entry_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

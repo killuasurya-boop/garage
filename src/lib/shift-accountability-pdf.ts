@@ -91,6 +91,8 @@ type PettyDay = {
   closingBalance: number;
   pendingCount: number;
   pendingExpenseTotal: number;
+  awaitingPaymentCount?: number;
+  awaitingPaymentTotal?: number;
   rejectedCount: number;
   ledger: Array<ShiftAccountability["petty"][number] & { runningBalance: number | null }>;
 };
@@ -344,7 +346,7 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
     ["Kas masuk", rp(cash.cashIn)],
     ["Kas keluar", rp(cash.cashOut)],
     ["Refund/void tunai", rp(cash.cashRefundsVoids)],
-    ["Petty cash (shift)", rp(report.petty.filter((p) => p.status === "approved" && p.type === "expense").reduce((sum, p) => sum + p.amount, 0))],
+    ["Petty cash (shift)", rp(report.petty.filter((p) => p.status === "approved" && p.type === "expense" && p.paidAt !== null && !p.reversed).reduce((sum, p) => sum + p.amount, 0))],
     ["Setoran ke Owner", rp(cash.deposit)],
     ["Kas seharusnya", rp(cash.expected)],
     ["Kas aktual", rp(cash.actual)],
@@ -546,7 +548,7 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
       [p.receiptNo, p.receiptUrl ? "foto" : null].filter(Boolean).join(" · ") || "-",
       text(p.createdByName),
       text(p.approvedByName),
-      PETTY_CASH_STATUS_LABEL[p.status],
+      pettyStatusText(p),
     ]),
     { empty: "Tidak ada transaksi petty cash di shift ini." },
   );
@@ -723,15 +725,24 @@ function definitionsPage(w: Writer) {
   w.keyValues(SHIFT_REPORT_DEFINITIONS.map(([label, value]) => [label, value]), 0.25);
 }
 
+/** Status jujur: disetujui ≠ dibayar; Owner tanpa pemeriksa kedua; batal setelah dibayar = dibalik. */
+function pettyStatusText(p: { status: string; paidAt?: string | null; reversed?: boolean; selfApproved?: boolean }) {
+  if (p.reversed) return "Dibatalkan (dibalik)";
+  if (p.status === "approved" && p.paidAt === null) return "Disetujui · belum dibayar";
+  if (p.status === "approved") return p.selfApproved ? "Dibayar · tanpa pemeriksa kedua" : "Dibayar";
+  return PETTY_CASH_STATUS_LABEL[p.status as keyof typeof PETTY_CASH_STATUS_LABEL] ?? p.status;
+}
+
 function pettyDaySection(w: Writer, petty: PettyDay, date: string) {
-  w.section(`Laporan Petty Cash — ${longDate(date)}`, "landscape", "Saldo akhir = Saldo awal + Penambahan disetujui − Pengeluaran disetujui ± Penyesuaian. Pengajuan & yang ditolak ditampilkan terpisah, tidak mengubah saldo.");
+  w.section(`Laporan Petty Cash — ${longDate(date)}`, "landscape", "Sumber: buku kas akun petty cash. Saldo hanya berubah saat uang benar-benar diserahkan/diterima (Dibayar). Pengajuan, yang disetujui tapi belum dibayar, dan yang ditolak tidak mengubah saldo.");
   w.cards([
     ["Saldo awal", rp(petty.openingBalance)],
     ["Penambahan dana", rp(petty.topups)],
-    ["Pengeluaran disetujui", rp(petty.expenses)],
+    ["Pengeluaran dibayar", rp(petty.expenses)],
     ["Penyesuaian", rp(petty.adjustments)],
     ["Saldo akhir", rp(petty.closingBalance)],
     ["Menunggu persetujuan", `${petty.pendingCount} · ${rp(petty.pendingExpenseTotal)}`, petty.pendingCount ? "warn" : undefined],
+    ["Disetujui, belum dibayar", `${petty.awaitingPaymentCount ?? 0} · ${rp(petty.awaitingPaymentTotal ?? 0)}`, petty.awaitingPaymentCount ? "warn" : undefined],
     ["Ditolak", num(petty.rejectedCount)],
   ], 4);
   w.table(
@@ -760,7 +771,7 @@ function pettyDaySection(w: Writer, petty: PettyDay, date: string) {
       text(p.receiptNo),
       text(p.createdByName),
       text(p.approvedByName),
-      PETTY_CASH_STATUS_LABEL[p.status],
+      pettyStatusText(p),
       p.runningBalance === null ? "-" : rp(p.runningBalance),
     ]),
     { empty: "Tidak ada transaksi petty cash di tanggal ini." },

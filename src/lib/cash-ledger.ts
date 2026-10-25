@@ -37,6 +37,10 @@ export const CASH_SOURCE_TYPES = [
   "drawer_reversal",
   "expense",
   "expense_cancel",
+  "petty_topup",
+  "petty_expense",
+  "petty_adjustment",
+  "petty_reversal",
 ] as const;
 export type CashSourceType = (typeof CASH_SOURCE_TYPES)[number];
 
@@ -54,6 +58,10 @@ export const CASH_SOURCE_LABEL: Record<CashSourceType, string> = {
   drawer_reversal: "Pembatalan/koreksi kas laci",
   expense: "Biaya Finance dari laci",
   expense_cancel: "Batal biaya Finance",
+  petty_topup: "Isi dana petty cash",
+  petty_expense: "Pengeluaran petty cash",
+  petty_adjustment: "Penyesuaian petty cash",
+  petty_reversal: "Pembatalan petty cash",
 };
 
 export class CashLedgerError extends Error {
@@ -179,8 +187,10 @@ export async function postAccountCash(
     sourceRef?: string | null;
     reversesId?: string | null;
     actorUserId?: string | null;
+    approverUserId?: string | null;
     note?: string | null;
     occurredAt?: Date;
+    idempotencyKey?: string | null;
   },
 ) {
   if (!Number.isInteger(input.amount) || input.amount <= 0) throw new CashLedgerError("INVALID_AMOUNT", "Nominal kas harus rupiah bulat > 0.", 400);
@@ -189,7 +199,7 @@ export async function postAccountCash(
   const [entry] = await db
     .insert(cashLedgerEntries)
     .values({
-      idempotencyKey: `${input.sourceType}:${input.sourceId ?? "-"}:${randomUUID()}`,
+      idempotencyKey: input.idempotencyKey ?? `${input.sourceType}:${input.sourceId ?? "-"}:${randomUUID()}`,
       requestHash: hashOf({ from: input.from, to: input.to, amount: input.amount, sourceType: input.sourceType, sourceId: input.sourceId ?? null }),
       occurredAt: at,
       businessDate: businessDateOf(at),
@@ -202,10 +212,41 @@ export async function postAccountCash(
       sourceRef: input.sourceRef ?? null,
       reversesId: input.reversesId ?? null,
       actorUserId: input.actorUserId ?? null,
+      approverUserId: input.approverUserId ?? null,
       note: input.note ?? null,
     })
     .returning();
   return entry;
+}
+
+/**
+ * Saldo satu akun non-laci per outlet menurut buku kas (mis. petty cash), opsional
+ * sebelum waktu tertentu. Riwayat tidak berubah: koreksi selalu baris baru.
+ */
+export async function accountBalance(account: CashAccount, outletId: string | null, before?: Date, db: DbOrTx = getDb()) {
+  const conditions = [sql`(${cashLedgerEntries.fromAccount} = ${account} or ${cashLedgerEntries.toAccount} = ${account})`];
+  if (outletId) conditions.push(eq(cashLedgerEntries.outletId, outletId));
+  if (before) conditions.push(sql`${cashLedgerEntries.occurredAt} < ${before}`);
+  const [row] = await db
+    .select({
+      balance: sql<number>`coalesce(sum(case when ${cashLedgerEntries.toAccount} = ${account} then ${cashLedgerEntries.amount}
+        when ${cashLedgerEntries.fromAccount} = ${account} then -${cashLedgerEntries.amount} else 0 end), 0)::int`,
+    })
+    .from(cashLedgerEntries)
+    .where(and(...conditions));
+  return Number(row?.balance ?? 0);
+}
+
+/** Baris buku kas satu akun per outlet dalam rentang waktu (urut). */
+export async function accountEntries(account: CashAccount, outletId: string | null, from: Date, to: Date, db: DbOrTx = getDb()) {
+  const conditions = [
+    sql`(${cashLedgerEntries.fromAccount} = ${account} or ${cashLedgerEntries.toAccount} = ${account})`,
+    sql`${cashLedgerEntries.occurredAt} >= ${from}`,
+    sql`${cashLedgerEntries.occurredAt} < ${to}`,
+  ];
+  if (outletId) conditions.push(eq(cashLedgerEntries.outletId, outletId));
+  const rows = await db.select().from(cashLedgerEntries).where(and(...conditions)).orderBy(asc(cashLedgerEntries.occurredAt), asc(cashLedgerEntries.seq));
+  return rows.map((row) => ({ ...row, signed: row.toAccount === account ? row.amount : -row.amount }));
 }
 
 export type DrawerLedgerLine = {

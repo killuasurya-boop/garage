@@ -72,7 +72,7 @@ describe("pecahan modal awal", () => {
 });
 
 describe("petty cash", () => {
-  it("kasir hanya mengajukan; saldo hanya berubah setelah disetujui dan tidak menyentuh laci", async () => {
+  it("kasir hanya mengajukan; saldo hanya berubah setelah disetujui & dibayar dan tidak menyentuh laci", async () => {
     const before = (await sessionRow(CASHIER)).expectedCash;
     await expect(
       acc.createPettyCashEntry({ type: "topup", category: "Pengisian dana", description: "isi", amount: 10_000 }, as("Kasir")),
@@ -95,6 +95,9 @@ describe("petty cash", () => {
     await expect(acc.decidePettyCashEntry(request.id, { decision: "approve" }, as("Kasir"))).rejects.toThrow(/Owner\/Manajer/);
     await acc.decidePettyCashEntry(request.id, { decision: "approve" }, as("Manajer"));
     await expect(acc.decidePettyCashEntry(request.id, { decision: "approve" }, as("Manajer"))).rejects.toThrow(/sudah/);
+    // Disetujui ≠ dibayar: saldo baru berkurang saat uang diserahkan.
+    expect(acc.summarizePettyCash(await acc.listPettyCashEntries({ outletId }), 0).closingBalance).toBe(500_000);
+    await acc.decidePettyCashEntry(request.id, { decision: "pay" }, as("Manajer"));
 
     const rejected = await acc.createPettyCashEntry(
       { type: "expense", category: "Lain-lain", description: "Tidak jelas", amount: 90_000 },

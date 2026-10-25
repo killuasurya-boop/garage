@@ -35,6 +35,7 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
         <CashierShiftReport
           blindOpenShift={session.data.profile.role === "Kasir"}
           canSupervise={session.data.profile.role === "Owner" || session.data.profile.role === "Manajer"}
+          isOwner={session.data.profile.role === "Owner"}
           initialTab={tab && ["active", "history", "sales", "full", "petty", "incident"].includes(tab) ? tab : undefined}
         />
       </div>

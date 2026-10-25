@@ -290,10 +290,12 @@ const HIDDEN_UNTIL_CLOSE = "Tampil setelah tutup";
 export function CashierShiftReport({
   blindOpenShift = false,
   canSupervise = false,
+  isOwner = false,
   initialTab,
 }: {
   blindOpenShift?: boolean;
   canSupervise?: boolean;
+  isOwner?: boolean;
   initialTab?: string;
 }) {
   const [active, setActive] = useState<SessionListItem | null>(null);
@@ -445,7 +447,7 @@ export function CashierShiftReport({
         </TabsContent>
 
         <TabsContent value="petty" className="space-y-3">
-          <PettyCashPanel canSupervise={canSupervise} />
+          <PettyCashPanel canSupervise={canSupervise} isOwner={isOwner} />
         </TabsContent>
 
         <TabsContent value="sales" className="space-y-3">

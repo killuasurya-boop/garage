@@ -3,6 +3,7 @@
 import { CheckCircle2, ClipboardList, Download, FileText, Loader2, Plus, ShieldCheck, Wallet, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
+import { CashDenominationGrid, denominationTotals } from "@/components/garage/cash-denomination-grid";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,7 +214,7 @@ type PettySummary = {
   pendingExpenseTotal: number;
   awaitingPaymentCount: number;
   awaitingPaymentTotal: number;
-  otherDayReversals: number;
+  reversals: number;
   ledger: PettyEntry[];
 };
 
@@ -343,8 +344,8 @@ export function PettyCashPanel({ canSupervise, isOwner = false }: { canSupervise
             {data.awaitingPaymentCount} disetujui tapi uang belum diserahkan · {rp(data.awaitingPaymentTotal)} (belum mengurangi saldo)
           </p>
         ) : null}
-        {data?.otherDayReversals ? (
-          <p className="text-xs text-[#c8c8cf]">Termasuk pembatalan entri hari lain: {rp(data.otherDayReversals)}.</p>
+        {data?.reversals ? (
+          <p className="text-xs text-[#c8c8cf]">Termasuk pembatalan entri yang sudah dibayar (baris pembalik): {rp(data.reversals)}.</p>
         ) : null}
         {data?.pendingCount ? (
           <p className="rounded-md border border-[#f5a742]/50 bg-[#f5a742]/10 px-3 py-2 text-sm font-semibold text-[#ffd08a]">
@@ -622,7 +623,8 @@ export function ShiftIncidentsPanel({ sessionId, canSupervise, canAdd }: { sessi
                 </Badge>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {incident.status !== "resolved" ? (
+                {/* Diselesaikan Manajer/Owner lain — bukan pelapornya sendiri (dicek di server). */}
+                {canSupervise && incident.status !== "resolved" ? (
                   <Button type="button" size="sm" variant="outline" disabled={busy} className="h-9 border-[#4a4a54]" onClick={() => void update(incident.id, { status: "resolved" })}>
                     <CheckCircle2 className="size-4" /> Tandai selesai
                   </Button>
@@ -662,6 +664,14 @@ export function ShiftReviewCard({
   reviewNote,
   openingVerifiedAt,
   openingCounted,
+  expectedCash,
+  actualCash,
+  discrepancy,
+  recountCash,
+  discrepancyAcknowledged,
+  selfVerified,
+  viewerOwnsShift,
+  isOwner,
   onChanged,
 }: {
   sessionId: string;
@@ -670,17 +680,41 @@ export function ShiftReviewCard({
   reviewNote: string | null;
   openingVerifiedAt: string | null;
   openingCounted: boolean;
+  expectedCash: number;
+  actualCash: number | null;
+  discrepancy: number;
+  recountCash: number | null;
+  discrepancyAcknowledged: boolean;
+  selfVerified: boolean;
+  viewerOwnsShift: boolean;
+  isOwner: boolean;
   onChanged: () => void;
 }) {
   const [note, setNote] = useState(reviewNote ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recountOpen, setRecountOpen] = useState(false);
+  const [recountCounts, setRecountCounts] = useState<Record<string, string>>({});
+  const [acknowledge, setAcknowledge] = useState(false);
+  const recount = denominationTotals(recountCounts);
+  const effectiveRecount = recount.anyCounted ? recount.total : recountCash;
+  const recountDiff = effectiveRecount === null ? 0 : effectiveRecount - expectedCash;
+  const hasDiscrepancy = discrepancy !== 0 || recountDiff !== 0;
+  // P4: Manajer tidak memeriksa shiftnya sendiri; Owner boleh, berlabel.
+  const blocked = viewerOwnsShift && !isOwner;
 
   async function review(status: "verified" | "needs_followup") {
     setBusy(true);
     setError(null);
     try {
-      await garageApi.patch(`/api/finance/cash-sessions/${sessionId}/review`, { status, ...(note.trim() ? { note } : {}) });
+      await garageApi.patch(`/api/finance/cash-sessions/${sessionId}/review`, {
+        status,
+        ...(note.trim() ? { note } : {}),
+        ...(recount.anyCounted ? { recountDenominations: recount.parsed } : {}),
+        ...(status === "verified" && hasDiscrepancy ? { acknowledgeDiscrepancy: acknowledge } : {}),
+      });
+      setRecountCounts({});
+      setRecountOpen(false);
       onChanged();
     } catch (err) {
       setError(errorText(err, "Gagal menyimpan verifikasi."));
@@ -724,11 +758,69 @@ export function ShiftReviewCard({
         </div>
         {shiftOpen ? (
           <p className="text-sm text-[#c8c8cf]">Laporan bisa diverifikasi setelah shift ditutup.</p>
+        ) : blocked ? (
+          <p className="rounded-md border border-[#4a4a54] bg-[#1b1b20] p-3 text-sm text-[#e4e4e9]" data-testid="shift-review-own">
+            Shift ini milik Anda — pemeriksaan dilakukan Manajer lain atau Owner.
+          </p>
         ) : (
           <>
-            <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Hasil pemeriksaan / koreksi / tindak lanjut" className="min-h-16 border-[#4a4a54] bg-[#1b1b20]" />
+            <div className="grid gap-2 text-sm sm:grid-cols-3">
+              <ReviewFigure label="Kas seharusnya" value={rp(expectedCash)} />
+              <ReviewFigure label="Hitungan pertama kasir" value={actualCash === null ? "-" : rp(actualCash)} />
+              <ReviewFigure
+                label="Selisih"
+                value={discrepancy === 0 ? "Balance" : `${discrepancy > 0 ? "Lebih" : "Kurang"} ${rp(Math.abs(discrepancy))}`}
+                tone={discrepancy === 0 ? "ok" : "warn"}
+              />
+            </div>
+            {recountCash !== null && !recount.anyCounted ? (
+              <p className="text-sm text-[#d6d6dc]">
+                Hitung ulang tersimpan: {rp(recountCash)} (selisih {rp(recountCash - expectedCash)}).
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              <Button type="button" size="sm" variant="outline" className="h-9 border-[#4a4a54]" onClick={() => setRecountOpen((open) => !open)} data-testid="shift-review-recount-toggle">
+                {recountOpen ? "Tutup hitung ulang" : "Hitung ulang uang laci"}
+              </Button>
+              {recountOpen ? (
+                <div className="space-y-2 rounded-md border border-[#4a4a54] bg-[#1b1b20] p-3">
+                  <CashDenominationGrid counts={recountCounts} onChange={setRecountCounts} testIdPrefix="recount" />
+                  <p className="text-sm font-semibold text-white">
+                    Hasil hitung ulang: {rp(recount.total)} · selisih{" "}
+                    {recount.anyCounted ? rp(recount.total - expectedCash) : "-"}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Hasil pemeriksaan / penyebab selisih / tindak lanjut" className="min-h-16 border-[#4a4a54] bg-[#1b1b20]" />
+            {hasDiscrepancy ? (
+              <label className="flex items-start gap-2 text-sm text-[#ffd08a]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 accent-[#f5a742]"
+                  checked={acknowledge}
+                  onChange={(event) => setAcknowledge(event.target.checked)}
+                  data-testid="shift-review-acknowledge"
+                />
+                <span>Selisih diakui — penyebabnya sudah saya tulis di catatan (wajib untuk verifikasi shift berselisih).</span>
+              </label>
+            ) : null}
+            {viewerOwnsShift && isOwner ? (
+              <p className="text-sm text-[#ffd08a]">Anda memeriksa shift sendiri — tercatat &quot;tanpa pemeriksa kedua&quot;.</p>
+            ) : null}
+            {reviewStatus === "verified" && (discrepancyAcknowledged || selfVerified) ? (
+              <p className="text-sm text-[#d6d6dc]">
+                {discrepancyAcknowledged ? "Selisih diakui pemeriksa." : ""} {selfVerified ? "Tanpa pemeriksa kedua." : ""}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={busy} className="h-10 bg-[#f5a742] text-black hover:bg-[#ffc167]" onClick={() => void review("verified")} data-testid="shift-review-verify">
+              <Button
+                type="button"
+                disabled={busy || (hasDiscrepancy && (!acknowledge || !note.trim()))}
+                className="h-10 bg-[#f5a742] text-black hover:bg-[#ffc167]"
+                onClick={() => void review("verified")}
+                data-testid="shift-review-verify"
+              >
                 <CheckCircle2 className="size-4" /> Verifikasi laporan
               </Button>
               <Button type="button" variant="outline" disabled={busy} className="h-10 border-[#d11a2a]/60 text-[#ffc2c8]" onClick={() => void review("needs_followup")}>
@@ -740,5 +832,14 @@ export function ShiftReviewCard({
         {error ? <p className="text-sm font-semibold text-[#ffb4bb]">{error}</p> : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ReviewFigure({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
+  return (
+    <div className="rounded-md border border-[#3a3a42] bg-[#1b1b20] px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-[#b8b8c0]">{label}</p>
+      <p className={`text-base font-bold ${tone === "warn" ? "text-[#ffd08a]" : tone === "ok" ? "text-[#a8f0c4]" : "text-white"}`}>{value}</p>
+    </div>
   );
 }

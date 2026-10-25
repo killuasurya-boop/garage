@@ -9,8 +9,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 import { denominationRows } from "@/lib/cash-denominations";
+import { discrepancyStatusLabel } from "@/lib/cash-discrepancy";
 import { INCIDENT_STATUS_LABEL, PETTY_CASH_STATUS_LABEL, type IncidentStatus } from "@/lib/cashier-accountability";
-import { SHIFT_REPORT_DEFINITIONS, type ShiftAccountability } from "@/lib/shift-accountability-report";
+import { SHIFT_REPORT_DEFINITIONS, shiftHasDiscrepancy, type ShiftAccountability } from "@/lib/shift-accountability-report";
 
 const nodeRequire = createRequire(import.meta.url);
 type PDFDocumentConstructor = new (options?: PDFKit.PDFDocumentOptions) => PDFKit.PDFDocument;
@@ -88,6 +89,8 @@ type PettyDay = {
   topups: number;
   expenses: number;
   adjustments: number;
+  /** Pembatalan entri yang sudah dibayar (baris pembalik) di periode ini. */
+  reversals?: number;
   closingBalance: number;
   pendingCount: number;
   pendingExpenseTotal: number;
@@ -347,7 +350,7 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
     ["Kas keluar", rp(cash.cashOut)],
     ["Refund/void tunai", rp(cash.cashRefundsVoids)],
     ["Petty cash (shift)", rp(report.petty.filter((p) => p.status === "approved" && p.type === "expense" && p.paidAt !== null && !p.reversed).reduce((sum, p) => sum + p.amount, 0))],
-    ["Setoran ke Owner", rp(cash.deposit)],
+    ["Untuk disetor ke rekening", rp(cash.deposit)],
     ["Kas seharusnya", rp(cash.expected)],
     ["Kas aktual", rp(cash.actual)],
     ["Selisih kas", rp(cash.variance), statusTone(cash.variance)],
@@ -672,9 +675,14 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
         ] as [string, string][])
       : ([["± Penyesuaian lain (pengeluaran Finance tunai, koreksi metode, pembatalan pelunasan)", rp(cash.otherAdjustments)]] as [string, string][])),
     ["= Kas yang diharapkan", rp(cash.expected), true],
-    ["Kas aktual (hitung pecahan)", rp(cash.actual), true],
+    [s.countSkippedReason ? "Kas aktual (tutup darurat, tanpa pecahan)" : "Kas aktual (hitungan pertama kasir)", rp(cash.actual), true],
     ["Selisih kas", cash.variance === null ? "Belum ditutup" : rp(cash.variance), true],
-    ["Status selisih", s.status === "open" ? "-" : s.discrepancyStatus === "ok" ? "Wajar" : s.discrepancyStatus === "review" ? "Perlu diperiksa" : "Kritis"],
+    ...(s.recountCash !== null
+      ? ([
+          ["Hitung ulang pemeriksa", `${rp(s.recountCash)} · selisih ${rp(s.recountCash - cash.expected)}`],
+        ] as [string, string][])
+      : []),
+    ["Status selisih", s.status === "open" ? "-" : discrepancyStatusLabel(s.discrepancyStatus)],
     ["Persetujuan selisih", s.managerSignOffByName ? `${s.managerSignOffByName} · ${dateTime(s.managerSignOffAt)}` : "-"],
   ]);
 
@@ -692,6 +700,19 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
   w.paragraph("Manajer", { bold: true, size: 9 });
   w.keyValues([
     ["Status pemeriksaan", s.reviewLabel, true],
+    ...(s.reviewStatus === "verified"
+      ? ([
+          [
+            "Selisih",
+            !shiftHasDiscrepancy(s)
+              ? "Tidak ada selisih"
+              : s.discrepancyAcknowledged
+                ? "Diakui pemeriksa (lihat catatan)"
+                : "Ada selisih — belum diakui (diverifikasi sebelum aturan selisih diakui)",
+          ],
+          ...(s.reviewSelfVerified ? [["Pemeriksa", "Owner memeriksa shift sendiri — tanpa pemeriksa kedua"]] : []),
+        ] as [string, string][])
+      : []),
     ["Catatan / tindak lanjut", text(s.reviewNote)],
     ["Diverifikasi oleh", s.reviewedByName ? `${s.reviewedByName} · ${dateTime(s.reviewedAt)}` : "Belum diverifikasi"],
   ]);
@@ -699,10 +720,18 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
   const openIncidents = report.incidents.filter((i) => i.status !== "resolved").length;
   const pendingPetty = report.petty.filter((p) => p.status === "submitted").length;
   const pendingVoids = report.voids.filter((v) => v.status === "Diajukan").length;
+  const deposits = report.movements.filter((m) => m.depositAccount && m.status === "recorded");
+  const unconfirmed = deposits.filter((m) => !m.depositConfirmedAt);
   w.keyValues([
     ["Kasir yang menyerahkan", text(s.cashierName)],
     ["Uang ditinggal di laci (modal shift berikut)", rp(cash.floatLeft)],
-    ["Disetor ke Owner/brankas", rp(cash.deposit)],
+    ["Sisa untuk disetor (dihitung − ditinggal)", rp(cash.deposit)],
+    [
+      "Setoran ke rekening",
+      deposits.length
+        ? `${deposits.length} setoran · ${rp(deposits.reduce((sum, m) => sum + m.amount, 0))}${unconfirmed.length ? ` · ${unconfirmed.length} belum dikonfirmasi penerima (${rp(unconfirmed.reduce((sum, m) => sum + m.amount, 0))})` : " · semua dikonfirmasi"}`
+        : "-",
+    ],
     ["Kasir penerima (shift berikutnya)", report.handover.next ? `${text(report.handover.next.cashierName)} · ${report.handover.next.code} · buka ${dateTime(report.handover.next.openedAt)} · modal ${rp(report.handover.next.openingCash)}` : "Belum ada shift berikutnya"],
     ["Diterima dari shift sebelumnya", report.handover.previous ? `${text(report.handover.previous.cashierName)} · ${report.handover.previous.code} · ditinggal ${rp(report.handover.previous.floatLeft)}` : "-"],
     ["Transaksi masih terbuka", `${sales.pendingCount + sales.partialCount} order · ${rp(sales.unpaidTotal)}`],
@@ -740,6 +769,7 @@ function pettyDaySection(w: Writer, petty: PettyDay, date: string) {
     ["Penambahan dana", rp(petty.topups)],
     ["Pengeluaran dibayar", rp(petty.expenses)],
     ["Penyesuaian", rp(petty.adjustments)],
+    ...(petty.reversals ? ([["Pembatalan (dibalik)", rp(petty.reversals)]] as [string, string][]) : []),
     ["Saldo akhir", rp(petty.closingBalance)],
     ["Menunggu persetujuan", `${petty.pendingCount} · ${rp(petty.pendingExpenseTotal)}`, petty.pendingCount ? "warn" : undefined],
     ["Disetujui, belum dibayar", `${petty.awaitingPaymentCount ?? 0} · ${rp(petty.awaitingPaymentTotal ?? 0)}`, petty.awaitingPaymentCount ? "warn" : undefined],

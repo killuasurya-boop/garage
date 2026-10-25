@@ -25,6 +25,7 @@ export const cashMovementBodySchema = z.object({
   orderRef: optionalText(60),
   employeeUserId: optionalText(80),
   relatedRef: optionalText(40),
+  depositAccount: z.enum(["bank_jago", "bank_bni"]).nullish(),
   // Alias dari klien lama / laporan akuntabilitas shift.
   referenceNo: optionalText(80),
   orderNo: optionalText(60),

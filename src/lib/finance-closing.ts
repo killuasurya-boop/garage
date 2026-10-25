@@ -2,7 +2,7 @@
 // Closing membekukan angka hari itu (financial_snapshots.status = "locked").
 // Perubahan setelahnya hanya lewat "buka ulang" oleh Owner dengan alasan
 // (audit log); transaksi yang masuk setelah closing terdeteksi sebagai selisih.
-import { and, desc, eq, gte, inArray, isNull, lt, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -37,6 +37,8 @@ import {
 } from "@/lib/finance-control-core";
 import { emptyRaw, getDayFigures, loadDayRaws, loadFinanceConfig, snapshotFromFigure } from "@/lib/finance-control";
 import type { GarageSession } from "@/lib/server-auth";
+
+const ESCALATED_DISCREPANCY = ["review", "critical"];
 
 export type CheckStatus = "ok" | "warn" | "block";
 export type ClosingCheck = { id: string; label: string; status: CheckStatus; detail: string };
@@ -164,8 +166,10 @@ async function dailyChecks(dateKey: string, todayKey: string) {
         ),
     ]);
 
+  // Selisih "minor" (≤ Rp10.000) tercatat jujur tapi tidak menahan closing; hanya
+  // selisih yang dieskalasi (review/critical) butuh sign-off Manajer.
   const unresolvedCash = closedSessions.filter(
-    (row) => row.discrepancyStatus !== "ok" && !row.managerSignOffAt,
+    (row) => ESCALATED_DISCREPANCY.includes(row.discrepancyStatus) && !row.managerSignOffAt,
   );
   const mismatch = settlements.filter((row) => row.status === "mismatch").length;
   const pendingSettlement = settlements.filter((row) => !["settled", "matched", "mismatch"].includes(row.status)).length;
@@ -294,7 +298,7 @@ export async function getDailyClosingReview(dateKey: string) {
       ...row,
       managerSignOffAt: row.managerSignOffAt?.toISOString() ?? null,
       closedAt: row.closedAt?.toISOString() ?? null,
-      needsInvestigation: row.discrepancyStatus !== "ok" && !row.managerSignOffAt,
+      needsInvestigation: ESCALATED_DISCREPANCY.includes(row.discrepancyStatus) && !row.managerSignOffAt,
     })),
     closing: closing
       ? {
@@ -498,7 +502,7 @@ export async function getMonthlyClosingReview(month: string) {
         .where(
           and(
             eq(cashSessions.status, "closed"),
-            ne(cashSessions.discrepancyStatus, "ok"),
+            inArray(cashSessions.discrepancyStatus, ESCALATED_DISCREPANCY),
             isNull(cashSessions.managerSignOffAt),
             gte(cashSessions.closedAt, start),
             lt(cashSessions.closedAt, end),

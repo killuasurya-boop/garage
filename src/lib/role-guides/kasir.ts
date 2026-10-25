@@ -194,7 +194,7 @@ export const kasirGuide: RoleGuide = {
         { text: "Pastikan semua pesanan sudah dibayar atau diserahkan ke shift berikutnya." },
         { text: "Tekan Tutup Shift, lalu hitung uang laci per pecahan (Rp100.000, Rp50.000, … koin). Total terhitung otomatis." },
         { text: "Isi total QRIS dari aplikasi BNI (mutasi hari ini) untuk dicocokkan." },
-        { text: "Pilih uang yang ditinggal di laci untuk shift berikutnya. Sisanya disetor ke Owner." },
+        { text: "Pilih uang yang ditinggal di laci untuk shift berikutnya. Sisanya disetor ke Rekening Jago/BNI lewat Kas Keluar → Setoran, lalu Owner/Manajer mengonfirmasi bukti setor." },
         { text: "Centang checklist penutupan, tulis catatan bila ada kejadian." },
         {
           text: "Konfirmasi. Bila selisih besar, sistem meminta PIN Manajer/Owner sebagai saksi.",

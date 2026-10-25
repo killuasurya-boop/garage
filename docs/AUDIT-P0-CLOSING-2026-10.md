@@ -109,6 +109,16 @@ Tabel baru `cash_ledger` berisi **satu baris per perpindahan uang yang benar-ben
 
 Aturan rilis: P1 dan P3 tidak dirilis sebagian. Selama transisi, laporan lama dan baru dibandingkan secara baca-saja; tidak ada dua posting uang.
 
+### 6.2a Status pelaksanaan (25 Okt 2026)
+
+| Tahap | Status | Catatan |
+|---|---|---|
+| P1 | Selesai — PR #71, migrasi 0159, deploy #65 | Buku kas tunggal, sumber dana biaya Finance. |
+| P2 | Selesai — PR #72, migrasi 0160, deploy #66 | Disetujui ≠ dibayar, pengaju ≠ penyetuju, saldo petty dari buku kas. Uang muka (`advance`) belum dipisah. |
+| P3 | Selesai (PR berikutnya, migrasi 0161) | Pecahan wajib (tutup darurat = alasan + PIN Manajer). Status jujur: `ok` hanya Rp0, `minor` ≤ Rp10.000 (tidak dieskalasi), `review`/`critical` → antrean Persetujuan. Hitungan pertama kasir tetap; hitung ulang pemeriksa disimpan terpisah. "Verified" berselisih wajib "selisih diakui" + catatan. Setoran = ke Rekening Jago/BNI: laci → `deposit_transit` → rekening saat penerima (≠ penyetor) mengonfirmasi bukti setor. Kategori brankas dihentikan. QRIS settlement/fee (B9) belum. |
+| P4 | Selesai (PR yang sama) | Verifikator ≠ pemilik shift (buka/tutup); Owner = pengecualian berlabel "tanpa pemeriksa kedua". Manajer dibatasi outletnya. Kejadian ditutup Manajer/Owner lain, bukan pelapor. |
+| P5–P6 | Belum | Dashboard Owner & pilot. |
+
 ### 6.3 Tes
 
 `closing-audit-probe.integration.test.ts` menjadi alat ukur. Setiap `it.fails` yang diperbaiki diubah menjadi `it` pada PR tahap terkait. Tes T09, T10, T12, T13, T20–T25 ditambahkan di tahap masing-masing.

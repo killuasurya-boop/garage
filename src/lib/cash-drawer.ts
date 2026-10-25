@@ -48,7 +48,8 @@ export type CashDrawerField =
   | "receiptNo"
   | "orderRef"
   | "employee"
-  | "relatedRef";
+  | "relatedRef"
+  | "depositAccount";
 
 export type CashDrawerCategory = {
   key: string;
@@ -68,6 +69,16 @@ export type CashDrawerCategory = {
   alwaysConfirm?: boolean;
   /** Kasir selalu butuh persetujuan Manajer/Owner, berapa pun nominalnya. */
   requiresApproval?: boolean;
+  /** Tidak dipakai lagi untuk transaksi baru (baris lama tetap terbaca). */
+  retired?: boolean;
+};
+
+/** Rekening tujuan setoran (owner, 25 Okt 2026: tidak ada brankas / serah langsung ke Owner). */
+export const DEPOSIT_ACCOUNTS = ["bank_jago", "bank_bni"] as const;
+export type DepositAccount = (typeof DEPOSIT_ACCOUNTS)[number];
+export const DEPOSIT_ACCOUNT_LABEL: Record<DepositAccount, string> = {
+  bank_jago: "Rekening Jago",
+  bank_bni: "Rekening BNI",
 };
 
 export const CASH_DRAWER_CATEGORIES: CashDrawerCategory[] = [
@@ -158,15 +169,15 @@ export const CASH_DRAWER_CATEGORIES: CashDrawerCategory[] = [
   },
   {
     key: "setoran",
-    label: "Setoran ke Owner/Manajer",
+    label: "Setoran ke Rekening Bank",
     direction: "out",
     group: "transfer",
     expenseCategory: null,
-    fields: ["counterparty"],
-    required: ["counterparty"],
-    counterpartyLabel: "Penerima setoran",
-    placeholder: "Setoran tunai kepada Manajer",
-    hint: "Bukan biaya — uang pindah tangan. Penerima menyetujui dengan PIN.",
+    fields: ["depositAccount", "counterparty", "receiptNo"],
+    required: ["depositAccount", "counterparty"],
+    counterpartyLabel: "Disetor oleh",
+    placeholder: "Setor tunai ke Rekening Jago",
+    hint: "Bukan biaya — uang pindah ke rekening. Status \"dalam perjalanan\" sampai Owner/Manajer lain mengonfirmasi bukti setor.",
     alwaysConfirm: true,
     requiresApproval: true,
   },
@@ -180,8 +191,9 @@ export const CASH_DRAWER_CATEGORIES: CashDrawerCategory[] = [
     required: [],
     counterpartyLabel: "Saksi / pemegang kunci",
     placeholder: "Pindahkan pecahan besar ke brankas",
-    hint: "Bukan biaya — uang dipindahkan ke brankas.",
+    hint: "Tidak dipakai lagi — Garage tidak memakai brankas. Gunakan Setoran ke Rekening Bank.",
     alwaysConfirm: true,
+    retired: true,
   },
   {
     key: "lain_keluar",
@@ -289,7 +301,7 @@ export function cashDrawerCategory(key: string | null | undefined): CashDrawerCa
 }
 
 export function cashDrawerCategoriesFor(direction: CashDrawerDirection) {
-  return CASH_DRAWER_CATEGORIES.filter((category) => category.direction === direction);
+  return CASH_DRAWER_CATEGORIES.filter((category) => category.direction === direction && !category.retired);
 }
 
 /** Kelompok laporan untuk baris lama & baru (fallback: lain-lain). */
@@ -305,6 +317,7 @@ export const CASH_DRAWER_FIELD_LABELS: Record<CashDrawerField, string> = {
   orderRef: "No. order terkait",
   employee: "Karyawan",
   relatedRef: "Ref kas keluar asal",
+  depositAccount: "Rekening tujuan",
 };
 
 export type CashDrawerStatus = "recorded" | "pending_approval" | "rejected" | "voided";

@@ -4,12 +4,9 @@ import { accountabilityFailure } from "@/lib/accountability-route";
 import { ok, readJson } from "@/lib/api-response";
 import {
   createPettyCashEntry,
-  listPettyCashEntries,
+  getPettyCashPeriod,
   PETTY_CASH_TYPES,
   PETTY_FUND_SOURCES,
-  pettyCashBalance,
-  pettyCashBalanceBefore,
-  summarizePettyCash,
 } from "@/lib/cashier-accountability";
 import { requireAnyPermission } from "@/lib/server-auth";
 
@@ -36,12 +33,7 @@ export async function GET(request: Request) {
   const toDay = new Date(`${params.get("to") || params.get("from") || today}T00:00:00+07:00`);
   const to = new Date(toDay.getTime() + 86_400_000);
   const outletId = session.data.profile.outlet.id;
-  const [entries, openingBalance, closingBalance] = await Promise.all([
-    listPettyCashEntries({ outletId, from, to }),
-    pettyCashBalanceBefore(outletId, from),
-    pettyCashBalance(outletId, to),
-  ]);
-  return ok(summarizePettyCash(entries, openingBalance, closingBalance));
+  return ok(await getPettyCashPeriod(outletId, from, to));
 }
 
 export async function POST(request: Request) {

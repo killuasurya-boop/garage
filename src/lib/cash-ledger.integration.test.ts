@@ -2,6 +2,8 @@ import fs from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { cashCount } from "@/lib/test-helpers/cash-count";
+
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
 import { seedGarageBasics, setupGarageTestDb, teardownGarageTestDb, type GarageTestDb } from "@/lib/test-helpers/garage-test-db";
@@ -168,7 +170,7 @@ describe("buku kas laci", () => {
     expect(data.cash.expected).toBe(balance);
     const summary: any = await svc.getCashSessionSummary(sessionId, KASIR, { allowAll: true } as any);
     expect(summary.reconciliation.expectedCash).toBe(balance);
-    const closed: any = await svc.closeCashSession(sessionId, { actualCash: balance } as any, kasir());
+    const closed: any = await svc.closeCashSession(sessionId, { actualCash: balance, denominations: cashCount(balance) } as any, kasir());
     expect(closed.discrepancy ?? (await sessionRow(sessionId)).discrepancy).toBe(0);
     const after: any = await report.getShiftAccountability(sessionId);
     expect(after.cash.expected).toBe(balance);

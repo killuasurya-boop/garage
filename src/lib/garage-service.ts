@@ -82,8 +82,11 @@ import {
   cashDrawerDelta,
   cashDrawerGroupOf,
   cashDrawerNeedsApproval,
+  DEPOSIT_ACCOUNT_LABEL,
+  DEPOSIT_ACCOUNTS,
   resolveCashDrawerCategory,
   type CashDrawerCategory,
+  type DepositAccount,
 } from "@/lib/cash-drawer";
 
 export { DEFAULT_APP_SETTINGS, type AppSettings };
@@ -434,6 +437,11 @@ type CloseCashSessionInput = {
   qrisCounted?: number;
   /** Uang yang ditinggal di laci untuk modal shift berikutnya (sisanya disetor). */
   floatLeft?: number;
+  /**
+   * Tutup darurat tanpa hitungan pecahan (P3): wajib alasan + sign-off Manajer/Owner.
+   * Tutup standar selalu dengan pecahan.
+   */
+  countSkippedReason?: string;
 };
 
 type ExpenseInput = {
@@ -1260,10 +1268,12 @@ async function nextDailyQueueNo(
 
 function cashDiscrepancyStatus(discrepancy: number, criticalThreshold?: number) {
   const abs = Math.abs(discrepancy);
-  // <= 10K = ok (rounding error wajar). Antara itu sampai criticalThreshold = review.
-  // Di atas threshold = critical (wired ke setting shiftDiscrepancyThreshold).
+  // P3 (owner, Okt 2026): hanya Rp0 = "ok" (balance). Selisih s.d. Rp10.000 tetap
+  // berlabel "minor" — ambang hanya menentukan eskalasi (antrean Persetujuan & PIN),
+  // bukan menyembunyikan selisih. Di atas shiftDiscrepancyThreshold = critical.
   const threshold = criticalThreshold && criticalThreshold > 10_000 ? criticalThreshold : 50_000;
-  if (abs <= 10_000) return "ok";
+  if (abs === 0) return "ok";
+  if (abs <= 10_000) return "minor";
   if (abs <= threshold) return "review";
   return "critical";
 }
@@ -16162,6 +16172,8 @@ export type CashMovementInput = {
   orderRef?: string | null;
   employeeUserId?: string | null;
   relatedRef?: string | null;
+  /** Setoran: rekening tujuan (bank_jago | bank_bni). */
+  depositAccount?: string | null;
   managerPin?: string;
   /** Kasir tanpa PIN di tempat: kirim sebagai pengajuan (uang belum bergerak). */
   submitForApproval?: boolean;
@@ -16193,6 +16205,8 @@ type PreparedCashMovement = {
   orderNoText: string | null;
   employee: { userId: string; name: string } | null;
   related: { id: string; refNo: string | null; expenseId: string | null } | null;
+  /** Setoran ke rekening: uang laci → "setoran dalam perjalanan" sampai dikonfirmasi. */
+  depositAccount: DepositAccount | null;
 };
 
 const cleanText = (value: string | null | undefined, max: number) => {
@@ -16204,6 +16218,9 @@ const cleanText = (value: string | null | undefined, max: number) => {
 async function prepareCashMovement(input: CashMovementInput, garage: GarageSession): Promise<PreparedCashMovement> {
   const def = resolveCashDrawerCategory(input.type, input.categoryKey ?? input.category ?? "");
   if (!def) throw new CashMovementError("CATEGORY_INVALID", "Kategori tidak sesuai dengan jenis transaksi.");
+  if (def.retired) {
+    throw new CashMovementError("CATEGORY_RETIRED", `${def.label} tidak dipakai lagi. ${def.hint}`);
+  }
   if (!Number.isInteger(input.amount) || input.amount <= 0) {
     throw new CashMovementError("AMOUNT_INVALID", "Nominal harus angka bulat lebih dari 0.");
   }
@@ -16227,9 +16244,15 @@ async function prepareCashMovement(input: CashMovementInput, garage: GarageSessi
     orderNoText: def.fields.includes("orderRef") ? null : cleanText(input.orderNo ?? input.orderRef, 60),
     employee: null,
     related: null,
+    depositAccount: def.fields.includes("depositAccount")
+      ? ((DEPOSIT_ACCOUNTS as readonly string[]).includes(input.depositAccount ?? "")
+          ? (input.depositAccount as DepositAccount)
+          : null)
+      : null,
   };
   for (const field of def.required) {
     const missing =
+      (field === "depositAccount" && !prepared.depositAccount) ||
       (field === "counterparty" && !prepared.counterparty) ||
       (field === "orderRef" && !(input.orderRef ?? input.orderNo)?.trim()) ||
       (field === "employee" && !input.employeeUserId?.trim()) ||
@@ -16353,7 +16376,13 @@ async function applyCashMovementEffectsInTx(
     sourceRef: `${params.refNo} · ${prepared.def.label}`,
     actorUserId: params.actorUserId,
     note: prepared.description,
-    metadata: { categoryKey: prepared.def.key, cashGroup: prepared.def.group, approverName: params.approverName },
+    metadata: {
+      categoryKey: prepared.def.key,
+      cashGroup: prepared.def.group,
+      approverName: params.approverName,
+      ...(prepared.depositAccount ? { depositAccount: prepared.depositAccount } : {}),
+    },
+    counterAccount: prepared.depositAccount ? "deposit_transit" : undefined,
     idempotencyKey: `drawer:${params.sessionId}:${params.refNo}`,
     occurredAt: now,
   });
@@ -16489,11 +16518,19 @@ async function reverseCashMovementEffectsInTx(
       409,
     );
   }
+  if (movement.depositConfirmedAt) {
+    throw new CashMovementError(
+      "DEPOSIT_CONFIRMED",
+      "Setoran ini sudah dikonfirmasi masuk rekening — tidak bisa dibatalkan dari laci.",
+      409,
+    );
+  }
   const delta = movement.type === "cash_out" ? -movement.amount : movement.amount;
   // Buku kas: baris pembalik (bukan mengubah baris lama).
   await postDrawerCash(tx, {
     sessionId: session.id,
     delta: -delta,
+    counterAccount: movement.depositAccount ? "deposit_transit" : undefined,
     sourceType: "drawer_reversal",
     sourceId: movement.refNo ?? movement.id,
     sourceRef: `${movement.refNo ?? ""} · batal ${movement.category}`.trim(),
@@ -16615,6 +16652,7 @@ async function insertCashMovementInTx(
       orderNo: prepared.order?.orderNo ?? prepared.orderNoText,
       employeeUserId: prepared.employee?.userId ?? null,
       relatedMovementId: prepared.related?.id ?? null,
+      depositAccount: prepared.depositAccount,
       correctsMovementId: params.correctsMovementId ?? null,
       expenseId: applied?.expenseId ?? null,
       ledgerEntryId: applied?.ledgerEntryId ?? null,
@@ -16758,6 +16796,7 @@ async function preparedFromRow(row: typeof cashMovements.$inferSelect, garage: G
       orderNo: row.orderNo,
       employeeUserId: row.employeeUserId,
       relatedRef: related,
+      depositAccount: row.depositAccount,
     },
     garage,
   );
@@ -16868,6 +16907,79 @@ export async function decideCashMovement(
 }
 
 /** Batalkan transaksi tercatat (salah input) — Owner/Manajer, shift masih buka. */
+/**
+ * Setoran ke rekening (P3, owner Okt 2026): penerima mengonfirmasi uang sudah masuk
+ * Rekening Jago/BNI dengan nomor bukti setor. Pengonfirmasi ≠ penyetor (Owner =
+ * pengecualian tercatat). Buku kas: "setoran dalam perjalanan" → rekening tujuan.
+ */
+export async function confirmCashDeposit(id: string, input: { bankRef: string; note?: string | null }, garage: GarageSession) {
+  assertOwnerOrManager(garage);
+  const bankRef = cleanText(input.bankRef, 80);
+  if (!bankRef || bankRef.length < 3) {
+    throw new CashMovementError("BANK_REF_REQUIRED", "Nomor bukti setor / mutasi bank wajib diisi.");
+  }
+  const note = cleanText(input.note, 300);
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    const row = await lockOutletCashMovement(tx, id, garage);
+    if (!row.depositAccount) throw new CashMovementError("NOT_DEPOSIT", "Transaksi ini bukan setoran ke rekening.", 409);
+    if (row.status !== "recorded") {
+      throw new CashMovementError("NOT_RECORDED", "Setoran belum keluar dari laci (masih pengajuan/dibatalkan).", 409);
+    }
+    if (row.depositConfirmedAt) throw new CashMovementError("DEPOSIT_CONFIRMED", "Setoran ini sudah dikonfirmasi.", 409);
+    const selfConfirmed = row.createdBy === garage.user.id;
+    if (selfConfirmed && garage.profile.role !== "Owner") {
+      throw new CashMovementError(
+        "INDEPENDENT_REVIEW_REQUIRED",
+        "Setoran dikonfirmasi oleh penerima lain (Manajer lain/Owner), bukan penyetornya sendiri.",
+        403,
+      );
+    }
+    const entry = await postAccountCash(tx, {
+      from: "deposit_transit",
+      to: row.depositAccount as CashAccount,
+      amount: row.amount,
+      outletId: row.outletId,
+      sourceType: "deposit_confirm",
+      sourceId: row.refNo ?? row.id,
+      sourceRef: `${row.refNo ?? ""} · ${DEPOSIT_ACCOUNT_LABEL[row.depositAccount as DepositAccount] ?? row.depositAccount} · ${bankRef}`.trim(),
+      reversesId: null,
+      actorUserId: garage.user.id,
+      note,
+      occurredAt: now,
+      idempotencyKey: `deposit_confirm:${row.id}`,
+    });
+    const [updated] = await tx
+      .update(cashMovements)
+      .set({
+        depositConfirmedBy: garage.user.id,
+        depositConfirmedAt: now,
+        depositBankRef: bankRef,
+        depositLedgerEntryId: entry.id,
+        updatedAt: now,
+      })
+      .where(eq(cashMovements.id, row.id))
+      .returning();
+    await tx.insert(auditLogs).values({
+      ...cashMovementAuditBase(garage),
+      action: "Setoran diterima di rekening",
+      object: `${row.refNo} · ${row.description}`,
+      status: "approved",
+      metadata: {
+        cashMovementId: row.id,
+        refNo: row.refNo,
+        actionType: "deposit_confirm",
+        amount: row.amount,
+        depositAccount: row.depositAccount,
+        bankRef,
+        reason: note,
+        ...(selfConfirmed ? { selfConfirmed: true, note: "tanpa pemeriksa kedua" } : {}),
+      },
+    });
+    return updated;
+  });
+}
+
 export async function voidCashMovement(id: string, reason: string, garage: GarageSession) {
   assertOwnerOrManager(garage);
   const cleanReason = cleanText(reason, 300);
@@ -16982,6 +17094,7 @@ const movementApprover = alias(user, "cash_movement_approver");
 const movementEmployee = alias(user, "cash_movement_employee");
 const movementRejecter = alias(user, "cash_movement_rejecter");
 const movementVoider = alias(user, "cash_movement_voider");
+const movementDepositConfirmer = alias(user, "movement_deposit_confirmer");
 
 function cashMovementSelect() {
   return {
@@ -17020,6 +17133,10 @@ function cashMovementSelect() {
     voidedByName: movementVoider.name,
     voidedAt: cashMovements.voidedAt,
     voidReason: cashMovements.voidReason,
+    depositAccount: cashMovements.depositAccount,
+    depositConfirmedAt: cashMovements.depositConfirmedAt,
+    depositBankRef: cashMovements.depositBankRef,
+    depositConfirmedByName: movementDepositConfirmer.name,
   };
 }
 
@@ -17032,7 +17149,8 @@ function cashMovementBaseQuery() {
     .leftJoin(movementApprover, eq(movementApprover.id, cashMovements.approvedBy))
     .leftJoin(movementEmployee, eq(movementEmployee.id, cashMovements.employeeUserId))
     .leftJoin(movementRejecter, eq(movementRejecter.id, cashMovements.rejectedBy))
-    .leftJoin(movementVoider, eq(movementVoider.id, cashMovements.voidedBy));
+    .leftJoin(movementVoider, eq(movementVoider.id, cashMovements.voidedBy))
+    .leftJoin(movementDepositConfirmer, eq(movementDepositConfirmer.id, cashMovements.depositConfirmedBy));
 }
 
 type CashMovementSelectRow = Awaited<ReturnType<typeof cashMovementBaseQuery>>[number];
@@ -17081,6 +17199,10 @@ function shapeCashMovement(row: CashMovementSelectRow, hideBalance: boolean) {
     voidedByName: row.voidedByName ?? null,
     voidedAt: iso(row.voidedAt),
     voidReason: row.voidReason ?? null,
+    depositAccount: row.depositAccount ?? null,
+    depositConfirmedAt: iso(row.depositConfirmedAt),
+    depositBankRef: row.depositBankRef ?? null,
+    depositConfirmedByName: row.depositConfirmedByName ?? null,
   };
 }
 
@@ -18705,6 +18827,21 @@ export async function closeCashSession(
   // /control/settings → Shift & Cash
   const policy = await getAppSettings(garage.profile.outlet.id);
   const countedCash = countedCashFromDenominations(input.denominations);
+  // P3: hitungan pecahan wajib di backend. Tanpa pecahan hanya tutup darurat
+  // dengan alasan tertulis + PIN/sesi Manajer/Owner (tercatat di shift).
+  const countSkippedReason = countedCash === null ? input.countSkippedReason?.trim() || null : null;
+  if (countedCash === null) {
+    if (!countSkippedReason || countSkippedReason.length < 5) {
+      throw new CashSessionInputError(
+        "Hitung pecahan uang di laci sebelum tutup shift. Tanpa pecahan hanya untuk tutup darurat dengan alasan + PIN Manajer.",
+      );
+    }
+    if (!signer) {
+      throw new CashSessionSignOffRequiredError(
+        "Tutup shift tanpa hitungan pecahan wajib disetujui Manajer/Owner dengan PIN.",
+      );
+    }
+  }
   const actualCash = countedCash ?? input.actualCash;
   const now = new Date();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
@@ -18793,6 +18930,7 @@ export async function closeCashSession(
         depositAmount: floatLeft === null ? null : actualCash - floatLeft,
         checklist: input.checklist?.length ? input.checklist : current.checklist,
         denominations: input.denominations ?? {},
+        countSkippedReason,
         closingNote: input.closingNote?.trim() || null,
         status: "closed",
         closedBy: garage.user.id,
@@ -18850,6 +18988,7 @@ export async function closeCashSession(
         discrepancyStatus,
         countedCash,
         actualCash,
+        countSkippedReason,
         managerSignOff: Boolean(signer),
         managerSignOffBy: signer?.userId ?? null,
         managerSignOffVia: managerPin ? "pin" : signer ? "session" : null,
@@ -18864,7 +19003,8 @@ export async function closeCashSession(
 
     // Selisih kas di luar toleransi (review/critical) masuk antrean Persetujuan.
     // Disetujui → sign-off Manajer tercatat di shift. Ditolak → perlu investigasi.
-    if (discrepancyStatus !== "ok") {
+    // Selisih "minor" tidak dieskalasi, tapi tetap wajib diakui saat verifikasi.
+    if (discrepancyStatus === "review" || discrepancyStatus === "critical") {
       const direction = discrepancy < 0 ? "kurang" : "lebih";
       await tx
         .insert(approvals)
@@ -19152,6 +19292,12 @@ export type CashSessionTransactionsResult = {
     reviewedAt: string | null;
     openingVerifiedAt: string | null;
     openingCounted: boolean;
+    countSkippedReason: string | null;
+    recountCash: number | null;
+    discrepancyAcknowledged: boolean;
+    reviewSelfVerified: boolean;
+    /** Yang melihat = pemilik shift (buka/tutup) → Manajer tidak boleh memverifikasi sendiri. */
+    viewerOwnsShift: boolean;
   };
   orders: Array<{
     id: string;
@@ -19297,6 +19443,11 @@ export async function getCashSessionTransactions(
       reviewedAt: session.session.reviewedAt?.toISOString() ?? null,
       openingVerifiedAt: session.session.openingVerifiedAt?.toISOString() ?? null,
       openingCounted: Object.keys(session.session.openingDenominations ?? {}).length > 0,
+      countSkippedReason: session.session.countSkippedReason,
+      recountCash: session.session.recountCash,
+      discrepancyAcknowledged: session.session.discrepancyAcknowledged,
+      reviewSelfVerified: session.session.reviewSelfVerified,
+      viewerOwnsShift: session.session.openedBy === cashierUserId || session.session.closedBy === cashierUserId,
     },
     orders: orderRows.map((o) => ({
       ...o,

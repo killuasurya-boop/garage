@@ -93,7 +93,7 @@ const SOP_DATA: TutorialCategory[] = [
           "Selesaikan semua bill aktif sebelum tutup shift.",
           "Tekan Tutup Shift, hitung uang laci per pecahan — angka sistem sengaja tidak ditampilkan (blind count).",
           "Isi total QRIS dari mutasi BNI untuk dicocokkan.",
-          "Pilih uang yang ditinggal di laci; sisanya disetor ke Owner.",
+          "Pilih uang yang ditinggal di laci; sisanya disetor ke Rekening Jago/BNI lewat Kas Keluar → Setoran.",
           "Selisih besar → masukkan PIN Manajer/Owner. Setelah tutup, cetak slip & serahkan bersama setoran.",
           "Panduan lengkap: menu Training → Panduan Kerja."
         ]

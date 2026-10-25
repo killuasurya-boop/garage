@@ -168,7 +168,7 @@ export function CloseShiftForm({
             </div>
             <div className="rounded-md border border-[#f5a742]/50 bg-[#f5a742]/10 p-3">
               <dt className="flex items-center gap-1.5 text-xs text-[#ffd08a]">
-                <Landmark className="size-3.5" /> Disetor ke Owner
+                <Landmark className="size-3.5" /> Untuk disetor ke rekening
               </dt>
               <dd className="mt-1 font-bold text-white">{rupiah(deposit)}</dd>
             </div>
@@ -322,7 +322,7 @@ export function CloseShiftForm({
         <SectionTitle
           step={3}
           title="Serah terima uang"
-          hint="Berapa yang ditinggal di laci untuk modal shift berikutnya? Sisanya disetor ke Owner/brankas."
+          hint="Berapa yang ditinggal di laci untuk modal shift berikutnya? Sisanya disetor ke Rekening Jago/BNI (catat lewat Kas Keluar → Setoran)."
         />
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {FLOAT_PRESETS.map((amount) => {
@@ -377,7 +377,7 @@ export function CloseShiftForm({
           </div>
           <div className="rounded-lg border border-[#f5a742]/50 bg-[#f5a742]/10 p-3">
             <p className="flex items-center gap-1.5 text-xs text-[#ffd08a]">
-              <Landmark className="size-3.5" /> Disetor ke Owner
+              <Landmark className="size-3.5" /> Untuk disetor ke rekening
             </p>
             <p className="mt-1 text-lg font-black text-white">{rupiah(deposit)}</p>
           </div>

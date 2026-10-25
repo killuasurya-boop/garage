@@ -18,7 +18,15 @@ type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type DbOrTx = Db | Tx;
 
-export const CASH_ACCOUNTS = ["drawer", "petty", "bank_jago", "bank_bni", "qris_clearing", "external"] as const;
+export const CASH_ACCOUNTS = [
+  "drawer",
+  "petty",
+  "bank_jago",
+  "bank_bni",
+  "qris_clearing",
+  "deposit_transit",
+  "external",
+] as const;
 export type CashAccount = (typeof CASH_ACCOUNTS)[number];
 
 export { EXPENSE_CASH_SOURCE_LABEL, EXPENSE_CASH_SOURCES, type ExpenseCashSource } from "@/lib/cash-sources";
@@ -41,6 +49,7 @@ export const CASH_SOURCE_TYPES = [
   "petty_expense",
   "petty_adjustment",
   "petty_reversal",
+  "deposit_confirm",
 ] as const;
 export type CashSourceType = (typeof CASH_SOURCE_TYPES)[number];
 
@@ -62,6 +71,7 @@ export const CASH_SOURCE_LABEL: Record<CashSourceType, string> = {
   petty_expense: "Pengeluaran petty cash",
   petty_adjustment: "Penyesuaian petty cash",
   petty_reversal: "Pembatalan petty cash",
+  deposit_confirm: "Setoran diterima di rekening",
 };
 
 export class CashLedgerError extends Error {

@@ -6,6 +6,7 @@
 //   /api/finance/cash-sessions/daily         → rekap harian
 // =============================================================================
 
+import { discrepancyStatusLabel } from "@/lib/cash-discrepancy";
 import {
   createLayout,
   formatJakartaDateTime,
@@ -200,7 +201,7 @@ export function buildShiftSlipContent(input: ShiftSlipInput, options: SlipOption
   const diff = Math.round(s.discrepancy ?? 0);
   layout.pair(`Selisih (${discrepancyLabel(diff)})`, formatSignedRupiah(diff));
   if (diff !== 0) {
-    layout.field("Status", s.managerSignOffAt ? "Disetujui manajer" : s.discrepancyStatus || "Perlu dicek");
+    layout.field("Status", s.managerSignOffAt ? "Disetujui manajer" : s.discrepancyStatus ? discrepancyStatusLabel(s.discrepancyStatus) : "Perlu dicek");
   }
   if (input.floatLeft != null) layout.pair("Ditinggal di laci", formatRupiah(input.floatLeft));
   if (input.depositAmount != null) layout.pair("Disetor", formatRupiah(input.depositAmount));

@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 const reviewSchema = z.object({
   status: z.enum(["verified", "needs_followup"]),
   note: z.string().trim().max(1000).optional(),
+  recountDenominations: z.record(z.string(), z.number().int().min(0).max(100_000)).nullable().optional(),
+  acknowledgeDiscrepancy: z.boolean().optional(),
 });
 
 /** Pemeriksaan laporan shift oleh Manajer/Owner (status verifikasi di PDF). */

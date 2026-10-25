@@ -114,6 +114,35 @@ describe("petty cash", () => {
     expect((await sessionRow(CASHIER)).expectedCash).toBe(before);
     expect(await acc.pettyCashBalanceBefore(outletId, new Date(Date.now() + 60_000))).toBe(475_000);
   });
+
+  it("rekap per periode mengikuti kapan uang bergerak: diajukan kemarin, dibayar hari ini → masuk hari ini", async () => {
+    const { eq } = await import("drizzle-orm");
+    const entry = await acc.createPettyCashEntry(
+      { type: "expense", category: "Kebersihan", description: "Tisu", amount: 15_000, recipient: "Toko Maju" },
+      as("Kasir"),
+    );
+    const yesterday = new Date(Date.now() - 86_400_000);
+    await t.getDb().update(t.schema.pettyCashEntries).set({ entryAt: yesterday }).where(eq(t.schema.pettyCashEntries.id, entry.id));
+    await acc.decidePettyCashEntry(entry.id, { decision: "approve" }, as("Manajer"));
+    await acc.decidePettyCashEntry(entry.id, { decision: "pay" }, as("Manajer"));
+    const now = Date.now();
+    const yStart = new Date(yesterday.getTime() - 60_000);
+    const todayStart = new Date(now - 60 * 60_000);
+    const before = await acc.getPettyCashPeriod(outletId, yStart, todayStart);
+    expect(before.expenses).toBe(0);
+    expect(before.ledger.find((row: { id: string; runningBalance: number | null }) => row.id === entry.id)?.runningBalance).toBeNull();
+    const today = await acc.getPettyCashPeriod(outletId, todayStart, new Date(now + 60_000));
+    expect(today.expenses).toBeGreaterThanOrEqual(15_000);
+    expect(today.ledger.some((row: { id: string }) => row.id === entry.id)).toBe(true);
+    expect(today.closingBalance).toBe(await acc.pettyCashBalance(outletId, new Date(now + 60_000)));
+
+    // Batal setelah dibayar = baris pembalik di periode pembatalan; hari pembayaran tidak berubah.
+    await acc.decidePettyCashEntry(entry.id, { decision: "cancel", note: "Salah catat" }, as("Owner"));
+    const after = await acc.getPettyCashPeriod(outletId, todayStart, new Date(Date.now() + 60_000));
+    expect(after.reversals).toBe(15_000);
+    expect(after.expenses).toBe(today.expenses);
+    expect(after.closingBalance).toBe(await acc.pettyCashBalance(outletId, new Date(Date.now() + 60_000)));
+  });
 });
 
 describe("catatan kejadian & verifikasi", () => {
@@ -127,11 +156,15 @@ describe("catatan kejadian & verifikasi", () => {
     await expect(
       acc.updateShiftIncident(incident.id, { managerNote: "ok" }, as("Kasir")),
     ).rejects.toThrow(/Owner\/Manajer/);
-    await acc.updateShiftIncident(incident.id, { status: "resolved", actionTaken: "Pakai transfer" }, as("Kasir"));
-    await acc.updateShiftIncident(incident.id, { managerNote: "Hubungi BNI" }, as("Manajer"));
+    // P4: pelapor menulis tindakan, tapi tidak menutup kejadiannya sendiri.
+    await expect(
+      acc.updateShiftIncident(incident.id, { status: "resolved", actionTaken: "Pakai transfer" }, as("Kasir")),
+    ).rejects.toMatchObject({ code: "INDEPENDENT_REVIEW_REQUIRED" });
+    await acc.updateShiftIncident(incident.id, { actionTaken: "Pakai transfer" }, as("Kasir"));
+    await acc.updateShiftIncident(incident.id, { status: "resolved", managerNote: "Hubungi BNI" }, as("Manajer"));
     const [listed] = await acc.listShiftIncidents({ cashSessionIds: [session.id] });
     expect(listed).toMatchObject({ status: "resolved", actionTaken: "Pakai transfer", managerNote: "Hubungi BNI" });
-    expect(listed.resolvedByName).toBe("Staff Test");
+    expect(listed.resolvedByName).toBe("Owner Test");
 
     await expect(acc.reviewCashSession(session.id, { status: "verified" }, as("Kasir"))).rejects.toThrow(/Owner\/Manajer/);
     await expect(acc.reviewCashSession(session.id, { status: "verified" }, as("Owner"))).rejects.toThrow(/masih berlangsung/);

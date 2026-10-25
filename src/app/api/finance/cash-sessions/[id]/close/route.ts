@@ -31,6 +31,8 @@ const closeSchema = z.object({
   resetTables: z.boolean().optional(),
   qrisCounted: z.number().int().nonnegative().max(1_000_000_000).optional(),
   floatLeft: z.number().int().nonnegative().max(100_000_000).optional(),
+  // Tutup darurat tanpa pecahan (P3): alasan + PIN Manajer wajib (dicek di service).
+  countSkippedReason: z.string().trim().max(300).optional(),
 });
 
 export async function PATCH(

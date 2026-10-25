@@ -196,6 +196,13 @@ Scroll direction:
     - `confirmCashDeposit` (Owner/Manajer ≠ depositor, bank ref) posts `deposit_transit` → bank.
     - A confirmed setoran can't be voided.
     - Category `brankas` is `retired`.
+  - Owner cash oversight (P5): `/control/cash-closing` panel `CashOversightPanel`. Data and Excel come from one
+    `getCashOversight` (`src/lib/cash-oversight.ts`; labels in `-meta.ts`; xlsx in `-xlsx.ts`) via
+    `GET /api/control/cash-oversight` (Owner only).
+    - Action queues: discrepant shifts not acknowledged, review >24h, unconfirmed deposits, pending cash-outs,
+      petty submitted / approved-unpaid, open incidents, QRIS mismatch.
+    - Control exceptions: emergency close, self-verified, Owner petty, self-confirmed deposit, cache≠ledger.
+    - Read-only except the inline deposit confirm (existing endpoint).
   - Probe `closing-audit-probe.integration.test.ts`: no `it.fails` left. Tests close shifts with
     `cashCount(amount)` (`test-helpers/cash-count.ts`).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall

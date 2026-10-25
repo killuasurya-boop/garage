@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CashOversightPanel } from "@/components/ceo/finance/CashOversightPanel";
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Panel } from "@/components/ceo/layout/Panel";
 import { Badge } from "@/components/ceo/ui/Badge";
@@ -68,6 +69,11 @@ function todayKey() {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+/** Selisih yang dieskalasi (review/critical) & belum disetujui Manajer/Owner. "minor" tetap tampil tapi tidak butuh approval. */
+function needsSignOff(r: ShiftRow) {
+  return r.status === "closed" && (r.discrepancyStatus === "review" || r.discrepancyStatus === "critical") && !r.managerSignOffAt;
+}
+
 export default function CashClosingPage() {
   const [date, setDate] = useState(todayKey);
   const [report, setReport] = useState<DailyReport | null>(null);
@@ -101,9 +107,7 @@ export default function CashClosingPage() {
     return {
       open: rows.filter((r) => r.status === "open").length,
       closed: rows.filter((r) => r.status === "closed").length,
-      pendingApproval: rows.filter(
-        (r) => r.status === "closed" && r.discrepancy !== 0 && r.discrepancyStatus !== "approved",
-      ).length,
+      pendingApproval: rows.filter(needsSignOff).length,
       totalDiscrepancy: rows.reduce((s, r) => s + r.discrepancy, 0),
     };
   }, [report]);
@@ -135,7 +139,7 @@ export default function CashClosingPage() {
       <PageHeader
         kicker="Cash Closing"
         title="Tutup Shift Harian"
-        subtitle="Pantau open / closed shift, selisih kas, dan approval owner."
+        subtitle="Pengawasan kas, open / closed shift, selisih kas, dan approval owner."
         actions={
           <div className="flex items-center gap-2">
             <input
@@ -168,6 +172,8 @@ export default function CashClosingPage() {
           {msg}
         </div>
       )}
+
+      <CashOversightPanel />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
@@ -231,8 +237,7 @@ export default function CashClosingPage() {
                 </tr>
               )}
               {report?.rows.map((r) => {
-                const needsApproval =
-                  r.status === "closed" && r.discrepancy !== 0 && r.discrepancyStatus !== "approved";
+                const needsApproval = needsSignOff(r);
                 return (
                   <tr key={r.id} className="text-zinc-200">
                     <td className="py-2 pr-3 font-mono text-zinc-300">
@@ -268,7 +273,7 @@ export default function CashClosingPage() {
                         <Badge tone="amber">Open</Badge>
                       ) : needsApproval ? (
                         <Badge tone="red">Selisih ditinjau</Badge>
-                      ) : r.discrepancyStatus === "approved" ? (
+                      ) : r.managerSignOffAt ? (
                         <Badge tone="success">Disetujui</Badge>
                       ) : (
                         <Badge tone="chrome">Closed</Badge>
@@ -285,7 +290,7 @@ export default function CashClosingPage() {
                           <ShieldCheck className="h-3 w-3" />
                           {busyId === r.id ? "Memproses…" : "Setujui"}
                         </button>
-                      ) : r.discrepancyStatus === "approved" ? (
+                      ) : r.managerSignOffAt ? (
                         <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300">
                           <CheckCircle2 className="h-3 w-3" /> OK
                         </span>

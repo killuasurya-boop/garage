@@ -1617,6 +1617,32 @@ export const cashLedgerEntries = pgTable(
   }),
 );
 
+// Saldo pembuka disahkan Owner (P6): satu kali per akun (petty per outlet, rekening global).
+// Selisih hitungan nyata − buku kas diposting sebagai baris `opening_balance`; immutable (trigger).
+export const cashOpeningCertifications = pgTable(
+  "cash_opening_certifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scopeKey: text("scope_key").notNull(), // `${account}:${outletId ?? "all"}`
+    account: text("account").notNull(),
+    outletId: uuid("outlet_id"),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    ledgerBalance: integer("ledger_balance").notNull(),
+    countedBalance: integer("counted_balance").notNull(),
+    adjustment: integer("adjustment").notNull(),
+    adjustmentEntryId: uuid("adjustment_entry_id"),
+    legacyEntries: integer("legacy_entries").notNull().default(0),
+    legacyTotal: integer("legacy_total").notNull().default(0),
+    evidenceRef: text("evidence_ref").notNull(),
+    note: text("note"),
+    certifiedBy: text("certified_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    scopeIdx: uniqueIndex("cash_opening_cert_scope_idx").on(table.scopeKey),
+  }),
+);
+
 // Catatan kejadian shift (selisih kas, gangguan QRIS/printer, komplain, dll.).
 // Status: open | follow_up | resolved.
 export const shiftIncidents = pgTable(

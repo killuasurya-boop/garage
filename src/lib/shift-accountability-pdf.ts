@@ -663,7 +663,7 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
   );
   w.keyValues([
     ["Kas awal", rp(cash.openingCash)],
-    ...(cash.legacyOpening ? ([["+ Saldo laci saat buku kas diaktifkan", rp(cash.legacyOpening)]] as [string, string][]) : []),
+    ...(cash.legacyOpening ? ([["+ Saldo laci saat buku kas diaktifkan (legacy_unverified: dari cache lama, tidak dihitung ulang)", rp(cash.legacyOpening)]] as [string, string][]) : []),
     ["+ Penerimaan tunai penjualan", rp(cash.cashSales)],
     ["+ Kas masuk lainnya", rp(cash.cashIn)],
     ["− Kas keluar (operasional/setoran di tengah shift)", rp(cash.cashOut)],

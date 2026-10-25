@@ -4,7 +4,10 @@ import { getDb } from "@/db";
 import { auditLogs, cashMovements, cashSessions, outlets, pettyCashEntries, shiftIncidents, user } from "@/db/schema";
 import { DEPOSIT_ACCOUNT_LABEL, type DepositAccount } from "@/lib/cash-drawer";
 import { accountBalance, checkDrawerCache } from "@/lib/cash-ledger";
+import { certifiedScopes } from "@/lib/cash-opening";
+import { openingScopeKey } from "@/lib/cash-opening-meta";
 import {
+  OVERSIGHT_ACCOUNT_CERTIFIED_LABEL,
   OVERSIGHT_ACCOUNT_LABEL,
   OVERSIGHT_ACCOUNTS,
   OVERSIGHT_EXCEPTIONS,
@@ -321,12 +324,31 @@ export async function getCashOversight(input: { fromDate: string; toDate: string
       ),
     );
 
+  // P6: saldo yang sudah disahkan Owner = saldo nyata sejak tanggal pengesahan, bukan lagi "arus bersih".
+  const certified = await certifiedScopes(db);
+  const activeOutletIds = (await db.select({ id: outlets.id }).from(outlets).where(eq(outlets.status, "active"))).map((row) => row.id);
+  const certifiedAtFor = (account: (typeof OVERSIGHT_ACCOUNTS)[number]) => {
+    if (account === "deposit_transit") return null;
+    // Rekening disahkan global; tampilan per outlet hanya arus outlet itu.
+    if (account !== "petty") return outletId ? null : certified.get(openingScopeKey(account, null))?.toISOString() ?? null;
+    const keys = (outletId ? [outletId] : activeOutletIds).map((id) => openingScopeKey("petty", id));
+    const dates = keys.map((key) => certified.get(key));
+    if (!dates.length || dates.some((date) => !date)) return null;
+    return new Date(Math.max(...dates.map((date) => date!.getTime()))).toISOString();
+  };
   const balances = await Promise.all(
-    OVERSIGHT_ACCOUNTS.map(async (account) => ({
-      account,
-      label: OVERSIGHT_ACCOUNT_LABEL[account],
-      balance: await accountBalance(account, outletId, to),
-    })),
+    OVERSIGHT_ACCOUNTS.map(async (account) => {
+      const certifiedAt = certifiedAtFor(account);
+      return {
+        account,
+        label:
+          certifiedAt && !outletId && (account === "bank_jago" || account === "bank_bni")
+            ? OVERSIGHT_ACCOUNT_CERTIFIED_LABEL[account]
+            : OVERSIGHT_ACCOUNT_LABEL[account],
+        balance: await accountBalance(account, outletId, to),
+        certifiedAt,
+      };
+    }),
   );
 
   const openItems = OVERSIGHT_QUEUES.reduce((sum, key) => sum + queues[key].length, 0);

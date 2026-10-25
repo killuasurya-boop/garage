@@ -9,10 +9,30 @@ import {
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import QRCode from "qrcode";
+import { Check, Crown, Gem, QrCode, RotateCcw, Shield, Sparkles, type LucideIcon } from "lucide-react";
 
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { MemberLevel } from "@/lib/member-types";
+import {
+  CARD_BRAND_LINE,
+  CARD_TIER_LABEL,
+  CARD_WEBSITE,
+  cardMemberSince,
+  cardPerks,
+  cardTier,
+  cardValidity,
+  formatMemberCode,
+  memberInitials,
+  memberQrPayload,
+  optionalCardText,
+} from "@/lib/membership-card-model";
+import "./premium-membership-card.css";
+
+// Kartu member Garage Coffee (layar). Data kartu dari membership-card-model.ts —
+// sama dengan unduhan PNG/JPG/PDF. Tidak ada elemen kartu bank palsu.
 
 export type PremiumMembershipCardData = {
   name: string;
@@ -22,677 +42,517 @@ export type PremiumMembershipCardData = {
   tier: MemberLevel;
   membershipSince?: string | Date | null;
   photoUrl?: string | null;
-  validThru?: string | null;
+  /** Tanggal kedaluwarsa (ISO/Date) atau teks lama seperti "12/28". */
+  validThru?: string | Date | null;
+  points?: number | null;
 };
 
 export type PremiumMembershipCardProps = {
   data: PremiumMembershipCardData;
   side?: "front" | "back";
+  /** Dipanggil saat kartu dibalik; bila diisi, `side` dikendalikan induk. */
+  onSideChange?: (side: "front" | "back") => void;
   flippable?: boolean;
   interactive?: boolean;
+  expired?: boolean;
+  /** Tampilkan tombol "Tunjukkan QR" (layar besar untuk kasir). */
+  showQrButton?: boolean;
   className?: string;
   ariaLabel?: string;
 };
 
 type TierTheme = {
-  label: string;
   className: string;
-  badge: string;
-  /** Primary gradient for card surface */
-  surfaceGradient: string;
-  /** Subtle pattern overlay */
-  patternGradient: string;
-  /** Glow color used for outer halo + border pulse */
-  glowColor: string;
+  icon: LucideIcon;
+  surface: string;
+  pattern: string;
   glowRgb: string;
-  /** Text colors */
-  primaryText: string;
-  secondaryText: string;
-  mutedText: string;
-  /** Chip gradient */
-  chipGradient: string;
-  chipBorderColor: string;
-  /** Hologram tint */
-  hologramColor: string;
-  /** Border gradient stops */
-  borderFrom: string;
-  borderVia: string;
-  borderTo: string;
-  /** QR code foreground */
-  qrFg: string;
-  /** Concept/tag lines */
-  conceptCode: string;
-  perks: string;
-  /** Tier icon (emoji or unicode) */
-  tierIcon: string;
+  text: string;
+  soft: string;
+  muted: string;
+  accent: string;
+  border: string;
 };
 
 const tierThemes: Record<MemberLevel, TierTheme> = {
   Silver: {
-    label: "SILVER",
     className: "gmc--silver",
-    badge: "CLASS · S",
-    surfaceGradient:
-      "linear-gradient(145deg, #1a1c22 0%, #20232b 30%, #181b22 60%, #1e2128 85%, #16181e 100%)",
-    patternGradient:
-      "repeating-linear-gradient(120deg, rgba(200,210,230,0.012) 0px, rgba(200,210,230,0.012) 1px, transparent 1px, transparent 12px)",
-    glowColor: "rgba(190, 200, 220, 0.30)",
-    glowRgb: "190, 200, 220",
-    primaryText: "#e0e4ed",
-    secondaryText: "#b0b6c8",
-    mutedText: "#6b7185",
-    chipGradient:
-      "linear-gradient(140deg, #e8ecf4 0%, #aab0be 35%, #7a8090 65%, #5a6070 100%)",
-    chipBorderColor: "rgba(255,255,255,0.35)",
-    hologramColor: "rgba(210,218,235,0.12)",
-    borderFrom: "rgba(200,210,230,0.35)",
-    borderVia: "rgba(200,210,230,0.08)",
-    borderTo: "rgba(200,210,230,0.25)",
-    qrFg: "#2a2e38",
-    conceptCode: "INDUSTRIAL · ACCESS",
-    perks: "Earn 1x · Welcome reward · Promo umum",
-    tierIcon: "◆",
+    icon: Shield,
+    surface: "linear-gradient(145deg, #23262e 0%, #1b1e25 38%, #262a33 70%, #191b21 100%)",
+    pattern:
+      "repeating-linear-gradient(120deg, rgba(210,218,235,0.035) 0 1px, transparent 1px 12px)",
+    glowRgb: "200 208 225",
+    text: "#eef1f7",
+    soft: "#c9cfdc",
+    muted: "#a3aabb",
+    accent: "#d9deea",
+    border: "rgba(210, 218, 235, 0.38)",
   },
   Gold: {
-    label: "GOLD",
     className: "gmc--gold",
-    badge: "CLASS · G",
-    surfaceGradient:
-      "linear-gradient(150deg, #100d06 0%, #1a1408 28%, #0e0b05 55%, #151008 80%, #0c0a04 100%)",
-    patternGradient:
-      "repeating-linear-gradient(135deg, rgba(200,160,40,0.015) 0px, rgba(200,160,40,0.015) 1px, transparent 1px, transparent 14px)",
-    glowColor: "rgba(220, 170, 50, 0.38)",
-    glowRgb: "220, 170, 50",
-    primaryText: "#f0d060",
-    secondaryText: "#c8a030",
-    mutedText: "#6a5020",
-    chipGradient:
-      "linear-gradient(140deg, #fff0b0 0%, #e0b838 30%, #b08818 60%, #806010 100%)",
-    chipBorderColor: "rgba(255,220,100,0.45)",
-    hologramColor: "rgba(220,170,50,0.14)",
-    borderFrom: "rgba(255,200,60,0.50)",
-    borderVia: "rgba(200,150,30,0.10)",
-    borderTo: "rgba(255,180,40,0.40)",
-    qrFg: "#1a1408",
-    conceptCode: "ELITE · EXECUTIVE",
-    perks: "Point 1.2x · Birthday reward · Priority promo",
-    tierIcon: "★",
+    icon: Crown,
+    surface: "linear-gradient(150deg, #1d1609 0%, #2a1f0b 34%, #171107 62%, #241a0a 100%)",
+    pattern:
+      "repeating-linear-gradient(135deg, rgba(230,185,70,0.04) 0 1px, transparent 1px 14px)",
+    glowRgb: "230 180 60",
+    text: "#fbe7a6",
+    soft: "#e9c862",
+    muted: "#c9a85a",
+    accent: "#f2c94c",
+    border: "rgba(242, 201, 76, 0.5)",
   },
   Platinum: {
-    label: "PLATINUM",
     className: "gmc--platinum",
-    badge: "CLASS · P",
-    surfaceGradient:
-      "linear-gradient(150deg, #060c18 0%, #0a1225 30%, #050a14 58%, #0c1428 82%, #06091a 100%)",
-    patternGradient:
-      "repeating-linear-gradient(130deg, rgba(80,160,240,0.015) 0px, rgba(80,160,240,0.015) 1px, transparent 1px, transparent 16px)",
-    glowColor: "rgba(80, 170, 240, 0.38)",
-    glowRgb: "80, 170, 240",
-    primaryText: "#c8e4ff",
-    secondaryText: "#6eaade",
-    mutedText: "#2e5a8a",
-    chipGradient:
-      "linear-gradient(140deg, #dceeff 0%, #6eaade 30%, #3070a8 60%, #1a4070 100%)",
-    chipBorderColor: "rgba(130,200,255,0.40)",
-    hologramColor: "rgba(80,170,240,0.14)",
-    borderFrom: "rgba(100,190,255,0.50)",
-    borderVia: "rgba(60,140,220,0.10)",
-    borderTo: "rgba(80,170,240,0.40)",
-    qrFg: "#0a1225",
-    conceptCode: "QUANTUM · PRESTIGE",
-    perks: "Point 1.6x · Free monthly drink · Exclusive event",
-    tierIcon: "◈",
+    icon: Gem,
+    surface: "linear-gradient(150deg, #0b1424 0%, #102038 34%, #0a1220 62%, #12233d 100%)",
+    pattern:
+      "repeating-linear-gradient(130deg, rgba(110,180,245,0.045) 0 1px, transparent 1px 16px)",
+    glowRgb: "90 175 245",
+    text: "#e1f0ff",
+    soft: "#a9d2f7",
+    muted: "#8cb4d9",
+    accent: "#7cc0ff",
+    border: "rgba(124, 192, 255, 0.5)",
   },
   Ultra: {
-    label: "ULTRA",
     className: "gmc--ultra",
-    badge: "CLASS · Ω",
-    surfaceGradient:
-      "linear-gradient(140deg, #08040f 0%, #0d0618 30%, #06030c 55%, #0a0514 78%, #050310 100%)",
-    patternGradient:
-      "repeating-linear-gradient(125deg, rgba(140,60,240,0.02) 0px, rgba(140,60,240,0.02) 1px, transparent 1px, transparent 12px)",
-    glowColor: "rgba(150, 80, 255, 0.44)",
-    glowRgb: "150, 80, 255",
-    primaryText: "#cba0ff",
-    secondaryText: "#9060d8",
-    mutedText: "#4a2888",
-    chipGradient:
-      "linear-gradient(140deg, #e8d4ff 0%, #a070e8 30%, #6838b8 60%, #381880 100%)",
-    chipBorderColor: "rgba(180,120,255,0.45)",
-    hologramColor: "rgba(150,80,255,0.16)",
-    borderFrom: "rgba(170,100,255,0.55)",
-    borderVia: "rgba(120,50,220,0.12)",
-    borderTo: "rgba(140,70,240,0.45)",
-    qrFg: "#0d0618",
-    conceptCode: "FORBIDDEN · PROTOTYPE",
-    perks: "Point 2x · Prototype access · Owner privilege",
-    tierIcon: "⬡",
+    icon: Sparkles,
+    surface: "linear-gradient(140deg, #140a24 0%, #1d0f36 34%, #110820 62%, #21103d 100%)",
+    pattern:
+      "repeating-linear-gradient(125deg, rgba(165,105,255,0.05) 0 1px, transparent 1px 12px)",
+    glowRgb: "160 95 255",
+    text: "#efe4ff",
+    soft: "#cfb4ff",
+    muted: "#b29ad9",
+    accent: "#b98aff",
+    border: "rgba(185, 138, 255, 0.55)",
   },
 };
 
-/* ── Helpers ── */
+// QR selalu modul gelap di atas plate putih solid agar terbaca scanner kasir.
+const QR_DARK = "#0d1018";
 
-function formatSince(value?: string | Date | null) {
-  if (!value) return "LIFETIME";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "LIFETIME";
-  return date
-    .toLocaleDateString("id-ID", { month: "short", year: "numeric" })
-    .toUpperCase();
-}
-
-function formatMemberNumber(code: string) {
-  const normalized = code.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  const padded = normalized.padEnd(16, "0").slice(0, 16);
-  return padded.match(/.{1,4}/g)?.join(" ") ?? padded;
-}
-
-function formatPhone(phone?: string | null) {
-  if (!phone) return "+62 ___ ____ ____";
-  return phone.trim();
-}
-
-/* ── Sub-components ── */
-
-function EmvChip({
-  gradient,
-  borderColor,
-}: {
-  gradient: string;
-  borderColor: string;
-}) {
-  return (
-    <div
-      className="gmc__chip"
-      style={
-        {
-          "--chip-gradient": gradient,
-          "--chip-border": borderColor,
-        } as CSSProperties
-      }
-      aria-hidden
-    >
-      <div className="gmc__chip-lines">
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className="gmc__chip-center" />
-    </div>
-  );
-}
-
-function ContactlessIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden
-      className="gmc__contactless"
-    >
-      <path d="M8.5 16.5a5 5 0 0 1 0-9" opacity="0.4" />
-      <path d="M11 14.5a2.5 2.5 0 0 1 0-5" opacity="0.65" />
-      <path d="M6 18.5a7.5 7.5 0 0 1 0-13" opacity="0.25" />
-    </svg>
-  );
-}
-
-function BarcodeStripes({ color }: { color: string }) {
-  const widths = useMemo(
-    () => [3, 1, 2, 1, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 2, 2, 1, 3, 1, 2, 1, 2, 3, 1, 2, 1, 1, 2],
-    [],
-  );
-
-  return (
-    <div className="gmc__barcode" aria-hidden>
-      {widths.map((w, i) => (
-        <span
-          key={`${i}-${w}`}
-          style={{
-            width: `${w * 1.5}px`,
-            background: i % 3 === 0 ? color : `${color}bb`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function useQrCode(value: string, fg: string) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-
+function useQrDataUrl(payload: string, width: number) {
+  const [state, setState] = useState<{ key: string; url: string | null }>({ key: "", url: null });
+  const key = `${width}:${payload}`;
   useEffect(() => {
     let cancelled = false;
-    QRCode.toDataURL(value || "GARAGE", {
+    QRCode.toDataURL(payload, {
       errorCorrectionLevel: "M",
       margin: 1,
-      color: {
-        dark: fg,
-        light: "#ffffff00",
-      },
-      width: 256,
+      width,
+      color: { dark: QR_DARK, light: "#ffffff" },
     })
       .then((url) => {
-        if (!cancelled) setDataUrl(url);
+        if (!cancelled) setState({ key, url });
       })
       .catch(() => {
-        if (!cancelled) setDataUrl(null);
+        if (!cancelled) setState({ key, url: null });
       });
     return () => {
       cancelled = true;
     };
-  }, [value, fg]);
-
-  return dataUrl;
+  }, [payload, width, key]);
+  return state.key === key ? state.url : null;
 }
 
-/* ── FRONT FACE ── */
+function QrPlate({ url, label }: { url: string | null; label: string }) {
+  return (
+    <span className="gmc__qr-plate">
+      {url ? (
+        <Image src={url} alt={label} width={256} height={256} unoptimized className="gmc__qr-img" />
+      ) : (
+        <span className="gmc__qr-loading" aria-hidden />
+      )}
+    </span>
+  );
+}
+
+function Field({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="gmc__field">
+      <span className="gmc__label">{label}</span>
+      <span className={`gmc__value ${mono ? "gmc__value--mono" : ""}`} title={value}>
+        {value}
+      </span>
+    </div>
+  );
+}
 
 function CardFront({
   data,
   theme,
+  qrUrl,
+  expired,
+  onQr,
 }: {
   data: PremiumMembershipCardData;
   theme: TierTheme;
+  qrUrl: string | null;
+  expired: boolean;
+  onQr?: () => void;
 }) {
-  const qrPayload = useMemo(
-    () =>
-      JSON.stringify({
-        v: 1,
-        id: data.memberId,
-        tier: data.tier,
-        n: data.name,
-      }),
-    [data.memberId, data.name, data.tier],
-  );
-  const qrUrl = useQrCode(qrPayload, theme.qrFg);
+  const tier = cardTier(data.tier);
+  const TierIcon = theme.icon;
+  const validity = cardValidity({ validThru: data.validThru });
+  const since = cardMemberSince(data.membershipSince);
+  const code = formatMemberCode(data.memberId);
+  const qrLabel = `QR member ${code}`;
 
   return (
-    <div
-      className="gmc__face"
-      style={
-        {
-          "--face-surface": theme.surfaceGradient,
-          "--face-pattern": theme.patternGradient,
-          "--face-glow-rgb": theme.glowRgb,
-          "--face-border-from": theme.borderFrom,
-          "--face-border-via": theme.borderVia,
-          "--face-border-to": theme.borderTo,
-        } as CSSProperties
-      }
-    >
-      {/* Holographic rainbow foil overlay */}
-      <div className="gmc__holo-foil" aria-hidden />
-      {/* Noise/grain texture */}
-      <div className="gmc__grain" aria-hidden />
-      {/* Animated shine sweep */}
+    <div className="gmc__face">
+      <div className="gmc__pattern" aria-hidden />
+      <div className="gmc__holo" aria-hidden />
       <div className="gmc__shine" aria-hidden />
+      {expired ? <span className="gmc__ribbon">Expired</span> : null}
 
-      {/* Content layer */}
-      <div className="gmc__content">
-        {/* ── Top bar: Brand + Tier ── */}
+      <div className="gmc__content gmc__content--front">
         <header className="gmc__header">
           <div className="gmc__brand">
-            <div className="gmc__brand-logo" aria-hidden>
-              <Image
-                src="/garage-brand/garage-coffee-icon.png"
-                alt=""
-                width={28}
-                height={28}
-                sizes="28px"
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <div className="gmc__brand-text">
-              <p
-                className="gmc__brand-name"
-                style={{ color: theme.primaryText }}
-              >
-                GARAGE
-              </p>
-              <p
-                className="gmc__brand-sub"
-                style={{ color: theme.mutedText }}
-              >
-                COFFEE · TEBING TINGGI
-              </p>
-            </div>
+            <span className="gmc__brand-logo" aria-hidden>
+              <Image src="/garage-brand/garage-coffee-icon.png" alt="" width={40} height={40} sizes="40px" />
+            </span>
+            <span className="min-w-0">
+              <span className="gmc__brand-name">GARAGE</span>
+              <span className="gmc__brand-sub">{CARD_BRAND_LINE}</span>
+            </span>
           </div>
-          <div className="gmc__tier-block">
-            <p
-              className="gmc__tier-eyebrow"
-              style={{ color: theme.mutedText }}
-            >
-              ACCESS TIER
-            </p>
-            <p
-              className="gmc__tier-name"
-              style={{ color: theme.primaryText }}
-            >
-              <span className="gmc__tier-icon">{theme.tierIcon}</span>{" "}
-              {theme.label}
-            </p>
-            <p
-              className="gmc__tier-badge"
-              style={{ color: theme.secondaryText }}
-            >
-              {theme.badge}
-            </p>
+          <div className="gmc__tier">
+            <span className="gmc__label">Member tier</span>
+            <span className="gmc__tier-name">
+              <TierIcon className="gmc__tier-icon" aria-hidden />
+              {CARD_TIER_LABEL[tier]}
+            </span>
           </div>
         </header>
 
-        {/* ── Middle: Chip + Contactless + QR ── */}
-        <div className="gmc__middle">
-          <div className="gmc__chip-row">
-            <EmvChip
-              gradient={theme.chipGradient}
-              borderColor={theme.chipBorderColor}
-            />
-            <ContactlessIcon color={theme.secondaryText} />
+        <div className="gmc__main">
+          <div className="gmc__identity">
+            <span className="gmc__avatar" aria-hidden>
+              {data.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL foto member dinamis (upload/data URL)
+                <img src={data.photoUrl} alt="" />
+              ) : (
+                <span>{memberInitials(data.name)}</span>
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="gmc__name" title={data.name}>
+                {data.name || "Member Garage"}
+              </span>
+              <span className="gmc__code">{code}</span>
+            </span>
           </div>
-          {qrUrl ? (
-            <div className="gmc__qr">
-              <Image
-                src={qrUrl}
-                alt=""
-                width={120}
-                height={120}
-                unoptimized
-                className="h-full w-full"
-              />
-            </div>
-          ) : (
-            <div
-              className="gmc__qr gmc__qr--placeholder"
-              style={{ color: theme.mutedText }}
+          {onQr ? (
+            <button
+              type="button"
+              className="gmc__qr"
+              onClick={(event) => {
+                event.stopPropagation();
+                onQr();
+              }}
+              aria-label="Tunjukkan QR member ke kasir"
             >
-              QR
-            </div>
+              <QrPlate url={qrUrl} label={qrLabel} />
+            </button>
+          ) : (
+            <span className="gmc__qr">
+              <QrPlate url={qrUrl} label={qrLabel} />
+            </span>
           )}
         </div>
 
-        {/* ── Bottom: Number + Name + Valid ── */}
-        <div className="gmc__bottom">
-          <p
-            className="gmc__number"
-            style={{ color: theme.primaryText }}
-          >
-            {formatMemberNumber(data.memberId)}
-          </p>
-
-          <div className="gmc__info-row">
-            <div className="gmc__info-col gmc__info-col--name">
-              <span
-                className="gmc__info-label"
-                style={{ color: theme.mutedText }}
-              >
-                MEMBER
-              </span>
-              <span
-                className="gmc__info-value gmc__info-value--name"
-                style={{ color: theme.primaryText }}
-                title={data.name}
-              >
-                {data.name || "GARAGE MEMBER"}
-              </span>
-            </div>
-            <div className="gmc__info-col gmc__info-col--valid">
-              <span
-                className="gmc__info-label"
-                style={{ color: theme.mutedText }}
-              >
-                VALID THRU
-              </span>
-              <span
-                className="gmc__info-value"
-                style={{ color: theme.primaryText }}
-              >
-                {data.validThru ?? formatSince(data.membershipSince)}
-              </span>
-            </div>
-          </div>
-        </div>
+        <footer className="gmc__footer">
+          <Field label="Member sejak" value={since ?? "—"} />
+          <Field label={validity.label} value={expired ? "EXPIRED" : validity.value} />
+        </footer>
       </div>
     </div>
   );
 }
-
-/* ── BACK FACE ── */
 
 function CardBack({
   data,
   theme,
+  qrUrl,
 }: {
   data: PremiumMembershipCardData;
   theme: TierTheme;
+  qrUrl: string | null;
 }) {
+  const tier = cardTier(data.tier);
+  const TierIcon = theme.icon;
+  const { perks } = cardPerks(tier);
+  const validity = cardValidity({ validThru: data.validThru });
+  const phone = optionalCardText(data.phone, 24);
+  const address = optionalCardText(data.address, 70);
+  const code = formatMemberCode(data.memberId);
+  const points = typeof data.points === "number" && Number.isFinite(data.points) ? data.points : null;
+
   return (
-    <div
-      className="gmc__face"
-      style={
-        {
-          "--face-surface": theme.surfaceGradient,
-          "--face-pattern": theme.patternGradient,
-          "--face-glow-rgb": theme.glowRgb,
-          "--face-border-from": theme.borderFrom,
-          "--face-border-via": theme.borderVia,
-          "--face-border-to": theme.borderTo,
-        } as CSSProperties
-      }
-    >
-      <div className="gmc__holo-foil" aria-hidden />
-      <div className="gmc__grain" aria-hidden />
+    <div className="gmc__face">
+      <div className="gmc__pattern" aria-hidden />
+      <div className="gmc__holo" aria-hidden />
       <div className="gmc__shine" aria-hidden />
 
       <div className="gmc__content gmc__content--back">
-        {/* Magnetic stripe */}
-        <div className="gmc__magstripe" aria-hidden />
-
-        {/* Signature strip + CVV area */}
-        <div className="gmc__sig-strip">
-          <div className="gmc__sig-strip-inner">
-            <span
-              className="gmc__sig-label"
-              style={{ color: theme.mutedText }}
-            >
-              AUTHORIZED SIGNATURE
+        <div className="gmc__back-top">
+          <div className="min-w-0">
+            <span className="gmc__label">Benefit</span>
+            <span className="gmc__tier-name gmc__tier-name--left">
+              <TierIcon className="gmc__tier-icon" aria-hidden />
+              {CARD_TIER_LABEL[tier]}
             </span>
+            <ul className="gmc__perks">
+              {perks.slice(0, 3).map((perk) => (
+                <li key={perk}>
+                  <Check className="gmc__perk-icon" aria-hidden />
+                  <span>{perk}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div
-            className="gmc__cvv-box"
-            style={{ color: theme.secondaryText }}
-          >
-            <span className="gmc__cvv-label">CVV</span>
-            <span className="gmc__cvv-dots">• • •</span>
-          </div>
-        </div>
-
-        {/* Info section */}
-        <div className="gmc__back-info">
-          <div className="gmc__back-info-row">
-            <div className="gmc__back-info-col">
-              <span
-                className="gmc__info-label"
-                style={{ color: theme.mutedText }}
-              >
-                {theme.conceptCode}
-              </span>
-              <span
-                className="gmc__back-protocol"
-                style={{ color: theme.primaryText }}
-              >
-                {theme.label} PROTOCOL
-              </span>
-            </div>
-            <div
-              className="gmc__back-tier-chip"
-              style={{
-                borderColor: theme.borderFrom,
-                color: theme.primaryText,
-              }}
-            >
-              {theme.tierIcon} {theme.badge}
-            </div>
-          </div>
-
-          <div className="gmc__back-details">
-            <div className="gmc__back-detail-col">
-              <span
-                className="gmc__info-label"
-                style={{ color: theme.mutedText }}
-              >
-                ALAMAT
-              </span>
-              <span
-                className="gmc__back-detail-value"
-                style={{ color: theme.primaryText }}
-                title={data.address ?? ""}
-              >
-                {data.address || "Garage HQ · Medan, ID"}
-              </span>
-            </div>
-            <div className="gmc__back-detail-col">
-              <span
-                className="gmc__info-label"
-                style={{ color: theme.mutedText }}
-              >
-                KONTAK
-              </span>
-              <span
-                className="gmc__back-phone"
-                style={{ color: theme.primaryText }}
-              >
-                {formatPhone(data.phone)}
-              </span>
-            </div>
-          </div>
-
-          <BarcodeStripes color={theme.secondaryText} />
-        </div>
-
-        {/* Footer */}
-        <div
-          className="gmc__back-footer"
-          style={{
-            borderColor: `rgba(${theme.glowRgb}, 0.12)`,
-            color: theme.mutedText,
-          }}
-        >
-          <span>garagecoffee.id</span>
-          <span className="gmc__back-footer-code">
-            {formatMemberNumber(data.memberId).replace(/ /g, "·")}
+          <span className="gmc__qr gmc__qr--back">
+            <QrPlate url={qrUrl} label={`QR member ${code}`} />
           </span>
         </div>
+
+        <div className="gmc__back-grid">
+          {points !== null ? (
+            <Field label="Poin" value={new Intl.NumberFormat("id-ID").format(points)} />
+          ) : null}
+          <Field label={validity.label} value={validity.value} />
+          {phone ? <Field label="Kontak" value={phone} mono /> : null}
+          {address && (points === null || !phone) ? <Field label="Alamat" value={address} /> : null}
+        </div>
+
+        <footer className="gmc__back-footer">
+          <span>{CARD_WEBSITE}</span>
+          <span className="gmc__value--mono">{code}</span>
+        </footer>
       </div>
     </div>
   );
 }
 
-/* ── MAIN COMPONENT ── */
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return reduced;
+}
 
 export function PremiumMembershipCard({
   data,
   side = "front",
+  onSideChange,
   flippable = false,
   interactive = true,
+  expired = false,
+  showQrButton = true,
   className,
   ariaLabel,
 }: PremiumMembershipCardProps) {
-  const theme = tierThemes[data.tier] ?? tierThemes.Silver;
-  const [internalFlipped, setInternalFlipped] = useState(side === "back");
-  const flipped = flippable ? internalFlipped : side === "back";
+  const tier = cardTier(data.tier);
+  const theme = tierThemes[tier];
+  const controlled = Boolean(onSideChange);
+  const [internalSide, setInternalSide] = useState(side);
+  const [prevSide, setPrevSide] = useState(side);
+  if (side !== prevSide) {
+    // Ikuti perubahan `side` dari induk (tombol Lihat depan/belakang).
+    setPrevSide(side);
+    setInternalSide(side);
+  }
+  const currentSide = controlled || !flippable ? side : internalSide;
+  const flipped = currentSide === "back";
+  const [hasFlipped, setHasFlipped] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const reducedMotion = usePrefersReducedMotion();
   const cardRef = useRef<HTMLDivElement>(null);
+  const frame = useRef<number | null>(null);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
 
-  const handleMouseMove = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (!interactive) return;
+  const qrPayload = useMemo(
+    () => memberQrPayload({ memberCode: data.memberId, tier, name: data.name }),
+    [data.memberId, data.name, tier],
+  );
+  const cardQrUrl = useQrDataUrl(qrPayload, 256);
+  const bigQrUrl = useQrDataUrl(qrPayload, 560);
+  const tiltEnabled = interactive && !reducedMotion && !qrOpen;
+
+  const setTilt = useCallback((rx: number, ry: number, mx: number, my: number, active: boolean) => {
+    const el = cardRef.current;
+    if (!el) return;
+    el.style.setProperty("--gmc-rx", `${rx}deg`);
+    el.style.setProperty("--gmc-ry", `${ry}deg`);
+    el.style.setProperty("--gmc-mx", `${mx}%`);
+    el.style.setProperty("--gmc-my", `${my}%`);
+    el.classList.toggle("is-tilting", active);
+  }, []);
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!tiltEnabled) return;
+      // Sentuh: miring hanya saat jari menempel/geser.
+      if (event.pointerType !== "mouse" && event.buttons === 0) return;
       const el = cardRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const relX = (event.clientX - rect.left) / rect.width - 0.5;
-      const relY = (event.clientY - rect.top) / rect.height - 0.5;
-      const rotY = relX * 18;
-      const rotX = relY * -12;
-      el.style.setProperty("--gmc-rot-y", `${rotY}deg`);
-      el.style.setProperty("--gmc-rot-x", `${rotX}deg`);
-      el.style.setProperty(
-        "--gmc-shine-x",
-        `${Math.round((relX + 0.5) * 100)}%`,
-      );
-      el.style.setProperty(
-        "--gmc-shine-y",
-        `${Math.round((relY + 0.5) * 100)}%`,
-      );
+      const x = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+      const y = Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1);
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
+        setTilt((0.5 - y) * 14, (x - 0.5) * 20, Math.round(x * 100), Math.round(y * 100), true);
+      });
     },
-    [interactive],
+    [setTilt, tiltEnabled],
   );
 
-  const handleMouseLeave = useCallback(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.setProperty("--gmc-rot-y", "0deg");
-    el.style.setProperty("--gmc-rot-x", "0deg");
-    el.style.setProperty("--gmc-shine-x", "60%");
-    el.style.setProperty("--gmc-shine-y", "30%");
-  }, []);
+  const resetTilt = useCallback(() => {
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+    setTilt(0, 0, 60, 30, false);
+  }, [setTilt]);
 
-  const handleClick = useCallback(() => {
+  useEffect(() => {
+    if (!tiltEnabled) resetTilt();
+  }, [tiltEnabled, resetTilt]);
+
+  useEffect(
+    () => () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+    },
+    [],
+  );
+
+  const flip = useCallback(() => {
     if (!flippable) return;
-    setInternalFlipped((v) => !v);
-  }, [flippable]);
+    const next = flipped ? "front" : "back";
+    setHasFlipped(true);
+    if (controlled) onSideChange?.(next);
+    else setInternalSide(next);
+  }, [controlled, flippable, flipped, onSideChange]);
 
-  const style = useMemo<CSSProperties>(
+  const handleClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      // Geser jari untuk memiringkan kartu tidak dihitung sebagai tap balik.
+      const start = pointerStart.current;
+      pointerStart.current = null;
+      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) return;
+      flip();
+    },
+    [flip],
+  );
+
+  const style = useMemo(
     () =>
       ({
-        "--gmc-glow": theme.glowColor,
         "--gmc-glow-rgb": theme.glowRgb,
-        "--gmc-holo": theme.hologramColor,
+        "--gmc-surface": theme.surface,
+        "--gmc-pattern": theme.pattern,
+        "--gmc-text": theme.text,
+        "--gmc-soft": theme.soft,
+        "--gmc-muted": theme.muted,
+        "--gmc-accent": theme.accent,
+        "--gmc-border": theme.border,
       }) as CSSProperties,
     [theme],
   );
 
+  const code = formatMemberCode(data.memberId);
+  const label = ariaLabel ?? `Kartu member ${CARD_TIER_LABEL[tier]} atas nama ${data.name || "member"}, kode ${code}`;
+  const openQr = showQrButton ? () => setQrOpen(true) : undefined;
+
   return (
-    <div
-      ref={cardRef}
-      className={`gmc ${theme.className} ${
-        flippable ? "gmc--flippable" : ""
-      } ${interactive ? "gmc--interactive" : ""} ${
-        flipped ? "is-flipped" : ""
-      } ${className ?? ""}`.trim()}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={handleClick}
-      role={flippable ? "button" : undefined}
-      tabIndex={flippable ? 0 : undefined}
-      aria-label={
-        ariaLabel ??
-        `Kartu membership ${theme.label} atas nama ${data.name || "member"}`
-      }
-      onKeyDown={
-        flippable
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setInternalFlipped((v) => !v);
-              }
-            }
-          : undefined
-      }
-      style={style}
-    >
-      <div className="gmc__shell">
-        <div className="gmc__side gmc__side--front">
-          <CardFront data={data} theme={theme} />
-        </div>
-        <div className="gmc__side gmc__side--back">
-          <CardBack data={data} theme={theme} />
+    <div className={`gmc-wrap ${className ?? ""}`.trim()}>
+      <div
+        ref={cardRef}
+        className={[
+          "gmc",
+          theme.className,
+          flippable ? "gmc--flippable" : "",
+          interactive ? "gmc--interactive" : "",
+          flipped ? "is-flipped" : "",
+          hasFlipped ? "has-flipped" : "",
+          expired ? "is-expired" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        role="group"
+        aria-roledescription="kartu member"
+        aria-label={label}
+        style={style}
+        onPointerDown={(event) => {
+          pointerStart.current = { x: event.clientX, y: event.clientY };
+        }}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={resetTilt}
+        onPointerUp={(event) => {
+          if (event.pointerType !== "mouse") resetTilt();
+        }}
+        onPointerCancel={resetTilt}
+        onClick={flippable ? handleClick : undefined}
+      >
+        <span className="gmc__glow" aria-hidden />
+        <div className="gmc__lift">
+          <div className="gmc__shell">
+            <div className="gmc__side gmc__side--front" aria-hidden={flipped}>
+              <CardFront data={data} theme={theme} qrUrl={cardQrUrl} expired={expired} onQr={flipped ? undefined : openQr} />
+            </div>
+            <div className="gmc__side gmc__side--back" aria-hidden={!flipped}>
+              <CardBack data={data} theme={theme} qrUrl={cardQrUrl} />
+            </div>
+          </div>
         </div>
       </div>
+
+      {showQrButton || (flippable && !controlled) ? (
+        <div className="gmc-actions">
+          {showQrButton ? (
+            <button type="button" className="gmc-action gmc-action--primary" onClick={() => setQrOpen(true)}>
+              <QrCode size={16} aria-hidden />
+              <span>Tunjukkan QR ke kasir</span>
+            </button>
+          ) : null}
+          {flippable && !controlled ? (
+            <button type="button" className="gmc-action" onClick={flip} aria-pressed={flipped}>
+              <RotateCcw size={16} aria-hidden />
+              <span>{flipped ? "Lihat depan" : "Lihat belakang"}</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showQrButton ? (
+        <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+          <DialogContent className="gmc-qr-dialog">
+            <DialogTitle className="gmc-qr-dialog__title">QR Member</DialogTitle>
+            <DialogDescription className="gmc-qr-dialog__desc">
+              Tunjukkan ke kasir untuk dipindai. Naikkan kecerahan layar bila perlu.
+            </DialogDescription>
+            <div className="gmc-qr-dialog__plate">
+              {bigQrUrl ? (
+                <Image src={bigQrUrl} alt={`QR member ${code}`} width={560} height={560} unoptimized />
+              ) : (
+                <span className="gmc__qr-loading" aria-hidden />
+              )}
+            </div>
+            <div className="gmc-qr-dialog__meta">
+              <span className="gmc-qr-dialog__name">{data.name || "Member Garage"}</span>
+              <span className="gmc-qr-dialog__code">{code}</span>
+              <span className="gmc-qr-dialog__tier">{CARD_TIER_LABEL[tier]}</span>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }
@@ -700,11 +560,9 @@ export function PremiumMembershipCard({
 export const PREMIUM_TIER_OPTIONS: Array<{
   tier: MemberLevel;
   label: string;
-  tagline: string;
   perks: string;
 }> = (Object.keys(tierThemes) as MemberLevel[]).map((tier) => ({
   tier,
-  label: tierThemes[tier].label,
-  tagline: tierThemes[tier].conceptCode,
-  perks: tierThemes[tier].perks,
+  label: CARD_TIER_LABEL[tier],
+  perks: cardPerks(tier).perks.join(" · "),
 }));

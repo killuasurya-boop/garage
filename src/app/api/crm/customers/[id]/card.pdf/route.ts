@@ -25,6 +25,8 @@ export async function GET(
     memberCode: customer.memberCode,
     membershipSince: customer.membershipSince,
     expiresAt: customer.expiresAt ?? null,
+    points: customer.points,
+    address: customer.address ?? null,
     ultraCandidate: customer.ultraCandidate,
   });
   const filename = `garage-member-card-${customer.memberCode ?? customer.phone}.pdf`;

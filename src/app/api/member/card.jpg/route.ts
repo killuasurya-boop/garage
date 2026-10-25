@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       address: member.address ?? null,
       membershipSince: member.membershipSince,
       expiresAt: member.expiresAt ?? null,
+      points: member.totalPoints,
     },
     { format: "jpeg", side },
   );

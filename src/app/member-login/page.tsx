@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { MemberLoginScreen } from "@/components/garage/member-login-screen";
+import { Inter } from "next/font/google";
+
+import { MemberLoginPage } from "@/components/garage/member-auth/member-login-page";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Login Member - Garage Coffee",
@@ -14,11 +18,11 @@ function firstParam(params: SearchParams, key: string) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function MemberLoginPage({
+export default async function MemberLoginRoute({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  return <MemberLoginScreen initialReturnTarget={firstParam(params, "next")} />;
+  return <MemberLoginPage initialReturnTarget={firstParam(params, "next")} fontClassName={inter.variable} />;
 }

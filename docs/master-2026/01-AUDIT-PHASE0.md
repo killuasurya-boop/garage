@@ -1,5 +1,10 @@
 # PHASE 0 — Audit Read-Only (2026-10-25)
 
+> **Catatan 2026-10-26:** temuan F-01/F-02 ditinjau ulang terhadap keputusan Owner **D-01 (MCP ChatGPT
+> full access Owner)**. Luasnya akses Owner bukan lagi temuan; yang tetap jadi masalah adalah *cara*-nya:
+> bearer key statis, tanpa preview/receipt, audit fire-and-forget, dan key non-Owner (manajer/agent lain)
+> yang ikut bisa mengakses route Owner-only. Lihat `06-OWNER-DECISIONS.md`.
+
 Basis: `main` @ `89d4318`. Metode: baca kode, schema, route, workflow GitHub. Tidak ada perintah
 yang menyentuh VPS, database produksi, atau deployment. Tidak ada `npm run build`/test dijalankan
 (audit dokumen saja).

@@ -1,54 +1,25 @@
-# Gap Analysis — 3 Master PRD vs kode existing
+# Gap Analysis — PRD V4.0 vs kode existing
 
-Legenda: ✅ ada · 🟡 sebagian · ❌ belum · **[PRD?]** perlu dicocokkan dengan PDF.
+Detail per fitur (F01–F55, status ✅/🟡/❌, bukti file, batch) ada di **`07-TRACEABILITY-F01-F55.md`**.
+File ini merangkum per pilar dan mencatat konflik.
 
-## PRD 1 — AI Command Center + MCP V2.0
+## Ringkasan per pilar (hitungan dari 07)
 
-| Kebutuhan | Status | Catatan / batch |
+| Pilar | ✅ | 🟡 | ❌ | Catatan utama |
+|---|---|---|---|---|
+| Keuangan F01–F40 | 6 | 25 | 9 | Ledger tunggal, petty, setoran, closing pecahan sudah kuat. Belum: Open Shift policy, parkir, LV1–LV5, rekap bulanan, PDF 360, Owner final + TOTP |
+| Identitas F41–F47 | 0 | 0 | 7 | Seluruhnya baru (Google OAuth, email/WA OTP, staff application, Access Approval Center) |
+| MCP/AI F48–F53 | 0 | 6 | 0 | MCP & AI internal ada; OAuth, registry, preview/receipt, Gmail belum |
+| UX F54–F55 | 0 | 2 | 0 | Design system staf ada; redesign + screen census belum |
+
+## Konflik & status penyelesaian
+
+| # | Konflik | Penyelesaian |
 |---|---|---|
-| Kendali modul lewat ChatGPT & Aya | 🟡 | MCP `/api/mcp` + key `gk_agent_` (OpenClaw/Hermes). Koneksi ChatGPT/Aya belum didokumentasi; ChatGPT connector mungkin butuh OAuth → M5 |
-| Universal CRUD | 🟡 | Lewat `garage_api` (terlalu luas, tanpa guard) → ganti dengan registry terkurasi M1/M3 |
-| Analisis data & laporan | ✅/🟡 | `ringkasan_hari_ini`, `laporan_penjualan`, `rekap_kas_harian`, `buat_laporan` (xlsx/pdf base64). Analisis lintas modul [PRD?] |
-| Gmail | ❌ | Tidak ada. M4 (butuh izin Owner) |
-| Google Drive | 🟡 | Upload laporan existing (`google-drive-upload.ts`); belum jadi tool MCP |
-| Owner Approval untuk aksi AI | 🟡 | Draft + approve ada untuk AI internal; **MCP tidak memakainya**, dan agent bisa approve sendiri (F-02) → S2/M2 |
-| Preview perubahan | ❌ | M2 |
-| Audit trail | 🟡 | Non-GET dicatat fire-and-forget (F-05) → S1 |
-
-## PRD 2 — Financial Security + MCP + Identity V3.1
-
-| Kebutuhan | Status | Catatan / batch |
-|---|---|---|
-| Cash ledger tunggal immutable | ✅ | P0–P6 (migration 0159–0162) |
-| Open/close shift, denominasi wajib | ✅ | `closeCashSession`, emergency close + PIN |
-| Smart Closing | 🟡 | Discrepancy status, recount, review, oversight. "Smart" (saran/deteksi otomatis) [PRD?] → F1 |
-| QRIS | 🟡 | QRIS statis BNI, akun `qris_clearing`, antrian mismatch. Rekonsiliasi mutasi bank otomatis ❌ (tanpa payment gateway — sesuai aturan) → F1 manual import |
-| Petty cash | ✅ | Approval ≠ payment, ledger `petty` |
-| Anti-fraud | 🟡 | Audit suspicious panel, finance anomaly panel, approval void. Aturan pola terstruktur [PRD?] → F1 |
-| Owner 2FA | 🟡 | TOTP ada + kebijakan wajib; ditegakkan hanya di halaman (F-04) → S2 |
-| Google Login | ❌ | I1 |
-| Verifikasi Email | ❌ | `requireEmailVerification: false`, tidak ada provider → I2 |
-| Verifikasi WhatsApp | 🟡 | Member: manual oleh kasir. Staf: tidak ada. OTP ❌ → I2 |
-| Approval karyawan | 🟡 | Undangan + rekrutmen hire; status approval eksplisit ❌ → I3 |
-| MCP tidak bypass otorisasi finansial | ❌ | F-01/F-02/F-03 → S1/S2 (prioritas tertinggi) |
-
-## PRD 3 — UI/UX Transformation 2026
-
-| Kebutuhan | Status | Catatan / batch |
-|---|---|---|
-| Design System konsisten | 🟡 | `design-system/MASTER.md` (staf) + design system member terkunci. v2 [PRD?] → U1 |
-| Redesign seluruh modul | ❌ | U2–U9, setelah U0 |
-| Navigasi & kemudahan | 🟡 | Shell existing, `garage-connected-nav`, command palette (`cmdk`) [PRD?] |
-| Responsive desktop/tablet/mobile | 🟡 | Aturan 1366×900 & 390×844 di CLAUDE.md; tablet POS. Audit visual per modul belum |
-| Optimalisasi workflow | 🟡 | Cashier speed-ups ada (favorit, shortcode, bayar 1 tap) |
-
-## Konflik kebutuhan
-
-1. **Email provider / Gmail** — PRD meminta; `CLAUDE.md` melarang tanpa izin eksplisit. → Owner putuskan.
-2. **Universal CRUD via AI** vs **ledger immutable & approval** — CRUD AI tidak boleh UPDATE/DELETE
-   ledger, transaksi historis, harga/resep tanpa workflow. Solusi: CRUD hanya lewat service existing,
-   aksi uang/identitas = draft + approval manusia.
-3. **"Owner penuh" agent key (aksi langsung jalan)** (`docs/AGENT-API.md`) vs PRD "tidak boleh bypass".
-   → Owner memilih: scope owner tetap ada tapi aksi uang/identitas wajib approval (rekomendasi).
-4. **Redesign UI** vs **member design contract terkunci** — member UI dikecualikan kecuali Owner izinkan.
-5. **Auto-deploy `main`** vs **"jangan deploy tanpa izin"** — merge = deploy. Merge hanya oleh Owner.
+| K1 | PRD §22.5/§00.3: ChatGPT read-only, finance tidak via MCP — vs permintaan Owner full access | **D-01 FINAL: full access Owner** (R0–R3), R4 tetap ditolak. Lihat `06-OWNER-DECISIONS.md` |
+| K2 | PRD §24.2 token light vs CLAUDE.md dark asphalt | **D-02 OPEN** |
+| K3 | PRD §12 custody manajer/safe vs CLAUDE.md "setoran tanpa brankas, `brankas` retired" | **D-03 OPEN** |
+| K4 | Email provider/Gmail dilarang default CLAUDE.md vs PRD §06.7/§20.4 | D-04: diminta PRD → diizinkan; butuh kredensial |
+| K5 | Member design contract terkunci (CLAUDE.md) vs PRD §06.4 progress 4 tahap & tombol Google | Ikuti kontrak member: tambah komponen lewat `member-auth/` & `--gm-*` tokens; tombol Google baru muncul setelah provider nyata dikonfigurasi (aturan #13) |
+| K6 | Auto-deploy `main` vs "jangan deploy tanpa izin" | Merge hanya oleh Owner; usulkan required reviewer environment `production` |
+| K7 | PRD §03.1 menyebut endpoint close cukup `shift:cash` | Benar di kode (`requireAnyPermission(["finance:write","shift:cash"])`) → B4 memisah submit vs final |

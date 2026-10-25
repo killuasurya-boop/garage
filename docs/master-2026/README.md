@@ -1,8 +1,12 @@
 # Garage OS — Master Implementation 2026 (handoff untuk agent berikutnya)
 
-> **Status: PHASE 0 (audit read-only) SELESAI — menunggu persetujuan Owner.**
-> Belum ada kode aplikasi yang diubah. Jangan mulai PHASE 1 sebelum Owner menyetujui
+> **Status: PHASE 0 SELESAI · PRD V4.0 sudah di repo · menunggu persetujuan roadmap Owner.**
+> Belum ada kode aplikasi yang diubah. Jangan mulai batch kode sebelum Owner menyetujui
 > roadmap di `02-ROADMAP.md` (centang di bagian "Persetujuan Owner").
+>
+> **Baca urutan ini:** `PRD/master-2026/PRD-GOS-UNIFIED-2026-004_V4.0.md` (requirement tunggal) →
+> `06-OWNER-DECISIONS.md` (keputusan Owner yang MENIMPA PRD, mis. **D-01 MCP ChatGPT full access**) →
+> `07-TRACEABILITY-F01-F55.md` → `02-ROADMAP.md`.
 
 Folder ini adalah sumber kebenaran untuk pekerjaan besar "Garage OS Master Implementation 2026"
 yang menggabungkan 3 Master PRD. Agent mana pun yang melanjutkan **wajib** membaca file ini dulu,
@@ -18,21 +22,15 @@ lalu update `05-PROGRESS-LOG.md` di setiap batch.
 | `03-GAP-ANALYSIS.md` | Gap per PRD (ada / sebagian / belum) + konflik kebutuhan |
 | `04-SECURITY-CHECKLIST.md` | Checklist keamanan finansial, identitas, MCP, VPS/GitHub |
 | `05-PROGRESS-LOG.md` | Log per batch (format wajib output setiap batch) |
+| `06-OWNER-DECISIONS.md` | Keputusan Owner D-01…D-06 (mengikat, menimpa PRD) |
+| `07-TRACEABILITY-F01-F55.md` | Status F01–F55: bukti di kode, gap, batch, kolom tes/PR |
 
 ## Sumber PRD
 
-Tiga PDF Master PRD milik Owner berada di Google Drive lokal Owner
-(`J:\My Drive\CODING\…`) dan **tidak ikut ke repo / container cloud**:
-
-1. `Garage_OS_Master_PRD_AI_Command_Center_MCP_2026.pdf` — AI Command Center + MCP V2.0
-2. `GARAGE_TEBING_TINGGI_MASTER_PRD_FINANCIAL_SECURITY_MCP_IDENTITY_V3_1_2026.pdf` — Financial Security + MCP + Identity V3.1
-3. `Garage_OS_MASTER_PRD_UI_UX_Transformation_2026.pdf` — UI/UX Transformation 2026
-
-Audit PHASE 0 disusun dari **ringkasan PRD di instruksi Owner** + kode repo. Isi detail PDF
-(angka, alur layar, acceptance criteria) **belum terverifikasi**. Langkah pertama yang disarankan:
-Owner menaruh salinan PDF (atau ekspor teks/markdown-nya) di `PRD/master-2026/` agar agent
-berikutnya bisa mencocokkan gap analysis baris per baris. Semua butir yang bergantung pada detail
-PDF ditandai **[PRD?]**.
+**`PRD/master-2026/PRD-GOS-UNIFIED-2026-004_V4.0.md`** — Master PRD Unified V4.0 (26 Okt 2026) yang
+menggabungkan dan **menggantikan** tiga PDF (S1 AI Command Center + MCP V2.0, S2 Financial Security +
+Identity V3.1, S3 UI/UX Transformation V1.0). Disalin verbatim dari Owner. PDF asli tetap di Drive Owner
+dan tidak wajib ada di repo.
 
 ## Aturan mutlak (dari Owner — tidak boleh dilanggar agent mana pun)
 
@@ -74,5 +72,5 @@ PDF ditandai **[PRD?]**.
 - Branch audit: `claude/jolly-darwin-irvynl` (dibuat dari `main` @ `89d4318`).
 - Kode aplikasi: **tidak berubah**. Hanya dokumentasi di `docs/master-2026/`.
 - Risiko VPS/DB dari batch ini: **nol** (dokumentasi; tidak ada migration, tidak ada deploy).
-- Langkah berikutnya: Owner review & setujui roadmap → mulai Batch **S1** (hardening MCP/agent key,
-  temuan keamanan kritis F-01…F-03).
+- Langkah berikutnya: Owner setujui roadmap + jawab keputusan OPEN (D-01a, D-02, D-03, D-06) →
+  mulai Batch **S2** lalu **M0** (urutan di `02-ROADMAP.md`).

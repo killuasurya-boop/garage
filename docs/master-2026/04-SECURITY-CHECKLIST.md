@@ -1,5 +1,7 @@
 # Security Checklist — Garage OS Master 2026
 
+Baseline: OWASP ASVS 5.0 (PRD §27). Acceptance criteria lengkap: PRD §28 (AC-F, AC-R, AC-I, AC-P, AC-M, AC-U).
+
 Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-AUDIT-PHASE0.md`.
 
 ## A. VPS / GitHub / deploy (agent tidak boleh mengubah — hanya verifikasi & usulan)
@@ -11,14 +13,17 @@ Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-A
 - [ ] Rencana: deploy user non-root (F-11) — usulan, butuh izin Owner
 - [x] Push ke branch `claude/*` tidak memicu deploy (diverifikasi dari `ci.yml`/`deploy.yml`)
 
-## B. MCP / agent AI
-- [ ] `garage_api` memakai allowlist per scope, bukan denylist (F-01)
-- [ ] Agent tidak bisa: ubah settings keamanan, user/role, 2FA, sertifikasi saldo, approve apa pun (F-01/F-02)
-- [ ] Aksi uang/identitas dari agent = draft + preview + approval manusia (M2)
+## B. MCP / agent AI (sesuai D-01: Owner full access, R4 tetap ditolak)
+- [ ] Koneksi ChatGPT Owner lewat OAuth 2.1 + PKCE (`/api/mcp/chatgpt`), bukan bearer statis (M0)
+- [ ] Owner via MCP bisa semua aksi R0–R3 yang bisa dilakukan di UI Owner (M3)
+- [ ] R2/R3: preview → konfirmasi Owner di chat (token terikat digest) → commit → readback → receipt (M2)
+- [ ] R4 ditolak di semua jalur: hapus/edit ledger & audit, SQL bebas, shell, baca secret
+- [ ] Key non-Owner (`manajer`, `readonly`, agent lain) tidak bisa: settings keamanan, user/role, sertifikasi saldo, approval Owner-only (S1)
+- [ ] Kill-switch MCP + revoke token Owner berfungsi (AC-M07)
 - [ ] Audit agent sinkron, gagal audit = request gagal; GET data finansial diaudit (F-05)
 - [ ] Rate limit agent persisten lintas restart (F-06)
 - [ ] Prompt-injection: output tool tidak dieksekusi sebagai instruksi; deskripsi tool tanpa data user
-- [ ] Test: tiap route sensitif menolak sesi agent (403 `HUMAN_SESSION_REQUIRED`)
+- [ ] Test: tiap route Owner-only menolak key non-Owner (403) dan menerima Owner via OAuth MCP
 
 ## C. Identitas
 - [ ] 2FA wajib Owner/Manajer ditegakkan di API, bukan hanya halaman (F-04)

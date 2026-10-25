@@ -1,17 +1,12 @@
-# Master PRD 2026: taruh 3 PDF di folder ini
+# Master PRD 2026
 
-Status 2026-10-25: **KOSONG.** Ketiga PDF belum masuk repo. Audit di `docs/master-2026/` disusun dari
-ringkasan PRD di instruksi Owner, bukan dari isi PDF.
+| File | Isi |
+|---|---|
+| `PRD-GOS-UNIFIED-2026-004_V4.0.md` | **Master PRD Unified V4.0** (26 Okt 2026) — requirement tunggal Garage OS. Menggantikan 3 PDF: S1 AI Command Center + MCP V2.0, S2 Financial Security + MCP + Identity V3.1, S3 UI/UX Transformation V1.0 |
 
-File yang diharapkan (nama asli dari Google Drive Owner `J:\My Drive\CODING\`):
+Keputusan Owner yang menimpa sebagian PRD (mis. **D-01: MCP ChatGPT full access Owner**) ada di
+`docs/master-2026/06-OWNER-DECISIONS.md`. Status implementasi per fitur F01–F55 ada di
+`docs/master-2026/07-TRACEABILITY-F01-F55.md`.
 
-1. `Garage_OS_Master_PRD_AI_Command_Center_MCP_2026.pdf`
-2. `GARAGE_TEBING_TINGGI_MASTER_PRD_FINANCIAL_SECURITY_MCP_IDENTITY_V3_1_2026.pdf`
-3. `Garage_OS_MASTER_PRD_UI_UX_Transformation_2026.pdf`
-
-Cara upload (Owner): GitHub → branch `claude/jolly-darwin-irvynl` → folder `PRD/master-2026` →
-**Add file → Upload files** → commit ke branch itu, **bukan ke `main`**.
-
-Agent berikutnya: setelah PDF ada, ekstrak isinya ke `PRD/master-2026/<nama>.md`, lalu cocokkan
-setiap requirement ke `docs/master-2026/03-GAP-ANALYSIS.md` (hapus tanda **[PRD?]** yang sudah
-terverifikasi) dan perbarui `02-ROADMAP.md`.
+PDF asli (opsional) boleh ditaruh di folder ini oleh Owner; versi Markdown di atas sudah lengkap.
+Versi PRD baru = file baru (`..._V4.1.md`), jangan menimpa V4.0.

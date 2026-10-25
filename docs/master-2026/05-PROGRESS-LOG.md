@@ -26,3 +26,15 @@ Format wajib per batch (instruksi Owner):
 - Status kesiapan deploy: tidak perlu deploy.
 - Langkah berikutnya: Owner menyetujui roadmap + menjawab 7 keputusan di `02-ROADMAP.md`;
   lalu Batch S1 (allowlist `garage_api`, tutup route admin/approval untuk agent, audit sinkron).
+
+## 2026-10-26 — Batch S0 (lanjutan) PRD V4.0 masuk repo + keputusan D-01
+
+- Fitur/modul: PRD Unified V4.0 disimpan verbatim; keputusan Owner D-01 (MCP ChatGPT full access Owner)
+  dicatat + daftar bagian PRD yang ditimpa; matriks F01–F55 dengan bukti kode; roadmap ditulis ulang
+  mengikuti Fase 0–7 PRD §29; konflik K1–K7.
+- File diubah: `PRD/master-2026/*`, `docs/master-2026/*` (dokumentasi saja).
+- Hasil pengujian: tidak relevan (dokumentasi).
+- Branch / commit / PR: `claude/jolly-darwin-irvynl`, draft PR killuasurya-boop/garage#80.
+- Risiko DB/VPS: nol.
+- Status kesiapan deploy: tidak perlu deploy.
+- Langkah berikutnya: Owner jawab D-01a, D-02, D-03, D-06 + setujui roadmap → Batch S2 → M0.

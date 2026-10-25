@@ -1,85 +1,110 @@
-# Master Implementation Roadmap 2026
+# Master Implementation Roadmap 2026 (selaras PRD V4.0 §29 + keputusan Owner)
 
-Prinsip urutan: **uang & identitas dulu → AI/MCP di atas fondasi aman → UI/UX terakhir per modul.**
-Alasan: MCP yang lebih kuat tanpa guard memperbesar F-01/F-02; redesign UI tanpa ekstraksi modul
-memperbesar F-10. Setiap batch = 1 branch `claude/<id>-<slug>` + 1 draft PR, kecil, bisa di-revert.
+Sumber: `PRD/master-2026/PRD-GOS-UNIFIED-2026-004_V4.0.md` · keputusan `06-OWNER-DECISIONS.md` ·
+fitur `07-TRACEABILITY-F01-F55.md`.
 
-Status: `READY` (boleh dikerjakan setelah Owner setuju) · `BLOCKED` (butuh keputusan/izin) · `DONE`.
+Prinsip urutan (PRD §29): **ketepatan uang dulu** → identitas → kontrol kasir/manajer/Owner →
+design system → laporan/risiko → MCP/Aya → modul growth. MCP Owner (D-01) boleh berjalan paralel
+setelah fondasi keamanan gateway (M0) karena memakai service yang sama dengan UI.
+
+Aturan batch: 1 batch = 1 branch `claude/<id>-<slug>` dari `main` terbaru = 1 draft PR. Migration
+additive saja. **Jangan merge** (merge `main` = auto-deploy produksi). Status: `READY` · `BLOCKED` · `DONE`.
 
 ## Dependency map
 
 ```
-            ┌──────────── S0 Guardrail repo/CI ────────────┐
-            ▼                                              ▼
- S1 Agent/MCP hardening ──► S2 Human-only & 2FA API ──► F1 Financial gap closing
-            │                       │                          │
-            ▼                       ▼                          ▼
- M1 MCP tool registry ─────► M2 Preview+Owner Approval ──► M3 Universal CRUD (terkurasi)
-            │                                                  │
-            ▼                                                  ▼
- M4 Gmail/Drive/Laporan ◄────────── I1 Google Login ◄──── I2 Verifikasi Email/WA ─► I3 Approval karyawan
-                                                               
- U0 Ekstraksi modul (garage-app/garage-service) ──► U1 Design System v2 ──► U2..U9 redesign per modul
- (U0 boleh paralel dengan S*/F*, tetapi file finance hanya disentuh oleh satu batch pada satu waktu)
-
- R1 Staging terisolasi (butuh izin Owner) ──► R2 Release plan + backup verify + rollback
+Fase 0  S0 Audit (DONE) ─────────────────────────────────────────────────────────┐
+                                                                                  ▼
+Fase 1  B1 Payment state & business_date ─► B2 Open-shift policy + Cash In/Out + PARKIR + stock purchase
+              │                                     │
+              ▼                                     ▼
+        B3 Tender guard + QRIS paid/settled + Quick Retail
+                                                    │
+Fase 2  I1 Google OAuth ─► I2 Email+WA OTP ─► I3 Staff application + Access Approval Center
+              (S2 2FA di API = prasyarat I3 & B4)
+                                                    │
+Fase 3  B4 Closing state machine: double blind recount, custody (D-03), submit≠final, Owner final + TOTP
+                                                    │
+Fase 4  U0 Ekstraksi modul ─► U1 Design system (D-02) ─► U2 Shell/nav ─► U3 POS/Shift/Closing/Approval/KDS
+                                                    │
+Fase 5  B6 Risk LV1–LV5 + Case ─► B7 Owner 360, monthly ledger, 4 PDF, Reports Studio ─► M4 Drive/Gmail
+                                                    │
+Fase 6  M0 OAuth gateway + audit sync ─► M1 Registry ─► M2 Preview/confirm/receipt ─► M3 Full tools Owner (D-01) ─► M5 Aya
+        (M0–M3 boleh mulai setelah S2; tidak menunggu Fase 1–5)
+                                                    │
+Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill · Owner go/no-go
 ```
 
 ## Batch
 
-### Fondasi (PHASE 1–2)
-
-| ID | Batch | Isi | Migration? | Status |
-|---|---|---|---|---|
-| S0 | Guardrail repo | `docs/master-2026/*` (batch ini). Usulan ke Owner: branch protection `main`, required reviewer environment `production`, hapus registrasi workflow WMS yatim. Tidak mengubah `deploy.yml` tanpa izin. | Tidak | **DONE (dok)** |
-| S1 | Agent/MCP hardening (F-01, F-05, F-06) | Ganti denylist `garage_api` jadi **allowlist** per scope; tutup `/api/admin/*`, `/api/control/cash-opening`, `/api/approvals/*` decide, `/api/ai/actions/*/approve`, pengaturan keamanan, user/role; audit agent sinkron (gagal audit = gagal request) + audit GET finansial; rate limit persisten (tabel/DB) | Mungkin (tabel rate limit/audit agent, additive) | READY |
-| S2 | Human-only & 2FA di API (F-02, F-03, F-04) | Helper `requireHumanSession` diterapkan ke semua keputusan uang/identitas (approval, void, revert, review closing, petty pay, setoran confirm, sertifikasi saldo, user/role, settings keamanan); cek 2FA wajib di `requireGarageSession` untuk Owner/Manajer; test per route | Tidak | READY |
-| F1 | Financial gap closing [PRD?] | Cocokkan PRD V3.1 vs P0–P6: Smart Closing, rekonsiliasi QRIS (mutasi bank vs `qris_clearing`), anti-fraud rules (pola void/refund/diskon, kas keluar berulang), notifikasi Owner. Hanya menambah, tidak mengubah ledger existing | Additive | BLOCKED (butuh PDF V3.1) |
-
-### Identitas (PHASE 2)
-
+### Fase 0 — Audit & containment
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| I1 | Google Login staf/Owner | Better Auth `socialProviders.google`, link ke akun existing via email terverifikasi, **tidak** auto-membuat staff profile; Owner tetap wajib 2FA | BLOCKED (Owner: Client ID Google, setuju OAuth login) |
-| I2 | Verifikasi Email & WhatsApp | Email: butuh provider (CLAUDE.md melarang tanpa izin) → keputusan Owner. WA: OTP via WhatsApp Cloud API queue existing (template OTP harus disetujui Meta) | BLOCKED (Owner: pilih provider email, template WA) |
-| I3 | Approval karyawan | Pendaftaran staf baru `status = pending_approval` → Owner approve (human-only, 2FA), audit; reuse undangan & rekrutmen hire | READY setelah S2 |
+| S0 | Audit read-only + dokumen handoff | `docs/master-2026/*`, PRD V4.0 di repo | **DONE** |
+| S0b | Screen/route census | Daftar ±111 halaman & ±594 route → peta ke screen registry PRD §25.1 + screenshot 1366/1024/390 (PRD §29 Fase 0, F55) | READY |
 
-### MCP & AI (PHASE 3)
-
+### Keamanan dasar (prasyarat semua fase)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| M1 | Registry tool MCP | Satu registry tool terkurasi (reuse `ai_action_registry` + `agent-tools.ts`), metadata: modul, risk level (read/low/money/identity), butuh approval? | READY setelah S1 |
-| M2 | Preview + Owner Approval | Tool tulis berisiko → buat **draft** (reuse AI action drafts) berisi preview diff before/after; eksekusi hanya setelah Owner approve di UI (human-only). Idempotency key per draft | READY setelah M1+S2 |
-| M3 | Universal CRUD terkurasi | CRUD lewat MCP per modul via service existing (bukan SQL langsung), selalu lewat validasi Zod + aturan bisnis yang sama dengan UI. Ledger/riwayat tetap immutable | READY setelah M2 |
-| M4 | Gmail, Drive, laporan | Drive existing dipakai untuk laporan; Gmail kirim laporan (scope `gmail.send` saja) — butuh izin Owner (ini "email provider") | BLOCKED (Owner) |
-| M5 | Aya / ChatGPT connector | Dokumentasi koneksi ChatGPT (MCP remote) & Aya; OAuth MCP bila connector ChatGPT mensyaratkan [PRD?] | BLOCKED (PDF + akun) |
+| S1 | Agent key hardening (non-Owner) | Key `manajer`/`readonly`/agent lain: allowlist path, tidak bisa settings keamanan/user-role/sertifikasi saldo/approve; audit agent **sinkron** + audit GET finansial; rate limit persisten. Key Owner tetap luas sampai M3 menggantikannya (D-01) | READY |
+| S2 | 2FA & human/Owner gate di API | Wajib 2FA Owner/Manajer ditegakkan di `requireGarageSession` (F-04); helper `requireOwnerPrincipal` (manusia **atau** Owner via OAuth MCP) untuk aksi Owner-only; manajer/kasir/agent lain ditolak; tes negatif per route | READY |
 
-### UI/UX (PHASE 4)
+### Fase 1 — Financial integrity (PRD §08–§11)
+| ID | Batch | Fitur | Status |
+|---|---|---|---|
+| B1 | Payment state machine & business_date | `payment_attempts` PENDING/PAID/FAILED, idempotency, business_date per outlet lintas 00:00 (AC-F13, AC-F27) | READY |
+| B2 | Open Shift policy + parkir + cash-out bahan | F02/F27 policy_versions + acceptance; F06/F31 deklarasi parkir per outlet+business_date; F08 tautan purchase_id; AC-F01–F07, F16 | BLOCKED (D-06 butir 1: tanggal efektif & label setoran) |
+| B3 | Tender guard, QRIS paid/settled, Quick Retail | F28, F05 (import rekap merchant karena QRIS statis), F32, F34; AC-F08–F15, F17 | BLOCKED (D-06 butir 3: penyedia/akses settlement QRIS) — tender guard & Quick Retail bisa READY lebih dulu |
 
+### Fase 2 — Identity & access (PRD §06)
+| ID | Batch | Fitur | Status |
+|---|---|---|---|
+| I1 | Google OAuth staf + adapter member terisolasi | F41, F46; link by provider subject, tanpa auto-role (AC-I03) | BLOCKED (Google OAuth Client) |
+| I2 | Verifikasi email + WhatsApp OTP | F42, F43, F47; hash OTP, TTL 5m, 5 percobaan, cooldown 60s (AC-I01/02/08/09) | BLOCKED (D-04, D-05) |
+| I3 | Staff application + Owner Access Approval Center | F44, F45; `staff_access_requests`, semua API staf 403 saat pending (AC-I04–I07) | READY setelah S2 (bisa jalan dengan login email/password existing sebelum I1) |
+
+### Fase 3 — Kontrol kasir/manajer & Owner final (PRD §10.8, §12, §13)
+| ID | Batch | Fitur | Status |
+|---|---|---|---|
+| B4 | Closing state machine | F13, F14, F18, F39, F10, F09/F17 (D-03); pisah submit kasir vs Owner final, TOTP fresh terikat hash+nonce, STALE recount, concurrent lock (AC-F18–F31) | BLOCKED (D-03) — split submit/final & double recount READY |
+
+### Fase 4 — Design system & core UX (PRD §23–§25)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| U0 | Ekstraksi modul | Pecah `garage-app.tsx` per modul (tanpa ubah perilaku), snapshot test/visual baseline sebelum-sesudah | READY |
-| U1 | Design System v2 [PRD?] | Perluas `design-system/MASTER.md` (token, komponen, navigasi, density) — member UI tetap terkunci | BLOCKED (PDF UI/UX) |
-| U2–U9 | Redesign per modul | Urutan usulan: Navigasi/shell → POS → Kasir closing → Kitchen → Finance/Control → WMS → CRM/Member admin → Approvals/Audit → Dashboard/AI Command Center. Tiap modul: 1366×900, 1024 tablet, 390×844, reduced-motion | Setelah U1 |
+| U0 | Ekstraksi modul tanpa ubah perilaku | Pecah `garage-app.tsx` (±10.300 baris) per modul + baseline visual | READY |
+| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA | BLOCKED (D-02 palet) |
+| U2 | Shell & navigasi | Sitemap Owner §23.4, nav per device §23.5, command palette berizin | setelah U1 |
+| U3 | Redesign P0 | POS-02, SHF-01, SHF-04, FIN-03, FIN-07, SYS-01, DSH-01, AI-01, WMS-04 (§25.3) | setelah U2 + B2–B4 |
 
-### Testing, staging, rilis (PHASE 5–7)
+### Fase 5 — Analytics, risk & reports (PRD §14, §16, §20, §21)
+| ID | Batch | Fitur | Status |
+|---|---|---|---|
+| B6 | Risk engine & case | F11, F16, F20, F21, F23, F36, F12 (liability tanpa potong otomatis) | setelah B4 |
+| B7 | Owner 360 & laporan | F15, F19, F22, F25, F35, F37, F38; 4 PDF penamaan §20.2, hash/versi | setelah B4 |
+| M4 | Drive & Gmail | F53, F24; file/message ID terverifikasi | BLOCKED (D-04) |
 
+### Fase 6 — MCP Gateway & Aya (PRD §22 + D-01 FULL ACCESS Owner)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| T* | Per batch | tsc, lint, vitest PGlite, build, security test (route agent/human/2FA), regresi | Wajib tiap batch |
-| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch; data dari backup yang disamarkan; **bukan** container produksi | BLOCKED (izin Owner) |
-| R2 | Release plan | Backup verify (restore drill `docs/DEPLOY_VPS.md`, `cashLedgerFingerprint` sebelum/sesudah), rollback (`garage-app:previous`), jadwal di luar jam operasional — deploy dijalankan Owner | BLOCKED |
+| M0 | OAuth gateway `/api/mcp/chatgpt` | OAuth 2.1+PKCE, discovery metadata, token pendek/refresh/revoke, kill-switch, audit sinkron `source=chatgpt`; contract test MCP Inspector (§22.8) | READY setelah S2 |
+| M1 | Module/tool registry | F48; registry per domain (16), risk tier R0–R4, `system.list_modules/get_capabilities` | setelah M0 |
+| M2 | Preview → konfirmasi chat → commit → receipt | F49, F51; `confirmation_token` terikat digest, idempotency, expected version, readback; D-01a TOTP untuk R3 | setelah M1 |
+| M3 | **Full tool coverage Owner** | Semua aksi R0–R3 Owner di 16 domain via tool bisnis (termasuk finance: approve cash-out, petty pay, setoran, final closing, void/refund, harga, role); R4 tetap ditolak; `garage_api` dipensiunkan setelah coverage lengkap | setelah M2 |
+| M5 | Aya in-app | F52; backend & policy identik dengan MCP | setelah M2 |
 
-## Keputusan yang dibutuhkan dari Owner
+### Fase 7 — Growth, hardening, rollout
+| ID | Batch | Isi | Status |
+|---|---|---|---|
+| U4–U9 | Redesign modul growth | Produk/HPP, WMS, KDS, CRM/member (kontrak member terkunci), HR, event, marketing, meja/QR | setelah U3 |
+| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | BLOCKED (izin Owner) |
+| R2 | Release plan | Backup verify + `cashLedgerFingerprint` + restore drill + rollback `garage-app:previous`; deploy dijalankan Owner | BLOCKED |
 
-1. Setujui urutan di atas (terutama S1/S2 sebelum MCP diperluas).
-2. Upload 3 PDF PRD (atau teks) ke `PRD/master-2026/`.
-3. Email provider untuk verifikasi & Gmail: boleh? (melanggar default CLAUDE.md bila tanpa izin).
-4. Google OAuth Client untuk login (domain `garagecoffee.id`).
-5. Template OTP WhatsApp di Meta.
-6. Aktifkan branch protection `main` + required reviewer environment `production` (di GitHub Settings).
-7. Izin staging terpisah (R1).
+## Urutan kerja rekomendasi untuk agent berikutnya
+
+1. **S2** (2FA di API + gate Owner) → 2. **M0** (OAuth gateway, karena D-01 adalah prioritas Owner) →
+3. **S1** (persempit key non-Owner) → 4. **B1** → 5. **I3** → 6. **U0** / **S0b** paralel →
+7. **M1 → M2 → M3** → lalu Fase 1–5 sisanya sesuai jawaban keputusan OPEN.
 
 ## Persetujuan Owner
 
-- [ ] Roadmap disetujui — tanggal: ______ (Owner centang lewat PR/komentar)
+- [ ] Roadmap disetujui — tanggal: ______ (centang lewat komentar PR)

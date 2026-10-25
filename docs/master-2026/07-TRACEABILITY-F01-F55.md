@@ -64,7 +64,7 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F49 | Lifecycle perintah + operation receipt | 🟡 | AI action drafts approve/reject; receipt ❌ | M2 | |
 | F50 | MCP OAuth gateway | 🟡 | `/api/mcp` bearer `gk_agent_`; OAuth ❌ | M0 | |
 | F51 | MCP write (preview/konfirmasi/commit) | 🟡 | `garage_api` write langsung tanpa preview; **D-01: full access Owner** | M2, M3 | |
-| F52 | Aya in-app Owner Copilot | 🟡 | `owner-chat`, AI agents, provider OpenAI/Gemini; nama "Aya" belum ada di kode | M5 | |
+| F52 | Aya in-app Owner Copilot | 🟡 | `owner-chat`, AI agents, provider OpenAI/Gemini; nama "Aya" belum ada di kode. **D-07: Aya = peliharaan Owner** (nama, avatar, persona) | M5, U1 | |
 | F53 | Reports Studio + Drive/Gmail | 🟡 | Drive upload ✅, Gmail ❌ (D-04) | M4 | |
 | F54 | Design system & component registry | 🟡 | `design-system/MASTER.md`, shadcn/ui; token PRD §24.2 konflik → D-02 | U1 | |
 | F55 | Workspace per role & screen registry 16 modul | 🟡 | ±111 halaman; census + screenshot ❌ | U0 | |

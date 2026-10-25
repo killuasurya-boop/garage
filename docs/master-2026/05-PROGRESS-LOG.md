@@ -38,3 +38,12 @@ Format wajib per batch (instruksi Owner):
 - Risiko DB/VPS: nol.
 - Status kesiapan deploy: tidak perlu deploy.
 - Langkah berikutnya: Owner jawab D-01a, D-02, D-03, D-06 + setujui roadmap → Batch S2 → M0.
+
+## 2026-10-26 — Batch S0 (lanjutan) Aya peliharaan Owner masuk plan
+
+- Fitur/modul: keputusan D-07 — Aya (peliharaan Owner) menjadi nama, avatar, dan persona asisten AI
+  (F52) di Garage OS + ChatGPT; rencana aset, ekspresi status, motion, batas tampil, persona/suara.
+- File diubah: `06-OWNER-DECISIONS.md`, `02-ROADMAP.md` (M5, U1), `07-TRACEABILITY-F01-F55.md` (F52).
+- Hasil pengujian: tidak relevan (dokumentasi).
+- Risiko DB/VPS: nol.
+- Langkah berikutnya: Owner jawab D-07a–e + kirim foto Aya.

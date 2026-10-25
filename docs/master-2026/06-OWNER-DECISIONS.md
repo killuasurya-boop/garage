@@ -107,3 +107,35 @@ template autentikasi disetujui Meta, anggaran per pesan (PRD §31.2 butir 8).
 Butir 1–12 PRD §31.2 tetap OPEN (tanggal efektif kebijakan kasir & label setoran Rp10.000, kasir tunggal vs
 bergantian, penyedia QRIS & akses settlement, hardware, outlet, recovery OTP Owner, kontrak kerja/PP untuk
 ganti rugi). Agent mencatat jawaban Owner di file ini.
+
+---
+
+## D-07 — Aya = peliharaan Owner sebagai identitas asisten AI Garage OS (FINAL arah, detail OPEN, 2026-10-26)
+
+**Kata Owner:** *"Masukan pet saya Aya dalam plan."*
+
+Aya di PRD V4.0 (§21.5, AYA-01, F52) adalah asisten AI in-app. Keputusan Owner: **Aya diambil dari
+peliharaan Owner** — nama, wajah/avatar, dan karakter asisten AI Garage OS. Aya adalah satu sosok yang sama
+di semua pintu: Aya in-app, suara/notifikasi, dan jawaban ChatGPT MCP (D-01) bisa menyebut diri "Aya".
+
+### Ruang lingkup (masuk batch M5 + U1)
+
+| Area | Rencana |
+|---|---|
+| Nama & sapaan | "Aya" di Owner Command Center (AI-01), asisten kontekstual (AYA-01), `chat-fab`, alert bell, owner chat, daily brief |
+| Avatar / maskot | Ilustrasi Aya dibuat dari **foto asli peliharaan Owner** (bukan gambar internet / stok). Varian: avatar bulat kecil (24/32/48 px), ilustrasi besar untuk empty state & onboarding, ikon notifikasi. Simpan di `public/garage-brand/aya/`, render `object-contain` |
+| Ekspresi status | Satu pose per state yang sudah wajib di PRD §24.8: siap/idle, sedang berpikir (loading), berhasil (dengan receipt), perlu perhatian (warning), gagal/belum terverifikasi. Ekspresi **selalu disertai teks**, tidak menggantikan label status |
+| Kepribadian & suara | Ramah, setia, sigap — tetapi isi jawaban tetap mengikuti aturan PRD §21 (fakta vs dugaan, sumber angka, "BELUM CUKUP BUKTI", tidak menuduh). Persona baru ditambahkan di `src/lib/garage-ai-persona.ts` tanpa melemahkan guardrail; suara TTS existing (`garage-voice`, Edge/ElevenLabs/Gemini) dipilih ulang agar cocok dengan karakter Aya |
+| Motion | Ringan: kedip/telinga/ekor sekali saat muncul atau saat tugas selesai; tidak ada animasi loop terus-menerus; hormati `prefers-reduced-motion` (CLAUDE.md, PRD §24.4) |
+| Batas tampil | Default: workspace Owner & Manajer, panel AI, notifikasi. POS kasir hanya ikon kecil (tidak boleh menutupi menu/cart/total). Member UI: **tidak** tampil sampai Owner setujui terpisah (kontrak desain member terkunci, aturan #8) |
+| Keamanan | Aya memakai backend, tool registry, dan policy yang sama dengan MCP (F52 = D-01). Aya tidak pernah mengklaim aksi berhasil tanpa operation receipt |
+
+### Detail yang harus dijawab Owner (D-07a…e, OPEN)
+
+- **D-07a** Jenis hewan Aya (kucing / anjing / lainnya) dan ciri utama (warna bulu, mata, aksesori).
+- **D-07b** Foto Aya: Owner unggah 3–5 foto jelas (depan, samping, ekspresi favorit) ke
+  `public/garage-brand/aya/source/` atau lampirkan di chat. Agent **tidak** mengarang wujud Aya tanpa foto.
+- **D-07c** Gaya ilustrasi: flat/vektor yang selaras palet Garage (merah, chrome, amber) vs lebih realistis.
+- **D-07d** Kepribadian & cara bicara Aya (mis. panggil Owner "Bos"/"Pak Surya"? boleh sedikit lucu atau
+  tetap formal saat membahas uang?).
+- **D-07e** Apakah Aya juga tampil untuk staf (kasir/bar/dapur) dan/atau member, atau khusus Owner & Manajer.

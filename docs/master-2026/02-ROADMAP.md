@@ -72,7 +72,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | U0 | Ekstraksi modul tanpa ubah perilaku | Pecah `garage-app.tsx` (±10.300 baris) per modul + baseline visual | READY |
-| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA | BLOCKED (D-02 palet) |
+| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA, **komponen `AyaAvatar` + ekspresi status (D-07)** | BLOCKED (D-02 palet, D-07 aset) |
 | U2 | Shell & navigasi | Sitemap Owner §23.4, nav per device §23.5, command palette berizin | setelah U1 |
 | U3 | Redesign P0 | POS-02, SHF-01, SHF-04, FIN-03, FIN-07, SYS-01, DSH-01, AI-01, WMS-04 (§25.3) | setelah U2 + B2–B4 |
 
@@ -90,7 +90,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | M1 | Module/tool registry | F48; registry per domain (16), risk tier R0–R4, `system.list_modules/get_capabilities` | setelah M0 |
 | M2 | Preview → konfirmasi chat → commit → receipt | F49, F51; `confirmation_token` terikat digest, idempotency, expected version, readback; D-01a TOTP untuk R3 | setelah M1 |
 | M3 | **Full tool coverage Owner** | Semua aksi R0–R3 Owner di 16 domain via tool bisnis (termasuk finance: approve cash-out, petty pay, setoran, final closing, void/refund, harga, role); R4 tetap ditolak; `garage_api` dipensiunkan setelah coverage lengkap | setelah M2 |
-| M5 | Aya in-app | F52; backend & policy identik dengan MCP | setelah M2 |
+| M5 | **Aya in-app (peliharaan Owner, D-07)** | F52; asisten AI bernama & berwajah Aya: avatar/ilustrasi dari foto asli, ekspresi per state, persona di `garage-ai-persona.ts`, suara TTS, motion ringan; backend & policy identik dengan MCP (D-01) | Persona & integrasi READY setelah M2 · aset visual BLOCKED (D-07a–e: jenis hewan, foto, gaya) |
 
 ### Fase 7 — Growth, hardening, rollout
 | ID | Batch | Isi | Status |

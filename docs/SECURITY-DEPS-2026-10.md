@@ -39,8 +39,9 @@ Untuk dua paket ini npm hanya menyarankan *downgrade*, jadi dipakai `overrides`:
 
 ## Verifikasi
 - `npm audit`: 0 kerentanan; `npm ci` (npm 10) bersih.
-- `db:generate`: tanpa perubahan; lint, tsc, seluruh tes Vitest, dan `next build` lolos.
-- Browser (dev + PGlite) di 1366×900 & 390×844: login Owner, 2FA, POS, Pengawasan Kas + unduh Excel, dan upload gambar (sharp).
+- `db:generate`: tanpa perubahan; tsc bersih; 175 file / 1140 tes Vitest lolos; `next build` lolos.
+- Lint: 0 error. eslint-config-next 16.4 menambah aturan `no-location-assign-relative-destination` (19 peringatan). Pemakaian `window.location.assign/href` itu memang disengaja untuk reload penuh (misalnya setelah login/logout), jadi dibiarkan sebagai peringatan.
+- Browser (dev Next 16.4.3 + PGlite) di 1366×900 & 390×844: login Owner, `/`, `/pos`, `/control/cash-closing`, dan `/shift` tanpa overflow dan tanpa error console; unduh Excel OK; upload foto menu diproses sharp 0.35 menjadi webp.
 
 ## Ke depan
 - Jalankan `npm audit` sebelum setiap rilis besar. Pembaruan major (misalnya Vitest 5, Next 17) dikerjakan di PR terpisah dengan tes penuh.

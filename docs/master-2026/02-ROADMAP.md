@@ -47,7 +47,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | S1 | Agent key hardening (non-Owner) | Key `manajer`/`readonly`/agent lain: allowlist path, tidak bisa settings keamanan/user-role/sertifikasi saldo/approve; audit agent **sinkron** + audit GET finansial; rate limit persisten. Key Owner tetap luas sampai M3 menggantikannya (D-01) | READY |
-| S2 | 2FA & human/Owner gate di API | Wajib 2FA Owner/Manajer ditegakkan di `requireGarageSession` (F-04); helper `requireOwnerPrincipal` (manusia **atau** Owner via OAuth MCP) untuk aksi Owner-only; manajer/kasir/agent lain ditolak; tes negatif per route | READY |
+| S2 | 2FA wajib di API | Wajib 2FA Owner/Manajer ditegakkan di `requireGarageSession` untuk `/api/*` (F-04), tes negatif. **Dipindah ke S1/M0:** helper `requireOwnerPrincipal` (Owner manusia atau Owner via OAuth MCP) | **PR #81 (draft, menunggu review Owner)** |
 
 ### Fase 1 — Financial integrity (PRD §08–§11)
 | ID | Batch | Fitur | Status |
@@ -101,7 +101,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 
 ## Urutan kerja rekomendasi untuk agent berikutnya
 
-1. **S2** (2FA di API + gate Owner) → 2. **M0** (OAuth gateway, karena D-01 adalah prioritas Owner) →
+1. ~~S2~~ (PR #81) → 2. **M0** (OAuth gateway, karena D-01 adalah prioritas Owner) →
 3. **S1** (persempit key non-Owner) → 4. **B1** → 5. **I3** → 6. **U0** / **S0b** paralel →
 7. **M1 → M2 → M3** → lalu Fase 1–5 sisanya sesuai jawaban keputusan OPEN.
 

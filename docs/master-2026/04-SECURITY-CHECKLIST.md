@@ -26,7 +26,7 @@ Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-A
 - [ ] Test: tiap route Owner-only menolak key non-Owner (403) dan menerima Owner via OAuth MCP
 
 ## C. Identitas
-- [ ] 2FA wajib Owner/Manajer ditegakkan di API, bukan hanya halaman (F-04)
+- [x] 2FA wajib Owner/Manajer ditegakkan di API, bukan hanya halaman (F-04) — PR #81, tes `two-factor-api-gate*.test.ts` (belum merge)
 - [ ] Google Login hanya link ke akun existing; tidak membuat staff profile/role otomatis (I1)
 - [ ] Verifikasi email/WA sebelum akun aktif (I2) — sesuai keputusan provider
 - [ ] Staf baru `pending_approval` sampai Owner approve (I3)

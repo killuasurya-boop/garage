@@ -47,3 +47,20 @@ Format wajib per batch (instruksi Owner):
 - Hasil pengujian: tidak relevan (dokumentasi).
 - Risiko DB/VPS: nol.
 - Langkah berikutnya: Owner jawab D-07a–e + kirim foto Aya.
+
+## 2026-10-26 — Batch S2 2FA wajib di API
+
+- Fitur/modul: kebijakan `securityRequire2faForOwner` ditegakkan di API. Owner/Manajer tanpa 2FA → `403 TWO_FACTOR_REQUIRED`
+  di `/api/*` (kecuali `/api/me`, `/api/account/*`). Halaman tetap redirect ke `/control/2fa`. Menutup F-04.
+- File diubah: `src/proxy.ts` (header `x-garage-api-path`), `src/lib/server-auth.ts`, baru `src/lib/two-factor-api-gate.ts`
+  + `two-factor-api-gate.test.ts` (9 tes) + `two-factor-api-gate.integration.test.ts` (6 tes PGlite).
+- Hasil pengujian: tsc lulus (heap 6 GB) · lint 0 error · vitest 180 file / 1.170 tes lulus · `npm run build` lulus
+  (env placeholder seperti Dockerfile) · `db:generate` tanpa perubahan schema · tes integrasi terbukti gagal bila gate dicabut.
+  Belum uji browser (tidak ada DB/server di sesi).
+- Branch / commit / PR: `claude/s2-2fa-api-gate` · `b51e8c1` · draft PR killuasurya-boop/garage#81.
+- Risiko DB/VPS: tanpa migration/data. Bila kebijakan aktif & ada Owner/Manajer belum pasang 2FA, panggilan API langsung mereka ditolak.
+- Status kesiapan deploy: siap review; merge = auto-deploy → hanya Owner, di luar jam operasional.
+- Catatan untuk agent berikutnya: (1) build lokal butuh `NODE_OPTIONS=--max-old-space-size=6144` + env placeholder Dockerfile
+  (`BETTER_AUTH_SECRET=build-time-placeholder-not-used-at-runtime`, `DATABASE_URL=postgresql://build:build@localhost:5432/build`);
+  (2) `requireOwnerPrincipal` dipindah ke S1/M0.
+- Langkah berikutnya: **M0** (OAuth gateway `/api/mcp/chatgpt`) lalu **S1**.

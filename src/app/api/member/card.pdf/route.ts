@@ -19,6 +19,8 @@ export async function GET(request: Request) {
     memberCode: member.memberCode,
     membershipSince: member.membershipSince,
     expiresAt: member.expiresAt ?? null,
+    points: member.totalPoints,
+    address: member.address ?? null,
     ultraCandidate: member.ultraCandidate,
   });
 

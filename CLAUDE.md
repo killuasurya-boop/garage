@@ -404,4 +404,11 @@ For documentation-only changes such as Claude command files, app lint/build is o
 13. Never invent unavailable member data or features. No fake OAuth/OTP buttons: Google/OTP appear only once a real provider is configured.
 14. State any proposed deviation from the approved design before implementing it.
 
+15. Member card = `PremiumMembershipCard` (`src/components/garage/premium-membership-card.tsx` + `.css`). Card data for the screen, PNG/JPG (`membership-card-image.ts`) and PDF (`membership-card-pdf.ts`) comes only from `src/lib/membership-card-model.ts`:
+    - the real member code (never zero-padded);
+    - "Berlaku s/d" from `expiresAt`, never from the member-since date;
+    - perks and multiplier from `memberLevelRules`;
+    - a real QR `{v:1,id,tier,n}`, dark on a white plate;
+    - no bank-card props (CVV, signature, magstripe, fake barcode) and no fake address or phone placeholders.
+
 Design consistency is a mandatory acceptance criterion for every member UI change.

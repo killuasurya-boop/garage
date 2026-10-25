@@ -912,11 +912,14 @@ export function MembershipAdminView({
                 </div>
               </div>
 
-              <div className="mt-4 flex justify-center">
+              <div className="mt-4 flex flex-col items-center">
                 <PremiumMembershipCard
                   className="w-full max-w-[400px]"
                   side={previewSide}
+                  onSideChange={setPreviewSide}
                   flippable
+                  showQrButton={false}
+                  expired={selected.expiration === "expired"}
                   data={{
                     name: selected.name,
                     memberId:
@@ -928,17 +931,9 @@ export function MembershipAdminView({
                     address: selected.address ?? null,
                     tier: selected.tierLevel,
                     membershipSince: selected.membershipSince ?? null,
-                    validThru:
-                      typeof selected.expiresAt === "string" ||
-                      selected.expiresAt instanceof Date
-                        ? new Date(selected.expiresAt)
-                            .toLocaleDateString("id-ID", {
-                              month: "short",
-                              year: "numeric",
-                            })
-                            .toUpperCase()
-                        : null,
+                    validThru: selected.expiresAt ?? null,
                     photoUrl: selected.photoUrl ?? null,
+                    points: selected.points,
                   }}
                 />
                 {selected.expiration === "expired" ? (

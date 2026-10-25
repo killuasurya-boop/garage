@@ -124,3 +124,34 @@ Penyesuaiannya:
 - Setelah "Lanjutkan", form meminta **PIN** di kartu yang sama (langkah 2).
 - Tombol **Google** dan pembatas "ATAU" tidak ditampilkan karena belum ada OAuth Google yang dikonfigurasi. Tombol palsu tidak boleh dibuat.
 - "Daftar Sekarang" membuka mode daftar di kartu yang sama: nama, nomor HP, PIN, dan data opsional.
+
+## 8. Kartu member (`PremiumMembershipCard`)
+
+Satu sumber data: `src/lib/membership-card-model.ts`, dipakai layar, PNG/JPG, dan PDF.
+
+### Depan
+- Logo + "GARAGE".
+- `COFFEE · TEBING TINGGI`.
+- Tier dengan ikon lucide: Silver Shield, Gold Crown, Platinum Gem, Ultra Sparkles.
+- Foto member, atau inisial bila tidak ada foto.
+- Nama dan **kode member asli**. Kode boleh pindah baris di tanda hubung dan tidak pernah terpotong.
+- QR besar di plate putih.
+- "Member sejak" dan "Berlaku s/d".
+
+### Belakang (info asli)
+- Benefit tier (multiplier dari aturan poin), maksimal 3 baris.
+- QR.
+- Poin, Berlaku, dan Kontak. Alamat hanya tampil bila ruang cukup.
+- Footer `garagecoffee.id` · kode.
+
+### Status dan aksi
+- **Expired:** pita merah "EXPIRED" + kartu sedikit pudar.
+- **Tombol "Tunjukkan QR ke kasir":** membuka dialog QR besar (±300 px, plate putih). Untuk member saja; admin memakai `showQrButton={false}`.
+
+### Keterbacaan
+- Teks diskalakan dengan container query (`cqw`).
+- Label minimal 9 px. Warna muted per tier dijaga kontrasnya.
+
+### Kontrol
+- Sisi kartu bisa dikendalikan induk: `side` + `onSideChange`.
+- Tombol "Lihat depan/belakang" di halaman selalu sinkron dengan ketukan pada kartu.

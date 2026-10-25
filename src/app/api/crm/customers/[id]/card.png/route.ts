@@ -34,6 +34,7 @@ export async function GET(
       address: customer.address ?? null,
       membershipSince: customer.membershipSince,
       expiresAt: customer.expiresAt ?? null,
+      points: customer.points,
     },
     { format: "png", side },
   );

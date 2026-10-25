@@ -30,3 +30,17 @@ Gerak di UI member harus **sinematik, ringan, dan membantu kejelasan**. Login ha
 - Animasi properti `width`, `height`, `top`, atau `left`.
 - Durasi mikro-interaksi > 300ms.
 - Menunda input pengguna karena animasi; form bisa diketik sejak render pertama.
+
+## Kartu member
+
+Implementasi: `premium-membership-card.css`, JS hanya untuk pointer tilt.
+
+| Gerak | Spesifikasi |
+|---|---|
+| Masuk | 520 ms: fade + `translateY(16px)` + `rotateX(8deg)` → 0, sekali. Glow tier menyala lalu turun ke 0.28, tidak berulang. |
+| Tilt 3D | Pointer events (mouse + geser jari), rAF-throttled, maks ±10° Y / ±7° X. Transisi 90 ms saat bergerak, 640 ms saat kembali. Foil dan kilau mengikuti titik sentuh dan hanya terlihat saat hover/sentuh. |
+| Balik kartu | `rotateY` 640 ms + "angkat" (`translateZ` 40 px, scale 1.035) di tengah putaran. Geser jari > 10 px tidak dihitung sebagai tap. |
+| Reduced motion | Tanpa tilt/rotasi/foil. Balik kartu = crossfade 150 ms. Tanpa animasi masuk. |
+| Dialog QR | Tilt dimatikan selama dialog terbuka. |
+
+Tidak ada animasi dekoratif yang berjalan terus saat kartu diam.

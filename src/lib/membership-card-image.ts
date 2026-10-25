@@ -2,6 +2,16 @@ import sharp from "sharp";
 import QRCode from "qrcode";
 
 import type { MemberLevel } from "@/lib/member-types";
+import {
+  CARD_BRAND_LINE,
+  CARD_WEBSITE,
+  cardMemberSince,
+  cardPerks,
+  cardValidity,
+  formatMemberCode,
+  memberQrPayload,
+  optionalCardText,
+} from "@/lib/membership-card-model";
 
 export type MembershipCardImageInput = {
   name: string;
@@ -11,6 +21,7 @@ export type MembershipCardImageInput = {
   address?: string | null;
   membershipSince?: string | Date | null;
   expiresAt?: string | Date | null;
+  points?: number | null;
 };
 
 export type MembershipCardImageOptions = {
@@ -24,7 +35,6 @@ const HEIGHT = 636;
 
 type TierTheme = {
   label: string;
-  badge: string;
   bgStart: string;
   bgMid: string;
   bgEnd: string;
@@ -32,25 +42,21 @@ type TierTheme = {
   muted: string;
   text: string;
   glow: string;
-  concept: string;
 };
 
 const themes: Record<MemberLevel, TierTheme> = {
   Silver: {
     label: "SILVER",
-    badge: "CLASS · S",
     bgStart: "#f4f6fb",
     bgMid: "#8a8f9c",
-    bgEnd: "#1a1d26",
+    bgEnd: "#5f6573",
     accent: "#1a1d26",
     muted: "#363b48",
     text: "#0d1018",
     glow: "rgba(200,207,222,0.5)",
-    concept: "INDUSTRIAL ACCESS",
   },
   Gold: {
     label: "GOLD",
-    badge: "CLASS · G",
     bgStart: "#fff3c4",
     bgMid: "#c89828",
     bgEnd: "#3a2a10",
@@ -58,11 +64,9 @@ const themes: Record<MemberLevel, TierTheme> = {
     muted: "#4a3a0f",
     text: "#1f1606",
     glow: "rgba(245,197,66,0.55)",
-    concept: "ELITE EXECUTIVE",
   },
   Platinum: {
     label: "PLATINUM",
-    badge: "CLASS · P",
     bgStart: "#e7f4ff",
     bgMid: "#5a90c0",
     bgEnd: "#0a1828",
@@ -70,19 +74,16 @@ const themes: Record<MemberLevel, TierTheme> = {
     muted: "#11304f",
     text: "#06121e",
     glow: "rgba(96,180,232,0.55)",
-    concept: "QUANTUM PRESTIGE",
   },
   Ultra: {
     label: "ULTRA",
-    badge: "CLASS · OMEGA",
-    bgStart: "#f0e6ff",
-    bgMid: "#8c5cf0",
+    bgStart: "#5b34b0",
+    bgMid: "#3a1d78",
     bgEnd: "#08020f",
     accent: "#f8f5ff",
-    muted: "#cbb8f7",
+    muted: "#d9c9ff",
     text: "#f8f5ff",
     glow: "rgba(140,92,240,0.6)",
-    concept: "FORBIDDEN PROTOTYPE",
   },
 };
 
@@ -100,21 +101,6 @@ function escapeXml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
-}
-
-function formatMemberNumber(code: string) {
-  const normalized = code.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  const padded = normalized.padEnd(16, "0").slice(0, 16);
-  return padded.match(/.{1,4}/g)?.join(" ") ?? padded;
-}
-
-function formatSince(value?: string | Date | null) {
-  if (!value) return "LIFETIME";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "LIFETIME";
-  return date
-    .toLocaleDateString("id-ID", { month: "short", year: "numeric" })
-    .toUpperCase();
 }
 
 // QR selalu modul gelap di atas latar putih solid: warna tema terang (ULTRA
@@ -145,124 +131,118 @@ function holoStripeRect(x: number, y: number, w: number, h: number) {
   `;
 }
 
-function chipSvg(x: number, y: number, accent: string) {
+function memberIdFor(input: MembershipCardImageInput, tier: MemberLevel) {
+  return input.memberCode ?? `${tier.slice(0, 3).toUpperCase()}-${input.phone.slice(-4)}`;
+}
+
+function field(x: number, y: number, label: string, value: string, theme: TierTheme, anchor: "start" | "end" = "start") {
   return `
-    <g transform="translate(${x},${y})">
-      <rect width="92" height="68" rx="10" fill="${accent}" opacity="0.92" />
-      <rect x="16" y="14" width="60" height="40" rx="6" fill="#000" opacity="0.32" />
-      <line x1="16" y1="26" x2="76" y2="26" stroke="#000" stroke-width="2" opacity="0.35" />
-      <line x1="16" y1="40" x2="76" y2="40" stroke="#000" stroke-width="2" opacity="0.3" />
-      <line x1="46" y1="14" x2="46" y2="54" stroke="#000" stroke-width="2" opacity="0.35" />
-    </g>
-  `;
+    <g transform="translate(${x}, ${y})" text-anchor="${anchor}">
+      <text font-family="JetBrains Mono, monospace" font-size="17" font-weight="700" fill="${theme.muted}" letter-spacing="4">${escapeXml(label)}</text>
+      <text y="40" font-family="Inter, sans-serif" font-weight="700" font-size="30" fill="${theme.text}">${escapeXml(value)}</text>
+    </g>`;
+}
+
+function cardBackground(id: string, theme: TierTheme) {
+  return `
+      <defs>
+        <radialGradient id="${id}" cx="20%" cy="15%" r="120%">
+          <stop offset="0%" stop-color="${theme.bgStart}" />
+          <stop offset="40%" stop-color="${theme.bgMid}" />
+          <stop offset="100%" stop-color="${theme.bgEnd}" />
+        </radialGradient>
+      </defs>
+      <rect width="${WIDTH}" height="${HEIGHT}" rx="42" ry="42" fill="url(#${id})" />
+      ${holoStripeRect(0, 0, WIDTH, HEIGHT)}
+      <rect x="6" y="6" width="${WIDTH - 12}" height="${HEIGHT - 12}" rx="38" ry="38" fill="none" stroke="${theme.accent}" stroke-opacity="0.18" stroke-width="2" />`;
+}
+
+async function qrBlock(x: number, y: number, size: number, payload: string) {
+  const qr = await qrSvg(payload);
+  return `
+      <g transform="translate(${x}, ${y})">
+        <rect width="${size}" height="${size}" rx="16" fill="#ffffff" />
+        <g transform="translate(10, 10) scale(${(size - 20) / 180})">${qr}</g>
+      </g>`;
 }
 
 async function buildFront(input: MembershipCardImageInput, theme: TierTheme) {
   const tier = normalizeTier(input.tier);
-  const memberId = input.memberCode ?? `${tier.slice(0, 3).toUpperCase()}-${input.phone.slice(-4)}`;
-  const qrPayload = JSON.stringify({ v: 1, id: memberId, tier, n: input.name });
-  const qr = await qrSvg(qrPayload);
+  const memberId = memberIdFor(input, tier);
+  const validity = cardValidity({ expiresAt: input.expiresAt });
+  const since = cardMemberSince(input.membershipSince) ?? "—";
+  const qr = await qrBlock(WIDTH - 286, 176, 228, memberQrPayload({ memberCode: memberId, tier, name: input.name }));
+  const name = (input.name || "Member Garage").slice(0, 26);
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-      <defs>
-        <radialGradient id="bg" cx="20%" cy="15%" r="120%">
-          <stop offset="0%" stop-color="${theme.bgStart}" />
-          <stop offset="40%" stop-color="${theme.bgMid}" />
-          <stop offset="100%" stop-color="${theme.bgEnd}" />
-        </radialGradient>
-        <filter id="noise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
-          <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.15 0" />
-        </filter>
-      </defs>
+      ${cardBackground("bg", theme)}
 
-      <rect width="${WIDTH}" height="${HEIGHT}" rx="42" ry="42" fill="url(#bg)" />
-      <rect width="${WIDTH}" height="${HEIGHT}" rx="42" ry="42" fill="url(#bg)" filter="url(#noise)" opacity="0.55" />
-      ${holoStripeRect(0, 0, WIDTH, HEIGHT)}
-
-      <rect x="6" y="6" width="${WIDTH - 12}" height="${HEIGHT - 12}" rx="38" ry="38" fill="none" stroke="${theme.accent}" stroke-opacity="0.18" stroke-width="2" />
-
-      <g transform="translate(58,58)">
-        <text font-family="Anton, Impact, sans-serif" font-size="40" fill="${theme.text}" letter-spacing="6">GARAGE</text>
-        <text y="28" font-family="JetBrains Mono, monospace" font-size="13" fill="${theme.muted}" letter-spacing="4">COFFEE · MEDAN</text>
+      <g transform="translate(58,82)">
+        <text font-family="Anton, Impact, sans-serif" font-size="46" fill="${theme.text}" letter-spacing="6">GARAGE</text>
+        <text y="34" font-family="JetBrains Mono, monospace" font-size="17" font-weight="700" fill="${theme.muted}" letter-spacing="4">${escapeXml(CARD_BRAND_LINE)}</text>
       </g>
 
-      <g transform="translate(${WIDTH - 360},58)" text-anchor="end">
-        <text x="300" font-family="JetBrains Mono, monospace" font-size="14" fill="${theme.muted}" letter-spacing="6">ACCESS TIER</text>
-        <text x="300" y="58" font-family="Anton, Impact, sans-serif" font-size="68" fill="${theme.text}" letter-spacing="4">${theme.label}</text>
-        <text x="300" y="86" font-family="JetBrains Mono, monospace" font-size="13" fill="${theme.muted}" letter-spacing="4">${theme.badge}</text>
+      <g transform="translate(${WIDTH - 58},70)" text-anchor="end">
+        <text font-family="JetBrains Mono, monospace" font-size="17" font-weight="700" fill="${theme.muted}" letter-spacing="5">MEMBER TIER</text>
+        <text y="62" font-family="Anton, Impact, sans-serif" font-size="64" fill="${theme.text}" letter-spacing="4">${theme.label}</text>
       </g>
 
-      ${chipSvg(58, 220, theme.accent)}
+      ${qr}
 
-      <g transform="translate(${WIDTH - 240}, 220)">
-        <rect width="180" height="180" rx="14" fill="#ffffff" />
-        <g transform="translate(8, 8) scale(${164 / 180})">${qr}</g>
+      <g transform="translate(58, 300)">
+        <text font-family="Inter, sans-serif" font-weight="800" font-size="48" fill="${theme.text}">${escapeXml(name)}</text>
+        <text y="52" font-family="JetBrains Mono, monospace" font-weight="700" font-size="30" fill="${theme.text}" letter-spacing="3">${escapeXml(formatMemberCode(memberId))}</text>
       </g>
 
-      <g transform="translate(58, 430)">
-        <text font-family="JetBrains Mono, monospace" font-weight="700" font-size="36" fill="${theme.text}" letter-spacing="8">${escapeXml(formatMemberNumber(memberId))}</text>
-      </g>
-
-      <g transform="translate(58, 520)">
-        <text font-family="JetBrains Mono, monospace" font-size="14" fill="${theme.muted}" letter-spacing="6">MEMBER</text>
-        <text y="38" font-family="Anton, Impact, sans-serif" font-size="36" fill="${theme.text}" letter-spacing="3">${escapeXml((input.name || "GARAGE MEMBER").toUpperCase())}</text>
-      </g>
-
-      <g transform="translate(${WIDTH - 240}, 520)">
-        <text font-family="JetBrains Mono, monospace" font-size="14" fill="${theme.muted}" letter-spacing="6">VALID</text>
-        <text y="38" font-family="Anton, Impact, sans-serif" font-size="32" fill="${theme.text}" letter-spacing="3">${escapeXml(formatSince(input.expiresAt ?? input.membershipSince))}</text>
-      </g>
+      ${field(58, 520, "MEMBER SEJAK", since, theme)}
+      ${field(WIDTH - 58, 520, validity.label, validity.value, theme, "end")}
     </svg>
   `;
 }
 
-function buildBack(input: MembershipCardImageInput, theme: TierTheme) {
+async function buildBack(input: MembershipCardImageInput, theme: TierTheme) {
   const tier = normalizeTier(input.tier);
-  const memberId = input.memberCode ?? `${tier.slice(0, 3).toUpperCase()}-${input.phone.slice(-4)}`;
-  const address = input.address ?? "Garage HQ · Medan, ID";
+  const memberId = memberIdFor(input, tier);
+  const { perks } = cardPerks(tier);
+  const validity = cardValidity({ expiresAt: input.expiresAt });
+  const phone = optionalCardText(input.phone, 24);
+  const address = optionalCardText(input.address, 24);
+  const points = typeof input.points === "number" && Number.isFinite(input.points) ? input.points : null;
+  const qr = await qrBlock(WIDTH - 266, 58, 208, memberQrPayload({ memberCode: memberId, tier, name: input.name }));
+
+  const info: Array<[string, string]> = [];
+  if (points !== null) info.push(["POIN", new Intl.NumberFormat("id-ID").format(points)]);
+  info.push([validity.label, validity.value]);
+  if (phone) info.push(["KONTAK", phone]);
+  if (address) info.push(["ALAMAT", address]);
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-      <defs>
-        <radialGradient id="bgBack" cx="20%" cy="15%" r="120%">
-          <stop offset="0%" stop-color="${theme.bgStart}" />
-          <stop offset="40%" stop-color="${theme.bgMid}" />
-          <stop offset="100%" stop-color="${theme.bgEnd}" />
-        </radialGradient>
-      </defs>
+      ${cardBackground("bgBack", theme)}
 
-      <rect width="${WIDTH}" height="${HEIGHT}" rx="42" ry="42" fill="url(#bgBack)" />
-      ${holoStripeRect(0, 0, WIDTH, HEIGHT)}
-      <rect x="0" y="60" width="${WIDTH}" height="86" fill="#000" opacity="0.88" />
-
-      <g transform="translate(58,200)">
-        <text font-family="JetBrains Mono, monospace" font-size="14" fill="${theme.muted}" letter-spacing="6">${theme.concept}</text>
-        <text y="42" font-family="Anton, Impact, sans-serif" font-size="38" fill="${theme.text}" letter-spacing="3">${theme.label} PROTOCOL</text>
-      </g>
-
-      <g transform="translate(58, 320)">
-        <text font-family="JetBrains Mono, monospace" font-size="14" fill="${theme.muted}" letter-spacing="6">ALAMAT</text>
-        <text y="32" font-family="Inter, sans-serif" font-size="22" fill="${theme.text}">${escapeXml(address.slice(0, 80))}</text>
-
-        <text y="80" font-family="JetBrains Mono, monospace" font-size="14" fill="${theme.muted}" letter-spacing="6">KONTAK</text>
-        <text y="112" font-family="JetBrains Mono, monospace" font-size="22" fill="${theme.text}">${escapeXml(input.phone)}</text>
-      </g>
-
-      <g transform="translate(${WIDTH - 320}, 320)">
-        ${Array.from({ length: 32 })
-          .map((_, i) => {
-            const w = (i * 7 + 5) % 4 === 0 ? 6 : (i * 3) % 4 === 0 ? 3 : 2;
-            return `<rect x="${i * 8}" y="0" width="${w}" height="120" fill="${theme.text}" opacity="${i % 3 === 0 ? 0.95 : 0.7}" />`;
-          })
+      <g transform="translate(58, 82)">
+        <text font-family="JetBrains Mono, monospace" font-size="17" font-weight="700" fill="${theme.muted}" letter-spacing="5">BENEFIT</text>
+        <text y="56" font-family="Anton, Impact, sans-serif" font-size="52" fill="${theme.text}" letter-spacing="4">${theme.label}</text>
+        ${perks
+          .slice(0, 4)
+          .map(
+            (perk, index) =>
+              `<text y="${108 + index * 40}" font-family="Inter, sans-serif" font-weight="700" font-size="27" fill="${theme.text}">✓  ${escapeXml(optionalCardText(perk, 34) ?? "")}</text>`,
+          )
           .join("")}
-        <text y="146" font-family="JetBrains Mono, monospace" font-size="12" fill="${theme.muted}" letter-spacing="4">${escapeXml(memberId)}</text>
       </g>
 
-      <g transform="translate(58, ${HEIGHT - 56})">
-        <text font-family="JetBrains Mono, monospace" font-size="12" fill="${theme.muted}" letter-spacing="6">garagecoffee.id</text>
-      </g>
+      ${qr}
+
+      ${info
+        .slice(0, 4)
+        .map(([label, value], index) => field(58 + (index % 2) * 470, 390 + Math.floor(index / 2) * 84, label, value, theme))
+        .join("")}
+
+      <line x1="58" x2="${WIDTH - 58}" y1="${HEIGHT - 70}" y2="${HEIGHT - 70}" stroke="${theme.muted}" stroke-opacity="0.4" stroke-width="2" />
+      <text x="58" y="${HEIGHT - 36}" font-family="JetBrains Mono, monospace" font-size="18" font-weight="700" fill="${theme.muted}" letter-spacing="4">${CARD_WEBSITE}</text>
+      <text x="${WIDTH - 58}" y="${HEIGHT - 36}" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="18" font-weight="700" fill="${theme.muted}" letter-spacing="3">${escapeXml(formatMemberCode(memberId))}</text>
     </svg>
   `;
 }
@@ -276,7 +256,7 @@ export async function generateMembershipCardImage(
 
   const svg =
     options.side === "back"
-      ? buildBack(input, theme)
+      ? await buildBack(input, theme)
       : await buildFront(input, theme);
 
   const pipeline = sharp(Buffer.from(svg), { density: 220 }).resize({

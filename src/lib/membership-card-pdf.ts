@@ -1,6 +1,17 @@
 import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
+import QRCode from "qrcode";
 
 import type { MemberLevel } from "@/lib/member-types";
+import {
+  CARD_BRAND_LINE,
+  CARD_WEBSITE,
+  cardMemberSince,
+  cardPerks,
+  cardValidity,
+  formatMemberCode,
+  memberQrPayload,
+  optionalCardText,
+} from "@/lib/membership-card-model";
 
 type MembershipCardPdfData = {
   name: string;
@@ -9,37 +20,35 @@ type MembershipCardPdfData = {
   memberCode?: string | null;
   membershipSince?: string | Date | null;
   expiresAt?: string | Date | null;
+  address?: string | null;
+  points?: number | null;
   ultraCandidate?: boolean | null;
 };
 
-const tierTheme: Record<MemberLevel, { accent: string; dark: string; soft: string; concept: string; code: string }> = {
+const tierTheme: Record<MemberLevel, { accent: string; dark: string; soft: string; muted: string }> = {
   Silver: {
     accent: "#A8B0C0",
     dark: "#1A1D26",
     soft: "#D0D4E0",
-    concept: "INDUSTRIAL ACCESS",
-    code: "CLASS-S",
+    muted: "#C3C8D4",
   },
   Gold: {
     accent: "#C89828",
     dark: "#0D0B09",
     soft: "#D4B040",
-    concept: "ELITE EXECUTIVE",
-    code: "CLASS-G",
+    muted: "#D9BC6A",
   },
   Platinum: {
     accent: "#6090B8",
     dark: "#080D18",
     soft: "#D0E8F8",
-    concept: "QUANTUM PRESTIGE",
-    code: "CLASS-P",
+    muted: "#9EC2E4",
   },
   Ultra: {
     accent: "#8050E0",
     dark: "#060408",
     soft: "#B890FF",
-    concept: "FORBIDDEN PROTOTYPE",
-    code: "CLASS-OMEGA",
+    muted: "#C2A8EC",
   },
 };
 
@@ -50,78 +59,98 @@ function normalizeTier(tier: string): MemberLevel {
   return "Silver";
 }
 
-function formatSince(value?: string | Date | null) {
-  if (!value) return "LIFETIME";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "LIFETIME";
-  return date.toLocaleDateString("id-ID", { month: "short", year: "numeric" }).toUpperCase();
-}
-
-function memberNumber(code: string, tier: MemberLevel) {
-  const fallback = `${tier.slice(0, 3).toUpperCase()}-0000-0000-0001`;
-  const base = code || fallback;
-  return base.replace(/-/g, "  ");
-}
-
-function drawCardFace(doc: PDFKit.PDFDocument, input: MembershipCardPdfData, x: number, y: number, title: "FRONT" | "BACK") {
+function drawCardFace(
+  doc: PDFKit.PDFDocument,
+  input: MembershipCardPdfData,
+  x: number,
+  y: number,
+  title: "FRONT" | "BACK",
+  qrPng: string,
+) {
   const tier = normalizeTier(input.tier);
   const theme = tierTheme[tier];
   const width = 360;
   const height = 226;
   const code = input.memberCode ?? `${tier.slice(0, 3).toUpperCase()}-${input.phone.slice(-4)}`;
+  const validity = cardValidity({ expiresAt: input.expiresAt });
 
   doc.save();
   doc.roundedRect(x, y, width, height, 16).fill(theme.dark);
+  // Hiasan dipotong di dalam kartu (sebelumnya meluber ke kertas).
+  doc.save();
+  doc.roundedRect(x, y, width, height, 16).clip();
+  doc.opacity(0.18).fillColor(theme.accent).circle(x + width - 60, y + 42, 90).fill().opacity(1);
+  doc.restore();
   doc.roundedRect(x + 1, y + 1, width - 2, height - 2, 15).strokeColor(theme.accent).lineWidth(1.4).stroke();
-  doc
-    .opacity(0.18)
-    .fillColor(theme.accent)
-    .circle(x + width - 60, y + 42, 90)
-    .fill()
-    .opacity(1);
 
-  for (let i = 0; i < 12; i += 1) {
-    const yy = y + 18 + i * 16;
-    doc.strokeColor(i % 2 === 0 ? "#FFFFFF18" : `${theme.accent}22`).lineWidth(0.4).moveTo(x + 18, yy).lineTo(x + width - 18, yy).stroke();
-  }
+  const label = (text: string, lx: number, ly: number, options?: PDFKit.Mixins.TextOptions) =>
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(theme.muted).text(text, lx, ly, { characterSpacing: 1, ...options });
+  const value = (text: string, vx: number, vy: number, options?: PDFKit.Mixins.TextOptions) =>
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(theme.soft).text(text, vx, vy, { lineBreak: false, ...options });
 
   if (title === "FRONT") {
-    doc.font("Helvetica-Bold").fontSize(22).fillColor(theme.soft).text("GARAGE", x + 24, y + 24);
-    doc.font("Helvetica").fontSize(7).fillColor("#FFFFFF88").text("COFFEE · MEDAN", x + 26, y + 50);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(theme.accent).text("ACCESS TIER", x + width - 122, y + 25, { width: 92, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(theme.soft).text(tier.toUpperCase(), x + width - 150, y + 40, { width: 120, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(22).fillColor(theme.soft).text("GARAGE", x + 24, y + 22);
+    label(CARD_BRAND_LINE, x + 25, y + 47);
+    label("MEMBER TIER", x + width - 132, y + 24, { width: 108, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(theme.accent).text(tier.toUpperCase(), x + width - 162, y + 36, { width: 138, align: "right" });
 
-    doc.roundedRect(x + 26, y + 78, 48, 34, 5).fill(theme.accent);
-    doc.roundedRect(x + 34, y + 85, 32, 20, 3).fill("#00000055");
-    doc.font("Helvetica").fontSize(10).fillColor(theme.accent).text("NFC", x + 85, y + 88);
+    doc.roundedRect(x + width - 106, y + 74, 82, 82, 6).fill("#FFFFFF");
+    doc.image(qrPng, x + width - 102, y + 78, { width: 74, height: 74 });
 
-    doc.font("Courier-Bold").fontSize(16).fillColor(theme.soft).text(memberNumber(code, tier), x + 24, y + 128, { characterSpacing: 1.4 });
-    doc.font("Helvetica").fontSize(7).fillColor("#FFFFFF80").text("MEMBER", x + 24, y + 170);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(theme.soft).text(input.name.toUpperCase(), x + 24, y + 182, { width: 190 });
-    doc.font("Helvetica").fontSize(7).fillColor("#FFFFFF80").text("VALID", x + 250, y + 170);
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(theme.soft).text(formatSince(input.expiresAt ?? input.membershipSince), x + 250, y + 182, { width: 86 });
+    doc.font("Helvetica-Bold").fontSize(15).fillColor(theme.soft).text((input.name || "Member Garage").slice(0, 28), x + 24, y + 92, { width: 220, lineBreak: false });
+    doc.font("Courier-Bold").fontSize(12).fillColor(theme.soft).text(formatMemberCode(code), x + 24, y + 116, { width: 220, lineBreak: false });
+
+    label("MEMBER SEJAK", x + 24, y + 176);
+    value(cardMemberSince(input.membershipSince) ?? "-", x + 24, y + 188, { width: 150 });
+    label(validity.label, x + 200, y + 176, { width: 136, align: "right" });
+    value(validity.value, x + 200, y + 188, { width: 136, align: "right" });
   } else {
-    doc.rect(x + 0, y + 28, width, 42).fill("#050505");
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(theme.accent).text(`${tier.toUpperCase()} PROTOCOL`, x + 24, y + 88);
-    doc.roundedRect(x + 24, y + 106, 74, 74, 5).strokeColor(theme.accent).lineWidth(1).stroke();
-    for (let row = 0; row < 7; row += 1) {
-      for (let col = 0; col < 7; col += 1) {
-        if ((row * 3 + col * 5 + code.length) % 4 !== 0) {
-          doc.rect(x + 32 + col * 8, y + 114 + row * 8, 5, 5).fill(theme.accent);
-        }
-      }
+    label("BENEFIT", x + 24, y + 22);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor(theme.accent).text(tier.toUpperCase(), x + 24, y + 34);
+    cardPerks(tier)
+      .perks.slice(0, 4)
+      .forEach((perk, index) => {
+        doc.font("Helvetica-Bold").fontSize(9.5).fillColor(theme.soft).text(`- ${optionalCardText(perk, 40) ?? ""}`, x + 24, y + 60 + index * 15, { width: 220, lineBreak: false });
+      });
+
+    doc.roundedRect(x + width - 106, y + 22, 82, 82, 6).fill("#FFFFFF");
+    doc.image(qrPng, x + width - 102, y + 26, { width: 74, height: 74 });
+
+    const info: Array<[string, string]> = [];
+    if (typeof input.points === "number" && Number.isFinite(input.points)) {
+      info.push(["POIN", new Intl.NumberFormat("id-ID").format(input.points)]);
     }
-    doc.font("Helvetica").fontSize(8).fillColor("#FFFFFF88").text("ACCESS POINT", x + 122, y + 112);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(theme.soft).text("garagecoffee.id", x + 122, y + 126);
-    doc.font("Helvetica").fontSize(8).fillColor("#FFFFFF88").text("MEMBER GRADE", x + 122, y + 150);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(theme.soft).text(`${tier.toUpperCase()} · ${theme.code}`, x + 122, y + 164);
-    doc.font("Courier").fontSize(7).fillColor(theme.accent).text(`${code} · ${theme.concept}`, x + 24, y + 198, { width: 300 });
+    info.push([validity.label, validity.value]);
+    const phone = optionalCardText(input.phone, 24);
+    const address = optionalCardText(input.address, 26);
+    if (phone) info.push(["KONTAK", phone]);
+    if (address) info.push(["ALAMAT", address]);
+    info.slice(0, 4).forEach(([l, v], index) => {
+      const fx = x + 24 + (index % 2) * 160;
+      const fy = y + 128 + Math.floor(index / 2) * 30;
+      label(l, fx, fy);
+      value(v, fx, fy + 11, { width: 150 });
+    });
+
+    doc.strokeColor(theme.muted).opacity(0.4).lineWidth(0.6).moveTo(x + 24, y + 196).lineTo(x + width - 24, y + 196).stroke().opacity(1);
+    label(CARD_WEBSITE, x + 24, y + 203);
+    label(formatMemberCode(code), x + 180, y + 203, { width: 156, align: "right" });
   }
 
   doc.restore();
 }
 
 export async function generateMembershipCardPdf(data: MembershipCardPdfData): Promise<Buffer> {
+  const tier = normalizeTier(data.tier);
+  const code = data.memberCode ?? `${tier.slice(0, 3).toUpperCase()}-${data.phone.slice(-4)}`;
+  // QR asli (bukan pola hiasan) — modul gelap di atas putih agar terbaca scanner kasir.
+  // Data URL (bukan Buffer): build standalone pdfkit hanya mengenali Buffer miliknya sendiri.
+  const qrPng = await QRCode.toDataURL(memberQrPayload({ memberCode: code, tier, name: data.name }), {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width: 360,
+    color: { dark: "#0d1018", light: "#ffffff" },
+  });
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 34 });
@@ -130,11 +159,10 @@ export async function generateMembershipCardPdf(data: MembershipCardPdfData): Pr
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
 
-      doc.font("Helvetica-Bold").fontSize(18).fillColor("#111111").text("GARAGE MEMBERSHIP MASTER PRO", 34, 30);
-      doc.font("Helvetica").fontSize(9).fillColor("#666666").text("Single member card export · front and back print layout", 34, 52);
-      drawCardFace(doc, data, 42, 92, "FRONT");
-      drawCardFace(doc, data, 430, 92, "BACK");
-      doc.font("Helvetica").fontSize(8).fillColor("#666666").text("Ultra activation requires Owner approval.", 42, 340);
+      doc.font("Helvetica-Bold").fontSize(18).fillColor("#111111").text("KARTU MEMBER GARAGE COFFEE", 34, 30);
+      doc.font("Helvetica").fontSize(9).fillColor("#555555").text("Sisi depan dan belakang - siap cetak (85,6 x 54 mm saat diskalakan).", 34, 52);
+      drawCardFace(doc, data, 42, 92, "FRONT", qrPng);
+      drawCardFace(doc, data, 430, 92, "BACK", qrPng);
       doc.end();
     } catch (error) {
       reject(error);

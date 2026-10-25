@@ -554,11 +554,13 @@ export function MemberDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 flex justify-center">
+            <div className="mt-6 flex flex-col items-center">
               <PremiumMembershipCard
                 className="w-full max-w-[460px]"
                 side={cardSide}
+                onSideChange={setCardSide}
                 flippable
+                expired={Boolean(member.expired)}
                 data={{
                   name: editing ? form.name || member.name : member.name,
                   memberId: member.memberCode ?? member.referralCode ?? member.id,
@@ -571,10 +573,11 @@ export function MemberDashboard() {
                   membershipSince: member.membershipSince ?? null,
                   validThru: member.expiresAt ?? null,
                   photoUrl: editing ? form.photoUrl : member.photoUrl ?? null,
+                  points: member.totalPoints,
                 }}
               />
               {member.expired ? (
-                <p className="mt-3 inline-flex items-center gap-1 self-center border border-[#d11a2a]/45 bg-[#d11a2a]/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#ffc2c8]">
+                <p className="mt-3 inline-flex items-center gap-1 self-center border border-[#d11a2a]/45 bg-[#d11a2a]/12 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#ffc2c8]">
                   Kartu sudah expired
                 </p>
               ) : member.expiringSoon ? (
@@ -585,8 +588,8 @@ export function MemberDashboard() {
             </div>
 
             <p className="mt-4 text-center text-xs leading-relaxed text-[#9696a1]">
-              Hover/tap kartu untuk efek 3D · klik untuk flip front/back · perubahan editor
-              tampil real-time sebelum kamu simpan.
+              Geser/arahkan kartu untuk efek 3D · ketuk kartu untuk membalik · perubahan
+              editor tampil langsung sebelum kamu simpan.
             </p>
           </div>
 

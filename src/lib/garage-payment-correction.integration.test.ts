@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { cashCount } from "@/lib/test-helpers/cash-count";
+
 import type { GarageSession } from "@/lib/server-auth";
 import type { Role } from "@/lib/garage-data";
 import {
@@ -121,7 +123,7 @@ describe("Koreksi metode bayar & pencocokan QRIS", () => {
     const qrisTotal = cashOrder.total + qrisOrder.total;
     const closed: any = await svc.closeCashSession(
       shiftId,
-      { actualCash: 100_000, qrisCounted: qrisTotal - 5_000 },
+      { actualCash: 100_000, denominations: cashCount(100_000), qrisCounted: qrisTotal - 5_000 },
       kasir(),
     );
     expect(closed).toMatchObject({

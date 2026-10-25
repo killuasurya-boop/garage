@@ -1,5 +1,6 @@
 "use client";
 
+import { discrepancyStatusLabel } from "@/lib/cash-discrepancy";
 import { reportFileName } from "@/lib/report-file-name";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -656,7 +657,7 @@ export function FinanceView({
             <div className="grid gap-3 sm:grid-cols-3">
               <FinanceStat
                 label="Discrepancy status"
-                value={liveSession.discrepancyStatus ?? "ok"}
+                value={discrepancyStatusLabel(liveSession.discrepancyStatus ?? "ok")}
                 danger={liveSession.discrepancyStatus === "critical"}
               />
               <FinanceStat

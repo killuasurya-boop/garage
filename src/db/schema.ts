@@ -1250,7 +1250,7 @@ export const cashSessions = pgTable(
     qrisCheckedBy: text("qris_checked_by").references(() => user.id, { onDelete: "set null" }),
     qrisCheckedAt: timestamp("qris_checked_at", { withTimezone: true }),
     // Serah terima uang laci saat tutup: ditinggal untuk modal shift berikutnya
-    // dan disetor ke Owner/brankas (= uang dihitung − ditinggal).
+    // dan untuk disetor ke rekening (= uang dihitung − ditinggal).
     floatLeft: integer("float_left"),
     depositAmount: integer("deposit_amount"),
     // Laporan pertanggungjawaban kasir (owner, Okt 2026): hitungan pecahan saat
@@ -1268,6 +1268,18 @@ export const cashSessions = pgTable(
     reviewNote: text("review_note"),
     reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    // P3 closing (owner, Okt 2026): actual_cash/denominations = hitungan PERTAMA kasir
+    // (tidak pernah ditimpa). Tutup tanpa pecahan hanya darurat: alasan + PIN Manajer.
+    countSkippedReason: text("count_skipped_reason"),
+    // Hitung ulang oleh pemeriksa (Manajer lain/Owner) saat verifikasi.
+    recountCash: integer("recount_cash"),
+    recountDenominations: jsonb("recount_denominations").$type<Record<string, number>>(),
+    recountBy: text("recount_by").references(() => user.id, { onDelete: "set null" }),
+    recountAt: timestamp("recount_at", { withTimezone: true }),
+    // Selisih ≠ 0 hanya bisa "verified" bila pemeriksa mengakui selisih + catatan.
+    discrepancyAcknowledged: boolean("discrepancy_acknowledged").notNull().default(false),
+    // Owner memverifikasi shift miliknya sendiri = "tanpa pemeriksa kedua".
+    reviewSelfVerified: boolean("review_self_verified").notNull().default(false),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
@@ -1481,6 +1493,14 @@ export const cashMovements = pgTable(
     expenseId: uuid("expense_id"),
     // Baris buku kas yang menggerakkan uang mutasi ini (null = data lama / belum bergerak).
     ledgerEntryId: uuid("ledger_entry_id"),
+    // Setoran ke rekening (owner, Okt 2026 — tanpa brankas/serah ke Owner): laci →
+    // "setoran dalam perjalanan"; baru masuk rekening saat penerima (≠ penyetor)
+    // mengonfirmasi dengan nomor bukti bank.
+    depositAccount: text("deposit_account"),
+    depositConfirmedBy: text("deposit_confirmed_by").references(() => user.id, { onDelete: "set null" }),
+    depositConfirmedAt: timestamp("deposit_confirmed_at", { withTimezone: true }),
+    depositBankRef: text("deposit_bank_ref"),
+    depositLedgerEntryId: uuid("deposit_ledger_entry_id"),
     // Saldo laci (expectedCash sesi) tepat sebelum/sesudah uang bergerak.
     balanceBefore: integer("balance_before"),
     balanceAfter: integer("balance_after"),

@@ -127,11 +127,15 @@ describe("catatan kejadian & verifikasi", () => {
     await expect(
       acc.updateShiftIncident(incident.id, { managerNote: "ok" }, as("Kasir")),
     ).rejects.toThrow(/Owner\/Manajer/);
-    await acc.updateShiftIncident(incident.id, { status: "resolved", actionTaken: "Pakai transfer" }, as("Kasir"));
-    await acc.updateShiftIncident(incident.id, { managerNote: "Hubungi BNI" }, as("Manajer"));
+    // P4: pelapor menulis tindakan, tapi tidak menutup kejadiannya sendiri.
+    await expect(
+      acc.updateShiftIncident(incident.id, { status: "resolved", actionTaken: "Pakai transfer" }, as("Kasir")),
+    ).rejects.toMatchObject({ code: "INDEPENDENT_REVIEW_REQUIRED" });
+    await acc.updateShiftIncident(incident.id, { actionTaken: "Pakai transfer" }, as("Kasir"));
+    await acc.updateShiftIncident(incident.id, { status: "resolved", managerNote: "Hubungi BNI" }, as("Manajer"));
     const [listed] = await acc.listShiftIncidents({ cashSessionIds: [session.id] });
     expect(listed).toMatchObject({ status: "resolved", actionTaken: "Pakai transfer", managerNote: "Hubungi BNI" });
-    expect(listed.resolvedByName).toBe("Staff Test");
+    expect(listed.resolvedByName).toBe("Owner Test");
 
     await expect(acc.reviewCashSession(session.id, { status: "verified" }, as("Kasir"))).rejects.toThrow(/Owner\/Manajer/);
     await expect(acc.reviewCashSession(session.id, { status: "verified" }, as("Owner"))).rejects.toThrow(/masih berlangsung/);

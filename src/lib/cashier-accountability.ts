@@ -10,6 +10,7 @@ import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { cashSessions, pettyCashEntries, shiftIncidents, user } from "@/db/schema";
+import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { accountBalance, postAccountCash, type CashAccount } from "@/lib/cash-ledger";
 import { createAuditLog, roleDisplayName } from "@/lib/garage-service";
 import type { GarageSession } from "@/lib/server-auth";
@@ -103,16 +104,29 @@ async function openSessionIdFor(garage: GarageSession) {
   return row?.id ?? null;
 }
 
-/** Kasir hanya boleh menyentuh shift miliknya; Owner/Manajer semua. */
+/**
+ * Kasir hanya boleh menyentuh shift miliknya; Manajer hanya shift outletnya (P4);
+ * Owner semua outlet.
+ */
 export async function assertSessionAccess(sessionId: string, garage: GarageSession) {
   const [row] = await getDb()
-    .select({ id: cashSessions.id, openedBy: cashSessions.openedBy, outletId: cashSessions.outletId, status: cashSessions.status, code: cashSessions.code })
+    .select({
+      id: cashSessions.id,
+      openedBy: cashSessions.openedBy,
+      closedBy: cashSessions.closedBy,
+      outletId: cashSessions.outletId,
+      status: cashSessions.status,
+      code: cashSessions.code,
+    })
     .from(cashSessions)
     .where(eq(cashSessions.id, sessionId))
     .limit(1);
   if (!row) throw new AccountabilityError("NOT_FOUND", "Shift tidak ditemukan.", 404);
   if (!isAdmin(garage) && row.openedBy !== garage.user.id) {
     throw new AccountabilityError("FORBIDDEN", "Kasir hanya bisa mengakses shift miliknya sendiri.", 403);
+  }
+  if (garage.profile.role === "Manajer" && row.outletId && row.outletId !== garage.profile.outlet.id) {
+    throw new AccountabilityError("FORBIDDEN", "Manajer hanya bisa mengakses shift di outletnya sendiri.", 403);
   }
   return row;
 }
@@ -561,10 +575,23 @@ export async function updateShiftIncident(
   if (!admin && row.reportedBy !== garage.user.id) {
     throw new AccountabilityError("FORBIDDEN", "Hanya pelapor atau Owner/Manajer yang bisa mengubah catatan ini.", 403);
   }
+  if (admin && garage.profile.role === "Manajer" && row.outletId && row.outletId !== garage.profile.outlet.id) {
+    throw new AccountabilityError("FORBIDDEN", "Manajer hanya bisa mengubah catatan kejadian di outletnya sendiri.", 403);
+  }
   if (input.managerNote !== undefined && !admin) {
     throw new AccountabilityError("FORBIDDEN", "Catatan Manajer hanya untuk Owner/Manajer.", 403);
   }
   const resolved = input.status === "resolved" && row.status !== "resolved";
+  // P4: kejadian diselesaikan oleh pemeriksa, bukan pelapornya sendiri (Owner =
+  // pengecualian tercatat). Pelapor tetap boleh menulis tindakan yang diambil.
+  const selfResolved = resolved && row.reportedBy === garage.user.id;
+  if (resolved && (!admin || (selfResolved && garage.profile.role !== "Owner"))) {
+    throw new AccountabilityError(
+      "INDEPENDENT_REVIEW_REQUIRED",
+      "Kejadian ditandai selesai oleh Manajer/Owner lain — bukan oleh pelapornya sendiri.",
+      403,
+    );
+  }
   const [updated] = await db
     .update(shiftIncidents)
     .set({
@@ -586,6 +613,7 @@ export async function updateShiftIncident(
       incidentId: id,
       before: { status: row.status, actionTaken: row.actionTaken, managerNote: row.managerNote },
       after: { status: updated.status, actionTaken: updated.actionTaken, managerNote: updated.managerNote },
+      ...(selfResolved ? { selfResolved: true, note: "tanpa pemeriksa kedua" } : {}),
     },
   });
   return updated;
@@ -627,39 +655,110 @@ export async function listShiftIncidents(filter: { cashSessionIds?: string[]; ou
 
 // ── Pemeriksaan Manajer ─────────────────────────────────────────────────────
 
-export async function reviewCashSession(
-  sessionId: string,
-  input: { status: Exclude<ShiftReviewStatus, "pending">; note?: string | null },
-  garage: GarageSession,
-) {
+export type ReviewCashSessionInput = {
+  status: Exclude<ShiftReviewStatus, "pending">;
+  note?: string | null;
+  /** Hitung ulang uang laci oleh pemeriksa (pecahan). Hitungan pertama kasir tidak diubah. */
+  recountDenominations?: Record<string, number> | null;
+  /** Wajib true (+ catatan) untuk "verified" bila ada selisih ≠ Rp0. */
+  acknowledgeDiscrepancy?: boolean;
+};
+
+/**
+ * P3/P4 (owner, Okt 2026): verifikasi independen.
+ * - Pemeriksa ≠ pemilik shift (yang buka/tutup). Owner = pengecualian berlabel
+ *   "tanpa pemeriksa kedua"; Manajer harus diperiksa Manajer lain/Owner.
+ * - Manajer hanya outletnya sendiri (assertSessionAccess).
+ * - Selisih ≠ Rp0 (hitungan pertama atau hitung ulang) hanya bisa "verified" bila
+ *   pemeriksa mengakui selisih + menulis catatan. Hitungan pertama tidak pernah ditimpa.
+ */
+export async function reviewCashSession(sessionId: string, input: ReviewCashSessionInput, garage: GarageSession) {
   assertAdmin(garage, "Verifikasi laporan shift");
   const session = await assertSessionAccess(sessionId, garage);
   if (session.status !== "closed") {
     throw new AccountabilityError("SHIFT_OPEN", "Shift masih berlangsung — verifikasi setelah ditutup.", 409);
   }
-  if (input.status === "needs_followup" && !(input.note ?? "").trim()) {
+  const note = input.note?.trim() || null;
+  if (input.status === "needs_followup" && !note) {
     throw new AccountabilityError("NOTE_REQUIRED", "Tuliskan tindak lanjut yang diperlukan.");
+  }
+  const ownShift = session.openedBy === garage.user.id || session.closedBy === garage.user.id;
+  const selfVerified = ownShift && garage.profile.role === "Owner";
+  if (ownShift && !selfVerified) {
+    throw new AccountabilityError(
+      "INDEPENDENT_REVIEW_REQUIRED",
+      "Shift ini milik Anda — minta Manajer lain atau Owner memeriksanya.",
+      403,
+    );
   }
   const db = getDb();
   const [before] = await db
-    .select({ reviewStatus: cashSessions.reviewStatus, reviewNote: cashSessions.reviewNote })
+    .select({
+      reviewStatus: cashSessions.reviewStatus,
+      reviewNote: cashSessions.reviewNote,
+      expectedCash: cashSessions.expectedCash,
+      actualCash: cashSessions.actualCash,
+      discrepancy: cashSessions.discrepancy,
+      recountCash: cashSessions.recountCash,
+      discrepancyAcknowledged: cashSessions.discrepancyAcknowledged,
+    })
     .from(cashSessions)
     .where(eq(cashSessions.id, sessionId))
     .limit(1);
+
+  const recountGiven =
+    input.recountDenominations && Object.keys(input.recountDenominations).some(isValidDenominationKey);
+  const recountCash = recountGiven ? sumDenominations(input.recountDenominations!) : before.recountCash;
+  const recountDiff = recountCash === null ? 0 : recountCash - before.expectedCash;
+  const hasDiscrepancy = before.discrepancy !== 0 || recountDiff !== 0;
+  if (input.status === "verified" && hasDiscrepancy && (!input.acknowledgeDiscrepancy || !note)) {
+    throw new AccountabilityError(
+      "DISCREPANCY_NOT_ACKNOWLEDGED",
+      "Shift ini berselisih — centang \"selisih diakui\" dan tulis catatan pemeriksaan sebelum verifikasi.",
+    );
+  }
+  const acknowledged = input.status === "verified" && hasDiscrepancy;
   const now = new Date();
   await db
     .update(cashSessions)
-    .set({ reviewStatus: input.status, reviewNote: input.note?.trim() || null, reviewedBy: garage.user.id, reviewedAt: now })
+    .set({
+      reviewStatus: input.status,
+      reviewNote: note,
+      reviewedBy: garage.user.id,
+      reviewedAt: now,
+      reviewSelfVerified: selfVerified,
+      discrepancyAcknowledged: acknowledged,
+      ...(recountGiven
+        ? { recountCash, recountDenominations: input.recountDenominations!, recountBy: garage.user.id, recountAt: now }
+        : {}),
+    })
     .where(eq(cashSessions.id, sessionId));
   await createAuditLog({
     actor: actorLabel(garage),
     action: input.status === "verified" ? "Laporan shift diverifikasi" : "Laporan shift perlu tindak lanjut",
     object: session.code,
     device: garage.profile.deviceLabel,
-    status: input.status === "verified" ? "recorded" : "warning",
-    metadata: { cashSessionId: sessionId, before, after: { reviewStatus: input.status, reviewNote: input.note ?? null } },
+    status: input.status === "verified" && !hasDiscrepancy ? "recorded" : "warning",
+    metadata: {
+      cashSessionId: sessionId,
+      before: { reviewStatus: before.reviewStatus, reviewNote: before.reviewNote },
+      after: { reviewStatus: input.status, reviewNote: note },
+      firstCount: before.actualCash,
+      expectedCash: before.expectedCash,
+      recountCash,
+      discrepancyAcknowledged: acknowledged,
+      ...(selfVerified ? { selfVerified: true, note: "tanpa pemeriksa kedua" } : {}),
+    },
   });
-  return { id: sessionId, reviewStatus: input.status, reviewNote: input.note?.trim() || null, reviewedAt: now.toISOString() };
+  return {
+    id: sessionId,
+    reviewStatus: input.status,
+    reviewNote: note,
+    reviewedAt: now.toISOString(),
+    recountCash,
+    discrepancyAcknowledged: acknowledged,
+    selfVerified,
+  };
 }
 
 export async function verifyOpeningCash(sessionId: string, garage: GarageSession) {

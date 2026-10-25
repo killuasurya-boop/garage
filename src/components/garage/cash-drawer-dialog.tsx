@@ -45,6 +45,9 @@ import {
   CASH_DRAWER_GROUP_LABELS,
   CASH_DRAWER_STATUS_LABELS,
   cashDrawerCategoriesFor,
+  DEPOSIT_ACCOUNT_LABEL,
+  DEPOSIT_ACCOUNTS,
+  type DepositAccount,
   cashDrawerCategory,
   cashDrawerNeedsApproval,
   formatRupiahInput,
@@ -114,6 +117,7 @@ type FormValues = {
   orderRef: string;
   employeeUserId: string;
   relatedRef: string;
+  depositAccount: string;
 };
 
 const EMPTY_FORM: FormValues = {
@@ -128,6 +132,7 @@ const EMPTY_FORM: FormValues = {
   orderRef: "",
   employeeUserId: "",
   relatedRef: "",
+  depositAccount: "",
 };
 
 type FieldErrors = Partial<Record<keyof FormValues | "managerPin" | "reason", string>>;
@@ -239,6 +244,7 @@ function CashMovementForm({
         if (field === "counterparty" && !values.counterparty.trim()) next.counterparty = `${def.counterpartyLabel ?? "Pihak terkait"} wajib diisi.`;
         if (field === "orderRef" && !values.orderRef.trim()) next.orderRef = "Nomor order wajib diisi.";
         if (field === "employee" && !values.employeeUserId) next.employeeUserId = "Pilih karyawan.";
+        if (field === "depositAccount" && !values.depositAccount) next.depositAccount = "Pilih rekening tujuan setoran.";
       }
       if (def.key === "bayar_kasbon" && values.employeeUserId && Number.isFinite(amount)) {
         const employee = options?.employees.find((row) => row.userId === values.employeeUserId);
@@ -283,6 +289,7 @@ function CashMovementForm({
       orderRef: values.orderRef.trim() || null,
       employeeUserId: values.employeeUserId || null,
       relatedRef: values.relatedRef || null,
+      depositAccount: values.depositAccount || null,
     };
   }
 
@@ -401,6 +408,7 @@ function CashMovementForm({
       ["No. nota", values.receiptNo.trim() || null],
       ["No. order", values.orderRef.trim() || null],
       ["Ref kas keluar asal", values.relatedRef || null],
+      ["Rekening tujuan", values.depositAccount ? DEPOSIT_ACCOUNT_LABEL[values.depositAccount as DepositAccount] : null],
       ["Catatan", values.note.trim() || null],
       ["Alasan koreksi", mode === "correct" ? reason.trim() : null],
     ];
@@ -669,6 +677,24 @@ function CashMovementForm({
                         aria-invalid={Boolean(errors.orderRef)}
                       />
                       {errors.orderRef ? <p className="mt-1 text-sm text-[#ff9b9b]">{errors.orderRef}</p> : null}
+                    </div>
+                  ) : null}
+                  {showField("depositAccount") ? (
+                    <div>
+                      <label className={labelClass}>Rekening tujuan (wajib)</label>
+                      <Select value={values.depositAccount || undefined} onValueChange={(value) => update("depositAccount", value)}>
+                        <SelectTrigger className={`${inputClass} w-full`} aria-invalid={Boolean(errors.depositAccount)} data-testid="cash-deposit-account">
+                          <SelectValue placeholder="Pilih rekening" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEPOSIT_ACCOUNTS.map((account) => (
+                            <SelectItem key={account} value={account}>
+                              {DEPOSIT_ACCOUNT_LABEL[account]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.depositAccount ? <p className="mt-1 text-sm text-[#ff9b9b]">{errors.depositAccount}</p> : null}
                     </div>
                   ) : null}
                   {showField("counterparty") ? (
@@ -1006,6 +1032,7 @@ function CashMovementDetail({
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<null | "reject" | "void" | "correct">(null);
   const [actionNote, setActionNote] = useState("");
+  const [bankRef, setBankRef] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [reloadKey, setReloadKey] = useState(0);
@@ -1084,6 +1111,7 @@ function CashMovementDetail({
       orderRef: m.orderNo ?? "",
       employeeUserId: "",
       relatedRef: "",
+      depositAccount: m.depositAccount ?? "",
     };
     return (
       <div className="space-y-3">
@@ -1132,6 +1160,15 @@ function CashMovementDetail({
     ["Catatan keputusan", m.decisionNote],
     ["Dibatalkan", m.voidedByName ? `${m.voidedByName} · ${fmtDateTime(m.voidedAt)}` : null],
     ["Alasan batal", m.voidReason],
+    ["Rekening tujuan", m.depositAccount ? DEPOSIT_ACCOUNT_LABEL[m.depositAccount as DepositAccount] ?? m.depositAccount : null],
+    [
+      "Status setoran",
+      m.depositAccount && m.status === "recorded"
+        ? m.depositConfirmedAt
+          ? `Diterima di rekening · ${m.depositConfirmedByName ?? "-"} · ${fmtDateTime(m.depositConfirmedAt)} · bukti ${m.depositBankRef ?? "-"}`
+          : "Dalam perjalanan — menunggu konfirmasi penerima"
+        : null,
+    ],
     ["Pengeluaran Finance", m.hasExpense ? "Ya (tunai)" : "Tidak — bukan biaya"],
   ];
 
@@ -1184,6 +1221,32 @@ function CashMovementDetail({
             ))}
         </dl>
       </div>
+
+      {canManage && m.depositAccount && m.status === "recorded" && !m.depositConfirmedAt ? (
+        <div className="space-y-2 rounded-md border border-[#f5a742]/50 bg-[#f5a742]/[0.06] p-3" data-testid="cash-deposit-confirm">
+          <p className="text-sm font-semibold text-[#ffd08a]">Konfirmasi setoran diterima</p>
+          <p className="text-sm text-[#e4e4e8]">
+            Dikonfirmasi oleh penerima (Owner/Manajer lain), bukan penyetornya. Isi nomor bukti setor / mutasi bank.
+          </p>
+          <Input
+            value={bankRef}
+            onChange={(event) => setBankRef(event.target.value.slice(0, 80))}
+            placeholder="No. bukti setor / ref mutasi"
+            className={inputClass}
+            aria-label="Nomor bukti setor"
+          />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              className="h-11 bg-[#f5a742] text-black hover:bg-[#ffc167]"
+              disabled={busy || bankRef.trim().length < 3}
+              onClick={() => void run("deposit-confirm", { bankRef: bankRef.trim() })}
+            >
+              Setoran diterima
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {canManage && (m.status === "pending_approval" || (m.status === "recorded" && sessionOpen)) ? (
         <div className="space-y-2 rounded-md border border-[#4a4a54] bg-white/[0.04] p-3">

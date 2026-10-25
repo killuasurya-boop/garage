@@ -9,7 +9,8 @@ import { formatRupiah, periodLabelFor, sumRows, type ReportColumn, type ReportDo
 import { rangeBounds, wibKey, wibTime, type ReportRange } from "@/lib/reports/common";
 
 const DISCREPANCY_LABEL: Record<string, string> = {
-  ok: "Wajar (≤ Rp10.000)",
+  ok: "Balance (Rp0)",
+  minor: "Selisih kecil (≤ Rp10.000)",
   review: "Perlu review",
   critical: "Kritis",
   missing: "Belum dihitung",

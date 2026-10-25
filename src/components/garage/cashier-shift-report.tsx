@@ -134,6 +134,10 @@ type SessionSummary = {
     reviewNote?: string | null;
     openingVerifiedAt?: string | null;
     openingCounted?: boolean;
+    recountCash?: number | null;
+    discrepancyAcknowledged?: boolean;
+    reviewSelfVerified?: boolean;
+    viewerOwnsShift?: boolean;
   };
   counts: { total: number; paid: number; refunded: number };
   sales: {
@@ -260,13 +264,14 @@ function statusBadge(status: string) {
 }
 
 function discrepancyBadge(status: string, value: number) {
-  if (status === "ok")
+  // Hanya Rp0 = Balance; selisih sekecil apa pun tetap tampil nominalnya.
+  if (status === "ok" && value === 0)
     return (
       <Badge className="bg-emerald-600/15 text-emerald-300 border-emerald-600/40">
-        Pas
+        Balance
       </Badge>
     );
-  if (status === "warning")
+  if (status !== "critical")
     return (
       <Badge className="bg-amber-500/15 text-amber-300 border-amber-500/40">
         {value >= 0 ? "Lebih" : "Kurang"} {fmtRp(Math.abs(value))}
@@ -393,6 +398,7 @@ export function CashierShiftReport({
         sessionId={selectedId}
         blindOpenShift={blindOpenShift}
         canSupervise={canSupervise}
+        isOwner={isOwner}
         onBack={() => {
           setSelectedId(null);
           void loadList();
@@ -598,11 +604,13 @@ function ShiftDetailView({
   sessionId,
   blindOpenShift,
   canSupervise,
+  isOwner,
   onBack,
 }: {
   sessionId: string;
   blindOpenShift: boolean;
   canSupervise: boolean;
+  isOwner: boolean;
   onBack: () => void;
 }) {
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -954,6 +962,14 @@ function ShiftDetailView({
               reviewNote={summary.session.reviewNote ?? null}
               openingVerifiedAt={summary.session.openingVerifiedAt ?? null}
               openingCounted={Boolean(summary.session.openingCounted)}
+              expectedCash={summary.session.expectedCash}
+              actualCash={summary.session.actualCash ?? null}
+              discrepancy={summary.session.discrepancy}
+              recountCash={summary.session.recountCash ?? null}
+              discrepancyAcknowledged={Boolean(summary.session.discrepancyAcknowledged)}
+              selfVerified={Boolean(summary.session.reviewSelfVerified)}
+              viewerOwnsShift={Boolean(summary.session.viewerOwnsShift)}
+              isOwner={isOwner}
               onChanged={() => void load()}
             />
           ) : null}

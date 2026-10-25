@@ -4064,7 +4064,7 @@ export function PosView({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[#b8b8bf]">Disetor ke Owner</dt>
+                    <dt className="text-[#b8b8bf]">Untuk disetor ke rekening</dt>
                     <dd className="font-semibold text-[#ffd08a]">
                       {currency.format(lastShiftCloseResult.depositAmount)}
                     </dd>

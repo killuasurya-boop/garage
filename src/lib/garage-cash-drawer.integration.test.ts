@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { cashCount } from "@/lib/test-helpers/cash-count";
+
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
 import {
@@ -285,21 +287,39 @@ describe("Kas laci — persetujuan, refund, setoran", () => {
     expect(await expectedCash()).toBe(100_000);
   });
 
-  it("setoran ke Manajer pakai PIN penerima → tercatat, bukan biaya", async () => {
+  it("setoran ke rekening pakai PIN Manajer → tercatat, bukan biaya; penerima lain mengonfirmasi bukti setor", async () => {
     await expect(
       svc.recordCashMovement(
-        { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Manajer Kas", managerPin: "000000" },
+        { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Kasir A", depositAccount: "bank_jago", managerPin: "000000" },
         kasir(),
       ),
     ).rejects.toThrow(/PIN salah/);
     const res = await svc.recordCashMovement(
-      { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Manajer Kas", managerPin: MANAGER_PIN },
+      { type: "out", categoryKey: "setoran", description: "Setoran siang", amount: 40_000, counterparty: "Kasir A", depositAccount: "bank_jago", managerPin: MANAGER_PIN },
       kasir(),
     );
     expect(res.status).toBe("recorded");
     expect(res.approvedByName).toBe("Manajer Kas");
     expect(res.expenseId).toBeNull();
     expect(await expectedCash()).toBe(60_000);
+    const { accountBalance } = await import("@/lib/cash-ledger");
+    // Uang keluar laci → "dalam perjalanan" sampai penerima mengonfirmasi.
+    expect(await accountBalance("deposit_transit", outletId)).toBe(40_000);
+    await expect(svc.confirmCashDeposit(res.id, { bankRef: "TRF-01" }, kasir())).rejects.toThrow(/Owner atau Manajer/);
+    await expect(svc.confirmCashDeposit(res.id, { bankRef: "" }, manajer())).rejects.toMatchObject({ code: "BANK_REF_REQUIRED" });
+    const confirmed = await svc.confirmCashDeposit(res.id, { bankRef: "JAGO-778812" }, manajer());
+    expect(confirmed.depositBankRef).toBe("JAGO-778812");
+    expect(await accountBalance("deposit_transit", outletId)).toBe(0);
+    expect(await accountBalance("bank_jago", outletId)).toBe(40_000);
+    await expect(svc.confirmCashDeposit(res.id, { bankRef: "JAGO-778812" }, manajer())).rejects.toMatchObject({ code: "DEPOSIT_CONFIRMED" });
+    await expect(svc.voidCashMovement(res.id, "Salah catat", manajer())).rejects.toMatchObject({ code: "DEPOSIT_CONFIRMED" });
+    // Tanpa rekening tujuan ditolak; brankas tidak dipakai lagi.
+    await expect(
+      svc.recordCashMovement({ type: "out", categoryKey: "setoran", description: "Setoran", amount: 1_000, counterparty: "Kasir A", managerPin: MANAGER_PIN }, kasir()),
+    ).rejects.toThrow(/Rekening tujuan/);
+    await expect(
+      svc.recordCashMovement({ type: "out", categoryKey: "brankas", description: "Ke brankas", amount: 1_000, managerPin: MANAGER_PIN }, kasir()),
+    ).rejects.toMatchObject({ code: "CATEGORY_RETIRED" });
   });
 
   it("pengajuan di atas batas yang ditolak tetap tersimpan dengan alasan", async () => {
@@ -394,7 +414,7 @@ describe("Kas laci — koreksi, pembatalan, akses", () => {
 describe("Kas laci — rekonsiliasi, tutup & ganti shift, PDF", () => {
   it("ringkasan shift: hanya transaksi tercatat, per kelompok, rumus kas akhir konsisten", async () => {
     const pending = await svc.recordCashMovement(
-      { type: "out", categoryKey: "brankas", description: "Pindah ke brankas", amount: 50_000, counterparty: "Manajer", submitForApproval: true },
+      { type: "out", categoryKey: "setoran", description: "Setoran sore", amount: 50_000, counterparty: "Kasir A", depositAccount: "bank_bni", submitForApproval: true },
       kasir(),
     );
     expect(pending.status).toBe("pending_approval");
@@ -422,7 +442,7 @@ describe("Kas laci — rekonsiliasi, tutup & ganti shift, PDF", () => {
   });
 
   it("tutup shift pas; pengajuan & pembatalan setelah tutup ditolak; PDF memuat kas laci", async () => {
-    const closed: any = await svc.closeCashSession(sessionId, { actualCash: 65_000 }, kasir());
+    const closed: any = await svc.closeCashSession(sessionId, { actualCash: 65_000, denominations: cashCount(65_000) }, kasir());
     expect(closed.discrepancy).toBe(0);
     const pending = (await svc.listCashMovements({ status: "pending_approval" }, manajer())).items[0];
     await expect(svc.decideCashMovement(pending.id, { action: "approve" }, manajer())).rejects.toMatchObject({

@@ -383,7 +383,13 @@ function CashReconciliation({ data, onApproved }: { data: DailyClosingReview; on
                           : "bg-[color-mix(in_srgb,var(--garage-success)_16%,transparent)] text-[#a8f0c4]"
                       }`}
                     >
-                      {row.needsInvestigation ? "Perlu investigasi" : row.discrepancyStatus === "ok" ? "Cocok" : "Disetujui"}
+                      {row.needsInvestigation
+                        ? "Perlu investigasi"
+                        : row.discrepancyStatus === "ok"
+                          ? "Cocok"
+                          : row.discrepancyStatus === "minor"
+                            ? "Selisih kecil"
+                            : "Disetujui"}
                     </span>
                   </td>
                   <td className="px-2 py-2">

@@ -178,8 +178,26 @@ Scroll direction:
     are approved+paid at once with `self_approved` ("tanpa pemeriksa kedua"). Top-up has `fund_source`
     (bank_jago/bank_bni/external). Cancel after pay = `petty_reversal` ledger row; history never changes. Old approved
     entries were backfilled as paid at their entry time.
-  - Probe `closing-audit-probe.integration.test.ts`: remaining `it.fails` = gaps for P3–P4 (closing status,
-    denominations, independent verification).
+  - Closing & access (P3/P4, migration 0161):
+    - Denominations are mandatory in `closeCashSession`. Closing without them = emergency only:
+      `countSkippedReason` + Manager PIN.
+    - Discrepancy status (`cashDiscrepancyStatus`, labels in `src/lib/cash-discrepancy.ts`):
+      - `ok` only at Rp0.
+      - `minor` ≤ Rp10.000: not escalated, still shown.
+      - `review`/`critical`: approval queue.
+    - `actual_cash` = cashier's first count, never overwritten; the checker's recount goes in `recount_*`.
+    - `reviewCashSession`:
+      - verifier ≠ shift opener/closer (Owner = `review_self_verified`, "tanpa pemeriksa kedua");
+      - Manajer outlet-scoped (`assertSessionAccess`);
+      - "verified" with a discrepancy (first count or recount) needs `acknowledgeDiscrepancy` + note.
+    - Incidents are resolved by Owner/another Manajer, never the reporter.
+  - Setoran (no brankas, no handover to Owner):
+    - Category `setoran` requires `depositAccount` (bank_jago/bank_bni) and posts drawer → `deposit_transit`.
+    - `confirmCashDeposit` (Owner/Manajer ≠ depositor, bank ref) posts `deposit_transit` → bank.
+    - A confirmed setoran can't be voided.
+    - Category `brankas` is `retired`.
+  - Probe `closing-audit-probe.integration.test.ts`: no `it.fails` left. Tests close shifts with
+    `cashCount(amount)` (`test-helpers/cash-count.ts`).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

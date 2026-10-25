@@ -107,10 +107,17 @@ describe("laporan pertanggungjawaban kasir", () => {
     expect(pdf.accountabilityFileName({ kind: "cash", date: "2026-10-19" })).toBe("Laporan_Kas_PettyCash_2026-10-19.pdf");
   });
 
-  it("verifikasi Manajer tampil sebagai status sebenarnya", async () => {
-    await acc.reviewCashSession(sessionId, { status: "verified", note: "Cocok" }, as("Manajer"));
+  it("verifikasi Manajer lain tampil sebagai status sebenarnya; pemilik shift tidak memverifikasi sendiri", async () => {
+    await expect(acc.reviewCashSession(sessionId, { status: "verified", note: "Cocok" }, as("Manajer"))).rejects.toMatchObject({
+      code: "INDEPENDENT_REVIEW_REQUIRED",
+    });
+    const other = "user-itest-report-manajer2";
+    await t.getDb().insert(t.schema.user).values({ id: other, name: "Manajer Lain", email: `${other}@garage.id` });
+    const reviewer = { ...as("Manajer"), user: { id: other, name: "Manajer Lain", email: `${other}@garage.id` } } as GarageSession;
+    await acc.reviewCashSession(sessionId, { status: "verified", note: "Cocok" }, reviewer);
     const data = await report.getShiftAccountability(sessionId);
     expect(data.session.shiftStatus).toBe("Diverifikasi");
-    expect(data.session.reviewedByName).toBe("Staff Test");
+    expect(data.session.reviewedByName).toBe("Manajer Lain");
+    expect(data.session.discrepancyAcknowledged).toBe(false);
   });
 });

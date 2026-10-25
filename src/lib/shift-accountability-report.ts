@@ -131,6 +131,9 @@ export type RawMovement = {
   createdByName: string | null;
   approvedByName: string | null;
   status: string;
+  /** Setoran ke rekening: tujuan & kapan penerima mengonfirmasi (null = dalam perjalanan). */
+  depositAccount: string | null;
+  depositConfirmedAt: string | null;
 };
 
 export type RawApproval = {
@@ -186,6 +189,14 @@ export type RawSession = {
   reviewNote: string | null;
   reviewedByName: string | null;
   reviewedAt: string | null;
+  /** Alasan tutup darurat tanpa hitungan pecahan (null = dihitung per pecahan). */
+  countSkippedReason: string | null;
+  /** Hitung ulang pemeriksa (hitungan pertama kasir = actualCash, tidak ditimpa). */
+  recountCash: number | null;
+  recountDenominations: Record<string, number> | null;
+  recountAt: string | null;
+  discrepancyAcknowledged: boolean;
+  reviewSelfVerified: boolean;
   floatLeft: number | null;
   depositAmount: number | null;
   qrisRecorded: number | null;
@@ -565,14 +576,19 @@ export function buildShiftAccountability(raw: ShiftRaw) {
     session.status === "open"
       ? "Berlangsung"
       : session.reviewStatus === "verified"
-        ? "Diverifikasi"
+        ? `Diverifikasi${session.discrepancyAcknowledged ? " · selisih diakui" : ""}${session.reviewSelfVerified ? " · tanpa pemeriksa kedua" : ""}`
         : session.reviewStatus === "needs_followup"
           ? "Ditutup · perlu tindak lanjut"
           : "Ditutup · menunggu verifikasi";
 
   const dataGaps: string[] = [];
   if (!Object.keys(session.openingDenominations ?? {}).length) dataGaps.push("Hitungan pecahan modal awal tidak dicatat saat buka shift.");
-  if (session.status === "closed" && !Object.keys(session.denominations ?? {}).length) dataGaps.push("Hitungan pecahan saat tutup tidak tersedia (kas aktual diketik manual).");
+  if (session.status === "closed" && !Object.keys(session.denominations ?? {}).length)
+    dataGaps.push(
+      session.countSkippedReason
+        ? `Tutup darurat tanpa hitungan pecahan (disetujui Manajer): ${session.countSkippedReason}`
+        : "Hitungan pecahan saat tutup tidak tersedia (kas aktual diketik manual).",
+    );
   if (session.status === "open") dataGaps.push("Shift masih berlangsung — kas aktual & selisih belum ada.");
   if (!cash.ledgerMode) dataGaps.push("Shift format lama (sebelum buku kas) — kas diharapkan dari catatan sistem, bukan buku kas per transaksi.");
   if (cash.otherAdjustments !== 0) dataGaps.push("Kas diharapkan memuat penyesuaian di luar buku kas (pengeluaran Finance tunai / koreksi metode / pembatalan pelunasan) — lihat baris Penyesuaian lain.");
@@ -692,6 +708,8 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
         orderNo: cashMovements.orderNo,
         movementAt: cashMovements.movementAt,
         status: cashMovements.status,
+        depositAccount: cashMovements.depositAccount,
+        depositConfirmedAt: cashMovements.depositConfirmedAt,
         createdByName: user.name,
         approvedByName: approverName(cashMovements.approvedBy),
       })
@@ -789,6 +807,12 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
       reviewNote: s.reviewNote,
       reviewedByName: row.reviewedByName ?? null,
       reviewedAt: s.reviewedAt?.toISOString() ?? null,
+      countSkippedReason: s.countSkippedReason,
+      recountCash: s.recountCash,
+      recountDenominations: s.recountDenominations ?? null,
+      recountAt: s.recountAt?.toISOString() ?? null,
+      discrepancyAcknowledged: s.discrepancyAcknowledged,
+      reviewSelfVerified: s.reviewSelfVerified,
       floatLeft: s.floatLeft,
       depositAmount: s.depositAmount,
       qrisRecorded: s.qrisRecorded,
@@ -815,6 +839,7 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
     movements: movementRows.map((movement) => ({
       ...movement,
       movementAt: movement.movementAt.toISOString(),
+      depositConfirmedAt: movement.depositConfirmedAt?.toISOString() ?? null,
       createdByName: movement.createdByName ?? null,
       approvedByName: movement.approvedByName ?? null,
     })),

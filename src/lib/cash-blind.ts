@@ -41,7 +41,7 @@ export function redactOpenShiftSummary<T extends SummaryWithDrawer>(summary: T, 
       ? {
           // Rincian penyesuaian buku kas juga disembunyikan: bersama modal & penjualan
           // tunai, kasir bisa menghitung ulang kas seharusnya.
-          reconciliation: { ...summary.reconciliation, expectedCash: 0, otherAdjustments: 0, adjustmentsBreakdown: [], hidden: true },
+          reconciliation: { ...summary.reconciliation, expectedCash: 0, otherAdjustments: 0, adjustmentsBreakdown: [], adjustmentLines: [], hidden: true },
         }
       : {}),
     ...(summary.movements

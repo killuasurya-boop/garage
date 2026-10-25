@@ -19537,10 +19537,17 @@ export async function getCashSessionSummary(
   const ledger = await getDrawerLedger(sessionId);
   const ledgerNet = (types: CashSourceType[]) =>
     ledger.summary.filter((row) => types.includes(row.sourceType)).reduce((sum, row) => sum + row.net, 0);
+  const adjustmentTypes: CashSourceType[] = ["refund", "void", "payment_revert", "expense", "expense_cancel", "method_fix", "legacy_opening"];
   const adjustmentsBreakdown = ledgerMode
     ? ledger.summary
-        .filter((row) => ["refund", "void", "payment_revert", "expense", "expense_cancel", "method_fix", "legacy_opening"].includes(row.sourceType))
+        .filter((row) => adjustmentTypes.includes(row.sourceType))
         .map((row) => ({ sourceType: row.sourceType, label: row.label, net: row.net }))
+    : [];
+  // Baris per kejadian (jam, ref, catatan) agar penyesuaian bisa ditelusuri di laporan shift.
+  const adjustmentLines = ledgerMode
+    ? ledger.lines
+        .filter((line) => adjustmentTypes.includes(line.sourceType))
+        .map((line) => ({ at: line.at, label: line.label, sourceRef: line.sourceRef, note: line.note, signed: line.signed }))
     : [];
   const reconciledCashSales = ledgerMode ? ledgerNet(["sale", "final_pay"]) : cashSales;
   const expectedCash = ledgerMode && data.session.status === "open" ? ledger.balance : data.session.expectedCash;
@@ -19559,6 +19566,7 @@ export async function getCashSessionSummary(
       otherAdjustments,
       /** Rincian penyesuaian dari buku kas (refund/void, biaya Finance, koreksi metode). */
       adjustmentsBreakdown,
+      adjustmentLines,
       ledgerMode,
       expectedCash,
     },

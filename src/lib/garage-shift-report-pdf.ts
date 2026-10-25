@@ -278,19 +278,22 @@ export async function generateShiftReportPdf(
         doc.font("Helvetica-Bold").fontSize(12).fillColor("#111").text(title, 48, doc.y);
         doc.moveDown(0.3);
       };
-      const pairRow = (label: string, value: string, options: { bold?: boolean; color?: string } = {}) => {
+      const pairRow = (label: string, value: string, options: { bold?: boolean; color?: string; indent?: number } = {}) => {
         if (doc.y > 770) doc.addPage();
         const ry = doc.y;
         doc
           .font(options.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(10)
           .fillColor("#555")
-          .text(label, 48, ry, { width: 300 });
+          .text(label, 48 + (options.indent ?? 0), ry, { width: 300 - (options.indent ?? 0) });
+        const labelBottom = doc.y;
         doc
           .font("Helvetica-Bold")
           .fontSize(10)
           .fillColor(options.color ?? "#111")
           .text(value, 348, ry, { width: 199, align: "right" });
+        // Label panjang (catatan buku kas) bisa terlipat: lanjut di bawah baris tertinggi.
+        doc.y = Math.max(doc.y, labelBottom);
         doc.moveDown(0.35);
       };
       const rule = () => {
@@ -309,6 +312,26 @@ export async function generateShiftReportPdf(
           "± Penyesuaian lain (refund/void tunai, pengeluaran Finance tunai)",
           `${recon.otherAdjustments < 0 ? "- " : "+ "}${fmtRp(Math.abs(recon.otherAdjustments))}`,
         );
+        // Rincian dari buku kas laci: jenis, lalu tiap baris (jam · ref · catatan).
+        const signedRp = (value: number) => `${value < 0 ? "- " : "+ "}${fmtRp(Math.abs(value))}`;
+        for (const row of recon.adjustmentsBreakdown) {
+          pairRow(row.label, signedRp(row.net), { indent: 14 });
+        }
+        for (const line of recon.adjustmentLines) {
+          const detail = [fmtTime(line.at), line.label, line.sourceRef, line.note].filter(Boolean).join(" · ");
+          pairRow(detail, signedRp(line.signed), { color: "#555", indent: 28 });
+        }
+        const explained = recon.adjustmentsBreakdown.reduce((sum, row) => sum + row.net, 0);
+        const unexplained = recon.otherAdjustments - explained;
+        if (unexplained !== 0) {
+          pairRow(
+            recon.ledgerMode
+              ? "Tidak ada di buku kas laci (kas diharapkan beda dengan buku kas) — periksa"
+              : "Shift format lama: rincian tidak tersedia — cek Finance & log audit",
+            signedRp(unexplained),
+            { color: "#d11a2a", indent: 14 },
+          );
+        }
       }
       rule();
       pairRow("= Kas akhir yang diharapkan", fmtRp(recon.expectedCash), { bold: true });

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { createInternalOrder, listInternalOrders } from "@/lib/wms-service";
+import { wmsIsElevated } from "@/lib/wms-access";
 import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -26,7 +27,9 @@ export async function POST(request: Request) {
   const parsed = await readJson(request, createSchema);
   if (parsed.error) return parsed.error;
   try {
-    return ok(await createInternalOrder(parsed.data, session.data.user.id), { status: 201 });
+    // Staf outlet mengajukan (status requested); Owner/Manajer langsung keluarkan stok.
+    const requireApproval = !wmsIsElevated(session.data.profile.role);
+    return ok(await createInternalOrder(parsed.data, session.data.user.id, { requireApproval }), { status: 201 });
   } catch (e) {
     return fail(400, "IO_FAILED", e instanceof Error ? e.message : "Gagal membuat internal order.");
   }

@@ -503,17 +503,24 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
         category: expenses.category,
         // Belanja dari penerimaan gudang (cash lunas) = biaya "Belanja bahan".
         purchase: sql<boolean>`(${expenses.sourceDoc} is not null)`,
+        // Belanja tempo (hutang): biaya bahan hari terima, bukan kas keluar.
+        payable: sql<boolean>`(${expenses.status} = 'payable')`,
         amount: sql<string>`coalesce(sum(${expenses.amount}), 0)::bigint`,
       })
       .from(expenses)
       .where(
         and(
-          inArray(expenses.status, PNL_EXPENSE_STATUSES),
+          inArray(expenses.status, [...PNL_EXPENSE_STATUSES, "payable"]),
           gte(expenses.expenseDate, start),
           lt(expenses.expenseDate, end),
         ),
       )
-      .groupBy(expenseDay, expenses.category, sql`(${expenses.sourceDoc} is not null)`),
+      .groupBy(
+        expenseDay,
+        expenses.category,
+        sql`(${expenses.sourceDoc} is not null)`,
+        sql`(${expenses.status} = 'payable')`,
+      ),
     db
       .select({ day: settlementDay, fee: sql<string>`coalesce(sum(${paymentSettlements.feeAmount}), 0)::bigint` })
       .from(paymentSettlements)
@@ -602,7 +609,9 @@ export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<s
   for (const row of feeRows) at(row.day).payrollFee = Number(row.amount);
   for (const row of expenseRows) {
     const raw = at(row.day);
-    raw.expenses[row.category] = (raw.expenses[row.category] ?? 0) + Number(row.amount);
+    const payable = row.payable === true || String(row.payable) === "true";
+    // Hutang belum jadi kas keluar; pembayarannya nanti tercatat sebagai expense biasa.
+    if (!payable) raw.expenses[row.category] = (raw.expenses[row.category] ?? 0) + Number(row.amount);
     if (row.purchase === true || String(row.purchase) === "true") {
       const area = purchaseAreaForCategory(row.category) ?? "umum";
       raw.purchases[area] += Number(row.amount);
@@ -819,7 +828,7 @@ export async function loadOpeningStockPurchases(startKey: string) {
     .where(
       and(
         isNotNull(expenses.sourceDoc),
-        inArray(expenses.status, PNL_EXPENSE_STATUSES),
+        inArray(expenses.status, [...PNL_EXPENSE_STATUSES, "payable"]),
         lt(expenses.expenseDate, jakartaDayStart(startKey)),
       ),
     );

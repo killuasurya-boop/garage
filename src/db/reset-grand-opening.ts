@@ -102,6 +102,7 @@ export const CLEAR_TABLES = [
   "earnings_failed_queue",
   // WMS transaksional
   "wms_batch", "wms_receiving", "wms_receiving_item", "wms_internal_order", "wms_internal_order_item",
+  "purchase_requests", "purchase_request_items", "purchase_orders", "purchase_order_items",
   "wms_stock_movement", "wms_stock_opname", "wms_opname_line", "wms_checklist_run", "wms_checklist_run_item",
   "wms_cold_chain_reading",
   // AI log

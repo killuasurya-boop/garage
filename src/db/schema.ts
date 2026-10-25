@@ -1313,6 +1313,9 @@ export const supplierInvoices = pgTable(
     paidBy: text("paid_by").references(() => user.id, { onDelete: "set null" }),
     paymentRef: text("payment_ref"),
     notes: text("notes"),
+    // Hutang dari penerimaan gudang tempo (WMS) + PO asal.
+    receivingId: uuid("receiving_id"),
+    poId: uuid("po_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3302,6 +3305,12 @@ export const wmsReceiving = pgTable("wms_receiving", {
   // diterima (= tanggal biaya belanja di laporan keuangan).
   paymentMethod: text("payment_method").notNull().default("Cash"),
   receivedDate: date("received_date"),
+  // PO asal (opsional) + termin bayar: cash = lunas saat terima, tempo = hutang
+  // supplier (invoice unpaid, biaya bahan tetap diakui pada tanggal terima).
+  poId: uuid("po_id"),
+  paymentTerm: text("payment_term").notNull().default("cash"),
+  invoiceNo: text("invoice_no").notNull().default(""),
+  dueDate: date("due_date"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   cancelledBy: text("cancelled_by").references(() => user.id, { onDelete: "set null" }),
@@ -3330,6 +3339,7 @@ export const wmsReceivingItem = pgTable(
     qc: text("qc").notNull().default("pass"), // pass|discrepancy|reject
     batchNo: text("batch_no"),
     expiredAt: timestamp("expired_at", { withTimezone: true }),
+    poItemId: uuid("po_item_id"),
   },
   (t) => ({ recIdx: index("wms_receiving_item_rec_idx").on(t.receivingId) }),
 );
@@ -3349,6 +3359,11 @@ export const wmsInternalOrder = pgTable(
     sourceRef: text("source_ref"),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Permintaan staf outlet (status requested) disetujui/ditolak Owner/Manajer.
+    sourceWarehouseId: uuid("source_warehouse_id"),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note").notNull().default(""),
   },
   (t) => ({
     sourceRefIdx: uniqueIndex("wms_internal_order_source_ref_idx").on(t.sourceRef),
@@ -3480,9 +3495,15 @@ export const wmsStockOpname = pgTable("wms_stock_opname", {
   id: uuid("id").primaryKey().defaultRandom(),
   doc: text("doc").notNull(),
   warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
-  status: text("status").notNull().default("draft"),
+  status: text("status").notNull().default("draft"), // draft|submitted|completed|rejected
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Persetujuan: petugas mengajukan, Owner/Manajer lain menyetujui & memposting selisih.
+  submittedBy: text("submitted_by").references(() => user.id, { onDelete: "set null" }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  reviewNote: text("review_note").notNull().default(""),
 });
 
 export const wmsOpnameLine = pgTable(
@@ -3498,8 +3519,99 @@ export const wmsOpnameLine = pgTable(
     // Diisi saat petugas memasukkan hitungan fisik. Baris yang tidak dihitung
     // tidak di-adjust saat finalisasi (penjualan selama opname tidak dibatalkan).
     countedAt: timestamp("counted_at", { withTimezone: true }),
+    // Alasan selisih (wajib bila fisik ≠ sistem saat diajukan).
+    reason: text("reason").notNull().default(""),
   },
   (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
+);
+
+// =============================================================================
+// Pengadaan (owner, Okt 2026): Permintaan Belanja Bar/Dapur → PO → penerimaan
+// (parsial) → invoice/hutang → bayar. Permintaan & PO TIDAK mengubah stok.
+// =============================================================================
+export const purchaseRequests = pgTable(
+  "purchase_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    area: text("area").notNull(), // bar|dapur|umum
+    // submitted|approved|revised|rejected|ordered|fulfilled|closed|cancelled
+    status: text("status").notNull().default("submitted"),
+    priority: text("priority").notNull().default("normal"), // normal|urgent
+    note: text("note").notNull().default(""),
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index("purchase_requests_status_idx").on(t.status, t.area) }),
+);
+
+export const purchaseRequestItems = pgTable(
+  "purchase_request_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => purchaseRequests.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "restrict" }),
+    qty: wmsNum("qty").notNull(), // satuan dasar bahan
+    approvedQty: wmsNum("approved_qty"),
+    usableAtRequest: wmsNum("usable_at_request").notNull().default(0),
+    incomingAtRequest: wmsNum("incoming_at_request").notNull().default(0),
+    refUnitCost: wmsNum("ref_unit_cost").notNull().default(0),
+    note: text("note").notNull().default(""),
+  },
+  (t) => ({ requestIdx: index("purchase_request_items_request_idx").on(t.requestId) }),
+);
+
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
+    supplierName: text("supplier_name").notNull().default(""),
+    area: text("area").notNull().default("umum"),
+    // draft|approved|sent|partial|received|closed|cancelled
+    status: text("status").notNull().default("draft"),
+    paymentTerm: text("payment_term").notNull().default("cash"), // cash|tempo
+    dueDays: integer("due_days").notNull().default(0),
+    expectedDate: date("expected_date"),
+    note: text("note").notNull().default(""),
+    totalEstimate: integer("total_estimate").notNull().default(0),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index("purchase_orders_status_idx").on(t.status) }),
+);
+
+export const purchaseOrderItems = pgTable(
+  "purchase_order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    poId: uuid("po_id")
+      .notNull()
+      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "restrict" }),
+    qty: wmsNum("qty").notNull(), // satuan dasar bahan
+    unitCost: wmsNum("unit_cost").notNull().default(0),
+    receivedQty: wmsNum("received_qty").notNull().default(0),
+    requestItemId: uuid("request_item_id").references(() => purchaseRequestItems.id, { onDelete: "set null" }),
+  },
+  (t) => ({ poIdx: index("purchase_order_items_po_idx").on(t.poId) }),
 );
 
 export const wmsColdChainReading = pgTable(

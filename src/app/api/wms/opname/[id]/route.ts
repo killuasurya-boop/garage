@@ -6,7 +6,12 @@ import { requirePermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
-const patchSchema = z.object({ lineId: z.string().uuid(), physicalQty: z.number().nonnegative() });
+const patchSchema = z.object({
+  lineId: z.string().uuid(),
+  physicalQty: z.number().nonnegative(),
+  // Alasan selisih (wajib sebelum diajukan bila fisik ≠ sistem).
+  reason: z.string().trim().max(240).optional(),
+});
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await requirePermission("inventory:read");
@@ -25,7 +30,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (parsed.error) return parsed.error;
   let row: Awaited<ReturnType<typeof saveWmsOpnameLine>>;
   try {
-    row = await saveWmsOpnameLine(parsed.data.lineId, parsed.data.physicalQty, id);
+    row = await saveWmsOpnameLine(parsed.data.lineId, parsed.data.physicalQty, id, parsed.data.reason);
   } catch (error) {
     return fail(409, "OPNAME_LOCKED", error instanceof Error ? error.message : "Opname tidak bisa diubah.");
   }

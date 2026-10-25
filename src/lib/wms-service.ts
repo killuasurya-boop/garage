@@ -9,6 +9,7 @@ import {
   expenses,
   inventoryItems,
   orders,
+  supplierInvoices,
   outlets,
   wmsBatch,
   wmsBomItem,
@@ -36,6 +37,7 @@ import {
 } from "@/db/schema";
 import {
   normalizeReceivedDate,
+  PURCHASE_CATEGORY,
   purchaseAreaOf,
   purchaseDateFor,
   recordCashPurchases,
@@ -1365,6 +1367,7 @@ export type ReceivingItemInput = {
   buyUnit?: string | null; // satuan beli (dus/karton)
   discrepancyNote?: string;
   putAwayLocation?: string;
+  poItemId?: string | null;
 };
 
 export async function createReceiving(
@@ -1376,11 +1379,16 @@ export async function createReceiving(
     paymentMethod?: PurchasePaymentMethod;
     receivedDate?: string | null;
     items: ReceivingItemInput[];
+    poId?: string | null;
+    paymentTerm?: "cash" | "tempo";
+    invoiceNo?: string | null;
+    dueDate?: string | null;
   },
   userId?: string | null,
 ) {
   const db = getDb();
   const whId = input.warehouseId ?? (await primaryWarehouseId(db));
+  if (input.paymentTerm === "tempo" && !input.dueDate) throw new Error("Jatuh tempo wajib diisi untuk pembelian tempo.");
   const receivedDate = normalizeReceivedDate(input.receivedDate);
   const [rec] = await db
     .insert(wmsReceiving)
@@ -1392,6 +1400,10 @@ export async function createReceiving(
       warehouseId: whId,
       paymentMethod: input.paymentMethod ?? "Cash",
       receivedDate,
+      poId: input.poId ?? null,
+      paymentTerm: input.paymentTerm ?? "cash",
+      invoiceNo: input.invoiceNo?.trim() ?? "",
+      dueDate: input.dueDate ?? null,
       status: "draft",
       createdBy: userId ?? null,
     })
@@ -1418,6 +1430,7 @@ export async function createReceiving(
           qc: it.qc ?? "pass",
           batchNo: it.batchNo ?? null,
           expiredAt: it.expiredAt ? new Date(it.expiredAt) : null,
+          poItemId: it.poItemId ?? null,
         };
       }),
     );
@@ -1789,7 +1802,34 @@ export async function completeReceiving(
     const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
     // Tanggal biaya = tanggal barang diterima (bukan saat tombol "Selesai" diklik).
     const purchaseDate = rec.receivedDate ? purchaseDateFor(String(rec.receivedDate)) : new Date();
+    // Tempo: hutang supplier (invoice unpaid) — biaya diakui hari ini, kas keluar
+    // saat dibayar di Keuangan → Bayar invoice.
+    let payable: { supplierInvoiceId: string } | undefined;
+    if (rec.paymentTerm === "tempo") {
+      const amount = Math.round(Object.values(byArea).reduce((sum, v) => sum + (v ?? 0), 0));
+      const areas = (Object.keys(byArea) as PurchaseArea[]).filter((a) => (byArea[a] ?? 0) > 0);
+      const [invoice] = await tx
+        .insert(supplierInvoices)
+        .values({
+          outletId: outlet?.id ?? null,
+          invoiceNo: rec.invoiceNo?.trim() || rec.doc,
+          category: PURCHASE_CATEGORY[areas.length === 1 ? areas[0] : "umum"],
+          description: `Hutang belanja gudang ${rec.doc}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
+          amount,
+          status: "unpaid",
+          dueDate: rec.dueDate ? new Date(`${String(rec.dueDate)}T05:00:00.000Z`) : new Date(),
+          issuedAt: purchaseDate,
+          createdBy: userId ?? null,
+          receivingId: rec.id,
+          poId: rec.poId ?? null,
+        })
+        .onConflictDoNothing({ target: supplierInvoices.invoiceNo })
+        .returning();
+      if (!invoice) throw new Error(`No. invoice ${rec.invoiceNo || rec.doc} sudah dipakai. Isi nomor invoice supplier yang benar.`);
+      payable = { supplierInvoiceId: invoice.id };
+    }
     await recordCashPurchases(tx, {
+      payable,
       sourceDoc: `WMS:${rec.doc}`,
       outletId: outlet?.id ?? null,
       paymentMethod: rec.paymentMethod,
@@ -1799,6 +1839,11 @@ export async function completeReceiving(
       userId: userId ?? null,
       notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
     });
+
+    if (rec.poId) {
+      const { applyReceivingToPo } = await import("@/lib/wms-procurement");
+      await applyReceivingToPo(tx, rec.poId, items.map((x) => ({ poItemId: x.row.poItemId, qty: x.row.qc === "reject" ? 0 : Number(x.row.receivedQty) })));
+    }
 
     const [updated] = await tx
       .update(wmsReceiving)
@@ -1839,6 +1884,16 @@ export async function cancelReceiving(
     if (rec.status !== "completed") throw new Error("Hanya penerimaan yang sudah selesai yang bisa dibatalkan; draft cukup diedit.");
     const whId = rec.warehouseId;
     if (!whId) throw new Error("Penerimaan tanpa gudang tidak bisa dibatalkan.");
+    // Tempo: hutang yang sudah (sebagian) dibayar tidak bisa dibatalkan begitu saja.
+    const [debt] = await tx
+      .select({ id: supplierInvoices.id, paidAmount: supplierInvoices.paidAmount, invoiceNo: supplierInvoices.invoiceNo })
+      .from(supplierInvoices)
+      .where(eq(supplierInvoices.receivingId, rec.id))
+      .for("update")
+      .limit(1);
+    if (debt && Number(debt.paidAmount) > 0) {
+      throw new Error(`Hutang ${debt.invoiceNo} sudah dibayar sebagian/lunas. Selesaikan lewat retur/nota kredit supplier, bukan pembatalan.`);
+    }
 
     const items = await tx
       .select({ row: wmsReceivingItem, productName: wmsProduct.name, category: wmsProduct.category })
@@ -1886,6 +1941,20 @@ export async function cancelReceiving(
     }
 
     const voided = await voidCashPurchases(tx, { sourceDoc: `WMS:${rec.doc}`, reason });
+    if (debt) {
+      await tx
+        .update(supplierInvoices)
+        .set({ status: "void", notes: `Dibatalkan: ${reason}`, updatedAt: new Date() })
+        .where(eq(supplierInvoices.id, debt.id));
+    }
+    if (rec.poId) {
+      const { applyReceivingToPo } = await import("@/lib/wms-procurement");
+      await applyReceivingToPo(
+        tx,
+        rec.poId,
+        items.map((x) => ({ poItemId: x.row.poItemId, qty: x.row.qc === "reject" ? 0 : -Number(x.row.receivedQty) })),
+      );
+    }
 
     const [updated] = await tx
       .update(wmsReceiving)
@@ -1964,6 +2033,7 @@ export async function createInternalOrder(
     sourceWarehouseId?: string | null;
   },
   userId?: string | null,
+  opts?: { requireApproval?: boolean },
 ) {
   return runInTx(async (tx) => {
     // Sumber = ruang gudang utama sesuai AREA outlet tujuan (Outlet Bar←Ruang Bar,
@@ -1997,19 +2067,13 @@ export async function createInternalOrder(
       if (dupe) return dupe;
     }
 
-    // Pra-validasi (pesan error ramah). recordStockMovement tetap jadi penjaga
-    // akhir di bawah kunci baris — mencegah oversell paralel.
-    const lines: Array<{ productId: string; qty: number; fallbackHpp: number }> = [];
+    const lines: Array<{ productId: string; qty: number }> = [];
     for (const it of input.items) {
       const qty = Number(it.qty);
       if (qty <= 0) continue;
-      const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
+      const [prod] = await tx.select({ id: wmsProduct.id }).from(wmsProduct).where(eq(wmsProduct.id, it.productId)).limit(1);
       if (!prod) throw new Error("Produk tidak ditemukan.");
-      const avail = await warehouseOnHand(tx, it.productId, source);
-      if (qty > avail) {
-        throw new Error(`Stok ${prod.name} tidak cukup (tersedia ${avail}, diminta ${qty}).`);
-      }
-      lines.push({ productId: it.productId, qty, fallbackHpp: Number(prod.hpp) });
+      lines.push({ productId: it.productId, qty });
     }
     if (lines.length === 0) throw new Error("Tidak ada item valid.");
 
@@ -2018,58 +2082,141 @@ export async function createInternalOrder(
       .values({
         doc: makeWmsDoc("IO"),
         outletWarehouseId: input.outletWarehouseId,
-        status: "issued",
+        sourceWarehouseId: source,
+        // Staf outlet hanya mengajukan; stok berpindah setelah disetujui Owner/Manajer.
+        status: opts?.requireApproval ? "requested" : "issued",
         totalHpp: 0,
         sourceRef: input.sourceRef ?? null,
         createdBy: userId ?? null,
       })
       .returning();
 
-    let totalHpp = 0;
-    for (const ln of lines) {
-      // Potong stok gudang utama (internal_out, FEFO) → biaya aktual dari batch.
-      const { cost } = await recordStockMovement(tx, {
-        type: "internal_out",
-        productId: ln.productId,
-        warehouseId: source,
-        deltaQty: -ln.qty,
-        hpp: ln.fallbackHpp,
-        refDoc: order.doc,
-        userId: userId ?? null,
+    if (opts?.requireApproval) {
+      await tx.insert(wmsInternalOrderItem).values(lines.map((ln) => ({ orderId: order.id, productId: ln.productId, qty: ln.qty, lineHpp: 0 })));
+      await writeWmsAudit(tx, {
+        userId,
+        action: "Internal order diajukan",
+        object: order.doc,
+        metadata: { internalOrderId: order.id, items: lines.length },
       });
-      const unit = ln.qty > 0 ? cost / ln.qty : 0;
-      // Tambah stok outlet (in) dengan HPP = biaya rata-rata batch yang dipakai.
-      await recordStockMovement(tx, {
-        type: "in",
-        productId: ln.productId,
-        warehouseId: input.outletWarehouseId,
-        deltaQty: ln.qty,
-        hpp: unit,
-        refDoc: order.doc,
-        userId: userId ?? null,
-      });
-
-      await tx.insert(wmsInternalOrderItem).values({
-        orderId: order.id,
-        productId: ln.productId,
-        qty: ln.qty,
-        lineHpp: cost,
-      });
-      totalHpp += cost;
+      return order;
     }
+    return issueInternalOrderLines(tx, order, source, lines, userId, true);
+  });
+}
 
-    const [updated] = await tx
-      .update(wmsInternalOrder)
-      .set({ totalHpp })
-      .where(eq(wmsInternalOrder.id, order.id))
-      .returning();
-    await writeWmsAudit(tx, {
-      userId,
-      action: "Internal order gudang",
-      object: updated?.doc ?? order.id,
-      metadata: { internalOrderId: order.id, items: input.items.length, totalHpp: Math.round(totalHpp) },
+/**
+ * Keluarkan stok gudang utama → ruang outlet untuk satu internal order (FEFO,
+ * HPP batch). Stok tidak boleh minus (recordStockMovement menolak).
+ */
+async function issueInternalOrderLines(
+  tx: Tx,
+  order: typeof wmsInternalOrder.$inferSelect,
+  source: string,
+  lines: Array<{ productId: string; qty: number }>,
+  userId: string | null | undefined,
+  insertItems: boolean,
+) {
+  // Pra-validasi (pesan error ramah). recordStockMovement tetap jadi penjaga
+  // akhir di bawah kunci baris — mencegah oversell paralel.
+  const prepared: Array<{ productId: string; qty: number; fallbackHpp: number }> = [];
+  for (const ln of lines) {
+    const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, ln.productId)).limit(1);
+    if (!prod) throw new Error("Produk tidak ditemukan.");
+    const avail = await warehouseOnHand(tx, ln.productId, source);
+    if (ln.qty > avail) {
+      throw new Error(`Stok ${prod.name} tidak cukup (tersedia ${avail}, diminta ${ln.qty}).`);
+    }
+    prepared.push({ ...ln, fallbackHpp: Number(prod.hpp) });
+  }
+
+  let totalHpp = 0;
+  for (const ln of prepared) {
+    // Potong stok gudang utama (internal_out, FEFO) → biaya aktual dari batch.
+    const { cost } = await recordStockMovement(tx, {
+      type: "internal_out",
+      productId: ln.productId,
+      warehouseId: source,
+      deltaQty: -ln.qty,
+      hpp: ln.fallbackHpp,
+      refDoc: order.doc,
+      userId: userId ?? null,
     });
-    return updated;
+    const unit = ln.qty > 0 ? cost / ln.qty : 0;
+    // Tambah stok outlet (in) dengan HPP = biaya rata-rata batch yang dipakai.
+    await recordStockMovement(tx, {
+      type: "in",
+      productId: ln.productId,
+      warehouseId: order.outletWarehouseId as string,
+      deltaQty: ln.qty,
+      hpp: unit,
+      refDoc: order.doc,
+      userId: userId ?? null,
+    });
+    if (insertItems) {
+      await tx.insert(wmsInternalOrderItem).values({ orderId: order.id, productId: ln.productId, qty: ln.qty, lineHpp: cost });
+    } else {
+      await tx
+        .update(wmsInternalOrderItem)
+        .set({ lineHpp: cost })
+        .where(and(eq(wmsInternalOrderItem.orderId, order.id), eq(wmsInternalOrderItem.productId, ln.productId)));
+    }
+    totalHpp += cost;
+  }
+
+  const [updated] = await tx
+    .update(wmsInternalOrder)
+    .set({ totalHpp, status: "issued" })
+    .where(eq(wmsInternalOrder.id, order.id))
+    .returning();
+  await writeWmsAudit(tx, {
+    userId,
+    action: "Internal order gudang",
+    object: updated?.doc ?? order.id,
+    metadata: { internalOrderId: order.id, items: prepared.length, totalHpp: Math.round(totalHpp) },
+  });
+  return updated;
+}
+
+/** Owner/Manajer menyetujui (stok dipindah) atau menolak permintaan internal order. */
+export async function decideInternalOrder(
+  id: string,
+  input: { action: "approve" | "reject"; note?: string },
+  actor: { id: string; role: string },
+) {
+  const note = input.note?.trim() ?? "";
+  if (input.action === "reject" && note.length < 3) throw new Error("Alasan penolakan wajib diisi.");
+  return runInTx(async (tx) => {
+    const [order] = await tx.select().from(wmsInternalOrder).where(eq(wmsInternalOrder.id, id)).for("update").limit(1);
+    if (!order) throw new Error("Internal order tidak ditemukan.");
+    if (order.status !== "requested") throw new Error(`Internal order berstatus ${order.status}, tidak menunggu persetujuan.`);
+    if (order.createdBy === actor.id && actor.role !== "Owner") {
+      throw new Error("Permintaan sendiri harus disetujui orang lain (Owner/Manajer lain).");
+    }
+    await tx
+      .update(wmsInternalOrder)
+      .set({ decidedBy: actor.id, decidedAt: new Date(), decisionNote: note })
+      .where(eq(wmsInternalOrder.id, id));
+    if (input.action === "reject") {
+      const [updated] = await tx.update(wmsInternalOrder).set({ status: "rejected" }).where(eq(wmsInternalOrder.id, id)).returning();
+      await writeWmsAudit(tx, { userId: actor.id, action: "Internal order ditolak", object: order.doc, status: "warning", metadata: { internalOrderId: id, reason: note } });
+      return updated;
+    }
+    const items = await tx.select().from(wmsInternalOrderItem).where(eq(wmsInternalOrderItem.orderId, id));
+    let source = order.sourceWarehouseId;
+    if (!source) {
+      const [outlet] = await tx.select({ area: wmsWarehouse.area }).from(wmsWarehouse).where(eq(wmsWarehouse.id, order.outletWarehouseId as string)).limit(1);
+      source = await mainWarehouseForArea(tx, outlet?.area ?? "bar");
+    }
+    if (!source) throw new Error("Gudang utama belum ada.");
+    return issueInternalOrderLines(
+      tx,
+      order,
+      source,
+      items.filter((i) => i.productId).map((i) => ({ productId: i.productId as string, qty: Number(i.qty) })),
+      actor.id,
+      false,
+    );
   });
 }
 
@@ -4010,6 +4157,8 @@ export async function getWmsOpname(id: string) {
       unit: wmsProduct.unit,
       systemQty: wmsOpnameLine.systemQty,
       physicalQty: wmsOpnameLine.physicalQty,
+      countedAt: wmsOpnameLine.countedAt,
+      reason: wmsOpnameLine.reason,
     })
     .from(wmsOpnameLine)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsOpnameLine.productId))
@@ -4019,9 +4168,15 @@ export async function getWmsOpname(id: string) {
     doc: op.doc,
     warehouseId: op.warehouseId,
     status: op.status,
+    createdBy: op.createdBy,
+    submittedBy: op.submittedBy,
+    submittedAt: op.submittedAt?.toISOString() ?? null,
+    approvedAt: op.approvedAt?.toISOString() ?? null,
+    reviewNote: op.reviewNote,
     createdAt: op.createdAt.toISOString(),
     lines: lines.map((l) => ({
       ...l,
+      countedAt: l.countedAt?.toISOString() ?? null,
       systemQty: Number(l.systemQty),
       physicalQty: Number(l.physicalQty),
       variance: Number(l.physicalQty) - Number(l.systemQty),
@@ -4056,7 +4211,7 @@ export async function listWmsOpnames() {
   }));
 }
 
-export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opnameId?: string) {
+export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opnameId?: string, reason?: string) {
   const db = getDb();
   const [line] = await db
     .select({ id: wmsOpnameLine.id, opnameId: wmsOpnameLine.opnameId, status: wmsStockOpname.status })
@@ -4066,9 +4221,10 @@ export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opn
     .limit(1);
   if (!line || (opnameId && line.opnameId !== opnameId)) return null;
   if (line.status === "completed") throw new Error("Opname sudah difinalisasi — hitungan tidak bisa diubah.");
+  if (line.status === "submitted") throw new Error("Opname sudah diajukan — kembalikan ke draft untuk mengubah hitungan.");
   const [row] = await db
     .update(wmsOpnameLine)
-    .set({ physicalQty, countedAt: new Date() })
+    .set({ physicalQty, countedAt: new Date(), ...(reason !== undefined ? { reason: reason.trim() } : {}) })
     .where(eq(wmsOpnameLine.id, lineId))
     .returning();
   return row ?? null;
@@ -4079,7 +4235,51 @@ export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opn
  * LIVE saat finalize (bukan snapshot systemQty yang bisa basi bila ada mutasi
  * selama penghitungan), di dalam transaksi + kunci dokumen (anti double-finalize).
  */
-export async function finalizeWmsOpname(id: string, userId?: string | null) {
+/** Baris terhitung dengan selisih tapi tanpa alasan (wajib diisi sebelum diajukan). */
+function missingVarianceReasons(lines: Array<typeof wmsOpnameLine.$inferSelect>) {
+  return lines.filter(
+    (l) => l.countedAt && Math.abs(Number(l.physicalQty) - Number(l.systemQty)) > 0.0001 && !l.reason.trim(),
+  ).length;
+}
+
+/** Petugas mengajukan hasil hitung → menunggu persetujuan Owner/Manajer. */
+export async function submitWmsOpname(id: string, userId?: string | null) {
+  return runInTx(async (tx) => {
+    const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
+    if (!op) return null;
+    if (op.status !== "draft") throw new Error(`Opname berstatus ${op.status}, tidak bisa diajukan.`);
+    const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
+    if (!lines.some((l) => l.countedAt)) throw new Error("Belum ada bahan yang dihitung.");
+    const missing = missingVarianceReasons(lines);
+    if (missing) throw new Error(`Isi alasan selisih untuk ${missing} bahan sebelum diajukan.`);
+    const [updated] = await tx
+      .update(wmsStockOpname)
+      .set({ status: "submitted", submittedBy: userId ?? null, submittedAt: new Date() })
+      .where(eq(wmsStockOpname.id, id))
+      .returning();
+    await writeWmsAudit(tx, { userId, action: "Stok opname diajukan", object: op.doc, metadata: { opnameId: id } });
+    return updated;
+  });
+}
+
+/** Kembalikan opname yang diajukan ke petugas (draft) dengan catatan. */
+export async function returnWmsOpname(id: string, note: string, userId?: string | null) {
+  if (note.trim().length < 3) throw new Error("Catatan pengembalian wajib diisi.");
+  return runInTx(async (tx) => {
+    const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
+    if (!op) return null;
+    if (op.status !== "submitted") throw new Error("Hanya opname yang diajukan yang bisa dikembalikan.");
+    const [updated] = await tx
+      .update(wmsStockOpname)
+      .set({ status: "draft", reviewNote: note.trim(), submittedAt: null })
+      .where(eq(wmsStockOpname.id, id))
+      .returning();
+    await writeWmsAudit(tx, { userId, action: "Stok opname dikembalikan", object: op.doc, status: "warning", metadata: { opnameId: id, note: note.trim() } });
+    return updated;
+  });
+}
+
+export async function finalizeWmsOpname(id: string, userId?: string | null, opts?: { actorRole?: string }) {
   return runInTx(async (tx) => {
     const [op] = await tx
       .select()
@@ -4092,6 +4292,15 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
     if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
 
     const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
+    if (opts?.actorRole) {
+      // Pemisahan tugas: penghitung tidak memposting selisihnya sendiri (kecuali Owner).
+      const counter = op.submittedBy ?? op.createdBy;
+      if (opts.actorRole !== "Owner" && counter && counter === userId) {
+        throw new Error("Opname yang Anda hitung sendiri harus disetujui Owner/Manajer lain.");
+      }
+      const missing = missingVarianceReasons(lines);
+      if (missing) throw new Error(`Isi alasan selisih untuk ${missing} bahan sebelum diposting.`);
+    }
     for (const l of lines) {
       if (!l.productId) continue;
       // Baris yang tidak dihitung dilewati: stok tetap sesuai ledger (penjualan
@@ -4120,7 +4329,7 @@ export async function finalizeWmsOpname(id: string, userId?: string | null) {
     }
     const [updated] = await tx
       .update(wmsStockOpname)
-      .set({ status: "completed" })
+      .set({ status: "completed", approvedBy: userId ?? null, approvedAt: new Date() })
       .where(eq(wmsStockOpname.id, id))
       .returning();
     await writeWmsAudit(tx, {

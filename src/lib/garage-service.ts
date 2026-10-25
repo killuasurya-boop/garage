@@ -17391,6 +17391,9 @@ export async function markSupplierInvoicePaid(input: {
   // lagi (dulu setiap klik membuat pengeluaran baru → uang keluar dobel).
   const alreadyPaid = Number(current.paidAmount ?? 0);
   const outstanding = Math.max(0, current.amount - alreadyPaid);
+  if (current.status === "void") {
+    throw new Error(`Invoice ${current.invoiceNo} sudah dibatalkan.`);
+  }
   if (current.status === "paid" || outstanding <= 0) {
     throw new Error(`Invoice ${current.invoiceNo} sudah lunas.`);
   }

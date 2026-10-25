@@ -68,6 +68,9 @@ export async function recordCashPurchases(
     notes?: string | null;
     date?: Date;
     paymentMethod?: string | null;
+    // Penerimaan tempo: biaya bahan diakui pada tanggal terima (status "payable",
+    // ikut laba rugi tapi BUKAN kas keluar); kas keluar dicatat saat invoice dibayar.
+    payable?: { supplierInvoiceId: string };
   },
 ) {
   const rows = (Object.entries(input.byArea) as Array<[PurchaseArea, number]>)
@@ -79,8 +82,9 @@ export async function recordCashPurchases(
       category: PURCHASE_CATEGORY[area],
       description: `${input.description} · ${PURCHASE_CATEGORY[area]}`,
       amount,
-      paymentMethod: input.paymentMethod || "Cash",
-      status: "paid",
+      paymentMethod: input.payable ? "Tempo" : input.paymentMethod || "Cash",
+      status: input.payable ? "payable" : "paid",
+      supplierInvoiceId: input.payable?.supplierInvoiceId ?? null,
       expenseDate: input.date ?? new Date(),
       notes: input.notes ?? null,
       sourceDoc: `${input.sourceDoc}#${area}`,

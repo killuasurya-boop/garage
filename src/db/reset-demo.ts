@@ -56,6 +56,10 @@ const TABLES_TO_CLEAR = [
   "supplier_invoices",
   "supplier_receivings",
   "supplier_receiving_items",
+  "purchase_order_items",
+  "purchase_orders",
+  "purchase_request_items",
+  "purchase_requests",
   "expenses",
   "payment_settlements",
   // tables

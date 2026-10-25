@@ -86,7 +86,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Fase 6 — MCP Gateway & Aya (PRD §22 + D-01 FULL ACCESS Owner)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| M0 | OAuth gateway `/api/mcp/chatgpt` | OAuth 2.1+PKCE, discovery metadata, token pendek/refresh/revoke, kill-switch, audit sinkron `source=chatgpt`; contract test MCP Inspector (§22.8) | READY setelah S2 |
+| M0 | OAuth gateway `/api/mcp/chatgpt` | OAuth 2.1 (`@better-auth/mcp`), discovery, token 15 m/refresh 7 h, kill switch `mcpChatgptPaused`, Owner+2FA only, audit sinkron, mati default (`GARAGE_MCP_CHATGPT_ENABLED`) | **PR #82 (M0a deps) + PR #83 (draft)** — sisa: uji dengan akun ChatGPT nyata; CIMD bila diminta ChatGPT |
 | M1 | Module/tool registry | F48; registry per domain (16), risk tier R0–R4, `system.list_modules/get_capabilities` | setelah M0 |
 | M2 | Preview → konfirmasi chat → commit → receipt | F49, F51; `confirmation_token` terikat digest, idempotency, expected version, readback; D-01a TOTP untuk R3 | setelah M1 |
 | M3 | **Full tool coverage Owner** | Semua aksi R0–R3 Owner di 16 domain via tool bisnis (termasuk finance: approve cash-out, petty pay, setoran, final closing, void/refund, harga, role); R4 tetap ditolak; `garage_api` dipensiunkan setelah coverage lengkap | setelah M2 |
@@ -101,7 +101,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 
 ## Urutan kerja rekomendasi untuk agent berikutnya
 
-1. ~~S2~~ (PR #81) → 2. **M0** (OAuth gateway, karena D-01 adalah prioritas Owner) →
+1. ~~S2~~ (PR #81) → 2. ~~M0~~ (PR #82, #83) (OAuth gateway, karena D-01 adalah prioritas Owner) →
 3. **S1** (persempit key non-Owner) → 4. **B1** → 5. **I3** → 6. **U0** / **S0b** paralel →
 7. **M1 → M2 → M3** → lalu Fase 1–5 sisanya sesuai jawaban keputusan OPEN.
 

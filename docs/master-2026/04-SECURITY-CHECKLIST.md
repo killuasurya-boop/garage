@@ -14,12 +14,12 @@ Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-A
 - [x] Push ke branch `claude/*` tidak memicu deploy (diverifikasi dari `ci.yml`/`deploy.yml`)
 
 ## B. MCP / agent AI (sesuai D-01: Owner full access, R4 tetap ditolak)
-- [ ] Koneksi ChatGPT Owner lewat OAuth 2.1 + PKCE (`/api/mcp/chatgpt`), bukan bearer statis (M0)
+- [x] Koneksi ChatGPT Owner lewat OAuth 2.1 + PKCE (`/api/mcp/chatgpt`), bukan bearer statis (M0) — PR #83 (belum merge)
 - [ ] Owner via MCP bisa semua aksi R0–R3 yang bisa dilakukan di UI Owner (M3)
 - [ ] R2/R3: preview → konfirmasi Owner di chat (token terikat digest) → commit → readback → receipt (M2)
 - [ ] R4 ditolak di semua jalur: hapus/edit ledger & audit, SQL bebas, shell, baca secret
 - [ ] Key non-Owner (`manajer`, `readonly`, agent lain) tidak bisa: settings keamanan, user/role, sertifikasi saldo, approval Owner-only (S1)
-- [ ] Kill-switch MCP + revoke token Owner berfungsi (AC-M07)
+- [~] Kill-switch MCP berfungsi (`mcpChatgptPaused`, PR #83); revoke token per-klien via UI belum ada (AC-M07)
 - [ ] Audit agent sinkron, gagal audit = request gagal; GET data finansial diaudit (F-05)
 - [ ] Rate limit agent persisten lintas restart (F-06)
 - [ ] Prompt-injection: output tool tidak dieksekusi sebagai instruksi; deskripsi tool tanpa data user

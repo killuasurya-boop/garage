@@ -64,3 +64,29 @@ Format wajib per batch (instruksi Owner):
   (`BETTER_AUTH_SECRET=build-time-placeholder-not-used-at-runtime`, `DATABASE_URL=postgresql://build:build@localhost:5432/build`);
   (2) `requireOwnerPrincipal` dipindah ke S1/M0.
 - Langkah berikutnya: **M0** (OAuth gateway `/api/mcp/chatgpt`) lalu **S1**.
+
+## 2026-10-26 — Batch M0a + M0 Gateway OAuth MCP ChatGPT
+
+- Fitur/modul:
+  - M0a (PR #82): rantai Better Auth disamakan ke 1.7.12 (drizzle-adapter 1.6.23 → 1.7.12, core/better-call/fetch
+    dikunci ke versi yang sudah dipakai better-auth), tambah `@better-auth/oauth-provider` 1.7.12. Pilihan Owner:
+    "Upgrade Better Auth" (bukan OAuth buatan sendiri).
+  - M0 (PR #83, ditumpuk di atas #82): OAuth 2.1 via `@better-auth/mcp` + `jwt`, mati default
+    (`GARAGE_MCP_CHATGPT_ENABLED`); `/api/mcp/chatgpt`, `/oauth/consent`, `/.well-known/*`; Owner + 2FA only;
+    kill switch `mcpChatgptPaused`; audit sinkron sebelum tool; `garage_api` disembunyikan.
+- File utama: `src/lib/mcp-chatgpt-{config,access,gateway,discovery}.ts`, `src/lib/oauth-login-continue.ts`,
+  `src/app/api/mcp/chatgpt/route.ts`, `src/app/oauth/consent/page.tsx`, `src/app/.well-known/*`,
+  `src/components/garage/admin/mcp-chatgpt-consent.tsx`, `src/lib/auth.ts`, `src/db/schema.ts`, `drizzle/0163_mcp_oauth.sql`.
+- Hasil pengujian: tsc lulus · lint 0 error · vitest 180 file / 1.171 tes · build lulus · tes e2e OAuth (DCR, PKCE,
+  login + TOTP, consent, token, MCP) · uji browser Playwright 1366×900 & 390×844 (tanpa overflow/error console).
+- Branch / PR: `claude/m0a-better-auth-deps` (#82), `claude/m0-mcp-oauth-gateway` (#83). Merge #82 dulu.
+- Risiko DB/VPS: migration 0163 additive (8 tabel kosong). Perilaku produksi tidak berubah sampai env dinyalakan.
+- Status deploy: siap review. Aktivasi = Owner set env + restart (lihat `docs/AGENT-API.md` §6).
+- Catatan untuk agent berikutnya:
+  - Tabel OAuth wajib sinkron dengan versi plugin: generate ulang dengan `generateDrizzleSchema` dari
+    `@better-auth/drizzle-adapter` bila upgrade Better Auth.
+  - Docs Better Auth bisa dibaca dari `raw.githubusercontent.com/better-auth/better-auth/v<versi>/docs/content/docs/plugins/*.mdx`
+    (better-auth.com & docs OpenAI tidak terjangkau dari container).
+  - Uji browser lokal: `bootstrap-pglite` + `db:seed` + `next start` dengan env flag (skrip contoh di PR #83).
+- Langkah berikutnya: **S1** (persempit key non-Owner, audit sinkron `/api/mcp` lama, rate limit persisten) → **M1/M2**
+  (registry + preview/konfirmasi) → **M3** (tool 16 domain, pensiunkan `garage_api`).

@@ -62,7 +62,7 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F47 | Re-verifikasi ganti kontak | ❌ | | I2 | |
 | F48 | Module Registry | 🟡 | `ai_action_registry` (AI internal) | M1 | |
 | F49 | Lifecycle perintah + operation receipt | 🟡 | AI action drafts approve/reject; receipt ❌ | M2 | |
-| F50 | MCP OAuth gateway | 🟡 | `/api/mcp` bearer `gk_agent_`; OAuth ❌ | M0 | |
+| F50 | MCP OAuth gateway | 🟡 | **PR #83**: OAuth 2.1 `/api/mcp/chatgpt` (mati default). Belum: uji akun ChatGPT nyata, CIMD | M0 | `mcp-chatgpt-oauth.integration.test.ts`, `mcp-chatgpt-config.test.ts` |
 | F51 | MCP write (preview/konfirmasi/commit) | 🟡 | `garage_api` write langsung tanpa preview; **D-01: full access Owner** | M2, M3 | |
 | F52 | Aya in-app Owner Copilot | 🟡 | `owner-chat`, AI agents, provider OpenAI/Gemini; nama "Aya" belum ada di kode. **D-07: Aya = peliharaan Owner** (nama, avatar, persona) | M5, U1 | |
 | F53 | Reports Studio + Drive/Gmail | 🟡 | Drive upload ✅, Gmail ❌ (D-04) | M4 | |

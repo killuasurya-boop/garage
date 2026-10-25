@@ -132,7 +132,7 @@ export function CashOversightPanel() {
               ))}
             </div>
             <p className="text-xs text-zinc-400">
-              Saldo rekening = uang yang tercatat masuk/keluar lewat Garage OS sejak buku kas aktif, bukan saldo bank sebenarnya.
+              Rekening = arus bersih yang tercatat lewat Garage OS (setoran masuk − isi petty / biaya dari rekening) sejak buku kas aktif, bukan saldo bank. Minus = lebih banyak keluar daripada setoran yang tercatat.
             </p>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

@@ -7,8 +7,8 @@ export const OVERSIGHT_ACCOUNTS = ["petty", "deposit_transit", "bank_jago", "ban
 export const OVERSIGHT_ACCOUNT_LABEL: Record<(typeof OVERSIGHT_ACCOUNTS)[number], string> = {
   petty: "Petty cash",
   deposit_transit: "Setoran dalam perjalanan",
-  bank_jago: "Rekening Jago (tercatat)",
-  bank_bni: "Rekening BNI (tercatat)",
+  bank_jago: "Rekening Jago · arus bersih tercatat",
+  bank_bni: "Rekening BNI · arus bersih tercatat",
 };
 
 export const OVERSIGHT_QUEUES = [

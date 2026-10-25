@@ -427,6 +427,13 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         defaultValue: DEFAULT_APP_SETTINGS.securityRequire2faForOwner,
         hint: "Aktifkan setelah 2FA setup di akun masing-masing.",
       },
+      {
+        key: "mcpChatgptPaused",
+        label: "Jeda koneksi ChatGPT (MCP)",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.mcpChatgptPaused,
+        hint: "Kill switch: semua perintah dari ChatGPT langsung ditolak tanpa restart. Matikan lagi untuk melanjutkan.",
+      },
     ],
   },
   {

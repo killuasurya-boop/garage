@@ -14,8 +14,21 @@ export function rpcError(id: JsonRpcRequest["id"], code: number, message: string
   return { jsonrpc: "2.0", id: id ?? null, error: { code, message } };
 }
 
-export async function handleMcpMessage(message: JsonRpcRequest, session: GarageSession, ctx: AgentToolContext) {
+export type McpMessageOptions = {
+  /** Tool yang tidak tersedia di pintu masuk ini (mis. garage_api di MCP ChatGPT). */
+  hiddenTools?: ReadonlySet<string>;
+  /** Dipanggil sebelum tools/call dijalankan; melempar error = tool batal. */
+  beforeToolCall?: (name: string, args: unknown) => Promise<void>;
+};
+
+export async function handleMcpMessage(
+  message: JsonRpcRequest,
+  session: GarageSession,
+  ctx: AgentToolContext,
+  options: McpMessageOptions = {},
+) {
   const id = message.id;
+  const hidden = options.hiddenTools ?? new Set<string>();
   switch (message.method) {
     case "initialize": {
       const requested = String(message.params?.protocolVersion ?? PROTOCOL_VERSION);
@@ -31,7 +44,7 @@ export async function handleMcpMessage(message: JsonRpcRequest, session: GarageS
       return rpcResult(id, {});
     case "tools/list":
       return rpcResult(id, {
-        tools: listAgentTools(session).map((tool) => ({
+        tools: listAgentTools(session).filter((tool) => !hidden.has(tool.name)).map((tool) => ({
           name: tool.name,
           title: tool.title,
           description: tool.description,
@@ -41,7 +54,9 @@ export async function handleMcpMessage(message: JsonRpcRequest, session: GarageS
       });
     case "tools/call": {
       const name = String(message.params?.name ?? "");
+      if (hidden.has(name)) return rpcError(id, -32602, `UNKNOWN_TOOL: Tool "${name}" tidak tersedia di koneksi ini.`);
       try {
+        await options.beforeToolCall?.(name, message.params?.arguments ?? {});
         const result = await runAgentTool(session, name, message.params?.arguments ?? {}, ctx);
         return rpcResult(id, { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: { result }, isError: false });
       } catch (error) {

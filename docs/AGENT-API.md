@@ -87,3 +87,40 @@ Respons: `{ "data": … }` atau `{ "error": { "code", "message" } }`.
 - Pakai key terpisah per agent; pilih masa berlaku; cabut yang tidak dipakai.
 - `garage_api` memanggil server sendiri lewat `GARAGE_INTERNAL_BASE_URL`
   (default `http://127.0.0.1:$PORT`).
+
+## 6. ChatGPT (MCP + OAuth) — satu pintu kendali Owner
+
+Keputusan Owner **D-01** (`docs/master-2026/06-OWNER-DECISIONS.md`): ChatGPT terhubung ke Garage OS lewat
+**OAuth 2.1** (bukan API key `gk_agent_`). Endpoint: `https://garagecoffee.id/api/mcp/chatgpt`.
+
+### Mengaktifkan (Owner / operator VPS — tidak dilakukan otomatis)
+1. Pastikan migration `0163_mcp_oauth` sudah jalan (otomatis saat deploy).
+2. Di `.env.production` VPS tambahkan:
+   ```
+   GARAGE_MCP_CHATGPT_ENABLED=true
+   # BETTER_AUTH_URL wajib HTTPS, mis. https://garagecoffee.id
+   # Opsional: alamat internal app untuk mengambil JWKS (default http://127.0.0.1:$PORT)
+   # GARAGE_INTERNAL_BASE_URL=http://127.0.0.1:3001
+   ```
+   lalu restart app (butuh persetujuan Owner — perubahan env produksi).
+3. Akun Owner **wajib 2FA aktif** (`/control/2fa`). Tanpa 2FA, consent & panggilan MCP ditolak.
+
+Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.well-known/*` dan
+`/api/mcp/chatgpt` membalas 404 — perilaku produksi sama seperti sebelum fitur ini.
+
+### Menghubungkan di ChatGPT
+1. ChatGPT (web) → Settings → Connectors / Apps → tambah custom MCP server.
+2. URL: `https://garagecoffee.id/api/mcp/chatgpt`, autentikasi **OAuth** (ChatGPT mendaftarkan diri otomatis
+   lewat Dynamic Client Registration).
+3. Login Owner → kode 2FA → halaman **Hubungkan aplikasi AI** → **Izinkan**.
+
+### Kontrol & keamanan
+- Hanya **Owner aktif + 2FA**. Akun lain yang berhasil login tetap ditolak `OWNER_ONLY` di setiap panggilan.
+- Token akses 15 menit (refresh 7 hari), terikat resource `/api/mcp/chatgpt` (audience), scope `garage:owner`.
+- **Kill switch tanpa restart:** Pengaturan → Keamanan → *Jeda koneksi ChatGPT (MCP)* → semua panggilan 503.
+- Setiap `tools/call` dicatat di Audit **sebelum** dijalankan (`device = mcp:chatgpt`, `metadata.source = chatgpt`);
+  bila audit gagal, tool tidak dijalankan.
+- Tool sama dengan MCP agent (`/api/mcp`), kecuali `garage_api` (disembunyikan; diganti tool bisnis eksplisit
+  di batch M3).
+- Discovery: `/.well-known/oauth-protected-resource[/api/mcp/chatgpt]`,
+  `/.well-known/oauth-authorization-server[/api/auth]`, consent di `/oauth/consent`.

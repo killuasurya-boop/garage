@@ -1142,6 +1142,13 @@
       "when": 1792922715389,
       "tag": "0162_opening_balance_certification",
       "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1792964826034,
+      "tag": "0163_mcp_oauth",
+      "breakpoints": true
     }
   ]
 }

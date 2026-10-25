@@ -38,6 +38,9 @@ loadEnv({ quiet: true });
 export const KEEP_TABLES = [
   // akun & akses
   "user", "account", "session", "verification", "two_factor", "staff_profiles", "push_subscriptions",
+  // koneksi OAuth MCP ChatGPT (identitas, seperti session/agent_api_keys — migration 0163)
+  "jwks", "oauth_client", "oauth_resource", "oauth_client_resource", "oauth_refresh_token", "oauth_access_token",
+  "oauth_consent", "oauth_client_assertion",
   // kunci sistem (VAPID web push) — tetap supaya langganan HP tidak putus
   "system_keys",
   // outlet & pengaturan

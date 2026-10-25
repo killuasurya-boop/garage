@@ -1,10 +1,12 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { twoFactor } from "better-auth/plugins";
+import { jwt, twoFactor } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
 import { networkInterfaces } from "node:os";
 
 import { getDb, schema } from "@/db";
+import { MCP_CHATGPT_SCOPES, resolveMcpChatgptConfig } from "@/lib/mcp-chatgpt-config";
 
 const fallbackUrl = "http://localhost:3001";
 
@@ -94,6 +96,30 @@ function createLazyDb() {
 const sessionMaxHours = Number(process.env.GARAGE_SESSION_EXPIRES_HOURS ?? 24);
 const sessionExpiresInSeconds = Math.max(1, sessionMaxHours) * 60 * 60;
 
+// Gateway OAuth MCP ChatGPT (D-01). Mati kecuali GARAGE_MCP_CHATGPT_ENABLED=true;
+// saat mati tidak ada plugin/endpoint OAuth sama sekali.
+export const mcpChatgpt = resolveMcpChatgptConfig();
+
+function mcpChatgptPlugins() {
+  if (!mcpChatgpt.enabled) return [];
+  return [
+    jwt(),
+    mcp({
+      loginPage: "/login",
+      consentPage: "/oauth/consent",
+      resource: mcpChatgpt.resource,
+      scopes: [...MCP_CHATGPT_SCOPES],
+      // ChatGPT mendaftarkan diri lewat DCR. Registrasi saja tidak memberi akses:
+      // token hanya terbit setelah Owner login + consent (dicek lagi di route MCP).
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      clientRegistrationDefaultApplicationType: "infer",
+      accessTokenExpiresIn: 15 * 60,
+      refreshTokenExpiresIn: 7 * 24 * 60 * 60,
+    }),
+  ];
+}
+
 export const auth = betterAuth({
   appName: "Garage Coffee OS",
   baseURL: process.env.BETTER_AUTH_URL ?? fallbackUrl,
@@ -124,10 +150,13 @@ export const auth = betterAuth({
       "/sign-in/email": { window: 60, max: 40 },
     },
   },
+  // Endpoint /token plugin jwt (JWT dari sesi cookie) tidak dipakai.
+  disabledPaths: mcpChatgpt.enabled ? ["/token"] : [],
   plugins: [
     twoFactor({
       issuer: "Garage Coffee",
     }),
+    ...mcpChatgptPlugins(),
   ],
   hooks: {
     // Pre-signin: cek apakah email lagi di-lockout karena terlalu banyak gagal.

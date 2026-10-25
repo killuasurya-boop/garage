@@ -158,6 +158,8 @@ export type AppSettings = {
   securityFailedLoginLockoutCount: number;
   securityLockoutDurationMinutes: number;
   securityRequire2faForOwner: boolean;
+  /** Kill switch MCP ChatGPT tanpa restart: true = semua panggilan /api/mcp/chatgpt ditolak. */
+  mcpChatgptPaused: boolean;
   // Attendance control
   attendanceEnabled: boolean;
   attendanceTerminalMode: "pin_only" | "pin_gps" | "pin_gps_selfie";
@@ -304,6 +306,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   securityFailedLoginLockoutCount: 5,
   securityLockoutDurationMinutes: 15,
   securityRequire2faForOwner: false,
+  mcpChatgptPaused: false,
   // Attendance control
   attendanceEnabled: true,
   attendanceTerminalMode: "pin_gps",

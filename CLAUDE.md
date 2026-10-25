@@ -374,3 +374,34 @@ Then verify in browser:
 - seeded login works after `npm run db:migrate` and `npm run db:seed`
 
 For documentation-only changes such as Claude command files, app lint/build is optional.
+
+## GARAGE COFFEE — IMMUTABLE UI DESIGN CONTRACT
+
+**Scope.** Member (customer) UI: `/member-login` and future member screens. Staff/ops UI keeps `design-system/MASTER.md`.
+
+**Sources of truth.** Before you touch member UI, read all three:
+- `docs/GARAGE_MEMBER_DESIGN_SYSTEM.md`
+- `docs/GARAGE_MEMBER_MOTION_SPEC.md`
+- the approved screenshots in `docs/design-references/member-login/` (`desktop`, `tablet` and `mobile.webp`)
+
+**Implementation.**
+- Components: `src/components/garage/member-auth/`.
+- Tokens and primitives: `member-auth.css`, using `gm-*` classes scoped to `.gm-root`.
+
+**Rules.**
+1. Always read the approved design-system document before modifying member UI.
+2. Always inspect the approved screenshots before changing visual components.
+3. Never change the approved brand colors, typography (Space Grotesk headings, Inter body) or visual hierarchy without owner authorization.
+4. Never redesign the Garage Coffee logo. Use `GarageBrandLogo` (official PNG, `object-contain`).
+5. Never replace the visual style with a generic template.
+6. Always reuse the shared components (`MemberField`, `MemberButton`, `MemberLoginCard`, `AuthenticationStatus`, `MotionReveal`, `CinematicBackground`) and the `--gm-*` tokens. Do not hand-roll duplicate styles.
+7. Always keep desktop (split ≥1024), tablet (centered) and mobile (form first) consistent.
+8. Never introduce an unrelated visual identity. No automotive or motorcycle imagery in member UI.
+9. Never sacrifice usability for motion. The UI must work fully with `prefers-reduced-motion`.
+10. Always run responsive visual QA after member UI changes: 1440×900, 1920, 1366, 1024×768, 768×1024, 390×844 and 360. Check for no horizontal overflow, clipping or overlap.
+11. Never modify unrelated Garage OS modules as part of member UI work.
+12. Preserve member authentication: phone/email + PIN via `/api/member/auth/*` with JWT cookies, plus the `next`, `mode=register`, `ref`, `name` and `phone` URL params. Never expose credentials.
+13. Never invent unavailable member data or features. No fake OAuth/OTP buttons: Google/OTP appear only once a real provider is configured.
+14. State any proposed deviation from the approved design before implementing it.
+
+Design consistency is a mandatory acceptance criterion for every member UI change.

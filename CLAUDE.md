@@ -203,6 +203,15 @@ Scroll direction:
       petty submitted / approved-unpaid, open incidents, QRIS mismatch.
     - Control exceptions: emergency close, self-verified, Owner petty, self-confirmed deposit, cache≠ledger.
     - Read-only except the inline deposit confirm (existing endpoint).
+  - Opening balances (P6, migration 0162): `src/lib/cash-opening.ts` (labels `-meta.ts`), `/api/control/cash-opening`
+    (Owner only), card `CashOpeningCard` in the oversight panel.
+    - Migration backfill rows (`request_hash = 'legacy'`, `isLegacyLedgerRow`) are `legacy_unverified`; never recompute them.
+    - Owner certifies the real balance once per scope (petty per outlet, bank_jago/bank_bni global) with evidence and
+      `expectedLedgerBalance` (stale = `LEDGER_CHANGED`); difference = one `opening_balance` row, external ↔ account.
+      `cash_opening_certifications` is immutable (same trigger as the ledger) and CLEARed by the grand-opening reset.
+    - The drawer is activated at the shift boundary (opening count), never certified here.
+    - T25: `cashLedgerFingerprint` = `scripts/cash-ledger-fingerprint.sql` (test keeps them identical); restore drill in
+      `docs/DEPLOY_VPS.md`.
   - Probe `closing-audit-probe.integration.test.ts`: no `it.fails` left. Tests close shifts with
     `cashCount(amount)` (`test-helpers/cash-count.ts`).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall

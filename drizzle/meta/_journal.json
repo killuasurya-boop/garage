@@ -1135,6 +1135,13 @@
       "when": 1792902651145,
       "tag": "0161_closing_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1792922715389,
+      "tag": "0162_opening_balance_certification",
+      "breakpoints": true
     }
   ]
 }

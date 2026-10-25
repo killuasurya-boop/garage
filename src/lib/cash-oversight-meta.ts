@@ -11,6 +11,12 @@ export const OVERSIGHT_ACCOUNT_LABEL: Record<(typeof OVERSIGHT_ACCOUNTS)[number]
   bank_bni: "Rekening BNI · arus bersih tercatat",
 };
 
+/** Label rekening setelah saldo pembuka disahkan Owner (P6): saldo nyata, bukan arus bersih. */
+export const OVERSIGHT_ACCOUNT_CERTIFIED_LABEL: Record<"bank_jago" | "bank_bni", string> = {
+  bank_jago: "Rekening Jago · saldo (pembuka disahkan)",
+  bank_bni: "Rekening BNI · saldo (pembuka disahkan)",
+};
+
 export const OVERSIGHT_QUEUES = [
   "discrepancy_unverified",
   "review_overdue",
@@ -64,7 +70,8 @@ export type CashOversight = {
   period: { from: string; to: string };
   outletId: string | null;
   outlets: Array<{ id: string; code: string; name: string }>;
-  balances: Array<{ account: (typeof OVERSIGHT_ACCOUNTS)[number]; label: string; balance: number }>;
+  /** `certifiedAt` = saldo pembuka akun ini sudah disahkan Owner (P6). */
+  balances: Array<{ account: (typeof OVERSIGHT_ACCOUNTS)[number]; label: string; balance: number; certifiedAt: string | null }>;
   summary: {
     shifts: number;
     openShifts: number;

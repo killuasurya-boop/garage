@@ -99,6 +99,25 @@ docker compose --env-file .env.production up -d app
 File dibuat dengan `--clean --if-exists`, jadi bisa langsung di-restore ke
 database yang sudah berisi (tabel lama diganti isi backup).
 
+**Uji restore buku kas (T25, P6)** — tanpa menyentuh DB produksi. Pulihkan backup ke
+database uji terpisah di container `db`, lalu bandingkan sidik buku kas:
+```bash
+C="docker compose --env-file .env.production exec -T db"
+F=backups/garage-pre-deploy-YYYY-MM-DD_HHMMSS.sql.gz
+# 1. Sidik DB produksi pada saat backup dibuat (atau ambil dari panel Owner sebelum backup)
+$C sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' < scripts/cash-ledger-fingerprint.sql > /tmp/fp-prod.txt
+# 2. Pulihkan ke DB uji
+$C sh -c 'dropdb -U "$POSTGRES_USER" --if-exists garage_restore_test && createdb -U "$POSTGRES_USER" garage_restore_test'
+gunzip -c "$F" | $C sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d garage_restore_test' > /dev/null
+# 3. Sidik DB uji → harus identik dengan langkah 1
+$C sh -c 'psql -U "$POSTGRES_USER" -d garage_restore_test -At' < scripts/cash-ledger-fingerprint.sql > /tmp/fp-restore.txt
+diff /tmp/fp-prod.txt /tmp/fp-restore.txt && echo "T25 OK: saldo, referensi dan riwayat utuh"
+$C sh -c 'dropdb -U "$POSTGRES_USER" garage_restore_test'
+```
+Langkah 1 harus dijalankan tanpa transaksi kas baru sejak backup (mis. langsung sesudah
+`backup once manual`). Panel Owner `/control/cash-closing` → "Saldo pembuka disahkan Owner"
+menampilkan sidik yang sama (jumlah baris · seq · md5).
+
 ## Cron wajib di VPS (padanan `vercel.json` + Task Scheduler PC lokal)
 
 `vercel.json` hanya berlaku di Vercel. Di VPS, pasang di `crontab -e` host

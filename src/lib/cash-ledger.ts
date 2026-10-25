@@ -50,6 +50,7 @@ export const CASH_SOURCE_TYPES = [
   "petty_adjustment",
   "petty_reversal",
   "deposit_confirm",
+  "opening_balance",
 ] as const;
 export type CashSourceType = (typeof CASH_SOURCE_TYPES)[number];
 
@@ -72,6 +73,7 @@ export const CASH_SOURCE_LABEL: Record<CashSourceType, string> = {
   petty_adjustment: "Penyesuaian petty cash",
   petty_reversal: "Pembatalan petty cash",
   deposit_confirm: "Setoran diterima di rekening",
+  opening_balance: "Saldo pembuka disahkan Owner",
 };
 
 export class CashLedgerError extends Error {
@@ -259,6 +261,14 @@ export async function accountEntries(account: CashAccount, outletId: string | nu
   return rows.map((row) => ({ ...row, signed: row.toAccount === account ? row.amount : -row.amount }));
 }
 
+/** Kunci request_hash baris isian migrasi 0159/0160 (data lama → buku kas). */
+export const LEGACY_REQUEST_HASH = "legacy";
+
+/** Baris hasil migrasi data lama: nominalnya diambil dari cache/entri lama, tidak ditebak ulang. */
+export function isLegacyLedgerRow(row: { requestHash: string }) {
+  return row.requestHash === LEGACY_REQUEST_HASH;
+}
+
 export type DrawerLedgerLine = {
   id: string;
   seq: number;
@@ -270,6 +280,8 @@ export type DrawerLedgerLine = {
   signed: number;
   running: number;
   reversesId: string | null;
+  /** Baris isian migrasi (saldo dari cache lama), tidak pernah dihitung ulang — P6 `legacy_unverified`. */
+  legacyUnverified: boolean;
 };
 
 /** Buku kas laci satu shift + ringkasan per jenis (sumber tunggal laporan shift). */
@@ -303,6 +315,7 @@ export async function getDrawerLedger(sessionId: string, db: DbOrTx = getDb()) {
       signed,
       running,
       reversesId: row.reversesId,
+      legacyUnverified: isLegacyLedgerRow(row),
     });
   }
   const summary = CASH_SOURCE_TYPES.filter((type) => byType.has(type)).map((type) => ({

@@ -55,6 +55,10 @@ export async function oversightWorkbook(data: CashOversight) {
   summary.addRow({});
   summary.addRow({ label: "Saldo buku kas (akhir periode)" }).font = { bold: true };
   for (const balance of data.balances) summary.addRow({ label: balance.label, value: balance.balance });
+  for (const balance of data.balances) {
+    if (balance.account === "deposit_transit") continue;
+    summary.addRow({ label: `${balance.label} — saldo pembuka`, value: balance.certifiedAt ? `Disahkan ${balance.certifiedAt}` : "Belum disahkan" });
+  }
   summary.getRow(1).font = { bold: true };
 
   const addItems = (name: string, groups: Array<{ label: string; items: OversightItem[] }>) => {

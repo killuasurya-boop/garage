@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, ChevronRight, Download, Landmark, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Panel } from "@/components/ceo/layout/Panel";
+import { CashOpeningCard } from "@/components/ceo/finance/CashOpeningCard";
 import { Badge } from "@/components/ceo/ui/Badge";
 import {
   OVERSIGHT_EXCEPTION_LABEL,
@@ -128,12 +129,19 @@ export function CashOversightPanel() {
                   >
                     {idr.format(balance.balance)}
                   </p>
+                  {balance.account !== "deposit_transit" ? (
+                    <p className="mt-0.5 text-[11px] text-zinc-400">
+                      {balance.certifiedAt ? `Pembuka disahkan ${dateTime.format(new Date(balance.certifiedAt))}` : "Saldo pembuka belum disahkan"}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
             <p className="text-xs text-zinc-400">
-              Rekening = arus bersih yang tercatat lewat Garage OS (setoran masuk − isi petty / biaya dari rekening) sejak buku kas aktif, bukan saldo bank. Minus = lebih banyak keluar daripada setoran yang tercatat.
+              Rekening yang belum disahkan = arus bersih yang tercatat lewat Garage OS (setoran masuk − isi petty / biaya dari rekening) sejak buku kas aktif, bukan saldo bank. Minus = lebih banyak keluar daripada setoran yang tercatat. Setelah saldo pembuka disahkan, angka ini = saldo nyata saat disahkan + arus sesudahnya.
             </p>
+
+            <CashOpeningCard onChanged={() => void load()} />
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label="Shift periode" value={`${data.summary.closedShifts} tutup · ${data.summary.openShifts} buka`} />

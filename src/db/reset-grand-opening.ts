@@ -37,7 +37,7 @@ loadEnv({ quiet: true });
 /** Data master & konfigurasi — TIDAK disentuh. */
 export const KEEP_TABLES = [
   // akun & akses
-  "user", "account", "session", "verification", "two_factor", "staff_profiles", "push_subscriptions",
+  "user", "account", "session", "verification", "two_factor", "staff_profiles", "staff_access_requests", "push_subscriptions",
   // koneksi OAuth MCP ChatGPT (identitas, seperti session/agent_api_keys — migration 0163)
   "jwks", "oauth_client", "oauth_resource", "oauth_client_resource", "oauth_refresh_token", "oauth_access_token",
   "oauth_consent", "oauth_client_assertion",

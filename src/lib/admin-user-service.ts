@@ -19,7 +19,7 @@ import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-comp
 
 
 /** "kurir" hanya untuk Waiter; stasiun produksi/helper hanya untuk Kasir. */
-function workstationForRole(role: string, workstation: string | null | undefined) {
+export function workstationForRole(role: string, workstation: string | null | undefined) {
   const ws = normalizeWorkstation(workstation);
   if (!ws) return null;
   if (role === "Waiter") return ws === "kurir" ? ws : null;
@@ -53,7 +53,7 @@ export async function countOwners() {
  * + baris gaji, sehingga absen, gaji, dan fee masuk ke akun yang sama. PIN absen
  * diatur Owner (Manajemen User). Gagal pasang absen tidak menggagalkan user.
  */
-async function attachAbsenIdentity(userId: string, role: Role, position?: string | null) {
+export async function attachAbsenIdentity(userId: string, role: Role, position?: string | null) {
   if (role === "Owner") return;
   try {
     const { ensureAbsenIdentity } = await import("@/lib/garage-absen-employees");

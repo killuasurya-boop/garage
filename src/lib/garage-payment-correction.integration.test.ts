@@ -48,7 +48,13 @@ async function sessionRow(id: string) {
 
 async function payOrder(method: string) {
   return svc.createOrder(
-    { orderType: "takeaway", paymentMethod: method, items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }] } as any,
+    {
+      orderType: "takeaway",
+      paymentMethod: method,
+      // Tender guard: tunai wajib uang diterima.
+      cashReceived: method === "Cash" ? 50_000 : undefined,
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    } as any,
     kasir(),
   ) as Promise<any>;
 }

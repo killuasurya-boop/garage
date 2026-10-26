@@ -250,7 +250,7 @@ export function TeamGlossaryManager() {
               </div>
 
               <div className="flex justify-end border-t border-zinc-800/50 pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
+                <Button aria-label="Hapus istilah"
                   onClick={() => handleDelete(item.id)}
                   size="sm"
                   variant="ghost"

@@ -254,7 +254,7 @@ export function TeamSopManager() {
                     </option>
                   ))}
                 </select>
-                <Button
+                <Button aria-label={isDone ? "Tandai belum selesai" : "Tandai selesai"}
                   size="sm"
                   disabled={saving}
                   onClick={() => handleToggleTask(task.id, isDone, selectedStaff)}

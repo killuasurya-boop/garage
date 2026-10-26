@@ -43,7 +43,7 @@ export function NotificationCenter() {
                   <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-200">{unreadCount} baru</span>
                 ) : null}
               </div>
-              <button onClick={() => setNotifPanelOpen(false)} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-zinc-100">
+              <button aria-label="Tutup notifikasi" onClick={() => setNotifPanelOpen(false)} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-zinc-100">
                 <X className="h-4 w-4" />
               </button>
             </div>

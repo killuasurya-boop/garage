@@ -1264,13 +1264,13 @@ export function ChatModule({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#34343c] bg-[#0f0f14] p-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("**")} className="h-8 border-[#4a4a54] px-2">
+                <Button aria-label="Tebal" type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("**")} className="h-8 border-[#4a4a54] px-2">
                   <Bold className="h-3.5 w-3.5" />
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("_")} className="h-8 border-[#4a4a54] px-2">
+                <Button aria-label="Miring" type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("_")} className="h-8 border-[#4a4a54] px-2">
                   <Italic className="h-3.5 w-3.5" />
                 </Button>
-                <Button
+                <Button aria-label="Tambah butir daftar"
                   type="button"
                   size="sm"
                   variant="outline"
@@ -1766,7 +1766,7 @@ export function ChatModule({
                         ({formatSize(pendingAttachment.size)})
                       </span>
                     </div>
-                    <button
+                    <button aria-label="Hapus lampiran"
                       type="button"
                       onClick={() => setPendingAttachment(null)}
                       className="text-[#ff8a93] hover:text-white"
@@ -1848,7 +1848,7 @@ export function ChatModule({
           >
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-bold text-white">Mulai DM</p>
-              <button
+              <button aria-label="Tutup pilih pengguna"
                 type="button"
                 onClick={() => setUserPickerOpen(false)}
                 className="text-[#8f8f99] hover:text-white"

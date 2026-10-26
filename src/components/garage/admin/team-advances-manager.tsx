@@ -294,14 +294,14 @@ export function TeamAdvancesManager() {
                     <td className="p-4 text-right">
                       {item.status === "pending" && (
                         <div className="flex justify-end gap-1.5">
-                          <Button
+                          <Button aria-label="Setujui kasbon"
                             onClick={() => handleApprove(item.id)}
                             size="sm"
                             className="bg-emerald-600 hover:bg-emerald-700 text-zinc-100 h-7 w-7 p-0 rounded-md"
                           >
                             <Check className="size-3.5" />
                           </Button>
-                          <Button
+                          <Button aria-label="Tolak kasbon"
                             onClick={() => handleReject(item.id)}
                             size="sm"
                             variant="ghost"

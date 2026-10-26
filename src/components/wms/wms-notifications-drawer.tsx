@@ -29,7 +29,7 @@ export function WmsNotificationsDrawer({ open, onClose }: { open: boolean; onClo
       >
         <div className="flex items-center justify-between border-b border-[#E8E8E8] px-4 py-3">
           <p className="text-[15px] font-bold text-[#111111]">Notifikasi WMS</p>
-          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-md hover:bg-[#F8F9FB]">
+          <button aria-label="Tutup notifikasi" type="button" onClick={onClose} className="grid size-8 place-items-center rounded-md hover:bg-[#F8F9FB]">
             <X className="size-4" />
           </button>
         </div>

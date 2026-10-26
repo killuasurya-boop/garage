@@ -2102,7 +2102,7 @@ function SettingsToggle({
         <p className="mt-1 text-[11px] leading-5 text-[#b8b8bf]">{description}</p>
       </div>
       <div>
-        <button
+        <button aria-label={label}
           type="button"
           role="switch"
           aria-checked={checked}

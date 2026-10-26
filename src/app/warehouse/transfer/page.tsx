@@ -131,7 +131,7 @@ export default function WmsTransferPage() {
                   onChange={(e) => { const q = Math.max(1, Math.min(l.product.onHand, Number(e.target.value) || 1)); setCart((c) => c.map((x) => x.product.id === l.product.id ? { ...x, qty: q } : x)); }}
                   className={`${input} w-20 text-right`}
                 />
-                <button type="button" onClick={() => setCart((c) => c.filter((x) => x.product.id !== l.product.id))} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
+                <button aria-label="Hapus dari daftar" type="button" onClick={() => setCart((c) => c.filter((x) => x.product.id !== l.product.id))} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
               </div>
             ))}
           </div>

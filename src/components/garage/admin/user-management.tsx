@@ -1316,7 +1316,7 @@ function SessionsDialog({
                       {formatDate(session.expiresAt)}
                     </TableCell>
                     <TableCell>
-                      <Button
+                      <Button aria-label="Keluarkan sesi ini"
                         size="sm"
                         variant="ghost"
                         onClick={() => onLogoutOne(session.id)}

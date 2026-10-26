@@ -274,7 +274,7 @@ function CandidateDrawer({
             <p className="text-[11px] uppercase tracking-wider text-[#888]">Detail Kandidat</p>
             <h3 className="font-black text-white">{candidate.fullName}</h3>
           </div>
-          <button
+          <button aria-label="Tutup"
             type="button"
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-md border border-[#34343c] text-[#888] transition-colors hover:border-[#d11a2a]/40 hover:text-white"
@@ -743,7 +743,7 @@ function PositionsManager() {
                         {pos.isOpen ? <ToggleRight className="size-3.5 text-[#22c55e]" /> : <ToggleLeft className="size-3.5 text-[#888]" />}
                         {pos.isOpen ? "Tutup" : "Buka"}
                       </button>
-                      <button
+                      <button aria-label="Hapus posisi"
                         type="button"
                         disabled={deleting === pos.id}
                         onClick={() => void deletePos(pos.id)}
@@ -1206,7 +1206,7 @@ export function RecruitmentView() {
                   Halaman {data.page} dari {data.totalPages} · {data.total} kandidat total
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
+                  <button aria-label="Halaman sebelumnya"
                     type="button"
                     disabled={page <= 1 || loading}
                     onClick={() => setPage((p) => p - 1)}
@@ -1228,7 +1228,7 @@ export function RecruitmentView() {
                       </button>
                     );
                   })}
-                  <button
+                  <button aria-label="Halaman berikutnya"
                     type="button"
                     disabled={page >= data.totalPages || loading}
                     onClick={() => setPage((p) => p + 1)}

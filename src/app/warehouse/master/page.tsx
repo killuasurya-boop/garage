@@ -107,7 +107,7 @@ function CategorySection({ cats, input, reload, onFlash }: { cats: Category[]; i
               <option value="dapur">Dapur</option>
               <option value="umum">Umum</option>
             </select>
-            <button type="button" onClick={() => void del(c)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
+            <button aria-label="Hapus kategori" type="button" onClick={() => void del(c)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
           </div>
         ))}
       </div>
@@ -156,7 +156,7 @@ function SupplierSection({ sups, input, reload, onFlash }: { sups: Supplier[]; i
           <div key={s.id} className="flex items-center gap-2 px-4 py-2">
             <span className="min-w-0 flex-1 break-words text-[13px] font-semibold text-[#111111]">{s.name}</span>
             <input defaultValue={s.phone} onBlur={(e) => { if (e.target.value !== s.phone) void savePhone(s, e.target.value); }} placeholder="Telp" className={`${input} h-8 w-28`} />
-            <button type="button" onClick={() => void archive(s)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
+            <button aria-label="Arsipkan" type="button" onClick={() => void archive(s)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
           </div>
         ))}
       </div>

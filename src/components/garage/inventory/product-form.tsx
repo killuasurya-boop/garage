@@ -833,7 +833,7 @@ export function ProductFormPanel({
               {imagePreview ? "Ganti foto" : "Upload foto"}
             </Button>
             {imagePreview ? (
-              <Button
+              <Button aria-label="Hapus foto produk"
                 type="button"
                 variant="outline"
                 className="garage-press h-9 gap-2 border-[#d11a2a]/45 bg-[#d11a2a]/10 text-xs text-[#ffb4bd]"

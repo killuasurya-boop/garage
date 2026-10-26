@@ -973,7 +973,7 @@ export default function WmsReceivingPage() {
                       </td>
                       <td className="py-1 pl-2">
                         {items.length > 1 && (
-                          <button
+                          <button aria-label="Hapus baris"
                             type="button"
                             onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}
                             className="grid size-8 place-items-center rounded-md text-[#DC2626] hover:bg-[#FEE2E2]"

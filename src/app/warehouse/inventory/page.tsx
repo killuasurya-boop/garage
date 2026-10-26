@@ -550,7 +550,7 @@ export default function WmsInventoryPage() {
               </button>
             </>
           )}
-          <button type="button" onClick={() => setSelected({})} className="grid size-7 place-items-center rounded-full hover:bg-white/10">
+          <button aria-label="Batalkan pilihan" type="button" onClick={() => setSelected({})} className="grid size-7 place-items-center rounded-full hover:bg-white/10">
             <X className="size-4" />
           </button>
         </div>
@@ -969,7 +969,7 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
       <div className="w-full max-w-lg rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[14px] font-bold text-[#111111]">Edit Produk · <span className="font-mono text-[#C8102E]">{product.sku}</span></p>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
 
         {/* Foto + QR */}
@@ -1150,7 +1150,7 @@ function StockAdjustModal({ product, defaultWh, onDone, onCancel }: { product: W
             <p className="text-[14px] font-bold text-[#111111]">Kelola Stok · {product.name}</p>
             <p className="text-[11px] text-[#9CA3AF]">Total semua ruang: <b className="text-[#111111]">{total} {product.unit}</b></p>
           </div>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
 
         {/* Stok per ruang */}

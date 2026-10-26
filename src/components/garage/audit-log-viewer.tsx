@@ -337,7 +337,7 @@ export function AuditLogViewer() {
           <Button type="button" className="garage-press h-10 px-4" onClick={applySearch}>
             Cari
           </Button>
-          <Button
+          <Button aria-label="Reset filter"
             type="button"
             variant="outline"
             className="garage-press h-10 border-[#4a4a54]"
@@ -432,7 +432,7 @@ export function AuditLogViewer() {
                       </Badge>
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      <Button
+                      <Button aria-label="Lihat detail log"
                         type="button"
                         variant="outline"
                         size="sm"
@@ -458,7 +458,7 @@ export function AuditLogViewer() {
               {showingFrom}–{showingTo} dari {total} event
             </p>
             <div className="flex items-center gap-2">
-              <Button
+              <Button aria-label="Halaman sebelumnya"
                 type="button"
                 variant="outline"
                 size="sm"
@@ -471,7 +471,7 @@ export function AuditLogViewer() {
               <span className="font-mono text-xs text-[#d6d6dc]">
                 Hal {page + 1} / {totalPages}
               </span>
-              <Button
+              <Button aria-label="Halaman berikutnya"
                 type="button"
                 variant="outline"
                 size="sm"

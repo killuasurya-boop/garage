@@ -24,7 +24,7 @@ export function ScanModal({ onDetect, onCancel, title = "Scan Barcode / QR" }: {
       <div className="w-full max-w-sm rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <p className="flex items-center gap-1.5 text-[14px] font-bold text-[#111111]"><Camera className="size-4 text-[#C8102E]" /> {title}</p>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+          <button aria-label="Tutup pemindai" type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
         {supported && (
           <>

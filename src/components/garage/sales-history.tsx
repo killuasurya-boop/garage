@@ -778,7 +778,7 @@ function OrderDetailView({
         >
           <CardContent className="flex items-center justify-between gap-2 p-3 text-sm">
             <span>{printResult}</span>
-            <button
+            <button aria-label="Tutup pesan"
               type="button"
               onClick={() => setPrintResult(null)}
               className="text-xs opacity-60 hover:opacity-100"

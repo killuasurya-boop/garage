@@ -147,10 +147,10 @@ export function Sidebar() {
           )}
           {!sidebarCollapsed && (
             <div className="flex items-center gap-1">
-              <button className="rounded p-1 text-zinc-400 hover:bg-white/10 hover:text-zinc-100">
+              <button aria-label="Pengaturan" className="rounded p-1 text-zinc-400 hover:bg-white/10 hover:text-zinc-100">
                 <Settings className="h-3.5 w-3.5" />
               </button>
-              <button className="rounded p-1 text-zinc-400 hover:bg-white/10 hover:text-zinc-100">
+              <button aria-label="Keluar" className="rounded p-1 text-zinc-400 hover:bg-white/10 hover:text-zinc-100">
                 <LogOut className="h-3.5 w-3.5" />
               </button>
             </div>

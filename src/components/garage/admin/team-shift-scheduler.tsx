@@ -247,7 +247,7 @@ export function TeamShiftScheduler() {
       {/* Control Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card p-4 rounded-lg border shadow-sm relative overflow-hidden">
         <div className="flex items-center gap-3 relative z-10">
-          <Button 
+          <Button aria-label="Bulan sebelumnya" 
             variant="outline" 
             size="icon"
             onClick={() => handleMonthChange("prev")}
@@ -260,7 +260,7 @@ export function TeamShiftScheduler() {
               {formatMonthYear()}
             </span>
           </div>
-          <Button 
+          <Button aria-label="Bulan berikutnya" 
             variant="outline" 
             size="icon"
             onClick={() => handleMonthChange("next")}

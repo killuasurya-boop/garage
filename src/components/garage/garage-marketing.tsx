@@ -1138,7 +1138,7 @@ function MarketingCampaigns({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
+                        <Button aria-label="Ubah"
                           type="button"
                           variant="outline"
                           size="sm"

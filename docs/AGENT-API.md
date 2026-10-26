@@ -91,6 +91,8 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
 ## 5. Keamanan
 - Wajib HTTPS publik (`GARAGE_PUBLIC_BASE_URL` di server). Jangan kirim key lewat chat.
 - Pakai key terpisah per agent; pilih masa berlaku; cabut yang tidak dipakai.
+- Setiap `tools/call` di `/api/mcp` dicatat per tool di Audit (`Agent MCP tool <nama>`: risiko, key,
+  argumen ringkas) **sebelum** dijalankan; bila audit gagal tercatat, tool tidak dijalankan.
 - `garage_api` memanggil server sendiri lewat `GARAGE_INTERNAL_BASE_URL`
   (default `http://127.0.0.1:$PORT`).
 

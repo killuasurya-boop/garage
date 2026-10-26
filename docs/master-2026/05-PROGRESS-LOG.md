@@ -179,3 +179,19 @@ Format wajib per batch (instruksi Owner):
 - **Berikutnya:**
   - M3b: POS void/refund lewat approval, harga & status menu, peran staf. Aksi POS hanya membungkus service yang sudah ada; tidak mengubah alur B3.
   - Lalu F-06 (migration 0165).
+
+## 2026-10-26 — M3b
+
+- **M3b** → PR #91 (draft, base #89, commit b92fa38).
+  - Tool:
+    - riwayat_order (R0), ubah_info_order (R1);
+    - batalkan_order / refund_order (R2, lewat APP-VOID/APP-RFD; dari Owner langsung disetujui);
+    - koreksi_metode_bayar (R2);
+    - daftar_staf (R0), ubah_status_peran_staf (R3, hanya sesi Owner, bukan API key).
+  - Hasil uji: 184 file / 1196 tes lulus, build lulus.
+- **Ubah harga menu ditunda ke M3c.** `updateMenuProduct` mengganti semua varian (delete + insert), jadi perlu service khusus untuk harga satu varian.
+- **Berikutnya:**
+  - M3c: harga varian, status menu, kategori produk.
+  - M3d: gudang (minta bahan, waste, PO), member/CRM, meja/QR, event.
+  - Lalu pensiunkan `garage_api` dari jalur agent key bila Owner setuju.
+  - Setelah itu F-06 (migration 0165).

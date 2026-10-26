@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isDatabaseConfigured } from "@/db";
+import { AgentProtectedSettingError, assertAgentMayWriteSettings } from "@/lib/agent-protected-settings";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { GarageOsThemeSaveError } from "@/lib/garage-theme";
 import {
@@ -72,6 +73,9 @@ export async function POST(request: Request) {
     if (error instanceof GarageOsThemeSaveError) {
       return fail(400, "INVALID_THEME_PRESET", error.message);
     }
+    if (error instanceof AgentProtectedSettingError) {
+      return fail(403, error.code, error.message);
+    }
     throw error;
   }
 }
@@ -88,6 +92,12 @@ export async function DELETE(request: Request) {
   const parsed = await readJson(request, deleteSchema);
   if (parsed.error) return parsed.error;
 
+  try {
+    assertAgentMayWriteSettings(session.data, parsed.data.keys);
+  } catch (error) {
+    if (error instanceof AgentProtectedSettingError) return fail(403, error.code, error.message);
+    throw error;
+  }
   const result = await deleteOutletOverrides(parsed.data.keys, parsed.data.outletId);
   return ok(result);
 }

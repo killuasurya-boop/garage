@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isThemePresetId, isSavableGarageOsThemePreset, GarageOsThemeSaveError } from "@/lib/garage-theme";
+import { AgentProtectedSettingError } from "@/lib/agent-protected-settings";
 import { fail, ok, readJson } from "@/lib/api-response";
 import {
   getAppSettings,
@@ -151,6 +152,9 @@ export async function PATCH(request: Request) {
   } catch (error) {
     if (error instanceof GarageOsThemeSaveError) {
       return fail(400, "INVALID_THEME_PRESET", error.message);
+    }
+    if (error instanceof AgentProtectedSettingError) {
+      return fail(403, error.code, error.message);
     }
     throw error;
   }

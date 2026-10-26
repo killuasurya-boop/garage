@@ -71,8 +71,35 @@ export function isAgentForbiddenPath(path: string) {
     path.startsWith("/api/ai/jobs") ||
     path.startsWith("/api/ai/providers") ||
     path.startsWith("/api/admin/purge") ||
-    path.startsWith("/api/account")
+    path.startsWith("/api/account") ||
+    // Identitas & akses (user, role, PIN, reset password, sesi, force-logout):
+    // aksi R3 (PRD V4.0 §07.2) butuh MFA — key statis tidak punya.
+    path.startsWith("/api/admin/users") ||
+    path.startsWith("/api/admin/security")
   );
+}
+
+/**
+ * GET yang tetap diaudit (data keuangan, laporan, payroll, kontrol Owner).
+ * Request yang mengubah data selalu diaudit.
+ */
+const AUDITED_READ_PREFIXES = [
+  "/api/finance",
+  "/api/reports",
+  "/api/control",
+  "/api/payroll",
+  "/api/wallet-gaji",
+  "/api/wallet-fee",
+  "/api/earnings",
+  "/api/owner",
+  "/api/hr",
+  "/api/approvals",
+  "/api/audit",
+];
+
+export function agentRequestNeedsAudit(method: string, path: string) {
+  if (method !== "GET" && method !== "HEAD") return true;
+  return AUDITED_READ_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 // ─── Rate limit per key (in-memory, per proses) ─────────────────────────────
@@ -160,10 +187,11 @@ export async function resolveAgentSession(rawKey: string, headers: Headers, allo
     .set({ lastUsedAt: now, lastUsedIp: ip, useCount: row.key.useCount + 1 })
     .where(eq(agentApiKeys.id, row.key.id))
     .catch(() => undefined);
-  if (method !== "GET" && method !== "HEAD") {
-    void db
-      .insert(auditLogs)
-      .values({
+  // Audit SINKRON sebelum request diproses: bila jejak gagal dicatat, request
+  // ditolak (dulu fire-and-forget — bisa hilang diam-diam; audit F-05).
+  if (agentRequestNeedsAudit(method, path)) {
+    try {
+      await db.insert(auditLogs).values({
         time: new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(now),
         actor: agentName,
         action: `Agent API ${method} ${path}`,
@@ -171,8 +199,10 @@ export async function resolveAgentSession(rawKey: string, headers: Headers, allo
         device: `agent:${row.key.label}`,
         status: "recorded",
         metadata: { agentKeyId: row.key.id, scope, method, path, ip },
-      })
-      .catch(() => undefined);
+      });
+    } catch {
+      return deny(503, "AGENT_AUDIT_FAILED", "Jejak audit gagal dicatat; permintaan agent dibatalkan. Coba lagi.");
+    }
   }
 
   const session = {

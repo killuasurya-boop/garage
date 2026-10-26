@@ -159,3 +159,81 @@ describe("API key agent", () => {
     expect(method.error.code).toBe(-32601);
   });
 });
+
+describe("S1 — pengerasan API key agent", () => {
+  async function auditCount(path: string) {
+    const { like } = await import("drizzle-orm");
+    const rows = await t.getDb().select().from(t.schema.auditLogs).where(like(t.schema.auditLogs.action, `%${path}`));
+    return rows.length;
+  }
+
+  it("identitas & akses (user, role, force-logout) tertutup untuk key statis, scope apa pun", async () => {
+    const { key } = await keys.createAgentKey({ label: "Owner Bot", scope: "owner", expiresInDays: 30 }, ownerSession());
+    for (const [method, path] of [
+      ["POST", "/api/admin/users"],
+      ["PATCH", "/api/admin/users/abc"],
+      ["POST", "/api/admin/users/abc/reset-password"],
+      ["POST", "/api/admin/security/force-logout-all"],
+      ["GET", "/api/admin/security/overview"],
+    ]) {
+      const res = await keys.resolveAgentSession(key, req(key, method, path));
+      expect(res.response?.status, `${method} ${path}`).toBe(403);
+      expect(await res.response!.json()).toMatchObject({ error: { code: "AGENT_FORBIDDEN_PATH" } });
+    }
+    // garage_api memakai daftar yang sama.
+    const session = (await keys.resolveAgentSession(key, req(key, "POST", "/api/mcp"))).data!;
+    await expect(tools.runAgentTool(session, "garage_api", { method: "POST", path: "/api/admin/users" }, ctx)).rejects.toMatchObject({
+      code: "AGENT_FORBIDDEN_PATH",
+    });
+  });
+
+  it("audit sinkron: tulis & baca data keuangan tercatat sebelum diproses; GET biasa tidak", async () => {
+    const { key } = await keys.createAgentKey({ label: "Audit Bot", scope: "owner", expiresInDays: 30 }, ownerSession());
+    const before = await auditCount("/api/finance/overview");
+    expect((await keys.resolveAgentSession(key, req(key, "GET", "/api/finance/overview"))).response).toBeNull();
+    expect(await auditCount("/api/finance/overview")).toBe(before + 1);
+
+    const ordersBefore = await auditCount("GET /api/orders");
+    await keys.resolveAgentSession(key, req(key, "GET", "/api/orders"));
+    expect(await auditCount("GET /api/orders")).toBe(ordersBefore);
+
+    // Tanpa menunggu: baris audit sudah ada begitu sesi terbentuk (tidak fire-and-forget).
+    expect((await keys.resolveAgentSession(key, req(key, "POST", "/api/expenses"))).response).toBeNull();
+    expect(await auditCount("POST /api/expenses")).toBeGreaterThanOrEqual(1);
+
+    expect(keys.agentRequestNeedsAudit("GET", "/api/finance")).toBe(true);
+    expect(keys.agentRequestNeedsAudit("GET", "/api/financex")).toBe(false);
+    expect(keys.agentRequestNeedsAudit("DELETE", "/api/menu/1")).toBe(true);
+  });
+
+  it("audit gagal dicatat → permintaan agent ditolak 503", async () => {
+    const { key } = await keys.createAgentKey({ label: "Audit Gagal", scope: "owner", expiresInDays: 30 }, ownerSession());
+    const { sql } = await import("drizzle-orm");
+    await t.getDb().execute(sql.raw(`ALTER TABLE "audit_logs" RENAME TO "audit_logs_off"`));
+    try {
+      const res = await keys.resolveAgentSession(key, req(key, "POST", "/api/expenses"));
+      expect(res.response?.status).toBe(503);
+      expect(await res.response!.json()).toMatchObject({ error: { code: "AGENT_AUDIT_FAILED" } });
+    } finally {
+      await t.getDb().execute(sql.raw(`ALTER TABLE "audit_logs_off" RENAME TO "audit_logs"`));
+    }
+  });
+
+  it("pengaturan keamanan & kill switch tidak bisa diubah lewat key; pengaturan lain & Owner langsung tetap bisa", async () => {
+    const { key } = await keys.createAgentKey({ label: "Setting Bot", scope: "owner", expiresInDays: 30 }, ownerSession());
+    const agent = (await keys.resolveAgentSession(key, req(key, "POST", "/api/admin/settings"))).data!;
+    const svc = await import("@/lib/garage-service");
+    const { AgentProtectedSettingError } = await import("@/lib/agent-protected-settings");
+    await expect(svc.updateAppSettings(null, { securityRequire2faForOwner: false } as any, agent)).rejects.toBeInstanceOf(AgentProtectedSettingError);
+    await expect(svc.updateAppSettings(null, { mcpChatgptPaused: false } as any, agent)).rejects.toBeInstanceOf(AgentProtectedSettingError);
+
+    const settings = await import("@/lib/garage-settings-service");
+    await expect(settings.saveSettings({ securityLockoutDurationMinutes: 99 }, agent, null)).rejects.toBeInstanceOf(AgentProtectedSettingError);
+
+    // Pengaturan non-keamanan tetap boleh lewat agent; Owner login langsung boleh semuanya.
+    await expect(svc.updateAppSettings(null, { autoSoldOutFromStock: true } as any, agent)).resolves.toBeTruthy();
+    await expect(svc.updateAppSettings(null, { securityRequire2faForOwner: true } as any, ownerSession())).resolves.toMatchObject({
+      securityRequire2faForOwner: true,
+    });
+  });
+});

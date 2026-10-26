@@ -256,3 +256,14 @@ Format wajib per batch (instruksi Owner):
 - **Berikutnya:**
   - F-06 rate limit persisten (migration 0165).
   - Lalu M3f: Bahan & Resep (approve resep draft).
+
+## 2026-10-26 — F-06 (PR #101)
+
+- **F-06** → PR #101 (draft, base main, commit 873d06b).
+  - Tabel `rate_limit_counters` (migration **0165**, additive) dengan increment atomik.
+  - API key agent: 120/menit per key, kini di DB (tahan restart, lintas proses).
+  - `/api/mcp/chatgpt`: 60/menit per akun Owner → 429 `RATE_LIMITED`.
+  - Rate limit publik per-IP tetap in-memory.
+  - Hasil uji: 5 tes baru (restart, 25 permintaan bersamaan, 429 key & ChatGPT). Suite 183 file / 1188 tes lulus, build lulus.
+  - Konflik ringan dengan #84 (S1) di `agent-api-key.ts`; selesaikan saat merge kedua.
+- **Berikutnya:** M3f Bahan & Resep (approve resep draft via MCP), lalu audit per-tool `/api/mcp` lama.

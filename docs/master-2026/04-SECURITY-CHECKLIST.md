@@ -21,7 +21,7 @@ Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-A
 - [x] Key statis (scope apa pun) tidak bisa: pengaturan keamanan/kill switch, user/role/PIN/reset/sesi, force-logout — PR #84 (belum merge). Sertifikasi saldo sudah `requireGarageSession(["Owner"])` → key `manajer` ditolak
 - [~] Kill-switch MCP berfungsi (`mcpChatgptPaused`, PR #83); revoke token per-klien via UI belum ada (AC-M07)
 - [x] Audit agent sinkron, gagal audit = request gagal; GET data finansial diaudit (F-05) — PR #84 (belum merge)
-- [ ] Rate limit agent persisten lintas restart (F-06)
+- [x] Rate limit agent persisten lintas restart (F-06) — PR #101 (draft), migration 0165
 - [ ] Prompt-injection: output tool tidak dieksekusi sebagai instruksi; deskripsi tool tanpa data user
 - [ ] Test: tiap route Owner-only menolak key non-Owner (403) dan menerima Owner via OAuth MCP
 

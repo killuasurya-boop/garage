@@ -94,6 +94,9 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
 | `batalkan_order` / `refund_order` | POS | R2 | Batal/refund lewat pengajuan APP-VOID / APP-RFD (Owner/Manajer = langsung disetujui) |
 | `koreksi_metode_bayar` | POS | R2 | Ganti metode bayar salah input; total tetap, laci lewat buku kas |
 | `daftar_staf` / `ubah_status_peran_staf` | Karyawan | R0 / R3 | Daftar staf; ubah peran / suspend (hanya ChatGPT login Owner, bukan API key; password & PIN tidak lewat chat) |
+| `daftar_kategori_produk` | Produk & Harga | R0 | Kategori dinamis (id, stasiun, grup POS, jumlah produk) |
+| `ubah_harga_varian` | Produk & Harga | R2 | Harga jual satu varian; wajib `hargaLama` (proteksi harga basi), alasan wajib; resep/HPP/SKU tetap |
+| `aksi_produk` | Produk & Harga | R2 | Aktif/arsip, status stok, menu digital, pindah kategori, tipe produk (1–100 produk, audit per produk) |
 | `buat_laporan` | Dokumen | R0 | File PDF/XLSX/CSV (base64) — Penjualan, Pembelian Bar/Kitchen, Stok, Produksi, Keuangan |
 | `kemampuan_sistem` | Sistem | R0 | Peta 16 domain: tool & risiko per domain, domain yang belum punya tool, hal yang selalu ditolak (R4) |
 | `garage_api` | Sistem | R3 | Akses penuh: panggil endpoint `/api` mana pun (method, path, query, body). Tidak tersedia di MCP ChatGPT |

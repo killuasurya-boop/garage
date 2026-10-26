@@ -739,6 +739,49 @@ export async function bulkProductAction(
   });
 }
 
+/**
+ * Ubah harga jual SATU varian (M3c, MCP Owner). Hanya kolom `price` — varian,
+ * SKU, resep & HPP tidak disentuh (beda dengan updateMenuProduct yang menulis
+ * ulang semua varian). `expectedPrice` = harga yang dilihat saat preview; bila
+ * sudah berubah → STALE_PRICE. Order lama memakai snapshot harga di order_items.
+ */
+export async function updateVariantPrice(
+  input: { itemId: string; variantId: string; price: number; expectedPrice?: number; reason: string },
+  garage: GarageSession,
+) {
+  if (garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") {
+    throw new ProductManagementError("FORBIDDEN", "Hanya Owner atau Manajer yang boleh mengubah harga.", 403);
+  }
+  if (!Number.isInteger(input.price) || input.price < 0 || input.price > 100_000_000) {
+    throw new ProductManagementError("VALIDATION_ERROR", "Harga harus bilangan bulat Rupiah 0–100.000.000.");
+  }
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new ProductManagementError("REASON_REQUIRED", "Tulis alasan perubahan harga (min. 3 huruf).");
+
+  return getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .select({ id: menuVariants.id, price: menuVariants.price, label: menuVariants.label, itemName: menuItems.name })
+      .from(menuVariants)
+      .innerJoin(menuItems, eq(menuItems.id, menuVariants.itemId))
+      .where(and(eq(menuVariants.itemId, input.itemId), eq(menuVariants.variantId, input.variantId)))
+      .for("update")
+      .limit(1);
+    if (!row) throw new ProductManagementError("NOT_FOUND", "Varian produk tidak ditemukan.", 404);
+    if (input.expectedPrice !== undefined && row.price !== input.expectedPrice) {
+      throw new ProductManagementError("STALE_PRICE", `Harga sudah berubah menjadi ${row.price} sejak dilihat. Cek ulang sebelum mengubah.`, 409);
+    }
+    if (row.price === input.price) return { itemId: input.itemId, variantId: input.variantId, price: row.price, changed: false };
+    await tx.update(menuVariants).set({ price: input.price, updatedAt: new Date() }).where(eq(menuVariants.id, row.id));
+    await audit(tx, garage, {
+      action: "Menu variant price updated",
+      object: `${row.itemName} (${row.label})`,
+      status: String(input.price),
+      metadata: { productId: input.itemId, variantId: input.variantId, before: { price: row.price }, after: { price: input.price }, reason },
+    });
+    return { itemId: input.itemId, variantId: input.variantId, price: input.price, previousPrice: row.price, changed: true };
+  });
+}
+
 /** Catat ekspor laporan produk ke audit trail. */
 export async function auditProductExport(garage: GarageSession, meta: { type: string; format: string; rows: number; filters: string[] }) {
   await audit(getDb(), garage, {

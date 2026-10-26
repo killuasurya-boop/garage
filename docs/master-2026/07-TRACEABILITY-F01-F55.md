@@ -60,7 +60,7 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F45 | Owner Access Approval Center + MFA | ❌ | | I3 | |
 | F46 | Safe account linking & migrasi member lama | ❌ | | I1 | |
 | F47 | Re-verifikasi ganti kontak | ❌ | | I2 | |
-| F48 | Module Registry | 🟡 | `ai_action_registry` (AI internal) | M1 | |
+| F48 | Module Registry | 🟡 | **PR #85**: `mcp-tool-registry.ts` (16 domain, R0–R4, peta kemampuan + domain belum ada tool), tool `kemampuan_sistem`. Belum: UI Module Registry di Owner Control Center | M1 | `mcp-tool-registry.test.ts` |
 | F49 | Lifecycle perintah + operation receipt | 🟡 | AI action drafts approve/reject; receipt ❌ | M2 | |
 | F50 | MCP OAuth gateway | 🟡 | **PR #83**: OAuth 2.1 `/api/mcp/chatgpt` (mati default). Belum: uji akun ChatGPT nyata, CIMD | M0 | `mcp-chatgpt-oauth.integration.test.ts`, `mcp-chatgpt-config.test.ts` |
 | F51 | MCP write (preview/konfirmasi/commit) | 🟡 | `garage_api` write langsung tanpa preview; **D-01: full access Owner** | M2, M3 | |

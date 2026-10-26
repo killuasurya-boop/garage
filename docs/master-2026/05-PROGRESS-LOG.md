@@ -109,3 +109,16 @@ Format wajib per batch (instruksi Owner):
   audit per-tool di `/api/mcp` lama (pakai `beforeToolCall` dari #83).
 - Langkah berikutnya: **M1** (registry tool + risk tier R0–R4) → **M2** (preview → konfirmasi → receipt). Keduanya
   dibangun di atas #83; sebaiknya #82/#83 di-merge dulu agar tidak menumpuk PR berantai.
+
+## 2026-10-26 — Batch M1 Registry kemampuan AI
+
+- Fitur/modul: `src/lib/mcp-tool-registry.ts` (16 domain PRD §04, risiko R0–R3 §07.2, daftar R4, `buildCapabilities`);
+  setiap tool di `agent-tools.ts` wajib `domain` + `risk` (tes: `write === risk !== "R0"`); tool baru `kemampuan_sistem`;
+  `tools/list` MCP berlabel risiko (`description`, `annotations.destructiveHint`, `_meta garage/risk|domain`);
+  instruksi `initialize` mengikuti tool yang tersedia.
+- Hasil pengujian: tsc · eslint · vitest 181 file / 1.175 tes · build — semua lulus. Tanpa migration.
+- Branch / PR: `claude/m1-mcp-tool-registry` · `319a10d` · draft PR killuasurya-boop/garage#85 (base #83; urutan merge #82 → #83 → #85).
+- Risiko DB/VPS: rendah (metadata + 1 tool baca).
+- Langkah berikutnya: **M2** — preview → konfirmasi Owner di chat → commit → receipt untuk tool R2/R3
+  (`riskNeedsConfirmation`). Rencana: token konfirmasi HMAC terikat digest(tool+args)+user+expiry (tanpa tabel baru),
+  readback & operation receipt (PRD §07.4–07.5).

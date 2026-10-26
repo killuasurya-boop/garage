@@ -267,3 +267,16 @@ Format wajib per batch (instruksi Owner):
   - Hasil uji: 5 tes baru (restart, 25 permintaan bersamaan, 429 key & ChatGPT). Suite 183 file / 1188 tes lulus, build lulus.
   - Konflik ringan dengan #84 (S1) di `agent-api-key.ts`; selesaikan saat merge kedua.
 - **Berikutnya:** M3f Bahan & Resep (approve resep draft via MCP), lalu audit per-tool `/api/mcp` lama.
+
+## 2026-10-26 — Deploy manual + CI hemat (permintaan Owner)
+
+- **PR** (draft, base main, branch `claude/deploy-manual-ci-hemat`):
+  - `scripts/deploy-manual.sh` + `docs/DEPLOY_MANUAL.md`: deploy dari laptop Owner dengan langkah = `deploy.yml` (backup → migrate → app → cek sehat → rollback). Pengaman:
+    - hanya commit = origin/main;
+    - wajib ketik DEPLOY;
+    - kunci di VPS;
+    - `--dry-run`.
+  - `ci.yml`: PR draft tidak dites; tes jalan saat ready_for_review atau workflow_dispatch.
+  - Diverifikasi dengan simulasi stub (sukses, dry-run, health gagal → rollback, kunci sibuk, batal).
+  - Belum diuji ke VPS sungguhan; Owner yang menjalankannya.
+- **Untuk agent lain:** setelah PR ini merge, PR draft tidak lagi memakai menit Actions. Tandai "Ready for review" bila butuh CI.

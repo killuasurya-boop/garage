@@ -152,3 +152,13 @@ Format wajib per batch (instruksi Owner):
 - Temuan: `finance-control.wibDay` (SQL) & `garage-owner-report.rangeFor` punya hitungan hari sendiri; pengeluaran bertanggal
   pilihan tersimpan 07:00 WIB (aman terhadap cut-off). Payment state via provider tetap BLOCKED (QRIS statis).
 - Langkah berikutnya: **B1b** (laba-rugi, closing + kunci hari, laporan Owner, dashboard, preset klien, tampilkan setting).
+
+## 2026-10-26 — Merge MCP ChatGPT + B1b
+
+- **Merge disetujui Owner** ("M0+M1+M2 sekarang"): #86 dipindah base ke `main` lalu di-merge (`dc57846`). Isinya #82, #83, #85 dan #86, sehingga cukup satu push ke main.
+- **Deploy VPS run 40281089022 GAGAL sebelum mulai** (2 kali). Job selesai dalam 3–4 detik tanpa runner (runner_id 0) dan log 404. CI di main juga sama.
+  - Tidak ada langkah yang jalan: server produksi tidak berubah dan migration 0163/0164 belum jalan.
+  - Dugaan: kuota menit/billing GitHub Actions. Owner perlu cek Settings → Billing → Actions, lalu re-run run 40281089022.
+- Setelah deploy berhasil, fitur tetap MATI sampai Owner mengisi env VPS `GARAGE_MCP_CHATGPT_ENABLED=true` (URL publik HTTPS) dan restart. Owner wajib 2FA. Langkahnya ada di AGENT-API.md §6.
+- **B1b** → PR #88 (draft, base #87, commit 5cc5d0a): tanggal operasional di laba-rugi, closing, laporan Owner, dashboard, preset layar, dan field pengaturan + validasi. 180 file / 1173 tes lulus, build lulus.
+- Berikutnya: M3 (tool per domain, pensiunkan garage_api), F-06 rate limit persisten, audit per-tool /api/mcp lama.

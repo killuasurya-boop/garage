@@ -1,6 +1,11 @@
 // Inti server MCP (JSON-RPC 2.0) — dipakai src/app/api/mcp/route.ts & tes.
 import { AgentToolError, listAgentTools, runAgentTool, type AgentToolContext } from "@/lib/agent-tools";
+import { GARAGE_DOMAINS, RISK_LABELS, riskNeedsConfirmation } from "@/lib/mcp-tool-registry";
 import type { GarageSession } from "@/lib/server-auth";
+
+function domainLabel(id: string) {
+  return GARAGE_DOMAINS.find((domain) => domain.id === id)?.label ?? id;
+}
 
 export const PROTOCOL_VERSION = "2025-06-18";
 const SUPPORTED_VERSIONS = new Set(["2024-11-05", "2025-03-26", "2025-06-18"]);
@@ -36,8 +41,15 @@ export async function handleMcpMessage(
         protocolVersion: SUPPORTED_VERSIONS.has(requested) ? requested : PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "garage-os", title: "Garage Coffee OS", version: "1.0.0" },
-        instructions:
-          "Kontrol operasional Garage Coffee. Jawab owner dalam Bahasa Indonesia. Mulai dengan ringkasan_hari_ini. Untuk hal yang tidak ada tool-nya pakai garage_api. Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
+        instructions: [
+          "Kontrol operasional Garage Coffee. Jawab owner dalam Bahasa Indonesia. Mulai dengan ringkasan_hari_ini.",
+          "Untuk mengetahui apa yang bisa dan belum bisa dilakukan, panggil kemampuan_sistem.",
+          "Setiap tool diberi label risiko [R0 Baca … R3 Kritis]; jelaskan dampak aksi R2/R3 kepada Owner sebelum menjalankannya.",
+          hidden.has("garage_api") ? "" : "Untuk hal yang tidak ada tool-nya pakai garage_api.",
+          "Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
+        ]
+          .filter(Boolean)
+          .join(" "),
       });
     }
     case "ping":
@@ -47,9 +59,11 @@ export async function handleMcpMessage(
         tools: listAgentTools(session).filter((tool) => !hidden.has(tool.name)).map((tool) => ({
           name: tool.name,
           title: tool.title,
-          description: tool.description,
+          // Risiko & domain di depan deskripsi supaya model memahami bobot aksi (PRD §07.2).
+          description: `[${tool.risk} ${RISK_LABELS[tool.risk]} · ${domainLabel(tool.domain)}] ${tool.description}`,
           inputSchema: tool.inputSchema,
-          annotations: { readOnlyHint: !tool.write, destructiveHint: tool.write },
+          annotations: { readOnlyHint: tool.risk === "R0", destructiveHint: riskNeedsConfirmation(tool.risk) },
+          _meta: { "garage/domain": tool.domain, "garage/risk": tool.risk },
         })),
       });
     case "tools/call": {
@@ -57,7 +71,7 @@ export async function handleMcpMessage(
       if (hidden.has(name)) return rpcError(id, -32602, `UNKNOWN_TOOL: Tool "${name}" tidak tersedia di koneksi ini.`);
       try {
         await options.beforeToolCall?.(name, message.params?.arguments ?? {});
-        const result = await runAgentTool(session, name, message.params?.arguments ?? {}, ctx);
+        const result = await runAgentTool(session, name, message.params?.arguments ?? {}, { ...ctx, hiddenTools: hidden });
         return rpcResult(id, { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: { result }, isError: false });
       } catch (error) {
         const text = error instanceof AgentToolError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : "Tool gagal.";

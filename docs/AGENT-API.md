@@ -68,19 +68,25 @@ curl -X POST -H "Authorization: Bearer gk_agent_XXXX" -H "Content-Type: applicat
 Respons: `{ "data": … }` atau `{ "error": { "code", "message" } }`.
 
 ## 4. Tool
-| Tool | Isi |
-|---|---|
-| `ringkasan_hari_ini` | Omzet, transaksi, terlaris, metode bayar, antrean, stok menipis, peringatan |
-| `status_operasional` | Antrean Bar/Dapur, siap antar, tepat waktu, peringatan |
-| `laporan_penjualan` | Rentang tanggal: omzet, bersih, diskon, void/refund, per produk/kasir/metode/jam |
-| `daftar_order` | Order terbaru per status |
-| `cek_stok_bahan` | Cari bahan gudang (stok, minimum, HPP), opsi hanya menipis |
-| `daftar_menu` / `ubah_status_menu` | Lihat menu; tandai habis / tersedia |
-| `daftar_approval` / `putuskan_approval` | Pengajuan & keputusannya (tolak wajib alasan) |
-| `catat_pengeluaran` | Catat pengeluaran kas |
-| `rekap_kas_harian` | Rekap shift kasir per tanggal |
-| `buat_laporan` | File PDF/XLSX/CSV (base64) — Penjualan, Pembelian Bar/Kitchen, Stok, Produksi, Keuangan |
-| `garage_api` | Akses penuh: panggil endpoint `/api` mana pun (method, path, query, body) |
+Setiap tool punya **domain** (16 domain PRD V4.0 §04) dan **risiko** (PRD §07.2): R0 baca · R1 ubah reversibel ·
+R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskripsi, di `annotations`
+(`readOnlyHint`, `destructiveHint` untuk R2/R3) dan `_meta` (`garage/risk`, `garage/domain`). Registry:
+`src/lib/mcp-tool-registry.ts`; tool baru wajib mengisi keduanya (dijaga tes).
+
+| Tool | Domain | Risiko | Isi |
+|---|---|---|---|
+| `ringkasan_hari_ini` | Dashboard | R0 | Omzet, transaksi, terlaris, metode bayar, antrean, stok menipis, peringatan |
+| `status_operasional` | Bar/Kitchen | R0 | Antrean Bar/Dapur, siap antar, tepat waktu, peringatan |
+| `laporan_penjualan` | Dashboard | R0 | Rentang tanggal: omzet, bersih, diskon, void/refund, per produk/kasir/metode/jam |
+| `daftar_order` | POS | R0 | Order terbaru per status |
+| `cek_stok_bahan` | Gudang | R0 | Cari bahan gudang (stok, minimum, HPP), opsi hanya menipis |
+| `daftar_menu` / `ubah_status_menu` | Produk | R0 / R1 | Lihat menu; tandai habis / tersedia |
+| `daftar_approval` / `putuskan_approval` | Keuangan | R0 / R2 | Pengajuan & keputusannya (tolak wajib alasan) |
+| `catat_pengeluaran` | Keuangan | R2 | Catat pengeluaran kas |
+| `rekap_kas_harian` | Shift & Cash | R0 | Rekap shift kasir per tanggal |
+| `buat_laporan` | Dokumen | R0 | File PDF/XLSX/CSV (base64) — Penjualan, Pembelian Bar/Kitchen, Stok, Produksi, Keuangan |
+| `kemampuan_sistem` | Sistem | R0 | Peta 16 domain: tool & risiko per domain, domain yang belum punya tool, hal yang selalu ditolak (R4) |
+| `garage_api` | Sistem | R3 | Akses penuh: panggil endpoint `/api` mana pun (method, path, query, body). Tidak tersedia di MCP ChatGPT |
 
 ## 5. Keamanan
 - Wajib HTTPS publik (`GARAGE_PUBLIC_BASE_URL` di server). Jangan kirim key lewat chat.

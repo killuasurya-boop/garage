@@ -214,6 +214,19 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
 
     const hidden = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "garage_api", arguments: {} } })).json()) as any;
     expect(hidden.error?.code).toBe(-32602);
+
+    // Registry (M1): label risiko di tools/list; peta kemampuan tidak menawarkan tool tersembunyi.
+    const catat = list.result.tools.find((tool: any) => tool.name === "catat_pengeluaran");
+    expect(catat._meta).toMatchObject({ "garage/risk": "R2", "garage/domain": "keuangan" });
+    expect(catat.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    expect(catat.description).toMatch(/^\[R2 /);
+    const caps = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 31, method: "tools/call", params: { name: "kemampuan_sistem", arguments: {} } })).json()) as any;
+    const capsJson = JSON.parse(caps.result.content[0].text);
+    const capTools = capsJson.domains.flatMap((domain: any) => domain.tools.map((tool: any) => tool.name));
+    expect(capTools).toContain("catat_pengeluaran");
+    expect(capTools).not.toContain("garage_api");
+    const init2 = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 32, method: "initialize", params: {} })).json()) as any;
+    expect(init2.result.instructions).not.toContain("garage_api");
   });
 
   it("setiap tools/call tercatat di Audit dengan source=chatgpt sebelum dijalankan", async () => {

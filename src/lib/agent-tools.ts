@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import { validateDateRange, todayWibKey } from "@/lib/date-range";
+import { buildCapabilities, type GarageDomainId, type ToolRisk } from "@/lib/mcp-tool-registry";
 import { canUseApiAs, type Permission } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -13,8 +14,12 @@ export type AgentTool = {
   name: string;
   title: string;
   description: string;
-  /** Tool mengubah data (ditolak untuk key baca-saja). */
+  /** Tool mengubah data (ditolak untuk key baca-saja). Harus = risk !== "R0". */
   write: boolean;
+  /** Domain PRD V4.0 §04 (registry kemampuan, mcp-tool-registry.ts). */
+  domain: GarageDomainId;
+  /** Risiko aksi PRD §07.2; R2/R3 wajib preview + konfirmasi (M2). */
+  risk: ToolRisk;
   permission: Permission;
   input: z.ZodObject<z.ZodRawShape>;
   run: (session: GarageSession, args: Record<string, unknown>, ctx: AgentToolContext) => Promise<unknown>;
@@ -25,6 +30,8 @@ export type AgentToolContext = {
   authorization: string;
   /** Origin internal untuk panggilan garage_api. */
   internalOrigin: string;
+  /** Tool yang tidak tersedia di pintu masuk ini (mis. garage_api di MCP ChatGPT). */
+  hiddenTools?: ReadonlySet<string>;
 };
 
 export class AgentToolError extends Error {
@@ -52,6 +59,8 @@ const tools: AgentTool[] = [
     title: "Ringkasan hari ini",
     description: "Omzet, transaksi, produk terlaris, metode bayar hari ini + status antrean produksi & stok menipis.",
     write: false,
+    domain: "dashboard",
+    risk: "R0",
     permission: "dashboard:read",
     input: z.object({}),
     async run(session) {
@@ -79,6 +88,8 @@ const tools: AgentTool[] = [
     title: "Status operasional",
     description: "Antrean Bar/Dapur, pesanan siap antar, ketepatan waktu, peringatan Control Center.",
     write: false,
+    domain: "dapur_bar",
+    risk: "R0",
     permission: "kitchen:read",
     input: z.object({}),
     async run(session) {
@@ -92,6 +103,8 @@ const tools: AgentTool[] = [
     title: "Laporan penjualan",
     description: "Laporan penjualan rentang tanggal (WIB): omzet, penjualan bersih, diskon, void/refund, per produk/kategori/kasir/metode bayar/jam.",
     write: false,
+    domain: "dashboard",
+    risk: "R0",
     permission: "finance:read",
     input: z.object({ from: dateKey.optional().describe("Tanggal mulai, default hari ini"), to: dateKey.optional().describe("Tanggal akhir, default = from") }),
     async run(session, args) {
@@ -107,6 +120,8 @@ const tools: AgentTool[] = [
     title: "Daftar order",
     description: "Daftar order terbaru (status: open, paid, voided, refunded, all).",
     write: false,
+    domain: "pos",
+    risk: "R0",
     permission: "orders:read",
     input: z.object({ status: z.string().optional(), limit: z.number().int().min(1).max(100).optional() }),
     async run(_session, args) {
@@ -120,6 +135,8 @@ const tools: AgentTool[] = [
     title: "Cek stok bahan baku",
     description: "Cari bahan baku gudang (nama/SKU) beserta stok total, minimum, HPP, status.",
     write: false,
+    domain: "gudang",
+    risk: "R0",
     permission: "inventory:read",
     input: z.object({ cari: z.string().optional().describe("Nama atau SKU bahan"), hanyaMenipis: z.boolean().optional() }),
     async run(_session, args) {
@@ -134,6 +151,8 @@ const tools: AgentTool[] = [
     title: "Daftar menu",
     description: "Cari menu POS: id, nama, kategori, status stok, varian & harga.",
     write: false,
+    domain: "produk_harga",
+    risk: "R0",
     permission: "dashboard:read",
     input: z.object({ cari: z.string().optional() }),
     async run(_session, args) {
@@ -147,6 +166,8 @@ const tools: AgentTool[] = [
     title: "Tandai menu habis/tersedia",
     description: "Ubah status stok menu POS & menu digital: ready (tersedia), limited (terbatas), sold_out (habis).",
     write: true,
+    domain: "produk_harga",
+    risk: "R1",
     permission: "inventory:write",
     input: z.object({ menuId: z.string().min(1), status: z.enum(["ready", "limited", "sold_out"]) }),
     async run(session, args) {
@@ -159,6 +180,8 @@ const tools: AgentTool[] = [
     title: "Daftar persetujuan",
     description: "Pengajuan yang menunggu keputusan (diskon, void, refund, pengeluaran, selisih kas, opname).",
     write: false,
+    domain: "keuangan",
+    risk: "R0",
     permission: "approvals:read",
     input: z.object({ status: z.enum(["pending", "approved", "rejected", "all"]).optional() }),
     async run(_session, args) {
@@ -172,6 +195,8 @@ const tools: AgentTool[] = [
     title: "Setujui / tolak pengajuan",
     description: "Putuskan pengajuan berdasarkan id. Tolak wajib dengan alasan.",
     write: true,
+    domain: "keuangan",
+    risk: "R2",
     permission: "approvals:decide",
     input: z.object({ id: z.string().min(1), keputusan: z.enum(["approved", "rejected"]), alasan: z.string().max(500).optional() }),
     async run(session, args) {
@@ -187,6 +212,8 @@ const tools: AgentTool[] = [
     title: "Catat pengeluaran",
     description: "Catat pengeluaran kas outlet (kategori, deskripsi, nominal Rupiah, metode bayar).",
     write: true,
+    domain: "keuangan",
+    risk: "R2",
     permission: "finance:write",
     input: z.object({
       kategori: z.string().min(2),
@@ -218,6 +245,8 @@ const tools: AgentTool[] = [
     title: "Rekap kas & shift harian",
     description: "Rekap shift kasir pada tanggal tertentu: modal, penjualan, tunai seharusnya, selisih, QRIS.",
     write: false,
+    domain: "shift_kas",
+    risk: "R0",
     permission: "finance:read",
     input: z.object({ tanggal: dateKey.optional() }),
     async run(session, args) {
@@ -231,6 +260,8 @@ const tools: AgentTool[] = [
     description:
       "Buat file laporan resmi (PDF/XLSX/CSV) untuk dikirim ke WhatsApp/Telegram. modul: penjualan (tipe day|week|month|year), pembelian (detail), stok (posisi), produksi (ringkasan), keuangan (pnl|daily|cashflow|expense|rekonsiliasi|pembayaran-supplier|payroll|hpp|product|bep|capital). divisi: semua|bar|kitchen.",
     write: false,
+    domain: "dokumen",
+    risk: "R0",
     permission: "finance:read",
     input: z.object({
       modul: z.enum(["penjualan", "pembelian", "stok", "produksi", "keuangan"]),
@@ -260,11 +291,27 @@ const tools: AgentTool[] = [
     },
   },
   {
+    name: "kemampuan_sistem",
+    title: "Peta kemampuan AI Garage OS",
+    description:
+      "Daftar 16 domain Garage OS, tool yang tersedia per domain beserta tingkat risiko (R0 baca … R3 kritis), domain yang belum punya tool, dan hal yang selalu ditolak. Panggil saat Owner bertanya 'bisa apa saja'.",
+    write: false,
+    domain: "sistem",
+    risk: "R0",
+    permission: "dashboard:read",
+    input: z.object({}),
+    async run(session, _args, ctx) {
+      return buildCapabilities(listAgentTools(session).filter((tool) => !ctx.hiddenTools?.has(tool.name)));
+    },
+  },
+  {
     name: "garage_api",
     title: "Panggil endpoint Garage OS",
     description:
       "Akses penuh: panggil endpoint /api Garage OS mana pun dengan hak key ini (mis. GET /api/orders, POST /api/orders/{id}/void, GET /api/finance/overview). Respons JSON apa adanya. Endpoint kelola key, auth, cron & webhook diblokir.",
     write: true,
+    domain: "sistem",
+    risk: "R3",
     permission: "dashboard:read",
     input: z.object({
       method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
@@ -309,6 +356,8 @@ export function listAgentTools(session?: GarageSession) {
       title: tool.title,
       description: tool.description,
       write: tool.write,
+      domain: tool.domain,
+      risk: tool.risk,
       inputSchema: z.toJSONSchema(tool.input),
     }));
 }

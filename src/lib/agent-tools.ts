@@ -10,6 +10,7 @@ import { kasTools } from "@/lib/agent-tools-kas";
 import { posStaffTools } from "@/lib/agent-tools-pos-staf";
 import { productTools } from "@/lib/agent-tools-produk";
 import { warehouseTools } from "@/lib/agent-tools-gudang";
+import { memberTableEventTools } from "@/lib/agent-tools-member-meja-event";
 import { todayWibKey } from "@/lib/date-range";
 import { buildCapabilities } from "@/lib/mcp-tool-registry";
 import { canUseApiAs } from "@/lib/role-access";
@@ -319,6 +320,8 @@ const tools: AgentTool[] = [
   ...productTools,
   // M3d: Gudang / WMS (Minta Bahan, waste, PO, saran belanja).
   ...warehouseTools,
+  // M3e: Member/CRM, Meja/QR, Event.
+  ...memberTableEventTools,
   {
     name: "garage_api",
     title: "Panggil endpoint Garage OS",

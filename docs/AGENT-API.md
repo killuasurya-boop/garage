@@ -102,6 +102,10 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
 | `saran_belanja` / `buat_po_dari_saran` | Gudang | R0 / R1 | Saran min–max; buat PO DRAFT per supplier |
 | `daftar_po` / `ubah_status_po` | Gudang | R0 / R2 | PO; tandai terkirim / batalkan |
 | `batch_hampir_kedaluwarsa` | Gudang | R0 | Batch kedaluwarsa dalam N hari |
+| `cari_member` / `detail_member` | Member & CRM | R0 | Cari & profil member (Owner/Manajer saja) |
+| `sesuaikan_poin_member` | Member & CRM | R2 | Tambah/kurangi poin dengan alasan (transaksi ADJUSTMENT, saldo ≥ 0) |
+| `status_meja` / `pindah_meja` | Meja & QR | R0 / R1 | Status meja live; pindah semua bill + tiket + panggilan ke meja lain |
+| `daftar_event` / `ringkasan_event` / `ubah_status_event` | Event | R0 / R1 | Event, tamu/RSVP, terbitkan/draft/arsip |
 | `buat_laporan` | Dokumen | R0 | File PDF/XLSX/CSV (base64) — Penjualan, Pembelian Bar/Kitchen, Stok, Produksi, Keuangan |
 | `kemampuan_sistem` | Sistem | R0 | Peta 16 domain: tool & risiko per domain, domain yang belum punya tool, hal yang selalu ditolak (R4) |
 | `garage_api` | Sistem | R3 | Akses penuh: panggil endpoint `/api` mana pun (method, path, query, body). Tidak tersedia di MCP ChatGPT |

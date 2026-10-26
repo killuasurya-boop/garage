@@ -801,7 +801,7 @@ export function CrmCustomSegments() {
               {/* Segment name */}
               <div className="grid gap-1.5">
                 <label className="text-xs font-semibold text-[#b8b8bf]">Nama Segment</label>
-                <input
+                <input aria-label="Nama Segment"
                   type="text"
                   value={segName}
                   onChange={(e) => setSegName(e.target.value)}

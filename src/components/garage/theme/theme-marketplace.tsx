@@ -383,7 +383,7 @@ export function ThemeMarketplace() {
                           key={field.key}
                           className="flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--popover)] p-2.5"
                         >
-                          <input
+                          <input aria-label={field.label}
                             type="color"
                             value={theme.colors[field.key]}
                             onChange={(event) => setColor(field.key, event.target.value)}
@@ -397,7 +397,7 @@ export function ThemeMarketplace() {
                               {field.hint}
                             </div>
                           </div>
-                          <Input
+                          <Input aria-label={`${field.label} (hex)`}
                             value={theme.colors[field.key]}
                             onChange={(event) => setColor(field.key, event.target.value)}
                             className="w-24 border-[var(--border)] bg-[var(--background)] text-xs font-mono"
@@ -425,7 +425,7 @@ export function ThemeMarketplace() {
                                 {field.unit}
                               </span>
                             </div>
-                            <input
+                            <input aria-label={field.label}
                               type="range"
                               min={field.min}
                               max={field.max}

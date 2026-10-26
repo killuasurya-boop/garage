@@ -196,7 +196,7 @@ export function TeamShiftHandover() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">Shift Saat Ini</label>
-                  <select
+                  <select aria-label="Shift Saat Ini"
                     value={fromShift}
                     onChange={(e) => setFromShift(e.target.value as Shift)}
                     className="w-full px-3 py-2 bg-background border rounded-md text-sm capitalize"
@@ -210,7 +210,7 @@ export function TeamShiftHandover() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">Diserahkan ke Shift</label>
-                  <select
+                  <select aria-label="Diserahkan ke Shift"
                     value={toShift}
                     onChange={(e) => setToShift(e.target.value as Shift)}
                     className="w-full px-3 py-2 bg-background border rounded-md text-sm capitalize"
@@ -226,7 +226,7 @@ export function TeamShiftHandover() {
                   <label className="text-sm font-semibold text-foreground">
                     Sisa Uang Laci (Rupiah)
                   </label>
-                  <input
+                  <input aria-label="Sisa Uang Laci (Rupiah)"
                     type="number"
                     required
                     min={0}
@@ -238,7 +238,7 @@ export function TeamShiftHandover() {
                 </div>
                 <div className="space-y-2 md:row-span-1">
                   <label className="text-sm font-semibold text-foreground">Catatan (Opsional)</label>
-                  <textarea
+                  <textarea aria-label="Catatan (Opsional)"
                     rows={2}
                     value={notesInput}
                     onChange={(e) => setNotesInput(e.target.value)}

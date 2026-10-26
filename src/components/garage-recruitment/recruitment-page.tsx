@@ -717,7 +717,7 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                           <div className="grid gap-5 md:grid-cols-2">
                             <div className="md:col-span-2">
                               <label className={labelClass}>Posisi dilamar *</label>
-                              <select className={inputClass} value={form.appliedPosition} onChange={(event) => set("appliedPosition", event.target.value)}>
+                              <select aria-label="Posisi dilamar" className={inputClass} value={form.appliedPosition} onChange={(event) => set("appliedPosition", event.target.value)}>
                                 <option value="">Pilih posisi</option>
                                 {positions.map((position) => (
                                   <option key={position.slug} value={position.title}>{position.title}</option>
@@ -727,21 +727,21 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                             </div>
                             <div>
                               <label className={labelClass}>Lokasi kerja *</label>
-                              <input className={inputClass} value={form.preferredLocation} onChange={(event) => set("preferredLocation", event.target.value)} placeholder="Tebing Tinggi / Hybrid" />
+                              <input aria-label="Lokasi kerja" className={inputClass} value={form.preferredLocation} onChange={(event) => set("preferredLocation", event.target.value)} placeholder="Tebing Tinggi / Hybrid" />
                             </div>
                             <div>
                               <label className={labelClass}>Tipe kerja *</label>
-                              <select className={inputClass} value={form.workType} onChange={(event) => set("workType", event.target.value)}>
+                              <select aria-label="Tipe kerja" className={inputClass} value={form.workType} onChange={(event) => set("workType", event.target.value)}>
                                 {WORK_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                               </select>
                             </div>
                             <div>
                               <label className={labelClass}>Ketersediaan mulai kerja *</label>
-                              <input className={inputClass} type="date" value={form.availableStartDate} onChange={(event) => set("availableStartDate", event.target.value)} />
+                              <input aria-label="Ketersediaan mulai kerja" className={inputClass} type="date" value={form.availableStartDate} onChange={(event) => set("availableStartDate", event.target.value)} />
                             </div>
                             <div className="md:col-span-2">
                               <label className={labelClass}>Dari mana kamu tahu lowongan ini?</label>
-                              <select className={inputClass} value={form.referralSource} onChange={(event) => set("referralSource", event.target.value)}>
+                              <select aria-label="Dari mana kamu tahu lowongan ini?" className={inputClass} value={form.referralSource} onChange={(event) => set("referralSource", event.target.value)}>
                                 <option value="">Pilih sumber info (opsional)</option>
                                 {REFERRAL_SOURCES.map((src) => <option key={src} value={src}>{src}</option>)}
                               </select>
@@ -753,27 +753,27 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                           <div className="grid gap-5 md:grid-cols-2">
                             <div>
                               <label className={labelClass}>Nama lengkap *</label>
-                              <input className={inputClass} value={form.fullName} onChange={(event) => set("fullName", event.target.value)} />
+                              <input aria-label="Nama lengkap" className={inputClass} value={form.fullName} onChange={(event) => set("fullName", event.target.value)} />
                             </div>
                             <div>
                               <label className={labelClass}>WhatsApp aktif *</label>
-                              <input className={inputClass} type="tel" value={form.whatsapp} onChange={(event) => set("whatsapp", event.target.value)} placeholder="08..." />
+                              <input aria-label="WhatsApp aktif" className={inputClass} type="tel" value={form.whatsapp} onChange={(event) => set("whatsapp", event.target.value)} placeholder="08..." />
                             </div>
                             <div>
                               <label className={labelClass}>Email *</label>
-                              <input className={inputClass} type="email" value={form.email} onChange={(event) => set("email", event.target.value)} />
+                              <input aria-label="Email" className={inputClass} type="email" value={form.email} onChange={(event) => set("email", event.target.value)} />
                             </div>
                             <div>
                               <label className={labelClass}>Domisili *</label>
-                              <input className={inputClass} value={form.domicile} onChange={(event) => set("domicile", event.target.value)} />
+                              <input aria-label="Domisili" className={inputClass} value={form.domicile} onChange={(event) => set("domicile", event.target.value)} />
                             </div>
                             <div>
                               <label className={labelClass}>Tanggal lahir</label>
-                              <input className={inputClass} type="date" value={form.birthDate} onChange={(event) => set("birthDate", event.target.value)} />
+                              <input aria-label="Tanggal lahir" className={inputClass} type="date" value={form.birthDate} onChange={(event) => set("birthDate", event.target.value)} />
                             </div>
                             <div>
                               <label className={labelClass}>Pendidikan terakhir *</label>
-                              <input className={inputClass} value={form.education} onChange={(event) => set("education", event.target.value)} placeholder="SMA / SMK / S1" />
+                              <input aria-label="Pendidikan terakhir" className={inputClass} value={form.education} onChange={(event) => set("education", event.target.value)} placeholder="SMA / SMK / S1" />
                             </div>
                           </div>
                         ) : null}
@@ -782,25 +782,25 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                           <div className="grid gap-5 md:grid-cols-2">
                             <div>
                               <label className={labelClass}>Skill utama *</label>
-                              <select className={inputClass} value={form.mainSkill} onChange={(event) => set("mainSkill", event.target.value)}>
+                              <select aria-label="Skill utama" className={inputClass} value={form.mainSkill} onChange={(event) => set("mainSkill", event.target.value)}>
                                 <option value="">Pilih skill</option>
                                 {SKILL_OPTIONS.map((skill) => <option key={skill} value={skill}>{skill}</option>)}
                               </select>
                             </div>
                             <div>
                               <label className={labelClass}>Level skill *</label>
-                              <select className={inputClass} value={form.skillLevel} onChange={(event) => set("skillLevel", event.target.value)}>
+                              <select aria-label="Level skill" className={inputClass} value={form.skillLevel} onChange={(event) => set("skillLevel", event.target.value)}>
                                 <option value="">Pilih level</option>
                                 {SKILL_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
                               </select>
                             </div>
                             <div className="md:col-span-2">
                               <label className={labelClass}>Pengalaman kerja *</label>
-                              <textarea className={textAreaClass} value={form.lastExperience} onChange={(event) => set("lastExperience", event.target.value)} placeholder="Ceritakan pengalaman kerja atau pengalaman organisasi yang relevan." />
+                              <textarea aria-label="Pengalaman kerja" className={textAreaClass} value={form.lastExperience} onChange={(event) => set("lastExperience", event.target.value)} placeholder="Ceritakan pengalaman kerja atau pengalaman organisasi yang relevan." />
                             </div>
                             <div className="md:col-span-2">
                               <label className={labelClass}>Alasan ingin bergabung *</label>
-                              <textarea className={textAreaClass} value={form.motivation} onChange={(event) => set("motivation", event.target.value)} placeholder="Kenapa kamu ingin bergabung dengan Garage?" />
+                              <textarea aria-label="Alasan ingin bergabung" className={textAreaClass} value={form.motivation} onChange={(event) => set("motivation", event.target.value)} placeholder="Kenapa kamu ingin bergabung dengan Garage?" />
                             </div>
                           </div>
                         ) : null}
@@ -809,19 +809,19 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                           <div className="grid gap-5 md:grid-cols-2">
                             <div>
                               <label className={labelClass}>Instagram</label>
-                              <input className={inputClass} value={form.instagramUrl} onChange={(event) => set("instagramUrl", event.target.value)} placeholder="https://instagram.com/..." />
+                              <input aria-label="Instagram" className={inputClass} value={form.instagramUrl} onChange={(event) => set("instagramUrl", event.target.value)} placeholder="https://instagram.com/..." />
                             </div>
                             <div>
                               <label className={labelClass}>TikTok</label>
-                              <input className={inputClass} value={form.tiktokUrl} onChange={(event) => set("tiktokUrl", event.target.value)} placeholder="https://tiktok.com/@..." />
+                              <input aria-label="TikTok" className={inputClass} value={form.tiktokUrl} onChange={(event) => set("tiktokUrl", event.target.value)} placeholder="https://tiktok.com/@..." />
                             </div>
                             <div>
                               <label className={labelClass}>LinkedIn</label>
-                              <input className={inputClass} value={form.linkedinUrl} onChange={(event) => set("linkedinUrl", event.target.value)} placeholder="https://linkedin.com/in/..." />
+                              <input aria-label="LinkedIn" className={inputClass} value={form.linkedinUrl} onChange={(event) => set("linkedinUrl", event.target.value)} placeholder="https://linkedin.com/in/..." />
                             </div>
                             <div>
                               <label className={labelClass}>Portfolio / Website</label>
-                              <input className={inputClass} value={form.portfolioUrl} onChange={(event) => set("portfolioUrl", event.target.value)} placeholder="https://..." />
+                              <input aria-label="Portfolio / Website" className={inputClass} value={form.portfolioUrl} onChange={(event) => set("portfolioUrl", event.target.value)} placeholder="https://..." />
                             </div>
                             <div className="rounded-xl border border-[#facc15]/25 bg-[#facc15]/8 p-3 text-sm leading-6 text-[#fde68a] md:col-span-2">
                               Social media opsional, kecuali untuk posisi Social Media, Content Creator, atau Design. Untuk posisi kreatif, isi minimal satu link.

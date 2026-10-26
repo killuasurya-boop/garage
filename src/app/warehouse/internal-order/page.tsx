@@ -223,7 +223,7 @@ export default function WmsInternalOrderPage() {
           <div>
             <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Tambah bahan</p>
             <div className="flex gap-2">
-              <select value={pick} onChange={(e) => setPick(e.target.value)} className="h-9 flex-1 rounded-md border border-[#E8E8E8] bg-white px-2.5 text-[13px] outline-none focus:border-[#C8102E]">
+              <select aria-label="Pilih bahan" value={pick} onChange={(e) => setPick(e.target.value)} className="h-9 flex-1 rounded-md border border-[#E8E8E8] bg-white px-2.5 text-[13px] outline-none focus:border-[#C8102E]">
                 <option value="">Pilih bahan…</option>
                 {products.filter((p) => !cart.some((l) => l.product.id === p.id)).map((p) => (
                   <option key={p.id} value={p.id}>

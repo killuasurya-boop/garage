@@ -172,7 +172,7 @@ export function TeamLocationsManager() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Nama Titik Lokasi</label>
-              <Input
+              <Input aria-label="Nama Titik Lokasi"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Contoh: Outlet Pusat Garage Coffee"
@@ -183,7 +183,7 @@ export function TeamLocationsManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Tipe Penguncian Lokasi</label>
-              <select
+              <select aria-label="Tipe Penguncian Lokasi"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -218,7 +218,7 @@ export function TeamLocationsManager() {
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Garis Lintang (Latitude)</label>
-              <Input
+              <Input aria-label="Garis Lintang (Latitude)"
                 type="number"
                 step="any"
                 value={latitude}
@@ -231,7 +231,7 @@ export function TeamLocationsManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Garis Bujur (Longitude)</label>
-              <Input
+              <Input aria-label="Garis Bujur (Longitude)"
                 type="number"
                 step="any"
                 value={longitude}
@@ -244,7 +244,7 @@ export function TeamLocationsManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Radius Toleransi (Meter)</label>
-              <Input
+              <Input aria-label="Radius Toleransi (Meter)"
                 type="number"
                 value={radius}
                 onChange={(e) => setRadius(e.target.value)}
@@ -256,7 +256,7 @@ export function TeamLocationsManager() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Alamat Lengkap Titik Lokasi</label>
-            <Input
+            <Input aria-label="Alamat Lengkap Titik Lokasi"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Contoh: Jl. Slamet Riyadi No.10, Jakarta Timur"

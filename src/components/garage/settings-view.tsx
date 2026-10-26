@@ -588,7 +588,7 @@ export function SettingsView({ me }: { me: GarageMe }) {
       <div className="space-y-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a8a93]" />
-          <Input
+          <Input aria-label="Cari pengaturan"
             value={settingsQuery}
             onChange={(e) => {
               const value = e.target.value;
@@ -2064,7 +2064,10 @@ function SettingsField({
         ) : null}
       </div>
       <div className="flex items-start gap-2">
-        <div className="flex-1">{children}</div>
+        <label className="block flex-1">
+          <span className="sr-only">{label}</span>
+          {children}
+        </label>
         {changed && !disabled ? (
           <Button
             type="button"

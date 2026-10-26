@@ -250,7 +250,7 @@ export function ProductFormPanel({
         </div>
         <div className="grid gap-1 sm:max-w-[260px]">
           <label className="text-xs font-semibold text-[#d4d4d8]">SKU Produk</label>
-          <Input
+          <Input aria-label="SKU Produk"
             value={sku}
             onChange={(event) =>
               onSkuChange(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))
@@ -292,7 +292,7 @@ export function ProductFormPanel({
           {promoActive ? (
             <div className="grid gap-1 sm:max-w-[260px]">
               <label className="text-xs font-semibold text-[#d4d4d8]">Harga Promo (Rp)</label>
-              <Input
+              <Input aria-label="Harga Promo (Rp)"
                 inputMode="numeric"
                 value={promoPrice}
                 onChange={(event) =>

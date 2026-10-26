@@ -955,7 +955,7 @@ export function ChatModule({
             ) : null}
             {canBroadcastCeo ? (
               <div className="flex items-center gap-2">
-                <input
+                <input aria-label="Fokus instruksi"
                   type="text"
                   placeholder="Fokus instruksi (opsional)..."
                   value={ceoBroadcastFocus}
@@ -1797,7 +1797,7 @@ export function ChatModule({
                       <Paperclip className="h-4 w-4" />
                     )}
                   </Button>
-                  <textarea
+                  <textarea aria-label="Tulis pesan"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {

@@ -392,7 +392,7 @@ export function TeamSopManager() {
               <form onSubmit={handleAddTemplate} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Judul Tugas</label>
-                  <input
+                  <input aria-label="Judul Tugas"
                     type="text"
                     required
                     value={newTitle}
@@ -403,7 +403,7 @@ export function TeamSopManager() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Deskripsi</label>
-                  <textarea
+                  <textarea aria-label="Deskripsi"
                     value={newDesc}
                     onChange={(e) => setNewDesc(e.target.value)}
                     placeholder="Timbang espresso output 36g..."
@@ -413,7 +413,7 @@ export function TeamSopManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground">Target Peran</label>
-                    <select
+                    <select aria-label="Target Peran"
                       value={newRole}
                       onChange={(e) => setNewRole(e.target.value)}
                       className="w-full text-sm px-3 py-2 rounded border bg-background text-foreground"
@@ -427,7 +427,7 @@ export function TeamSopManager() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground">Target Shift</label>
-                    <select
+                    <select aria-label="Target Shift"
                       value={newShift}
                       onChange={(e) => setNewShift(e.target.value)}
                       className="w-full text-sm px-3 py-2 rounded border bg-background text-foreground"

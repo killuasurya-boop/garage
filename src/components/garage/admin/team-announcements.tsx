@@ -99,7 +99,7 @@ export function TeamAnnouncements() {
           
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Judul Pengumuman</label>
-            <Input
+            <Input aria-label="Judul Pengumuman"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Contoh: Perubahan Jadwal Operasional Selama Libur Nasional"
@@ -111,7 +111,7 @@ export function TeamAnnouncements() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Target Penerima (Role)</label>
-              <select
+              <select aria-label="Target Penerima (Role)"
                 value={targetRole}
                 onChange={(e) => setTargetRole(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -126,7 +126,7 @@ export function TeamAnnouncements() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Isi Pengumuman / Pesan</label>
-            <Textarea
+            <Textarea aria-label="Isi Pengumuman / Pesan"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Tulis pesan lengkap Anda di sini..."

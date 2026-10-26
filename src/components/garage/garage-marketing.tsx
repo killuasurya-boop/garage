@@ -1308,7 +1308,7 @@ function CampaignFormDialog({
         <div className="grid gap-3">
           <div>
             <label className="text-xs text-[#d6d6dc]">Nama campaign</label>
-            <Input
+            <Input aria-label="Nama campaign"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Contoh: Win-back September"
@@ -1383,7 +1383,7 @@ function CampaignFormDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs text-[#d6d6dc]">Mulai</label>
-              <input
+              <input aria-label="Mulai"
                 type="datetime-local"
                 value={startsAt}
                 onChange={(e) => handleStartsAtChange(e.target.value)}
@@ -1396,7 +1396,7 @@ function CampaignFormDialog({
             </div>
             <div>
               <label className="text-xs text-[#d6d6dc]">Selesai</label>
-              <input
+              <input aria-label="Selesai"
                 type="datetime-local"
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}
@@ -1484,7 +1484,7 @@ function CampaignFormDialog({
           ) : null}
           <div>
             <label className="text-xs text-[#d6d6dc]">PIC / Owner</label>
-            <Input
+            <Input aria-label="PIC / Owner"
               value={ownerName}
               onChange={(e) => setOwnerName(e.target.value)}
               placeholder="Contoh: Ayu (Marketing)"
@@ -1494,7 +1494,7 @@ function CampaignFormDialog({
           </div>
           <div>
             <label className="text-xs text-[#d6d6dc]">Catatan</label>
-            <Textarea
+            <Textarea aria-label="Catatan"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Strategi, asumsi, atau catatan untuk tim..."
@@ -1969,7 +1969,7 @@ function BroadcastFormDialog({
         <div className="grid gap-3">
           <div>
             <label className="text-xs text-[#d6d6dc]">Nama broadcast</label>
-            <Input
+            <Input aria-label="Nama broadcast"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Contoh: Blast Win-back Minggu 1"
@@ -2035,7 +2035,7 @@ function BroadcastFormDialog({
           </div>
           <div>
             <label className="text-xs text-[#d6d6dc]">Jadwal</label>
-            <input
+            <input aria-label="Jadwal"
               type="datetime-local"
               value={scheduledAt}
               onChange={(e) => setScheduledAt(e.target.value)}
@@ -2055,7 +2055,7 @@ function BroadcastFormDialog({
           </div>
           <div>
             <label className="text-xs text-[#d6d6dc]">Template body</label>
-            <Textarea
+            <Textarea aria-label="Template body"
               value={templateBody}
               onChange={(e) => setTemplateBody(e.target.value)}
               className="mt-1 min-h-32 border-[#34343c] bg-white/[0.05]"
@@ -2070,7 +2070,7 @@ function BroadcastFormDialog({
           </div>
           <div>
             <label className="text-xs text-[#d6d6dc]">Catatan</label>
-            <Input
+            <Input aria-label="Catatan"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="mt-1 border-[#34343c] bg-white/[0.05]"
@@ -2465,7 +2465,7 @@ function PromoFormDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs text-[#d6d6dc]">Kode promo</label>
-              <Input
+              <Input aria-label="Kode promo"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="WINBACK10"
@@ -2491,7 +2491,7 @@ function PromoFormDialog({
           </div>
           <div>
             <label className="text-xs text-[#d6d6dc]">Judul</label>
-            <Input
+            <Input aria-label="Judul"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Promo Win-back September"
@@ -2549,7 +2549,7 @@ function PromoFormDialog({
           </div>
           <div>
             <label className="text-xs text-[#d6d6dc]">Audience</label>
-            <Input
+            <Input aria-label="Audience"
               value={audience}
               onChange={(e) => setAudience(e.target.value)}
               placeholder="all / vip / new / member"
@@ -2560,7 +2560,7 @@ function PromoFormDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs text-[#d6d6dc]">Mulai</label>
-              <input
+              <input aria-label="Mulai"
                 type="datetime-local"
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
@@ -2569,7 +2569,7 @@ function PromoFormDialog({
             </div>
             <div>
               <label className="text-xs text-[#d6d6dc]">Selesai</label>
-              <input
+              <input aria-label="Selesai"
                 type="datetime-local"
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}

@@ -291,7 +291,7 @@ export default function WmsPurchaseOrdersPage() {
           <button type="button" onClick={() => setLines((c) => [...c, { productId: "", qty: "", price: "", uom: "" }])} className="mt-2 text-[13px] font-semibold text-[#C8102E]">
             + Tambah bahan
           </button>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan untuk supplier (opsional)" className={`${input} mt-3`} />
+          <input aria-label="Catatan untuk supplier" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan untuk supplier (opsional)" className={`${input} mt-3`} />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#E8E8E8] pt-3">
             <span className="text-[13px] text-[#525866]">Perkiraan total <b className="text-[#111111]">{currency.format(Math.round(total))}</b></span>
             <button type="button" disabled={busy || !supplierId || !lines.some((l) => l.productId && Number(l.qty) > 0)} onClick={() => void create()} className="min-h-11 rounded-lg bg-[#C8102E] px-5 text-[14px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">

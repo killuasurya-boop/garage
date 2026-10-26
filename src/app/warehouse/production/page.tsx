@@ -198,7 +198,7 @@ export default function WmsProductionPage() {
               <button aria-label="Tutup" type="button" onClick={() => setRunRecipe(null)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
             </div>
             <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Gudang produksi</label>
-            <select value={runWh} onChange={(e) => setRunWh(e.target.value)} className={`${input} mb-3 w-full`}>
+            <select aria-label="Gudang produksi" value={runWh} onChange={(e) => setRunWh(e.target.value)} className={`${input} mb-3 w-full`}>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}
             </select>
             <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Jumlah batch (× {runRecipe.outputQty} {runRecipe.outputUnit})</label>

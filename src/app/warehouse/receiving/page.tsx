@@ -652,7 +652,7 @@ export default function WmsReceivingPage() {
             </select>
             {addingSupplier && (
               <div className="mt-2 flex gap-2 sm:w-80">
-                <input
+                <input aria-label="Nama supplier"
                   value={newSupplier}
                   onChange={(e) => setNewSupplier(e.target.value)}
                   placeholder="Nama supplier baru"

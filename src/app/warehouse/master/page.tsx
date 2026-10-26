@@ -90,8 +90,8 @@ function CategorySection({ cats, input, reload, onFlash }: { cats: Category[]; i
     <section className="min-w-0 rounded-xl border border-[#E8E8E8] bg-white">
       <p className="flex items-center gap-2 border-b border-[#E8E8E8] px-4 py-2.5 text-[14px] font-bold text-[#111111]"><Tags className="size-4 text-[#C8102E]" /> Kategori Bahan</p>
       <div className="flex flex-wrap gap-2 border-b border-[#F0F1F4] p-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama kategori baru" className={`${input} min-w-0 flex-1 basis-40`} />
-        <select value={area} onChange={(e) => setArea(e.target.value as "bar" | "dapur" | "umum")} className={input}>
+        <input aria-label="Nama kategori baru" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama kategori baru" className={`${input} min-w-0 flex-1 basis-40`} />
+        <select aria-label="Area kategori baru" value={area} onChange={(e) => setArea(e.target.value as "bar" | "dapur" | "umum")} className={input}>
           <option value="bar">Bar</option>
           <option value="dapur">Dapur</option>
           <option value="umum">Umum</option>
@@ -102,7 +102,7 @@ function CategorySection({ cats, input, reload, onFlash }: { cats: Category[]; i
         {cats.map((c) => (
           <div key={c.id} className="flex items-center gap-2 px-4 py-2">
             <span className="min-w-0 flex-1 break-words text-[13px] font-semibold text-[#111111]">{c.name}</span>
-            <select value={c.area} onChange={(e) => void setCatArea(c, e.target.value as "bar" | "dapur" | "umum")} className={`${input} h-8`}>
+            <select aria-label="Area kategori" value={c.area} onChange={(e) => void setCatArea(c, e.target.value as "bar" | "dapur" | "umum")} className={`${input} h-8`}>
               <option value="bar">Bar</option>
               <option value="dapur">Dapur</option>
               <option value="umum">Umum</option>
@@ -146,8 +146,8 @@ function SupplierSection({ sups, input, reload, onFlash }: { sups: Supplier[]; i
     <section className="min-w-0 rounded-xl border border-[#E8E8E8] bg-white">
       <p className="flex items-center gap-2 border-b border-[#E8E8E8] px-4 py-2.5 text-[14px] font-bold text-[#111111]"><Truck className="size-4 text-[#2563EB]" /> Supplier</p>
       <div className="flex flex-wrap gap-2 border-b border-[#F0F1F4] p-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama supplier" className={`${input} min-w-0 flex-1 basis-40`} />
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telp" className={`${input} w-28`} />
+        <input aria-label="Nama supplier" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama supplier" className={`${input} min-w-0 flex-1 basis-40`} />
+        <input aria-label="Telepon supplier" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telp" className={`${input} w-28`} />
         <button type="button" disabled={busy} onClick={() => void add()} className="flex items-center gap-1 rounded-md bg-[#C8102E] px-3 text-[12px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50"><Plus className="size-3.5" /> Tambah</button>
       </div>
       <div className="max-h-[420px] divide-y divide-[#F0F1F4] overflow-y-auto">
@@ -155,7 +155,7 @@ function SupplierSection({ sups, input, reload, onFlash }: { sups: Supplier[]; i
         {sups.map((s) => (
           <div key={s.id} className="flex items-center gap-2 px-4 py-2">
             <span className="min-w-0 flex-1 break-words text-[13px] font-semibold text-[#111111]">{s.name}</span>
-            <input defaultValue={s.phone} onBlur={(e) => { if (e.target.value !== s.phone) void savePhone(s, e.target.value); }} placeholder="Telp" className={`${input} h-8 w-28`} />
+            <input aria-label="Telepon supplier" defaultValue={s.phone} onBlur={(e) => { if (e.target.value !== s.phone) void savePhone(s, e.target.value); }} placeholder="Telp" className={`${input} h-8 w-28`} />
             <button aria-label="Arsipkan" type="button" onClick={() => void archive(s)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
           </div>
         ))}

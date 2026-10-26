@@ -101,20 +101,20 @@ export default function WmsTransferPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Dari gudang</label>
-              <select value={fromWh} onChange={(e) => { setFromWh(e.target.value); setCart([]); }} className={`${input} w-full`}>
+              <select aria-label="Dari gudang" value={fromWh} onChange={(e) => { setFromWh(e.target.value); setCart([]); }} className={`${input} w-full`}>
                 {warehouses.map((w) => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Ke gudang</label>
-              <select value={toWh} onChange={(e) => setToWh(e.target.value)} className={`${input} w-full`}>
+              <select aria-label="Ke gudang" value={toWh} onChange={(e) => setToWh(e.target.value)} className={`${input} w-full`}>
                 {warehouses.filter((w) => w.id !== fromWh).map((w) => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}
               </select>
             </div>
           </div>
 
           <div className="mt-3 flex gap-2">
-            <select value={pick} onChange={(e) => setPick(e.target.value)} className={`${input} flex-1`}>
+            <select aria-label="Pilih bahan" value={pick} onChange={(e) => setPick(e.target.value)} className={`${input} flex-1`}>
               <option value="">Pilih bahan…</option>
               {available.map((p) => <option key={p.id} value={p.id}>{p.name} (stok {formatPacks(p.onHand, p.unit, p.uoms)})</option>)}
             </select>

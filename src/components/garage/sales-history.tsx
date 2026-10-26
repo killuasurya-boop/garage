@@ -289,7 +289,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
             </label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <Input
+              <Input aria-label="Cari penjualan"
                 className="pl-9"
                 placeholder="No invoice/order, nama, HP, atau meja…"
                 value={search}
@@ -376,7 +376,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
             <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">
               Dari
             </label>
-            <Input
+            <Input aria-label="Dari"
               type="date"
               value={dateFrom}
               max={dateTo || undefined}
@@ -387,7 +387,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
             <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">
               Sampai
             </label>
-            <Input
+            <Input aria-label="Sampai"
               type="date"
               value={dateTo}
               min={dateFrom || undefined}

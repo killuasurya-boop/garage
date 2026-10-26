@@ -86,7 +86,7 @@ export default function WmsScanPage() {
         </p>
 
         <div className="mt-3 flex gap-2">
-          <input
+          <input aria-label="SKU atau barcode manual"
             value={manual}
             onChange={(e) => setManual(e.target.value)}
             onKeyDown={(e) => {

@@ -620,7 +620,7 @@ export function WmsRecipeModule() {
         <div className="flex flex-wrap items-center gap-2 border-b border-[#E8E8E8] p-3">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#9CA3AF]" />
-            <input
+            <input aria-label="Cari resep"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cari nama, SKU, kategori…"

@@ -84,7 +84,7 @@ export function DatabasePurgePanel() {
         <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
           <div>
             <label className="text-[11px] font-bold uppercase text-white/60">Retention (hari)</label>
-            <Input
+            <Input aria-label="Retention (hari)"
               type="number"
               min={7}
               max={3650}

@@ -546,7 +546,7 @@ export function ApprovalsBoard({
       <div className="grid gap-2 rounded-lg border border-[#34343c] bg-[#111116] p-3 sm:grid-cols-[1fr_170px_180px_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8f99]" />
-          <Input
+          <Input aria-label="Cari persetujuan"
             type="search"
             placeholder="Cari pengaju, jenis, no. order, ID, alasan..."
             value={search}

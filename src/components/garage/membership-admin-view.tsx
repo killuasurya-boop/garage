@@ -677,7 +677,7 @@ export function MembershipAdminView({
                 size={14}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9696a1]"
               />
-              <input
+              <input aria-label="Cari member"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Cari nama / phone / kode"
@@ -686,7 +686,7 @@ export function MembershipAdminView({
             </div>
             <div className="flex items-center gap-1.5">
               <Filter size={14} className="text-[#9696a1]" />
-              <select
+              <select aria-label="Filter status member"
                 value={statusFilter}
                 onChange={(event) =>
                   setStatusFilter(
@@ -700,7 +700,7 @@ export function MembershipAdminView({
                 <option value="dormant">Dormant</option>
                 <option value="inactive">Nonaktif</option>
               </select>
-              <select
+              <select aria-label="Filter masa berlaku"
                 value={expirationFilter}
                 onChange={(event) =>
                   setExpirationFilter(
@@ -986,7 +986,7 @@ export function MembershipAdminView({
                   Tambah/kurangi poin member. Tercatat sebagai transaksi &amp; audit.
                 </p>
                 <div className="mt-3 grid gap-2">
-                  <input
+                  <input aria-label="Jumlah poin"
                     type="number"
                     min={1}
                     value={pointDelta}
@@ -994,7 +994,7 @@ export function MembershipAdminView({
                     placeholder="Jumlah poin (mis. 50)"
                     className="h-10 w-full rounded-md border border-[#34343c] bg-[#111116] px-3 text-sm text-white outline-none transition focus:border-[#f5a742]"
                   />
-                  <input
+                  <input aria-label="Alasan penyesuaian poin"
                     value={pointReason}
                     onChange={(e) => setPointReason(e.target.value)}
                     placeholder="Alasan (wajib): mis. kompensasi pesanan salah"

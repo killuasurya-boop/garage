@@ -225,3 +225,14 @@ Format wajib per batch (instruksi Owner):
 - **Berikutnya:**
   - M3e: member/CRM, meja/QR, event, marketing.
   - Lalu F-06 (migration 0165).
+
+## 2026-10-26 — B3 (agent kedua, disalin dari PR #93)
+
+- **B3** → PR #93 (draft, branch `claude/b3-tender-guard-quick-retail`).
+  - Tender guard: tunai wajib uang diterima ≥ total, split harus pas.
+  - Referensi QRIS/transfer unik per order (advisory lock); setting `qrisReferenceRequired` default mati.
+  - Penjualan Langsung / Quick Retail (POS-05): retail saja, tanpa meja, tanpa tiket Bar/Dapur, grup laporan "Penjualan langsung".
+  - Tanpa migration. Hasil uji agent kedua: 184 file / 1204 tes.
+- **Risiko:** klien yang memanggil `POST /api/orders` Cash tanpa `cashReceived` kini ditolak. Tool MCP (M3a–M3d) tidak memanggil `createOrder`, dan tesnya sudah mengirim `cashReceived`.
+- **Butuh keputusan Owner:** Final Bayar Tunai dengan kolom kosong, tetap dihitung "uang pas" atau diblokir seperti PRD?
+- **S0b** (sensus layar): belum ada PR saat catatan ini.

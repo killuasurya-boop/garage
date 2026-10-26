@@ -3,6 +3,10 @@
 Panduan ringkas dari nol sampai live. Semua via Docker — tidak ada PGlite di
 production (driver otomatis `postgres`).
 
+> Deploy rutin = push ke `main` (`.github/workflows/deploy.yml`). Bila GitHub Actions
+> tidak jalan, Owner bisa deploy dari laptop dengan langkah yang sama:
+> `bash scripts/deploy-manual.sh` — lihat `docs/DEPLOY_MANUAL.md`.
+
 ## 0. Spesifikasi VPS
 - Ubuntu 24.04 LTS, **2 vCPU / 4 GB RAM** (KVM 2 cukup; 8 GB lebih lega untuk build)
 - Disk 50–80 GB SSD/NVMe

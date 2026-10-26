@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/components/payroll/payroll-nav", () => ({ PayrollNav: () => null }));
 
 import PayrollLayout from "@/app/owner/payroll/layout";
-import StaffLayout from "@/app/staff/layout";
+import StaffLayout from "@/app/staff/(wallet)/layout";
 
 const denied = (status: number) => ({ data: null, response: new Response(null, { status }) });
 const allowed = (role: string, passwordResetRequired = false) => ({ data: { profile: { role, passwordResetRequired } }, response: null });

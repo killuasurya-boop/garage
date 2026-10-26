@@ -6,7 +6,8 @@ import { requireGarageSession } from "@/lib/server-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Guard server halaman staf (/staff/wallet-gaji, /staff/wallet-fee): wajib login
+// Guard server halaman wallet staf (/staff/wallet-gaji, /staff/wallet-fee; route group
+// (wallet) — URL tidak berubah, /staff/register tetap publik): wajib login
 // staf. Isi wallet tetap dibatasi per orang oleh API /api/wallet-*.
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const session = await requireGarageSession();

@@ -264,6 +264,7 @@ export function FinanceInvoiceList() {
               variant="outline"
               className="garage-press h-10 border-[#4a4a54]"
               onClick={resetFilters}
+              aria-label="Reset filter invoice"
             >
               <X className="size-4" />
             </Button>

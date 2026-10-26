@@ -32,8 +32,8 @@ describe("registry tool AI (M1)", () => {
   it("peta kemampuan menandai domain tanpa tool & hal yang selalu ditolak", () => {
     const caps = buildCapabilities(tools);
     expect(caps.domains).toHaveLength(16);
-    // Setelah M3a–M3f: tinggal domain yang belum punya tool (dilaporkan apa adanya ke Owner).
-    expect(caps.belumTersedia).toEqual(["Konten & Marketing", "Email & Notifikasi"]);
+    // Setelah M3a–M3g: ke-16 domain punya tool (domain baru tanpa tool akan muncul di sini).
+    expect(caps.belumTersedia).toEqual([]);
     expect(caps.belumTersedia).not.toContain("Member & CRM");
     const keuangan = caps.domains.find((domain) => domain.id === "keuangan");
     expect(keuangan?.tools.find((tool) => tool.name === "catat_pengeluaran")?.butuhKonfirmasi).toBe(true);

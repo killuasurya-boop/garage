@@ -12,6 +12,7 @@ import { productTools } from "@/lib/agent-tools-produk";
 import { warehouseTools } from "@/lib/agent-tools-gudang";
 import { memberTableEventTools } from "@/lib/agent-tools-member-meja-event";
 import { recipeTools } from "@/lib/agent-tools-resep";
+import { marketingTools } from "@/lib/agent-tools-marketing";
 import { todayWibKey } from "@/lib/date-range";
 import { buildCapabilities } from "@/lib/mcp-tool-registry";
 import { canUseApiAs } from "@/lib/role-access";
@@ -325,6 +326,8 @@ const tools: AgentTool[] = [
   ...memberTableEventTools,
   // M3f: Bahan & Resep (resep usulan, margin).
   ...recipeTools,
+  // M3g: Konten & Marketing + Notifikasi staf (internal).
+  ...marketingTools,
   {
     name: "garage_api",
     title: "Panggil endpoint Garage OS",

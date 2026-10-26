@@ -288,11 +288,11 @@ export default function OnboardingPage() {
         </div>
 
         {loading && <p className="text-xs text-zinc-500">Memuat checklist MVP...</p>}
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           {report?.operationalGroups?.map((group) => (
             <div
               key={group.id}
-              className={`rounded-lg border p-4 ${
+              className={`min-w-0 rounded-lg border p-4 ${
                 group.ready
                   ? "border-[color-mix(in_srgb,var(--garage-success)_30%,transparent)] bg-[color-mix(in_srgb,var(--garage-success)_5%,transparent)]"
                   : "border-white/10 bg-[var(--garage-bg-3)]"

@@ -356,7 +356,7 @@ export function WmsShell({
               aria-label="Kembali ke Garage OS"
             >
               <ArrowLeft className="size-3.5 text-[#C8102E]" />
-              <span className="hidden sm:inline">Garage OS</span>
+              <span className="hidden xl:inline">Garage OS</span>
             </Link>
             {/* Absen kelas satu (staff gudang) */}
             {canAbsen && (
@@ -367,11 +367,11 @@ export function WmsShell({
                 aria-label="Absen kehadiran"
               >
                 <Fingerprint className="size-3.5" />
-                <span className="hidden sm:inline">Absen</span>
+                <span className="hidden xl:inline">Absen</span>
               </Link>
             )}
             {/* Warehouse selector */}
-            <div className="static min-w-0 flex-1 sm:relative sm:flex-none">
+            <div className="static min-w-0 flex-1 sm:relative sm:max-w-[18rem] sm:flex-initial">
               <button
                 type="button"
                 aria-label="Pilih gudang"
@@ -485,7 +485,7 @@ export function WmsShell({
               aria-label="Keluar"
             >
               <LogOut className="size-3.5" />
-              <span className="hidden sm:inline">{signingOut ? "Keluar…" : "Keluar"}</span>
+              <span className="hidden xl:inline">{signingOut ? "Keluar…" : "Keluar"}</span>
             </button>
           </div>
         </header>

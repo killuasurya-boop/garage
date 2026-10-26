@@ -41,21 +41,21 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | S0 | Audit read-only + dokumen handoff | `docs/master-2026/*`, PRD V4.0 di repo | **DONE** |
-| S0b | Screen/route census | Daftar ±111 halaman & ±594 route → peta ke screen registry PRD §25.1 + screenshot 1366/1024/390 (PRD §29 Fase 0, F55) | READY |
+| S0b | Screen/route census | Daftar ±111 halaman & ±594 route → peta ke screen registry PRD §25.1 + screenshot 1366/1024/390 (PRD §29 Fase 0, F55) | agent kedua (klaim di #80) |
 
 ### Keamanan dasar (prasyarat semua fase)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| S1 | Agent key hardening | Audit agent SINKRON (tulis + baca data keuangan), audit gagal → 503; key statis tidak bisa `/api/admin/users`, `/api/admin/security`, pengaturan `security*`/`mcpChatgpt*` (kill switch) | **PR #84 (draft)** — ditunda: rate limit persisten (F-06, butuh migration setelah #83), audit per-tool `/api/mcp` lama |
+| S1 | Agent key hardening | Audit agent SINKRON (tulis + baca data keuangan), audit gagal → 503; key statis tidak bisa `/api/admin/users`, `/api/admin/security`, pengaturan `security*`/`mcpChatgpt*` (kill switch) | **PR #84 (draft)**; F-06 → **PR #101** (migration 0165); audit per-tool `/api/mcp` → **PR #106** |
 | S2 | 2FA wajib di API | Wajib 2FA Owner/Manajer ditegakkan di `requireGarageSession` untuk `/api/*` (F-04), tes negatif. **Dipindah ke S1/M0:** helper `requireOwnerPrincipal` (Owner manusia atau Owner via OAuth MCP) | **PR #81 (draft, menunggu review Owner)** |
 
 ### Fase 1 — Financial integrity (PRD §08–§11)
 | ID | Batch | Fitur | Status |
 |---|---|---|---|
 | B1 | Business date (cut-off 04:00, D-08) | Fondasi `business-date.ts`, buku kas, `reports/*`, `sales-report`, `cash-oversight`, `event-sales-report`; setting belum tampil di UI | **PR #87 (draft)** — payment state PENDING/PAID via provider tetap BLOCKED (QRIS statis, D-06 butir 3) |
-| B1b | Business date — sisa modul uang + aktivasi | `finance-control` (laba-rugi, `wibDay` SQL), `finance-closing` (+ kunci hari closed), laporan Owner, dashboard/ringkasan "hari ini", preset klien "Hari ini/Kemarin"; lalu tampilkan field di Pengaturan | READY (setelah #87) |
+| B1b | Business date — sisa modul uang + aktivasi | `finance-control` (laba-rugi, `wibDay` SQL), `finance-closing` (+ kunci hari closed), laporan Owner, dashboard/ringkasan "hari ini", preset klien "Hari ini/Kemarin"; lalu tampilkan field di Pengaturan | **PR #88 (draft, base #87)** |
 | B2 | Open Shift policy + parkir + cash-out bahan | F02/F27 policy_versions + acceptance; F06/F31 deklarasi parkir per outlet+business_date; F08 tautan purchase_id; AC-F01–F07, F16 | BLOCKED (D-06 butir 1: tanggal efektif & label setoran) |
-| B3 | Tender guard, QRIS paid/settled, Quick Retail | F28, F05 (import rekap merchant karena QRIS statis), F32, F34; AC-F08–F15, F17 | BLOCKED (D-06 butir 3: penyedia/akses settlement QRIS) — tender guard & Quick Retail bisa READY lebih dulu |
+| B3 | Tender guard, QRIS paid/settled, Quick Retail | F28, F05 (import rekap merchant karena QRIS statis), F32, F34; AC-F08–F15, F17 | tender guard + Quick Retail + ref QRIS → **PR #93 (agent kedua)**; status PAID dari provider tetap BLOCKED (D-06 butir 3) |
 
 ### Fase 2 — Identity & access (PRD §06)
 | ID | Batch | Fitur | Status |
@@ -87,10 +87,10 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Fase 6 — MCP Gateway & Aya (PRD §22 + D-01 FULL ACCESS Owner)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| M0 | OAuth gateway `/api/mcp/chatgpt` | OAuth 2.1 (`@better-auth/mcp`), discovery, token 15 m/refresh 7 h, kill switch `mcpChatgptPaused`, Owner+2FA only, audit sinkron, mati default (`GARAGE_MCP_CHATGPT_ENABLED`) | **PR #82 (M0a deps) + PR #83 (draft)** — sisa: uji dengan akun ChatGPT nyata; CIMD bila diminta ChatGPT |
-| M1 | Module/tool registry | F48; 16 domain + risiko R0–R3 per tool (wajib, dijaga tes), daftar R4, `kemampuan_sistem`, label risiko di `tools/list` | **PR #85 (draft, bertumpuk di #83)** |
-| M2 | Preview → konfirmasi → receipt | F49, F51; `mcp-confirmation.ts`, tabel `mcp_operations` (0164), token sekali pakai 5 m (klaim UPDATE atomik), argumen harus sama, `status_operasi`, `preview()` per tool. Hanya `/api/mcp/chatgpt`; key statis belum. D-01a (TOTP utk R3) belum diterapkan | **PR #86 (draft, bertumpuk #85→#83→#82)** |
-| M3 | **Full tool coverage Owner** | Semua aksi R0–R3 Owner di 16 domain via tool bisnis (termasuk finance: approve cash-out, petty pay, setoran, final closing, void/refund, harga, role); R4 tetap ditolak; `garage_api` dipensiunkan setelah coverage lengkap | setelah M2 |
+| M0 | OAuth gateway `/api/mcp/chatgpt` | OAuth 2.1 (`@better-auth/mcp`), discovery, token 15 m/refresh 7 h, kill switch `mcpChatgptPaused`, Owner+2FA only, audit sinkron, mati default (`GARAGE_MCP_CHATGPT_ENABLED`) | **MERGED ke main (dc57846, 26 Okt, disetujui Owner)** bersama #82/#85/#86 — **deploy BELUM jalan** (GitHub Actions tanpa runner/billing); aktif setelah deploy + `GARAGE_MCP_CHATGPT_ENABLED=true` |
+| M1 | Module/tool registry | F48; 16 domain + risiko R0–R3 per tool (wajib, dijaga tes), daftar R4, `kemampuan_sistem`, label risiko di `tools/list` | **MERGED (dc57846)** |
+| M2 | Preview → konfirmasi → receipt | F49, F51; `mcp-confirmation.ts`, tabel `mcp_operations` (0164), token sekali pakai 5 m (klaim UPDATE atomik), argumen harus sama, `status_operasi`, `preview()` per tool. Hanya `/api/mcp/chatgpt`; key statis belum. D-01a (TOTP utk R3) belum diterapkan | **MERGED (dc57846)** |
+| M3 | **Full tool coverage Owner** | Semua aksi R0–R3 Owner di 16 domain via tool bisnis (termasuk finance: approve cash-out, petty pay, setoran, final closing, void/refund, harga, role); R4 tetap ditolak; `garage_api` dipensiunkan setelah coverage lengkap | stack draft: M3a #89 → M3b #91 → M3c #92 → M3d #94 → M3e #100 → M3f #103 → M3g #105 — **16/16 domain punya tool**; `garage_api` di jalur API key belum dipensiunkan (butuh keputusan Owner) |
 | M5 | **Aya in-app (peliharaan Owner, D-07)** | F52; asisten AI bernama & berwajah Aya: avatar/ilustrasi dari foto asli, ekspresi per state, persona di `garage-ai-persona.ts`, suara TTS, motion ringan; backend & policy identik dengan MCP (D-01) | Persona & integrasi READY setelah M2 · aset visual BLOCKED (D-07a–e: jenis hewan, foto, gaya) |
 
 ### Fase 7 — Growth, hardening, rollout

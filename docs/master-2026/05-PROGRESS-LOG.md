@@ -280,3 +280,21 @@ Format wajib per batch (instruksi Owner):
   - Diverifikasi dengan simulasi stub (sukses, dry-run, health gagal → rollback, kunci sibuk, batal).
   - Belum diuji ke VPS sungguhan; Owner yang menjalankannya.
 - **Untuk agent lain:** setelah PR ini merge, PR draft tidak lagi memakai menit Actions. Tandai "Ready for review" bila butuh CI.
+
+## 2026-10-26 — M3f, M3g, audit per-tool /api/mcp
+
+- **M3f** → PR #103 (base #100): daftar_resep_draft, margin_menu (R0), setujui_resep_draft (R2), tolak_resep_draft (R1).
+- **M3g** → PR #105 (base #103): ringkasan_marketing, daftar_promo, daftar_konten (R0), ubah_status_promo (R2), putuskan_konten (R1, Owner), terbitkan_konten (R3), kirim_notifikasi_staf (R1, internal saja).
+  - **16/16 domain punya tool** (tes registry: `belumTersedia = []`).
+- **S1b** → PR #106 (base main): audit per tool di `/api/mcp` (sinkron sebelum eksekusi, gagal = tool batal). Helper `mcp-tool-audit.ts` dipakai bersama gateway ChatGPT.
+- Hasil uji: semua suite lulus di masing-masing branch, build lulus.
+- **Urutan merge yang disarankan:**
+  1. #102 (deploy manual + CI hemat), lalu #101 (F-06), #106, #81 (S2), #84 (S1, selesaikan konflik ringan `agent-api-key.ts`).
+  2. Stack M3: #89 → #91 → #92 → #94 → #100 → #103 → #105.
+  3. #87 → #88 (business date).
+  4. PR agent kedua: #93 (B3) → #98; #95; #96 → #97; #99.
+- **Keputusan Owner yang masih terbuka:**
+  - D-01a (TOTP untuk R3 via chat), D-02, D-03, D-06 (penyedia QRIS), D-07a–e (aset Aya);
+  - Final Bayar Tunai kosong (dari B3);
+  - pensiun `garage_api` di jalur API key;
+  - tanggal efektif business day (setelah #88).

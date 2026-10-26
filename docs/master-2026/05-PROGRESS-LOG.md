@@ -298,3 +298,20 @@ Format wajib per batch (instruksi Owner):
   - Final Bayar Tunai kosong (dari B3);
   - pensiun `garage_api` di jalur API key;
   - tanggal efektif business day (setelah #88).
+
+## 2026-10-27 — S1c + I3
+
+- **S1c** → PR #107 (base main):
+  - Guard server `/owner/payroll` (Owner/Manajer) dan `/staff/wallet-*` (login; route group `(wallet)`, URL tetap).
+  - `aria-label` di finance/payroll. Ini temuan S0b/S0f agent kedua.
+- **I3** → PR #108 (base #101, migration **0166**):
+  - `/staff/register` (pemohon) dan `/control/access-approval` (Owner, menu "Akses Staf").
+  - Owner + 2FA; peran allowlist Kasir/Waiter/Manajer; outlet dari Owner; profil dibuat atomik + audit.
+  - Manajer → 403 + audit.
+  - Verifikasi email/WA belum ada (I1/I2 BLOCKED).
+  - Hasil uji: 4 tes AC-I04–I07, browser 390/1366 (0 overflow, 0 error console), suite 184/1192.
+- **Temuan:** sign-up email/password Better Auth terbuka publik. Aman karena tanpa profil = 403 di semua API staf; jalur resmi kini lewat I3.
+- **Migration:** 0165 = F-06 (#101), 0166 = I3 (#108). Agent kedua: 0167 ke atas.
+- **Berikutnya:**
+  - M5 persona Aya (backend), setelah #96 merge untuk UI.
+  - B4 bagian READY (submit kasir ≠ final, double recount) setelah #87/#88.

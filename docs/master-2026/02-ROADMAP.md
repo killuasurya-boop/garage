@@ -62,7 +62,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 |---|---|---|---|
 | I1 | Google OAuth staf + adapter member terisolasi | F41, F46; link by provider subject, tanpa auto-role (AC-I03) | BLOCKED (Google OAuth Client) |
 | I2 | Verifikasi email + WhatsApp OTP | F42, F43, F47; hash OTP, TTL 5m, 5 percobaan, cooldown 60s (AC-I01/02/08/09) | BLOCKED (D-04, D-05) |
-| I3 | Staff application + Owner Access Approval Center | F44, F45; `staff_access_requests`, semua API staf 403 saat pending (AC-I04–I07) | READY setelah S2 (bisa jalan dengan login email/password existing sebelum I1) |
+| I3 | Staff application + Owner Access Approval Center | F44, F45; `staff_access_requests`, semua API staf 403 saat pending (AC-I04–I07) | **PR #108 (draft, base #101; migration 0166)** — tanpa verifikasi email/WA otomatis (menunggu I1/I2) |
 
 ### Fase 3 — Kontrol kasir/manajer & Owner final (PRD §10.8, §12, §13)
 | ID | Batch | Fitur | Status |

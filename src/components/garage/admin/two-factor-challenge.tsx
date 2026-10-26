@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginFrame } from "@/components/garage/login/garage-login";
 import { authClient } from "@/lib/auth-client";
+import { oauthContinueUrl } from "@/lib/oauth-login-continue";
 import { twoFactorChallengeError } from "@/lib/two-factor-challenge-error";
 
 type Mode = "totp" | "backup";
@@ -45,6 +46,10 @@ export function TwoFactorChallenge({ next }: { next: string }) {
         setBusy(false);
         return;
       }
+      // Alur OAuth MCP ChatGPT: server membalas URL lanjutan (consent) dan
+      // redirectPlugin bawaan authClient sudah mengarahkan ke sana — jangan
+      // navigasi kedua (membatalkan yang pertama).
+      if (oauthContinueUrl(result.data)) return;
       // Sukses — session udah dibuat di server, redirect.
       window.location.href = next;
     } catch {

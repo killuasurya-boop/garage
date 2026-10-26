@@ -20,6 +20,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/undangan",
   "/wifi",
   "/recruitment",
+  "/staff/register",
   "/legal",
   "/api",
 ];

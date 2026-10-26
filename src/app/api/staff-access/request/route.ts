@@ -18,8 +18,10 @@ const schema = z.object({
 
 export async function GET() {
   const session = await requireAccountSession();
+  // Belum login = keadaan normal halaman daftar (bukan error) → 200 tanpa data.
+  if (session.response?.status === 401) return ok({ authenticated: false, hasStaffProfile: false, request: null });
   if (session.response) return session.response;
-  return ok(await getMyAccessRequest(session.data.id));
+  return ok({ authenticated: true, ...(await getMyAccessRequest(session.data.id)) });
 }
 
 export async function POST(request: Request) {

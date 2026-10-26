@@ -11,6 +11,7 @@ import { garageApi } from "@/lib/api-client";
 import { authClient } from "@/lib/auth-client";
 
 type MyRequest = {
+  authenticated: boolean;
   hasStaffProfile: boolean;
   request: {
     status: "pending_owner_approval" | "needs_info" | "approved" | "rejected";
@@ -156,7 +157,7 @@ function ApplicationForm({ initial, onSubmitted }: { initial: MyRequest["request
       </label>
       {error ? <p role="alert" className="text-sm text-red-300">{error}</p> : null}
       <button type="submit" disabled={busy} className={primary}>
-        {busy ? "Mengirim…" : "Kirim lamaran ke Owner"}
+        {busy ? "Mengirim…" : initial ? "Perbarui lamaran" : "Kirim lamaran ke Owner"}
       </button>
     </form>
   );
@@ -168,8 +169,9 @@ export function StaffRegister() {
 
   const refresh = useCallback(async () => {
     try {
-      setMine(await garageApi.get<MyRequest>("/api/staff-access/request", { cache: "no-store" }));
-      setState("ready");
+      const data = await garageApi.get<MyRequest>("/api/staff-access/request", { cache: "no-store" });
+      setMine(data);
+      setState(data.authenticated ? "ready" : "account");
     } catch {
       setState("account");
     }
@@ -182,7 +184,7 @@ export function StaffRegister() {
       .then((data) => {
         if (cancelled) return;
         setMine(data);
-        setState("ready");
+        setState(data.authenticated ? "ready" : "account");
       })
       .catch(() => !cancelled && setState("account"));
     return () => {

@@ -162,3 +162,20 @@ Format wajib per batch (instruksi Owner):
 - Setelah deploy berhasil, fitur tetap MATI sampai Owner mengisi env VPS `GARAGE_MCP_CHATGPT_ENABLED=true` (URL publik HTTPS) dan restart. Owner wajib 2FA. Langkahnya ada di AGENT-API.md §6.
 - **B1b** → PR #88 (draft, base #87, commit 5cc5d0a): tanggal operasional di laba-rugi, closing, laporan Owner, dashboard, preset layar, dan field pengaturan + validasi. 180 file / 1173 tes lulus, build lulus.
 - Berikutnya: M3 (tool per domain, pensiunkan garage_api), F-06 rate limit persisten, audit per-tool /api/mcp lama.
+
+## 2026-10-26 — Koordinasi agent kedua + M3a
+
+- **Agent kedua** (sesi "G A R A G E") mengklaim dua batch di komentar PR #80; klaim diterima dan dibalas di sana.
+  - **S0b** (sensus layar): branch `claude/s0b-screen-census`.
+  - **B3 READY** (tender guard CASH/QRIS, Quick Retail, `payment_reference`): branch `claude/b3-tender-guard-quick-retail`.
+  - Migration: 0165 = F-06 (agent pertama), 0166 = B3 (agent kedua).
+  - Area POS checkout/pembayaran milik B3; agent pertama tidak menyentuhnya.
+- **M3a** → PR #89 (draft, base main, commit 85c90e1). Tool Shift & Kas + Keuangan:
+  - R0: pengawasan_kas, daftar_kas_laci, daftar_petty_cash, status_closing_harian
+  - R2: putuskan_kas_laci, konfirmasi_setoran, putuskan_petty_cash, verifikasi_shift
+  - R3: tutup_buku_harian
+  - Hasil uji: 183 file / 1190 tes lulus, build lulus.
+- Deploy MCP (run 40281089022) masih gagal tanpa runner; menunggu Owner mengecek billing Actions.
+- **Berikutnya:**
+  - M3b: POS void/refund lewat approval, harga & status menu, peran staf. Aksi POS hanya membungkus service yang sudah ada; tidak mengubah alur B3.
+  - Lalu F-06 (migration 0165).

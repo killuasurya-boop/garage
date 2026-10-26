@@ -5,60 +5,14 @@
 // =============================================================================
 import { z } from "zod";
 
-import { validateDateRange, todayWibKey } from "@/lib/date-range";
-import { buildCapabilities, type GarageDomainId, type ToolRisk } from "@/lib/mcp-tool-registry";
-import { canUseApiAs, type Permission } from "@/lib/role-access";
+import { AgentToolError, dateKey, range, rupiah, type AgentTool, type AgentToolContext } from "@/lib/agent-tool-core";
+import { kasTools } from "@/lib/agent-tools-kas";
+import { todayWibKey } from "@/lib/date-range";
+import { buildCapabilities } from "@/lib/mcp-tool-registry";
+import { canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
-export type AgentTool = {
-  name: string;
-  title: string;
-  description: string;
-  /** Tool mengubah data (ditolak untuk key baca-saja). Harus = risk !== "R0". */
-  write: boolean;
-  /** Domain PRD V4.0 §04 (registry kemampuan, mcp-tool-registry.ts). */
-  domain: GarageDomainId;
-  /** Risiko aksi PRD §07.2; R2/R3 wajib preview + konfirmasi (M2). */
-  risk: ToolRisk;
-  permission: Permission;
-  input: z.ZodObject<z.ZodRawShape>;
-  run: (session: GarageSession, args: Record<string, unknown>, ctx: AgentToolContext) => Promise<unknown>;
-  /**
-   * Ringkasan dampak untuk preview R2/R3 sebelum Owner mengonfirmasi (M2).
-   * Hanya membaca — tidak boleh mengubah data.
-   */
-  preview?: (session: GarageSession, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-};
-
-const rupiah = (value: number) => `Rp${Math.round(value).toLocaleString("id-ID")}`;
-
-export type AgentToolContext = {
-  /** Header Authorization asli (diteruskan oleh garage_api). */
-  authorization: string;
-  /** Origin internal untuk panggilan garage_api. */
-  internalOrigin: string;
-  /** Tool yang tidak tersedia di pintu masuk ini (mis. garage_api di MCP ChatGPT). */
-  hiddenTools?: ReadonlySet<string>;
-};
-
-export class AgentToolError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
-
-const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format YYYY-MM-DD");
-
-function range(from?: string, to?: string) {
-  const today = todayWibKey();
-  const check = validateDateRange(from ?? today, to ?? from ?? today, { maxDays: 366 });
-  if (!check.ok) throw new AgentToolError(check.code, check.message);
-  return { from: check.from, to: check.to };
-}
+export { AgentToolError, type AgentTool, type AgentToolContext } from "@/lib/agent-tool-core";
 
 const tools: AgentTool[] = [
   {
@@ -354,6 +308,8 @@ const tools: AgentTool[] = [
       return operation;
     },
   },
+  // M3a: Shift & Kas + Keuangan (aksi Owner/Manajer, R2/R3 lewat konfirmasi).
+  ...kasTools,
   {
     name: "garage_api",
     title: "Panggil endpoint Garage OS",

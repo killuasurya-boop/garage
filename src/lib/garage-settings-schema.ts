@@ -129,6 +129,13 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         defaultValue: DEFAULT_APP_SETTINGS.autoPrintReceipt,
       },
       {
+        key: "qrisReferenceRequired",
+        label: "QRIS wajib isi referensi",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.qrisReferenceRequired,
+        hint: "Kasir wajib mengetik No. Ref/RRN dari notifikasi merchant. Referensi yang sama tidak bisa dipakai dua order.",
+      },
+      {
         key: "cashDrawerOnPayment",
         label: "Buka cash drawer otomatis",
         type: "boolean",

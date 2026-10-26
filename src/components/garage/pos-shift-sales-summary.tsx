@@ -96,7 +96,7 @@ export function PosShiftSalesSummary() {
           {otherMethods > 0 ? (
             <p className="text-xs text-[#d4d4d8]">Metode lain (E-Wallet/Kartu): {currency.format(otherMethods)}</p>
           ) : null}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {CHANNEL_GROUPS.map((group) => {
               const row = typeRow(group);
               return (

@@ -42,20 +42,22 @@ export function paymentBalance(total: number, status: PaymentStatus, paidAmount?
   return { paid, balanceDue: closed ? 0 : Math.max(0, total - paid) };
 }
 
-export type ChannelGroup = "pos_dine_in" | "digital_menu" | "takeaway" | "delivery";
+export type ChannelGroup = "pos_dine_in" | "digital_menu" | "takeaway" | "delivery" | "quick_retail";
 
 export const CHANNEL_GROUP_LABEL: Record<ChannelGroup, string> = {
   pos_dine_in: "Dine-in kasir",
   digital_menu: "Menu digital (meja)",
   takeaway: "Take away",
   delivery: "Delivery",
+  quick_retail: "Penjualan langsung",
 };
 
-export const CHANNEL_GROUPS: ChannelGroup[] = ["pos_dine_in", "digital_menu", "takeaway", "delivery"];
+export const CHANNEL_GROUPS: ChannelGroup[] = ["pos_dine_in", "digital_menu", "takeaway", "delivery", "quick_retail"];
 
 /**
  * Jenis pesanan untuk laporan & filter: Dine-in kasir (POS), Menu digital meja
- * (QR meja / waiter), Take away (POS / QR), Delivery.
+ * (QR meja / waiter), Take away (POS / QR), Delivery, Penjualan langsung
+ * (Quick Retail POS-05, kanal "Penjualan Langsung").
  */
 export function channelGroupOf(order: {
   orderSource?: string | null;
@@ -65,6 +67,7 @@ export function channelGroupOf(order: {
   const fulfillment = (order.fulfillment ?? "").toLowerCase();
   const channel = (order.channel ?? "").toLowerCase();
   const source = (order.orderSource ?? "pos").toLowerCase();
+  if (channel === "penjualan langsung") return "quick_retail";
   if (fulfillment === "delivery" || channel.includes("delivery")) return "delivery";
   if (fulfillment === "takeaway" || /take ?away|takeaway/.test(channel)) return "takeaway";
   if (source === "qr_table" || fulfillment === "dine-in" || channel.includes("qr")) return "digital_menu";

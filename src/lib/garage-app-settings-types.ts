@@ -147,6 +147,8 @@ export type AppSettings = {
   receiptShowSignature: boolean;
   // Kas keluar/masuk laci oleh Kasir ≥ nominal ini wajib PIN Manajer/Owner.
   cashMovementPinThreshold: number;
+  // Tender guard (PRD §09.2/F34): QRIS wajib referensi (No. Ref/RRN merchant).
+  qrisReferenceRequired: boolean;
   managementSlipCopies: number;
   // Notification extra
   notificationPushEnabled: boolean;
@@ -295,6 +297,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   receiptShowMemberPoints: true,
   receiptShowSignature: true,
   cashMovementPinThreshold: 50000,
+  qrisReferenceRequired: false,
   managementSlipCopies: 1,
   // Notification extra
   notificationPushEnabled: true,

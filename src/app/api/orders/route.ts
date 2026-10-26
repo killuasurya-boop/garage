@@ -13,6 +13,8 @@ type CreateOrderResult = Awaited<ReturnType<typeof createOrder>>;
 
 const orderSchema = z.object({
   orderType: z.enum(["dine-in", "takeaway", "delivery"]),
+  // Penjualan langsung (Quick Retail, POS-05): orderType "takeaway" tanpa meja.
+  saleChannel: z.literal("quick_retail").optional(),
   tableNumber: z
     .string()
     .trim()
@@ -21,7 +23,7 @@ const orderSchema = z.object({
   tableLabel: z.string().min(1).optional(),
   paymentMethod: z.string().min(1).optional(),
   paymentProvider: z.string().min(1).optional(),
-  paymentReference: z.string().trim().optional(),
+  paymentReference: z.string().trim().max(80).optional(),
   cashReceived: z.number().int().nonnegative().optional(),
   customerId: z.string().uuid().optional(),
   memberPhone: z.string().trim().min(8).optional(),

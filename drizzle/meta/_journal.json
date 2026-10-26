@@ -1156,6 +1156,13 @@
       "when": 1792992348899,
       "tag": "0164_mcp_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1793041914758,
+      "tag": "0165_rate_limit_counters",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -403,6 +404,22 @@ export const oauthClientAssertion = pgTable("oauth_client_assertion", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at", tz).notNull(),
 });
+
+// Rate limit persisten (F-06): penghitung jendela tetap per kunci, dinaikkan
+// atomik (INSERT … ON CONFLICT DO UPDATE). Bertahan saat restart & berlaku
+// lintas proses/instance. Baris lama dihapus oportunistik (bukan data bisnis).
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    bucket: text("bucket").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.bucket, table.windowStart] }),
+    windowIdx: index("rate_limit_counters_window_idx").on(table.windowStart),
+  }),
+);
 
 // Operasi AI berisiko (R2/R3) lewat MCP ChatGPT: preview → konfirmasi Owner →
 // eksekusi → receipt (PRD V4.0 §07.4–07.5, batch M2). Token konfirmasi sekali

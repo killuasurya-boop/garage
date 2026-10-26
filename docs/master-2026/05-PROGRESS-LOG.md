@@ -214,14 +214,14 @@ Format wajib per batch (instruksi Owner):
   - M3d: gudang (Minta Bahan, waste, PO), member/CRM, meja/QR, event.
   - Lalu F-06.
 
-## 2026-10-26 — M3d
+## 2026-10-26 — M3d (PR #94)
 
-- **M3d** → PR #93 (draft, base #92, commit b4c2296). Tool Gudang:
+- **M3d** → PR #94 (draft, base #92, commit b4c2296). Tool Gudang:
   - R0: daftar_minta_bahan, daftar_waste, saran_belanja, daftar_po, batch_hampir_kedaluwarsa.
   - R2: kirim_minta_bahan, putuskan_waste, ubah_status_po.
   - R1: buat_po_dari_saran.
   - Hasil uji: 186 file / 1202 tes lulus, build lulus.
-- **Stack MCP sekarang:** #89 → #91 → #92 → #93.
+- **Stack MCP sekarang:** #89 → #91 → #92 → #94.
 - **Berikutnya:**
   - M3e: member/CRM, meja/QR, event, marketing.
   - Lalu F-06 (migration 0165).

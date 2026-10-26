@@ -195,3 +195,21 @@ Format wajib per batch (instruksi Owner):
   - M3d: gudang (minta bahan, waste, PO), member/CRM, meja/QR, event.
   - Lalu pensiunkan `garage_api` dari jalur agent key bila Owner setuju.
   - Setelah itu F-06 (migration 0165).
+
+## 2026-10-26 — M3c
+
+- **M3c** → PR #92 (draft, base #91, commit c13990c).
+  - Service `updateVariantPrice`:
+    - hanya harga satu varian, Owner/Manajer, alasan wajib;
+    - proteksi harga basi (STALE_PRICE);
+    - audit before/after.
+  - Tool:
+    - ubah_harga_varian (R2);
+    - aksi_produk (R2, bulkProductAction);
+    - daftar_kategori_produk (R0).
+  - Hasil uji: 185 file / 1199 tes lulus, build lulus.
+- **Deploy MCP** (run 40281089022) gagal lagi pada percobaan ke-3: tanpa runner, 4 detik. Owner perlu cek billing/spending limit GitHub Actions (terpisah dari Copilot Pro).
+- **Urutan merge stack MCP:** #89 → #91 → #92.
+- **Berikutnya:**
+  - M3d: gudang (Minta Bahan, waste, PO), member/CRM, meja/QR, event.
+  - Lalu F-06.

@@ -435,6 +435,9 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
     description: "Cash session, handover, dan opening cash.",
     icon: "Clock",
     fields: [
+      // businessDayCutoffHour / businessDayEffectiveDate (tanggal operasional, B1) sengaja
+      // BELUM ditampilkan: aktif hanya setelah B1b menuntaskan laba-rugi, closing, laporan
+      // Owner, dashboard & preset "Hari ini" — agar tidak ada angka uang yang saling beda.
       {
         key: "shiftOpeningCashDefault",
         label: "Opening cash default",

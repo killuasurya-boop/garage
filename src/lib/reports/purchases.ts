@@ -4,6 +4,8 @@
 // dari area kategori bahan — aturan yang sama dengan pencatatan belanja kas
 // (`recordCashPurchases`), sehingga total laporan = "Belanja Bar/Dapur" di
 // Keuangan (dicek ulang di ringkasan: "Tercatat di Keuangan").
+import { businessDateKey } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, eq, gte, like, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -26,7 +28,6 @@ import {
   DIVISION_LABEL,
   rangeBounds,
   round4,
-  wibKey,
   type ReportDivision,
   type ReportRange,
 } from "@/lib/reports/common";
@@ -49,7 +50,8 @@ export type PurchaseLine = {
 /** Baris pembelian (sudah dibagi biaya tambahan proporsional seperti saat posting). */
 export async function listPurchaseLines(range: ReportRange): Promise<PurchaseLine[]> {
   const db = getDb();
-  const { start, end } = rangeBounds(range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(range, businessDay);
   const receivedKey = sql<string>`coalesce(${wmsReceiving.receivedDate}, (${wmsReceiving.completedAt} at time zone 'Asia/Jakarta')::date)`;
 
   const wmsRows = await db
@@ -169,7 +171,7 @@ export async function listPurchaseLines(range: ReportRange): Promise<PurchaseLin
     );
   for (const row of osRows) {
     lines.push({
-      date: wibKey(row.receivedAt),
+      date: businessDateKey(row.receivedAt, businessDay),
       doc: row.invoiceNo ? `${row.code} / ${row.invoiceNo}` : row.code,
       supplier: row.supplier?.trim() || "Tanpa supplier",
       sku: row.sku ?? "-",
@@ -190,7 +192,8 @@ export async function listPurchaseLines(range: ReportRange): Promise<PurchaseLin
 /** Total belanja bahan per area yang tercatat di Keuangan (expense ber-sourceDoc). */
 async function recordedPurchaseByArea(range: ReportRange) {
   const db = getDb();
-  const { start, end } = rangeBounds(range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(range, businessDay);
   const rows = await db
     .select({ category: expenses.category, amount: sql<number>`coalesce(sum(${expenses.amount}), 0)` })
     .from(expenses)

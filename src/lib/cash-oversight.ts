@@ -1,3 +1,5 @@
+import { businessDayRange, CALENDAR_POLICY, type BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -42,12 +44,9 @@ export {
   type OversightQueue,
 } from "@/lib/cash-oversight-meta";
 
-const DAY_MS = 86_400_000;
-
-/** Rentang tanggal operasional WIB [from 00:00, to+1 00:00). */
-export function oversightRange(fromDate: string, toDate: string) {
-  const from = new Date(`${fromDate}T00:00:00+07:00`);
-  const to = new Date(new Date(`${toDate}T00:00:00+07:00`).getTime() + DAY_MS);
+/** Rentang tanggal operasional [awal from, awal to+1) — kalender WIB atau cut-off (business-date.ts). */
+export function oversightRange(fromDate: string, toDate: string, policy: BusinessDayPolicy = CALENDAR_POLICY) {
+  const { start: from, end: to } = businessDayRange(fromDate, toDate, policy);
   return { from, to };
 }
 
@@ -60,7 +59,7 @@ const rupiah = (value: number) => `Rp${value.toLocaleString("id-ID")}`;
 export async function getCashOversight(input: { fromDate: string; toDate: string; outletId?: string | null; now?: Date }): Promise<CashOversight> {
   const db = getDb();
   const now = input.now ?? new Date();
-  const { from, to } = oversightRange(input.fromDate, input.toDate);
+  const { from, to } = oversightRange(input.fromDate, input.toDate, await loadBusinessDayPolicy());
   const outletId = input.outletId || null;
   const ageHours = (at: Date) => Math.max(0, Math.round(((now.getTime() - at.getTime()) / 3_600_000) * 10) / 10);
   const outletCond = <T>(column: T) => (outletId ? eq(column as never, outletId) : undefined);

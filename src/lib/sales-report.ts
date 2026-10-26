@@ -11,6 +11,8 @@ import { and, eq, gte, inArray, lt } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { cashSessions, menuItems, orderItems, orders, payments, user } from "@/db/schema";
+import { businessDateKey, businessDayRange, type BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { isCalendarDateKey } from "@/lib/date-range";
 import { CHANNEL_GROUP_LABEL, channelGroupOf } from "@/lib/payment-status";
 
@@ -112,6 +114,8 @@ export function aggregateSalesReport(input: {
   items: SalesReportItem[];
   payments: SalesReportPayment[];
   granularity?: SalesGranularity;
+  /** Tanggal operasional (cut-off); default kalender WIB. */
+  businessDay?: BusinessDayPolicy;
 }) {
   const paidOrders = input.orders.filter((order) => order.status === PAID);
   const paidIds = new Set(paidOrders.map((order) => order.id));
@@ -178,7 +182,7 @@ export function aggregateSalesReport(input: {
     .slice()
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .map((order) => {
-      const dateKey = wibDateKey(order.createdAt);
+      const dateKey = businessDateKey(order.createdAt, input.businessDay);
       const bucket = periodBucket(dateKey, granularity);
       const period = periods.get(bucket.key) ?? { ...bucket, transactions: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0 };
       period.transactions += 1;
@@ -247,10 +251,6 @@ export type SalesReport = ReturnType<typeof aggregateSalesReport> & {
   sessionCode: string | null;
 };
 
-function wibStart(dateKey: string) {
-  return new Date(`${dateKey}T00:00:00+07:00`);
-}
-
 export function isDateKey(value: string) {
   return isCalendarDateKey(value);
 }
@@ -263,8 +263,8 @@ export async function getSalesReport(params: {
   granularity?: SalesGranularity;
 }): Promise<SalesReport> {
   const db = getDb();
-  const start = wibStart(params.range.from);
-  const end = new Date(wibStart(params.range.to).getTime() + 24 * 60 * 60_000);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = businessDayRange(params.range.from, params.range.to, businessDay);
 
   let sessionCode: string | null = null;
   let orderIdFilter: string[] | null = null;
@@ -342,6 +342,7 @@ export async function getSalesReport(params: {
     scope: params.sessionId ? "shift" : "outlet",
     sessionCode,
     ...aggregateSalesReport({
+      businessDay,
       orders: orderRows,
       items: itemRows,
       payments: paymentRows.flatMap((row): SalesReportPayment[] => (row.orderId ? [{ ...row, orderId: row.orderId }] : [])),

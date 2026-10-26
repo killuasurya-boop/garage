@@ -1,3 +1,5 @@
+import { businessDayRange, CALENDAR_POLICY, type BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { daysBetween, isCalendarDateKey } from "@/lib/date-range";
 
 export class EventSalesError extends Error {
@@ -125,12 +127,12 @@ export function aggregateEventSales(input: {
   };
 }
 
-export function eventSalesRange(from: string, to: string) {
+export function eventSalesRange(from: string, to: string, policy: BusinessDayPolicy = CALENDAR_POLICY) {
   if (!isCalendarDateKey(from) || !isCalendarDateKey(to) || from > to) {
     throw new EventSalesError(400, "INVALID_RANGE", "Rentang tanggal tidak valid. Gunakan YYYY-MM-DD, dari sebelum atau sama dengan sampai.");
   }
   if (daysBetween(from, to) + 1 > 93) throw new EventSalesError(400, "RANGE_TOO_LONG", "Rentang laporan maksimal 93 hari.");
-  return { start: new Date(`${from}T00:00:00+07:00`), end: new Date(new Date(`${to}T00:00:00+07:00`).getTime() + 86_400_000) };
+  return businessDayRange(from, to, policy);
 }
 
 export async function getEventSalesReport(input: { eventId: string; outletId: string; from: string; to: string }) {
@@ -138,7 +140,7 @@ export async function getEventSalesReport(input: { eventId: string; outletId: st
   const { getDb } = await import("@/db");
   const { eventMenuEntries, events, orderItems, orders, payments } = await import("@/db/schema");
   const db = getDb();
-  const { start, end } = eventSalesRange(input.from, input.to);
+  const { start, end } = eventSalesRange(input.from, input.to, await loadBusinessDayPolicy());
   const [event] = await db.select().from(events).where(eq(events.id, input.eventId)).limit(1);
   if (!event || ((event as { outletId?: string | null }).outletId && (event as { outletId?: string | null }).outletId !== input.outletId)) {
     throw new EventSalesError(404, "EVENT_NOT_FOUND", "Event tidak ditemukan untuk outlet ini.");

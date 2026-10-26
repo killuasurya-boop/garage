@@ -158,6 +158,10 @@ export type AppSettings = {
   securityFailedLoginLockoutCount: number;
   securityLockoutDurationMinutes: number;
   securityRequire2faForOwner: boolean;
+  /** Jam berakhirnya hari operasional (WIB). Owner Okt 2026: 4. Aktif hanya bila businessDayEffectiveDate diisi. */
+  businessDayCutoffHour: number;
+  /** YYYY-MM-DD mulai berlakunya cut-off; kosong = kalender 00:00 (perilaku lama). */
+  businessDayEffectiveDate: string;
   // Attendance control
   attendanceEnabled: boolean;
   attendanceTerminalMode: "pin_only" | "pin_gps" | "pin_gps_selfie";
@@ -304,6 +308,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   securityFailedLoginLockoutCount: 5,
   securityLockoutDurationMinutes: 15,
   securityRequire2faForOwner: false,
+  businessDayCutoffHour: 4,
+  businessDayEffectiveDate: "",
   // Attendance control
   attendanceEnabled: true,
   attendanceTerminalMode: "pin_gps",

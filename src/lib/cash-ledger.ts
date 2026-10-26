@@ -4,6 +4,8 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { cashLedgerEntries, cashSessions } from "@/db/schema";
+import { businessDateKey, CALENDAR_POLICY, type BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 
 // =============================================================================
 // Buku kas tunggal (owner, Okt 2026 — P1 closing, docs/AUDIT-P0-CLOSING-2026-10.md).
@@ -86,9 +88,9 @@ export class CashLedgerError extends Error {
   }
 }
 
-const jakartaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
-export function businessDateOf(at: Date) {
-  return jakartaDate.format(at);
+/** Tanggal operasional baris buku kas (lihat business-date.ts; default kalender WIB). */
+export function businessDateOf(at: Date, policy: BusinessDayPolicy = CALENDAR_POLICY) {
+  return businessDateKey(at, policy);
 }
 
 function hashOf(value: unknown) {
@@ -167,7 +169,7 @@ export async function postDrawerCash(db: DbOrTx, input: DrawerPostingInput): Pro
       idempotencyKey: input.idempotencyKey ?? `${input.sourceType}:${input.sourceId ?? "-"}:${randomUUID()}`,
       requestHash,
       occurredAt: at,
-      businessDate: businessDateOf(at),
+      businessDate: businessDateOf(at, await loadBusinessDayPolicy(db)),
       outletId: updated.outletId,
       cashSessionId: input.sessionId,
       fromAccount: input.delta > 0 ? counter : "drawer",
@@ -214,7 +216,7 @@ export async function postAccountCash(
       idempotencyKey: input.idempotencyKey ?? `${input.sourceType}:${input.sourceId ?? "-"}:${randomUUID()}`,
       requestHash: hashOf({ from: input.from, to: input.to, amount: input.amount, sourceType: input.sourceType, sourceId: input.sourceId ?? null }),
       occurredAt: at,
-      businessDate: businessDateOf(at),
+      businessDate: businessDateOf(at, await loadBusinessDayPolicy(db)),
       outletId: input.outletId,
       fromAccount: input.from,
       toAccount: input.to,

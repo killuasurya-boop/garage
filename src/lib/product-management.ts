@@ -5,6 +5,7 @@
 // pindah produk supaya transaksi historis tetap utuh (order_items menyimpan
 // snapshot nama/harga).
 // =============================================================================
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -470,7 +471,8 @@ export async function loadCatalogRows(range: { from: string; to: string }): Prom
       .where(eq(menuRecipes.status, "active")),
     db.select().from(productCategories),
   ]);
-  const { start, end } = rangeBounds(range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(range, businessDay);
   const sales = await db
     .select({
       itemId: orderItems.menuItemId,

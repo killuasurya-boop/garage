@@ -139,3 +139,15 @@ di semua pintu: Aya in-app, suara/notifikasi, dan jawaban ChatGPT MCP (D-01) bis
 - **D-07d** Kepribadian & cara bicara Aya (mis. panggil Owner "Bos"/"Pak Surya"? boleh sedikit lucu atau
   tetap formal saat membahas uang?).
 - **D-07e** Apakah Aya juga tampil untuk staf (kasir/bar/dapur) dan/atau member, atau khusus Owner & Manajer.
+
+---
+
+## D-08 — Batas hari operasional (FINAL, 2026-10-26)
+
+**Jawaban Owner:** hari operasional berakhir **04:00 WIB**; aturan berlaku **mulai tanggal efektif** (laporan &
+closing yang sudah lewat tidak berubah angka). Menjawab PRD §02.4 "Cut-off business date" & sebagian D-06 butir 1.
+
+- Implementasi: `src/lib/business-date.ts` (aturan + hari transisi 28 jam), pengaturan `businessDayCutoffHour` (4) &
+  `businessDayEffectiveDate` (kosong = kalender). PR #87 (B1) + B1b.
+- **Tanggal efektif belum ditentukan Owner** — diisi setelah B1b selesai (field baru muncul di Pengaturan → Shift & Cash).
+- Kebijakan global (satu outlet); per outlet menyusul bila outlet bertambah.

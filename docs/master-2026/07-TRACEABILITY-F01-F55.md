@@ -11,7 +11,7 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F01 | Identitas kasir & outlet (§10.1, §10.9) | 🟡 | `cash_sessions` opener/closer, `actor` di audit; gate `ACTIVE_STAFF` dari approval staf belum ada | B1, B5 | |
 | F02 | Open Shift warning (§10.1) | ❌ | Tidak ada modal peringatan + `policy_acceptances` berversi | B2 | |
 | F03 | Cash counting pecahan (§10.2) | ✅ | `opening_denominations`, `cash-denominations.ts`, `cash-denomination-grid.tsx`; pecahan wajib saat closing (0161) | — | regresi |
-| F04 | Balancing bertahap (§10.3) | 🟡 | Ledger + closing ada; checkpoint mid-shift/pre-close belum | B2, B4 | |
+| F04 | Balancing bertahap (§10.3) | 🟡 | Ledger + closing ada; tanggal operasional cut-off (PR #87, D-08); checkpoint mid-shift/pre-close ❌ | B1, B2, B4 | `business-date*.test.ts` |
 | F05 | QRIS reconciliation (§11) | 🟡 | QRIS statis BNI, akun `qris_clearing`, antrian mismatch (oversight); status provider PAID/SETTLED & import rekap merchant ❌ | B3 | |
 | F06 | Setoran harian Rp10.000 (§10.7) | ❌ | Hanya kategori biaya "Transportasi/Parkir" (`cash-drawer.ts`) — bukan deklarasi parkir harian | B2 | |
 | F07 | Cash In/Out & petty (§10.4–10.5) | ✅ | `recordCashMovement`, kategori `cash-drawer.ts`, petty ledger (0160) | — | regresi |

@@ -52,7 +52,8 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Fase 1 — Financial integrity (PRD §08–§11)
 | ID | Batch | Fitur | Status |
 |---|---|---|---|
-| B1 | Payment state machine & business_date | `payment_attempts` PENDING/PAID/FAILED, idempotency, business_date per outlet lintas 00:00 (AC-F13, AC-F27) | READY |
+| B1 | Business date (cut-off 04:00, D-08) | Fondasi `business-date.ts`, buku kas, `reports/*`, `sales-report`, `cash-oversight`, `event-sales-report`; setting belum tampil di UI | **PR #87 (draft)** — payment state PENDING/PAID via provider tetap BLOCKED (QRIS statis, D-06 butir 3) |
+| B1b | Business date — sisa modul uang + aktivasi | `finance-control` (laba-rugi, `wibDay` SQL), `finance-closing` (+ kunci hari closed), laporan Owner, dashboard/ringkasan "hari ini", preset klien "Hari ini/Kemarin"; lalu tampilkan field di Pengaturan | READY (setelah #87) |
 | B2 | Open Shift policy + parkir + cash-out bahan | F02/F27 policy_versions + acceptance; F06/F31 deklarasi parkir per outlet+business_date; F08 tautan purchase_id; AC-F01–F07, F16 | BLOCKED (D-06 butir 1: tanggal efektif & label setoran) |
 | B3 | Tender guard, QRIS paid/settled, Quick Retail | F28, F05 (import rekap merchant karena QRIS statis), F32, F34; AC-F08–F15, F17 | BLOCKED (D-06 butir 3: penyedia/akses settlement QRIS) — tender guard & Quick Retail bisa READY lebih dulu |
 
@@ -101,7 +102,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 
 ## Urutan kerja rekomendasi untuk agent berikutnya
 
-1. ~~S2~~ (PR #81) → 2. ~~M0~~ (PR #82, #83) → ~~S1~~ (PR #84) → ~~M1~~ (PR #85) → ~~M2~~ (PR #86) (OAuth gateway, karena D-01 adalah prioritas Owner) →
+1. ~~S2~~ (PR #81) → 2. ~~M0~~ (PR #82, #83) → ~~S1~~ (PR #84) → ~~M1~~ (PR #85) → ~~M2~~ (PR #86) → ~~B1~~ (PR #87) → **B1b** (OAuth gateway, karena D-01 adalah prioritas Owner) →
 3. **S1** (persempit key non-Owner) → 4. **B1** → 5. **I3** → 6. **U0** / **S0b** paralel →
 7. **M1 → M2 → M3** → lalu Fase 1–5 sisanya sesuai jawaban keputusan OPEN.
 

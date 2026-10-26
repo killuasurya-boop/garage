@@ -138,3 +138,17 @@ Format wajib per batch (instruksi Owner):
 - Belum: D-01a (TOTP Owner untuk R3 di chat — menunggu jawaban Owner), readback generik, konfirmasi untuk key statis.
 - Langkah berikutnya: **M3** — tool bisnis eksplisit per domain (16 domain; prioritas P0: shift/kas, keuangan, produk/harga,
   gudang) agar `garage_api` bisa dipensiunkan. Alternatif bila Owner ingin fondasi uang dulu: **B1** (payment state & business_date).
+
+## 2026-10-26 — Batch B1 Tanggal operasional (fondasi)
+
+- Keputusan Owner D-08: cut-off 04:00 WIB, berlaku mulai tanggal efektif (belum ditentukan).
+- Fitur/modul: `business-date.ts` (aturan + hari transisi 28 jam, uji properti), `business-date-policy.ts` (baca setting
+  lewat handle DB/transaksi), buku kas (`business_date` baris baru), `reports/*` (rentang + label), `sales-report`
+  (rentang + pengelompokan), `cash-oversight`, `event-sales-report`. Setting ada di tipe/default tetapi **tidak tampil
+  di UI** sampai B1b.
+- Hasil pengujian: tsc · eslint · vitest 180 file / 1.165 tes · build. Tanpa migration.
+- Branch / PR: `claude/b1-payment-business-date` · `bfd1235` · draft PR killuasurya-boop/garage#87 (independen).
+- Risiko DB/VPS: tidak ada perubahan angka selama tanggal efektif kosong.
+- Temuan: `finance-control.wibDay` (SQL) & `garage-owner-report.rangeFor` punya hitungan hari sendiri; pengeluaran bertanggal
+  pilihan tersimpan 07:00 WIB (aman terhadap cut-off). Payment state via provider tetap BLOCKED (QRIS statis).
+- Langkah berikutnya: **B1b** (laba-rugi, closing + kunci hari, laporan Owner, dashboard, preset klien, tampilkan setting).

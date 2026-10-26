@@ -61,9 +61,9 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F46 | Safe account linking & migrasi member lama | ❌ | | I1 | |
 | F47 | Re-verifikasi ganti kontak | ❌ | | I2 | |
 | F48 | Module Registry | 🟡 | **PR #85**: `mcp-tool-registry.ts` (16 domain, R0–R4, peta kemampuan + domain belum ada tool), tool `kemampuan_sistem`. Belum: UI Module Registry di Owner Control Center | M1 | `mcp-tool-registry.test.ts` |
-| F49 | Lifecycle perintah + operation receipt | 🟡 | AI action drafts approve/reject; receipt ❌ | M2 | |
+| F49 | Lifecycle perintah + operation receipt | 🟡 | **PR #86**: preview → konfirmasi → eksekusi → receipt + `status_operasi` (ChatGPT). Belum: readback generik, recovery_ref | M2 | `mcp-chatgpt-oauth.integration.test.ts` (M2), `mcp-confirmation.test.ts` |
 | F50 | MCP OAuth gateway | 🟡 | **PR #83**: OAuth 2.1 `/api/mcp/chatgpt` (mati default). Belum: uji akun ChatGPT nyata, CIMD | M0 | `mcp-chatgpt-oauth.integration.test.ts`, `mcp-chatgpt-config.test.ts` |
-| F51 | MCP write (preview/konfirmasi/commit) | 🟡 | `garage_api` write langsung tanpa preview; **D-01: full access Owner** | M2, M3 | |
+| F51 | MCP write (preview/konfirmasi/commit) | 🟡 | **PR #86**: R2/R3 wajib konfirmasi di ChatGPT; tool tulis baru 2 (`catat_pengeluaran`, `putuskan_approval`) + `ubah_status_menu` R1. Belum: coverage 16 domain (M3) | M2, M3 | — |
 | F52 | Aya in-app Owner Copilot | 🟡 | `owner-chat`, AI agents, provider OpenAI/Gemini; nama "Aya" belum ada di kode. **D-07: Aya = peliharaan Owner** (nama, avatar, persona) | M5, U1 | |
 | F53 | Reports Studio + Drive/Gmail | 🟡 | Drive upload ✅, Gmail ❌ (D-04) | M4 | |
 | F54 | Design system & component registry | 🟡 | `design-system/MASTER.md`, shadcn/ui; token PRD §24.2 konflik → D-02 | U1 | |

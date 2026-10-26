@@ -122,3 +122,19 @@ Format wajib per batch (instruksi Owner):
 - Langkah berikutnya: **M2** — preview → konfirmasi Owner di chat → commit → receipt untuk tool R2/R3
   (`riskNeedsConfirmation`). Rencana: token konfirmasi HMAC terikat digest(tool+args)+user+expiry (tanpa tabel baru),
   readback & operation receipt (PRD §07.4–07.5).
+
+## 2026-10-26 — Batch M2 Preview → konfirmasi → receipt (ChatGPT)
+
+- Fitur/modul: aksi R2/R3 lewat `/api/mcp/chatgpt` tidak langsung jalan: preview (ringkasan dampak dari `tool.preview()`)
+  + token sekali pakai 5 menit → Owner setuju di chat → panggilan ulang dengan argumen sama + `konfirmasi` → eksekusi →
+  `receipt`. Tabel `mcp_operations` (migration 0164, CLEAR saat reset). Tool `status_operasi`. Token tidak pernah
+  disimpan (hash nonce) dan tidak masuk audit. Key statis tidak berubah.
+- File: baru `src/lib/mcp-confirmation.ts` (+tes), `src/lib/agent-mcp.ts` (opsi `callTool`, `confirmRiskyTools`),
+  `src/lib/agent-tools.ts` (`preview`, `status_operasi`), `src/lib/mcp-chatgpt-gateway.ts`, consent copy, docs.
+- Hasil pengujian: tsc · eslint · vitest 182 file / 1.183 tes (termasuk 2 konfirmasi bersamaan → 1 eksekusi) · build.
+- Branch / PR: `claude/m2-mcp-confirm` · `446043b` · draft PR killuasurya-boop/garage#86 (base #85).
+  **Urutan merge stack: #82 → #83 → #85 → #86** (#81, #84 independen).
+- Risiko DB/VPS: migration 0164 additive. Fitur hanya aktif bila `GARAGE_MCP_CHATGPT_ENABLED=true`.
+- Belum: D-01a (TOTP Owner untuk R3 di chat — menunggu jawaban Owner), readback generik, konfirmasi untuk key statis.
+- Langkah berikutnya: **M3** — tool bisnis eksplisit per domain (16 domain; prioritas P0: shift/kas, keuangan, produk/harga,
+  gudang) agar `garage_api` bisa dipensiunkan. Alternatif bila Owner ingin fondasi uang dulu: **B1** (payment state & business_date).

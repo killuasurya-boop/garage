@@ -16,7 +16,7 @@ Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-A
 ## B. MCP / agent AI (sesuai D-01: Owner full access, R4 tetap ditolak)
 - [x] Koneksi ChatGPT Owner lewat OAuth 2.1 + PKCE (`/api/mcp/chatgpt`), bukan bearer statis (M0) — PR #83 (belum merge)
 - [ ] Owner via MCP bisa semua aksi R0–R3 yang bisa dilakukan di UI Owner (M3)
-- [ ] R2/R3: preview → konfirmasi Owner di chat (token terikat digest) → commit → readback → receipt (M2)
+- [x] R2/R3: preview → konfirmasi Owner di chat (token sekali pakai terikat sidik argumen) → eksekusi → receipt — PR #86 (belum merge; readback generik belum)
 - [ ] R4 ditolak di semua jalur: hapus/edit ledger & audit, SQL bebas, shell, baca secret
 - [x] Key statis (scope apa pun) tidak bisa: pengaturan keamanan/kill switch, user/role/PIN/reset/sesi, force-logout — PR #84 (belum merge). Sertifikasi saldo sudah `requireGarageSession(["Owner"])` → key `manajer` ditolak
 - [~] Kill-switch MCP berfungsi (`mcpChatgptPaused`, PR #83); revoke token per-klien via UI belum ada (AC-M07)

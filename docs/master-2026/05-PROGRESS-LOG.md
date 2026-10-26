@@ -90,3 +90,22 @@ Format wajib per batch (instruksi Owner):
   - Uji browser lokal: `bootstrap-pglite` + `db:seed` + `next start` dengan env flag (skrip contoh di PR #83).
 - Langkah berikutnya: **S1** (persempit key non-Owner, audit sinkron `/api/mcp` lama, rate limit persisten) → **M1/M2**
   (registry + preview/konfirmasi) → **M3** (tool 16 domain, pensiunkan `garage_api`).
+
+## 2026-10-26 — Batch S1 Pengerasan API key agent statis
+
+- Fitur/modul: audit agent sinkron sebelum request (tulis + GET data keuangan/laporan/payroll/kontrol), audit gagal →
+  `503 AGENT_AUDIT_FAILED` (F-05); key `gk_agent_` scope apa pun ditolak di `/api/admin/users/*` & `/api/admin/security/*`;
+  pengaturan `security*` & `mcpChatgpt*` (kill switch) ditolak untuk sesi agent di `updateAppSettings` + DELETE override.
+- File diubah: `src/lib/agent-api-key.ts`, baru `src/lib/agent-protected-settings.ts`, `src/lib/garage-service.ts`
+  (`updateAppSettings`), `src/app/api/admin/settings/route.ts`, `src/app/api/settings/route.ts`, `docs/AGENT-API.md`,
+  tes `agent-api-key.integration.test.ts` (+4).
+- Hasil pengujian: tsc lulus · eslint bersih · vitest 178 file / 1.159 tes · build lulus. Tanpa migration.
+- Branch / PR: `claude/s1-agent-key-hardening` · `4b711f4` · draft PR killuasurya-boop/garage#84 (independen dari #81–#83).
+- Risiko DB/VPS: tanpa migration. Perubahan perilaku: bot OpenClaw/Hermes tidak bisa lagi kelola user/role/keamanan.
+- Status deploy: siap review; merge = auto-deploy.
+- Catatan agent berikutnya: setelah ganti branch, hapus `.next/` sebelum `tsc` (tipe route lama dari build branch lain
+  membuat error palsu).
+- Ditunda: F-06 rate limit persisten (butuh tabel → setelah #83 merge supaya nomor migration tidak bentrok),
+  audit per-tool di `/api/mcp` lama (pakai `beforeToolCall` dari #83).
+- Langkah berikutnya: **M1** (registry tool + risk tier R0–R4) → **M2** (preview → konfirmasi → receipt). Keduanya
+  dibangun di atas #83; sebaiknya #82/#83 di-merge dulu agar tidak menumpuk PR berantai.

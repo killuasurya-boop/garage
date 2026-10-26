@@ -18,9 +18,9 @@ Centang hanya bila sudah diverifikasi dengan test/bukti. Referensi temuan: `01-A
 - [ ] Owner via MCP bisa semua aksi R0–R3 yang bisa dilakukan di UI Owner (M3)
 - [ ] R2/R3: preview → konfirmasi Owner di chat (token terikat digest) → commit → readback → receipt (M2)
 - [ ] R4 ditolak di semua jalur: hapus/edit ledger & audit, SQL bebas, shell, baca secret
-- [ ] Key non-Owner (`manajer`, `readonly`, agent lain) tidak bisa: settings keamanan, user/role, sertifikasi saldo, approval Owner-only (S1)
+- [x] Key statis (scope apa pun) tidak bisa: pengaturan keamanan/kill switch, user/role/PIN/reset/sesi, force-logout — PR #84 (belum merge). Sertifikasi saldo sudah `requireGarageSession(["Owner"])` → key `manajer` ditolak
 - [~] Kill-switch MCP berfungsi (`mcpChatgptPaused`, PR #83); revoke token per-klien via UI belum ada (AC-M07)
-- [ ] Audit agent sinkron, gagal audit = request gagal; GET data finansial diaudit (F-05)
+- [x] Audit agent sinkron, gagal audit = request gagal; GET data finansial diaudit (F-05) — PR #84 (belum merge)
 - [ ] Rate limit agent persisten lintas restart (F-06)
 - [ ] Prompt-injection: output tool tidak dieksekusi sebagai instruksi; deskripsi tool tanpa data user
 - [ ] Test: tiap route Owner-only menolak key non-Owner (403) dan menerima Owner via OAuth MCP

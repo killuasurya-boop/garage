@@ -46,7 +46,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Keamanan dasar (prasyarat semua fase)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| S1 | Agent key hardening (non-Owner) | Key `manajer`/`readonly`/agent lain: allowlist path, tidak bisa settings keamanan/user-role/sertifikasi saldo/approve; audit agent **sinkron** + audit GET finansial; rate limit persisten. Key Owner tetap luas sampai M3 menggantikannya (D-01) | READY |
+| S1 | Agent key hardening | Audit agent SINKRON (tulis + baca data keuangan), audit gagal → 503; key statis tidak bisa `/api/admin/users`, `/api/admin/security`, pengaturan `security*`/`mcpChatgpt*` (kill switch) | **PR #84 (draft)** — ditunda: rate limit persisten (F-06, butuh migration setelah #83), audit per-tool `/api/mcp` lama |
 | S2 | 2FA wajib di API | Wajib 2FA Owner/Manajer ditegakkan di `requireGarageSession` untuk `/api/*` (F-04), tes negatif. **Dipindah ke S1/M0:** helper `requireOwnerPrincipal` (Owner manusia atau Owner via OAuth MCP) | **PR #81 (draft, menunggu review Owner)** |
 
 ### Fase 1 — Financial integrity (PRD §08–§11)
@@ -101,7 +101,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 
 ## Urutan kerja rekomendasi untuk agent berikutnya
 
-1. ~~S2~~ (PR #81) → 2. ~~M0~~ (PR #82, #83) (OAuth gateway, karena D-01 adalah prioritas Owner) →
+1. ~~S2~~ (PR #81) → 2. ~~M0~~ (PR #82, #83) → ~~S1~~ (PR #84) (OAuth gateway, karena D-01 adalah prioritas Owner) →
 3. **S1** (persempit key non-Owner) → 4. **B1** → 5. **I3** → 6. **U0** / **S0b** paralel →
 7. **M1 → M2 → M3** → lalu Fase 1–5 sisanya sesuai jawaban keputusan OPEN.
 

@@ -255,6 +255,85 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     expect((await mcp(ownerToken, { jsonrpc: "2.0", id: 7, method: "tools/list" })).status).toBe(200);
   });
 
+  describe("M2 — R2/R3: preview → konfirmasi → eksekusi → receipt", () => {
+    const args = { kategori: "Operasional", deskripsi: "Gas LPG via ChatGPT", nominal: 87_000, metodeBayar: "Cash" };
+    const call = async (id: number, name: string, a: unknown) =>
+      (await (await mcp(ownerToken, { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: a } })).json()) as any;
+    const parse = (res: any) => JSON.parse(res.result.content[0].text);
+    async function expenseCount() {
+      const rows = await t.getDb().select().from(t.schema.expenses).where(eq(t.schema.expenses.description, args.deskripsi));
+      return rows.length;
+    }
+
+    it("tools/list: tool R2 menerima `konfirmasi`, tool R0 tidak", async () => {
+      const list = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 40, method: "tools/list" })).json()) as any;
+      const byName = Object.fromEntries(list.result.tools.map((tool: any) => [tool.name, tool]));
+      expect(byName.catat_pengeluaran.inputSchema.properties.konfirmasi).toBeTruthy();
+      expect(byName.ringkasan_hari_ini.inputSchema.properties?.konfirmasi).toBeUndefined();
+      expect(byName.status_operasi).toBeTruthy();
+    });
+
+    it("panggilan pertama hanya preview — tidak ada pengeluaran tercatat", async () => {
+      const before = await expenseCount();
+      const preview = parse(await call(41, "catat_pengeluaran", args));
+      expect(preview).toMatchObject({ status: "PERLU_KONFIRMASI", dijalankan: false, risiko: "R2" });
+      expect(preview.ringkasan.nominal).toBe("Rp87.000");
+      expect(preview.ringkasan.sumberDana).toMatch(/TIDAK memotong laci/);
+      expect(preview.konfirmasi).toMatch(/^[0-9a-f-]{36}\./);
+      expect(await expenseCount()).toBe(before);
+      const status = parse(await call(42, "status_operasi", { operasiId: preview.operasiId }));
+      expect(status.status).toBe("PENDING");
+    });
+
+    it("konfirmasi → tepat satu eksekusi + receipt; token tidak bisa dipakai ulang; tidak masuk audit", async () => {
+      const before = await expenseCount();
+      const preview = parse(await call(43, "catat_pengeluaran", args));
+      const done = parse(await call(44, "catat_pengeluaran", { ...args, konfirmasi: preview.konfirmasi }));
+      expect(done.status).toBe("BERHASIL");
+      expect(done.receipt.operasiId).toBe(preview.operasiId);
+      expect(await expenseCount()).toBe(before + 1);
+      expect(parse(await call(45, "status_operasi", { operasiId: preview.operasiId })).status).toBe("EXECUTED");
+
+      const again = await call(46, "catat_pengeluaran", { ...args, konfirmasi: preview.konfirmasi });
+      expect(again.result.isError).toBe(true);
+      expect(again.result.content[0].text).toContain("CONFIRMATION_USED");
+      expect(await expenseCount()).toBe(before + 1);
+
+      const audit = await t.getDb().select().from(t.schema.auditLogs).where(eq(t.schema.auditLogs.device, "mcp:chatgpt"));
+      expect(JSON.stringify(audit)).not.toContain(preview.konfirmasi.split(".")[1]);
+    });
+
+    it("dua konfirmasi bersamaan dengan token sama → hanya satu yang jalan", async () => {
+      const before = await expenseCount();
+      const preview = parse(await call(47, "catat_pengeluaran", args));
+      const [a, b] = await Promise.all([
+        call(48, "catat_pengeluaran", { ...args, konfirmasi: preview.konfirmasi }),
+        call(49, "catat_pengeluaran", { ...args, konfirmasi: preview.konfirmasi }),
+      ]);
+      expect([a.result.isError, b.result.isError].sort()).toEqual([false, true]);
+      expect(await expenseCount()).toBe(before + 1);
+    });
+
+    it("argumen diubah setelah konfirmasi → ditolak; token kedaluwarsa → ditolak", async () => {
+      const before = await expenseCount();
+      const preview = parse(await call(50, "catat_pengeluaran", args));
+      const changed = await call(51, "catat_pengeluaran", { ...args, nominal: 870_000, konfirmasi: preview.konfirmasi });
+      expect(changed.result.content[0].text).toContain("CONFIRMATION_ARGS_CHANGED");
+
+      const { mcpOperations } = t.schema as any;
+      await t.getDb().update(mcpOperations).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(mcpOperations.id, preview.operasiId));
+      const expired = await call(52, "catat_pengeluaran", { ...args, konfirmasi: preview.konfirmasi });
+      expect(expired.result.content[0].text).toContain("CONFIRMATION_EXPIRED");
+      expect(await expenseCount()).toBe(before);
+    });
+
+    it("tool R0 tetap langsung jalan tanpa konfirmasi", async () => {
+      const res = await call(53, "daftar_menu", {});
+      expect(res.result.isError).toBe(false);
+      expect(parse(res).status).not.toBe("PERLU_KONFIRMASI");
+    });
+  });
+
   it("akun Kasir yang berhasil OAuth tetap ditolak (OWNER_ONLY)", async () => {
     const kasirId = await signUpStaff("kasir-mcp@garage.id", "Kasir");
     const kasirToken = await oauthRoundTrip("kasir-mcp@garage.id");

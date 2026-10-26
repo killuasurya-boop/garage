@@ -128,5 +128,15 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
   bila audit gagal, tool tidak dijalankan.
 - Tool sama dengan MCP agent (`/api/mcp`), kecuali `garage_api` (disembunyikan; diganti tool bisnis eksplisit
   di batch M3).
+- **Aksi R2/R3 = preview → konfirmasi → eksekusi → receipt** (batch M2, PRD §07.4–07.5):
+  1. Panggilan pertama tanpa `konfirmasi` **tidak dijalankan**; server membalas `status: PERLU_KONFIRMASI`,
+     ringkasan dampak (mis. nominal, sumber dana), `operasiId` dan token `konfirmasi` (sekali pakai, 5 menit).
+  2. ChatGPT menunjukkan ringkasan ke Owner; bila Owner setuju, memanggil tool yang sama dengan argumen **sama persis**
+     + `konfirmasi`. Argumen berubah → `CONFIRMATION_ARGS_CHANGED`; token dipakai ulang → `CONFIRMATION_USED`;
+     lewat 5 menit → `CONFIRMATION_EXPIRED`.
+  3. Hasil `status: BERHASIL` + `receipt` (operasiId, waktu). Tool `status_operasi` menampilkan PENDING / EXECUTED /
+     FAILED / UNKNOWN (terputus — jangan dianggap berhasil). Tabel `mcp_operations` (migration 0164); token tidak
+     pernah disimpan atau masuk audit (hanya hash nonce).
+  Key statis `gk_agent_` (`/api/mcp`, REST) belum memakai alur ini — perilakunya tidak berubah.
 - Discovery: `/.well-known/oauth-protected-resource[/api/mcp/chatgpt]`,
   `/.well-known/oauth-authorization-server[/api/auth]`, consent di `/oauth/consent`.

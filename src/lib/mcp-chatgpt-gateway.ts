@@ -11,6 +11,7 @@ import { agentInternalOrigin } from "@/lib/agent-tools";
 import { loadSettingsByKeys } from "@/lib/garage-settings-service";
 import type { Role } from "@/lib/garage-data";
 import { mcpChatgptAccess } from "@/lib/mcp-chatgpt-access";
+import { runToolWithConfirmation, splitConfirmation } from "@/lib/mcp-confirmation";
 import type { GarageSession } from "@/lib/server-auth";
 
 // garage_api memanggil /api lain dengan header Authorization; token OAuth belum
@@ -123,7 +124,15 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
       object: name,
       device: DEVICE,
       status: "recorded",
-      metadata: { source: "chatgpt", tool: name, args: argsPreview(args), oauthClientId: clientId, userId: session.user.id },
+      // Token konfirmasi tidak pernah masuk audit; cukup penandanya.
+      metadata: {
+        source: "chatgpt",
+        tool: name,
+        args: argsPreview(splitConfirmation(args).args),
+        withConfirmation: Boolean(splitConfirmation(args).token),
+        oauthClientId: clientId,
+        userId: session.user.id,
+      },
     });
   };
 
@@ -136,7 +145,15 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
       continue;
     }
     if (message.id === undefined || message.method.startsWith("notifications/")) continue;
-    responses.push(await handleMcpMessage(message, session, ctx, { hiddenTools: HIDDEN_TOOLS, beforeToolCall }));
+    responses.push(
+      await handleMcpMessage(message, session, ctx, {
+        hiddenTools: HIDDEN_TOOLS,
+        beforeToolCall,
+        // D-01: aksi R2/R3 = preview → konfirmasi Owner di chat → eksekusi → receipt.
+        confirmRiskyTools: true,
+        callTool: (name, args, toolCtx) => runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId }),
+      }),
+    );
   }
   if (!responses.length) return new Response(null, { status: 202 });
   return json(Array.isArray(payload) ? responses : responses[0]);

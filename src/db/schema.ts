@@ -404,6 +404,38 @@ export const oauthClientAssertion = pgTable("oauth_client_assertion", {
   expiresAt: timestamp("expires_at", tz).notNull(),
 });
 
+// Operasi AI berisiko (R2/R3) lewat MCP ChatGPT: preview → konfirmasi Owner →
+// eksekusi → receipt (PRD V4.0 §07.4–07.5, batch M2). Token konfirmasi sekali
+// pakai: hanya hash nonce yang disimpan; klaim = UPDATE atomik status pending.
+export const mcpOperations = pgTable(
+  "mcp_operations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    source: text("source").notNull().default("chatgpt"),
+    oauthClientId: text("oauth_client_id"),
+    tool: text("tool").notNull(),
+    risk: text("risk").notNull(),
+    argsDigest: text("args_digest").notNull(),
+    argsPreview: jsonb("args_preview").$type<Record<string, unknown>>().notNull(),
+    nonceHash: text("nonce_hash").notNull(),
+    // pending → confirmed (diklaim, sedang jalan) → executed | failed; confirmed tanpa
+    // executed/failed = UNKNOWN (PRD P5: jangan klaim berhasil tanpa bukti).
+    status: text("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    executedAt: timestamp("executed_at", { withTimezone: true }),
+    resultSummary: jsonb("result_summary").$type<unknown>(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("mcp_operations_user_id_idx").on(table.userId, table.createdAt),
+  }),
+);
+
 export const outlets = pgTable("outlets", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull().unique(),

@@ -23,7 +23,14 @@ export type AgentTool = {
   permission: Permission;
   input: z.ZodObject<z.ZodRawShape>;
   run: (session: GarageSession, args: Record<string, unknown>, ctx: AgentToolContext) => Promise<unknown>;
+  /**
+   * Ringkasan dampak untuk preview R2/R3 sebelum Owner mengonfirmasi (M2).
+   * Hanya membaca — tidak boleh mengubah data.
+   */
+  preview?: (session: GarageSession, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 };
+
+const rupiah = (value: number) => `Rp${Math.round(value).toLocaleString("id-ID")}`;
 
 export type AgentToolContext = {
   /** Header Authorization asli (diteruskan oleh garage_api). */
@@ -206,6 +213,20 @@ const tools: AgentTool[] = [
       const { decideApproval } = await import("@/lib/garage-service");
       return decideApproval(String(args.id), { status: args.keputusan as "approved" | "rejected", reasonDecided: args.alasan as string | undefined }, session);
     },
+    async preview(_session, args) {
+      const { getApprovalById } = await import("@/lib/garage-service");
+      const approval = await getApprovalById(String(args.id));
+      if (!approval) throw new AgentToolError("NOT_FOUND", "Pengajuan tidak ditemukan.", 404);
+      return {
+        aksi: args.keputusan === "approved" ? "SETUJUI pengajuan" : "TOLAK pengajuan",
+        pengajuan: `${approval.categoryLabel} (${approval.type}) dari ${approval.requester}`,
+        nominal: approval.amount ? rupiah(Number(approval.amount)) : null,
+        alasanPengajuan: approval.reason,
+        statusSaatIni: approval.status,
+        alasanKeputusan: args.alasan ?? null,
+        catatan: approval.status !== "pending" ? "Pengajuan ini sudah diputuskan — eksekusi kemungkinan ditolak." : undefined,
+      };
+    },
   },
   {
     name: "catat_pengeluaran",
@@ -238,6 +259,18 @@ const tools: AgentTool[] = [
         },
         session,
       );
+    },
+    async preview(_session, args) {
+      return {
+        aksi: "CATAT pengeluaran",
+        nominal: rupiah(Number(args.nominal)),
+        kategori: args.kategori,
+        deskripsi: args.deskripsi,
+        metodeBayar: args.metodeBayar ?? "Cash",
+        tanggal: args.tanggal ?? "hari ini",
+        sumberDana: "Uang Owner di luar laci — TIDAK memotong laci kasir",
+        dampak: "Masuk biaya (expenses) & laporan laba-rugi; tidak bisa dihapus, koreksi lewat pembatalan.",
+      };
     },
   },
   {
@@ -302,6 +335,23 @@ const tools: AgentTool[] = [
     input: z.object({}),
     async run(session, _args, ctx) {
       return buildCapabilities(listAgentTools(session).filter((tool) => !ctx.hiddenTools?.has(tool.name)));
+    },
+  },
+  {
+    name: "status_operasi",
+    title: "Status & receipt operasi AI",
+    description:
+      "Cek status operasi berisiko (R2/R3) dari preview/konfirmasi berdasarkan operasiId: PENDING, EXECUTED (berhasil + ringkasan hasil), FAILED, atau UNKNOWN (terputus — jangan dianggap berhasil).",
+    write: false,
+    domain: "sistem",
+    risk: "R0",
+    permission: "dashboard:read",
+    input: z.object({ operasiId: z.string().uuid() }),
+    async run(session, args) {
+      const { getOperation } = await import("@/lib/mcp-confirmation");
+      const operation = await getOperation(String(args.operasiId), session.user.id);
+      if (!operation) throw new AgentToolError("NOT_FOUND", "Operasi tidak ditemukan untuk akun ini.", 404);
+      return operation;
     },
   },
   {

@@ -92,8 +92,9 @@ export function McpChatgptConsent({ state }: { state: ConsentState }) {
 
         {state.access.allowed ? (
           <p className="rounded-md border border-[#f5b13d]/40 bg-[#f5b13d]/10 px-3 py-2 text-sm text-[#f4f4f5]">
-            Perintah dari ChatGPT langsung dijalankan dengan hak Owner dan tercatat di Audit (sumber ChatGPT). Koneksi
-            bisa dijeda kapan saja di Pengaturan → Keamanan.
+            Aksi yang menyentuh uang (mis. catat pengeluaran, putuskan pengajuan) baru dijalankan setelah Anda
+            mengonfirmasi ringkasannya di chat. Semua tercatat di Audit (sumber ChatGPT); koneksi bisa dijeda kapan saja
+            di Pengaturan → Keamanan.
           </p>
         ) : (
           <div role="alert" className="flex gap-2 rounded-md border border-[#ff2a3a]/50 bg-[#d11a2a]/12 px-3 py-2 text-sm text-[#f4f4f5]">

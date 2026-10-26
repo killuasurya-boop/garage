@@ -315,3 +315,17 @@ Format wajib per batch (instruksi Owner):
 - **Berikutnya:**
   - M5 persona Aya (backend), setelah #96 merge untuk UI.
   - B4 bagian READY (submit kasir ≠ final, double recount) setelah #87/#88.
+
+## 2026-10-27 — M5 bagian 1 (Aya)
+
+- **M5** → PR #109 (base main): `AYA_NAME` + `ayaOwnerIdentityPolicy`.
+  - Dipakai di jawaban AI Owner (owner_free_chat / owner_ceo_brain) dan instruksi MCP sesi Owner.
+  - Staf/Manajer tetap "GARAGE AI".
+  - Tidak ada aset atau sapaan karangan.
+  - Hasil uji: 3 tes.
+- **Status batch READY milik agent pertama: habis.** Sisa pekerjaan menunggu keputusan Owner atau merge:
+  - B4 bagian READY (submit kasir ≠ final, double recount) → setelah #87/#88 merge (file finance-closing/cash).
+  - Pensiun `garage_api` jalur API key → keputusan Owner.
+  - Aset & sapaan Aya → D-07a–e.
+  - B2 (D-06), B3 provider (D-06), I1/I2 (D-04/D-05), U1+ (D-02/D-07), R1/R2 (izin Owner).
+  - **Deploy:** GitHub Actions billing atau jalur deploy manual #102.

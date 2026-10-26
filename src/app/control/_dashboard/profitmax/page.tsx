@@ -672,10 +672,10 @@ export default function ProfitMaxPage() {
 
       <section id="health" className="scroll-mt-4">
         <Panel title="Indikator Kesehatan Bisnis" subtitle="Health indicator dari PRD ProfitMax: revenue, margin, HPP, menu rugi, dan BEP.">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {healthRows.map((indicator) => (
-              <div key={indicator.name} className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-4">
-                <div className="flex items-center justify-between gap-2">
+              <div key={indicator.name} className="min-w-0 rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-bold text-zinc-50">{indicator.name}</p>
                   <Badge tone={indicator.status === "DANGER" ? "red" : indicator.status === "WARNING" ? "amber" : indicator.status === "HEALTHY" ? "success" : "chrome"}>
                     {indicator.status}

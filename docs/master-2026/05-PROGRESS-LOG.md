@@ -270,7 +270,7 @@ Format wajib per batch (instruksi Owner):
 
 ## 2026-10-26 — Deploy manual + CI hemat (permintaan Owner)
 
-- **PR** (draft, base main, branch `claude/deploy-manual-ci-hemat`):
+- **PR #102** (draft, base main, branch `claude/deploy-manual-ci-hemat`):
   - `scripts/deploy-manual.sh` + `docs/DEPLOY_MANUAL.md`: deploy dari laptop Owner dengan langkah = `deploy.yml` (backup → migrate → app → cek sehat → rollback). Pengaman:
     - hanya commit = origin/main;
     - wajib ketik DEPLOY;

@@ -236,3 +236,23 @@ Format wajib per batch (instruksi Owner):
 - **Risiko:** klien yang memanggil `POST /api/orders` Cash tanpa `cashReceived` kini ditolak. Tool MCP (M3a–M3d) tidak memanggil `createOrder`, dan tesnya sudah mengirim `cashReceived`.
 - **Butuh keputusan Owner:** Final Bayar Tunai dengan kolom kosong, tetap dihitung "uang pas" atau diblokir seperti PRD?
 - **S0b** (sensus layar): belum ada PR saat catatan ini.
+
+## 2026-10-26 — M3e + PR agent kedua
+
+- **M3e** → PR #100 (draft, base #94, commit 03c738f).
+  - Member/CRM: cari_member, detail_member, sesuaikan_poin_member (R2).
+  - Meja/QR: status_meja, pindah_meja (R1).
+  - Event: daftar_event, ringkasan_event, ubah_status_event (R1).
+  - Hasil uji: 187 file / 1205 tes lulus, build lulus.
+  - Domain tanpa tool tersisa: Bahan & Resep, Konten & Marketing, Email & Notifikasi.
+- **Stack MCP:** #89 → #91 → #92 → #94 → #100.
+- **PR baru dari agent kedua** (area UI; tidak menyentuh agent-tools/MCP):
+  - #95 S0c: overflow responsif (WMS 1024, onboarding & payroll 390).
+  - #96 U0a: modul AI Agent dipindah keluar dari garage-app.tsx (10.297 → 2.895 baris).
+  - #97 U0b: komponen shell (base #96).
+  - #98 U0c: panel checkout & struk POS ke pos/ (base #93 B3).
+  - #99 S0d: judul header /os tidak terpotong di HP.
+- **Catatan untuk M5 (Aya in-app):** UI AI Agent kini ada di modul terpisah hasil U0a. Kerjakan M5 setelah #96 merge.
+- **Berikutnya:**
+  - F-06 rate limit persisten (migration 0165).
+  - Lalu M3f: Bahan & Resep (approve resep draft).

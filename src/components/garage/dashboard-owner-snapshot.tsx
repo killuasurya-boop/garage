@@ -331,7 +331,7 @@ export function DashboardOwnerSnapshot({
               Auto-refresh tiap 30 detik · klik kartu untuk drill-down ke modul terkait.
             </p>
           </div>
-          <Button
+          <Button aria-label="Muat ulang"
             type="button"
             variant="outline"
             size="sm"

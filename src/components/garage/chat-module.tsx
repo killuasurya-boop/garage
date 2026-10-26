@@ -1783,7 +1783,7 @@ export function ChatModule({
                     className="hidden"
                     onChange={(e) => void handleFileSelect(e)}
                   />
-                  <Button
+                  <Button aria-label="Lampirkan file"
                     type="button"
                     size="sm"
                     variant="outline"
@@ -1810,7 +1810,7 @@ export function ChatModule({
                     rows={1}
                     className="garage-scroll max-h-32 flex-1 resize-none rounded-md border border-[#34343c] bg-[#0f0f14] px-3 py-2 text-sm text-white placeholder:text-[#8f8f99] focus:border-[#ffd08a] focus:outline-none"
                   />
-                  <Button
+                  <Button aria-label="Kirim pesan"
                     type="button"
                     size="sm"
                     onClick={() => void handleSend()}

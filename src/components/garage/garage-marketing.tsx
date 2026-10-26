@@ -366,7 +366,7 @@ export function GarageMarketingView({
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
           return (
-            <button
+            <button aria-label={tab.label}
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}

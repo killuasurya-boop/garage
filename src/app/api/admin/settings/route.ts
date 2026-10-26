@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isDatabaseConfigured } from "@/db";
+import { BusinessDaySettingError } from "@/lib/business-date";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { GarageOsThemeSaveError } from "@/lib/garage-theme";
 import {
@@ -71,6 +72,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof GarageOsThemeSaveError) {
       return fail(400, "INVALID_THEME_PRESET", error.message);
+    }
+    if (error instanceof BusinessDaySettingError) {
+      return fail(error.code === "BUSINESS_DAY_OWNER_ONLY" ? 403 : 400, error.code, error.message);
     }
     throw error;
   }

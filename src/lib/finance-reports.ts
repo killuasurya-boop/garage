@@ -21,6 +21,9 @@ import {
   type DayFigure,
   type PeriodKey,
 } from "@/lib/finance-control-core";
+import { CALENDAR_POLICY } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
+import { businessDaySql } from "@/lib/business-date-sql";
 import { getDayFigures, getFinanceControlDashboard, loadFinanceConfig } from "@/lib/finance-control";
 import { getProductProfitability } from "@/lib/finance-intelligence";
 import { renderReport, type ExportFormat } from "@/lib/report-engine";
@@ -124,7 +127,8 @@ export async function buildFinanceReport(input: {
   const dashboard = await getFinanceControlDashboard({ period: input.period, from: input.from, to: input.to });
   const period = dashboard.period;
   const config = await loadFinanceConfig();
-  const todayKey = jakartaDateKey();
+  const policy = config.businessDay ?? CALENDAR_POLICY;
+  const todayKey = jakartaDateKey(new Date(), policy);
   const allFigures = await getDayFigures(period.fromKey, period.toKey, config, todayKey);
   // Tabel harian tidak memuat hari sebelum bisnis dimulai (semuanya nol).
   const figures = allFigures.filter((f) => f.date >= config.businessStartDate || f.netSales !== 0 || f.cashOut !== 0);
@@ -256,7 +260,7 @@ export async function buildFinanceReport(input: {
     case "expense": {
       const rows = await getDb()
         .select({
-          date: sql<string>`to_char((${expenses.expenseDate} at time zone 'UTC') + interval '7 hours', 'YYYY-MM-DD')`,
+          date: businessDaySql(expenses.expenseDate, policy),
           category: expenses.category,
           description: expenses.description,
           amount: expenses.amount,
@@ -266,8 +270,8 @@ export async function buildFinanceReport(input: {
         .from(expenses)
         .where(
           and(
-            gte(expenses.expenseDate, jakartaDayStart(period.fromKey)),
-            lt(expenses.expenseDate, jakartaDayStart(addDays(period.toKey, 1))),
+            gte(expenses.expenseDate, jakartaDayStart(period.fromKey, policy)),
+            lt(expenses.expenseDate, jakartaDayStart(addDays(period.toKey, 1), policy)),
           ),
         )
         .orderBy(asc(expenses.expenseDate));
@@ -591,6 +595,10 @@ export async function exportFinanceReport(input: {
   to?: string | null;
 }) {
   const report = await buildFinanceReport(input);
-  const resolved = resolvePeriod(input.period, jakartaDateKey(), { from: input.from, to: input.to });
+  // Nama file = periode yang sama dengan isi laporan (tanggal operasional).
+  const resolved = resolvePeriod(input.period, jakartaDateKey(new Date(), await loadBusinessDayPolicy()), {
+    from: input.from,
+    to: input.to,
+  });
   return renderReport(report, input.format, { kind: FILE_KIND[input.type], from: resolved.fromKey, to: resolved.toKey });
 }

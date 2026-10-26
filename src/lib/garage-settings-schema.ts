@@ -435,9 +435,26 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
     description: "Cash session, handover, dan opening cash.",
     icon: "Clock",
     fields: [
-      // businessDayCutoffHour / businessDayEffectiveDate (tanggal operasional, B1) sengaja
-      // BELUM ditampilkan: aktif hanya setelah B1b menuntaskan laba-rugi, closing, laporan
-      // Owner, dashboard & preset "Hari ini" — agar tidak ada angka uang yang saling beda.
+      // Tanggal operasional (B1/B1b). Validasi server: Owner, global, tanggal efektif ≥ hari
+      // ini, terkunci setelah berlaku (assertBusinessDaySettingsChange).
+      {
+        key: "businessDayCutoffHour",
+        label: "Jam tutup hari operasional (WIB)",
+        type: "number",
+        defaultValue: DEFAULT_APP_SETTINGS.businessDayCutoffHour,
+        min: 1,
+        max: 12,
+        step: 1,
+        unit: "jam",
+        hint: "Transaksi sebelum jam ini masuk ke hari sebelumnya (mis. 4 = penjualan 01:30 ikut tutup buku kemarin). Berlaku hanya bila tanggal efektif diisi.",
+      },
+      {
+        key: "businessDayEffectiveDate",
+        label: "Tanggal efektif hari operasional",
+        type: "text",
+        defaultValue: DEFAULT_APP_SETTINGS.businessDayEffectiveDate,
+        hint: "Format YYYY-MM-DD, paling cepat hari ini. Kosong = kalender biasa (00:00). Hanya Owner, berlaku semua outlet; setelah tanggal ini tiba, jam & tanggal tidak bisa diubah lagi.",
+      },
       {
         key: "shiftOpeningCashDefault",
         label: "Opening cash default",

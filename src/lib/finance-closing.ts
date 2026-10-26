@@ -37,6 +37,8 @@ import {
 } from "@/lib/finance-control-core";
 import { emptyRaw, getDayFigures, loadDayRaws, loadFinanceConfig, snapshotFromFigure } from "@/lib/finance-control";
 import type { GarageSession } from "@/lib/server-auth";
+import type { BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 
 const ESCALATED_DISCREPANCY = ["review", "critical"];
 
@@ -105,16 +107,16 @@ const DRIFT_KEYS: Array<[keyof FigureSummary, string]> = [
 
 async function liveFigure(dateKey: string) {
   const config = await loadFinanceConfig();
-  const raws = await loadDayRaws(dateKey, dateKey);
+  const raws = await loadDayRaws(dateKey, dateKey, config.businessDay);
   return { config, figure: computeDayFigure(raws.get(dateKey) ?? emptyRaw(dateKey), config) };
 }
 
 // ─── Daily closing ──────────────────────────────────────────────────────────
 
-async function dailyChecks(dateKey: string, todayKey: string) {
+async function dailyChecks(dateKey: string, todayKey: string, policy: BusinessDayPolicy) {
   const db = getDb();
-  const start = jakartaDayStart(dateKey);
-  const end = jakartaDayStart(addDays(dateKey, 1));
+  const start = jakartaDayStart(dateKey, policy);
+  const end = jakartaDayStart(addDays(dateKey, 1), policy);
 
   const [openSessions, closedSessions, unpaidOrders, settlements, pendingExpenses, pendingAttendance, openOpname] =
     await Promise.all([
@@ -252,13 +254,14 @@ async function dailyChecks(dateKey: string, todayKey: string) {
 
 export async function getDailyClosingReview(dateKey: string) {
   if (!DATE_RE.test(dateKey)) throw new ClosingError("INVALID_DATE", "Format tanggal harus YYYY-MM-DD.");
-  const todayKey = jakartaDateKey();
+  const policy = await loadBusinessDayPolicy();
+  const todayKey = jakartaDateKey(new Date(), policy);
   if (dateKey > todayKey) throw new ClosingError("FUTURE_DATE", "Tidak bisa closing tanggal yang belum terjadi.");
 
   const db = getDb();
   const [[closing], { checks, cashSessions: sessions }, { figure }, [snapshot]] = await Promise.all([
     db.select().from(financeDailyClosings).where(eq(financeDailyClosings.date, dateKey)).limit(1),
-    dailyChecks(dateKey, todayKey),
+    dailyChecks(dateKey, todayKey, policy),
     liveFigure(dateKey),
     db.select().from(financialSnapshots).where(eq(financialSnapshots.date, dateKey)).limit(1),
   ]);
@@ -435,10 +438,13 @@ export async function reopenFinanceDay(input: { date: string; reason: string }, 
 
 /** Tolak expense backdate ke tanggal yang sudah di-closing (PRD §16: LOCKED). */
 export async function assertFinanceDayOpen(date: Date) {
-  const key = jakartaDateKey(date);
   // Hanya backdate yang ditolak; transaksi hari ini setelah closing terdeteksi sebagai selisih.
-  if (key >= jakartaDateKey()) return;
+  // Jalur cepat tanpa query: sering dipanggil di dalam transaksi (koneksi lain bisa saling tunggu).
+  if (jakartaDateKey(date) >= jakartaDateKey()) return;
   try {
+    const policy = await loadBusinessDayPolicy();
+    const key = jakartaDateKey(date, policy);
+    if (key >= jakartaDateKey(new Date(), policy)) return;
     const [row] = await getDb()
       .select({ status: financeDailyClosings.status })
       .from(financeDailyClosings)
@@ -466,16 +472,16 @@ function monthBounds(month: string) {
 
 export async function getMonthlyClosingReview(month: string) {
   if (!MONTH_RE.test(month)) throw new ClosingError("INVALID_MONTH", "Format bulan harus YYYY-MM.");
-  const todayKey = jakartaDateKey();
+  const config = await loadFinanceConfig();
+  const todayKey = jakartaDateKey(new Date(), config.businessDay);
   const { fromKey, toKey } = monthBounds(month);
   if (fromKey > todayKey) throw new ClosingError("FUTURE_MONTH", "Bulan ini belum berjalan.");
-  const config = await loadFinanceConfig();
   const db = getDb();
   const requiredFrom = config.businessStartDate > fromKey ? config.businessStartDate : fromKey;
   const requiredTo = toKey < todayKey ? toKey : todayKey;
   const requiredDays = requiredFrom <= requiredTo ? eachDay(requiredFrom, requiredTo) : [];
-  const start = jakartaDayStart(fromKey);
-  const end = jakartaDayStart(addDays(toKey, 1));
+  const start = jakartaDayStart(fromKey, config.businessDay);
+  const end = jakartaDayStart(addDays(toKey, 1), config.businessDay);
 
   const [closing, dailyRows, pendingAttendance, pendingPayouts, pendingExpenses, unresolvedCash, appliedOpname] =
     await Promise.all([
@@ -736,8 +742,8 @@ export async function reopenFinanceMonth(input: { month: string; reason: string 
 // ─── Ringkasan status closing ───────────────────────────────────────────────
 
 export async function getClosingOverview(days = 14) {
-  const todayKey = jakartaDateKey();
   const config = await loadFinanceConfig();
+  const todayKey = jakartaDateKey(new Date(), config.businessDay);
   const fromKey = addDays(todayKey, -(days - 1));
   const db = getDb();
   const [dailyRows, monthRows] = await Promise.all([

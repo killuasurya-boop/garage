@@ -77,6 +77,9 @@ import {
   type FinanceThresholds,
   type PeriodKey,
 } from "@/lib/finance-control-core";
+import { CALENDAR_POLICY, type BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
+import { businessDaySql } from "@/lib/business-date-sql";
 import { purchaseAreaForCategory } from "@/lib/finance-purchases";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -291,16 +294,18 @@ export async function getExpenseOwnerApprovalThreshold() {
 export async function loadFinanceConfig(): Promise<FinanceConfig> {
   const db = getDb();
   await ensureDefaults(db);
-  const [settingRows, costRows, payrollRows, categoryRows, capitalRows] = await Promise.all([
+  const [settingRows, costRows, payrollRows, categoryRows, capitalRows, businessDay] = await Promise.all([
     db.select({ key: financeSettings.key, value: financeSettings.value }).from(financeSettings),
     db.select().from(financeCostItems).orderBy(asc(financeCostItems.sortOrder)),
     db.select().from(financePayrollPositions).orderBy(asc(financePayrollPositions.sortOrder)),
     db.select().from(financeExpenseCategories).orderBy(asc(financeExpenseCategories.name)),
     db.select().from(capitalTransactions).orderBy(asc(capitalTransactions.txDate)),
+    loadBusinessDayPolicy(db),
   ]);
   const settings = readSettings(settingRows);
   return {
     ...settings,
+    businessDay,
     costItems: costRows.map((row) => ({
       code: row.code,
       name: row.name,
@@ -332,9 +337,12 @@ export async function loadFinanceConfig(): Promise<FinanceConfig> {
 
 // ─── Loader transaksi per hari ──────────────────────────────────────────────
 
-/** Tanggal WIB dari kolom timestamptz, format YYYY-MM-DD (WIB tanpa DST). */
-function wibDay(column: AnyPgColumn): SQL<string> {
-  return sql<string>`to_char((${column} at time zone 'UTC') + interval '7 hours', 'YYYY-MM-DD')`;
+/**
+ * Jam awal hari operasional `dayKey` (0 = kalender). Hari tanggal efektif sendiri
+ * masih mulai 00:00 (hari transisi 28 jam; jam 00–03 berikutnya bertumpuk di slot 00–03).
+ */
+function cutoffHourOf(policy: BusinessDayPolicy, dayKey: string) {
+  return policy.effectiveFrom && dayKey > policy.effectiveFrom ? policy.cutoffHour : 0;
 }
 
 function dateText(column: AnyPgColumn): SQL<string> {
@@ -378,10 +386,16 @@ export function emptyRaw(date: string): DayRaw {
   };
 }
 
-export async function loadDayRaws(fromKey: string, toKey: string): Promise<Map<string, DayRaw>> {
+/**
+ * Angka mentah per tanggal operasional (B1b). Kolom timestamptz dikelompokkan
+ * dengan cut-off; kolom `date` (upah, fee, modal) sudah bertanggal → apa adanya.
+ */
+export async function loadDayRaws(fromKey: string, toKey: string, policy?: BusinessDayPolicy): Promise<Map<string, DayRaw>> {
   const db = getDb();
-  const start = jakartaDayStart(fromKey);
-  const end = jakartaDayStart(addDays(toKey, 1));
+  policy ??= await loadBusinessDayPolicy(db);
+  const wibDay = (column: AnyPgColumn) => businessDaySql(column, policy);
+  const start = jakartaDayStart(fromKey, policy);
+  const end = jakartaDayStart(addDays(toKey, 1), policy);
   const orderDay = wibDay(orders.createdAt);
   const paymentDay = wibDay(payments.createdAt);
   const expenseDay = wibDay(expenses.expenseDate);
@@ -783,7 +797,7 @@ async function storeSnapshots(figures: DayFigure[]) {
  * Poin member: potongan poin pada order lunas di periode (setelah poin yang
  * dikembalikan karena void/refund) + saldo poin beredar × nilai poin.
  */
-async function loadMemberPointsFigures(fromKey: string, toKey: string) {
+async function loadMemberPointsFigures(fromKey: string, toKey: string, policy: BusinessDayPolicy) {
   const db = getDb();
   const [used] = await db
     .select({
@@ -794,8 +808,8 @@ async function loadMemberPointsFigures(fromKey: string, toKey: string) {
     .where(
       and(
         eq(orders.status, "paid"),
-        gte(orders.createdAt, jakartaDayStart(fromKey)),
-        lt(orders.createdAt, jakartaDayStart(addDays(toKey, 1))),
+        gte(orders.createdAt, jakartaDayStart(fromKey, policy)),
+        lt(orders.createdAt, jakartaDayStart(addDays(toKey, 1), policy)),
       ),
     );
   const [{ getAppSettings }, { outstandingPointsValue }] = await Promise.all([
@@ -812,7 +826,8 @@ async function loadMemberPointsFigures(fromKey: string, toKey: string) {
 }
 
 /** Belanja gudang sebelum tanggal mulai usaha = stok awal (bagian modal). */
-export async function loadOpeningStockPurchases(startKey: string) {
+export async function loadOpeningStockPurchases(startKey: string, policy?: BusinessDayPolicy) {
+  policy ??= await loadBusinessDayPolicy();
   const [row] = await getDb()
     .select({ total: sql<string>`coalesce(sum(${expenses.amount}), 0)::bigint` })
     .from(expenses)
@@ -820,7 +835,7 @@ export async function loadOpeningStockPurchases(startKey: string) {
       and(
         isNotNull(expenses.sourceDoc),
         inArray(expenses.status, PNL_EXPENSE_STATUSES),
-        lt(expenses.expenseDate, jakartaDayStart(startKey)),
+        lt(expenses.expenseDate, jakartaDayStart(startKey, policy)),
       ),
     );
   return Number(row?.total ?? 0);
@@ -846,7 +861,7 @@ export async function getDayFigures(fromKey: string, toKey: string, config: Fina
   const missing = days.filter((day) => !usable.has(day));
   const computed = new Map<string, DayFigure>();
   if (missing.length) {
-    const raws = await loadDayRaws(missing[0], missing[missing.length - 1]);
+    const raws = await loadDayRaws(missing[0], missing[missing.length - 1], config.businessDay);
     for (const day of missing) computed.set(day, computeDayFigure(raws.get(day) ?? emptyRaw(day), config));
     // Simpan hari yang sudah lewat; hari ini tetap live.
     await storeSnapshots(missing.filter((day) => day < todayKey).map((day) => computed.get(day)!));
@@ -860,17 +875,19 @@ export async function invalidateAutoSnapshots() {
   await getDb().delete(financialSnapshots).where(eq(financialSnapshots.status, "auto"));
 }
 
-async function loadHourlyNetSales(dayKey: string) {
+/** Penjualan per jam; indeks 0 = jam cut-off (hari operasional dimulai). */
+async function loadHourlyNetSales(dayKey: string, policy: BusinessDayPolicy) {
   const db = getDb();
-  const hourExpr = sql<number>`extract(hour from (${orders.createdAt} at time zone 'UTC') + interval '7 hours')::int`;
+  const offset = cutoffHourOf(policy, dayKey);
+  const hourExpr = sql<number>`extract(hour from (${orders.createdAt} at time zone 'UTC') + interval '${sql.raw(String(7 - offset))} hours')::int`;
   const rows = await db
     .select({ hour: hourExpr, net: sql<string>`coalesce(sum(${orders.total} - ${orders.tax} - ${orders.deliveryFee}), 0)::bigint` })
     .from(orders)
     .where(
       and(
         eq(orders.status, "paid"),
-        gte(orders.createdAt, jakartaDayStart(dayKey)),
-        lt(orders.createdAt, jakartaDayStart(addDays(dayKey, 1))),
+        gte(orders.createdAt, jakartaDayStart(dayKey, policy)),
+        lt(orders.createdAt, jakartaDayStart(addDays(dayKey, 1), policy)),
       ),
     )
     .groupBy(hourExpr);
@@ -878,15 +895,15 @@ async function loadHourlyNetSales(dayKey: string) {
   return Array.from({ length: 24 }, (_, hour) => byHour.get(hour) ?? 0);
 }
 
-async function loadCashVariance(fromKey: string, toKey: string, tolerance: number) {
+async function loadCashVariance(fromKey: string, toKey: string, tolerance: number, policy: BusinessDayPolicy) {
   const rows = await getDb()
     .select({ discrepancy: cashSessions.discrepancy })
     .from(cashSessions)
     .where(
       and(
         eq(cashSessions.status, "closed"),
-        gte(cashSessions.closedAt, jakartaDayStart(fromKey)),
-        lt(cashSessions.closedAt, jakartaDayStart(addDays(toKey, 1))),
+        gte(cashSessions.closedAt, jakartaDayStart(fromKey, policy)),
+        lt(cashSessions.closedAt, jakartaDayStart(addDays(toKey, 1), policy)),
       ),
     );
   const flagged = rows.filter((row) => Math.abs(row.discrepancy) > tolerance);
@@ -933,7 +950,8 @@ export async function getFinanceControlDashboard(input: {
   to?: string | null;
 }) {
   const config = await loadFinanceConfig();
-  const todayKey = jakartaDateKey();
+  const policy = config.businessDay ?? CALENDAR_POLICY;
+  const todayKey = jakartaDateKey(new Date(), policy);
   const period = resolvePeriod(input.period, todayKey, { from: input.from, to: input.to });
   const month = resolvePeriod("this_month", todayKey);
   const monthDays = daysInMonth(todayKey);
@@ -1011,7 +1029,7 @@ export async function getFinanceControlDashboard(input: {
     monthToDateActual: monthActive.reduce((sum, day) => sum + recoveryOf(day), 0),
     activeDaysInMonth: monthActive.length,
     monthDays,
-    openingStockPurchases: await loadOpeningStockPurchases(config.businessStartDate),
+    openingStockPurchases: await loadOpeningStockPurchases(config.businessStartDate, policy),
   });
   // Pembeda untuk Owner: kas & aset BUKAN "modal kembali".
   const [inventoryAsset] = await getDb()
@@ -1033,9 +1051,9 @@ export async function getFinanceControlDashboard(input: {
     monthDays,
     daysElapsed: Number(todayKey.slice(8, 10)),
   });
-  const cashVariance = await loadCashVariance(period.fromKey, period.toKey, config.thresholds.cashVarianceTolerance);
+  const cashVariance = await loadCashVariance(period.fromKey, period.toKey, config.thresholds.cashVarianceTolerance, policy);
   const hppCoveragePct = ratioPct(totals.coveredLineSales, totals.lineSales);
-  const memberPoints = await loadMemberPointsFigures(period.fromKey, period.toKey);
+  const memberPoints = await loadMemberPointsFigures(period.fromKey, period.toKey, policy);
   const knownCategories = new Set(config.categories.map((row) => row.name.toLowerCase()));
   const unclassifiedCategories = (await listExpenseCategoriesSeen()).filter(
     (name) => !knownCategories.has(name.toLowerCase()),
@@ -1165,14 +1183,16 @@ export async function getFinanceControlDashboard(input: {
 
   let hourly: Array<{ hour: string; revenue: number; cumulative: number | null; bep: number | null }> | null = null;
   if (singleDay) {
-    const perHour = await loadHourlyNetSales(period.toKey);
-    const lastHour = period.toKey === todayKey ? new Date(Date.now() + 7 * 3_600_000).getUTCHours() : 23;
+    const perHour = await loadHourlyNetSales(period.toKey, policy);
+    const offset = cutoffHourOf(policy, period.toKey);
+    // Indeks jam relatif terhadap cut-off (0 = awal hari operasional).
+    const lastHour = period.toKey === todayKey ? (new Date(Date.now() + 7 * 3_600_000).getUTCHours() - offset + 24) % 24 : 23;
     const dayBep = todayBep.available && period.toKey === todayKey ? todayBep.dailyTarget : bep.available ? bep.periodTarget : null;
     let running = 0;
     hourly = perHour.map((value, hour) => {
       running += value;
       return {
-        hour: `${String(hour).padStart(2, "0")}:00`,
+        hour: `${String((hour + offset) % 24).padStart(2, "0")}:00`,
         revenue: value,
         cumulative: hour <= lastHour ? running : null,
         bep: dayBep,
@@ -1295,7 +1315,7 @@ async function listExpenseCategoriesSeen() {
 /** Angka P&L hari ini & bulan berjalan dari engine, untuk getFinanceOverview. */
 export async function getFinanceEngineSummary() {
   const config = await loadFinanceConfig();
-  const todayKey = jakartaDateKey();
+  const todayKey = jakartaDateKey(new Date(), config.businessDay);
   const monthFrom = monthStartKey(todayKey);
   const figures = await getDayFigures(min(monthFrom, addDays(todayKey, -29)), todayKey, config, todayKey);
   const byDate = new Map(figures.map((figure) => [figure.date, figure]));
@@ -1497,7 +1517,7 @@ function pick(source: Record<string, unknown>, changed: string[]) {
 export async function rebuildFinanceSnapshots() {
   await invalidateAutoSnapshots();
   const config = await loadFinanceConfig();
-  const todayKey = jakartaDateKey();
+  const todayKey = jakartaDateKey(new Date(), config.businessDay);
   const figures = await getDayFigures(min(config.businessStartDate, addDays(todayKey, -37)), todayKey, config, todayKey);
   return { days: figures.length };
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BusinessDaySettingError,
   CALENDAR_POLICY,
+  assertBusinessDaySettingsChange,
   businessDateKey,
   businessDayRange,
   businessDayStart,
@@ -61,5 +63,40 @@ describe("business date — cut-off 04:00 mulai 2026-11-01 (keputusan Owner)", (
       const { start, end } = businessDayRange(key, key, policy);
       expect(at >= start && at < end, `${at.toISOString()} → ${key}`).toBe(true);
     }
+  });
+});
+
+describe("assertBusinessDaySettingsChange (B1b)", () => {
+  const now = wib("2026-11-10T10:00:00");
+  const before = { businessDayCutoffHour: 4, businessDayEffectiveDate: "" };
+  const run = (patch: object, extra: Partial<{ before: typeof before; outletId: string | null; isOwner: boolean }> = {}) => () =>
+    assertBusinessDaySettingsChange({ before, patch, outletId: null, isOwner: true, now, ...extra });
+
+  it("menerima hari ini / masa depan / kosong; menolak masa lalu & jam di luar 1–12", () => {
+    expect(run({ businessDayEffectiveDate: "2026-11-10" })).not.toThrow();
+    expect(run({ businessDayEffectiveDate: "2026-12-01" })).not.toThrow();
+    expect(run({ businessDayEffectiveDate: "2026-11-09" })).toThrow(BusinessDaySettingError);
+    expect(run({ businessDayCutoffHour: 0, businessDayEffectiveDate: "2026-12-01" })).toThrow(/1–12/);
+    expect(run({ businessDayCutoffHour: 13 })).toThrow(/1–12/);
+    expect(run({ businessDayEffectiveDate: "2026-02-30" })).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("nilai tidak berubah selalu lolos (form kirim satu tab), termasuk non-Owner", () => {
+    expect(run({ businessDayCutoffHour: 4, businessDayEffectiveDate: "" }, { isOwner: false })).not.toThrow();
+    expect(run({ unrelated: 1 }, { isOwner: false })).not.toThrow();
+  });
+
+  it("perubahan: Owner & global saja", () => {
+    expect(run({ businessDayEffectiveDate: "2026-12-01" }, { isOwner: false })).toThrow(/Owner/);
+    expect(run({ businessDayEffectiveDate: "2026-12-01" }, { outletId: "o-1" })).toThrow(/global/);
+  });
+
+  it("sudah berlaku → terkunci; belum berlaku → boleh diubah", () => {
+    const active = { businessDayCutoffHour: 4, businessDayEffectiveDate: "2026-11-10" };
+    expect(run({ businessDayCutoffHour: 5 }, { before: active })).toThrow(/tidak bisa diubah/);
+    expect(run({ businessDayEffectiveDate: "" }, { before: active })).toThrow(/tidak bisa diubah/);
+    const pending = { businessDayCutoffHour: 4, businessDayEffectiveDate: "2026-11-11" };
+    expect(run({ businessDayEffectiveDate: "2026-11-20" }, { before: pending })).not.toThrow();
+    expect(run({ businessDayEffectiveDate: "" }, { before: pending })).not.toThrow();
   });
 });

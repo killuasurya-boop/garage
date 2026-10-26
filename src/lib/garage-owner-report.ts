@@ -1,6 +1,9 @@
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
+import { businessDateKey, businessDayRange, type BusinessDayPolicy } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
+import { isCalendarDateKey } from "@/lib/date-range";
 import {
   employeeAttendances,
   expenses,
@@ -87,26 +90,14 @@ export type OwnerReportData = {
   }>;
 };
 
-const JAKARTA_OFFSET = "+07:00";
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export function jakartaTodayKey(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")?.value ?? "1970";
-  const m = parts.find((p) => p.type === "month")?.value ?? "01";
-  const d = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${y}-${m}-${d}`;
+/** "Hari ini" laporan Owner = tanggal operasional (cut-off, B1b). */
+export async function ownerReportTodayKey(): Promise<string> {
+  return businessDateKey(new Date(), await loadBusinessDayPolicy());
 }
 
-function rangeFor(dateText: string): { start: Date; end: Date } | null {
-  const start = new Date(`${dateText}T00:00:00${JAKARTA_OFFSET}`);
-  if (Number.isNaN(start.getTime())) return null;
-  return { start, end: new Date(start.getTime() + DAY_MS) };
+function rangeFor(dateText: string, policy: BusinessDayPolicy): { start: Date; end: Date } | null {
+  if (!isCalendarDateKey(dateText)) return null;
+  return businessDayRange(dateText, dateText, policy);
 }
 
 function idrCompact(n: number): string {
@@ -118,8 +109,9 @@ function idrCompact(n: number): string {
 export async function getOwnerReportData(
   dateTextInput?: string,
 ): Promise<OwnerReportData> {
-  const dateText = dateTextInput || jakartaTodayKey();
-  const range = rangeFor(dateText);
+  const policy = await loadBusinessDayPolicy();
+  const dateText = dateTextInput || businessDateKey(new Date(), policy);
+  const range = rangeFor(dateText, policy);
   if (!range) {
     throw new Error("Tanggal harus format YYYY-MM-DD.");
   }

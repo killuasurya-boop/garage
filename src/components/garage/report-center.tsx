@@ -34,6 +34,7 @@ import {
 } from "@/lib/report-periods";
 import { REPORT_CATALOG, REPORT_MODULES, type ReportModule } from "@/lib/reports/catalog";
 import { todayWibKey } from "@/lib/date-range";
+import { useBusinessToday } from "@/lib/use-business-today";
 
 type Format = "pdf" | "xlsx" | "csv";
 type Division = "semua" | "bar" | "kitchen";
@@ -71,7 +72,9 @@ type Status = { kind: "ok" | "error"; text: string } | null;
  * standar Garage; status hanya "berhasil" bila file benar-benar diterima.
  */
 export function ReportCenter() {
-  const today = todayWibKey();
+  // Preset "Hari ini/Kemarin" = tanggal operasional; batas "masa depan" tetap kalender.
+  const today = useBusinessToday();
+  const calendarToday = todayWibKey();
   const [module, setModule] = useState<ReportModule>("penjualan");
   const [typeByModule, setTypeByModule] = useState<Record<ReportModule, string>>(() => ({
     penjualan: "day",
@@ -90,7 +93,7 @@ export function ReportCenter() {
   const type = typeByModule[module];
   const entry = catalog.types.find((t) => t.id === type) ?? catalog.types[0];
   const effectiveDivision: Division = entry.division ? division : "semua";
-  const error = periodError(period.from, period.to, { today });
+  const error = periodError(period.from, period.to, { today: calendarToday });
   const filePreview = useMemo(
     () =>
       error
@@ -104,6 +107,13 @@ export function ReportCenter() {
           }).replace(/\.pdf$/, ""),
     [entry, effectiveDivision, period, error],
   );
+
+  // Kebijakan tanggal operasional termuat → preset aktif dihitung ulang (00:00–cut-off).
+  const [presetToday, setPresetToday] = useState(today);
+  if (presetToday !== today) {
+    setPresetToday(today);
+    if (preset !== "custom") setPeriod(presetPeriod(preset, today));
+  }
 
   function choosePreset(next: PeriodPreset) {
     setPreset(next);
@@ -245,7 +255,7 @@ export function ReportCenter() {
                     type="date"
                     className="mt-1 h-11 w-full rounded-md border border-[#3a3a44] bg-[#17171d] px-2 text-sm text-[#f4f4f5] [color-scheme:dark]"
                     value={period.from}
-                    max={today}
+                    max={calendarToday}
                     onChange={(event) => setPeriod((current) => ({ ...current, from: event.target.value, unit: "range" }))}
                   />
                 </label>
@@ -284,7 +294,7 @@ export function ReportCenter() {
                 type="button"
                 aria-label="Periode berikutnya"
                 className="garage-press grid size-10 shrink-0 place-items-center rounded-md border border-[#3a3a44] bg-[#17171d] text-[#e4e4e8] hover:bg-white/[0.06] disabled:opacity-40"
-                disabled={Boolean(error) || !canShiftForward(period, today)}
+                disabled={Boolean(error) || !canShiftForward(period, calendarToday)}
                 onClick={() => {
                   setPeriod((current) => shiftPeriod(current, 1));
                   setStatus(null);

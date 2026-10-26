@@ -84,9 +84,10 @@ export function budgetStatus(actual: number, min: number, max: number): BudgetSt
  *   lunas hari ini (resep × harga beli), dipisah Bar/Dapur sesuai stasiun menu;
  * - daftar belanja otomatis dari stok gudang yang habis/menipis (Smart Reorder WMS).
  */
-export async function getDailyCosts(dateKey = jakartaDateKey()): Promise<DailyCosts> {
+export async function getDailyCosts(dateKeyInput?: string): Promise<DailyCosts> {
   const db = getDb();
   const config = await loadFinanceConfig();
+  const dateKey = dateKeyInput ?? jakartaDateKey(new Date(), config.businessDay);
   const budget: VariableBudget = config.variableBudget ?? DEFAULT_VARIABLE_BUDGET;
 
   const fixedItems = config.costItems
@@ -100,8 +101,8 @@ export async function getDailyCosts(dateKey = jakartaDateKey()): Promise<DailyCo
   const operational = fixedItems.filter((i) => !i.isReserve).reduce((s, i) => s + i.dailyAmount, 0);
   const reserve = fixedItems.filter((i) => i.isReserve).reduce((s, i) => s + i.dailyAmount, 0);
 
-  const start = jakartaDayStart(dateKey);
-  const end = jakartaDayStart(addDays(dateKey, 1));
+  const start = jakartaDayStart(dateKey, config.businessDay);
+  const end = jakartaDayStart(addDays(dateKey, 1), config.businessDay);
   const paidToday = and(eq(orders.status, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end));
 
   const [cogsRows, lineRows] = await Promise.all([
@@ -153,7 +154,7 @@ export async function getDailyCosts(dateKey = jakartaDateKey()): Promise<DailyCo
   // Konsep owner (mode purchase): anggaran dibandingkan dengan belanja yang
   // benar-benar diterima gudang hari ini; pemakaian resep tetap jadi info.
   const basis = config.cogsBasis ?? "purchase";
-  const purchases = basis === "purchase" ? ((await loadDayRaws(dateKey, dateKey)).get(dateKey)?.purchases ?? null) : null;
+  const purchases = basis === "purchase" ? ((await loadDayRaws(dateKey, dateKey, config.businessDay)).get(dateKey)?.purchases ?? null) : null;
 
   const areas = (["bar", "dapur"] as const).map((area) => {
     const min = area === "bar" ? budget.barMin : budget.dapurMin;

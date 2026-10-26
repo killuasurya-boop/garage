@@ -9149,7 +9149,7 @@ export function PosView({
                         <div className="mt-auto pt-2.5">
                           {hasPromo ? (
                             <div className="flex items-baseline gap-2">
-                              <p className="pos-product-price truncate text-[15px] font-semibold text-[#ffb4bd] sm:text-base">
+                              <p className="pos-product-price break-words text-[15px] font-semibold leading-tight text-[#ffb4bd] md:text-sm xl:text-base">
                                 {currency.format(item.promoPrice as number)}
                               </p>
                               <p className="truncate text-[11px] text-[#8f8f99] line-through">
@@ -9157,12 +9157,12 @@ export function PosView({
                               </p>
                             </div>
                           ) : (
-                            <p className="pos-product-price truncate text-[15px] font-semibold text-white sm:text-base">
+                            <p className="pos-product-price break-words text-[15px] font-semibold leading-tight text-white md:text-sm xl:text-base">
                               {priceRange}
                             </p>
                           )}
                           <div className="mt-2 flex items-center justify-between gap-2">
-                            <span className="pos-product-note min-w-0 truncate text-[10px] text-[#d6d6dc] sm:text-[11px]">
+                            <span className="pos-product-note line-clamp-2 min-w-0 text-[10px] leading-tight text-[#d6d6dc] sm:text-[11px]">
                               {isSoldOut
                                 ? "Tidak bisa dipesan"
                                 : item.variants.length > 1

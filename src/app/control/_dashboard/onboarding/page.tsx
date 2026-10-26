@@ -327,7 +327,7 @@ export default function OnboardingPage() {
                         <Circle className="h-4 w-4 shrink-0 text-zinc-500" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold text-zinc-200">
+                        <p className="break-words text-xs font-semibold text-zinc-200">
                           {item.label}
                         </p>
                         <p className="font-mono text-[10px] text-zinc-500">

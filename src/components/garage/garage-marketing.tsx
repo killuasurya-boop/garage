@@ -435,7 +435,7 @@ function HeaderKpi({ label, value, mono }: { label: string; value: string; mono?
         {label}
       </p>
       <p
-        className={`mt-1 truncate text-base font-bold text-white ${
+        className={`mt-1 break-words text-sm font-bold leading-tight text-white sm:text-base ${
           mono ? "garage-mono text-[#ffd08a]" : ""
         }`}
         title={value}

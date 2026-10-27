@@ -38,6 +38,9 @@ loadEnv({ quiet: true });
 export const KEEP_TABLES = [
   // akun & akses
   "user", "account", "session", "verification", "two_factor", "staff_profiles", "push_subscriptions",
+  // koneksi OAuth MCP ChatGPT (identitas, seperti session/agent_api_keys — migration 0163)
+  "jwks", "oauth_client", "oauth_resource", "oauth_client_resource", "oauth_refresh_token", "oauth_access_token",
+  "oauth_consent", "oauth_client_assertion",
   // kunci sistem (VAPID web push) — tetap supaya langganan HP tidak putus
   "system_keys",
   // outlet & pengaturan
@@ -94,7 +97,7 @@ export const CLEAR_TABLES = [
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",
   "inventory_transfer_items",
   // approval, audit, log
-  "approvals", "audit_logs", "audit_cases", "login_attempts", "error_events", "feedback_entries",
+  "approvals", "audit_logs", "mcp_operations", "audit_cases", "login_attempts", "error_events", "feedback_entries",
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional

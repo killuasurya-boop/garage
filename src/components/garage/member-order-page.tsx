@@ -30,6 +30,7 @@ import {
   MapPin,
 } from "lucide-react";
 
+import { AyaGreeting } from "@/components/garage/order/aya-greeting";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
 import { HeroRail, type HeroKind } from "@/components/garage/order/hero-rail";
 import {
@@ -1711,6 +1712,20 @@ export function MemberOrderPage({
     [bundleItems.length, hero.items.length, heroLabel, menuGroups],
   );
 
+  function scrollToSection(id: string) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Sisakan ruang untuk CategoryNav yang sticky.
+    window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: reduce ? "auto" : "smooth" });
+  }
+
+  function focusMenuSearch() {
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Cari menu"]');
+    input?.focus({ preventScroll: true });
+    input?.scrollIntoView({ block: "center" });
+  }
+
   function quickAdd(item: MenuItem) {
     if (item.variants.length === 1) add(item.id, item.variants[0].id, 1);
     else setDetailItem(item);
@@ -2593,6 +2608,15 @@ export function MemberOrderPage({
               )
             ) : menuGroups.length || bundleItems.length ? (
               <>
+                {!staffOrder ? (
+                  <AyaGreeting
+                    name={member?.name ?? guestName}
+                    heroLabel={hero.items.length ? heroLabel : null}
+                    onShowHero={() => scrollToSection(HERO_SECTION_ID)}
+                    onFocusSearch={focusMenuSearch}
+                    onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
+                  />
+                ) : null}
                 <EventBundleSection items={bundleItems} entries={eventContext?.entries ?? []} products={eventContext?.products ?? []} cart={cart} now={eventNow} onChoose={openMenuItem} />
                 <HeroRail
                   id={HERO_SECTION_ID}

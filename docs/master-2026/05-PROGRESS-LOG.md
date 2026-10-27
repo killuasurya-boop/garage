@@ -360,3 +360,15 @@ Format wajib per batch (instruksi Owner):
 - Uji: tsc + eslint bersih; vitest 189 file / 1210 tes lulus; build lulus. Tidak ada migration.
 - Urutan merge: #113 setelah #105, sehingga rantai 3 menjadi #89 → … → #105 → #113.
 - Berikutnya: sambutan Aya di website (koordinasi dengan agent kedua di #80 terlebih dahulu).
+
+## 2026-10-27 — M5b: sambutan Aya di menu digital `/order`
+- PR #114 (draft), base #109, branch `claude/m5b-aya-customer-greeting`.
+- Kartu `AyaGreeting` (statis, tanpa AI):
+  - salam menurut jam WIB dan nama member/tamu;
+  - tombol Lihat Unggulan/Promo/Terlaris, Cari menu, dan Panggil staf (dine-in);
+  - bisa ditutup per sesi;
+  - tidak tampil untuk order staf.
+- Uji: tsc + eslint bersih; tes Aya 5/5; build lulus; browser 390/1366 tanpa overflow dan tanpa error console.
+- Agent kedua dikabari di #80.
+- Urutan merge: … #109 → #114.
+- Berikutnya: B4 READY (submit kasir ≠ final, double recount) setelah #87/#88 merge; deploy tetap dari laptop (#102).

@@ -329,3 +329,23 @@ Format wajib per batch (instruksi Owner):
   - Aset & sapaan Aya → D-07a–e.
   - B2 (D-06), B3 provider (D-06), I1/I2 (D-04/D-05), U1+ (D-02/D-07), R1/R2 (izin Owner).
   - **Deploy:** GitHub Actions billing atau jalur deploy manual #102.
+
+## 2026-10-27 — Uji gabungan 26 PR (kedua agent) + S0g
+
+- **Simulasi merge berurutan di atas main `dc57846`: 26/26 bebas konflik.** Urutan:
+  1. #90 → #95 → #110 → #93 → #98 → #96 → #97 → #99 → #104
+  2. #102 → #101 → #108 → #106 → #107 → #81 → #84 → #109
+  3. #89 → #91 → #92 → #94 → #100 → #103 → #105
+  4. #87 → #88
+- **Konflik yang diperbaiki di branch** (merge commit, tanpa rebase atau force-push):
+  - #106 ⟂ #101: gateway; base #106 → #101.
+  - #84 ⟂ #101: agent-api-key; base #84 → #101.
+  - #87 ⟂ main: settings types; main di-merge ke B1, lalu B1 ke B1b.
+  - #88 ⟂ #84: route settings; handler digeser.
+- **Gate hasil gabungan:**
+  - tsc bersih, eslint 0 error;
+  - vitest **201 file / 1296 tes lulus**;
+  - build lulus;
+  - migration 0163 → 0166 berurutan.
+- **S0g** → PR #110 (base #95): aria-label form Keuangan/ProfitMax/Payroll, sapuan @1366 = 0. Ini permintaan agent kedua.
+- **Catatan Owner:** dengan urutan ini semua PR bisa di-merge lewat GitHub tanpa menyelesaikan konflik manual. Setiap merge ke main memicu deploy bila Actions aktif. Saran: merge berurutan di luar jam operasional, atau aktifkan #102 dulu lalu deploy sekali dari laptop setelah semua masuk.

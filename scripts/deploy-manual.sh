@@ -133,7 +133,9 @@ remote 'docker tag garage-app:latest garage-app:previous 2>/dev/null || true; do
 docker save garage-app:latest garage-migrate:latest | gzip | remote 'gunzip | docker load'
 remote "mkdir -p $APP_DIR/scripts $APP_DIR/backups"
 scp "${SSH_OPTS[@]}" docker-compose.yml Caddyfile "$VPS_USER@$VPS_HOST:$APP_DIR/"
-scp "${SSH_OPTS[@]}" scripts/pg-backup.sh "$VPS_USER@$VPS_HOST:$APP_DIR/scripts/"
+# Buang CR: checkout Windows (core.autocrlf) memberi CRLF, dan bash Linux di
+# container backup gagal di `set -euo pipefail\r` → deploy berhenti di backup.
+tr -d '\r' < scripts/pg-backup.sh | remote "cat > $APP_DIR/scripts/pg-backup.sh"
 ok "Terkirim"
 
 # ─── 7. Backup → migrate → jalankan ───────────────────────────────────────────

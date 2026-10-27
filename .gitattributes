@@ -1,0 +1,3 @@
+# Skrip shell dijalankan bash Linux (VPS / container) — selalu LF, juga saat
+# di-checkout di Windows dengan core.autocrlf=true.
+*.sh text eol=lf

@@ -200,7 +200,7 @@ export function CustomerTablePicker({
 
   async function join(table: PublicTable) {
     if (!/^\d{4}$/.test(joinCode)) {
-      setActionError("Kode gabung 4 angka (lihat layar/struk teman semeja).");
+      setActionError("Kode gabung 4 angka (lihat layar/struk teman semeja, atau tanya waiter/kasir).");
       return;
     }
     setBusy(true);
@@ -398,9 +398,12 @@ export function CustomerTablePicker({
               Gabung ke {joinTable.tableLabel}?
             </h3>
             <p className="mt-1 text-sm text-[#c4c4cc]">
-              Meja ini sudah terisi. Masukkan <strong className="text-white">kode gabung 4 angka</strong> dari layar pesanan atau
-              struk teman semeja.
+              Meja ini sudah terisi. Masukkan <strong className="text-white">kode gabung 4 angka</strong>.
             </p>
+            <ul className="mt-2 space-y-1 text-sm text-[#c4c4cc]">
+              <li>• Lihat di layar pesanan atau struk teman semeja, atau</li>
+              <li>• tanya waiter / kasir — mereka bisa melihat kodenya.</li>
+            </ul>
             <input
               value={joinCode}
               onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, "").slice(0, 4))}

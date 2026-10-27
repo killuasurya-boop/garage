@@ -121,3 +121,6 @@ testsprite_tests\tmp\config.json
 
 # foto nota kas laci (privat, disajikan lewat API berautentikasi)
 /storage/cash-receipts/
+
+# Log deploy manual dari laptop (scripts/deploy-manual.sh)
+/deploy-logs/

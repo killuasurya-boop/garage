@@ -1,10 +1,15 @@
 name: CI
 
-# Tes otomatis untuk setiap PR dan setiap push ke main.
+# Tes otomatis untuk PR yang SIAP review dan setiap push ke main.
+# Hemat menit Actions: PR draft tidak dites (job "skipped" = tidak memblokir
+# required check). Tandai PR "Ready for review" → CI jalan otomatis; bisa juga
+# dijalankan manual dari tab Actions (workflow_dispatch).
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,6 +17,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

@@ -110,7 +110,27 @@ ganti rugi). Agent mencatat jawaban Owner di file ini.
 
 ---
 
-## D-07 — Aya = robot AI Garage OS (FINAL, revisi Owner 2026-10-27)
+## D-07 — Aya = AI pet companion Garage OS (FINAL, revisi Owner 2026-10-27 sore)
+
+> **Revisi terakhir (27 Okt sore).** Owner mengirim sheet karakter "AYA — Garage OS AI Pet Companion" + video, dengan
+> pesan: *"saya ingin dia bebas bergerak ke mana saja, dia seperti sticky button fly tapi bebas ke mana saja."*
+>
+> **Wujud:** makhluk digital mungil putih mutiara (≥85% putih) dengan:
+> - kepala besar, badan buah pir, jambul melengkung;
+> - **mata sipit setengah terpejam** (ciri utama);
+> - piringan telinga perak;
+> - **inti bintang merah** di dada.
+>
+> **Sifat:** ceria, centil, kadang ngambek, suka joget.
+>
+> **Perilaku UI:** pet **melayang** yang bisa diseret ke mana saja, sesekali terbang sendiri, dan membuka balon
+> sapaan/pengingat. Wujud "robot chrome + visor" di bawah **diganti**; peran & siapa yang melihat (D-07d/e) tetap.
+>
+> Implementasi:
+> - #109: `AyaCharacter`, 8 ekspresi + 5 pose, `AyaFloatingPet`.
+> - #114: sambutan pelanggan `/order`.
+> - #115: pengingat staf per divisi.
+
 
 **Kata Owner (27 Okt):** *"Aya itu robot AI bermata sipit putih imut yang mengingatkan semua divisi untuk
 kontrol kerjaan, di website juga ada untuk sambut dan ajak customer cari beli dll."*
@@ -121,9 +141,9 @@ kontrol kerjaan, di website juga ada untuk sambut dan ajak customer cari beli dl
 
 | Butir | Keputusan FINAL |
 |---|---|
-| D-07a Wujud | **Robot AI imut, mata sipit berwarna putih** |
+| D-07a Wujud | ~~Robot AI imut~~ → **AI pet companion putih bermata sipit** (sheet karakter Owner 27 Okt sore) |
 | D-07b Foto | Tidak perlu foto. Maskot didesain dari deskripsi Owner (draf SVG di `public/garage-brand/aya/`, Owner menyetujui visual) |
-| D-07c Gaya | Maskot vektor selaras palet Garage (asphalt hitam, chrome, aksen merah/amber), mata putih |
+| D-07c Gaya | Karakter vektor putih mutiara + aksen merah Garage, pet melayang bebas (seret/terbang/joget), mati saat reduced-motion |
 | D-07d Peran & nada | **Pengingat kerja semua divisi** (bar, dapur, kasir, waiter, gudang, manajemen): tegas tapi ramah. Untuk Owner tetap gaya eksekutif |
 | D-07e Siapa melihat | **Semua**: Owner, staf semua divisi, dan **pelanggan di website** (menyambut, mengajak melihat menu & membeli) |
 

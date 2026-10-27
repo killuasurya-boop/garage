@@ -372,3 +372,19 @@ Format wajib per batch (instruksi Owner):
 - Agent kedua dikabari di #80.
 - Urutan merge: … #109 → #114.
 - Berikutnya: B4 READY (submit kasir ≠ final, double recount) setelah #87/#88 merge; deploy tetap dari laptop (#102).
+
+## 2026-10-27 (sore) — Aya baru: AI pet melayang (sheet karakter Owner)
+- Owner menolak kartu statis: *"bebas bergerak ke mana saja, seperti sticky button fly"*. Ia mengirim sheet karakter dan video.
+- **#109** (diperbarui):
+  - `AyaCharacter`: SVG putih mutiara, jambul, mata sipit, piringan telinga, inti bintang merah; 8 ekspresi dan 5 pose; animasi ringan, mati saat reduced-motion.
+  - `AyaFloatingPet`: bisa diseret ke mana saja, terbang sendiri tiap 18–35 detik, joget, tidur, balon; posisi diingat.
+  - Persona = "AI pet companion".
+- **#114** (diperbarui): sapaan pelanggan `/order` kini berupa balon Aya melayang.
+- **#115** (baru, base #109): Aya untuk staf.
+  - Mengingatkan pekerjaan per divisi dari alert Control Center (tanpa nominal uang).
+  - Balon terbuka sendiri saat ada peringatan genting baru; tombol aksi pindah modul tanpa reload.
+  - Di `/pos` Aya mulai di kiri dan tidak terbang sendiri.
+- **Uji:**
+  - vitest 1194 lulus (cabang #115); build lulus.
+  - Playwright 390/1366: seret, ketuk, posisi diingat, terbang sendiri, reduced-motion, login gate, navigasi "Cek stok".
+- Urutan merge: … #109 → #114 → #115.

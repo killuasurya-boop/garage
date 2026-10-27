@@ -10,7 +10,6 @@ Coffee,
 Cookie,
 CupSoda,
 UtensilsCrossed,
-Loader2,
 BarChart3,
 Bell,
 Check,
@@ -106,7 +105,6 @@ persistSoldOutIds,
 tableAvailabilityLabel,
 tableAvailabilityState,
 tableHasLiveSession,
-hasOpenTableBill,
 tableLiveStatusLabel,
 tableNeedsCleaning,
 tableNumbers,
@@ -245,11 +243,17 @@ import { PosMemberWaVerify } from "@/components/garage/pos-member-wa-verify";
 import { BillRow, formatReceiptDate, PaymentStep, OpenBillSaved } from "@/components/garage/pos/pos-ui-shared";
 import {
   PosClearCartDialog,
+  PosConfirmDialog,
+  PosMemberCreateDialog,
   PosParkBillDialog,
   PosParkedBillsDialog,
   PosQuickMemberDialog,
+  PosReceiptHistoryDialog,
+  PosRejectOrderDialog,
+  PosResetTableDialog,
   PosSoldOutDialog,
   PosSplitBillDialog,
+  PosVariantPickerDialog,
 } from "@/components/garage/pos/pos-dialogs";
 import { CashPaymentPanel, QrisPaymentPanel, BankTransferPaymentPanel, EWalletPaymentPanel, PaymentWizardProgress, CheckoutSummaryCard, CheckoutOrderStep, CheckoutCustomerStep, CartLineNoteRow, OpenBillSavedPanel } from "@/components/garage/pos/pos-checkout-panels";
 import { PaymentCompletePanel, PrintableReceipt } from "@/components/garage/pos/pos-receipt-panels";
@@ -5474,72 +5478,16 @@ export function PosView({
 
       {/* Dialog konfirmasi tandai meja bersih. Meja dengan bill belum lunas
           diblokir (server juga menolak) — bayar/batalkan bill dulu. */}
-      <Dialog
-        open={resetTableDialogOpen}
-        onOpenChange={(open) => {
-          if (resetTableBusy) return;
-          setResetTableDialogOpen(open);
-          if (!open) {
-            setSelectedTableToReset(null);
-            setResetTableError(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-xs border-[#34343c] bg-[#111116] sm:max-w-sm">
-          <DialogHeader className="text-left">
-            <DialogTitle>Tandai Meja {selectedTableToReset?.tableNumber} bersih?</DialogTitle>
-            <DialogDescription>
-              Sesi meja ditutup dan meja siap dipakai tamu baru.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedTableToReset && hasOpenTableBill(selectedTableToReset) ? (
-            <div className="rounded-md border border-[#ff2a3a]/45 bg-[#d11a2a]/12 p-3" role="alert">
-              <p className="text-sm font-semibold text-white">Masih ada bill belum lunas</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#ffc2c8]">
-                {selectedTableToReset.orderNo ? `${selectedTableToReset.orderNo} · ` : ""}
-                Bayar atau batalkan bill dulu sebelum meja dikosongkan.
-              </p>
-            </div>
-          ) : null}
-          {resetTableError ? (
-            <p className="rounded-md border border-[#ff2a3a]/45 bg-[#d11a2a]/12 p-3 text-[13px] text-[#ffc2c8]" role="alert">
-              {resetTableError}
-            </p>
-          ) : null}
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-11 border-[#4a4a54] bg-white/[0.055] text-sm"
-              disabled={resetTableBusy}
-              onClick={() => {
-                setResetTableDialogOpen(false);
-                setSelectedTableToReset(null);
-                setResetTableError(null);
-              }}
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              className="garage-press h-11 text-sm"
-              disabled={
-                resetTableBusy ||
-                !selectedTableToReset ||
-                hasOpenTableBill(selectedTableToReset)
-              }
-              onClick={() => {
-                if (selectedTableToReset) {
-                  void resetTableCleaning(selectedTableToReset.tableNumber);
-                }
-              }}
-            >
-              {resetTableBusy ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
-              {resetTableBusy ? "Menyimpan…" : "Ya, tandai bersih"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PosResetTableDialog
+        resetTableDialogOpen={resetTableDialogOpen}
+        resetTableBusy={resetTableBusy}
+        setResetTableDialogOpen={setResetTableDialogOpen}
+        setSelectedTableToReset={setSelectedTableToReset}
+        setResetTableError={setResetTableError}
+        selectedTableToReset={selectedTableToReset}
+        resetTableError={resetTableError}
+        resetTableCleaning={resetTableCleaning}
+      />
 
       {/* Cek Meja: detail + aksi cepat saat tap kartu meja */}
       <Dialog
@@ -5933,77 +5881,15 @@ export function PosView({
       </Dialog>
 
       {/* Konfirmasi + alasan Reject order QR (aksi susah-dibalik). */}
-      <Dialog
-        open={Boolean(rejectOrderTarget)}
-        onOpenChange={(open) => {
-          if (!open) setRejectOrderTarget(null);
-        }}
-      >
-        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
-          <DialogHeader className="text-left">
-            <DialogTitle>Tolak order?</DialogTitle>
-            <DialogDescription>
-              {rejectOrderTarget
-                ? `${rejectOrderTarget.tableLabel} · ${rejectOrderTarget.orderNo} · ${currency.format(rejectOrderTarget.total)}`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#8f8f98]">
-              Alasan
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {["Stok habis", "Salah pesan", "Pelanggan batal", "Duplikat", "Lainnya"].map(
-                (option) => (
-                  <Button
-                    key={option}
-                    type="button"
-                    variant="outline"
-                    className={`garage-press h-10 text-xs ${
-                      rejectReasonChoice === option
-                        ? "border-[#d11a2a]/70 bg-[#d11a2a]/18 text-white"
-                        : "border-[#34343c] bg-white/[0.045] text-[#d6d6dc]"
-                    }`}
-                    onClick={() => setRejectReasonChoice(option)}
-                  >
-                    {option}
-                  </Button>
-                ),
-              )}
-            </div>
-            {rejectReasonChoice === "Lainnya" ? (
-              <Input
-                autoFocus
-                value={rejectReasonOther}
-                onChange={(event) => setRejectReasonOther(event.target.value)}
-                placeholder="Tulis alasan (min 3 huruf)"
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-              />
-            ) : null}
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row-reverse">
-            <Button
-              type="button"
-              className="garage-press h-11 flex-1 bg-[#d11a2a] text-sm text-white hover:bg-[#ff2a3a]"
-              disabled={
-                rejectReasonChoice === "Lainnya" &&
-                rejectReasonOther.trim().length < 3
-              }
-              onClick={confirmRejectOrder}
-            >
-              Tolak order
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
-              onClick={() => setRejectOrderTarget(null)}
-            >
-              Batal
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PosRejectOrderDialog
+        rejectOrderTarget={rejectOrderTarget}
+        setRejectOrderTarget={setRejectOrderTarget}
+        rejectReasonChoice={rejectReasonChoice}
+        setRejectReasonChoice={setRejectReasonChoice}
+        rejectReasonOther={rejectReasonOther}
+        setRejectReasonOther={setRejectReasonOther}
+        confirmRejectOrder={confirmRejectOrder}
+      />
 
       {/* Konfirmasi Final Bayar (menutup pembayaran, susah-dibalik). */}
       <Dialog
@@ -6180,152 +6066,27 @@ export function PosView({
       </Dialog>
 
       {/* Dialog konfirmasi/alasan in-app reusable (pengganti window.confirm/prompt). */}
-      <Dialog
-        open={Boolean(confirmState)}
-        onOpenChange={(open) => {
-          if (!open) resolveConfirm(false);
-        }}
-      >
-        <DialogContent className="border-[#34343c] bg-[#111116] max-w-xs sm:max-w-sm">
-          <DialogHeader className="text-left">
-            <DialogTitle>{confirmState?.title}</DialogTitle>
-            {confirmState?.message ? (
-              <DialogDescription>{confirmState.message}</DialogDescription>
-            ) : null}
-          </DialogHeader>
-          {confirmState?.needsReason ? (
-            <Input
-              autoFocus
-              value={confirmReason}
-              onChange={(event) => setConfirmReason(event.target.value)}
-              placeholder={confirmState.reasonPlaceholder ?? "Tulis alasan (min 3 huruf)"}
-              className="h-11 border-[#34343c] bg-white/[0.06]"
-            />
-          ) : null}
-          <div className="flex flex-col gap-2 sm:flex-row-reverse">
-            <Button
-              type="button"
-              className={`garage-press h-11 flex-1 text-sm text-white ${
-                confirmState?.danger
-                  ? "bg-[#d11a2a] hover:bg-[#ff2a3a]"
-                  : "bg-[#22c55e] hover:bg-[#16a34a]"
-              }`}
-              disabled={
-                confirmState?.needsReason
-                  ? confirmReason.trim().length < 3
-                  : false
-              }
-              onClick={() =>
-                resolveConfirm(
-                  confirmState?.needsReason ? confirmReason.trim() : true,
-                )
-              }
-            >
-              {confirmState?.confirmLabel ?? "Konfirmasi"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
-              onClick={() => resolveConfirm(false)}
-            >
-              Batal
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PosConfirmDialog
+        confirmState={confirmState}
+        resolveConfirm={resolveConfirm}
+        confirmReason={confirmReason}
+        setConfirmReason={setConfirmReason}
+      />
 
-      <Dialog open={memberCreateOpen} onOpenChange={setMemberCreateOpen}>
-        <DialogContent className="border-[#34343c] bg-[#111116] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Tambah Member</DialogTitle>
-            <DialogDescription>
-              Buat akun member langsung dari POS. PIN sementara hanya tampil setelah berhasil.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={(event) => void createPosMember(event)} className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="garage-mono text-[10px] text-[#b8b8bf]">Nama</label>
-              <Input
-                value={memberCreateName}
-                onChange={(event) => setMemberCreateName(event.target.value)}
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-                placeholder="Nama pelanggan"
-                disabled={memberCreatePending}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="garage-mono text-[10px] text-[#b8b8bf]">No HP</label>
-              <Input
-                value={memberCreatePhone}
-                onChange={(event) => setMemberCreatePhone(event.target.value)}
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-                placeholder="08xxxxxxxxxx"
-                disabled={memberCreatePending}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="garage-mono text-[10px] text-[#b8b8bf]">Email opsional</label>
-              <Input
-                type="email"
-                value={memberCreateEmail}
-                onChange={(event) => setMemberCreateEmail(event.target.value)}
-                className="h-11 border-[#34343c] bg-white/[0.06]"
-                placeholder="nama@email.com"
-                disabled={memberCreatePending}
-              />
-            </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-              <div className="space-y-1.5">
-                <label className="garage-mono text-[10px] text-[#b8b8bf]">PIN sementara</label>
-                <Input
-                  value={memberCreatePin}
-                  onChange={(event) => setMemberCreatePin(event.target.value)}
-                  className="h-11 border-[#34343c] bg-white/[0.06]"
-                  disabled={memberCreatePending}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press mt-5 h-11 border-[#4a4a54]"
-                disabled={memberCreatePending}
-                onClick={() => setMemberCreatePin(generateTemporaryMemberPin())}
-              >
-                Generate
-              </Button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="garage-press h-11 border-[#4a4a54] bg-white/[0.055]"
-                disabled={memberCreatePending}
-                onClick={() => setMemberCreateOpen(false)}
-              >
-                Batal
-              </Button>
-              <Button
-                type="submit"
-                className="garage-press h-11"
-                disabled={memberCreatePending}
-              >
-                {memberCreatePending ? (
-                  <>
-                    <RefreshCw className="mr-2 size-4 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 size-4" />
-                    Simpan Member
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <PosMemberCreateDialog
+        memberCreateOpen={memberCreateOpen}
+        setMemberCreateOpen={setMemberCreateOpen}
+        createPosMember={createPosMember}
+        memberCreateName={memberCreateName}
+        setMemberCreateName={setMemberCreateName}
+        memberCreatePending={memberCreatePending}
+        memberCreatePhone={memberCreatePhone}
+        setMemberCreatePhone={setMemberCreatePhone}
+        memberCreateEmail={memberCreateEmail}
+        setMemberCreateEmail={setMemberCreateEmail}
+        memberCreatePin={memberCreatePin}
+        setMemberCreatePin={setMemberCreatePin}
+      />
 
       <div className="garage-panel garage-animate-in flex shrink-0 flex-col gap-2 rounded-md p-2 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
@@ -9997,47 +9758,11 @@ export function PosView({
         </>
       )}
 
-      <Dialog
-        open={Boolean(variantItem)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setVariantItem(null);
-          }
-        }}
-      >
-        <DialogContent className="max-h-[88vh] overflow-hidden border-[#34343c] bg-[#111116]">
-          <DialogHeader>
-            <DialogTitle>{variantItem?.name ?? "Pilih varian"}</DialogTitle>
-            <DialogDescription>
-              Tap varian untuk langsung masuk ke keranjang.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="garage-scroll max-h-[58vh] overflow-y-auto pr-1">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {variantItem?.variants.map((variant) => (
-                <Button
-                  key={variant.id}
-                  type="button"
-                  variant="outline"
-                  className="garage-press h-auto min-h-16 justify-between border-[#4a4a54] px-3 py-3"
-                  onClick={() => {
-                    addItem(variantItem.id, variant.id);
-                    setVariantItem(null);
-                  }}
-                >
-                  <span className="text-left">
-                    <span className="block text-sm font-semibold">{variant.label}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {currency.format(variant.price)}
-                    </span>
-                  </span>
-                  <Plus className="size-4" />
-                </Button>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PosVariantPickerDialog
+        variantItem={variantItem}
+        setVariantItem={setVariantItem}
+        addItem={addItem}
+      />
 
       <PosClearCartDialog
         clearCartOpen={clearCartOpen}
@@ -10393,142 +10118,23 @@ export function PosView({
       />
 
       {/* Dialog: Riwayat Struk Shift (reprint) */}
-      <Dialog
-        open={receiptHistoryOpen}
-        onOpenChange={(open) => {
-          setReceiptHistoryOpen(open);
-          if (!open) {
-            setReprintTargetId(null);
-            setReprintStatus("idle");
-            setReprintError(null);
-          }
-        }}
-      >
-        <DialogContent
-          data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
-          className="flex max-h-[88svh] flex-col overflow-hidden border-[#34343c] bg-[#111116] sm:max-w-2xl"
-        >
-          <DialogHeader>
-            <DialogTitle>Riwayat Struk Shift</DialogTitle>
-            <DialogDescription>
-              {receiptHistory.length} struk terakhir dari device ini. Untuk
-              riwayat penjualan lengkap, gunakan menu Riwayat Penjualan.
-            </DialogDescription>
-          </DialogHeader>
-          {reprintStatus === "error" && reprintError ? (
-            <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
-              <AlertTriangle className="size-4" />
-              <AlertTitle>Cetak ulang gagal</AlertTitle>
-              <AlertDescription>{reprintError}</AlertDescription>
-            </Alert>
-          ) : null}
-          <div className="garage-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {receiptHistory.length === 0 ? (
-              <p className="py-8 text-center text-xs text-[#8f8f99]">
-                Belum ada struk yang dicetak di shift ini.
-              </p>
-            ) : (
-              receiptHistory.map((receipt) => {
-                const isTarget = reprintTargetId === receipt.invoiceNo;
-                const printing = isTarget && reprintStatus === "printing";
-                const success = isTarget && reprintStatus === "success";
-                return (
-                  <div
-                    key={`${receipt.invoiceNo}-${receipt.createdAt}`}
-                    className="rounded-md border border-[#34343c] bg-white/[0.04] p-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="garage-mono text-[10px] uppercase tracking-wide text-[#b8b8bf]">
-                          {receipt.invoiceNo}
-                        </p>
-                        <p className="truncate text-sm font-semibold text-white">
-                          {receipt.orderNo} · {receipt.tableLabel}
-                        </p>
-                        <p className="text-[11px] text-[#b8b8bf]">
-                          {formatReceiptDate(receipt.createdAt)} ·{" "}
-                          {receipt.payment.method}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="garage-mono text-sm font-extrabold text-[#ffd08a]">
-                          {currency.format(receipt.total)}
-                        </p>
-                        <p className="text-[10px] text-[#8f8f99]">
-                          {receipt.items.reduce((sum, it) => sum + it.qty, 0)} item
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-                      {success ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-[#4ade80]">
-                          <Check className="size-3.5" />
-                          Terkirim ke printer
-                        </span>
-                      ) : null}
-                      {canCancelOrder ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="garage-press h-9 border-[#d11a2a]/45 bg-[#d11a2a]/14 px-3 text-xs text-[#ffe1e5] hover:bg-[#d11a2a]/22"
-                          onClick={() =>
-                            setCancelTarget({
-                              orderNo: receipt.orderNo,
-                              tableLabel: receipt.tableLabel,
-                              total: receipt.total,
-                            })
-                          }
-                        >
-                          <Ban className="mr-1.5 size-3.5" />
-                          Batal / Refund
-                        </Button>
-                      ) : null}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="garage-press h-9 border-[#4a4a54] bg-white/[0.055] px-3 text-xs"
-                        onClick={() => void reprintReceipt(receipt)}
-                        disabled={printing}
-                      >
-                        {printing ? (
-                          <>
-                            <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
-                            Mencetak...
-                          </>
-                        ) : (
-                          <>
-                            <Printer className="mr-1.5 size-3.5" />
-                            Cetak ulang
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="garage-press h-10 border-[#d11a2a]/45 bg-[#d11a2a]/14 text-[#ffe1e5] hover:bg-[#d11a2a]/22"
-              onClick={clearReceiptHistory}
-              disabled={!receiptHistory.length}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Bersihkan
-            </Button>
-            <Button
-              type="button"
-              className="garage-press h-10"
-              onClick={() => setReceiptHistoryOpen(false)}
-            >
-              Tutup
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PosReceiptHistoryDialog
+        receiptHistoryOpen={receiptHistoryOpen}
+        setReceiptHistoryOpen={setReceiptHistoryOpen}
+        setReprintTargetId={setReprintTargetId}
+        setReprintStatus={setReprintStatus}
+        setReprintError={setReprintError}
+        isCashierKiosk={isCashierKiosk}
+        receiptHistory={receiptHistory}
+        reprintStatus={reprintStatus}
+        reprintError={reprintError}
+        reprintTargetId={reprintTargetId}
+        canCancelOrder={canCancelOrder}
+        setCancelTarget={setCancelTarget}
+        reprintReceipt={reprintReceipt}
+        clearReceiptHistory={clearReceiptHistory}
+        cashierTheme={cashierTheme}
+      />
 
       <PosInvoiceDeleteDialog
         target={invoiceDeleteTarget}

@@ -52,6 +52,12 @@ function GarageShellFallback({ title }: { title: string }) {
   );
 }
 
+// Aya (pet pengingat kerja) dimuat terpisah agar tidak memperberat shell.
+const AyaStaffCompanionDynamic = dynamic(
+  () => import("./aya/aya-staff-companion").then((module) => module.AyaStaffCompanion),
+  { ssr: false },
+);
+
 const GarageAppDynamic = dynamic<GarageAppProps>(
   () => import("./garage-app").then((module) => module.GarageApp),
   {
@@ -70,7 +76,12 @@ const GaragePosLoginDynamic = dynamic<GarageLoginProps>(
 );
 
 export function LazyGarageApp(props: GarageAppProps) {
-  return <GarageAppDynamic {...props} />;
+  return (
+    <>
+      <GarageAppDynamic {...props} />
+      <AyaStaffCompanionDynamic />
+    </>
+  );
 }
 
 export function LazyGaragePosLogin(props: GarageLoginProps) {

@@ -963,6 +963,22 @@ function GarageWorkspace({
     setMobileOpen(false);
   }
 
+  // Aya (pet pengingat) meminta pindah modul tanpa muat ulang halaman.
+  const handleModuleChangeRef = useRef(handleModuleChange);
+  useEffect(() => {
+    handleModuleChangeRef.current = handleModuleChange;
+  });
+  useEffect(() => {
+    const onNavigate = (event: Event) => {
+      const target = (event as CustomEvent<{ module?: ModuleId }>).detail?.module;
+      if (!target) return;
+      event.preventDefault();
+      handleModuleChangeRef.current(target);
+    };
+    window.addEventListener("garage:navigate-module", onNavigate);
+    return () => window.removeEventListener("garage:navigate-module", onNavigate);
+  }, []);
+
   if (!data && !loadError) {
     return <GarageLoading title="Loading Garage OS" detail="Mengambil data outlet dari API." />;
   }

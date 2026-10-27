@@ -26,6 +26,7 @@ import type { HealthData } from "@/lib/garage-api-types";
 import type { Role } from "@/lib/garage-data";
 import { authClient } from "@/lib/auth-client";
 import { loginErrorMessage } from "@/lib/login-messages";
+import { oauthContinueUrl, signedOAuthQuery } from "@/lib/oauth-login-continue";
 
 // Modul login terpisah dari garage-app.tsx supaya /login & /pos-login cukup mengunduh
 // form ini (bukan seluruh OS). Palet = website Garage: hitam pekat + blok merah tegas.
@@ -307,6 +308,8 @@ export function LoginScreen({
         const data = (await response.json().catch(() => null)) as
           | {
               twoFactorRedirect?: boolean;
+              redirect?: boolean;
+              url?: string;
               code?: string;
               message?: string;
               error?: { code?: string; message?: string };
@@ -321,7 +324,13 @@ export function LoginScreen({
         };
       }
 
-      let result = await post("/api/auth/sign-in/email", { email: normalizedEmail, password });
+      // Alur OAuth MCP ChatGPT: query bertanda tangan dari plugin ikut ke sign-in.
+      const oauthQuery = signedOAuthQuery(window.location.search);
+      let result = await post("/api/auth/sign-in/email", {
+        email: normalizedEmail,
+        password,
+        ...(oauthQuery ? { oauth_query: oauthQuery } : {}),
+      });
       if (!result.ok && devLoginPassword && password === devLoginPassword) {
         result = await post("/api/dev/demo-login", { email: normalizedEmail });
       }
@@ -339,6 +348,12 @@ export function LoginScreen({
       // page TOTP challenge untuk complete login.
       if (result.data?.twoFactorRedirect) {
         window.location.href = `/login/2fa${window.location.search}`;
+        return;
+      }
+
+      const continueUrl = oauthContinueUrl(result.data);
+      if (continueUrl) {
+        window.location.assign(continueUrl);
         return;
       }
 

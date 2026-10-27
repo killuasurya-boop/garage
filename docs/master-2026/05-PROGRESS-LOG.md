@@ -349,3 +349,14 @@ Format wajib per batch (instruksi Owner):
   - migration 0163 → 0166 berurutan.
 - **S0g** → PR #110 (base #95): aria-label form Keuangan/ProfitMax/Payroll, sapuan @1366 = 0. Ini permintaan agent kedua.
 - **Catatan Owner:** dengan urutan ini semua PR bisa di-merge lewat GitHub tanpa menyelesaikan konflik manual. Setiap merge ke main memicu deploy bila Actions aktif. Saran: merge berurutan di luar jam operasional, atau aktifkan #102 dulu lalu deploy sekali dari laptop setelah semua masuk.
+
+## 2026-10-27 — M3h: `garage_api` hanya baca (D-10)
+- PR #113 (draft), base #105 (`claude/m3g-mcp-marketing-notif`), branch `claude/m3h-garage-api-readonly`.
+- Perubahan pada `garage_api`:
+  - risiko R0 dan `write: false`;
+  - method hanya GET, tanpa body;
+  - pengecualian scope readonly dihapus.
+- Instruksi MCP: "untuk MEMBACA data yang belum ada tool-nya", sedangkan mengubah data wajib lewat tool bisnis.
+- Uji: tsc + eslint bersih; vitest 189 file / 1210 tes lulus; build lulus. Tidak ada migration.
+- Urutan merge: #113 setelah #105, sehingga rantai 3 menjadi #89 → … → #105 → #113.
+- Berikutnya: sambutan Aya di website (koordinasi dengan agent kedua di #80 terlebih dahulu).

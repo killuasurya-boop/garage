@@ -388,3 +388,13 @@ Format wajib per batch (instruksi Owner):
   - vitest 1194 lulus (cabang #115); build lulus.
   - Playwright 390/1366: seret, ketuk, posisi diingat, terbang sendiri, reduced-motion, login gate, navigasi "Cek stok".
 - Urutan merge: … #109 → #114 → #115.
+
+## 2026-10-27 — T1: kode gabung meja terlihat staf & tercetak di struk
+- Pertanyaan Owner: "Bagaimana gabung meja?" Saat itu kode gabung 4 angka hanya ada di HP pemesan pertama.
+- **#116** (draft, base `main`, branch `claude/t1-table-join-code`):
+  - kode tampil di detail meja waiter & POS;
+  - kode dicetak di struk POS dine-in, struk Final Bayar, dan bill sementara;
+  - dialog pelanggan menyebut "tanya waiter/kasir";
+  - peta meja publik tetap tanpa kode (dijaga tes).
+- **Uji:** vitest 1186 lulus; build lulus; browser waiter 390/1366 + POS + dialog pelanggan.
+- **Belum:** "Gabung Meja" staf (menyatukan dua meja terisi), menunggu keputusan Owner.

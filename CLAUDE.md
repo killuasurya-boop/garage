@@ -217,6 +217,19 @@ Scroll direction:
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 
+- MCP ChatGPT (owner D-01, batch M0): OAuth 2.1 via `@better-auth/mcp` + `jwt` plugin, only when
+  `GARAGE_MCP_CHATGPT_ENABLED=true` and `BETTER_AUTH_URL` is HTTPS (`resolveMcpChatgptConfig`, `mcp-chatgpt-config.ts`);
+  off = no OAuth endpoints. Tables `jwks`/`oauth_*` (migration 0163) come from the drizzle-adapter schema generator — keep
+  them in sync with the plugin version. `/api/mcp/chatgpt` = `requireMcpAuth` → `handleMcpChatgptRequest`
+  (`mcp-chatgpt-gateway.ts`): kill switch `mcpChatgptPaused`, Owner + 2FA only (`mcpChatgptAccess`, also used by
+  `/oauth/consent`), synchronous audit before each tool, `garage_api` hidden. Login/2FA pages forward the signed
+  `oauth_query` (`oauth-login-continue.ts`). See `docs/AGENT-API.md` §6.
+- MCP tool registry & confirmation (batches M1/M2): every agent tool declares `domain` (16 PRD domains) + `risk` R0–R3
+  (`mcp-tool-registry.ts`, enforced by tests; `write === risk !== "R0"`). On `/api/mcp/chatgpt`, R2/R3 tools go through
+  `runToolWithConfirmation` (`mcp-confirmation.ts`, table `mcp_operations`, migration 0164): first call = preview +
+  single-use token (5 min, only nonce hash stored), confirmed call must repeat the exact args; claim is one atomic
+  `UPDATE … WHERE status='pending'`. Never log the token. Tools may define a read-only `preview()`.
+
 ## Product Management Rules
 
 - Product categories are dynamic (owner, Okt 2026): table `product_categories` (`src/lib/product-management.ts`),

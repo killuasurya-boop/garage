@@ -102,17 +102,12 @@ export function agentRequestNeedsAudit(method: string, path: string) {
   return AUDITED_READ_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
-// ─── Rate limit per key (in-memory, per proses) ─────────────────────────────
-const buckets = new Map<string, { count: number; resetAt: number }>();
-function overRateLimit(keyId: string) {
-  const now = Date.now();
-  const bucket = buckets.get(keyId);
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(keyId, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-  bucket.count += 1;
-  return bucket.count > RATE_LIMIT_PER_MINUTE;
+// ─── Rate limit per key (persisten, F-06) ───────────────────────────────────
+// Penghitung di DB (rate_limit_counters): tidak ter-reset saat restart dan
+// berlaku lintas proses — dulu Map in-memory per proses.
+async function overRateLimit(keyId: string) {
+  const { hitRateLimit } = await import("@/lib/rate-limit-db");
+  return (await hitRateLimit(`agent-key:${keyId}`, { limit: RATE_LIMIT_PER_MINUTE, windowMs: 60_000 })).limited;
 }
 
 type AgentResolve = { data: GarageSession; response: null } | { data: null; response: Response };
@@ -166,7 +161,7 @@ export async function resolveAgentSession(rawKey: string, headers: Headers, allo
   if (row.profileRole !== "Owner" || row.profileStatus === "suspended" || row.profileStatus === "inactive") {
     return deny(401, "AGENT_KEY_OWNER_INACTIVE", "Pemilik API key bukan Owner aktif lagi.");
   }
-  if (overRateLimit(row.key.id)) {
+  if (await overRateLimit(row.key.id)) {
     return deny(429, "AGENT_RATE_LIMITED", `Terlalu banyak permintaan (maks. ${RATE_LIMIT_PER_MINUTE}/menit per key).`);
   }
 

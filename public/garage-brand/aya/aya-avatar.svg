@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="aya-title">
+  <title id="aya-title">Aya, robot AI Garage Coffee</title>
+  <defs>
+    <linearGradient id="aya-chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f4f6"/>
+      <stop offset="0.55" stop-color="#b9bcc4"/>
+      <stop offset="1" stop-color="#7d818b"/>
+    </linearGradient>
+    <linearGradient id="aya-visor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1c21"/>
+      <stop offset="1" stop-color="#0b0b0e"/>
+    </linearGradient>
+  </defs>
+  <!-- antena dengan lampu merah Garage -->
+  <line x1="64" y1="14" x2="64" y2="28" stroke="#9a9ea8" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="64" cy="11" r="6" fill="#e1262d"/>
+  <circle cx="62" cy="9" r="2" fill="#ff8a8f"/>
+  <!-- baut samping -->
+  <rect x="10" y="56" width="12" height="26" rx="5" fill="#8b8f99"/>
+  <rect x="106" y="56" width="12" height="26" rx="5" fill="#8b8f99"/>
+  <!-- kepala chrome -->
+  <rect x="18" y="26" width="92" height="84" rx="30" fill="url(#aya-chrome)" stroke="#5c6069" stroke-width="2"/>
+  <!-- visor gelap -->
+  <rect x="28" y="44" width="72" height="44" rx="20" fill="url(#aya-visor)"/>
+  <!-- mata sipit putih (lengkung tersenyum) -->
+  <path d="M40 67 Q49 59 58 67" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <path d="M70 67 Q79 59 88 67" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <!-- pipi LED amber -->
+  <ellipse cx="38" cy="79" rx="5" ry="3" fill="#f5a524" opacity="0.85"/>
+  <ellipse cx="90" cy="79" rx="5" ry="3" fill="#f5a524" opacity="0.85"/>
+  <!-- mulut kecil -->
+  <path d="M58 98 Q64 103 70 98" fill="none" stroke="#3a3d45" stroke-width="3" stroke-linecap="round"/>
+</svg>

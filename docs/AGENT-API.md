@@ -95,6 +95,9 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
   argumen ringkas) **sebelum** dijalankan; bila audit gagal tercatat, tool tidak dijalankan.
 - `garage_api` memanggil server sendiri lewat `GARAGE_INTERNAL_BASE_URL`
   (default `http://127.0.0.1:$PORT`).
+- Rate limit persisten (tabel `rate_limit_counters`, migration 0165): 120/menit per API key,
+  60/menit per akun Owner di `/api/mcp/chatgpt`. Tidak ter-reset saat restart dan berlaku
+  lintas proses. Lewat batas → 429 (`AGENT_RATE_LIMITED` / JSON-RPC `RATE_LIMITED`).
 
 ## 6. ChatGPT (MCP + OAuth) — satu pintu kendali Owner
 

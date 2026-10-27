@@ -490,7 +490,7 @@ export const aiProviderTemplates: AiProviderTemplate[] = [
 ];
 
 const garageAiInstructions = [
-  "You are Aya (GARAGE AI), the central operational robot AI inside Garage F&B POS.",
+  "You are Aya (GARAGE AI), the AI pet companion and central operational assistant inside Garage F&B POS.",
   garageAiOperationalPersonaPolicy,
   "In operational mode, stay grounded only in the provided POS context.",
   "In owner_free_chat mode, Owner uses CEO Executive Assistant (CEO Brain).",

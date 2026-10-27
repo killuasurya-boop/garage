@@ -110,13 +110,26 @@ ganti rugi). Agent mencatat jawaban Owner di file ini.
 
 ---
 
-## D-07 — Aya = peliharaan Owner sebagai identitas asisten AI Garage OS (FINAL arah, detail OPEN, 2026-10-26)
+## D-07 — Aya = robot AI Garage OS (FINAL, revisi Owner 2026-10-27)
 
-**Kata Owner:** *"Masukan pet saya Aya dalam plan."*
+**Kata Owner (27 Okt):** *"Aya itu robot AI bermata sipit putih imut yang mengingatkan semua divisi untuk
+kontrol kerjaan, di website juga ada untuk sambut dan ajak customer cari beli dll."*
 
-Aya di PRD V4.0 (§21.5, AYA-01, F52) adalah asisten AI in-app. Keputusan Owner: **Aya diambil dari
-peliharaan Owner** — nama, wajah/avatar, dan karakter asisten AI Garage OS. Aya adalah satu sosok yang sama
-di semua pintu: Aya in-app, suara/notifikasi, dan jawaban ChatGPT MCP (D-01) bisa menyebut diri "Aya".
+> **Revisi.** Catatan 26 Okt (*"Masukan pet saya Aya dalam plan"*) sempat ditafsirkan sebagai hewan peliharaan.
+> Owner meluruskan: Aya adalah **robot AI (maskot)**, bukan hewan. Bagian di bawah yang menyebut foto peliharaan,
+> telinga/ekor, atau "jenis hewan" **tidak berlaku lagi**; jawaban final ada di tabel D-07a–e.
+
+| Butir | Keputusan FINAL |
+|---|---|
+| D-07a Wujud | **Robot AI imut, mata sipit berwarna putih** |
+| D-07b Foto | Tidak perlu foto. Maskot didesain dari deskripsi Owner (draf SVG di `public/garage-brand/aya/`, Owner menyetujui visual) |
+| D-07c Gaya | Maskot vektor selaras palet Garage (asphalt hitam, chrome, aksen merah/amber), mata putih |
+| D-07d Peran & nada | **Pengingat kerja semua divisi** (bar, dapur, kasir, waiter, gudang, manajemen): tegas tapi ramah. Untuk Owner tetap gaya eksekutif |
+| D-07e Siapa melihat | **Semua**: Owner, staf semua divisi, dan **pelanggan di website** (menyambut, mengajak melihat menu & membeli) |
+
+Aya adalah satu sosok di semua pintu: Aya in-app, notifikasi, jawaban ChatGPT MCP (D-01), dan sambutan website.
+Aturan tidak berubah: Aya tidak menjalankan aksi berisiko tanpa konfirmasi, tidak mengarang data, dan di website
+tidak meminta data pribadi/pembayaran di luar alur checkout resmi.
 
 ### Ruang lingkup (masuk batch M5 + U1)
 
@@ -130,15 +143,36 @@ di semua pintu: Aya in-app, suara/notifikasi, dan jawaban ChatGPT MCP (D-01) bis
 | Batas tampil | Default: workspace Owner & Manajer, panel AI, notifikasi. POS kasir hanya ikon kecil (tidak boleh menutupi menu/cart/total). Member UI: **tidak** tampil sampai Owner setujui terpisah (kontrak desain member terkunci, aturan #8) |
 | Keamanan | Aya memakai backend, tool registry, dan policy yang sama dengan MCP (F52 = D-01). Aya tidak pernah mengklaim aksi berhasil tanpa operation receipt |
 
-### Detail yang harus dijawab Owner (D-07a…e, OPEN)
+### Detail D-07a…e
 
-- **D-07a** Jenis hewan Aya (kucing / anjing / lainnya) dan ciri utama (warna bulu, mata, aksesori).
-- **D-07b** Foto Aya: Owner unggah 3–5 foto jelas (depan, samping, ekspresi favorit) ke
-  `public/garage-brand/aya/source/` atau lampirkan di chat. Agent **tidak** mengarang wujud Aya tanpa foto.
-- **D-07c** Gaya ilustrasi: flat/vektor yang selaras palet Garage (merah, chrome, amber) vs lebih realistis.
-- **D-07d** Kepribadian & cara bicara Aya (mis. panggil Owner "Bos"/"Pak Surya"? boleh sedikit lucu atau
-  tetap formal saat membahas uang?).
-- **D-07e** Apakah Aya juga tampil untuk staf (kasir/bar/dapur) dan/atau member, atau khusus Owner & Manajer.
+Sudah dijawab Owner 27 Okt (tabel di atas). Kontrak desain member (`/member-login`) tetap terkunci: Aya di website
+tampil di halaman menu/beranda, bukan mengubah layar login member tanpa persetujuan terpisah.
+
+---
+
+## D-09 — Final Bayar tunai: kolom "uang diterima" (FINAL atas delegasi Owner, 2026-10-27)
+
+**Kata Owner:** *"final bayar itu saya gk paham, terbaikmu aja."* Diputuskan agent pertama:
+
+- Kolom uang diterima **terisi otomatis = total tagihan** (satu ketuk "Uang pas"); kasir bisa menimpa bila
+  pelanggan memberi uang lebih (kembalian dihitung).
+- **Server tetap mewajibkan nominal ≥ total.** Tidak ada lagi "kosong dianggap uang pas" diam-diam (PRD §09.2
+  tender guard).
+- Alasan: kasir tetap secepat sekarang (satu ketuk), tapi setiap transaksi tunai punya nominal tercatat sehingga
+  selisih laci bisa ditelusuri.
+- Implementasi di area B3 milik agent kedua (#93/#98).
+
+---
+
+## D-10 — `garage_api` (alat wildcard agent) (FINAL atas delegasi Owner, 2026-10-27)
+
+**Kata Owner:** *"jika tak berguna buang, jika berfungsi untuk kerja gunakan."*
+
+- Setelah M3 (16/16 domain punya tool bisnis), aksi **mengubah data** lewat `garage_api` tidak diperlukan lagi
+  dan melewati preview/konfirmasi → **dikunci: `garage_api` hanya GET (baca)**.
+- Membaca endpoint yang belum punya tool tetap berguna untuk agent OpenClaw/Hermes → **dipertahankan sebagai alat
+  baca**, diaudit per panggilan (#106).
+- Di ChatGPT tetap tersembunyi (token OAuth tidak diterima endpoint lain).
 
 ---
 

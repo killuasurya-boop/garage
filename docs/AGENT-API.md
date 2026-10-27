@@ -114,7 +114,7 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
 | `kirim_notifikasi_staf` | Notifikasi | R1 | Pengumuman ke staf di lonceng Garage OS (bukan WA/email) |
 | `buat_laporan` | Dokumen | R0 | File PDF/XLSX/CSV (base64) — Penjualan, Pembelian Bar/Kitchen, Stok, Produksi, Keuangan |
 | `kemampuan_sistem` | Sistem | R0 | Peta 16 domain: tool & risiko per domain, domain yang belum punya tool, hal yang selalu ditolak (R4) |
-| `garage_api` | Sistem | R3 | Akses penuh: panggil endpoint `/api` mana pun (method, path, query, body). Tidak tersedia di MCP ChatGPT |
+| `garage_api` | Sistem | R0 | Baca saja (GET) endpoint `/api` yang belum punya tool; ubah data wajib lewat tool bisnis (D-10). Tidak tersedia di MCP ChatGPT |
 
 ## 5. Keamanan
 - Wajib HTTPS publik (`GARAGE_PUBLIC_BASE_URL` di server). Jangan kirim key lewat chat.

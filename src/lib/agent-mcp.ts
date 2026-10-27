@@ -66,7 +66,7 @@ export async function handleMcpMessage(
           options.confirmRiskyTools
             ? "Tool berlabel R2/R3 TIDAK langsung dijalankan: panggilan pertama membalas preview + token `konfirmasi`. Tunjukkan ringkasannya ke Owner, minta persetujuan eksplisit, lalu panggil ulang dengan argumen sama + `konfirmasi`. Klaim berhasil hanya bila ada receipt; cek dengan status_operasi bila ragu."
             : "Setiap tool diberi label risiko [R0 Baca … R3 Kritis]; jelaskan dampak aksi R2/R3 kepada Owner sebelum menjalankannya.",
-          hidden.has("garage_api") ? "" : "Untuk hal yang tidak ada tool-nya pakai garage_api.",
+          hidden.has("garage_api") ? "" : "Untuk MEMBACA data yang belum ada tool-nya pakai garage_api (GET saja); mengubah data wajib lewat tool bisnis.",
           "Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
         ]
           .filter(Boolean)

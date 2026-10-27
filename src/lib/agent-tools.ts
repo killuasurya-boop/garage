@@ -1,7 +1,7 @@
 // =============================================================================
 // Katalog tool agent AI (OpenClaw / Hermes). Dipakai REST /api/agent/v1/tools
 // dan server MCP /api/mcp. Tool memanggil service Garage langsung dengan sesi
-// agent (hak = scope key). `garage_api` membuka akses ke endpoint /api lain.
+// agent (hak = scope key). `garage_api` membaca (GET) endpoint /api lain.
 // =============================================================================
 import { z } from "zod";
 
@@ -330,37 +330,29 @@ const tools: AgentTool[] = [
   ...marketingTools,
   {
     name: "garage_api",
-    title: "Panggil endpoint Garage OS",
+    title: "Baca endpoint Garage OS",
     description:
-      "Akses penuh: panggil endpoint /api Garage OS mana pun dengan hak key ini (mis. GET /api/orders, POST /api/orders/{id}/void, GET /api/finance/overview). Respons JSON apa adanya. Endpoint kelola key, auth, cron & webhook diblokir.",
-    write: true,
+      "BACA SAJA (GET): ambil data dari endpoint /api Garage OS yang belum punya tool, dengan hak key ini (mis. GET /api/orders, GET /api/finance/overview). Respons JSON apa adanya. Mengubah data wajib lewat tool bisnis. Endpoint kelola key, auth, cron & webhook diblokir.",
+    // D-10 (Owner, Okt 2026): 16/16 domain sudah punya tool bisnis (M3), jadi tulis lewat
+    // wildcard yang melewati preview/konfirmasi tidak dibutuhkan → GET saja.
+    write: false,
     domain: "sistem",
-    risk: "R3",
+    risk: "R0",
     permission: "dashboard:read",
     input: z.object({
-      method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+      method: z.literal("GET").optional(),
       path: z.string().regex(/^\/api\/[A-Za-z0-9/_\-.%]*$/, "Path harus diawali /api/"),
       query: z.record(z.string(), z.string()).optional(),
-      body: z.unknown().optional(),
     }),
     async run(session, args, ctx) {
       const { isAgentForbiddenPath } = await import("@/lib/agent-api-key");
-      const method = String(args.method);
       const path = String(args.path);
       if (isAgentForbiddenPath(path) || path.startsWith("/api/agent") || path === "/api/mcp") {
         throw new AgentToolError("AGENT_FORBIDDEN_PATH", "Endpoint ini tidak boleh dipanggil lewat agent.", 403);
       }
-      if (session.profile.agentKey?.scope === "readonly" && method !== "GET") {
-        throw new AgentToolError("AGENT_READONLY", "API key baca-saja hanya boleh GET.", 403);
-      }
       const url = new URL(path, ctx.internalOrigin);
       for (const [key, value] of Object.entries((args.query as Record<string, string> | undefined) ?? {})) url.searchParams.set(key, value);
-      const response = await fetch(url, {
-        method,
-        headers: { authorization: ctx.authorization, ...(args.body !== undefined ? { "content-type": "application/json" } : {}) },
-        body: args.body !== undefined && method !== "GET" ? JSON.stringify(args.body) : undefined,
-        cache: "no-store",
-      });
+      const response = await fetch(url, { method: "GET", headers: { authorization: ctx.authorization }, cache: "no-store" });
       const type = response.headers.get("content-type") ?? "";
       if (type.includes("application/json")) {
         return { status: response.status, json: await response.json().catch(() => null) };
@@ -374,7 +366,7 @@ const tools: AgentTool[] = [
 
 export function listAgentTools(session?: GarageSession) {
   return tools
-    .filter((tool) => !session || (canUseApiAs(session.profile, tool.permission) && !(tool.write && session.profile.agentKey?.scope === "readonly" && tool.name !== "garage_api")))
+    .filter((tool) => !session || (canUseApiAs(session.profile, tool.permission) && !(tool.write && session.profile.agentKey?.scope === "readonly")))
     .map((tool) => ({
       name: tool.name,
       title: tool.title,
@@ -394,7 +386,7 @@ export function findAgentTool(name: string) {
 export async function runAgentTool(session: GarageSession, name: string, rawArgs: unknown, ctx: AgentToolContext) {
   const tool = findAgentTool(name);
   if (!tool) throw new AgentToolError("UNKNOWN_TOOL", `Tool "${name}" tidak dikenal.`, 404);
-  if (tool.write && tool.name !== "garage_api" && session.profile.agentKey?.scope === "readonly") {
+  if (tool.write && session.profile.agentKey?.scope === "readonly") {
     throw new AgentToolError("AGENT_READONLY", "API key baca-saja tidak boleh menjalankan tool yang mengubah data.", 403);
   }
   if (!canUseApiAs(session.profile, tool.permission)) {

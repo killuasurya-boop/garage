@@ -100,7 +100,7 @@ describe("API key agent", () => {
     expect(names).toContain("laporan_penjualan");
     expect(names).not.toContain("catat_pengeluaran");
     await expect(tools.runAgentTool(session, "catat_pengeluaran", { kategori: "Operasional", deskripsi: "x", nominal: 1000 }, ctx)).rejects.toMatchObject({ code: "AGENT_READONLY" });
-    await expect(tools.runAgentTool(session, "garage_api", { method: "POST", path: "/api/expenses" }, ctx)).rejects.toMatchObject({ code: "AGENT_READONLY" });
+    await expect(tools.runAgentTool(session, "garage_api", { method: "POST", path: "/api/expenses" }, ctx)).rejects.toMatchObject({ code: "VALIDATION_ERROR" }); // D-10: GET saja
     const report = (await tools.runAgentTool(session, "laporan_penjualan", {}, ctx)) as any;
     expect(report.summary).toBeTruthy();
   });

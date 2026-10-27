@@ -30,6 +30,7 @@ import {
   MapPin,
 } from "lucide-react";
 
+import { AyaFloatingPet } from "@/components/garage/aya/aya-floating-pet";
 import { AyaGreeting } from "@/components/garage/order/aya-greeting";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
 import { HeroRail, type HeroKind } from "@/components/garage/order/hero-rail";
@@ -2608,15 +2609,6 @@ export function MemberOrderPage({
               )
             ) : menuGroups.length || bundleItems.length ? (
               <>
-                {!staffOrder ? (
-                  <AyaGreeting
-                    name={member?.name ?? guestName}
-                    heroLabel={hero.items.length ? heroLabel : null}
-                    onShowHero={() => scrollToSection(HERO_SECTION_ID)}
-                    onFocusSearch={focusMenuSearch}
-                    onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
-                  />
-                ) : null}
                 <EventBundleSection items={bundleItems} entries={eventContext?.entries ?? []} products={eventContext?.products ?? []} cart={cart} now={eventNow} onChoose={openMenuItem} />
                 <HeroRail
                   id={HERO_SECTION_ID}
@@ -2729,6 +2721,22 @@ export function MemberOrderPage({
         setBundleEntry(null);
         setLastAdded({ name: bundleEntry.name, stamp: Date.now() });
       }} /> : null}
+
+      {!staffOrder ? (
+        <AyaFloatingPet scope="order">
+          {({ close, hide }) => (
+            <AyaGreeting
+              name={member?.name ?? guestName}
+              heroLabel={hero.items.length ? heroLabel : null}
+              onShowHero={() => scrollToSection(HERO_SECTION_ID)}
+              onFocusSearch={focusMenuSearch}
+              onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
+              onClose={close}
+              onHide={hide}
+            />
+          )}
+        </AyaFloatingPet>
+      ) : null}
 
       {qrContext.orderType === "dine-in" && !staffOrder ? (
         <OrderHelpSheet

@@ -105,6 +105,7 @@ export function PayrollSettingsPanel() {
           {TAB_DEFS.find((t) => t.key === activeTab)?.hint}
         </p>
         <textarea
+          aria-label={`Pengaturan ${TAB_DEFS.find((t) => t.key === activeTab)?.label ?? activeTab} (JSON)`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={16}

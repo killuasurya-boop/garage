@@ -477,6 +477,7 @@ export default function ProfitMaxPage() {
                       <tr key={`${ingredient.name}-${index}`}>
                         <td className="px-3 py-2">
                           <input
+                            aria-label={`Nama bahan baris ${index + 1}`}
                             value={ingredient.name}
                             onChange={(event) =>
                               setIngredientDraft((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, name: event.target.value } : row)))
@@ -487,6 +488,7 @@ export default function ProfitMaxPage() {
                         <td className="px-3 py-2">
                           <input
                             type="number"
+                            aria-label={`Qty ${ingredient.name || `bahan ${index + 1}`}`}
                             value={ingredient.qty}
                             onChange={(event) =>
                               setIngredientDraft((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, qty: Number(event.target.value) } : row)))
@@ -497,6 +499,7 @@ export default function ProfitMaxPage() {
                         <td className="px-3 py-2">
                           <input
                             type="number"
+                            aria-label={`Harga per unit ${ingredient.name || `bahan ${index + 1}`}`}
                             value={ingredient.price}
                             onChange={(event) =>
                               setIngredientDraft((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, price: Number(event.target.value) } : row)))

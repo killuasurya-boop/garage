@@ -511,7 +511,7 @@ function ScenarioCard({ data, onSaved, className }: { data: FinanceIntelligence;
             </p>
           ) : null}
           <div className="mt-4 flex gap-2">
-            <input className={input} placeholder="Nama skenario, mis. Promo akhir bulan" value={name} onChange={(e) => setName(e.target.value)} />
+            <input aria-label="Nama skenario" className={input} placeholder="Nama skenario, mis. Promo akhir bulan" value={name} onChange={(e) => setName(e.target.value)} />
             <button
               type="button"
               disabled={saving || name.trim().length < 2}

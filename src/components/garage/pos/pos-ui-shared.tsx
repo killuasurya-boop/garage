@@ -1,5 +1,7 @@
 "use client";
 
+import type { MenuItem } from "@/lib/garage-api-types";
+import { isDirectHandoverMenu, productionStationFor } from "@/lib/garage-production-rules";
 
 export type PaymentStep = "summary" | "table" | "customer" | "payment" | "done";
 
@@ -46,4 +48,9 @@ export function formatReceiptDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+export function chitStationFor(item: Pick<MenuItem, "category"> & { station?: string | null }): "Dapur" | "Bar" | "Langsung" {
+  if (isDirectHandoverMenu({ station: item.station, category: item.category })) return "Langsung";
+  return productionStationFor({ station: item.station, category: item.category }) === "Bar" ? "Bar" : "Dapur";
 }

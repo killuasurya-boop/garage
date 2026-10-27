@@ -3,18 +3,22 @@
 // Dialog POS yang dipindah dari pos-view.tsx (U0d). Perilaku sama; state dan
 // handler tetap di PosView dan diteruskan sebagai props.
 
-import { generateTemporaryMemberPin, hasOpenTableBill, type ParkedOrder } from "@/components/garage/garage-app-helpers";
+import { generateTemporaryMemberPin, hasOpenTableBill, type ParkedOrder, type PaymentMethod, paymentMethods, tableNumbers } from "@/components/garage/garage-app-helpers";
 import { type CashierThemeMode } from "@/components/garage/garage-app-pickers";
 import { type OrderCancelTarget } from "@/components/garage/pos-order-cancel-dialog";
-import { formatReceiptDate } from "@/components/garage/pos/pos-ui-shared";
+import { chitStationFor, formatReceiptDate } from "@/components/garage/pos/pos-ui-shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { type CartLine, type CustomerOrder, type MenuItem, type MenuVariant, type OrderReceipt, type OrderType, type TableLiveRow } from "@/lib/garage-api-types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { type AppSettings, type CartLine, type CustomerOrder, type MenuItem, type MenuVariant, type OrderReceipt, type OrderType, type TableLiveRow } from "@/lib/garage-api-types";
 import { currency, type GarageMenuItem } from "@/lib/garage-data";
-import { AlertTriangle, Archive, ArrowRight, Ban, Camera, Check, Loader2, PauseCircle, Plus, Printer, RefreshCw, Trash2, Users } from "lucide-react";
+import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
+import { quickCashOptions } from "@/lib/pos-cash";
+import { AlertTriangle, Archive, ArrowRight, Ban, Banknote, Camera, Check, Loader2, PauseCircle, Percent, Plus, Printer, RefreshCw, Trash2, Users } from "lucide-react";
 import { type ChangeEvent, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from "react";
 
 export function PosClearCartDialog({
@@ -1255,6 +1259,555 @@ export function PosReceiptHistoryDialog({
           >
             Tutup
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function PosFinalizeOrderDialog({
+  finalizeOrderTarget,
+  setFinalizeOrderTarget,
+  menuItemsById,
+  setFinalizeMethod,
+  qrisImageReady,
+  finalizeMethod,
+  finalizeCash,
+  setFinalizeCash,
+  finalizeCashValue,
+  finalizeCashShort,
+  finalizeReference,
+  setFinalizeReference,
+  confirmFinalizeOrder,
+  finalizeReferenceMissing,
+  settings,
+}: {
+  finalizeOrderTarget: CustomerOrder | null;
+  setFinalizeOrderTarget: Dispatch<SetStateAction<CustomerOrder | null>>;
+  menuItemsById: Map<string, GarageMenuItem>;
+  setFinalizeMethod: Dispatch<SetStateAction<"Cash" | "QRIS" | "Bank Transfer" | "E-Wallet">>;
+  qrisImageReady: boolean;
+  finalizeMethod: "Cash" | "QRIS" | "Bank Transfer" | "E-Wallet";
+  finalizeCash: string;
+  setFinalizeCash: Dispatch<SetStateAction<string>>;
+  finalizeCashValue: number;
+  finalizeCashShort: boolean;
+  finalizeReference: string;
+  setFinalizeReference: Dispatch<SetStateAction<string>>;
+  confirmFinalizeOrder: () => void;
+  finalizeReferenceMissing: boolean;
+  settings: AppSettings;
+}) {
+  return (
+    <Dialog
+      open={Boolean(finalizeOrderTarget)}
+      onOpenChange={(open) => {
+        if (!open) setFinalizeOrderTarget(null);
+      }}
+    >
+      <DialogContent className="garage-scroll max-h-[92svh] overflow-y-auto border-[#34343c] bg-[#111116] max-w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogHeader className="text-left">
+          <DialogTitle>Konfirmasi pembayaran</DialogTitle>
+          <DialogDescription>
+            Final Bayar menutup order ini. Pastikan pembayaran sudah diterima.
+          </DialogDescription>
+        </DialogHeader>
+        {finalizeOrderTarget ? (
+          <div className="space-y-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[#b8b8bf]">Meja / Order</span>
+              <span className="garage-mono font-semibold text-white">
+                {finalizeOrderTarget.tableLabel} · {finalizeOrderTarget.orderNo}
+              </span>
+            </div>
+            {finalizeOrderTarget.items.length ? (
+              <ul className="garage-scroll max-h-44 space-y-1.5 overflow-y-auto border-t border-[#34343c] pt-2" aria-label="Isi pesanan">
+                {groupOrderLines(finalizeOrderTarget.items).map((group) =>
+                  group.kind === "package" ? (
+                    <li key={group.groupId} className="text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 break-words font-semibold text-white">{group.qty}× {group.name}</span>
+                        <span className="garage-mono shrink-0 text-white">{currency.format(group.total)}</span>
+                      </div>
+                      <p className="break-words text-[13px] leading-5 text-[#d0d0d6]">
+                        {group.components.map((line) => componentLabel(line, group.qty)).join(" · ")}
+                      </p>
+                    </li>
+                  ) : (
+                    <li key={group.line.id} className="flex items-start justify-between gap-2 text-sm">
+                      <span className="min-w-0 break-words text-[#e4e4ea]">{group.line.qty}× {group.line.itemName}{group.line.variantLabel && group.line.variantLabel !== "Regular" ? ` ${group.line.variantLabel}` : ""}</span>
+                      <span className="garage-mono shrink-0 text-white">{currency.format(group.line.lineTotal)}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            ) : null}
+            {(() => {
+              const handover = finalizeOrderTarget.items.filter((line) => {
+                const menu = line.menuItemId ? menuItemsById.get(line.menuItemId) : undefined;
+                return menu ? chitStationFor(menu) === "Langsung" : false;
+              });
+              return handover.length ? (
+                <p className="rounded-md border border-[#f5a742]/60 bg-[#f5a742]/14 p-2 text-sm font-bold text-[#ffd08a]" data-testid="finalize-handover">
+                  Serahkan langsung: {handover.map((line) => `${line.qty}× ${line.itemName}`).join(", ")}
+                </p>
+              ) : null;
+            })()}
+            <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
+              <span className="text-[#b8b8bf]">Total</span>
+              <span className="garage-mono text-base font-black text-[#ffd08a]">
+                {currency.format(finalizeOrderTarget.total)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+        {finalizeOrderTarget ? (
+          <div className="space-y-2">
+            <p className="garage-mono text-xs uppercase tracking-wide text-[#c8c8cc]">
+              Metode bayar
+            </p>
+            {finalizeOrderTarget.fulfillment === "delivery" ? (
+              <p className="text-xs font-semibold text-[#ffd79a]">
+                Delivery hanya QRIS — cek mutasi QRIS dulu, baru tandai lunas & antar.
+              </p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-1.5">
+              {(finalizeOrderTarget.fulfillment === "delivery"
+                ? (["QRIS"] as PaymentMethod[])
+                : paymentMethods
+              ).map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => setFinalizeMethod(method)}
+                  disabled={method === "QRIS" && !qrisImageReady && finalizeOrderTarget.fulfillment !== "delivery"}
+                  className={`garage-press h-11 rounded-md border text-sm font-bold disabled:opacity-40 ${
+                    finalizeMethod === method
+                      ? "border-[#f5a742] bg-[#f5a742] text-black"
+                      : "border-[#34343c] bg-white/[0.05] text-[#d6d6dc]"
+                  }`}
+                >
+                  {method === "Cash" ? "Tunai" : method === "Bank Transfer" ? "Transfer" : method}
+                </button>
+              ))}
+            </div>
+            {finalizeMethod === "Cash" ? (
+              <div className="space-y-1">
+                <Input
+                  inputMode="numeric"
+                  value={finalizeCash}
+                  onChange={(event) => setFinalizeCash(event.target.value.replace(/[^\d]/g, ""))}
+                  placeholder={`Uang diterima (kosong = uang pas ${currency.format(finalizeOrderTarget.total)})`}
+                  aria-label="Uang diterima"
+                  className="h-11 border-[#34343c] bg-white/[0.06] text-base font-semibold"
+                />
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+                  {quickCashOptions(finalizeOrderTarget.total).map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setFinalizeCash(String(amount))}
+                      className={`garage-press h-11 rounded-md border text-sm font-bold tabular-nums ${
+                        finalizeCashValue === amount
+                          ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
+                          : "border-[#4a4a54] bg-white/[0.05] text-[#e4e4ea]"
+                      }`}
+                    >
+                      {currency.format(amount)}
+                    </button>
+                  ))}
+                </div>
+                {finalizeCashShort ? (
+                  <p className="text-sm font-semibold text-[#ffc2c8]">Uang diterima kurang dari total.</p>
+                ) : finalizeCashValue > finalizeOrderTarget.total ? (
+                  <div className="rounded-md border-2 border-[#f5a742]/70 bg-[#f5a742]/12 p-3 text-center">
+                    <p className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-[#ffd08a]">Kembalian</p>
+                    <p className="garage-display text-3xl font-bold tabular-nums text-white">
+                      {currency.format(finalizeCashValue - finalizeOrderTarget.total)}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {finalizeMethod === "QRIS" ? (
+                  <p className="flex gap-2 text-sm font-semibold text-[#ffd08a]">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
+                  </p>
+                ) : null}
+                <Input
+                  value={finalizeReference}
+                  onChange={(event) => setFinalizeReference(event.target.value.slice(0, 80))}
+                  placeholder={
+                    finalizeMethod === "QRIS" && settings.qrisReferenceRequired
+                      ? "No. Ref / RRN QRIS (wajib)"
+                      : "No. Ref / RRN (opsional)"
+                  }
+                  aria-label="Referensi pembayaran"
+                  className="h-11 border-[#34343c] bg-white/[0.06]"
+                />
+              </div>
+            )}
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-2 sm:flex-row-reverse">
+          <Button
+            type="button"
+            className="garage-press h-12 flex-1 bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a]"
+            onClick={confirmFinalizeOrder}
+            disabled={finalizeCashShort || finalizeReferenceMissing}
+          >
+            Konfirmasi Bayar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="garage-press h-11 flex-1 border-[#4a4a54] bg-white/[0.05] text-sm"
+            onClick={() => setFinalizeOrderTarget(null)}
+          >
+            Batal
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function PosManualDiscountDialog({
+  manualDiscountOpen,
+  setManualDiscountOpen,
+  setManualDiscountError,
+  isCashierKiosk,
+  applyManualDiscount,
+  manualDiscountTypeInput,
+  setManualDiscountTypeInput,
+  manualDiscountValueInput,
+  setManualDiscountValueInput,
+  manualDiscountReasonInput,
+  setManualDiscountReasonInput,
+  total,
+  voucher,
+  manualDiscountError,
+  cashierTheme,
+  settings,
+}: {
+  manualDiscountOpen: boolean;
+  setManualDiscountOpen: Dispatch<SetStateAction<boolean>>;
+  setManualDiscountError: Dispatch<SetStateAction<string | null>>;
+  isCashierKiosk: boolean;
+  applyManualDiscount: () => Promise<void>;
+  manualDiscountTypeInput: "amount" | "percent";
+  setManualDiscountTypeInput: Dispatch<SetStateAction<"amount" | "percent">>;
+  manualDiscountValueInput: string;
+  setManualDiscountValueInput: Dispatch<SetStateAction<string>>;
+  manualDiscountReasonInput: string;
+  setManualDiscountReasonInput: Dispatch<SetStateAction<string>>;
+  total: number;
+  voucher: number;
+  manualDiscountError: string | null;
+  cashierTheme: CashierThemeMode;
+  settings: AppSettings;
+}) {
+  return (
+    <Dialog
+      open={manualDiscountOpen}
+      onOpenChange={(open) => {
+        setManualDiscountOpen(open);
+        if (!open) setManualDiscountError(null);
+      }}
+    >
+      <DialogContent
+        data-cashier-theme-scope={isCashierKiosk ? cashierTheme : undefined}
+        className="border-[#34343c] bg-[#111116] sm:max-w-md"
+      >
+        <DialogHeader>
+          <DialogTitle>Diskon Kasir</DialogTitle>
+          <DialogDescription>
+            Potongan goodwill kasir. Di atas {settings.manualDiscountApprovalPct ?? 10}%
+            bill otomatis masuk Approvals. Maks {settings.manualDiscountMaxPct}% per bill.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void applyManualDiscount();
+          }}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className={`garage-press h-11 ${
+                manualDiscountTypeInput === "amount"
+                  ? "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]"
+                  : "border-[#4a4a54] bg-white/[0.055]"
+              }`}
+              onClick={() => setManualDiscountTypeInput("amount")}
+            >
+              <Banknote className="mr-2 size-4" />
+              Nominal (Rp)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className={`garage-press h-11 ${
+                manualDiscountTypeInput === "percent"
+                  ? "border-[#f5a742]/55 bg-[#f5a742]/14 text-[#ffd08a]"
+                  : "border-[#4a4a54] bg-white/[0.055]"
+              }`}
+              onClick={() => setManualDiscountTypeInput("percent")}
+            >
+              <Percent className="mr-2 size-4" />
+              Persen (%)
+            </Button>
+          </div>
+          <div>
+            <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+              {manualDiscountTypeInput === "percent"
+                ? "Persen diskon (1–100)"
+                : "Nominal diskon (Rp)"}
+            </p>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={manualDiscountTypeInput === "percent" ? 100 : undefined}
+              value={manualDiscountValueInput}
+              onChange={(event) =>
+                setManualDiscountValueInput(event.target.value)
+              }
+              placeholder={manualDiscountTypeInput === "percent" ? "10" : "5000"}
+              className="h-11 border-[#34343c] bg-white/[0.06]"
+              autoFocus
+            />
+          </div>
+          <div>
+            <p className="garage-mono mb-1 text-[10px] text-[#b8b8bf]">
+              Alasan / approval (wajib)
+            </p>
+            <Input
+              value={manualDiscountReasonInput}
+              onChange={(event) =>
+                setManualDiscountReasonInput(event.target.value.slice(0, 60))
+              }
+              placeholder="mis. Komplain dapur lama, Member ultah, Promo kasir"
+              className="h-11 border-[#34343c] bg-white/[0.06]"
+              maxLength={60}
+            />
+          </div>
+          <div className="rounded-md border border-[#34343c] bg-[#0f0f14] p-2.5">
+            <div className="flex items-center justify-between text-xs text-[#b8b8bf]">
+              <span>Sebelum diskon kasir</span>
+              <span className="garage-mono">
+                {currency.format(Math.max(0, total - voucher))}
+              </span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-sm font-semibold text-[#ffd08a]">
+              <span>Setelah diskon kasir</span>
+              <span className="garage-mono">
+                {(() => {
+                  const raw = Number(manualDiscountValueInput);
+                  if (!Number.isFinite(raw) || raw <= 0)
+                    return currency.format(Math.max(0, total - voucher));
+                  const base = Math.max(0, total - voucher);
+                  const cut =
+                    manualDiscountTypeInput === "percent"
+                      ? Math.min(base, Math.round((base * raw) / 100))
+                      : Math.min(base, Math.round(raw));
+                  return currency.format(Math.max(0, base - cut));
+                })()}
+              </span>
+            </div>
+          </div>
+          {manualDiscountError ? (
+            <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
+              <AlertTriangle className="size-4" />
+              <AlertTitle>Diskon kasir</AlertTitle>
+              <AlertDescription>{manualDiscountError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-10 border-[#4a4a54] bg-white/[0.055]"
+              onClick={() => setManualDiscountOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button type="submit" className="garage-press h-10">
+              <Check className="mr-2 size-4" />
+              Terapkan
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function PosTablePrintDialog({
+  tablePrintOpen,
+  setTablePrintOpen,
+  tablePrintMode,
+  setTablePrintMode,
+  tablePrintSingle,
+  setTablePrintSingle,
+  tablePrintStart,
+  setTablePrintStart,
+  tablePrintEnd,
+  setTablePrintEnd,
+  tablePrintTables,
+  tablePrintAutoUrl,
+  openTablePrintPreview,
+  cashierTheme,
+}: {
+  tablePrintOpen: boolean;
+  setTablePrintOpen: Dispatch<SetStateAction<boolean>>;
+  tablePrintMode: "single" | "range" | "all";
+  setTablePrintMode: Dispatch<SetStateAction<"single" | "range" | "all">>;
+  tablePrintSingle: string;
+  setTablePrintSingle: Dispatch<SetStateAction<string>>;
+  tablePrintStart: string;
+  setTablePrintStart: Dispatch<SetStateAction<string>>;
+  tablePrintEnd: string;
+  setTablePrintEnd: Dispatch<SetStateAction<string>>;
+  tablePrintTables: string[];
+  tablePrintAutoUrl: string;
+  openTablePrintPreview: () => void;
+  cashierTheme: CashierThemeMode;
+}) {
+  return (
+    <Dialog open={tablePrintOpen} onOpenChange={setTablePrintOpen}>
+      <DialogContent
+        data-cashier-theme-scope={cashierTheme}
+        className="border-[#34343c] bg-[#111116] sm:max-w-lg"
+      >
+        <DialogHeader>
+          <DialogTitle>Cetak QR No Meja</DialogTitle>
+          <DialogDescription>
+            Pilih meja yang ingin dicetak. Preview memakai layout QR meja permanen.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Tabs
+            value={tablePrintMode}
+            onValueChange={(value) =>
+              setTablePrintMode(value as "single" | "range" | "all")
+            }
+          >
+            <TabsList className="grid w-full grid-cols-3 bg-[#202027]">
+              <TabsTrigger value="single">Satu</TabsTrigger>
+              <TabsTrigger value="range">Rentang</TabsTrigger>
+              <TabsTrigger value="all">Semua</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {tablePrintMode === "single" ? (
+            <div className="space-y-2">
+              <label className="garage-mono text-[10px] text-[#b8b8bf]">
+                Nomor meja
+              </label>
+              <Select value={tablePrintSingle} onValueChange={setTablePrintSingle}>
+                <SelectTrigger className="h-11 border-[#34343c] bg-white/[0.06]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {tableNumbers.map((table) => (
+                    <SelectItem key={table} value={table}>
+                      Meja {table}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="garage-scroll grid max-h-52 grid-cols-5 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-10">
+                {tableNumbers.map((table) => (
+                  <Button
+                    key={table}
+                    type="button"
+                    variant={tablePrintSingle === table ? "default" : "outline"}
+                    className={`garage-press h-11 px-0 text-sm font-black ${
+                      tablePrintSingle === table
+                        ? "bg-[#d11a2a] text-white hover:bg-[#ff2a3a]"
+                        : "border-[#4a4a54] bg-white/[0.045]"
+                    }`}
+                    onClick={() => setTablePrintSingle(table)}
+                  >
+                    {table}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {tablePrintMode === "range" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="garage-mono text-[10px] text-[#b8b8bf]">
+                  Dari meja
+                </label>
+                <Select value={tablePrintStart} onValueChange={setTablePrintStart}>
+                  <SelectTrigger className="h-11 border-[#34343c] bg-white/[0.06]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tableNumbers.map((table) => (
+                      <SelectItem key={table} value={table}>
+                        Meja {table}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="garage-mono text-[10px] text-[#b8b8bf]">
+                  Sampai meja
+                </label>
+                <Select value={tablePrintEnd} onValueChange={setTablePrintEnd}>
+                  <SelectTrigger className="h-11 border-[#34343c] bg-white/[0.06]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tableNumbers.map((table) => (
+                      <SelectItem key={table} value={table}>
+                        Meja {table}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="rounded-md border border-[#34343c] bg-white/[0.045] p-3">
+            <p className="text-sm font-semibold text-white">
+              {tablePrintTables.length} QR meja siap dicetak
+            </p>
+            <p className="mt-1 break-words text-xs leading-5 text-[#b8b8bf]">
+              {tablePrintAutoUrl}
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="garage-press h-11 border-[#4a4a54] bg-white/[0.055]"
+              onClick={() => setTablePrintOpen(false)}
+            >
+              Tutup
+            </Button>
+            <Button
+              type="button"
+              className="garage-press h-11"
+              onClick={openTablePrintPreview}
+            >
+              <Printer className="mr-2 size-4" />
+              Buka & Cetak
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

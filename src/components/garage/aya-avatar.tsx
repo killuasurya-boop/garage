@@ -1,19 +1,23 @@
-// Avatar Aya — robot AI Garage (keputusan Owner D-07). Satu sumber gambar untuk
-// panel AI, notifikasi, dan sambutan website. Selalu object-contain; teks status
-// tetap ditulis di samping avatar (avatar tidak menggantikan label).
-import Image from "next/image";
+// Avatar Aya — AI pet Garage (keputusan Owner D-07). Kepala dari AyaCharacter supaya
+// panel AI, notifikasi, dan pet melayang memakai satu desain. Teks status tetap ditulis
+// di samping avatar (avatar tidak menggantikan label).
+import { AyaCharacter, type AyaExpression } from "@/components/garage/aya/aya-character";
+import { AYA_NAME } from "@/lib/garage-ai-persona";
 
-import { AYA_AVATAR_SRC, AYA_NAME } from "@/lib/garage-ai-persona";
-
-export function AyaAvatar({ size = 32, className = "", decorative = false }: { size?: number; className?: string; decorative?: boolean }) {
+export function AyaAvatar({
+  size = 32,
+  className = "",
+  decorative = false,
+  expression = "default",
+}: {
+  size?: number;
+  className?: string;
+  decorative?: boolean;
+  expression?: AyaExpression;
+}) {
   return (
-    <Image
-      src={AYA_AVATAR_SRC}
-      alt={decorative ? "" : `${AYA_NAME}, robot AI Garage Coffee`}
-      width={size}
-      height={size}
-      className={`shrink-0 object-contain ${className}`}
-      unoptimized
-    />
+    <span className={`inline-block shrink-0 ${className}`} style={{ width: size, height: size }}>
+      <AyaCharacter crop="head" expression={expression} title={decorative ? undefined : `${AYA_NAME}, AI pet Garage Coffee`} />
+    </span>
   );
 }

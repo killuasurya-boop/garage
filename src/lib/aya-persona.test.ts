@@ -12,7 +12,7 @@ import {
 } from "@/lib/garage-ai-persona";
 import type { GarageSession } from "@/lib/server-auth";
 
-// D-07 (revisi Owner 27 Okt): Aya = robot AI imut bermata sipit putih, untuk Owner
+// D-07 (sheet karakter Owner 27 Okt): Aya = AI pet companion putih bermata sipit, untuk Owner
 // (eksekutif), staf semua divisi (pengingat kerja), dan pelanggan website.
 
 const session = (role: string) =>
@@ -27,13 +27,13 @@ async function instructions(role: string) {
 }
 
 describe("persona Aya (D-07)", () => {
-  it("Aya adalah robot AI, bukan hewan; avatar resmi tersedia", () => {
+  it("Aya adalah AI pet companion (bukan hewan/manusia); avatar resmi tersedia", () => {
     expect(AYA_NAME).toBe("Aya");
     expect(AYA_AVATAR_SRC).toBe("/garage-brand/aya/aya-avatar.svg");
     for (const policy of [ayaOwnerIdentityPolicy, ayaStaffIdentityPolicy, ayaCustomerPolicy]) {
-      expect(policy).toContain("robot AI");
-      expect(policy).toContain("bermata sipit putih");
-      expect(policy).not.toMatch(/peliharaan|hewan/);
+      expect(policy).toContain("AI pet companion");
+      expect(policy).toContain("bermata sipit");
+      expect(policy).not.toMatch(/hewan/);
     }
   });
 

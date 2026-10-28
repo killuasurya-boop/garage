@@ -1,11 +1,13 @@
 // Laporan Penjualan untuk ekspor (harian/mingguan/bulanan/tahunan). Angka
 // diambil dari getSalesReport — sumber yang sama dengan layar Laporan Penjualan.
+import { businessDateKey } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, gte, like, lt } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs } from "@/db/schema";
 import { formatRupiah, periodLabelFor, sumRows, type ReportColumn, type ReportDoc, type ReportRow } from "@/lib/report-engine";
-import { rangeBounds, wibKey, type ReportRange } from "@/lib/reports/common";
+import { rangeBounds, type ReportRange } from "@/lib/reports/common";
 import { getSalesReport, type SalesGranularity } from "@/lib/sales-report";
 
 export const GRANULARITY_LABEL: Record<SalesGranularity, string> = {
@@ -17,7 +19,8 @@ export const GRANULARITY_LABEL: Record<SalesGranularity, string> = {
 
 /** Refund sebagian/penuh dalam periode (nilai dari jejak audit refund). */
 async function listRefunds(range: ReportRange) {
-  const { start, end } = rangeBounds(range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(range, businessDay);
   const rows = await getDb()
     .select({ createdAt: auditLogs.createdAt, action: auditLogs.action, metadata: auditLogs.metadata })
     .from(auditLogs)
@@ -26,7 +29,7 @@ async function listRefunds(range: ReportRange) {
     const meta = (row.metadata ?? {}) as { orderNo?: string; refundAmount?: number };
     return {
       orderNo: meta.orderNo ?? row.action.replace("Refund item ", ""),
-      date: wibKey(row.createdAt),
+      date: businessDateKey(row.createdAt, businessDay),
       amount: Number(meta.refundAmount ?? 0),
     };
   });

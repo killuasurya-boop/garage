@@ -1,6 +1,8 @@
 // Laporan Inventory (stok bahan baku) dari ledger WMS — satu-satunya buku stok
 // fisik. Stok awal = jumlah mutasi sebelum periode; stok akhir = stok awal +
 // mutasi periode (sama dengan stok gudang saat ini bila periode s/d hari ini).
+import { businessDateKey } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -12,7 +14,6 @@ import {
   DIVISION_LABEL,
   rangeBounds,
   round4,
-  wibKey,
   wibTime,
   type ReportDivision,
   type ReportRange,
@@ -63,7 +64,8 @@ export async function buildInventoryReport(input: {
   outletName?: string | null;
 }): Promise<ReportDoc> {
   const db = getDb();
-  const { start, end } = rangeBounds(input.range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(input.range, businessDay);
 
   const products: ProductRow[] = (
     await db
@@ -134,7 +136,7 @@ export async function buildInventoryReport(input: {
     agg.set(move.productId, a);
     const product = productById.get(move.productId)!;
     detailRows.push({
-      date: wibKey(move.createdAt),
+      date: businessDateKey(move.createdAt, businessDay),
       time: wibTime(move.createdAt),
       sku: product.sku,
       name: product.name,
@@ -226,7 +228,7 @@ export async function buildInventoryReport(input: {
     const variance = round4(Number(row.physicalQty) - Number(row.systemQty));
     if (variance === 0 && !row.countedAt) continue;
     opnameTable.push({
-      date: wibKey(row.createdAt),
+      date: businessDateKey(row.createdAt, businessDay),
       doc: row.doc,
       status: row.status === "completed" ? "Final" : "Draft",
       warehouse: row.warehouse ?? "-",

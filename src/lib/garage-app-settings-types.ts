@@ -158,6 +158,10 @@ export type AppSettings = {
   securityFailedLoginLockoutCount: number;
   securityLockoutDurationMinutes: number;
   securityRequire2faForOwner: boolean;
+  /** Jam berakhirnya hari operasional (WIB). Owner Okt 2026: 4. Aktif hanya bila businessDayEffectiveDate diisi. */
+  businessDayCutoffHour: number;
+  /** YYYY-MM-DD mulai berlakunya cut-off; kosong = kalender 00:00 (perilaku lama). */
+  businessDayEffectiveDate: string;
   /** Kill switch MCP ChatGPT tanpa restart: true = semua panggilan /api/mcp/chatgpt ditolak. */
   mcpChatgptPaused: boolean;
   // Attendance control
@@ -306,6 +310,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   securityFailedLoginLockoutCount: 5,
   securityLockoutDurationMinutes: 15,
   securityRequire2faForOwner: false,
+  businessDayCutoffHour: 4,
+  businessDayEffectiveDate: "",
   mcpChatgptPaused: false,
   // Attendance control
   attendanceEnabled: true,

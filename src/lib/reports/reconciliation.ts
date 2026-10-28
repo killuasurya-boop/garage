@@ -1,12 +1,14 @@
 // Laporan Rekonsiliasi Kas & QRIS per shift kasir (tutup shift dalam periode).
 // Angka diambil apa adanya dari closing shift: kas seharusnya, hitung fisik
 // (blind count), selisih, pencocokan QRIS, setoran & sisa laci.
+import { businessDateKey } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, eq, gte, lt } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { cashSessions, user } from "@/db/schema";
 import { formatRupiah, periodLabelFor, sumRows, type ReportColumn, type ReportDoc, type ReportRow } from "@/lib/report-engine";
-import { rangeBounds, wibKey, wibTime, type ReportRange } from "@/lib/reports/common";
+import { rangeBounds, wibTime, type ReportRange } from "@/lib/reports/common";
 
 const DISCREPANCY_LABEL: Record<string, string> = {
   ok: "Balance (Rp0)",
@@ -21,7 +23,8 @@ export async function buildReconciliationReport(input: {
   outletName?: string | null;
   range: ReportRange;
 }): Promise<ReportDoc> {
-  const { start, end } = rangeBounds(input.range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(input.range, businessDay);
   const rows = await getDb()
     .select({
       code: cashSessions.code,
@@ -68,7 +71,7 @@ export async function buildReconciliationReport(input: {
     { key: "floatLeft", label: "Sisa laci", type: "money" },
   ];
   const data: ReportRow[] = rows.map((row) => ({
-    date: wibKey(row.closedAt ?? row.openedAt),
+    date: businessDateKey(row.closedAt ?? row.openedAt, businessDay),
     shift: row.code,
     cashier: row.cashier ?? "-",
     hours: `${wibTime(row.openedAt)}–${row.closedAt ? wibTime(row.closedAt) : "?"}`,

@@ -1,4 +1,5 @@
 // Helper bersama builder laporan per modul (src/lib/reports/*).
+import { businessDayRange, CALENDAR_POLICY, type BusinessDayPolicy } from "@/lib/business-date";
 import { purchaseAreaOf, type PurchaseArea } from "@/lib/finance-purchases";
 
 export type ReportRange = { from: string; to: string };
@@ -30,11 +31,12 @@ export function areaLabel(area: string | null | undefined) {
   return normalized === "bar" ? "Bar" : normalized === "dapur" ? "Kitchen" : "Umum";
 }
 
-/** Awal hari WIB (inklusif) & awal hari setelah `to` (eksklusif). */
-export function rangeBounds(range: ReportRange) {
-  const start = new Date(`${range.from}T00:00:00+07:00`);
-  const end = new Date(new Date(`${range.to}T00:00:00+07:00`).getTime() + 24 * 60 * 60_000);
-  return { start, end };
+/**
+ * Awal hari operasional `from` (inklusif) & awal hari setelah `to` (eksklusif).
+ * Default kalender WIB; laporan uang memberi kebijakan cut-off (business-date.ts).
+ */
+export function rangeBounds(range: ReportRange, policy: BusinessDayPolicy = CALENDAR_POLICY) {
+  return businessDayRange(range.from, range.to, policy);
 }
 
 export function wibKey(date: Date) {

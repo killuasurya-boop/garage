@@ -2,6 +2,8 @@
 // produksi olahan gudang (dokumen PRD-), pemakaian bahan baku vs kebutuhan
 // resep (varians), dan waste (porsi yang sudah dibuat lalu void/refund +
 // mutasi waste gudang).
+import { businessDateKey } from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -13,7 +15,6 @@ import {
   DIVISION_LABEL,
   rangeBounds,
   round4,
-  wibKey,
   type ReportDivision,
   type ReportRange,
 } from "@/lib/reports/common";
@@ -35,7 +36,8 @@ export async function buildProductionReport(input: {
   outletName?: string | null;
 }): Promise<ReportDoc> {
   const db = getDb();
-  const { start, end } = rangeBounds(input.range);
+  const businessDay = await loadBusinessDayPolicy();
+  const { start, end } = rangeBounds(input.range, businessDay);
 
   // HPP resep per varian menu (baseCost = Σ resep × harga bahan, lihat menu-recipe-cost).
   const variantRows = await db
@@ -114,7 +116,7 @@ export async function buildProductionReport(input: {
     const bucket = classifyMovement(move.type, move.refDoc, qty);
     if (move.refDoc.startsWith("PRD-")) {
       // Batch olahan: dihitung bila output ATAU bahan termasuk divisi.
-      const batch = batches.get(move.refDoc) ?? { doc: move.refDoc, date: wibKey(move.createdAt), outputs: [], outputQty: 0, unit: "", cost: 0 };
+      const batch = batches.get(move.refDoc) ?? { doc: move.refDoc, date: businessDateKey(move.createdAt, businessDay), outputs: [], outputQty: 0, unit: "", cost: 0 };
       if (qty > 0 && product) {
         batch.outputs.push(product.name);
         batch.outputQty += qty;
@@ -202,7 +204,7 @@ export async function buildProductionReport(input: {
       const unitCost = costByVariant.get(`${item.menuItemId}|${item.variantId}`) ?? 0;
       const variant = variantRows.find((v) => v.itemId === item.menuItemId && v.variantId === item.variantId);
       wasteRows.push({
-        date: wibKey(log.createdAt),
+        date: businessDateKey(log.createdAt, businessDay),
         orderNo: meta.orderNo ?? "-",
         reason: log.status === "refunded" ? "Refund" : "Void",
         menu: menu?.name ?? item.menuItemId ?? "-",

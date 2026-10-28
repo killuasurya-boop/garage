@@ -46,6 +46,8 @@ if git diff --name-only "$(git describe --tags --abbrev=0 2>/dev/null || echo HE
 fi
 
 step "Typecheck & lint"
+# Tipe rute sisa build branch lain di .next bisa memberi kegagalan palsu.
+rm -rf .next/types .next/dev/types
 npx tsc --noEmit -p . >/tmp/rc-tsc.log 2>&1 && good "tsc" || { bad "tsc gagal (lihat /tmp/rc-tsc.log)"; tail -5 /tmp/rc-tsc.log; }
 npm run lint >/tmp/rc-lint.log 2>&1 && good "lint 0 error" || { bad "lint error (lihat /tmp/rc-lint.log)"; grep -E " error " /tmp/rc-lint.log | head -5; }
 

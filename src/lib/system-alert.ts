@@ -10,7 +10,7 @@ import { getDb } from "@/db";
 import { staffProfiles } from "@/db/schema";
 import { notifyStaff } from "@/lib/staff-notifications";
 
-export const SYSTEM_CHECKS = ["app", "containers", "disk", "memory", "backup", "staging_guard", "restarts"] as const;
+export const SYSTEM_CHECKS = ["app", "containers", "disk", "memory", "backup", "offsite", "staging_guard", "restarts"] as const;
 export type SystemCheck = (typeof SYSTEM_CHECKS)[number];
 
 export const SYSTEM_CHECK_LABEL: Record<SystemCheck, string> = {
@@ -19,6 +19,7 @@ export const SYSTEM_CHECK_LABEL: Record<SystemCheck, string> = {
   disk: "Ruang disk VPS",
   memory: "Memori (RAM) VPS",
   backup: "Backup database harian",
+  offsite: "Backup di luar VPS (laptop/cloud)",
   staging_guard: "Pemisahan staging dari produksi",
   restarts: "Aplikasi restart berulang",
 };
@@ -57,7 +58,7 @@ export function alertNotification(event: SystemAlertInput["events"][number], now
   }
   return {
     kind: "system_alert",
-    severity: event.check === "app" || event.check === "backup" || event.check === "staging_guard" ? ("urgent" as const) : ("warning" as const),
+    severity: event.check === "app" || event.check === "backup" || event.check === "offsite" || event.check === "staging_guard" ? ("urgent" as const) : ("warning" as const),
     title: `Server: ${label} bermasalah`,
     body: event.message,
     // Pengingat paling sering sekali per jam per pemeriksaan.

@@ -1622,6 +1622,42 @@ export const cashSessionFinalSnapshots = pgTable(
   }),
 );
 
+// B6 (PRD §14): alert risiko explainable LV1–LV5 = prioritas pemeriksaan, BUKAN vonis.
+// Satu alert per (aturan, subjek) lewat dedupe_key; disposisi diputuskan manusia.
+export const riskAlerts = pgTable(
+  "risk_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    ruleId: text("rule_id").notNull(),
+    ruleVersion: integer("rule_version").notNull(),
+    riskLevel: integer("risk_level").notNull(),
+    title: text("title").notNull(),
+    explanation: text("explanation").notNull(),
+    eventAt: timestamp("event_at", { withTimezone: true }).notNull(),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+    outletId: uuid("outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    cashSessionId: uuid("cash_session_id").references(() => cashSessions.id, { onDelete: "set null" }),
+    personUserId: text("person_user_id").references(() => user.id, { onDelete: "set null" }),
+    personRole: text("person_role"),
+    // cashier | manager | qris | bank | system — matriks akuntabilitas PRD §14.5.
+    custodyScope: text("custody_scope").notNull(),
+    evidence: jsonb("evidence").$type<Array<{ type: string; ref: string; label: string }>>().notNull(),
+    // Kelengkapan bukti (bukan peluang curang): complete | partial.
+    completeness: text("completeness").notNull().default("complete"),
+    // OPEN | FALSE_POSITIVE | EXPLAINED | SUBSTANTIATED | DISPUTED | CLOSED
+    disposition: text("disposition").notNull().default("OPEN"),
+    reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
+    auditCaseId: uuid("audit_case_id").references(() => auditCases.id, { onDelete: "set null" }),
+  },
+  (table) => ({
+    openIdx: index("risk_alerts_disposition_idx").on(table.disposition, table.riskLevel),
+    sessionIdx: index("risk_alerts_session_idx").on(table.cashSessionId),
+  }),
+);
+
 // Step-up 2FA (B4 final Owner, D-01a aksi R3 MCP): tantangan terikat subjek + hash
 // ringkasan, nonce sekali pakai (hanya hash disimpan), kedaluwarsa pendek. Kode TOTP
 // yang sudah dipakai disimpan sebagai hash agar tidak bisa diputar ulang.

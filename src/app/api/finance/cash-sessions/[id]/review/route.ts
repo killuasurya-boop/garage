@@ -3,6 +3,7 @@ import { z } from "zod";
 import { accountabilityFailure } from "@/lib/accountability-route";
 import { ok, readJson } from "@/lib/api-response";
 import { reviewCashSession } from "@/lib/cashier-accountability";
+import { scanRiskInBackground } from "@/lib/risk-engine";
 import { requireOwnerOrManager } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -22,7 +23,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (body.error) return body.error;
   const { id } = await context.params;
   try {
-    return ok(await reviewCashSession(id, body.data, session.data));
+    const result = await reviewCashSession(id, body.data, session.data);
+    scanRiskInBackground(id);
+    return ok(result);
   } catch (error) {
     return accountabilityFailure(error);
   }

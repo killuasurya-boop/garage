@@ -1,6 +1,7 @@
 "use client";
 
-import { StaffTableJoinCode } from "@/components/garage/staff-table-join-code";
+import { statusClass, type QrWorkTab } from "@/components/garage/pos/pos-status";
+import { PosTableDetailDialog } from "@/components/garage/pos/pos-table-detail-dialog";
 import {
 AlertTriangle,
 Archive,
@@ -106,7 +107,6 @@ persistSoldOutIds,
 tableAvailabilityLabel,
 tableAvailabilityState,
 tableHasLiveSession,
-tableLiveStatusLabel,
 tableNeedsCleaning,
 tableNumbers,
 tablesInRange,
@@ -389,77 +389,6 @@ function makeIdempotencyKey(): string {
   return `pos-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-const statusClass: Record<string, string> = {
-  ready: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  safe: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  healthy: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  info: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-  warning: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  draft: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  critical: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  controlled: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  read_only: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-  not_required: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  pending: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  pending_approval: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  pending_cashier: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  awaiting_payment: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  accepted: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  paid: "border-[#22c55e]/45 bg-[#22c55e]/14 text-[#dcfce7]",
-  sent: "border-[#22c55e]/45 bg-[#22c55e]/14 text-[#dcfce7]",
-  not_sent: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-  qr_table: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  qr_takeaway: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  approved: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  applied: "border-[#22c55e]/45 bg-[#22c55e]/14 text-[#dcfce7]",
-  rejected: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  completed: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  planned: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-  blocked: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  deterministic: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  fast: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  basic: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  limited: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  sold_out: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  watch: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  manager: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  operational: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  owner_free_chat: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  async: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  low: "border-[#ff2a3a]/45 bg-[#ff2a3a]/14 text-[#ffc2c8]",
-  queue: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-  cooking: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  delivered: "border-[#4a4a54] bg-[#222229] text-[#d0d0d6]",
-  high: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  finance: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  financial: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  executive: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  medium: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  recorded: "border-[#d4d4d8]/45 bg-[#d4d4d8]/12 text-[#ffffff]",
-  approval_required: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  missing: "border-[#f5a742]/45 bg-[#f5a742]/14 text-[#ffd08a]",
-  error: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  failed: "border-[#d11a2a]/50 bg-[#d11a2a]/16 text-[#ffb0b8]",
-  skipped: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-  untested: "border-[#9696a1]/45 bg-[#d4d4d8]/10 text-[#e8e8ec]",
-};
-
-const BILL_STATUS_LABEL: Record<string, string> = {
-  pending: "Menunggu",
-  pending_cashier: "Menunggu kasir",
-  accepted: "Diterima dapur",
-  ready: "Siap",
-  awaiting_payment: "Menunggu bayar",
-  paid: "Lunas",
-  rejected: "Ditolak",
-  voided: "Dibatalkan",
-  cancelled: "Dibatalkan",
-};
-
-function billStatusLabel(status: string) {
-  return BILL_STATUS_LABEL[status] ?? status;
-}
-
 // Label tombol metode bayar (nilai yang dikirim ke server tetap: Cash, QRIS, dst).
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
   Cash: "Tunai",
@@ -510,30 +439,6 @@ const qrControlSelectContentClass =
   "z-[90] rounded-md border border-[#34343c] bg-[#111116] p-1 shadow-[0_16px_42px_rgba(0,0,0,0.42)] ring-1 ring-white/[0.06]";
 const qrControlSelectItemClass =
   "h-9 rounded px-2 pr-8 text-xs font-semibold text-[#f4f4f5] focus:bg-[#d11a2a]/16 focus:text-white data-[state=checked]:bg-white/[0.06]";
-
-type QrWorkTab = "incoming" | "history" | "table_map" | "qr_control" | "follow_up" | "qr_tables";
-
-// Label + warna status tiket dapur (per station). null = order belum masuk dapur
-// (mis. masih menunggu kasir). Status per item mewarisi status station-nya.
-const kitchenStatusLabels: Record<string, string> = {
-  queue: "Antre",
-  cooking: "Dimasak",
-  ready: "Siap",
-  delivered: "Diantar",
-  completed: "Selesai",
-};
-function kitchenStatusLabel(status: string | null) {
-  if (!status) return "Belum masuk dapur";
-  return kitchenStatusLabels[status] ?? status;
-}
-function kitchenStatusTone(status: string | null) {
-  if (status === "ready") return "border-[#22c55e]/50 bg-[#22c55e]/14 text-[#dcfce7]";
-  if (status === "delivered" || status === "completed")
-    return "border-[#4a4a54] bg-white/[0.06] text-[#b8b8bf]";
-  if (status === "cooking") return "border-[#f5a742]/50 bg-[#f5a742]/14 text-[#ffd08a]";
-  if (status === "queue") return "border-[#d11a2a]/50 bg-[#d11a2a]/14 text-[#ffc2c8]";
-  return "border-[#4a4a54] bg-white/[0.04] text-[#9aa0a6]";
-}
 
 const qrWorkTabs: Array<{ value: QrWorkTab; label: string }> = [
   { value: "incoming", label: "Antrean" },
@@ -602,17 +507,17 @@ export function PosView({
     count: initialVisibleProducts,
   });
   const [cart, setCart] = useState<CartLine[]>(cartSeed);
-  // Parked orders â€” disimpan ke localStorage. Kasir bisa "Park" cart aktif,
+  // Parked orders — disimpan ke localStorage. Kasir bisa "Park" cart aktif,
   // layanin customer lain, lalu "Resume" untuk balik ke bill yang di-park.
   const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>([]);
   const [parkedListOpen, setParkedListOpen] = useState(false);
   const [parkDialogOpen, setParkDialogOpen] = useState(false);
   const [parkLabel, setParkLabel] = useState("");
-  // Voice Notification System â€” airport-style announcement
+  // Voice Notification System — airport-style announcement
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
-  // Split bill calculator â€” display only, tidak ubah payment flow.
+  // Split bill calculator — display only, tidak ubah payment flow.
   // Untuk group customer yang bayar terpisah (bagi rata).
   const [splitBillOpen, setSplitBillOpen] = useState(false);
   const [splitPeopleCount, setSplitPeopleCount] = useState("2");
@@ -859,7 +764,7 @@ export function PosView({
   });
   const [qrWorkTab, setQrWorkTab] = useState<QrWorkTab>("incoming");
   const [tableLiveRows, setTableLiveRows] = useState<TableLiveRow[]>([]);
-  // Voice clear-table tracking â€” announce hanya saat meja baru transition jadi
+  // Voice clear-table tracking — announce hanya saat meja baru transition jadi
   // "needs_cleaning", bukan setiap polling refresh.
   const previousNeedsCleaningRef = useRef<Set<string> | null>(null);
   const [tableLiveLoading, setTableLiveLoading] = useState(false);
@@ -1080,7 +985,7 @@ export function PosView({
   const dineInTableMissing = orderType === "dine-in" && !selectedTableNumber;
   const normalizedMenuQuery = deferredQuery.trim().toLowerCase();
   const productFilterKey = `${menuCategory}\u0000${normalizedMenuQuery}\u0000${menuItems.length}`;
-  // Precompute searchIndex + isBestseller per item â€” sebelumnya di-rebuild
+  // Precompute searchIndex + isBestseller per item — sebelumnya di-rebuild
   // tiap render filter untuk SEMUA item walau cuma kategori yg berubah.
   // Sub-kategori POS dari master kategori (kategori baru tampil otomatis).
   const menuSubCategories = useMemo(() => menuSubCategoriesFrom(menuItems), [menuItems]);
@@ -1745,7 +1650,7 @@ export function PosView({
 
   useEffect(() => {
     // Auto-unlock voice engine + QR audio context pada interaksi user pertama.
-    // Browser butuh user gesture untuk play audio â€” kalau Voice ON tapi tidak
+    // Browser butuh user gesture untuk play audio — kalau Voice ON tapi tidak
     // unlock, MP3 announcement gak akan bunyi. Dengan listener ini, klik atau
     // ketik pertama di app langsung primer audio engine tanpa user harus klik
     // tombol "Voice ON" manual.
@@ -1908,7 +1813,7 @@ export function PosView({
             });
           }
 
-          // 2. Permintaan khusus â€” kalau customer kasih catatan di order
+          // 2. Permintaan khusus — kalau customer kasih catatan di order
           const note = (order.customerNote ?? "").trim();
           if (note) {
             void voice.announce("waiter_special_request", {
@@ -1916,10 +1821,10 @@ export function PosView({
             });
           }
 
-          // 3. Member VIP â€” TODO: butuh lookup tier dari /api/customers/:phone
+          // 3. Member VIP — TODO: butuh lookup tier dari /api/customers/:phone
           //    karena CustomerOrder hanya punya customerMode ("guest"|"member"),
           //    tidak ada tier (Bronze/Silver/Gold/VIP). Untuk sekarang trigger
-          //    di-skip supaya tidak noise â€” hanya fire kalau ada tier VIP/Ultra
+          //    di-skip supaya tidak noise — hanya fire kalau ada tier VIP/Ultra
           //    yang akan ditambahkan via integrasi CRM lookup.
         }
       }
@@ -2299,7 +2204,7 @@ export function PosView({
     }
 
     const tick = () => {
-      // Pause polling saat tab/window di-background â€” kasir nggak butuh
+      // Pause polling saat tab/window di-background — kasir nggak butuh
       // refresh QR/table saat lagi buka modul lain atau monitor mati.
       if (typeof document !== "undefined" && document.hidden) return;
       void loadCustomerOrders({ silent: true });
@@ -2324,7 +2229,7 @@ export function PosView({
   }, [loadCustomerOrders, loadQrControlInsights, loadTableLiveData, loadKitchenTickets, posVisible]);
 
   // Voice notification: trigger waiter_clear_table saat meja baru transition
-  // ke "needs_cleaning" â€” tidak re-fire setiap polling untuk meja yang udah
+  // ke "needs_cleaning" — tidak re-fire setiap polling untuk meja yang udah
   // lama needs_cleaning.
   useEffect(() => {
     if (!tableLiveRows.length) return;
@@ -2786,7 +2691,7 @@ export function PosView({
     setParkedOrders((current) => current.filter((p) => p.id !== id));
   }
 
-  // â”€â”€â”€ Diskon manual helpers â”€â”€â”€
+  // ─── Diskon manual helpers ───
   function openManualDiscountDialog() {
     setManualDiscountError(null);
     if (manualDiscount) {
@@ -2886,7 +2791,7 @@ export function PosView({
     setPosNotice("Diskon kasir dibatalkan.");
   }
 
-  // â”€â”€â”€ Sold-out helpers â”€â”€â”€
+  // ─── Sold-out helpers ───
   async function updateSoldOutStock(itemId: string, soldOut: boolean) {
     setSoldOutPendingIds((current) => new Set(current).add(itemId));
     setSoldOutIds((current) => {
@@ -3000,7 +2905,7 @@ export function PosView({
     }
   }
 
-  // â”€â”€â”€ Reprint helpers â”€â”€â”€
+  // ─── Reprint helpers ───
   async function reprintReceipt(receipt: OrderReceipt) {
     setReprintTargetId(receipt.invoiceNo);
     setReprintStatus("printing");
@@ -3165,7 +3070,7 @@ export function PosView({
       GARAGE_TAGS.dashboard,
     ]);
   }
-  // â”€â”€â”€ Kas Keluar / Masuk Laci â”€â”€â”€
+  // ─── Kas Keluar / Masuk Laci ───
   function openExpenseDialog() {
     setExpenseDialogOpen(true);
   }
@@ -5378,396 +5283,32 @@ export function PosView({
       />
 
       {/* Cek Meja: detail + aksi cepat saat tap kartu meja */}
-      <Dialog
-        open={Boolean(tableDetail)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setTableDetail(null);
-            setTableOrderBills(null);
-            setTableItemsError(null);
-            setTableItemsLoading(false);
-          }
-        }}
-      >
-        {tableDetail
-          ? (() => {
-              const detailEmpty =
-                tableDetail.status === "empty" && !tableHasLiveSession(tableDetail);
-              const detailCleaning = tableNeedsCleaning(tableDetail);
-              const pickTable = () => {
-                setOrderType("dine-in");
-                setSelectedTableNumber(tableDetail.tableNumber);
-                setTableDetail(null);
-                setQrOperationsOpen(false);
-              };
-              return (
-                <DialogContent className="border-[#34343c] bg-[#111116] max-w-sm sm:max-w-md">
-                  <DialogHeader className="text-left">
-                    <DialogTitle className="flex items-center gap-2">
-                      <span
-                        className={`size-2.5 rounded-full ${
-                          detailEmpty ? "bg-[#22c55e]" : "bg-[#d11a2a]"
-                        }`}
-                      />
-                      Meja {tableDetail.tableNumber}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {detailCleaning
-                        ? "Perlu dibersihkan sebelum dipakai lagi."
-                        : detailEmpty
-                          ? "Meja kosong dan siap digunakan."
-                          : `Terisi · ${tableLiveStatusLabel(tableDetail)}`}
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  {!detailEmpty ? (
-                    <div className="space-y-2 rounded-md border border-[#34343c] bg-white/[0.04] p-3 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[#b8b8bf]">Status</span>
-                        <span className="font-semibold text-white">
-                          {tableLiveStatusLabel(tableDetail)}
-                        </span>
-                      </div>
-                      {tableDetail.kitchenStatus ? (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[#b8b8bf]">Status dapur</span>
-                          <Badge className={`${statusClass[tableDetail.kitchenStatus] ?? statusClass.info} px-2 text-[10px]`}>
-                            {({
-                              queue: "Antre",
-                              cooking: "Dimasak",
-                              ready: "Siap",
-                              delivered: "Diantar",
-                              completed: "Selesai",
-                            } as Record<string, string>)[tableDetail.kitchenStatus] ??
-                              tableDetail.kitchenStatus}
-                          </Badge>
-                        </div>
-                      ) : null}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[#b8b8bf]">Durasi terisi</span>
-                        <span
-                          className={`garage-mono font-semibold ${
-                            tableDetail.timerMinutes >= 90
-                              ? "text-[#ffd08a]"
-                              : "text-white"
-                          }`}
-                        >
-                          {tableDetail.timerMinutes}m
-                        </span>
-                      </div>
-                      {tableDetail.orderNo ? (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[#b8b8bf]">Order</span>
-                          <span className="garage-mono font-semibold text-white">
-                            {tableDetail.orderNo}
-                          </span>
-                        </div>
-                      ) : null}
-                      {tableDetail.customerName ? (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[#b8b8bf]">Pelanggan</span>
-                          <span className="truncate font-semibold text-white">
-                            {tableDetail.customerName}
-                          </span>
-                        </div>
-                      ) : null}
-                      {tableDetail.total > 0 ? (
-                        <div className="flex items-center justify-between gap-2 border-t border-[#34343c] pt-2">
-                          <span className="text-[#b8b8bf]">Total bill</span>
-                          <span className="garage-mono text-base font-black text-[#ffd08a]">
-                            {currency.format(tableDetail.total)}
-                          </span>
-                        </div>
-                      ) : null}
-                      <StaffTableJoinCode joinCode={tableDetail.joinCode} tableLabel={tableDetail.tableLabel} />
-                      {/* Ringkasan meja: bill terbuka/lunas + jumlah item. */}
-                      {(tableDetail.openBillCount ?? 0) +
-                        (tableDetail.paidBillCount ?? 0) >
-                        0 || (tableOrderBills?.length ?? 0) > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1.5 border-t border-[#34343c] pt-2">
-                          <Badge className="border-[#f5a742]/45 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
-                            {tableDetail.openBillCount ?? 0} bill terbuka
-                          </Badge>
-                          <Badge className="border-[#22c55e]/45 bg-[#22c55e]/12 px-2 text-[10px] text-[#dcfce7]">
-                            {tableDetail.paidBillCount ?? 0} lunas
-                          </Badge>
-                          {tableOrderBills ? (
-                            <Badge className="garage-mono border-[#4a4a54] bg-white/[0.06] px-2 text-[10px] text-[#d6d6dc]">
-                              {tableOrderBills.reduce(
-                                (sum, bill) =>
-                                  sum +
-                                  bill.items.reduce((s, item) => s + item.qty, 0),
-                                0,
-                              )}{" "}
-                              item
-                            </Badge>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      <div className="border-t border-[#34343c] pt-2">
-                        <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#8f8f98]">
-                          Rincian pesanan
-                        </p>
-                        {tableItemsLoading ? (
-                          <div className="flex items-center gap-2 py-3 text-xs text-[#b8b8bf]">
-                            <RefreshCw className="size-3.5 animate-spin" />
-                            Memuat rincian pesanan…
-                          </div>
-                        ) : tableItemsError ? (
-                          <p className="rounded-md border border-[#d11a2a]/45 bg-[#d11a2a]/12 p-2 text-xs text-[#ffc2c8]">
-                            {tableItemsError}
-                          </p>
-                        ) : tableOrderBills && tableOrderBills.length ? (
-                          <div className="garage-scroll max-h-[42vh] space-y-2 overflow-y-auto pr-0.5">
-                            {tableOrderBills.map((bill) => (
-                              <div
-                                key={bill.id}
-                                className="rounded-md border border-[#303038] bg-black/20 p-2"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="garage-mono truncate text-xs font-semibold text-[#d6d6dc]">
-                                    {bill.orderNo}
-                                  </span>
-                                  <Badge className={`${statusClass[bill.status] ?? statusClass.info} shrink-0 px-2 text-[10px]`}>
-                                    {billStatusLabel(bill.status)}
-                                  </Badge>
-                                </div>
-                                {bill.customerName ? (
-                                  <p className="mt-0.5 truncate text-[11px] text-[#b8b8bf]">
-                                    {bill.customerName}
-                                  </p>
-                                ) : null}
-                                {bill.parentOrderId ? (
-                                  <p className="mt-0.5 text-[11px] font-semibold text-[#ffd79a]">
-                                    Bill pisahan
-                                  </p>
-                                ) : null}
-                                {bill.customerNote ? (
-                                  <p className="mt-1 rounded border border-[#f5a742]/35 bg-[#f5a742]/10 px-1.5 py-1 text-[11px] italic text-[#ffd08a]">
-                                    Catatan: {bill.customerNote}
-                                  </p>
-                                ) : null}
-                                {/* Ringkasan station: jumlah item + status tiket Dapur/Bar. */}
-                                {bill.items.length ? (
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
-                                    {(["Dapur", "Bar"] as const).map((station) => {
-                                      const qty = bill.items
-                                        .filter((item) => item.station === station)
-                                        .reduce((sum, item) => sum + item.qty, 0);
-                                      if (!qty) return null;
-                                      const status =
-                                        bill.stations.find((row) => row.station === station)?.status ??
-                                        null;
-                                      return (
-                                        <span
-                                          key={station}
-                                          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${kitchenStatusTone(status)}`}
-                                        >
-                                          {station} {qty} · {kitchenStatusLabel(status)}
-                                        </span>
-                                      );
-                                    })}
-                                  </div>
-                                ) : null}
-                                <div className="mt-1.5 space-y-1">
-                                  {bill.items.length ? (
-                                    bill.items.map((item) => {
-                                      const itemStatus =
-                                        bill.stations.find((row) => row.station === item.station)
-                                          ?.status ?? null;
-                                      return (
-                                      <div key={item.id} className="text-xs">
-                                        <div className="flex items-start justify-between gap-2">
-                                          <span className="min-w-0 text-[#e7e7ea]">
-                                            <span className="garage-mono font-semibold text-white">
-                                              {item.qty}×
-                                            </span>{" "}
-                                            {item.itemName}
-                                            {item.variantLabel ? (
-                                              <span className="text-[#8f8f98]"> · {item.variantLabel}</span>
-                                            ) : null}
-                                          </span>
-                                          <span className="garage-mono shrink-0 text-[#d6d6dc]">
-                                            {currency.format(item.lineTotal)}
-                                          </span>
-                                        </div>
-                                        <div className="mt-0.5 flex items-center gap-1 pl-4">
-                                          <span className="text-[10px] text-[#8f8f98]">{item.station}</span>
-                                          <span
-                                            className={`rounded border px-1 text-[10px] font-semibold ${kitchenStatusTone(itemStatus)}`}
-                                          >
-                                            {kitchenStatusLabel(itemStatus)}
-                                          </span>
-                                        </div>
-                                        {item.note ? (
-                                          <p className="mt-0.5 pl-4 text-[11px] italic text-[#9aa0a6]">
-                                            {item.note}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <p className="text-[11px] text-[#6f6f78]">Tanpa rincian item.</p>
-                                  )}
-                                </div>
-                                <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-[#303038] pt-1.5 text-xs">
-                                  <span className="text-[#8f8f98]">Subtotal bill</span>
-                                  <span className="garage-mono font-bold text-[#ffd08a]">
-                                    {currency.format(bill.total)}
-                                  </span>
-                                </div>
-                                {bill.items.length ? (
-                                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      className="garage-press h-9 border-[#4a4a54] bg-white/[0.05] px-2 text-[11px]"
-                                      onClick={() =>
-                                        reprintTableBillChit(bill, tableDetail.tableLabel)
-                                      }
-                                    >
-                                      <Printer className="mr-1 size-3.5 shrink-0" />
-                                      Chit dapur
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      className="garage-press h-9 border-[#f5a742]/45 bg-[#f5a742]/10 px-2 text-[11px] text-[#ffe0ad]"
-                                      disabled={provisionalBillBusyId === bill.id}
-                                      onClick={() => void printProvisionalBill(bill)}
-                                    >
-                                      <FileText className="mr-1 size-3.5 shrink-0" />
-                                      {provisionalBillBusyId === bill.id ? "Mencetak…" : "Bill sementara"}
-                                    </Button>
-                                    {canDeleteInvoice && bill.status !== "paid" ? (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        data-testid="pos-table-invoice-delete"
-                                        className="garage-press col-span-2 h-9 border-[#d11a2a]/55 bg-[#d11a2a]/10 px-2 text-[11px] text-[#ffc2c8]"
-                                        onClick={() =>
-                                          setInvoiceDeleteTarget({
-                                            id: bill.id,
-                                            orderNo: bill.orderNo,
-                                            total: bill.total,
-                                            label: [tableDetail.tableLabel, bill.customerName].filter(Boolean).join(" · "),
-                                            status: bill.status,
-                                          })
-                                        }
-                                      >
-                                        <Trash2 className="mr-1 size-3.5 shrink-0" />
-                                        Hapus invoice
-                                      </Button>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                                {bill.canSplit || bill.canPay ? (
-                                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                                    {bill.canSplit ? (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className={`garage-press h-10 border-[#d6d6dc]/40 bg-white/[0.06] px-2 text-xs font-semibold text-white ${
-                                          bill.canPay ? "" : "col-span-2"
-                                        }`}
-                                        onClick={() => setTableSplitBill(bill)}
-                                      >
-                                        <Scissors className="mr-1 size-3.5 shrink-0" />
-                                        Pisah bill
-                                      </Button>
-                                    ) : null}
-                                    {bill.canPay ? (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        className={`garage-press h-10 bg-[#22c55e] px-2 text-xs font-bold text-black hover:bg-[#34d76b] ${
-                                          bill.canSplit ? "" : "col-span-2"
-                                        }`}
-                                        onClick={() => void payTableBill(bill)}
-                                      >
-                                        <Wallet className="mr-1 size-3.5 shrink-0" />
-                                        Bayar {currency.format(bill.total)}
-                                      </Button>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="py-2 text-xs text-[#8f8f98]">Belum ada item.</p>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      type="button"
-                      className="garage-press h-11 bg-[#d11a2a] text-sm text-white hover:bg-[#ff2a3a]"
-                      onClick={pickTable}
-                    >
-                      {detailEmpty
-                        ? "Pilih meja ini untuk order"
-                        : "Tambah order ke meja ini"}
-                    </Button>
-                    {!detailEmpty &&
-                    tableDetail.currentOrderId &&
-                    ["accepted", "ready", "mixed"].includes(tableDetail.status) ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="garage-press h-11 border-[#f5a742]/55 bg-[#f5a742]/12 px-2 text-sm text-[#ffe0ad]"
-                        disabled={tableActionBusy !== null}
-                        onClick={() => void requestTableBill()}
-                      >
-                        {tableActionBusy === "bill" ? "Memproses…" : "Siapkan bill"}
-                      </Button>
-                    ) : null}
-                    {!detailEmpty ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="garage-press h-11 border-[#4a4a54] bg-white/[0.05] text-sm"
-                        onClick={() => {
-                          const target = tableDetail.tableNumber;
-                          setTableDetail(null);
-                          setQrInsightFilters((current) => ({
-                            ...current,
-                            table: target,
-                          }));
-                          setQrWorkTab("qr_control");
-                        }}
-                      >
-                        Lihat bill di QR control
-                      </Button>
-                    ) : null}
-                    {detailCleaning ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="garage-press h-12 border-[#22c55e]/55 bg-[#22c55e]/12 text-sm text-[#dcfce7]"
-                        onClick={() => {
-                          const target = tableDetail;
-                          setTableDetail(null);
-                          setSelectedTableToReset(target);
-                          setResetTableDialogOpen(true);
-                        }}
-                      >
-                        Bersihkan meja
-                      </Button>
-                    ) : null}
-                  </div>
-                </DialogContent>
-              );
-            })()
-          : null}
-      </Dialog>
+      <PosTableDetailDialog
+        tableDetail={tableDetail}
+        setTableDetail={setTableDetail}
+        tableOrderBills={tableOrderBills}
+        setTableOrderBills={setTableOrderBills}
+        tableItemsLoading={tableItemsLoading}
+        setTableItemsLoading={setTableItemsLoading}
+        tableItemsError={tableItemsError}
+        setTableItemsError={setTableItemsError}
+        tableActionBusy={tableActionBusy}
+        provisionalBillBusyId={provisionalBillBusyId}
+        canDeleteInvoice={canDeleteInvoice}
+        setInvoiceDeleteTarget={setInvoiceDeleteTarget}
+        setOrderType={setOrderType}
+        setSelectedTableNumber={setSelectedTableNumber}
+        setQrOperationsOpen={setQrOperationsOpen}
+        setQrInsightFilters={setQrInsightFilters}
+        setQrWorkTab={setQrWorkTab}
+        setResetTableDialogOpen={setResetTableDialogOpen}
+        setSelectedTableToReset={setSelectedTableToReset}
+        setTableSplitBill={setTableSplitBill}
+        payTableBill={payTableBill}
+        printProvisionalBill={printProvisionalBill}
+        reprintTableBillChit={reprintTableBillChit}
+        requestTableBill={requestTableBill}
+      />
 
       {/* Konfirmasi + alasan Reject order QR (aksi susah-dibalik). */}
       <PosRejectOrderDialog
@@ -8774,7 +8315,7 @@ export function PosView({
                       ? "Dine in"
                       : "Order tanpa nomor meja"}
                 </p>
-                {/* ADD-ON indicator â€” selalu visible saat kasir lagi
+                {/* ADD-ON indicator — selalu visible saat kasir lagi
                     tambah order ke meja yang sudah aktif. */}
                 {orderType === "dine-in" && selectedTableLiveRow?.currentOrderId ? (
                   <span className="garage-mono mt-1 inline-flex items-center gap-1 rounded-md border border-[#f5a742]/55 bg-[#f5a742]/14 px-2 py-0.5 text-[10px] font-bold uppercase text-[#ffd79a]">
@@ -8905,7 +8446,7 @@ export function PosView({
                           </Button>
                         </div>
                       </div>
-                      {/* Item note input â€” request customer: less ice, no garlic, extra spicy.
+                      {/* Item note input — request customer: less ice, no garlic, extra spicy.
                           Auto-saved on blur. Note dikirim ke kitchen ticket. */}
                       <CartLineNoteRow
                         note={line.note ?? ""}
@@ -9505,7 +9046,7 @@ export function PosView({
         setCart={setCart}
       />
 
-      {/* PARK DIALOG â€” input label sebelum park */}
+      {/* PARK DIALOG — input label sebelum park */}
       <PosParkBillDialog
         parkDialogOpen={parkDialogOpen}
         setParkDialogOpen={setParkDialogOpen}

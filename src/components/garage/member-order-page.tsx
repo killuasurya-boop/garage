@@ -1340,7 +1340,7 @@ export function MemberOrderPage({
   const loginHref = `/member-login?next=${encodeURIComponent(returnPath)}`;
   const guestNameMissing = !staffOrder && mode === "guest" && !guestName.trim();
   const showGuestNameError = guestNameMissing && guestNameTouched;
-  // Nomor WhatsApp guest OPSIONAL â€” tidak memblok checkout.
+  // Nomor WhatsApp guest OPSIONAL — tidak memblok checkout.
   const memberMissing = mode === "member" && !member;
   const soldOutCartLine = cartLines.find((line) => line.item.stock === "sold_out");
   const hasEventCartLines = cartLines.some(line => line.item.id.startsWith("event:") || (line.variant as EventDisplayVariant).eventPrice);

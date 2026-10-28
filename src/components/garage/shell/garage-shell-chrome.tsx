@@ -133,7 +133,7 @@ export function GarageErrorScreen({
 
 type BrandBlockMode = "sidebar" | "compact" | "loading";
 
-// Role yang boleh switch outlet â€” sinkron dengan server-side canSwitchOutlet
+// Role yang boleh switch outlet — sinkron dengan server-side canSwitchOutlet
 const OUTLET_SWITCH_ROLES: ReadonlyArray<Role> = MANAGEMENT_ROLES;
 
 export function OutletSwitcher({

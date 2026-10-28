@@ -1637,10 +1637,10 @@ export function InventoryView({
   );
 }
 
-// â”€â”€â”€ SETTINGS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SETTINGS VIEW ───────────────────────────────────────────
 // Central pengaturan untuk semua fitur Garage OS. Tabbed UI:
 // POS Billing, Approval, Branding, Notifikasi, Printer, Loyalty.
 // Setiap field punya default dari server (DEFAULT_APP_SETTINGS) supaya
 // kosong terisi fallback yang masuk akal.
-// Alias ke AppSettings canonical â€” sebelumnya duplikat yang sering ketinggalan
+// Alias ke AppSettings canonical — sebelumnya duplikat yang sering ketinggalan
 // saat key baru ditambah. Sekarang tipe sinkron otomatis.

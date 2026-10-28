@@ -196,6 +196,11 @@ Scroll direction:
     - `confirmCashDeposit` (Owner/Manajer ≠ depositor, bank ref) posts `deposit_transit` → bank.
     - A confirmed setoran can't be voided.
     - Category `brankas` is `retired`.
+    - Setoran at shift close (owner 29 Okt 2026, "kasir catat setoran"): `closeCashSession` needs `depositAccount` when
+      counted − `floatLeft` > 0 (no `floatLeft` = everything stays in the drawer). `postShiftClosing` (`cash-ledger.ts`) closes the
+      shift drawer to 0 with `close_variance` / `close_deposit` (drawer → deposit_transit + a `setoran` cash_movements row,
+      confirmed later via `confirmCashDeposit`) / `close_float` rows. These `SHIFT_CLOSE_SOURCE_TYPES` never touch
+      `expected_cash` and are excluded from `drawerBalance` / shift ledger lines (`getDrawerLedger().closingLines`).
   - Owner cash oversight (P5): `/control/cash-closing` panel `CashOversightPanel`. Data and Excel come from one
     `getCashOversight` (`src/lib/cash-oversight.ts`; labels in `-meta.ts`; xlsx in `-xlsx.ts`) via
     `GET /api/control/cash-oversight` (Owner only).

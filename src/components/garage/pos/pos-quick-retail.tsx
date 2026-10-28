@@ -89,8 +89,11 @@ export function PosQuickRetail({
     if (!open) return;
     try {
       const parsed: unknown = JSON.parse(window.localStorage.getItem(QUICK_RETAIL_FAVORITE_STORAGE_KEY) ?? "null");
+      const counts = parsed && typeof parsed === "object" ? (parsed as Record<string, number>) : {};
       // eslint-disable-next-line react-hooks/set-state-in-effect -- baca localStorage saat dialog dibuka
-      if (parsed && typeof parsed === "object") setFavoriteCounts(parsed as Record<string, number>);
+      setFavoriteCounts(counts);
+      // Tab dipilih sekali saat dialog dibuka; menambah favorit tidak memindahkan tab.
+      setTab(Object.values(counts).some((count) => count > 0) ? QUICK_RETAIL_FAVORITE_TAB : QUICK_RETAIL_ALL_TAB);
     } catch {
       // Storage diblokir / rusak → tanpa tab Favorit.
     }
@@ -104,7 +107,7 @@ export function PosQuickRetail({
   const match = useMemo(() => matchQuickRetail(retailItems, query), [retailItems, query]);
   const tabs = useMemo(() => quickRetailTabs(retailItems, favoriteCounts), [retailItems, favoriteCounts]);
   // Default: Favorit bila ada, selain itu Semua. Saat mengetik/scan, hasil cari mengabaikan tab.
-  const activeTab = tab && tabs.includes(tab) ? tab : tabs[0] ?? QUICK_RETAIL_ALL_TAB;
+  const activeTab = tab && tabs.includes(tab) ? tab : QUICK_RETAIL_ALL_TAB;
   const visibleItems = query.trim() ? match.results : quickRetailItemsForTab(retailItems, activeTab, favoriteCounts);
 
   const cartLines = lines

@@ -30,7 +30,41 @@ export type DelegatedRequest = {
 
 export type DelegatedResponse = { status: number; ok: boolean; json: unknown; text: string | null };
 
-function trimJson(value: unknown): unknown {
+const SECRET_KEY_EXACT = new Set(["pin", "pincode", "otp", "totp", "apikey", "backupcode", "backupcodes"]);
+const SECRET_REPLACEMENT = "[disembunyikan — lihat langsung di layar Garage OS]";
+
+/** Nama field yang berisi kredensial (PIN, password, token, secret). */
+export function isSecretKey(key: string) {
+  const normalized = key.toLowerCase().replace(/[^a-z]/g, "");
+  return (
+    SECRET_KEY_EXACT.has(normalized) ||
+    normalized.endsWith("pin") ||
+    normalized.endsWith("password") ||
+    normalized.endsWith("secret") ||
+    normalized.endsWith("token")
+  );
+}
+
+/**
+ * Kredensial tidak pernah keluar ke chat: route yang membuat akun/karyawan bisa
+ * mengembalikan PIN atau password awal — nilainya diganti sebelum dikirim ke
+ * ChatGPT atau disimpan sebagai hasil operasi.
+ */
+export function redactSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactSecrets);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        isSecretKey(key) && entry !== null && entry !== undefined && entry !== "" ? SECRET_REPLACEMENT : redactSecrets(entry),
+      ]),
+    );
+  }
+  return value;
+}
+
+function trimJson(raw: unknown): unknown {
+  const value = redactSecrets(raw);
   const text = JSON.stringify(value ?? null);
   return text.length > RESPONSE_TEXT_LIMIT ? { terpotong: true, awal: text.slice(0, RESPONSE_TEXT_LIMIT) } : value;
 }

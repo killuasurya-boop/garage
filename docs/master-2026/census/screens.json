@@ -1,0 +1,2945 @@
+[
+  {
+    "url": "/absen",
+    "area": "HR",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/absen",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/absen",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/absen",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/account/password",
+    "area": "Akun",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/account/password",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/account/password",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/account/password",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/account/pin",
+    "area": "Akun",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/account/pin",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/account/pin",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/account/pin",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/attendance",
+    "area": "HR",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/absen",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/absen",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/absen",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/2fa",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/2fa",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/2fa",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/2fa",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/admin",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/admin",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/admin",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/admin",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/branches",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/branches",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/branches",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/branches",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/briefing",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/briefing",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/briefing",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/briefing",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/cash-closing",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/cash-closing",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/cash-closing",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/cash-closing",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/cashflow",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/cashflow",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/cashflow",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/cashflow",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/compliance",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/compliance",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/compliance",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/compliance",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/customers",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/customers",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/customers",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/customers",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/financial/closing",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/financial/closing",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/financial/closing",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/financial/closing",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/financial/intelligence",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/financial/intelligence",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/financial/intelligence",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/financial/intelligence",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/financial",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/financial",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/financial",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/financial",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/financial/settings",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/financial/settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/financial/settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/financial/settings",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/health",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/health",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/health",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/health",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/hr",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/hr",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/hr",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/hr",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/inventory-intel",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/inventory-intel",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/inventory-intel",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/inventory-intel",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/kitchen-ops",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/kitchen-ops",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/kitchen-ops",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/kitchen-ops",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/menu-engineering",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/menu-engineering",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/menu-engineering",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/menu-engineering",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/onboarding",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/onboarding",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/onboarding",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/onboarding",
+        "overflow": 102,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/operations",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/operations",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/operations",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/operations",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/permissions",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/permissions",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/permissions",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/permissions",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/profitmax",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/profitmax",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/profitmax",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/profitmax",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/risk",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/risk",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/risk",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/risk",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/sales",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/sales",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/sales",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/sales",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/security",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/security",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/security",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/security",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/settings",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=settings&scope=global",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=settings&scope=global",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=settings&scope=global",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/themes",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/themes",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/themes",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/themes",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/control/users",
+    "area": "Owner Control",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/control/users",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/control/users",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/control/users",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/dashboard",
+    "area": "Dashboard",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/dashboard",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/dashboard",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/dashboard",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/display/customer-queue",
+    "area": "Display",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/display/customer-queue",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/display/customer-queue",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/display/customer-queue",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/display/payment",
+    "area": "Display",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/display/payment",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/display/payment",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/display/payment",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/events/[slug]/menu",
+    "area": "Event",
+    "skip": "butuh data/token"
+  },
+  {
+    "url": "/grand-opening",
+    "area": "Publik",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/grand-opening",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/grand-opening",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/grand-opening",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/invoice/[token]",
+    "area": "Publik",
+    "skip": "butuh data/token"
+  },
+  {
+    "url": "/legal/privacy",
+    "area": "Publik",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/legal/privacy",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/legal/privacy",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/legal/privacy",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/legal/terms",
+    "area": "Publik",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/legal/terms",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/legal/terms",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/legal/terms",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/login/2fa",
+    "area": "Auth",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/login/2fa",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/login/2fa",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/login/2fa",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/login",
+    "area": "Auth",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/login",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/login",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/login",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/member",
+    "area": "Member",
+    "role": "member",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/member",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/member",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/member",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/member-login",
+    "area": "Member",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/member-login",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/member-login",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/member-login",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/oauth/consent",
+    "area": "AI/MCP",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 404,
+        "finalUrl": "/oauth/consent",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 404,
+        "finalUrl": "/oauth/consent",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 404,
+        "finalUrl": "/oauth/consent",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/order",
+    "area": "Order/QR",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/order",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/order",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/order",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/order/qr-print",
+    "area": "Order/QR",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/order/qr-print",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/order/qr-print",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/order/qr-print",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os",
+    "area": "OS shell",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/employees",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/employees",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/employees",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/employees",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll",
+        "overflow": 41,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/pay",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/pay",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/pay",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/pay",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/readiness",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/readiness",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/readiness",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/readiness",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/requests",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/requests",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/requests",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/requests",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/settings",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/settings",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/thr",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/thr",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/thr",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/thr",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/owner/payroll/today",
+    "area": "Payroll",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/today",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/today",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/owner/payroll/today",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/",
+    "area": "Publik",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/pos",
+    "area": "POS",
+    "role": "kasir",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/pos",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/pos",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/pos",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/pos-login",
+    "area": "Auth",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/pos-login",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/pos-login",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/pos-login",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/recruitment",
+    "area": "HR",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/recruitment",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/recruitment",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/recruitment",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/saas-executive",
+    "area": "Dashboard",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/saas-executive",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/saas-executive",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/saas-executive",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/sales-history",
+    "area": "POS",
+    "role": "kasir",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/sales-history",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/sales-history",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/sales-history",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/shift",
+    "area": "Shift",
+    "role": "kasir",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/shift",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/shift",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/shift",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/staff/wallet-fee",
+    "area": "Payroll",
+    "role": "kasir",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/staff/wallet-fee",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/staff/wallet-fee",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/staff/wallet-fee",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/staff/wallet-gaji",
+    "area": "Payroll",
+    "role": "kasir",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/staff/wallet-gaji",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/staff/wallet-gaji",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/staff/wallet-gaji",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/undangan/[token]",
+    "area": "Event",
+    "skip": "butuh data/token"
+  },
+  {
+    "url": "/warehouse/activity-log",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/activity-log",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/activity-log",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/activity-log",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/adjustment",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/adjustment",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/adjustment",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/adjustment",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/analytics",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/analytics",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/analytics",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/analytics",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/bar",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/bar",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/bar",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/bar",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/checklist",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/checklist",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/checklist",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/checklist",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/closing",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/closing",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/closing",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/closing",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/cold-chain",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/cold-chain",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/cold-chain",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/cold-chain",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/internal-order",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/internal-order",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/internal-order",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/internal-order",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/inventory",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/inventory",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/inventory",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/inventory",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/keuangan",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/keuangan",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/keuangan",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/keuangan",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/kitchen",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/kitchen",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/kitchen",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/kitchen",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/master",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/master",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/master",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/master",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/material-requests",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/material-requests",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/material-requests",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/material-requests",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/opname",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/opname",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/opname",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/opname",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/preparation",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/preparation",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/preparation",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/preparation",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/production",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/production",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/production",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/production",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/purchase-orders",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/purchase-orders",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/purchase-orders",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/purchase-orders",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/purchasing",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/purchasing",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/purchasing",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/purchasing",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/receiving",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/receiving",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/receiving",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/receiving",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/recipe",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/recipe",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/recipe",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/recipe",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/reorder",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/reorder",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/reorder",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/reorder",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/reports",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/reports",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/reports",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/reports",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/requests",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/requests",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/requests",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/requests",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/scan",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/scan",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/scan",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/scan",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/settings",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/settings",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/settings",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/transfer",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/transfer",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/transfer",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/transfer",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/warehouse/waste",
+    "area": "WMS",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse/waste",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse/waste",
+        "overflow": 41,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse/waste",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/wifi",
+    "area": "Member",
+    "role": "public",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/wifi",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/wifi",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/wifi",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=ai-agent",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=ai-agent",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=ai-agent",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=ai-agent",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=approvals",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=approvals",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=approvals",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=approvals",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=audit",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=audit",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=audit",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=audit",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=chat",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=chat",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=chat",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=chat",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=company-control",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=company-control",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=company-control",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=company-control",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=courier",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=courier",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=courier",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=courier",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=crm",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=crm",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=crm",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=crm",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=dashboard",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=dashboard",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=dashboard",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=dashboard",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=earnings",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=earnings",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=earnings",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=earnings",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=events",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=events",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=events",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=events",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=finance",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=finance",
+        "overflow": 0,
+        "errors": [],
+        "note": "networkidle tidak tercapai (koneksi realtime); halaman termuat 200 dalam ±6 dtk"
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=finance",
+        "overflow": 0,
+        "errors": [],
+        "note": "networkidle tidak tercapai (koneksi realtime); halaman termuat 200 dalam ±6 dtk"
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=finance",
+        "overflow": 0,
+        "errors": [],
+        "note": "networkidle tidak tercapai (koneksi realtime); halaman termuat 200 dalam ±6 dtk"
+      }
+    }
+  },
+  {
+    "url": "/os?module=inventory",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/warehouse",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/warehouse",
+        "overflow": 40,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/warehouse",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=kitchen",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=kitchen",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=kitchen",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=kitchen",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=marketing",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=marketing",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=marketing",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=marketing",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=membership",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=membership",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=membership",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=membership",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=ops-center",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=ops-center",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=ops-center",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=ops-center",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=pos",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=pos",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=pos",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=pos",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=produk",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=produk",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=produk",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=produk",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=recruitment",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=recruitment",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=recruitment",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=recruitment",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=settings",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=settings",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=settings",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=smart-notif",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=smart-notif",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=smart-notif",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=smart-notif",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=team-management",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=team-management",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=team-management",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=team-management",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=training",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=training",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=training",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=training",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=waiter",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=waiter",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=waiter",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=waiter",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  },
+  {
+    "url": "/os?module=website",
+    "area": "OS module",
+    "role": "owner",
+    "views": {
+      "1366x900": {
+        "status": 200,
+        "finalUrl": "/os?module=website",
+        "overflow": 0,
+        "errors": []
+      },
+      "1024x768": {
+        "status": 200,
+        "finalUrl": "/os?module=website",
+        "overflow": 0,
+        "errors": []
+      },
+      "390x844": {
+        "status": 200,
+        "finalUrl": "/os?module=website",
+        "overflow": 0,
+        "errors": []
+      }
+    }
+  }
+]

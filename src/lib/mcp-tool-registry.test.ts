@@ -20,11 +20,11 @@ describe("registry tool AI (M1)", () => {
     }
   });
 
-  it("tool yang menyentuh uang minimal R2; garage_api (wildcard) R3", () => {
+  it("tool yang menyentuh uang minimal R2; garage_api hanya baca (R0, D-10)", () => {
     const risk = Object.fromEntries(tools.map((tool) => [tool.name, tool.risk]));
     expect(risk.catat_pengeluaran).toBe("R2");
     expect(risk.putuskan_approval).toBe("R2");
-    expect(risk.garage_api).toBe("R3");
+    expect(risk.garage_api).toBe("R0");
     expect(riskNeedsConfirmation("R2")).toBe(true);
     expect(riskNeedsConfirmation("R1")).toBe(false);
   });

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CashOversightPanel } from "@/components/ceo/finance/CashOversightPanel";
+import { OwnerDossierPanel } from "@/components/ceo/finance/OwnerDossierPanel";
 import { RiskAlertsPanel } from "@/components/ceo/finance/RiskAlertsPanel";
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Panel } from "@/components/ceo/layout/Panel";
@@ -173,6 +174,8 @@ export default function CashClosingPage() {
           {msg}
         </div>
       )}
+
+      <OwnerDossierPanel />
 
       <CashOversightPanel />
 

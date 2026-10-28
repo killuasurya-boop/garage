@@ -81,7 +81,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Fitur | Status |
 |---|---|---|---|
 | B6 | Risk engine & case | F11, F16, F20, F21, F23, F36, F12 (liability tanpa potong otomatis) | **DONE v1** (migration 0169): `risk-rules.ts` (12 aturan explainable LV1–LV5, custody §14.5, pembanding shift) + `risk-engine.ts` (dedupe, disposisi manusia tidak ditimpa, Manajer ≠ subjek, kesimpulan akhir Owner, eskalasi ke audit_cases) + panel Alert Risiko |
-| B7 | Owner 360 & laporan | F15, F19, F22, F25, F35, F37, F38; 4 PDF penamaan §20.2, hash/versi | **B7a DONE** (migration 0168): snapshot final append-only + PDF shift resmi §20.2 (DRAFT, hash, versi, nama file). Sisa: PDF harian/bulanan/kasus, Owner 360, ledger bulanan |
+| B7 | Owner 360 & laporan | F15, F19, F22, F25, F35, F37, F38; 4 PDF penamaan §20.2, hash/versi | **B7a DONE** (migration 0168): snapshot final append-only + PDF shift resmi §20.2 (DRAFT, hash, versi, nama file). **B7b + B7c DONE** (tanpa migrasi): buku kas rinci & arus kas PDF/Excel (`type=ledger`, F35/F38); Owner 360 harian di Kontrol Kas + ledger bulanan + PDF resmi B `CLOSING_YYYY-MM-DD`, C `FINANCIAL_AUDIT_YYYY-MM`, D `CASE_<ID>` (`/api/reports/owner-official`). Sisa (BLOCKED data): parkir (B2/D-06), QRIS settled (D-06), nominal kerugian/pengembalian kasus & payroll review (proses terpisah) |
 | M4 | Drive & Gmail | F53, F24; file/message ID terverifikasi | BLOCKED (D-04) |
 
 ### Fase 6 — MCP Gateway & Aya (PRD §22 + D-01 FULL ACCESS Owner)

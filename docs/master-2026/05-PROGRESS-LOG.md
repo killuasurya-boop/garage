@@ -423,3 +423,15 @@ Format wajib per batch (instruksi Owner):
 - U0e #122: dialog Cek Meja + label status dipindah dari pos-view.tsx; 34 komentar mojibake dirapikan.
 - 7 branch lama diarsipkan sebagai tag `archive/*` lalu dihapus (izin Owner).
 - R1: `docker-compose.staging.yml` (DB & app terpisah, batas memori), `staging-setup.sh` (.env aman, basic auth, Caddy), `staging-refresh.sh` + `staging-anonymize.sql` (salinan produksi disamarkan; guard nama DB), `deploy-staging.sh` (branch apa pun → staging). Caddy produksi `import sites/*.caddy`. Diuji end-to-end di simulasi lokal (produksi tiruan + staging). Menunggu: DNS `staging` → VPS, deploy produksi, lalu `deploy-staging.sh --setup --refresh-data`.
+
+## 2026-10-28 — B7b laporan Owner (tanpa migrasi)
+- **Owner 360 harian** (PRD §13.5) di Kontrol Kas → `OwnerDossierPanel`: status hari, 3 pengecualian terbesar, kas seharusnya/fisik, kurang & lebih terpisah, QRIS, setoran belum dikonfirmasi, peta penguasaan uang (laci, modal ditinggal, setoran dalam perjalanan, rekening, petty, brankas tidak dipakai), tabel shift #1/#2/#3 + pemeriksa + final Owner, alert & kasus, timeline WIB, konteks bulan berjalan, data yang belum tercatat. Keputusan final tetap per shift di Riwayat Shift (2FA).
+- **Ledger bulanan** (§16.1) `getMonthlyLedger`: per hari / kasir / pemeriksa / penyetor, frekuensi & rasio relatif terhadap shift & kas sendiri (bukan peringkat), alert per LV + true/false positive, roll-forward kasus.
+- **PDF resmi** (§20.2): B `GARAGE_<OUTLET>_CLOSING_YYYY-MM-DD[_V02].pdf`, C `..._FINANCIAL_AUDIT_YYYY-MM.pdf`, D `..._CASE_CASE-XXXXXXXX.pdf`; DRAFT sampai final; report ID + hash SHA-256. Endpoint `GET /api/reports/owner-official?type=closing|monthly|case` (Owner saja).
+- Jujur soal data: parkir, QRIS settled, kerugian terbukti/pengembalian, payroll review → "belum tercatat", bukan 0.
+- Uji: 11 unit + 5 integrasi (shift nyata → final Owner 2FA → dossier/ledger/kasus/PDF); browser lokal 1366/390 + 3 PDF dirender.
+
+## 2026-10-28 — B7c buku kas rinci & arus kas Owner (tanpa migrasi)
+- `cash-ledger-report.ts`: per akun (laci, petty, Jago, BNI, QRIS, setoran dalam perjalanan) saldo awal → setiap baris buku kas (ID stabil, saldo berjalan, pembalik ↔ yang dibalik, data lama) → saldo akhir; dicek terhadap saldo DB. Akun pihak luar hanya arus (modal awal, uang pribadi Owner, pembayaran keluar), per jenis.
+- PDF + Excel (sheet Ringkasan, Arus per jenis, Pergerakan dana, satu sheet per akun) lewat `type=ledger`; bagian "Arus kas & buku kas" di Owner 360.
+- Ditemukan saat uji browser & diperbaiki: regex bulan rusak di route (skema query dipindah ke `owner-reports-query.ts` + tes).

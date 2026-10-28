@@ -5,7 +5,7 @@
 # Menjalankan langkah yang PERSIS sama dengan .github/workflows/deploy.yml:
 #   1. build image app + migrate di laptop (bukan di VPS 1 vCPU)
 #   2. tandai versi lama di VPS sebagai :previous (untuk rollback)
-#   3. kirim image + docker-compose.yml + Caddyfile + pg-backup.sh lewat SSH
+#   3. kirim image + docker-compose.yml + Caddyfile + pg-backup.sh (+ alat operasi) lewat SSH
 #   4. di VPS: db up → BACKUP dulu (gagal = berhenti) → migrate → app/caddy/backup up
 #   5. cek kesehatan https://<domain>/api/health; gagal → rollback ke :previous
 #
@@ -150,6 +150,10 @@ scp "${SSH_OPTS[@]}" docker-compose.yml Caddyfile "$VPS_USER@$VPS_HOST:$APP_DIR/
 # Buang CR: checkout Windows (core.autocrlf) memberi CRLF, dan bash Linux di
 # container backup gagal di `set -euo pipefail\r` → deploy berhenti di backup.
 tr -d '\r' < scripts/pg-backup.sh | remote "cat > $APP_DIR/scripts/pg-backup.sh"
+# Alat operasi di VPS ikut versi kode yang di-deploy (pemantau cron, uji pulih + sidik buku kas).
+for f in vps-monitor.sh restore-drill.sh cash-ledger-fingerprint.sql; do
+  tr -d '\r' < "scripts/$f" | remote "cat > $APP_DIR/scripts/$f"
+done
 ok "Terkirim"
 
 # ─── 7. Backup → migrate → jalankan ───────────────────────────────────────────

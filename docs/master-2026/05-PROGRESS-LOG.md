@@ -441,3 +441,8 @@ Format wajib per batch (instruksi Owner):
 - `release-check.sh` (wajib sebelum deploy, main gabungan), `smoke-prod.sh` (setelah deploy, gagal → rollback), `vps-monitor.sh` + `/api/jobs/system-alert` (push ke Owner), `restore-drill.sh` (pulih backup ke container sementara).
 - Merged ke main (belum deploy): #121, #128 (+#129), #130 (katalog). Gate main gabungan 1388/1388.
 - Dokumen pelacakan F01–F55 dirapikan sesuai pekerjaan B4/B6/B7/M0–M3 dan keputusan D-03.
+
+## 2026-10-29 — Rilis bertahap: Tahap 1–3 selesai
+- **Tahap 1** (02:20 WIB, `bca5212`): #121, #128/#129, #130, #131 live. release-check 10/10, backup pre-deploy, migrasi 0, smoke 10/10, log bersih.
+- **Tahap 2** (02:39 WIB): pemantau VPS cron 5 menit aktif; notifikasi uji terkirim ke 1 Owner.
+- **Tahap 3** (03:20 WIB): uji pulih backup `garage-pre-deploy-2026-10-29_022005` → LULUS (pulih 3 detik, 8 tabel inti sama, sidik buku kas identik). Ditemukan & diperbaiki: skrip mulai sebelum init Postgres selesai; SQL sidik buku kas tidak ada di VPS (kini dikirim deploy).

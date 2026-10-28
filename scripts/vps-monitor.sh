@@ -4,7 +4,8 @@
 # scripts/install-vps-monitor.sh). Hanya MEMBACA keadaan server; tidak mengubah apa pun.
 #
 # Pemeriksaan: aplikasi sehat, layanan db/caddy/backup jalan, restart berulang,
-# disk ≥ 85 %, RAM tersedia < 250 MB, backup terbaru > 26 jam, staging tidak
+# disk ≥ 85 %, RAM tersedia < 250 MB, backup terbaru > 26 jam, backup belum ditarik ke luar VPS
+# > 48 jam (bila pull-backups.sh sudah dipakai), staging tidak
 # memakai nama produksi (insiden 28 Okt 2026).
 #
 # Peringatan → POST /api/jobs/system-alert (notifikasi + push ke HP Owner).
@@ -77,12 +78,21 @@ check_backup() {
   if [ "$age_h" -le "$BACKUP_MAX_HOURS" ]; then RESULT[backup]=ok; MESSAGE[backup]="Backup terbaru ${age_h} jam lalu"; else RESULT[backup]=fail; MESSAGE[backup]="Backup terbaru ${age_h} jam lalu ($(basename "$newest")) — backup harian tidak jalan"; fi
 }
 
+check_offsite() {
+  # Backup ke luar VPS (scripts/pull-backups.sh dari laptop menaruh penanda ini).
+  local marker="$APP_DIR/backups/.offsite-pulled" age_h
+  if [ ! -f "$marker" ]; then RESULT[offsite]=ok; MESSAGE[offsite]="Tarik backup ke luar VPS belum diaktifkan"; return; fi
+  age_h=$(( ( $(date +%s) - $(stat -c %Y "$marker") ) / 3600 ))
+  if [ "$age_h" -le "${OFFSITE_MAX_HOURS:-48}" ]; then RESULT[offsite]=ok; MESSAGE[offsite]="Backup ditarik ke luar VPS ${age_h} jam lalu"
+  else RESULT[offsite]=fail; MESSAGE[offsite]="Backup terakhir ditarik ke luar VPS ${age_h} jam lalu — nyalakan laptop/PC backup atau jalankan scripts/pull-backups.sh"; fi
+}
+
 check_staging_guard() {
   if [ ! -f "$STAGING_DIR/scripts/staging-network-guard.sh" ]; then RESULT[staging_guard]=ok; MESSAGE[staging_guard]="Staging tidak terpasang"; return; fi
   if out="$(bash "$STAGING_DIR/scripts/staging-network-guard.sh" 2>&1)"; then RESULT[staging_guard]=ok; MESSAGE[staging_guard]="Nama app/db hanya milik produksi"; else RESULT[staging_guard]=fail; MESSAGE[staging_guard]="$(echo "$out" | grep BAHAYA | head -1) — matikan staging"; fi
 }
 
-check_app; check_containers; check_restarts; check_disk; check_memory; check_backup; check_staging_guard
+check_app; check_containers; check_restarts; check_disk; check_memory; check_backup; check_offsite; check_staging_guard
 
 # ── Bandingkan dengan keadaan sebelumnya → kejadian ───────────────────────────
 events=()

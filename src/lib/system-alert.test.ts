@@ -14,6 +14,8 @@ describe("peringatan server untuk Owner", () => {
     const later = alertNotification({ check: "app", state: "failing", message: "x" }, new Date("2026-10-29T02:55:00.000Z"));
     expect(later.dedupKey).toBe(app.dedupKey);
     expect(alertNotification({ check: "disk", state: "failing", message: "Disk 90%" }, now).severity).toBe("warning");
+    // Backup belum keluar VPS = risiko data → kritis.
+    expect(alertNotification({ check: "offsite", state: "failing", message: "50 jam" }, now)).toMatchObject({ severity: "urgent", title: "Server: Backup di luar VPS (laptop/cloud) bermasalah" });
   });
 
   it("pulih: menyebut lama bermasalah & sekali per kejadian", () => {

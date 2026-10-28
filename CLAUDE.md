@@ -411,6 +411,11 @@ Scroll direction:
   Staging service names MUST be `staging-*` (never `app`/`db`): a same-named service on `garage_default` made prod
   Caddy load-balance into staging (incident 28 Okt 2026, random "Silakan login"). `scripts/staging-network-guard.sh`
   stops staging when `app`/`db` resolve to more than one container.
+- Release safety (29 Okt 2026, `docs/DEPLOY_MANUAL.md`): `scripts/release-check.sh` must pass on the MERGED main before
+  `deploy-manual.sh` (stamp `.git/garage-release-check` = SHA; catches combined-PR breakage like the API catalog);
+  deploy runs `scripts/smoke-prod.sh` after health (fail → rollback). `scripts/vps-monitor.sh` (cron, read-only) →
+  `POST /api/jobs/system-alert` (job secret) → `notifyStaff` push to Owners, dedup 1×/hour/check (`src/lib/system-alert.ts`).
+  `scripts/restore-drill.sh` restores the latest backup into a throwaway container on its own network (never `garage_default`).
 
 ## Verification
 

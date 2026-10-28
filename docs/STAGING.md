@@ -7,7 +7,7 @@ database terpisah, data disamarkan.
 |---|---|---|
 | Alamat | https://garagecoffee.id | https://staging.garagecoffee.id (password akses tambahan) |
 | Folder VPS | `/root/garage` | `/root/garage-staging` |
-| Database | `garage` (container `garage-db-1`) | `garage_staging` (container `garage-staging-db-1`) |
+| Database | `garage` (container `garage-db-1`) | `garage_staging` (service `staging-db`, container `garage-staging-staging-db-1`) |
 | Image | `garage-app:latest` | `garage-app:staging` |
 | Data | asli | salinan produksi yang **disamarkan** |
 | Pesan keluar (WhatsApp, sosmed, push, ChatGPT) | aktif sesuai pengaturan | **mati** |
@@ -43,3 +43,17 @@ ssh root@201.18.211.55 "cd /root/garage-staging && docker compose -f docker-comp
 ```
 Lalu hapus `/root/garage/caddy-sites/staging.caddy` dan muat ulang Caddy:
 `cd /root/garage && docker compose --env-file .env.production exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+
+## Insiden 28 Okt 2026 — nama service bentrok (WAJIB dibaca sebelum mengubah compose staging)
+Versi pertama staging memberi nama service `app`/`db` dan ikut jaringan produksi `garage_default`. Docker lalu
+menjawab nama `app` dengan DUA container (produksi + staging), sehingga Caddy produksi meneruskan sebagian
+request ke staging → user produksi acak mendapat "Silakan login ke Garage OS" / "Invalid origin". Data produksi
+tidak ada yang hilang atau masuk staging (dicek: staging hanya menerima percobaan login gagal).
+
+Aturan:
+- Service staging selalu berawalan `staging-` (`staging-db`, `staging-migrate`, `staging-app`); jangan pakai
+  nama yang dipakai produksi (`app`, `db`, `caddy`, `migrate`).
+- Hanya `staging-app` yang ikut `garage_default`, dengan alias `garage-staging-app`.
+- `scripts/staging-network-guard.sh` dijalankan setiap deploy/refresh staging: bila `app`/`db` di
+  `garage_default` dijawab lebih dari 1 container, staging langsung dimatikan. Cek manual:
+  `ssh root@201.18.211.55 bash /root/garage-staging/scripts/staging-network-guard.sh`.

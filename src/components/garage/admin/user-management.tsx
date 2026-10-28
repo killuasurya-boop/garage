@@ -727,7 +727,7 @@ function CreateUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-zinc-800 bg-zinc-950 text-zinc-100">
+      <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto overscroll-contain border-zinc-800 bg-zinc-950 text-zinc-100">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-4 w-4 text-red-400" /> Tambah Staff Baru
@@ -1002,7 +1002,7 @@ function EditUserDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg border-zinc-800 bg-zinc-950 text-zinc-100">
+      <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto overscroll-contain border-zinc-800 bg-zinc-950 text-zinc-100">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4 text-red-400" /> Edit {row.email}

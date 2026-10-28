@@ -1,10 +1,13 @@
 # =============================================================================
 # R1 — Staging Garage OS di VPS yang sama dengan produksi (izin Owner 28 Okt 2026).
 #   Folder di VPS: /root/garage-staging (berisi file ini + .env.staging).
-#   db       : PostgreSQL 16 terpisah (database garage_staging) — bukan DB produksi
-#   migrate  : one-shot migrasi
-#   app      : image garage-app:staging, ikut jaringan produksi (garage_default) hanya
-#              supaya Caddy produksi bisa meneruskan staging.garagecoffee.id ke sini
+#   PENTING: nama service UNIK (staging-*). Service bernama "app"/"db" di jaringan
+#   garage_default akan ikut menjawab nama "app"/"db" produksi → Caddy produksi kadang
+#   meneruskan ke staging (insiden 28 Okt 2026: login produksi "Silakan login").
+#   staging-db       : PostgreSQL 16 terpisah (database garage_staging) — bukan DB produksi
+#   staging-migrate  : one-shot migrasi
+#   staging-app      : image garage-app:staging, ikut jaringan produksi (garage_default) hanya
+#                      lewat alias garage-staging-app untuk staging.garagecoffee.id
 # Batas memori & CPU menjaga produksi tetap lega (RAM VPS 4 GB).
 # Data = salinan backup produksi yang disamarkan (scripts/staging-refresh.sh).
 # =============================================================================
@@ -12,7 +15,7 @@
 name: garage-staging
 
 services:
-  db:
+  staging-db:
     image: postgres:16-bookworm
     restart: unless-stopped
     environment:
@@ -30,7 +33,7 @@ services:
     cpus: 0.5
     networks: [staging]
 
-  migrate:
+  staging-migrate:
     image: garage-migrate:staging
     env_file:
       - .env.staging
@@ -39,13 +42,13 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_SSL: "false"
     depends_on:
-      db:
+      staging-db:
         condition: service_healthy
     restart: "no"
     mem_limit: 512m
     networks: [staging]
 
-  app:
+  staging-app:
     image: garage-app:staging
     restart: unless-stopped
     env_file:
@@ -60,9 +63,9 @@ services:
       - staging-delivery:/app/storage/delivery-proof
       - staging-profiles:/app/storage/profiles
     depends_on:
-      db:
+      staging-db:
         condition: service_healthy
-      migrate:
+      staging-migrate:
         condition: service_completed_successfully
     mem_limit: 640m
     cpus: 0.5

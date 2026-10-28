@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Download, FileText, RefreshCw, ShieldAlert }
 
 import { Panel } from "@/components/ceo/layout/Panel";
 import { Badge } from "@/components/ceo/ui/Badge";
+import type { CashLedgerReport } from "@/lib/cash-ledger-report";
 import type { DailyDossier, MonthlyLedger } from "@/lib/owner-reports-build";
 import { RISK_DISPOSITION_LABEL, type RiskDisposition } from "@/lib/risk-rules";
 
@@ -77,18 +78,21 @@ export function OwnerDossierPanel() {
   const [date, setDate] = useState(jakartaToday);
   const [data, setData] = useState<DailyDossier | null>(null);
   const [month, setMonth] = useState<MonthlyLedger | null>(null);
+  const [ledger, setLedger] = useState<CashLedgerReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [daily, monthly] = await Promise.all([
+      const [daily, monthly, cash] = await Promise.all([
         api<DailyDossier>(`/api/reports/owner-official?type=closing&date=${date}`),
         api<MonthlyLedger>(`/api/reports/owner-official?type=monthly&month=${date.slice(0, 7)}`),
+        api<CashLedgerReport>(`/api/reports/owner-official?type=ledger&month=${date.slice(0, 7)}`),
       ]);
       setData(daily);
       setMonth(monthly);
+      setLedger(cash);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat Owner 360");
@@ -343,6 +347,55 @@ export function OwnerDossierPanel() {
                   </div>
                 ) : null}
                 <p className="mt-2 text-xs text-zinc-400">Frekuensi & rasio dibandingkan terhadap shift dan kas kasir itu sendiri — bukan peringkat atau vonis.</p>
+              </Section>
+            ) : null}
+
+            {/* F35/F38: arus kas Owner & buku kas rinci (semua akun, bulan berjalan) */}
+            {ledger ? (
+              <Section title={`Arus kas & buku kas · ${ledger.from} s/d ${ledger.to}`} defaultOpen={false}>
+                <div className="mb-2 flex flex-wrap gap-2">
+                  <a href={`/api/reports/owner-official?type=ledger&month=${date.slice(0, 7)}&format=pdf`} className={pdfButton} data-testid="owner-dossier-pdf-ledger">
+                    <Download className="h-3.5 w-3.5" /> PDF Buku kas
+                  </a>
+                  <a href={`/api/reports/owner-official?type=ledger&month=${date.slice(0, 7)}&format=xlsx`} className={pdfButton} data-testid="owner-dossier-xlsx-ledger">
+                    <Download className="h-3.5 w-3.5" /> Excel Buku kas
+                  </a>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px]">
+                    <thead>
+                      <tr>
+                        <th className={th}>Akun</th>
+                        <th className={`${th} text-right`}>Saldo awal</th>
+                        <th className={`${th} text-right`}>Masuk</th>
+                        <th className={`${th} text-right`}>Keluar</th>
+                        <th className={`${th} text-right`}>Saldo akhir</th>
+                        <th className={th}>Cek</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledger.accounts.map((row) => (
+                        <tr key={row.account} className="border-t border-white/5">
+                          <td className={td}>{row.label}</td>
+                          <td className={tdNum}>{money(row.opening)}</td>
+                          <td className={tdNum}>{money(row.inflow)}</td>
+                          <td className={tdNum}>{money(row.outflow)}</td>
+                          <td className={tdNum}>{money(row.closing)}</td>
+                          <td className={td}>
+                            <Badge tone={row.reconciled ? "success" : "red"}>{row.reconciled ? "Cocok" : "Beda"}</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs text-zinc-300">
+                  Saldo laci = kas seharusnya menurut buku kas (bukan hitungan fisik — selisih fisik ada di tabel shift di atas). Arus dengan pihak luar (non-laci):{" "}
+                  {ledger.external.bySource.length
+                    ? ledger.external.bySource.map((row) => `${row.label} ${row.inflow ? `+${money(row.inflow)}` : ""}${row.outflow ? ` −${money(row.outflow)}` : ""}`).join(" · ")
+                    : "tidak ada"}
+                  . {ledger.totals.entries} baris buku kas, {ledger.totals.reversals} pembalik.
+                </p>
               </Section>
             ) : null}
 

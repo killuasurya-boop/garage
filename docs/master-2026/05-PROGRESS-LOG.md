@@ -430,3 +430,8 @@ Format wajib per batch (instruksi Owner):
 - **PDF resmi** (§20.2): B `GARAGE_<OUTLET>_CLOSING_YYYY-MM-DD[_V02].pdf`, C `..._FINANCIAL_AUDIT_YYYY-MM.pdf`, D `..._CASE_CASE-XXXXXXXX.pdf`; DRAFT sampai final; report ID + hash SHA-256. Endpoint `GET /api/reports/owner-official?type=closing|monthly|case` (Owner saja).
 - Jujur soal data: parkir, QRIS settled, kerugian terbukti/pengembalian, payroll review → "belum tercatat", bukan 0.
 - Uji: 11 unit + 5 integrasi (shift nyata → final Owner 2FA → dossier/ledger/kasus/PDF); browser lokal 1366/390 + 3 PDF dirender.
+
+## 2026-10-28 — B7c buku kas rinci & arus kas Owner (tanpa migrasi)
+- `cash-ledger-report.ts`: per akun (laci, petty, Jago, BNI, QRIS, setoran dalam perjalanan) saldo awal → setiap baris buku kas (ID stabil, saldo berjalan, pembalik ↔ yang dibalik, data lama) → saldo akhir; dicek terhadap saldo DB. Akun pihak luar hanya arus (modal awal, uang pribadi Owner, pembayaran keluar), per jenis.
+- PDF + Excel (sheet Ringkasan, Arus per jenis, Pergerakan dana, satu sheet per akun) lewat `type=ledger`; bagian "Arus kas & buku kas" di Owner 360.
+- Ditemukan saat uji browser & diperbaiki: regex bulan rusak di route (skema query dipindah ke `owner-reports-query.ts` + tes).

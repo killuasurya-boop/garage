@@ -73,7 +73,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | U0 | Ekstraksi modul tanpa ubah perilaku | Pecah `garage-app.tsx` (±10.300 baris) per modul + baseline visual | **U0a–U0e DONE** (pos-view.tsx 12.840 → 9352 baris; dialog Cek Meja + label status dipindah) |
-| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA, **komponen `AyaAvatar` + ekspresi status (D-07)** | READY (D-02 FINAL: gelap semua; aset Aya D-07 sudah ada) |
+| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA, **komponen `AyaAvatar` + ekspresi status (D-07)** | **U1-a DONE** (token semantik + tes kontras + StatusPill/MoneyText/StateView + registri). Berikut U1-b: perbaiki kontras layar (zinc-500, teks merah, tepi input) per modul |
 | U2 | Shell & navigasi | Sitemap Owner §23.4, nav per device §23.5, command palette berizin | setelah U1 |
 | U3 | Redesign P0 | POS-02, SHF-01, SHF-04, FIN-03, FIN-07, SYS-01, DSH-01, AI-01, WMS-04 (§25.3) | setelah U2 + B2–B4 |
 

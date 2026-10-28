@@ -127,6 +127,23 @@
   --garage-letter-spacing: 0;
   --garage-display-transform: uppercase;
   --garage-glass-opacity: 84%;
+  /* U1 token semantik (src/lib/design-tokens.ts, dijaga tes kontras WCAG AA). D-02: gelap semua. */
+  --gos-bg-app: #0a0a0c;
+  --gos-bg-chrome: #121216;
+  --gos-bg-surface: #19191e;
+  --gos-bg-raised: #232329;
+  --gos-text-primary: #f4f4f5;
+  --gos-text-secondary: #d0d0d6;
+  --gos-text-muted: #9a9aa4;
+  --gos-status-success: #a8f0c4;
+  --gos-status-warning: #ffd8a8;
+  --gos-status-danger: #ff5a66;
+  --gos-status-info: #93c5fd;
+  --gos-status-neutral: #d0d0d6;
+  --gos-control-border: #71717f;
+  --gos-control-focus: #f5a742;
+  --gos-brand-primary: #d11a2a;
+  --gos-brand-on-primary: #ffffff;
 
   --background: var(--garage-bg-0);
   --foreground: var(--garage-fg);

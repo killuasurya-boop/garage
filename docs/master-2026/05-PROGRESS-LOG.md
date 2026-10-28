@@ -417,3 +417,9 @@ Format wajib per batch (instruksi Owner):
 - Migration 0169 `risk_alerts`. Aturan murni `risk-rules.ts`: CASH_SHORTAGE (LV2/3/4 menurut nominal vs ambang), CASH_SURPLUS, COUNT_MISMATCH, COUNT_MISMATCH_REPEAT & SHORTAGE_REPEAT (pembanding jumlah shift 30 hari), EMERGENCY_CLOSE, QRIS_MISMATCH (custody QRIS), REFUND_VOID_MANY, METHOD_FIX_MANY, DEPOSIT_UNCONFIRMED >24 jam (custody bank), SELF_VERIFIED (LV1), LEDGER_CACHE_MISMATCH (LV5).
 - Pindai otomatis di latar setelah tutup/verifikasi/final; Owner bisa pindai ulang 30 hari. Disposisi OPEN/FALSE_POSITIVE/EXPLAINED/SUBSTANTIATED/DISPUTED/CLOSED + catatan; SUBSTANTIATED/CLOSED hanya Owner; Manajer tidak memeriksa alert tentang dirinya. "Jadikan kasus" → audit_cases.
 - Bahasa netral (dijaga tes): tidak ada kata menuduh, tidak ada peringkat pegawai.
+
+## 2026-10-28 — R1 staging (siap pasang) + U0e + hotfix B4
+- Hotfix #120 (live 14:09): form tutup shift — float default dari hitungan sah; kembali ke form tidak menghapus #2/#3 (ditemukan saat uji browser lokal).
+- U0e #122: dialog Cek Meja + label status dipindah dari pos-view.tsx; 34 komentar mojibake dirapikan.
+- 7 branch lama diarsipkan sebagai tag `archive/*` lalu dihapus (izin Owner).
+- R1: `docker-compose.staging.yml` (DB & app terpisah, batas memori), `staging-setup.sh` (.env aman, basic auth, Caddy), `staging-refresh.sh` + `staging-anonymize.sql` (salinan produksi disamarkan; guard nama DB), `deploy-staging.sh` (branch apa pun → staging). Caddy produksi `import sites/*.caddy`. Diuji end-to-end di simulasi lokal (produksi tiruan + staging). Menunggu: DNS `staging` → VPS, deploy produksi, lalu `deploy-staging.sh --setup --refresh-data`.

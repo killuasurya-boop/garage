@@ -1,0 +1,87 @@
+# =============================================================================
+# R1 — Staging Garage OS di VPS yang sama dengan produksi (izin Owner 28 Okt 2026).
+#   Folder di VPS: /root/garage-staging (berisi file ini + .env.staging).
+#   db       : PostgreSQL 16 terpisah (database garage_staging) — bukan DB produksi
+#   migrate  : one-shot migrasi
+#   app      : image garage-app:staging, ikut jaringan produksi (garage_default) hanya
+#              supaya Caddy produksi bisa meneruskan staging.garagecoffee.id ke sini
+# Batas memori & CPU menjaga produksi tetap lega (RAM VPS 4 GB).
+# Data = salinan backup produksi yang disamarkan (scripts/staging-refresh.sh).
+# =============================================================================
+
+name: garage-staging
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - staging-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+    cpus: 0.5
+    networks: [staging]
+
+  migrate:
+    image: garage-migrate:staging
+    env_file:
+      - .env.staging
+    environment:
+      GARAGE_DB_DRIVER: postgres
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 512m
+    networks: [staging]
+
+  app:
+    image: garage-app:staging
+    restart: unless-stopped
+    env_file:
+      - .env.staging
+    environment:
+      GARAGE_DB_DRIVER: postgres
+      DATABASE_SSL: "false"
+    volumes:
+      - staging-uploads:/app/public/garage-uploads
+      - staging-recruitment:/app/storage/recruitment
+      - staging-attendance:/app/storage/attendance
+      - staging-delivery:/app/storage/delivery-proof
+      - staging-profiles:/app/storage/profiles
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 640m
+    cpus: 0.5
+    networks:
+      staging: {}
+      web:
+        aliases: [garage-staging-app]
+
+networks:
+  staging: {}
+  # Jaringan compose produksi (/root/garage) — Caddy produksi ada di sini.
+  web:
+    external: true
+    name: garage_default
+
+volumes:
+  staging-db-data:
+  staging-uploads:
+  staging-recruitment:
+  staging-attendance:
+  staging-delivery:
+  staging-profiles:

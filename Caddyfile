@@ -22,3 +22,6 @@
 www.{$GARAGE_DOMAIN} {
 	redir https://{$GARAGE_DOMAIN}{uri} permanent
 }
+
+# Situs tambahan di VPS (mis. staging.caddy dari scripts/staging-setup.sh). Folder boleh kosong.
+import sites/*.caddy

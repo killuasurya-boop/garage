@@ -97,7 +97,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | U4–U9 | Redesign modul growth | Produk/HPP, WMS, KDS, CRM/member (kontrak member terkunci), HR, event, marketing, meja/QR | setelah U3 |
-| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | READY (izin Owner 28 Okt: VPS sama, DB terpisah, data disamarkan) |
+| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | **SIAP PASANG** (`docker-compose.staging.yml`, `scripts/deploy-staging.sh`, `docs/STAGING.md`; diuji simulasi lokal) — menunggu DNS `staging` + deploy produksi |
 | R2 | Release plan | Backup verify + `cashLedgerFingerprint` + restore drill + rollback `garage-app:previous`; deploy dijalankan Owner | BLOCKED |
 
 ## Urutan kerja rekomendasi untuk agent berikutnya

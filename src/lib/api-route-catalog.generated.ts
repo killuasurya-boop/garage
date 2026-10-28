@@ -318,6 +318,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/jobs/earnings-retry","methods":["POST"],"note":""},
   {"path":"/api/jobs/social-analytics","methods":["GET","POST"],"note":""},
   {"path":"/api/jobs/social-publishing","methods":["GET","POST"],"note":""},
+  {"path":"/api/jobs/system-alert","methods":["POST"],"note":""},
   {"path":"/api/jobs/whatsapp-messaging","methods":["GET","POST"],"note":""},
   {"path":"/api/kitchen/eta","methods":["GET"],"note":""},
   {"path":"/api/kitchen/orders","methods":["GET"],"note":""},

@@ -179,6 +179,8 @@ export type AppSettings = {
   shiftOpeningCashDefault: number;
   shiftRequireManagerSignoff: boolean;
   shiftDiscrepancyThreshold: number;
+  // B4 (PRD §10.8): tutup shift wajib hitung ulang #2 (blind, form terpisah); beda → #3.
+  shiftRequireDoubleCount: boolean;
   // AI Assistant control
   aiAssistantEnabled: boolean;
   aiAutonomyMode: string;
@@ -329,6 +331,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   shiftOpeningCashDefault: 500_000,
   shiftRequireManagerSignoff: true,
   shiftDiscrepancyThreshold: 50_000,
+  shiftRequireDoubleCount: true,
   // AI Assistant control
   aiAssistantEnabled: true,
   aiAutonomyMode: "controlled",

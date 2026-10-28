@@ -37,6 +37,7 @@ import {
   AccountabilityExportCard,
   PettyCashPanel,
   ShiftIncidentsPanel,
+  OwnerFinalCard,
   ShiftReviewCard,
 } from "@/components/garage/shift-accountability-panel";
 import { GarageApiError, garageApi } from "@/lib/api-client";
@@ -137,6 +138,9 @@ type SessionSummary = {
     recountCash?: number | null;
     discrepancyAcknowledged?: boolean;
     reviewSelfVerified?: boolean;
+    finalStatus?: string;
+    finalNote?: string | null;
+    finalDecidedAt?: string | null;
     viewerOwnsShift?: boolean;
   };
   counts: { total: number; paid: number; refunded: number };
@@ -969,6 +973,18 @@ function ShiftDetailView({
               discrepancyAcknowledged={Boolean(summary.session.discrepancyAcknowledged)}
               selfVerified={Boolean(summary.session.reviewSelfVerified)}
               viewerOwnsShift={Boolean(summary.session.viewerOwnsShift)}
+              isOwner={isOwner}
+              onChanged={() => void load()}
+            />
+          ) : null}
+          {canSupervise ? (
+            <OwnerFinalCard
+              sessionId={sessionId}
+              shiftOpen={summary.session.status === "open"}
+              reviewStatus={summary.session.reviewStatus ?? "pending"}
+              finalStatus={summary.session.finalStatus ?? "pending"}
+              finalNote={summary.session.finalNote ?? null}
+              finalDecidedAt={summary.session.finalDecidedAt ?? null}
               isOwner={isOwner}
               onChanged={() => void load()}
             />

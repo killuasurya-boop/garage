@@ -253,7 +253,7 @@ describe("Kasir end-to-end", () => {
   });
 
   it("tutup shift dengan hitungan pas → selisih 0", async () => {
-    const closed: any = await svc.closeCashSession(sessionId, { actualCash: 200_000, denominations: cashCount(200_000) }, kasir());
+    const closed: any = await svc.closeCashSession(sessionId, { actualCash: 200_000, denominations: cashCount(200_000), recountDenominations: cashCount(200_000) }, kasir());
     expect(closed.status).toBe("closed");
     expect(closed.expectedCash).toBe(200_000);
     expect(closed.discrepancy).toBe(0);

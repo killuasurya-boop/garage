@@ -147,7 +147,7 @@ describe("M3a — tool Shift & Kas + Keuangan", () => {
   });
 
   it("verifikasi_shift: shift yang ditutup dengan selisih wajib diakui", async () => {
-    await svc.closeCashSession(sessionId, { actualCash: 195_000, denominations: cashCount(195_000) } as any, kasir());
+    await svc.closeCashSession(sessionId, { actualCash: 195_000, denominations: cashCount(195_000), recountDenominations: cashCount(195_000) } as any, kasir());
     const { preview } = await confirmed("verifikasi_shift", { sessionId, status: "verified", akuiSelisih: true, catatan: "Kurang Rp5.000, kasir ganti" });
     expect(preview.ringkasan.selisih).toBe("Rp-5.000");
   });

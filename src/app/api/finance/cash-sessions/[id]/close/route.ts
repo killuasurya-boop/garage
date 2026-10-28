@@ -5,6 +5,7 @@ import { isValidDenominationKey } from "@/lib/cash-denominations";
 import { createDbBackup } from "@/lib/garage-db-backup";
 import {
   CashSessionAlreadyClosedError,
+  CashSessionCountMismatchError,
   CashSessionForbiddenError,
   CashSessionInputError,
   CashSessionSignOffRequiredError,
@@ -14,6 +15,11 @@ import { rateLimit } from "@/lib/rate-limit";
 import { requireAnyPermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
+
+const denominationsSchema = z.record(
+  z.string().refine(isValidDenominationKey, "Pecahan uang tidak dikenal."),
+  z.number().int().nonnegative().max(100_000),
+);
 
 const closeSchema = z.object({
   actualCash: z.number().int().nonnegative(),
@@ -33,6 +39,9 @@ const closeSchema = z.object({
   floatLeft: z.number().int().nonnegative().max(100_000_000).optional(),
   // Tutup darurat tanpa pecahan (P3): alasan + PIN Manajer wajib (dicek di service).
   countSkippedReason: z.string().trim().max(300).optional(),
+  // B4: hitung ulang #2 (blind) dan #3 bila #1 ≠ #2 — dicek di service.
+  recountDenominations: denominationsSchema.optional(),
+  thirdCountDenominations: denominationsSchema.optional(),
 });
 
 export async function PATCH(
@@ -62,6 +71,9 @@ export async function PATCH(
     void createDbBackup("tutupkasir").catch((err) => console.error("[backup] tutup kasir gagal", err));
     return ok(cashSession);
   } catch (error) {
+    if (error instanceof CashSessionCountMismatchError) {
+      return fail(409, "COUNT_MISMATCH", error.message);
+    }
     if (error instanceof CashSessionInputError) {
       return fail(400, "CASH_SESSION_INVALID_INPUT", error.message);
     }

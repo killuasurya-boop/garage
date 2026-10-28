@@ -178,5 +178,10 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
      FAILED / UNKNOWN (terputus — jangan dianggap berhasil). Tabel `mcp_operations` (migration 0164); token tidak
      pernah disimpan atau masuk audit (hanya hash nonce).
   Key statis `gk_agent_` (`/api/mcp`, REST) belum memakai alur ini — perilakunya tidak berubah.
+- **Aksi R3 butuh kode 2FA (D-01a):** preview R3 berisi `butuhKode2fa: true`. Panggilan konfirmasi wajib
+  `konfirmasi` **dan** `kode2fa` (6 angka yang diketik Owner dari aplikasi authenticator — ChatGPT tidak boleh
+  menebak). Tanpa kode → `KODE_2FA_WAJIB`; kode salah → `INVALID_CODE` (token tetap berlaku sampai 5 menit);
+  kode dipakai ulang → `CODE_REUSED`; argumen berubah → `CONFIRMATION_ARGS_CHANGED`. Kode diverifikasi sebelum
+  token diklaim dan tidak pernah dicatat.
 - Discovery: `/.well-known/oauth-protected-resource[/api/mcp/chatgpt]`,
   `/.well-known/oauth-authorization-server[/api/auth]`, consent di `/oauth/consent`.

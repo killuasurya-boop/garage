@@ -107,7 +107,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
   it("kasir lain tidak boleh menutup shift yang bukan miliknya", async () => {
     const own = await seededKasirSession();
     await expect(
-      svc.closeCashSession(own.id, { actualCash: 100_000, denominations: cashCount(100_000) }, sessionFor(KASIR_LAIN, "Kasir")),
+      svc.closeCashSession(own.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) }, sessionFor(KASIR_LAIN, "Kasir")),
     ).rejects.toBeInstanceOf(svc.CashSessionForbiddenError);
     expect((await sessionRow(own.id)).status).toBe("open");
   });
@@ -117,7 +117,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
     await expect(
       svc.closeCashSession(
         own.id,
-        { actualCash: 100_000, denominations: cashCount(100_000), managerSignOff: true },
+        { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000), managerSignOff: true },
         sessionFor(KASIR, "Kasir"),
       ),
     ).rejects.toBeInstanceOf(svc.CashSessionSignOffRequiredError);
@@ -126,7 +126,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
   it("selisih critical tanpa sign-off ditolak, shift tetap open", async () => {
     const own = await seededKasirSession();
     await expect(
-      svc.closeCashSession(own.id, { actualCash: 0, denominations: cashCount(0) }, sessionFor(KASIR, "Kasir")),
+      svc.closeCashSession(own.id, { actualCash: 0, denominations: cashCount(0), recountDenominations: cashCount(0) }, sessionFor(KASIR, "Kasir")),
     ).rejects.toBeInstanceOf(svc.CashSessionSignOffRequiredError);
     expect((await sessionRow(own.id)).status).toBe("open");
   });
@@ -136,7 +136,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
     await expect(
       svc.closeCashSession(
         own.id,
-        { actualCash: 0, denominations: cashCount(0), managerPin: "000000" },
+        { actualCash: 0, denominations: cashCount(0), recountDenominations: cashCount(0), managerPin: "000000" },
         sessionFor(KASIR, "Kasir"),
       ),
     ).rejects.toThrow(/PIN salah/);
@@ -147,7 +147,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
     const own = await seededKasirSession();
     const closed: any = await svc.closeCashSession(
       own.id,
-      { actualCash: 0, denominations: cashCount(0), managerPin: MANAGER_PIN },
+      { actualCash: 0, denominations: cashCount(0), recountDenominations: cashCount(0), managerPin: MANAGER_PIN },
       sessionFor(KASIR, "Kasir"),
     );
     expect(closed).toMatchObject({
@@ -176,7 +176,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
       .orderBy(desc(t.schema.cashSessions.closedAt))
       .limit(1);
     await expect(
-      svc.closeCashSession(last.id, { actualCash: 0, denominations: cashCount(0) }, sessionFor(KASIR, "Kasir")),
+      svc.closeCashSession(last.id, { actualCash: 0, denominations: cashCount(0), recountDenominations: cashCount(0) }, sessionFor(KASIR, "Kasir")),
     ).rejects.toBeInstanceOf(svc.CashSessionAlreadyClosedError);
   });
 
@@ -184,7 +184,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
     const other = await openSessionFor(KASIR_LAIN);
     const closed: any = await svc.closeCashSession(
       other.id,
-      { actualCash: 999, denominations: { "50000": 1, "20000": 2, "5000": 2 } },
+      { actualCash: 999, denominations: { "50000": 1, "20000": 2, "5000": 2 }, recountDenominations: { "50000": 1, "20000": 2, "5000": 2 } },
       sessionFor(KASIR_LAIN, "Kasir"),
     );
     expect(closed).toMatchObject({ status: "closed", actualCash: 100_000, discrepancy: 0 });
@@ -194,7 +194,7 @@ describe("Tutup shift — hak akses & sign-off", () => {
     const other = await openSessionFor(KASIR_LAIN);
     const closed: any = await svc.closeCashSession(
       other.id,
-      { actualCash: 100_000, denominations: cashCount(100_000) },
+      { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) },
       sessionFor(MANAJER, "Manajer"),
     );
     expect(closed).toMatchObject({ status: "closed", discrepancy: 0, closedBy: MANAJER });

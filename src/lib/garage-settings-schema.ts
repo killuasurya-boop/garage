@@ -496,6 +496,12 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         defaultValue: DEFAULT_APP_SETTINGS.shiftRequireManagerSignoff,
       },
       {
+        key: "shiftRequireDoubleCount",
+        label: "Tutup shift wajib hitung ulang (#2 blind, beda → #3)",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.shiftRequireDoubleCount,
+      },
+      {
         key: "shiftDiscrepancyThreshold",
         label: "Threshold discrepancy",
         type: "number",

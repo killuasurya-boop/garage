@@ -398,3 +398,13 @@ Format wajib per batch (instruksi Owner):
   - peta meja publik tetap tanpa kode (dijaga tes).
 - **Uji:** vitest 1186 lulus; build lulus; browser waiter 390/1366 + POS + dialog pelanggan.
 - **Belum:** "Gabung Meja" staf (menyatukan dua meja terisi), menunggu keputusan Owner.
+
+## 2026-10-28 — B4 closing (bagian READY) + D-01a
+- Keputusan Owner: kerjakan B4; **D-01a = ya** (aksi R3 via chat wajib kode 2FA).
+- **B4** (migration 0167, additive):
+  - Tutup shift: hitung ulang #2 blind di form kosong (`shiftRequireDoubleCount`, default aktif); #1 ≠ #2 per pecahan → hitungan #3 wajib dan dipakai.
+  - Semua hitungan + hitung ulang pemeriksa = `cash_session_counts` append-only (trigger).
+  - Tutup kasir & verifikasi Manajer bukan final. Final Owner (`/api/finance/cash-sessions/[id]/final`, kartu "Final Owner" di laporan shift): ringkasan → hash; keputusan setujui / dengan pengecualian / kembalikan + kode 2FA; data berubah → STALE; dua keputusan bersamaan → satu tercatat.
+  - Shift yang sudah tutup sebelum B4 ditandai `legacy` (tidak menumpuk di antrean Owner).
+- **D-01a**: preview R3 (`butuhKode2fa`), konfirmasi wajib `kode2fa`; kode salah tidak menghanguskan token; replay ditolak.
+- Belum: custody/brankas manajer (D-03), PDF snapshot final ber-hash (B7).

@@ -213,7 +213,21 @@ Scroll direction:
     - T25: `cashLedgerFingerprint` = `scripts/cash-ledger-fingerprint.sql` (test keeps them identical); restore drill in
       `docs/DEPLOY_VPS.md`.
   - Probe `closing-audit-probe.integration.test.ts`: no `it.fails` left. Tests close shifts with
-    `cashCount(amount)` (`test-helpers/cash-count.ts`).
+    `cashCount(amount)` (`test-helpers/cash-count.ts`) for both `denominations` and `recountDenominations`.
+  - B4 (owner, Okt 2026, migration 0167, PRD §10.8/§13):
+    - Double blind count: `closeCashSession` needs `recountDenominations` (#2, empty form, never copied from #1)
+      while setting `shiftRequireDoubleCount` is on (default). #1 ≠ #2 per denomination (`denominationMismatches`)
+      → `CashSessionCountMismatchError` (409 `COUNT_MISMATCH`) until `thirdCountDenominations` (#3) is sent; #3
+      becomes `actual_cash`/`denominations`. Every count (+ manager recount) is an append-only row in
+      `cash_session_counts` (trigger; purge only with the grand-opening GUC).
+    - Cashier close and manager verify are NOT final. `cash_sessions.final_status`: pending → approved |
+      approved_with_exception | returned (→ review `needs_followup`, manager re-verifies); `legacy` = closed before B4.
+      Final = Owner only via `src/lib/cash-final-approval.ts` (`GET/POST /api/finance/cash-sessions/[id]/final`):
+      preview recomputes a summary hash + step-up challenge; decide re-locks the row, recomputes the hash (changed
+      data → `STALE`), verifies TOTP (`step-up-totp.ts`), `final_version` guards concurrent decisions. Any exception
+      (discrepancy, count #3, emergency close, open incidents, self-verified…) forbids plain "approve".
+    - Step-up TOTP (`step-up-totp.ts`, table `step_up_challenges`): challenge bound to user/purpose/subject/summary
+      hash, single-use nonce (hash only), 5 min; used codes stored hashed (no replay). Never log codes or secrets.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 
@@ -229,6 +243,8 @@ Scroll direction:
   `runToolWithConfirmation` (`mcp-confirmation.ts`, table `mcp_operations`, migration 0164): first call = preview +
   single-use token (5 min, only nonce hash stored), confirmed call must repeat the exact args; claim is one atomic
   `UPDATE … WHERE status='pending'`. Never log the token. Tools may define a read-only `preview()`.
+  R3 (D-01a): preview also creates a step-up challenge (subject = operation id, hash = args digest); the confirmed
+  call needs `kode2fa` (Owner TOTP), verified BEFORE the token is claimed.
 
 ## Product Management Rules
 

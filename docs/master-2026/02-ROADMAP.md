@@ -67,7 +67,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Fase 3 — Kontrol kasir/manajer & Owner final (PRD §10.8, §12, §13)
 | ID | Batch | Fitur | Status |
 |---|---|---|---|
-| B4 | Closing state machine | F13, F14, F18, F39, F10, F09/F17 (D-03); pisah submit kasir vs Owner final, TOTP fresh terikat hash+nonce, STALE recount, concurrent lock (AC-F18–F31) | BLOCKED (D-03) — split submit/final & double recount READY |
+| B4 | Closing state machine | F13, F14, F18, F39, F10, F09/F17 (D-03); pisah submit kasir vs Owner final, TOTP fresh terikat hash+nonce, STALE recount, concurrent lock (AC-F18–F31) | **DONE (bagian READY, migration 0167)**: hitung ulang #2 blind + #3, hitungan append-only, final Owner + TOTP terikat hash/nonce, STALE, lock konkuren. Custody/brankas (F09/F17) tetap BLOCKED (D-03) |
 
 ### Fase 4 — Design system & core UX (PRD §23–§25)
 | ID | Batch | Isi | Status |

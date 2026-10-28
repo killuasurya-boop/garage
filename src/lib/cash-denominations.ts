@@ -53,6 +53,23 @@ export function sumDenominations(denominations: Record<string, number>) {
   }, 0);
 }
 
+/**
+ * B4 (PRD §10.8): pecahan yang jumlahnya berbeda antara dua hitungan (kosong = 0).
+ * Kosong = kedua hitungan sama persis per pecahan, bukan hanya totalnya.
+ */
+export function denominationMismatches(
+  first: Record<string, number> | null | undefined,
+  second: Record<string, number> | null | undefined,
+) {
+  const qty = (counts: Record<string, number> | null | undefined, key: string) =>
+    Math.max(0, Math.floor(Number(counts?.[key]) || 0));
+  return CASH_DENOMINATIONS.flatMap((item) => {
+    const a = qty(first, item.key);
+    const b = qty(second, item.key);
+    return a === b ? [] : [{ key: item.key, label: item.label, first: a, second: b }];
+  });
+}
+
 /** Baris pecahan berurutan (besar → kecil) untuk laporan; hanya yang terisi bila onlyFilled. */
 export function denominationRows(denominations: Record<string, number> | null | undefined, onlyFilled = false) {
   const counts = denominations ?? {};

@@ -10,8 +10,17 @@ describe("mcp-confirmation (murni)", () => {
   });
 
   it("memisahkan token konfirmasi dari argumen tool", () => {
-    expect(splitConfirmation({ a: 1, konfirmasi: "id.nonce" })).toEqual({ args: { a: 1 }, token: "id.nonce" });
-    expect(splitConfirmation({ a: 1 })).toEqual({ args: { a: 1 }, token: null });
-    expect(splitConfirmation(null)).toEqual({ args: {}, token: null });
+    expect(splitConfirmation({ a: 1, konfirmasi: "id.nonce" })).toEqual({ args: { a: 1 }, token: "id.nonce", totpCode: null });
+    expect(splitConfirmation({ a: 1 })).toEqual({ args: { a: 1 }, token: null, totpCode: null });
+    expect(splitConfirmation(null)).toEqual({ args: {}, token: null, totpCode: null });
+  });
+
+  it("D-01a: kode2fa dilepas dari argumen tool; angka tetap 6 digit (nol di depan)", () => {
+    expect(splitConfirmation({ a: 1, konfirmasi: "id.nonce", kode2fa: " 012345 " })).toEqual({
+      args: { a: 1 },
+      token: "id.nonce",
+      totpCode: "012345",
+    });
+    expect(splitConfirmation({ konfirmasi: "id.nonce", kode2fa: 12345 }).totpCode).toBe("012345");
   });
 });

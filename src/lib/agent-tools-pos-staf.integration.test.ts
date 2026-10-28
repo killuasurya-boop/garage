@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
 import { seedGarageBasics, setupGarageTestDb, teardownGarageTestDb, type GarageTestDb } from "@/lib/test-helpers/garage-test-db";
+import { enableTestTotp, freshTotpCode } from "@/lib/test-helpers/owner-totp";
 
 // M3b: tool MCP POS/Order + Karyawan. Batal/refund lewat pengajuan resmi, koreksi
 // metode bayar lewat buku kas, perubahan staf hanya sesi Owner (bukan API key).
@@ -43,7 +44,9 @@ async function confirmed(name: string, args: Record<string, unknown>, beforeExec
   expect(preview.status).toBe("PERLU_KONFIRMASI");
   expect(preview.dijalankan).toBe(false);
   await beforeExecute?.(preview);
-  const done = await call(owner(), name, { ...args, konfirmasi: preview.konfirmasi });
+  // D-01a: aksi R3 butuh kode 2FA Owner di panggilan konfirmasi.
+  const kode2fa = preview.butuhKode2fa ? await freshTotpCode(t, OWNER) : undefined;
+  const done = await call(owner(), name, { ...args, konfirmasi: preview.konfirmasi, ...(kode2fa ? { kode2fa } : {}) });
   expect(done.status).toBe("BERHASIL");
   expect(done.receipt.tool).toBe(name);
   return { preview, done };
@@ -84,6 +87,7 @@ beforeAll(async () => {
   orderVoid = await sell(10);
   orderRefund = await sell(20);
   orderFix = await sell(30);
+  await enableTestTotp(t, OWNER);
 }, 90_000);
 
 afterAll(async () => {
@@ -148,8 +152,44 @@ describe("M3b — tool POS/Order + Karyawan", () => {
     await expect(call(agentSession, "ubah_status_peran_staf", { userId: KASIR2, status: "active", alasan: "Coba" })).rejects.toMatchObject({ code: "AGENT_FORBIDDEN" });
 
     const demote = await call(owner(), "ubah_status_peran_staf", { userId: OWNER, peran: "Manajer", alasan: "Uji Owner terakhir" });
-    await expect(call(owner(), "ubah_status_peran_staf", { userId: OWNER, peran: "Manajer", alasan: "Uji Owner terakhir", konfirmasi: demote.konfirmasi })).rejects.toMatchObject({
+    await expect(call(owner(), "ubah_status_peran_staf", { userId: OWNER, peran: "Manajer", alasan: "Uji Owner terakhir", konfirmasi: demote.konfirmasi, kode2fa: await freshTotpCode(t, OWNER) })).rejects.toMatchObject({
       code: "UPDATE_USER_FAILED",
     });
+  });
+});
+
+describe("D-01a — aksi R3 lewat chat wajib kode 2FA Owner", () => {
+  it("tanpa kode / kode salah / argumen berubah ditolak tanpa menghanguskan token; kode benar → berhasil sekali", async () => {
+    const { createOTP } = await import("@better-auth/utils/otp");
+    const args = { userId: KASIR2, status: "active", alasan: "Sudah masuk kerja lagi" };
+    const preview = await call(owner(), "ubah_status_peran_staf", args);
+    expect(preview).toMatchObject({ status: "PERLU_KONFIRMASI", risiko: "R3", butuhKode2fa: true });
+    expect(preview.instruksi).toMatch(/kode2fa/);
+
+    await expect(call(owner(), "ubah_status_peran_staf", { ...args, konfirmasi: preview.konfirmasi })).rejects.toMatchObject({
+      code: "KODE_2FA_WAJIB",
+    });
+    const wrong = await createOTP("bukan-secret-owner-xxxxxxxxxxxxx", { period: 30, digits: 6 }).totp();
+    await expect(
+      call(owner(), "ubah_status_peran_staf", { ...args, konfirmasi: preview.konfirmasi, kode2fa: wrong }),
+    ).rejects.toMatchObject({ code: "INVALID_CODE" });
+    await expect(
+      call(owner(), "ubah_status_peran_staf", {
+        ...args,
+        alasan: "Alasan diganti diam-diam",
+        konfirmasi: preview.konfirmasi,
+        kode2fa: await freshTotpCode(t, OWNER),
+      }),
+    ).rejects.toMatchObject({ code: "CONFIRMATION_ARGS_CHANGED" });
+    const before = await call(owner(), "daftar_staf", { cari: "Kasir Dua" });
+    expect(before.staf[0].status).toBe("suspended");
+
+    const kode2fa = await freshTotpCode(t, OWNER);
+    const done = await call(owner(), "ubah_status_peran_staf", { ...args, konfirmasi: preview.konfirmasi, kode2fa });
+    expect(done.status).toBe("BERHASIL");
+    expect((await call(owner(), "daftar_staf", { cari: "Kasir Dua" })).staf[0].status).toBe("active");
+    await expect(
+      call(owner(), "ubah_status_peran_staf", { ...args, konfirmasi: preview.konfirmasi, kode2fa }),
+    ).rejects.toMatchObject({ code: "CHALLENGE_USED" });
   });
 });

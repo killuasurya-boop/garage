@@ -14,14 +14,26 @@ import { getDb } from "@/db";
 import { mcpOperations } from "@/db/schema";
 
 export const CONFIRM_ARG = "konfirmasi";
+/** D-01a: aksi R3 lewat chat butuh kode TOTP Owner (6 angka) di panggilan konfirmasi. */
+export const TOTP_ARG = "kode2fa";
+export const MCP_R3_PURPOSE = "mcp_r3";
 export const CONFIRMATION_TTL_MS = 5 * 60_000;
 const RESULT_SUMMARY_LIMIT = 4_000;
 
-export function splitConfirmation(rawArgs: unknown): { args: Record<string, unknown>; token: string | null } {
+export function splitConfirmation(rawArgs: unknown): {
+  args: Record<string, unknown>;
+  token: string | null;
+  totpCode: string | null;
+} {
   const args = rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs) ? { ...(rawArgs as Record<string, unknown>) } : {};
   const token = typeof args[CONFIRM_ARG] === "string" ? (args[CONFIRM_ARG] as string) : null;
+  const rawCode = args[TOTP_ARG];
+  // Angka dari chat bisa kehilangan nol di depan (012345 → 12345).
+  const totpCode =
+    typeof rawCode === "number" ? String(Math.trunc(rawCode)).padStart(6, "0") : typeof rawCode === "string" ? rawCode.trim() : null;
   delete args[CONFIRM_ARG];
-  return { args, token };
+  delete args[TOTP_ARG];
+  return { args, token, totpCode };
 }
 
 function stableStringify(value: unknown): string {
@@ -170,7 +182,7 @@ export async function runToolWithConfirmation(input: {
   const { AgentToolError, findAgentTool, runAgentTool } = await import("@/lib/agent-tools");
   const { riskNeedsConfirmation } = await import("@/lib/mcp-tool-registry");
   const { canUseApiAs } = await import("@/lib/role-access");
-  const { args, token } = splitConfirmation(input.rawArgs);
+  const { args, token, totpCode } = splitConfirmation(input.rawArgs);
   const tool = findAgentTool(input.name);
   if (!tool || !riskNeedsConfirmation(tool.risk)) return runAgentTool(input.session, input.name, args, input.ctx);
 
@@ -182,10 +194,20 @@ export async function runToolWithConfirmation(input: {
   if (!parsed.success) return runAgentTool(input.session, input.name, args, input.ctx);
   const parsedArgs = parsed.data as Record<string, unknown>;
   const userId = input.session.user.id;
+  const needsTotp = tool.risk === "R3";
 
   if (!token) {
     const ringkasan = tool.preview ? await tool.preview(input.session, parsedArgs) : {};
     const op = await createPendingOperation({ userId, oauthClientId: input.oauthClientId, tool: tool.name, risk: tool.risk, parsedArgs });
+    if (needsTotp) {
+      // D-01a: tantangan 2FA terikat operasi + sidik argumen; nonce = nonce token konfirmasi.
+      const { createStepUpChallenge } = await import("@/lib/step-up-totp");
+      await createStepUpChallenge(
+        { userId, purpose: MCP_R3_PURPOSE, subjectId: op.operationId, summaryHash: argsDigest(tool.name, parsedArgs) },
+        getDb(),
+        op.token.split(".")[1],
+      );
+    }
     return {
       status: "PERLU_KONFIRMASI",
       dijalankan: false,
@@ -197,9 +219,43 @@ export async function runToolWithConfirmation(input: {
       argumen: parsedArgs,
       konfirmasi: op.token,
       berlakuSampai: op.expiresAt.toISOString(),
-      instruksi:
-        "BELUM dijalankan. Tampilkan ringkasan ini ke Owner dan minta persetujuan eksplisit. Bila Owner setuju, panggil tool yang sama dengan argumen yang SAMA persis ditambah `konfirmasi` di atas (berlaku 5 menit, sekali pakai). Jangan menyatakan aksi berhasil sebelum ada receipt.",
+      ...(needsTotp ? { butuhKode2fa: true } : {}),
+      instruksi: needsTotp
+        ? "BELUM dijalankan. Aksi KRITIS (R3): tampilkan ringkasan ini ke Owner, minta persetujuan eksplisit DAN minta Owner mengetik kode 6 angka dari aplikasi authenticator-nya. Bila Owner setuju, panggil tool yang sama dengan argumen yang SAMA persis ditambah `konfirmasi` di atas dan `kode2fa` (6 angka yang diketik Owner). Jangan pernah menebak atau mengarang kode. Berlaku 5 menit, sekali pakai. Jangan menyatakan aksi berhasil sebelum ada receipt."
+        : "BELUM dijalankan. Tampilkan ringkasan ini ke Owner dan minta persetujuan eksplisit. Bila Owner setuju, panggil tool yang sama dengan argumen yang SAMA persis ditambah `konfirmasi` di atas (berlaku 5 menit, sekali pakai). Jangan menyatakan aksi berhasil sebelum ada receipt.",
     };
+  }
+
+  if (needsTotp) {
+    // D-01a: kode 2FA diverifikasi SEBELUM token diklaim — kode salah tidak menghanguskan token.
+    if (!totpCode || !/^\d{6}$/.test(totpCode)) {
+      throw new AgentToolError(
+        "KODE_2FA_WAJIB",
+        "Aksi kritis (R3) butuh kode 2FA Owner: minta Owner mengetik 6 angka dari aplikasi authenticator, lalu kirim sebagai `kode2fa` bersama `konfirmasi`.",
+        409,
+      );
+    }
+    const { StepUpError, consumeStepUpChallenge } = await import("@/lib/step-up-totp");
+    const [operationId, nonce] = token.split(".");
+    try {
+      await getDb().transaction((tx) =>
+        consumeStepUpChallenge(tx, {
+          nonce: nonce ?? "",
+          userId,
+          purpose: MCP_R3_PURPOSE,
+          subjectId: operationId ?? "",
+          summaryHash: argsDigest(tool.name, parsedArgs),
+          code: totpCode,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof StepUpError) {
+        // STALE di sini = argumen berubah dari yang di-preview.
+        const code = error.code === "STALE" ? "CONFIRMATION_ARGS_CHANGED" : error.code;
+        throw new AgentToolError(code, error.message, error.status);
+      }
+      throw error;
+    }
   }
 
   const claim = await claimOperation({ token, userId, tool: tool.name, parsedArgs });

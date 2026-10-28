@@ -69,7 +69,7 @@ describe("laporan pertanggungjawaban kasir", () => {
     await acc.createShiftIncident({ category: "Gangguan POS / printer", description: "Kertas habis 5 menit" }, as("Kasir"));
     await svc.closeCashSession(
       sessionId,
-      { actualCash: 125_000, denominations: { "100000": 1, "20000": 1, "5000": 1 }, closingNote: "Aman", floatLeft: 100_000 },
+      { actualCash: 125_000, denominations: { "100000": 1, "20000": 1, "5000": 1 }, recountDenominations: { "100000": 1, "20000": 1, "5000": 1 }, closingNote: "Aman", floatLeft: 100_000 },
       as("Kasir"),
     );
 

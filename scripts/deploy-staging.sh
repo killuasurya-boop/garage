@@ -45,7 +45,7 @@ echo ">> staging ← $(git rev-parse --abbrev-ref HEAD) @ $SHA: $(git log -1 --f
 
 remote "mkdir -p $STAGING_DIR/scripts"
 scp "${SSH_OPTS[@]}" docker-compose.staging.yml "$VPS_USER@$VPS_HOST:$STAGING_DIR/"
-for f in staging-setup.sh staging-refresh.sh staging-anonymize.sql; do
+for f in staging-setup.sh staging-refresh.sh staging-anonymize.sql staging-network-guard.sh; do
   # Buang CR (checkout Windows) — dijalankan bash/psql Linux.
   tr -d '\r' < "scripts/$f" | remote "cat > $STAGING_DIR/scripts/$f"
 done
@@ -69,16 +69,25 @@ if [ "$REFRESH" = 1 ]; then
   echo ">> isi ulang data staging (salinan produksi disamarkan)"
   remote "bash $STAGING_DIR/scripts/staging-refresh.sh"
 else
-  remote "set -e; cd $STAGING_DIR; $COMPOSE up -d db; $COMPOSE run --rm migrate; $COMPOSE up -d --no-build app"
+  # Container lama bernama "app"/"db" (sebelum perbaikan insiden 28 Okt) dihapus dulu.
+  remote "cd $STAGING_DIR; $COMPOSE down --remove-orphans >/dev/null 2>&1 || true"
+  remote "set -e; cd $STAGING_DIR; $COMPOSE up -d staging-db; $COMPOSE run --rm staging-migrate; $COMPOSE up -d --no-build staging-app"
+fi
+
+# Pengaman insiden 28 Okt: nama "app"/"db" produksi tidak boleh ikut dijawab staging.
+if ! remote "bash $STAGING_DIR/scripts/staging-network-guard.sh"; then
+  remote "cd $STAGING_DIR && $COMPOSE stop staging-app" || true
+  echo "Staging DIMATIKAN demi keamanan produksi — nama service/alias bentrok."
+  exit 1
 fi
 
 echo ">> cek kesehatan staging (dari dalam container)"
 for _ in $(seq 1 20); do
-  if remote "cd $STAGING_DIR && $COMPOSE exec -T app node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\" </dev/null" 2>/dev/null; then
+  if remote "cd $STAGING_DIR && $COMPOSE exec -T staging-app node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\" </dev/null" 2>/dev/null; then
     echo "Staging sehat · $SHA · https://staging.garagecoffee.id (password akses: $STAGING_DIR/STAGING_ACCESS.txt di VPS)"
     exit 0
   fi
   sleep 6
 done
-echo "Staging belum sehat — cek: ssh root@$VPS_HOST 'cd $STAGING_DIR && $COMPOSE logs --tail 80 app'"
+echo "Staging belum sehat — cek: ssh root@$VPS_HOST 'cd $STAGING_DIR && $COMPOSE logs --tail 80 staging-app'"
 exit 1

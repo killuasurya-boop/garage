@@ -396,6 +396,9 @@ Scroll direction:
   `garage_staging`, app joins `garage_default` as `garage-staging-app` for the prod Caddy (`caddy-sites/staging.caddy`,
   basic auth). Data = prod dump anonymized by `scripts/staging-anonymize.sql` (refuses non-staging DB names); outbound
   messaging/AI keys off. Deploy any branch with `scripts/deploy-staging.sh`; prod stays `scripts/deploy-manual.sh`.
+  Staging service names MUST be `staging-*` (never `app`/`db`): a same-named service on `garage_default` made prod
+  Caddy load-balance into staging (incident 28 Okt 2026, random "Silakan login"). `scripts/staging-network-guard.sh`
+  stops staging when `app`/`db` resolve to more than one container.
 
 ## Verification
 

@@ -25,6 +25,11 @@ export type AgentTool = {
    * Hanya membaca — tidak boleh mengubah data.
    */
   preview?: (session: GarageSession, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  /**
+   * Hanya ada di pintu masuk yang punya alur konfirmasi (MCP ChatGPT) dan hanya
+   * jalan setelah Owner mengonfirmasi (`ctx.confirmedOperationId`).
+   */
+  confirmOnly?: boolean;
 };
 
 export const rupiah = (value: number) => `Rp${Math.round(value).toLocaleString("id-ID")}`;
@@ -36,6 +41,10 @@ export type AgentToolContext = {
   internalOrigin: string;
   /** Tool yang tidak tersedia di pintu masuk ini (mis. garage_api di MCP ChatGPT). */
   hiddenTools?: ReadonlySet<string>;
+  /** Pintu masuk ini punya alur preview → konfirmasi (MCP ChatGPT). */
+  confirmFlow?: boolean;
+  /** Diisi runToolWithConfirmation setelah token konfirmasi Owner diklaim. */
+  confirmedOperationId?: string;
 };
 
 export class AgentToolError extends Error {

@@ -166,6 +166,8 @@ export type AppSettings = {
   businessDayEffectiveDate: string;
   /** Kill switch MCP ChatGPT tanpa restart: true = semua panggilan /api/mcp/chatgpt ditolak. */
   mcpChatgptPaused: boolean;
+  /** false = ChatGPT hanya boleh membaca: semua tool yang mengubah data (R1–R3) ditolak. */
+  mcpChatgptWriteEnabled: boolean;
   // Attendance control
   attendanceEnabled: boolean;
   attendanceTerminalMode: "pin_only" | "pin_gps" | "pin_gps_selfie";
@@ -318,6 +320,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   businessDayCutoffHour: 4,
   businessDayEffectiveDate: "",
   mcpChatgptPaused: false,
+  mcpChatgptWriteEnabled: true,
   // Attendance control
   attendanceEnabled: true,
   attendanceTerminalMode: "pin_gps",

@@ -166,8 +166,24 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
 - **Kill switch tanpa restart:** Pengaturan → Keamanan → *Jeda koneksi ChatGPT (MCP)* → semua panggilan 503.
 - Setiap `tools/call` dicatat di Audit **sebelum** dijalankan (`device = mcp:chatgpt`, `metadata.source = chatgpt`);
   bila audit gagal, tool tidak dijalankan.
-- Tool sama dengan MCP agent (`/api/mcp`), kecuali `garage_api` (disembunyikan; diganti tool bisnis eksplisit
-  di batch M3).
+- Tool sama dengan MCP agent (`/api/mcp`), **ditambah tulis universal** (Owner, Okt 2026: "semua hal di Garage boleh
+  saya ubah lewat ChatGPT"):
+  - `garage_api` (GET) membaca endpoint mana pun; `katalog_endpoint` mendaftar endpoint & method (hasil generate
+    `scripts/generate-api-catalog.ts` → `src/lib/api-route-catalog.generated.ts`, tes menjaga sinkron).
+  - `ubah_data_garage` (R2, `confirmOnly`): POST/PUT/PATCH/DELETE ke `/api/*` atas nama Owner, **selalu** lewat
+    preview → konfirmasi. Hanya ada di pintu ChatGPT; REST agent & `/api/mcp` (key statis) tidak melihatnya.
+  - Token OAuth tidak pernah diteruskan: setiap panggilan memakai API key agent **sementara** (scope owner untuk
+    ubah, readonly untuk baca/preview; 2 menit; label `ChatGPT·op …`) yang langsung dicabut
+    (`mcp-delegated-api.ts`), jadi audit per request, path terlarang agent, `requireHumanSession`, setting
+    terlindungi, Zod & aturan bisnis route tetap berlaku. Key ini tidak tampil di Pengaturan → Integrasi.
+  - Ditolak (`ubahDataBlockReason`): auth/API key/akun & keamanan pengguna, PIN/password, tutup/buka buku
+    (pakai `tutup_buku_harian`), sertifikasi saldo awal, terbitkan konten (pakai `terbitkan_konten`), aksi
+    massal/impor, endpoint sisi pelanggan/member, backup, OAuth.
+- **Sakelar Owner:** Pengaturan → Keamanan → *ChatGPT boleh mengubah data* (`mcpChatgptWriteEnabled`, default
+  hidup). Mati = semua tool yang mengubah data ditolak `MCP_WRITE_DISABLED`; membaca tetap jalan. Tidak bisa
+  diubah lewat API key/ChatGPT (prefix `mcpChatgpt` terlindungi).
+- Di ChatGPT, tool yang mengubah data hanya dipakai bila connector dipasang lewat **Developer mode**; setelah
+  server di-update, refresh connector supaya daftar tool baru terbaca.
 - **Aksi R2/R3 = preview → konfirmasi → eksekusi → receipt** (batch M2, PRD §07.4–07.5):
   1. Panggilan pertama tanpa `konfirmasi` **tidak dijalankan**; server membalas `status: PERLU_KONFIRMASI`,
      ringkasan dampak (mis. nominal, sumber dana), `operasiId` dan token `konfirmasi` (sekali pakai, 5 menit).

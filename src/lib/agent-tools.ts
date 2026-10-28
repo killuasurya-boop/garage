@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AgentToolError, dateKey, range, rupiah, type AgentTool, type AgentToolContext } from "@/lib/agent-tool-core";
 import { kasTools } from "@/lib/agent-tools-kas";
 import { posStaffTools } from "@/lib/agent-tools-pos-staf";
+import { ubahDataTools } from "@/lib/agent-tools-ubah-data";
 import { productTools } from "@/lib/agent-tools-produk";
 import { warehouseTools } from "@/lib/agent-tools-gudang";
 import { memberTableEventTools } from "@/lib/agent-tools-member-meja-event";
@@ -294,7 +295,7 @@ const tools: AgentTool[] = [
     permission: "dashboard:read",
     input: z.object({}),
     async run(session, _args, ctx) {
-      return buildCapabilities(listAgentTools(session).filter((tool) => !ctx.hiddenTools?.has(tool.name)));
+      return buildCapabilities(listAgentTools(session, { includeConfirmOnly: Boolean(ctx.confirmFlow) }).filter((tool) => !ctx.hiddenTools?.has(tool.name)));
     },
   },
   {
@@ -328,6 +329,8 @@ const tools: AgentTool[] = [
   ...recipeTools,
   // M3g: Konten & Marketing + Notifikasi staf (internal).
   ...marketingTools,
+  // Tulis universal (Owner via ChatGPT, selalu lewat konfirmasi).
+  ...ubahDataTools,
   {
     name: "garage_api",
     title: "Baca endpoint Garage OS",
@@ -350,6 +353,17 @@ const tools: AgentTool[] = [
       if (isAgentForbiddenPath(path) || path.startsWith("/api/agent") || path === "/api/mcp") {
         throw new AgentToolError("AGENT_FORBIDDEN_PATH", "Endpoint ini tidak boleh dipanggil lewat agent.", 403);
       }
+      if (ctx.confirmFlow && !ctx.authorization) {
+        // MCP ChatGPT: token OAuth tidak diteruskan; baca lewat key sementara BACA-SAJA atas nama Owner.
+        const { callApiAsOwner } = await import("@/lib/mcp-delegated-api");
+        const { randomUUID } = await import("node:crypto");
+        const response = await callApiAsOwner(
+          session,
+          { method: "GET", path, query: args.query as Record<string, string> | undefined },
+          { operationId: randomUUID(), internalOrigin: ctx.internalOrigin, scope: "readonly" },
+        );
+        return { status: response.status, json: response.json ?? undefined, text: response.text ?? undefined };
+      }
       const url = new URL(path, ctx.internalOrigin);
       for (const [key, value] of Object.entries((args.query as Record<string, string> | undefined) ?? {})) url.searchParams.set(key, value);
       const response = await fetch(url, { method: "GET", headers: { authorization: ctx.authorization }, cache: "no-store" });
@@ -364,8 +378,9 @@ const tools: AgentTool[] = [
   },
 ];
 
-export function listAgentTools(session?: GarageSession) {
+export function listAgentTools(session?: GarageSession, options: { includeConfirmOnly?: boolean } = {}) {
   return tools
+    .filter((tool) => options.includeConfirmOnly || !tool.confirmOnly)
     .filter((tool) => !session || (canUseApiAs(session.profile, tool.permission) && !(tool.write && session.profile.agentKey?.scope === "readonly")))
     .map((tool) => ({
       name: tool.name,
@@ -386,6 +401,7 @@ export function findAgentTool(name: string) {
 export async function runAgentTool(session: GarageSession, name: string, rawArgs: unknown, ctx: AgentToolContext) {
   const tool = findAgentTool(name);
   if (!tool) throw new AgentToolError("UNKNOWN_TOOL", `Tool "${name}" tidak dikenal.`, 404);
+  if (tool.confirmOnly && !ctx.confirmFlow) throw new AgentToolError("UNKNOWN_TOOL", `Tool "${name}" tidak dikenal.`, 404);
   if (tool.write && session.profile.agentKey?.scope === "readonly") {
     throw new AgentToolError("AGENT_READONLY", "API key baca-saja tidak boleh menjalankan tool yang mengubah data.", 403);
   }

@@ -441,6 +441,13 @@ export const SETTINGS_CATEGORIES: SettingCategory[] = [
         defaultValue: DEFAULT_APP_SETTINGS.mcpChatgptPaused,
         hint: "Kill switch: semua perintah dari ChatGPT langsung ditolak tanpa restart. Matikan lagi untuk melanjutkan.",
       },
+      {
+        key: "mcpChatgptWriteEnabled",
+        label: "ChatGPT boleh mengubah data",
+        type: "boolean",
+        defaultValue: DEFAULT_APP_SETTINGS.mcpChatgptWriteEnabled,
+        hint: "Mati = ChatGPT hanya membaca & melapor. Hidup = Owner bisa mengubah data lewat chat (selalu preview + konfirmasi; aksi kritis butuh kode 2FA).",
+      },
     ],
   },
   {

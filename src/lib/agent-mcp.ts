@@ -69,6 +69,9 @@ export async function handleMcpMessage(
           options.confirmRiskyTools
             ? "Tool berlabel R2/R3 TIDAK langsung dijalankan: panggilan pertama membalas preview + token `konfirmasi`. Tunjukkan ringkasannya ke Owner, minta persetujuan eksplisit, lalu panggil ulang dengan argumen sama + `konfirmasi`. Klaim berhasil hanya bila ada receipt; cek dengan status_operasi bila ragu."
             : "Setiap tool diberi label risiko [R0 Baca … R3 Kritis]; jelaskan dampak aksi R2/R3 kepada Owner sebelum menjalankannya.",
+          options.confirmRiskyTools
+            ? "Owner boleh mengubah data apa pun yang bisa diubah di layar: pakai tool bisnis khusus bila ada; selain itu cari endpoint dengan katalog_endpoint, baca data sekarang dengan garage_api (GET), lalu ubah_data_garage (selalu preview + konfirmasi)."
+            : "",
           hidden.has("garage_api") ? "" : "Untuk MEMBACA data yang belum ada tool-nya pakai garage_api (GET saja); mengubah data wajib lewat tool bisnis.",
           "Laporan file: buat_laporan (base64) lalu kirim sebagai dokumen.",
         ]
@@ -80,7 +83,7 @@ export async function handleMcpMessage(
       return rpcResult(id, {});
     case "tools/list":
       return rpcResult(id, {
-        tools: listAgentTools(session).filter((tool) => !hidden.has(tool.name)).map((tool) => ({
+        tools: listAgentTools(session, { includeConfirmOnly: options.confirmRiskyTools }).filter((tool) => !hidden.has(tool.name)).map((tool) => ({
           name: tool.name,
           title: tool.title,
           // Risiko & domain di depan deskripsi supaya model memahami bobot aksi (PRD §07.2).

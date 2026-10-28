@@ -198,7 +198,7 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     expect(res.headers.get("www-authenticate") ?? "").toContain("resource_metadata");
   });
 
-  it("Owner (2FA aktif) menyelesaikan OAuth lalu bisa memanggil tool; garage_api tersembunyi", async () => {
+  it("Owner (2FA aktif) menyelesaikan OAuth lalu bisa memanggil tool; tulis universal tersedia", async () => {
     ownerId = await signUpStaff("owner-mcp@garage.id", "Owner");
     ownerToken = await oauthRoundTrip("owner-mcp@garage.id");
     // 2FA diaktifkan setelah login (login dengan 2FA butuh TOTP; di sini yang diuji gate gateway).
@@ -210,10 +210,10 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     const list = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 2, method: "tools/list" })).json()) as any;
     const names = list.result.tools.map((tool: { name: string }) => tool.name);
     expect(names).toContain("daftar_menu");
-    expect(names).not.toContain("garage_api");
-
-    const hidden = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "garage_api", arguments: {} } })).json()) as any;
-    expect(hidden.error?.code).toBe(-32602);
+    // Tulis universal (Owner via ChatGPT): baca lewat garage_api, ubah lewat ubah_data_garage (konfirmasi).
+    expect(names).toEqual(expect.arrayContaining(["garage_api", "katalog_endpoint", "ubah_data_garage"]));
+    const ubah = list.result.tools.find((tool: any) => tool.name === "ubah_data_garage");
+    expect(ubah.inputSchema.properties).toHaveProperty("konfirmasi");
 
     // Registry (M1): label risiko di tools/list; peta kemampuan tidak menawarkan tool tersembunyi.
     const catat = list.result.tools.find((tool: any) => tool.name === "catat_pengeluaran");
@@ -224,9 +224,9 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     const capsJson = JSON.parse(caps.result.content[0].text);
     const capTools = capsJson.domains.flatMap((domain: any) => domain.tools.map((tool: any) => tool.name));
     expect(capTools).toContain("catat_pengeluaran");
-    expect(capTools).not.toContain("garage_api");
+    expect(capTools).toContain("ubah_data_garage");
     const init2 = (await (await mcp(ownerToken, { jsonrpc: "2.0", id: 32, method: "initialize", params: {} })).json()) as any;
-    expect(init2.result.instructions).not.toContain("garage_api");
+    expect(init2.result.instructions).toContain("ubah_data_garage");
   });
 
   it("setiap tools/call tercatat di Audit dengan source=chatgpt sebelum dijalankan", async () => {
@@ -253,6 +253,20 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     expect(res.status).toBe(503);
     await t.getDb().delete(appSettings).where(eq(appSettings.key, "mcpChatgptPaused"));
     expect((await mcp(ownerToken, { jsonrpc: "2.0", id: 7, method: "tools/list" })).status).toBe(200);
+  });
+
+  it("sakelar mcpChatgptWriteEnabled=false → tool ubah ditolak, tool baca tetap jalan", async () => {
+    const { appSettings } = t.schema;
+    await t.getDb().insert(appSettings).values({ key: "mcpChatgptWriteEnabled", valueJson: false, outletId: null } as any);
+    const tool = async (id: number, name: string, a: unknown) =>
+      (await (await mcp(ownerToken, { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: a } })).json()) as any;
+    const write = await tool(8, "catat_pengeluaran", { kategori: "Operasional", deskripsi: "x", nominal: 1_000, metodeBayar: "Cash" });
+    expect(write.result.isError).toBe(true);
+    expect(write.result.content[0].text).toContain("MCP_WRITE_DISABLED");
+    const ubah = await tool(9, "ubah_data_garage", { method: "PATCH", path: "/api/settings", body: {}, alasan: "coba" });
+    expect(ubah.result.content[0].text).toContain("MCP_WRITE_DISABLED");
+    expect((await tool(10, "daftar_menu", {})).result.isError).toBe(false);
+    await t.getDb().delete(appSettings).where(eq(appSettings.key, "mcpChatgptWriteEnabled"));
   });
 
   describe("M2 — R2/R3: preview → konfirmasi → eksekusi → receipt", () => {

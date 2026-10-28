@@ -261,7 +261,7 @@ export async function runToolWithConfirmation(input: {
   const claim = await claimOperation({ token, userId, tool: tool.name, parsedArgs });
   if (!claim.ok) throw new AgentToolError(claim.code, claim.message, 409);
   try {
-    const hasil = await runAgentTool(input.session, input.name, parsedArgs, input.ctx);
+    const hasil = await runAgentTool(input.session, input.name, parsedArgs, { ...input.ctx, confirmedOperationId: claim.operationId });
     const executedAt = await completeOperation(claim.operationId, { ok: true, result: hasil });
     return {
       status: "BERHASIL",

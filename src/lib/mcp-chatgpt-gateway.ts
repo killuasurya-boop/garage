@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { outlets, staffProfiles, user } from "@/db/schema";
 import { handleMcpMessage, PROTOCOL_VERSION, rpcError, type JsonRpcRequest } from "@/lib/agent-mcp";
-import { agentInternalOrigin } from "@/lib/agent-tools";
+import { AgentToolError, agentInternalOrigin, findAgentTool } from "@/lib/agent-tools";
 import { loadSettingsByKeys } from "@/lib/garage-settings-service";
 import type { Role } from "@/lib/garage-data";
 import { mcpChatgptAccess } from "@/lib/mcp-chatgpt-access";
@@ -16,9 +16,10 @@ import { auditMcpToolCall } from "@/lib/mcp-tool-audit";
 import { hitRateLimit } from "@/lib/rate-limit-db";
 import type { GarageSession } from "@/lib/server-auth";
 
-// garage_api memanggil /api lain dengan header Authorization; token OAuth belum
-// diterima rute lain (batch M3 menggantinya dengan tool bisnis eksplisit).
-const HIDDEN_TOOLS: ReadonlySet<string> = new Set(["garage_api"]);
+// Token OAuth tidak pernah diteruskan ke route lain: garage_api (GET) dan
+// ubah_data_garage memanggil /api lewat key sementara (mcp-delegated-api.ts),
+// jadi tidak ada tool yang perlu disembunyikan di pintu ini.
+const HIDDEN_TOOLS: ReadonlySet<string> = new Set();
 const DEVICE = "mcp:chatgpt";
 /** Per akun Owner per menit — satu percakapan biasanya < 10 panggilan tool. */
 const CHATGPT_RATE_LIMIT_PER_MINUTE = 60;
@@ -88,7 +89,8 @@ async function loadOwnerSession(userId: string): Promise<{ session: GarageSessio
 }
 
 export async function handleMcpChatgptRequest(request: Request, claims: Claims): Promise<Response> {
-  const settings = await loadSettingsByKeys(["mcpChatgptPaused"]);
+  const settings = await loadSettingsByKeys(["mcpChatgptPaused", "mcpChatgptWriteEnabled"]);
+  const writeEnabled = settings["mcpChatgptWriteEnabled"] !== false;
   if (settings["mcpChatgptPaused"]) {
     return json(rpcError(null, -32002, "MCP_PAUSED: Koneksi ChatGPT sedang dijeda Owner (Pengaturan → Keamanan)."), 503);
   }
@@ -123,7 +125,7 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
       metadata: { source: "chatgpt", oauthClientId: clientId, userId: session.user.id },
     });
 
-  const ctx = { authorization: "", internalOrigin: agentInternalOrigin() };
+  const ctx = { authorization: "", internalOrigin: agentInternalOrigin(), confirmFlow: true };
   const messages = Array.isArray(payload) ? payload : [payload];
   const responses = [];
   for (const message of messages) {
@@ -138,7 +140,17 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
         beforeToolCall,
         // D-01: aksi R2/R3 = preview → konfirmasi Owner di chat → eksekusi → receipt.
         confirmRiskyTools: true,
-        callTool: (name, args, toolCtx) => runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId }),
+        callTool: (name, args, toolCtx) => {
+          // Sakelar Owner "ChatGPT boleh mengubah data" (Pengaturan → Keamanan).
+          if (!writeEnabled && findAgentTool(name)?.write) {
+            throw new AgentToolError(
+              "MCP_WRITE_DISABLED",
+              "Mengubah data lewat ChatGPT sedang dimatikan Owner (Pengaturan → Keamanan → ChatGPT boleh mengubah data). Hanya bisa membaca.",
+              403,
+            );
+          }
+          return runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId });
+        },
       }),
     );
   }

@@ -10,6 +10,15 @@ import {
   type AppSettings,
   type StaffFeeRates,
 } from "@/lib/garage-app-settings-types";
+import {
+  assertBusinessDaySettingsChange,
+  businessDateKey,
+  businessDayRange,
+  businessDayStart,
+  touchesBusinessDaySettings,
+  type BusinessDayPolicy,
+} from "@/lib/business-date";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import { notifyStaff } from "@/lib/staff-notifications";
@@ -1159,7 +1168,15 @@ function getJakartaDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function getJakartaTodayRange(date = new Date()) {
+/**
+ * Rentang "hari ini". Dengan `policy` (angka uang: dashboard/keuangan, B1b) =
+ * hari operasional dengan cut-off; tanpa `policy` = hari kalender WIB.
+ */
+function getJakartaTodayRange(date = new Date(), policy?: BusinessDayPolicy) {
+  if (policy) {
+    const key = businessDateKey(date, policy);
+    return businessDayRange(key, key, policy);
+  }
   const start = new Date(`${getJakartaDateKey(date)}T00:00:00${jakartaOffset}`);
 
   return {
@@ -1168,8 +1185,8 @@ function getJakartaTodayRange(date = new Date()) {
   };
 }
 
-function getJakartaMonthRange(date = new Date()) {
-  const [yearText, monthText] = getJakartaDateKey(date).split("-");
+function getJakartaMonthRange(date = new Date(), policy?: BusinessDayPolicy) {
+  const [yearText, monthText] = (policy ? businessDateKey(date, policy) : getJakartaDateKey(date)).split("-");
   const year = Number(yearText);
   const month = Number(monthText);
   const nextYear = month === 12 ? year + 1 : year;
@@ -1177,6 +1194,12 @@ function getJakartaMonthRange(date = new Date()) {
   const monthLabel = String(month).padStart(2, "0");
   const nextMonthLabel = String(nextMonth).padStart(2, "0");
 
+  if (policy) {
+    return {
+      start: businessDayStart(`${year}-${monthLabel}-01`, policy),
+      end: businessDayStart(`${nextYear}-${nextMonthLabel}-01`, policy),
+    };
+  }
   return {
     start: new Date(`${year}-${monthLabel}-01T00:00:00${jakartaOffset}`),
     end: new Date(`${nextYear}-${nextMonthLabel}-01T00:00:00${jakartaOffset}`),
@@ -1324,7 +1347,8 @@ export function sessionPayload(garage: GarageSession) {
 
 export async function getDashboardData() {
   const db = getDb();
-  const { start: todayStart, end: todayEnd } = getJakartaTodayRange();
+  const businessDay = await loadBusinessDayPolicy(db);
+  const { start: todayStart, end: todayEnd } = getJakartaTodayRange(new Date(), businessDay);
 
   const [todayPaymentAgg] = await db
     .select({
@@ -3409,8 +3433,9 @@ export async function getFinanceSummary(params?: { outletId?: string; openedBy?:
 
 export async function getFinanceOverview() {
   const db = getDb();
-  const { start: todayStart, end: todayEnd } = getJakartaTodayRange();
-  const { start: monthStart, end: monthEnd } = getJakartaMonthRange();
+  const businessDay = await loadBusinessDayPolicy(db);
+  const { start: todayStart, end: todayEnd } = getJakartaTodayRange(new Date(), businessDay);
+  const { start: monthStart, end: monthEnd } = getJakartaMonthRange(new Date(), businessDay);
 
   // Today metrics from paid orders.
   const [todayAgg] = await db
@@ -4205,7 +4230,8 @@ export async function getMenuBomCoverage() {
 
 export async function getFinanceClosingReadiness(outletId?: string) {
   const db = getDb();
-  const { start: todayStart, end: todayEnd } = getJakartaTodayRange();
+  const businessDay = await loadBusinessDayPolicy(db);
+  const { start: todayStart, end: todayEnd } = getJakartaTodayRange(new Date(), businessDay);
 
   const sessionFilters = [
     gte(cashSessions.openedAt, todayStart),
@@ -14390,6 +14416,19 @@ export async function updateAppSettings(
     throw new GarageOsThemeSaveError();
   }
 
+  // Tanggal operasional (B1b): Owner, global, tanggal efektif ≥ hari ini, terkunci setelah berlaku.
+  const businessDayTouched = touchesBusinessDaySettings(patch);
+  if (businessDayTouched) {
+    const globalBefore = outletId ? await getAppSettings(null) : before;
+    assertBusinessDaySettingsChange({
+      before: globalBefore,
+      patch,
+      outletId,
+      isOwner: garage.profile.role === "Owner",
+      now,
+    });
+  }
+
   await db.transaction(async (tx) => {
     for (const [key, value] of Object.entries(patch)) {
       if (!(key in DEFAULT_APP_SETTINGS)) continue;
@@ -14425,6 +14464,12 @@ export async function updateAppSettings(
       after: Object.fromEntries(changedKeys.map((key) => [key, patch[key]])),
     },
   });
+
+  if (businessDayTouched) {
+    // Snapshot laba-rugi otomatis dihitung ulang dengan kebijakan baru (locked tetap).
+    const { invalidateAutoSnapshots } = await import("@/lib/finance-control");
+    await invalidateAutoSnapshots();
+  }
 
   return getAppSettings(outletId);
 }

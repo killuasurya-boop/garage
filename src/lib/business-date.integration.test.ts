@@ -102,3 +102,103 @@ describe("tanggal operasional — laporan penjualan", () => {
     expect((day5.transactions as any[]).find((row: any) => row.orderNo === "BD-NIGHT")?.date).toBe("2026-11-05");
   });
 });
+
+// ─── B1b: laba-rugi, ekspresi SQL, dan validasi pengaturan ───────────────────
+
+describe("tanggal operasional — laba-rugi harian (finance-control)", () => {
+  it("default kalender vs aktif: net sales berpindah ke hari operasional, total tetap", async () => {
+    const { loadDayRaws } = await import("@/lib/finance-control");
+    const { normalizeBusinessDayPolicy, CALENDAR_POLICY } = await import("@/lib/business-date");
+    const calendar = await loadDayRaws("2026-11-05", "2026-11-06", CALENDAR_POLICY);
+    expect(calendar.get("2026-11-05")?.netSales).toBe(50_000);
+    expect(calendar.get("2026-11-06")?.netSales).toBe(50_000);
+    const policy = normalizeBusinessDayPolicy({ cutoffHour: 4, effectiveFrom: "2026-11-01" });
+    const active = await loadDayRaws("2026-11-05", "2026-11-06", policy);
+    expect(active.get("2026-11-05")?.netSales).toBe(80_000);
+    expect(active.get("2026-11-06")?.netSales).toBe(20_000);
+  });
+
+  it("tanpa argumen policy: memuat pengaturan global", async () => {
+    const { loadDayRaws } = await import("@/lib/finance-control");
+    await setPolicy("2026-11-01");
+    expect((await loadDayRaws("2026-11-05", "2026-11-05")).get("2026-11-05")?.netSales).toBe(80_000);
+    await setPolicy(null);
+    expect((await loadDayRaws("2026-11-05", "2026-11-05")).get("2026-11-05")?.netSales).toBe(50_000);
+  });
+
+  it("businessDaySql = businessDateKey untuk tiap jam di sekitar hari transisi", async () => {
+    const { like } = await import("drizzle-orm");
+    const { businessDateKey, normalizeBusinessDayPolicy } = await import("@/lib/business-date");
+    const { businessDaySql } = await import("@/lib/business-date-sql");
+    const { orders } = t.schema;
+    const base = wib("2026-10-30T00:30:00").getTime();
+    for (let h = 0; h < 96; h++) {
+      await t.getDb().insert(orders).values({
+        orderNo: `BDP-${String(h).padStart(3, "0")}`,
+        outletId,
+        channel: "Dine-in",
+        status: "voided",
+        subtotal: 0,
+        service: 0,
+        tax: 0,
+        total: 0,
+        createdAt: new Date(base + h * 3_600_000),
+      } as any);
+    }
+    const policy = normalizeBusinessDayPolicy({ cutoffHour: 4, effectiveFrom: "2026-11-01" });
+    const rows = await t
+      .getDb()
+      .select({ at: orders.createdAt, day: businessDaySql(orders.createdAt, policy) })
+      .from(orders)
+      .where(like(orders.orderNo, "BDP-%"));
+    expect(rows).toHaveLength(96);
+    for (const row of rows) expect(row.day, String(row.at)).toBe(businessDateKey(new Date(row.at), policy));
+  });
+});
+
+describe("tanggal operasional — validasi pengaturan (updateAppSettings)", () => {
+  const session = (role: string) =>
+    ({
+      user: { id: "user-bizdate", name: "Uji" },
+      profile: {
+        id: "sp-user-bizdate",
+        role,
+        shiftLabel: "Pagi",
+        deviceLabel: "T-1",
+        passwordResetRequired: false,
+        workstation: null,
+        outlet: { id: outletId, code: "TST", name: "Outlet Test", timezone: "Asia/Jakarta" },
+      },
+    }) as any;
+
+  it("tanggal lalu ditolak, Manajer ditolak, outlet ditolak; Owner + hari ini/besok diterima", async () => {
+    await setPolicy(null);
+    const svc = await import("@/lib/garage-service");
+    const { todayWibKey } = await import("@/lib/date-range");
+    const today = todayWibKey();
+    const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    await expect(svc.updateAppSettings(null, { businessDayEffectiveDate: yesterday }, session("Owner"))).rejects.toMatchObject({
+      code: "BUSINESS_DAY_INVALID",
+    });
+    await expect(svc.updateAppSettings(null, { businessDayEffectiveDate: tomorrow }, session("Manajer"))).rejects.toMatchObject({
+      code: "BUSINESS_DAY_OWNER_ONLY",
+    });
+    await expect(svc.updateAppSettings(outletId, { businessDayEffectiveDate: tomorrow }, session("Owner"))).rejects.toMatchObject({
+      code: "BUSINESS_DAY_GLOBAL_ONLY",
+    });
+    const saved = await svc.updateAppSettings(null, { businessDayEffectiveDate: tomorrow }, session("Owner"));
+    expect(saved.businessDayEffectiveDate).toBe(tomorrow);
+    // Belum berlaku → masih boleh diubah; nilai sama dikirim Manajer (form) lolos.
+    await svc.updateAppSettings(null, { businessDayEffectiveDate: tomorrow, businessDayCutoffHour: 4 }, session("Manajer"));
+    await svc.updateAppSettings(null, { businessDayEffectiveDate: today }, session("Owner"));
+    // Sudah berlaku → terkunci.
+    await expect(svc.updateAppSettings(null, { businessDayCutoffHour: 5 }, session("Owner"))).rejects.toMatchObject({
+      code: "BUSINESS_DAY_LOCKED",
+    });
+    await expect(svc.updateAppSettings(null, { businessDayEffectiveDate: "" }, session("Owner"))).rejects.toMatchObject({
+      code: "BUSINESS_DAY_LOCKED",
+    });
+    await setPolicy(null);
+  });
+});

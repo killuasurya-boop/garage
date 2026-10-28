@@ -56,3 +56,70 @@ export function businessDayRange(from: string, to: string, policy: BusinessDayPo
 export function todayBusinessDateKey(policy: BusinessDayPolicy = CALENDAR_POLICY, now = new Date()) {
   return businessDateKey(now, policy);
 }
+
+// ─── Validasi perubahan pengaturan (B1b) ─────────────────────────────────────
+// Snapshot laba-rugi harian & closing disimpan per tanggal. Agar angka lama tidak
+// tercampur dua aturan: tanggal efektif minimal HARI INI (kalender WIB) dan, begitu
+// berlaku, jam cut-off & tanggal efektif tidak bisa diubah/dihapus lagi.
+
+export class BusinessDaySettingError extends Error {
+  constructor(
+    readonly code: "BUSINESS_DAY_OWNER_ONLY" | "BUSINESS_DAY_GLOBAL_ONLY" | "BUSINESS_DAY_INVALID" | "BUSINESS_DAY_LOCKED",
+    message: string,
+  ) {
+    super(message);
+    this.name = "BusinessDaySettingError";
+  }
+}
+
+type BusinessDaySettingValues = { businessDayCutoffHour?: unknown; businessDayEffectiveDate?: unknown };
+
+export function touchesBusinessDaySettings(patch: object) {
+  return "businessDayCutoffHour" in patch || "businessDayEffectiveDate" in patch;
+}
+
+export function assertBusinessDaySettingsChange(input: {
+  before: { businessDayCutoffHour: number; businessDayEffectiveDate: string };
+  patch: BusinessDaySettingValues;
+  outletId: string | null;
+  isOwner: boolean;
+  now?: Date;
+}) {
+  const { before, patch } = input;
+  if (!touchesBusinessDaySettings(patch)) return;
+  const nextHour = "businessDayCutoffHour" in patch ? Number(patch.businessDayCutoffHour) : before.businessDayCutoffHour;
+  const rawDate = "businessDayEffectiveDate" in patch ? patch.businessDayEffectiveDate : before.businessDayEffectiveDate;
+  const nextDate = typeof rawDate === "string" ? rawDate.trim() : "";
+  // Form pengaturan mengirim semua field satu tab: nilai yang tidak berubah selalu lolos.
+  if (nextHour === before.businessDayCutoffHour && nextDate === (before.businessDayEffectiveDate ?? "").trim()) return;
+  if (!input.isOwner) {
+    throw new BusinessDaySettingError("BUSINESS_DAY_OWNER_ONLY", "Hanya Owner yang boleh mengubah tanggal operasional.");
+  }
+  if (input.outletId) {
+    throw new BusinessDaySettingError("BUSINESS_DAY_GLOBAL_ONLY", "Tanggal operasional hanya bisa diatur global (semua outlet).");
+  }
+  const today = calendarKey(input.now ?? new Date());
+  const current = normalizeBusinessDayPolicy({
+    cutoffHour: before.businessDayCutoffHour,
+    effectiveFrom: before.businessDayEffectiveDate,
+  });
+  if (current.effectiveFrom && current.effectiveFrom <= today) {
+    throw new BusinessDaySettingError(
+      "BUSINESS_DAY_LOCKED",
+      `Tanggal operasional sudah berlaku sejak ${current.effectiveFrom}; jam cut-off & tanggal efektif tidak bisa diubah lagi.`,
+    );
+  }
+  if (!Number.isInteger(nextHour) || nextHour < 1 || nextHour > 12) {
+    throw new BusinessDaySettingError("BUSINESS_DAY_INVALID", "Jam cut-off harus jam bulat 1–12 (WIB).");
+  }
+  if (nextDate === "") return;
+  if (!isCalendarDateKey(nextDate)) {
+    throw new BusinessDaySettingError("BUSINESS_DAY_INVALID", "Tanggal efektif harus format YYYY-MM-DD.");
+  }
+  if (nextDate < today) {
+    throw new BusinessDaySettingError(
+      "BUSINESS_DAY_INVALID",
+      "Tanggal efektif tidak boleh di masa lalu — laporan & closing hari yang sudah lewat tidak diubah.",
+    );
+  }
+}

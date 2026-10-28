@@ -2,6 +2,8 @@
 // dites. Semua angka berasal dari data transaksi + master data; tidak ada
 // persentase karangan. Nominal Rupiah selalu integer.
 
+import { businessDateKey, businessDayStart, CALENDAR_POLICY, type BusinessDayPolicy } from "@/lib/business-date";
+
 export type CostTreatment = "accrue" | "budget_only" | "reserve";
 export type CostClass = "fixed" | "variable" | "semi_variable" | "reserve";
 export type ExpenseGroup =
@@ -87,6 +89,8 @@ export type CogsBasis = "purchase" | "recipe";
 
 export type FinanceConfig = {
   businessStartDate: string;
+  /** Kebijakan tanggal operasional (B1b). Tidak diisi = kalender (fixture/tes lama). */
+  businessDay?: BusinessDayPolicy;
   openingCash: { amount: number; date: string; isSet: boolean };
   revenueTargetDaily: number | null;
   thresholds: FinanceThresholds;
@@ -228,8 +232,12 @@ const RECORD_KEYS = ["costLines", "cashOutByGroup", "channels", "linkedActual"] 
 const DAY_MS = 86_400_000;
 const WIB_OFFSET_MS = 7 * 3_600_000;
 
-export function jakartaDateKey(date = new Date()) {
-  return new Date(date.getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+/**
+ * Tanggal WIB. Dengan `policy` (modul keuangan, B1b) = tanggal operasional
+ * (cut-off); tanpa `policy` = kalender (payroll/absensi tetap kalender).
+ */
+export function jakartaDateKey(date = new Date(), policy: BusinessDayPolicy = CALENDAR_POLICY) {
+  return businessDateKey(date, policy);
 }
 
 export function jakartaHour(date: Date) {
@@ -273,9 +281,9 @@ export function eachDay(fromKey: string, toKey: string) {
   return out;
 }
 
-/** Awal hari WIB sebagai Date (untuk filter timestamp). */
-export function jakartaDayStart(key: string) {
-  return new Date(keyToUtc(key) - WIB_OFFSET_MS);
+/** Awal hari WIB sebagai Date (untuk filter timestamp); `policy` = awal hari operasional. */
+export function jakartaDayStart(key: string, policy: BusinessDayPolicy = CALENDAR_POLICY) {
+  return businessDayStart(key, policy);
 }
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];

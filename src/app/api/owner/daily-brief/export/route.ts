@@ -1,7 +1,7 @@
 import { fail } from "@/lib/api-response";
 import {
   getOwnerReportData,
-  jakartaTodayKey,
+  ownerReportTodayKey,
 } from "@/lib/garage-owner-report";
 import { generateOwnerReportPdf } from "@/lib/garage-owner-report-pdf";
 import { generateOwnerReportXlsx } from "@/lib/garage-owner-report-xlsx";
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const format = (url.searchParams.get("format") ?? "pdf").toLowerCase();
-  const dateText = url.searchParams.get("date") ?? jakartaTodayKey();
+  const dateText = url.searchParams.get("date") ?? (await ownerReportTodayKey());
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
     return fail(400, "INVALID_DATE", "date harus format YYYY-MM-DD.");

@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { garageApi } from "@/lib/api-client";
 import { downloadReportFile, fileSizeLabel, saveBlob } from "@/lib/report-download-client";
 import { reportFileName } from "@/lib/report-file-name";
-import { periodError } from "@/lib/report-periods";
+import { todayWibKey } from "@/lib/date-range";
+import { addDaysKey, periodError } from "@/lib/report-periods";
+import { useBusinessToday } from "@/lib/use-business-today";
 import { buildSalesSummarySlipContent } from "@/lib/management-slips";
 import { printDocument } from "@/lib/print-client";
 import type { SalesReport as SalesReportData } from "@/lib/sales-report";
@@ -17,16 +19,12 @@ type Preset = "today" | "yesterday" | "7d" | "month" | "custom";
 
 const rupiah = (value: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(value))}`;
 
-function wibDate(offsetDays = 0) {
-  const date = new Date(Date.now() + offsetDays * 86_400_000);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(date);
-}
-
-function rangeFor(preset: Preset, custom: { from: string; to: string }) {
-  if (preset === "today") return { from: wibDate(), to: wibDate() };
-  if (preset === "yesterday") return { from: wibDate(-1), to: wibDate(-1) };
-  if (preset === "7d") return { from: wibDate(-6), to: wibDate() };
-  if (preset === "month") return { from: `${wibDate().slice(0, 8)}01`, to: wibDate() };
+/** Preset relatif terhadap `today` = tanggal operasional (cut-off, B1b). */
+function rangeFor(preset: Preset, custom: { from: string; to: string }, today: string) {
+  if (preset === "today") return { from: today, to: today };
+  if (preset === "yesterday") return { from: addDaysKey(today, -1), to: addDaysKey(today, -1) };
+  if (preset === "7d") return { from: addDaysKey(today, -6), to: today };
+  if (preset === "month") return { from: `${today.slice(0, 8)}01`, to: today };
   return custom;
 }
 
@@ -145,8 +143,9 @@ export function SalesReport({
   printedBy?: string | null;
 }) {
   const [preset, setPreset] = useState<Preset>("today");
-  const [custom, setCustom] = useState(() => ({ from: wibDate(), to: wibDate() }));
-  const range = useMemo(() => rangeFor(preset, custom), [preset, custom]);
+  const today = useBusinessToday();
+  const [custom, setCustom] = useState(() => ({ from: todayWibKey(), to: todayWibKey() }));
+  const range = useMemo(() => rangeFor(preset, custom, today), [preset, custom, today]);
   const [report, setReport] = useState<SalesReportData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -158,7 +157,7 @@ export function SalesReport({
 
   // Ambil laporan setiap rentang berubah / tombol Muat ulang. setState hanya di
   // callback (bukan sinkron di badan efek).
-  const rangeError = periodError(range.from, range.to, { today: wibDate(), maxDays: 92 });
+  const rangeError = periodError(range.from, range.to, { today: todayWibKey(), maxDays: 92 });
 
   useEffect(() => {
     let cancelled = false;

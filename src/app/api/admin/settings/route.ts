@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { isDatabaseConfigured } from "@/db";
 import { fail, ok, readJson } from "@/lib/api-response";
+import { BusinessDaySettingError } from "@/lib/business-date";
 import { GarageOsThemeSaveError } from "@/lib/garage-theme";
 import {
   deleteOutletOverrides,
@@ -69,6 +70,9 @@ export async function POST(request: Request) {
     const result = await saveSettings(parsed.data.updates, session.data, outletId);
     return ok({ ...result, outletId });
   } catch (error) {
+    if (error instanceof BusinessDaySettingError) {
+      return fail(error.code === "BUSINESS_DAY_OWNER_ONLY" ? 403 : 400, error.code, error.message);
+    }
     if (error instanceof GarageOsThemeSaveError) {
       return fail(400, "INVALID_THEME_PRESET", error.message);
     }

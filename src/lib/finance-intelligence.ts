@@ -26,13 +26,15 @@ import {
   type ScenarioInput,
 } from "@/lib/finance-intelligence-core";
 import type { GarageSession } from "@/lib/server-auth";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 
 // ─── Product profitability (PRD §39) ────────────────────────────────────────
 
 export async function getProductProfitability(fromKey: string, toKey: string) {
   const db = getDb();
-  const start = jakartaDayStart(fromKey);
-  const end = jakartaDayStart(addDays(toKey, 1));
+  const policy = await loadBusinessDayPolicy(db);
+  const start = jakartaDayStart(fromKey, policy);
+  const end = jakartaDayStart(addDays(toKey, 1), policy);
 
   const [salesRows, recipeRows] = await Promise.all([
     db
@@ -109,7 +111,7 @@ export async function getProductProfitability(fromKey: string, toKey: string) {
 
 export async function getFinanceForecast(input: { horizon: number; growthPct?: number | null }) {
   const config = await loadFinanceConfig();
-  const todayKey = jakartaDateKey();
+  const todayKey = jakartaDateKey(new Date(), config.businessDay);
   const from = addDays(todayKey, -59);
   const loadFrom = config.businessStartDate < from ? config.businessStartDate : from;
   const figures = await getDayFigures(loadFrom, todayKey, config, todayKey);
@@ -138,7 +140,7 @@ export async function getFinanceForecast(input: { horizon: number; growthPct?: n
 
 export async function getScenarioBase(period: PeriodKey = "this_month") {
   const config = await loadFinanceConfig();
-  const todayKey = jakartaDateKey();
+  const todayKey = jakartaDateKey(new Date(), config.businessDay);
   const resolved =
     period === "custom" ? resolvePeriod("7d", todayKey) : resolvePeriod(period, todayKey);
   const figures = await getDayFigures(resolved.fromKey, resolved.toKey, config, todayKey);
@@ -312,7 +314,7 @@ export async function getFinanceControlAiSummary() {
 // ─── Paket halaman Intelligence ─────────────────────────────────────────────
 
 export async function getFinanceIntelligence(input: { period: PeriodKey; from?: string | null; to?: string | null; horizon: number }) {
-  const todayKey = jakartaDateKey();
+  const todayKey = jakartaDateKey(new Date(), await loadBusinessDayPolicy());
   const period = resolvePeriod(input.period, todayKey, { from: input.from, to: input.to });
   const [products, forecast, brief, scenarioBase, scenarios] = await Promise.all([
     getProductProfitability(period.fromKey, period.toKey),

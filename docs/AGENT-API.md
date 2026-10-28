@@ -20,7 +20,14 @@ Agent bertindak atas nama Owner pembuat key. Semua aksi tercatat di **Audit** de
 `<Owner> · Agent <nama key>` dan perangkat `agent:<nama key>`. Batas 120 permintaan/menit per key.
 
 Key **tidak bisa** dipakai untuk: kelola API key, login/akun/2FA, provider AI, purge data,
-cron/job & webhook.
+cron/job & webhook, **kelola user/role/PIN/reset password/sesi** (`/api/admin/users`, `/api/admin/security`), dan
+**pengaturan keamanan** (`security*`, termasuk kill switch MCP ChatGPT `mcpChatgptPaused`). Hal-hal itu hanya
+lewat Owner yang login langsung (ada 2FA) — key statis tidak punya MFA.
+
+Jejak Audit dicatat **sebelum** permintaan diproses untuk semua request yang mengubah data dan GET ke data
+keuangan/laporan/payroll/kontrol (`/api/finance`, `/api/reports`, `/api/control`, `/api/payroll`, `/api/wallet-*`,
+`/api/earnings`, `/api/owner`, `/api/hr`, `/api/approvals`, `/api/audit`). Bila audit gagal dicatat, permintaan ditolak
+`503 AGENT_AUDIT_FAILED`.
 
 ## 2. Pasang di agent (MCP — disarankan)
 - URL: `https://<domain-garage>/api/mcp` (Streamable HTTP, stateless)

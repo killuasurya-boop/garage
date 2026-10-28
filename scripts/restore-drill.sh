@@ -38,7 +38,17 @@ gzip -t "$FILE" && echo "   gzip utuh"
 docker network create --internal "$NET" >/dev/null
 docker run -d --name "$NAME" --network "$NET" --memory 384m --cpus 0.5 \
   -e POSTGRES_USER="$PG_USER" -e POSTGRES_PASSWORD=drill -e POSTGRES_DB="$PG_DB" postgres:16-bookworm >/dev/null
-for _ in $(seq 1 30); do docker exec "$NAME" pg_isready -q -U "$PG_USER" -d "$PG_DB" && break; sleep 2; done
+# Image postgres menjalankan server SEMENTARA saat inisialisasi lalu restart — pg_isready saja
+# bisa "siap" terlalu dini. Tunggu penanda init selesai, baru pg_isready.
+ready=0
+for _ in $(seq 1 60); do
+  if docker logs "$NAME" 2>&1 | grep -q "PostgreSQL init process complete" && docker exec "$NAME" pg_isready -q -U "$PG_USER" -d "$PG_DB"; then
+    ready=1
+    break
+  fi
+  sleep 2
+done
+[ "$ready" = 1 ] || { echo "Container uji tidak siap dalam 120 detik."; exit 1; }
 
 start=$(date +%s)
 gunzip -c "$FILE" | docker exec -i "$NAME" psql -q -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" >/dev/null

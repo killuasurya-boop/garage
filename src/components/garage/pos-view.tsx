@@ -214,6 +214,7 @@ import { PosShiftSalesSummary } from "@/components/garage/pos-shift-sales-summar
 import { PosInvoiceDeleteDialog, type InvoiceDeleteTarget } from "@/components/garage/pos-invoice-delete-dialog";
 import { PAYMENT_STATUS_LABEL, paymentStatusOf, type PaymentStatus } from "@/lib/payment-status";
 import { quickCashOptions } from "@/lib/pos-cash";
+import { cashConfirmLabel, normalizePaymentReference } from "@/lib/tender-guard";
 import { menuShortcodes, shortcodeMatchRank } from "@/lib/menu-shortcode";
 import { buildCashMovementSlipContent } from "@/lib/management-slips";
 import { CashDrawerDialog, type CashMovementRecorded } from "@/components/garage/cash-drawer-dialog";
@@ -241,6 +242,7 @@ import {
 } from "@/components/garage/pos-order-cancel-dialog";
 import { PosCartSplitDialog, type CartSplitLine } from "@/components/garage/pos-cart-split-dialog";
 import { PosEventBundles, type PosBundleSaved } from "@/components/garage/pos/pos-event-bundles";
+import { PosQuickRetail } from "@/components/garage/pos/pos-quick-retail";
 import { componentLabel, groupOrderLines } from "@/lib/order-package-lines";
 import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
 import {
@@ -924,6 +926,7 @@ export function PosView({
   // Final Bayar: kasir boleh ganti metode (tiap tamu bill pisahan bisa beda).
   const [finalizeMethod, setFinalizeMethod] = useState<PaymentMethod>("Cash");
   const [finalizeCash, setFinalizeCash] = useState("");
+  const [finalizeReference, setFinalizeReference] = useState("");
   // Split bill per produk: bill meja (pisah) & keranjang kasir (bayar per tamu).
   const [tableSplitBill, setTableSplitBill] = useState<TableOrderBill | null>(null);
   const [cartSplitOpen, setCartSplitOpen] = useState(false);
@@ -1360,8 +1363,11 @@ export function PosView({
     eWalletAccounts[0];
   const paymentProviderValue =
     paymentProvider || defaultPaymentProvider(selectedPaymentMethod);
+  // Tender guard (§09.2/F34): Owner bisa mewajibkan referensi QRIS.
+  const qrisReferenceMissing =
+    selectedPaymentMethod === "QRIS" && settings.qrisReferenceRequired && !normalizePaymentReference(paymentReference);
   const qrisPaymentReady =
-    selectedPaymentMethod !== "QRIS" || qrisImageReady;
+    selectedPaymentMethod !== "QRIS" || (qrisImageReady && !qrisReferenceMissing);
   const paymentReady = cashPaymentReady && qrisPaymentReady;
   const manualDiscountAwaitingApproval =
     manualDiscount?.approvalStatus === "pending";
@@ -2406,6 +2412,8 @@ export function PosView({
       reason?: string;
       // Metode yang dipilih kasir saat Final Bayar (default: pilihan pelanggan).
       paymentMethod?: PaymentMethod;
+      // Referensi QRIS/transfer yang dicek kasir (menimpa referensi pelanggan).
+      paymentReference?: string;
     } = {},
   ) {
     if (customerOrderActionId) {
@@ -2438,7 +2446,10 @@ export function PosView({
                 : customerOrderPaymentProvider(order)
               : undefined,
           paymentReference:
-            action === "paid" && !methodChanged ? customerOrderPaymentReference(order) : undefined,
+            action === "paid"
+              ? normalizePaymentReference(options.paymentReference) ??
+                (!methodChanged ? customerOrderPaymentReference(order) : undefined)
+              : undefined,
           cashReceived: finalCashReceived,
           cashDeposited: finalCashDeposited,
           paymentNote: options.paymentNote,
@@ -2533,6 +2544,7 @@ export function PosView({
           : "Cash",
     );
     setFinalizeCash("");
+    setFinalizeReference(customerOrderPaymentReference(order) ?? "");
     setFinalizeOrderTarget(order);
   }
 
@@ -2542,14 +2554,17 @@ export function PosView({
     finalizeMethod === "Cash" &&
     finalizeCash !== "" &&
     finalizeCashValue < (finalizeOrderTarget?.total ?? 0);
+  const finalizeReferenceMissing =
+    finalizeMethod === "QRIS" && settings.qrisReferenceRequired && !normalizePaymentReference(finalizeReference);
 
   function confirmFinalizeOrder() {
-    if (!finalizeOrderTarget || finalizeCashShort) return;
+    if (!finalizeOrderTarget || finalizeCashShort || finalizeReferenceMissing) return;
     const target = finalizeOrderTarget;
     setFinalizeOrderTarget(null);
     void decideCustomerOrder(target, "paid", {
       paymentMethod: finalizeMethod,
       cashReceived: finalizeMethod === "Cash" && finalizeCash !== "" ? finalizeCashValue : undefined,
+      paymentReference: finalizeMethod === "Cash" ? undefined : finalizeReference,
     });
   }
 
@@ -3771,6 +3786,18 @@ export function PosView({
     } finally {
       setTableActionBusy(null);
     }
+  }
+
+  // Penjualan Langsung (POS-05): order sudah lunas di server; segarkan riwayat & view lain.
+  async function handleQuickRetailCompleted(result: OrderCreateResponse) {
+    setReceiptHistory((current) => [result.receipt, ...current].slice(0, settings.receiptHistoryMax));
+    await onOrderCreated();
+    invalidateGarageCache([
+      GARAGE_TAGS.orders,
+      GARAGE_TAGS.finance,
+      GARAGE_TAGS.inventory,
+      GARAGE_TAGS.dashboard,
+    ]);
   }
 
   // overrides: "Bayar 1 tap" (take away uang pas) tanpa melewati langkah wizard.
@@ -6145,7 +6172,27 @@ export function PosView({
                     </div>
                   ) : null}
                 </div>
-              ) : null}
+              ) : (
+                <div className="space-y-1.5">
+                  {finalizeMethod === "QRIS" ? (
+                    <p className="flex gap-2 text-sm font-semibold text-[#ffd08a]">
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                      Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
+                    </p>
+                  ) : null}
+                  <Input
+                    value={finalizeReference}
+                    onChange={(event) => setFinalizeReference(event.target.value.slice(0, 80))}
+                    placeholder={
+                      finalizeMethod === "QRIS" && settings.qrisReferenceRequired
+                        ? "No. Ref / RRN QRIS (wajib)"
+                        : "No. Ref / RRN (opsional)"
+                    }
+                    aria-label="Referensi pembayaran"
+                    className="h-11 border-[#34343c] bg-white/[0.06]"
+                  />
+                </div>
+              )}
             </div>
           ) : null}
           <div className="flex flex-col gap-2 sm:flex-row-reverse">
@@ -6153,7 +6200,7 @@ export function PosView({
               type="button"
               className="garage-press h-12 flex-1 bg-[#d11a2a] text-base font-bold text-white hover:bg-[#ff2a3a]"
               onClick={confirmFinalizeOrder}
-              disabled={finalizeCashShort}
+              disabled={finalizeCashShort || finalizeReferenceMissing}
             >
               Konfirmasi Bayar
             </Button>
@@ -8949,6 +8996,23 @@ export function PosView({
                   makeKey={makeIdempotencyKey}
                   onSaved={handleEventBundleSaved}
                 />
+                <PosQuickRetail
+                  shiftOpen={shiftOpen}
+                  menuItems={menuItems}
+                  settings={settings}
+                  qrisImagePath={paymentBrandConfig.qrisImagePath}
+                  qrisImageReady={qrisImageReady}
+                  makeKey={makeIdempotencyKey}
+                  onCompleted={handleQuickRetailCompleted}
+                  renderComplete={(receipt, startNew, close) => (
+                    <PaymentCompletePanel
+                      receipt={receipt}
+                      autoPrint={settings.autoPrintReceipt && cashierPosSettings.receiptPrintMode === "auto"}
+                      onNewTransaction={startNew}
+                      onClose={close}
+                    />
+                  )}
+                />
                 <div className="flex min-h-9 min-w-0 items-center gap-2 rounded-md border border-[#34343c] bg-white/[0.06] px-3 md:w-[190px]">
                   <CreditCard className="size-4 shrink-0 text-[#f5a742]" />
                   <div className="min-w-0">
@@ -9844,6 +9908,7 @@ export function PosView({
                                 paymentReference={paymentReference}
                                 onPaymentReferenceChange={setPaymentReference}
                                 totalDue={totalDue}
+                                referenceRequired={settings.qrisReferenceRequired}
                               />
                             ) : null}
                             {selectedPaymentMethod === "Bank Transfer" ? (
@@ -9948,7 +10013,13 @@ export function PosView({
                               disabled={paymentPending || !cartLines.length || !checkoutReady}
                               onClick={() => void submitOrder(selectedPaymentMethod)}
                             >
-                              {paymentPending ? "Mencatat..." : "Konfirmasi Bayar"}
+                              {paymentPending
+                                ? "Mencatat..."
+                                : selectedPaymentMethod === "Cash" && cashReceived !== "" && cashPaymentReady
+                                  ? cashConfirmLabel(cashReceivedValue, totalDue)
+                                  : qrisReferenceMissing
+                                    ? "Isi referensi QRIS"
+                                    : "Konfirmasi Bayar"}
                             </Button>
                           ) : null}
                         </div>
@@ -11907,6 +11978,7 @@ function QrisPaymentPanel({
   onImageReadyChange,
   onPaymentReferenceChange,
   totalDue,
+  referenceRequired = false,
 }: {
   imagePath: string;
   imageReady: boolean;
@@ -11914,6 +11986,7 @@ function QrisPaymentPanel({
   onImageReadyChange: (ready: boolean) => void;
   onPaymentReferenceChange: (value: string) => void;
   totalDue?: number;
+  referenceRequired?: boolean;
 }) {
   // Buka layar QRIS customer-facing di window/tab kedua (untuk monitor pelanggan).
   // window.open dari handler klik = tidak diblokir popup-blocker (gesture user).
@@ -11965,13 +12038,18 @@ function QrisPaymentPanel({
           </AlertDescription>
         </Alert>
       )}
+      <p className="mt-3 flex gap-2 text-sm font-semibold text-[#ffd08a]">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+        Pastikan status BERHASIL di notifikasi merchant/bank. Screenshot pelanggan saja tidak cukup.
+      </p>
       <div className="mt-3">
-        <p className="garage-mono mb-1">Referensi opsional</p>
+        <p className="garage-mono mb-1">{referenceRequired ? "Referensi wajib" : "Referensi opsional"}</p>
         <Input
           value={paymentReference}
-          onChange={(event) => onPaymentReferenceChange(event.target.value)}
+          onChange={(event) => onPaymentReferenceChange(event.target.value.slice(0, 80))}
           className="h-10 border-[#34343c] bg-white/[0.06]"
-          placeholder="Kode/ref pembayaran QRIS"
+          placeholder="No. Ref / RRN dari notifikasi QRIS"
+          aria-label="Referensi QRIS"
         />
       </div>
     </div>

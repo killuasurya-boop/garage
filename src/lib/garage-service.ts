@@ -245,6 +245,9 @@ import {
   type PaymentStatus,
 } from "@/lib/payment-status";
 import { customerTableStatusFor } from "@/lib/garage-table-status";
+import { assertPaymentReferencesUnused } from "@/lib/payment-reference-guard";
+import { normalizePaymentReference, planTender, referenceNeedsUniqueness } from "@/lib/tender-guard";
+import { isQuickRetailProduct, QUICK_RETAIL_CHANNEL } from "@/lib/quick-retail";
 import { canUseApi, canUseApiAs } from "@/lib/role-access";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -253,6 +256,11 @@ type GarageTx = Parameters<Parameters<GarageDb["transaction"]>[0]>[0];
 
 type OrderInput = {
   orderType: "dine-in" | "takeaway" | "delivery";
+  /**
+   * Quick Retail Sale (PRD §09.3, POS-05): produk kemasan tanpa meja & tanpa
+   * label take away. Hanya produk retail / serah langsung; bayar saat itu juga.
+   */
+  saleChannel?: "quick_retail";
   tableNumber?: string;
   tableLabel?: string;
   paymentMethod?: string;
@@ -5924,8 +5932,12 @@ export async function listInvoicesForFinance(filter: FinanceInvoiceListFilter = 
           not(ilike(orders.channel, "%takeaway%")),
           not(ilike(orders.channel, "%delivery%")),
           not(ilike(orders.channel, "%qr%")),
+          not(ilike(orders.channel, QUICK_RETAIL_CHANNEL)),
         )!,
       );
+      break;
+    case "quick_retail":
+      conditions.push(ilike(orders.channel, QUICK_RETAIL_CHANNEL));
       break;
     default:
       break;
@@ -10059,7 +10071,8 @@ async function updateCustomerOrderStatusImpl(
   options: { openBill?: boolean; adminConfirm?: boolean } = {},
 ) {
   // Target SLA tiket baru dibaca SEBELUM transaksi (PGlite satu koneksi).
-  const productionTargets = productionTargetsFrom(await getAppSettings(garage.profile.outlet.id));
+  const outletSettings = await getAppSettings(garage.profile.outlet.id);
+  const productionTargets = productionTargetsFrom(outletSettings);
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     // FOR UPDATE: dua kasir/klik ganda "Terima"/"Lunas" diserialkan pada baris
@@ -10697,6 +10710,26 @@ async function updateCustomerOrderStatusImpl(
         : null;
       const confirmingMethod = input.paymentMethod?.trim() || latestPayment?.method || "Cash";
       const confirmingIsCash = isCashMethod(confirmingMethod);
+      // Tender guard (PRD §09.2): referensi QRIS/transfer dicek ganda; QRIS
+      // wajib referensi bila diaktifkan Owner. Hanya saat benar-benar melunasi.
+      const confirmingReference =
+        normalizePaymentReference(input.paymentReference) ??
+        normalizePaymentReference(
+          typeof latestMetadata.reference === "string" ? latestMetadata.reference : null,
+        );
+      // Tunai Final Bayar: "kosong = uang pas" tetap (keputusan Owner), jadi
+      // planTender hanya untuk tender non-tunai.
+      if (!confirmingIsCash && order.status !== "paid" && order.status !== "completed") {
+        planTender({
+          method: confirmingMethod,
+          total: order.total,
+          reference: confirmingReference,
+          qrisReferenceRequired: outletSettings.qrisReferenceRequired,
+        });
+        if (referenceNeedsUniqueness(confirmingMethod, confirmingReference)) {
+          await assertPaymentReferencesUnused(tx, [confirmingReference!], { excludeOrderId: order.id });
+        }
+      }
       const confirmedCashReceived =
         confirmingIsCash
           ? input.cashReceived ?? latestCashReceived ?? latestCashDeposited ?? order.total
@@ -11375,6 +11408,10 @@ async function createOrderOnce(
     );
   }
 
+  const quickRetail = input.saleChannel === "quick_retail";
+  if (quickRetail && (input.orderType !== "takeaway" || input.tableNumber)) {
+    throw new Error("Penjualan langsung tidak memakai meja.");
+  }
   const tableNumber =
     input.orderType === "dine-in"
       ? normalizeDiningTableNumber(input.tableNumber ?? input.tableLabel ?? "")
@@ -11382,9 +11419,11 @@ async function createOrderOnce(
   if (tableNumber) {
     await assertTableActive(tableNumber, garage.profile.outlet.id);
   }
-  const tableLabel = tableNumber
-    ? tableLabelForNumber(tableNumber)
-    : orderTypeToChannel(input.orderType);
+  const tableLabel = quickRetail
+    ? QUICK_RETAIL_CHANNEL
+    : tableNumber
+      ? tableLabelForNumber(tableNumber)
+      : orderTypeToChannel(input.orderType);
   const itemIds = [...new Set(input.items.map((item) => item.itemId))];
   const variantRows = await db
     .select({
@@ -11395,6 +11434,7 @@ async function createOrderOnce(
       itemName: menuItems.name,
       category: menuItems.category,
       station: menuItems.station,
+      productType: menuItems.productType,
       batchEligible: menuItems.batchEligible,
       promoActive: menuItems.promoActive,
       promoPrice: menuItems.promoPrice,
@@ -11402,6 +11442,14 @@ async function createOrderOnce(
     .from(menuVariants)
     .innerJoin(menuItems, eq(menuVariants.itemId, menuItems.id))
     .where(and(inArray(menuVariants.itemId, itemIds), eq(menuItems.status, "active")));
+  if (quickRetail) {
+    const notRetail = variantRows.find((row) => !isQuickRetailProduct(row));
+    if (notRetail) {
+      throw new Error(
+        `${notRetail.itemName} bukan produk kemasan. Penjualan langsung hanya untuk produk retail (mineral, rokok, snack kemasan).`,
+      );
+    }
+  }
 
   const lines = input.items.map((line) => {
     const variant = variantRows.find(
@@ -11536,13 +11584,14 @@ async function createOrderOnce(
   const total = grossTotal - discount;
   const orderNo = makeOrderNo();
   const invoiceNo = invoiceNoForOrder(orderNo);
-  const channel = orderTypeToChannel(input.orderType);
+  const channel = quickRetail ? QUICK_RETAIL_CHANNEL : orderTypeToChannel(input.orderType);
   // Auto routing (BR-04): station dari master produk, bukan keputusan operator.
-  const ticketDrafts = productionTicketDrafts(lines, productionTargetsFrom(settings));
+  // Penjualan langsung = barang jadi diserahkan kasir → tanpa tiket produksi.
+  const ticketDrafts = quickRetail ? [] : productionTicketDrafts(lines, productionTargetsFrom(settings));
   const paymentMethod = input.paymentMethod ?? "Cash";
   const paymentMetadata: Record<string, unknown> = {
     provider: input.paymentProvider ?? null,
-    reference: input.paymentReference?.trim() || null,
+    reference: normalizePaymentReference(input.paymentReference),
     invoiceNo,
     invoiceStatus: "issued",
     invoiceIssuedAt: new Date().toISOString(),
@@ -11559,43 +11608,22 @@ async function createOrderOnce(
     paymentMetadata.change = Math.max(0, input.cashReceived - total);
   }
 
-  // ── SPLIT PAYMENT VALIDATION ──
-  // Validasi di sini agar fail-fast SEBELUM transaksi DB. Backward compat:
-  // kalau `splits` undefined/empty → jalur lama (single payment).
+  // ── TENDER GUARD (PRD §09.2) ──
+  // Fail-fast SEBELUM transaksi DB. Tanpa `splits` → jalur lama (satu metode).
+  // Tunai wajib uang diterima ≥ total; pengecualian sinkron order offline (uang
+  // sudah diterima fisik & harga bisa berubah selama offline) → kekurangan
+  // dicatat sebagai cashShortfall supaya kelihatan saat tutup shift.
   const splits = input.splits && input.splits.length > 0 ? input.splits : null;
-  if (splits) {
-    if (splits.length < 2) {
-      throw new Error("Split payment butuh minimal 2 metode. Pakai paymentMethod tunggal kalau cuma 1.");
-    }
-    for (const s of splits) {
-      if (!s.method || typeof s.method !== "string" || !s.method.trim()) {
-        throw new Error("Setiap split wajib punya method (mis. Cash / QRIS).");
-      }
-      if (!Number.isFinite(s.amount) || !Number.isInteger(s.amount) || s.amount <= 0) {
-        throw new Error(`Split amount harus bilangan bulat positif (got: ${s.amount}).`);
-      }
-    }
-    const splitSum = splits.reduce((acc, s) => acc + s.amount, 0);
-    if (splitSum !== total) {
-      throw new Error(
-        `Total split (${splitSum}) tidak sama dengan total order (${total}). Selisih: ${splitSum - total}.`,
-      );
-    }
-  }
-  // Layar kasir sudah mencegah, tapi server wajib menolak juga: tanpa ini order
-  // tunai tercatat lunas walau uang kurang (kembalian dihitung 0, kas selisih).
-  // Pengecualian: sinkron order offline — uang sudah diterima fisik & harga bisa
-  // berubah selama offline; menolaknya membuat antrean sinkron macet. Dicatat
-  // sebagai kekurangan tunai supaya kelihatan saat tutup shift.
-  const cashShortfall =
-    !splits && isCashMethod(paymentMethod) && input.cashReceived !== undefined
-      ? Math.max(0, total - input.cashReceived)
-      : 0;
-  if (cashShortfall > 0 && !options.offlineSync) {
-    throw new Error(
-      `Uang diterima (${idrFormatter.format(input.cashReceived ?? 0)}) kurang dari total ${idrFormatter.format(total)}.`,
-    );
-  }
+  const tender = planTender({
+    method: paymentMethod,
+    total,
+    cashReceived: input.cashReceived,
+    reference: input.paymentReference,
+    splits,
+    qrisReferenceRequired: settings.qrisReferenceRequired && !options.offlineSync,
+    offlineSync: options.offlineSync,
+  });
+  const cashShortfall = tender.cashShortfall;
   if (cashShortfall > 0) {
     paymentMetadata.cashShortfall = cashShortfall;
   }
@@ -11633,6 +11661,10 @@ async function createOrderOnce(
 
   let tableJoinCode: string | null = null;
   const created = await db.transaction(async (tx) => {
+    // Satu pembayaran QRIS/transfer = satu order (referensi dicek ganda).
+    if (tender.uniqueReferences.length) {
+      await assertPaymentReferencesUnused(tx, tender.uniqueReferences);
+    }
     // Order kasir untuk meja: siapkan kode gabung (teman semeja bisa pesan
     // sendiri dari menu digital) & lepas kunci "Sedang dipilih".
     if (tableNumber) {
@@ -11753,7 +11785,7 @@ async function createOrderOnce(
                 splitIndex: idx + 1,
                 splitTotal: splits.length,
                 provider: s.provider ?? paymentMetadata.provider ?? null,
-                reference: s.reference?.trim() || null,
+                reference: normalizePaymentReference(s.reference),
               },
             };
           }),

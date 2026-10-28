@@ -3,6 +3,8 @@
 // Authorization: Bearer gk_agent_… (key scope Owner atau Manajer).
 import { agentToolContext } from "@/lib/agent-http";
 import { handleMcpMessage, PROTOCOL_VERSION, rpcError, type JsonRpcRequest } from "@/lib/agent-mcp";
+import { findAgentTool } from "@/lib/agent-tools";
+import { auditMcpToolCall } from "@/lib/mcp-tool-audit";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -28,6 +30,23 @@ export async function POST(request: Request) {
     return Response.json(rpcError(null, -32700, "Parse error"), { status: 400 });
   }
   const ctx = await agentToolContext();
+  const garage = session.data;
+  // Audit per tool (dulu hanya satu baris "POST /api/mcp" untuk seluruh request):
+  // sinkron sebelum eksekusi — gagal dicatat = tool tidak dijalankan.
+  const beforeToolCall = (name: string, args: unknown) =>
+    auditMcpToolCall({
+      actor: garage.user.name,
+      device: garage.profile.deviceLabel,
+      label: "Agent MCP",
+      tool: name,
+      args,
+      metadata: {
+        source: garage.profile.agentKey ? "agent-key" : "session",
+        agentKeyId: garage.profile.agentKey?.id ?? null,
+        risk: findAgentTool(name)?.risk ?? null,
+        userId: garage.user.id,
+      },
+    });
   const messages = Array.isArray(payload) ? payload : [payload];
   const responses = [];
   for (const message of messages) {
@@ -37,7 +56,7 @@ export async function POST(request: Request) {
     }
     // Notifikasi (tanpa id) tidak dibalas.
     if (message.id === undefined || message.method.startsWith("notifications/")) continue;
-    responses.push(await handleMcpMessage(message, session.data, ctx));
+    responses.push(await handleMcpMessage(message, garage, ctx, { beforeToolCall }));
   }
   if (!responses.length) return new Response(null, { status: 202 });
   return Response.json(Array.isArray(payload) ? responses : responses[0], {

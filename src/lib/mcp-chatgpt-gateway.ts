@@ -5,13 +5,14 @@
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { auditLogs, outlets, staffProfiles, user } from "@/db/schema";
+import { outlets, staffProfiles, user } from "@/db/schema";
 import { handleMcpMessage, PROTOCOL_VERSION, rpcError, type JsonRpcRequest } from "@/lib/agent-mcp";
 import { agentInternalOrigin } from "@/lib/agent-tools";
 import { loadSettingsByKeys } from "@/lib/garage-settings-service";
 import type { Role } from "@/lib/garage-data";
 import { mcpChatgptAccess } from "@/lib/mcp-chatgpt-access";
-import { runToolWithConfirmation, splitConfirmation } from "@/lib/mcp-confirmation";
+import { runToolWithConfirmation } from "@/lib/mcp-confirmation";
+import { auditMcpToolCall } from "@/lib/mcp-tool-audit";
 import { hitRateLimit } from "@/lib/rate-limit-db";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -21,21 +22,11 @@ const HIDDEN_TOOLS: ReadonlySet<string> = new Set(["garage_api"]);
 const DEVICE = "mcp:chatgpt";
 /** Per akun Owner per menit — satu percakapan biasanya < 10 panggilan tool. */
 const CHATGPT_RATE_LIMIT_PER_MINUTE = 60;
-const ARGS_PREVIEW_LIMIT = 2_000;
 
 type Claims = { sub?: unknown; client_id?: unknown; azp?: unknown; scope?: unknown };
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "mcp-protocol-version": PROTOCOL_VERSION } });
-}
-
-function argsPreview(args: unknown) {
-  try {
-    const text = JSON.stringify(args ?? {});
-    return text.length > ARGS_PREVIEW_LIMIT ? `${text.slice(0, ARGS_PREVIEW_LIMIT)}…` : text;
-  } catch {
-    return "[tidak bisa diserialisasi]";
-  }
 }
 
 async function loadOwnerSession(userId: string): Promise<{ session: GarageSession } | { error: Response }> {
@@ -121,28 +112,16 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
   }
 
   const clientId = typeof claims.client_id === "string" ? claims.client_id : typeof claims.azp === "string" ? claims.azp : null;
-  const db = getDb();
-  const beforeToolCall = async (name: string, args: unknown) => {
-    // Audit SINKRON sebelum eksekusi: bila gagal dicatat, tool tidak dijalankan.
-    const now = new Date();
-    await db.insert(auditLogs).values({
-      time: new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(now),
+  // Audit SINKRON sebelum eksekusi: bila gagal dicatat, tool tidak dijalankan.
+  const beforeToolCall = (name: string, args: unknown) =>
+    auditMcpToolCall({
       actor: session.user.name,
-      action: `ChatGPT MCP tool ${name}`,
-      object: name,
       device: DEVICE,
-      status: "recorded",
-      // Token konfirmasi tidak pernah masuk audit; cukup penandanya.
-      metadata: {
-        source: "chatgpt",
-        tool: name,
-        args: argsPreview(splitConfirmation(args).args),
-        withConfirmation: Boolean(splitConfirmation(args).token),
-        oauthClientId: clientId,
-        userId: session.user.id,
-      },
+      label: "ChatGPT MCP",
+      tool: name,
+      args,
+      metadata: { source: "chatgpt", oauthClientId: clientId, userId: session.user.id },
     });
-  };
 
   const ctx = { authorization: "", internalOrigin: agentInternalOrigin() };
   const messages = Array.isArray(payload) ? payload : [payload];

@@ -91,6 +91,12 @@ R2 dampak finansial · R3 kritis. Di MCP, risiko & domain tampil di depan deskri
 | `daftar_approval` / `putuskan_approval` | Keuangan | R0 / R2 | Pengajuan & keputusannya (tolak wajib alasan) |
 | `catat_pengeluaran` | Keuangan | R2 | Catat pengeluaran kas |
 | `rekap_kas_harian` | Shift & Cash | R0 | Rekap shift kasir per tanggal |
+| `pengawasan_kas` | Shift & Cash | R0 | Panel pengawasan kas Owner: saldo akun, antrean tindakan, pengecualian (Owner saja) |
+| `daftar_kas_laci` / `putuskan_kas_laci` | Shift & Cash | R0 / R2 | Kas keluar/masuk laci; setujui/tolak pengajuan kasir (tolak wajib alasan) |
+| `konfirmasi_setoran` | Shift & Cash | R2 | Setoran laci → rekening bank, wajib nomor bukti setor |
+| `daftar_petty_cash` / `putuskan_petty_cash` | Shift & Cash | R0 / R2 | Petty cash: setujui, bayar (penerima), tolak/batal (alasan) |
+| `verifikasi_shift` | Shift & Cash | R2 | Periksa shift yang ditutup; selisih wajib diakui + catatan |
+| `status_closing_harian` / `tutup_buku_harian` | Keuangan | R0 / R3 | Cek closing harian lalu tutup buku (peringatan wajib diakui) |
 | `buat_laporan` | Dokumen | R0 | File PDF/XLSX/CSV (base64) — Penjualan, Pembelian Bar/Kitchen, Stok, Produksi, Keuangan |
 | `kemampuan_sistem` | Sistem | R0 | Peta 16 domain: tool & risiko per domain, domain yang belum punya tool, hal yang selalu ditolak (R4) |
 | `garage_api` | Sistem | R3 | Akses penuh: panggil endpoint `/api` mana pun (method, path, query, body). Tidak tersedia di MCP ChatGPT |

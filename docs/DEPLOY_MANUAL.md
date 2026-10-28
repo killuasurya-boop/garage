@@ -63,24 +63,30 @@ Buka **Git Bash** (Windows) atau Terminal (mac/Linux) di folder `garage`, Docker
 git checkout main
 git pull
 
-# 1) Cek dulu — server TIDAK diubah
+# 1) Pemeriksaan rilis main GABUNGAN (tes, build, katalog API, nama staging) ±10 menit
+bash scripts/release-check.sh
+
+# 2) Cek dulu — server TIDAK diubah
 bash scripts/deploy-manual.sh --dry-run
 
-# 2) Deploy sungguhan (akan diminta mengetik DEPLOY)
+# 3) Deploy sungguhan (akan diminta mengetik DEPLOY)
 bash scripts/deploy-manual.sh
 ```
 
-Hasil yang diharapkan di akhir: `✓ Sehat (HTTP 200). Deploy <commit> SELESAI.`
+Hasil yang diharapkan di akhir: `SMOKE OK` lalu `✓ Deploy <commit> SELESAI.` Setelah sehat, deploy menjalankan
+`scripts/smoke-prod.sh` (halaman hidup + endpoint rahasia menolak tanpa sesi); gagal → rollback otomatis.
+Smoke test bisa dijalankan kapan saja: `bash scripts/smoke-prod.sh`.
 
 ### Bila gagal
 | Pesan | Arti / tindakan |
 |---|---|
+| `Commit ini belum lulus pemeriksaan rilis` | Jalankan `bash scripts/release-check.sh` (harus `RILIS SIAP`). Darurat saja: `--skip-release-check`. |
 | `Commit lokal … ≠ origin/main` | Jalankan `git checkout main && git pull`, ulangi. |
 | `Ada perubahan lokal yang belum di-commit` | `git stash`, ulangi. |
 | `SSH … gagal` | Kunci salah / belum ada di `authorized_keys` VPS / IP VPS berubah. |
 | `Deploy lain sedang jalan` | Pastikan tidak ada deploy lain (GitHub Actions / laptop lain). Bila yakin, hapus folder `/root/garage/.deploy-lock` di VPS. |
 | Berhenti di **backup** | Deploy otomatis berhenti **sebelum** migrasi — app lama tetap jalan. Cek ruang disk VPS. |
-| `Kesehatan gagal — rollback` | App sudah dikembalikan ke versi sebelumnya. Migrasi yang sudah jalan **tidak** dibatalkan (semua migrasi Garage additive). Kirim file log di `deploy-logs/` ke agent. |
+| `Kesehatan atau smoke test gagal — rollback` | App sudah dikembalikan ke versi sebelumnya. Migrasi yang sudah jalan **tidak** dibatalkan (semua migrasi Garage additive). Kirim file log di `deploy-logs/` ke agent. |
 
 ### Rollback manual (bila perlu)
 Di VPS:
@@ -89,6 +95,15 @@ cd /root/garage
 docker tag garage-app:previous garage-app:latest
 docker compose --env-file .env.production up -d --no-build app
 ```
+
+### Pemantau server & uji pulih backup
+- **Pemantau** (`scripts/vps-monitor.sh`, cron 5 menit): aplikasi, layanan, restart, disk ≥85 %, RAM <250 MB,
+  backup >26 jam, nama staging. Masalah → notifikasi + push ke HP Owner (`/api/jobs/system-alert`, maks 1×/jam per
+  pemeriksaan; pemulihan dilaporkan dengan lama gangguan). Pasang/lepas: `bash scripts/install-vps-monitor.sh [--remove]`
+  (setelah endpoint ter-deploy). Log VPS: `/var/log/garage-monitor.log`.
+- **Uji pulih backup** (`scripts/restore-drill.sh`): backup terbaru dipulihkan ke container sementara di jaringan
+  sendiri, dibandingkan dengan produksi (jumlah baris + sidik buku kas), lalu dihapus. Produksi hanya dibaca.
+  `tr -d '' < scripts/restore-drill.sh | ssh -i ~/.ssh/garage_deploy root@201.18.211.55 'bash -s'` — saat outlet tutup.
 
 ---
 

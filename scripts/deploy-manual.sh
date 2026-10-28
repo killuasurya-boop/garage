@@ -12,7 +12,9 @@
 # Pengaman:
 #   - hanya men-deploy commit yang SAMA PERSIS dengan origin/main (kode yang
 #     sudah di-merge Owner), working tree harus bersih;
+#   - commit harus lulus scripts/release-check.sh (main gabungan: tes, build, katalog API);
 #   - minta ketik DEPLOY sebelum menyentuh server (lewati dengan --yes);
+#   - setelah sehat: scripts/smoke-prod.sh (halaman hidup + endpoint rahasia menolak); gagal → rollback;
 #   - kunci di VPS: dua deploy tidak bisa jalan bersamaan;
 #   - --dry-run = cek semua prasyarat + tampilkan rencana, server TIDAK diubah.
 #
@@ -33,12 +35,14 @@ DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 
 DRY_RUN=0
 ASSUME_YES=0
+SKIP_RELEASE_CHECK=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --yes) ASSUME_YES=1 ;;
+    --skip-release-check) SKIP_RELEASE_CHECK=1 ;;
     -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
-    *) echo "Argumen tidak dikenal: $arg (pakai --dry-run / --yes / --help)"; exit 2 ;;
+    *) echo "Argumen tidak dikenal: $arg (pakai --dry-run / --yes / --skip-release-check / --help)"; exit 2 ;;
   esac
 done
 
@@ -74,6 +78,15 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
   die "Commit lokal ($LOCAL_SHA) ≠ origin/$DEPLOY_BRANCH ($REMOTE_SHA). Jalankan: git checkout $DEPLOY_BRANCH && git pull"
 fi
 ok "Commit ${LOCAL_SHA:0:7}: $(git log -1 --format=%s)"
+
+STAMP="$(git rev-parse --git-path garage-release-check)"
+if [ "$(cut -d" " -f1 "$STAMP" 2>/dev/null)" = "$LOCAL_SHA" ]; then
+  ok "release-check lulus untuk commit ini ($(cut -d" " -f2 "$STAMP"))"
+elif [ "$SKIP_RELEASE_CHECK" = 1 ]; then
+  echo "  ! release-check DILEWATI (--skip-release-check) — hanya untuk darurat"
+else
+  die "Commit ini belum lulus pemeriksaan rilis. Jalankan: bash scripts/release-check.sh"
+fi
 
 # ─── 3. Koneksi VPS ───────────────────────────────────────────────────────────
 step "Cek koneksi SSH ke VPS"
@@ -159,11 +172,17 @@ step "Cek kesehatan $HEALTH_URL"
 for _ in $(seq 1 20); do
   code="$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" || true)"
   if [ "$code" = "200" ]; then
-    ok "Sehat (HTTP 200). Deploy ${LOCAL_SHA:0:7} SELESAI."
-    exit 0
+    ok "Sehat (HTTP 200)."
+    step "Smoke test produksi"
+    if bash scripts/smoke-prod.sh "${HEALTH_URL%/api/health}"; then
+      ok "Deploy ${LOCAL_SHA:0:7} SELESAI."
+      exit 0
+    fi
+    echo "Smoke test gagal — rollback ke versi sebelumnya"
+    break
   fi
   sleep 6
 done
-echo "Kesehatan gagal — rollback ke versi sebelumnya"
+echo "Kesehatan atau smoke test gagal — rollback ke versi sebelumnya"
 remote "cd $APP_DIR && docker tag garage-app:previous garage-app:latest && docker compose --env-file .env.production up -d --no-build app"
 die "Deploy gagal & app dikembalikan ke versi sebelumnya. Migrasi yang sudah jalan TIDAK dibatalkan (additive). Kirim $LOG_FILE ke agent."

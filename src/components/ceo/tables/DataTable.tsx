@@ -72,7 +72,7 @@ export function DataTable<T extends Record<string, unknown>>({
               setPage(0);
             }}
             placeholder="Cari data..."
-            className="flex-1 bg-transparent text-xs text-zinc-100 outline-none placeholder:text-zinc-500"
+            className="flex-1 bg-transparent text-xs text-zinc-100 outline-none placeholder:text-[var(--gos-text-muted)]"
           />
         </div>
       ) : null}
@@ -110,7 +110,7 @@ export function DataTable<T extends Record<string, unknown>>({
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="py-6 text-center text-zinc-500">{emptyHint}</td>
+                <td colSpan={columns.length} className="py-6 text-center text-[var(--gos-text-muted)]">{emptyHint}</td>
               </tr>
             ) : (
               pageRows.map((row, i) => (

@@ -311,7 +311,7 @@ export function SmartFloorCommand({ onNavigateModule }: SmartFloorCommandProps) 
               Command queue
             </p>
             {commands.length > 0 ? (
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-white/50">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-[var(--gos-text-muted)]">
                 {commands.length} prioritas
               </span>
             ) : null}

@@ -80,7 +80,7 @@ export default function RiskCenterPage() {
                     <Badge tone={tone as "red" | "amber" | "success"}>{q.items.length}</Badge>
                   </div>
                   <ul className="space-y-1 text-[11px] text-zinc-200">
-                    {q.items.length === 0 ? <li className="text-zinc-500">Belum ada item</li> : q.items.map((r) => (
+                    {q.items.length === 0 ? <li className="text-[var(--gos-text-muted)]">Belum ada item</li> : q.items.map((r) => (
                       <li key={r.id} className="truncate">- {r.title}</li>
                     ))}
                   </ul>
@@ -114,7 +114,7 @@ export default function RiskCenterPage() {
       >
         <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
           {filtered.length === 0 ? (
-            <p className="text-xs text-zinc-500">Belum ada alert pada severity ini.</p>
+            <p className="text-xs text-[var(--gos-text-muted)]">Belum ada alert pada severity ini.</p>
           ) : (
             filtered.map((r) => <RiskAlertCard key={r.id} alert={r} />)
           )}
@@ -154,7 +154,7 @@ export default function RiskCenterPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-zinc-100">{p.title}</p>
-                    <p className="mt-1 text-[10px] uppercase text-zinc-500">
+                    <p className="mt-1 text-[10px] uppercase text-[var(--gos-text-muted)]">
                       Confidence <span className="font-mono text-amber-300">{p.confidence}%</span>
                     </p>
                   </div>

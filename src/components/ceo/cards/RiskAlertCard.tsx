@@ -37,8 +37,8 @@ export function RiskAlertCard({ alert }: { alert: RiskAlert }) {
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${c.bg} ${c.text} ${c.ring}`}>
               {c.label}
             </span>
-            <span className="text-[10px] uppercase text-zinc-500">{alert.department}</span>
-            <span className="ml-auto text-[10px] text-zinc-500">{formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true, locale: idLocale })}</span>
+            <span className="text-[10px] uppercase text-[var(--gos-text-muted)]">{alert.department}</span>
+            <span className="ml-auto text-[10px] text-[var(--gos-text-muted)]">{formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true, locale: idLocale })}</span>
           </div>
           <p className="mt-1 text-sm font-semibold text-zinc-100">{alert.title}</p>
         </div>

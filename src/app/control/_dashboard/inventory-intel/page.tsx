@@ -191,14 +191,14 @@ export default function InventoryIntelPage() {
             <tbody className="divide-y divide-white/5">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-zinc-500">
+                  <td colSpan={7} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Memuat inventaris…
                   </td>
                 </tr>
               )}
               {!loading && fastest.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-zinc-500">
+                  <td colSpan={7} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Tidak ada item inventaris.
                   </td>
                 </tr>
@@ -235,7 +235,7 @@ export default function InventoryIntelPage() {
 
       <Panel title="Supplier Intelligence" subtitle="Data agregasi supplier akan tersedia setelah modul receivings mencatat ≥ 30 transaksi">
         <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-4 text-xs text-zinc-400">
-          <Boxes className="h-5 w-5 text-zinc-500" />
+          <Boxes className="h-5 w-5 text-[var(--gos-text-muted)]" />
           Tabel supplier (on-time %, lead time rata-rata, harga naik/turun) akan otomatis muncul di sini
           ketika data <code className="rounded bg-white/10 px-1">supplier_receivings</code> mencukupi.
         </div>

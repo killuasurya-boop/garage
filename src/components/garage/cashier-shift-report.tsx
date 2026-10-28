@@ -415,7 +415,7 @@ export function CashierShiftReport({
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-[#d11a2a]">
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--gos-status-danger)]">
             Kasir
           </p>
           <h1 className="text-2xl font-bold text-white">Riwayat & Laporan Shift</h1>
@@ -590,7 +590,7 @@ function SessionCard({
             {fmtDateTime(session.openedAt)}
             {session.closedAt ? ` → ${fmtDateTime(session.closedAt)}` : " → sekarang"}
           </p>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-[var(--gos-text-muted)]">
             Modal {fmtRp(session.openingCash)} · Diharapkan{" "}
             {hideCashFigures ? HIDDEN_UNTIL_CLOSE : fmtRp(session.expectedCash)}
           </p>
@@ -812,7 +812,7 @@ function ShiftDetailView({
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {summary.byMethod.length === 0 ? (
-                  <p className="text-zinc-500">Belum ada pembayaran.</p>
+                  <p className="text-[var(--gos-text-muted)]">Belum ada pembayaran.</p>
                 ) : (
                   summary.byMethod.map((m) => (
                     <Row
@@ -909,13 +909,13 @@ function ShiftDetailView({
             </CardHeader>
             <CardContent>
               {!transactions || transactions.orders.length === 0 ? (
-                <p className="py-6 text-center text-sm text-zinc-500">
+                <p className="py-6 text-center text-sm text-[var(--gos-text-muted)]">
                   Belum ada transaksi.
                 </p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-sm">
-                    <thead className="text-xs uppercase text-zinc-500">
+                    <thead className="text-xs uppercase text-[var(--gos-text-muted)]">
                       <tr>
                         <th className="px-2 py-2 text-left">Waktu</th>
                         <th className="px-2 py-2 text-left">Order</th>
@@ -1038,7 +1038,7 @@ function DailyShiftReportPanel({
       <Card className="border-zinc-700 bg-zinc-900/40">
         <CardContent className="flex flex-wrap items-end justify-between gap-3 p-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--gos-text-muted)]">
               Owner/Admin
             </p>
             <h2 className="text-lg font-bold text-white">Rekap Keuangan Harian</h2>
@@ -1161,7 +1161,7 @@ function DailyShiftReportPanel({
             </CardHeader>
             <CardContent className="space-y-2">
               {report.rows.length === 0 ? (
-                <p className="py-6 text-center text-sm text-zinc-500">
+                <p className="py-6 text-center text-sm text-[var(--gos-text-muted)]">
                   Belum ada shift pada tanggal ini.
                 </p>
               ) : (
@@ -1311,9 +1311,9 @@ function Stat({
 }) {
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-      <p className="text-xs uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-[var(--gos-text-muted)]">{label}</p>
       <p
-        className={`mt-1 text-lg font-bold ${accent ? "text-[#d11a2a]" : "text-white"}`}
+        className={`mt-1 text-lg font-bold ${accent ? "text-[var(--gos-status-danger)]" : "text-white"}`}
       >
         {value}
       </p>
@@ -1338,7 +1338,7 @@ function Row({
         : tone === "warn"
           ? "text-amber-400"
           : tone === "muted"
-            ? "text-zinc-500"
+            ? "text-[var(--gos-text-muted)]"
             : "text-white";
   return (
     <div className="flex items-center justify-between border-b border-zinc-800/60 pb-1 last:border-0">

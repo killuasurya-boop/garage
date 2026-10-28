@@ -71,7 +71,7 @@ export default function OperationsPage() {
                 accent={d.score >= d.target ? "var(--garage-success)" : d.score >= d.target - 8 ? "var(--garage-amber)" : "var(--garage-red-bright)"}
                 size={120}
               />
-              <p className="mt-1 text-[10px] uppercase text-zinc-500">target {d.target}</p>
+              <p className="mt-1 text-[10px] uppercase text-[var(--gos-text-muted)]">target {d.target}</p>
             </div>
           ))}
         </div>
@@ -107,7 +107,7 @@ export default function OperationsPage() {
         <Panel title="Alert Bottleneck" subtitle="Auto-flag operasional">
           <div className="space-y-2">
             {opsRisks.length === 0 ? (
-              <p className="text-xs text-zinc-500">Belum ada bottleneck aktif.</p>
+              <p className="text-xs text-[var(--gos-text-muted)]">Belum ada bottleneck aktif.</p>
             ) : (
               opsRisks.map((r) => <RiskAlertCard key={r.id} alert={r} />)
             )}

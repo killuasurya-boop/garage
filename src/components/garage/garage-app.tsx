@@ -1002,7 +1002,7 @@ function GarageWorkspace({
                 <div aria-hidden className="flex-1 md:hidden" />
                 <div className="order-last min-w-0 basis-full md:order-none md:flex-1 md:basis-auto">
                   <div className="flex items-center gap-2">
-                    <active.icon className="size-4 text-[#d11a2a]" />
+                    <active.icon className="size-4 text-[var(--gos-status-danger)]" />
                     <p className="truncate text-sm text-[#d0d0d6]">
                       {active.description}
                     </p>
@@ -1199,7 +1199,7 @@ function GarageWorkspace({
               <PosHeaderBrand />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <active.icon className="size-4 shrink-0 text-[#d11a2a]" />
+                  <active.icon className="size-4 shrink-0 text-[var(--gos-status-danger)]" />
                   <p className="garage-mono truncate">{data.me.device}</p>
                 </div>
                 <h1 className="garage-display garage-chrome truncate text-2xl">

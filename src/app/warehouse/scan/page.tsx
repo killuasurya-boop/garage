@@ -77,7 +77,7 @@ export default function WmsScanPage() {
             style={{ animation: "wms-scanline 2.4s ease-in-out infinite", top: "45%" }}
           />
         </div>
-        <p className="mt-2 flex items-center justify-center gap-1.5 text-[12px] text-white/50">
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-[12px] text-[var(--gos-text-muted)]">
           <Camera className="size-3.5" />{" "}
           {cameraError ??
             (scanner.engine === "jsqr"

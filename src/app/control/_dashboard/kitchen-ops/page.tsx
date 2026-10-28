@@ -258,9 +258,9 @@ export default function KitchenOpsPage() {
             </table>
           </div>
         ) : !loading ? (
-          <p className="text-xs text-zinc-500">Belum ada tiket selesai hari ini.</p>
+          <p className="text-xs text-[var(--gos-text-muted)]">Belum ada tiket selesai hari ini.</p>
         ) : (
-          <p className="text-xs text-zinc-500">Memuat performa…</p>
+          <p className="text-xs text-[var(--gos-text-muted)]">Memuat performa…</p>
         )}
       </Panel>
     </div>
@@ -326,7 +326,7 @@ function StationCard({
           >
             <div className="min-w-0">
               <p className="font-mono text-zinc-200">{t.id} · {t.table}</p>
-              <p className="truncate text-[10px] text-zinc-500">
+              <p className="truncate text-[10px] text-[var(--gos-text-muted)]">
                 {t.items.map((i) => `${i.qty ?? 1}× ${i.name ?? "?"}`).join(", ") || "—"}
               </p>
             </div>
@@ -334,12 +334,12 @@ function StationCard({
               <p className={`font-mono text-[11px] ${t.elapsed > t.targetMinutes ? "text-[#ffb1b1]" : "text-zinc-200"}`}>
                 {t.elapsed}m
               </p>
-              <p className="text-[9px] uppercase text-zinc-500">{t.status}</p>
+              <p className="text-[9px] uppercase text-[var(--gos-text-muted)]">{t.status}</p>
             </div>
           </div>
         ))}
         {tickets.length === 0 && (
-          <p className="rounded-md border border-white/5 bg-[var(--garage-bg-3)] px-3 py-2 text-center text-[11px] text-zinc-500">
+          <p className="rounded-md border border-white/5 bg-[var(--garage-bg-3)] px-3 py-2 text-center text-[11px] text-[var(--gos-text-muted)]">
             <TrendingUp className="mr-1 inline h-3 w-3" /> Station kosong
           </p>
         )}

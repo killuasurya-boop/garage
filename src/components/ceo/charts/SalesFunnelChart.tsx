@@ -31,7 +31,7 @@ export function SalesFunnelChart({ data = funnelData }: { data?: { stage: string
               </motion.div>
             </div>
             {conversion ? (
-              <p className="pl-1 text-[10px] text-zinc-500">
+              <p className="pl-1 text-[10px] text-[var(--gos-text-muted)]">
                 lanjut <span className="font-mono text-amber-300">{conversion}%</span> ke {next!.stage}
               </p>
             ) : null}

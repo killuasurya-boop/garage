@@ -78,15 +78,15 @@ export function PermissionMatrix() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Card className="border-zinc-800 bg-zinc-900/60 px-4 py-3">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Roles</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--gos-text-muted)]">Roles</div>
               <div className="text-2xl font-semibold text-zinc-100">{ROLES.length}</div>
             </Card>
             <Card className="border-zinc-800 bg-zinc-900/60 px-4 py-3">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Permissions</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--gos-text-muted)]">Permissions</div>
               <div className="text-2xl font-semibold text-zinc-100">{ALL_PERMISSIONS.length}</div>
             </Card>
             <Card className="border-zinc-800 bg-zinc-900/60 px-4 py-3">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Modules</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--gos-text-muted)]">Modules</div>
               <div className="text-2xl font-semibold text-zinc-100">{ALL_MODULES.length}</div>
             </Card>
           </div>
@@ -109,7 +109,7 @@ export function PermissionMatrix() {
               placeholder={
                 activeTab === "permission" ? "Cari permission…" : "Cari module…"
               }
-              className="lg:w-64 border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+              className="lg:w-64 border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-[var(--gos-text-muted)]"
             />
           </CardHeader>
           <CardContent>
@@ -136,7 +136,7 @@ export function PermissionMatrix() {
         <Card className="border-zinc-800 bg-zinc-900/60">
           <CardHeader>
             <h2 className="text-lg font-semibold text-zinc-100">Permission preset per role</h2>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-[var(--gos-text-muted)]">
               Daftar permission untuk tiap role. Untuk ubah, edit{" "}
               <code className="rounded bg-zinc-950 px-1 py-0.5 text-amber-300">
                 rolePermissions
@@ -157,7 +157,7 @@ export function PermissionMatrix() {
                 <TabsContent key={role} value={role} className="mt-4">
                   <div className="grid gap-4 lg:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-xs uppercase tracking-wider text-zinc-500">
+                      <div className="mb-2 text-xs uppercase tracking-wider text-[var(--gos-text-muted)]">
                         Permission ({permissionsForRole(role).length})
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -172,7 +172,7 @@ export function PermissionMatrix() {
                       </div>
                     </div>
                     <div>
-                      <div className="mb-2 text-xs uppercase tracking-wider text-zinc-500">
+                      <div className="mb-2 text-xs uppercase tracking-wider text-[var(--gos-text-muted)]">
                         Module Access ({modulesForRole(role).length})
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -211,7 +211,7 @@ function MatrixGrid<T extends string>({
   emptyHint: string;
 }) {
   if (rows.length === 0) {
-    return <div className="py-12 text-center text-sm text-zinc-500">{emptyHint}</div>;
+    return <div className="py-12 text-center text-sm text-[var(--gos-text-muted)]">{emptyHint}</div>;
   }
 
   const grouped = groups
@@ -236,7 +236,7 @@ function MatrixGrid<T extends string>({
               >
                 <div className="flex flex-col items-center gap-0.5">
                   <span>{role.split(" ")[0]}</span>
-                  <span className="text-zinc-600">{role.split(" ").slice(1).join(" ")}</span>
+                  <span className="text-[var(--gos-text-muted)]">{role.split(" ").slice(1).join(" ")}</span>
                 </div>
               </th>
             ))}

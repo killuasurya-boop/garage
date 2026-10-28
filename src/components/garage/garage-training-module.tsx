@@ -154,19 +154,19 @@ export function GarageTrainingModule({ role = "Kasir", workstation = null }: { r
 
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-lg border border-[#34343c] bg-[#181820] p-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">Materi</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--gos-text-muted)]">Materi</p>
             <p className="mt-2 text-2xl font-black text-zinc-50">{courses.length}</p>
-            <p className="text-xs text-zinc-500">{totalLessons} bab</p>
+            <p className="text-xs text-[var(--gos-text-muted)]">{totalLessons} bab</p>
           </div>
           <div className="rounded-lg border border-[#34343c] bg-[#181820] p-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">Selesai</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--gos-text-muted)]">Selesai</p>
             <p className="mt-2 text-2xl font-black text-[#86efac]">{completedCourses}</p>
-            <p className="text-xs text-zinc-500">course</p>
+            <p className="text-xs text-[var(--gos-text-muted)]">course</p>
           </div>
           <div className="rounded-lg border border-[#34343c] bg-[#181820] p-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">SOP Pending</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--gos-text-muted)]">SOP Pending</p>
             <p className="mt-2 text-2xl font-black text-[#f5a742]">{pendingSops}</p>
-            <p className="text-xs text-zinc-500">hari ini</p>
+            <p className="text-xs text-[var(--gos-text-muted)]">hari ini</p>
           </div>
         </div>
       </div>
@@ -203,7 +203,7 @@ export function GarageTrainingModule({ role = "Kasir", workstation = null }: { r
 
           <TabsContent value="training" className="m-0 space-y-4 pb-6">
             {courses.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[#34343c] bg-[#181820] p-8 text-center text-sm text-zinc-500">
+              <div className="rounded-lg border border-dashed border-[#34343c] bg-[#181820] p-8 text-center text-sm text-[var(--gos-text-muted)]">
                 Tidak ada materi pelatihan yang wajib untuk peran Anda saat ini.
               </div>
             ) : (
@@ -240,7 +240,7 @@ export function GarageTrainingModule({ role = "Kasir", workstation = null }: { r
                               </span>
                               <div className="min-w-0 flex-1">
                                 <h4 className="text-sm font-black text-zinc-100">{lesson.title}</h4>
-                                <p className="mt-1 text-xs leading-5 text-zinc-500">{lesson.summary}</p>
+                                <p className="mt-1 text-xs leading-5 text-[var(--gos-text-muted)]">{lesson.summary}</p>
                               </div>
                             </div>
                             {lesson.checklist && lesson.checklist.length > 0 && (
@@ -260,7 +260,7 @@ export function GarageTrainingModule({ role = "Kasir", workstation = null }: { r
                                   );
                                 })}
                                 {lesson.checklist.length > 4 ? (
-                                  <li className="pl-5 text-xs font-semibold text-zinc-500">
+                                  <li className="pl-5 text-xs font-semibold text-[var(--gos-text-muted)]">
                                     +{lesson.checklist.length - 4} instruksi detail di dokumen lengkap
                                   </li>
                                 ) : null}
@@ -312,9 +312,9 @@ export function GarageTrainingModule({ role = "Kasir", workstation = null }: { r
 
             {sops.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[#34343c] bg-[#181820] p-8 text-center">
-                <ClipboardCheck className="mx-auto size-8 text-zinc-600" />
+                <ClipboardCheck className="mx-auto size-8 text-[var(--gos-text-muted)]" />
                 <p className="mt-3 text-sm font-bold text-zinc-300">Checklist SOP belum tersedia untuk role ini.</p>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="mt-1 text-xs text-[var(--gos-text-muted)]">
                   Hubungi Manajer/Owner untuk menambahkan SOP harian sesuai station kerja.
                 </p>
               </div>

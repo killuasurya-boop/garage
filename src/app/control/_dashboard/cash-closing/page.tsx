@@ -230,14 +230,14 @@ export default function CashClosingPage() {
             <tbody className="divide-y divide-white/5">
               {loading && (
                 <tr>
-                  <td colSpan={9} className="py-6 text-center text-zinc-500">
+                  <td colSpan={9} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Memuat shift…
                   </td>
                 </tr>
               )}
               {!loading && (report?.rows.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-6 text-center text-zinc-500">
+                  <td colSpan={9} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Tidak ada shift pada tanggal ini.
                   </td>
                 </tr>
@@ -249,7 +249,7 @@ export default function CashClosingPage() {
                     <td className="py-2 pr-3 font-mono text-zinc-300">
                       {r.code}
                       {r.shiftLabel ? (
-                        <span className="ml-1 text-[10px] text-zinc-500">· {r.shiftLabel}</span>
+                        <span className="ml-1 text-[10px] text-[var(--gos-text-muted)]">· {r.shiftLabel}</span>
                       ) : null}
                     </td>
                     <td className="py-2 pr-3">{r.cashierName}</td>
@@ -301,7 +301,7 @@ export default function CashClosingPage() {
                           <CheckCircle2 className="h-3 w-3" /> OK
                         </span>
                       ) : (
-                        <span className="text-zinc-500">—</span>
+                        <span className="text-[var(--gos-text-muted)]">—</span>
                       )}
                     </td>
                   </tr>

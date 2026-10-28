@@ -288,7 +288,7 @@ function CandidateDrawer({
           <div className="flex-1 space-y-5">
             {/* Identitas */}
           <div className="rounded-md border border-[#34343c] bg-white/[0.02] p-3">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Identitas</p>
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Identitas</p>
             <div className="space-y-2 text-sm">
               <div className="flex items-start gap-2.5 text-[#d4d4d8]">
                 <Phone className="mt-0.5 size-3.5 shrink-0 text-[#888]" />
@@ -313,7 +313,7 @@ function CandidateDrawer({
 
           {/* Posisi */}
           <div className="rounded-md border border-[#34343c] bg-white/[0.02] p-3">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Posisi & Ketersediaan</p>
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Posisi & Ketersediaan</p>
             <div className="space-y-1.5 text-sm text-[#d4d4d8]">
               <p><span className="text-[#888]">Posisi:</span> <strong>{candidate.appliedPosition}</strong></p>
               {candidate.preferredLocation && <p><span className="text-[#888]">Lokasi:</span> {candidate.preferredLocation}</p>}
@@ -335,7 +335,7 @@ function CandidateDrawer({
           {/* Pendidikan & Pengalaman */}
           {(candidate.education || candidate.lastExperience || candidate.experienceDuration || candidate.previousCompany) && (
             <div className="rounded-md border border-[#34343c] bg-white/[0.02] p-3">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Pendidikan & Pengalaman</p>
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Pendidikan & Pengalaman</p>
               <div className="space-y-1.5 text-sm text-[#d4d4d8]">
                 {candidate.education && <p><span className="text-[#888]">Pendidikan:</span> {candidate.education}</p>}
                 {candidate.experienceDuration && <p><span className="text-[#888]">Lama pengalaman:</span> {candidate.experienceDuration}</p>}
@@ -359,7 +359,7 @@ function CandidateDrawer({
           {/* Skill & Karakter */}
           {(candidate.mainSkill || candidate.strength || candidate.weakness || candidate.motivation || candidate.customerExperience) && (
             <div className="rounded-md border border-[#34343c] bg-white/[0.02] p-3">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Skill & Karakter</p>
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Skill & Karakter</p>
               <div className="space-y-2 text-sm text-[#d4d4d8]">
                 {candidate.mainSkill && <p><span className="text-[#888]">Skill utama:</span> {candidate.mainSkill}</p>}
                 {candidate.skillLevel && <p><span className="text-[#888]">Level skill:</span> {candidate.skillLevel}</p>}
@@ -381,7 +381,7 @@ function CandidateDrawer({
 
           {/* Ekspektasi & Dokumen */}
           <div className="rounded-md border border-[#34343c] bg-white/[0.02] p-3">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Ekspektasi & Dokumen</p>
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Ekspektasi & Dokumen</p>
             <div className="space-y-2 text-sm text-[#d4d4d8]">
               <p><span className="text-[#888]">Gaji diharapkan:</span> {fmtRp(candidate.expectedSalary)}</p>
               {candidate.cvUrl && (
@@ -453,7 +453,7 @@ function CandidateDrawer({
 
             {/* Form internal HR */}
             <div className="rounded-md border border-[#d11a2a]/30 bg-[#d11a2a]/[0.04] p-4">
-              <p className="mb-4 text-[11px] font-bold uppercase tracking-wider text-[#d11a2a]">Catatan Internal HR</p>
+              <p className="mb-4 text-[11px] font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Catatan Internal HR</p>
               <div className="space-y-3">
               <div>
                 <label className={labelCls}>Score (1–10)</label>
@@ -686,7 +686,7 @@ function PositionsManager() {
 
       {showAdd && (
         <form onSubmit={(e) => void addPosition(e)} className="rounded-md border border-[#34343c] bg-white/[0.02] p-4 space-y-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#d11a2a]">Posisi Baru</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-[var(--gos-status-danger)]">Posisi Baru</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div><label className="block text-[11px] text-[#888] mb-1">Judul Posisi *</label><input aria-label="Judul Posisi" required value={addForm.title} onChange={(e) => setAddForm((f) => ({ ...f, title: e.target.value }))} placeholder="mis. Barista" className={`${inputCls} w-full`} /></div>
             <div><label className="block text-[11px] text-[#888] mb-1">Lokasi</label><input aria-label="Lokasi" value={addForm.location} onChange={(e) => setAddForm((f) => ({ ...f, location: e.target.value }))} placeholder="Tebing Tinggi" className={`${inputCls} w-full`} /></div>
@@ -983,7 +983,7 @@ export function RecruitmentView() {
                       <h3 className="text-sm font-black tracking-wide text-white">Pipeline Konversi Kandidat</h3>
                       <p className="mt-1 text-[11px] text-[#888]">Menganalisis tingkat kelulusan tiap tahapan rekrutmen</p>
                     </div>
-                    <div className="flex items-center gap-2 rounded-full border border-[#d11a2a]/20 bg-[#d11a2a]/10 px-3 py-1.5 text-xs font-bold text-[#d11a2a]">
+                    <div className="flex items-center gap-2 rounded-full border border-[#d11a2a]/20 bg-[#d11a2a]/10 px-3 py-1.5 text-xs font-bold text-[var(--gos-status-danger)]">
                       <User className="size-3.5" />
                       Total: {maxVal}
                     </div>

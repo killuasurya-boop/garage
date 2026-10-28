@@ -259,7 +259,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-[#d11a2a]">
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--gos-status-danger)]">
             Penjualan
           </p>
           <h1 className="text-2xl font-bold text-white">Riwayat Penjualan</h1>
@@ -284,11 +284,11 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
       <Card className="border-zinc-700 bg-zinc-900/40">
         <CardContent className="grid gap-3 p-4 md:grid-cols-12">
           <div className="md:col-span-4">
-            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-[var(--gos-text-muted)]">
               Cari
             </label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--gos-text-muted)]" />
               <Input aria-label="Cari penjualan"
                 className="pl-9"
                 placeholder="No invoice/order, nama, HP, atau meja…"
@@ -373,7 +373,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
             </Select>
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-[var(--gos-text-muted)]">
               Dari
             </label>
             <Input aria-label="Dari"
@@ -384,7 +384,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
             />
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">
+            <label className="mb-1 block text-xs uppercase tracking-wide text-[var(--gos-text-muted)]">
               Sampai
             </label>
             <Input aria-label="Sampai"
@@ -473,7 +473,7 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-sm">
-                <thead className="bg-zinc-950/40 text-xs uppercase text-zinc-500">
+                <thead className="bg-zinc-950/40 text-xs uppercase text-[var(--gos-text-muted)]">
                   <tr>
                     <th className="px-4 py-2 text-left">Waktu</th>
                     <th className="px-4 py-2 text-left">Invoice</th>
@@ -499,14 +499,14 @@ export function SalesHistoryView({ canDeleteInvoice = false }: { canDeleteInvoic
                         <div className="font-mono text-xs font-semibold text-white">
                           {r.invoiceNo}
                         </div>
-                        <div className="text-[10px] text-zinc-500">
+                        <div className="text-[10px] text-[var(--gos-text-muted)]">
                           {r.orderNo}
                         </div>
                       </td>
                       <td className="px-4 py-2">
                         <div className="text-sm">{r.customer.name}</div>
                         {r.customer.phone && (
-                          <div className="text-[10px] text-zinc-500">
+                          <div className="text-[10px] text-[var(--gos-text-muted)]">
                             {r.customer.phone}
                           </div>
                         )}
@@ -807,15 +807,15 @@ function OrderDetailView({
           <Card className="border-zinc-700 bg-zinc-900/40">
             <CardContent className="grid gap-4 p-4 md:grid-cols-2">
               <div>
-                <p className="text-xs uppercase text-zinc-500">Invoice</p>
+                <p className="text-xs uppercase text-[var(--gos-text-muted)]">Invoice</p>
                 <p className="font-mono text-lg font-bold text-white">
                   {data.order.invoiceNo}
                 </p>
-                <p className="text-xs text-zinc-500">{data.order.orderNo}</p>
+                <p className="text-xs text-[var(--gos-text-muted)]">{data.order.orderNo}</p>
               </div>
               <div className="md:text-right">
-                <p className="text-xs uppercase text-zinc-500">Total</p>
-                <p className="text-xl font-bold text-[#d11a2a]">
+                <p className="text-xs uppercase text-[var(--gos-text-muted)]">Total</p>
+                <p className="text-xl font-bold text-[var(--gos-status-danger)]">
                   {fmtRp(data.order.total)}
                 </p>
                 <div className="mt-1 inline-block">
@@ -827,7 +827,7 @@ function OrderDetailView({
               </div>
 
               <div>
-                <p className="text-xs uppercase text-zinc-500">Customer</p>
+                <p className="text-xs uppercase text-[var(--gos-text-muted)]">Customer</p>
                 <p className="text-white">
                   {data.order.customerName ?? "Guest"}
                 </p>
@@ -838,7 +838,7 @@ function OrderDetailView({
                 )}
               </div>
               <div className="md:text-right">
-                <p className="text-xs uppercase text-zinc-500">Kasir</p>
+                <p className="text-xs uppercase text-[var(--gos-text-muted)]">Kasir</p>
                 <p className="text-white">{data.cashier?.name ?? "—"}</p>
                 <p className="text-xs text-zinc-300">
                   <Calendar className="mr-1 inline h-3 w-3" />
@@ -850,13 +850,13 @@ function OrderDetailView({
               </div>
 
               <div>
-                <p className="text-xs uppercase text-zinc-500">Meja</p>
+                <p className="text-xs uppercase text-[var(--gos-text-muted)]">Meja</p>
                 <p className="text-white">{data.order.tableLabel}</p>
                 <p className="text-xs text-zinc-300">{CHANNEL_GROUP_LABEL[data.order.channelGroup] ?? data.order.channel}</p>
               </div>
               {data.outlet && (
                 <div className="md:text-right">
-                  <p className="text-xs uppercase text-zinc-500">Outlet</p>
+                  <p className="text-xs uppercase text-[var(--gos-text-muted)]">Outlet</p>
                   <p className="text-white">{data.outlet.name}</p>
                   <p className="text-xs text-zinc-400">{data.outlet.code}</p>
                 </div>
@@ -876,7 +876,7 @@ function OrderDetailView({
                 Rincian Pesanan ({data.items.length} item)
               </div>
               <table className="w-full text-sm">
-                <thead className="text-xs uppercase text-zinc-500">
+                <thead className="text-xs uppercase text-[var(--gos-text-muted)]">
                   <tr>
                     <th className="px-4 py-2 text-left">Item</th>
                     <th className="px-4 py-2 text-right">Qty</th>
@@ -891,7 +891,7 @@ function OrderDetailView({
                         {it.itemName}
                         {it.variantLabel &&
                           it.variantLabel.toLowerCase() !== "regular" && (
-                            <span className="text-zinc-500">
+                            <span className="text-[var(--gos-text-muted)]">
                               {" — "}
                               {it.variantLabel}
                             </span>
@@ -957,7 +957,7 @@ function OrderDetailView({
                     >
                       TOTAL
                     </td>
-                    <td className="px-4 py-2 text-right text-base font-bold text-[#d11a2a]">
+                    <td className="px-4 py-2 text-right text-base font-bold text-[var(--gos-status-danger)]">
                       {fmtRp(data.order.total)}
                     </td>
                   </tr>
@@ -980,7 +980,7 @@ function OrderDetailView({
                         <span className="text-white">
                           {labelForMethod(p.method)}
                         </span>
-                        <span className="ml-2 text-xs text-zinc-500">
+                        <span className="ml-2 text-xs text-[var(--gos-text-muted)]">
                           {fmtDateTime(p.createdAt)} · {p.status}
                         </span>
                       </div>

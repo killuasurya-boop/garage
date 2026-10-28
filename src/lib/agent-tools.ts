@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AgentToolError, dateKey, range, rupiah, type AgentTool, type AgentToolContext } from "@/lib/agent-tool-core";
 import { kasTools } from "@/lib/agent-tools-kas";
 import { posStaffTools } from "@/lib/agent-tools-pos-staf";
+import { productTools } from "@/lib/agent-tools-produk";
 import { todayWibKey } from "@/lib/date-range";
 import { buildCapabilities } from "@/lib/mcp-tool-registry";
 import { canUseApiAs } from "@/lib/role-access";
@@ -313,6 +314,8 @@ const tools: AgentTool[] = [
   ...kasTools,
   // M3b: POS/Order (batal/refund lewat pengajuan, koreksi metode bayar) + Karyawan.
   ...posStaffTools,
+  // M3c: Produk & Harga (harga per varian, aksi produk, kategori).
+  ...productTools,
   {
     name: "garage_api",
     title: "Panggil endpoint Garage OS",

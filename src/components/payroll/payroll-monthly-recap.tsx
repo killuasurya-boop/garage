@@ -103,7 +103,7 @@ export function PayrollMonthlyRecap() {
             Absen, telat, lembur, fee, dan bonus per karyawan. Klik baris untuk rincian harian.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-base text-[var(--garage-dim)]">
             Bulan
             <input
@@ -117,7 +117,7 @@ export function PayrollMonthlyRecap() {
             type="button"
             onClick={() => window.open(`/api/payroll/payslips?month=${month}`, "_blank", "noopener")}
             disabled={!data || data.employees.length === 0}
-            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-[var(--garage-red)] px-4 text-base font-semibold text-white transition-colors hover:bg-[var(--garage-red-bright)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex min-h-11 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl bg-[var(--garage-red)] px-4 text-base font-semibold text-white transition-colors hover:bg-[var(--garage-red-bright)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Printer className="size-4" aria-hidden />
             Cetak semua slip

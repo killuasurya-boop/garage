@@ -479,6 +479,7 @@ function ScenarioCard({ data, onSaved, className }: { data: FinanceIntelligence;
         </div>
         <div className="min-w-0">
           {scenario ? (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm [&_td:not(:first-child)]:whitespace-nowrap [&_td:not(:first-child)]:pl-3">
               <thead className="text-[11px] uppercase text-zinc-400">
                 <tr>
@@ -499,6 +500,7 @@ function ScenarioCard({ data, onSaved, className }: { data: FinanceIntelligence;
                 ))}
               </tbody>
             </table>
+            </div>
           ) : (
             <div className="h-48 animate-pulse rounded-xl bg-white/5 motion-reduce:animate-none" />
           )}

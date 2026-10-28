@@ -1083,7 +1083,7 @@ function GarageWorkspace({
                 isKitchenMode ? "py-2" : "py-3"
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
                 <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                   <SheetTrigger asChild>
                     <Button
@@ -1126,7 +1126,9 @@ function GarageWorkspace({
                   </SheetContent>
                 </Sheet>
 
-                <div className="min-w-0 flex-1">
+                {/* HP & tablet potret: judul modul turun ke baris sendiri supaya tidak terpotong ("Dashb…"). */}
+                <div aria-hidden className="flex-1 md:hidden" />
+                <div className="order-last min-w-0 basis-full md:order-none md:flex-1 md:basis-auto">
                   <div className="flex items-center gap-2">
                     <active.icon className="size-4 text-[#d11a2a]" />
                     <p className="truncate text-sm text-[#d0d0d6]">

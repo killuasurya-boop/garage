@@ -310,8 +310,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   lowStockThreshold: 5,
   newOrderSound: "bell",
   // Security
-  securitySessionMaxHours: 24,
-  securityIdleLogoutMinutes: 30,
+  securitySessionMaxHours: 720,
+  // 0 = mati (Owner 28 Okt 2026: logout otomatis karena tidak aktif dimatikan untuk semua).
+  securityIdleLogoutMinutes: 0,
   securityFailedLoginLockoutCount: 5,
   securityLockoutDurationMinutes: 15,
   securityRequire2faForOwner: false,

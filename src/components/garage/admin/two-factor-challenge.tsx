@@ -19,6 +19,9 @@ export function TwoFactorChallenge({ next }: { next: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [restartRequired, setRestartRequired] = useState(false);
+  // "Ingat perangkat ini" (Owner 28 Okt 2026): perangkat ini tidak diminta 2FA lagi saat
+  // login selama 30 hari (cookie terpercaya Better Auth, trustDeviceMaxAge di auth.ts).
+  const [trustDevice, setTrustDevice] = useState(false);
   const loginUrl = `/login?next=${encodeURIComponent(next)}`;
 
   async function verify() {
@@ -36,8 +39,8 @@ export function TwoFactorChallenge({ next }: { next: string }) {
     try {
       const result =
         mode === "totp"
-          ? await authClient.twoFactor.verifyTotp({ code })
-          : await authClient.twoFactor.verifyBackupCode({ code });
+          ? await authClient.twoFactor.verifyTotp({ code, trustDevice })
+          : await authClient.twoFactor.verifyBackupCode({ code, trustDevice });
 
       if (result.error) {
         const recovery = twoFactorChallengeError(result.error, mode);
@@ -119,6 +122,20 @@ export function TwoFactorChallenge({ next }: { next: string }) {
             }}
           />
         </div>
+
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-[#2a2a30] bg-[#08080a] px-3 py-2.5 text-sm text-[#e4e4e7]">
+          <input
+            type="checkbox"
+            checked={trustDevice}
+            onChange={(event) => setTrustDevice(event.target.checked)}
+            className="mt-0.5 size-5 shrink-0 accent-[#d11a2a]"
+            data-testid="two-factor-trust-device"
+          />
+          <span>
+            <span className="block font-semibold text-white">Ingat perangkat ini 30 hari</span>
+            <span className="block text-xs text-[#b8b8bf]">Tidak diminta kode 2FA lagi di perangkat ini. Jangan centang di komputer/tablet bersama (kasir).</span>
+          </span>
+        </label>
 
         {error ? (
           <p role="alert" className="rounded-md border border-[#ff2a3a]/50 bg-[#d11a2a]/12 px-3 py-2 text-sm text-[#f4f4f5]">

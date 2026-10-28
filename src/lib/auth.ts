@@ -92,9 +92,15 @@ function createLazyDb() {
 // Session expiresIn dibaca dari env GARAGE_SESSION_EXPIRES_HOURS (matches
 // setting `securitySessionMaxHours` di /control/settings). Karena Better Auth
 // init sinkronus tapi setting DB asinkron, env adalah bridge — set env
-// supaya match DB default, atau atur env saat deploy. Default 24 jam.
-const sessionMaxHours = Number(process.env.GARAGE_SESSION_EXPIRES_HOURS ?? 24);
+// supaya match DB default, atau atur env saat deploy.
+// Owner 28 Okt 2026: default 30 hari (720 jam) dan DIPERPANJANG saat dipakai (updateAge),
+// supaya Owner/staf tidak login + 2FA berulang. Sesi yang tidak dipakai 30 hari tetap habis.
+const sessionMaxHours = Number(process.env.GARAGE_SESSION_EXPIRES_HOURS ?? 720);
 const sessionExpiresInSeconds = Math.max(1, sessionMaxHours) * 60 * 60;
+// Perpanjang masa sesi paling sering sekali per hari (atau lebih cepat bila sesi < 1 hari).
+const sessionUpdateAgeSeconds = Math.min(24 * 60 * 60, Math.max(60, Math.floor(sessionExpiresInSeconds / 4)));
+// "Ingat perangkat ini" pada verifikasi 2FA: 30 hari.
+const TRUST_DEVICE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 // Gateway OAuth MCP ChatGPT (D-01). Mati kecuali GARAGE_MCP_CHATGPT_ENABLED=true;
 // saat mati tidak ada plugin/endpoint OAuth sama sekali.
@@ -135,6 +141,7 @@ export const auth = betterAuth({
   },
   session: {
     expiresIn: sessionExpiresInSeconds,
+    updateAge: sessionUpdateAgeSeconds,
   },
   advanced: {
     database: {
@@ -155,6 +162,7 @@ export const auth = betterAuth({
   plugins: [
     twoFactor({
       issuer: "Garage Coffee",
+      trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_SECONDS,
     }),
     ...mcpChatgptPlugins(),
   ],

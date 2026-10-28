@@ -90,7 +90,7 @@ function NumberInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-semibold uppercase text-zinc-500">{label}</span>
+      <span className="mb-1 block text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">{label}</span>
       <div className="flex items-center overflow-hidden rounded-lg border border-white/10 bg-[var(--garage-bg-3)]">
         <input
           type="number"
@@ -98,7 +98,7 @@ function NumberInput({
           onChange={(event) => onChange(Number(event.target.value))}
           className="min-h-10 w-full bg-transparent px-3 font-mono text-sm text-zinc-100 outline-none"
         />
-        {suffix ? <span className="border-l border-white/10 px-3 text-[11px] font-semibold uppercase text-zinc-500">{suffix}</span> : null}
+        {suffix ? <span className="border-l border-white/10 px-3 text-[11px] font-semibold uppercase text-[var(--gos-text-muted)]">{suffix}</span> : null}
       </div>
     </label>
   );
@@ -117,7 +117,7 @@ function SelectInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-semibold uppercase text-zinc-500">{label}</span>
+      <span className="mb-1 block text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -519,7 +519,7 @@ export default function ProfitMaxPage() {
               <div className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-5 text-center">
                 <Badge tone={hppCalc.margin < 30 ? "red" : hppCalc.margin < 45 ? "amber" : "success"}>{hppCalc.status}</Badge>
                 <p className="mt-3 font-[var(--garage-font-display)] text-5xl font-black text-zinc-50">{hppCalc.margin.toFixed(1)}%</p>
-                <p className="text-[10px] font-semibold uppercase text-zinc-500">Margin Bersih</p>
+                <p className="text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">Margin Bersih</p>
               </div>
               <MiniMetric label="HPP bahan" value={formatIdr(hppCalc.materialCost)} />
               <MiniMetric label="HPP total" value={formatIdr(hppCalc.totalHpp)} tone="amber" />
@@ -685,7 +685,7 @@ export default function ProfitMaxPage() {
                   </Badge>
                 </div>
                 <p className="mt-3 font-[var(--garage-font-display)] text-2xl font-black text-zinc-50">{formatIndicatorValue(indicator, indicator.actual)}</p>
-                <p className="mt-2 text-[11px] text-zinc-500">Target {formatIndicatorValue(indicator, indicator.target)}</p>
+                <p className="mt-2 text-[11px] text-[var(--gos-text-muted)]">Target {formatIndicatorValue(indicator, indicator.target)}</p>
                 <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">{indicator.note}</p>
               </div>
             ))}
@@ -707,14 +707,14 @@ export default function ProfitMaxPage() {
                   }`}
                 >
                   <p className="text-sm font-bold text-zinc-50">{recipe.name}</p>
-                  <p className="mt-1 text-[11px] text-zinc-500">{recipe.serving} | {recipe.prepMinutes} menit</p>
+                  <p className="mt-1 text-[11px] text-[var(--gos-text-muted)]">{recipe.serving} | {recipe.prepMinutes} menit</p>
                 </button>
               ))}
             </div>
             <div className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase text-zinc-500">{selectedRecipe.code}</p>
+                  <p className="text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">{selectedRecipe.code}</p>
                   <h3 className="mt-1 text-lg font-black uppercase text-zinc-50">{selectedRecipe.name}</h3>
                 </div>
                 <Badge tone="chrome">{selectedRecipe.serving}</Badge>
@@ -746,7 +746,7 @@ export default function ProfitMaxPage() {
               />
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase text-zinc-500">SOP singkat</p>
+                  <p className="text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">SOP singkat</p>
                   <ol className="mt-2 space-y-1 text-xs text-zinc-300">
                     {selectedRecipe.steps.map((step, index) => (
                       <li key={step}>{index + 1}. {step}</li>
@@ -780,7 +780,7 @@ export default function ProfitMaxPage() {
                 <tbody className="divide-y divide-white/10">
                   {payrollRows.map((employee) => (
                     <tr key={employee.id}>
-                      <td className="px-3 py-2 font-mono text-zinc-500">{employee.id}</td>
+                      <td className="px-3 py-2 font-mono text-[var(--gos-text-muted)]">{employee.id}</td>
                       <td className="px-3 py-2 font-semibold text-zinc-50">{employee.name}</td>
                       <td className="px-3 py-2 text-zinc-400">{employee.position}</td>
                       <td className="px-3 py-2 text-right font-mono text-zinc-300">{formatIdr(employee.baseSalary)}</td>
@@ -802,16 +802,16 @@ export default function ProfitMaxPage() {
             <div className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase text-zinc-500">Preview Slip</p>
+                  <p className="text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">Preview Slip</p>
                   <h3 className="mt-1 text-lg font-black uppercase text-zinc-50">{selectedPayroll.name}</h3>
                 </div>
-                <FileText className="h-7 w-7 text-zinc-500" />
+                <FileText className="h-7 w-7 text-[var(--gos-text-muted)]" />
               </div>
               <div className="mt-4 space-y-2 text-xs">
-                <div className="flex justify-between gap-3"><span className="text-zinc-500">Posisi</span><strong>{selectedPayroll.position}</strong></div>
-                <div className="flex justify-between gap-3"><span className="text-zinc-500">Gaji Pokok</span><strong>{formatIdr(selectedPayroll.baseSalary)}</strong></div>
-                <div className="flex justify-between gap-3"><span className="text-zinc-500">Tunjangan</span><strong>{formatIdr(selectedPayroll.allowance)}</strong></div>
-                <div className="flex justify-between gap-3"><span className="text-zinc-500">Potongan</span><strong>{formatIdr(selectedPayroll.deduction)}</strong></div>
+                <div className="flex justify-between gap-3"><span className="text-[var(--gos-text-muted)]">Posisi</span><strong>{selectedPayroll.position}</strong></div>
+                <div className="flex justify-between gap-3"><span className="text-[var(--gos-text-muted)]">Gaji Pokok</span><strong>{formatIdr(selectedPayroll.baseSalary)}</strong></div>
+                <div className="flex justify-between gap-3"><span className="text-[var(--gos-text-muted)]">Tunjangan</span><strong>{formatIdr(selectedPayroll.allowance)}</strong></div>
+                <div className="flex justify-between gap-3"><span className="text-[var(--gos-text-muted)]">Potongan</span><strong>{formatIdr(selectedPayroll.deduction)}</strong></div>
                 <div className="border-t border-white/10 pt-3">
                   <div className="flex justify-between gap-3 text-sm"><span className="text-zinc-300">Total diterima</span><strong className="text-emerald-300">{formatIdr(selectedPayroll.totalSalary)}</strong></div>
                 </div>
@@ -827,7 +827,7 @@ export default function ProfitMaxPage() {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {overheadRows.map((overhead) => (
                 <div key={overhead.name} className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-4">
-                  <p className="text-[10px] font-semibold uppercase text-zinc-500">{overhead.category}</p>
+                  <p className="text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">{overhead.category}</p>
                   <p className="mt-1 text-sm font-bold text-zinc-50">{overhead.name}</p>
                   <p className="mt-2 font-mono text-sm text-zinc-200">{formatIdr(overhead.amount)}</p>
                 </div>
@@ -871,7 +871,7 @@ export default function ProfitMaxPage() {
                   <strong className="text-zinc-50">{ingredient.name}</strong>
                   <span className="font-mono text-zinc-400">{formatIdr(ingredient.pricePerUnit)}/{ingredient.unit}</span>
                 </div>
-                <p className="mt-1 text-zinc-500">Stock {ingredient.stock.toLocaleString("id-ID")} {ingredient.unit} | minimum {ingredient.minimumStock.toLocaleString("id-ID")}</p>
+                <p className="mt-1 text-[var(--gos-text-muted)]">Stock {ingredient.stock.toLocaleString("id-ID")} {ingredient.unit} | minimum {ingredient.minimumStock.toLocaleString("id-ID")}</p>
               </div>
             ))}
           </div>
@@ -883,7 +883,7 @@ export default function ProfitMaxPage() {
                   <strong className="text-zinc-50">{scenario.visitors} visitor/hari</strong>
                   <span className="font-mono text-zinc-200">{formatIdr(scenario.dailyRevenue)}</span>
                 </div>
-                <p className="mt-1 text-zinc-500">Net {formatIdr(scenario.monthlyNetProfit)} | BEP {scenario.bepMonths} bulan</p>
+                <p className="mt-1 text-[var(--gos-text-muted)]">Net {formatIdr(scenario.monthlyNetProfit)} | BEP {scenario.bepMonths} bulan</p>
               </div>
             ))}
           </div>
@@ -899,10 +899,10 @@ export default function ProfitMaxPage() {
               return (
                 <div key={action.title} className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-3 text-xs">
                   <div className="flex items-start gap-2">
-                    <Icon className="mt-0.5 h-4 w-4 text-zinc-500" />
+                    <Icon className="mt-0.5 h-4 w-4 text-[var(--gos-text-muted)]" />
                     <div>
                       <strong className="text-zinc-50">{action.title}</strong>
-                      <p className="mt-1 text-zinc-500">{action.impact} | {action.owner}</p>
+                      <p className="mt-1 text-[var(--gos-text-muted)]">{action.impact} | {action.owner}</p>
                       <button
                         type="button"
                         onClick={() => void submitProfitMaxAction(action)}

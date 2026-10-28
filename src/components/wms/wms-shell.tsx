@@ -288,7 +288,7 @@ export function WmsShell({
                     <Icon className="size-[18px] shrink-0" />
                     {!collapsed && <span className="truncate">{item.label}</span>}
                     {!collapsed && item.soon && (
-                      <span className="ml-auto rounded-full bg-white/10 px-1.5 py-px text-[9px] font-semibold text-white/50">
+                      <span className="ml-auto rounded-full bg-white/10 px-1.5 py-px text-[9px] font-semibold text-[var(--gos-text-muted)]">
                         soon
                       </span>
                     )}

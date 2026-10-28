@@ -36,7 +36,7 @@ function GarageShellFallback({ title }: { title: string }) {
     <main className="min-h-screen bg-[#08080b] text-white">
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="w-full max-w-sm rounded-md border border-[#34343c] bg-white/[0.04] p-5 shadow-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d11a2a]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--gos-status-danger)]">
             Garage
           </p>
           <h1 className="mt-3 text-xl font-semibold">{title}</h1>

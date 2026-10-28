@@ -173,8 +173,8 @@ export default function CashflowForecastPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Panel title="Ringkasan Hari Ini" subtitle="Source: /api/finance/overview" className="lg:col-span-2">
-          {loading && <p className="text-xs text-zinc-500">Memuat…</p>}
-          {!loading && !overview && <p className="text-xs text-zinc-500">Data finance tidak tersedia.</p>}
+          {loading && <p className="text-xs text-[var(--gos-text-muted)]">Memuat…</p>}
+          {!loading && !overview && <p className="text-xs text-[var(--gos-text-muted)]">Data finance tidak tersedia.</p>}
           {overview && (
             <div className="grid grid-cols-2 gap-3 text-xs">
               <Row label="Revenue" value={compact(overview.today.revenue)} tone="success" />
@@ -221,14 +221,14 @@ export default function CashflowForecastPage() {
               <p className="mt-1 font-[var(--garage-font-display)] text-xl font-black text-[#ffd8a8]">
                 {compact(server.due.within7)}
               </p>
-              <p className="mt-1 text-[10px] text-zinc-500">sudah dikurangi dari proyeksi 7 hari</p>
+              <p className="mt-1 text-[10px] text-[var(--gos-text-muted)]">sudah dikurangi dari proyeksi 7 hari</p>
             </div>
             <div className="rounded-lg border border-[color-mix(in_srgb,var(--garage-red)_45%,transparent)] bg-[color-mix(in_srgb,var(--garage-red)_10%,transparent)] p-4">
               <p className="text-[10px] font-semibold uppercase text-zinc-400">Due ≤ 30 hari</p>
               <p className="mt-1 font-[var(--garage-font-display)] text-xl font-black text-[#ffb1b1]">
                 {compact(server.due.within30)}
               </p>
-              <p className="mt-1 text-[10px] text-zinc-500">sudah dikurangi dari proyeksi 30 hari</p>
+              <p className="mt-1 text-[10px] text-[var(--gos-text-muted)]">sudah dikurangi dari proyeksi 30 hari</p>
             </div>
           </div>
         </Panel>

@@ -194,9 +194,9 @@ const steps = [
 ];
 
 const inputClass =
-  "h-11 w-full rounded-lg border border-zinc-700/80 bg-zinc-950/70 px-3 text-sm text-zinc-50 outline-none transition placeholder:text-zinc-500 focus:border-[#d11a2a]/80 focus:bg-zinc-950";
+  "h-11 w-full rounded-lg border border-zinc-700/80 bg-zinc-950/70 px-3 text-sm text-zinc-50 outline-none transition placeholder:text-[var(--gos-text-muted)] focus:border-[#d11a2a]/80 focus:bg-zinc-950";
 const textAreaClass =
-  "min-h-[112px] w-full rounded-lg border border-zinc-700/80 bg-zinc-950/70 px-3 py-3 text-sm leading-relaxed text-zinc-50 outline-none transition placeholder:text-zinc-500 focus:border-[#d11a2a]/80 focus:bg-zinc-950";
+  "min-h-[112px] w-full rounded-lg border border-zinc-700/80 bg-zinc-950/70 px-3 py-3 text-sm leading-relaxed text-zinc-50 outline-none transition placeholder:text-[var(--gos-text-muted)] focus:border-[#d11a2a]/80 focus:bg-zinc-950";
 const labelClass = "mb-2 block text-[11px] font-black uppercase tracking-[0.14em] text-zinc-400";
 
 function validateFile(file: File, rule: UploadRule) {
@@ -275,7 +275,7 @@ function UploadBox({
           <p className="text-sm font-black text-zinc-50">
             {rule.label} {rule.required ? <span className="text-[#ef4444]">*</span> : null}
           </p>
-          <p className="mt-1 text-xs leading-5 text-zinc-500">{rule.helper}</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--gos-text-muted)]">{rule.helper}</p>
         </div>
         {value ? (
           <button
@@ -314,7 +314,7 @@ function UploadBox({
         <span className="max-w-full truncate text-sm font-bold text-zinc-50">
           {value ? value.file.name : "Drag & drop atau klik untuk pilih file"}
         </span>
-        <span className="mt-1 text-xs text-zinc-500">
+        <span className="mt-1 text-xs text-[var(--gos-text-muted)]">
           {value ? `${formatSize(value.file.size)} - klik untuk ganti file` : "Upload langsung divalidasi sebelum submit"}
         </span>
       </button>
@@ -601,7 +601,7 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
           <motion.div key="apply" initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }}>
             <section className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-10 lg:py-16">
               <div className="flex min-w-0 flex-col justify-center">
-                <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[#d11a2a] sm:tracking-[0.24em]">Garage Recruitment</p>
+                <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[var(--gos-status-danger)] sm:tracking-[0.24em]">Garage Recruitment</p>
                 <h1 className="max-w-[310px] break-words text-[1.62rem] font-black uppercase leading-[1.08] tracking-normal text-white sm:max-w-4xl sm:text-5xl lg:text-6xl xl:text-7xl">
                   Lamar kerja tanpa form yang bikin capek.
                 </h1>
@@ -881,7 +881,7 @@ export function RecruitmentPage({ positions }: { positions: RecruitmentPosition[
                               <div className="grid gap-3 sm:grid-cols-2">
                                 {fieldSummary.map(([label, value]) => (
                                   <div key={label} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-                                    <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">{label}</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--gos-text-muted)]">{label}</p>
                                     <p className="mt-1 text-sm font-semibold text-white">{value || "-"}</p>
                                   </div>
                                 ))}

@@ -339,14 +339,14 @@ export default function CompliancePage() {
             <tbody className="divide-y divide-white/5">
               {loading && (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-zinc-500">
+                  <td colSpan={8} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Memuat…
                   </td>
                 </tr>
               )}
               {!loading && sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-zinc-500">
+                  <td colSpan={8} className="py-6 text-center text-[var(--gos-text-muted)]">
                     <ClipboardCheck className="mx-auto mb-2 h-6 w-6 opacity-50" />
                     Belum ada compliance item. Klik <strong>Tambah</strong> untuk mulai.
                   </td>
@@ -364,7 +364,7 @@ export default function CompliancePage() {
                   <td
                     className={`py-2 pr-3 text-right font-mono ${
                       it.daysToExpiry == null
-                        ? "text-zinc-500"
+                        ? "text-[var(--gos-text-muted)]"
                         : it.daysToExpiry < 0
                           ? "text-[#ffb1b1]"
                           : it.daysToExpiry <= it.reminderDays

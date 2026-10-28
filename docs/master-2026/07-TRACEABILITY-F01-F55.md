@@ -66,5 +66,5 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F51 | MCP write (preview/konfirmasi/commit) | 🟢 | Tool bisnis 16/16 domain (M3) + `ubah_data_garage` universal (#121): perubahan uang = R3 + kode 2FA, path ter-encode ditolak | M2, M3 | — |
 | F52 | Aya in-app Owner Copilot | 🟡 | `owner-chat`, AI agents, provider OpenAI/Gemini; nama "Aya" belum ada di kode. **D-07: Aya = peliharaan Owner** (nama, avatar, persona) | M5, U1 | |
 | F53 | Reports Studio + Drive/Gmail | 🟡 | Drive upload ✅, Gmail ❌ (D-04) | M4 | |
-| F54 | Design system & component registry | 🟡 | `design-system/MASTER.md`, shadcn/ui; token PRD §24.2 konflik → D-02 | U1 | |
+| F54 | Design system & component registry | 🟡 | U1-a (29 Okt): token semantik `--gos-*` (D-02 gelap) + tes kontras WCAG AA, `StatusPill`/`MoneyText`/`StateView`, registri `design-system/COMPONENTS.md` + `/control/design-system`. Berikut: migrasi warna kontras rendah di layar (170× zinc-500, 41× teks merah) | U1 | |
 | F55 | Workspace per role & screen registry 16 modul | 🟡 | ±111 halaman; census + screenshot ❌ | U0 | |

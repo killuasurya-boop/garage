@@ -39,6 +39,8 @@ Important files:
 - `src/app/globals.css` - Garage theme tokens and global UI styling
 - `src/app/layout.tsx` - app metadata and font setup
 - `design-system/MASTER.md` - design tokens, anti-patterns, per-module UI/UX checklist (source of truth for UI work; check before editing components)
+- `design-system/COMPONENTS.md` + `src/lib/design-tokens.ts` - U1 semantic tokens `--gos-*` (WCAG AA tested) and base components in
+  `src/components/ds/` (`StatusPill`, `MoneyText`, `StateView`); live registry `/control/design-system`. Check before adding a component.
 
 ## Design Direction
 

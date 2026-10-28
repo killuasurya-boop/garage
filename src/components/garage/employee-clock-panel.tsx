@@ -267,7 +267,7 @@ export function EmployeeClockPanel() {
           <div className="text-3xl font-mono text-[#f5a742] tracking-wider font-bold mb-1" suppressHydrationWarning>
             {time.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </div>
-          <div className="text-sm text-zinc-500" suppressHydrationWarning>
+          <div className="text-sm text-[var(--gos-text-muted)]" suppressHydrationWarning>
             {time.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </div>
         </div>
@@ -284,8 +284,8 @@ export function EmployeeClockPanel() {
             />
             {!camReady && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
-                <CameraOff className="h-6 w-6 text-zinc-600" />
-                <span className="px-2 text-[10px] leading-tight text-zinc-500">
+                <CameraOff className="h-6 w-6 text-[var(--gos-text-muted)]" />
+                <span className="px-2 text-[10px] leading-tight text-[var(--gos-text-muted)]">
                   {camError ? "Kamera tidak aktif" : "Menyalakan kamera…"}
                 </span>
               </div>
@@ -304,7 +304,7 @@ export function EmployeeClockPanel() {
         <div className="space-y-3">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <UserCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
+              <UserCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--gos-text-muted)]" />
               <Input aria-label="PIN karyawan"
                 type="password"
                 inputMode="numeric"
@@ -396,7 +396,7 @@ export function EmployeeClockPanel() {
             </Button>
           </div>
           {check && (
-            <p className="text-center text-[11px] text-zinc-500">
+            <p className="text-center text-[11px] text-[var(--gos-text-muted)]">
               {check.attendancePolicy.blockDoublePunch
                 ? isIn
                   ? "Anda sedang bekerja - hanya Clock Out yang aktif."

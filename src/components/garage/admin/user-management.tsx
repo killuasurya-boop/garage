@@ -323,7 +323,7 @@ export function UserManagement({
           </div>
           <div className="flex flex-wrap gap-3">
             <Card className="border-zinc-800 bg-zinc-900/60 px-4 py-3">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500">Total Staff</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--gos-text-muted)]">Total Staff</div>
               <div className="text-2xl font-semibold text-zinc-100">{total}</div>
             </Card>
             <Card className="border-emerald-900/40 bg-emerald-950/30 px-4 py-3">
@@ -345,7 +345,7 @@ export function UserManagement({
           <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--gos-text-muted)]" />
                 <Input aria-label="Cari email atau nama"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
@@ -353,7 +353,7 @@ export function UserManagement({
                     if (event.key === "Enter") refresh({ q: query });
                   }}
                   placeholder="Cari email atau nama…"
-                  className="border-zinc-700 bg-zinc-950 pl-9 text-zinc-100 placeholder:text-zinc-500"
+                  className="border-zinc-700 bg-zinc-950 pl-9 text-zinc-100 placeholder:text-[var(--gos-text-muted)]"
                 />
               </div>
               <Select
@@ -470,14 +470,14 @@ export function UserManagement({
                 <TableBody>
                   {loading && !rows.length ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-zinc-500">
+                      <TableCell colSpan={8} className="py-12 text-center text-[var(--gos-text-muted)]">
                         <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
                         Memuat data…
                       </TableCell>
                     </TableRow>
                   ) : rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-zinc-500">
+                      <TableCell colSpan={8} className="py-12 text-center text-[var(--gos-text-muted)]">
                         Belum ada staff sesuai filter.
                       </TableCell>
                     </TableRow>
@@ -512,9 +512,9 @@ export function UserManagement({
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="text-xs text-zinc-500">{row.email}</div>
+                              <div className="text-xs text-[var(--gos-text-muted)]">{row.email}</div>
                               {row.division || row.position ? (
-                                <div className="text-[11px] text-zinc-500">
+                                <div className="text-[11px] text-[var(--gos-text-muted)]">
                                   {[row.division, row.position].filter(Boolean).join(" - ")}
                                 </div>
                               ) : null}
@@ -538,7 +538,7 @@ export function UserManagement({
                           >
                             {row.role}
                           </Badge>
-                          <div className="mt-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                          <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--gos-text-muted)]">
                             {row.permissionCount} permission
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
@@ -557,7 +557,7 @@ export function UserManagement({
                         </TableCell>
                         <TableCell>
                           <div className="text-sm text-zinc-200">{row.outletCode}</div>
-                          <div className="text-xs text-zinc-500">{row.outletName}</div>
+                          <div className="text-xs text-[var(--gos-text-muted)]">{row.outletName}</div>
                         </TableCell>
                         <TableCell>
                           {row.status === "active" ? (
@@ -577,7 +577,7 @@ export function UserManagement({
                               {row.activeSessions} online
                             </span>
                           ) : (
-                            <span className="text-zinc-500">offline</span>
+                            <span className="text-[var(--gos-text-muted)]">offline</span>
                           )}
                         </TableCell>
                         <TableCell className="text-xs text-zinc-400">
@@ -766,7 +766,7 @@ function CreateUserDialog({
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-0 h-full w-10 text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+                className="absolute right-0 top-0 h-full w-10 text-[var(--gos-text-muted)] hover:bg-transparent hover:text-zinc-300"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
@@ -1173,7 +1173,7 @@ function EditUserDialog({
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-0 h-full w-10 text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+                className="absolute right-0 top-0 h-full w-10 text-[var(--gos-text-muted)] hover:bg-transparent hover:text-zinc-300"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
@@ -1267,7 +1267,7 @@ function ResetPasswordDialog({
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-0 h-full w-10 text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+                className="absolute right-0 top-0 h-full w-10 text-[var(--gos-text-muted)] hover:bg-transparent hover:text-zinc-300"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
@@ -1329,7 +1329,7 @@ function SessionsDialog({
             <TableBody>
               {sessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-zinc-500">
+                  <TableCell colSpan={5} className="py-8 text-center text-[var(--gos-text-muted)]">
                     Tidak ada sesi aktif.
                   </TableCell>
                 </TableRow>

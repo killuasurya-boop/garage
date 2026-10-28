@@ -49,7 +49,7 @@ export function WalletGajiPanel() {
         <div className="mt-2 text-3xl font-bold text-[var(--garage-silver)]">
           {balance != null ? rp(balance) : "—"}
         </div>
-        <div className="mt-3 text-xs text-zinc-500">
+        <div className="mt-3 text-xs text-[var(--gos-text-muted)]">
           Upah harian + lembur + bonus kehadiran
         </div>
       </div>

@@ -205,7 +205,7 @@ export function TeamLocationsManager() {
               {geoLoading ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
               {geoLoading ? "Mengambil GPS…" : "Pakai Lokasi Saya Sekarang"}
             </Button>
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[11px] text-[var(--gos-text-muted)]">
               Berdiri di titik presensi outlet lalu tap ini untuk mengisi koordinat otomatis.
             </span>
           </div>
@@ -285,10 +285,10 @@ export function TeamLocationsManager() {
       )}
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-500">Memuat konfigurasi geofence...</div>
+        <div className="py-12 text-center text-[var(--gos-text-muted)]">Memuat konfigurasi geofence...</div>
       ) : locations.length === 0 ? (
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-zinc-500 space-y-2">
-          <Compass className="size-8 mx-auto text-zinc-600" />
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-[var(--gos-text-muted)] space-y-2">
+          <Compass className="size-8 mx-auto text-[var(--gos-text-muted)]" />
           <p className="font-medium text-zinc-400">Belum ada lokasi geofence</p>
           <p className="text-xs">Titik presensi dan servis kunjungan GPS akan tercatat di sini.</p>
         </div>
@@ -318,7 +318,7 @@ export function TeamLocationsManager() {
                   <div>Radius Toleransi: {item.radius} meter</div>
                 </div>
 
-                {item.address && <p className="text-zinc-500 text-xs">{item.address}</p>}
+                {item.address && <p className="text-[var(--gos-text-muted)] text-xs">{item.address}</p>}
               </div>
 
               <div className="flex justify-end border-t border-zinc-800/50 pt-3">

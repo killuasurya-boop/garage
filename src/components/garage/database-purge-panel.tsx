@@ -92,7 +92,7 @@ export function DatabasePurgePanel() {
               onChange={(e) => setRetentionDays(Math.max(7, Math.min(3650, Number(e.target.value) || 30)))}
               className="mt-1 h-10 border-[#34343c] bg-black/30"
             />
-            <p className="mt-1 text-[10px] text-white/40">Min 7 · Default 30 · Approvals min 365</p>
+            <p className="mt-1 text-[10px] text-[var(--gos-text-muted)]">Min 7 · Default 30 · Approvals min 365</p>
           </div>
           <div>
             <label className="text-[11px] font-bold uppercase text-white/60">Target tabel</label>
@@ -105,7 +105,7 @@ export function DatabasePurgePanel() {
                   className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
                     targets.includes(t)
                       ? "border-red-400/50 bg-red-500/15 text-red-100"
-                      : "border-[#34343c] bg-white/[0.04] text-white/50 hover:text-white"
+                      : "border-[#34343c] bg-white/[0.04] text-[var(--gos-text-muted)] hover:text-white"
                   }`}
                 >
                   {TARGET_LABEL[t]}
@@ -160,7 +160,7 @@ export function DatabasePurgePanel() {
                 </li>
               ))}
             </ul>
-            <p className="text-[11px] text-white/50">{result.note}</p>
+            <p className="text-[11px] text-[var(--gos-text-muted)]">{result.note}</p>
           </div>
         )}
 

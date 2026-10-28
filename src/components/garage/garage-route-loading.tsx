@@ -15,7 +15,7 @@ export function GarageRouteLoading({ label = "Menyiapkan modul" }: { label?: str
               <div className="h-2 w-20 animate-pulse rounded bg-white/[0.06]" />
             </div>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d11a2a]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--gos-status-danger)]">
             {label}
           </p>
         </div>

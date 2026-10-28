@@ -23,6 +23,10 @@ Garage Coffee & Motor OS adalah **internal operational app** (bukan landing/mark
 
 ## 2. Core Design Tokens (current — VERIFIED ✓)
 
+> **U1 (29 Okt 2026):** pakai token semantik `--gos-*` (`src/lib/design-tokens.ts`, registri `design-system/COMPONENTS.md`,
+> halaman `/control/design-system`). Nilai hex palet di bawah sebagian sudah lama — sumber kebenaran = `src/app/globals.css`.
+> Teks merah brand dan `text-zinc-500` TIDAK lolos kontras AA di latar gelap; lihat COMPONENTS.md.
+
 Sumber: [src/app/globals.css](src/app/globals.css). Token ini **sudah konsisten** dengan rekomendasi skill (Automotive + Coffee). Pertahankan, jangan tulis ulang.
 
 ### 2.1 Color — Garage Default (dark asphalt)

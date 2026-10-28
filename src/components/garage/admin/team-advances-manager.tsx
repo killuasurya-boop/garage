@@ -231,10 +231,10 @@ export function TeamAdvancesManager() {
       )}
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-500">Memuat log kasbon...</div>
+        <div className="py-12 text-center text-[var(--gos-text-muted)]">Memuat log kasbon...</div>
       ) : advances.length === 0 ? (
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-zinc-500 space-y-2">
-          <FileText className="size-8 mx-auto text-zinc-600" />
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-[var(--gos-text-muted)] space-y-2">
+          <FileText className="size-8 mx-auto text-[var(--gos-text-muted)]" />
           <p className="font-medium text-zinc-400">Tidak ada transaksi kasbon</p>
           <p className="text-xs">Tidak ada pengajuan kasbon terdaftar untuk periode {period}.</p>
         </div>
@@ -257,7 +257,7 @@ export function TeamAdvancesManager() {
                   <tr key={item.id} className="hover:bg-zinc-900/10 transition-colors">
                     <td className="p-4">
                       <div className="font-semibold text-zinc-100">{item.name}</div>
-                      <div className="text-xs text-zinc-500">{item.role}</div>
+                      <div className="text-xs text-[var(--gos-text-muted)]">{item.role}</div>
                     </td>
                     <td className="p-4 font-mono text-zinc-100 font-semibold">
                       Rp{item.amount.toLocaleString("id-ID")}

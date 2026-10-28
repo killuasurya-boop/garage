@@ -32,7 +32,7 @@ export function ActivityTimeline() {
         <h3 className="font-[var(--garage-font-display)] text-sm font-black uppercase text-zinc-50">
           Aktivitas Control
         </h3>
-        <span className="text-[10px] uppercase text-zinc-500">10 aktivitas terakhir</span>
+        <span className="text-[10px] uppercase text-[var(--gos-text-muted)]">10 aktivitas terakhir</span>
       </div>
       <ol className="relative ml-1 space-y-3 border-l border-white/10 pl-5">
         {activityTimeline.map((e, i) => (
@@ -53,7 +53,7 @@ export function ActivityTimeline() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs leading-snug text-zinc-200">{e.action}</p>
-                <p className="mt-0.5 flex items-center gap-2 text-[10px] uppercase text-zinc-500">
+                <p className="mt-0.5 flex items-center gap-2 text-[10px] uppercase text-[var(--gos-text-muted)]">
                   <span>{formatDistanceToNow(new Date(e.time), { addSuffix: true, locale: idLocale })}</span>
                   <span className="rounded-sm bg-[var(--garage-bg-3)] px-1.5 py-0.5 text-[9px] text-zinc-300">{e.department}</span>
                 </p>

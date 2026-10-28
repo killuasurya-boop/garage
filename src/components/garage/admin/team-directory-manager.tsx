@@ -125,7 +125,7 @@ export function TeamDirectoryManager() {
       ) : null}
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-500">Memuat direktori karyawan...</div>
+        <div className="py-12 text-center text-[var(--gos-text-muted)]">Memuat direktori karyawan...</div>
       ) : (
         <div className="bg-zinc-900/20 border border-zinc-800 rounded-xl overflow-hidden backdrop-blur-md">
           <div className="overflow-x-auto">
@@ -216,7 +216,7 @@ export function TeamDirectoryManager() {
                           />
                         ) : (
                           <span className="text-zinc-400 font-mono text-xs flex items-center justify-center gap-1">
-                            <Key className="size-3.5 text-zinc-600" />
+                            <Key className="size-3.5 text-[var(--gos-text-muted)]" />
                             {item.hasPin ? "••••" : "Belum Set"}
                           </span>
                         )}
@@ -242,7 +242,7 @@ export function TeamDirectoryManager() {
                                 maxLength={200}
                                 placeholder="Alasan (wajib dicatat)"
                                 aria-label="Alasan nonaktif"
-                                className="h-8 w-40 px-2 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 text-xs placeholder:text-zinc-500 focus:outline-none"
+                                className="h-8 w-40 px-2 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 text-xs placeholder:text-[var(--gos-text-muted)] focus:outline-none"
                               />
                             ) : null}
                           </div>

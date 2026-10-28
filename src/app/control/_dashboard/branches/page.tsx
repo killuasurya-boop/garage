@@ -106,12 +106,12 @@ export default function BranchesPage() {
           ) : null
         }
       >
-        {loading && <p className="text-xs text-zinc-500">Memuat outlet…</p>}
+        {loading && <p className="text-xs text-[var(--gos-text-muted)]">Memuat outlet…</p>}
         {!loading && outlets.length === 0 && (
           <div className="rounded-lg border border-white/10 bg-[var(--garage-bg-3)] p-6 text-center">
-            <Building2 className="mx-auto h-8 w-8 text-zinc-500" />
+            <Building2 className="mx-auto h-8 w-8 text-[var(--gos-text-muted)]" />
             <p className="mt-2 text-sm font-semibold text-zinc-300">Belum ada cabang terdaftar</p>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-[var(--gos-text-muted)]">
               Tambahkan outlet dari Settings → Outlets untuk memulai perbandingan.
             </p>
           </div>

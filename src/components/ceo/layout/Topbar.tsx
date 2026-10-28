@@ -68,7 +68,7 @@ export function Topbar() {
             list="control-nav-search"
             aria-label="Cari menu Control Center"
             placeholder="Cari menu (Penjualan, Inventory, Cash Closing…)"
-            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-[var(--gos-text-muted)]"
           />
           <datalist id="control-nav-search">
             {controlNav.map((item) => (

@@ -440,7 +440,7 @@ export function SopTutorialWidget({
               )}
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-md p-1.5 text-[#8f8f99] transition hover:bg-white/[0.06] hover:text-[#d11a2a]"
+                className="rounded-md p-1.5 text-[#8f8f99] transition hover:bg-white/[0.06] hover:text-[var(--gos-status-danger)]"
                 aria-label="Tutup panduan"
               >
                 <X size={18} />

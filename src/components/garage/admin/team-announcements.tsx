@@ -158,10 +158,10 @@ export function TeamAnnouncements() {
       )}
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-500">Memuat pengumuman...</div>
+        <div className="py-12 text-center text-[var(--gos-text-muted)]">Memuat pengumuman...</div>
       ) : announcements.length === 0 ? (
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-zinc-500 space-y-2">
-          <Bell className="size-8 mx-auto text-zinc-600" />
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-[var(--gos-text-muted)] space-y-2">
+          <Bell className="size-8 mx-auto text-[var(--gos-text-muted)]" />
           <p className="font-medium text-zinc-400">Belum ada pengumuman</p>
           <p className="text-xs">Pengumuman penting yang dibuat owner akan muncul di sini.</p>
         </div>
@@ -180,7 +180,7 @@ export function TeamAnnouncements() {
                     </span>
                     <h4 className="font-semibold text-zinc-100 text-md">{item.title}</h4>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <div className="flex items-center gap-3 text-xs text-[var(--gos-text-muted)]">
                     <span className="flex items-center gap-1">
                       <User className="size-3.5" />
                       {item.authorName || "System / Owner"}

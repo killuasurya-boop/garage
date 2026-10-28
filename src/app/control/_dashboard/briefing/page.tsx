@@ -296,13 +296,13 @@ function DomainCard({
         <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-zinc-400">
           {icon} {title}
         </p>
-        {href && <ArrowRight className="h-3.5 w-3.5 text-zinc-500" />}
+        {href && <ArrowRight className="h-3.5 w-3.5 text-[var(--gos-text-muted)]" />}
       </div>
       <div className="mt-2 space-y-1">
         {rows.length === 0 && emptyMsg ? (
           <p className="text-xs text-emerald-300">{emptyMsg}</p>
         ) : rows.length === 0 ? (
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-[var(--gos-text-muted)]">
             <Clock className="mr-1 inline h-3 w-3" /> Memuat…
           </p>
         ) : (

@@ -60,7 +60,7 @@ export function NotificationCenter() {
                 if (list.length === 0) return null;
                 return (
                   <div key={cat} className="mb-4">
-                    <p className="mb-1 px-1 text-[10px] font-semibold uppercase text-zinc-500">
+                    <p className="mb-1 px-1 text-[10px] font-semibold uppercase text-[var(--gos-text-muted)]">
                       {cat === "critical" ? "kritis" : cat === "warning" ? "waspada" : "info"}
                     </p>
                     <ul className="space-y-1.5">
@@ -78,7 +78,7 @@ export function NotificationCenter() {
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-semibold text-zinc-100">{n.title}</p>
                               <p className="text-[11px] text-zinc-400">{n.detail}</p>
-                              <p className="mt-0.5 text-[10px] text-zinc-500">{formatDistanceToNow(new Date(n.time), { addSuffix: true, locale: idLocale })}</p>
+                              <p className="mt-0.5 text-[10px] text-[var(--gos-text-muted)]">{formatDistanceToNow(new Date(n.time), { addSuffix: true, locale: idLocale })}</p>
                             </div>
                           </li>
                         );

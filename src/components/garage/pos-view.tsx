@@ -6106,7 +6106,7 @@ export function PosView({
                             sizes="112px"
                             className="h-auto w-28 object-contain"
                           />
-                          <span className="border border-[#d11a2a] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#d11a2a]">
+                          <span className="border border-[#d11a2a] px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--gos-status-danger)]">
                             QR Tetap
                           </span>
                         </div>
@@ -6148,7 +6148,7 @@ export function PosView({
                           <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5f554b]">
                             GARAGE Coffee
                           </span>
-                          <strong className="text-lg text-[#d11a2a]">{selectedQrTable}</strong>
+                          <strong className="text-lg text-[var(--gos-status-danger)]">{selectedQrTable}</strong>
                         </div>
                       </div>
                       <div className="mt-4 grid grid-cols-2 gap-2">

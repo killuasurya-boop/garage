@@ -313,7 +313,7 @@ export function FinanceControlDashboard() {
               </FinanceCard>
             </div>
 
-            <p className="text-center text-xs text-zinc-500">
+            <p className="text-center text-xs text-[var(--gos-text-muted)]">
               Semua angka dihitung server-side dari POS, resep, Payroll V2, dan expense · diperbarui{" "}
               {new Date(data.generatedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB
             </p>

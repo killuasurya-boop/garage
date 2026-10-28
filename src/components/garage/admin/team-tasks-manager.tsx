@@ -318,10 +318,10 @@ export function TeamTasksManager() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-500">Memuat penugasan...</div>
+        <div className="py-12 text-center text-[var(--gos-text-muted)]">Memuat penugasan...</div>
       ) : tasks.length === 0 ? (
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-zinc-500 space-y-2">
-          <Circle className="size-8 mx-auto text-zinc-600" />
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-[var(--gos-text-muted)] space-y-2">
+          <Circle className="size-8 mx-auto text-[var(--gos-text-muted)]" />
           <p className="font-medium text-zinc-400">Tidak ada tugas</p>
           <p className="text-xs">Seluruh penugasan aktif telah selesai dikerjakan.</p>
         </div>
@@ -351,7 +351,7 @@ export function TeamTasksManager() {
                 {task.detail && <p className="text-zinc-400 text-xs leading-relaxed">{task.detail}</p>}
                 
                 {task.dueAt && (
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--gos-text-muted)]">
                     <Calendar className="size-3.5" />
                     <span>Tenggat: {new Date(task.dueAt).toLocaleDateString("id-ID", {
                       day: "numeric",

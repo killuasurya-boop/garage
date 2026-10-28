@@ -206,7 +206,7 @@ export function TeamGlossaryManager() {
 
         {/* Search */}
         <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--gos-text-muted)]" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -217,10 +217,10 @@ export function TeamGlossaryManager() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-500">Memuat kamus istilah...</div>
+        <div className="py-12 text-center text-[var(--gos-text-muted)]">Memuat kamus istilah...</div>
       ) : filteredTerms.length === 0 ? (
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-zinc-500 space-y-2">
-          <HelpCircle className="size-8 mx-auto text-zinc-600" />
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-12 text-center text-[var(--gos-text-muted)] space-y-2">
+          <HelpCircle className="size-8 mx-auto text-[var(--gos-text-muted)]" />
           <p className="font-medium text-zinc-400">Glosarium masih kosong</p>
           <p className="text-xs">Tambahkan istilah resep barista atau alat bengkel untuk membantu penyamaan standar staf.</p>
         </div>

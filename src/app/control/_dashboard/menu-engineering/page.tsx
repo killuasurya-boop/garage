@@ -244,7 +244,7 @@ export default function MenuEngineeringPage() {
               <Badge tone={m.tone} className="mt-2">
                 {q === "star" ? "promosikan" : q === "puzzle" ? "dorong" : q === "plowhorse" ? "revisi harga" : "review hapus"}
               </Badge>
-              <p className="mt-2 text-[10px] leading-snug text-zinc-500">{m.advice}</p>
+              <p className="mt-2 text-[10px] leading-snug text-[var(--gos-text-muted)]">{m.advice}</p>
             </div>
           );
         })}
@@ -272,14 +272,14 @@ export default function MenuEngineeringPage() {
             <tbody className="divide-y divide-white/5">
               {loading && (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-zinc-500">
+                  <td colSpan={8} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Memuat menu…
                   </td>
                 </tr>
               )}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-zinc-500">
+                  <td colSpan={8} className="py-6 text-center text-[var(--gos-text-muted)]">
                     Belum ada item menu.
                   </td>
                 </tr>

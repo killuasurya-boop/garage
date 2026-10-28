@@ -9,7 +9,15 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { cashLedgerEntries, cashMovements, cashSessions, pettyCashEntries, shiftIncidents, user } from "@/db/schema";
+import {
+  cashLedgerEntries,
+  cashMovements,
+  cashSessionCounts,
+  cashSessions,
+  pettyCashEntries,
+  shiftIncidents,
+  user,
+} from "@/db/schema";
 import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { accountBalance, postAccountCash, type CashAccount } from "@/lib/cash-ledger";
 import { createAuditLog, roleDisplayName } from "@/lib/garage-service";
@@ -829,6 +837,17 @@ export async function reviewCashSession(sessionId: string, input: ReviewCashSess
           : {}),
       })
       .where(eq(cashSessions.id, sessionId));
+    if (recountGiven) {
+      // B4: hitung ulang pemeriksa juga rekaman append-only (riwayat tidak tertimpa).
+      await tx.insert(cashSessionCounts).values({
+        cashSessionId: sessionId,
+        kind: "manager_recount",
+        denominations: input.recountDenominations!,
+        total: recountCash!,
+        countedBy: garage.user.id,
+        note,
+      });
+    }
     return { before, recountCash, hasDiscrepancy, acknowledged, now };
   });
   const { before, recountCash, hasDiscrepancy, acknowledged, now } = result;

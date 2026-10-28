@@ -6290,6 +6290,7 @@ export function PosView({
               pendingQrCount={waitingCustomerOrderCount}
               canResetAllTables={canResetAllTablesOnClose}
               signOffRequired={shiftSignOffRequired}
+              requireDoubleCount={settings?.shiftRequireDoubleCount ?? true}
               pending={shiftPending}
               error={shiftError}
               onSubmit={closeShift}

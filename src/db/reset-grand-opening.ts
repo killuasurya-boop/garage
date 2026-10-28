@@ -91,13 +91,13 @@ export const CLEAR_TABLES = [
   "order_push_subscriptions", "staff_notifications", "staff_notification_reads",
   "voucher_redemptions",
   // kas & finance transaksional
-  "cash_sessions", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
+  "cash_sessions", "cash_session_counts", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",
   // stok transaksional
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",
   "inventory_transfer_items",
   // approval, audit, log
-  "approvals", "audit_logs", "mcp_operations", "rate_limit_counters", "audit_cases", "login_attempts", "error_events", "feedback_entries",
+  "approvals", "audit_logs", "mcp_operations", "step_up_challenges", "rate_limit_counters", "audit_cases", "login_attempts", "error_events", "feedback_entries",
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional

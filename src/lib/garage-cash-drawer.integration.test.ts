@@ -442,7 +442,7 @@ describe("Kas laci — rekonsiliasi, tutup & ganti shift, PDF", () => {
   });
 
   it("tutup shift pas; pengajuan & pembatalan setelah tutup ditolak; PDF memuat kas laci", async () => {
-    const closed: any = await svc.closeCashSession(sessionId, { actualCash: 65_000, denominations: cashCount(65_000) }, kasir());
+    const closed: any = await svc.closeCashSession(sessionId, { actualCash: 65_000, denominations: cashCount(65_000), recountDenominations: cashCount(65_000) }, kasir());
     expect(closed.discrepancy).toBe(0);
     const pending = (await svc.listCashMovements({ status: "pending_approval" }, manajer())).items[0];
     await expect(svc.decideCashMovement(pending.id, { action: "approve" }, manajer())).rejects.toMatchObject({

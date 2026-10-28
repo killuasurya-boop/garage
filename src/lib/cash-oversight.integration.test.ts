@@ -85,7 +85,7 @@ describe("Pengawasan kas Owner (P5)", () => {
       { type: "out", categoryKey: "belanja_bar", description: "Susu UHT 1 dus", amount: 150_000, submitForApproval: true } as any,
       kasir(),
     );
-    await svc.closeCashSession(s1.id, { actualCash: 105_000, denominations: cashCount(105_000) } as any, kasir());
+    await svc.closeCashSession(s1.id, { actualCash: 105_000, denominations: cashCount(105_000), recountDenominations: cashCount(105_000) } as any, kasir());
     await acc.createShiftIncident({ cashSessionId: s1.id, category: "Gangguan QRIS", description: "QRIS BNI timeout" }, kasir());
 
     // Shift 2: QRIS, tutup darurat tanpa pecahan (alasan + PIN).

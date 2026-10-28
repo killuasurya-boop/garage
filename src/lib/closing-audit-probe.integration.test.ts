@@ -134,7 +134,7 @@ describe("Kas laci — rumus (T01–T06)", () => {
 
   it("T16: selisih Rp1 tidak berlabel balance/ok", async () => {
     const expected = (await session(id)).expectedCash;
-    const closed: any = await svc.closeCashSession(id, { actualCash: expected - 1, denominations: cashCount(expected - 1) } as any, kasir());
+    const closed: any = await svc.closeCashSession(id, { actualCash: expected - 1, denominations: cashCount(expected - 1), recountDenominations: cashCount(expected - 1) } as any, kasir());
     expect(closed.discrepancyStatus ?? (await session(id)).discrepancyStatus).not.toBe("ok");
   });
 });
@@ -149,7 +149,7 @@ describe("Closing (T15, T17–T19)", () => {
   it("T15: refund tunai setelah shift asal ditutup → snapshot shift lama tetap & laci baru punya baris kas keluar", async () => {
     const a: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
     const sale: any = await sell(40_000, 40_000);
-    await svc.closeCashSession(a.id, { actualCash: 140_000, denominations: cashCount(140_000) } as any, kasir());
+    await svc.closeCashSession(a.id, { actualCash: 140_000, denominations: cashCount(140_000), recountDenominations: cashCount(140_000) } as any, kasir());
     const snapshotA: any = await report.getShiftAccountability(a.id);
     const b: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir2());
     await svc.voidOrder(orderNoOf(sale), "Pelanggan batal", manajer());
@@ -164,13 +164,13 @@ describe("Closing (T15, T17–T19)", () => {
 
   it("Verifikasi: Manajer tidak bisa memverifikasi shift miliknya sendiri", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, manajer());
-    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000) } as any, manajer());
+    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) } as any, manajer());
     await expect(acc.reviewCashSession(s.id, { status: "verified" }, manajer())).rejects.toThrow();
   });
 
   it("T18: shift berselisih tidak bisa diberi status 'verified' penuh", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
-    await svc.closeCashSession(s.id, { actualCash: 70_000, denominations: cashCount(70_000), managerPin: PIN } as any, kasir());
+    await svc.closeCashSession(s.id, { actualCash: 70_000, denominations: cashCount(70_000), recountDenominations: cashCount(70_000), managerPin: PIN } as any, kasir());
     await expect(acc.reviewCashSession(s.id, { status: "verified" }, owner())).rejects.toThrow();
   });
 });
@@ -179,7 +179,7 @@ describe("Closing & verifikasi — P3/P4", () => {
   beforeEach(closeAll);
   it("selisih: verifikasi wajib 'selisih diakui' + catatan; hitungan pertama tetap, hitung ulang tersimpan", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
-    const closed: any = await svc.closeCashSession(s.id, { actualCash: 95_000, denominations: cashCount(95_000) } as any, kasir());
+    const closed: any = await svc.closeCashSession(s.id, { actualCash: 95_000, denominations: cashCount(95_000), recountDenominations: cashCount(95_000) } as any, kasir());
     expect(closed.discrepancyStatus).toBe("minor");
     await expect(acc.reviewCashSession(s.id, { status: "verified", acknowledgeDiscrepancy: true }, manajer())).rejects.toMatchObject({
       code: "DISCREPANCY_NOT_ACKNOWLEDGED",
@@ -198,7 +198,7 @@ describe("Closing & verifikasi — P3/P4", () => {
 
   it("hitung ulang pemeriksa berbeda dari kasir → juga wajib diakui walau hitungan pertama balance", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
-    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000) } as any, kasir());
+    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) } as any, kasir());
     await expect(
       acc.reviewCashSession(s.id, { status: "verified", recountDenominations: cashCount(90_000) }, manajer()),
     ).rejects.toMatchObject({ code: "DISCREPANCY_NOT_ACKNOWLEDGED" });
@@ -206,7 +206,7 @@ describe("Closing & verifikasi — P3/P4", () => {
 
   it("Owner memeriksa shift sendiri = berlabel 'tanpa pemeriksa kedua'", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000 } as any, owner());
-    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000) } as any, owner());
+    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) } as any, owner());
     const res = await acc.reviewCashSession(s.id, { status: "verified" }, owner());
     expect(res.selfVerified).toBe(true);
     const data: any = await report.getShiftAccountability(s.id);
@@ -215,7 +215,7 @@ describe("Closing & verifikasi — P3/P4", () => {
 
   it("Manajer tidak bisa memeriksa shift outlet lain", async () => {
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
-    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000) } as any, kasir());
+    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) } as any, kasir());
     const other = { ...manajer(), profile: { ...manajer().profile, outlet: { ...manajer().profile.outlet, id: "00000000-0000-4000-8000-000000000999" } } } as GarageSession;
     await expect(acc.reviewCashSession(s.id, { status: "verified" }, other)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
@@ -227,7 +227,7 @@ describe("Closing & verifikasi — P3/P4", () => {
       { type: "out", categoryKey: "setoran", description: "Setor sore", amount: 50_000, counterparty: "Kasir", depositAccount: "bank_bni", managerPin: PIN } as any,
       kasir(),
     );
-    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000) } as any, kasir());
+    await svc.closeCashSession(s.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) } as any, kasir());
     await expect(acc.reviewCashSession(s.id, { status: "verified" }, manajer())).rejects.toMatchObject({ code: "DEPOSIT_UNCONFIRMED" });
     await svc.confirmCashDeposit(dep.id, { bankRef: "BNI-123456" }, owner());
     await expect(acc.reviewCashSession(s.id, { status: "verified" }, manajer())).resolves.toMatchObject({ reviewStatus: "verified" });
@@ -236,7 +236,7 @@ describe("Closing & verifikasi — P3/P4", () => {
   it("verifikasi lama yang berselisih tanpa pengakuan tidak dilabel 'tidak ada selisih'", async () => {
     const { eq } = await import("drizzle-orm");
     const s: any = await svc.createCashSession({ openingCash: 100_000, managerPin: PIN } as any, kasir());
-    await svc.closeCashSession(s.id, { actualCash: 90_000, denominations: cashCount(90_000) } as any, kasir());
+    await svc.closeCashSession(s.id, { actualCash: 90_000, denominations: cashCount(90_000), recountDenominations: cashCount(90_000) } as any, kasir());
     await t.getDb().update(t.schema.cashSessions).set({ reviewStatus: "verified", discrepancyAcknowledged: false }).where(eq(t.schema.cashSessions.id, s.id));
     const data: any = await report.getShiftAccountability(s.id);
     expect(data.session.shiftStatus).toBe("Diverifikasi · selisih belum diakui (verifikasi lama)");

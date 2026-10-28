@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CashDenominationGrid, denominationTotals } from "@/components/garage/cash-denomination-grid";
-import { denominationLabel, denominationValue } from "@/lib/cash-denominations";
+import { denominationLabel, denominationMismatches, denominationValue } from "@/lib/cash-denominations";
 import { freshClosingChecklist } from "@/lib/cash-closing";
 
 export type CloseShiftPayload = {
@@ -33,7 +33,13 @@ export type CloseShiftPayload = {
   managerSignOff?: boolean;
   qrisCounted?: number;
   floatLeft: number;
+  /** B4: hitung ulang #2 (form kosong, blind). */
+  recountDenominations?: Record<string, number>;
+  /** B4: hitungan #3 bila #1 ≠ #2 per pecahan — menjadi hitungan sah. */
+  thirdCountDenominations?: Record<string, number>;
 };
+
+type Stage = "form" | "recount" | "third" | "confirm";
 
 const rupiah = (value: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
@@ -70,6 +76,7 @@ export function CloseShiftForm({
   pendingQrCount,
   canResetAllTables,
   signOffRequired,
+  requireDoubleCount = true,
   pending,
   error,
   onSubmit,
@@ -85,6 +92,8 @@ export function CloseShiftForm({
   pendingQrCount: number;
   canResetAllTables: boolean;
   signOffRequired: boolean;
+  /** Pengaturan shiftRequireDoubleCount (default aktif). */
+  requireDoubleCount?: boolean;
   pending: boolean;
   error: string | null;
   onSubmit: (payload: CloseShiftPayload) => Promise<void> | void;
@@ -102,17 +111,26 @@ export function CloseShiftForm({
   const pinNeeded = signOffRequired && !isSupervisor;
   const signOffReady = !signOffRequired || (isSupervisor ? selfSignOff : /^\d{4,8}$/.test(managerPin));
   const [localError, setLocalError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [stage, setStage] = useState<Stage>("form");
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  // B4: hitungan #2/#3 selalu mulai dari form kosong (blind — tidak disalin dari #1).
+  const [recountCounts, setRecountCounts] = useState<Record<string, string>>({});
+  const [thirdCounts, setThirdCounts] = useState<Record<string, string>>({});
+  const [mismatchLabels, setMismatchLabels] = useState<string[]>([]);
 
   const { parsed: parsedCounts, total, pieces, anyCounted } = useMemo(() => denominationTotals(counts), [counts]);
+  const recount = useMemo(() => denominationTotals(recountCounts), [recountCounts]);
+  const third = useMemo(() => denominationTotals(thirdCounts), [thirdCounts]);
+  // Hitungan sah kasir: #1 bila #1 = #2 (atau hitung ulang dimatikan), #3 bila berbeda.
+  const usesThird = mismatchLabels.length > 0;
+  const accepted = usesThird ? third : { parsed: parsedCounts, total, pieces };
 
   // Default: tinggalkan modal yang sama dengan modal awal (bila uang cukup).
   const effectiveFloat =
     floatChoice === "custom"
       ? Math.max(0, Math.floor(Number(floatCustom) || 0))
       : floatChoice ?? (total >= openingCash ? openingCash : 0);
-  const deposit = Math.max(0, total - effectiveFloat);
+  const deposit = Math.max(0, accepted.total - effectiveFloat);
   const checklistDone = checklist.every((item) => item.done);
 
   function validate() {
@@ -131,13 +149,47 @@ export function CloseShiftForm({
       return;
     }
     setLocalError(null);
-    setConfirming(true);
+    if (requireDoubleCount) {
+      setRecountCounts({});
+      setThirdCounts({});
+      setMismatchLabels([]);
+      setStage("recount");
+    } else {
+      setStage("confirm");
+    }
+  }
+
+  function afterRecount() {
+    if (!recount.anyCounted) {
+      setLocalError("Isi hitungan ulang (#2) — isi 0 bila laci kosong.");
+      return;
+    }
+    setLocalError(null);
+    const mismatches = denominationMismatches(parsedCounts, recount.parsed);
+    setMismatchLabels(mismatches.map((item) => item.label));
+    setThirdCounts({});
+    setStage(mismatches.length ? "third" : "confirm");
+  }
+
+  function afterThird() {
+    if (!third.anyCounted) {
+      setLocalError("Isi hitungan #3 — isi 0 bila laci kosong.");
+      return;
+    }
+    if (effectiveFloat > third.total) {
+      setLocalError("Uang yang ditinggal di laci lebih besar dari hitungan #3. Kembali dan ubah serah terima.");
+      return;
+    }
+    setLocalError(null);
+    setStage("confirm");
   }
 
   async function submit() {
     await onSubmit({
-      actualCash: total,
+      actualCash: accepted.total,
       denominations: parsedCounts,
+      ...(requireDoubleCount ? { recountDenominations: recount.parsed } : {}),
+      ...(usesThird ? { thirdCountDenominations: third.parsed } : {}),
       checklist,
       closingNote: note,
       resetTableMode: resetMode,
@@ -150,15 +202,85 @@ export function CloseShiftForm({
 
   const shownError = localError ?? error;
 
-  if (confirming) {
+  if (stage === "recount" || stage === "third") {
+    const isThird = stage === "third";
+    const current = isThird ? third : recount;
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-[#4a4a54] bg-white/[0.05] p-4">
+          <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
+            {isThird ? "Hitungan #3" : "Hitung ulang #2"} · {sessionCode}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#e4e4e7]">
+            {isThird
+              ? "Hitungan #1 dan #2 berbeda. Keluarkan semua uang lalu hitung sekali lagi dengan teliti — hasil ini yang dipakai."
+              : "Keluarkan semua uang di laci dan hitung lagi dari awal. Jangan melihat hasil hitungan pertama."}
+          </p>
+        </div>
+        {isThird ? (
+          <Alert className="border-[#f5a742]/45 bg-[#f5a742]/12 text-[#ffe0ad]">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>Pecahan yang tidak cocok</AlertTitle>
+            <AlertDescription>{mismatchLabels.join(", ")}</AlertDescription>
+          </Alert>
+        ) : null}
+        <CashDenominationGrid
+          counts={isThird ? thirdCounts : recountCounts}
+          onChange={(next) => {
+            (isThird ? setThirdCounts : setRecountCounts)(next);
+            setLocalError(null);
+          }}
+          testIdPrefix={isThird ? "close-denom-3" : "close-denom-2"}
+        />
+        <div className="flex items-center justify-between rounded-lg border border-[#f5a742]/55 bg-[#f5a742]/10 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold text-[#ffd08a]">Total {isThird ? "hitungan #3" : "hitung ulang #2"}</p>
+            <p className="text-[11px] text-[#d6d6dc]">{current.pieces} lembar/keping</p>
+          </div>
+          <p className="text-2xl font-black tracking-tight text-white">{rupiah(current.total)}</p>
+        </div>
+        {shownError ? (
+          <Alert className="border-[#d11a2a]/45 bg-[#d11a2a]/12 text-[#f4f4f5]">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>Belum bisa lanjut</AlertTitle>
+            <AlertDescription>{shownError}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 flex-1 gap-2"
+            onClick={() => {
+              setLocalError(null);
+              setStage("form");
+            }}
+            disabled={pending}
+          >
+            <ArrowLeft className="size-4" /> Kembali
+          </Button>
+          <Button
+            type="button"
+            className="garage-press h-12 flex-[1.4] gap-2"
+            disabled={pending}
+            onClick={isThird ? afterThird : afterRecount}
+          >
+            <CheckCircle2 className="size-4" /> Lanjut
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === "confirm") {
     return (
       <div className="space-y-4">
         <div className="rounded-lg border border-[#4a4a54] bg-white/[0.05] p-4">
           <p className="garage-mono text-[10px] uppercase tracking-[0.14em] text-[#b8b8bf]">
             Konfirmasi tutup shift · {sessionCode}
           </p>
-          <p className="mt-2 text-3xl font-black tracking-tight text-white">{rupiah(total)}</p>
-          <p className="text-xs text-[#b8b8bf]">Uang tunai dihitung di laci · {pieces} lembar/keping</p>
+          <p className="mt-2 text-3xl font-black tracking-tight text-white">{rupiah(accepted.total)}</p>
+          <p className="text-xs text-[#b8b8bf]">Uang tunai dihitung di laci · {accepted.pieces} lembar/keping{usesThird ? " · hitungan #3" : ""}</p>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-md border border-[#34343c] bg-black/25 p-3">
               <dt className="flex items-center gap-1.5 text-xs text-[#b8b8bf]">
@@ -182,7 +304,7 @@ export function CloseShiftForm({
             </div>
           </dl>
           <ul className="mt-3 space-y-1 text-xs text-[#d6d6dc]">
-            {Object.entries(parsedCounts)
+            {Object.entries(accepted.parsed)
               .filter(([, qty]) => qty > 0)
               .sort((a, b) => denominationValue(b[0]) - denominationValue(a[0]))
               .map(([key, qty]) => (
@@ -218,7 +340,7 @@ export function CloseShiftForm({
           </label>
         ) : null}
         <div className="flex gap-2">
-          <Button type="button" variant="outline" className="h-12 flex-1 gap-2" onClick={() => setConfirming(false)} disabled={pending}>
+          <Button type="button" variant="outline" className="h-12 flex-1 gap-2" onClick={() => setStage("form")} disabled={pending}>
             <ArrowLeft className="size-4" /> Kembali
           </Button>
           <Button

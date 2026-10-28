@@ -20,7 +20,7 @@ import {
   type BusinessDayPolicy,
 } from "@/lib/business-date";
 import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
-import { isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
+import { denominationMismatches, isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
 import { notifyStaff } from "@/lib/staff-notifications";
 import { sendOrderPush } from "@/lib/web-push-sender";
@@ -119,6 +119,7 @@ import {
   auditLogs,
   cashLedgerEntries,
   cashMovements,
+  cashSessionCounts,
   cashSessions,
   crmCampaignLogs,
   customSegmentCustomers,
@@ -460,6 +461,10 @@ type CloseCashSessionInput = {
    * Tutup standar selalu dengan pecahan.
    */
   countSkippedReason?: string;
+  /** B4: hitung ulang #2 (blind, tidak disalin dari #1). Wajib bila shiftRequireDoubleCount. */
+  recountDenominations?: Record<string, number>;
+  /** B4: hitungan #3 — wajib bila #1 ≠ #2 per pecahan; menjadi hitungan sah kasir. */
+  thirdCountDenominations?: Record<string, number>;
 };
 
 type ExpenseInput = {
@@ -18376,6 +18381,16 @@ export class CashSessionInputError extends Error {
   }
 }
 
+/** B4: hitungan #1 ≠ #2 per pecahan dan hitungan #3 belum ada. */
+export class CashSessionCountMismatchError extends Error {
+  constructor(readonly mismatches: ReturnType<typeof denominationMismatches>) {
+    super(
+      `Hitungan #1 dan #2 berbeda di ${mismatches.map((item) => item.label).join(", ")}. Hitung sekali lagi (hitungan #3) sebelum tutup shift.`,
+    );
+    this.name = "CashSessionCountMismatchError";
+  }
+}
+
 export class CashSessionSignOffRequiredError extends Error {
   constructor(message: string) {
     super(message);
@@ -18936,7 +18951,33 @@ export async function closeCashSession(
       );
     }
   }
-  const actualCash = countedCash ?? input.actualCash;
+  // B4 (PRD §10.8): hitung ulang #2 blind di form terpisah. #1 ≠ #2 per pecahan →
+  // hitungan #3 wajib dan menjadi hitungan sah kasir. Semua hitungan disimpan append-only.
+  const counts: Array<{ kind: "count_1" | "count_2" | "count_3"; denominations: Record<string, number>; total: number }> = [];
+  let acceptedDenominations = input.denominations ?? {};
+  let acceptedCount = countedCash;
+  let countMismatch: ReturnType<typeof denominationMismatches> = [];
+  if (countedCash !== null) {
+    counts.push({ kind: "count_1", denominations: input.denominations!, total: countedCash });
+    const secondCount = countedCashFromDenominations(input.recountDenominations);
+    if (secondCount === null && policy.shiftRequireDoubleCount) {
+      throw new CashSessionInputError(
+        "Hitung ulang uang di laci (hitungan #2) sebelum tutup shift — isi form baru, jangan salin hitungan #1.",
+      );
+    }
+    if (secondCount !== null) {
+      counts.push({ kind: "count_2", denominations: input.recountDenominations!, total: secondCount });
+      countMismatch = denominationMismatches(input.denominations, input.recountDenominations);
+      if (countMismatch.length) {
+        const thirdCount = countedCashFromDenominations(input.thirdCountDenominations);
+        if (thirdCount === null) throw new CashSessionCountMismatchError(countMismatch);
+        counts.push({ kind: "count_3", denominations: input.thirdCountDenominations!, total: thirdCount });
+        acceptedDenominations = input.thirdCountDenominations!;
+        acceptedCount = thirdCount;
+      }
+    }
+  }
+  const actualCash = acceptedCount ?? input.actualCash;
   const now = new Date();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
 
@@ -19023,7 +19064,7 @@ export async function closeCashSession(
         floatLeft,
         depositAmount: floatLeft === null ? null : actualCash - floatLeft,
         checklist: input.checklist?.length ? input.checklist : current.checklist,
-        denominations: input.denominations ?? {},
+        denominations: acceptedDenominations,
         countSkippedReason,
         closingNote: input.closingNote?.trim() || null,
         status: "closed",
@@ -19037,6 +19078,12 @@ export async function closeCashSession(
 
     if (!closedSession) {
       throw new CashSessionAlreadyClosedError();
+    }
+
+    if (counts.length) {
+      await tx.insert(cashSessionCounts).values(
+        counts.map((count) => ({ ...count, cashSessionId: id, countedBy: garage.user.id })),
+      );
     }
 
     const resetTableSet = {
@@ -19087,6 +19134,8 @@ export async function closeCashSession(
         managerSignOffBy: signer?.userId ?? null,
         managerSignOffVia: managerPin ? "pin" : signer ? "session" : null,
         closedOtherCashier: !ownSession,
+        counts: counts.map((count) => ({ kind: count.kind, total: count.total })),
+        countMismatch: countMismatch.map((item) => item.key),
         resetTableMode: effectiveResetTableMode,
         qrisRecorded,
         qrisCounted,
@@ -19390,6 +19439,10 @@ export type CashSessionTransactionsResult = {
     recountCash: number | null;
     discrepancyAcknowledged: boolean;
     reviewSelfVerified: boolean;
+    /** B4: status final Owner (pending/approved/approved_with_exception/returned/legacy). */
+    finalStatus: string;
+    finalNote: string | null;
+    finalDecidedAt: string | null;
     /** Yang melihat = pemilik shift (buka/tutup) → Manajer tidak boleh memverifikasi sendiri. */
     viewerOwnsShift: boolean;
   };
@@ -19541,6 +19594,9 @@ export async function getCashSessionTransactions(
       recountCash: session.session.recountCash,
       discrepancyAcknowledged: session.session.discrepancyAcknowledged,
       reviewSelfVerified: session.session.reviewSelfVerified,
+      finalStatus: session.session.finalStatus,
+      finalNote: session.session.finalNote,
+      finalDecidedAt: session.session.finalDecidedAt?.toISOString() ?? null,
       viewerOwnsShift: session.session.openedBy === cashierUserId || session.session.closedBy === cashierUserId,
     },
     orders: orderRows.map((o) => ({

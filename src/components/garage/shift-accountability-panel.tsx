@@ -835,6 +835,238 @@ export function ShiftReviewCard({
   );
 }
 
+const FINAL_LABELS: Record<string, string> = {
+  pending: "Belum final",
+  approved: "Final disetujui Owner",
+  approved_with_exception: "Final dengan pengecualian",
+  returned: "Dikembalikan Owner",
+  legacy: "Ditutup sebelum final Owner",
+};
+
+const COUNT_LABELS: Record<string, string> = {
+  count_1: "Hitungan #1 kasir",
+  count_2: "Hitung ulang #2 kasir",
+  count_3: "Hitungan #3 kasir",
+  manager_recount: "Hitung ulang pemeriksa",
+};
+
+type FinalPreview = {
+  summary: {
+    code: string;
+    expectedCash: number;
+    actualCash: number | null;
+    discrepancy: number;
+    recountCash: number | null;
+    qrisRecorded: number | null;
+    qrisCounted: number | null;
+    reviewNote: string | null;
+    counts: Array<{ kind: string; total: number; at: string }>;
+  };
+  exceptions: string[];
+  challengeId: string;
+  nonce: string;
+  expiresAt: string;
+};
+
+/**
+ * B4 (PRD §13): final closing Owner. Tutup kasir & verifikasi Manajer bukan final.
+ * Owner membuka ringkasan (tantangan 2FA 5 menit), memilih keputusan, lalu mengetik
+ * kode authenticator. Data berubah setelah dibuka → diminta membuka ulang.
+ */
+export function OwnerFinalCard({
+  sessionId,
+  shiftOpen,
+  reviewStatus,
+  finalStatus,
+  finalNote,
+  finalDecidedAt,
+  isOwner,
+  onChanged,
+}: {
+  sessionId: string;
+  shiftOpen: boolean;
+  reviewStatus: string;
+  finalStatus: string;
+  finalNote: string | null;
+  finalDecidedAt: string | null;
+  isOwner: boolean;
+  onChanged: () => void;
+}) {
+  const [preview, setPreview] = useState<FinalPreview | null>(null);
+  const [decision, setDecision] = useState<"approve" | "approve_with_exception" | "return">("approve");
+  const [note, setNote] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const decidable = !shiftOpen && reviewStatus === "verified" && ["pending", "returned", "legacy"].includes(finalStatus);
+  const isFinal = finalStatus === "approved" || finalStatus === "approved_with_exception";
+
+  async function open() {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await garageApi.get<FinalPreview>(`/api/finance/cash-sessions/${sessionId}/final`);
+      setPreview(data);
+      setDecision(data.exceptions.length ? "approve_with_exception" : "approve");
+      setCode("");
+    } catch (err) {
+      setError(errorText(err, "Gagal membuka ringkasan final."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decide() {
+    if (!preview) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await garageApi.post(`/api/finance/cash-sessions/${sessionId}/final`, {
+        decision,
+        ...(note.trim() ? { note: note.trim() } : {}),
+        challengeId: preview.challengeId,
+        nonce: preview.nonce,
+        code,
+      });
+      setPreview(null);
+      setNote("");
+      setCode("");
+      onChanged();
+    } catch (err) {
+      const stale = err instanceof GarageApiError && ["STALE", "CHALLENGE_EXPIRED", "CHALLENGE_USED"].includes(err.code ?? "");
+      setError(errorText(err, "Gagal menyimpan keputusan final."));
+      setCode("");
+      if (stale) setPreview(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="border-[#d11a2a]/45 bg-[#141418]" data-testid="owner-final">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-base text-white">
+          <ShieldCheck className="size-4 text-[#d11a2a]" /> Final Owner
+          <Badge className={isFinal ? "border-[#3fb27f]/55 bg-[#3fb27f]/15 text-[#a8f0c4]" : "border-[#d11a2a]/55 bg-[#d11a2a]/15 text-[#ffc2c8]"}>
+            {FINAL_LABELS[finalStatus] ?? finalStatus}
+          </Badge>
+        </CardTitle>
+        <CardDescription className="text-[#c8c8cf]">
+          Tutup kasir dan verifikasi Manajer belum final. Final hanya oleh Owner dengan kode 2FA.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {finalDecidedAt ? (
+          <p className="text-sm text-[#d6d6dc]">
+            Diputuskan {time(finalDecidedAt)}
+            {finalNote ? ` · ${finalNote}` : ""}
+          </p>
+        ) : null}
+        {!isOwner ? null : shiftOpen ? (
+          <p className="text-sm text-[#c8c8cf]">Final setelah shift ditutup kasir.</p>
+        ) : reviewStatus !== "verified" ? (
+          <p className="text-sm text-[#c8c8cf]">Menunggu verifikasi Manajer/pemeriksa sebelum final.</p>
+        ) : !decidable ? null : !preview ? (
+          <Button type="button" disabled={busy} className="h-10 bg-[#d11a2a] text-white hover:bg-[#e8323f]" onClick={() => void open()} data-testid="owner-final-open">
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />} Buka persetujuan final
+          </Button>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid gap-2 text-sm sm:grid-cols-3">
+              <ReviewFigure label="Kas seharusnya" value={rp(preview.summary.expectedCash)} />
+              <ReviewFigure label="Hitungan sah kasir" value={preview.summary.actualCash === null ? "-" : rp(preview.summary.actualCash)} />
+              <ReviewFigure
+                label="Selisih"
+                value={preview.summary.discrepancy === 0 ? "Balance" : `${preview.summary.discrepancy > 0 ? "Lebih" : "Kurang"} ${rp(Math.abs(preview.summary.discrepancy))}`}
+                tone={preview.summary.discrepancy === 0 ? "ok" : "warn"}
+              />
+            </div>
+            {preview.summary.counts.length ? (
+              <ul className="space-y-1 text-sm text-[#d6d6dc]">
+                {preview.summary.counts.map((count, index) => (
+                  <li key={`${count.kind}-${index}`} className="flex justify-between gap-3 border-b border-white/5 py-1 last:border-0">
+                    <span>{COUNT_LABELS[count.kind] ?? count.kind} · {time(count.at)}</span>
+                    <span className="font-semibold text-white">{rp(count.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {preview.exceptions.length ? (
+              <div className="rounded-md border border-[#f5a742]/50 bg-[#f5a742]/10 p-3 text-sm text-[#ffe0ad]" data-testid="owner-final-exceptions">
+                <p className="font-semibold">Pengecualian</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {preview.exceptions.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-sm text-[#a8f0c4]">Tidak ada pengecualian.</p>
+            )}
+            <div className="grid gap-2 sm:grid-cols-3">
+              {(
+                [
+                  { value: "approve", label: "Setujui", disabled: preview.exceptions.length > 0 },
+                  { value: "approve_with_exception", label: "Setujui dgn pengecualian", disabled: false },
+                  { value: "return", label: "Kembalikan", disabled: false },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={option.disabled || busy}
+                  onClick={() => setDecision(option.value)}
+                  className={`min-h-11 rounded-md border px-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                    decision === option.value ? "border-[#f5a742] bg-[#f5a742]/18 text-white" : "border-[#4a4a54] text-[#d6d6dc]"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <Textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={decision === "approve" ? "Catatan (opsional)" : "Alasan / catatan keputusan (wajib, min. 10 karakter)"}
+              className="min-h-16 border-[#4a4a54] bg-[#1b1b20]"
+            />
+            <label className="block space-y-1">
+              <span className="text-xs font-semibold text-[#d6d6dc]">Kode 2FA dari aplikasi authenticator</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6 angka"
+                className="h-11 border-[#4a4a54] bg-[#1b1b20] font-mono tracking-[0.3em]"
+                data-testid="owner-final-code"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={busy || code.length !== 6 || (decision !== "approve" && note.trim().length < 10)}
+                className="h-10 bg-[#d11a2a] text-white hover:bg-[#e8323f]"
+                onClick={() => void decide()}
+                data-testid="owner-final-submit"
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Simpan keputusan final
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} className="h-10 border-[#4a4a54]" onClick={() => setPreview(null)}>
+                Batal
+              </Button>
+            </div>
+            <p className="text-xs text-[#9b9ba6]">Ringkasan berlaku 5 menit. Bila angka berubah, buka ulang.</p>
+          </div>
+        )}
+        {error ? <p className="text-sm font-semibold text-[#ffb4bb]">{error}</p> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ReviewFigure({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
   return (
     <div className="rounded-md border border-[#3a3a42] bg-[#1b1b20] px-3 py-2">

@@ -129,7 +129,7 @@ describe("Koreksi metode bayar & pencocokan QRIS", () => {
     const qrisTotal = cashOrder.total + qrisOrder.total;
     const closed: any = await svc.closeCashSession(
       shiftId,
-      { actualCash: 100_000, denominations: cashCount(100_000), qrisCounted: qrisTotal - 5_000 },
+      { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000), qrisCounted: qrisTotal - 5_000 },
       kasir(),
     );
     expect(closed).toMatchObject({

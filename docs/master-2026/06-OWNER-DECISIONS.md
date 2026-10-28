@@ -68,9 +68,10 @@ R4 di PRD §07.2 tetap ditolak untuk semua jalur (UI, Aya, ChatGPT), karena meru
 
 ### Sub-keputusan terbuka D-01
 
-- **D-01a (OPEN):** apakah aksi R3 (final closing, role kritis, transfer dana, bulk harga) via chat butuh
-  kode TOTP Owner diketik di chat? Rekomendasi: **ya** (kode 30 detik sekali pakai; tidak bocorkan secret).
-  Bila Owner jawab tidak → konfirmasi "ya" saja.
+- **D-01a (FINAL, 2026-10-28): ya.** Aksi R3 (final closing, role kritis, transfer dana, bulk harga) via chat
+  butuh kode TOTP Owner (6 angka dari aplikasi authenticator) di panggilan konfirmasi, argumen `kode2fa`.
+  Kode salah tidak menghanguskan token; kode yang sama tidak bisa dipakai ulang; secret tidak pernah keluar.
+  Implementasi: `mcp-confirmation.ts` + `step-up-totp.ts` (tantangan terikat operasi & sidik argumen).
 - **D-01b (OPEN):** paket ChatGPT Owner (Business/Enterprise/Edu mendukung custom MCP write). Bila tidak
   didukung → jalur sama lewat Aya in-app (F52).
 

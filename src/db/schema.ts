@@ -1553,6 +1553,15 @@ export const cashSessions = pgTable(
     discrepancyAcknowledged: boolean("discrepancy_acknowledged").notNull().default(false),
     // Owner memverifikasi shift miliknya sendiri = "tanpa pemeriksa kedua".
     reviewSelfVerified: boolean("review_self_verified").notNull().default(false),
+    // B4 (PRD §13): tutup kasir & verifikasi Manajer BUKAN final. Final hanya Owner +
+    // TOTP terikat hash ringkasan (src/lib/cash-final-approval.ts).
+    // pending | approved | approved_with_exception | returned | legacy (tutup sebelum B4).
+    finalStatus: text("final_status").notNull().default("pending"),
+    finalDecidedBy: text("final_decided_by").references(() => user.id, { onDelete: "set null" }),
+    finalDecidedAt: timestamp("final_decided_at", { withTimezone: true }),
+    finalNote: text("final_note"),
+    finalSummaryHash: text("final_summary_hash"),
+    finalVersion: integer("final_version").notNull().default(0),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
@@ -1563,6 +1572,52 @@ export const cashSessions = pgTable(
     openPerUserIdx: uniqueIndex("cash_sessions_open_per_user_idx")
       .on(table.openedBy)
       .where(sql`${table.status} = 'open'`),
+  }),
+);
+
+// B4 (PRD §10.8): setiap hitungan laci = rekaman append-only (trigger menolak UPDATE/DELETE,
+// kecuali reset grand opening). count_1/count_2/count_3 = kasir (blind, #2 tidak disalin
+// dari #1); manager_recount = pemeriksa. cash_sessions.actual_cash tetap hitungan sah kasir.
+export const cashSessionCounts = pgTable(
+  "cash_session_counts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cashSessionId: uuid("cash_session_id")
+      .notNull()
+      .references(() => cashSessions.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    denominations: jsonb("denominations").$type<Record<string, number>>().notNull(),
+    total: integer("total").notNull(),
+    countedBy: text("counted_by").references(() => user.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sessionIdx: index("cash_session_counts_session_idx").on(table.cashSessionId, table.createdAt),
+  }),
+);
+
+// Step-up 2FA (B4 final Owner, D-01a aksi R3 MCP): tantangan terikat subjek + hash
+// ringkasan, nonce sekali pakai (hanya hash disimpan), kedaluwarsa pendek. Kode TOTP
+// yang sudah dipakai disimpan sebagai hash agar tidak bisa diputar ulang.
+export const stepUpChallenges = pgTable(
+  "step_up_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    subjectId: text("subject_id").notNull(),
+    summaryHash: text("summary_hash").notNull(),
+    nonceHash: text("nonce_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    codeHash: text("code_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("step_up_challenges_user_idx").on(table.userId, table.createdAt),
   }),
 );
 

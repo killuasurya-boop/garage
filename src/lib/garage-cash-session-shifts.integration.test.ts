@@ -90,9 +90,9 @@ describe("Shift 1 & 2 kasir", () => {
       svc.createCashSession({ openingCash: 100_000 }, kasirA()),
     ).rejects.toThrow(/Lanjutkan shift saya/);
 
-    await svc.closeCashSession(first.id, { actualCash: 100_000, denominations: cashCount(100_000) }, kasirA());
+    await svc.closeCashSession(first.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) }, kasirA());
     const second: any = await svc.createCashSession({ openingCash: 100_000, shiftNumber: 2 }, kasirB());
-    await svc.closeCashSession(second.id, { actualCash: 100_000, denominations: cashCount(100_000) }, kasirB());
+    await svc.closeCashSession(second.id, { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000) }, kasirB());
   });
 
   it("Shift 1 & 2 terpakai: pesan menyebut pemakainya, PIN Manajer membuka shift tambahan", async () => {
@@ -128,7 +128,7 @@ describe("Shift 1 & 2 kasir", () => {
     // Manajer menutup shift yang tertinggal agar kasir lain bisa lanjut.
     const closed: any = await svc.closeCashSession(
       extra.id,
-      { actualCash: 100_000, denominations: cashCount(100_000), managerSignOff: true, closingNote: "Ditutup Manajer/Owner: tes" },
+      { actualCash: 100_000, denominations: cashCount(100_000), recountDenominations: cashCount(100_000), managerSignOff: true, closingNote: "Ditutup Manajer/Owner: tes" },
       manajer(),
     );
     expect(closed).toMatchObject({ status: "closed", closedBy: MANAJER });
@@ -140,11 +140,11 @@ describe("Shift 1 & 2 kasir", () => {
       kasirB(),
     );
     await expect(
-      svc.closeCashSession(shift.id, { actualCash: 150_000, denominations: cashCount(150_000), floatLeft: 200_000 }, kasirB()),
+      svc.closeCashSession(shift.id, { actualCash: 150_000, denominations: cashCount(150_000), recountDenominations: cashCount(150_000), floatLeft: 200_000 }, kasirB()),
     ).rejects.toThrow(/tidak boleh lebih besar/);
     const closed: any = await svc.closeCashSession(
       shift.id,
-      { actualCash: 150_000, denominations: cashCount(150_000), floatLeft: 100_000 },
+      { actualCash: 150_000, denominations: cashCount(150_000), recountDenominations: cashCount(150_000), floatLeft: 100_000 },
       kasirB(),
     );
     expect(closed).toMatchObject({ floatLeft: 100_000, depositAmount: 50_000 });

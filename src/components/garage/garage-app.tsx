@@ -376,7 +376,7 @@ function GarageWorkspace({
   const [data, setData] = useState<GarageBootstrapData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
-  // Voice low-stock tracking â€” announce hanya saat SKU baru transition jadi "low",
+  // Voice low-stock tracking — announce hanya saat SKU baru transition jadi "low",
   // bukan setiap fetch refresh (yang akan re-trigger untuk item yang udah lama low).
   const previousLowStockRef = useRef<Set<string> | null>(null);
   const [kitchenPerformance, setKitchenPerformance] =
@@ -674,7 +674,7 @@ function GarageWorkspace({
     };
 
     const timeoutId = window.setTimeout(tick, 0);
-    // 60 detik cukup utk notifikasi low-stock; sebelumnya 15s = 4Ã— lebih
+    // 60 detik cukup utk notifikasi low-stock; sebelumnya 15s = 4× lebih
     // sering tanpa benefit. Polling juga di-pause saat tab tidak aktif.
     const intervalId = window.setInterval(tick, 60_000);
     const onVisible = () => {

@@ -194,11 +194,13 @@ export async function runToolWithConfirmation(input: {
   if (!parsed.success) return runAgentTool(input.session, input.name, args, input.ctx);
   const parsedArgs = parsed.data as Record<string, unknown>;
   const userId = input.session.user.id;
-  const needsTotp = tool.risk === "R3";
+  // Risiko per argumen hanya boleh menaikkan (ubah_data_garage: path uang = R3).
+  const risk = tool.risk === "R3" || tool.riskFor?.(parsedArgs) === "R3" ? "R3" : tool.risk;
+  const needsTotp = risk === "R3";
 
   if (!token) {
     const ringkasan = tool.preview ? await tool.preview(input.session, parsedArgs) : {};
-    const op = await createPendingOperation({ userId, oauthClientId: input.oauthClientId, tool: tool.name, risk: tool.risk, parsedArgs });
+    const op = await createPendingOperation({ userId, oauthClientId: input.oauthClientId, tool: tool.name, risk, parsedArgs });
     if (needsTotp) {
       // D-01a: tantangan 2FA terikat operasi + sidik argumen; nonce = nonce token konfirmasi.
       const { createStepUpChallenge } = await import("@/lib/step-up-totp");
@@ -214,7 +216,7 @@ export async function runToolWithConfirmation(input: {
       operasiId: op.operationId,
       tool: tool.name,
       judul: tool.title,
-      risiko: tool.risk,
+      risiko: risk,
       ringkasan,
       argumen: parsedArgs,
       konfirmasi: op.token,
@@ -261,12 +263,12 @@ export async function runToolWithConfirmation(input: {
   const claim = await claimOperation({ token, userId, tool: tool.name, parsedArgs });
   if (!claim.ok) throw new AgentToolError(claim.code, claim.message, 409);
   try {
-    const hasil = await runAgentTool(input.session, input.name, parsedArgs, input.ctx);
+    const hasil = await runAgentTool(input.session, input.name, parsedArgs, { ...input.ctx, confirmedOperationId: claim.operationId });
     const executedAt = await completeOperation(claim.operationId, { ok: true, result: hasil });
     return {
       status: "BERHASIL",
       hasil,
-      receipt: { operasiId: claim.operationId, tool: tool.name, risiko: tool.risk, dijalankan: executedAt.toISOString(), audit: "tercatat (sumber ChatGPT)" },
+      receipt: { operasiId: claim.operationId, tool: tool.name, risiko: risk, dijalankan: executedAt.toISOString(), audit: "tercatat (sumber ChatGPT)" },
     };
   } catch (error) {
     await completeOperation(claim.operationId, { ok: false, error: error instanceof Error ? error.message : String(error) }).catch(() => undefined);

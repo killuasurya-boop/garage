@@ -10,7 +10,7 @@
 // =============================================================================
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, notLike } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { agentApiKeys, auditLogs, outlets, staffProfiles, user } from "@/db/schema";
@@ -21,6 +21,8 @@ import type { GarageSession } from "@/lib/server-auth";
 
 export const AGENT_KEY_PREFIX = "gk_agent_";
 export const AGENT_KEY_HEADER = "x-garage-agent-key";
+/** Label key sementara MCP ChatGPT (mcp-delegated-api.ts). */
+export const DELEGATED_KEY_LABEL_PREFIX = "ChatGPT·op ";
 /** Diisi src/proxy.ts dari request asli (nilai kiriman klien dibuang). */
 export const AGENT_METHOD_HEADER = "x-garage-agent-method";
 export const AGENT_PATH_HEADER = "x-garage-agent-path";
@@ -252,6 +254,8 @@ export async function listAgentKeys(): Promise<AgentKeyView[]> {
     .select({ key: agentApiKeys, outletName: outlets.name })
     .from(agentApiKeys)
     .innerJoin(outlets, eq(outlets.id, agentApiKeys.outletId))
+    // Key sementara MCP ChatGPT (dicabut otomatis setelah 1 panggilan) tidak ditampilkan.
+    .where(notLike(agentApiKeys.label, `${DELEGATED_KEY_LABEL_PREFIX}%`))
     .orderBy(desc(agentApiKeys.createdAt));
   const now = Date.now();
   return rows.map(({ key, outletName }) => ({

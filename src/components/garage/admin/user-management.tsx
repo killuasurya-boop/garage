@@ -50,6 +50,34 @@ import { roles as ROLES, type Role } from "@/lib/garage-data";
 import { WORKSTATION_OPTIONS } from "@/lib/garage-production-rules";
 import { permissionsForRole, protectedRoleRank as roleRank } from "@/lib/role-access";
 
+// 401 = sesi login di server sudah habis walau halaman masih tampil (data dimuat sebelumnya).
+const SESSION_EXPIRED_MESSAGE = "Sesi login Anda sudah berakhir. Login ulang, lalu tekan Simpan lagi — isian form tidak hilang.";
+
+function apiErrorMessage(res: Response, json: { error?: { message?: string } } | null, fallback: string) {
+  if (res.status === 401) return SESSION_EXPIRED_MESSAGE;
+  return json?.error?.message ?? fallback;
+}
+
+function ErrorNotice({ message, className }: { message: string; className: string }) {
+  const sessionExpired = message === SESSION_EXPIRED_MESSAGE;
+  const next = typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`;
+  return (
+    <div role="alert" className={className}>
+      {message}
+      {sessionExpired ? (
+        <a
+          href={`/login?next=${encodeURIComponent(next)}`}
+          target="_blank"
+          rel="noopener"
+          className="mt-2 flex min-h-9 w-fit items-center rounded-md bg-red-600 px-3 text-sm font-semibold text-white hover:bg-red-500"
+        >
+          Login ulang (tab baru)
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 function manageableRoles(currentUserRole: Role) {
   if (currentUserRole === "Owner") return ROLES;
   return ROLES.filter((role) => roleRank[role] < roleRank[currentUserRole]);
@@ -201,7 +229,7 @@ export function UserManagement({
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json?.error?.message ?? "Gagal memuat data user.");
+        setError(apiErrorMessage(res, json, "Gagal memuat data user."));
         return;
       }
       setError(null);
@@ -245,7 +273,7 @@ export function UserManagement({
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json?.error?.message ?? "Bulk action gagal.");
+        setError(apiErrorMessage(res, json, "Bulk action gagal."));
         return;
       }
       refresh();
@@ -392,11 +420,7 @@ export function UserManagement({
             </Button>
           </CardHeader>
           <CardContent>
-            {error ? (
-              <div className="mb-4 rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
-                {error}
-              </div>
-            ) : null}
+            {error ? <ErrorNotice message={error} className="mb-4 rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200" /> : null}
 
             {selected.size > 0 ? (
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-900/40 bg-amber-950/20 px-3 py-2">
@@ -471,9 +495,14 @@ export function UserManagement({
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-red-500/30 to-amber-500/20 text-xs font-semibold uppercase text-red-200">
-                              {row.name.slice(0, 2)}
-                            </div>
+                            {row.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={row.image} alt="" loading="lazy" className="h-9 w-9 shrink-0 rounded-full border border-zinc-700 object-cover" />
+                            ) : (
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500/30 to-amber-500/20 text-xs font-semibold uppercase text-red-200">
+                                {row.name.slice(0, 2)}
+                              </div>
+                            )}
                             <div>
                               <div className="font-medium text-zinc-100">
                                 {row.name}
@@ -690,7 +719,7 @@ function CreateUserDialog({
     const json = await res.json();
     setSubmitting(false);
     if (!res.ok) {
-      setError(json?.error?.message ?? "Gagal membuat user.");
+      setError(apiErrorMessage(res, json, "Gagal membuat user."));
       return;
     }
     onCreated();
@@ -843,13 +872,9 @@ function CreateUserDialog({
               ))}
             </div>
           </div>
-          {error ? (
-            <div className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
-              {error}
-            </div>
-          ) : null}
+          {error ? <ErrorNotice message={error} className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200" /> : null}
         </div>
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 z-10 bg-zinc-950">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Batal
           </Button>
@@ -925,7 +950,7 @@ function EditUserDialog({
     const json = await res.json();
     setSubmitting(false);
     if (!res.ok) {
-      setError(json?.error?.message ?? "Gagal menyimpan perubahan.");
+      setError(apiErrorMessage(res, json, "Gagal menyimpan perubahan."));
       return;
     }
     onSaved();
@@ -939,7 +964,23 @@ function EditUserDialog({
       return;
     }
     const json = await res.json();
-    setError(json?.error?.message ?? "Gagal menghapus user.");
+    if (json?.error?.code === "STAFF_HAS_HISTORY") {
+      // Riwayat gaji/absen/transaksi tidak boleh ikut terhapus → tawarkan nonaktifkan.
+      if (!confirm(`${json.error.message}\n\nNonaktifkan ${row.name} sekarang?`)) return;
+      const off = await fetch(`/api/admin/users/${row.userId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "suspended", suspendedReason: "Dinonaktifkan (dihapus Owner) — riwayat dipertahankan" }),
+      });
+      if (off.ok) {
+        onSaved();
+        return;
+      }
+      const offJson = await off.json().catch(() => null);
+      setError(apiErrorMessage(off, offJson, "Gagal menonaktifkan user."));
+      return;
+    }
+    setError(apiErrorMessage(res, json, "Gagal menghapus user."));
   }
 
   async function savePin(pinCode: string | null) {
@@ -953,7 +994,7 @@ function EditUserDialog({
     const json = await res.json();
     setSubmitting(false);
     if (!res.ok) {
-      setError(json?.error?.message ?? "Gagal menyimpan PIN.");
+      setError(apiErrorMessage(res, json, "Gagal menyimpan PIN."));
       return;
     }
     onSaved();
@@ -1138,11 +1179,7 @@ function EditUserDialog({
               </Button>
             </div>
           </Field>
-          {error ? (
-            <div className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
-              {error}
-            </div>
-          ) : null}
+          {error ? <ErrorNotice message={error} className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200" /> : null}
         </div>
         <DialogFooter className="flex justify-between sm:justify-between">
           <Button
@@ -1193,7 +1230,7 @@ function ResetPasswordDialog({
     const json = await res.json();
     setSubmitting(false);
     if (!res.ok) {
-      setError(json?.error?.message ?? "Gagal reset password.");
+      setError(apiErrorMessage(res, json, "Gagal reset password."));
       return;
     }
     setSuccess(true);
@@ -1237,12 +1274,8 @@ function ResetPasswordDialog({
             </div>
           </Field>
         )}
-        {error ? (
-          <div className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
-            {error}
-          </div>
-        ) : null}
-        <DialogFooter>
+        {error ? <ErrorNotice message={error} className="rounded-md border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200" /> : null}
+        <DialogFooter className="sticky bottom-0 z-10 bg-zinc-950">
           <Button variant="outline" onClick={success ? onDone : onClose}>
             {success ? "Selesai" : "Batal"}
           </Button>

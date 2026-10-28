@@ -9,10 +9,10 @@ import {
   updateMenuProduct,
   updateMenuProductStock,
 } from "@/lib/garage-service";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { menuItems } from "@/db/schema";
+import { eventMenuEntries, menuItems } from "@/db/schema";
 import { canOperateStation, productionStationFor } from "@/lib/garage-production-rules";
 import { canUseApiAs } from "@/lib/role-access";
 import { requireAnyPermission, requireGarageSession } from "@/lib/server-auth";
@@ -201,6 +201,20 @@ export async function DELETE(
         "Produk ini sudah pernah terjual. Riwayat penjualan tetap aman, tapi sebaiknya Arsipkan saja, jangan hapus permanen.",
       );
     }
+  }
+
+  // Produk yang dipakai di menu event/paket tidak bisa dihapus (FK RESTRICT) —
+  // beri pesan jelas, bukan error database.
+  const [eventUse] = await getDb()
+    .select({ n: count(eventMenuEntries.id) })
+    .from(eventMenuEntries)
+    .where(eq(eventMenuEntries.menuItemId, id.trim()));
+  if (Number(eventUse?.n ?? 0) > 0) {
+    return fail(
+      409,
+      "MENU_IN_EVENT",
+      "Produk ini dipakai di menu event/paket. Arsipkan saja (hilang dari POS & menu digital), atau keluarkan dulu dari event.",
+    );
   }
 
   const deleted = await deleteMenuProduct(id, session.data);

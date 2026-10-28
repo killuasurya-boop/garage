@@ -172,7 +172,12 @@ async function main() {
     const legacy = row.email.toLowerCase().endsWith("@absen.garage.local") ? ` — akun absen lama ${row.absenCode ?? ""}`.trimEnd() : "";
     console.log(`${removeOthers ? "HAPUS   " : "LAPOR   "} ${label}${legacy}`);
     if (apply && removeOthers) {
-      await deleteAdminUser(row.id, OWNER_CONTEXT);
+      try {
+        await deleteAdminUser(row.id, OWNER_CONTEXT);
+      } catch (error) {
+        // Akun dengan riwayat (absen/gaji/transaksi) tidak dihapus supaya data tidak hilang.
+        console.log(`   LEWATI  ${label}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
   if (others.length && !removeOthers) {

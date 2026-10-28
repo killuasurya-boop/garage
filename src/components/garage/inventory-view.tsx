@@ -46,7 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { garageApi } from "@/lib/api-client";
+import { garageApi, GarageApiError } from "@/lib/api-client";
 import { GARAGE_TAGS, subscribeGarageCache } from "@/lib/garage-cache";
 import {
   currency,
@@ -853,25 +853,40 @@ export function InventoryView({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Hapus permanen produk "${product.name}" dari Produk Manajemen?\n\nProduk akan hilang dari POS/QR. Riwayat transaksi lama tetap aman karena order menyimpan snapshot nama, varian, harga, qty, dan total. Aksi ini tidak bisa restore.`,
-    );
+    const confirmed = window.confirm(`Hapus produk "${product.name}"?\n\nProduk hilang dari POS & menu digital.`);
     if (!confirmed) return;
 
     setProductAction(`archive:${product.id}`);
     setProductError(null);
     setProductNotice(null);
     try {
+      // guard=1: produk yang pernah terjual tidak dihapus permanen (laporan & HPP tetap utuh).
       const response = await garageApi.delete<{
         deleted: { id: string; name: string; usedInOrders: number; status: string };
-      }>(`/api/menu/${encodeURIComponent(product.id)}`);
-      setProductNotice(
-        `${response.deleted.name} dihapus permanen. Riwayat lama aman (${response.deleted.usedInOrders} transaksi terkait).`,
-      );
+      }>(`/api/menu/${encodeURIComponent(product.id)}?guard=1`);
+      setProductNotice(`${response.deleted.name} dihapus.`);
       await onMenuChanged();
       await loadProductItems();
     } catch (err) {
-      setProductError(err instanceof Error ? err.message : "Produk gagal dihapus permanen.");
+      const code = err instanceof GarageApiError ? err.code : null;
+      if (code === "MENU_DELETE_BLOCKED" || code === "MENU_IN_EVENT") {
+        // Sudah terjual / dipakai event → tawarkan Arsipkan (bisa dipulihkan kapan saja).
+        const archive = window.confirm(
+          `${err instanceof Error ? err.message : ""}\n\nArsipkan "${product.name}" sekarang? Bisa dipulihkan kapan saja.`,
+        );
+        if (archive) {
+          try {
+            await garageApi.patch(`/api/menu/${encodeURIComponent(product.id)}`, { status: "archived" });
+            setProductNotice(`${product.name} diarsipkan — hilang dari POS & menu digital, riwayat tetap utuh.`);
+            await onMenuChanged();
+            await loadProductItems();
+          } catch (archiveErr) {
+            setProductError(archiveErr instanceof Error ? archiveErr.message : "Produk gagal diarsipkan.");
+          }
+        }
+      } else {
+        setProductError(err instanceof Error ? err.message : "Produk gagal dihapus.");
+      }
     } finally {
       setProductAction(null);
     }
@@ -1596,7 +1611,7 @@ export function InventoryView({
                               disabled={productAction === `archive:${item.id}`}
                             >
                               <Archive className="size-3.5" />
-                              Delete
+                              Hapus
                             </Button>
                           </>
                         ) : (

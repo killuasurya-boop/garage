@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { isDatabaseConfigured } from "@/db";
 import { fail, ok, readJson } from "@/lib/api-response";
-import { deleteAdminUser, updateAdminUser, resetUserPassword } from "@/lib/admin-user-service";
+import { deleteAdminUser, resetUserPassword, StaffHasHistoryError, updateAdminUser } from "@/lib/admin-user-service";
 import type { Role } from "@/lib/garage-data";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -89,6 +89,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       deviceLabel: session.data.profile.deviceLabel,
     });
   } catch (error) {
+    if (error instanceof StaffHasHistoryError) return fail(409, error.code, error.message);
     return fail(
       400,
       "DELETE_USER_FAILED",

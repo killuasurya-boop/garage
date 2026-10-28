@@ -251,7 +251,12 @@ Scroll direction:
   off = no OAuth endpoints. Tables `jwks`/`oauth_*` (migration 0163) come from the drizzle-adapter schema generator — keep
   them in sync with the plugin version. `/api/mcp/chatgpt` = `requireMcpAuth` → `handleMcpChatgptRequest`
   (`mcp-chatgpt-gateway.ts`): kill switch `mcpChatgptPaused`, Owner + 2FA only (`mcpChatgptAccess`, also used by
-  `/oauth/consent`), synchronous audit before each tool, `garage_api` hidden. Login/2FA pages forward the signed
+  `/oauth/consent`), synchronous audit before each tool. Owner universal write (Okt 2026): `ubah_data_garage`
+  (R2, `confirmOnly` = ChatGPT confirmation flow only; money paths `isMoneyPath` → R3 via `riskFor` = `kode2fa` required,
+  Owner 28 Okt; encoded `%2e`/`%2f` paths rejected) + `garage_api` GET + `katalog_endpoint`
+  (`api-route-catalog.generated.ts`, regenerate with `npx tsx scripts/generate-api-catalog.ts`) call `/api/*` via a
+  temporary agent key revoked right after (`mcp-delegated-api.ts`; scope owner/readonly, hidden from key list);
+  blocked paths in `ubahDataBlockReason`; switch `mcpChatgptWriteEnabled` (off = writes `MCP_WRITE_DISABLED`). Login/2FA pages forward the signed
   `oauth_query` (`oauth-login-continue.ts`). See `docs/AGENT-API.md` §6.
 - MCP tool registry & confirmation (batches M1/M2): every agent tool declares `domain` (16 PRD domains) + `risk` R0–R3
   (`mcp-tool-registry.ts`, enforced by tests; `write === risk !== "R0"`). On `/api/mcp/chatgpt`, R2/R3 tools go through

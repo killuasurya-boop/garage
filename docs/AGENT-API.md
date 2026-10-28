@@ -170,7 +170,7 @@ Selama `GARAGE_MCP_CHATGPT_ENABLED` bukan `true`: tidak ada endpoint OAuth, `/.w
   saya ubah lewat ChatGPT"):
   - `garage_api` (GET) membaca endpoint mana pun; `katalog_endpoint` mendaftar endpoint & method (hasil generate
     `scripts/generate-api-catalog.ts` → `src/lib/api-route-catalog.generated.ts`, tes menjaga sinkron).
-  - `ubah_data_garage` (R2, `confirmOnly`): POST/PUT/PATCH/DELETE ke `/api/*` atas nama Owner, **selalu** lewat
+  - `ubah_data_garage` (R2, `confirmOnly`; path UANG = R3 → wajib `kode2fa`, lihat `isMoneyPath`): POST/PUT/PATCH/DELETE ke `/api/*` atas nama Owner, **selalu** lewat
     preview → konfirmasi. Hanya ada di pintu ChatGPT; REST agent & `/api/mcp` (key statis) tidak melihatnya.
   - Token OAuth tidak pernah diteruskan: setiap panggilan memakai API key agent **sementara** (scope owner untuk
     ubah, readonly untuk baca/preview; 2 menit; label `ChatGPT·op …`) yang langsung dicabut

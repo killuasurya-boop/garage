@@ -112,6 +112,23 @@ describe("ubah_data_garage (tulis universal, Owner via ChatGPT)", () => {
     await expect(call(owner(), "ubah_data_garage", { ...args, konfirmasi: preview.konfirmasi })).rejects.toMatchObject({ code: "CONFIRMATION_USED" });
   });
 
+  it("perubahan uang = R3: preview minta kode 2FA, konfirmasi tanpa kode ditolak dan route tidak dipanggil", async () => {
+    stubInternalApi();
+    const args = { method: "POST", path: "/api/orders/ord-1/void", body: { reason: "salah input" }, alasan: "Void order" };
+    const preview = await call(owner(), "ubah_data_garage", args);
+    expect(preview.status).toBe("PERLU_KONFIRMASI");
+    expect(preview.risiko).toBe("R3");
+    expect(preview.butuhKode2fa).toBe(true);
+    seen = [];
+    await expect(call(owner(), "ubah_data_garage", { ...args, konfirmasi: preview.konfirmasi })).rejects.toMatchObject({ code: "KODE_2FA_WAJIB" });
+    expect(seen).toEqual([]);
+
+    // Data biasa tetap R2 (cukup konfirmasi chat).
+    const menu = await call(owner(), "ubah_data_garage", { method: "PATCH", path: "/api/menu/itm-1", body: {}, alasan: "Ganti" });
+    expect(menu.risiko).toBe("R2");
+    expect(menu.butuhKode2fa).toBeUndefined();
+  });
+
   it("error route dikembalikan apa adanya dan operasi tercatat gagal", async () => {
     stubInternalApi(() => Response.json({ error: { code: "VALIDATION_ERROR", message: "Harga wajib angka." } }, { status: 400 }));
     const args = { method: "POST", path: "/api/menu", body: { price: "x" }, alasan: "Tambah menu" };

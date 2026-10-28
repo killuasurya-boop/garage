@@ -40,6 +40,29 @@ const BLOCKED: Block[] = [
   { pattern: /\/(bulk|import|master-import)(\/|$)/, reason: "Aksi massal/impor (R3) dilakukan dari layar Garage OS supaya bisa dicek dulu." },
 ];
 
+/**
+ * Path yang menggerakkan/mengoreksi UANG (Owner D-01a, 28 Okt 2026): lewat chat wajib kode 2FA (R3).
+ * Order (penjualan baru, void/refund, pembayaran, hapus invoice), seluruh keuangan (kas laci, setoran,
+ * petty cash, biaya, settlement, bayar supplier), gaji/kasbon/THR/payout, poin member, tagihan POS/waiter.
+ */
+const MONEY_PATHS: RegExp[] = [
+  /^\/api\/orders$/,
+  /^\/api\/orders\/open-bill$/,
+  /^\/api\/orders\/[^/]+\/(void|void-request|refund-request|delete|payment-method|payment(\/.*)?)$/,
+  /^\/api\/finance\//,
+  /^\/api\/payroll\/(?!leaves(\/|$))/,
+  /^\/api\/hr\/team\/(advances|payroll)(\/|$)/,
+  /^\/api\/earnings\//,
+  /^\/api\/points\//,
+  /^\/api\/crm\/customers\/[^/]+\/points$/,
+  /^\/api\/pos\/sync-transaction$/,
+  /^\/api\/waiter\/tables\/[^/]+\/bill$/,
+];
+
+export function isMoneyPath(path: string) {
+  return MONEY_PATHS.some((pattern) => pattern.test(path));
+}
+
 /** Alasan path ditolak, atau null bila boleh. Murni — dites di agent-tools-ubah-data.test.ts. */
 export function ubahDataBlockReason(path: string): string | null {
   if (!/^\/api\/[A-Za-z0-9/_\-.%]*$/.test(path) || path.includes("..")) return "Path harus diawali /api/ tanpa '..'.";
@@ -116,12 +139,18 @@ export const ubahDataTools: AgentTool[] = [
     name: UBAH_DATA_TOOL,
     title: "Ubah data Garage OS (universal)",
     description:
-      "Ubah data apa pun yang bisa diubah di layar Garage OS: POST/PUT/PATCH/DELETE ke endpoint /api atas nama Owner (mis. tambah/edit produk, kategori, pengaturan toko, meja, promo, voucher, member, bahan, penerimaan, opname, karyawan, jadwal). Pakai tool bisnis khusus bila ada (lebih aman); pakai ini untuk sisanya. Cari path di katalog_endpoint, baca data sekarang dengan garage_api (GET), lalu kirim body JSON yang sama bentuknya dengan layar. Server memvalidasi body & aturan bisnis; error dikembalikan apa adanya. Selalu lewat preview + konfirmasi Owner. Ditolak: auth/API key/PIN/password, tutup buku, sertifikasi saldo, terbitkan konten, aksi massal/impor, hapus buku kas/audit.",
+      "Ubah data apa pun yang bisa diubah di layar Garage OS: POST/PUT/PATCH/DELETE ke endpoint /api atas nama Owner (mis. tambah/edit produk, kategori, pengaturan toko, meja, promo, voucher, member, bahan, penerimaan, opname, karyawan, jadwal). Pakai tool bisnis khusus bila ada (lebih aman); pakai ini untuk sisanya. Cari path di katalog_endpoint, baca data sekarang dengan garage_api (GET), lalu kirim body JSON yang sama bentuknya dengan layar. Server memvalidasi body & aturan bisnis; error dikembalikan apa adanya. Selalu lewat preview + konfirmasi Owner; perubahan UANG (order void/refund/pembayaran, keuangan, kas, setoran, petty cash, gaji, kasbon, poin) juga wajib `kode2fa` Owner. Ditolak: auth/API key/PIN/password, tutup buku, sertifikasi saldo, terbitkan konten, aksi massal/impor, hapus buku kas/audit.",
     write: true,
     domain: "sistem",
     risk: "R2",
     permission: "company:manage",
     confirmOnly: true,
+    // Perubahan uang lewat chat = R3 → preview meminta kode 2FA Owner (mcp-confirmation.ts).
+    // Path yang diblokir tidak diberi R3: ditolak langsung saat eksekusi, tanpa minta kode.
+    riskFor: (args) => {
+      const path = String(args.path ?? "");
+      return !ubahDataBlockReason(path) && isMoneyPath(path) ? "R3" : "R2";
+    },
     input: ubahInput,
     async preview(session, args) {
       assertOwnerViaChat(session);

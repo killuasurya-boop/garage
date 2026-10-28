@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { matchApiRoute, ubahDataBlockReason } from "@/lib/agent-tools-ubah-data";
+import { isMoneyPath, matchApiRoute, ubahDataBlockReason } from "@/lib/agent-tools-ubah-data";
 import { API_ROUTE_CATALOG } from "@/lib/api-route-catalog.generated";
 import { scanApiRoutes } from "@/lib/api-route-scan";
 import { isSecretKey, redactSecrets } from "@/lib/mcp-delegated-api";
@@ -47,6 +47,37 @@ describe("katalog endpoint & blokir ubah_data_garage", () => {
     expect(matchApiRoute("/api/menu")?.path).toBe("/api/menu");
     expect(matchApiRoute("/api/orders/abc-123/delete")?.path).toBe("/api/orders/{id}/delete");
     expect(matchApiRoute("/api/tidak-ada")).toBeNull();
+  });
+});
+
+describe("perubahan uang lewat chat wajib kode 2FA (R3)", () => {
+  it("path uang dikenali, data biasa tidak", () => {
+    for (const path of [
+      "/api/orders",
+      "/api/orders/open-bill",
+      "/api/orders/o1/void",
+      "/api/orders/o1/refund-request",
+      "/api/orders/o1/payment/confirm",
+      "/api/orders/o1/payment/revert",
+      "/api/orders/o1/payment-method",
+      "/api/orders/o1/delete",
+      "/api/finance/cash-movements/m1/void",
+      "/api/finance/cash-movements/m1/deposit-confirm",
+      "/api/finance/petty-cash",
+      "/api/finance/expenses",
+      "/api/payroll/payments",
+      "/api/payroll/advances/a1/cancel",
+      "/api/hr/team/advances",
+      "/api/earnings/payouts/p1/pay",
+      "/api/points/redeem",
+      "/api/crm/customers/c1/points",
+      "/api/waiter/tables/07/bill",
+    ]) {
+      expect(isMoneyPath(path), path).toBe(true);
+    }
+    for (const path of ["/api/menu/itm-1", "/api/orders/o1", "/api/orders/o1/archive", "/api/payroll/leaves", "/api/vouchers", "/api/tables/config"]) {
+      expect(isMoneyPath(path), path).toBe(false);
+    }
   });
 });
 

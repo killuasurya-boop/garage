@@ -245,7 +245,8 @@ Scroll direction:
   them in sync with the plugin version. `/api/mcp/chatgpt` = `requireMcpAuth` → `handleMcpChatgptRequest`
   (`mcp-chatgpt-gateway.ts`): kill switch `mcpChatgptPaused`, Owner + 2FA only (`mcpChatgptAccess`, also used by
   `/oauth/consent`), synchronous audit before each tool. Owner universal write (Okt 2026): `ubah_data_garage`
-  (R2, `confirmOnly` = ChatGPT confirmation flow only) + `garage_api` GET + `katalog_endpoint`
+  (R2, `confirmOnly` = ChatGPT confirmation flow only; money paths `isMoneyPath` → R3 via `riskFor` = `kode2fa` required,
+  Owner 28 Okt; encoded `%2e`/`%2f` paths rejected) + `garage_api` GET + `katalog_endpoint`
   (`api-route-catalog.generated.ts`, regenerate with `npx tsx scripts/generate-api-catalog.ts`) call `/api/*` via a
   temporary agent key revoked right after (`mcp-delegated-api.ts`; scope owner/readonly, hidden from key list);
   blocked paths in `ubahDataBlockReason`; switch `mcpChatgptWriteEnabled` (off = writes `MCP_WRITE_DISABLED`). Login/2FA pages forward the signed

@@ -30,6 +30,11 @@ export type AgentTool = {
    * jalan setelah Owner mengonfirmasi (`ctx.confirmedOperationId`).
    */
   confirmOnly?: boolean;
+  /**
+   * Risiko per argumen (mis. ubah_data_garage: path uang = R3 → wajib kode 2FA).
+   * Hanya boleh MENAIKKAN dari `risk`, tidak menurunkan.
+   */
+  riskFor?: (args: Record<string, unknown>) => ToolRisk;
 };
 
 export const rupiah = (value: number) => `Rp${Math.round(value).toLocaleString("id-ID")}`;

@@ -34,6 +34,10 @@ describe("katalog endpoint & blokir ubah_data_garage", () => {
       "/api/mcp/chatgpt",
       "/api/cron/x",
       "/api/../etc",
+      "/api/orders/%2e%2e/finance/closing",
+      "/api/menu/%2E%2E/%2e%2e/api/payroll/backup",
+      "/api/orders/x%2f..%2fagent",
+      "/api/orders/./x",
     ]) {
       expect(ubahDataBlockReason(path), path).not.toBeNull();
     }

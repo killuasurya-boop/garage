@@ -43,6 +43,10 @@ const BLOCKED: Block[] = [
 /** Alasan path ditolak, atau null bila boleh. Murni — dites di agent-tools-ubah-data.test.ts. */
 export function ubahDataBlockReason(path: string): string | null {
   if (!/^\/api\/[A-Za-z0-9/_\-.%]*$/.test(path) || path.includes("..")) return "Path harus diawali /api/ tanpa '..'.";
+  // %2e%2e / %2f dinormalkan fetch → path lain (mis. /api/x/%2e%2e/finance/closing): blokir harus menilai path NYATA.
+  if (/%(2e|2f|5c)/i.test(path) || new URL(path, "http://garage.invalid").pathname !== path) {
+    return "Path tidak boleh memakai titik/garis miring ter-encode.";
+  }
   if (isAgentForbiddenPath(path)) {
     return "Endpoint auth, API key, cron, webhook, akun & keamanan pengguna tidak boleh lewat chat (peran staf: pakai ubah_status_peran_staf).";
   }

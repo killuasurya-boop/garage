@@ -549,6 +549,8 @@ export type OrderReceipt = {
     device: string;
   };
   tableLabel: string;
+  /** Kode gabung meja dine-in (dicetak di struk untuk teman semeja). */
+  tableJoinCode?: string | null;
   channel: string;
   payment: {
     method: string;
@@ -855,6 +857,8 @@ export type TableLiveRow = {
   billTotal?: number;
   /** Meja sedang dipilih pelanggan di menu digital sampai waktu ini. */
   heldUntil?: string | null;
+  /** Kode gabung 4 angka untuk teman semeja (staf saja; null bila meja kosong / belum ada pesanan tamu). */
+  joinCode?: string | null;
   /** Menit sejak aktivitas terakhir meja (0 bila kosong). */
   idleMinutes?: number;
   /** Meja terisi melewati batas "meja lupa ditutup" (Pengaturan → Meja). */

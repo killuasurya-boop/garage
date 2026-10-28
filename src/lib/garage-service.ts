@@ -6917,6 +6917,8 @@ export async function getTableLiveData(options: { outletId?: string | null; tabl
       // Total semua bill sesi (lunas + belum) untuk kartu kasir.
       billTotal: sessionBills.reduce((sum, bill) => sum + bill.total, 0),
       heldUntil: heldUntil?.toISOString() ?? null,
+      // Kode gabung teman semeja — hanya untuk staf (peta publik tidak menyalin kolom ini).
+      joinCode: status === "empty" || status === "held" ? null : session?.joinCode ?? null,
       idleMinutes,
       idleWarning: idleWarnHours > 0 && idleMinutes >= idleWarnHours * 60,
     };
@@ -10974,6 +10976,15 @@ async function updateCustomerOrderStatusImpl(
       const receiptPaymentMetadata = receiptPayment?.metadata ?? {};
       const receiptCashReceived = numberFromMetadata(receiptPaymentMetadata, "cashReceived");
       const receiptChange = numberFromMetadata(receiptPaymentMetadata, "change");
+      // Kode gabung meja masih berlaku selama meja belum dikosongkan → cetak di struk.
+      const receiptTableNumber = parseTableNumber(order.tableLabel ?? null);
+      const [receiptTableSession] = receiptTableNumber
+        ? await tx
+            .select({ joinCode: tableSessions.joinCode })
+            .from(tableSessions)
+            .where(and(eq(tableSessions.outletId, order.outletId ?? garage.profile.outlet.id), eq(tableSessions.tableNumber, receiptTableNumber)))
+            .limit(1)
+        : [];
       const receipt = {
         invoiceNo: receiptInvoiceNo,
         invoiceStatus: "issued",
@@ -10992,6 +11003,7 @@ async function updateCustomerOrderStatusImpl(
           device: garage.profile.deviceLabel,
         },
         tableLabel: order.tableLabel,
+        tableJoinCode: receiptTableSession?.joinCode ?? null,
         channel: order.channel,
         payment: {
           method: input.paymentMethod?.trim() || "Cash",
@@ -11593,15 +11605,17 @@ async function createOrderOnce(
     memberAccount = row.account;
   }
 
+  let tableJoinCode: string | null = null;
   const created = await db.transaction(async (tx) => {
     // Order kasir untuk meja: siapkan kode gabung (teman semeja bisa pesan
     // sendiri dari menu digital) & lepas kunci "Sedang dipilih".
     if (tableNumber) {
       const state = await lockTableSession(tx, garage.profile.outlet.id, tableNumber);
+      tableJoinCode = state.session?.joinCode ?? newJoinCode();
       await tx
         .update(tableSessions)
         .set({
-          joinCode: state.session?.joinCode ?? newJoinCode(),
+          joinCode: tableJoinCode,
           heldUntil: null,
           heldTokenHash: null,
           updatedAt: state.now,
@@ -12053,6 +12067,7 @@ async function createOrderOnce(
         device: garage.profile.deviceLabel,
       },
       tableLabel: order.tableLabel,
+      tableJoinCode,
       channel,
       payment: {
         method: paymentMethod,

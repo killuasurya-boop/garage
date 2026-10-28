@@ -4,6 +4,16 @@ import { parseReceiptQrLine, stripReceiptQr } from "@/lib/receipt-layout";
 import { buildKitchenChitContent, buildThermalContent } from "@/lib/thermal-receipt";
 
 describe("Nomor meja di struk thermal", () => {
+  it("struk dine-in mencetak kode gabung meja; takeaway / kode tidak valid tidak", () => {
+    const dineIn = buildThermalContent({ orderNo: "POS-1", tableLabel: "Meja 6", tableJoinCode: "4821", items: [] });
+    expect(dineIn).toContain("Kode gabung meja: 4821");
+    expect(dineIn).toContain("scan QR meja");
+    const takeaway = buildThermalContent({ orderNo: "POS-2", tableLabel: "Takeaway", tableJoinCode: "4821", items: [] });
+    expect(takeaway).not.toContain("Kode gabung");
+    const bad = buildThermalContent({ orderNo: "POS-3", tableLabel: "Meja 6", tableJoinCode: "12", items: [] });
+    expect(bad).not.toContain("Kode gabung");
+  });
+
   it("struk pelanggan dine-in mencetak MEJA 06 (format kanonik), takeaway tidak", () => {
     const dineIn = buildThermalContent({ orderNo: "POS-1", tableLabel: "Meja 6", items: [] });
     expect(dineIn).toContain("MEJA 06");

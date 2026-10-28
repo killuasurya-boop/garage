@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StaffTableJoinCode } from "@/components/garage/staff-table-join-code";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle,
@@ -463,6 +464,8 @@ export function TableDetailDrawer({
               </span>
             </div>
           ) : null}
+
+          <StaffTableJoinCode joinCode={row.joinCode} tableLabel={row.tableLabel} className="mx-4 mt-3" />
 
           <div className="grid grid-cols-2 gap-2 px-4 py-3">
             <div className="rounded-lg bg-white/[0.05] px-3 py-2 ring-1 ring-[#d4d4d8]/30">

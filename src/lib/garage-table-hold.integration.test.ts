@@ -188,3 +188,30 @@ describe("Reserved & perlu dibersihkan", () => {
     expect(created.joinCode).toMatch(/^\d{4}$/);
   });
 });
+
+describe("Kode gabung terlihat staf & tercetak di struk", () => {
+  it("staf melihat kode di data meja; peta publik tidak membocorkannya", async () => {
+    const a = await svc.holdCustomerTable({ tableNumber: "22", outletId });
+    const first = await customerOrder("22", { tableHoldToken: a.holdToken });
+    const staff = (await svc.getTableLiveRow("22", outletId)) as any;
+    expect(staff.joinCode).toBe(first.joinCode);
+    const pub = (await publicRow("22")) as any;
+    expect(pub).toBeDefined();
+    expect(pub.joinCode).toBeUndefined();
+    expect(JSON.stringify(await svc.getPublicTableLiveData(outletId, null))).not.toContain(first.joinCode);
+    // Meja kosong: tidak ada kode.
+    expect(((await svc.getTableLiveRow("23", outletId)) as any).joinCode ?? null).toBeNull();
+  });
+
+  it("struk POS dine-in membawa kode gabung meja yang sama dengan data staf", async () => {
+    const created = (await svc.createOrder(
+      { orderType: "dine-in", tableLabel: "24", paymentMethod: "Cash", cashReceived: 1_000_000, items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }] } as any,
+      kasir(),
+    )) as any;
+    expect(created.receipt.tableJoinCode).toMatch(/^\d{4}$/);
+    const staff = (await svc.getTableLiveRow("24", outletId)) as any;
+    expect(staff.joinCode).toBe(created.receipt.tableJoinCode);
+    const { buildThermalContent } = await import("@/lib/thermal-receipt");
+    expect(buildThermalContent(created.receipt)).toContain(`Kode gabung meja: ${created.receipt.tableJoinCode}`);
+  });
+});

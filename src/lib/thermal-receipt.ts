@@ -14,6 +14,8 @@ export interface ThermalReceiptInput {
   orderNo?: string | null;
   /** "Meja 06" untuk dine-in; takeaway/delivery tidak dicetak sebagai meja. */
   tableLabel?: string | null;
+  /** Kode gabung meja (dine-in) untuk teman semeja yang mau pesan dari menu digital. */
+  tableJoinCode?: string | null;
   queueNo?: number | null;
   createdAt?: string | null;
   outlet?: { name?: string | null; code?: string | null } | null;
@@ -389,6 +391,11 @@ export function buildThermalContent(
   const receiptTable = parseTableNumber(receipt.tableLabel ?? null);
   if (receiptTable) {
     rows.push(center(`MEJA ${receiptTable}`));
+    const joinCode = clean(receipt.tableJoinCode);
+    if (/^\d{4}$/.test(joinCode)) {
+      rows.push(center(`Kode gabung meja: ${joinCode}`));
+      for (const part of wrapText("Teman semeja: scan QR meja, masukkan kode ini", W)) rows.push(center(part));
+    }
     rows.push(line());
   }
   rows.push(`Order : ${clean(receipt.orderNo) || "-"}`.slice(0, W));

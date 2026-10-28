@@ -1,5 +1,6 @@
 "use client";
 
+import { StaffTableJoinCode } from "@/components/garage/staff-table-join-code";
 import {
 AlertTriangle,
 Archive,
@@ -3590,6 +3591,9 @@ export function PosView({
           paymentStatus: data.order.paymentStatus === "paid" ? "pending" : data.order.paymentStatus,
           paidAmount: data.order.paidAmount,
           tableLabel: data.order.tableLabel,
+          // Kode gabung meja dari detail meja yang sedang dibuka (hanya bila mejanya sama).
+          tableJoinCode:
+            tableDetail && tableDetail.tableLabel === data.order.tableLabel ? tableDetail.joinCode ?? null : null,
           customer: { name: data.order.customerName },
           invoiceNo: data.order.invoiceNo,
           orderNo: data.order.orderNo,
@@ -5648,6 +5652,7 @@ export function PosView({
                           </span>
                         </div>
                       ) : null}
+                      <StaffTableJoinCode joinCode={tableDetail.joinCode} tableLabel={tableDetail.tableLabel} />
                       {/* Ringkasan meja: bill terbuka/lunas + jumlah item. */}
                       {(tableDetail.openBillCount ?? 0) +
                         (tableDetail.paidBillCount ?? 0) >

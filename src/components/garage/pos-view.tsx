@@ -2117,7 +2117,8 @@ export function PosView({
       event.returnValue = "";
     };
     const blockNavigationKeys = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
+      // Autofill password Chrome/Opera memicu keydown tanpa `key` — jangan crash.
+      const key = (event.key ?? "").toLowerCase();
       const blocked =
         event.key === "F5" ||
         (event.altKey && ["arrowleft", "arrowright", "home"].includes(key)) ||

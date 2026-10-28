@@ -89,6 +89,7 @@ export function FinanceCfoBrief() {
               className="garage-press h-9 border-[#4a4a54] text-white"
               onClick={() => void load()}
               disabled={loading}
+              aria-label="Muat ulang ringkasan CFO"
             >
               <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>

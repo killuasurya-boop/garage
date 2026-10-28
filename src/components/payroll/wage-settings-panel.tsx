@@ -89,7 +89,7 @@ export function WageSettingsPanel() {
               <th className="text-left px-2 py-2">Role</th>
               <th className="text-right px-2 py-2">Upah/Hari (Rp)</th>
               <th className="text-right px-2 py-2">Lembur/Jam (Rp)</th>
-              <th className="px-2 py-2"></th>
+              <th className="px-2 py-2"><span className="sr-only">Aksi</span></th>
             </tr>
           </thead>
           <tbody>
@@ -102,6 +102,7 @@ export function WageSettingsPanel() {
                 <td className="px-2 py-2 text-right">
                   <input
                     type="number"
+                    aria-label={`Upah per hari ${s.name}`}
                     value={drafts[s.user_id]?.wage ?? "0"}
                     onChange={(e) =>
                       setDrafts((d) => ({
@@ -115,6 +116,7 @@ export function WageSettingsPanel() {
                 <td className="px-2 py-2 text-right">
                   <input
                     type="number"
+                    aria-label={`Lembur per jam ${s.name}`}
                     value={drafts[s.user_id]?.overtime ?? "0"}
                     onChange={(e) =>
                       setDrafts((d) => ({

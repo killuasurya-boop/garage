@@ -143,8 +143,9 @@ export function GpsSettingsPanel() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="text-xs uppercase text-[var(--garage-mute)]">Latitude</label>
+          <label htmlFor="gps-lat" className="text-xs uppercase text-[var(--garage-mute)]">Latitude</label>
           <input
+            id="gps-lat"
             type="number"
             step="any"
             value={gps.lat}
@@ -153,8 +154,9 @@ export function GpsSettingsPanel() {
           />
         </div>
         <div>
-          <label className="text-xs uppercase text-[var(--garage-mute)]">Longitude</label>
+          <label htmlFor="gps-lng" className="text-xs uppercase text-[var(--garage-mute)]">Longitude</label>
           <input
+            id="gps-lng"
             type="number"
             step="any"
             value={gps.lng}
@@ -163,8 +165,9 @@ export function GpsSettingsPanel() {
           />
         </div>
         <div>
-          <label className="text-xs uppercase text-[var(--garage-mute)]">Radius (meter)</label>
+          <label htmlFor="gps-radius" className="text-xs uppercase text-[var(--garage-mute)]">Radius (meter)</label>
           <input
+            id="gps-radius"
             type="number"
             min={10}
             max={1000}
@@ -177,8 +180,9 @@ export function GpsSettingsPanel() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs uppercase text-[var(--garage-mute)]">Nama Lokasi</label>
+          <label htmlFor="gps-name" className="text-xs uppercase text-[var(--garage-mute)]">Nama Lokasi</label>
           <input
+            id="gps-name"
             value={gps.name ?? ""}
             onChange={(e) => setGps((g) => ({ ...g, name: e.target.value }))}
             placeholder="Contoh: Garage Coffee Pusat"
@@ -186,8 +190,9 @@ export function GpsSettingsPanel() {
           />
         </div>
         <div>
-          <label className="text-xs uppercase text-[var(--garage-mute)]">Alamat</label>
+          <label htmlFor="gps-address" className="text-xs uppercase text-[var(--garage-mute)]">Alamat</label>
           <input
+            id="gps-address"
             value={gps.address ?? ""}
             onChange={(e) => setGps((g) => ({ ...g, address: e.target.value }))}
             placeholder="Jl. ..."

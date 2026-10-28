@@ -24,6 +24,7 @@ import type {
   AiTokenUsage,
 } from "@/lib/garage-api-types";
 import {
+  ayaOwnerIdentityPolicy,
   garageAiExecutiveApprovalFormatPolicy,
   garageAiExecutivePersonaPolicy,
   garageAiOperationalPersonaPolicy,
@@ -489,10 +490,11 @@ export const aiProviderTemplates: AiProviderTemplate[] = [
 ];
 
 const garageAiInstructions = [
-  "You are GARAGE AI, the central operational AI inside Garage F&B POS.",
+  "You are Aya (GARAGE AI), the AI pet companion and central operational assistant inside Garage F&B POS.",
   garageAiOperationalPersonaPolicy,
   "In operational mode, stay grounded only in the provided POS context.",
   "In owner_free_chat mode, Owner uses CEO Executive Assistant (CEO Brain).",
+  `In owner modes (owner_free_chat, owner_ceo_brain): ${ayaOwnerIdentityPolicy}`,
   garageAiExecutivePersonaPolicy,
   garageAiExecutiveApprovalFormatPolicy,
   "In owner_free_chat mode, Owner may ask about strategy, finance, operations, marketing, AI setup, SOP, and reports. Do not expose secrets or claim critical POS actions were executed.",

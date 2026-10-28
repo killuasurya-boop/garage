@@ -1,0 +1,167 @@
+/* Aya — AI pet Garage OS. Gerak ringan (transform/opacity saja) dan mati total
+   saat prefers-reduced-motion. Kelas diawali `aya-` agar tidak bentrok. */
+
+.aya-svg {
+  display: block;
+  overflow: visible;
+}
+
+.aya-svg .aya-bounce,
+.aya-svg .aya-head,
+.aya-svg .aya-arm-l,
+.aya-svg .aya-arm-r,
+.aya-svg .aya-eye,
+.aya-svg .aya-tuft {
+  transform-box: fill-box;
+}
+
+.aya-svg .aya-arm-l > ellipse,
+.aya-svg .aya-arm-r > ellipse {
+  transition: transform 220ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* melayang pelan */
+  .aya-svg .aya-bounce {
+    animation: aya-hover 2.8s ease-in-out infinite;
+    transform-origin: 50% 100%;
+  }
+  .aya-svg .aya-shadow {
+    animation: aya-shadow 2.8s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .aya-svg .aya-eye {
+    animation: aya-blink 5.2s infinite;
+    transform-origin: center;
+  }
+  .aya-svg .aya-tuft {
+    animation: aya-tuft 2.8s ease-in-out infinite;
+    transform-origin: 30% 100%;
+  }
+  .aya-svg .aya-zz {
+    animation: aya-zz 2.4s ease-in-out infinite;
+  }
+  .aya-svg.aya-exp-alert .aya-core-glow {
+    animation: aya-core 1s ease-in-out 3;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* joget: badan squash & stretch, kepala geleng, lengan melambai */
+  .aya-svg.aya-pose-dance .aya-bounce {
+    animation: aya-dance 0.52s ease-in-out infinite;
+  }
+  .aya-svg.aya-pose-dance .aya-head {
+    animation: aya-head-sway 0.52s ease-in-out infinite;
+    transform-origin: 50% 90%;
+  }
+  .aya-svg.aya-pose-wave .aya-arm-l {
+    animation: aya-wave 0.6s ease-in-out 3;
+    transform-origin: 90% 10%;
+  }
+  .aya-svg.aya-pose-fly .aya-bounce {
+    animation: aya-fly 0.9s ease-in-out infinite;
+  }
+}
+
+@keyframes aya-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes aya-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50% { transform: scaleX(0.82); opacity: 0.7; }
+}
+@keyframes aya-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes aya-tuft {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-7deg); }
+}
+@keyframes aya-zz {
+  0%, 100% { opacity: 0.2; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-3px); }
+}
+@keyframes aya-core {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.5); opacity: 1; }
+}
+@keyframes aya-dance {
+  0% { transform: translateY(0) rotate(-6deg) scale(1.04, 0.95); }
+  50% { transform: translateY(-7px) rotate(6deg) scale(0.96, 1.05); }
+  100% { transform: translateY(0) rotate(-6deg) scale(1.04, 0.95); }
+}
+@keyframes aya-head-sway {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(6deg); }
+}
+@keyframes aya-wave {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-22deg); }
+}
+@keyframes aya-fly {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-5px) rotate(4deg); }
+}
+
+/* ---- Pet melayang (AyaFloatingPet) ---- */
+
+.aya-pet {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  will-change: transform;
+}
+
+.aya-pet[data-moving="true"] {
+  transition: transform 1.7s cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+
+.aya-pet-button {
+  display: block;
+  cursor: grab;
+  border-radius: 9999px;
+  background: transparent;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 10px rgba(227, 38, 54, 0.18));
+}
+
+.aya-pet-button:active {
+  cursor: grabbing;
+}
+
+.aya-pet-button:focus-visible {
+  outline: 2px solid var(--garage-amber, #f5a524);
+  outline-offset: 4px;
+}
+
+.aya-pet-facing-left .aya-svg {
+  transform: scaleX(-1);
+}
+
+.aya-bubble {
+  position: absolute;
+  border-radius: 14px;
+  border: 1px solid var(--garage-line-2, #3a3a40);
+  background: var(--garage-bg-2, #18181c);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  padding: 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aya-bubble {
+    animation: aya-bubble-in 180ms ease-out both;
+  }
+}
+
+@keyframes aya-bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}

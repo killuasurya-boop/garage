@@ -1,5 +1,6 @@
 // Inti server MCP (JSON-RPC 2.0) — dipakai src/app/api/mcp/route.ts & tes.
 import { AgentToolError, listAgentTools, runAgentTool, type AgentToolContext } from "@/lib/agent-tools";
+import { ayaOwnerIdentityPolicy, ayaStaffIdentityPolicy } from "@/lib/garage-ai-persona";
 import { GARAGE_DOMAINS, RISK_LABELS, riskNeedsConfirmation } from "@/lib/mcp-tool-registry";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -61,6 +62,8 @@ export async function handleMcpMessage(
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "garage-os", title: "Garage Coffee OS", version: "1.0.0" },
         instructions: [
+          // D-07: Aya untuk semua — gaya eksekutif bagi Owner, pengingat kerja bagi staf.
+          session.profile.role === "Owner" ? ayaOwnerIdentityPolicy : ayaStaffIdentityPolicy,
           "Kontrol operasional Garage Coffee. Jawab owner dalam Bahasa Indonesia. Mulai dengan ringkasan_hari_ini.",
           "Untuk mengetahui apa yang bisa dan belum bisa dilakukan, panggil kemampuan_sistem.",
           options.confirmRiskyTools

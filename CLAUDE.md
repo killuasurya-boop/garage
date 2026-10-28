@@ -396,6 +396,11 @@ Scroll direction:
   Bundle photo = `event_menu_entries.image_url` (migration 0149), fallback collage of component photos.
 - Release and rollback checklist: `docs/event-menu-release.md`. Production deployment requires separate owner approval and verified backup.
 
+- Staging (R1, `docs/STAGING.md`): `docker-compose.staging.yml` in `/root/garage-staging` on the same VPS, own DB
+  `garage_staging`, app joins `garage_default` as `garage-staging-app` for the prod Caddy (`caddy-sites/staging.caddy`,
+  basic auth). Data = prod dump anonymized by `scripts/staging-anonymize.sql` (refuses non-staging DB names); outbound
+  messaging/AI keys off. Deploy any branch with `scripts/deploy-staging.sh`; prod stays `scripts/deploy-manual.sh`.
+
 ## Verification
 
 After app code changes, run:

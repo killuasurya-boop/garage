@@ -351,14 +351,14 @@ export function CheckoutOrderStep({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// TableSessionInfoCard â€” UX upgrade untuk meja yang dipilih.
+// ─────────────────────────────────────────────────────────────
+// TableSessionInfoCard — UX upgrade untuk meja yang dipilih.
 // Kalau meja kosong → tampilkan card hijau "siap dipakai".
 // Kalau meja butuh dibersihkan → card merah "perlu cleaning".
 // Kalau meja punya session aktif (sudah ada order) → card amber
-// "ORDER TAMBAHAN â€” akan masuk ke bill session yang sama".
+// "ORDER TAMBAHAN — akan masuk ke bill session yang sama".
 // Ini menggantikan warning generic lama yang cuma bilang "status: pending".
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────
 export function TableSessionInfoCard({
   tableLabel,
   row,
@@ -403,7 +403,7 @@ export function TableSessionInfoCard({
     );
   }
 
-  // Active session â€” INI inti fitur Add Order
+  // Active session — INI inti fitur Add Order
   if (hasActiveOrder) {
     const customerName = row.customerName?.trim() || "Tamu";
     const customerPhone = row.customerPhone?.trim();
@@ -481,7 +481,7 @@ export function TableSessionInfoCard({
     );
   }
 
-  // Fallback â€” status unknown / lain
+  // Fallback — status unknown / lain
   return (
     <div className="mt-3 rounded-md border border-[#34343c] bg-white/[0.04] p-3">
       <p className="text-xs text-[#b8b8bf]">
@@ -769,7 +769,7 @@ export function CheckoutCustomerStep({
   );
 }
 
-// â”€â”€â”€ CartLineNoteRow â€” input catatan per item di cart â”€â”€â”€
+// ─── CartLineNoteRow — input catatan per item di cart ───
 // UX: default collapsed (cuma tombol "+ Catatan" kecil). Klik → expand input.
 // Auto-save on blur. Visible chip dengan icon jika sudah ada catatan.
 export function CartLineNoteRow({

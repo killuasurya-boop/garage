@@ -72,7 +72,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Fase 4 — Design system & core UX (PRD §23–§25)
 | ID | Batch | Isi | Status |
 |---|---|---|---|
-| U0 | Ekstraksi modul tanpa ubah perilaku | Pecah `garage-app.tsx` (±10.300 baris) per modul + baseline visual | READY |
+| U0 | Ekstraksi modul tanpa ubah perilaku | Pecah `garage-app.tsx` (±10.300 baris) per modul + baseline visual | **U0a–U0e DONE** (pos-view.tsx 12.840 → 9352 baris; dialog Cek Meja + label status dipindah) |
 | U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA, **komponen `AyaAvatar` + ekspresi status (D-07)** | READY (D-02 FINAL: gelap semua; aset Aya D-07 sudah ada) |
 | U2 | Shell & navigasi | Sitemap Owner §23.4, nav per device §23.5, command palette berizin | setelah U1 |
 | U3 | Redesign P0 | POS-02, SHF-01, SHF-04, FIN-03, FIN-07, SYS-01, DSH-01, AI-01, WMS-04 (§25.3) | setelah U2 + B2–B4 |
@@ -97,7 +97,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | U4–U9 | Redesign modul growth | Produk/HPP, WMS, KDS, CRM/member (kontrak member terkunci), HR, event, marketing, meja/QR | setelah U3 |
-| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | READY (izin Owner 28 Okt: VPS sama, DB terpisah, data disamarkan) |
+| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | **SIAP PASANG** (`docker-compose.staging.yml`, `scripts/deploy-staging.sh`, `docs/STAGING.md`; diuji simulasi lokal) — menunggu DNS `staging` + deploy produksi |
 | R2 | Release plan | Backup verify + `cashLedgerFingerprint` + restore drill + rollback `garage-app:previous`; deploy dijalankan Owner | BLOCKED |
 
 ## Urutan kerja rekomendasi untuk agent berikutnya

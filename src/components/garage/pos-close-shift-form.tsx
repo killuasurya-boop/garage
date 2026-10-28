@@ -117,6 +117,9 @@ export function CloseShiftForm({
   const [recountCounts, setRecountCounts] = useState<Record<string, string>>({});
   const [thirdCounts, setThirdCounts] = useState<Record<string, string>>({});
   const [mismatchLabels, setMismatchLabels] = useState<string[]>([]);
+  // Hitungan #1 yang menjadi dasar #2/#3. Kembali ke form hanya untuk ubah serah terima
+  // tidak menghapus #2/#3; #1 berubah → #2/#3 wajib diulang.
+  const [recountFor, setRecountFor] = useState<string | null>(null);
 
   const { parsed: parsedCounts, total, pieces, anyCounted } = useMemo(() => denominationTotals(counts), [counts]);
   const recount = useMemo(() => denominationTotals(recountCounts), [recountCounts]);
@@ -125,17 +128,17 @@ export function CloseShiftForm({
   const usesThird = mismatchLabels.length > 0;
   const accepted = usesThird ? third : { parsed: parsedCounts, total, pieces };
 
-  // Default: tinggalkan modal yang sama dengan modal awal (bila uang cukup).
+  // Default: tinggalkan modal yang sama dengan modal awal (bila hitungan sah cukup).
   const effectiveFloat =
     floatChoice === "custom"
       ? Math.max(0, Math.floor(Number(floatCustom) || 0))
-      : floatChoice ?? (total >= openingCash ? openingCash : 0);
+      : floatChoice ?? (accepted.total >= openingCash ? openingCash : 0);
   const deposit = Math.max(0, accepted.total - effectiveFloat);
   const checklistDone = checklist.every((item) => item.done);
 
   function validate() {
     if (!anyCounted) return "Isi jumlah lembar/keping uang di laci (isi 0 bila laci kosong).";
-    if (effectiveFloat > total) return "Uang yang ditinggal di laci lebih besar dari uang yang dihitung.";
+    if (effectiveFloat > accepted.total) return "Uang yang ditinggal di laci lebih besar dari uang yang dihitung.";
     if (!checklistDone) return "Centang semua checklist tutup shift.";
     if (pinNeeded && !/^\d{4,8}$/.test(managerPin)) return "PIN Manajer/Owner wajib 4–8 digit angka.";
     return null;
@@ -149,14 +152,21 @@ export function CloseShiftForm({
       return;
     }
     setLocalError(null);
-    if (requireDoubleCount) {
-      setRecountCounts({});
-      setThirdCounts({});
-      setMismatchLabels([]);
-      setStage("recount");
-    } else {
+    if (!requireDoubleCount) {
       setStage("confirm");
+      return;
     }
+    const countKey = JSON.stringify(parsedCounts);
+    if (recountFor === countKey && recount.anyCounted) {
+      // #1 tidak berubah: pakai #2/#3 yang sudah ada (mis. kembali hanya untuk ubah serah terima).
+      setStage(usesThird && !third.anyCounted ? "third" : "confirm");
+      return;
+    }
+    setRecountFor(countKey);
+    setRecountCounts({});
+    setThirdCounts({});
+    setMismatchLabels([]);
+    setStage("recount");
   }
 
   function afterRecount() {
@@ -177,7 +187,7 @@ export function CloseShiftForm({
       return;
     }
     if (effectiveFloat > third.total) {
-      setLocalError("Uang yang ditinggal di laci lebih besar dari hitungan #3. Kembali dan ubah serah terima.");
+      setLocalError("Uang yang ditinggal di laci lebih besar dari hitungan #3. Kembali dan ubah serah terima — hitungan #2 & #3 tetap tersimpan.");
       return;
     }
     setLocalError(null);

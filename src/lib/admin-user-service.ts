@@ -529,7 +529,7 @@ export async function resetUserPassword(
     return { error: "Akun credential tidak ditemukan untuk user ini." };
   }
 
-  // Better Auth tidak expose admin-reset langsung â€” pakai context internal.
+  // Better Auth tidak expose admin-reset langsung — pakai context internal.
   const ctx = await auth.$context;
   const hash = await ctx.password.hash(newPassword);
   await db
@@ -537,7 +537,7 @@ export async function resetUserPassword(
     .set({ password: hash, updatedAt: new Date() })
     .where(eq(account.id, credential.id));
 
-  // Invalidate semua session â€” user harus login ulang dengan password baru.
+  // Invalidate semua session — user harus login ulang dengan password baru.
   await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
   await db
     .update(staffProfiles)

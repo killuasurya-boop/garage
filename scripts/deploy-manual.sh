@@ -132,6 +132,7 @@ step "Kirim image & berkas ke VPS"
 remote 'docker tag garage-app:latest garage-app:previous 2>/dev/null || true; docker tag garage-migrate:latest garage-migrate:previous 2>/dev/null || true'
 docker save garage-app:latest garage-migrate:latest | gzip | remote 'gunzip | docker load'
 remote "mkdir -p $APP_DIR/scripts $APP_DIR/backups"
+remote "mkdir -p $APP_DIR/caddy-sites"
 scp "${SSH_OPTS[@]}" docker-compose.yml Caddyfile "$VPS_USER@$VPS_HOST:$APP_DIR/"
 # Buang CR: checkout Windows (core.autocrlf) memberi CRLF, dan bash Linux di
 # container backup gagal di `set -euo pipefail\r` → deploy berhenti di backup.

@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     }
     memberCustomerId = member.data.customer.id;
   } else if (!body.data.guestName) {
-    // Nomor WhatsApp opsional untuk guest â€” cukup nama untuk lanjut transaksi.
+    // Nomor WhatsApp opsional untuk guest — cukup nama untuk lanjut transaksi.
     return fail(400, "GUEST_REQUIRED", "Nama customer wajib diisi.");
   }
 

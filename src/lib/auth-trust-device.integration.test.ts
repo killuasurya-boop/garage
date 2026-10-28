@@ -131,3 +131,44 @@ describe("login tanpa repot (Owner 28 Okt 2026)", () => {
     expect(days).toBeLessThan(31);
   });
 });
+
+describe("akun tidak pernah dikunci 15 menit (Owner 28 Okt 2026)", () => {
+  it("12 kali salah kode 2FA berturut-turut (lewat batas kunci bawaan 10) → akun tidak dikunci", async () => {
+    const good = await otp.totp();
+    const wrong = String((Number(good) + 7) % 1_000_000).padStart(6, "0");
+    // Per sesi verifikasi maks 5 percobaan → diminta isi password lagi (tanpa menunggu).
+    for (let round = 0; round < 3; round++) {
+      const login = await signIn();
+      expect(((await login.json()) as any).twoFactorRedirect).toBe(true);
+      const cookie = jar("", login);
+      for (let i = 0; i < 4; i++) {
+        const bad = await call("/api/auth/two-factor/verify-totp", {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie },
+          body: JSON.stringify({ code: wrong }),
+        });
+        expect(bad.status).not.toBe(200);
+        expect(JSON.stringify(await bad.json())).not.toMatch(/locked/i);
+      }
+    }
+    const login = await signIn();
+    expect(login.status).toBe(200);
+    const ok = await call("/api/auth/two-factor/verify-totp", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: jar("", login) },
+      body: JSON.stringify({ code: await otp.totp() }),
+    });
+    expect(ok.status).toBe(200);
+  });
+
+  it("banyak salah password tidak mengunci akun (default lockout = 0)", async () => {
+    const { getLockoutState, recordLoginAttempt } = (await import("@/lib/garage-login-attempts-service")) as any;
+    for (let i = 0; i < 8; i++) {
+      if (recordLoginAttempt) await recordLoginAttempt({ email: EMAIL, success: false, failureReason: "uji" });
+      else await t.getDb().insert(t.schema.loginAttempts).values({ email: EMAIL, success: false, failureReason: "uji" } as any);
+    }
+    expect((await getLockoutState(EMAIL)).locked).toBe(false);
+    const login = await signIn();
+    expect(login.status).toBe(200);
+  });
+});

@@ -1,7 +1,15 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { auditLogs, cashLedgerEntries, cashMovements, cashSessionCounts, cashSessions, shiftIncidents } from "@/db/schema";
+import {
+  auditLogs,
+  cashLedgerEntries,
+  cashMovements,
+  cashSessionCounts,
+  cashSessionFinalSnapshots,
+  cashSessions,
+  shiftIncidents,
+} from "@/db/schema";
 import { AccountabilityError } from "@/lib/cashier-accountability";
 import { consumeStepUpChallenge, createStepUpChallenge, summaryHashOf } from "@/lib/step-up-totp";
 import type { GarageSession } from "@/lib/server-auth";
@@ -17,6 +25,11 @@ type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export const FINAL_PURPOSE = "cash_session_final";
+
+/** ID laporan final per versi (PRD §20.2): revisi sah → V02, V03 … arsip lama tetap. */
+export function finalReportId(sessionCode: string, version: number) {
+  return `FIN-${sessionCode}-V${String(version).padStart(2, "0")}`;
+}
 
 export type FinalDecision = "approve" | "approve_with_exception" | "return";
 export type FinalStatus = "pending" | "approved" | "approved_with_exception" | "returned" | "legacy";
@@ -205,6 +218,23 @@ export async function decideFinalApproval(sessionId: string, input: FinalDecisio
       .returning({ id: cashSessions.id });
     if (!updated) throw new AccountabilityError("ALREADY_FINAL", "Shift ini baru saja diputuskan. Muat ulang.", 409);
 
+    // B7 (AC-F30): snapshot append-only dari ringkasan yang disetujui — PDF final dibaca dari sini.
+    const version = session.finalVersion + 1;
+    const reportId = finalReportId(session.code, version);
+    await tx.insert(cashSessionFinalSnapshots).values({
+      cashSessionId: sessionId,
+      version,
+      reportId,
+      decision: input.decision,
+      finalStatus,
+      summary: summary as unknown as Record<string, unknown>,
+      summaryHash: hash,
+      exceptions,
+      note,
+      decidedBy: garage.user.id,
+      decidedAt: now,
+    });
+
     await tx.insert(auditLogs).values({
       time: new Intl.DateTimeFormat("id-ID", {
         hour: "2-digit",
@@ -227,7 +257,7 @@ export async function decideFinalApproval(sessionId: string, input: FinalDecisio
         cashSessionId: sessionId,
         decision: input.decision,
         before: { finalStatus: session.finalStatus, finalVersion: session.finalVersion },
-        after: { finalStatus, finalVersion: session.finalVersion + 1 },
+        after: { finalStatus, finalVersion: version, reportId },
         summaryHash: hash,
         exceptions,
         note,
@@ -235,7 +265,7 @@ export async function decideFinalApproval(sessionId: string, input: FinalDecisio
         ownShift: session.openedBy === garage.user.id || session.closedBy === garage.user.id,
       },
     });
-    return { finalStatus, finalVersion: session.finalVersion + 1, summaryHash: hash, decidedAt: now.toISOString(), exceptions };
+    return { finalStatus, finalVersion: version, reportId, summaryHash: hash, decidedAt: now.toISOString(), exceptions };
   });
   return { id: sessionId, ...result, decidedByName: garage.user.name, note };
 }

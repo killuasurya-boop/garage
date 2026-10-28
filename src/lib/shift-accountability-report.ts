@@ -5,13 +5,15 @@
 // yang belum tercatat ditandai di `dataGaps`.
 // =============================================================================
 
-import { and, asc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   approvals,
   auditLogs,
   cashMovements,
+  cashSessionCounts,
+  cashSessionFinalSnapshots,
   cashSessions,
   menuItems,
   orderItems,
@@ -189,7 +191,7 @@ export type RawSession = {
   reviewedAt: string | null;
   /** Alasan tutup darurat tanpa hitungan pecahan (null = dihitung per pecahan). */
   countSkippedReason: string | null;
-  /** Hitung ulang pemeriksa (hitungan pertama kasir = actualCash, tidak ditimpa). */
+  /** Hitung ulang pemeriksa (hitungan sah kasir = actualCash (#1, atau #3 bila #1 ≠ #2), tidak ditimpa). */
   recountCash: number | null;
   recountDenominations: Record<string, number> | null;
   recountAt: string | null;
@@ -202,6 +204,16 @@ export type RawSession = {
   qrisDiscrepancy: number | null;
   /** true = kas laci dari buku kas (cash_ledger_entries); false = format lama. */
   ledgerMode: boolean;
+  /** B4/B7: final Owner + snapshot terbaru (opsional supaya fixture lama tetap valid). */
+  finalStatus?: string;
+  finalNote?: string | null;
+  finalDecidedByName?: string | null;
+  finalDecidedAt?: string | null;
+  finalVersion?: number;
+  finalReportId?: string | null;
+  finalSummaryHash?: string | null;
+  /** Riwayat hitungan laci append-only (#1/#2/#3/pemeriksa). */
+  counts?: Array<{ kind: string; total: number; at: string; countedByName: string | null }>;
 };
 
 /** Ada selisih (hitungan pertama atau hitung ulang pemeriksa) terhadap kas seharusnya. */
@@ -647,6 +659,7 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
       signOffName: approverName(cashSessions.managerSignOffBy),
       reviewedByName: approverName(cashSessions.reviewedBy),
       openingVerifiedByName: approverName(cashSessions.openingVerifiedBy),
+      finalDecidedByName: approverName(cashSessions.finalDecidedBy),
     })
     .from(cashSessions)
     .leftJoin(outlets, eq(outlets.id, cashSessions.outletId))
@@ -655,6 +668,23 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
     .limit(1);
   if (!row) return null;
   const s = row.session;
+  // B4/B7: riwayat hitungan laci + snapshot final terbaru (PDF resmi PRD §20.2).
+  const countRows = await db
+    .select({
+      kind: cashSessionCounts.kind,
+      total: cashSessionCounts.total,
+      createdAt: cashSessionCounts.createdAt,
+      countedByName: approverName(cashSessionCounts.countedBy),
+    })
+    .from(cashSessionCounts)
+    .where(eq(cashSessionCounts.cashSessionId, sessionId))
+    .orderBy(asc(cashSessionCounts.createdAt));
+  const [latestSnapshot] = await db
+    .select({ reportId: cashSessionFinalSnapshots.reportId, summaryHash: cashSessionFinalSnapshots.summaryHash })
+    .from(cashSessionFinalSnapshots)
+    .where(eq(cashSessionFinalSnapshots.cashSessionId, sessionId))
+    .orderBy(desc(cashSessionFinalSnapshots.version))
+    .limit(1);
   const orderIds = base.orders.map((order) => order.id);
   const orderNos = base.orders.map((order) => order.orderNo);
 
@@ -827,6 +857,19 @@ export async function loadShiftRaw(sessionId: string): Promise<ShiftRaw | null> 
       qrisRecorded: s.qrisRecorded,
       qrisCounted: s.qrisCounted,
       qrisDiscrepancy: s.qrisDiscrepancy,
+      finalStatus: s.finalStatus,
+      finalNote: s.finalNote,
+      finalDecidedByName: row.finalDecidedByName ?? null,
+      finalDecidedAt: s.finalDecidedAt?.toISOString() ?? null,
+      finalVersion: s.finalVersion,
+      finalReportId: latestSnapshot?.reportId ?? null,
+      finalSummaryHash: latestSnapshot?.summaryHash ?? null,
+      counts: countRows.map((count) => ({
+        kind: count.kind,
+        total: count.total,
+        at: count.createdAt.toISOString(),
+        countedByName: count.countedByName ?? null,
+      })),
     },
     orders: orderRows.map((order) => ({
       ...order,

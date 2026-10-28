@@ -228,6 +228,9 @@ Scroll direction:
       (discrepancy, count #3, emergency close, open incidents, self-verified…) forbids plain "approve".
     - Step-up TOTP (`step-up-totp.ts`, table `step_up_challenges`): challenge bound to user/purpose/subject/summary
       hash, single-use nonce (hash only), 5 min; used codes stored hashed (no replay). Never log codes or secrets.
+    - B7a (migration 0168): each final decision inserts an append-only `cash_session_final_snapshots` row
+      (`finalReportId` = `FIN-<code>-V01`, summary, hash, exceptions). Shift PDF: DRAFT watermark until final,
+      count history, Owner block, audit metadata; file name `officialShiftFileName` (PRD §20.2).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

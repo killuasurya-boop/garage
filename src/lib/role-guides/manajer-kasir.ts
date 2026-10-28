@@ -49,7 +49,7 @@ export const manajerKasirGuide: RoleGuide = {
       steps: [
         { text: "Riwayat & Laporan Shift → tab Laporan Lengkap → pilih tanggal operasional." },
         {
-          text: "Unduh per shift, per kasir, Seluruh kasir, Kas & Petty cash, atau Gabungan harian. Nama file: Laporan_Shift_[Kasir]_YYYY-MM-DD_Shift-N.pdf, Laporan_Kasir_…, Laporan_Kas_PettyCash_…, Laporan_Operasional_Kasir_Garage_….",
+          text: "Unduh per shift, per kasir, Seluruh kasir, Kas & Petty cash, atau Gabungan harian. Nama file: GARAGE_[OUTLET]_SHIFT_YYYY-MM-DD_[ID-SHIFT].pdf (revisi final: _V02), Laporan_Kasir_…, Laporan_Kas_PettyCash_…, Laporan_Operasional_Kasir_Garage_….",
         },
         { text: "Buka detail shift yang sudah ditutup → Pemeriksaan Manajer → tulis hasil, lalu Verifikasi laporan atau Perlu tindak lanjut. Status ini tercetak apa adanya di PDF." },
         { text: "Verifikasi modal awal dari kartu yang sama (siapa menghitung & siapa memverifikasi tercatat)." },

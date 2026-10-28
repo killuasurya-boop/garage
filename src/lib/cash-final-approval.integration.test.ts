@@ -383,3 +383,71 @@ describe("Final closing Owner (AC-F23–F26)", () => {
     expect((await row(id)).finalVersion).toBe(1);
   });
 });
+
+describe("B7 — snapshot final & PDF resmi (PRD §20.2, AC-F30)", () => {
+  beforeEach(async () => {
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.stepUpChallenges).set({ codeHash: null }).where(eq(t.schema.stepUpChallenges.userId, OWNER));
+  });
+
+  it("keputusan final menyimpan snapshot append-only (report ID + hash + versi); revisi → V02", async () => {
+    const { eq, asc } = await import("drizzle-orm");
+    const id = await verifiedShift();
+    const code = (await row(id)).code;
+    const p1 = await fin.getFinalApprovalPreview(id, owner());
+    await fin.decideFinalApproval(
+      id,
+      { decision: "return", note: "Cek ulang catatan kas.", challengeId: p1.challengeId, nonce: p1.nonce, code: await totp() },
+      owner(),
+    );
+    await acc.reviewCashSession(id, { status: "verified", note: "Sudah dicek ulang." }, manajer());
+    await t.getDb().update(t.schema.stepUpChallenges).set({ codeHash: null }).where(eq(t.schema.stepUpChallenges.userId, OWNER));
+    const p2 = await fin.getFinalApprovalPreview(id, owner());
+    const result = await fin.decideFinalApproval(
+      id,
+      { decision: "approve", challengeId: p2.challengeId, nonce: p2.nonce, code: await totp() },
+      owner(),
+    );
+    expect(result.reportId).toBe(fin.finalReportId(code, 2));
+
+    const snaps = await t
+      .getDb()
+      .select()
+      .from(t.schema.cashSessionFinalSnapshots)
+      .where(eq(t.schema.cashSessionFinalSnapshots.cashSessionId, id))
+      .orderBy(asc(t.schema.cashSessionFinalSnapshots.version));
+    expect(snaps.map((s: any) => [s.version, s.reportId, s.finalStatus])).toEqual([
+      [1, `FIN-${code}-V01`, "returned"],
+      [2, `FIN-${code}-V02`, "approved"],
+    ]);
+    expect(snaps[1].summaryHash).toBe(p2.summaryHash);
+    expect((snaps[1].summary as any).expectedCash).toBe(p2.summary.expectedCash);
+
+    const table = t.schema.cashSessionFinalSnapshots;
+    await expect(t.getDb().update(table).set({ note: "ubah" }).where(eq(table.cashSessionId, id))).rejects.toThrow();
+    await expect(t.getDb().delete(table).where(eq(table.cashSessionId, id))).rejects.toThrow();
+  });
+
+  it("PDF shift: nama file resmi + metadata final; shift belum final tetap bisa dicetak (DRAFT)", async () => {
+    const report = await import("@/lib/shift-accountability-report");
+    const pdf = await import("@/lib/shift-accountability-pdf");
+    expect(pdf.officialShiftFileName({ outletName: "Tebing Tinggi", date: "2026-10-28", shiftCode: "CS-ABC-1", finalVersion: 1 })).toBe(
+      "GARAGE_TEBING_TINGGI_SHIFT_2026-10-28_CS-ABC-1.pdf",
+    );
+    expect(pdf.officialShiftFileName({ outletName: "Tebing Tinggi", date: "2026-10-28", shiftCode: "CS-ABC-1", finalVersion: 3 })).toBe(
+      "GARAGE_TEBING_TINGGI_SHIFT_2026-10-28_CS-ABC-1_V03.pdf",
+    );
+
+    const draftId = await verifiedShift();
+    const draft = await report.getShiftAccountability(draftId);
+    expect(draft!.session.finalStatus).toBe("pending");
+    expect(draft!.session.counts!.map((c) => c.kind)).toEqual(["count_1", "count_2"]);
+    expect((await pdf.renderShiftAccountabilityPdf(draft!)).subarray(0, 5).toString()).toBe("%PDF-");
+
+    const p = await fin.getFinalApprovalPreview(draftId, owner());
+    const decided = await fin.decideFinalApproval(draftId, { decision: "approve", challengeId: p.challengeId, nonce: p.nonce, code: await totp() }, owner());
+    const final = await report.getShiftAccountability(draftId);
+    expect(final!.session).toMatchObject({ finalStatus: "approved", finalReportId: decided.reportId, finalSummaryHash: decided.summaryHash, finalVersion: 1 });
+    expect((await pdf.renderShiftAccountabilityPdf(final!)).length).toBeGreaterThan(1_000);
+  });
+});

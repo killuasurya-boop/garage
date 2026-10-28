@@ -91,7 +91,7 @@ export const CLEAR_TABLES = [
   "order_push_subscriptions", "staff_notifications", "staff_notification_reads",
   "voucher_redemptions",
   // kas & finance transaksional
-  "cash_sessions", "cash_session_counts", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
+  "cash_sessions", "cash_session_counts", "cash_session_final_snapshots", "cash_movements", "cash_ledger_entries", "cash_opening_certifications", "petty_cash_entries", "shift_incidents", "expenses", "supplier_invoices", "supplier_receivings",
   "supplier_receiving_items", "finance_daily_closings", "finance_monthly_closings", "financial_snapshots",
   // stok transaksional
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",

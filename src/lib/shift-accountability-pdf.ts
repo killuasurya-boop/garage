@@ -84,6 +84,39 @@ export function accountabilityFileName(params: { kind: AccountabilityPdfKind; da
   }
 }
 
+/**
+ * PRD §20.2 jenis A: `GARAGE_<OUTLET>_SHIFT_YYYY-MM-DD_<SHIFT-ID>.pdf`; tanggal = business date;
+ * revisi final sah (versi ≥ 2) → suffix `_V02`, `_V03`.
+ */
+export function officialShiftFileName(params: { outletName?: string | null; date: string; shiftCode: string; finalVersion?: number | null }) {
+  const slug = (value: string) =>
+    value
+      .normalize("NFKD")
+      .replace(/[^\w\s-]/g, "")
+      .trim()
+      .replace(/[\s-]+/g, "_")
+      .toUpperCase();
+  const outlet = slug(params.outletName ?? "") || "OUTLET";
+  const shiftId = params.shiftCode.normalize("NFKD").replace(/[^\w-]/g, "").toUpperCase() || "SHIFT";
+  const version = params.finalVersion && params.finalVersion >= 2 ? `_V${String(params.finalVersion).padStart(2, "0")}` : "";
+  return `GARAGE_${outlet}_SHIFT_${params.date}_${shiftId}${version}.pdf`;
+}
+
+const FINAL_LABELS: Record<string, string> = {
+  pending: "Belum final — menunggu keputusan Owner",
+  approved: "FINAL — disetujui Owner",
+  approved_with_exception: "FINAL — disetujui dengan pengecualian",
+  returned: "Dikembalikan Owner untuk koreksi",
+  legacy: "Ditutup sebelum final Owner diberlakukan",
+};
+const COUNT_LABELS: Record<string, string> = {
+  count_1: "Hitungan #1 kasir",
+  count_2: "Hitung ulang #2 kasir (blind)",
+  count_3: "Hitungan #3 kasir (dipakai)",
+  manager_recount: "Hitung ulang pemeriksa",
+};
+const isFinal = (status: string | undefined) => status === "approved" || status === "approved_with_exception";
+
 type PettyDay = {
   openingBalance: number;
   topups: number;
@@ -120,6 +153,8 @@ function loadLogo() {
 class Writer {
   doc: PDFKit.PDFDocument;
   header: string;
+  /** PRD §20.2: watermark DRAFT/PRELIMINARY sampai final Owner (null = tanpa watermark). */
+  watermark: string | null = null;
   constructor(header: string) {
     this.header = header;
     this.doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true, autoFirstPage: false });
@@ -274,6 +309,16 @@ class Writer {
       doc.moveTo(left, footerY - 4).lineTo(left + width, footerY - 4).lineWidth(0.5).strokeColor(LINE).stroke();
       doc.font("Helvetica").fontSize(7).fillColor(MUTED).text(`Dicetak ${printed} WIB · data dari database & audit trail Garage OS`, left, footerY, { width: (width * 2) / 3, lineBreak: false });
       doc.font("Helvetica").fontSize(7).fillColor(MUTED).text(`Halaman ${i - range.start + 1} dari ${range.count}`, left + width / 2, footerY, { width: width / 2, align: "right", lineBreak: false });
+      if (this.watermark) {
+        const cx = doc.page.width / 2;
+        const cy = doc.page.height / 2;
+        doc.save();
+        doc.rotate(-35, { origin: [cx, cy] });
+        doc.font("Helvetica-Bold").fontSize(44).fillColor(RED).fillOpacity(0.09);
+        doc.text(this.watermark, cx - 300, cy - 24, { width: 600, align: "center", lineBreak: false });
+        doc.restore();
+        doc.fillOpacity(1);
+      }
       doc.page.margins.bottom = marginBottom;
     }
     return new Promise((resolve, reject) => {
@@ -675,7 +720,7 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
         ] as [string, string][])
       : ([["± Penyesuaian lain (pengeluaran Finance tunai, koreksi metode, pembatalan pelunasan)", rp(cash.otherAdjustments)]] as [string, string][])),
     ["= Kas yang diharapkan", rp(cash.expected), true],
-    [s.countSkippedReason ? "Kas aktual (tutup darurat, tanpa pecahan)" : "Kas aktual (hitungan pertama kasir)", rp(cash.actual), true],
+    [s.countSkippedReason ? "Kas aktual (tutup darurat, tanpa pecahan)" : s.counts?.some((count) => count.kind === "count_3") ? "Kas aktual (hitungan #3 kasir — #1 ≠ #2)" : "Kas aktual (hitungan sah kasir)", rp(cash.actual), true],
     ["Selisih kas", cash.variance === null ? "Belum ditutup" : rp(cash.variance), true],
     ...(s.recountCash !== null
       ? ([
@@ -715,6 +760,25 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
       : []),
     ["Catatan / tindak lanjut", text(s.reviewNote)],
     ["Diverifikasi oleh", s.reviewedByName ? `${s.reviewedByName} · ${dateTime(s.reviewedAt)}` : "Belum diverifikasi"],
+  ]);
+  if (s.counts?.length) {
+    // B4: hitungan laci append-only (count #2 blind, #3 bila #1 ≠ #2).
+    w.paragraph("Riwayat hitungan laci", { bold: true, size: 9 });
+    w.table(
+      [
+        { label: "Hitungan", width: 3 },
+        { label: "Waktu", width: 2 },
+        { label: "Oleh", width: 2.4 },
+        { label: "Total", width: 1.8, align: "right" },
+      ],
+      s.counts.map((count) => [COUNT_LABELS[count.kind] ?? count.kind, dateTime(count.at), text(count.countedByName), rp(count.total)]),
+    );
+  }
+  w.paragraph("Owner (final)", { bold: true, size: 9 });
+  w.keyValues([
+    ["Status final", FINAL_LABELS[s.finalStatus ?? "pending"] ?? text(s.finalStatus), true],
+    ["Diputuskan oleh", s.finalDecidedByName ? `${s.finalDecidedByName} · ${dateTime(s.finalDecidedAt)}` : "-"],
+    ["Catatan Owner", text(s.finalNote)],
   ]);
   w.paragraph("Serah terima", { bold: true, size: 9 });
   const openIncidents = report.incidents.filter((i) => i.status !== "resolved").length;
@@ -818,9 +882,22 @@ export async function renderShiftAccountabilityPdf(report: ShiftAccountability) 
     ["Waktu", `${dateTime(s.openedAt)} — ${s.closedAt ? dateTime(s.closedAt) : "berlangsung"}`],
     ["Status", s.shiftStatus],
     ["Pemeriksaan Manajer", s.reviewLabel],
+    ["Status final Owner", FINAL_LABELS[s.finalStatus ?? "pending"] ?? text(s.finalStatus)],
+    ...(isFinal(s.finalStatus) ? ([["Report ID", text(s.finalReportId)]] as Array<[string, string]>) : []),
   ]);
+  // Sebelum final Owner = DRAFT (PRD §20.2 perlindungan). Shift lama (legacy) diberi label.
+  w.watermark = isFinal(s.finalStatus) ? null : s.finalStatus === "legacy" ? "DITUTUP SEBELUM FINAL OWNER" : "DRAFT · BELUM FINAL OWNER";
   renderShift(w, report);
   definitionsPage(w);
+  w.section("Metadata audit", "portrait", "Untuk verifikasi keaslian dokumen. Angka & status berasal dari snapshot final, bukan narasi.");
+  w.keyValues([
+    ["Report ID", isFinal(s.finalStatus) ? text(s.finalReportId) : "Belum ada (belum final)"],
+    ["Versi final", s.finalVersion ? `V${String(s.finalVersion).padStart(2, "0")}` : "-"],
+    ["Hash snapshot (SHA-256)", isFinal(s.finalStatus) ? text(s.finalSummaryHash) : "-"],
+    ["Validasi Owner", isFinal(s.finalStatus) ? "Kode 2FA (TOTP) Owner, terikat hash snapshot & nonce sekali pakai" : "-"],
+    ["Shift ID", s.code],
+    ["Tanggal operasional", s.businessDate],
+  ], 0.35);
   return w.finish();
 }
 

@@ -73,7 +73,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | U0 | Ekstraksi modul tanpa ubah perilaku | Pecah `garage-app.tsx` (±10.300 baris) per modul + baseline visual | READY |
-| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA, **komponen `AyaAvatar` + ekspresi status (D-07)** | BLOCKED (D-02 palet, D-07 aset) |
+| U1 | Design system v2 | Token, komponen registry, state wajib (§24.8), WCAG 2.2 AA, **komponen `AyaAvatar` + ekspresi status (D-07)** | READY (D-02 FINAL: gelap semua; aset Aya D-07 sudah ada) |
 | U2 | Shell & navigasi | Sitemap Owner §23.4, nav per device §23.5, command palette berizin | setelah U1 |
 | U3 | Redesign P0 | POS-02, SHF-01, SHF-04, FIN-03, FIN-07, SYS-01, DSH-01, AI-01, WMS-04 (§25.3) | setelah U2 + B2–B4 |
 
@@ -81,7 +81,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Fitur | Status |
 |---|---|---|---|
 | B6 | Risk engine & case | F11, F16, F20, F21, F23, F36, F12 (liability tanpa potong otomatis) | setelah B4 |
-| B7 | Owner 360 & laporan | F15, F19, F22, F25, F35, F37, F38; 4 PDF penamaan §20.2, hash/versi | setelah B4 |
+| B7 | Owner 360 & laporan | F15, F19, F22, F25, F35, F37, F38; 4 PDF penamaan §20.2, hash/versi | **B7a DONE** (migration 0168): snapshot final append-only + PDF shift resmi §20.2 (DRAFT, hash, versi, nama file). Sisa: PDF harian/bulanan/kasus, Owner 360, ledger bulanan |
 | M4 | Drive & Gmail | F53, F24; file/message ID terverifikasi | BLOCKED (D-04) |
 
 ### Fase 6 — MCP Gateway & Aya (PRD §22 + D-01 FULL ACCESS Owner)
@@ -97,7 +97,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 | ID | Batch | Isi | Status |
 |---|---|---|---|
 | U4–U9 | Redesign modul growth | Produk/HPP, WMS, KDS, CRM/member (kontrak member terkunci), HR, event, marketing, meja/QR | setelah U3 |
-| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | BLOCKED (izin Owner) |
+| R1 | Staging terisolasi | VPS/DB terpisah atau Neon branch, data disamarkan | READY (izin Owner 28 Okt: VPS sama, DB terpisah, data disamarkan) |
 | R2 | Release plan | Backup verify + `cashLedgerFingerprint` + restore drill + rollback `garage-app:previous`; deploy dijalankan Owner | BLOCKED |
 
 ## Urutan kerja rekomendasi untuk agent berikutnya

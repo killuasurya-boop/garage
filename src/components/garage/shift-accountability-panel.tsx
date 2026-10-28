@@ -766,7 +766,7 @@ export function ShiftReviewCard({
           <>
             <div className="grid gap-2 text-sm sm:grid-cols-3">
               <ReviewFigure label="Kas seharusnya" value={rp(expectedCash)} />
-              <ReviewFigure label="Hitungan pertama kasir" value={actualCash === null ? "-" : rp(actualCash)} />
+              <ReviewFigure label="Hitungan sah kasir" value={actualCash === null ? "-" : rp(actualCash)} />
               <ReviewFigure
                 label="Selisih"
                 value={discrepancy === 0 ? "Balance" : `${discrepancy > 0 ? "Lebih" : "Kurang"} ${rp(Math.abs(discrepancy))}`}

@@ -408,3 +408,7 @@ Format wajib per batch (instruksi Owner):
   - Shift yang sudah tutup sebelum B4 ditandai `legacy` (tidak menumpuk di antrean Owner).
 - **D-01a**: preview R3 (`butuhKode2fa`), konfirmasi wajib `kode2fa`; kode salah tidak menghanguskan token; replay ditolak.
 - Belum: custody/brankas manajer (D-03), PDF snapshot final ber-hash (B7).
+
+## 2026-10-28 — Keputusan Owner D-02, D-03, R1 + B7a
+- D-02 FINAL: gelap semua. D-03 FINAL: setor langsung ke bank (tanpa custody manajer; B4 selesai penuh). R1: staging di VPS yang sama.
+- **B7a** (migration 0168): setiap keputusan final Owner → `cash_session_final_snapshots` append-only (report ID `FIN-<shift>-V01`, hash, ringkasan, pengecualian). PDF shift: watermark DRAFT sampai final, riwayat hitungan #1/#2/#3, blok Owner (final), metadata audit; nama file `GARAGE_<OUTLET>_SHIFT_YYYY-MM-DD_<ID>[_V02].pdf`.

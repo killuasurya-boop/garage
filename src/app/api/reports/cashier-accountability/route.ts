@@ -3,6 +3,7 @@ import { canUseApi } from "@/lib/role-access";
 import { requireAnyPermission } from "@/lib/server-auth";
 import {
   accountabilityFileName,
+  officialShiftFileName,
   renderDailyAccountabilityPdf,
   renderShiftAccountabilityPdf,
   type AccountabilityPdfKind,
@@ -55,7 +56,13 @@ export async function GET(request: Request) {
     const pdf = await renderShiftAccountabilityPdf(report);
     return pdfResponse(
       pdf,
-      accountabilityFileName({ kind: "shift", date: report.session.businessDate, cashierName: report.session.cashierName, shiftNumber: report.session.shiftNumber }),
+      // PRD §20.2 jenis A (penamaan resmi + versi final).
+      officialShiftFileName({
+        outletName: report.session.outletName,
+        date: report.session.businessDate,
+        shiftCode: report.session.code,
+        finalVersion: report.session.finalVersion ?? null,
+      }),
     );
   }
 

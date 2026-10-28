@@ -1597,6 +1597,31 @@ export const cashSessionCounts = pgTable(
   }),
 );
 
+// B7 (PRD §20.2, AC-F30): setiap keputusan final Owner = snapshot ringkasan append-only
+// (report ID + hash + versi). Koreksi setelah final membuat versi baru; yang lama tetap.
+export const cashSessionFinalSnapshots = pgTable(
+  "cash_session_final_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cashSessionId: uuid("cash_session_id")
+      .notNull()
+      .references(() => cashSessions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    reportId: text("report_id").notNull().unique(),
+    decision: text("decision").notNull(),
+    finalStatus: text("final_status").notNull(),
+    summary: jsonb("summary").$type<Record<string, unknown>>().notNull(),
+    summaryHash: text("summary_hash").notNull(),
+    exceptions: jsonb("exceptions").$type<string[]>().notNull(),
+    note: text("note"),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    sessionVersionIdx: uniqueIndex("cash_session_final_snapshots_session_version_idx").on(table.cashSessionId, table.version),
+  }),
+);
+
 // Step-up 2FA (B4 final Owner, D-01a aksi R3 MCP): tantangan terikat subjek + hash
 // ringkasan, nonce sekali pakai (hanya hash disimpan), kedaluwarsa pendek. Kode TOTP
 // yang sudah dipakai disimpan sebagai hash agar tidak bisa diputar ulang.

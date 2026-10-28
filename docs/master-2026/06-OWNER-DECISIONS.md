@@ -77,14 +77,25 @@ R4 di PRD §07.2 tetap ditolak untuk semua jalur (UI, Aya, ChatGPT), karena meru
 
 ---
 
-## D-02 — Palet design system (OPEN)
+## D-02 — Palet design system (FINAL, 2026-10-28: GELAP SEMUA)
+
+**Keputusan Owner:** semua layar (staf, Owner, laporan di aplikasi) tetap **dark asphalt / chrome / merah / amber**
+sesuai `design-system/MASTER.md`. Token light PRD §24.2 tidak dipakai. PDF cetak tetap latar putih (kertas).
+
+Latar belakang:
 
 PRD §24.2 mengusulkan token **light** (`#FAFAF8`, krem, putih hangat). `CLAUDE.md` & `design-system/MASTER.md`
 mewajibkan **dark asphalt / chrome / merah / amber**. Butuh keputusan Owner sebelum batch UI (Fase 4).
 Rekomendasi: pertahankan dark untuk staf (POS/KDS/kasir — PRD §24.3 "kasir prioritas keterbacaan"),
 light opsional untuk Owner/laporan, uji lapangan dulu (PRD §31.2 butir 5).
 
-## D-03 — Manager custody / brankas (OPEN)
+## D-03 — Manager custody / brankas (FINAL, 2026-10-28: SETOR LANGSUNG KE BANK)
+
+**Keputusan Owner: opsi (b).** Model tetap laci → setoran (`deposit_transit`) → rekening Jago/BNI, tanpa brankas
+/ custody manajer. PRD §12 (akun Manager Received/Change Float/Safe) dan F09/F17 **tidak dibangun**; B4 dianggap
+selesai penuh. Serah terima dua pihak tetap lewat konfirmasi setoran (penerima ≠ penyetor).
+
+Latar belakang:
 
 PRD §12 meminta akun custody manajer (Manager Received, Change Float, Safe/Hold) + serah terima dua pihak.
 Keputusan Owner sebelumnya (CLAUDE.md, migration 0161): **setoran tanpa brankas, tanpa handover ke Owner**;
@@ -206,3 +217,9 @@ closing yang sudah lewat tidak berubah angka). Menjawab PRD §02.4 "Cut-off busi
   `businessDayEffectiveDate` (kosong = kalender). PR #87 (B1) + B1b.
 - **Tanggal efektif belum ditentukan Owner** — diisi setelah B1b selesai (field baru muncul di Pengaturan → Shift & Cash).
 - Kebijakan global (satu outlet); per outlet menyusul bila outlet bertambah.
+
+## R1 — Staging (FINAL, 2026-10-28)
+
+Owner mengizinkan staging **di VPS yang sama**: subdomain `staging.garagecoffee.id`, database terpisah berisi data
+yang disamarkan (nama, telepon, email pelanggan/staf), app & DB staging dibatasi memori agar tidak mengganggu
+produksi (RAM VPS 4 GB). Deploy produksi tetap lewat `scripts/deploy-manual.sh`.

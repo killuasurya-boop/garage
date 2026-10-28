@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/garage-data";
 import { canHandleMoney, canUseApiAs, MANAGEMENT_ROLES, type Permission } from "@/lib/role-access";
 import { ensureStaffProfileAccessColumns } from "@/lib/staff-profile-schema-compat";
+import { API_PATH_HEADER, needsTwoFactorPolicyCheck } from "@/lib/two-factor-api-gate";
 
 export const ACTIVE_OUTLET_COOKIE = "garage_active_outlet";
 
@@ -136,6 +137,29 @@ export async function requireGarageSession(allowedRoles?: Role[]) {
         "Ganti password akun Anda dulu (menu Akun → Ganti Password) sebelum memakai menu ini.",
       ),
     };
+  }
+
+  // Kebijakan 2FA wajib Owner/Manajer ditegakkan juga di API (dulu hanya
+  // halaman lewat page-access). Policy dibaca hanya untuk akun tanpa 2FA.
+  if (
+    needsTwoFactorPolicyCheck({
+      apiPath: requestHeaders.get(API_PATH_HEADER),
+      role: row.role as Role,
+      twoFactorEnabled: Boolean((session.user as { twoFactorEnabled?: boolean }).twoFactorEnabled),
+    })
+  ) {
+    const { loadSettingsByKeys } = await import("@/lib/garage-settings-service");
+    const policy = await loadSettingsByKeys(["securityRequire2faForOwner"]);
+    if (policy["securityRequire2faForOwner"]) {
+      return {
+        data: null,
+        response: fail(
+          403,
+          "TWO_FACTOR_REQUIRED",
+          "Aktifkan 2FA dulu (Pengaturan → Keamanan → 2FA, /control/2fa) sebelum memakai menu Owner/Manajer.",
+        ),
+      };
+    }
   }
 
   // Cek active outlet override dari cookie (hanya untuk role yg boleh switch).

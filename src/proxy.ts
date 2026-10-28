@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { API_PATH_HEADER } from "@/lib/two-factor-api-gate";
+
 // Teruskan metode & path asli ke handler HANYA untuk request ber-API key agent,
 // supaya requireGarageSession bisa menegakkan scope baca-saja, memblokir path
 // terlarang, dan mencatat path di Audit. Nilai header ini dari klien selalu
@@ -13,14 +15,14 @@ function hasAgentKey(request: NextRequest) {
 }
 
 export function proxy(request: NextRequest) {
-  if (!hasAgentKey(request)) {
-    if (!request.headers.has(METHOD_HEADER) && !request.headers.has(PATH_HEADER)) return NextResponse.next();
-    const clean = new Headers(request.headers);
-    clean.delete(METHOD_HEADER);
-    clean.delete(PATH_HEADER);
-    return NextResponse.next({ request: { headers: clean } });
-  }
+  // Path /api untuk SEMUA request — gate 2FA wajib di requireGarageSession.
   const forwarded = new Headers(request.headers);
+  forwarded.set(API_PATH_HEADER, request.nextUrl.pathname);
+  if (!hasAgentKey(request)) {
+    forwarded.delete(METHOD_HEADER);
+    forwarded.delete(PATH_HEADER);
+    return NextResponse.next({ request: { headers: forwarded } });
+  }
   forwarded.set(METHOD_HEADER, request.method);
   forwarded.set(PATH_HEADER, request.nextUrl.pathname);
   return NextResponse.next({ request: { headers: forwarded } });

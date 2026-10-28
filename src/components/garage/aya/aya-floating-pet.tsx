@@ -58,12 +58,24 @@ function prefersReducedMotion() {
 export function AyaFloatingPet({
   scope,
   greetingOnce = true,
+  roam = true,
+  corner = "bottom-right",
+  mood,
+  openSignal = 0,
   children,
 }: {
   /** Kunci penyimpanan per layar, mis. "order" / "staff". */
   scope: string;
   /** Buka balon otomatis sekali per sesi (sambutan). */
   greetingOnce?: boolean;
+  /** Terbang sendiri sesekali (matikan di layar kasir agar tidak menutupi tombol). */
+  roam?: boolean;
+  /** Posisi awal sebelum pengguna memindahkan Aya. */
+  corner?: "bottom-right" | "bottom-left";
+  /** Ekspresi istirahat mengikuti keadaan (mis. siaga saat ada antrean telat). */
+  mood?: AyaExpression;
+  /** Naikkan angkanya untuk membuka balon dari luar (mis. peringatan baru). */
+  openSignal?: number;
   /** Isi balon; `close` menutup balon, `hide` menyembunyikan Aya untuk sesi ini. */
   children: (api: { close: () => void; hide: () => void }) => ReactNode;
 }) {
@@ -85,6 +97,8 @@ export function AyaFloatingPet({
   const lastActive = useRef(0);
   const posRef = useRef(pos);
   const settleRef = useRef<() => void>(() => {});
+  const rest = mood ?? "default";
+  const restRef = useRef<AyaExpression>(rest);
   useEffect(() => {
     posRef.current = pos;
   }, [pos]);
@@ -95,7 +109,8 @@ export function AyaFloatingPet({
   useEffect(() => {
     const vp = viewport();
     const saved = readJson<Point>("local", posKey);
-    const start = clampPetPosition(saved ?? { x: vp.width - PET_SIZE - 16, y: vp.height - PET_SIZE - 170 }, vp);
+    const fallback = { x: corner === "bottom-left" ? 16 : vp.width - PET_SIZE - 16, y: vp.height - PET_SIZE - 170 };
+    const start = clampPetPosition(saved ?? fallback, vp);
     lastActive.current = Date.now();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- inisialisasi dari window/storage
     setPos(start);
@@ -110,7 +125,26 @@ export function AyaFloatingPet({
       }, 900);
       return () => window.clearTimeout(timer);
     }
-  }, [posKey, hiddenKey, greetedKey, greetingOnce]);
+  }, [posKey, hiddenKey, greetedKey, greetingOnce, corner]);
+
+  // Ekspresi istirahat ikut keadaan bila Aya sedang diam.
+  useEffect(() => {
+    restRef.current = rest;
+    if (!drag.current) {
+      setExpression((current) => (current === "sleepy" && rest === "happy" ? current : rest));
+    }
+  }, [rest]);
+
+  // Dibuka dari luar (peringatan baru).
+  useEffect(() => {
+    if (!openSignal) return;
+    lastActive.current = Date.now();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reaksi terhadap sinyal dari pemanggil
+    setOpen(true);
+    setPose("wave");
+    const timer = window.setTimeout(() => setPose("idle"), 1800);
+    return () => window.clearTimeout(timer);
+  }, [openSignal]);
 
   // Tetap di dalam layar saat ukuran berubah (rotasi tablet, keyboard HP).
   useEffect(() => {
@@ -133,6 +167,7 @@ export function AyaFloatingPet({
   // Terbang sendiri tiap 18–35 detik bila dibiarkan; mengantuk setelah 2 menit tanpa sentuhan.
   useEffect(() => {
     if (!ready || hidden || prefersReducedMotion()) return;
+    // Tanpa roam Aya tetap bisa mengantuk, tapi tidak pindah tempat sendiri.
     let timer = 0;
     const schedule = () => {
       timer = window.setTimeout(() => {
@@ -140,7 +175,7 @@ export function AyaFloatingPet({
           if (Date.now() - lastActive.current > 120_000) {
             setPose("idle");
             setExpression("sleepy");
-          } else {
+          } else if (roam) {
             flyTo(pickRoamTarget(viewport()));
           }
         }
@@ -149,7 +184,7 @@ export function AyaFloatingPet({
     };
     schedule();
     return () => window.clearTimeout(timer);
-  }, [ready, hidden, open, flyTo]);
+  }, [ready, hidden, open, flyTo, roam]);
 
   function settle() {
     if (drag.current) return;
@@ -160,11 +195,11 @@ export function AyaFloatingPet({
       setExpression("happy");
       window.setTimeout(() => {
         setPose("idle");
-        setExpression("default");
+        setExpression(restRef.current);
       }, 2100);
     } else {
       setPose("idle");
-      setExpression(Math.random() < 0.3 ? "centil" : "default");
+      setExpression(restRef.current === "default" && Math.random() < 0.3 ? "centil" : restRef.current);
     }
   }
 
@@ -239,8 +274,8 @@ export function AyaFloatingPet({
   const close = useCallback(() => {
     setOpen(false);
     setPose("idle");
-    setExpression("default");
-  }, []);
+    setExpression(rest);
+  }, [rest]);
   const hide = useCallback(() => {
     setOpen(false);
     setHidden(true);

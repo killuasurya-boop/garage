@@ -295,7 +295,7 @@ function DailyClosing({ overview, onChanged }: { overview: ClosingOverview; onCh
             </FinanceCard>
           ) : (
             <FinanceCard title="Close day" subtitle="Setelah dikunci, angka hari ini dibekukan untuk laporan.">
-              <textarea className={`${input} min-h-20 py-2`} placeholder="Catatan closing (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <textarea aria-label="Catatan closing harian" className={`${input} min-h-20 py-2`} placeholder="Catatan closing (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
               {data.warnings ? (
                 <label className="mt-3 flex items-start gap-2 text-sm text-zinc-200">
                   <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[var(--garage-red)]" checked={ack} onChange={(e) => setAck(e.target.checked)} />
@@ -575,7 +575,7 @@ function MonthlyClosing({ overview, onChanged }: { overview: ClosingOverview; on
             </FinanceCard>
           ) : (
             <FinanceCard title="Close month" subtitle="Laporan bulan dibekukan. Daily closing bulan ini tidak bisa dibuka ulang sebelum bulan dibuka.">
-              <textarea className={`${input} min-h-20 py-2`} placeholder="Catatan (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <textarea aria-label="Catatan closing bulanan" className={`${input} min-h-20 py-2`} placeholder="Catatan (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
               {data.warnings ? (
                 <label className="mt-3 flex items-start gap-2 text-sm text-zinc-200">
                   <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[var(--garage-red)]" checked={ack} onChange={(e) => setAck(e.target.checked)} />

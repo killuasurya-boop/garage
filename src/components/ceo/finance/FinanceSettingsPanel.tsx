@@ -261,15 +261,15 @@ export function FinanceSettingsPanel() {
                     set({ capital: draft.capital.map((item, i) => (i === index ? { ...item, ...patch } : item)) });
                   return (
                     <tr key={row.id} className="border-t border-white/8">
-                      <td className={td}><input type="date" className={input} value={row.date} onChange={(e) => update({ date: e.target.value })} /></td>
+                      <td className={td}><input type="date" aria-label={`Tanggal modal baris ${index + 1}`} className={input} value={row.date} onChange={(e) => update({ date: e.target.value })} /></td>
                       <td className={td}>
-                        <select className={input} value={row.type} onChange={(e) => update({ type: e.target.value })}>
+                        <select aria-label={`Jenis modal baris ${index + 1}`} className={input} value={row.type} onChange={(e) => update({ type: e.target.value })}>
                           <option value="injection">Setoran modal</option>
                           <option value="withdrawal">Penarikan modal</option>
                         </select>
                       </td>
                       <td className={td}><NumberInput label="Nominal modal" value={row.amount} onChange={(amount) => update({ amount })} /></td>
-                      <td className={td}><input className={input} value={row.description} onChange={(e) => update({ description: e.target.value })} /></td>
+                      <td className={td}><input aria-label={`Keterangan modal baris ${index + 1}`} className={input} value={row.description} onChange={(e) => update({ description: e.target.value })} /></td>
                       <td className={td}>
                         <IconButton label="Hapus baris modal" onClick={() => set({ capital: draft.capital.filter((_, i) => i !== index) })}>
                           <Trash2 className="h-4 w-4" />
@@ -323,16 +323,16 @@ export function FinanceSettingsPanel() {
                   set({ costItems: draft.costItems.map((row, i) => (i === index ? { ...row, ...patch } : row)) });
                 return (
                   <tr key={`${item.code}-${index}`} className="border-t border-white/8">
-                    <td className={`${td} w-32`}><input className={`${input} font-mono uppercase`} value={item.code} onChange={(e) => update({ code: e.target.value.toUpperCase() })} /></td>
-                    <td className={td}><input className={input} value={item.name} onChange={(e) => update({ name: e.target.value })} /></td>
+                    <td className={`${td} w-32`}><input aria-label={`Kode biaya baris ${index + 1}`} className={`${input} font-mono uppercase`} value={item.code} onChange={(e) => update({ code: e.target.value.toUpperCase() })} /></td>
+                    <td className={td}><input aria-label={`Nama biaya baris ${index + 1}`} className={input} value={item.name} onChange={(e) => update({ name: e.target.value })} /></td>
                     <td className={`${td} w-40`}><NumberInput label={`Nilai ${item.name}`} value={item.dailyAmount} onChange={(dailyAmount) => update({ dailyAmount })} /></td>
                     <td className={`${td} w-40`}>
-                      <select className={input} value={item.costClass} onChange={(e) => update({ costClass: e.target.value as typeof item.costClass })}>
+                      <select aria-label={`Kelas biaya ${item.name}`} className={input} value={item.costClass} onChange={(e) => update({ costClass: e.target.value as typeof item.costClass })}>
                         {COST_CLASS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                     </td>
                     <td className={`${td} w-60`}>
-                      <select className={input} value={item.treatment} onChange={(e) => update({ treatment: e.target.value as typeof item.treatment })}>
+                      <select aria-label={`Perlakuan biaya ${item.name}`} className={input} value={item.treatment} onChange={(e) => update({ treatment: e.target.value as typeof item.treatment })}>
                         {TREATMENT.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                     </td>
@@ -475,7 +475,7 @@ export function FinanceSettingsPanel() {
                     set({ payrollPositions: draft.payrollPositions.map((item, i) => (i === index ? { ...item, ...patch } : item)) });
                   return (
                     <tr key={index} className="border-t border-white/8">
-                      <td className={td}><input className={input} value={row.position} onChange={(e) => update({ position: e.target.value })} /></td>
+                      <td className={td}><input aria-label={`Nama posisi baris ${index + 1}`} className={input} value={row.position} onChange={(e) => update({ position: e.target.value })} /></td>
                       <td className={`${td} w-40`}><NumberInput label={`Gaji ${row.position}`} value={row.monthlySalary} onChange={(monthlySalary) => update({ monthlySalary })} /></td>
                       <td className={`${td} w-20`}><NumberInput label={`Jumlah ${row.position}`} value={row.headcount} onChange={(headcount) => update({ headcount })} /></td>
                       <td className={td}><input type="checkbox" aria-label={`Aktifkan ${row.position}`} className="h-5 w-5 accent-[var(--garage-red)]" checked={row.active} onChange={(e) => update({ active: e.target.checked })} /></td>
@@ -557,19 +557,19 @@ export function FinanceSettingsPanel() {
                   <tr key={row.name} className="border-t border-white/8">
                     <td className={`${td} text-sm font-semibold text-zinc-100`}>{row.name}</td>
                     <td className={td}>
-                      <select className={input} value={row.groupKey} onChange={(e) => update({ groupKey: e.target.value as ExpenseGroup })}>
+                      <select aria-label={`Kelompok kategori ${row.name}`} className={input} value={row.groupKey} onChange={(e) => update({ groupKey: e.target.value as ExpenseGroup })}>
                         {(Object.keys(EXPENSE_GROUP_LABEL) as ExpenseGroup[]).map((key) => (
                           <option key={key} value={key}>{EXPENSE_GROUP_LABEL[key]}</option>
                         ))}
                       </select>
                     </td>
                     <td className={`${td} w-40`}>
-                      <select className={input} value={row.costClass} onChange={(e) => update({ costClass: e.target.value as typeof row.costClass })}>
+                      <select aria-label={`Kelas biaya kategori ${row.name}`} className={input} value={row.costClass} onChange={(e) => update({ costClass: e.target.value as typeof row.costClass })}>
                         {COST_CLASS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                     </td>
                     <td className={`${td} w-56`}>
-                      <select className={input} value={row.costItemCode ?? ""} onChange={(e) => update({ costItemCode: e.target.value || null })}>
+                      <select aria-label={`Item biaya kategori ${row.name}`} className={input} value={row.costItemCode ?? ""} onChange={(e) => update({ costItemCode: e.target.value || null })}>
                         <option value="">— tidak —</option>
                         {draft.costItems.map((item) => <option key={item.code} value={item.code}>{item.name} ({item.code})</option>)}
                       </select>
@@ -591,6 +591,7 @@ export function FinanceSettingsPanel() {
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[color-mix(in_srgb,var(--garage-bg-0)_92%,transparent)] p-3 backdrop-blur-sm md:left-auto md:right-4 md:bottom-4 md:w-[560px] md:rounded-2xl md:border">
           <div className="flex flex-wrap items-center gap-2">
             <input
+              aria-label="Alasan perubahan pengaturan keuangan"
               className={`${input} flex-1`}
               placeholder="Alasan perubahan (wajib)…"
               value={reason}

@@ -43,6 +43,24 @@ export type GarageSession = {
   };
 };
 
+/**
+ * Sesi akun Better Auth TANPA syarat profil staf — hanya untuk pemohon akses
+ * staf (I3, /api/staff-access/*). API key agent ditolak. Endpoint staf lain
+ * tetap memakai requireGarageSession (pemohon = STAFF_PROFILE_MISSING).
+ */
+export async function requireAccountSession() {
+  await ensureDatabaseReady();
+  const requestHeaders = await headers();
+  if (extractAgentKey(requestHeaders)) {
+    return { data: null, response: fail(403, "AGENT_FORBIDDEN_PATH", "Endpoint ini tidak boleh diakses lewat API key agent.") };
+  }
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  if (!session?.user) {
+    return { data: null, response: fail(401, "UNAUTHENTICATED", "Silakan login atau daftar dulu.") };
+  }
+  return { data: session.user, response: null };
+}
+
 export async function requireGarageSession(allowedRoles?: Role[]) {
   await ensureDatabaseReady();
 

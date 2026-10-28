@@ -405,6 +405,41 @@ export const oauthClientAssertion = pgTable("oauth_client_assertion", {
   expiresAt: timestamp("expires_at", tz).notNull(),
 });
 
+// Pengajuan akses staf (I3, PRD V4.0 §06.5–06.6, F44/F45). Mendaftar TIDAK membuat
+// staff_profiles: pemohon tanpa profil ditolak semua API staf (STAFF_PROFILE_MISSING).
+// Hanya Owner (2FA aktif) yang menyetujui; jabatan & outlet ditentukan Owner, bukan
+// input pemohon. Satu pengajuan per akun; riwayat keputusan di audit_logs.
+export const staffAccessRequests = pgTable(
+  "staff_access_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    legalName: text("legal_name").notNull(),
+    // WhatsApp ternormalisasi E.164 (+62…). Verifikasi OTP menunggu I2 (D-05).
+    phone: text("phone").notNull(),
+    requestedPosition: text("requested_position").notNull(),
+    note: text("note"),
+    // pending_owner_approval | needs_info | approved | rejected
+    status: text("status").notNull().default("pending_owner_approval"),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    whatsappVerified: boolean("whatsapp_verified").notNull().default(false),
+    infoRequest: text("info_request"),
+    decisionReason: text("decision_reason"),
+    approvedRole: text("approved_role"),
+    approvedOutletId: uuid("approved_outlet_id").references(() => outlets.id, { onDelete: "set null" }),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: uniqueIndex("staff_access_requests_user_idx").on(table.userId),
+    statusIdx: index("staff_access_requests_status_idx").on(table.status, table.createdAt),
+  }),
+);
+
 // Rate limit persisten (F-06): penghitung jendela tetap per kunci, dinaikkan
 // atomik (INSERT … ON CONFLICT DO UPDATE). Bertahan saat restart & berlaku
 // lintas proses/instance. Baris lama dihapus oportunistik (bukan data bisnis).

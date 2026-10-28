@@ -29,7 +29,7 @@ if [ ! -f .env.staging ]; then
     echo "POSTGRES_USER=garage_staging"
     echo "POSTGRES_PASSWORD=$db_pass"
     echo "POSTGRES_DB=garage_staging"
-    echo "DATABASE_URL=postgresql://garage_staging:$db_pass@db:5432/garage_staging"
+    echo "DATABASE_URL=postgresql://garage_staging:$db_pass@staging-db:5432/garage_staging"
     echo "BETTER_AUTH_URL=https://$STAGING_DOMAIN"
     echo "GARAGE_DOMAIN=$STAGING_DOMAIN"
     echo "GARAGE_PUBLIC_BASE_URL=https://$STAGING_DOMAIN"
@@ -51,6 +51,8 @@ if [ ! -f .env.staging ]; then
 else
   echo ">> .env.staging sudah ada — tidak diubah."
 fi
+# Insiden 28 Okt: host DB staging dulu "db" (bentrok dengan DB produksi di garage_default).
+sed -i "s#@db:5432/#@staging-db:5432/#" .env.staging
 
 if [ ! -f STAGING_ACCESS.txt ]; then
   access_pass="$(rnd | cut -c1-20)"

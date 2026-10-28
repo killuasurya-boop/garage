@@ -149,6 +149,34 @@ describe("Ledger bulanan (PDF C FINANCIAL_AUDIT)", () => {
   });
 });
 
+describe("Buku kas rinci & arus kas (F38/F35)", () => {
+  it("buku kas periode cocok dengan saldo DB; modal shift tercatat; PDF & Excel jadi", async () => {
+    const ledger = await import("@/lib/cash-ledger-report");
+    const r = await ledger.getCashLedgerReport({ from: `${today.slice(0, 8)}01`, to: today });
+    const drawer = r.accounts.find((a) => a.account === "drawer")!;
+    expect(r.totals.unreconciled).toEqual([]);
+    expect(drawer.bySource.find((s) => s.sourceType === "opening")).toMatchObject({ count: 3, inflow: 300_000 });
+    expect(drawer.lines.at(-1)?.running).toBe(drawer.closing);
+    expect(r.entries.every((e) => e.id && e.seq > 0)).toBe(true);
+
+    const { renderCashLedgerPdf } = await import("@/lib/cash-ledger-pdf");
+    expect((await renderCashLedgerPdf(r)).subarray(0, 5).toString()).toBe("%PDF-");
+    const { cashLedgerWorkbook } = await import("@/lib/cash-ledger-xlsx");
+    const xlsx = await cashLedgerWorkbook(r);
+    expect(xlsx.subarray(0, 2).toString()).toBe("PK");
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(xlsx as never);
+    expect(wb.worksheets.map((s) => s.name)).toEqual(expect.arrayContaining(["Ringkasan", "Arus per jenis", "Pergerakan dana", "Laci kasir"]));
+    expect(wb.getWorksheet("Pergerakan dana")!.rowCount).toBe(3 + r.entries.length);
+  });
+
+  it("rentang terlalu panjang ditolak", async () => {
+    const ledger = await import("@/lib/cash-ledger-report");
+    await expect(ledger.getCashLedgerReport({ from: "2026-01-01", to: "2026-10-01" })).rejects.toMatchObject({ code: "RANGE_TOO_LONG" });
+  });
+});
+
 describe("Dossier kasus (PDF D CASE)", () => {
   it("kasus dari alert risiko memuat bukti & shift terkait; tidak ditemukan → 404", async () => {
     const d = t.getDb();

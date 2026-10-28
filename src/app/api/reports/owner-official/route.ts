@@ -1,25 +1,14 @@
-import { z } from "zod";
-
 import { fail, ok } from "@/lib/api-response";
+import { getCashLedgerReport } from "@/lib/cash-ledger-report";
+import { renderCashLedgerPdf } from "@/lib/cash-ledger-pdf";
+import { cashLedgerWorkbook } from "@/lib/cash-ledger-xlsx";
 import { jakartaDateKey } from "@/lib/cash-oversight";
 import { getCaseDossier, getDailyDossier, getMonthlyLedger, OwnerReportError } from "@/lib/owner-reports";
 import { renderCasePdf, renderDailyClosingPdf, renderMonthlyAuditPdf } from "@/lib/owner-reports-pdf";
+import { ownerOfficialQuery } from "@/lib/owner-reports-query";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
-
-const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal YYYY-MM-DD.");
-const querySchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("closing"), date: dateKey.optional(), format: z.enum(["json", "pdf"]).optional() }),
-  z.object({
-    type: z.literal("monthly"),
-    month: z.string().regex(/^\d{4}-\d{2}$/, "Format bulan YYYY-MM.").optional(),
-    from: dateKey.optional(),
-    to: dateKey.optional(),
-    format: z.enum(["json", "pdf"]).optional(),
-  }),
-  z.object({ type: z.literal("case"), caseId: z.string().uuid("ID kasus tidak valid."), format: z.enum(["json", "pdf"]).optional() }),
-]);
 
 function pdfResponse(pdf: Buffer, filename: string) {
   return new Response(new Uint8Array(pdf), {
@@ -39,11 +28,12 @@ function monthRange(month: string, today: string) {
  *   ?type=closing&date=YYYY-MM-DD[&format=pdf]   → Owner 360 harian / PDF B CLOSING
  *   ?type=monthly&month=YYYY-MM | from&to [&format=pdf] → ledger bulanan / PDF C FINANCIAL_AUDIT
  *   ?type=case&caseId=…[&format=pdf]             → dossier kasus / PDF D CASE
+ *   ?type=ledger&month=YYYY-MM | from&to [&format=pdf|xlsx] → buku kas rinci & arus kas (F38/F35), semua outlet
  */
 export async function GET(request: Request) {
   const session = await requireGarageSession(["Owner"]);
   if (session.response) return session.response;
-  const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  const parsed = ownerOfficialQuery.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return fail(400, "INVALID_QUERY", parsed.error.issues[0]?.message ?? "Parameter tidak valid.");
   const outletId = session.data.profile.outlet.id;
   const today = jakartaDateKey(new Date());
@@ -57,6 +47,22 @@ export async function GET(request: Request) {
       const range = query.from && query.to ? { from: query.from, to: query.to } : monthRange(query.month ?? today.slice(0, 7), today);
       const ledger = await getMonthlyLedger({ outletId, ...range });
       return query.format === "pdf" ? pdfResponse(await renderMonthlyAuditPdf(ledger), ledger.meta.fileName) : ok(ledger);
+    }
+    if (query.type === "ledger") {
+      const range = query.from && query.to ? { from: query.from, to: query.to } : monthRange(query.month ?? today.slice(0, 7), today);
+      // Rekening & setoran bersifat global → buku kas semua outlet (sama dengan Pengawasan Kas).
+      const report = await getCashLedgerReport({ ...range, outletId: null });
+      if (query.format === "pdf") return pdfResponse(await renderCashLedgerPdf(report), `${report.meta.fileBase}.pdf`);
+      if (query.format === "xlsx") {
+        return new Response(new Uint8Array(await cashLedgerWorkbook(report)), {
+          headers: {
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": `attachment; filename="${report.meta.fileBase}.xlsx"`,
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+      return ok(report);
     }
     const dossier = await getCaseDossier({ caseId: query.caseId, outletId });
     return query.format === "pdf" ? pdfResponse(await renderCasePdf(dossier), dossier.meta.fileName) : ok(dossier);

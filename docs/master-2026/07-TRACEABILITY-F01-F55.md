@@ -42,10 +42,10 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F32 | Quick Retail Sale (§09.3) | 🟡 | Produk retail (`product_type = retail`), `isDirectHandoverMenu`; kanal QUICK_RETAIL tanpa meja ❌ | B3 | |
 | F33 | New retail SKU management (§09.3) | ✅ | Product management, SKU/barcode unik (`assertUniqueProductCodes`) | — | regresi |
 | F34 | Customer payment proof (§09.1) | 🟡 | Receipt + QR invoice; `payment_reference` QRIS ❌ | B3 | |
-| F35 | Owner decision cashflow (§13.5) | 🟡 | Custody map + uang masuk/keluar harian di Owner 360; cashflow Owner lintas rekening belum | B7 | |
+| F35 | Owner decision cashflow (§13.5) | 🟢 | Owner 360: custody map + arus kas per akun (saldo awal/masuk/keluar/akhir, cek DB) + arus pihak luar non-laci per jenis (`cash-ledger-report.ts`) | B7 | |
 | F36 | Risk cashier & manager (§14.2) | 🟡 | | B6 | |
 | F37 | Monthly cashier accountability (§16.1) | 🟢 | Ledger bulanan per kasir (PDF C + panel konteks bulanan) | B7 | |
-| F38 | PDF detailed cash ledger (§20.2) | 🟡 | Komposisi kas seharusnya per shift di PDF B + buku kas per shift di PDF A; PDF ledger mutasi rinci per akun belum | B7 | |
+| F38 | PDF detailed cash ledger (§20.2) | 🟢 | Buku kas rinci PDF + Excel (`type=ledger`): per akun saldo berjalan, ID stabil (id+seq), pembalik dua arah, data lama ditandai, rekonsiliasi saldo DB | B7 | |
 | F39 | Recount & immutable proof (§10.8) | 🟡 | Ledger immutable trigger; count STALE/RECOUNT_REQUIRED ❌ | B4 | |
 | F40 | Payment-to-closing QA gates (§28.1) | 🟡 | | semua | |
 

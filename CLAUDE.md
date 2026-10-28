@@ -240,6 +240,9 @@ Scroll direction:
     shortage/surplus never netted; missing data = `UNAVAILABLE_METRICS`, never 0), `owner-reports.ts` (DB loaders; shift numbers
     come from `getShiftAccountability`), `owner-reports-pdf.ts` (PDF B CLOSING / C FINANCIAL_AUDIT / D CASE, B7a writer).
     `GET /api/reports/owner-official?type=closing|monthly|case[&format=pdf]` Owner only; UI `OwnerDossierPanel` (Kontrol Kas).
+  - B7c: `cash-ledger-report.ts` (period cash book per account from `cash_ledger_entries`, running balance, opening+in−out=closing
+    checked against `accountBalance`, `external` = flows only), PDF `cash-ledger-pdf.ts`, Excel `cash-ledger-xlsx.ts`;
+    `type=ledger&month=|from&to[&format=pdf|xlsx]` (all outlets — bank accounts are global). Query schema: `owner-reports-query.ts`.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

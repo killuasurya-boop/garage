@@ -155,6 +155,9 @@ export const auth = betterAuth({
   rateLimit: {
     customRules: {
       "/sign-in/email": { window: 60, max: 40 },
+      // Pengganti kunci akun 2FA: tebakan kode diperlambat per perangkat, akun tidak dikunci.
+      "/two-factor/verify-totp": { window: 60, max: 6 },
+      "/two-factor/verify-backup-code": { window: 60, max: 6 },
     },
   },
   // Endpoint /token plugin jwt (JWT dari sesi cookie) tidak dipakai.
@@ -163,6 +166,9 @@ export const auth = betterAuth({
     twoFactor({
       issuer: "Garage Coffee",
       trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_SECONDS,
+      // Owner 28 Okt 2026: akun tidak dikunci 15 menit setelah salah kode 2FA
+      // (pembatas kecepatan per perangkat di rateLimit tetap berlaku).
+      accountLockout: { enabled: false },
     }),
     ...mcpChatgptPlugins(),
   ],

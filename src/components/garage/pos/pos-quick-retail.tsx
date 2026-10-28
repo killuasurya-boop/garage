@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Banknote, Minus, Plus, QrCode, ScanLine, ShoppingBag, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, Banknote, Minus, Package, Plus, QrCode, ScanLine, ShoppingBag, Star, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,7 +12,15 @@ import type { AppSettings, MenuItem, OrderCreateResponse, OrderReceipt } from "@
 import { calculateBillingTotals } from "@/lib/garage-billing";
 import { idempotencyAttemptFor, type IdempotencyAttempt } from "@/lib/idempotency-client";
 import { quickCashOptions } from "@/lib/pos-cash";
-import { isQuickRetailProduct, matchQuickRetail } from "@/lib/quick-retail";
+import {
+  isQuickRetailProduct,
+  matchQuickRetail,
+  QUICK_RETAIL_ALL_TAB,
+  QUICK_RETAIL_FAVORITE_STORAGE_KEY,
+  QUICK_RETAIL_FAVORITE_TAB,
+  quickRetailItemsForTab,
+  quickRetailTabs,
+} from "@/lib/quick-retail";
 import { cashConfirmLabel, normalizePaymentReference } from "@/lib/tender-guard";
 
 const currency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
@@ -64,6 +72,29 @@ export function PosQuickRetail({
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   // Kunci idempoten dipakai ulang selama isi order sama (retry setelah koneksi putus).
   const [attempt, setAttempt] = useState<IdempotencyAttempt | null>(null);
+  const [tab, setTab] = useState<string | null>(null);
+  // Hitungan ketukan per perangkat (sama dengan strip Favorit POS).
+  const [favoriteCounts, setFavoriteCounts] = useState<Record<string, number>>({});
+  const searchRef = useRef<HTMLInputElement>(null);
+  const paySectionRef = useRef<HTMLElement>(null);
+  const [focusTick, setFocusTick] = useState(0);
+
+  useEffect(() => {
+    if (focusTick === 0) return;
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 50);
+    return () => window.clearTimeout(timer);
+  }, [focusTick]);
+
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const parsed: unknown = JSON.parse(window.localStorage.getItem(QUICK_RETAIL_FAVORITE_STORAGE_KEY) ?? "null");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- baca localStorage saat dialog dibuka
+      if (parsed && typeof parsed === "object") setFavoriteCounts(parsed as Record<string, number>);
+    } catch {
+      // Storage diblokir / rusak → tanpa tab Favorit.
+    }
+  }, [open]);
 
   const retailItems = useMemo(
     () => menuItems.filter((item) => item.status !== "archived" && isQuickRetailProduct(item)),
@@ -71,6 +102,10 @@ export function PosQuickRetail({
   );
   const itemsById = useMemo(() => new Map(retailItems.map((item) => [item.id, item])), [retailItems]);
   const match = useMemo(() => matchQuickRetail(retailItems, query), [retailItems, query]);
+  const tabs = useMemo(() => quickRetailTabs(retailItems, favoriteCounts), [retailItems, favoriteCounts]);
+  // Default: Favorit bila ada, selain itu Semua. Saat mengetik/scan, hasil cari mengabaikan tab.
+  const activeTab = tab && tabs.includes(tab) ? tab : tabs[0] ?? QUICK_RETAIL_ALL_TAB;
+  const visibleItems = query.trim() ? match.results : quickRetailItemsForTab(retailItems, activeTab, favoriteCounts);
 
   const cartLines = lines
     .map((line) => {
@@ -99,6 +134,8 @@ export function PosQuickRetail({
     setNotice(null);
     setReceipt(null);
     setAttempt(null);
+    // "Jual lagi": kasir langsung bisa scan produk berikutnya.
+    setFocusTick((tick) => tick + 1);
   }
 
   function addLine(item: MenuItem, variantId: string) {
@@ -110,6 +147,15 @@ export function PosQuickRetail({
     }
     setNotice(null);
     setError(null);
+    setFavoriteCounts((current) => {
+      const next = { ...current, [item.id]: (current[item.id] ?? 0) + 1 };
+      try {
+        window.localStorage.setItem(QUICK_RETAIL_FAVORITE_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Tanpa storage, Favorit tetap jalan untuk sesi ini.
+      }
+      return next;
+    });
     setLines((current) => {
       const existing = current.find((line) => line.itemId === item.id && line.variantId === variantId);
       if (existing) {
@@ -221,6 +267,7 @@ export function PosQuickRetail({
                 >
                   <ScanLine className="size-4 shrink-0 text-[#f5a742]" />
                   <Input
+                    ref={searchRef}
                     autoFocus
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
@@ -236,49 +283,110 @@ export function PosQuickRetail({
                     Belum ada produk retail aktif. Owner/Manajer menambah produk bertipe Retail di modul Produk.
                   </p>
                 ) : (
-                  <ul className="garage-scroll grid max-h-[52svh] gap-1.5 overflow-y-auto pr-1 md:max-h-[58svh]">
-                    {match.results.map((item) => (
-                      <li key={item.id} className="rounded-md border border-[#34343c] bg-white/[0.05] p-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="min-w-0 break-words text-sm font-semibold text-white">{item.name}</p>
-                          {item.stock !== "ready" ? (
-                            <span
-                              className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                                item.stock === "sold_out" ? "bg-[#d11a2a]/25 text-[#ffc2c8]" : "bg-[#f5a742]/20 text-[#ffd08a]"
-                              }`}
-                            >
-                              {item.stock === "sold_out" ? "Habis" : "Terbatas"}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {item.variants.map((variant) => (
-                            <button
-                              key={variant.id}
-                              type="button"
-                              disabled={item.stock === "sold_out"}
-                              onClick={() => addLine(item, variant.id)}
-                              className="garage-press flex min-h-11 items-center gap-2 rounded-md border border-[#4a4a54] bg-[#17171c] px-3 text-sm text-[#e4e4ea] hover:border-[#f5a742] disabled:opacity-40"
-                            >
-                              {item.variants.length > 1 || variant.label !== "Regular" ? (
-                                <span className="font-semibold">{variant.label}</span>
-                              ) : null}
-                              <span className="garage-mono font-bold text-[#ffd08a]">
-                                {currency.format(unitPriceOf(item, variant.price))}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </li>
-                    ))}
-                    {match.results.length === 0 ? (
-                      <li className="p-2 text-sm text-[#d0d0d6]">Tidak ada produk yang cocok.</li>
+                  <>
+                    {!query.trim() ? (
+                      <div className="garage-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Kategori produk">
+                        {tabs.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === name}
+                            onClick={() => setTab(name)}
+                            className={`garage-press flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold ${
+                              activeTab === name
+                                ? "border-[#f5a742] bg-[#f5a742]/20 text-white"
+                                : "border-[#4a4a54] bg-white/[0.05] text-[#d0d0d6]"
+                            }`}
+                          >
+                            {name === QUICK_RETAIL_FAVORITE_TAB ? <Star className="size-3.5 text-[#f5a742]" /> : null}
+                            {name}
+                          </button>
+                        ))}
+                      </div>
                     ) : null}
-                  </ul>
+                    <ul className="garage-scroll grid max-h-[52svh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 md:max-h-[58svh]">
+                      {visibleItems.map((item) => {
+                        const soldOut = item.stock === "sold_out";
+                        const single = item.variants.length === 1 ? item.variants[0] : null;
+                        return (
+                          <li
+                            key={item.id}
+                            className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white/[0.05] ${
+                              soldOut ? "border-[#34343c] opacity-50" : "border-[#4a4a54]"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              disabled={soldOut || !single}
+                              onClick={() => single && addLine(item, single.id)}
+                              aria-label={single ? `Tambah ${item.name}` : item.name}
+                              className="garage-press relative block aspect-[4/3] w-full bg-[#17171c] disabled:cursor-default"
+                            >
+                              {item.imageUrl ? (
+                                // Sama dengan kartu produk POS: <img> biasa (foto upload/eksternal, lazy).
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={item.imageUrl} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-contain p-1.5" />
+                              ) : (
+                                <span className="flex h-full items-center justify-center text-[#6b6b75]">
+                                  <Package className="size-9" />
+                                </span>
+                              )}
+                              {item.stock !== "ready" ? (
+                                <span
+                                  className={`absolute top-1.5 left-1.5 rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                                    soldOut ? "bg-[#d11a2a] text-white" : "bg-[#f5a742] text-black"
+                                  }`}
+                                >
+                                  {soldOut ? "Habis" : "Terbatas"}
+                                </span>
+                              ) : null}
+                            </button>
+                            <div className="flex flex-1 flex-col gap-1.5 p-2">
+                              <p className="line-clamp-2 break-words text-sm font-semibold leading-tight text-white">{item.name}</p>
+                              {single ? (
+                                <button
+                                  type="button"
+                                  disabled={soldOut}
+                                  onClick={() => addLine(item, single.id)}
+                                  className="garage-press mt-auto flex min-h-11 items-center justify-between gap-1 rounded-md border border-[#4a4a54] bg-[#17171c] px-2.5 text-[#e4e4ea] hover:border-[#f5a742] disabled:opacity-40"
+                                >
+                                  <span className="garage-mono text-base font-bold text-[#ffd08a]">
+                                    {currency.format(unitPriceOf(item, single.price))}
+                                  </span>
+                                  <Plus className="size-4 shrink-0" />
+                                </button>
+                              ) : (
+                                <div className="mt-auto flex flex-col gap-1">
+                                  {item.variants.map((variant) => (
+                                    <button
+                                      key={variant.id}
+                                      type="button"
+                                      disabled={soldOut}
+                                      onClick={() => addLine(item, variant.id)}
+                                      className="garage-press flex min-h-11 items-center justify-between gap-1 rounded-md border border-[#4a4a54] bg-[#17171c] px-2.5 text-sm text-[#e4e4ea] hover:border-[#f5a742] disabled:opacity-40"
+                                    >
+                                      <span className="min-w-0 truncate font-semibold">{variant.label}</span>
+                                      <span className="garage-mono shrink-0 font-bold text-[#ffd08a]">
+                                        {currency.format(unitPriceOf(item, variant.price))}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                      {visibleItems.length === 0 ? (
+                        <li className="col-span-full p-2 text-sm text-[#d0d0d6]">Tidak ada produk yang cocok.</li>
+                      ) : null}
+                    </ul>
+                  </>
                 )}
               </section>
 
-              <section className="min-w-0 space-y-3" aria-label="Keranjang & pembayaran">
+              <section ref={paySectionRef} className="min-w-0 scroll-mt-4 space-y-3" aria-label="Keranjang & pembayaran">
                 <div className="rounded-md border border-[#34343c] bg-white/[0.04] p-3">
                   {cartLines.length === 0 ? (
                     <p className="text-sm text-[#d0d0d6]">Keranjang kosong. Scan atau pilih produk.</p>
@@ -376,7 +484,8 @@ export function PosQuickRetail({
                       className="h-11 border-[#4a4a54] bg-white/[0.06] text-base font-semibold"
                     />
                     <div className="grid grid-cols-3 gap-1.5">
-                      {quickCashOptions(total, 6).map((amount) => (
+                      {/* Uang pas selalu tombol pertama, lalu nominal cepat di atas total. */}
+                      {[total, ...quickCashOptions(total, 6).filter((amount) => amount !== total)].slice(0, 6).map((amount) => (
                         <button
                           key={amount}
                           type="button"
@@ -444,6 +553,25 @@ export function PosQuickRetail({
                         : `QRIS berhasil · ${currency.format(total)}`}
                 </Button>
               </section>
+
+              {/* HP/tablet kecil: total & tombol ke pembayaran selalu terlihat saat memilih produk. */}
+              {cartLines.length > 0 ? (
+                <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex items-center gap-3 border-t border-[#34343c] bg-[#111116] px-4 py-3 md:hidden">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[#d0d0d6]">
+                      {cartLines.reduce((sum, line) => sum + line.qty, 0)} item
+                    </p>
+                    <p className="garage-mono text-xl font-black text-[#ffd08a]">{currency.format(total)}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => paySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className="garage-press h-12 bg-[#d11a2a] px-5 text-base font-bold text-white hover:bg-[#ff2a3a]"
+                  >
+                    Bayar
+                  </Button>
+                </div>
+              ) : null}
             </div>
           )}
         </DialogContent>

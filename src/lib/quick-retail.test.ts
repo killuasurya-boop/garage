@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { channelGroupOf } from "@/lib/payment-status";
-import { isQuickRetailChannel, isQuickRetailProduct, matchQuickRetail, QUICK_RETAIL_CHANNEL } from "@/lib/quick-retail";
+import {
+  isQuickRetailChannel,
+  isQuickRetailProduct,
+  matchQuickRetail,
+  QUICK_RETAIL_CHANNEL,
+  quickRetailItemsForTab,
+  quickRetailTabs,
+} from "@/lib/quick-retail";
 
 const items = [
   {
@@ -57,5 +64,25 @@ describe("kanal Penjualan Langsung", () => {
     expect(isQuickRetailChannel(QUICK_RETAIL_CHANNEL)).toBe(true);
     expect(channelGroupOf({ orderSource: "pos", channel: QUICK_RETAIL_CHANNEL, fulfillment: null })).toBe("quick_retail");
     expect(channelGroupOf({ orderSource: "pos", channel: "Dine in", fulfillment: null })).toBe("pos_dine_in");
+  });
+});
+
+describe("tab kategori & Favorit Penjualan Langsung", () => {
+  const products = [
+    { id: "aqua", name: "Aqua 600", category: "Minuman Botol" },
+    { id: "teh", name: "Teh Botol", category: "Minuman Botol" },
+    { id: "sampoerna", name: "Sampoerna Mild", category: "Rokok" },
+  ];
+
+  it("Favorit muncul hanya bila ada ketukan; kategori urut nama", () => {
+    expect(quickRetailTabs(products, {})).toEqual(["Semua", "Minuman Botol", "Rokok"]);
+    expect(quickRetailTabs(products, { teh: 2 })).toEqual(["Favorit", "Semua", "Minuman Botol", "Rokok"]);
+  });
+
+  it("isi tab: Favorit paling sering dulu, kategori sesuai, Semua lengkap", () => {
+    const counts = { teh: 2, sampoerna: 5, lain: 9 };
+    expect(quickRetailItemsForTab(products, "Favorit", counts).map((item) => item.id)).toEqual(["sampoerna", "teh"]);
+    expect(quickRetailItemsForTab(products, "Rokok", counts).map((item) => item.id)).toEqual(["sampoerna"]);
+    expect(quickRetailItemsForTab(products, "Semua", counts)).toHaveLength(3);
   });
 });

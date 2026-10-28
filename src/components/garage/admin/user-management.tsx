@@ -495,9 +495,14 @@ export function UserManagement({
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-red-500/30 to-amber-500/20 text-xs font-semibold uppercase text-red-200">
-                              {row.name.slice(0, 2)}
-                            </div>
+                            {row.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={row.image} alt="" loading="lazy" className="h-9 w-9 shrink-0 rounded-full border border-zinc-700 object-cover" />
+                            ) : (
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500/30 to-amber-500/20 text-xs font-semibold uppercase text-red-200">
+                                {row.name.slice(0, 2)}
+                              </div>
+                            )}
                             <div>
                               <div className="font-medium text-zinc-100">
                                 {row.name}
@@ -959,6 +964,22 @@ function EditUserDialog({
       return;
     }
     const json = await res.json();
+    if (json?.error?.code === "STAFF_HAS_HISTORY") {
+      // Riwayat gaji/absen/transaksi tidak boleh ikut terhapus → tawarkan nonaktifkan.
+      if (!confirm(`${json.error.message}\n\nNonaktifkan ${row.name} sekarang?`)) return;
+      const off = await fetch(`/api/admin/users/${row.userId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "suspended", suspendedReason: "Dinonaktifkan (dihapus Owner) — riwayat dipertahankan" }),
+      });
+      if (off.ok) {
+        onSaved();
+        return;
+      }
+      const offJson = await off.json().catch(() => null);
+      setError(apiErrorMessage(off, offJson, "Gagal menonaktifkan user."));
+      return;
+    }
     setError(apiErrorMessage(res, json, "Gagal menghapus user."));
   }
 

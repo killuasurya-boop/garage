@@ -6,6 +6,7 @@ import {
   auditLogs,
   outlets,
   session as sessionTable,
+  staffPersonal,
   staffProfiles,
   user,
 } from "@/db/schema";
@@ -176,10 +177,13 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
       outletId: outlets.id,
       outletCode: outlets.code,
       outletName: outlets.name,
+      // Foto dari profil karyawan (HR) — dipakai sebagai avatar di daftar staf.
+      photoUrl: staffPersonal.photoUrl,
     })
     .from(staffProfiles)
     .innerJoin(user, eq(staffProfiles.userId, user.id))
     .innerJoin(outlets, eq(staffProfiles.outletId, outlets.id))
+    .leftJoin(staffPersonal, eq(staffPersonal.staffProfileId, staffProfiles.id))
     .where(whereExpr)
     .orderBy(asc(user.name))
     .limit(limit)
@@ -212,7 +216,7 @@ export async function listAdminUsers(filters: ListFilters = {}): Promise<{
     userId: row.userId,
     email: row.email,
     name: row.name,
-    image: row.image,
+    image: row.photoUrl ?? row.image,
     emailVerified: row.emailVerified,
     createdAt: row.createdAt.toISOString(),
     profileId: row.profileId,
@@ -438,6 +442,52 @@ export async function updateAdminUser(
   return { ok: true };
 }
 
+/**
+ * Riwayat yang IKUT TERHAPUS (cascade) atau mengunci hapus bila akun staf dihapus
+ * permanen: absen, upah, gaji, kasbon, transaksi & kas. Staf dengan riwayat tidak
+ * boleh dihapus — dinonaktifkan (suspend) supaya data keuangan tetap utuh.
+ */
+const STAFF_HISTORY_SOURCES: Array<{ table: string; column: string; label: string }> = [
+  { table: "staff_attendance_v2", column: "staff_user_id", label: "absen" },
+  { table: "staff_daily_wages", column: "staff_user_id", label: "upah harian" },
+  { table: "staff_earnings", column: "staff_user_id", label: "pendapatan" },
+  { table: "staff_payroll_payments", column: "staff_user_id", label: "pembayaran gaji" },
+  { table: "staff_cash_advances", column: "staff_user_id", label: "kasbon" },
+  { table: "staff_payout_requests", column: "staff_user_id", label: "pencairan" },
+  { table: "staff_thr_payments", column: "staff_user_id", label: "THR" },
+  { table: "fee_pool_splits", column: "staff_user_id", label: "fee" },
+  { table: "orders", column: "created_by", label: "transaksi" },
+  { table: "cash_sessions", column: "opened_by", label: "shift kasir" },
+  { table: "cash_movements", column: "created_by", label: "kas laci" },
+  { table: "wms_closing_event", column: "actor_id", label: "closing gudang" },
+];
+
+export class StaffHasHistoryError extends Error {
+  readonly code = "STAFF_HAS_HISTORY";
+  constructor(readonly labels: string[]) {
+    super(
+      `Staf ini punya riwayat (${labels.join(", ")}). Supaya data tidak hilang, akun tidak dihapus — nonaktifkan saja: tidak bisa login, riwayat tetap ada.`,
+    );
+  }
+}
+
+export async function staffHistoryLabels(userId: string) {
+  const db = getDb();
+  const labels: string[] = [];
+  for (const source of STAFF_HISTORY_SOURCES) {
+    try {
+      const result = await db.execute(
+        sql`select 1 from ${sql.identifier(source.table)} where ${sql.identifier(source.column)} = ${userId} limit 1`,
+      );
+      const rows = (result as unknown as { rows?: unknown[] }).rows ?? (result as unknown as unknown[]);
+      if (Array.isArray(rows) && rows.length) labels.push(source.label);
+    } catch {
+      // Tabel belum ada (instalasi lama) → bukan riwayat.
+    }
+  }
+  return labels;
+}
+
 export async function deleteAdminUser(
   userId: string,
   audit?: AdminAuditContext,
@@ -460,6 +510,8 @@ export async function deleteAdminUser(
   ) {
     throw new Error("Tidak bisa menghapus Owner terakhir.");
   }
+  const history = await staffHistoryLabels(userId);
+  if (history.length) throw new StaffHasHistoryError(history);
   await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
   // cascade: staffProfiles + account dihapus via FK onDelete cascade dari user
   await db.delete(user).where(eq(user.id, userId));
@@ -670,6 +722,15 @@ export async function bulkAction(
   }
 
   if (input.action === "delete") {
+    for (const userId of input.userIds) {
+      const history = await staffHistoryLabels(userId);
+      if (history.length) {
+        return {
+          affected: 0,
+          error: "Sebagian staf punya riwayat (absen/gaji/transaksi) — tidak dihapus supaya data tidak hilang. Pakai Suspend/nonaktifkan.",
+        };
+      }
+    }
     await db.delete(sessionTable).where(inArray(sessionTable.userId, input.userIds));
     await db.delete(user).where(inArray(user.id, input.userIds));
     await writeAdminAudit(audit, "user.bulk_delete", input.userIds.join(","), {

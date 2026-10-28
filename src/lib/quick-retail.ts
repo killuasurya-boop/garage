@@ -59,3 +59,33 @@ export function matchQuickRetail<
   });
   return { exact: null, results };
 }
+
+/** Kunci hitungan ketukan per perangkat — sama dengan strip Favorit POS. */
+export const QUICK_RETAIL_FAVORITE_STORAGE_KEY = "garage:pos-fav-counts";
+export const QUICK_RETAIL_FAVORITE_TAB = "Favorit";
+export const QUICK_RETAIL_ALL_TAB = "Semua";
+
+/** Tab kategori: Favorit (bila ada ketukan), Semua, lalu kategori retail urut nama. */
+export function quickRetailTabs(items: Array<{ id: string; category?: string | null }>, favoriteCounts: Record<string, number>) {
+  const categories = [...new Set(items.map((item) => (item.category ?? "").trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "id"),
+  );
+  const hasFavorites = items.some((item) => (favoriteCounts[item.id] ?? 0) > 0);
+  return [...(hasFavorites ? [QUICK_RETAIL_FAVORITE_TAB] : []), QUICK_RETAIL_ALL_TAB, ...categories];
+}
+
+/** Produk untuk tab aktif. Favorit = yang pernah diketuk, paling sering dulu (maks. 12). */
+export function quickRetailItemsForTab<T extends { id: string; name: string; category?: string | null }>(
+  items: T[],
+  tab: string,
+  favoriteCounts: Record<string, number>,
+): T[] {
+  if (tab === QUICK_RETAIL_FAVORITE_TAB) {
+    return items
+      .filter((item) => (favoriteCounts[item.id] ?? 0) > 0)
+      .sort((a, b) => (favoriteCounts[b.id] ?? 0) - (favoriteCounts[a.id] ?? 0) || a.name.localeCompare(b.name, "id"))
+      .slice(0, 12);
+  }
+  if (tab === QUICK_RETAIL_ALL_TAB) return items;
+  return items.filter((item) => (item.category ?? "").trim() === tab);
+}

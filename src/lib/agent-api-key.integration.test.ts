@@ -180,9 +180,10 @@ describe("S1 — pengerasan API key agent", () => {
       expect(res.response?.status, `${method} ${path}`).toBe(403);
       expect(await res.response!.json()).toMatchObject({ error: { code: "AGENT_FORBIDDEN_PATH" } });
     }
-    // garage_api memakai daftar yang sama.
+    // garage_api memakai daftar yang sama. GET, karena sejak D-10 (#113) garage_api
+    // menolak method selain GET lebih dulu — path terlarang harus tetap ditolak.
     const session = (await keys.resolveAgentSession(key, req(key, "POST", "/api/mcp"))).data!;
-    await expect(tools.runAgentTool(session, "garage_api", { method: "POST", path: "/api/admin/users" }, ctx)).rejects.toMatchObject({
+    await expect(tools.runAgentTool(session, "garage_api", { method: "GET", path: "/api/admin/security/overview" }, ctx)).rejects.toMatchObject({
       code: "AGENT_FORBIDDEN_PATH",
     });
   });

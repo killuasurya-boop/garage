@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
 import { isValidDenominationKey } from "@/lib/cash-denominations";
+import { DEPOSIT_ACCOUNTS } from "@/lib/cash-drawer";
 import { createDbBackup } from "@/lib/garage-db-backup";
 import {
   CashSessionAlreadyClosedError,
@@ -38,6 +39,8 @@ const closeSchema = z.object({
   resetTables: z.boolean().optional(),
   qrisCounted: z.number().int().nonnegative().max(1_000_000_000).optional(),
   floatLeft: z.number().int().nonnegative().max(100_000_000).optional(),
+  // Owner 29 Okt 2026: rekening tujuan setoran saat tutup shift (wajib bila ada setoran — dicek di service).
+  depositAccount: z.enum(DEPOSIT_ACCOUNTS).optional(),
   // Tutup darurat tanpa pecahan (P3): alasan + PIN Manajer wajib (dicek di service).
   countSkippedReason: z.string().trim().max(300).optional(),
   // B4: hitung ulang #2 (blind) dan #3 bila #1 ≠ #2 — dicek di service.

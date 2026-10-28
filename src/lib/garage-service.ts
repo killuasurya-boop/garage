@@ -212,7 +212,7 @@ import { orderHasPointRedemption, pointsDiscountFor, redeemPointsForOrder, retur
 import { redactOpenShiftCash } from "@/lib/cash-blind";
 import { purchaseAreaForCategory, purchaseAreaOf, recordCashPurchases, type PurchaseArea } from "@/lib/finance-purchases";
 import { seedRetailStockCosts, syncRecipeBaseCosts } from "@/lib/menu-recipe-cost";
-import { drawerBalance, getDrawerLedger, postAccountCash, postDrawerCash, type CashAccount, type CashSourceType, type ExpenseCashSource } from "@/lib/cash-ledger";
+import { drawerBalance, getDrawerLedger, postAccountCash, postDrawerCash, postShiftClosing, type CashAccount, type CashSourceType, type ExpenseCashSource } from "@/lib/cash-ledger";
 import {
   categoryPosInfo,
   ensureCategoryLinks,
@@ -456,6 +456,12 @@ type CloseCashSessionInput = {
   qrisCounted?: number;
   /** Uang yang ditinggal di laci untuk modal shift berikutnya (sisanya disetor). */
   floatLeft?: number;
+  /**
+   * Rekening tujuan setoran (owner 29 Okt 2026: kasir catat setoran saat tutup shift).
+   * Wajib bila uang dihitung − modal ditinggal > 0; setoran tercatat "dalam perjalanan"
+   * sampai Owner/Manajer lain mengonfirmasi bukti bank.
+   */
+  depositAccount?: DepositAccount;
   /**
    * Tutup darurat tanpa hitungan pecahan (P3): wajib alasan + sign-off Manajer/Owner.
    * Tutup standar selalu dengan pecahan.
@@ -18978,6 +18984,15 @@ export async function closeCashSession(
     }
   }
   const actualCash = acceptedCount ?? input.actualCash;
+  // Owner 29 Okt 2026: kasir catat setoran saat tutup shift. Tanpa "modal ditinggal" = semua
+  // uang tetap di laci (tidak ada setoran). Ada setoran → rekening tujuan wajib.
+  const closeFloat = input.floatLeft ?? actualCash;
+  const closeDeposit = Math.max(0, actualCash - closeFloat);
+  if (closeDeposit > 0 && !(input.depositAccount && (DEPOSIT_ACCOUNTS as readonly string[]).includes(input.depositAccount))) {
+    throw new CashSessionInputError(
+      `Pilih rekening tujuan setoran (Rekening Jago / BNI) untuk ${idrFormatter.format(closeDeposit)} yang disetor.`,
+    );
+  }
   const now = new Date();
   const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
 
@@ -19084,6 +19099,66 @@ export async function closeCashSession(
       await tx.insert(cashSessionCounts).values(
         counts.map((count) => ({ ...count, cashSessionId: id, countedBy: garage.user.id })),
       );
+    }
+
+    // Tutup laci di buku kas (selisih → setoran → modal ditinggal); kas seharusnya tetap beku.
+    let depositMovement: { id: string; refNo: string | null } | null = null;
+    if (current.ledgerMode) {
+      const closing = await postShiftClosing(tx, {
+        sessionId: id,
+        sessionCode: current.code,
+        outletId: current.outletId,
+        expectedCash,
+        actualCash,
+        floatLeft: closeFloat,
+        depositAccount: closeDeposit > 0 ? (input.depositAccount as CashAccount) : null,
+        actorUserId: garage.user.id,
+        occurredAt: now,
+      });
+      if (closing.deposit > 0) {
+        const setoran = resolveCashDrawerCategory("out", "setoran")!;
+        const movementOutletId = current.outletId ?? garage.profile.outlet.id;
+        const refNo = await nextCashMovementRefNo(tx, movementOutletId, now);
+        const [row] = await tx
+          .insert(cashMovements)
+          .values({
+            cashSessionId: id,
+            outletId: movementOutletId,
+            refNo,
+            type: "cash_out",
+            category: setoran.label,
+            categoryKey: setoran.key,
+            cashGroup: setoran.group,
+            description: `Setoran tutup shift ${current.code}`,
+            amount: closing.deposit,
+            status: "recorded",
+            counterparty: garage.user.name,
+            depositAccount: input.depositAccount!,
+            ledgerEntryId: closing.posted.deposit ?? null,
+            movementAt: now,
+            createdBy: garage.user.id,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning({ id: cashMovements.id, refNo: cashMovements.refNo });
+        depositMovement = row;
+        await tx.insert(auditLogs).values({
+          ...cashMovementAuditBase(garage),
+          action: "Setoran tutup shift",
+          object: `${refNo} · ${DEPOSIT_ACCOUNT_LABEL[input.depositAccount!]} · ${current.code}`,
+          status: "recorded",
+          metadata: {
+            cashMovementId: row.id,
+            refNo,
+            cashSessionId: id,
+            actionType: "close_deposit",
+            amount: closing.deposit,
+            depositAccount: input.depositAccount,
+            floatLeft: closeFloat,
+            variance: closing.variance,
+          },
+        });
+      }
     }
 
     const resetTableSet = {
@@ -19194,6 +19269,10 @@ export async function closeCashSession(
         mode: effectiveResetTableMode,
         count: resetTables.length,
       },
+      // Setoran yang tercatat saat tutup (null = tidak ada setoran / shift format lama).
+      deposit: depositMovement
+        ? { id: depositMovement.id, refNo: depositMovement.refNo, amount: closeDeposit, account: input.depositAccount ?? null }
+        : null,
     };
   });
 }

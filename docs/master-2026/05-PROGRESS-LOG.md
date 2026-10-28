@@ -446,3 +446,9 @@ Format wajib per batch (instruksi Owner):
 - **Tahap 1** (02:20 WIB, `bca5212`): #121, #128/#129, #130, #131 live. release-check 10/10, backup pre-deploy, migrasi 0, smoke 10/10, log bersih.
 - **Tahap 2** (02:39 WIB): pemantau VPS cron 5 menit aktif; notifikasi uji terkirim ke 1 Owner.
 - **Tahap 3** (03:20 WIB): uji pulih backup `garage-pre-deploy-2026-10-29_022005` → LULUS (pulih 3 detik, 8 tabel inti sama, sidik buku kas identik). Ditemukan & diperbaiki: skrip mulai sebelum init Postgres selesai; SQL sidik buku kas tidak ada di VPS (kini dikirim deploy).
+
+## 2026-10-29 — Setoran wajib saat tutup shift (keputusan Owner "kasir catat setoran")
+- Temuan cek produksi: saldo "Laci kasir" di buku kas Okt = Rp7.313.000 menumpuk karena tutup shift tidak mencatat ke mana uang pergi (0 setoran tercatat sebulan).
+- Tutup shift kini: rekening setoran (Jago/BNI) wajib bila ada yang disetor → baris buku kas penutupan (selisih, setoran dalam perjalanan, modal ditinggal) menutup laci shift ke 0; baris Setoran otomatis masuk antrean konfirmasi bukti bank. Kas seharusnya, selisih & laporan shift lama tidak berubah.
+- Uji: 4 integrasi baru + suite kas 175 tes; browser lokal buka → tutup shift → setoran KAS-…-0001 muncul di Pengawasan Kas & Owner 360.
+- Catatan: saldo laci lama (sebelum fitur ini) tetap di buku kas — tidak dihitung ulang.

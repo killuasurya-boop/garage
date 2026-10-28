@@ -404,6 +404,8 @@ export function buildShiftAccountability(raw: ShiftRaw) {
     floatLeft: session.floatLeft,
     deposit: session.depositAmount,
     ledgerLines: raw.ledger?.lines ?? [],
+    /** Penutupan laci saat tutup (selisih / setoran / modal ditinggal) — di luar kas seharusnya. */
+    closingLines: raw.ledger?.closingLines ?? [],
   };
 
   // ── Produk terjual ──

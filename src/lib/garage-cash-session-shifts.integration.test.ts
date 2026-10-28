@@ -144,7 +144,7 @@ describe("Shift 1 & 2 kasir", () => {
     ).rejects.toThrow(/tidak boleh lebih besar/);
     const closed: any = await svc.closeCashSession(
       shift.id,
-      { actualCash: 150_000, denominations: cashCount(150_000), recountDenominations: cashCount(150_000), floatLeft: 100_000 },
+      { actualCash: 150_000, denominations: cashCount(150_000), recountDenominations: cashCount(150_000), floatLeft: 100_000, depositAccount: "bank_jago" },
       kasirB(),
     );
     expect(closed).toMatchObject({ floatLeft: 100_000, depositAmount: 50_000 });

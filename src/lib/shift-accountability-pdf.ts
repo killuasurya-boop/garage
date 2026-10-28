@@ -568,6 +568,19 @@ function renderShift(w: Writer, report: ShiftAccountability, opts: { cashOnly?: 
       ]),
       { empty: "Belum ada uang yang bergerak di laci shift ini.", totals: ["", "", "", "SALDO", "", num(cash.expected)] },
     );
+    if (cash.closingLines.length) {
+      w.section("Penutupan Laci (saat tutup shift)", "portrait", "Uang keluar dari laci setelah dihitung: selisih, setoran ke rekening (menunggu bukti bank), dan modal ditinggal. Tidak mengubah kas seharusnya di atas.");
+      w.table(
+        [
+          { label: "No", width: 6 },
+          { label: "Waktu", width: 14 },
+          { label: "Jenis", width: 34 },
+          { label: "Keterangan", width: 30 },
+          { label: "Nilai", width: 16, align: "right" },
+        ],
+        cash.closingLines.map((line) => [`#${line.seq}`, dateTime(line.at), line.label, line.note ?? "-", `${line.signed > 0 ? "+" : "−"}${num(Math.abs(line.signed))}`]),
+      );
+    }
   }
 
   // 9. Petty cash shift

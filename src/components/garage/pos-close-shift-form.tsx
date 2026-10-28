@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CashDenominationGrid, denominationTotals } from "@/components/garage/cash-denomination-grid";
 import { denominationLabel, denominationMismatches, denominationValue } from "@/lib/cash-denominations";
+import { DEPOSIT_ACCOUNT_LABEL, DEPOSIT_ACCOUNTS, type DepositAccount } from "@/lib/cash-drawer";
 import { freshClosingChecklist } from "@/lib/cash-closing";
 
 export type CloseShiftPayload = {
@@ -33,6 +34,8 @@ export type CloseShiftPayload = {
   managerSignOff?: boolean;
   qrisCounted?: number;
   floatLeft: number;
+  /** Rekening tujuan setoran (wajib bila ada yang disetor) — owner 29 Okt 2026. */
+  depositAccount?: DepositAccount;
   /** B4: hitung ulang #2 (form kosong, blind). */
   recountDenominations?: Record<string, number>;
   /** B4: hitungan #3 bila #1 ≠ #2 per pecahan — menjadi hitungan sah. */
@@ -45,6 +48,34 @@ const rupiah = (value: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 
 const FLOAT_PRESETS = [0, 50_000, 100_000, 150_000, 200_000, 300_000];
+
+/** Pilih rekening tujuan setoran — wajib bila ada uang yang disetor. */
+function DepositAccountPicker({ value, onChange }: { value: DepositAccount | null; onChange: (value: DepositAccount) => void }) {
+  return (
+    <div className="space-y-1.5" role="radiogroup" aria-label="Rekening tujuan setoran">
+      <p className="text-xs font-semibold text-[#ffd08a]">Setor ke rekening (wajib)</p>
+      <div className="grid grid-cols-2 gap-2">
+        {DEPOSIT_ACCOUNTS.map((account) => (
+          <button
+            key={account}
+            type="button"
+            role="radio"
+            aria-checked={value === account}
+            onClick={() => onChange(account)}
+            className={`garage-press min-h-11 rounded-md border px-2 text-sm font-bold transition ${
+              value === account ? "border-[#f5a742] bg-[#f5a742] text-[#111116]" : "border-[#4a4a54] bg-white/[0.055] text-[#f4f4f5] hover:border-[#f5a742]/70"
+            }`}
+          >
+            {DEPOSIT_ACCOUNT_LABEL[account]}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] leading-5 text-[#b8b8bf]">
+        Tercatat otomatis sebagai Setoran (dalam perjalanan) saat shift ditutup. Owner/Manajer lain mengonfirmasi dengan bukti setor bank.
+      </p>
+    </div>
+  );
+}
 
 function SectionTitle({ step, title, hint }: { step: number; title: string; hint?: string }) {
   return (
@@ -106,6 +137,7 @@ export function CloseShiftForm({
   const [qrisCounted, setQrisCounted] = useState("");
   const [floatChoice, setFloatChoice] = useState<number | "custom" | null>(null);
   const [floatCustom, setFloatCustom] = useState("");
+  const [depositAccount, setDepositAccount] = useState<DepositAccount | null>(null);
   const [managerPin, setManagerPin] = useState("");
   const [selfSignOff, setSelfSignOff] = useState(false);
   const pinNeeded = signOffRequired && !isSupervisor;
@@ -139,6 +171,7 @@ export function CloseShiftForm({
   function validate() {
     if (!anyCounted) return "Isi jumlah lembar/keping uang di laci (isi 0 bila laci kosong).";
     if (effectiveFloat > accepted.total) return "Uang yang ditinggal di laci lebih besar dari uang yang dihitung.";
+    if (deposit > 0 && !depositAccount) return "Pilih rekening tujuan setoran (Rekening Jago / BNI).";
     if (!checklistDone) return "Centang semua checklist tutup shift.";
     if (pinNeeded && !/^\d{4,8}$/.test(managerPin)) return "PIN Manajer/Owner wajib 4–8 digit angka.";
     return null;
@@ -195,6 +228,10 @@ export function CloseShiftForm({
   }
 
   async function submit() {
+    if (deposit > 0 && !depositAccount) {
+      setLocalError("Pilih rekening tujuan setoran (Rekening Jago / BNI).");
+      return;
+    }
     await onSubmit({
       actualCash: accepted.total,
       denominations: parsedCounts,
@@ -204,6 +241,7 @@ export function CloseShiftForm({
       closingNote: note,
       resetTableMode: resetMode,
       floatLeft: effectiveFloat,
+      ...(deposit > 0 && depositAccount ? { depositAccount } : {}),
       ...(pinNeeded && managerPin ? { managerPin } : {}),
       ...(signOffRequired && isSupervisor && selfSignOff ? { managerSignOff: true } : {}),
       ...(qrisCounted.trim() !== "" ? { qrisCounted: Math.round(Number(qrisCounted)) } : {}),
@@ -303,6 +341,7 @@ export function CloseShiftForm({
                 <Landmark className="size-3.5" /> Untuk disetor ke rekening
               </dt>
               <dd className="mt-1 font-bold text-white">{rupiah(deposit)}</dd>
+              {deposit > 0 && depositAccount ? <dd className="text-xs text-[#ffd08a]">→ {DEPOSIT_ACCOUNT_LABEL[depositAccount]}</dd> : null}
             </div>
             <div className="col-span-2 rounded-md border border-[#34343c] bg-black/25 p-3">
               <dt className="flex items-center gap-1.5 text-xs text-[#b8b8bf]">
@@ -313,6 +352,11 @@ export function CloseShiftForm({
               </dd>
             </div>
           </dl>
+          {deposit > 0 && !depositAccount ? (
+            <div className="mt-3">
+              <DepositAccountPicker value={depositAccount} onChange={setDepositAccount} />
+            </div>
+          ) : null}
           <ul className="mt-3 space-y-1 text-xs text-[#d6d6dc]">
             {Object.entries(accepted.parsed)
               .filter(([, qty]) => qty > 0)
@@ -454,7 +498,7 @@ export function CloseShiftForm({
         <SectionTitle
           step={3}
           title="Serah terima uang"
-          hint="Berapa yang ditinggal di laci untuk modal shift berikutnya? Sisanya disetor ke Rekening Jago/BNI (catat lewat Kas Keluar → Setoran)."
+          hint="Berapa yang ditinggal di laci untuk modal shift berikutnya? Sisanya disetor — pilih rekeningnya, setoran tercatat otomatis saat shift ditutup."
         />
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {FLOAT_PRESETS.map((amount) => {
@@ -514,6 +558,7 @@ export function CloseShiftForm({
             <p className="mt-1 text-lg font-black text-white">{rupiah(deposit)}</p>
           </div>
         </div>
+        {deposit > 0 ? <DepositAccountPicker value={depositAccount} onChange={setDepositAccount} /> : null}
       </section>
 
       {/* 4. Checklist & catatan */}

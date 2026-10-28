@@ -435,3 +435,9 @@ Format wajib per batch (instruksi Owner):
 - `cash-ledger-report.ts`: per akun (laci, petty, Jago, BNI, QRIS, setoran dalam perjalanan) saldo awal → setiap baris buku kas (ID stabil, saldo berjalan, pembalik ↔ yang dibalik, data lama) → saldo akhir; dicek terhadap saldo DB. Akun pihak luar hanya arus (modal awal, uang pribadi Owner, pembayaran keluar), per jenis.
 - PDF + Excel (sheet Ringkasan, Arus per jenis, Pergerakan dana, satu sheet per akun) lewat `type=ledger`; bagian "Arus kas & buku kas" di Owner 360.
 - Ditemukan saat uji browser & diperbaiki: regex bulan rusak di route (skema query dipindah ke `owner-reports-query.ts` + tes).
+
+## 2026-10-29 — Pengaman rilis & pemantauan (strategi "tanpa kendala")
+- Pelajaran 28–29 Okt: staging bentrok nama, regex rusak saat edit, katalog API rusak hanya di hasil gabungan PR, simbol PDF, hitungan #3 tak tampil.
+- `release-check.sh` (wajib sebelum deploy, main gabungan), `smoke-prod.sh` (setelah deploy, gagal → rollback), `vps-monitor.sh` + `/api/jobs/system-alert` (push ke Owner), `restore-drill.sh` (pulih backup ke container sementara).
+- Merged ke main (belum deploy): #121, #128 (+#129), #130 (katalog). Gate main gabungan 1388/1388.
+- Dokumen pelacakan F01–F55 dirapikan sesuai pekerjaan B4/B6/B7/M0–M3 dan keputusan D-03.

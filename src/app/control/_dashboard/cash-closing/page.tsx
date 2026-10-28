@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CashOversightPanel } from "@/components/ceo/finance/CashOversightPanel";
+import { RiskAlertsPanel } from "@/components/ceo/finance/RiskAlertsPanel";
 import { PageHeader } from "@/components/ceo/layout/PageHeader";
 import { Panel } from "@/components/ceo/layout/Panel";
 import { Badge } from "@/components/ceo/ui/Badge";
@@ -174,6 +175,8 @@ export default function CashClosingPage() {
       )}
 
       <CashOversightPanel />
+
+      <RiskAlertsPanel />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi

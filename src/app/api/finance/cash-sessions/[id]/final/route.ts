@@ -4,6 +4,7 @@ import { accountabilityFailure } from "@/lib/accountability-route";
 import { fail, ok, readJson } from "@/lib/api-response";
 import { decideFinalApproval, getFinalApprovalPreview } from "@/lib/cash-final-approval";
 import { rateLimit } from "@/lib/rate-limit";
+import { scanRiskInBackground } from "@/lib/risk-engine";
 import { requireOwnerOrManager } from "@/lib/server-auth";
 import { StepUpError } from "@/lib/step-up-totp";
 
@@ -47,7 +48,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (body.error) return body.error;
   const { id } = await context.params;
   try {
-    return ok(await decideFinalApproval(id, body.data, session.data));
+    const result = await decideFinalApproval(id, body.data, session.data);
+    scanRiskInBackground(id);
+    return ok(result);
   } catch (error) {
     return failure(error);
   }

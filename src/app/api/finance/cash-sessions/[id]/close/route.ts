@@ -12,6 +12,7 @@ import {
   closeCashSession,
 } from "@/lib/garage-service";
 import { rateLimit } from "@/lib/rate-limit";
+import { scanRiskInBackground } from "@/lib/risk-engine";
 import { requireAnyPermission } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -69,6 +70,8 @@ export async function PATCH(
     }
     // Backup setiap tutup kasir (di latar belakang, tidak menahan respons).
     void createDbBackup("tutupkasir").catch((err) => console.error("[backup] tutup kasir gagal", err));
+    // B6: alert risiko shift ini (latar, tidak menahan respons).
+    scanRiskInBackground(id);
     return ok(cashSession);
   } catch (error) {
     if (error instanceof CashSessionCountMismatchError) {

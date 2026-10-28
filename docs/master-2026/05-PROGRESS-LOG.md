@@ -412,3 +412,8 @@ Format wajib per batch (instruksi Owner):
 ## 2026-10-28 — Keputusan Owner D-02, D-03, R1 + B7a
 - D-02 FINAL: gelap semua. D-03 FINAL: setor langsung ke bank (tanpa custody manajer; B4 selesai penuh). R1: staging di VPS yang sama.
 - **B7a** (migration 0168): setiap keputusan final Owner → `cash_session_final_snapshots` append-only (report ID `FIN-<shift>-V01`, hash, ringkasan, pengecualian). PDF shift: watermark DRAFT sampai final, riwayat hitungan #1/#2/#3, blok Owner (final), metadata audit; nama file `GARAGE_<OUTLET>_SHIFT_YYYY-MM-DD_<ID>[_V02].pdf`.
+
+## 2026-10-28 — B6 risk engine v1
+- Migration 0169 `risk_alerts`. Aturan murni `risk-rules.ts`: CASH_SHORTAGE (LV2/3/4 menurut nominal vs ambang), CASH_SURPLUS, COUNT_MISMATCH, COUNT_MISMATCH_REPEAT & SHORTAGE_REPEAT (pembanding jumlah shift 30 hari), EMERGENCY_CLOSE, QRIS_MISMATCH (custody QRIS), REFUND_VOID_MANY, METHOD_FIX_MANY, DEPOSIT_UNCONFIRMED >24 jam (custody bank), SELF_VERIFIED (LV1), LEDGER_CACHE_MISMATCH (LV5).
+- Pindai otomatis di latar setelah tutup/verifikasi/final; Owner bisa pindai ulang 30 hari. Disposisi OPEN/FALSE_POSITIVE/EXPLAINED/SUBSTANTIATED/DISPUTED/CLOSED + catatan; SUBSTANTIATED/CLOSED hanya Owner; Manajer tidak memeriksa alert tentang dirinya. "Jadikan kasus" → audit_cases.
+- Bahasa netral (dijaga tes): tidak ada kata menuduh, tidak ada peringkat pegawai.

@@ -80,7 +80,7 @@ Fase 7  U4–U9 modul growth · R1 staging · R2 release plan · restore drill �
 ### Fase 5 — Analytics, risk & reports (PRD §14, §16, §20, §21)
 | ID | Batch | Fitur | Status |
 |---|---|---|---|
-| B6 | Risk engine & case | F11, F16, F20, F21, F23, F36, F12 (liability tanpa potong otomatis) | setelah B4 |
+| B6 | Risk engine & case | F11, F16, F20, F21, F23, F36, F12 (liability tanpa potong otomatis) | **DONE v1** (migration 0169): `risk-rules.ts` (12 aturan explainable LV1–LV5, custody §14.5, pembanding shift) + `risk-engine.ts` (dedupe, disposisi manusia tidak ditimpa, Manajer ≠ subjek, kesimpulan akhir Owner, eskalasi ke audit_cases) + panel Alert Risiko |
 | B7 | Owner 360 & laporan | F15, F19, F22, F25, F35, F37, F38; 4 PDF penamaan §20.2, hash/versi | **B7a DONE** (migration 0168): snapshot final append-only + PDF shift resmi §20.2 (DRAFT, hash, versi, nama file). Sisa: PDF harian/bulanan/kasus, Owner 360, ledger bulanan |
 | M4 | Drive & Gmail | F53, F24; file/message ID terverifikasi | BLOCKED (D-04) |
 

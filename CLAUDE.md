@@ -231,6 +231,11 @@ Scroll direction:
     - B7a (migration 0168): each final decision inserts an append-only `cash_session_final_snapshots` row
       (`finalReportId` = `FIN-<code>-V01`, summary, hash, exceptions). Shift PDF: DRAFT watermark until final,
       count history, Owner block, audit metadata; file name `officialShiftFileName` (PRD §20.2).
+  - B6 risk (migration 0169, PRD §14): rules are pure in `src/lib/risk-rules.ts` (explainable, LV = review priority,
+    never an accusation — tests forbid accusing words; repeat rules use shift denominators; QRIS/bank alerts are not
+    cashier custody). `risk-engine.ts` upserts by `dedupe_key` and only refreshes OPEN alerts (human dispositions
+    are never overwritten); scans run in background after close/review/final (`scanRiskInBackground`). Manajer can
+    not review alerts about themself; SUBSTANTIATED/CLOSED/OPEN are Owner only; escalation creates an `audit_cases` row.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

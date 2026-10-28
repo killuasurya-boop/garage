@@ -12,12 +12,15 @@ import { loadSettingsByKeys } from "@/lib/garage-settings-service";
 import type { Role } from "@/lib/garage-data";
 import { mcpChatgptAccess } from "@/lib/mcp-chatgpt-access";
 import { runToolWithConfirmation, splitConfirmation } from "@/lib/mcp-confirmation";
+import { hitRateLimit } from "@/lib/rate-limit-db";
 import type { GarageSession } from "@/lib/server-auth";
 
 // garage_api memanggil /api lain dengan header Authorization; token OAuth belum
 // diterima rute lain (batch M3 menggantinya dengan tool bisnis eksplisit).
 const HIDDEN_TOOLS: ReadonlySet<string> = new Set(["garage_api"]);
 const DEVICE = "mcp:chatgpt";
+/** Per akun Owner per menit — satu percakapan biasanya < 10 panggilan tool. */
+const CHATGPT_RATE_LIMIT_PER_MINUTE = 60;
 const ARGS_PREVIEW_LIMIT = 2_000;
 
 type Claims = { sub?: unknown; client_id?: unknown; azp?: unknown; scope?: unknown };
@@ -103,6 +106,11 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
   }
   const owner = await loadOwnerSession(claims.sub);
   if ("error" in owner) return owner.error;
+  // F-06: batas persisten per akun Owner (bukan per token) — bertahan saat restart.
+  const limit = await hitRateLimit(`mcp-chatgpt:${claims.sub}`, { limit: CHATGPT_RATE_LIMIT_PER_MINUTE, windowMs: 60_000 });
+  if (limit.limited) {
+    return json(rpcError(null, -32003, `RATE_LIMITED: Terlalu banyak permintaan (maks. ${CHATGPT_RATE_LIMIT_PER_MINUTE}/menit). Coba lagi sebentar.`), 429);
+  }
   const { session } = owner;
 
   let payload: JsonRpcRequest | JsonRpcRequest[];

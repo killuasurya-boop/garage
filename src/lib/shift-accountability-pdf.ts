@@ -46,7 +46,8 @@ export function pdfSafe(value: string) {
     .replace(/\u2192/g, "->")
     .replace(/\u2190/g, "<-")
     .replace(/[\u2264]/g, "<=")
-    .replace(/[\u2265]/g, ">=");
+    .replace(/[\u2265]/g, ">=")
+    .replace(/\u2260/g, "<>");
 }
 const text = (value: unknown) => (value === null || value === undefined || value === "" ? "-" : String(value));
 
@@ -970,3 +971,6 @@ export async function renderDailyAccountabilityPdf(params: {
   definitionsPage(w);
   return w.finish();
 }
+
+// B7b: PDF resmi B/C/D (owner-reports-pdf.ts) memakai penulis & gaya yang sama.
+export { Writer as OfficialPdfWriter, cover as officialCover, rp as pdfRp, num as pdfNum, dateTime as pdfDateTime, time as pdfTime, longDate as pdfLongDate, text as pdfText, MUTED as PDF_MUTED, RED as PDF_RED, AMBER as PDF_AMBER };

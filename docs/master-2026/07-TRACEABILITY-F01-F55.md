@@ -22,17 +22,17 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F12 | Payroll liability review (§15) | 🟡 | Kasbon `staff_cash_advances`; liability case + review HR ❌ | B6 | |
 | F13 | Owner approval + 2FA (§13.3) | 🟡 | TOTP ada; final closing Owner + TOTP fresh terikat hash/nonce ❌; close route `requireAnyPermission(["finance:write","shift:cash"])` | B4 | |
 | F14 | Daily finance approval (§13.4) | 🟡 | `/control/cash-closing` + `getCashOversight`; date-first Approval Center ❌ | B4 | |
-| F15 | PDF/Excel lengkap (§20.2) | 🟡 | `cashier-accountability` PDF A4, shift PDF, oversight xlsx; 4 jenis + penamaan + hash/versi ❌ | B7 | |
+| F15 | PDF/Excel lengkap (§20.2) | 🟢 | 4 jenis PDF resmi §20.2: A shift (B7a), B closing, C financial audit, D case (`owner-reports-pdf.ts`); penamaan + hash/versi/report ID; watermark DRAFT sampai final | B7 | |
 | F16 | Risk monitoring (§14) | 🟡 | `audit-suspicious-panel`, `finance-anomaly-panel`, discrepancy status | B6 | |
 | F17 | Manager float pecahan (§12.3) | ❌ | Tunggu D-03 | B4 | |
 | F18 | Mandatory double recount (§10.8) | 🟡 | `actual_cash` hitungan pertama immutable + `recount_*` oleh verifier; count #2 independen kasir ❌ | B4 | |
-| F19 | Owner Approval 360 (§13.5) | 🟡 | Oversight panel = dasar; dossier 360 ❌ | B7 | |
+| F19 | Owner Approval 360 (§13.5) | 🟢 | Owner 360 (`OwnerDossierPanel`, Kontrol Kas): strip, summary, custody map, penjelasan selisih, risiko, timeline, kasus, konteks bulanan; keputusan final per shift di Riwayat Shift (2FA) | B7 | |
 | F20 | Fraud risk LV1–LV5 (§14.1) | ❌ | Ada `ok/minor/review/critical` (selisih saja); rule engine LV ❌ | B6 | |
 | F21 | Dual-party investigation (§14.5–14.7) | 🟡 | verifier ≠ opener/closer, insiden diselesaikan bukan pelapor | B6 | |
-| F22 | Monthly shortage ledger (§16.1) | ❌ | | B7 | |
+| F22 | Monthly shortage ledger (§16.1) | 🟢 | `getMonthlyLedger`: kurang/lebih tidak dinetkan per hari/kasir/pemeriksa, frekuensi & rasio relatif; confirmed loss/recovered ditandai belum tercatat | B7 | |
 | F23 | Exact event timeline (§16.2) | 🟡 | Ledger punya waktu; field occurred/recorded/detected/reviewed/confirmed terpisah ❌ | B6 | |
 | F24 | Automatic finance summary (§21) | 🟡 | `garage-ai-report.ts`, shift copilot; format facts/unknowns/evidence ❌ | M4 | |
-| F25 | PDF audit 360 (§20.2) | ❌ | | B7 | |
+| F25 | PDF audit 360 (§20.2) | 🟢 | PDF D kasus (`CASE_<ID>`): kronologi, bukti alert, shift terkait, catatan, keputusan | B7 | |
 | F26 | Control & QA hardening (§27–28) | 🟡 | `closing-audit-probe`, suite cash-* ; ASVS mapping ❌ | S1+ | |
 | F27 | Open warning discipline (§10.1) | ❌ | | B2 | |
 | F28 | Tender guard CASH/QRIS (§09.2) | 🟡 | `correctPaymentMethod`, `paymentStatusOf`; QRIS PENDING≠PAID oleh provider ❌ (QRIS statis: verifikasi manual kasir) | B3 | |
@@ -42,10 +42,10 @@ Batch = ID di `02-ROADMAP.md`. Agent yang menyelesaikan fitur: ubah status + isi
 | F32 | Quick Retail Sale (§09.3) | 🟡 | Produk retail (`product_type = retail`), `isDirectHandoverMenu`; kanal QUICK_RETAIL tanpa meja ❌ | B3 | |
 | F33 | New retail SKU management (§09.3) | ✅ | Product management, SKU/barcode unik (`assertUniqueProductCodes`) | — | regresi |
 | F34 | Customer payment proof (§09.1) | 🟡 | Receipt + QR invoice; `payment_reference` QRIS ❌ | B3 | |
-| F35 | Owner decision cashflow (§13.5) | 🟡 | | B7 | |
+| F35 | Owner decision cashflow (§13.5) | 🟡 | Custody map + uang masuk/keluar harian di Owner 360; cashflow Owner lintas rekening belum | B7 | |
 | F36 | Risk cashier & manager (§14.2) | 🟡 | | B6 | |
-| F37 | Monthly cashier accountability (§16.1) | 🟡 | Laporan per shift ada; bulanan ❌ | B7 | |
-| F38 | PDF detailed cash ledger (§20.2) | 🟡 | `getDrawerLedger` | B7 | |
+| F37 | Monthly cashier accountability (§16.1) | 🟢 | Ledger bulanan per kasir (PDF C + panel konteks bulanan) | B7 | |
+| F38 | PDF detailed cash ledger (§20.2) | 🟡 | Komposisi kas seharusnya per shift di PDF B + buku kas per shift di PDF A; PDF ledger mutasi rinci per akun belum | B7 | |
 | F39 | Recount & immutable proof (§10.8) | 🟡 | Ledger immutable trigger; count STALE/RECOUNT_REQUIRED ❌ | B4 | |
 | F40 | Payment-to-closing QA gates (§28.1) | 🟡 | | semua | |
 

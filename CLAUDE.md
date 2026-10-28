@@ -236,6 +236,10 @@ Scroll direction:
     cashier custody). `risk-engine.ts` upserts by `dedupe_key` and only refreshes OPEN alerts (human dispositions
     are never overwritten); scans run in background after close/review/final (`scanRiskInBackground`). Manajer can
     not review alerts about themself; SUBSTANTIATED/CLOSED/OPEN are Owner only; escalation creates an `audit_cases` row.
+  - B7b (no migration, PRD §13.5/§16.1/§20.2): `owner-reports-build.ts` (pure: daily dossier, monthly ledger, case dossier;
+    shortage/surplus never netted; missing data = `UNAVAILABLE_METRICS`, never 0), `owner-reports.ts` (DB loaders; shift numbers
+    come from `getShiftAccountability`), `owner-reports-pdf.ts` (PDF B CLOSING / C FINANCIAL_AUDIT / D CASE, B7a writer).
+    `GET /api/reports/owner-official?type=closing|monthly|case[&format=pdf]` Owner only; UI `OwnerDossierPanel` (Kontrol Kas).
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
 

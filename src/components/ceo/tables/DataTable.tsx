@@ -65,7 +65,7 @@ export function DataTable<T extends Record<string, unknown>>({
       {searchableKeys?.length ? (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--garage-bg-3)] px-3 py-1.5">
           <Search className="h-3.5 w-3.5 text-zinc-400" />
-          <input
+          <input aria-label="Cari data"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

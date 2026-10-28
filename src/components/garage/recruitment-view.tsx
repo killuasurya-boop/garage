@@ -274,7 +274,7 @@ function CandidateDrawer({
             <p className="text-[11px] uppercase tracking-wider text-[#888]">Detail Kandidat</p>
             <h3 className="font-black text-white">{candidate.fullName}</h3>
           </div>
-          <button
+          <button aria-label="Tutup"
             type="button"
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-md border border-[#34343c] text-[#888] transition-colors hover:border-[#d11a2a]/40 hover:text-white"
@@ -457,7 +457,7 @@ function CandidateDrawer({
               <div className="space-y-3">
               <div>
                 <label className={labelCls}>Score (1–10)</label>
-                <input
+                <input aria-label="Score (1–10)"
                   type="number"
                   min={1}
                   max={10}
@@ -469,7 +469,7 @@ function CandidateDrawer({
               </div>
               <div>
                 <label className={labelCls}>Notes / Catatan HR</label>
-                <textarea
+                <textarea aria-label="Notes / Catatan HR"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Catatan untuk kandidat ini…"
@@ -483,7 +483,7 @@ function CandidateDrawer({
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#ffd08a]">Jadwal Interview</p>
                 <div>
                   <label className={labelCls}>Tanggal & Jam Interview</label>
-                  <input
+                  <input aria-label="Tanggal & Jam Interview"
                     type="datetime-local"
                     value={interviewDate}
                     onChange={(e) => setInterviewDate(e.target.value)}
@@ -495,7 +495,7 @@ function CandidateDrawer({
                 </div>
                 <div>
                   <label className={labelCls}>Link Meeting / Lokasi</label>
-                  <input
+                  <input aria-label="Link Meeting / Lokasi"
                     type="text"
                     value={interviewLink}
                     onChange={(e) => setInterviewLink(e.target.value)}
@@ -507,7 +507,7 @@ function CandidateDrawer({
 
               <div>
                 <label className={labelCls}>Follow-up Date</label>
-                <input
+                <input aria-label="Follow-up Date"
                   type="date"
                   value={followUpDate}
                   onChange={(e) => setFollowUpDate(e.target.value)}
@@ -516,7 +516,7 @@ function CandidateDrawer({
               </div>
               <div>
                 <label className={labelCls}>Assigned To</label>
-                <input
+                <input aria-label="Assigned To"
                   type="text"
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
@@ -526,7 +526,7 @@ function CandidateDrawer({
               </div>
               <div>
                 <label className={labelCls}>Final Decision</label>
-                <input
+                <input aria-label="Final Decision"
                   type="text"
                   value={finalDecision}
                   onChange={(e) => setFinalDecision(e.target.value)}
@@ -688,11 +688,11 @@ function PositionsManager() {
         <form onSubmit={(e) => void addPosition(e)} className="rounded-md border border-[#34343c] bg-white/[0.02] p-4 space-y-3">
           <p className="text-xs font-bold uppercase tracking-wider text-[#d11a2a]">Posisi Baru</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div><label className="block text-[11px] text-[#888] mb-1">Judul Posisi *</label><input required value={addForm.title} onChange={(e) => setAddForm((f) => ({ ...f, title: e.target.value }))} placeholder="mis. Barista" className={`${inputCls} w-full`} /></div>
-            <div><label className="block text-[11px] text-[#888] mb-1">Lokasi</label><input value={addForm.location} onChange={(e) => setAddForm((f) => ({ ...f, location: e.target.value }))} placeholder="Tebing Tinggi" className={`${inputCls} w-full`} /></div>
-            <div><label className="block text-[11px] text-[#888] mb-1">Tipe</label><input value={addForm.type} onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value }))} placeholder="Full-time" className={`${inputCls} w-full`} /></div>
-            <div><label className="block text-[11px] text-[#888] mb-1">Pengalaman</label><input value={addForm.experience} onChange={(e) => setAddForm((f) => ({ ...f, experience: e.target.value }))} placeholder="Fresh graduate / berpengalaman" className={`${inputCls} w-full`} /></div>
-            <div className="sm:col-span-2"><label className="block text-[11px] text-[#888] mb-1">Deskripsi</label><textarea rows={2} value={addForm.description} onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))} placeholder="Tanggung jawab posisi…" className={`${inputCls} w-full resize-none`} /></div>
+            <div><label className="block text-[11px] text-[#888] mb-1">Judul Posisi *</label><input aria-label="Judul Posisi" required value={addForm.title} onChange={(e) => setAddForm((f) => ({ ...f, title: e.target.value }))} placeholder="mis. Barista" className={`${inputCls} w-full`} /></div>
+            <div><label className="block text-[11px] text-[#888] mb-1">Lokasi</label><input aria-label="Lokasi" value={addForm.location} onChange={(e) => setAddForm((f) => ({ ...f, location: e.target.value }))} placeholder="Tebing Tinggi" className={`${inputCls} w-full`} /></div>
+            <div><label className="block text-[11px] text-[#888] mb-1">Tipe</label><input aria-label="Tipe" value={addForm.type} onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value }))} placeholder="Full-time" className={`${inputCls} w-full`} /></div>
+            <div><label className="block text-[11px] text-[#888] mb-1">Pengalaman</label><input aria-label="Pengalaman" value={addForm.experience} onChange={(e) => setAddForm((f) => ({ ...f, experience: e.target.value }))} placeholder="Fresh graduate / berpengalaman" className={`${inputCls} w-full`} /></div>
+            <div className="sm:col-span-2"><label className="block text-[11px] text-[#888] mb-1">Deskripsi</label><textarea aria-label="Deskripsi" rows={2} value={addForm.description} onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))} placeholder="Tanggung jawab posisi…" className={`${inputCls} w-full resize-none`} /></div>
           </div>
           {addError && <p className="text-xs text-[#fca5a5]">{addError}</p>}
           <div className="flex gap-2">
@@ -743,7 +743,7 @@ function PositionsManager() {
                         {pos.isOpen ? <ToggleRight className="size-3.5 text-[#22c55e]" /> : <ToggleLeft className="size-3.5 text-[#888]" />}
                         {pos.isOpen ? "Tutup" : "Buka"}
                       </button>
-                      <button
+                      <button aria-label="Hapus posisi"
                         type="button"
                         disabled={deleting === pos.id}
                         onClick={() => void deletePos(pos.id)}
@@ -1036,7 +1036,7 @@ export function RecruitmentView() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_180px_180px]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8f99]" />
-                <Input
+                <Input aria-label="Cari pelamar"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Cari nama / WA / email / posisi…"
@@ -1206,7 +1206,7 @@ export function RecruitmentView() {
                   Halaman {data.page} dari {data.totalPages} · {data.total} kandidat total
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
+                  <button aria-label="Halaman sebelumnya"
                     type="button"
                     disabled={page <= 1 || loading}
                     onClick={() => setPage((p) => p - 1)}
@@ -1228,7 +1228,7 @@ export function RecruitmentView() {
                       </button>
                     );
                   })}
-                  <button
+                  <button aria-label="Halaman berikutnya"
                     type="button"
                     disabled={page >= data.totalPages || loading}
                     onClick={() => setPage((p) => p + 1)}

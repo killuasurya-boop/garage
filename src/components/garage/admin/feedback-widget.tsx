@@ -144,7 +144,7 @@ export function FeedbackWidget() {
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
                   Judul singkat
                 </label>
-                <Input
+                <Input aria-label="Judul singkat"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="cth: Tombol void gak respon di POS"
@@ -157,7 +157,7 @@ export function FeedbackWidget() {
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
                   Detail (apa yang terjadi, expected vs actual)
                 </label>
-                <Textarea
+                <Textarea aria-label="Detail (apa yang terjadi, expected vs actual)"
                   value={detail}
                   onChange={(e) => setDetail(e.target.value)}
                   placeholder="Klik tombol void → modal muncul tapi tombol confirm gak bisa diklik. Expected: order ke-void."

@@ -114,7 +114,7 @@ export function WmsActivityLogPanel() {
       <div className="rounded-2xl border border-[var(--garage-bg-3)] bg-[var(--garage-bg-1)] p-4 flex flex-wrap gap-3 items-end">
         <div className="flex flex-col">
           <label className="text-xs uppercase text-[var(--garage-mute)]">Dari</label>
-          <input
+          <input aria-label="Dari"
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
@@ -123,7 +123,7 @@ export function WmsActivityLogPanel() {
         </div>
         <div className="flex flex-col">
           <label className="text-xs uppercase text-[var(--garage-mute)]">Sampai</label>
-          <input
+          <input aria-label="Sampai"
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
@@ -132,7 +132,7 @@ export function WmsActivityLogPanel() {
         </div>
         <div className="flex flex-col">
           <label className="text-xs uppercase text-[var(--garage-mute)]">Jenis Aksi</label>
-          <select
+          <select aria-label="Jenis Aksi"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="mt-1 px-3 py-1.5 rounded-lg bg-[var(--garage-bg-0)] border border-[var(--garage-bg-3)] text-[var(--garage-fg)] text-sm"
@@ -148,7 +148,7 @@ export function WmsActivityLogPanel() {
         {viewerScope === "all" && (
           <div className="flex flex-col">
             <label className="text-xs uppercase text-[var(--garage-mute)]">Staff</label>
-            <select
+            <select aria-label="Staff"
               value={userFilter}
               onChange={(e) => setUserFilter(e.target.value)}
               className="mt-1 px-3 py-1.5 rounded-lg bg-[var(--garage-bg-0)] border border-[var(--garage-bg-3)] text-[var(--garage-fg)] text-sm min-w-[180px]"

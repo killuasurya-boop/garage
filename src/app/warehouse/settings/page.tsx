@@ -188,7 +188,7 @@ export default function WmsSettingsPage() {
         {/* Mobile tab picker */}
         <div className="lg:hidden">
           <label className="mb-1.5 block text-[11px] font-semibold text-[#6B7280]">Kategori</label>
-          <select
+          <select aria-label="Kategori"
             value={activeTab}
             onChange={(e) => setActiveTab(e.target.value as SettingsTab)}
             className="h-10 w-full rounded-lg border border-[#E8E8E8] bg-white px-3 text-[13px] font-semibold text-[#374151] outline-none focus:border-[#C8102E]"
@@ -326,7 +326,7 @@ export default function WmsSettingsPage() {
               </SettingRow>
               <div className="pt-3.5">
                 <label className="mb-1.5 block text-[11px] font-semibold text-[#6B7280]">Zona put-away default</label>
-                <select
+                <select aria-label="Zona put-away default"
                   value={settings?.defaultPutAway ?? "DRY"}
                   disabled={loading || busyKey === "defaultPutAway"}
                   onChange={(e) =>

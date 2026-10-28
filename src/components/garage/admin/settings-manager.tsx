@@ -504,7 +504,7 @@ export function SettingsManager({
 
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-              <Input
+              <Input aria-label="Cari pengaturan"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Cari setting di semua kategori… (pajak, struk, shift, theme)"
@@ -731,6 +731,7 @@ function FieldInput({
           {value ? "Aktif" : "Nonaktif"}
         </span>
         <input
+          aria-label={field.label}
           type="checkbox"
           checked={Boolean(value)}
           onChange={(event) => onChange(event.target.checked)}
@@ -744,6 +745,7 @@ function FieldInput({
     return (
       <div className="relative w-full">
         <Input
+          aria-label={field.label}
           type="number"
           value={Number(value)}
           min={field.min}
@@ -764,7 +766,7 @@ function FieldInput({
   if (field.type === "select") {
     return (
       <Select value={String(value)} onValueChange={(v) => onChange(v)}>
-        <SelectTrigger className="w-full border-[var(--border)] bg-[var(--background)]">
+        <SelectTrigger aria-label={field.label} className="w-full border-[var(--border)] bg-[var(--background)]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -781,6 +783,7 @@ function FieldInput({
   if (field.type === "textarea") {
     return (
       <Textarea
+        aria-label={field.label}
         value={String(value)}
         onChange={(event) => onChange(event.target.value)}
         rows={3}
@@ -791,6 +794,7 @@ function FieldInput({
 
   return (
     <Input
+      aria-label={field.label}
       value={String(value)}
       onChange={(event) => onChange(event.target.value)}
       className="w-full border-[var(--border)] bg-[var(--background)]"

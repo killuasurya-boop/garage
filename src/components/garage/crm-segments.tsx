@@ -788,7 +788,7 @@ export function CrmCustomSegments() {
                 <Layers className="size-5 text-[#a855f7]" />
                 <h3 className="font-bold text-white">Segment Builder</h3>
               </div>
-              <button
+              <button aria-label="Tutup"
                 type="button"
                 onClick={() => setBuilderOpen(false)}
                 className="text-[#8f8f99] hover:text-white"
@@ -801,7 +801,7 @@ export function CrmCustomSegments() {
               {/* Segment name */}
               <div className="grid gap-1.5">
                 <label className="text-xs font-semibold text-[#b8b8bf]">Nama Segment</label>
-                <input
+                <input aria-label="Nama Segment"
                   type="text"
                   value={segName}
                   onChange={(e) => setSegName(e.target.value)}
@@ -857,7 +857,7 @@ export function CrmCustomSegments() {
                       value={rule.value}
                       onChange={(v) => updateRule(idx, { value: v })}
                     />
-                    <button
+                    <button aria-label="Hapus aturan"
                       type="button"
                       onClick={() => removeRule(idx)}
                       disabled={rules.length === 1}

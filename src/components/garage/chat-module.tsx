@@ -955,7 +955,7 @@ export function ChatModule({
             ) : null}
             {canBroadcastCeo ? (
               <div className="flex items-center gap-2">
-                <input
+                <input aria-label="Fokus instruksi"
                   type="text"
                   placeholder="Fokus instruksi (opsional)..."
                   value={ceoBroadcastFocus}
@@ -1264,13 +1264,13 @@ export function ChatModule({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#34343c] bg-[#0f0f14] p-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("**")} className="h-8 border-[#4a4a54] px-2">
+                <Button aria-label="Tebal" type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("**")} className="h-8 border-[#4a4a54] px-2">
                   <Bold className="h-3.5 w-3.5" />
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("_")} className="h-8 border-[#4a4a54] px-2">
+                <Button aria-label="Miring" type="button" size="sm" variant="outline" onClick={() => insertBroadcastMarkup("_")} className="h-8 border-[#4a4a54] px-2">
                   <Italic className="h-3.5 w-3.5" />
                 </Button>
-                <Button
+                <Button aria-label="Tambah butir daftar"
                   type="button"
                   size="sm"
                   variant="outline"
@@ -1766,7 +1766,7 @@ export function ChatModule({
                         ({formatSize(pendingAttachment.size)})
                       </span>
                     </div>
-                    <button
+                    <button aria-label="Hapus lampiran"
                       type="button"
                       onClick={() => setPendingAttachment(null)}
                       className="text-[#ff8a93] hover:text-white"
@@ -1783,7 +1783,7 @@ export function ChatModule({
                     className="hidden"
                     onChange={(e) => void handleFileSelect(e)}
                   />
-                  <Button
+                  <Button aria-label="Lampirkan file"
                     type="button"
                     size="sm"
                     variant="outline"
@@ -1797,7 +1797,7 @@ export function ChatModule({
                       <Paperclip className="h-4 w-4" />
                     )}
                   </Button>
-                  <textarea
+                  <textarea aria-label="Tulis pesan"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -1810,7 +1810,7 @@ export function ChatModule({
                     rows={1}
                     className="garage-scroll max-h-32 flex-1 resize-none rounded-md border border-[#34343c] bg-[#0f0f14] px-3 py-2 text-sm text-white placeholder:text-[#8f8f99] focus:border-[#ffd08a] focus:outline-none"
                   />
-                  <Button
+                  <Button aria-label="Kirim pesan"
                     type="button"
                     size="sm"
                     onClick={() => void handleSend()}
@@ -1848,7 +1848,7 @@ export function ChatModule({
           >
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-bold text-white">Mulai DM</p>
-              <button
+              <button aria-label="Tutup pilih pengguna"
                 type="button"
                 onClick={() => setUserPickerOpen(false)}
                 className="text-[#8f8f99] hover:text-white"

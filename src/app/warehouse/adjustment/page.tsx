@@ -80,15 +80,15 @@ export default function WmsAdjustmentPage() {
         <section className="rounded-xl border border-[#E8E8E8] bg-white p-4">
           <h2 className="mb-3 flex items-center gap-2 text-[14px] font-bold text-[#111111]"><Sliders className="size-4 text-[#C8102E]" /> Koreksi Baru</h2>
           <div className="space-y-2.5">
-            <select value={productId} onChange={(e) => setProductId(e.target.value)} className={input}>
+            <select aria-label="Produk" value={productId} onChange={(e) => setProductId(e.target.value)} className={input}>
               <option value="">Pilih produk…</option>
               {products.map((p) => <option key={p.id} value={p.id}>{p.name} (stok {formatPacks(p.onHand, p.unit, p.uoms)})</option>)}
             </select>
-            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={input}>
+            <select aria-label="Gudang" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={input}>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            <input value={delta} onChange={(e) => setDelta(e.target.value)} inputMode="decimal" placeholder="Delta (mis. -50 atau +20)" className={input} />
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (rusak, hilang, dll)" className={input} />
+            <input aria-label="Selisih jumlah" value={delta} onChange={(e) => setDelta(e.target.value)} inputMode="decimal" placeholder="Delta (mis. -50 atau +20)" className={input} />
+            <input aria-label="Alasan penyesuaian" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Alasan wajib (rusak, hilang, dll)" className={input} />
             <p className="text-[11px] text-[#9AA0A6]">Alasan wajib diisi (min 3 karakter) — hanya Owner/Manajer.</p>
             {msg && <p className="text-[12.5px] font-semibold text-[#16A34A]">{msg}</p>}
             <button type="button" disabled={!productId || !Number(delta) || note.trim().length < 3 || busy} onClick={() => void submit()} className="w-full rounded-lg bg-[#C8102E] py-2.5 text-[13px] font-bold text-white hover:bg-[#a60d26] disabled:opacity-50">

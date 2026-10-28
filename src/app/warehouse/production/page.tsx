@@ -195,10 +195,10 @@ export default function WmsProductionPage() {
           <div className="w-full max-w-sm rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[14px] font-bold text-[#111111]">Produksi: {runRecipe.name}</p>
-              <button type="button" onClick={() => setRunRecipe(null)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+              <button aria-label="Tutup" type="button" onClick={() => setRunRecipe(null)} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
             </div>
             <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Gudang produksi</label>
-            <select value={runWh} onChange={(e) => setRunWh(e.target.value)} className={`${input} mb-3 w-full`}>
+            <select aria-label="Gudang produksi" value={runWh} onChange={(e) => setRunWh(e.target.value)} className={`${input} mb-3 w-full`}>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}
             </select>
             <label className="mb-1 block text-[11px] font-semibold text-[#6B7280]">Jumlah batch (× {runRecipe.outputQty} {runRecipe.outputUnit})</label>
@@ -253,7 +253,7 @@ function CreateRecipeModal({ products, onDone, onCancel }: { products: WmsProduc
       <div className="w-full max-w-lg rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[14px] font-bold text-[#111111]">Resep Produksi Baru</p>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
         <div className="space-y-2.5">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama resep (mis. Simple Syrup)" className={`${input} w-full`} />
@@ -279,7 +279,7 @@ function CreateRecipeModal({ products, onDone, onCancel }: { products: WmsProduc
               <div key={b.inputProductId} className="flex items-center gap-2 rounded-lg border border-[#E8E8E8] p-2">
                 <span className="flex-1 text-[13px] text-[#111111]">{p?.name} <span className="text-[11px] text-[#9CA3AF]">/ {p?.unit}</span></span>
                 <input value={b.qty} onChange={(e) => setBom((arr) => arr.map((x) => x.inputProductId === b.inputProductId ? { ...x, qty: e.target.value } : x))} inputMode="decimal" className={`${input} w-24 text-right`} />
-                <button type="button" onClick={() => setBom((arr) => arr.filter((x) => x.inputProductId !== b.inputProductId))} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
+                <button aria-label="Hapus bahan" type="button" onClick={() => setBom((arr) => arr.filter((x) => x.inputProductId !== b.inputProductId))} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#FDF1F3] hover:text-[#C8102E]"><Trash2 className="size-3.5" /></button>
               </div>
             );
           })}

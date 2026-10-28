@@ -354,7 +354,7 @@ export function CrmCustomerList({
               <Button type="button" className="garage-press h-10 px-4" onClick={applySearch}>
                 Cari
               </Button>
-              <Button
+              <Button aria-label="Reset filter"
                 type="button"
                 variant="outline"
                 className="garage-press h-10 border-[#4a4a54]"
@@ -516,7 +516,7 @@ export function CrmCustomerList({
                       )}
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <Button
+                      <Button aria-label="Lihat detail pelanggan"
                         type="button"
                         variant="outline"
                         size="sm"
@@ -542,7 +542,7 @@ export function CrmCustomerList({
               Menampilkan {showingFrom}–{showingTo} dari {total} customer
             </p>
             <div className="flex items-center gap-2">
-              <Button
+              <Button aria-label="Halaman sebelumnya"
                 type="button"
                 variant="outline"
                 size="sm"
@@ -555,7 +555,7 @@ export function CrmCustomerList({
               <span className="font-mono text-xs text-[#d6d6dc]">
                 Hal {page + 1} / {totalPages}
               </span>
-              <Button
+              <Button aria-label="Halaman berikutnya"
                 type="button"
                 variant="outline"
                 size="sm"

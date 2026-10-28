@@ -809,7 +809,7 @@ export function SmartAuditDashboard() {
                         onChange={(e) => setNewNote(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && void addNote()}
                       />
-                      <Button type="button" size="sm" variant="outline" className="garage-press h-7 border-[#4a4a54] px-2"
+                      <Button aria-label="Kirim catatan" type="button" size="sm" variant="outline" className="garage-press h-7 border-[#4a4a54] px-2"
                         onClick={() => void addNote()} disabled={caseLoading || !newNote.trim()}>
                         <Send className="h-3 w-3" />
                       </Button>
@@ -897,7 +897,7 @@ export function SmartAuditDashboard() {
         <div className="flex items-center gap-2 rounded-md border border-[#d11a2a]/40 bg-[#d11a2a]/10 p-2 text-xs text-[#ff8a93]">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {error}
-          <button type="button" className="ml-auto" onClick={() => setError(null)}><X className="h-3 w-3" /></button>
+          <button aria-label="Tutup pesan galat" type="button" className="ml-auto" onClick={() => setError(null)}><X className="h-3 w-3" /></button>
         </div>
       )}
 

@@ -194,7 +194,7 @@ export function TeamTasksManager() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Target Jabatan / Peran</label>
-              <select
+              <select aria-label="Target Jabatan / Peran"
                 value={targetRole}
                 onChange={(e) => setTargetRole(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -208,7 +208,7 @@ export function TeamTasksManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Karyawan Penerima (Opsional)</label>
-              <select
+              <select aria-label="Karyawan Penerima (Opsional)"
                 value={assigneeUserId}
                 onChange={(e) => setAssigneeUserId(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -227,7 +227,7 @@ export function TeamTasksManager() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Judul Tugas</label>
-            <Input
+            <Input aria-label="Judul Tugas"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Contoh: Stok opname kampas rem motor matik"
@@ -238,7 +238,7 @@ export function TeamTasksManager() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Detail / Petunjuk Tugas</label>
-            <Textarea
+            <Textarea aria-label="Detail / Petunjuk Tugas"
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
               placeholder="Berikan langkah pengerjaan atau detail instruksi..."
@@ -250,7 +250,7 @@ export function TeamTasksManager() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Prioritas</label>
-              <select
+              <select aria-label="Prioritas"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -263,7 +263,7 @@ export function TeamTasksManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Tenggat Waktu (Due Date)</label>
-              <Input
+              <Input aria-label="Tenggat Waktu (Due Date)"
                 type="datetime-local"
                 value={dueAt}
                 onChange={(e) => setDueAt(e.target.value)}

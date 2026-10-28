@@ -318,7 +318,7 @@ export function UserManagement({
             <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                <Input
+                <Input aria-label="Cari email atau nama"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={(event) => {
@@ -427,7 +427,7 @@ export function UserManagement({
                 <TableHeader>
                   <TableRow className="bg-zinc-950/60 hover:bg-zinc-950/60">
                     <TableHead className="w-10">
-                      <input
+                      <input aria-label="Pilih semua"
                         type="checkbox"
                         checked={selected.size > 0 && selected.size === rows.length}
                         onChange={toggleSelectAll}
@@ -461,7 +461,7 @@ export function UserManagement({
                     rows.map((row) => (
                       <TableRow key={row.userId} className="hover:bg-zinc-900/40">
                         <TableCell>
-                          <input
+                          <input aria-label="Pilih baris"
                             type="checkbox"
                             checked={selected.has(row.userId)}
                             onChange={() => toggleSelect(row.userId)}
@@ -1316,7 +1316,7 @@ function SessionsDialog({
                       {formatDate(session.expiresAt)}
                     </TableCell>
                     <TableCell>
-                      <Button
+                      <Button aria-label="Keluarkan sesi ini"
                         size="sm"
                         variant="ghost"
                         onClick={() => onLogoutOne(session.id)}

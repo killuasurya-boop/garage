@@ -193,7 +193,7 @@ export default function WmsInternalOrderPage() {
       >
         <div className="flex items-center justify-between border-b border-[#E8E8E8] p-4">
           <h2 className="text-[15px] font-bold text-[#111111]">Internal Order Baru</h2>
-          <button type="button" onClick={() => setOpen(false)} className="grid size-8 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]">
+          <button aria-label="Tutup" type="button" onClick={() => setOpen(false)} className="grid size-8 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]">
             <X className="size-4" />
           </button>
         </div>
@@ -223,7 +223,7 @@ export default function WmsInternalOrderPage() {
           <div>
             <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Tambah bahan</p>
             <div className="flex gap-2">
-              <select value={pick} onChange={(e) => setPick(e.target.value)} className="h-9 flex-1 rounded-md border border-[#E8E8E8] bg-white px-2.5 text-[13px] outline-none focus:border-[#C8102E]">
+              <select aria-label="Pilih bahan" value={pick} onChange={(e) => setPick(e.target.value)} className="h-9 flex-1 rounded-md border border-[#E8E8E8] bg-white px-2.5 text-[13px] outline-none focus:border-[#C8102E]">
                 <option value="">Pilih bahan…</option>
                 {products.filter((p) => !cart.some((l) => l.product.id === p.id)).map((p) => (
                   <option key={p.id} value={p.id}>
@@ -251,13 +251,13 @@ export default function WmsInternalOrderPage() {
                         <span className="block truncate text-[13px] font-semibold text-[#111111]">{l.product.name}</span>
                         <span className="block text-[11px] text-[#6B7280]">stok {l.product.onHand} {l.product.unit}</span>
                       </span>
-                      <button type="button" onClick={() => setCart((c) => c.filter((x) => x.product.id !== l.product.id))} className="grid size-7 place-items-center rounded-md text-[#DC2626] hover:bg-[#FEE2E2]">
+                      <button aria-label="Hapus dari daftar" type="button" onClick={() => setCart((c) => c.filter((x) => x.product.id !== l.product.id))} className="grid size-7 place-items-center rounded-md text-[#DC2626] hover:bg-[#FEE2E2]">
                         <Trash2 className="size-3.5" />
                       </button>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
                       <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => setCart((c) => c.map((x) => (x.product.id === l.product.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x)))} className="grid size-7 place-items-center rounded-md border border-[#E8E8E8]">
+                        <button aria-label="Kurangi jumlah" type="button" onClick={() => setCart((c) => c.map((x) => (x.product.id === l.product.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x)))} className="grid size-7 place-items-center rounded-md border border-[#E8E8E8]">
                           <Minus className="size-3.5" />
                         </button>
                         <input
@@ -266,7 +266,7 @@ export default function WmsInternalOrderPage() {
                           inputMode="numeric"
                           className="h-7 w-16 rounded-md border border-[#E8E8E8] text-center font-mono text-[13px] outline-none focus:border-[#C8102E]"
                         />
-                        <button type="button" onClick={() => setCart((c) => c.map((x) => (x.product.id === l.product.id ? { ...x, qty: x.qty + 1 } : x)))} className="grid size-7 place-items-center rounded-md border border-[#E8E8E8]">
+                        <button aria-label="Tambah jumlah" type="button" onClick={() => setCart((c) => c.map((x) => (x.product.id === l.product.id ? { ...x, qty: x.qty + 1 } : x)))} className="grid size-7 place-items-center rounded-md border border-[#E8E8E8]">
                           <Plus className="size-3.5" />
                         </button>
                       </div>

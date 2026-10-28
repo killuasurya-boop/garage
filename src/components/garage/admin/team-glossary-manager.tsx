@@ -130,7 +130,7 @@ export function TeamGlossaryManager() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Istilah / Kode</label>
-              <Input
+              <Input aria-label="Istilah / Kode"
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 placeholder="Contoh: Dialing Espresso atau CV Joint"
@@ -141,7 +141,7 @@ export function TeamGlossaryManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Kategori Istilah</label>
-              <select
+              <select aria-label="Kategori Istilah"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -155,7 +155,7 @@ export function TeamGlossaryManager() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Definisi / Keterangan Standar</label>
-            <Textarea
+            <Textarea aria-label="Definisi / Keterangan Standar"
               value={definition}
               onChange={(e) => setDefinition(e.target.value)}
               placeholder="Jelaskan arti, takaran, resep, atau kegunaan alat secara lengkap sesuai standar SOP..."
@@ -250,7 +250,7 @@ export function TeamGlossaryManager() {
               </div>
 
               <div className="flex justify-end border-t border-zinc-800/50 pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
+                <Button aria-label="Hapus istilah"
                   onClick={() => handleDelete(item.id)}
                   size="sm"
                   variant="ghost"

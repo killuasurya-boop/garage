@@ -140,7 +140,7 @@ export function HeroRail({
       {items.length > 1 ? (
         <div className="mt-2 flex justify-center gap-0.5" aria-hidden>
           {items.map((item, index) => (
-            <button
+            <button aria-label={`Slide ${index + 1}`}
               key={item.id}
               type="button"
               tabIndex={-1}

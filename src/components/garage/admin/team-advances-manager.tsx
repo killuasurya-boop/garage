@@ -172,7 +172,7 @@ export function TeamAdvancesManager() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Karyawan Pemohon</label>
-              <select
+              <select aria-label="Karyawan Pemohon"
                 value={staffId}
                 onChange={(e) => setStaffId(e.target.value)}
                 className="w-full h-10 px-3 rounded-md bg-zinc-950/50 border border-zinc-800 text-zinc-200 focus:border-amber-500 text-sm focus:outline-none"
@@ -189,7 +189,7 @@ export function TeamAdvancesManager() {
 
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-400">Nominal Kasbon (IDR)</label>
-              <Input
+              <Input aria-label="Nominal Kasbon (IDR)"
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -202,7 +202,7 @@ export function TeamAdvancesManager() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-400">Alasan Kasbon</label>
-            <Input
+            <Input aria-label="Alasan Kasbon"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Contoh: Biaya servis motor pribadi / Kebutuhan mendesak keluarga"
@@ -294,14 +294,14 @@ export function TeamAdvancesManager() {
                     <td className="p-4 text-right">
                       {item.status === "pending" && (
                         <div className="flex justify-end gap-1.5">
-                          <Button
+                          <Button aria-label="Setujui kasbon"
                             onClick={() => handleApprove(item.id)}
                             size="sm"
                             className="bg-emerald-600 hover:bg-emerald-700 text-zinc-100 h-7 w-7 p-0 rounded-md"
                           >
                             <Check className="size-3.5" />
                           </Button>
-                          <Button
+                          <Button aria-label="Tolak kasbon"
                             onClick={() => handleReject(item.id)}
                             size="sm"
                             variant="ghost"

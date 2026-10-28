@@ -389,7 +389,7 @@ export function TeamKpiDashboard() {
                         {[1, 2, 3, 4, 5].map((star) => {
                           const currentRating = manualRatings[employee.id] || 4;
                           return (
-                            <button
+                            <button aria-label={`Nilai ${star} bintang`}
                               key={star}
                               type="button"
                               onClick={() => handleRatingChange(employee.id, star)}

@@ -282,7 +282,7 @@ export function AuditLogViewer() {
       <div className="grid gap-2 rounded-lg border border-[#34343c] bg-[#111116] p-3 sm:grid-cols-[1fr_160px_140px_140px_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8f99]" />
-          <Input
+          <Input aria-label="Cari log audit"
             type="search"
             placeholder="Cari actor, action, object, device..."
             value={searchInput}
@@ -294,6 +294,7 @@ export function AuditLogViewer() {
           />
         </div>
         <select
+          aria-label="Filter status"
           value={status}
           onChange={(event) => {
             setStatus(event.target.value);
@@ -309,7 +310,7 @@ export function AuditLogViewer() {
         </select>
         <div className="relative">
           <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8f99]" />
-          <Input
+          <Input aria-label="Dari tanggal"
             type="date"
             value={dateFrom}
               max={dateTo || undefined}
@@ -322,7 +323,7 @@ export function AuditLogViewer() {
         </div>
         <div className="relative">
           <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8f99]" />
-          <Input
+          <Input aria-label="Sampai tanggal"
             type="date"
             value={dateTo}
               min={dateFrom || undefined}
@@ -337,7 +338,7 @@ export function AuditLogViewer() {
           <Button type="button" className="garage-press h-10 px-4" onClick={applySearch}>
             Cari
           </Button>
-          <Button
+          <Button aria-label="Reset filter"
             type="button"
             variant="outline"
             className="garage-press h-10 border-[#4a4a54]"
@@ -432,7 +433,7 @@ export function AuditLogViewer() {
                       </Badge>
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      <Button
+                      <Button aria-label="Lihat detail log"
                         type="button"
                         variant="outline"
                         size="sm"
@@ -458,7 +459,7 @@ export function AuditLogViewer() {
               {showingFrom}–{showingTo} dari {total} event
             </p>
             <div className="flex items-center gap-2">
-              <Button
+              <Button aria-label="Halaman sebelumnya"
                 type="button"
                 variant="outline"
                 size="sm"
@@ -471,7 +472,7 @@ export function AuditLogViewer() {
               <span className="font-mono text-xs text-[#d6d6dc]">
                 Hal {page + 1} / {totalPages}
               </span>
-              <Button
+              <Button aria-label="Halaman berikutnya"
                 type="button"
                 variant="outline"
                 size="sm"

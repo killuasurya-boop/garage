@@ -328,7 +328,7 @@ export default function WmsInventoryPage() {
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[#E8E8E8] bg-white/95 p-2 backdrop-blur">
         <div className="relative min-w-[180px] flex-1">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#9CA3AF]" />
-          <input
+          <input aria-label="Cari SKU atau nama"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cari SKU / nama…"
@@ -392,7 +392,7 @@ export default function WmsInventoryPage() {
                     style={{ background: r.status === "out" ? "#FEF4F4" : undefined }}
                   >
                     <td className="px-3 py-2.5">
-                      <input
+                      <input aria-label="Pilih bahan"
                         type="checkbox"
                         checked={!!selected[r.id]}
                         onChange={(e) =>
@@ -550,7 +550,7 @@ export default function WmsInventoryPage() {
               </button>
             </>
           )}
-          <button type="button" onClick={() => setSelected({})} className="grid size-7 place-items-center rounded-full hover:bg-white/10">
+          <button aria-label="Batalkan pilihan" type="button" onClick={() => setSelected({})} className="grid size-7 place-items-center rounded-full hover:bg-white/10">
             <X className="size-4" />
           </button>
         </div>
@@ -607,7 +607,7 @@ function PackPriceFields({ draft, unit, onChange, manualHpp, onManualHpp }: {
       <div className="grid gap-2 sm:grid-cols-3">
         <div>
           <label className={label}>Kemasan</label>
-          <input value={draft.packName} onChange={(e) => onChange({ ...draft, packName: e.target.value })} placeholder="botol / dus / pack" className={input} />
+          <input aria-label="Kemasan" value={draft.packName} onChange={(e) => onChange({ ...draft, packName: e.target.value })} placeholder="botol / dus / pack" className={input} />
         </div>
         <div>
           <label className={label}>Isi per kemasan ({u})</label>
@@ -615,7 +615,7 @@ function PackPriceFields({ draft, unit, onChange, manualHpp, onManualHpp }: {
         </div>
         <div>
           <label className={label}>Harga beli / kemasan (Rp)</label>
-          <input value={draft.packPrice} onChange={(e) => onChange({ ...draft, packPrice: e.target.value })} inputMode="decimal" placeholder="mis. 110.000" className={`${input} text-right`} />
+          <input aria-label="Harga beli / kemasan (Rp)" value={draft.packPrice} onChange={(e) => onChange({ ...draft, packPrice: e.target.value })} inputMode="decimal" placeholder="mis. 110.000" className={`${input} text-right`} />
         </div>
       </div>
       {perUnit !== null ? (
@@ -764,7 +764,7 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
         {/* Nama */}
         <div className="sm:col-span-2">
           <label className={label}>Nama produk</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="mis. Kopi Robusta" className={`${input} w-full`} />
+          <input aria-label="Nama produk" value={name} onChange={(e) => setName(e.target.value)} placeholder="mis. Kopi Robusta" className={`${input} w-full`} />
         </div>
 
         {/* Kategori (master + tambah baru) */}
@@ -776,7 +776,7 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
         {/* Satuan */}
         <div>
           <label className={label}>Satuan</label>
-          <select value={unitSel} onChange={(e) => setUnitSel(e.target.value)} className={`${input} w-full`}>
+          <select aria-label="Satuan" value={unitSel} onChange={(e) => setUnitSel(e.target.value)} className={`${input} w-full`}>
             {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
             <option value={CUSTOM}>+ Satuan lain…</option>
           </select>
@@ -969,7 +969,7 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
       <div className="w-full max-w-lg rounded-xl border border-[#E8E8E8] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[14px] font-bold text-[#111111]">Edit Produk · <span className="font-mono text-[#C8102E]">{product.sku}</span></p>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
 
         {/* Foto + QR */}
@@ -1011,7 +1011,7 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={label}>Nama produk</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className={`${input} w-full`} />
+            <input aria-label="Nama produk" value={name} onChange={(e) => setName(e.target.value)} className={`${input} w-full`} />
           </div>
           <div>
             <label className={label}>Kategori</label>
@@ -1019,7 +1019,7 @@ function EditForm({ product, cats, onCatAdded, onManageStock, onDone, onCancel }
           </div>
           <div>
             <label className={label}>Satuan</label>
-            <select value={unitSel} onChange={(e) => setUnitSel(e.target.value)} className={`${input} w-full`}>
+            <select aria-label="Satuan" value={unitSel} onChange={(e) => setUnitSel(e.target.value)} className={`${input} w-full`}>
               {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
               <option value={CUSTOM}>+ Satuan lain…</option>
             </select>
@@ -1150,7 +1150,7 @@ function StockAdjustModal({ product, defaultWh, onDone, onCancel }: { product: W
             <p className="text-[14px] font-bold text-[#111111]">Kelola Stok · {product.name}</p>
             <p className="text-[11px] text-[#9CA3AF]">Total semua ruang: <b className="text-[#111111]">{total} {product.unit}</b></p>
           </div>
-          <button type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel} className="grid size-7 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]"><X className="size-4" /></button>
         </div>
 
         {/* Stok per ruang */}

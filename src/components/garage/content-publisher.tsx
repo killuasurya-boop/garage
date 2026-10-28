@@ -395,7 +395,7 @@ function ContentPublisherFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-[#d6d6dc]">Brand</label>
-              <select
+              <select aria-label="Brand"
                 value={brandKey}
                 onChange={(e) => setBrandKey(e.target.value)}
                 className="mt-1 flex h-9 w-full rounded-md border border-[#34343c] bg-white/[0.05] px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f5a742]"
@@ -409,7 +409,7 @@ function ContentPublisherFormDialog({
             </div>
             <div>
               <label className="text-xs text-[#d6d6dc]">Content Pillar</label>
-              <select
+              <select aria-label="Content Pillar"
                 value={contentPillar}
                 onChange={(e) => setContentPillar(e.target.value)}
                 className="mt-1 flex h-9 w-full rounded-md border border-[#34343c] bg-white/[0.05] px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f5a742]"
@@ -426,7 +426,7 @@ function ContentPublisherFormDialog({
 
           <div>
             <label className="text-xs text-[#d6d6dc]">Topik / Brief Singkat</label>
-            <Input
+            <Input aria-label="Topik / Brief Singkat"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="Contoh: Promo kopi susu akhir pekan beli 1 gratis 1"
@@ -451,7 +451,7 @@ function ContentPublisherFormDialog({
             <div className="space-y-4 border-t border-[#34343c] pt-4">
               <div>
                 <label className="text-xs text-[#d6d6dc]">Judul Konten</label>
-                <Input
+                <Input aria-label="Judul Konten"
                   value={generatedTitle}
                   onChange={(e) => setGeneratedTitle(e.target.value)}
                   className="mt-1 border-[#34343c] bg-white/[0.05]"
@@ -459,7 +459,7 @@ function ContentPublisherFormDialog({
               </div>
               <div>
                 <label className="text-xs text-[#d6d6dc]">Caption</label>
-                <Textarea
+                <Textarea aria-label="Caption"
                   value={generatedCaption}
                   onChange={(e) => setGeneratedCaption(e.target.value)}
                   className="mt-1 min-h-32 border-[#34343c] bg-white/[0.05]"
@@ -467,7 +467,7 @@ function ContentPublisherFormDialog({
               </div>
               <div>
                 <label className="text-xs text-[#d6d6dc]">Hashtags (pisahkan dengan spasi)</label>
-                <Input
+                <Input aria-label="Hashtags (pisahkan dengan spasi)"
                   value={generatedHashtags.join(" ")}
                   onChange={(e) => setGeneratedHashtags(e.target.value.split(" "))}
                   className="mt-1 border-[#34343c] bg-white/[0.05]"

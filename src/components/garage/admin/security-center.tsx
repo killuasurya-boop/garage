@@ -351,7 +351,7 @@ export function SecurityCenter({
                 <div className="flex flex-wrap gap-2">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                    <Input
+                    <Input aria-label="Cari user atau aksi"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder="Cari user / aksi…"
@@ -429,7 +429,7 @@ export function SecurityCenter({
               <label className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
                 Alasan (untuk audit log)
               </label>
-              <Input
+              <Input aria-label="Alasan (untuk audit log)"
                 value={emergencyReason}
                 onChange={(event) => setEmergencyReason(event.target.value)}
                 placeholder="cth: deteksi credential leak"

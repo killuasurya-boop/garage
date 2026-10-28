@@ -271,7 +271,7 @@ export function TeamDirectoryManager() {
                       <td className="p-4 text-right">
                         {isEditing ? (
                           <div className="flex justify-end gap-1.5">
-                            <Button
+                            <Button aria-label="Simpan"
                               onClick={() => handleSave(item.id)}
                               disabled={submitting}
                               size="sm"
@@ -279,7 +279,7 @@ export function TeamDirectoryManager() {
                             >
                               <Check className="size-3.5" />
                             </Button>
-                            <Button
+                            <Button aria-label="Batal ubah"
                               onClick={() => setEditingId(null)}
                               size="sm"
                               variant="ghost"

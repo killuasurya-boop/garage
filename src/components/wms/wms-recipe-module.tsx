@@ -620,7 +620,7 @@ export function WmsRecipeModule() {
         <div className="flex flex-wrap items-center gap-2 border-b border-[#E8E8E8] p-3">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#9CA3AF]" />
-            <input
+            <input aria-label="Cari resep"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cari nama, SKU, kategori…"
@@ -830,7 +830,7 @@ export function WmsRecipeModule() {
                     )}
                   </div>
                 </div>
-                <button type="button" onClick={() => setDetail(null)} className="grid size-8 place-items-center rounded-md hover:bg-[#F8F9FB]">
+                <button aria-label="Tutup detail" type="button" onClick={() => setDetail(null)} className="grid size-8 place-items-center rounded-md hover:bg-[#F8F9FB]">
                   <X className="size-4" />
                 </button>
               </div>
@@ -1582,7 +1582,7 @@ function CreateRecipeModal({
       <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="font-bold">Resep Manual</h2>
-          <button type="button" onClick={onCancel}><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel}><X className="size-4" /></button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama resep" className={input} />
@@ -1666,7 +1666,7 @@ function ImportRecipeModal({ onDone, onCancel }: { onDone: () => void; onCancel:
       <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="font-bold">Import Resep JSON</h2>
-          <button type="button" onClick={onCancel}><X className="size-4" /></button>
+          <button aria-label="Tutup" type="button" onClick={onCancel}><X className="size-4" /></button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           <p className="text-[12px] text-[#6B7280]">

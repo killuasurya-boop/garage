@@ -77,7 +77,7 @@ export function WmsCommandPalette({ open, onClose }: { open: boolean; onClose: (
             placeholder="Cari modul atau aksi…"
             className="h-9 flex-1 bg-transparent text-[14px] outline-none"
           />
-          <button type="button" onClick={close} className="grid size-8 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]">
+          <button aria-label="Tutup" type="button" onClick={close} className="grid size-8 place-items-center rounded-md text-[#6B7280] hover:bg-[#F8F9FB]">
             <X className="size-4" />
           </button>
         </div>

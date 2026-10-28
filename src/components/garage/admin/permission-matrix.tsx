@@ -103,7 +103,7 @@ export function PermissionMatrix() {
                 <TabsTrigger value="module">Module Access ({ALL_MODULES.length})</TabsTrigger>
               </TabsList>
             </Tabs>
-            <Input
+            <Input aria-label={activeTab === "permission" ? "Cari permission" : "Cari modul"}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={

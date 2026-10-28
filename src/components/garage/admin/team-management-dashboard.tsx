@@ -191,7 +191,7 @@ export function TeamManagementDashboard({ role }: { role: Role }) {
           <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
             Pilih Modul HR
           </label>
-          <select 
+          <select aria-label="Pilih Modul HR" 
             value={activeTab} 
             onChange={(e) => setActiveTab(e.target.value)}
             className="w-full p-3.5 rounded-lg border bg-card text-foreground font-bold shadow-sm focus:ring-2 focus:ring-primary focus:outline-none appearance-none"

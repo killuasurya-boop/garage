@@ -1003,7 +1003,7 @@ export function ProductionView({
             ) : null}
             <VoiceStatusBadge onOpen={() => setVoiceDialogOpen(true)} />
             {canViewPerformance ? (
-              <button
+              <button aria-label="Laporan"
                 type="button"
                 onClick={() => void openReport()}
                 className="flex h-11 items-center gap-1.5 rounded-md border border-[#4a4a54] bg-white/[0.04] px-3 text-xs font-black text-[#e4e4e7] transition-colors hover:bg-white/[0.08]"

@@ -52,6 +52,14 @@ tr -d '\r' < scripts/restore-drill.sh | ssh -i ~/.ssh/garage_deploy root@201.18.
 ```
 Hasil harus `RESTORE DRILL: LULUS`. Container uji dihapus otomatis; DB produksi hanya dibaca.
 
+## Tahap 3b — Backup di luar VPS (laptop / OneDrive)
+Risiko terbesar: backup hanya di VPS yang sama. Setelah deploy yang memuat pemeriksaan `offsite`:
+```powershell
+powershell -ExecutionPolicy Bypass -File scriptsegister-pull-backups-task.ps1 -Dest "$env:USERPROFILEOneDriveGarage Backup"
+```
+Cek: besok pagi folder berisi `garage-daily-*.sql.gz` dan pemantau mencatat `offsite=ok`. File berisi data pelanggan &
+karyawan — folder pribadi Owner saja.
+
 ## Tahap 4 — Staging aktif
 Syarat: DNS `A staging → 201.18.211.55` (hPanel). Lalu `bash scripts/deploy-staging.sh --setup --refresh-data`.
 Mulai tahap ini, setiap PR dicoba di staging sebelum Tahap deploy produksi.

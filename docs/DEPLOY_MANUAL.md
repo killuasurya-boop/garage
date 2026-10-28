@@ -101,6 +101,10 @@ docker compose --env-file .env.production up -d --no-build app
   backup >26 jam, nama staging. Masalah → notifikasi + push ke HP Owner (`/api/jobs/system-alert`, maks 1×/jam per
   pemeriksaan; pemulihan dilaporkan dengan lama gangguan). Pasang/lepas: `bash scripts/install-vps-monitor.sh [--remove]`
   (setelah endpoint ter-deploy). Log VPS: `/var/log/garage-monitor.log`.
+- **Backup di luar VPS** (`scripts/pull-backups.sh`): tarik backup terbaru dari VPS ke laptop/PC (disarankan folder
+  OneDrive tersinkron → ikut ke cloud), diverifikasi utuh, simpan 30 terakhir, lalu taruh penanda `.offsite-pulled` di VPS.
+  Pemantau memberi peringatan bila penanda > 48 jam (tidak aktif sebelum penarikan pertama). Jadwal harian 06:00:
+  `powershell -ExecutionPolicy Bypass -File scriptsegister-pull-backups-task.ps1 -Dest "$env:USERPROFILEOneDriveGarage Backup"`.
 - **Uji pulih backup** (`scripts/restore-drill.sh`): backup terbaru dipulihkan ke container sementara di jaringan
   sendiri, dibandingkan dengan produksi (jumlah baris + sidik buku kas), lalu dihapus. Produksi hanya dibaca.
   `tr -d '' < scripts/restore-drill.sh | ssh -i ~/.ssh/garage_deploy root@201.18.211.55 'bash -s'` — saat outlet tutup.

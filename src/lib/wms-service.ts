@@ -1583,6 +1583,11 @@ const supplierOut = (r: SupplierRow, productCount = 0) => ({
   phone: r.phone,
   address: r.address,
   note: r.note,
+  picName: r.picName,
+  areas: r.areas ?? [],
+  productCategories: r.productCategories,
+  paymentMethod: r.paymentMethod,
+  paymentTermDays: r.paymentTermDays,
   archived: Boolean(r.archivedAt),
   productCount,
 });
@@ -1603,7 +1608,28 @@ export async function listWmsSuppliers(opts?: { includeArchived?: boolean }) {
   return rows.map((r) => supplierOut(r, byId.get(r.id) ?? 0));
 }
 
-export type WmsSupplierInput = { name: string; phone?: string; address?: string; note?: string };
+export type WmsSupplierInput = {
+  name: string;
+  phone?: string;
+  address?: string;
+  note?: string;
+  picName?: string;
+  areas?: string[];
+  productCategories?: string;
+  paymentMethod?: string;
+  paymentTermDays?: number;
+};
+
+/** Field Phase 2 (opsional) → kolom supplier; hanya yang dikirim yang diubah. */
+function supplierExtras(input: Partial<WmsSupplierInput>) {
+  const set: Partial<SupplierRow> = {};
+  if (input.picName !== undefined) set.picName = input.picName.trim();
+  if (input.areas !== undefined) set.areas = [...new Set(input.areas.filter((a) => ["bar", "dapur", "umum", "teknik"].includes(a)))];
+  if (input.productCategories !== undefined) set.productCategories = input.productCategories.trim();
+  if (input.paymentMethod !== undefined) set.paymentMethod = ["cash", "transfer", "tempo"].includes(input.paymentMethod) ? input.paymentMethod : "";
+  if (input.paymentTermDays !== undefined) set.paymentTermDays = Math.max(0, Math.min(365, Math.round(input.paymentTermDays)));
+  return set;
+}
 
 export async function createWmsSupplier(input: WmsSupplierInput, actor?: MasterActor) {
   const name = input.name.trim();
@@ -1612,6 +1638,7 @@ export async function createWmsSupplier(input: WmsSupplierInput, actor?: MasterA
   return runInTx(async (tx) => {
     const [existing] = await tx.select().from(wmsSupplier).where(sql`lower(${wmsSupplier.name}) = lower(${name})`).limit(1);
     const values = {
+      ...supplierExtras(input),
       phone: input.phone !== undefined ? phone : (existing?.phone ?? ""),
       address: input.address !== undefined ? input.address.trim() : (existing?.address ?? ""),
       note: input.note !== undefined ? input.note.trim() : (existing?.note ?? ""),
@@ -1647,6 +1674,7 @@ export async function updateWmsSupplier(id: string, patch: Partial<WmsSupplierIn
     if (patch.phone !== undefined) set.phone = normalizeWhatsapp(patch.phone);
     if (patch.address !== undefined) set.address = patch.address.trim();
     if (patch.note !== undefined) set.note = patch.note.trim();
+    Object.assign(set, supplierExtras(patch));
     if (patch.archived === false) set.archivedAt = null;
     if (Object.keys(set).length === 0) return supplierOut(before);
     const [row] = await tx.update(wmsSupplier).set(set).where(eq(wmsSupplier.id, id)).returning();
@@ -1656,7 +1684,9 @@ export async function updateWmsSupplier(id: string, patch: Partial<WmsSupplierIn
       object: row.name,
       metadata: {
         supplierId: id,
-        changes: diffMaster(before as Record<string, unknown>, row as Record<string, unknown>, ["name", "phone", "address", "note"]),
+        changes: diffMaster(before as Record<string, unknown>, row as Record<string, unknown>, [
+          "name", "phone", "address", "note", "picName", "productCategories", "paymentMethod", "paymentTermDays",
+        ]),
       },
     });
     return supplierOut(row);
@@ -2632,16 +2662,23 @@ export async function completeReceiving(
     const [outlet] = await tx.select({ id: outlets.id }).from(outlets).orderBy(outlets.code).limit(1);
     // Tanggal biaya = tanggal barang diterima (bukan saat tombol "Selesai" diklik).
     const purchaseDate = rec.receivedDate ? purchaseDateFor(String(rec.receivedDate)) : new Date();
-    await recordCashPurchases(tx, {
+    const tempo = rec.paymentMethod === "Tempo";
+    const purchaseTotal = await recordCashPurchases(tx, {
       sourceDoc: `WMS:${rec.doc}`,
       outletId: outlet?.id ?? null,
       paymentMethod: rec.paymentMethod,
+      status: tempo ? "recorded" : "paid",
       date: purchaseDate,
       description: `Belanja gudang ${rec.doc}${rec.poNumber?.trim() ? ` / ${rec.poNumber.trim()}` : ""}${rec.supplier ? ` · ${rec.supplier}` : ""}`,
       byArea,
       userId: userId ?? null,
       notes: additionalCost > 0 ? `Termasuk biaya tambahan Rp${Math.round(additionalCost).toLocaleString("id-ID")}` : null,
     });
+    // Tempo: sisa hutang dilacak sebagai tagihan supplier (pembayaran nanti TIDAK membuat biaya baru).
+    if (tempo && purchaseTotal > 0) {
+      const { createBillForReceiving } = await import("@/lib/wms-procurement");
+      await createBillForReceiving(tx, rec, purchaseTotal, userId ?? null);
+    }
 
     if (rec.purchaseOrderId) {
       const { applyReceivingToPurchaseOrder } = await import("@/lib/wms-purchase");
@@ -2767,6 +2804,9 @@ export async function cancelReceiving(
         -1,
       );
     }
+    // Tagihan tempo ikut batal; ditolak bila sudah ada pembayaran (batalkan pembayaran dulu).
+    const { voidBillForReceiving } = await import("@/lib/wms-procurement");
+    await voidBillForReceiving(tx, rec.id);
     const voided = await voidCashPurchases(tx, { sourceDoc: `WMS:${rec.doc}`, reason });
 
     const [updated] = await tx

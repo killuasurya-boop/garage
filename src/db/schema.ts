@@ -3738,6 +3738,12 @@ export const wmsSupplier = pgTable("wms_supplier", {
   phone: text("phone").notNull().default(""), // nomor WhatsApp
   address: text("address").notNull().default(""),
   note: text("note").notNull().default(""),
+  // Phase 2 (pengadaan): PIC, area layanan, kategori produk, cara & termin bayar.
+  picName: text("pic_name").notNull().default(""),
+  areas: jsonb("areas").$type<string[]>().notNull().default(sql`'[]'::jsonb`), // bar | dapur | umum | teknik
+  productCategories: text("product_categories").notNull().default(""),
+  paymentMethod: text("payment_method").notNull().default(""), // cash | transfer | tempo
+  paymentTermDays: integer("payment_term_days").notNull().default(0),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -3829,8 +3835,145 @@ export const wmsPurchaseOrder = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Phase 2: persetujuan, alur kirim WhatsApp, konfirmasi supplier, revisi dokumen.
+    // status: draft | pending_approval | approved | wa_opened | sent | confirmed | processing | partial | received | cancelled
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    waOpenedAt: timestamp("wa_opened_at", { withTimezone: true }),
+    sentBy: text("sent_by").references(() => user.id, { onDelete: "set null" }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    processingAt: timestamp("processing_at", { withTimezone: true }),
+    /** Naik setiap PO diubah setelah dokumen pernah dikirim ke supplier (PDF bertanda REVISI n). */
+    revision: integer("revision").notNull().default(0),
+    /** Revisi terakhir yang benar-benar terkirim (null = belum pernah). */
+    sentRevision: integer("sent_revision"),
+    showPrices: boolean("show_prices").notNull().default(true),
+    paymentTerms: text("payment_terms").notNull().default(""),
+    deliveryNote: text("delivery_note").notNull().default(""),
   },
   (t) => ({ statusIdx: index("wms_purchase_order_status_idx").on(t.status, t.createdAt) }),
+);
+
+/**
+ * Jejak pengiriman PO ke supplier (audit): PDF dibuat, WhatsApp dibuka, terkirim (konfirmasi
+ * manual petugas / bukti API resmi), konfirmasi supplier. Tidak pernah diubah — hanya ditambah.
+ */
+export const wmsPoDispatch = pgTable(
+  "wms_po_dispatch",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    purchaseOrderId: uuid("purchase_order_id")
+      .notNull()
+      .references(() => wmsPurchaseOrder.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull().default(0),
+    /** whatsapp_manual | whatsapp_cloud | system */
+    channel: text("channel").notNull(),
+    /** pdf_generated | wa_opened | sent_confirmed | provider_accepted | provider_failed | supplier_confirmed | supplier_processing */
+    event: text("event").notNull(),
+    supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
+    supplierName: text("supplier_name").notNull().default(""),
+    recipient: text("recipient").notNull().default(""),
+    pdfSha256: text("pdf_sha256"),
+    providerMessageId: text("provider_message_id"),
+    providerStatus: text("provider_status"),
+    note: text("note").notNull().default(""),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    userName: text("user_name").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ poIdx: index("wms_po_dispatch_po_idx").on(t.purchaseOrderId, t.createdAt) }),
+);
+
+/** Bahan yang disediakan supplier: harga referensi + peran utama/alternatif. */
+export const wmsSupplierProduct = pgTable(
+  "wms_supplier_product",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => wmsSupplier.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => wmsProduct.id, { onDelete: "cascade" }),
+    /** Harga referensi per satuan dasar (bukan harga final; final = invoice/receiving). */
+    refPrice: wmsNum("ref_price").notNull().default(0),
+    /** primary | alternative */
+    role: text("role").notNull().default("alternative"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ spIdx: uniqueIndex("wms_supplier_product_sp_idx").on(t.supplierId, t.productId) }),
+);
+
+/**
+ * Tagihan supplier dari penerimaan tempo / pembayaran bertahap. BUKAN biaya baru: biaya
+ * pembelian tetap satu baris expenses dari penerimaan (sourceDoc WMS:<doc>#area). Tagihan
+ * hanya melacak sisa hutang & pembayaran supaya tidak ada pengeluaran ganda.
+ */
+export const wmsSupplierBill = pgTable(
+  "wms_supplier_bill",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
+    supplierName: text("supplier_name").notNull().default(""),
+    purchaseOrderId: uuid("purchase_order_id").references(() => wmsPurchaseOrder.id, { onDelete: "set null" }),
+    receivingId: uuid("receiving_id").references(() => wmsReceiving.id, { onDelete: "set null" }),
+    invoiceNo: text("invoice_no").notNull().default(""),
+    invoiceDate: date("invoice_date"),
+    dueDate: date("due_date"),
+    amount: integer("amount").notNull(),
+    paidAmount: integer("paid_amount").notNull().default(0),
+    /** unpaid | partial | paid | void */
+    status: text("status").notNull().default("unpaid"),
+    invoiceUrl: text("invoice_url"),
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    receivingUidx: uniqueIndex("wms_supplier_bill_receiving_uidx").on(t.receivingId),
+    statusIdx: index("wms_supplier_bill_status_idx").on(t.status, t.dueDate),
+  }),
+);
+
+/**
+ * Pembayaran / DP ke supplier. Mencatat sumber dana, nominal, petugas, referensi, bukti,
+ * persetujuan. Tidak membuat baris expenses dan tidak memotong laci kasir.
+ */
+export const wmsSupplierPayment = pgTable(
+  "wms_supplier_payment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    doc: text("doc").notNull().unique(),
+    billId: uuid("bill_id").references(() => wmsSupplierBill.id, { onDelete: "set null" }),
+    /** DP sebelum barang datang menempel ke PO; ditautkan ke tagihan saat penerimaan selesai. */
+    purchaseOrderId: uuid("purchase_order_id").references(() => wmsPurchaseOrder.id, { onDelete: "set null" }),
+    supplierId: uuid("supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
+    /** payment | dp */
+    kind: text("kind").notNull().default("payment"),
+    amount: integer("amount").notNull(),
+    /** cash | transfer */
+    method: text("method").notNull(),
+    /** bank_jago | bank_bni | petty | external (uang Owner) — tidak pernah laci kasir */
+    fundSource: text("fund_source").notNull(),
+    reference: text("reference").notNull().default(""),
+    proofUrl: text("proof_url"),
+    /** pending_verification | verified | void */
+    status: text("status").notNull().default("pending_verification"),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdByName: text("created_by_name").notNull().default(""),
+    verifiedBy: text("verified_by").references(() => user.id, { onDelete: "set null" }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    voidReason: text("void_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    billIdx: index("wms_supplier_payment_bill_idx").on(t.billId),
+    poIdx: index("wms_supplier_payment_po_idx").on(t.purchaseOrderId),
+  }),
 );
 
 export const wmsPurchaseOrderItem = pgTable(
@@ -3847,6 +3990,8 @@ export const wmsPurchaseOrderItem = pgTable(
     // Kemasan saat dipesan (cetak "4 kotak @ Rp45.000"); null = satuan dasar.
     uom: text("uom"),
     uomFactor: wmsNum("uom_factor"),
+    /** Asal kebutuhan (mis. ["MRQ-…/Bar"]) — tetap terlihat walau bahan digabung per supplier. */
+    sourceRefs: jsonb("source_refs").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   },
   (t) => ({ poIdx: index("wms_purchase_order_item_po_idx").on(t.purchaseOrderId) }),
 );

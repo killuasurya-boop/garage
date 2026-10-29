@@ -14,6 +14,11 @@ const patchSchema = z.object({
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(300).optional(),
   note: z.string().trim().max(200).optional(),
+  picName: z.string().trim().max(120).optional(),
+  areas: z.array(z.enum(["bar", "dapur", "umum", "teknik"])).max(4).optional(),
+  productCategories: z.string().trim().max(200).optional(),
+  paymentMethod: z.enum(["", "cash", "transfer", "tempo"]).optional(),
+  paymentTermDays: z.number().int().min(0).max(365).optional(),
   archived: z.literal(false).optional(), // false = pulihkan dari arsip
 });
 

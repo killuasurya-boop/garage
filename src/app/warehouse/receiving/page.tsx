@@ -215,7 +215,7 @@ export default function WmsReceivingPage() {
   const [poNumber, setPoNumber] = useState("");
   const [additionalCost, setAdditionalCost] = useState("");
   // Belanja dibayar langsung: metode bayar + tanggal barang diterima (= tanggal biaya).
-  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Transfer" | "QRIS">("Cash");
+  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Transfer" | "QRIS" | "Tempo">("Cash");
   const [receivedDate, setReceivedDate] = useState(todayWib());
   const [newSupplier, setNewSupplier] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
@@ -266,7 +266,7 @@ export default function WmsReceivingPage() {
     setSupplier(draft.supplier ?? "");
     setPoNumber(draft.poNumber ?? "");
     setAdditionalCost(String(draft.additionalCost || ""));
-    setPaymentMethod((draft.paymentMethod as "Cash" | "Transfer" | "QRIS") || "Cash");
+    setPaymentMethod((draft.paymentMethod as "Cash" | "Transfer" | "QRIS" | "Tempo") || "Cash");
     setReceivedDate(draft.receivedDate || todayWib());
     setItems(draft.items.length ? draft.items.map(itemToDraft) : [emptyItem()]);
     setEditId(draft.id);
@@ -686,13 +686,14 @@ export default function WmsReceivingPage() {
                 Dibayar
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as "Cash" | "Transfer" | "QRIS")}
+                  onChange={(e) => setPaymentMethod(e.target.value as "Cash" | "Transfer" | "QRIS" | "Tempo")}
                   className={`${input} w-full sm:w-32`}
                   aria-label="Metode bayar belanja"
                 >
                   <option value="Cash">Cash</option>
                   <option value="Transfer">Transfer</option>
                   <option value="QRIS">QRIS</option>
+                  <option value="Tempo">Tempo (bayar nanti → tagihan supplier)</option>
                 </select>
               </label>
               <label className="flex w-full items-center gap-2 text-[12px] font-semibold text-[#374151] sm:w-auto">

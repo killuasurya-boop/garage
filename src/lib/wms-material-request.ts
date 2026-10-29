@@ -6,6 +6,7 @@ import {
   wmsMaterialRequest,
   wmsMaterialRequestItem,
   wmsProduct,
+  wmsSupplier,
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
@@ -183,6 +184,16 @@ export async function listMaterialRequests(filter: { division?: MaterialDivision
       .where(and(inArray(wmsWarehouseStock.warehouseId, sourceIds), inArray(wmsWarehouseStock.productId, productIds)));
     for (const r of rows) sourceStock.set(`${r.warehouseId}|${r.productId}`, Number(r.qty));
   }
+  // Stok yang sudah "dialokasikan": diminta permintaan lain yang belum dikirim dari gudang sumber yang sama.
+  const pending = productIds.length
+    ? await db
+        .select({ requestId: wmsMaterialRequestItem.requestId, productId: wmsMaterialRequestItem.productId, qty: wmsMaterialRequestItem.qty, source: wmsMaterialRequest.sourceWarehouseId })
+        .from(wmsMaterialRequestItem)
+        .innerJoin(wmsMaterialRequest, eq(wmsMaterialRequest.id, wmsMaterialRequestItem.requestId))
+        .where(and(eq(wmsMaterialRequest.status, "submitted"), inArray(wmsMaterialRequestItem.productId, productIds)))
+    : [];
+  const allocatedElsewhere = (requestId: string, source: string | null, productId: string) =>
+    round4(pending.filter((x) => x.requestId !== requestId && x.source === source && x.productId === productId).reduce((sum, x) => sum + Number(x.qty), 0));
   return requests.map(({ request, roomName }) => ({
     ...request,
     roomName,
@@ -202,6 +213,7 @@ export async function listMaterialRequests(filter: { division?: MaterialDivision
         purchaseOrderId: i.item.purchaseOrderId,
         note: i.item.note,
         sourceOnHand: request.sourceWarehouseId ? (sourceStock.get(`${request.sourceWarehouseId}|${i.item.productId}`) ?? 0) : 0,
+        allocatedElsewhere: request.status === "submitted" ? allocatedElsewhere(request.id, request.sourceWarehouseId, i.item.productId) : 0,
       })),
   }));
 }
@@ -338,20 +350,38 @@ export async function listMaterialShortages(db: Db = getDb(), opts: { lock?: boo
     .innerJoin(wmsProduct, eq(wmsProduct.id, wmsMaterialRequestItem.productId))
     .where(and(gt(wmsMaterialRequestItem.shortQty, 0), isNull(wmsMaterialRequestItem.purchaseOrderId), inArray(wmsMaterialRequest.status, ["sent", "received"])));
   const rows = opts.lock ? await query.for("update", { of: wmsMaterialRequestItem }) : await query;
-  const byProduct = new Map<string, { productId: string; name: string; unit: string; qty: number; docs: string[]; itemIds: string[] }>();
+  const byProduct = new Map<string, { productId: string; name: string; unit: string; qty: number; docs: string[]; refs: string[]; itemIds: string[] }>();
   for (const r of rows) {
-    const cur = byProduct.get(r.productId) ?? { productId: r.productId, name: r.name, unit: r.unit, qty: 0, docs: [], itemIds: [] };
+    const cur = byProduct.get(r.productId) ?? { productId: r.productId, name: r.name, unit: r.unit, qty: 0, docs: [], refs: [], itemIds: [] };
     cur.qty = round4(cur.qty + Number(r.shortQty));
     if (!cur.docs.includes(r.doc)) cur.docs.push(r.doc);
+    // Asal kebutuhan per divisi ikut ke baris PO (tidak hilang walau digabung per supplier).
+    const ref = `${r.doc} · ${MATERIAL_DIVISION_LABEL[r.division as MaterialDivision] ?? r.division} ${round4(Number(r.shortQty))} ${r.unit}`;
+    if (!cur.refs.includes(ref)) cur.refs.push(ref);
     cur.itemIds.push(r.itemId);
     byProduct.set(r.productId, cur);
   }
   const prices = await getSupplierPriceHistory([...byProduct.keys()], db);
   const uoms = await loadProductUoms([...byProduct.keys()], db);
+  // Supplier: utama di Master Data (atau link "utama") dulu, baru supplier penerimaan terakhir.
+  const { preferredSupplierFor } = await import("@/lib/wms-procurement");
+  const preferred = await preferredSupplierFor(db, [...byProduct.keys()]);
+  const supplierRows = await db.select({ id: wmsSupplier.id, name: wmsSupplier.name }).from(wmsSupplier);
+  const supplierName = new Map(supplierRows.map((x) => [x.id, x.name]));
   return [...byProduct.values()]
     .map((s) => {
-      const last = prices.filter((p) => p.productId === s.productId).sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""))[0];
-      return { ...s, uoms: uoms.get(s.productId) ?? [], supplierId: last?.supplierId ?? null, supplier: last?.supplier ?? null, lastPrice: last?.lastPrice ?? null };
+      const history = prices.filter((p) => p.productId === s.productId).sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
+      const pick = preferred.get(s.productId);
+      const supplierId = pick?.supplierId ?? history[0]?.supplierId ?? null;
+      const sameSupplier = history.find((h) => h.supplierId === supplierId);
+      const lastPrice = pick?.refPrice ?? sameSupplier?.lastPrice ?? (pick ? null : (history[0]?.lastPrice ?? null));
+      return {
+        ...s,
+        uoms: uoms.get(s.productId) ?? [],
+        supplierId,
+        supplier: supplierId ? (supplierName.get(supplierId) ?? history[0]?.supplier ?? null) : null,
+        lastPrice,
+      };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "id"));
 }
@@ -376,7 +406,7 @@ export async function createPurchaseOrdersFromShortages(userId?: string | null) 
     for (const [supplierId, list] of bySupplier) {
       const po = await createPurchaseOrderInTx(
         tx,
-        { supplierId, note: `Kekurangan permintaan Bar/Dapur: ${[...new Set(list.flatMap((s) => s.docs))].join(", ")}`, items: list.map((s) => ({ productId: s.productId, orderedQty: s.qty, unitPrice: s.lastPrice ?? 0 })) },
+        { supplierId, note: `Kekurangan permintaan Bar/Dapur: ${[...new Set(list.flatMap((s) => s.docs))].join(", ")}`, items: list.map((s) => ({ productId: s.productId, orderedQty: s.qty, unitPrice: s.lastPrice ?? 0, sourceRefs: s.refs })) },
         userId,
       );
       await tx

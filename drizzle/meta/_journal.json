@@ -1205,6 +1205,13 @@
       "when": 1793259928249,
       "tag": "0171_wms_master_data",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1793264236376,
+      "tag": "0172_wms_procurement_po",
+      "breakpoints": true
     }
   ]
 }

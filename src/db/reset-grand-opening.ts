@@ -41,6 +41,8 @@ export const KEEP_TABLES = [
   // koneksi OAuth MCP ChatGPT (identitas, seperti session/agent_api_keys — migration 0163)
   "jwks", "oauth_client", "oauth_resource", "oauth_client_resource", "oauth_refresh_token", "oauth_access_token",
   "oauth_consent", "oauth_client_assertion",
+  // Owner AI Connect (0175): status koneksi ChatGPT ikut identitas OAuth
+  "ai_connections",
   // kunci sistem (VAPID web push) — tetap supaya langganan HP tidak putus
   "system_keys",
   // outlet & pengaturan
@@ -97,7 +99,7 @@ export const CLEAR_TABLES = [
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",
   "inventory_transfer_items",
   // approval, audit, log
-  "approvals", "audit_logs", "mcp_operations", "step_up_challenges", "risk_alerts", "rate_limit_counters", "rate_limit", "audit_cases", "login_attempts", "error_events", "feedback_entries",
+  "approvals", "audit_logs", "mcp_operations", "step_up_challenges", "ai_verification_challenges", "risk_alerts", "rate_limit_counters", "rate_limit", "audit_cases", "login_attempts", "error_events", "feedback_entries",
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional

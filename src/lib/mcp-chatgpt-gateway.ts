@@ -12,6 +12,7 @@ import { loadSettingsByKeys } from "@/lib/garage-settings-service";
 import type { Role } from "@/lib/garage-data";
 import { mcpChatgptAccess } from "@/lib/mcp-chatgpt-access";
 import { runToolWithConfirmation } from "@/lib/mcp-confirmation";
+import { recordToolSuccess, touchConnection } from "@/lib/owner-ai-connect";
 import { auditMcpToolCall } from "@/lib/mcp-tool-audit";
 import { hitRateLimit } from "@/lib/rate-limit-db";
 import type { GarageSession } from "@/lib/server-auth";
@@ -24,7 +25,7 @@ const DEVICE = "mcp:chatgpt";
 /** Per akun Owner per menit — satu percakapan biasanya < 10 panggilan tool. */
 const CHATGPT_RATE_LIMIT_PER_MINUTE = 60;
 
-type Claims = { sub?: unknown; client_id?: unknown; azp?: unknown; scope?: unknown };
+type Claims = { sub?: unknown; client_id?: unknown; azp?: unknown; scope?: unknown; iat?: unknown };
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "mcp-protocol-version": PROTOCOL_VERSION } });
@@ -114,6 +115,23 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
   }
 
   const clientId = typeof claims.client_id === "string" ? claims.client_id : typeof claims.azp === "string" ? claims.azp : null;
+  // Owner AI Connect: catat koneksi; token yang terbit sebelum Owner mencabut koneksi ditolak
+  // (JWT tidak bisa ditarik — pencabutan berlaku seketika di sini).
+  let mcpConnection: { id: string; provider: "chatgpt" } | undefined;
+  if (clientId) {
+    const touched = await touchConnection({
+      ownerUserId: session.user.id,
+      oauthClientId: clientId,
+      issuedAt: typeof claims.iat === "number" ? claims.iat : null,
+    });
+    if (touched.revoked) {
+      return json(
+        rpcError(null, -32001, "CONNECTION_REVOKED: Koneksi ChatGPT ini dicabut Owner. Sambungkan ulang (login + 2FA) bila memang diizinkan."),
+        401,
+      );
+    }
+    mcpConnection = { id: touched.connectionId, provider: "chatgpt" };
+  }
   // Audit SINKRON sebelum eksekusi: bila gagal dicatat, tool tidak dijalankan.
   const beforeToolCall = (name: string, args: unknown) =>
     auditMcpToolCall({
@@ -125,7 +143,7 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
       metadata: { source: "chatgpt", oauthClientId: clientId, userId: session.user.id },
     });
 
-  const ctx = { authorization: "", internalOrigin: agentInternalOrigin(), confirmFlow: true };
+  const ctx = { authorization: "", internalOrigin: agentInternalOrigin(), confirmFlow: true, mcpConnection };
   const messages = Array.isArray(payload) ? payload : [payload];
   const responses = [];
   for (const message of messages) {
@@ -140,16 +158,23 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
         beforeToolCall,
         // D-01: aksi R2/R3 = preview → konfirmasi Owner di chat → eksekusi → receipt.
         confirmRiskyTools: true,
-        callTool: (name, args, toolCtx) => {
+        callTool: async (name, args, toolCtx) => {
+          const tool = findAgentTool(name);
           // Sakelar Owner "ChatGPT boleh mengubah data" (Pengaturan → Keamanan).
-          if (!writeEnabled && findAgentTool(name)?.write) {
+          if (!writeEnabled && tool?.write) {
             throw new AgentToolError(
               "MCP_WRITE_DISABLED",
               "Mengubah data lewat ChatGPT sedang dimatikan Owner (Pengaturan → Keamanan → ChatGPT boleh mengubah data). Hanya bisa membaca.",
               403,
             );
           }
-          return runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId });
+          const result = await runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId });
+          // Bukti kemampuan nyata untuk status Tool Access: preview R2/R3 belum menulis apa pun.
+          if (mcpConnection && tool) {
+            const isPreview = (result as { status?: unknown } | null)?.status === "PERLU_KONFIRMASI";
+            if (!isPreview) await recordToolSuccess(mcpConnection.id, tool.write ? "write" : "read").catch(() => undefined);
+          }
+          return result;
         },
       }),
     );

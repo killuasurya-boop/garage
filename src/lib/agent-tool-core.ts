@@ -50,6 +50,8 @@ export type AgentToolContext = {
   confirmFlow?: boolean;
   /** Diisi runToolWithConfirmation setelah token konfirmasi Owner diklaim. */
   confirmedOperationId?: string;
+  /** Koneksi ChatGPT terautentikasi (Owner AI Connect) — hanya di gateway MCP ChatGPT. */
+  mcpConnection?: { id: string; provider: "chatgpt" };
 };
 
 export class AgentToolError extends Error {

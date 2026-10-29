@@ -1226,6 +1226,13 @@
       "when": 1793285860159,
       "tag": "0174_wms_smart_opname",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1793294304951,
+      "tag": "0175_ai_connections",
+      "breakpoints": true
     }
   ]
 }

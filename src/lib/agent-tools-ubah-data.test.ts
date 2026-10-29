@@ -20,6 +20,8 @@ describe("katalog endpoint & blokir ubah_data_garage", () => {
     for (const path of [
       "/api/auth/sign-in",
       "/api/agent-keys",
+      "/api/owner-ai/connection/challenge",
+      "/api/owner-ai/connections/revoke",
       "/api/admin/users/u1",
       "/api/admin/security/force-logout-all",
       "/api/account/pin",

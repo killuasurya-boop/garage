@@ -81,7 +81,7 @@ ok "Commit ${LOCAL_SHA:0:7}: $(git log -1 --format=%s)"
 
 STAMP="$(git rev-parse --git-path garage-release-check)"
 if [ "$(cut -d" " -f1 "$STAMP" 2>/dev/null)" = "$LOCAL_SHA" ]; then
-  ok "release-check lulus untuk commit ini ($(cut -d" " -f2 "$STAMP"))"
+  ok "release-check lulus untuk commit ini ($(cut -d" " -f2- "$STAMP"))"
 elif [ "$SKIP_RELEASE_CHECK" = 1 ]; then
   echo "  ! release-check DILEWATI (--skip-release-check) — hanya untuk darurat"
 else

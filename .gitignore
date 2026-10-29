@@ -124,3 +124,6 @@ testsprite_tests\tmp\config.json
 
 # Log deploy manual dari laptop (scripts/deploy-manual.sh)
 /deploy-logs/
+
+# E2E Playwright (DB PGlite sementara, laporan, jejak)
+/.e2e-data/

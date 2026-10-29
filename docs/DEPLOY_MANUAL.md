@@ -63,8 +63,10 @@ Buka **Git Bash** (Windows) atau Terminal (mac/Linux) di folder `garage`, Docker
 git checkout main
 git pull
 
-# 1) Pemeriksaan rilis main GABUNGAN (tes, build, katalog API, nama staging) ±10 menit
+# 1) Pemeriksaan rilis main GABUNGAN (tes, build, katalog API, nama staging, lock npm 10,
+#    E2E 5 alur kritis di Chrome laptop dengan DB sementara) ±12 menit
 bash scripts/release-check.sh
+#    Darurat (mis. Chrome rusak): --skip-e2e — tercatat di stamp & tampil saat deploy.
 
 # 2) Cek dulu — server TIDAK diubah
 bash scripts/deploy-manual.sh --dry-run

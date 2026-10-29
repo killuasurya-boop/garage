@@ -5,14 +5,21 @@
 # insiden 29 Okt 2026 = tiap PR lulus sendiri, gabungannya tidak (katalog API).
 #
 #   bash scripts/release-check.sh          # semua pemeriksaan (±10 menit)
-#   bash scripts/release-check.sh --quick  # tanpa vitest & build (cek cepat)
+#   bash scripts/release-check.sh --quick  # tanpa vitest, build & E2E (cek cepat)
+#   bash scripts/release-check.sh --skip-e2e  # darurat: tanpa E2E (tercatat di stamp)
 #
 # Lulus → .git/garage-release-check berisi SHA commit yang diperiksa.
 # =============================================================================
 set -uo pipefail
 
 QUICK=0
-[ "${1:-}" = "--quick" ] && QUICK=1
+SKIP_E2E=0
+for arg in "$@"; do
+  case "$arg" in
+    --quick) QUICK=1 ;;
+    --skip-e2e) SKIP_E2E=1 ;; # darurat saja: tercatat di stamp
+  esac
+done
 cd "$(git rev-parse --show-toplevel)" || exit 1
 STAMP="$(git rev-parse --git-path garage-release-check)"
 rm -f "$STAMP"
@@ -83,6 +90,14 @@ if [ "$QUICK" = 0 ]; then
   else bad "tes gagal (lihat /tmp/rc-vitest.log)"; grep -E "FAIL|×" /tmp/rc-vitest.log | head -10; fi
   step "Build produksi"
   npm run build >/tmp/rc-build.log 2>&1 && good "next build" || { bad "build gagal (lihat /tmp/rc-build.log)"; tail -15 /tmp/rc-build.log; }
+  step "E2E 5 alur kritis (Playwright, DB sementara)"
+  if [ "$SKIP_E2E" = 1 ]; then
+    good "E2E DILEWATI (--skip-e2e) — jalankan npm run test:e2e sebelum deploy berikutnya"
+  elif npx playwright test >/tmp/rc-e2e.log 2>&1; then
+    good "E2E $(grep -E '[0-9]+ passed' /tmp/rc-e2e.log | tail -1 | sed 's/^ *//')"
+  else
+    bad "E2E gagal (lihat /tmp/rc-e2e.log; jejak & screenshot di .e2e-data/results)"; grep -E "✘|failed|Error:" /tmp/rc-e2e.log | grep -v WebServer | head -8
+  fi
 fi
 
 echo
@@ -91,5 +106,5 @@ if [ "$fail" -gt 0 ]; then
   exit 1
 fi
 if [ "$QUICK" = 1 ]; then echo "Cek cepat lulus ($pass). Untuk deploy jalankan tanpa --quick."; exit 0; fi
-echo "$SHA $(date -Iseconds)" > "$STAMP"
+echo "$SHA $(date -Iseconds)$([ "$SKIP_E2E" = 1 ] && echo ' skip-e2e')" > "$STAMP"
 printf '\033[1;32mRILIS SIAP: %d pemeriksaan lulus untuk %s.\033[0m Lanjut: bash scripts/deploy-manual.sh\n' "$pass" "${SHA:0:7}"

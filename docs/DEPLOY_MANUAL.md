@@ -104,10 +104,21 @@ docker compose --env-file .env.production up -d --no-build app
 - **Backup di luar VPS** (`scripts/pull-backups.sh`): tarik backup terbaru dari VPS ke laptop/PC (disarankan folder
   OneDrive tersinkron → ikut ke cloud), diverifikasi utuh, simpan 30 terakhir, lalu taruh penanda `.offsite-pulled` di VPS.
   Pemantau memberi peringatan bila penanda > 48 jam (tidak aktif sebelum penarikan pertama). Jadwal harian 06:00:
-  `powershell -ExecutionPolicy Bypass -File scriptsegister-pull-backups-task.ps1 -Dest "$env:USERPROFILEOneDriveGarage Backup"`.
+  `powershell -ExecutionPolicy Bypass -File scripts\register-pull-backups-task.ps1 -Dest "$env:USERPROFILE\OneDrive\Garage Backup"`.
+- **Backup terenkripsi** (audit #11, Owner 29 Okt 2026): backup di laptop/OneDrive dikunci GPG; hanya Owner yang bisa membuka.
+  1. Sekali, oleh Owner, di Git Bash: `bash scripts/setup-backup-key.sh /e/GarageKunci` (folder flashdisk/tempat aman,
+     **bukan** OneDrive). Kata sandi (≥12 karakter) diketik Owner sendiri — tidak tampil, tidak disimpan. Hasil: kunci publik
+     `~/.garage-ops/backup-public.asc` (dipakai jadwal) + file `garage-backup-PRIVATE-<fingerprint>.asc` (simpan 2 salinan,
+     mis. flashdisk + password manager). Kunci privat atau kata sandi hilang = backup tidak bisa dibuka.
+  2. Daftarkan ulang jadwal (perintah `register-pull-backups-task.ps1` di atas) supaya skrip terbaru tersalin ke `~/.garage-ops`.
+     Tarikan berikutnya menyimpan hanya `*.sql.gz.gpg`, mengunci backup polos lama di folder tujuan lalu menghapus versi polosnya.
+     Tanpa kunci publik skrip tetap menyalin polos dengan PERINGATAN di log (`REQUIRE_ENCRYPTION=1` = gagal).
+  3. Uji buka (bulanan): `bash scripts/restore-from-encrypted.sh "<file>.sql.gz.gpg" /e/GarageKunci/garage-backup-PRIVATE-….asc --check`;
+     `--drill` = pulihkan ke Postgres sementara di Docker laptop (jumlah baris + sidik buku kas); `--out <file>` = hasil dekripsi untuk
+     pemulihan sungguhan (hapus sesudahnya). Kunci privat hanya diimpor ke keyring sementara yang dihapus otomatis.
 - **Uji pulih backup** (`scripts/restore-drill.sh`): backup terbaru dipulihkan ke container sementara di jaringan
   sendiri, dibandingkan dengan produksi (jumlah baris + sidik buku kas), lalu dihapus. Produksi hanya dibaca.
-  `tr -d '' < scripts/restore-drill.sh | ssh -i ~/.ssh/garage_deploy root@201.18.211.55 'bash -s'` — saat outlet tutup.
+  `tr -d '\r' < scripts/restore-drill.sh | ssh -i ~/.ssh/garage_deploy root@201.18.211.55 'bash -s'` — saat outlet tutup.
 
 ---
 

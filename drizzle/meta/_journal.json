@@ -1219,6 +1219,13 @@
       "when": 1793277463431,
       "tag": "0173_wms_supplier_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1793285860159,
+      "tag": "0174_wms_smart_opname",
+      "breakpoints": true
     }
   ]
 }

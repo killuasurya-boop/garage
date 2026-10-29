@@ -105,6 +105,57 @@ export const warehouseTools: AgentTool[] = [
       return listExpiringWmsBatches((args.hari as number | undefined) ?? 3);
     },
   },
+  // Smart Stock Opname (Phase 3) — BACA SAJA. Aya tidak boleh mengubah stok, menyetujui opname,
+  // atau mencatat transaksi; tidak ada tool tulis opname. Selisih = sinyal, bukan tuduhan.
+  {
+    name: "ringkasan_loss_opname",
+    title: "Ringkasan loss control opname",
+    description: "Kekurangan/kelebihan opname, waste tercatat, kekurangan tak terjelaskan, akurasi & cakupan hitung, 10 kerugian terbesar untuk periode harian/mingguan/bulanan (WIB). Hanya Owner/Manajer.",
+    write: false,
+    domain: "gudang",
+    risk: "R0",
+    permission: "inventory:read",
+    input: z.object({ periode: z.enum(["daily", "weekly", "monthly"]).optional(), tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }),
+    async run(session, args) {
+      assertElevated(session);
+      const { getWmsLossReport } = await import("@/lib/wms-loss");
+      const { resolveLossPeriod } = await import("@/lib/wms-opname-report");
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+      const range = resolveLossPeriod((args.periode as "daily" | "weekly" | "monthly" | undefined) ?? "weekly", (args.tanggal as string | undefined) ?? today);
+      const report = await getWmsLossReport({ from: range.from, to: range.to });
+      return { periode: `${range.fromKey} s/d ${range.toKey}`, ringkasan: report.summary, top10: report.top10, wasteByReason: report.wasteByReason, catatan: report.disclaimer };
+    },
+  },
+  {
+    name: "prioritas_cycle_count",
+    title: "Prioritas cycle count",
+    description: "Daftar bahan prioritas dihitung di satu ruang berdasarkan skor risiko deterministik (nilai stok, pemakaian, riwayat selisih, kedaluwarsa, lama tidak dihitung) beserta alasannya. Hanya Owner/Manajer.",
+    write: false,
+    domain: "gudang",
+    risk: "R0",
+    permission: "inventory:read",
+    input: z.object({ ruangId: z.string().uuid(), jumlah: z.number().int().min(1).max(50).optional() }),
+    async run(session, args) {
+      assertElevated(session);
+      const { getCycleCountPriorities } = await import("@/lib/wms-cycle-count");
+      return getCycleCountPriorities(args.ruangId as string, { limit: (args.jumlah as number | undefined) ?? 10 });
+    },
+  },
+  {
+    name: "rekomendasi_opname",
+    title: "Rekomendasi & tindak lanjut opname",
+    description: "Temuan aturan opname yang masih terbuka (kurang berulang, kurang bernilai besar, lama tidak dihitung, hampir kedaluwarsa, lonjakan waste, stok minus) lengkap dengan bukti, keyakinan, batasan, dan penanggung jawab. Hanya Owner/Manajer.",
+    write: false,
+    domain: "gudang",
+    risk: "R0",
+    permission: "inventory:read",
+    input: z.object({}),
+    async run(session) {
+      assertElevated(session);
+      const { listOpnameActions } = await import("@/lib/wms-opname-insights");
+      return (await listOpnameActions({ status: "active", limit: 30 })).map((r) => ({ ...r.action, bahan: r.productName, ruang: r.warehouseName }));
+    },
+  },
 
   // ─── Aksi ─────────────────────────────────────────────────────────────────
   {

@@ -4222,6 +4222,12 @@ export const wmsStockOpname = pgTable("wms_stock_opname", {
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   rejectReason: text("reject_reason").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Phase 3: jenis & cakupan. scope partial = perilaku lama (hanya baris terhitung diposting);
+  // full = semua baris wajib dihitung sebelum dikirim; cycle = daftar prioritas (skor risiko).
+  kind: text("kind").notNull().default("incidental"), // daily | weekly | monthly | incidental
+  scope: text("scope").notNull().default("partial"), // full | partial | cycle
+  businessDate: date("business_date"),
+  recountRequestedAt: timestamp("recount_requested_at", { withTimezone: true }),
 });
 
 export const wmsOpnameLine = pgTable(
@@ -4238,8 +4244,74 @@ export const wmsOpnameLine = pgTable(
     // tidak di-adjust saat finalisasi (penjualan selama opname tidak dibatalkan).
     countedAt: timestamp("counted_at", { withTimezone: true }),
     countedBy: text("counted_by").references(() => user.id, { onDelete: "set null" }),
+    // Phase 3: hitungan pertama disimpan (hitung ulang tidak menghapus jejak), klasifikasi toleransi,
+    // dan nilai yang benar-benar diposting (historis, dari ledger saat finalisasi).
+    firstPhysicalQty: wmsNum("first_physical_qty"),
+    firstSystemQty: wmsNum("first_system_qty"),
+    countAttempts: integer("count_attempts").notNull().default(0),
+    needsRecount: boolean("needs_recount").notNull().default(false),
+    recountReason: text("recount_reason").notNull().default(""),
+    classification: text("classification"), // match | minor | recount | manager | owner
+    postedVariance: wmsNum("posted_variance"),
+    postedValue: wmsNum("posted_value"),
+    postedRate: wmsNum("posted_rate"),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
   },
   (t) => ({ opnameIdx: index("wms_opname_line_opname_idx").on(t.opnameId) }),
+);
+
+/** Riwayat setiap hitungan (append-only): hitung awal & hitung ulang, dengan snapshot stok saat itu. */
+export const wmsOpnameCount = pgTable(
+  "wms_opname_count",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lineId: uuid("line_id")
+      .notNull()
+      .references(() => wmsOpnameLine.id, { onDelete: "cascade" }),
+    opnameId: uuid("opname_id")
+      .notNull()
+      .references(() => wmsStockOpname.id, { onDelete: "cascade" }),
+    attempt: integer("attempt").notNull(),
+    kind: text("kind").notNull().default("count"), // count | recount
+    physicalQty: wmsNum("physical_qty").notNull(),
+    systemQty: wmsNum("system_qty").notNull(),
+    /** Rincian input (mis. { packs: 2, factor: 1000, loose: 350 }) — konversi tercatat. */
+    breakdown: jsonb("breakdown").$type<Record<string, unknown>>(),
+    /** Idempotensi autosave: kiriman ulang dengan id sama tidak menambah percobaan. */
+    clientRequestId: text("client_request_id"),
+    countedBy: text("counted_by").references(() => user.id, { onDelete: "set null" }),
+    countedAt: timestamp("counted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    lineIdx: index("wms_opname_count_line_idx").on(t.lineId, t.attempt),
+    clientReqIdx: uniqueIndex("wms_opname_count_client_req_idx").on(t.lineId, t.clientRequestId),
+  }),
+);
+
+/** Tindakan dari rekomendasi Smart Opname (temuan → bukti → tindakan → status). */
+export const wmsOpnameAction = pgTable(
+  "wms_opname_action",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Kunci unik aturan + bahan + periode supaya rekomendasi sama tidak dobel. */
+    dedupKey: text("dedup_key").notNull().unique(),
+    rule: text("rule").notNull(),
+    productId: uuid("product_id").references(() => wmsProduct.id, { onDelete: "set null" }),
+    warehouseId: uuid("warehouse_id").references(() => wmsWarehouse.id, { onDelete: "set null" }),
+    finding: text("finding").notNull(),
+    evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    confidence: text("confidence").notNull().default("medium"), // low | medium | high
+    limitation: text("limitation").notNull().default(""),
+    impactValue: integer("impact_value").notNull().default(0),
+    recommendation: text("recommendation").notNull(),
+    ownerRole: text("owner_role").notNull().default("Manajer"),
+    status: text("status").notNull().default("open"), // open | in_progress | done | dismissed
+    note: text("note").notNull().default(""),
+    updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index("wms_opname_action_status_idx").on(t.status, t.createdAt) }),
 );
 
 export const wmsColdChainReading = pgTable(

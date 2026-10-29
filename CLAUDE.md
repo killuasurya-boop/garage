@@ -485,6 +485,11 @@ Scroll direction:
   deploy runs `scripts/smoke-prod.sh` after health (fail → rollback). `scripts/vps-monitor.sh` (cron, read-only) →
   `POST /api/jobs/system-alert` (job secret) → `notifyStaff` push to Owners, dedup 1×/hour/check (`src/lib/system-alert.ts`).
   `scripts/restore-drill.sh` restores the latest backup into a throwaway container on its own network (never `garage_default`).
+- E2E (audit #8, F3): `npm run test:e2e` = Playwright `e2e/critical-flows.spec.ts` (login, POS tunai/QRIS, tutup shift + setoran,
+  Owner PDF/Excel, Kelola Staff scroll) on a FRESH PGlite (`e2e/start-server.mjs` → migrate → seed → `next dev :3101`); seed password
+  random per run; local Chrome (`E2E_BROWSER_CHANNEL=""` + `playwright install chromium` in CI). Runs in `release-check.sh`
+  (`--skip-e2e` = emergency, stamped). Scroll checks must use wheel/touch, not `scrollIntoView` (code can scroll overflow-hidden).
+  CI template `docs/ci/ci.yml` (Owner moves it to `.github/workflows/`; agent token lacks `workflow` scope).
 - Offsite backups are GPG-encrypted (audit #11): `scripts/pull-backups.sh` encrypts with the Owner's PUBLIC key only
   (`~/.garage-ops/backup-public.asc`, made once by `scripts/setup-backup-key.sh`) and deletes plaintext; opening needs the Owner's
   private key + passphrase (`scripts/restore-from-encrypted.sh --check|--drill|--out`). Never store the private key or passphrase

@@ -1,0 +1,46 @@
+# =============================================================================
+# CI Garage OS (audit 29 Okt 2026 #10) — TEMPLATE, belum aktif.
+# Token agen tidak punya scope `workflow`, jadi Owner yang memasang:
+#   1. Perbaiki billing GitHub Actions (Settings → Billing).
+#   2. git mv docs/ci/ci.yml .github/workflows/ci.yml  (ganti workflow lama), commit, push.
+# Sama dengan scripts/release-check.sh: tsc, lint, vitest, build, E2E 5 alur kritis.
+# =============================================================================
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # npm 10 = versi di image Docker (insiden lock file 29 Okt 2026).
+      - run: npm ci
+      - run: npx tsx scripts/generate-api-catalog.ts && git diff --exit-code -- src/lib/api-route-catalog.generated.ts
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npx tsc --noEmit -p .
+      - run: npm run lint
+      - run: npx vitest run
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+        env:
+          E2E_BROWSER_CHANNEL: ""
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: .e2e-data/results
+          retention-days: 7

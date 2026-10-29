@@ -3031,10 +3031,11 @@ export const staffEarningPayouts = pgTable(
     staffIdx: index("staff_earning_payouts_staff_idx").on(table.staffUserId),
     statusIdx: index("staff_earning_payouts_status_idx").on(table.status),
     cycleIdx: index("staff_earning_payouts_cycle_idx").on(table.cycleStart),
-    staffCycleIdx: uniqueIndex("staff_earning_payouts_staff_cycle_idx").on(
-      table.staffUserId,
-      table.cycleStart,
-    ),
+    // Satu pencairan AKTIF per staf (audit #9, 29 Okt 2026). Dulu unik per (staf, awal siklus) —
+    // pencairan kedua dari siklus yang sama (fee yang lepas kunci belakangan, atau setelah batal) gagal.
+    activePayoutIdx: uniqueIndex("staff_earning_payouts_active_idx")
+      .on(table.staffUserId)
+      .where(sql`${table.status} in ('pending', 'approved')`),
   }),
 );
 

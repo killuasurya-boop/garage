@@ -3726,6 +3726,8 @@ export const wmsCategory = pgTable("wms_category", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
   area: text("area").notNull().default("umum"), // bar | dapur | umum
+  // Arsip (bukan hapus): baris tetap ada supaya lookup area bahan lama tetap jalan.
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -3733,7 +3735,8 @@ export const wmsCategory = pgTable("wms_category", {
 export const wmsSupplier = pgTable("wms_supplier", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
-  phone: text("phone").notNull().default(""),
+  phone: text("phone").notNull().default(""), // nomor WhatsApp
+  address: text("address").notNull().default(""),
   note: text("note").notNull().default(""),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3750,6 +3753,10 @@ export const wmsProduct = pgTable(
     sku: text("sku").notNull().unique(),
     name: text("name").notNull(),
     category: text("category").notNull(),
+    subcategory: text("subcategory").notNull().default(""),
+    brand: text("brand").notNull().default(""),
+    // Supplier utama (default PO/receiving); riwayat harga tetap dari receiving.
+    defaultSupplierId: uuid("default_supplier_id").references(() => wmsSupplier.id, { onDelete: "set null" }),
     unit: text("unit").notNull(),
     minStock: wmsNum("min_stock").notNull().default(0),
     hpp: wmsNum("hpp").notNull().default(0), // harga modal rata-rata (boleh pecahan)

@@ -153,6 +153,8 @@ export const auth = betterAuth({
   // bersamaan di awal shift. Proteksi brute-force utama = penguncian per akun
   // (hooks di bawah) + batas per IP di route /api/auth.
   rateLimit: {
+    // Audit #13: disimpan di tabel rate_limit — tidak ter-reset saat restart/deploy.
+    storage: "database",
     customRules: {
       "/sign-in/email": { window: 60, max: 40 },
       // Pengganti kunci akun 2FA: tebakan kode diperlambat per perangkat, akun tidak dikunci.

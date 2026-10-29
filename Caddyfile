@@ -4,7 +4,7 @@
 	encode gzip zstd
 
 	# HTTPS wajib selama 1 tahun (browser menolak turun ke HTTP).
-	header Strict-Transport-Security "max-age=31536000"
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	header -Server
 
 	# Upload gambar menu bisa besar — naikkan limit body.

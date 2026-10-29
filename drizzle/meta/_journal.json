@@ -1191,6 +1191,13 @@
       "when": 1793167625330,
       "tag": "0169_b6_risk_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1793246754800,
+      "tag": "0170_better_auth_rate_limit",
+      "breakpoints": true
     }
   ]
 }

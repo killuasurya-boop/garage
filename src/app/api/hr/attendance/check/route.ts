@@ -12,12 +12,11 @@ import {
   hashPin,
   jakartaDayRange,
   jakartaDateKey,
-  checkRateLimit,
-  recordFailedAttempt,
 } from "@/lib/attendance";
 import { getAppSettings } from "@/lib/garage-service";
 import { fail } from "@/lib/api-response";
 import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
+import { checkPinAttempt, recordPinFailure } from "@/lib/pin-attempt-guard";
 
 export const runtime = "nodejs";
 
@@ -42,8 +41,8 @@ export async function POST(req: Request) {
   }
   try {
     const rateKey = `attendance-check:${clientIp(req)}`;
-    const limit = checkRateLimit(rateKey);
-    const globalLimit = checkRateLimit(ATTENDANCE_CHECK_GLOBAL_RATE_KEY);
+    const limit = await checkPinAttempt(rateKey);
+    const globalLimit = await checkPinAttempt(ATTENDANCE_CHECK_GLOBAL_RATE_KEY);
     if (!globalLimit.allowed) {
       return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan. Coba lagi dalam ${globalLimit.retryAfterSec}s.`);
     }
@@ -91,8 +90,8 @@ export async function POST(req: Request) {
     }
 
     if (!resolved) {
-      recordFailedAttempt(rateKey);
-      recordFailedAttempt(ATTENDANCE_CHECK_GLOBAL_RATE_KEY);
+      await recordPinFailure(rateKey);
+      await recordPinFailure(ATTENDANCE_CHECK_GLOBAL_RATE_KEY);
       return fail(404, "PIN_NOT_FOUND", "PIN tidak ditemukan");
     }
     if (resolved.status !== "active") {

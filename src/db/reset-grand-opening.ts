@@ -97,7 +97,7 @@ export const CLEAR_TABLES = [
   "stock_movements", "stock_opname_sessions", "stock_opname_items", "inventory_transfer_requests",
   "inventory_transfer_items",
   // approval, audit, log
-  "approvals", "audit_logs", "mcp_operations", "step_up_challenges", "risk_alerts", "rate_limit_counters", "audit_cases", "login_attempts", "error_events", "feedback_entries",
+  "approvals", "audit_logs", "mcp_operations", "step_up_challenges", "risk_alerts", "rate_limit_counters", "rate_limit", "audit_cases", "login_attempts", "error_events", "feedback_entries",
   "notification_logs", "shift_handover_reports", "staff_shift_handovers", "sop_logs", "staff_tasks",
   "kpi_evaluations", "chat_messages",
   // marketing & publikasi transaksional

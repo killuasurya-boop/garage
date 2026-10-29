@@ -20,13 +20,11 @@ import {
   jakartaDateKey,
   evaluatePunchStatus,
   attendanceStatusLabel,
-  checkRateLimit,
-  recordFailedAttempt,
-  resetRateLimit,
 } from "@/lib/attendance";
 import { getAppSettings } from "@/lib/garage-service";
 import { fail } from "@/lib/api-response";
 import { isPayrollV2Enabled } from "@/lib/garage-payroll-settings";
+import { checkPinAttempt, recordPinFailure, resetPinAttempts } from "@/lib/pin-attempt-guard";
 
 export const runtime = "nodejs";
 
@@ -80,8 +78,8 @@ export async function POST(req: Request) {
   try {
     // Rate-limit per IP terminal + global (X-Forwarded-For bisa dipalsukan).
     const rateKey = `attendance:${clientIp(req)}`;
-    const limit = checkRateLimit(rateKey);
-    const globalLimit = checkRateLimit(ATTENDANCE_GLOBAL_RATE_KEY);
+    const limit = await checkPinAttempt(rateKey);
+    const globalLimit = await checkPinAttempt(ATTENDANCE_GLOBAL_RATE_KEY);
     if (!globalLimit.allowed) {
       return fail(429, "RATE_LIMITED", `Terlalu banyak percobaan PIN salah. Coba lagi dalam ${globalLimit.retryAfterSec}s.`);
     }
@@ -144,11 +142,11 @@ export async function POST(req: Request) {
     }
 
     if (!resolved) {
-      recordFailedAttempt(rateKey);
-      recordFailedAttempt(ATTENDANCE_GLOBAL_RATE_KEY);
+      await recordPinFailure(rateKey);
+      await recordPinFailure(ATTENDANCE_GLOBAL_RATE_KEY);
       return fail(404, "PIN_NOT_FOUND", "PIN tidak ditemukan");
     }
-    resetRateLimit(rateKey);
+    await resetPinAttempts(rateKey);
 
     if (resolved.status !== "active") {
       return fail(403, "ACCOUNT_INACTIVE", "Akun karyawan tidak aktif");

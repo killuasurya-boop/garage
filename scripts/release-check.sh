@@ -45,6 +45,16 @@ if git diff --name-only "$(git describe --tags --abbrev=0 2>/dev/null || echo HE
   good "ada migrasi baru (backup otomatis sebelum migrate di deploy)"
 fi
 
+step "Keamanan dependensi produksi"
+# Audit #16: tidak boleh ada kerentanan high/critical di dependensi yang ikut ke produksi.
+if audit_out="$(npm audit --omit=dev --audit-level=high 2>&1)"; then
+  good "npm audit (produksi): tidak ada high/critical"
+elif echo "$audit_out" | grep -qiE "ENOTFOUND|ECONNREFUSED|network|audit endpoint"; then
+  good "npm audit dilewati (offline) — ulangi saat online"
+else
+  bad "npm audit: ada kerentanan high/critical di dependensi produksi"; echo "$audit_out" | tail -8
+fi
+
 step "Typecheck & lint"
 # Tipe rute sisa build branch lain di .next bisa memberi kegagalan palsu.
 rm -rf .next/types .next/dev/types

@@ -4,8 +4,8 @@
 #   1. /root/garage-staging/.env.staging dari .env.production produksi, dengan:
 #      domain staging, DB staging sendiri (password baru), semua pengiriman keluar MATI
 #      (WhatsApp, sosmed, ElevenLabs, MCP ChatGPT), kunci API AI & POS dihapus/diganti.
-#      Rahasia enkripsi (BETTER_AUTH_SECRET dll.) dipertahankan supaya data salinan
-#      (2FA, PIN absen) tetap terbaca.
+#      BETTER_AUTH_SECRET staging SENDIRI (audit #14: staging bobol ≠ sesi produksi bisa dipalsukan);
+#      2FA & kunci OAuth salinan dikosongkan oleh staging-anonymize.sql. PIN absen tetap terbaca (PIN_PEPPER).
 #   2. Password akses staging (basic auth, user "staging") → STAGING_ACCESS.txt (chmod 600).
 #   3. /root/garage/caddy-sites/staging.caddy lalu reload Caddy (tanpa restart, tanpa downtime).
 # Aman diulang: .env.staging & password yang sudah ada tidak ditimpa.
@@ -25,7 +25,8 @@ if [ ! -f .env.staging ]; then
   {
     echo "# Dibuat scripts/staging-setup.sh $(date -Iseconds). STAGING — jangan dipakai produksi."
     # Salin semua kunci produksi KECUALI yang diganti/dihapus di bawah.
-    grep -E '^[A-Z0-9_]+=' "$PROD_DIR/.env.production" | grep -vE '^(POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB|DATABASE_URL|BETTER_AUTH_URL|GARAGE_DOMAIN|GARAGE_PUBLIC_BASE_URL|NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL|GARAGE_TRUSTED_ORIGINS|WHATSAPP_MESSAGING_LIVE_ENABLED|SOCIAL_PUBLISHING_LIVE_ENABLED|ELEVENLABS_TTS_ENABLED|ELEVENLABS_API_KEY|OPENAI_API_KEY|OPENAI_GARAGE_VECTOR_STORE_ID|GEMINI_API_KEY|GARAGE_MCP_CHATGPT_ENABLED|GARAGE_POS_API_KEY|CRON_SECRET|GARAGE_JOB_SECRET|GARAGE_SEED_DEMO|MARKETING_SENDER_PROVIDER|GARAGE_BACKUP_DIR)='
+    grep -E '^[A-Z0-9_]+=' "$PROD_DIR/.env.production" | grep -vE '^(BETTER_AUTH_SECRET|POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB|DATABASE_URL|BETTER_AUTH_URL|GARAGE_DOMAIN|GARAGE_PUBLIC_BASE_URL|NEXT_PUBLIC_GARAGE_PUBLIC_BASE_URL|GARAGE_TRUSTED_ORIGINS|WHATSAPP_MESSAGING_LIVE_ENABLED|SOCIAL_PUBLISHING_LIVE_ENABLED|ELEVENLABS_TTS_ENABLED|ELEVENLABS_API_KEY|OPENAI_API_KEY|OPENAI_GARAGE_VECTOR_STORE_ID|GEMINI_API_KEY|GARAGE_MCP_CHATGPT_ENABLED|GARAGE_POS_API_KEY|CRON_SECRET|GARAGE_JOB_SECRET|GARAGE_SEED_DEMO|MARKETING_SENDER_PROVIDER|GARAGE_BACKUP_DIR)='
+    echo "BETTER_AUTH_SECRET=$(rnd)$(rnd)"
     echo "POSTGRES_USER=garage_staging"
     echo "POSTGRES_PASSWORD=$db_pass"
     echo "POSTGRES_DB=garage_staging"
@@ -51,6 +52,13 @@ if [ ! -f .env.staging ]; then
 else
   echo ">> .env.staging sudah ada — tidak diubah."
 fi
+# Audit #14: .env.staging lama yang masih memakai secret produksi → ganti dengan secret baru.
+prod_secret="$(grep -E '^BETTER_AUTH_SECRET=' "$PROD_DIR/.env.production" | tail -1 | cut -d= -f2-)"
+if grep -qxF "BETTER_AUTH_SECRET=$prod_secret" .env.staging; then
+  sed -i "/^BETTER_AUTH_SECRET=/d" .env.staging
+  echo "BETTER_AUTH_SECRET=$(rnd)$(rnd)" >> .env.staging
+  echo ">> BETTER_AUTH_SECRET staging diganti (tidak lagi sama dengan produksi)."
+fi
 # Insiden 28 Okt: host DB staging dulu "db" (bentrok dengan DB produksi di garage_default).
 sed -i "s#@db:5432/#@staging-db:5432/#" .env.staging
 
@@ -75,7 +83,7 @@ CADDY
   {
     echo "Akses staging: https://$STAGING_DOMAIN"
     echo "Login browser (basic auth): user staging / password $access_pass"
-    echo "Setelah itu login Garage OS seperti biasa (akun & password sama dengan produksi)."
+    echo "Setelah itu login Garage OS dengan email & password produksi — TANPA 2FA (rahasia 2FA tidak disalin ke staging)."
   } > STAGING_ACCESS.txt
   chmod 600 STAGING_ACCESS.txt
   echo ">> Password akses staging dibuat: $STAGING_DIR/STAGING_ACCESS.txt (hanya root)."

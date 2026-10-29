@@ -17,7 +17,9 @@ database terpisah, data disamarkan.
 - Pelanggan, member, tamu event, kandidat rekrutmen: nama, telepon, email, alamat (deterministik: nomor
   sama → samaran sama, jadi relasi order ↔ pelanggan tetap).
 - Data pribadi staf: NIK, foto KTP, alamat, rekening, kontak darurat. Email login staf **tidak** diubah supaya
-  Owner/staf bisa login staging dengan akun biasa.
+  Owner/staf bisa login staging dengan akun biasa (password sama, **tanpa 2FA**).
+- **Secret terpisah** (audit 29 Okt #14): `BETTER_AUTH_SECRET` staging dibuat sendiri; rahasia 2FA, kunci JWKS
+  OAuth & batas login disalin **tidak** ikut. Staging bobol tidak bisa dipakai memalsukan sesi produksi.
 - Dihapus: sesi login, token OAuth, API key agent, langganan push (HP staf tidak menerima notifikasi staging),
   kunci VAPID, antrean WhatsApp & posting sosmed, koneksi Google Drive/sosmed.
 - Skrip menolak berjalan bila nama database tidak mengandung `staging`.

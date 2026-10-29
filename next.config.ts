@@ -21,7 +21,28 @@ function lanDevOrigins(): string[] {
 // HSTS dipasang di Caddyfile (hanya relevan di HTTPS VPS, bukan PC kasir LAN).
 // Kamera, GPS & mikrofon tetap diizinkan untuk origin sendiri: absen selfie+GPS,
 // scan WMS, dan perintah suara.
+// Audit #12: Content-Security-Policy mode REPORT-ONLY dulu (tidak memblokir apa pun) — pelanggaran
+// dikirim ke /api/csp-report lalu ditinjau; setelah bersih ±1 minggu, ganti header ke
+// "Content-Security-Policy" (penegakan). unsafe-inline script masih diperlukan oleh skrip hidrasi Next
+// & beberapa halaman (invoice, qr-print, grand-opening) — dihapus bertahap dengan nonce.
+const cspReportOnly = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https: wss:",
+  "media-src 'self' data: blob:",
+  "worker-src 'self' blob:",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "report-uri /api/csp-report",
+].join("; ");
+
 const securityHeaders = [
+  { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

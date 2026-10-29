@@ -418,6 +418,11 @@ Scroll direction:
   Staging service names MUST be `staging-*` (never `app`/`db`): a same-named service on `garage_default` made prod
   Caddy load-balance into staging (incident 28 Okt 2026, random "Silakan login"). `scripts/staging-network-guard.sh`
   stops staging when `app`/`db` resolve to more than one container.
+- Security guards (audit 29 Okt 2026, F1): every `src/app/api/**/route.ts` must call a known guard (`KNOWN_ROUTE_GUARDS`) or be
+  listed in `src/lib/public-routes.ts` with a reason + abuse guard — enforced by `api-route-auth.test.ts`. Attendance PIN
+  guessing = `pin-attempt-guard.ts` (DB, survives restart); Better Auth `rateLimit.storage: "database"` (table `rate_limit`,
+  migration 0170). CSP is report-only (`next.config.ts` → `/api/csp-report`, audit_logs `csp_violation`); staging has its own
+  `BETTER_AUTH_SECRET` (2FA/JWKS cleared by `staging-anonymize.sql`).
 - Release safety (29 Okt 2026, `docs/DEPLOY_MANUAL.md`): `scripts/release-check.sh` must pass on the MERGED main before
   `deploy-manual.sh` (stamp `.git/garage-release-check` = SHA; catches combined-PR breakage like the API catalog);
   deploy runs `scripts/smoke-prod.sh` after health (fail → rollback). `scripts/vps-monitor.sh` (cron, read-only) →

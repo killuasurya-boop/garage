@@ -223,3 +223,10 @@ closing yang sudah lewat tidak berubah angka). Menjawab PRD §02.4 "Cut-off busi
 Owner mengizinkan staging **di VPS yang sama**: subdomain `staging.garagecoffee.id`, database terpisah berisi data
 yang disamarkan (nama, telepon, email pelanggan/staf), app & DB staging dibatasi memori agar tidak mengganggu
 produksi (RAM VPS 4 GB). Deploy produksi tetap lewat `scripts/deploy-manual.sh`.
+
+## D-01b — ChatGPT hapus/arsip data non-uang (FINAL, 2026-10-29: TANPA 2FA)
+
+**Keputusan Owner:** penghapusan/pengarsipan produk, staf, kategori, dll. lewat `ubah_data_garage` di ChatGPT
+cukup **preview + konfirmasi di chat** (R2), tidak perlu kode 2FA. Perubahan **uang** tetap R3 + `kode2fa`
+(D-01a, `isMoneyPath`). Audit 29 Okt #15 mencatat risiko *prompt injection*; mitigasi yang tetap berlaku:
+jalur terlarang (`ubahDataBlockReason`), path ter-encode ditolak, sakelar `mcpChatgptWriteEnabled`, audit sinkron.

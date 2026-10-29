@@ -107,7 +107,12 @@ export function BillsPanel({ filter, role, userId, onChanged }: { filter: "open"
           ["verify", "Menunggu verifikasi"],
           ["all", "Semua"],
         ] as const).map(([k, label]) => (
-          <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => { setBills(null); setView(k); }} className={`${proc.btn} min-h-9 ${view === k ? proc.dark : proc.outline}`}>
+          <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => {
+              // Memilih saringan yang sama = tidak berbuat apa-apa (dulu data dikosongkan tanpa dimuat ulang).
+              if (k === view) return;
+              setBills(null);
+              setView(k);
+            }} className={`${proc.btn} min-h-9 ${view === k ? proc.dark : proc.outline}`}>
             {label}
           </button>
         ))}

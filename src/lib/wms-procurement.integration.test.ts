@@ -295,6 +295,45 @@ describe("Tagihan & pembayaran supplier (tanpa pengeluaran ganda)", () => {
     expect(bill.payments[0]).toMatchObject({ kind: "dp", amount: 50_000 });
   });
 
+  it("DP melebihi tagihan pertama terbawa ke tagihan berikutnya (penerimaan sebagian)", async () => {
+    // PO Rp180.000, DP Rp100.000, diterima Rp36.000 lalu Rp144.000 → sisa hutang total Rp80.000.
+    const o = await approvedPo([{ productId: beanId, orderedQty: 1000, unitPrice: 180 }]);
+    await proc.recordSupplierPayment({ purchaseOrderId: o.id, kind: "dp", amount: 100_000, method: "cash", fundSource: "petty" }, OWNER);
+    const { eq } = await import("drizzle-orm");
+    const r1 = await po.createReceivingFromPurchaseOrder(o.id);
+    await t.getDb().update(t.schema.wmsReceivingItem).set({ receivedQty: 200 }).where(eq(t.schema.wmsReceivingItem.receivingId, r1.id));
+    await t.getDb().update(t.schema.wmsReceiving).set({ paymentMethod: "Tempo" }).where(eq(t.schema.wmsReceiving.id, r1.id));
+    await wms.completeReceiving(r1.id, OWNER.userId, { forceApprove: true });
+    const r2 = await receiveTempo(o.id);
+    const bills = (await proc.listSupplierBills()).filter((b: any) => b.purchaseOrderId === o.id).sort((a: any, b: any) => a.amount - b.amount);
+    expect(bills.map((b: any) => [b.amount, b.paidAmount, b.status])).toEqual([
+      [36_000, 36_000, "paid"],
+      [144_000, 64_000, "partial"],
+    ]);
+    expect(bills.reduce((s: number, b: any) => s + b.outstanding, 0)).toBe(80_000);
+    expect((await expensesFor(r1.doc))[0].status).toBe("paid");
+    expect((await expensesFor(r2.doc))[0].status).toBe("recorded");
+    // Bayar lebih dari sisa Rp80.000 di tagihan kedua ditolak.
+    const second = bills[1];
+    await expect(proc.recordSupplierPayment({ billId: second.id, kind: "payment", amount: 80_001, method: "cash", fundSource: "external" }, OWNER)).rejects.toMatchObject({ code: "OVERPAY" });
+  });
+
+  it("batas DP memperhitungkan pembayaran tagihan yang sudah ada", async () => {
+    // PO Rp1.000.000, tagihan pertama Rp400.000 sudah dibayar → DP maksimal Rp600.000.
+    const p = (await wms.createWmsProduct({ sku: "T-DPCAP", name: "Bahan Cap DP", category: "Syrup", unit: "pcs" })).id;
+    const o = await approvedPo([{ productId: p, orderedQty: 1000, unitPrice: 1000 }]);
+    const { eq } = await import("drizzle-orm");
+    const r1 = await po.createReceivingFromPurchaseOrder(o.id);
+    await t.getDb().update(t.schema.wmsReceivingItem).set({ receivedQty: 400 }).where(eq(t.schema.wmsReceivingItem.receivingId, r1.id));
+    await t.getDb().update(t.schema.wmsReceiving).set({ paymentMethod: "Tempo" }).where(eq(t.schema.wmsReceiving.id, r1.id));
+    await wms.completeReceiving(r1.id, OWNER.userId, { forceApprove: true });
+    const bill = (await proc.listSupplierBills()).find((b: any) => b.receivingId === r1.id);
+    await proc.recordSupplierPayment({ billId: bill.id, kind: "payment", amount: 400_000, method: "transfer", fundSource: "bank_bni", reference: "BNI-9" }, OWNER);
+    await expect(proc.recordSupplierPayment({ purchaseOrderId: o.id, kind: "dp", amount: 600_001, method: "cash", fundSource: "external" }, OWNER)).rejects.toMatchObject({ code: "OVERPAY" });
+    const dp = await proc.recordSupplierPayment({ purchaseOrderId: o.id, kind: "dp", amount: 600_000, method: "cash", fundSource: "external" }, OWNER);
+    expect(dp.amount).toBe(600_000);
+  });
+
   it("penerimaan Cash tetap seperti semula: lunas saat diterima, tanpa tagihan", async () => {
     const o = await approvedPo([{ productId: beanId, orderedQty: 500, unitPrice: 180 }]);
     const r = await po.createReceivingFromPurchaseOrder(o.id);

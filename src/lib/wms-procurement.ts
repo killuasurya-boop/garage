@@ -461,54 +461,116 @@ export async function createBillForReceiving(
       createdBy: userId,
     })
     .returning();
-  // DP yang sudah dibayar untuk PO ini menempel ke tagihan.
-  if (rec.purchaseOrderId) {
-    await tx
-      .update(wmsSupplierPayment)
-      .set({ billId: bill.id })
-      .where(and(eq(wmsSupplierPayment.purchaseOrderId, rec.purchaseOrderId), isNull(wmsSupplierPayment.billId), ne(wmsSupplierPayment.status, "void")));
-  }
-  return recomputeBill(tx, bill.id, rec.doc);
+  // DP PO ini dihitung sebagai kredit lewat alokasi berurutan (lihat allocateScope), tidak ditempel utuh.
+  await lockScope(tx, { purchaseOrderId: bill.purchaseOrderId, billId: bill.id });
+  await recomputeScope(tx, { purchaseOrderId: bill.purchaseOrderId, billId: bill.id });
+  const [row] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.id, bill.id)).limit(1);
+  return row;
 }
 
-/** paidAmount = pembayaran terverifikasi. Lunas → baris biaya penerimaan ikut "paid". */
-async function recomputeBill(tx: Db, billId: string, receivingDoc?: string | null) {
-  const [bill] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.id, billId)).limit(1);
-  if (!bill || bill.status === "void") return bill;
-  const [{ verified }] = await tx
-    .select({ verified: sql<number>`coalesce(sum(${wmsSupplierPayment.amount}), 0)::int` })
-    .from(wmsSupplierPayment)
-    .where(and(eq(wmsSupplierPayment.billId, billId), eq(wmsSupplierPayment.status, "verified")));
-  const paid = Number(verified);
-  const status = paid >= bill.amount ? "paid" : paid > 0 ? "partial" : "unpaid";
-  const [row] = await tx.update(wmsSupplierBill).set({ paidAmount: paid, status, updatedAt: new Date() }).where(eq(wmsSupplierBill.id, billId)).returning();
-  let doc = receivingDoc ?? null;
-  if (!doc && bill.receivingId) {
-    const [rec] = await tx.select({ doc: wmsReceiving.doc }).from(wmsReceiving).where(eq(wmsReceiving.id, bill.receivingId)).limit(1);
-    doc = rec?.doc ?? null;
+type Scope = { purchaseOrderId: string | null; billId: string | null };
+
+/**
+ * Kunci lingkup uang sebelum membaca agregat: PO (semua tagihan & DP-nya) atau satu tagihan
+ * tanpa PO. Urutan kunci selalu PO → tagihan → pembayaran supaya transaksi bersamaan
+ * (verifikasi/pembatalan/pencatatan) menunggu bergiliran dan melihat data yang sudah commit.
+ */
+async function lockScope(tx: Db, scope: Scope) {
+  if (scope.purchaseOrderId) {
+    await tx.select({ id: wmsPurchaseOrder.id }).from(wmsPurchaseOrder).where(eq(wmsPurchaseOrder.id, scope.purchaseOrderId)).for("update");
+  } else if (scope.billId) {
+    await tx.select({ id: wmsSupplierBill.id }).from(wmsSupplierBill).where(eq(wmsSupplierBill.id, scope.billId)).for("update");
   }
-  if (doc) {
+}
+
+/**
+ * Alokasi per tagihan dalam satu lingkup. DP (milik PO, billId null) dibagikan berurutan
+ * (tagihan terlama dulu) sebanyak sisa kebutuhan tiap tagihan; kelebihannya terbawa ke
+ * tagihan berikutnya. `verified` = yang sudah terverifikasi (dasar lunas), `committed` =
+ * termasuk yang menunggu verifikasi (dasar batas lebih bayar).
+ */
+async function allocateScope(tx: Db, scope: Scope) {
+  const bills = scope.purchaseOrderId
+    ? await tx
+        .select()
+        .from(wmsSupplierBill)
+        .where(and(eq(wmsSupplierBill.purchaseOrderId, scope.purchaseOrderId), ne(wmsSupplierBill.status, "void")))
+        .orderBy(wmsSupplierBill.createdAt, wmsSupplierBill.id)
+    : scope.billId
+      ? await tx.select().from(wmsSupplierBill).where(and(eq(wmsSupplierBill.id, scope.billId), ne(wmsSupplierBill.status, "void")))
+      : [];
+  const billIds = bills.map((b) => b.id);
+  const regular = billIds.length
+    ? await tx
+        .select({ billId: wmsSupplierPayment.billId, status: wmsSupplierPayment.status, amount: wmsSupplierPayment.amount })
+        .from(wmsSupplierPayment)
+        .where(and(inArray(wmsSupplierPayment.billId, billIds), ne(wmsSupplierPayment.status, "void")))
+    : [];
+  const dps = scope.purchaseOrderId
+    ? await tx
+        .select({ status: wmsSupplierPayment.status, amount: wmsSupplierPayment.amount })
+        .from(wmsSupplierPayment)
+        .where(and(eq(wmsSupplierPayment.purchaseOrderId, scope.purchaseOrderId), eq(wmsSupplierPayment.kind, "dp"), isNull(wmsSupplierPayment.billId), ne(wmsSupplierPayment.status, "void")))
+    : [];
+  let dpVerifiedLeft = dps.filter((d) => d.status === "verified").reduce((s, d) => s + d.amount, 0);
+  let dpCommittedLeft = dps.reduce((s, d) => s + d.amount, 0);
+  const out = new Map<string, { bill: (typeof bills)[number]; verified: number; committed: number; dpCredit: number }>();
+  for (const b of bills) {
+    const mine = regular.filter((p) => p.billId === b.id);
+    const regVerified = mine.filter((p) => p.status === "verified").reduce((s, p) => s + p.amount, 0);
+    const regCommitted = mine.reduce((s, p) => s + p.amount, 0);
+    const dpV = Math.min(Math.max(0, b.amount - regVerified), dpVerifiedLeft);
+    dpVerifiedLeft -= dpV;
+    const dpC = Math.min(Math.max(0, b.amount - regCommitted), dpCommittedLeft);
+    dpCommittedLeft -= dpC;
+    out.set(b.id, { bill: b, verified: regVerified + dpV, committed: regCommitted + dpC, dpCredit: dpV });
+  }
+  return out;
+}
+
+/** Tulis ulang paidAmount/status semua tagihan dalam lingkup; lunas → baris biaya penerimaan ikut "paid". */
+async function recomputeScope(tx: Db, scope: Scope) {
+  const alloc = await allocateScope(tx, scope);
+  for (const { bill, verified } of alloc.values()) {
+    const paid = Math.min(verified, bill.amount);
+    const status = paid >= bill.amount ? "paid" : paid > 0 ? "partial" : "unpaid";
+    await tx.update(wmsSupplierBill).set({ paidAmount: paid, status, updatedAt: new Date() }).where(eq(wmsSupplierBill.id, bill.id));
+    if (!bill.receivingId) continue;
+    const [rec] = await tx.select({ doc: wmsReceiving.doc }).from(wmsReceiving).where(eq(wmsReceiving.id, bill.receivingId)).limit(1);
+    if (!rec) continue;
     // Satu baris biaya yang sama, hanya status pembayarannya yang berubah (tidak ada biaya baru).
     await tx
       .update(expenses)
       .set({ status: status === "paid" ? "paid" : "recorded", updatedAt: new Date() })
-      .where(and(like(expenses.sourceDoc, `WMS:${doc}#%`), inArray(expenses.status, ["recorded", "paid"])));
+      .where(and(like(expenses.sourceDoc, `WMS:${rec.doc}#%`), inArray(expenses.status, ["recorded", "paid"])));
   }
-  return row;
+}
+
+/** Lingkup uang sebuah pembayaran: PO-nya, atau tagihannya bila tanpa PO. */
+async function scopeOfPayment(tx: Db, p: typeof wmsSupplierPayment.$inferSelect): Promise<Scope> {
+  if (p.purchaseOrderId) return { purchaseOrderId: p.purchaseOrderId, billId: p.billId };
+  if (p.billId) {
+    const [b] = await tx.select({ po: wmsSupplierBill.purchaseOrderId }).from(wmsSupplierBill).where(eq(wmsSupplierBill.id, p.billId)).limit(1);
+    return { purchaseOrderId: b?.po ?? null, billId: p.billId };
+  }
+  return { purchaseOrderId: null, billId: null };
 }
 
 /** Penerimaan dibatalkan: tagihan ikut batal. Ditolak bila sudah ada pembayaran aktif. */
 export async function voidBillForReceiving(tx: Db, receivingId: string) {
-  const [bill] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.receivingId, receivingId)).for("update").limit(1);
-  if (!bill || bill.status === "void") return;
+  const [pre] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.receivingId, receivingId)).limit(1);
+  if (!pre || pre.status === "void") return;
+  const scope = { purchaseOrderId: pre.purchaseOrderId, billId: pre.id };
+  await lockScope(tx, scope);
+  const [bill] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.id, pre.id)).for("update").limit(1);
   const [{ n }] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(wmsSupplierPayment)
     .where(and(eq(wmsSupplierPayment.billId, bill.id), ne(wmsSupplierPayment.status, "void"), eq(wmsSupplierPayment.kind, "payment")));
   if (Number(n)) throw new Error(`Tagihan ${bill.doc} sudah punya pembayaran. Batalkan pembayaran itu dulu.`);
-  // DP dilepas kembali ke PO (masih milik PO, bukan hilang).
-  await tx.update(wmsSupplierPayment).set({ billId: null }).where(and(eq(wmsSupplierPayment.billId, bill.id), eq(wmsSupplierPayment.kind, "dp")));
   await tx.update(wmsSupplierBill).set({ status: "void", updatedAt: new Date() }).where(eq(wmsSupplierBill.id, bill.id));
+  // Kredit DP yang tadinya terpakai tagihan ini kembali tersedia untuk tagihan lain di PO yang sama.
+  await recomputeScope(tx, scope);
 }
 
 export async function updateBillInvoice(
@@ -567,13 +629,15 @@ export async function recordSupplierPayment(input: SupplierPaymentInput, actor: 
     let label = "";
     if (input.kind === "payment") {
       if (!input.billId) throw new WmsMasterError("BILL_REQUIRED", "Pilih tagihan yang dibayar.", 400);
-      const [bill] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.id, input.billId)).for("update").limit(1);
+      const [pre] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.id, input.billId)).limit(1);
+      if (!pre || pre.status === "void") throw new WmsMasterError("BILL_NOT_FOUND", "Tagihan tidak ditemukan / dibatalkan.", 404);
+      // Kunci PO dulu (juga dipakai DP) lalu tagihan → batas lebih bayar & DP terserialisasi.
+      await lockScope(tx, { purchaseOrderId: pre.purchaseOrderId, billId: pre.id });
+      const [bill] = await tx.select().from(wmsSupplierBill).where(eq(wmsSupplierBill.id, pre.id)).for("update").limit(1);
       if (!bill || bill.status === "void") throw new WmsMasterError("BILL_NOT_FOUND", "Tagihan tidak ditemukan / dibatalkan.", 404);
-      const [{ committed }] = await tx
-        .select({ committed: sql<number>`coalesce(sum(${wmsSupplierPayment.amount}), 0)::int` })
-        .from(wmsSupplierPayment)
-        .where(and(eq(wmsSupplierPayment.billId, bill.id), ne(wmsSupplierPayment.status, "void")));
-      const outstanding = bill.amount - Number(committed);
+      const alloc = (await allocateScope(tx, { purchaseOrderId: bill.purchaseOrderId, billId: bill.id })).get(bill.id);
+      // Sisa = tagihan − (pembayaran aktif + kredit DP yang dialokasikan ke tagihan ini).
+      const outstanding = bill.amount - (alloc?.committed ?? 0);
       if (outstanding <= 0) throw new WmsMasterError("BILL_PAID", `Tagihan ${bill.doc} sudah lunas / menunggu verifikasi pembayaran.`);
       if (amount > outstanding) throw new WmsMasterError("OVERPAY", `Nominal melebihi sisa tagihan (Rp${outstanding.toLocaleString("id-ID")}).`, 400);
       billId = bill.id;
@@ -590,11 +654,13 @@ export async function recordSupplierPayment(input: SupplierPaymentInput, actor: 
         .select({ total: sql<number>`coalesce(sum(${wmsPurchaseOrderItem.orderedQty} * ${wmsPurchaseOrderItem.unitPrice}), 0)` })
         .from(wmsPurchaseOrderItem)
         .where(eq(wmsPurchaseOrderItem.purchaseOrderId, po.id));
-      const [{ dp }] = await tx
-        .select({ dp: sql<number>`coalesce(sum(${wmsSupplierPayment.amount}), 0)::int` })
+      // Semua pembayaran aktif PO ini (DP + pembayaran tagihannya) — DP tidak boleh membuat
+      // total uang keluar melebihi estimasi PO.
+      const [{ paidAll }] = await tx
+        .select({ paidAll: sql<number>`coalesce(sum(${wmsSupplierPayment.amount}), 0)::int` })
         .from(wmsSupplierPayment)
-        .where(and(eq(wmsSupplierPayment.purchaseOrderId, po.id), eq(wmsSupplierPayment.kind, "dp"), ne(wmsSupplierPayment.status, "void")));
-      const cap = Math.round(Number(total)) - Number(dp);
+        .where(and(eq(wmsSupplierPayment.purchaseOrderId, po.id), ne(wmsSupplierPayment.status, "void")));
+      const cap = Math.round(Number(total)) - Number(paidAll);
       if (amount > cap) throw new WmsMasterError("OVERPAY", `DP melebihi estimasi PO yang belum dibayar (Rp${Math.max(0, cap).toLocaleString("id-ID")}).`, 400);
       supplierId = po.supplierId;
       label = po.doc;
@@ -621,7 +687,7 @@ export async function recordSupplierPayment(input: SupplierPaymentInput, actor: 
         verifiedAt: verified ? new Date() : null,
       })
       .returning();
-    if (billId) await recomputeBill(tx, billId);
+    await recomputeScope(tx, { purchaseOrderId: poId, billId });
     await writeWmsAudit(tx, {
       userId: actor.userId,
       action: input.kind === "dp" ? "DP supplier dicatat" : "Pembayaran supplier dicatat",
@@ -635,12 +701,15 @@ export async function recordSupplierPayment(input: SupplierPaymentInput, actor: 
 /** Verifikasi oleh Owner, atau Manajer lain (bukan pencatat). */
 export async function verifySupplierPayment(id: string, actor: ProcActor) {
   return runInTx(async (tx) => {
+    const [pre] = await tx.select().from(wmsSupplierPayment).where(eq(wmsSupplierPayment.id, id)).limit(1);
+    if (!pre) throw new WmsMasterError("PAYMENT_NOT_FOUND", "Pembayaran tidak ditemukan.", 404);
+    const scope = await scopeOfPayment(tx, pre);
+    await lockScope(tx, scope);
     const [p] = await tx.select().from(wmsSupplierPayment).where(eq(wmsSupplierPayment.id, id)).for("update").limit(1);
-    if (!p) throw new WmsMasterError("PAYMENT_NOT_FOUND", "Pembayaran tidak ditemukan.", 404);
     if (p.status !== "pending_verification") throw new WmsMasterError("PAYMENT_STATE", "Pembayaran tidak menunggu verifikasi.");
     if (p.createdBy === actor.userId && !isOwner(actor)) throw new WmsMasterError("SELF_VERIFY", "Pembayaran harus diverifikasi Owner atau Manajer lain.", 403);
     const [row] = await tx.update(wmsSupplierPayment).set({ status: "verified", verifiedBy: actor.userId, verifiedAt: new Date() }).where(eq(wmsSupplierPayment.id, id)).returning();
-    if (p.billId) await recomputeBill(tx, p.billId);
+    await recomputeScope(tx, scope);
     await writeWmsAudit(tx, { userId: actor.userId, action: "Pembayaran supplier diverifikasi", object: p.doc, metadata: { amount: p.amount } });
     return row;
   });
@@ -652,11 +721,14 @@ export async function voidSupplierPayment(id: string, reason: string, actor: Pro
   const why = reason.trim();
   if (why.length < 3) throw new WmsMasterError("REASON_REQUIRED", "Alasan pembatalan wajib diisi.", 400);
   return runInTx(async (tx) => {
+    const [pre] = await tx.select().from(wmsSupplierPayment).where(eq(wmsSupplierPayment.id, id)).limit(1);
+    if (!pre) throw new WmsMasterError("PAYMENT_NOT_FOUND", "Pembayaran tidak ditemukan.", 404);
+    const scope = await scopeOfPayment(tx, pre);
+    await lockScope(tx, scope);
     const [p] = await tx.select().from(wmsSupplierPayment).where(eq(wmsSupplierPayment.id, id)).for("update").limit(1);
-    if (!p) throw new WmsMasterError("PAYMENT_NOT_FOUND", "Pembayaran tidak ditemukan.", 404);
     if (p.status === "void") throw new WmsMasterError("PAYMENT_STATE", "Pembayaran sudah dibatalkan.");
     const [row] = await tx.update(wmsSupplierPayment).set({ status: "void", voidReason: why }).where(eq(wmsSupplierPayment.id, id)).returning();
-    if (p.billId) await recomputeBill(tx, p.billId);
+    await recomputeScope(tx, scope);
     await writeWmsAudit(tx, { userId: actor.userId, action: "Pembayaran supplier dibatalkan", object: p.doc, status: "warning", metadata: { amount: p.amount, reason: why } });
     return row;
   });
@@ -676,15 +748,30 @@ export async function listSupplierBills(filter: { status?: string[]; supplierId?
     .orderBy(desc(wmsSupplierBill.createdAt))
     .limit(200);
   const ids = bills.map((b) => b.bill.id);
+  const poIds = [...new Set(bills.map((b) => b.bill.purchaseOrderId).filter((x): x is string => !!x))];
   const payments = ids.length ? await db.select().from(wmsSupplierPayment).where(inArray(wmsSupplierPayment.billId, ids)).orderBy(desc(wmsSupplierPayment.paidAt)) : [];
+  // DP milik PO (dialokasikan berurutan ke tagihan-tagihannya) ikut ditampilkan di setiap tagihan PO itu.
+  const dps = poIds.length
+    ? await db
+        .select()
+        .from(wmsSupplierPayment)
+        .where(and(inArray(wmsSupplierPayment.purchaseOrderId, poIds), eq(wmsSupplierPayment.kind, "dp"), isNull(wmsSupplierPayment.billId)))
+        .orderBy(desc(wmsSupplierPayment.paidAt))
+    : [];
+  const credit = new Map<string, number>();
+  for (const poId of poIds) {
+    for (const [billId, a] of await allocateScope(db, { purchaseOrderId: poId, billId: null })) credit.set(billId, a.dpCredit);
+  }
   const today = todayKey();
   return bills.map((b) => ({
     ...b.bill,
     poDoc: b.poDoc,
     receivingDoc: b.receivingDoc,
     outstanding: Math.max(0, b.bill.amount - b.bill.paidAmount),
+    /** Bagian DP PO yang terpakai tagihan ini (terverifikasi). */
+    dpCredit: credit.get(b.bill.id) ?? 0,
     overdue: b.bill.status !== "paid" && b.bill.status !== "void" && !!b.bill.dueDate && String(b.bill.dueDate) < today,
-    payments: payments.filter((p) => p.billId === b.bill.id),
+    payments: [...payments.filter((p) => p.billId === b.bill.id), ...dps.filter((d) => d.purchaseOrderId === b.bill.purchaseOrderId)],
   }));
 }
 

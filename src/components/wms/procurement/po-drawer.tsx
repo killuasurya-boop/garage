@@ -25,6 +25,7 @@ import { ConfirmDialog } from "@/components/wms/master/master-shared";
 import { garageApi } from "@/lib/api-client";
 import { unitCostCurrency } from "@/lib/garage-data";
 import { formatPacks, type PackUom } from "@/lib/stock-uom";
+import { parseIdNumber } from "@/lib/wms-master-form";
 import { FUND_SOURCE_LABEL, PAYMENT_STATUS_META, PO_EDITABLE, PO_STEPS, poPdfFileName, poStatusMeta, poStepIndex, type FundSource } from "@/lib/wms-procurement-meta";
 import { Skeleton, TonePill, proc, rupiah, tanggal, waktu } from "./proc-ui";
 
@@ -67,6 +68,9 @@ export type PoDetail = {
   payments: Payment[];
   whatsapp: { manual: boolean; cloudConfigured: boolean; cloudReady: boolean; note: string };
 };
+
+/** 1.5 → "1,5" (tanpa pemisah ribuan) — dibaca balik dengan benar oleh parseIdNumber. */
+const idNum = (v: number) => String(v).replace(".", ",");
 
 const EVENT_LABEL: Record<string, string> = {
   pdf_generated: "PDF dibuat",
@@ -487,7 +491,23 @@ function ReviseForm({ po, dispatched, onDone }: { po: PoDetail; dispatched: bool
   const [rows, setRows] = useState(() =>
     po.items.map((it) => {
       const f = it.uom && it.uomFactor && it.uomFactor > 1 ? it.uomFactor : 1;
-      return { productId: it.productId, name: it.name, unit: it.uom && f > 1 ? it.uom : (it.unit ?? ""), factor: f, uom: f > 1 ? it.uom : null, qty: String(Math.round((it.orderedQty / f) * 1000) / 1000), price: String(Math.round(it.unitPrice * f * 100) / 100) };
+      // Desimal Indonesia (koma) supaya parseIdNumber tidak membaca "1.5" sebagai ribuan;
+      // nilai asli disimpan agar baris yang tidak disentuh dikirim apa adanya (tanpa pembulatan).
+      const qty = idNum(Math.round((it.orderedQty / f) * 1000) / 1000);
+      const price = idNum(Math.round(it.unitPrice * f * 100) / 100);
+      return {
+        productId: it.productId,
+        name: it.name,
+        unit: it.uom && f > 1 ? it.uom : (it.unit ?? ""),
+        factor: f,
+        uom: f > 1 ? it.uom : null,
+        qty,
+        price,
+        initQty: qty,
+        initPrice: price,
+        origQty: it.orderedQty,
+        origPrice: it.unitPrice,
+      };
     }),
   );
   const [expectedDate, setExpectedDate] = useState(po.expectedDate ?? "");
@@ -497,7 +517,10 @@ function ReviseForm({ po, dispatched, onDone }: { po: PoDetail; dispatched: bool
   const [showPrices, setShowPrices] = useState(po.showPrices);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const n = (s: string) => Number(s.replace(/\./g, "").replace(",", ".")) || 0;
+  const n = (s: string) => {
+    const v = parseIdNumber(s);
+    return Number.isFinite(v) ? v : 0;
+  };
   const invalid = rows.some((r) => !(n(r.qty) > 0) || n(r.price) < 0);
 
   async function save() {
@@ -511,7 +534,13 @@ function ReviseForm({ po, dispatched, onDone }: { po: PoDetail; dispatched: bool
         showPrices,
         items: rows
           .filter((r) => r.productId)
-          .map((r) => ({ productId: r.productId, orderedQty: Math.round(n(r.qty) * r.factor * 10_000) / 10_000, unitPrice: Math.round((n(r.price) / r.factor) * 10_000) / 10_000, uom: r.uom, uomFactor: r.factor > 1 ? r.factor : null })),
+          .map((r) => ({
+            productId: r.productId,
+            orderedQty: r.qty === r.initQty ? r.origQty : Math.round(n(r.qty) * r.factor * 10_000) / 10_000,
+            unitPrice: r.price === r.initPrice ? r.origPrice : Math.round((n(r.price) / r.factor) * 10_000) / 10_000,
+            uom: r.uom,
+            uomFactor: r.factor > 1 ? r.factor : null,
+          })),
       });
       toast.push({ tone: "success", title: dispatched ? `Revisi ${po.revision + 1} dibuat` : "PO diperbarui", body: dispatched || po.status !== "draft" ? "PO perlu disetujui lagi sebelum dikirim." : undefined });
       setConfirmOpen(false);

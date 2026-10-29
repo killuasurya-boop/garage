@@ -2,7 +2,8 @@
 
 > **Sumber requirement:** Blueprint `GOS-AI-MCP-IMPLEMENTATION-003` V3.0 (29 Okt 2026, dari Owner; file asli di
 > Drive Owner `CODING/Garage_OS_Owner_AI_Command_Center_MCP_Implementation_Blueprint_V3.md`, tidak disalin ke repo).
-> **Status saat ini:** `PHASE 1 — KODE SELESAI, BELUM DEPLOY` (AI Connect, verifikasi ChatGPT, status terpisah, cabut koneksi).
+> **Status saat ini:** `PHASE 1 (PR #145) + PHASE 2 KODE SELESAI, BELUM DEPLOY` — AI Connect + AI Command Center in-app
+> (mesin perintah yang sama dengan ChatGPT: preview → setuju (+2FA R3) → receipt bersidik, timeline operasi).
 > Uji dari ChatGPT web nyata: **NOT TESTED** (butuh deploy + paket ChatGPT Owner). Phase 0 audit: selesai.
 > **Branch:** `feature/garage-owner-ai-command-center` (dari `origin/main` `b89f458`).
 
@@ -22,7 +23,9 @@ hapus/arsip tanpa 2FA), keputusan Owner yang tercatat menang sampai Owner memutu
 | `05-apis-and-tool-contracts.md` | API Owner AI, tool `garage_ping`/`garage_verify_connection`, perubahan gateway, data | ✅ Phase 1 |
 | `06-owner-guide-id.md` | Panduan Owner (sambung, verifikasi, arti chip, darurat) | ✅ Phase 1 |
 | `07-test-matrix.md` | Status AC-01…08 + daftar tes | ✅ Phase 1 |
-| `08`–`11` | Deploy, rollback, UAT sign-off, release report | ⏳ saat rilis |
+| `08-deployment-checklist.md` | Urutan merge, deploy, cek Owner sesudah deploy | ✅ |
+| `09-rollback-and-recovery.md` | Rollback | `08`–`11` | Deploy, rollback, UAT sign-off, release report | ⏳ saat rilis | darurat | ✅ |
+| `10`–`11` | UAT sign-off, release report | ⏳ setelah deploy + uji ChatGPT nyata |
 
 ## Aturan yang berlaku (ringkas)
 

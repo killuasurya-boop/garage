@@ -268,7 +268,7 @@ export function AiConnectPanel() {
             </div>
           </Panel>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <Panel title="Sambungkan & verifikasi" subtitle="Ikuti urutan ini sekali; verifikasi ulang tiap 24 jam bila diminta.">
               <ol className="mt-1">
                 <Step no={1} title="Cek server" done={gatewayOk}>

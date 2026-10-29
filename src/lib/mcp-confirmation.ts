@@ -55,9 +55,13 @@ export function argsDigest(tool: string, parsedArgs: Record<string, unknown>) {
 
 const hashNonce = (nonce: string) => createHash("sha256").update(nonce).digest("hex");
 
+export type OperationSource = "chatgpt" | "garage_owner_ui";
+
 export async function createPendingOperation(input: {
   userId: string;
   oauthClientId: string | null;
+  /** Pintu masuk: ChatGPT (MCP) atau layar Owner (AI Command Center). Default chatgpt. */
+  source?: OperationSource;
   tool: string;
   risk: string;
   parsedArgs: Record<string, unknown>;
@@ -70,6 +74,7 @@ export async function createPendingOperation(input: {
     .insert(mcpOperations)
     .values({
       userId: input.userId,
+      source: input.source ?? "chatgpt",
       oauthClientId: input.oauthClientId,
       tool: input.tool,
       risk: input.risk,
@@ -126,6 +131,11 @@ export async function claimOperation(input: {
   return { ok: true, operationId };
 }
 
+/** Sidik hasil eksekusi (dari ringkasan yang disimpan) — bukti yang sama bisa dihitung ulang dari receipt. */
+export function resultHash(result: unknown) {
+  return createHash("sha256").update(stableStringify(summarize(result))).digest("hex");
+}
+
 function summarize(result: unknown) {
   try {
     const text = JSON.stringify(result ?? null);
@@ -148,17 +158,15 @@ export async function completeOperation(operationId: string, outcome: { ok: true
   return now;
 }
 
-export async function getOperation(operationId: string, userId: string) {
-  const [row] = await getDb()
-    .select()
-    .from(mcpOperations)
-    .where(and(eq(mcpOperations.id, operationId), eq(mcpOperations.userId, userId)))
-    .limit(1);
-  if (!row) return null;
+/** Bentuk receipt/status operasi (dipakai getOperation & timeline). */
+export function operationView(row: typeof mcpOperations.$inferSelect) {
   return {
     operationId: row.id,
     tool: row.tool,
     risiko: row.risk,
+    sumber: row.source,
+    sidikArgumen: row.argsDigest,
+    sidikHasil: row.status === "executed" ? resultHash(row.resultSummary) : null,
     // confirmed tanpa executed = belum pasti (proses terputus) — jangan dianggap berhasil.
     status: row.status === "confirmed" ? "UNKNOWN" : row.status.toUpperCase(),
     argumen: row.argsPreview,
@@ -170,6 +178,15 @@ export async function getOperation(operationId: string, userId: string) {
   };
 }
 
+export async function getOperation(operationId: string, userId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(mcpOperations)
+    .where(and(eq(mcpOperations.id, operationId), eq(mcpOperations.userId, userId)))
+    .limit(1);
+  return row ? operationView(row) : null;
+}
+
 // ─── Orkestrasi untuk handleMcpMessage (dipasang gateway MCP ChatGPT) ─────────
 
 export async function runToolWithConfirmation(input: {
@@ -178,7 +195,9 @@ export async function runToolWithConfirmation(input: {
   rawArgs: unknown;
   ctx: import("@/lib/agent-tools").AgentToolContext;
   oauthClientId: string | null;
+  source?: OperationSource;
 }) {
+  const source: OperationSource = input.source ?? "chatgpt";
   const { AgentToolError, findAgentTool, runAgentTool } = await import("@/lib/agent-tools");
   const { riskNeedsConfirmation } = await import("@/lib/mcp-tool-registry");
   const { canUseApiAs } = await import("@/lib/role-access");
@@ -200,7 +219,7 @@ export async function runToolWithConfirmation(input: {
 
   if (!token) {
     const ringkasan = tool.preview ? await tool.preview(input.session, parsedArgs) : {};
-    const op = await createPendingOperation({ userId, oauthClientId: input.oauthClientId, tool: tool.name, risk, parsedArgs });
+    const op = await createPendingOperation({ userId, oauthClientId: input.oauthClientId, source, tool: tool.name, risk, parsedArgs });
     if (needsTotp) {
       // D-01a: tantangan 2FA terikat operasi + sidik argumen; nonce = nonce token konfirmasi.
       const { createStepUpChallenge } = await import("@/lib/step-up-totp");
@@ -268,7 +287,16 @@ export async function runToolWithConfirmation(input: {
     return {
       status: "BERHASIL",
       hasil,
-      receipt: { operasiId: claim.operationId, tool: tool.name, risiko: risk, dijalankan: executedAt.toISOString(), audit: "tercatat (sumber ChatGPT)" },
+      receipt: {
+        operasiId: claim.operationId,
+        tool: tool.name,
+        risiko: risk,
+        sumber: source,
+        dijalankan: executedAt.toISOString(),
+        sidikArgumen: argsDigest(tool.name, parsedArgs),
+        sidikHasil: resultHash(hasil),
+        audit: source === "chatgpt" ? "tercatat (sumber ChatGPT)" : "tercatat (sumber layar Owner)",
+      },
     };
   } catch (error) {
     await completeOperation(claim.operationId, { ok: false, error: error instanceof Error ? error.message : String(error) }).catch(() => undefined);

@@ -5251,8 +5251,11 @@ export async function saveWmsOpnameLine(
         firstPhysicalQty: line.line.countAttempts === 0 ? physicalQty : line.line.firstPhysicalQty,
         firstSystemQty: line.line.countAttempts === 0 ? systemQty : line.line.firstSystemQty,
         classification: cls.classification,
-        // Hitung ulang yang diminta dianggap selesai setelah dihitung lagi.
-        needsRecount: false,
+        // Selisih di atas toleransi → wajib hitung ulang (penghitung blind hanya diberi tahu
+        // "hitung ulang", tanpa angka sistem). Hitung ulang yang diminta selesai setelah dihitung lagi;
+        // bila tetap di luar toleransi, klasifikasi naik ke review Manajer.
+        needsRecount: cls.classification === "recount",
+        recountReason: cls.classification === "recount" ? "Di luar toleransi — hitung ulang untuk memastikan." : "",
       })
       .where(eq(wmsOpnameLine.id, lineId))
       .returning();

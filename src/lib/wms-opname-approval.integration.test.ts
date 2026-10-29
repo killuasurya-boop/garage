@@ -49,7 +49,10 @@ describe("Opname dengan approval", () => {
     expect(line).toMatchObject({ systemQty: null, physicalQty: null, variance: null, counted: false });
 
     await expect(wms.submitWmsOpname(op.id)).rejects.toThrow(/Belum ada bahan/);
-    await wms.saveWmsOpnameLine(line.id, 900, op.id); // hilang 100 gr
+    await wms.saveWmsOpnameLine(line.id, 900, op.id); // hilang 100 gr (10%) → di luar toleransi
+    // Phase 3: selisih di atas toleransi wajib dihitung ulang sebelum bisa dikirim.
+    await expect(wms.submitWmsOpname(op.id)).rejects.toThrow(/dihitung ulang/);
+    await wms.saveWmsOpnameLine(line.id, 900, op.id); // hitung ulang, hasil sama → review Manajer
     await wms.submitWmsOpname(op.id);
     await expect(wms.saveWmsOpnameLine(line.id, 950, op.id)).rejects.toThrow(/terkunci/);
     expect(await onHand()).toBe(1000); // belum berubah sebelum disetujui
@@ -83,6 +86,7 @@ describe("Opname dengan approval", () => {
     const detail = await wms.getWmsOpname(op.id);
     const line = detail.lines.find((l: any) => l.productId === productId);
     await wms.saveWmsOpnameLine(line.id, 900, op.id, "user-opname-mgr");
+    await wms.saveWmsOpnameLine(line.id, 900, op.id, "user-opname-mgr"); // hitung ulang wajib (di luar toleransi)
     await wms.submitWmsOpname(op.id, "user-opname-mgr");
     await expect(wms.finalizeWmsOpname(op.id, "user-opname-mgr")).rejects.toThrow(/manajer lain/);
     await wms.finalizeWmsOpname(op.id, "user-opname-mgr", { allowSelfApproval: true });

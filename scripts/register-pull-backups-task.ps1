@@ -19,12 +19,20 @@ $bash = @("$env:ProgramFiles\Git\bin\bash.exe", "${env:ProgramFiles(x86)}\Git\bi
 if (-not $bash) { throw "Git Bash tidak ditemukan (pasang Git for Windows)." }
 New-Item -ItemType Directory -Force $Dest | Out-Null
 $log = Join-Path $Dest "pull-backups.log"
-$destUnix = ($Dest -replace '\', '/')
-$command = "cd '$($root -replace '\','/')' && BACKUP_DEST='$destUnix' bash scripts/pull-backups.sh >> '$($log -replace '\','/')' 2>&1"
-$action = New-ScheduledTaskAction -Execute $bash -Argument "-lc `"$command`"" -WorkingDirectory $root
+# Skrip disalin ke folder tetap: task tidak boleh bergantung pada folder repo yang bisa dipindah/dihapus.
+$opsDir = Join-Path $env:USERPROFILE ".garage-ops"
+New-Item -ItemType Directory -Force $opsDir | Out-Null
+$script = Join-Path $opsDir "pull-backups.sh"
+[IO.File]::WriteAllText($script, ((Get-Content -Raw (Join-Path $root "scripts\pull-backups.sh")) -replace "`r`n", "`n"))
+# Jalur Windows → jalur Git Bash (garis miring maju); .Replace() = teks biasa, bukan regex.
+$destUnix = $Dest.Replace([char]92, [char]47)
+$scriptUnix = $script.Replace([char]92, [char]47)
+$logUnix = $log.Replace([char]92, [char]47)
+$command = "BACKUP_DEST='$destUnix' bash '$scriptUnix' >> '$logUnix' 2>&1"
+$action = New-ScheduledTaskAction -Execute $bash -Argument "-lc `"$command`"" -WorkingDirectory $opsDir
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -RunOnlyIfNetworkAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
 Register-ScheduledTask -TaskName "Garage OS Tarik Backup VPS" -Action $action -Trigger $trigger -Settings $settings `
   -Description "Tarik backup database Garage OS dari VPS ke $Dest (backup di luar VPS)." -Force | Out-Null
-Write-Output "Terdaftar: tiap hari $At → $Dest (log: $log)"
+Write-Output "Terdaftar: tiap hari $At ke $Dest (skrip: $script, log: $log)"

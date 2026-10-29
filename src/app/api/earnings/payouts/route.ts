@@ -7,6 +7,7 @@ import {
   getCurrentCycle,
   listStaffEarningBalances,
   listPayouts,
+  PayoutActiveError,
 } from "@/lib/garage-earnings";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -45,12 +46,24 @@ export async function POST(request: Request) {
   if (body.error) return body.error;
 
   const cycle = getCurrentCycle();
-  const payout = await closeCycleForStaff({
-    staffUserId: body.data.staffUserId,
-    cycle,
-    outletId: session.data.profile.outlet.id,
-    requestedBy: session.data.user.id,
-  });
+  let payout: Awaited<ReturnType<typeof closeCycleForStaff>>;
+  try {
+    payout = await closeCycleForStaff({
+      staffUserId: body.data.staffUserId,
+      cycle,
+      outletId: session.data.profile.outlet.id,
+      requestedBy: session.data.user.id,
+    });
+  } catch (error) {
+    if (error instanceof PayoutActiveError) {
+      return fail(
+        409,
+        "PAYOUT_ACTIVE",
+        "Staf masih punya pencairan yang belum selesai. Bayar atau batalkan dulu sebelum membuat yang baru.",
+      );
+    }
+    throw error;
+  }
 
   if (!payout) {
     return fail(

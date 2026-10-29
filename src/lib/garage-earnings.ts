@@ -947,14 +947,45 @@ export async function listStaffEarnings(staffUserId: string, limit = 100) {
 }
 
 // ─── Payout (close cycle, request, approve, pay) ───────
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/** Staf masih punya pencairan pending/approved — selesaikan atau batalkan dulu. */
+export class PayoutActiveError extends Error {
+  constructor(public readonly payoutId: string) {
+    super("Staf masih punya pencairan yang belum selesai.");
+    this.name = "PayoutActiveError";
+  }
+}
+
 export async function closeCycleForStaff(input: {
   staffUserId: string;
   cycle: EarningCycle;
   outletId: string | null;
   requestedBy: string | null;
 }) {
-  const db = getDb();
+  // Satu transaksi + kunci per staf (audit #9): dua permintaan bersamaan tidak boleh menautkan
+  // fee yang sama ke dua pencairan; fee hanya ditautkan bila belum punya payoutId.
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`earning-payout:${input.staffUserId}`}))`);
+    const [active] = await tx
+      .select({ id: staffEarningPayouts.id })
+      .from(staffEarningPayouts)
+      .where(
+        and(
+          eq(staffEarningPayouts.staffUserId, input.staffUserId),
+          inArray(staffEarningPayouts.status, ["pending", "approved"]),
+        ),
+      )
+      .limit(1);
+    if (active) throw new PayoutActiveError(active.id);
+    return closeCycleInTx(tx, input);
+  });
+}
 
+async function closeCycleInTx(
+  db: Tx,
+  input: { staffUserId: string; cycle: EarningCycle; outletId: string | null; requestedBy: string | null },
+) {
   const availableCutoff = new Date();
   availableCutoff.setUTCMonth(availableCutoff.getUTCMonth() - WALLET_LOCK_MONTHS);
 
@@ -1018,15 +1049,24 @@ export async function closeCycleForStaff(input: {
     })
     .returning();
 
-  await db
+  const linked = await db
     .update(staffEarnings)
     .set({ payoutId: payout.id })
     .where(
-      inArray(
-        staffEarnings.id,
-        accrued.map((row) => row.id),
+      and(
+        inArray(
+          staffEarnings.id,
+          accrued.map((row) => row.id),
+        ),
+        isNull(staffEarnings.payoutId),
+        eq(staffEarnings.status, "accrued"),
       ),
-    );
+    )
+    .returning({ id: staffEarnings.id });
+  // Total pencairan harus sama persis dengan fee yang benar-benar tertaut.
+  if (linked.length !== accrued.length) {
+    throw new Error("Fee berubah saat pencairan dibuat — ulangi.");
+  }
 
   return payout;
 }
@@ -1067,12 +1107,22 @@ export async function autoCreateEligiblePayouts(input: {
       continue;
     }
 
-    const payout = await closeCycleForStaff({
-      staffUserId: profile.staffUserId,
-      cycle,
-      outletId: input.outletId,
-      requestedBy: input.requestedBy,
-    });
+    let payout: Awaited<ReturnType<typeof closeCycleForStaff>>;
+    try {
+      payout = await closeCycleForStaff({
+        staffUserId: profile.staffUserId,
+        cycle,
+        outletId: input.outletId,
+        requestedBy: input.requestedBy,
+      });
+    } catch (error) {
+      // Permintaan lain baru saja membuat pencairan untuk staf ini — lewati, jangan hentikan staf lain.
+      if (error instanceof PayoutActiveError) {
+        skippedActive += 1;
+        continue;
+      }
+      throw error;
+    }
 
     if (payout) {
       created.push({

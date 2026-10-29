@@ -34,11 +34,14 @@ import type {
   PaymentBreakdown,
 } from "@/lib/garage-api-types";
 
-const companyStorageRoot = path.join(
-  /* turbopackIgnore: true */ process.cwd(),
-  "storage",
-  "company-documents",
-);
+// GARAGE_STORAGE_BASE_DIR hanya untuk tes (folder sementara); produksi = folder kerja aplikasi.
+function storageBase() {
+  return process.env.GARAGE_STORAGE_BASE_DIR || /* turbopackIgnore: true */ process.cwd();
+}
+
+function companyStorageRoot() {
+  return path.join(storageBase(), "storage", "company-documents");
+}
 const maxDocumentBytes = 25 * 1024 * 1024;
 
 export const documentUploadMimeTypes = new Set([
@@ -527,9 +530,10 @@ function storageRelativePath(...segments: string[]) {
 }
 
 function resolveStoragePath(storagePath: string) {
-  const absolute = path.resolve(/* turbopackIgnore: true */ process.cwd(), storagePath);
-  const root = path.resolve(companyStorageRoot);
-  if (!absolute.startsWith(root)) {
+  const absolute = path.resolve(storageBase(), storagePath);
+  const root = path.resolve(companyStorageRoot());
+  // Dengan pemisah folder: "company-documents-lain/…" tidak boleh lolos sebagai awalan.
+  if (!absolute.startsWith(root + path.sep)) {
     throw new Error("Invalid company document storage path.");
   }
   return absolute;
@@ -556,9 +560,9 @@ function mimeFromName(fileName: string, fallback = "application/octet-stream") {
   return fallback;
 }
 
-function isAcceptedCompanyFile(fileName: string, mimeType: string) {
-  return documentUploadExtensions.has(path.extname(fileName).toLowerCase()) ||
-    documentUploadMimeTypes.has(mimeType.toLowerCase());
+/** Ekstensi wajib di daftar (audit #9): tipe MIME dari browser bisa dipalsukan, jadi tidak cukup sendirian. */
+export function isAcceptedCompanyFile(fileName: string) {
+  return documentUploadExtensions.has(path.extname(fileName).toLowerCase());
 }
 
 function versionDownloadUrl(documentId: string, versionId: string) {
@@ -623,7 +627,7 @@ export async function ensureCompanyControlSeed() {
 
 async function runCompanyControlSeed() {
   const db = getDb();
-  await mkdir(path.join(companyStorageRoot, "seed"), { recursive: true });
+  await mkdir(path.join(companyStorageRoot(), "seed"), { recursive: true });
 
   for (const role of seedOrgRoles) {
     await db
@@ -866,7 +870,7 @@ export async function saveCompanyDocumentVersion(input: {
   if (input.sizeBytes > maxDocumentBytes) {
     throw new Error("Ukuran dokumen maksimal 25 MB.");
   }
-  if (!isAcceptedCompanyFile(input.fileName, input.mimeType)) {
+  if (!isAcceptedCompanyFile(input.fileName)) {
     throw new Error("Format belum didukung. Gunakan PDF, DOCX, MD, TXT, atau HTML.");
   }
 
@@ -888,7 +892,7 @@ export async function saveCompanyDocumentVersion(input: {
     .where(eq(companyDocumentVersions.documentId, input.documentId));
 
   const extension = path.extname(input.fileName).toLowerCase() || ".bin";
-  const dir = path.join(companyStorageRoot, input.documentId);
+  const dir = path.join(companyStorageRoot(), input.documentId);
   await mkdir(dir, { recursive: true });
   const storagePath = storageRelativePath(input.documentId, `v${nextVersion}${extension}`);
   const targetPath = resolveStoragePath(storagePath);
@@ -900,7 +904,7 @@ export async function saveCompanyDocumentVersion(input: {
       documentId: input.documentId,
       version: nextVersion,
       originalFileName: input.fileName,
-      mimeType: input.mimeType || mimeFromName(input.fileName),
+      mimeType: mimeFromName(input.fileName),
       sizeBytes: input.sizeBytes,
       storagePath,
       uploadedBy: input.garage.user.id,

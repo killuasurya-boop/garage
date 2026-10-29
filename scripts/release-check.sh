@@ -45,6 +45,22 @@ if git diff --name-only "$(git describe --tags --abbrev=0 2>/dev/null || echo HE
   good "ada migrasi baru (backup otomatis sebelum migrate di deploy)"
 fi
 
+step "Lock file cocok dengan npm di image Docker"
+# Insiden 29 Okt 2026: lock dari npm 11 laptop membuang entri esbuild bersarang → `npm ci` (npm 10 di
+# node:22-bookworm-slim) gagal saat build deploy. Uji dengan npm versi image di folder sementara.
+IMAGE_NPM="${IMAGE_NPM:-10}"
+lockdir="$(mktemp -d)"
+cp package.json package-lock.json "$lockdir/"
+if lock_out="$(cd "$lockdir" && npx -y "npm@$IMAGE_NPM" ci --dry-run --ignore-scripts 2>&1)"; then
+  good "npm@$IMAGE_NPM ci menerima package-lock.json"
+elif echo "$lock_out" | grep -qiE "ENOTFOUND|ECONNREFUSED|ETIMEDOUT"; then
+  good "cek lock dilewati (offline) — ulangi saat online"
+else
+  bad "package-lock.json ditolak npm@$IMAGE_NPM ci — perbaiki: npx npm@$IMAGE_NPM install --package-lock-only"
+  echo "$lock_out" | grep -E "npm error" | head -5
+fi
+rm -rf "$lockdir"
+
 step "Keamanan dependensi produksi"
 # Audit #16: tidak boleh ada kerentanan high/critical di dependensi yang ikut ke produksi.
 if audit_out="$(npm audit --omit=dev --audit-level=high 2>&1)"; then

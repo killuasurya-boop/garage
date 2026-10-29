@@ -1,3 +1,7 @@
 # Skrip shell dijalankan bash Linux (VPS / container) — selalu LF, juga saat
 # di-checkout di Windows dengan core.autocrlf=true.
 *.sh text eol=lf
+
+# Migrasi & skrip SQL dibaca byte-per-byte oleh tes (sidik buku kas, backfill 0157) dan
+# dijalankan Postgres di Linux — selalu LF supaya hasil sama di Windows dan CI.
+*.sql text eol=lf

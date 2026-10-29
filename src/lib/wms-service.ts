@@ -24,6 +24,7 @@ import {
   wmsProduct,
   wmsProductionBom,
   wmsProductionRecipe,
+  wmsPurchaseOrderItem,
   wmsReceiving,
   wmsReceivingItem,
   wmsRecipe,
@@ -2489,11 +2490,11 @@ export async function generateWmsPoDraft() {
 }
 
 /** Selesaikan receiving: hanya item QC pass/discrepancy yang diterima → +stok +batch +HPP avg. */
-/** Selisih qty pesan vs terima >10% — perlu konfirmasi Owner/Manajer. */
+/** Selisih >10% (qty pesan vs terima, atau harga terima vs harga PO) — perlu konfirmasi Owner/Manajer. */
 export class ReceivingDiscrepancyError extends Error {
   readonly lines: string[];
   constructor(doc: string, lines: string[]) {
-    super(`Selisih qty >10% pada ${doc}: ${lines.join("; ")}. Konfirmasi selisih untuk menyelesaikan.`);
+    super(`Selisih >10% pada ${doc}: ${lines.join("; ")}. Konfirmasi selisih untuk menyelesaikan.`);
     this.name = "ReceivingDiscrepancyError";
     this.lines = lines;
   }
@@ -2557,23 +2558,46 @@ export async function completeReceiving(
     const valErrors = validateReceivingLines(validationLines);
     if (valErrors.length) throw new Error(valErrors.join(" "));
 
-    const needsApproval = items.some(
-      (x) =>
-        x.row.productId &&
-        needsDiscrepancyApproval(Number(x.row.orderedQty), Number(x.row.receivedQty), x.row.qc),
-    );
-    if (needsApproval && !opts?.forceApprove) {
+    const qtyLines = items
+      .filter(
+        (x) =>
+          x.row.productId &&
+          needsDiscrepancyApproval(Number(x.row.orderedQty), Number(x.row.receivedQty), x.row.qc),
+      )
+      .map((x) => `${x.productName ?? "Bahan"}: pesan ${Number(x.row.orderedQty)}, terima ${Number(x.row.receivedQty)}`);
+    // Harga beli menyimpang >10% dari harga PO (per satuan dasar) juga wajib dikonfirmasi —
+    // dulu lolos diam-diam dan langsung mengubah HPP rata-rata + biaya belanja.
+    const priceLines: string[] = [];
+    if (rec.purchaseOrderId) {
+      const poItems = await tx
+        .select({ productId: wmsPurchaseOrderItem.productId, unitPrice: wmsPurchaseOrderItem.unitPrice })
+        .from(wmsPurchaseOrderItem)
+        .where(eq(wmsPurchaseOrderItem.purchaseOrderId, rec.purchaseOrderId));
+      const poPrice = new Map(poItems.map((p) => [p.productId, Number(p.unitPrice)]));
+      for (const x of items) {
+        if (!x.row.productId || x.row.qc === "reject" || !(Number(x.row.receivedQty) > 0)) continue;
+        const expected = poPrice.get(x.row.productId) ?? 0;
+        const actual = Number(x.row.hpp);
+        if (expected > 0 && Math.abs(actual - expected) / expected > 0.1) {
+          const pct = Math.round(((actual - expected) / expected) * 100);
+          priceLines.push(`${x.productName ?? "Bahan"}: harga PO Rp${expected.toLocaleString("id-ID")}, terima Rp${actual.toLocaleString("id-ID")} per satuan (${pct > 0 ? "+" : ""}${pct}%)`);
+        }
+      }
+    }
+    if ((qtyLines.length || priceLines.length) && !opts?.forceApprove) {
       // Selisih >10% butuh konfirmasi eksplisit Owner/Manajer (yang menyelesaikan
       // penerimaan). Dulu status+approval ditulis lalu ikut ter-rollback oleh
       // throw sehingga tidak pernah tersimpan; sekarang tidak menulis apa pun.
-      const lines = items
-        .filter(
-          (x) =>
-            x.row.productId &&
-            needsDiscrepancyApproval(Number(x.row.orderedQty), Number(x.row.receivedQty), x.row.qc),
-        )
-        .map((x) => `${x.productName ?? "Bahan"}: pesan ${Number(x.row.orderedQty)}, terima ${Number(x.row.receivedQty)}`);
-      throw new ReceivingDiscrepancyError(rec.doc, lines);
+      throw new ReceivingDiscrepancyError(rec.doc, [...qtyLines, ...priceLines]);
+    }
+    if (priceLines.length) {
+      await writeWmsAudit(tx, {
+        userId: userId ?? null,
+        action: "Selisih harga penerimaan dikonfirmasi",
+        object: rec.doc,
+        status: "warning",
+        metadata: { lines: priceLines, purchaseOrderId: rec.purchaseOrderId },
+      });
     }
 
     const catRows = await tx.select({ name: wmsCategory.name, area: wmsCategory.area }).from(wmsCategory);

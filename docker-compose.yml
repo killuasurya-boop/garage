@@ -69,6 +69,10 @@ services:
       - garage-profile-files:/app/storage/profiles
       # Invoice & bukti bayar supplier (WMS pengadaan) — hanya lewat API Owner/Manajer.
       - garage-supplier-docs:/app/storage/supplier-docs
+      # Foto nota kas (pengeluaran laci/kas kecil) & dokumen perusahaan — dulu tidak persisten
+      # sehingga hilang tiap redeploy. Hanya disajikan lewat API terproteksi.
+      - garage-cash-receipts:/app/storage/cash-receipts
+      - garage-company-documents:/app/storage/company-documents
     depends_on:
       db:
         condition: service_healthy
@@ -124,5 +128,7 @@ volumes:
   garage-delivery-proofs:
   garage-profile-files:
   garage-supplier-docs:
+  garage-cash-receipts:
+  garage-company-documents:
   caddy-data:
   caddy-config:

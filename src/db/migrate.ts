@@ -105,9 +105,14 @@ async function run() {
 
     for (const file of files) {
       const sqlContent = fs.readFileSync(path.join("./drizzle", file), "utf8");
-      const hash = crypto.createHash("sha256").update(sqlContent).digest("hex");
+      // Hash dari isi ber-LF (sama dengan build Linux/produksi). DB lokal Windows lama mungkin
+      // mencatat hash versi CRLF (checkout autocrlf) → anggap sudah diterapkan juga, supaya
+      // .gitattributes "*.sql eol=lf" tidak membuat semua migrasi dijalankan ulang.
+      const lf = sqlContent.replace(/\r\n/g, "\n");
+      const hash = crypto.createHash("sha256").update(lf).digest("hex");
+      const crlfHash = crypto.createHash("sha256").update(lf.replace(/\n/g, "\r\n")).digest("hex");
 
-      if (applied.has(hash)) {
+      if (applied.has(hash) || applied.has(crlfHash)) {
         skipped += 1;
         continue;
       }

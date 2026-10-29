@@ -304,6 +304,56 @@ describe("Tagihan & pembayaran supplier (tanpa pengeluaran ganda)", () => {
   });
 });
 
+describe("Reorder tidak membeli dobel", () => {
+  it("qty di PO terbuka mengurangi saran beli; klik ganda 'buat PO dari saran' tidak membuat PO ganda", async () => {
+    const tea = (await wms.createWmsProduct({ sku: "T-TEA-RO", name: "Teh Reorder", category: "Syrup", unit: "gram" })).id;
+    await proc.upsertSupplierProduct({ supplierId, productId: tea, refPrice: 50, role: "primary" }, OWNER);
+    await po.upsertReorderRule({ productId: tea, warehouseId: mainBar, minQty: 100, maxQty: 1000 });
+    let s = (await po.getReorderSuggestions()).find((x: any) => x.productId === tea);
+    expect(s).toMatchObject({ needQty: 1000, onOrderQty: 0, purchaseQty: 1000, supplierId, lastPrice: 50 });
+
+    // Sudah dipesan 400 di PO lain (masih draft) → saran beli tinggal 600.
+    await po.createPurchaseOrder({ supplierId, items: [{ productId: tea, orderedQty: 400, unitPrice: 50 }] }, MANAJER.userId);
+    s = (await po.getReorderSuggestions()).find((x: any) => x.productId === tea);
+    expect(s).toMatchObject({ onOrderQty: 400, purchaseQty: 600 });
+
+    const [first, second] = await Promise.all([po.createPurchaseOrdersFromSuggestions("user-itest"), po.createPurchaseOrdersFromSuggestions("user-itest")]);
+    const made = [...first.created, ...second.created];
+    const teaLines = [];
+    for (const m of made) {
+      const d = await po.getPurchaseOrder(m.id);
+      teaLines.push(...d.items.filter((it: any) => it.productId === tea));
+    }
+    expect(teaLines).toHaveLength(1);
+    expect(teaLines[0].orderedQty).toBe(600);
+    expect(teaLines[0].sourceRefs[0]).toContain("Reorder");
+    s = (await po.getReorderSuggestions()).find((x: any) => x.productId === tea);
+    expect(s.purchaseQty).toBe(0);
+  });
+});
+
+describe("Selisih harga penerimaan vs PO", () => {
+  it("harga terima menyimpang >10% dari PO wajib dikonfirmasi & dicatat di audit", async () => {
+    const o = await approvedPo([{ productId: beanId, orderedQty: 100, unitPrice: 180 }]);
+    const r = await po.createReceivingFromPurchaseOrder(o.id);
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.wmsReceivingItem).set({ hpp: 210 }).where(eq(t.schema.wmsReceivingItem.receivingId, r.id));
+    await expect(wms.completeReceiving(r.id)).rejects.toThrow(/harga PO Rp180, terima Rp210 .*\+17%/);
+    await wms.completeReceiving(r.id, OWNER.userId, { forceApprove: true });
+    const logs = await t.getDb().select().from(t.schema.auditLogs).where(eq(t.schema.auditLogs.object, r.doc));
+    expect(logs.some((l: any) => l.action === "Selisih harga penerimaan dikonfirmasi")).toBe(true);
+  });
+
+  it("selisih harga ≤10% tidak meminta konfirmasi", async () => {
+    const o = await approvedPo([{ productId: beanId, orderedQty: 100, unitPrice: 180 }]);
+    const r = await po.createReceivingFromPurchaseOrder(o.id);
+    const { eq } = await import("drizzle-orm");
+    await t.getDb().update(t.schema.wmsReceivingItem).set({ hpp: 190 }).where(eq(t.schema.wmsReceivingItem.receivingId, r.id));
+    const done = await wms.completeReceiving(r.id);
+    expect(done.status).toBe("completed");
+  });
+});
+
 describe("Procurement Command Center", () => {
   it("ringkasan menghitung status PO, tagihan, dan verifikasi pembayaran", async () => {
     const o = await po.createPurchaseOrder({ supplierId, items: [{ productId: beanId, orderedQty: 10, unitPrice: 180 }] }, MANAJER.userId);

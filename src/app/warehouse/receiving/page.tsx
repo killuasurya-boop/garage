@@ -479,14 +479,14 @@ export default function WmsReceivingPage() {
     }
   }
 
-  // Selisih qty >10% → server minta konfirmasi; tanya lalu kirim ulang.
+  // Selisih qty / harga vs PO >10% → server minta konfirmasi; tanya lalu kirim ulang.
   async function postComplete(id: string) {
     try {
       await garageApi.post(`/api/wms/receiving/${id}/complete`, {});
     } catch (e) {
       if (!(e instanceof GarageApiError) || e.code !== "RECEIVING_DISCREPANCY") throw e;
-      if (!window.confirm(`${e.message}\n\nLanjutkan dengan qty yang diterima?`)) {
-        throw new Error("Penerimaan belum diselesaikan — periksa lagi qty yang diterima.");
+      if (!window.confirm(`${e.message}\n\nLanjutkan dengan qty & harga yang diterima? (dicatat di audit)`)) {
+        throw new Error("Penerimaan belum diselesaikan — periksa lagi qty / harga yang diterima.");
       }
       await garageApi.post(`/api/wms/receiving/${id}/complete`, { confirmDiscrepancy: true });
     }

@@ -122,13 +122,16 @@ describe("Reorder per ruang", () => {
     await expect(po.upsertReorderRule({ productId: milkId, warehouseId: outletBar, minQty: 500, maxQty: 100 })).rejects.toThrow(/Maks/);
     const mainQty = await stock(mainBar); // 2000
     const [s] = await po.getReorderSuggestions();
-    expect(s).toMatchObject({ warehouseId: outletBar, onHand: 0, needQty: 3000, transferQty: mainQty, purchaseQty: 3000 - mainQty, supplierId, lastPrice: 34 });
+    // Masih dipesan di PO terbuka: sisa 100 dari PO pertama (diterima sebagian 1900/2000) + PO 10
+    // yang masih punya penerimaan draft → tidak dibeli lagi.
+    const onOrder = 110;
+    expect(s).toMatchObject({ warehouseId: outletBar, onHand: 0, needQty: 3000, transferQty: mainQty, onOrderQty: onOrder, purchaseQty: 3000 - mainQty - onOrder, supplierId, lastPrice: 34 });
 
     const { created, skipped } = await po.createPurchaseOrdersFromSuggestions();
     expect(skipped).toEqual([]);
     expect(created).toHaveLength(1);
     const detail = await po.getPurchaseOrder(created[0].id);
-    expect(detail.items[0]).toMatchObject({ orderedQty: 3000 - mainQty, unitPrice: 34 });
+    expect(detail.items[0]).toMatchObject({ orderedQty: 3000 - mainQty - onOrder, unitPrice: 34 });
   });
 
   it("internal order mengisi Bar; surat jalan menampilkan baris per batch", async () => {

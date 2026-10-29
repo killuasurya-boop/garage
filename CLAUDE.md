@@ -388,6 +388,18 @@ Scroll direction:
     Cancelling a receiving with active payments is refused.
   - Invoices/proofs live in `storage/supplier-docs` (Docker volume `garage-supplier-docs`), served via
     `/api/wms/supplier-docs/...` to Owner/Manajer only.
+- Smart Stock Opname Phase 3 (owner, Okt 2026, migration 0174) — UI `/warehouse/opname` (`src/components/wms/opname/`, 8 tabs;
+  Kasir/Waiter see only Hitung + Hitung Ulang):
+  - Every opname endpoint checks location (`opnameAccessError`): staff only Bar/Dapur rooms. Blind = no system qty/variance/
+    value/class AND no other counter's numbers (`viewerId`). PATCH response never returns system data.
+  - Save = row lock on line + `wms_warehouse_stock` snapshot, idempotent `clientRequestId`, append-only `wms_opname_count`;
+    first count kept (`first_*`). Tolerance = `wms-opname-rules.ts` (`classifyVariance`, settings key `wms.opname.tolerance`):
+    beyond tolerance → auto `needsRecount`; still off after recount → manager; ≥ ownerValue or repeated → Owner-only approval.
+  - Scope: partial (old behaviour), full/cycle (all lines must be counted). Finalize stores `posted_value/rate` from the ledger.
+  - Loss metrics (`wms-loss.ts`) and reports (`wms-opname-report.ts` via report-engine) are managerial only: NO expense/journal.
+    Unexplained = gross shortage (surplus never nets it). Risk score `riskScores`, recommendations `wms-opname-insights.ts`
+    (deterministic rules with evidence + limitation, `wms_opname_action` tracker). Wording never blames staff.
+  - Aya: read-only tools `ringkasan_loss_opname`, `prioritas_cycle_count`, `rekomendasi_opname` (Owner/Manajer). No opname write tool.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

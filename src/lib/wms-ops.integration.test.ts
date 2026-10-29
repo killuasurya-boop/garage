@@ -48,6 +48,9 @@ describe("Adjustment & Opname & Reports", () => {
 
     // hitung fisik 7000 (selisih -500)
     await svc.saveWmsOpnameLine(beanLine.id, 7000);
+    // Phase 3: −6,7% di luar toleransi 5% → wajib hitung ulang sebelum dikirim.
+    await expect(svc.submitWmsOpname(op.id)).rejects.toThrow(/dihitung ulang/);
+    await svc.saveWmsOpnameLine(beanLine.id, 7000);
     const reread = await svc.getWmsOpname(op.id);
     expect(reread.lines.find((l: any) => l.id === beanLine.id).variance).toBe(-500);
 

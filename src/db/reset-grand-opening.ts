@@ -114,7 +114,7 @@ export const CLEAR_TABLES = [
   // Pengadaan Phase 2: pembayaran → tagihan → jejak kirim (anak dulu sebelum PO   "wms_batch", "wms_receiving", "wms_receiving_item", penerimaan).
   "wms_supplier_payment", "wms_supplier_bill", "wms_po_dispatch",
   "wms_batch", "wms_receiving", "wms_receiving_item", "wms_internal_order", "wms_internal_order_item",
-  "wms_stock_movement", "wms_stock_opname", "wms_opname_line", "wms_checklist_run", "wms_checklist_run_item",
+  "wms_stock_movement", "wms_opname_count", "wms_opname_action", "wms_stock_opname", "wms_opname_line", "wms_checklist_run", "wms_checklist_run_item",
   "wms_cold_chain_reading", "wms_stock_issue", "wms_waste", "wms_purchase_order_item", "wms_purchase_order",
   "wms_sale_allocation", "wms_material_request_item", "wms_material_request",
   // AI log

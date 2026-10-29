@@ -23,7 +23,9 @@ hapus/arsip tanpa 2FA), keputusan Owner yang tercatat menang sampai Owner memutu
 | `05-apis-and-tool-contracts.md` | API Owner AI, tool `garage_ping`/`garage_verify_connection`, perubahan gateway, data | ✅ Phase 1 |
 | `06-owner-guide-id.md` | Panduan Owner (sambung, verifikasi, arti chip, darurat) | ✅ Phase 1 |
 | `07-test-matrix.md` | Status AC-01…08 + daftar tes | ✅ Phase 1 |
-| `08`–`11` | Deploy, rollback, UAT sign-off, release report | ⏳ saat rilis |
+| `08-deployment-checklist.md` | Urutan merge, deploy, cek Owner sesudah deploy | ✅ |
+| `09-rollback-and-recovery.md` | Rollback | `08`–`11` | Deploy, rollback, UAT sign-off, release report | ⏳ saat rilis | darurat | ✅ |
+| `10`–`11` | UAT sign-off, release report | ⏳ setelah deploy + uji ChatGPT nyata |
 
 ## Aturan yang berlaku (ringkas)
 

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { ok, readJson } from "@/lib/api-response";
-import { createWmsSupplier, listWmsSuppliers } from "@/lib/wms-service";
-import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { createWmsSupplier, listWmsSuppliers, redactSupplierBank } from "@/lib/wms-service";
+import { WMS_ELEVATED_ROLES, wmsIsElevated } from "@/lib/wms-access";
 import { masterActor, withMasterErrors } from "@/lib/wms-master-route";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
@@ -18,13 +18,18 @@ const createSchema = z.object({
   productCategories: z.string().trim().max(200).optional(),
   paymentMethod: z.enum(["", "cash", "transfer", "tempo"]).optional(),
   paymentTermDays: z.number().int().min(0).max(365).optional(),
+  bankName: z.string().trim().max(60).optional(),
+  bankAccountNumber: z.string().trim().max(40).optional(),
+  bankAccountName: z.string().trim().max(120).optional(),
 });
 
 export async function GET(request: Request) {
   const session = await requirePermission("inventory:read");
   if (session.response) return session.response;
   const includeArchived = new URL(request.url).searchParams.get("archived") === "1";
-  return ok(await listWmsSuppliers({ includeArchived }));
+  const rows = await listWmsSuppliers({ includeArchived });
+  // Rekening supplier hanya untuk Owner/Manajer.
+  return ok(wmsIsElevated(session.data.profile.role) ? rows : rows.map(redactSupplierBank));
 }
 
 export async function POST(request: Request) {

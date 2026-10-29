@@ -466,6 +466,16 @@ export function MaterialDrawer({
             {product && (
               <section className="space-y-3">
                 <WmsProductPackSection productId={product.id} unit={product.unit} canEdit />
+                {usage && !usage.hasLedger && usage.onHand === 0 && (
+                  <OpeningStockBox
+                    product={product}
+                    onDone={async () => {
+                      const r = await garageApi.get<Detail>(`/api/wms/products/${product.id}`);
+                      setDetail(r);
+                      onSaved();
+                    }}
+                  />
+                )}
                 {usage && (
                   <div className="rounded-lg border border-[#E8E8E8] p-3 text-[12.5px] text-[#374151]">
                     <p className="font-bold text-[#111111]">Dipakai di</p>
@@ -534,5 +544,74 @@ export function MaterialDrawer({
         />
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * Stok awal (hitung fisik) untuk bahan yang BELUM punya riwayat stok. Masuk ke gudang utama
+ * sesuai area kategori dengan HPP saat ini (bukan pembelian). Server menolak bila sudah ada
+ * riwayat (`onlyIfEmpty`) — koreksi berikutnya lewat Stock Opname.
+ */
+function OpeningStockBox({ product, onDone }: { product: WmsProductRow; onDone: () => Promise<void> }) {
+  const toast = useGarageToast();
+  const packName = product.packQty > 1 ? packNameFromLabel(product.packageLabel) || "kemasan" : null;
+  const [inPacks, setInPacks] = useState(Boolean(packName));
+  const [amount, setAmount] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const n = parseIdNumber(amount);
+  const baseQty = Number.isFinite(n) && n > 0 ? Math.round(n * (inPacks && packName ? product.packQty : 1) * 10_000) / 10_000 : 0;
+
+  async function save() {
+    if (busy || baseQty <= 0) return;
+    setBusy(true);
+    try {
+      await garageApi.post("/api/wms/products/opening-stock", { sku: product.sku, qty: baseQty, expiredAt: expiry || null, onlyIfEmpty: true });
+      toast.push({ tone: "success", title: "Stok awal dicatat", body: `${product.sku} · ${qty.format(baseQty)} ${product.unit}` });
+      setConfirming(false);
+      setAmount("");
+      await onDone();
+    } catch (e) {
+      toast.push({ tone: "error", title: "Gagal mencatat stok awal", body: errorText(e, ""), ttl: 8000 });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border-2 border-dashed border-[#FCD34D] bg-[#FFFBEB] p-3">
+      <p className="text-[13px] font-bold text-[#111111]">Stok awal (hitung fisik)</p>
+      <p className="mb-2 text-[12px] text-[#4B5563]">Bahan ini belum punya riwayat stok. Isi jumlah yang ada sekarang — hanya sekali; koreksi berikutnya lewat Stock Opname. Bukan pembelian (belanja tetap lewat Receiving).</p>
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_150px]">
+        <input aria-label="Jumlah stok awal" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Jumlah" className={cn(ui.input, "text-right tabular-nums")} />
+        {packName ? (
+          <select aria-label="Satuan stok awal" value={inPacks ? "pack" : "base"} onChange={(e) => setInPacks(e.target.value === "pack")} className={ui.input}>
+            <option value="pack">{packName} ({qty.format(product.packQty)} {product.unit})</option>
+            <option value="base">{product.unit}</option>
+          </select>
+        ) : (
+          <span className="self-center text-[13px] font-semibold text-[#374151]">{product.unit}</span>
+        )}
+        <input aria-label="Tanggal kedaluwarsa (opsional)" type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} className={ui.input} title="Kedaluwarsa (opsional)" />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="text-[12px] text-[#374151]" aria-live="polite">{baseQty > 0 ? <>= <b className="tabular-nums">{qty.format(baseQty)} {product.unit}</b></> : " "}</p>
+        <button type="button" disabled={busy || baseQty <= 0} onClick={() => setConfirming(true)} className={ui.primary}>Catat stok awal</button>
+      </div>
+      <ConfirmDialog
+        open={confirming}
+        busy={busy}
+        title={`Catat stok awal ${product.sku}?`}
+        confirmLabel="Ya, catat"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => void save()}
+        body={
+          <p>
+            Menambah <b>{qty.format(baseQty)} {product.unit}</b> {product.name} ke gudang utama area kategorinya sebagai STOK-AWAL (tercatat di riwayat stok). Hanya bisa sekali untuk bahan ini.
+          </p>
+        }
+      />
+    </div>
   );
 }

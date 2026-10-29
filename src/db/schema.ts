@@ -3744,6 +3744,10 @@ export const wmsSupplier = pgTable("wms_supplier", {
   productCategories: text("product_categories").notNull().default(""),
   paymentMethod: text("payment_method").notNull().default(""), // cash | transfer | tempo
   paymentTermDays: integer("payment_term_days").notNull().default(0),
+  // Rekening tujuan transfer — hanya untuk Owner/Manajer (API menyembunyikannya dari peran lain).
+  bankName: text("bank_name").notNull().default(""),
+  bankAccountNumber: text("bank_account_number").notNull().default(""),
+  bankAccountName: text("bank_account_name").notNull().default(""),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

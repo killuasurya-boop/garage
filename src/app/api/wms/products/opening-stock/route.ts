@@ -12,6 +12,8 @@ const schema = z.object({
   qty: z.number().positive().max(100_000_000),
   warehouseId: z.string().uuid().nullable().optional(),
   expiredAt: z.string().date().nullable().optional(),
+  /** true = tolak bila bahan sudah punya riwayat stok (dipakai Master Data; cegah stok awal dobel). */
+  onlyIfEmpty: z.boolean().optional(),
 });
 
 // Stok awal bahan dari form produk/resep (Owner/Manajer). Pembelian tetap lewat Receiving.

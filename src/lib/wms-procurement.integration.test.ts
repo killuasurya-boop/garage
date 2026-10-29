@@ -97,6 +97,32 @@ describe("Master supplier (Phase 2)", () => {
   });
 });
 
+describe("Rekening supplier & stok awal", () => {
+  it("rekening tervalidasi, disamarkan di audit, disembunyikan untuk non-Owner/Manajer", async () => {
+    await expect(wms.updateWmsSupplier(supplierId, { bankAccountNumber: "12AB" }, OWNER)).rejects.toMatchObject({ code: "BANK_ACCOUNT_INVALID" });
+    const s = await wms.updateWmsSupplier(supplierId, { bankName: "BCA", bankAccountNumber: "123-456 7890", bankAccountName: "CV Sirup Nusantara" }, OWNER);
+    expect(s).toMatchObject({ bankName: "BCA", bankAccountNumber: "1234567890", bankAccountName: "CV Sirup Nusantara" });
+    const redacted = wms.redactSupplierBank(s);
+    expect(redacted).not.toHaveProperty("bankAccountNumber");
+    expect(redacted).not.toHaveProperty("bankName");
+    expect(redacted).toMatchObject({ name: "CV Sirup Nusantara", phone: s.phone });
+    const { eq } = await import("drizzle-orm");
+    const logs = await t.getDb().select().from(t.schema.auditLogs).where(eq(t.schema.auditLogs.object, "CV Sirup Nusantara"));
+    const json = JSON.stringify(logs.map((l: any) => l.metadata));
+    expect(json).toContain("••••7890");
+    expect(json).not.toContain("1234567890");
+  });
+
+  it("stok awal dari Master Data hanya sekali (onlyIfEmpty), koreksi lewat opname", async () => {
+    const p = await wms.createWmsProduct({ sku: "T-RTL-OPEN", name: "Rokok Uji", category: "Syrup", unit: "bks", packName: "slop", packQty: 10, packPrice: 0 });
+    await wms.recordOpeningStock({ sku: "T-RTL-OPEN", qty: 30, onlyIfEmpty: true }, OWNER.userId);
+    const row = (await wms.getWmsProducts({ warehouseId: "all" })).find((r: any) => r.id === p.id);
+    expect(row.onHand).toBe(30);
+    await expect(wms.recordOpeningStock({ sku: "T-RTL-OPEN", qty: 5, onlyIfEmpty: true }, OWNER.userId)).rejects.toThrow(/Stock Opname/);
+    expect((await wms.getWmsProducts({ warehouseId: "all" })).find((r: any) => r.id === p.id).onHand).toBe(30);
+  });
+});
+
 describe("Persetujuan & revisi PO", () => {
   it("draft → ajukan → pembuat (Manajer) tidak bisa menyetujui sendiri → Owner menyetujui", async () => {
     const order = await po.createPurchaseOrder({ supplierId, warehouseId: mainBar, items: [{ productId: syrupId, orderedQty: 1520, unitPrice: 164.5, uom: "botol", uomFactor: 760 }] }, MANAJER.userId);

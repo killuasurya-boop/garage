@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import { fail, ok, readJson } from "@/lib/api-response";
-import { archiveWmsSupplier, updateWmsSupplier } from "@/lib/wms-service";
+import { archiveWmsSupplier, redactSupplierBank, updateWmsSupplier } from "@/lib/wms-service";
 import { getWmsSupplierDetail } from "@/lib/wms-master-data";
-import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { WMS_ELEVATED_ROLES, wmsIsElevated } from "@/lib/wms-access";
 import { masterActor, withMasterErrors } from "@/lib/wms-master-route";
 import { requireGarageSession, requirePermission } from "@/lib/server-auth";
 
@@ -19,6 +19,9 @@ const patchSchema = z.object({
   productCategories: z.string().trim().max(200).optional(),
   paymentMethod: z.enum(["", "cash", "transfer", "tempo"]).optional(),
   paymentTermDays: z.number().int().min(0).max(365).optional(),
+  bankName: z.string().trim().max(60).optional(),
+  bankAccountNumber: z.string().trim().max(40).optional(),
+  bankAccountName: z.string().trim().max(120).optional(),
   archived: z.literal(false).optional(), // false = pulihkan dari arsip
 });
 
@@ -30,7 +33,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!z.string().uuid().safeParse(id).success) return fail(400, "INVALID_ID", "ID supplier tidak valid.");
   const detail = await getWmsSupplierDetail(id);
   if (!detail) return fail(404, "SUPPLIER_NOT_FOUND", "Supplier tidak ditemukan.");
-  return ok(detail);
+  return ok(wmsIsElevated(session.data.profile.role) ? detail : redactSupplierBank(detail));
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {

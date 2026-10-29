@@ -36,7 +36,8 @@ test("2. POS: buka shift, jual tunai uang pas lalu QRIS", async ({ page }, info)
   await sale.getByRole("button", { name: "Tambah Mineral" }).first().click();
   await sale.getByRole("button", { name: "Uang pas" }).click();
   await sale.getByRole("button", { name: /Terima uang pas/ }).click();
-  await expect(sale.getByText("Kembalian untuk pelanggan", { exact: false })).toBeVisible();
+  // Panggilan API pertama di `next dev` meng-compile route dulu — beri waktu longgar (bukan lambat di produksi).
+  await expect(sale.getByText("Kembalian untuk pelanggan", { exact: false })).toBeVisible({ timeout: 90_000 });
   await expect(sale.getByText(/POS-\d+/).first()).toBeVisible();
 
   // Transaksi baru — QRIS.
@@ -45,7 +46,7 @@ test("2. POS: buka shift, jual tunai uang pas lalu QRIS", async ({ page }, info)
   await sale.getByRole("radio", { name: "QRIS" }).click();
   await sale.getByLabel("Referensi QRIS").fill(`E2E${Date.now().toString().slice(-8)}`);
   await sale.getByRole("button", { name: /QRIS berhasil/ }).click();
-  await expect(sale.getByText(/POS-\d+/).first()).toBeVisible();
+  await expect(sale.getByText(/POS-\d+/).first()).toBeVisible({ timeout: 90_000 });
   assertNoErrors();
 });
 
@@ -76,7 +77,7 @@ test("3. tutup shift: hitung #1/#2, modal ditinggal, setoran BNI masuk antrean",
   await dialog.getByTestId("close-denom-2-5000").fill("1");
   await dialog.getByRole("button", { name: "Lanjut" }).click();
   await dialog.getByRole("button", { name: /Ya, tutup shift|Sign-off & Tutup Shift/ }).click();
-  await expect(dialog).toBeHidden({ timeout: 60_000 });
+  await expect(dialog).toBeHidden({ timeout: 90_000 });
   assertNoErrors();
 
   // Owner melihat setoran di antrean Pengawasan Kas.

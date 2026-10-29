@@ -316,9 +316,9 @@ describe("3F — prioritas, rekomendasi, Aya read-only", () => {
     expect(tools.every((x) => x.write === false && x.risk === "R0")).toBe(true);
     expect(warehouseTools.some((x) => x.write && /opname/.test(x.name))).toBe(false);
     const kasir: any = { user: { id: "u-kasir-a" }, profile: { role: "Kasir" } };
-    for (const tool of tools) await expect(tool.run(kasir, tool.name === "prioritas_cycle_count" ? { ruangId: barId } : {})).rejects.toThrow(/Owner\/Manajer/);
+    for (const tool of tools) await expect(tool.run(kasir, tool.name === "prioritas_cycle_count" ? { ruangId: barId } : {}, {} as any)).rejects.toThrow(/Owner\/Manajer/);
     const owner: any = { user: { id: "u-owner" }, profile: { role: "Owner" } };
-    const loss: any = await tools.find((x) => x.name === "ringkasan_loss_opname")!.run(owner, { periode: "monthly" });
+    const loss: any = await tools.find((x) => x.name === "ringkasan_loss_opname")!.run(owner, { periode: "monthly" }, {} as any);
     expect(loss.ringkasan).toHaveProperty("unexplained");
   });
 });

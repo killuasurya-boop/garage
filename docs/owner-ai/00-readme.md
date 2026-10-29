@@ -2,7 +2,8 @@
 
 > **Sumber requirement:** Blueprint `GOS-AI-MCP-IMPLEMENTATION-003` V3.0 (29 Okt 2026, dari Owner; file asli di
 > Drive Owner `CODING/Garage_OS_Owner_AI_Command_Center_MCP_Implementation_Blueprint_V3.md`, tidak disalin ke repo).
-> **Status saat ini:** `PHASE 0 — AUDIT SELESAI` · belum ada kode aplikasi diubah · belum ada deploy.
+> **Status saat ini:** `PHASE 1 — KODE SELESAI, BELUM DEPLOY` (AI Connect, verifikasi ChatGPT, status terpisah, cabut koneksi).
+> Uji dari ChatGPT web nyata: **NOT TESTED** (butuh deploy + paket ChatGPT Owner). Phase 0 audit: selesai.
 > **Branch:** `feature/garage-owner-ai-command-center` (dari `origin/main` `b89f458`).
 
 Folder ini melanjutkan, **bukan menggantikan**, `docs/master-2026/` (PRD V4.0, keputusan Owner D-01…D-08, traceability
@@ -18,7 +19,10 @@ hapus/arsip tanpa 2FA), keputusan Owner yang tercatat menang sampai Owner memutu
 | `02-architecture-adrs.md` | ADR-001…012 blueprint: keputusan atas kondisi repo nyata | ✅ (OPEN ditandai) |
 | `03-module-registry.md` | 16 domain × 67 tool nyata (risk R0–R3) + gap per domain | ✅ |
 | `04-security-threat-model.md` | Kontrol keamanan yang sudah ada vs §12 blueprint, celah, prioritas | ✅ |
-| `05`–`11` | Kontrak API/tool, panduan Owner, test matrix, deploy, rollback, UAT, release report | ⏳ dibuat per fase |
+| `05-apis-and-tool-contracts.md` | API Owner AI, tool `garage_ping`/`garage_verify_connection`, perubahan gateway, data | ✅ Phase 1 |
+| `06-owner-guide-id.md` | Panduan Owner (sambung, verifikasi, arti chip, darurat) | ✅ Phase 1 |
+| `07-test-matrix.md` | Status AC-01…08 + daftar tes | ✅ Phase 1 |
+| `08`–`11` | Deploy, rollback, UAT sign-off, release report | ⏳ saat rilis |
 
 ## Aturan yang berlaku (ringkas)
 

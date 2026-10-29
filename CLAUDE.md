@@ -265,6 +265,13 @@ Scroll direction:
   temporary agent key revoked right after (`mcp-delegated-api.ts`; scope owner/readonly, hidden from key list);
   blocked paths in `ubahDataBlockReason`; switch `mcpChatgptWriteEnabled` (off = writes `MCP_WRITE_DISABLED`). Login/2FA pages forward the signed
   `oauth_query` (`oauth-login-continue.ts`). See `docs/AGENT-API.md` §6.
+- Owner AI Connect (blueprint GOS-AI-MCP V3 Phase 1, `docs/owner-ai/`, migration 0175): `/control/ai-connect` + navbar chip
+  (`AiStatusChip`). Status is per dimension (`computeAiStatus`, `owner-ai-status.ts`, pure): gateway / identity / ChatGPT link / tool
+  access / execution — never a single green. `VERIFIED` only via MCP tool `garage_verify_connection` with a one-time code from
+  `POST /api/owner-ai/connection/challenge` (hash bound to Owner, 10 min, 5 tries) within a 24 h TTL; `READ_WRITE` only after a write
+  actually succeeded from ChatGPT (previews don't count). Gateway records `ai_connections` per OAuth client and rejects tokens with
+  `iat` ≤ `revoked_at` (JWTs are stateless). Revoke = Owner + TOTP (`/api/owner-ai/connections/revoke`), also revokes refresh tokens.
+  `/api/owner-ai/*` is in `isAgentForbiddenPath` and rejects agent-key sessions: AI must never mint its own verification code.
 - MCP tool registry & confirmation (batches M1/M2): every agent tool declares `domain` (16 PRD domains) + `risk` R0–R3
   (`mcp-tool-registry.ts`, enforced by tests; `write === risk !== "R0"`). On `/api/mcp/chatgpt`, R2/R3 tools go through
   `runToolWithConfirmation` (`mcp-confirmation.ts`, table `mcp_operations`, migration 0164): first call = preview +

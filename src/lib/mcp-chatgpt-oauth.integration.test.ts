@@ -246,6 +246,15 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     await setTwoFactor(ownerId, true);
   });
 
+  it("AC-05: token sah tetapi peran Owner diturunkan jadi Manajer → langsung 403 (peran dari DB, bukan token/argumen)", async () => {
+    const { staffProfiles } = t.schema;
+    await t.getDb().update(staffProfiles).set({ role: "Manajer" }).where(eq(staffProfiles.userId, ownerId));
+    const res = await mcp(ownerToken, { jsonrpc: "2.0", id: 60, method: "tools/call", params: { name: "daftar_menu", arguments: { role: "Owner" } } });
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(await res.json())).toContain("OWNER_ONLY");
+    await t.getDb().update(staffProfiles).set({ role: "Owner" }).where(eq(staffProfiles.userId, ownerId));
+  });
+
   it("kill switch mcpChatgptPaused → semua panggilan 503 tanpa restart", async () => {
     const { appSettings } = t.schema;
     await t.getDb().insert(appSettings).values({ key: "mcpChatgptPaused", valueJson: true, outletId: null } as any);
@@ -411,8 +420,67 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     expect(list.status).toBe(200);
   });
 
+  it("AI Connect: koneksi tercatat; garage_verify_connection kode salah ditolak, kode benar → VERIFIED (sekali pakai)", async () => {
+    const ai = await import("@/lib/owner-ai-connect");
+    const call = async (id: number, name: string, a: unknown) =>
+      (await (await mcp(ownerToken, { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: a } })).json()) as any;
+
+    const ping = await call(40, "garage_ping", {});
+    expect(ping.result.isError).toBe(false);
+    expect(JSON.parse(ping.result.content[0].text)).toMatchObject({ status: "OK", jalur: "chatgpt_mcp" });
+    // §6.4/AC-29: cap waktu sumber + request id + penanda data di setiap hasil.
+    expect(ping.result._meta).toMatchObject({ "garage/contentIsData": true, "garage/requestId": expect.stringMatching(/^req_/) });
+    expect(Date.parse(ping.result.structuredContent.dataAsOf)).not.toBeNaN();
+
+    const before = await ai.loadOwnerAiStatus({ ownerUserId: ownerId, gatewayConfigured: true, gatewayReason: null, paused: false, writeEnabled: true });
+    expect(before.connections).toHaveLength(1);
+    expect(before.status.link.state).toBe("NEVER_VERIFIED");
+    expect(before.connections[0].lastReadOkAt).toBeTruthy();
+
+    const { code } = await ai.createVerificationChallenge(ownerId);
+    const wrong = await call(41, "garage_verify_connection", { kode: "ZZZZ-ZZZZ" });
+    expect(wrong.result.isError).toBe(true);
+    expect(wrong.result.content[0].text).toContain("INVALID_CODE");
+    expect(wrong.result.structuredContent.error).toMatchObject({ code: "INVALID_CODE", retryable: false, requestId: expect.stringMatching(/^req_/) });
+    const ok = await call(42, "garage_verify_connection", { kode: code });
+    expect(ok.result.isError).toBe(false);
+    expect(JSON.parse(ok.result.content[0].text)).toMatchObject({ verified: true });
+    const replay = await call(43, "garage_verify_connection", { kode: code });
+    expect(replay.result.content[0].text).toContain("CHALLENGE_NOT_FOUND");
+
+    // ChatGPT tidak boleh membuat kode untuk dirinya sendiri lewat tool universal:
+    // preview menandai DITOLAK, dan eksekusi dengan token konfirmasi pun ditolak.
+    const selfArgs = { method: "POST", path: "/api/owner-ai/connection/challenge", body: {}, alasan: "verifikasi" };
+    const selfPreview = JSON.parse((await call(44, "ubah_data_garage", selfArgs)).result.content[0].text);
+    expect(selfPreview.ringkasan.DITOLAK).toMatch(/tidak boleh lewat chat/);
+    const selfExec = await call(45, "ubah_data_garage", { ...selfArgs, konfirmasi: selfPreview.konfirmasi });
+    expect(selfExec.result.isError).toBe(true);
+    expect(selfExec.result.content[0].text).toMatch(/tidak boleh lewat chat/);
+    const activeCodes = await t
+      .getDb()
+      .select()
+      .from(t.schema.aiVerificationChallenges)
+      .where(eq(t.schema.aiVerificationChallenges.status, "active"));
+    expect(activeCodes).toHaveLength(0);
+
+    const after = await ai.loadOwnerAiStatus({ ownerUserId: ownerId, gatewayConfigured: true, gatewayReason: null, paused: false, writeEnabled: true });
+    expect(after.status.link.state).toBe("VERIFIED");
+    expect(after.status.chip.state).toBe("AI_VERIFIED");
+    // Tes M2 di atas benar-benar mengeksekusi tulis R2 lewat ChatGPT → READ_WRITE berdasar bukti, bukan asumsi.
+    expect(after.connections[0].lastWriteOkAt).toBeTruthy();
+    expect(after.status.toolAccess.state).toBe("READ_WRITE");
+  });
+
   it("token palsu → 401", async () => {
     const res = await mcp(`${ownerToken.slice(0, -4)}AAAA`, { jsonrpc: "2.0", id: 9, method: "tools/list" });
     expect(res.status).toBe(401);
+  });
+  it("cabut koneksi dari AI Connect → token lama langsung 401 CONNECTION_REVOKED", async () => {
+    const ai = await import("@/lib/owner-ai-connect");
+    const result = await ai.revokeConnections({ ownerUserId: ownerId, actorUserId: ownerId, reason: "uji darurat" });
+    expect(result.revokedCount).toBeGreaterThanOrEqual(1);
+    const res = await mcp(ownerToken, { jsonrpc: "2.0", id: 50, method: "tools/list" });
+    expect(res.status).toBe(401);
+    expect(JSON.stringify(await res.json())).toContain("CONNECTION_REVOKED");
   });
 });

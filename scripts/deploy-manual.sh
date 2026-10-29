@@ -167,6 +167,10 @@ remote "
   docker compose --env-file .env.production run --rm migrate
   docker compose --env-file .env.production up -d --no-build app caddy backup
   docker compose --env-file .env.production restart backup
+  # Caddy yang sudah jalan tidak membaca ulang Caddyfile baru (29 Okt 2026: HSTS includeSubDomains
+  # baru aktif setelah reload manual). Validasi dulu; reload tanpa memutus koneksi.
+  docker compose --env-file .env.production exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+  docker compose --env-file .env.production exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
   docker image prune -f >/dev/null
 "
 ok "Aplikasi dijalankan ulang"

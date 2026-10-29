@@ -88,7 +88,10 @@ describe("/api/mcp — audit per tool", () => {
         params: { name: "catat_pengeluaran", arguments: { kategori: "Operasional", deskripsi: "Gas elpiji", nominal: 25_000 } },
       });
       expect(res.result.isError).toBe(true);
-      expect(res.result.content[0].text).toContain("DB audit down");
+      // Detail error internal tidak diteruskan ke klien MCP (owner-ai Phase 4) — hanya kode + ref.
+      expect(res.result.content[0].text).toMatch(/^EXECUTION_FAILED: .*ref req_/);
+      expect(res.result.content[0].text).not.toContain("DB audit down");
+      expect(res.result.structuredContent.error).toMatchObject({ code: "EXECUTION_FAILED", retryable: false });
     } finally {
       mocks.failAudit.on = false;
     }

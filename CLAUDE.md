@@ -265,6 +265,22 @@ Scroll direction:
   temporary agent key revoked right after (`mcp-delegated-api.ts`; scope owner/readonly, hidden from key list);
   blocked paths in `ubahDataBlockReason`; switch `mcpChatgptWriteEnabled` (off = writes `MCP_WRITE_DISABLED`). Login/2FA pages forward the signed
   `oauth_query` (`oauth-login-continue.ts`). See `docs/AGENT-API.md` §6.
+- Owner AI Connect (blueprint GOS-AI-MCP V3 Phase 1, `docs/owner-ai/`, migration 0175): `/control/ai-connect` + navbar chip
+  (`AiStatusChip`). Status is per dimension (`computeAiStatus`, `owner-ai-status.ts`, pure): gateway / identity / ChatGPT link / tool
+  access / execution — never a single green. `VERIFIED` only via MCP tool `garage_verify_connection` with a one-time code from
+  `POST /api/owner-ai/connection/challenge` (hash bound to Owner, 10 min, 5 tries) within a 24 h TTL; `READ_WRITE` only after a write
+  actually succeeded from ChatGPT (previews don't count). Gateway records `ai_connections` per OAuth client and rejects tokens with
+  `iat` ≤ `revoked_at` (JWTs are stateless). Revoke = Owner + TOTP (`/api/owner-ai/connections/revoke`), also revokes refresh tokens.
+  `/api/owner-ai/*` is in `isAgentForbiddenPath` and rejects agent-key sessions: AI must never mint its own verification code.
+- Owner AI Command Center (Phase 2, ADR-001): `/control/ai-command` runs agent tools on the SAME engine as ChatGPT
+  (`owner-ai-commands.ts` → `runToolWithConfirmation` with `source: "garage_owner_ui"`, synchronous audit first). Never add a
+  UI-only shortcut that skips preview/token/2FA. Receipts carry `sidikArgumen` + `sidikHasil` (`resultHash`, recomputable via
+  `operationView`). Form = `SchemaForm` from the tool JSON schema (`parseIdNumber`: "2.5" stays 2.5).
+- MCP hardening (owner-ai Phase 4): `tools/call` keeps the plain-text result but adds `structuredContent.dataAsOf` + `_meta`
+  (`garage/requestId`, `garage/contentIsData`); errors = `toolFailure` (`code, message, requestId, retryable, recovery`) and NEVER forward
+  unexpected error text (SQL/stack) — `EXECUTION_FAILED` + ref, details only in server logs. `mcp-load-guard.ts`: max 4 concurrent
+  ChatGPT tool calls per Owner, read tools time out at 25 s, write tools are never cut. Fraud Watch tools `garage_list_anomaly_cases` /
+  `garage_get_anomaly_case` wrap `listRiskAlerts` (same role scoping) and are read-only.
 - MCP tool registry & confirmation (batches M1/M2): every agent tool declares `domain` (16 PRD domains) + `risk` R0–R3
   (`mcp-tool-registry.ts`, enforced by tests; `write === risk !== "R0"`). On `/api/mcp/chatgpt`, R2/R3 tools go through
   `runToolWithConfirmation` (`mcp-confirmation.ts`, table `mcp_operations`, migration 0164): first call = preview +

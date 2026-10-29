@@ -498,6 +498,58 @@ export const mcpOperations = pgTable(
   }),
 );
 
+// Owner AI Connect (blueprint GOS-AI-MCP V3, Phase 1, ADR-013): satu baris per klien OAuth
+// (ChatGPT) milik Owner. Dibuat/diperbarui gateway saat token sah dipakai. "VERIFIED" hanya
+// lewat tool garage_verify_connection dengan kode sekali pakai — bukan karena socket hidup.
+// Cabut = revoked_at: token yang terbit SEBELUM itu langsung ditolak gateway (JWT stateless).
+export const aiConnections = pgTable(
+  "ai_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("chatgpt"),
+    oauthClientId: text("oauth_client_id").notNull(),
+    clientName: text("client_name"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastReadOkAt: timestamp("last_read_ok_at", { withTimezone: true }),
+    lastWriteOkAt: timestamp("last_write_ok_at", { withTimezone: true }),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    verifiedChallengeId: uuid("verified_challenge_id"),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedBy: text("revoked_by").references(() => user.id, { onDelete: "set null" }),
+    revokeReason: text("revoke_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerClientIdx: uniqueIndex("ai_connections_owner_client_idx").on(table.ownerUserId, table.provider, table.oauthClientId),
+  }),
+);
+
+// Kode verifikasi sekali pakai (hanya hash disimpan, TTL pendek, batas percobaan).
+// status: active → verified | expired | locked | superseded (kode baru dibuat).
+export const aiVerificationChallenges = pgTable(
+  "ai_verification_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    status: text("status").notNull().default("active"),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    consumedByConnectionId: uuid("consumed_by_connection_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdx: index("ai_verification_challenges_owner_idx").on(table.ownerUserId, table.createdAt),
+  }),
+);
+
 export const outlets = pgTable("outlets", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull().unique(),

@@ -1404,7 +1404,7 @@ export async function createWmsProduct(
  * jadi rata-rata tidak berubah & tidak tercatat sebagai belanja (beli = Receiving).
  */
 export async function recordOpeningStock(
-  input: { sku: string; qty: number; warehouseId?: string | null; expiredAt?: Date | null },
+  input: { sku: string; qty: number; warehouseId?: string | null; expiredAt?: Date | null; onlyIfEmpty?: boolean },
   userId?: string | null,
 ) {
   const qty = Number(input.qty);
@@ -1413,6 +1413,11 @@ export async function recordOpeningStock(
   return runInTx(async (tx) => {
     const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.sku, input.sku.trim())).limit(1);
     if (!prod || prod.archivedAt) throw new Error("Bahan tidak ditemukan di gudang.");
+    if (input.onlyIfEmpty) {
+      // Master Data: stok awal hanya sekali — bahan yang sudah punya riwayat stok dikoreksi lewat Opname.
+      const [moved] = await tx.select({ id: wmsStockMovement.id }).from(wmsStockMovement).where(eq(wmsStockMovement.productId, prod.id)).limit(1);
+      if (moved) throw new Error(`${prod.sku} sudah punya riwayat stok. Untuk koreksi gunakan Stock Opname, bukan stok awal.`);
+    }
     let target = input.warehouseId ?? null;
     if (!target) {
       const [cat] = await tx.select({ area: wmsCategory.area }).from(wmsCategory).where(eq(wmsCategory.name, prod.category)).limit(1);
@@ -1589,9 +1594,24 @@ const supplierOut = (r: SupplierRow, productCount = 0) => ({
   productCategories: r.productCategories,
   paymentMethod: r.paymentMethod,
   paymentTermDays: r.paymentTermDays,
+  bankName: r.bankName,
+  bankAccountNumber: r.bankAccountNumber,
+  bankAccountName: r.bankAccountName,
   archived: Boolean(r.archivedAt),
   productCount,
 });
+
+/** Rekening supplier hanya untuk Owner/Manajer — peran lain menerima data tanpa rekening. */
+export function redactSupplierBank<T extends Record<string, unknown>>(row: T): Omit<T, "bankName" | "bankAccountNumber" | "bankAccountName"> {
+  const { bankName: _n, bankAccountNumber: _a, bankAccountName: _h, ...rest } = row as T & { bankName?: unknown; bankAccountNumber?: unknown; bankAccountName?: unknown };
+  void _n;
+  void _a;
+  void _h;
+  return rest;
+}
+
+/** "1234567890" → "••••7890" untuk audit log (nomor rekening tidak disimpan utuh di log). */
+const maskAccount = (v: string) => (v ? `••••${v.slice(-4)}` : "");
 
 export async function listWmsSuppliers(opts?: { includeArchived?: boolean }) {
   const db = getDb();
@@ -1619,6 +1639,9 @@ export type WmsSupplierInput = {
   productCategories?: string;
   paymentMethod?: string;
   paymentTermDays?: number;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
 };
 
 /** Field Phase 2 (opsional) → kolom supplier; hanya yang dikirim yang diubah. */
@@ -1629,6 +1652,13 @@ function supplierExtras(input: Partial<WmsSupplierInput>) {
   if (input.productCategories !== undefined) set.productCategories = input.productCategories.trim();
   if (input.paymentMethod !== undefined) set.paymentMethod = ["cash", "transfer", "tempo"].includes(input.paymentMethod) ? input.paymentMethod : "";
   if (input.paymentTermDays !== undefined) set.paymentTermDays = Math.max(0, Math.min(365, Math.round(input.paymentTermDays)));
+  if (input.bankName !== undefined) set.bankName = input.bankName.trim();
+  if (input.bankAccountName !== undefined) set.bankAccountName = input.bankAccountName.trim();
+  if (input.bankAccountNumber !== undefined) {
+    const digits = input.bankAccountNumber.replace(/[\s.-]/g, "");
+    if (digits && !/^\d{5,30}$/.test(digits)) throw new WmsMasterError("BANK_ACCOUNT_INVALID", "No. rekening hanya angka (5–30 digit).", 400);
+    set.bankAccountNumber = digits;
+  }
   return set;
 }
 
@@ -1685,9 +1715,14 @@ export async function updateWmsSupplier(id: string, patch: Partial<WmsSupplierIn
       object: row.name,
       metadata: {
         supplierId: id,
-        changes: diffMaster(before as Record<string, unknown>, row as Record<string, unknown>, [
-          "name", "phone", "address", "note", "picName", "productCategories", "paymentMethod", "paymentTermDays",
-        ]),
+        changes: {
+          ...diffMaster(before as Record<string, unknown>, row as Record<string, unknown>, [
+            "name", "phone", "address", "note", "picName", "productCategories", "paymentMethod", "paymentTermDays", "bankName", "bankAccountName",
+          ]),
+          ...(before.bankAccountNumber !== row.bankAccountNumber
+            ? { bankAccountNumber: { before: maskAccount(before.bankAccountNumber), after: maskAccount(row.bankAccountNumber) } }
+            : {}),
+        },
       },
     });
     return supplierOut(row);

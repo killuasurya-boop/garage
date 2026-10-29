@@ -373,6 +373,9 @@ export async function getWmsSupplierDetail(id: string) {
     phone: supplier.phone,
     address: supplier.address,
     note: supplier.note,
+    bankName: supplier.bankName,
+    bankAccountNumber: supplier.bankAccountNumber,
+    bankAccountName: supplier.bankAccountName,
     archived: Boolean(supplier.archivedAt),
     products: products
       .map((p) => {

@@ -39,17 +39,22 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
   const [productCategories, setProductCategories] = useState(supplier?.productCategories ?? "");
   const [paymentMethod, setPaymentMethod] = useState(supplier?.paymentMethod ?? "");
   const [paymentTermDays, setPaymentTermDays] = useState(String(supplier?.paymentTermDays ?? 0));
+  const [bankName, setBankName] = useState(supplier?.bankName ?? "");
+  const [bankAccountNumber, setBankAccountNumber] = useState(supplier?.bankAccountNumber ?? "");
+  const [bankAccountName, setBankAccountName] = useState(supplier?.bankAccountName ?? "");
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const errName = name.trim().length < 2 ? "Nama supplier minimal 2 huruf." : null;
   const errPhone = phone.trim() && !PHONE_RE.test(phone.trim()) ? "Nomor WhatsApp diawali 08 atau +62, 10–15 digit." : null;
+  const accDigits = bankAccountNumber.replace(/[\s.-]/g, "");
+  const errBank = accDigits && !/^\d{5,30}$/.test(accDigits) ? "No. rekening hanya angka (5–30 digit)." : null;
 
   async function save() {
     setSubmitted(true);
     setServerError(null);
-    if (errName || errPhone || busy) return;
+    if (errName || errPhone || errBank || busy) return;
     setBusy(true);
     try {
       const body = {
@@ -62,6 +67,9 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
         productCategories: productCategories.trim(),
         paymentMethod,
         paymentTermDays: paymentMethod === "tempo" ? Math.max(0, Math.min(365, Number(paymentTermDays) || 0)) : 0,
+        bankName: bankName.trim(),
+        bankAccountNumber: accDigits,
+        bankAccountName: bankAccountName.trim(),
       };
       if (supplier) await garageApi.patch(`/api/wms/suppliers/${supplier.id}`, body);
       else await garageApi.post("/api/wms/suppliers", body);
@@ -135,7 +143,22 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
             <Field id="s-addr" label="Alamat">
               <textarea id="s-addr" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} maxLength={300} className={cn(ui.input, `h-auto py-2`)} />
             </Field>
-            <Field id="s-note" label="Catatan" hint="mis. hari kirim, minimal order, rekening.">
+            <fieldset className="rounded-lg border border-[#E8E8E8] p-3">
+              <legend className="px-1 text-[12px] font-bold text-[#374151]">Rekening supplier (untuk transfer)</legend>
+              <p className="mb-2 text-[11.5px] text-[#6B7280]">Hanya terlihat oleh Owner & Manajer. Pastikan sesuai invoice/konfirmasi supplier.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field id="s-bank" label="Nama bank" hint="mis. BCA, BRI, BNI, Mandiri">
+                  <input id="s-bank" value={bankName} onChange={(e) => setBankName(e.target.value)} maxLength={60} className={ui.input} />
+                </Field>
+                <Field id="s-acc" label="No. rekening" error={errBank}>
+                  <input id="s-acc" value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} inputMode="numeric" maxLength={40} className={cn(ui.input, "font-mono")} />
+                </Field>
+                <Field id="s-accname" label="Atas nama" className="sm:col-span-2">
+                  <input id="s-accname" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} maxLength={120} className={ui.input} />
+                </Field>
+              </div>
+            </fieldset>
+            <Field id="s-note" label="Catatan" hint="mis. hari kirim, minimal order.">
               <input id="s-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} className={ui.input} />
             </Field>
           </div>
@@ -250,6 +273,12 @@ export function SupplierTab({ suppliers, canEdit, reload }: { suppliers: MasterS
                   {" · "}Bayar: {selected.paymentMethod === "tempo" ? `Tempo ${selected.paymentTermDays ?? 0} hari` : selected.paymentMethod === "cash" ? "Tunai" : selected.paymentMethod === "transfer" ? "Transfer" : "-"}
                   {selected.productCategories && <> · Produk: {selected.productCategories}</>}
                 </p>
+                {selected.bankAccountNumber && (
+                  <p className="mt-1 text-[12.5px] text-[#374151]">
+                    Rekening: <b>{selected.bankName || "Bank"}</b> <span className="font-mono">{selected.bankAccountNumber}</span>
+                    {selected.bankAccountName && <> a.n. {selected.bankAccountName}</>}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {whatsappLink(selected.phone) && (

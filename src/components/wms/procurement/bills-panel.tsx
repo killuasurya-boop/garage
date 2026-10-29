@@ -41,6 +41,7 @@ type Bill = {
   outstanding: number;
   status: string;
   overdue: boolean;
+  supplierBank: { bankName: string; accountNumber: string; accountName: string } | null;
   payments: Payment[];
 };
 
@@ -272,6 +273,18 @@ function PayDialog({ bill, role, onClose, onDone }: { bill: Bill; role: string; 
           <DialogTitle className="text-[16px] font-bold">Bayar {bill.supplierName}</DialogTitle>
           <DialogDescription className="text-[12.5px] text-[#4B5563]">Sisa tagihan {rupiah(bill.outstanding)}. Pencatatan ini tidak membuat pengeluaran baru (biaya sudah tercatat saat barang diterima).</DialogDescription>
         </DialogHeader>
+        {method === "transfer" && (
+          <p className="rounded-lg border border-[#E8E8E8] bg-[#F8F9FB] px-3 py-2 text-[12.5px] text-[#374151]">
+            {bill.supplierBank ? (
+              <>
+                Rekening tujuan: <b>{bill.supplierBank.bankName || "Bank"}</b> <span className="font-mono">{bill.supplierBank.accountNumber}</span>
+                {bill.supplierBank.accountName && <> a.n. {bill.supplierBank.accountName}</>}
+              </>
+            ) : (
+              <span className="text-[#92400E]">Rekening supplier belum diisi — lengkapi di Master Data → Supplier.</span>
+            )}
+          </p>
+        )}
         <PaymentFields amount={amount} setAmount={setAmount} method={method} setMethod={(m) => { setMethod(m); setFund(m === "cash" ? "petty" : "bank_jago"); }} fund={fund} setFund={setFund} funds={funds} reference={reference} setReference={setReference} />
         {over && <p role="alert" className="text-[12px] font-semibold text-[#B91C1C]">Melebihi sisa tagihan.</p>}
         <label className={proc.label}>

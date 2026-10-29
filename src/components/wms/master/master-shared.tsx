@@ -29,6 +29,10 @@ export type MasterSupplier = {
   productCategories?: string;
   paymentMethod?: string;
   paymentTermDays?: number;
+  /** Hanya terisi untuk Owner/Manajer (API menyembunyikan dari peran lain). */
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
   archived: boolean;
   productCount: number;
 };

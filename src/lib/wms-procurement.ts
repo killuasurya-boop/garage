@@ -740,10 +740,19 @@ export async function listSupplierBills(filter: { status?: string[]; supplierId?
   if (filter.status?.length) conds.push(inArray(wmsSupplierBill.status, filter.status));
   if (filter.supplierId) conds.push(eq(wmsSupplierBill.supplierId, filter.supplierId));
   const bills = await db
-    .select({ bill: wmsSupplierBill, poDoc: wmsPurchaseOrder.doc, receivingDoc: wmsReceiving.doc })
+    .select({
+      bill: wmsSupplierBill,
+      poDoc: wmsPurchaseOrder.doc,
+      receivingDoc: wmsReceiving.doc,
+      // Rekening tujuan transfer (endpoint tagihan khusus Owner/Manajer).
+      bankName: wmsSupplier.bankName,
+      bankAccountNumber: wmsSupplier.bankAccountNumber,
+      bankAccountName: wmsSupplier.bankAccountName,
+    })
     .from(wmsSupplierBill)
     .leftJoin(wmsPurchaseOrder, eq(wmsPurchaseOrder.id, wmsSupplierBill.purchaseOrderId))
     .leftJoin(wmsReceiving, eq(wmsReceiving.id, wmsSupplierBill.receivingId))
+    .leftJoin(wmsSupplier, eq(wmsSupplier.id, wmsSupplierBill.supplierId))
     .where(conds.length ? and(...conds) : sql`true`)
     .orderBy(desc(wmsSupplierBill.createdAt))
     .limit(200);
@@ -767,6 +776,7 @@ export async function listSupplierBills(filter: { status?: string[]; supplierId?
     ...b.bill,
     poDoc: b.poDoc,
     receivingDoc: b.receivingDoc,
+    supplierBank: b.bankAccountNumber ? { bankName: b.bankName ?? "", accountNumber: b.bankAccountNumber, accountName: b.bankAccountName ?? "" } : null,
     outstanding: Math.max(0, b.bill.amount - b.bill.paidAmount),
     /** Bagian DP PO yang terpakai tagihan ini (terverifikasi). */
     dpCredit: credit.get(b.bill.id) ?? 0,

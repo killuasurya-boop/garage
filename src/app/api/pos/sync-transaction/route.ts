@@ -20,9 +20,14 @@ export async function POST(request: Request) {
   const limited = rateLimit(request, "pos-sync-transaction", { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
 
+  // Audit #17: kunci terminal diverifikasi SEBELUM body dibaca (tanpa kunci = 401, bukan 400 validasi).
+  const keyCheck = await requirePosTerminal(request);
+  if (keyCheck.response) return keyCheck.response;
+
   const body = await readMemberJson(request, syncSchema);
   if (body.response) return body.response;
 
+  // Kode terminal di body harus milik kunci yang dipakai.
   const terminal = await requirePosTerminal(request, body.data.terminalCode);
   if (terminal.response) return terminal.response;
 

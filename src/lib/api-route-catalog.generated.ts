@@ -142,6 +142,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/crm/segments","methods":["GET"],"note":""},
   {"path":"/api/crm/segments-auto","methods":["GET"],"note":""},
   {"path":"/api/crm/tags","methods":["GET"],"note":""},
+  {"path":"/api/csp-report","methods":["POST"],"note":""},
   {"path":"/api/customer/chat","methods":["GET","POST"],"note":""},
   {"path":"/api/customer/chat/upload","methods":["POST"],"note":""},
   {"path":"/api/customer/menu","methods":["GET"],"note":""},

@@ -16,11 +16,8 @@ import {
 } from "@/db/schema";
 import { fail } from "@/lib/api-response";
 import {
-  checkRateLimit,
   hashPin,
   pinHashEquals,
-  recordFailedAttempt,
-  resetRateLimit,
 } from "@/lib/attendance";
 import {
   AttendanceError,
@@ -35,6 +32,7 @@ import {
 import { getFeeWalletSummary } from "@/lib/garage-fee-pool";
 import { deductibleAdvance } from "@/lib/garage-payroll-payments";
 import { PAYROLL_KEYS, getPayrollSetting } from "@/lib/garage-payroll-settings";
+import { checkPinAttempt, recordPinFailure, resetPinAttempts } from "@/lib/pin-attempt-guard";
 
 export type AbsenAuthErrorCode = "INVALID_CREDENTIALS" | "LOCKED" | "INACTIVE";
 
@@ -75,7 +73,7 @@ export async function resolveAbsenEmployee(input: {
   const codeKey = `absen:code:${code}`;
   const ipKey = `absen:ip:${input.ip}`;
   for (const key of [codeKey, ipKey]) {
-    const rl = checkRateLimit(key);
+    const rl = await checkPinAttempt(key);
     if (!rl.allowed) {
       const minutes = Math.max(1, Math.ceil((rl.retryAfterSec ?? 60) / 60));
       throw new AbsenAuthError(
@@ -103,14 +101,14 @@ export async function resolveAbsenEmployee(input: {
 
   // Pesan sama untuk kode salah & PIN salah supaya kode valid tidak bisa ditebak.
   if (!row || !row.pinHash || !pinHashEquals(row.pinHash, hashPin(input.pin))) {
-    recordFailedAttempt(codeKey);
-    recordFailedAttempt(ipKey);
+    await recordPinFailure(codeKey);
+    await recordPinFailure(ipKey);
     throw new AbsenAuthError("INVALID_CREDENTIALS", "Kode atau PIN salah.");
   }
   if (row.status !== "active") {
     throw new AbsenAuthError("INACTIVE", "Akun absen nonaktif. Hubungi owner.");
   }
-  resetRateLimit(codeKey);
+  await resetPinAttempts(codeKey);
 
   return {
     staffUserId: row.staffUserId,

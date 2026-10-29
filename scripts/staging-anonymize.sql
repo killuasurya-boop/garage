@@ -78,6 +78,13 @@ DELETE FROM content_publishing_queue;
 DELETE FROM social_publisher_connections;
 DELETE FROM google_drive_connections;
 
+-- Audit #14: staging memakai BETTER_AUTH_SECRET sendiri → data yang dikunci secret produksi
+-- (rahasia 2FA, kunci JWKS OAuth) tidak terbaca & tidak boleh ikut. Login staging = password saja.
+DELETE FROM two_factor;
+UPDATE "user" SET two_factor_enabled = false;
+DELETE FROM jwks;
+DELETE FROM rate_limit;
+
 COMMIT;
 
 SELECT 'ANONYMIZED' AS status,

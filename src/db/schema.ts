@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { EventMenuGroup, EventOrderSnapshot } from "@/lib/event-menu-types";
 import {
   type AnyPgColumn,
+  bigint,
   bigserial,
   boolean,
   check,
@@ -214,6 +215,15 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Rate limit Better Auth di DATABASE (audit 29 Okt 2026 #13): batas login & tebakan kode 2FA
+// tidak ter-reset saat restart/deploy. Bentuk tabel mengikuti @better-auth/core (model "rateLimit").
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
 // ── OAuth 2.1 untuk MCP ChatGPT (plugin jwt + @better-auth/mcp) ──────────────

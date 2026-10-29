@@ -25,5 +25,12 @@ expect GET  /api/admin/users                    401     "kelola staf tanpa sesi 
 expect GET  /api/finance/cash-sessions/daily    401     "data kas tanpa sesi ditolak"
 expect POST /api/jobs/system-alert              401     "endpoint monitor tanpa rahasia ditolak"
 expect POST /api/mcp/chatgpt                    "401|404" "MCP ChatGPT tanpa token ditolak"
+# Header keamanan (audit #12): CSP (report-only) & HSTS harus ada di halaman utama.
+headers="$(curl -sI -m 20 "$BASE/" | tr -d "" | tr "[:upper:]" "[:lower:]")"
+for h in "content-security-policy-report-only:" "strict-transport-security:" "x-frame-options:"; do
+  if echo "$headers" | grep -q "^$h"; then printf "  ✓ header %s
+" "${h%:}"; else printf "  ✗ header %s tidak ada
+" "${h%:}"; fails=$((fails + 1)); fi
+done
 if [ "$fails" -gt 0 ]; then echo "SMOKE GAGAL: $fails pemeriksaan"; exit 1; fi
 echo "SMOKE OK"

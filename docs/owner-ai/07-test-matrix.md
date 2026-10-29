@@ -13,7 +13,13 @@
 | AC-07 | Kapabilitas tulis yang tak didukung tampil tidak tersedia | PASS | Tool Access = UNKNOWN sampai tulis terbukti; READ_ONLY bila saklar mati (`owner-ai-status.test.ts`) |
 | AC-08 | Gateway mati tidak mengganggu POS | NOT TESTED | Gateway masih satu proses (ADR-002 OPEN) |
 | AC-33 | Prompt injection tidak memicu tulis | PARTIAL | AI tidak bisa membuat kode verifikasi sendiri via `ubah_data_garage` (preview DITOLAK + eksekusi ditolak, dites); tulis R2/R3 selalu konfirmasi |
-| AC-09…32, 34–36 | CRUD, keuangan, laporan, konektor, produksi | N/A P1 | Phase 2+ |
+| AC-09 | Owner ubah produk/harga; baca-ulang = perubahan disetujui | PASS (harga) | `owner-ai-commands.integration.test.ts` R2 harga + browser lokal (Rp12.000 → Rp13.000, receipt) |
+| AC-13 | plan/argumen berubah → commit ditolak | PASS | CONFIRMATION_ARGS_CHANGED (in-app & ChatGPT) |
+| AC-14 | Persetujuan R2 sekali pakai; replay/kedaluwarsa ditolak | PASS | CONFIRMATION_USED; TTL 5 menit (mcp-confirmation) |
+| AC-15 | R3 butuh step-up Garage OS, bukan teks chat | PASS | KODE_2FA_WAJIB, token tetap PENDING |
+| AC-16 | Retry duplikat tidak menggandakan mutasi | PASS | token dipakai ulang ditolak, harga tetap +2.000 sekali |
+| AC-18 | Aktor, sidik, operation ID terverifikasi | PARTIAL | sidik argumen & hasil + audit sebelum aksi; before/after state per entitas belum (Phase 3) |
+| AC-10…12, 17, 19–32, 34–36 | CRUD lain, keuangan, laporan, konektor, produksi | N/A | Phase 3+ |
 
 ## Tes otomatis Phase 1
 
@@ -23,4 +29,6 @@
 | `src/lib/owner-ai-connect.integration.test.ts` | 8 | kode, verify, replay/expired/lock/Owner lain, cabut + token refresh, privasi |
 | `src/lib/mcp-chatgpt-oauth.integration.test.ts` | +2 | OAuth asli: ping, verify salah/benar/replay, AI tak bisa buat kode sendiri, cabut → 401 |
 | `src/lib/agent-tools-ubah-data.test.ts` | +2 path | `/api/owner-ai/*` diblokir untuk chat/API key |
-| `src/lib/api-route-auth.test.ts` | — | 3 route baru terjaga guard |
+| `src/lib/api-route-auth.test.ts` | — | route baru terjaga guard |
+| `src/lib/owner-ai-commands.integration.test.ts` | 6 | katalog, R0+audit, R2 preview→konfirmasi→receipt, argumen berubah/replay, R3 tanpa 2FA, tool tak dikenal |
+| `src/components/ceo/ai/schema-form.test.ts` | 3 | angka gaya Indonesia (2.5 ≠ 25), argumen form, JSON tidak valid |

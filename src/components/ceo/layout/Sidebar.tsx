@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Bot,
+  TerminalSquare,
   Banknote,
   Boxes,
   Briefcase,
@@ -51,6 +52,7 @@ export const controlNav = [
   { href: "/control/customers", label: "Pelanggan", icon: Users },
   { href: "/control/risk", label: "Risiko", icon: ShieldAlert },
   { href: "/control/ai-connect", label: "AI Connect", icon: Bot },
+  { href: "/control/ai-command", label: "AI Command", icon: TerminalSquare },
   { href: "/control/compliance", label: "Compliance", icon: ClipboardCheck },
 ];
 

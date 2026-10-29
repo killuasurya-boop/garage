@@ -36,3 +36,10 @@ Kode berlaku 10 menit, sekali pakai, 5 kali salah = terkunci (buat kode baru). B
 - **ChatGPT boleh mengubah data** dimatikan: ChatGPT hanya bisa membaca & melapor.
 - **Cabut** (per koneksi) / **Cabut semua**: isi alasan + kode 2FA. Token di ChatGPT langsung tidak berlaku; untuk tersambung lagi
   ChatGPT harus login Owner + 2FA ulang. Data bisnis tidak berubah.
+
+## AI Command Center (tanpa ChatGPT)
+
+Menu **AI Command** → pilih perintah (cari "harga", "stok", "setoran") → isi → **Tampilkan / Jalankan**.
+Perintah yang mengubah uang, stok, poin, peran (R2/R3) **tidak langsung jalan**: muncul **Ringkasan — BELUM dijalankan**. Periksa,
+lalu **Setujui & jalankan** (R3: ketik kode 2FA). Hasil = **Receipt** (nomor operasi + sidik) dan tercatat di **Timeline operasi**
+bersama perubahan dari ChatGPT. Ringkasan berlaku 5 menit, sekali pakai; isian yang diubah setelah ringkasan = harus lihat ringkasan ulang.

@@ -40,3 +40,18 @@ Verify tetap jalan walau saklar "ChatGPT boleh mengubah data" mati (hanya menuli
 
 `ai_connections` (unik owner+provider+client) · `ai_verification_challenges` (hash `sha256("ai-verify:<owner>:<kode>")`,
 status active/verified/expired/locked/superseded, attempts, TTL). Reset grand opening: `ai_connections` KEEP, tantangan CLEAR.
+
+## Phase 2 — Owner AI Command Center in-app (ADR-001)
+
+| Method | Path | Isi |
+|---|---|---|
+| GET | `/api/owner-ai/commands` | Katalog per domain (16 modul): `name, title, description, risk, write, needsConfirmation, inputSchema` |
+| POST | `/api/owner-ai/commands` | body `{ tool, args, konfirmasi?, kode2fa? }` → `{ result }`; R0/R1 langsung, R2/R3 = preview `PERLU_KONFIRMASI` lalu eksekusi dengan argumen SAMA + token (+ kode 2FA R3). 30/menit |
+| GET | `/api/owner-ai/operations?limit&source` | Timeline operasi R2/R3 (ChatGPT + layar Owner) |
+| GET | `/api/owner-ai/operations/[id]` | Receipt lengkap satu operasi milik Owner |
+
+Mesin: `runToolWithConfirmation` (sama dengan ChatGPT) dengan `source: "garage_owner_ui"`; audit sinkron sebelum aksi
+(device `owner-ui:ai-command`). Receipt: `operasiId, tool, risiko, sumber, dijalankan, sidikArgumen, sidikHasil` — sidik hasil =
+sha256 ringkasan hasil tersimpan, jadi bisa dihitung ulang dari timeline. API key/agent ditolak; `garage_verify_connection`
+disembunyikan (khusus ChatGPT). Error = `{ error: { code, message } }` (mis. CONFIRMATION_ARGS_CHANGED, CONFIRMATION_USED,
+CONFIRMATION_EXPIRED, KODE_2FA_WAJIB, VALIDATION_ERROR, FORBIDDEN, UNKNOWN_TOOL).

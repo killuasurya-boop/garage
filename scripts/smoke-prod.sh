@@ -26,11 +26,12 @@ expect GET  /api/finance/cash-sessions/daily    401     "data kas tanpa sesi dit
 expect POST /api/jobs/system-alert              401     "endpoint monitor tanpa rahasia ditolak"
 expect POST /api/mcp/chatgpt                    "401|404" "MCP ChatGPT tanpa token ditolak"
 # Header keamanan (audit #12): CSP (report-only) & HSTS harus ada di halaman utama.
-headers="$(curl -sI -m 20 "$BASE/" | tr -d "" | tr "[:upper:]" "[:lower:]")"
-for h in "content-security-policy-report-only:" "strict-transport-security:" "x-frame-options:"; do
-  if echo "$headers" | grep -q "^$h"; then printf "  ✓ header %s
-" "${h%:}"; else printf "  ✗ header %s tidak ada
-" "${h%:}"; fails=$((fails + 1)); fi
-done
+headers="$(curl -sI -m 20 "$BASE/" | tr -d '\r' | tr '[:upper:]' '[:lower:]')"
+header_check() { # $1 = pola grep (huruf kecil), $2 = label
+  if grep -qE "$1" <<<"$headers"; then printf '  ✓ header %s\n' "$2"; else printf '  ✗ header %s tidak ada\n' "$2"; fails=$((fails + 1)); fi
+}
+header_check '^content-security-policy-report-only:' "content-security-policy-report-only"
+header_check '^strict-transport-security:.*includesubdomains' "strict-transport-security (includeSubDomains)"
+header_check '^x-frame-options:' "x-frame-options"
 if [ "$fails" -gt 0 ]; then echo "SMOKE GAGAL: $fails pemeriksaan"; exit 1; fi
 echo "SMOKE OK"

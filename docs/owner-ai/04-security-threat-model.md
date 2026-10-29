@@ -33,11 +33,11 @@
 |---|---|
 | Token tanpa/invalid/expired → 401 | ADA (`mcp-chatgpt-oauth.integration.test.ts`) |
 | Owner tanpa 2FA ditolak (403) | ADA |
-| Peran non-Owner (Manajer/Kasir) dengan token sah ditolak | **BELUM** dites khusus (logika ada di `mcpChatgptAccess`) — Phase 1 |
+| Peran non-Owner (Manajer/Kasir) dengan token sah ditolak | ADA (Phase 3: unit + OAuth peran diturunkan) |
 | Kill switch 503, saklar write menolak tool ubah | ADA |
 | Replay token konfirmasi, argumen berubah | ADA (`mcp-confirmation.test.ts`) |
 | Path traversal/terenkode di ubah data | ADA |
-| Verify challenge brute force / replay / salah Owner | **BELUM** (Phase 1) |
-| Revoke koneksi → permintaan baru ditolak | **BELUM** (Phase 1) |
+| Verify challenge brute force / replay / salah Owner | ADA (Phase 1) |
+| Revoke koneksi → permintaan baru ditolak | ADA (Phase 1) |
 | Prompt injection dari data | **BELUM** |
 | Gateway mati → POS tetap jalan | **BELUM** (butuh isolasi / uji beban) |

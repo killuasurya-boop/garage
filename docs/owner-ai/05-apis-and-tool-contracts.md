@@ -55,3 +55,13 @@ Mesin: `runToolWithConfirmation` (sama dengan ChatGPT) dengan `source: "garage_o
 sha256 ringkasan hasil tersimpan, jadi bisa dihitung ulang dari timeline. API key/agent ditolak; `garage_verify_connection`
 disembunyikan (khusus ChatGPT). Error = `{ error: { code, message } }` (mis. CONFIRMATION_ARGS_CHANGED, CONFIRMATION_USED,
 CONFIRMATION_EXPIRED, KODE_2FA_WAJIB, VALIDATION_ERROR, FORBIDDEN, UNKNOWN_TOOL).
+
+## Phase 3 — tool bertipe master (blueprint §6.2)
+
+| Tool | Domain | Risk | Isi | Penjaga |
+|---|---|---|---|---|
+| `garage_create_supplier` | gudang | R1 | nama, WA, alamat, PIC, area, kategori barang, cara bayar, tempo | Nama/nomor sama → `SUPPLIER_EXISTS`/`SUPPLIER_PHONE_EXISTS` (service UI meng-upsert; AI tidak boleh menimpa diam-diam). Tanpa rekening bank |
+| `garage_update_supplier` | gudang | R1 | patch field + `arsipkan` | Hasil dibaca ulang dari DB; `berubah` + sidik sebelum/sesudah; rekening bank tak tersentuh |
+| `garage_create_material` | bahan_resep | R1 | nama, kategori gudang, satuan dasar, SKU (kosong = otomatis), min stok, kemasan (nama/isi/harga → HPP/satuan), supplier default, barcode | Nama aktif sama → `MATERIAL_EXISTS` kecuali `izinkanNamaSama`; TIDAK menambah stok; kategori harus ada (mode ketat) |
+
+Semua memakai `wms-service` yang sama dengan UI Gudang (audit `wms-master`), hanya Owner/Manajer.

@@ -246,6 +246,15 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     await setTwoFactor(ownerId, true);
   });
 
+  it("AC-05: token sah tetapi peran Owner diturunkan jadi Manajer → langsung 403 (peran dari DB, bukan token/argumen)", async () => {
+    const { staffProfiles } = t.schema;
+    await t.getDb().update(staffProfiles).set({ role: "Manajer" }).where(eq(staffProfiles.userId, ownerId));
+    const res = await mcp(ownerToken, { jsonrpc: "2.0", id: 60, method: "tools/call", params: { name: "daftar_menu", arguments: { role: "Owner" } } });
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(await res.json())).toContain("OWNER_ONLY");
+    await t.getDb().update(staffProfiles).set({ role: "Owner" }).where(eq(staffProfiles.userId, ownerId));
+  });
+
   it("kill switch mcpChatgptPaused → semua panggilan 503 tanpa restart", async () => {
     const { appSettings } = t.schema;
     await t.getDb().insert(appSettings).values({ key: "mcpChatgptPaused", valueJson: true, outletId: null } as any);

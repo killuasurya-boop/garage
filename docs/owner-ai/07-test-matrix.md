@@ -8,7 +8,7 @@
 | AC-02 | ChatGPT verified via one-time challenge terautentikasi; tanpa status palsu | PASS (lokal) · **NOT TESTED (ChatGPT nyata)** | `mcp-chatgpt-oauth.integration.test.ts` (OAuth asli → `garage_verify_connection`); OAuth tanpa verify tetap NEVER_VERIFIED (`owner-ai-status.test.ts`). Uji dari ChatGPT web Owner = setelah deploy |
 | AC-03 | Challenge expired/replay/Owner salah ditolak | PASS | `owner-ai-connect.integration.test.ts` (expired, replay, Owner lain, kode lama, 5x salah dikunci) + OAuth replay |
 | AC-04 | Token dicabut langsung ditolak | PASS | Integrasi: `touchConnection` iat ≤ revoked; OAuth ujung-ke-ujung 401 `CONNECTION_REVOKED`; refresh token ber-`revoked` |
-| AC-05 | Staff/member ditolak walau peran palsu di argumen | PARTIAL | Principal dari token server-side (tidak ada argumen peran); Owner tanpa 2FA 403 dites; peran Manajer/Kasir via OAuth belum dites khusus |
+| AC-05 | Staff/member ditolak walau peran palsu di argumen | PASS | `mcp-chatgpt-access.test.ts` (semua peran/status) + OAuth ujung-ke-ujung: token sah, peran diturunkan ke Manajer, argumen `role: Owner` → 403 OWNER_ONLY |
 | AC-06 | Registrasi staf Google PENDING sampai Owner | N/A P1 | Alur `/control/access-approval` yang ada |
 | AC-07 | Kapabilitas tulis yang tak didukung tampil tidak tersedia | PASS | Tool Access = UNKNOWN sampai tulis terbukti; READ_ONLY bila saklar mati (`owner-ai-status.test.ts`) |
 | AC-08 | Gateway mati tidak mengganggu POS | NOT TESTED | Gateway masih satu proses (ADR-002 OPEN) |
@@ -31,4 +31,6 @@
 | `src/lib/agent-tools-ubah-data.test.ts` | +2 path | `/api/owner-ai/*` diblokir untuk chat/API key |
 | `src/lib/api-route-auth.test.ts` | — | route baru terjaga guard |
 | `src/lib/owner-ai-commands.integration.test.ts` | 6 | katalog, R0+audit, R2 preview→konfirmasi→receipt, argumen berubah/replay, R3 tanpa 2FA, tool tak dikenal |
+| `src/lib/agent-tools-master.integration.test.ts` | 9 | supplier baru/ganda/nomor/arsip+aktif (dibaca ulang), bank tak tersentuh, bahan SKU/HPP/tanpa stok/nama ganda, Kasir ditolak |
+| `src/lib/mcp-chatgpt-access.test.ts` | 8 | kebijakan akses per peran/status |
 | `src/components/ceo/ai/schema-form.test.ts` | 3 | angka gaya Indonesia (2.5 ≠ 25), argumen form, JSON tidak valid |

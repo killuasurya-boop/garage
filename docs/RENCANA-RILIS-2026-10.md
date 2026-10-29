@@ -55,9 +55,9 @@ Hasil harus `RESTORE DRILL: LULUS`. Container uji dihapus otomatis; DB produksi 
 ## Tahap 3b — Backup di luar VPS (laptop / OneDrive)
 Risiko terbesar: backup hanya di VPS yang sama. Setelah deploy yang memuat pemeriksaan `offsite`:
 ```powershell
-powershell -ExecutionPolicy Bypass -File scriptsegister-pull-backups-task.ps1 -Dest "$env:USERPROFILEOneDriveGarage Backup"
+powershell -ExecutionPolicy Bypass -File scripts\register-pull-backups-task.ps1 -Dest "$env:USERPROFILE\OneDrive\Garage Backup"
 ```
-Cek: besok pagi folder berisi `garage-daily-*.sql.gz` dan pemantau mencatat `offsite=ok`. File berisi data pelanggan &
+Cek: besok pagi folder berisi `garage-*.sql.gz.gpg` (terkunci; buat kunci dulu: `bash scripts/setup-backup-key.sh /e/GarageKunci`) dan pemantau mencatat `offsite=ok`. File berisi data pelanggan &
 karyawan — folder pribadi Owner saja.
 
 ## Tahap 4 — Staging aktif

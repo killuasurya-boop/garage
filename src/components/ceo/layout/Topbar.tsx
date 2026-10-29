@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { AiStatusChip } from "@/components/ceo/ai/AiStatusChip";
 import { Bell, Download, LayoutDashboard, Menu, RefreshCw, Search } from "lucide-react";
 import { useDashboard } from "../store/dashboardStore";
 import { controlNav } from "./Sidebar";
@@ -76,6 +77,8 @@ export function Topbar() {
             ))}
           </datalist>
         </form>
+
+        <AiStatusChip />
 
         <Link
           href="/os?module=finance&tab=reports"

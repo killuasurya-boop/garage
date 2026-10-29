@@ -77,6 +77,8 @@ export function isAgentForbiddenPath(path: string) {
     // Identitas & akses (user, role, PIN, reset password, sesi, force-logout):
     // aksi R3 (PRD V4.0 §07.2) butuh MFA — key statis tidak punya.
     path.startsWith("/api/admin/users") ||
+    // Owner AI Connect: AI tidak boleh membuat kode verifikasi untuk dirinya sendiri / mencabut koneksi.
+    path.startsWith("/api/owner-ai") ||
     path.startsWith("/api/admin/security")
   );
 }

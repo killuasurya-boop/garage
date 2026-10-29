@@ -20,6 +20,7 @@ import {
   wmsSupplier,
   wmsInternalOrder,
   wmsInternalOrderItem,
+  wmsOpnameCount,
   wmsOpnameLine,
   wmsProduct,
   wmsProductionBom,
@@ -78,6 +79,9 @@ import {
   writeMasterAudit,
   type MasterActor,
 } from "@/lib/wms-master-data";
+import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
+import { jakartaDateKey } from "@/lib/finance-control-core";
+import { DEFAULT_TOLERANCE, classifyVariance, worstClass, type OpnameClass, type ToleranceConfig } from "@/lib/wms-opname-rules";
 
 // =============================================================================
 // GARAGE WMS — service layer. Aturan inti: SEMUA mutasi stok lewat
@@ -929,6 +933,11 @@ export async function getWmsWarehouseType(id: string): Promise<WmsWarehouse["typ
   const db = getDb();
   const [row] = await db.select({ type: wmsWarehouse.type }).from(wmsWarehouse).where(eq(wmsWarehouse.id, id)).limit(1);
   return (row?.type as WmsWarehouse["type"] | undefined) ?? null;
+}
+
+export async function getWmsWarehouseName(id: string): Promise<string | null> {
+  const [row] = await getDb().select({ name: wmsWarehouse.name }).from(wmsWarehouse).where(eq(wmsWarehouse.id, id)).limit(1);
+  return row?.name ?? null;
 }
 
 export async function listWmsWarehouses(opts?: {
@@ -4952,35 +4961,99 @@ export async function adjustWmsStock(
   });
 }
 
-export async function createWmsOpname(warehouseId: string, userId?: string | null) {
-  const db = getDb();
-  const [op] = await db
-    .insert(wmsStockOpname)
-    .values({ doc: makeWmsDoc("OPN"), warehouseId, status: "draft", createdBy: userId ?? null })
-    .returning();
+// =============================================================================
+// Smart Stock Opname (Phase 3). Satu sistem opname (wms_stock_opname/line) + ledger existing.
+// - Snapshot stok per hitung, di dalam transaksi yang mengunci baris stok ruang → konsisten
+//   dengan urutan ledger; finalisasi menerapkan delta (fisik − snapshot) ke stok live sehingga
+//   transaksi sesudah hitung (jual/terima/transfer) tidak terhapus.
+// - Riwayat hitung append-only (wms_opname_count), hitungan pertama disimpan di baris.
+// - Klasifikasi toleransi deterministik (wms-opname-rules) → hitung ulang / Manajer / Owner.
+// - Nilai yang diposting disimpan per baris dari ledger (historis), tidak membuat expense.
+// =============================================================================
 
-  const stocks = await db
-    .select({ productId: wmsWarehouseStock.productId, qty: wmsWarehouseStock.qty })
-    .from(wmsWarehouseStock)
-    .where(eq(wmsWarehouseStock.warehouseId, warehouseId));
-  if (stocks.length) {
-    await db.insert(wmsOpnameLine).values(
-      stocks.map((s) => ({
-        opnameId: op.id,
-        productId: s.productId,
-        systemQty: Number(s.qty),
-        physicalQty: Number(s.qty),
-      })),
-    );
-  }
-  return op;
+export type OpnameKind = "daily" | "weekly" | "monthly" | "incidental";
+export type OpnameScope = "full" | "partial" | "cycle";
+
+/** Toleransi dari app_settings `wms.opname.tolerance` (global), digabung dengan default. */
+export async function loadOpnameTolerance(db: Db = getDb()): Promise<ToleranceConfig> {
+  const [row] = await db
+    .select({ value: appSettings.valueJson })
+    .from(appSettings)
+    .where(and(eq(appSettings.key, "wms.opname.tolerance"), sql`${appSettings.outletId} is null`))
+    .limit(1);
+  const stored = (row?.value ?? {}) as Partial<ToleranceConfig>;
+  return {
+    ...DEFAULT_TOLERANCE,
+    ...stored,
+    absoluteByUnit: { ...DEFAULT_TOLERANCE.absoluteByUnit, ...(stored.absoluteByUnit ?? {}) },
+    recountPctByCategory: { ...DEFAULT_TOLERANCE.recountPctByCategory, ...(stored.recountPctByCategory ?? {}) },
+  };
+}
+
+/** Tipe ruang sebuah sesi opname (untuk cek izin lokasi di setiap endpoint). */
+export async function getWmsOpnameWarehouseType(id: string) {
+  const [row] = await getDb()
+    .select({ type: wmsWarehouse.type })
+    .from(wmsStockOpname)
+    .innerJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsStockOpname.warehouseId))
+    .where(eq(wmsStockOpname.id, id))
+    .limit(1);
+  return (row?.type ?? null) as WmsWarehouse["type"] | null;
+}
+
+export async function createWmsOpname(
+  warehouseId: string,
+  userId?: string | null,
+  opts: { kind?: OpnameKind; scope?: OpnameScope; productIds?: string[] } = {},
+) {
+  const kind: OpnameKind = opts.kind ?? "incidental";
+  const scope: OpnameScope = opts.scope ?? (opts.productIds?.length ? "cycle" : "partial");
+  if (scope === "cycle" && !opts.productIds?.length) throw new Error("Cycle count butuh daftar bahan.");
+  return runInTx(async (tx) => {
+    const policy = await loadBusinessDayPolicy(tx);
+    const [op] = await tx
+      .insert(wmsStockOpname)
+      .values({
+        doc: makeWmsDoc("OPN"),
+        warehouseId,
+        status: "draft",
+        createdBy: userId ?? null,
+        kind,
+        scope,
+        businessDate: jakartaDateKey(new Date(), policy),
+      })
+      .returning();
+    // Baris = semua bahan aktif yang pernah punya stok di ruang ini (termasuk stok 0 — bulanan
+    // wajib memeriksa bahan yang sistemnya kosong) atau daftar cycle count.
+    const stocks = await tx
+      .select({ productId: wmsWarehouseStock.productId, qty: wmsWarehouseStock.qty })
+      .from(wmsWarehouseStock)
+      .innerJoin(wmsProduct, eq(wmsProduct.id, wmsWarehouseStock.productId))
+      .where(
+        and(
+          eq(wmsWarehouseStock.warehouseId, warehouseId),
+          sql`${wmsProduct.archivedAt} is null`,
+          opts.productIds?.length ? inArray(wmsWarehouseStock.productId, opts.productIds) : sql`true`,
+        ),
+      );
+    const have = new Set(stocks.map((s) => s.productId));
+    const extra = (opts.productIds ?? []).filter((id) => !have.has(id)).map((productId) => ({ productId, qty: 0 }));
+    const rows = [...stocks, ...extra];
+    if (rows.length) {
+      await tx.insert(wmsOpnameLine).values(
+        rows.map((s) => ({ opnameId: op.id, productId: s.productId, systemQty: Number(s.qty), physicalQty: Number(s.qty) })),
+      );
+    }
+    await writeWmsAudit(tx, { userId, action: "Sesi opname dibuat", object: op.doc, metadata: { opnameId: op.id, kind, scope, lines: rows.length } });
+    return op;
+  });
 }
 
 /**
- * Detail opname. `blind` (penghitung non-manajer): stok sistem & selisih disembunyikan,
- * baris yang belum dihitung tampil kosong — hitung fisik tanpa melihat angka sistem.
+ * Detail opname. Blind (penghitung non-Owner/Manajer): stok sistem, selisih, nilai, klasifikasi
+ * disembunyikan, dan hitungan petugas LAIN tidak terlihat sebelum disetujui.
  */
-export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
+export async function getWmsOpname(id: string, opts: { blind?: boolean; viewerId?: string | null } = {}) {
   const db = getDb();
   const [op] = await db.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).limit(1);
   if (!op) return null;
@@ -4991,127 +5064,290 @@ export async function getWmsOpname(id: string, opts: { blind?: boolean } = {}) {
       productName: wmsProduct.name,
       sku: wmsProduct.sku,
       barcode: wmsProduct.barcode,
+      imageUrl: wmsProduct.imageUrl,
+      category: wmsProduct.category,
       unit: wmsProduct.unit,
       hpp: wmsProduct.hpp,
       systemQty: wmsOpnameLine.systemQty,
       physicalQty: wmsOpnameLine.physicalQty,
       countedAt: wmsOpnameLine.countedAt,
+      countedBy: wmsOpnameLine.countedBy,
+      firstPhysicalQty: wmsOpnameLine.firstPhysicalQty,
+      firstSystemQty: wmsOpnameLine.firstSystemQty,
+      countAttempts: wmsOpnameLine.countAttempts,
+      needsRecount: wmsOpnameLine.needsRecount,
+      recountReason: wmsOpnameLine.recountReason,
+      classification: wmsOpnameLine.classification,
+      postedVariance: wmsOpnameLine.postedVariance,
+      postedValue: wmsOpnameLine.postedValue,
     })
     .from(wmsOpnameLine)
     .leftJoin(wmsProduct, eq(wmsProduct.id, wmsOpnameLine.productId))
     .where(eq(wmsOpnameLine.opnameId, id))
-    .orderBy(wmsProduct.name);
+    .orderBy(wmsProduct.category, wmsProduct.name);
   const blind = !!opts.blind && op.status !== "completed";
   const { loadProductUoms } = await import("@/lib/wms-uom");
-  const uoms = await loadProductUoms(lines.map((l) => l.productId).filter((id): id is string => !!id), db);
+  const uoms = await loadProductUoms(lines.map((l) => l.productId).filter((x): x is string => !!x), db);
+  const counted = lines.filter((l) => l.countedAt).length;
   return {
     id: op.id,
     doc: op.doc,
     warehouseId: op.warehouseId,
     status: op.status,
+    kind: op.kind,
+    scope: op.scope,
+    businessDate: op.businessDate ? String(op.businessDate) : null,
     blind,
     rejectReason: op.rejectReason,
     submittedAt: op.submittedAt?.toISOString() ?? null,
     approvedAt: op.approvedAt?.toISOString() ?? null,
     createdAt: op.createdAt.toISOString(),
+    progress: { counted, total: lines.length, recount: lines.filter((l) => l.needsRecount).length },
+    approvalTier: blind ? null : worstClass(lines.filter((l) => l.countedAt).map((l) => l.classification as OpnameClass | null)),
     lines: lines.map((l) => {
-      const counted = !!l.countedAt;
-      const variance = counted ? Number((Number(l.physicalQty) - Number(l.systemQty)).toFixed(4)) : 0;
+      const isCounted = !!l.countedAt;
+      // Penghitung blind hanya melihat angka hitungannya sendiri.
+      const own = !opts.viewerId || l.countedBy === opts.viewerId;
+      const variance = isCounted ? Number((Number(l.physicalQty) - Number(l.systemQty)).toFixed(4)) : 0;
       return {
         id: l.id,
         productId: l.productId,
         productName: l.productName,
         sku: l.sku,
         barcode: l.barcode,
+        imageUrl: l.imageUrl,
+        category: l.category,
         unit: l.unit,
         uoms: l.productId ? (uoms.get(l.productId) ?? []) : [],
-        counted,
+        counted: isCounted,
+        countedByMe: isCounted && own,
+        attempts: l.countAttempts,
+        needsRecount: l.needsRecount,
+        recountReason: l.recountReason,
         systemQty: blind ? null : Number(l.systemQty),
-        physicalQty: blind && !counted ? null : Number(l.physicalQty),
+        physicalQty: blind && (!isCounted || !own) ? null : Number(l.physicalQty),
+        firstPhysicalQty: blind ? null : l.firstPhysicalQty === null ? null : Number(l.firstPhysicalQty),
         variance: blind ? null : variance,
-        varianceValue: blind ? null : Math.round(variance * Number(l.hpp ?? 0)),
+        varianceValue: blind ? null : l.postedValue !== null ? Math.round(Number(l.postedValue)) : Math.round(variance * Number(l.hpp ?? 0)),
+        classification: blind ? null : (l.classification as OpnameClass | null),
       };
     }),
   };
 }
 
-export async function listWmsOpnames() {
+export async function listWmsOpnames(filter: { allowedTypes?: WmsWarehouse["type"][] | "all" } = {}) {
   const db = getDb();
   const rows = await db
     .select({
       id: wmsStockOpname.id,
       doc: wmsStockOpname.doc,
       status: wmsStockOpname.status,
+      kind: wmsStockOpname.kind,
+      scope: wmsStockOpname.scope,
       rejectReason: wmsStockOpname.rejectReason,
       createdAt: wmsStockOpname.createdAt,
+      warehouseId: wmsStockOpname.warehouseId,
       warehouseName: wmsWarehouse.name,
+      warehouseType: wmsWarehouse.type,
       lines: sql<number>`count(${wmsOpnameLine.id})::int`,
+      counted: sql<number>`count(${wmsOpnameLine.countedAt})::int`,
+      recount: sql<number>`count(*) filter (where ${wmsOpnameLine.needsRecount})::int`,
     })
     .from(wmsStockOpname)
     .leftJoin(wmsWarehouse, eq(wmsWarehouse.id, wmsStockOpname.warehouseId))
     .leftJoin(wmsOpnameLine, eq(wmsOpnameLine.opnameId, wmsStockOpname.id))
-    .groupBy(wmsStockOpname.id, wmsWarehouse.name)
+    .where(
+      filter.allowedTypes && filter.allowedTypes !== "all" ? inArray(wmsWarehouse.type, filter.allowedTypes) : sql`true`,
+    )
+    .groupBy(wmsStockOpname.id, wmsWarehouse.name, wmsWarehouse.type)
     .orderBy(desc(wmsStockOpname.createdAt))
-    .limit(50);
+    .limit(100);
   return rows.map((r) => ({
     id: r.id,
     doc: r.doc,
     status: r.status,
+    kind: r.kind,
+    scope: r.scope,
     rejected: r.status === "draft" && !!r.rejectReason,
+    warehouseId: r.warehouseId,
     warehouse: r.warehouseName ?? "-",
     lines: Number(r.lines),
+    counted: Number(r.counted),
+    recount: Number(r.recount),
     createdAt: r.createdAt.toISOString(),
   }));
 }
 
 /**
- * Simpan hitungan fisik. Stok sistem dicatat SAAT dihitung (ala posting time ERPNext
- * Stock Reconciliation): penjualan sesudahnya tetap berlaku, selisih = fisik − stok
- * saat itu. Hanya bisa selama draft (setelah dikirim, tunggu keputusan manajer).
+ * Simpan hitungan fisik (autosave aman). Snapshot stok sistem diambil SAAT dihitung, di dalam
+ * transaksi yang mengunci baris stok ruang (urutan konsisten dengan ledger). Hitungan pertama
+ * disimpan; hitung ulang menambah riwayat. `clientRequestId` = idempoten (kirim ulang setelah
+ * koneksi putus tidak menambah percobaan). Hanya selama draft.
  */
-export async function saveWmsOpnameLine(lineId: string, physicalQty: number, opnameId?: string, userId?: string | null) {
-  const db = getDb();
-  const [line] = await db
-    .select({
-      id: wmsOpnameLine.id,
-      opnameId: wmsOpnameLine.opnameId,
-      productId: wmsOpnameLine.productId,
-      status: wmsStockOpname.status,
-      warehouseId: wmsStockOpname.warehouseId,
-    })
-    .from(wmsOpnameLine)
-    .innerJoin(wmsStockOpname, eq(wmsStockOpname.id, wmsOpnameLine.opnameId))
-    .where(eq(wmsOpnameLine.id, lineId))
-    .limit(1);
-  if (!line || (opnameId && line.opnameId !== opnameId)) return null;
-  if (line.status === "completed") throw new Error("Opname sudah difinalisasi — hitungan tidak bisa diubah.");
-  if (line.status === "submitted") throw new Error("Opname sedang menunggu persetujuan manajer — hitungan terkunci.");
-  const systemQty = line.productId && line.warehouseId ? await warehouseOnHand(db, line.productId, line.warehouseId) : 0;
-  const [row] = await db
-    .update(wmsOpnameLine)
-    .set({ physicalQty, systemQty, countedAt: new Date(), countedBy: userId ?? null })
-    .where(eq(wmsOpnameLine.id, lineId))
-    .returning();
-  return row ?? null;
+export async function saveWmsOpnameLine(
+  lineId: string,
+  physicalQty: number,
+  opnameId?: string,
+  userId?: string | null,
+  opts: { clientRequestId?: string | null; breakdown?: Record<string, unknown> | null } = {},
+) {
+  if (!Number.isFinite(physicalQty) || physicalQty < 0) throw new Error("Jumlah fisik harus angka ≥ 0.");
+  return runInTx(async (tx) => {
+    const [line] = await tx
+      .select({ line: wmsOpnameLine, status: wmsStockOpname.status, warehouseId: wmsStockOpname.warehouseId })
+      .from(wmsOpnameLine)
+      .innerJoin(wmsStockOpname, eq(wmsStockOpname.id, wmsOpnameLine.opnameId))
+      .where(eq(wmsOpnameLine.id, lineId))
+      .for("update", { of: wmsOpnameLine })
+      .limit(1);
+    if (!line || (opnameId && line.line.opnameId !== opnameId)) return null;
+    if (line.status === "completed") throw new Error("Opname sudah difinalisasi — hitungan tidak bisa diubah.");
+    if (line.status === "submitted") throw new Error("Opname sedang menunggu persetujuan manajer — hitungan terkunci.");
+    if (opts.clientRequestId) {
+      const [dup] = await tx
+        .select({ id: wmsOpnameCount.id })
+        .from(wmsOpnameCount)
+        .where(and(eq(wmsOpnameCount.lineId, lineId), eq(wmsOpnameCount.clientRequestId, opts.clientRequestId)))
+        .limit(1);
+      if (dup) return line.line; // kiriman ulang autosave — sudah tersimpan
+    }
+    let systemQty = 0;
+    if (line.line.productId && line.warehouseId) {
+      // Kunci baris stok ruang: snapshot tidak bisa "di tengah" mutasi lain yang sedang berjalan.
+      const [stock] = await tx
+        .select({ qty: wmsWarehouseStock.qty })
+        .from(wmsWarehouseStock)
+        .where(and(eq(wmsWarehouseStock.productId, line.line.productId), eq(wmsWarehouseStock.warehouseId, line.warehouseId)))
+        .for("update")
+        .limit(1);
+      systemQty = Number(stock?.qty ?? 0);
+    }
+    const attempt = line.line.countAttempts + 1;
+    const isRecount = line.line.countAttempts > 0;
+    const [prod] = line.line.productId
+      ? await tx.select({ unit: wmsProduct.unit, hpp: wmsProduct.hpp, category: wmsProduct.category }).from(wmsProduct).where(eq(wmsProduct.id, line.line.productId)).limit(1)
+      : [];
+    const priorEvents = line.line.productId && line.warehouseId ? await opnameVarianceEvents(tx, line.line.productId, line.warehouseId, line.line.opnameId) : 0;
+    const cls = classifyVariance(
+      {
+        systemQty,
+        physicalQty,
+        unit: prod?.unit ?? "",
+        rate: Number(prod?.hpp ?? 0),
+        category: prod?.category,
+        priorVarianceEvents: priorEvents,
+        recounted: isRecount && line.line.needsRecount,
+      },
+      await loadOpnameTolerance(tx),
+    );
+    const [row] = await tx
+      .update(wmsOpnameLine)
+      .set({
+        physicalQty,
+        systemQty,
+        countedAt: new Date(),
+        countedBy: userId ?? null,
+        countAttempts: attempt,
+        firstPhysicalQty: line.line.countAttempts === 0 ? physicalQty : line.line.firstPhysicalQty,
+        firstSystemQty: line.line.countAttempts === 0 ? systemQty : line.line.firstSystemQty,
+        classification: cls.classification,
+        // Selisih di atas toleransi → wajib hitung ulang (penghitung blind hanya diberi tahu
+        // "hitung ulang", tanpa angka sistem). Hitung ulang yang diminta selesai setelah dihitung lagi;
+        // bila tetap di luar toleransi, klasifikasi naik ke review Manajer.
+        needsRecount: cls.classification === "recount",
+        recountReason: cls.classification === "recount" ? "Di luar toleransi — hitung ulang untuk memastikan." : "",
+      })
+      .where(eq(wmsOpnameLine.id, lineId))
+      .returning();
+    await tx.insert(wmsOpnameCount).values({
+      lineId,
+      opnameId: line.line.opnameId,
+      attempt,
+      kind: isRecount ? "recount" : "count",
+      physicalQty,
+      systemQty,
+      breakdown: opts.breakdown ?? null,
+      clientRequestId: opts.clientRequestId ?? null,
+      countedBy: userId ?? null,
+    });
+    return row ?? null;
+  });
 }
 
-/** Penghitung mengirim hasil ke Owner/Manajer. Butuh minimal 1 baris terhitung. */
+/** Kejadian selisih (non-sesuai, sudah diposting) bahan di ruang ini dalam 90 hari, selain sesi ini. */
+async function opnameVarianceEvents(db: Db, productId: string, warehouseId: string, exceptOpnameId: string) {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(wmsOpnameLine)
+    .innerJoin(wmsStockOpname, eq(wmsStockOpname.id, wmsOpnameLine.opnameId))
+    .where(
+      and(
+        eq(wmsOpnameLine.productId, productId),
+        eq(wmsStockOpname.warehouseId, warehouseId),
+        eq(wmsStockOpname.status, "completed"),
+        ne(wmsStockOpname.id, exceptOpnameId),
+        sql`${wmsOpnameLine.postedVariance} is not null and ${wmsOpnameLine.postedVariance} <> 0`,
+        sql`${wmsOpnameLine.postedAt} > now() - interval '90 days'`,
+        sql`coalesce(${wmsOpnameLine.classification}, 'minor') <> 'minor'`,
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Penghitung mengirim hasil. Full = semua baris wajib dihitung; semua cakupan: baris yang
+ * diminta dihitung ulang harus dihitung dulu.
+ */
 export async function submitWmsOpname(id: string, userId?: string | null) {
   return runInTx(async (tx) => {
     const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
     if (!op) return null;
     if (op.status !== "draft") throw new Error(op.status === "submitted" ? "Opname sudah dikirim." : "Opname sudah selesai.");
-    const [counted] = await tx
-      .select({ n: sql<number>`count(*)::int` })
+    const [stats] = await tx
+      .select({
+        total: sql<number>`count(*)::int`,
+        counted: sql<number>`count(${wmsOpnameLine.countedAt})::int`,
+        recount: sql<number>`count(*) filter (where ${wmsOpnameLine.needsRecount})::int`,
+      })
       .from(wmsOpnameLine)
-      .where(and(eq(wmsOpnameLine.opnameId, id), sql`${wmsOpnameLine.countedAt} is not null`));
-    if (!Number(counted?.n)) throw new Error("Belum ada bahan yang dihitung.");
+      .where(eq(wmsOpnameLine.opnameId, id));
+    const counted = Number(stats?.counted ?? 0);
+    if (!counted) throw new Error("Belum ada bahan yang dihitung.");
+    if (Number(stats?.recount ?? 0)) throw new Error(`${stats.recount} bahan diminta dihitung ulang — hitung dulu sebelum dikirim.`);
+    if ((op.scope === "full" || op.scope === "cycle") && counted < Number(stats?.total ?? 0)) {
+      throw new Error(`Opname ${op.scope === "full" ? "penuh" : "cycle"}: ${Number(stats.total) - counted} bahan belum dihitung. Isi 0 bila memang kosong.`);
+    }
     const [updated] = await tx
       .update(wmsStockOpname)
       .set({ status: "submitted", submittedBy: userId ?? null, submittedAt: new Date() })
       .where(eq(wmsStockOpname.id, id))
       .returning();
-    await writeWmsAudit(tx, { userId, action: "Opname dikirim ke manajer", object: op.doc, metadata: { opnameId: id, counted: Number(counted.n) } });
+    await writeWmsAudit(tx, { userId, action: "Opname dikirim ke manajer", object: op.doc, metadata: { opnameId: id, counted, scope: op.scope } });
+    return updated;
+  });
+}
+
+/** Manajer/Owner meminta hitung ulang baris tertentu → sesi kembali draft; hitungan lama tersimpan. */
+export async function requestOpnameRecount(id: string, lineIds: string[], reason: string, userId?: string | null) {
+  const why = reason.trim();
+  if (why.length < 3) throw new Error("Alasan hitung ulang wajib diisi.");
+  if (!lineIds.length) throw new Error("Pilih bahan yang dihitung ulang.");
+  return runInTx(async (tx) => {
+    const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
+    if (!op) return null;
+    if (op.status === "completed") throw new Error("Opname sudah selesai — koreksi lewat opname baru / penyesuaian resmi.");
+    const marked = await tx
+      .update(wmsOpnameLine)
+      .set({ needsRecount: true, recountReason: why })
+      .where(and(eq(wmsOpnameLine.opnameId, id), inArray(wmsOpnameLine.id, lineIds), sql`${wmsOpnameLine.countedAt} is not null`))
+      .returning({ id: wmsOpnameLine.id });
+    if (!marked.length) throw new Error("Bahan yang dipilih belum pernah dihitung.");
+    const [updated] = await tx
+      .update(wmsStockOpname)
+      .set({ status: "draft", recountRequestedAt: new Date(), rejectReason: `Hitung ulang: ${why}` })
+      .where(eq(wmsStockOpname.id, id))
+      .returning();
+    await writeWmsAudit(tx, { userId, action: "Opname: hitung ulang diminta", object: op.doc, status: "warning", metadata: { opnameId: id, lines: marked.length, reason: why } });
     return updated;
   });
 }
@@ -5135,36 +5371,46 @@ export async function rejectWmsOpname(id: string, reason: string, userId?: strin
 }
 
 /**
- * Setujui & posting (Owner/Manajer): tiap baris terhitung → adjustment sebesar
- * fisik − stok saat dihitung, diterapkan ke stok live (mutasi sesudah hitung tetap).
- * Baris yang tidak dihitung dilewati. Dikunci + idempoten (anti double-finalize).
+ * Setujui & posting: tiap baris terhitung → adjustment = fisik − snapshot saat dihitung, diterapkan
+ * ke stok live (mutasi sesudah hitung tetap). Baris tak terhitung dilewati (partial). Dikunci +
+ * idempoten. Baris "eskalasi Owner" hanya bisa disetujui Owner. Nilai posting disimpan per baris
+ * dari ledger (historis). `allowNegative` dipertahankan: penjualan sah sesudah hitung bisa membuat
+ * saldo minus — ditandai `negativeAfter` di audit untuk ditinjau.
  */
-export async function finalizeWmsOpname(id: string, userId?: string | null, opts: { allowSelfApproval?: boolean } = {}) {
+export async function finalizeWmsOpname(
+  id: string,
+  userId?: string | null,
+  opts: { allowSelfApproval?: boolean; approverRole?: string | null } = {},
+) {
   return runInTx(async (tx) => {
-    const [op] = await tx
-      .select()
-      .from(wmsStockOpname)
-      .where(eq(wmsStockOpname.id, id))
-      .for("update")
-      .limit(1);
+    const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
     if (!op) return null;
     if (op.status === "completed") return op;
     if (op.status !== "submitted") throw new Error("Opname harus dikirim penghitung dulu sebelum disetujui.");
-    // Pemisahan tugas: yang mengirim hitungan tidak menyetujui sendiri (kecuali Owner).
     if (!opts.allowSelfApproval && userId && op.submittedBy === userId) {
       throw new Error("Opname yang kamu kirim sendiri harus disetujui Owner atau manajer lain.");
     }
     if (!op.warehouseId) throw new Error("Opname tanpa warehouse.");
 
-    const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id));
-    const adjusted: Array<{ sku: string; systemQty: number; physicalQty: number; variance: number; value: number; before: number; after: number }> = [];
+    const lines = await tx.select().from(wmsOpnameLine).where(eq(wmsOpnameLine.opnameId, id)).for("update");
+    const tier = worstClass(lines.filter((l) => l.countedAt).map((l) => l.classification as OpnameClass | null));
+    if (tier === "owner" && opts.approverRole && opts.approverRole !== "Owner") {
+      throw new Error("Ada selisih kritis/berulang — opname ini harus disetujui Owner.");
+    }
+    if (lines.some((l) => l.needsRecount)) throw new Error("Masih ada bahan yang menunggu hitung ulang.");
+
+    const now = new Date();
+    const adjusted: Array<{ sku: string; systemQty: number; physicalQty: number; variance: number; value: number; before: number; after: number; negativeAfter: boolean }> = [];
     for (const l of lines) {
       if (!l.productId || !l.countedAt) continue;
       const variance = Number((Number(l.physicalQty) - Number(l.systemQty)).toFixed(4));
-      if (variance === 0) continue;
+      if (variance === 0) {
+        await tx.update(wmsOpnameLine).set({ postedVariance: 0, postedValue: 0, postedRate: null, postedAt: now }).where(eq(wmsOpnameLine.id, l.id));
+        continue;
+      }
       const [prod] = await tx.select().from(wmsProduct).where(eq(wmsProduct.id, l.productId)).limit(1);
       const before = await warehouseOnHand(tx, l.productId, op.warehouseId);
-      await recordStockMovement(tx, {
+      const moved = await recordStockMovement(tx, {
         type: "adjustment",
         productId: l.productId,
         warehouseId: op.warehouseId,
@@ -5175,19 +5421,19 @@ export async function finalizeWmsOpname(id: string, userId?: string | null, opts
         // Hitung fisik = kebenaran saat itu; penjualan sesudahnya boleh membuat minus.
         allowNegative: true,
       });
-      adjusted.push({
-        sku: prod?.sku ?? "",
-        systemQty: Number(l.systemQty),
-        physicalQty: Number(l.physicalQty),
-        variance,
-        value: Math.round(variance * Number(prod?.hpp ?? 0)),
-        before,
-        after: Number((before + variance).toFixed(4)),
-      });
+      // Nilai historis = biaya yang benar-benar dicatat ledger saat posting (moving average).
+      const value = Math.round((variance < 0 ? -1 : 1) * Math.abs(Number(moved?.cost ?? variance * Number(prod?.hpp ?? 0))));
+      const rate = Math.abs(variance) > 0 ? Math.abs(value / variance) : Number(prod?.hpp ?? 0);
+      await tx
+        .update(wmsOpnameLine)
+        .set({ postedVariance: variance, postedValue: value, postedRate: Math.round(rate * 10_000) / 10_000, postedAt: now })
+        .where(eq(wmsOpnameLine.id, l.id));
+      const after = Number((before + variance).toFixed(4));
+      adjusted.push({ sku: prod?.sku ?? "", systemQty: Number(l.systemQty), physicalQty: Number(l.physicalQty), variance, value, before, after, negativeAfter: after < 0 });
     }
     const [updated] = await tx
       .update(wmsStockOpname)
-      .set({ status: "completed", approvedBy: userId ?? null, approvedAt: new Date() })
+      .set({ status: "completed", approvedBy: userId ?? null, approvedAt: now })
       .where(eq(wmsStockOpname.id, id))
       .returning();
     await writeWmsAudit(tx, {
@@ -5195,10 +5441,28 @@ export async function finalizeWmsOpname(id: string, userId?: string | null, opts
       action: "Opname disetujui & diposting",
       object: op.doc,
       status: adjusted.length ? "warning" : "recorded",
-      metadata: { opnameId: id, varianceValue: adjusted.reduce((sum, a) => sum + a.value, 0), lines: adjusted },
+      metadata: {
+        opnameId: id,
+        tier,
+        approverRole: opts.approverRole ?? null,
+        shortage: adjusted.filter((a) => a.value < 0).reduce((s, a) => s + a.value, 0),
+        surplus: adjusted.filter((a) => a.value > 0).reduce((s, a) => s + a.value, 0),
+        varianceValue: adjusted.reduce((sum, a) => sum + a.value, 0),
+        lines: adjusted,
+      },
     });
     return updated;
   });
+}
+
+/** Riwayat hitung (hanya Owner/Manajer — berisi snapshot sistem). */
+export async function listOpnameCounts(opnameId: string) {
+  return getDb()
+    .select({ count: wmsOpnameCount, name: user.name })
+    .from(wmsOpnameCount)
+    .leftJoin(user, eq(user.id, wmsOpnameCount.countedBy))
+    .where(eq(wmsOpnameCount.opnameId, opnameId))
+    .orderBy(wmsOpnameCount.lineId, wmsOpnameCount.attempt);
 }
 
 // =============================================================================

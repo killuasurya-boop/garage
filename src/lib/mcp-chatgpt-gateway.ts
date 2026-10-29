@@ -12,6 +12,7 @@ import { loadSettingsByKeys } from "@/lib/garage-settings-service";
 import type { Role } from "@/lib/garage-data";
 import { mcpChatgptAccess } from "@/lib/mcp-chatgpt-access";
 import { runToolWithConfirmation } from "@/lib/mcp-confirmation";
+import { withConcurrencySlot, withReadTimeout } from "@/lib/mcp-load-guard";
 import { recordToolSuccess, touchConnection } from "@/lib/owner-ai-connect";
 import { auditMcpToolCall } from "@/lib/mcp-tool-audit";
 import { hitRateLimit } from "@/lib/rate-limit-db";
@@ -168,7 +169,10 @@ export async function handleMcpChatgptRequest(request: Request, claims: Claims):
               403,
             );
           }
-          const result = await runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId });
+          // Pelindung POS (AC-08): slot paralel per Owner + timeout untuk tool baca.
+          const result = await withConcurrencySlot(`owner:${session.user.id}`, () =>
+            withReadTimeout(Boolean(tool?.write), () => runToolWithConfirmation({ session, name, rawArgs: args, ctx: toolCtx, oauthClientId: clientId })),
+          );
           // Bukti kemampuan nyata untuk status Tool Access: preview R2/R3 belum menulis apa pun.
           if (mcpConnection && tool) {
             const isPreview = (result as { status?: unknown } | null)?.status === "PERLU_KONFIRMASI";

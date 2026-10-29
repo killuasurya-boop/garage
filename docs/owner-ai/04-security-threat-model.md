@@ -22,8 +22,9 @@
 |---|---|---|---|
 | S1 | Tidak ada bukti koneksi ChatGPT & tidak ada daftar koneksi aktif yang bisa dicabut dari UI | Owner tidak tahu klien mana yang memegang token; pencabutan butuh developer | Phase 1: `ai_connections`, AI Connect + revoke (step-up) |
 | S2 | Receipt tanpa before/after hash; audit bukan hash-chain | Sengketa "apa yang diubah AI" sulit dibuktikan | Phase 1–2: ADR-014 |
-| S3 | MCP satu proses dengan POS | Lonjakan permintaan AI memperlambat kasir | Batas per klien + timeout (Phase 1); isolasi container (Owner) |
-| S4 | Prompt injection dari data (catatan produk/invoice) | AI terpancing aksi tulis | Sudah dimitigasi: tulis selalu butuh konfirmasi Owner R2/R3; tambah tes AC-33 |
+| S3 | MCP satu proses dengan POS | Lonjakan permintaan AI memperlambat kasir | **Phase 4:** maks 4 paralel/Owner + timeout baca 25 dtk + rate limit 60/menit; isolasi container menunggu Owner |
+| S4 | Prompt injection dari data (catatan produk/invoice) | AI terpancing aksi tulis | Tulis R2/R3 selalu konfirmasi Owner; **Phase 4:** instruksi server + `_meta garage/contentIsData`; AI tak bisa memverifikasi dirinya sendiri |
+| S7 | Error internal (SQL/stack) terkirim ke ChatGPT | Bocor struktur DB | **Phase 4 diperbaiki:** `EXECUTION_FAILED` + ref, detail hanya di log |
 | S5 | `ubah_data_garage` universal | Permukaan luas | Tetap R2/R3 + blocklist; tambah tool bertipe per domain agar universal makin jarang dipakai |
 | S6 | Gmail/WA kirim belum ada | — (belum dibangun) | Wajib draft + approval + bukti provider (jujur `OPENED_FOR_SENDING`) |
 

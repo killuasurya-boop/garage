@@ -428,6 +428,9 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     const ping = await call(40, "garage_ping", {});
     expect(ping.result.isError).toBe(false);
     expect(JSON.parse(ping.result.content[0].text)).toMatchObject({ status: "OK", jalur: "chatgpt_mcp" });
+    // §6.4/AC-29: cap waktu sumber + request id + penanda data di setiap hasil.
+    expect(ping.result._meta).toMatchObject({ "garage/contentIsData": true, "garage/requestId": expect.stringMatching(/^req_/) });
+    expect(Date.parse(ping.result.structuredContent.dataAsOf)).not.toBeNaN();
 
     const before = await ai.loadOwnerAiStatus({ ownerUserId: ownerId, gatewayConfigured: true, gatewayReason: null, paused: false, writeEnabled: true });
     expect(before.connections).toHaveLength(1);
@@ -438,6 +441,7 @@ describe("MCP ChatGPT — OAuth ujung-ke-ujung", () => {
     const wrong = await call(41, "garage_verify_connection", { kode: "ZZZZ-ZZZZ" });
     expect(wrong.result.isError).toBe(true);
     expect(wrong.result.content[0].text).toContain("INVALID_CODE");
+    expect(wrong.result.structuredContent.error).toMatchObject({ code: "INVALID_CODE", retryable: false, requestId: expect.stringMatching(/^req_/) });
     const ok = await call(42, "garage_verify_connection", { kode: code });
     expect(ok.result.isError).toBe(false);
     expect(JSON.parse(ok.result.content[0].text)).toMatchObject({ verified: true });

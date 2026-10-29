@@ -2,7 +2,7 @@
 
 Dihasilkan dari `listAgentTools(undefined, { includeConfirmOnly: true })` pada `b89f458`. Total **67 tool** saat Phase 0;
 ditambah Phase 1 (`garage_ping`, `garage_verify_connection`, R0 sistem) dan Phase 3 (`garage_create_supplier`, `garage_update_supplier` R1 gudang,
-`garage_create_material` R1 bahan_resep) = **72 tool**. Ringkasan awal:
+`garage_create_material` R1 bahan_resep) dan Phase 4 (`garage_list_anomaly_cases`, `garage_get_anomaly_case` R0 keuangan) = **74 tool**. Ringkasan awal:
 38 R0 (baca) · 8 R1 · 18 R2 · 3 R3. R4 tidak pernah menjadi tool (`R4_FORBIDDEN`).
 Jalur: ChatGPT `/api/mcp/chatgpt` (OAuth, Owner+2FA, R2/R3 = preview + token, R3 + kode 2FA) dan agent API `/api/agent/v1` (API key, scope).
 

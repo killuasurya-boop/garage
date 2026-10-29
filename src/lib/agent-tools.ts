@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import { AgentToolError, dateKey, range, rupiah, type AgentTool, type AgentToolContext } from "@/lib/agent-tool-core";
+import { fraudTools } from "@/lib/agent-tools-fraud";
 import { masterTools } from "@/lib/agent-tools-master";
 import { ownerAiTools } from "@/lib/agent-tools-owner-ai";
 import { kasTools } from "@/lib/agent-tools-kas";
@@ -321,6 +322,7 @@ const tools: AgentTool[] = [
   ...kasTools,
   ...ownerAiTools,
   ...masterTools,
+  ...fraudTools,
   // M3b: POS/Order (batal/refund lewat pengajuan, koreksi metode bayar) + Karyawan.
   ...posStaffTools,
   // M3c: Produk & Harga (harga per varian, aksi produk, kategori).

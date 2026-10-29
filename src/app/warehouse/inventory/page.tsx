@@ -124,16 +124,19 @@ export default function WmsInventoryPage() {
     const names = ids.length === 1 ? rows.find((r) => r.id === ids[0])?.name ?? "produk ini" : `${ids.length} produk`;
     let msg = `Arsipkan ${names}? Produk hilang dari daftar, tapi riwayat laporan tetap tersimpan.`;
     if (withStock.length > 0) {
-      msg = `⚠️ ${withStock.length} produk MASIH ADA STOK (${withStock.map((r) => r!.name).slice(0, 3).join(", ")}${withStock.length > 3 ? ", …" : ""}). ` + msg;
+      msg = `⚠️ ${withStock.length} produk MASIH ADA STOK (${withStock.map((r) => r!.name).slice(0, 3).join(", ")}${withStock.length > 3 ? ", …" : ""}) dan akan ditolak — habiskan lewat Opname/Waste dulu. ` + msg;
     }
     if (!window.confirm(msg)) return;
     setBusyAction(true);
     try {
-      await Promise.all(ids.map((id) => garageApi.delete(`/api/wms/products/${id}`)));
+      // Server menolak arsip bila bahan masih dipakai resep aktif / masih ada stok → tampilkan alasannya.
+      const results = await Promise.allSettled(ids.map((id) => garageApi.delete(`/api/wms/products/${id}`)));
+      const failed = results.flatMap((r, i) =>
+        r.status === "rejected" ? [`• ${rows.find((x) => x.id === ids[i])?.name ?? "Produk"}: ${r.reason instanceof Error ? r.reason.message : "gagal"}`] : [],
+      );
       setSelected({});
       await load();
-    } catch {
-      window.alert("Sebagian gagal diarsipkan. Coba lagi.");
+      if (failed.length) window.alert(`${failed.length} produk tidak diarsipkan:\n${failed.slice(0, 8).join("\n")}`);
     } finally {
       setBusyAction(false);
     }
@@ -725,7 +728,8 @@ function AddForm({ rows, cats, onCatAdded, onDone, onCancel }: { rows: WmsProduc
     setErr(null);
     try {
       const created = await garageApi.post<{ id: string }>("/api/wms/products", {
-        sku,
+        // Otomatis → server membuat SKU unik dalam transaksi (pratinjau di form hanya perkiraan).
+        sku: autoSku ? undefined : sku,
         name: name.trim(),
         category,
         unit: unit || "pcs",

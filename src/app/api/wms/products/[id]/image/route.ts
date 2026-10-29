@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { fail, ok } from "@/lib/api-response";
 import { updateWmsProduct } from "@/lib/wms-service";
 import { WMS_ELEVATED_ROLES } from "@/lib/wms-access";
+import { masterActor } from "@/lib/wms-master-route";
 import { requireGarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -86,7 +87,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   await writeFile(path.join(uploadDir, fileName), output.data);
   const publicUrl = `/garage-uploads/wms/${fileName}`;
 
-  const product = await updateWmsProduct(safeId, { imageUrl: publicUrl });
+  const product = await updateWmsProduct(safeId, { imageUrl: publicUrl }, undefined, masterActor(session.data));
   if (!product) return fail(404, "PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
   return ok({ imageUrl: publicUrl }, { status: 201 });
 }

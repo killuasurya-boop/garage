@@ -173,7 +173,7 @@ export const warehouseTools: AgentTool[] = [
   {
     name: "ubah_status_po",
     title: "Tandai PO terkirim / batalkan PO",
-    description: "send = PO draft ditandai sudah dikirim ke supplier; cancel = batalkan PO (yang sudah diterima sebagian tidak bisa). Tidak ada uang bergerak; biaya bahan tercatat saat penerimaan gudang.",
+    description: "send = PO yang SUDAH DISETUJUI ditandai sudah dikirim ke supplier (PO draft/menunggu persetujuan ditolak — setujui dulu di WMS → Purchase Order); cancel = batalkan PO (yang sudah diterima sebagian tidak bisa). Tidak ada uang bergerak; biaya bahan tercatat saat penerimaan gudang.",
     write: true,
     domain: "gudang",
     risk: "R2",

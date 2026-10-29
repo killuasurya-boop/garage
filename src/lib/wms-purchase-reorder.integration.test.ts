@@ -12,6 +12,13 @@ import { setupGarageTestDb, teardownGarageTestDb, type GarageTestDb } from "@/li
 let t: GarageTestDb;
 let wms: any;
 let po: any;
+let proc: any;
+const OWNER = { userId: null, name: "Owner Test", role: "Owner" };
+/** Phase 2: PO wajib diajukan & disetujui sebelum dikirim / diterima. */
+async function approve(id: string) {
+  await proc.submitPurchaseOrder(id, OWNER);
+  await proc.approvePurchaseOrder(id, OWNER);
+}
 let mainBar = "";
 let outletBar = "";
 let supplierId = "";
@@ -21,6 +28,7 @@ beforeAll(async () => {
   t = await setupGarageTestDb();
   wms = await import("@/lib/wms-service");
   po = await import("@/lib/wms-purchase");
+  proc = await import("@/lib/wms-procurement");
   const whs = await wms.listWmsWarehouses();
   mainBar = whs.find((w: any) => w.type === "main" && w.area === "bar").id;
   outletBar = whs.find((w: any) => w.type === "bar").id;
@@ -49,6 +57,9 @@ describe("Purchase Order", () => {
   it("PO → terima sebagian → partial; terima sisa → received; batal penerimaan → partial lagi", async () => {
     const order = await po.createPurchaseOrder({ supplierId, warehouseId: mainBar, items: [{ productId: milkId, orderedQty: 2000, unitPrice: 30 }] });
     expect(order.status).toBe("draft");
+    await expect(po.setPurchaseOrderStatus(order.id, "send")).rejects.toThrow(/disetujui/);
+    await expect(po.createReceivingFromPurchaseOrder(order.id)).rejects.toThrow(/belum disetujui/);
+    await approve(order.id);
     await po.setPurchaseOrderStatus(order.id, "send");
 
     const rec1 = await po.createReceivingFromPurchaseOrder(order.id);
@@ -99,6 +110,7 @@ describe("Purchase Order", () => {
 
   it("PO tidak bisa dibatalkan selama ada penerimaan draft", async () => {
     const order = await po.createPurchaseOrder({ supplierId, items: [{ productId: milkId, orderedQty: 10, unitPrice: 30 }] });
+    await approve(order.id);
     await po.createReceivingFromPurchaseOrder(order.id);
     await expect(po.setPurchaseOrderStatus(order.id, "cancel")).rejects.toThrow(/penerimaan draft/);
   });
@@ -110,13 +122,16 @@ describe("Reorder per ruang", () => {
     await expect(po.upsertReorderRule({ productId: milkId, warehouseId: outletBar, minQty: 500, maxQty: 100 })).rejects.toThrow(/Maks/);
     const mainQty = await stock(mainBar); // 2000
     const [s] = await po.getReorderSuggestions();
-    expect(s).toMatchObject({ warehouseId: outletBar, onHand: 0, needQty: 3000, transferQty: mainQty, purchaseQty: 3000 - mainQty, supplierId, lastPrice: 34 });
+    // Masih dipesan di PO terbuka: sisa 100 dari PO pertama (diterima sebagian 1900/2000) + PO 10
+    // yang masih punya penerimaan draft → tidak dibeli lagi.
+    const onOrder = 110;
+    expect(s).toMatchObject({ warehouseId: outletBar, onHand: 0, needQty: 3000, transferQty: mainQty, onOrderQty: onOrder, purchaseQty: 3000 - mainQty - onOrder, supplierId, lastPrice: 34 });
 
     const { created, skipped } = await po.createPurchaseOrdersFromSuggestions();
     expect(skipped).toEqual([]);
     expect(created).toHaveLength(1);
     const detail = await po.getPurchaseOrder(created[0].id);
-    expect(detail.items[0]).toMatchObject({ orderedQty: 3000 - mainQty, unitPrice: 34 });
+    expect(detail.items[0]).toMatchObject({ orderedQty: 3000 - mainQty - onOrder, unitPrice: 34 });
   });
 
   it("internal order mengisi Bar; surat jalan menampilkan baris per batch", async () => {

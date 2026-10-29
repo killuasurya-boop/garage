@@ -12,6 +12,9 @@ const schema = z.object({
   warehouseId: z.string().uuid().nullable().optional(),
   expectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   note: z.string().trim().max(300).optional(),
+  deliveryNote: z.string().trim().max(300).optional(),
+  paymentTerms: z.string().trim().max(200).optional(),
+  showPrices: z.boolean().optional(),
   items: z
     .array(
       z.object({

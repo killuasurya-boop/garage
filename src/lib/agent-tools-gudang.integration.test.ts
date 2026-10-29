@@ -85,12 +85,17 @@ describe("M3d — tool Gudang", () => {
     await expect(call(as("Kasir"), "putuskan_waste", { id: row.id, setujui: false, catatan: "coba" })).rejects.toBeTruthy();
   });
 
-  it("ubah_status_po: PO draft ditandai terkirim lewat konfirmasi", async () => {
+  it("ubah_status_po: PO yang sudah disetujui ditandai terkirim lewat konfirmasi", async () => {
     const purchase = await import("@/lib/wms-purchase");
+    const proc = await import("@/lib/wms-procurement");
     const supplier = await wms.createWmsSupplier({ name: "CV M3d" });
     const po = await purchase.createPurchaseOrder({ supplierId: supplier.id, warehouseId: mainBar, items: [{ productId: syrupId, orderedQty: 500, unitPrice: 900 }] } as any);
+    // Phase 2: PO draft tidak boleh langsung "terkirim" — ajukan & setujui dulu.
+    const ownerActor = { userId: null, name: "Owner", role: "Owner" };
+    await proc.submitPurchaseOrder(po.id, ownerActor);
+    await proc.approvePurchaseOrder(po.id, ownerActor);
     const { preview } = await confirmed("ubah_status_po", { id: po.id, aksi: "send" });
-    expect(preview.ringkasan).toMatchObject({ total: "Rp450.000", statusSaatIni: "draft" });
+    expect(preview.ringkasan).toMatchObject({ total: "Rp450.000", statusSaatIni: "approved" });
     expect((await purchase.getPurchaseOrder(po.id))!.status).toBe("sent");
     expect((await call(owner(), "daftar_po", {})).map((row: any) => row.id)).toContain(po.id);
   });

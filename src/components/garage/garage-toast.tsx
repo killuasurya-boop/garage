@@ -36,19 +36,20 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const TONE_STYLES: Record<ToastTone, { border: string; bg: string; fg: string; icon: ReactNode }> = {
   success: {
     border: "border-[#22c55e]/55",
-    bg: "bg-[#22c55e]/16",
+    // Latar solid (setara tint 16% di atas aspal gelap) supaya tetap terbaca di halaman terang (WMS).
+    bg: "bg-[#152f20]",
     fg: "text-[#dcfce7]",
     icon: <Check size={16} />,
   },
   error: {
     border: "border-[#d11a2a]/55",
-    bg: "bg-[#d11a2a]/16",
+    bg: "bg-[#311318]",
     fg: "text-[#ffe1e5]",
     icon: <TriangleAlert size={16} />,
   },
   info: {
     border: "border-white/20",
-    bg: "bg-white/[0.06]",
+    bg: "bg-[#1f1f21]",
     fg: "text-[#f4f4f5]",
     icon: <Info size={16} />,
   },

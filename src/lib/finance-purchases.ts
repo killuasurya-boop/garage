@@ -17,7 +17,9 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export type PurchaseArea = "bar" | "dapur" | "umum";
 
-export const PURCHASE_PAYMENT_METHODS = ["Cash", "Transfer", "QRIS"] as const;
+// "Tempo" = barang diterima, bayar belakangan: biaya tetap dicatat (status "recorded"), sisa
+// hutang dilacak di tagihan supplier WMS (wms_supplier_bill) — bukan biaya kedua.
+export const PURCHASE_PAYMENT_METHODS = ["Cash", "Transfer", "QRIS", "Tempo"] as const;
 export type PurchasePaymentMethod = (typeof PURCHASE_PAYMENT_METHODS)[number];
 
 /** Tanggal terima "YYYY-MM-DD" (WIB); kosong = hari ini. Tidak boleh di masa depan. */
@@ -68,6 +70,8 @@ export async function recordCashPurchases(
     notes?: string | null;
     date?: Date;
     paymentMethod?: string | null;
+    /** "paid" (default, lunas saat terima) | "recorded" (tempo: biaya diakui, belum dibayar). */
+    status?: "paid" | "recorded";
   },
 ) {
   const rows = (Object.entries(input.byArea) as Array<[PurchaseArea, number]>)
@@ -80,7 +84,7 @@ export async function recordCashPurchases(
       description: `${input.description} · ${PURCHASE_CATEGORY[area]}`,
       amount,
       paymentMethod: input.paymentMethod || "Cash",
-      status: "paid",
+      status: input.status ?? "paid",
       expenseDate: input.date ?? new Date(),
       notes: input.notes ?? null,
       sourceDoc: `${input.sourceDoc}#${area}`,

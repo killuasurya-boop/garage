@@ -20,6 +20,8 @@ type Suggestion = {
   maxQty: number;
   needQty: number;
   transferQty: number;
+  /** Sudah dipesan di PO terbuka (tidak dibeli lagi). */
+  onOrderQty?: number;
   sourceWarehouseId: string | null;
   sourceWarehouseName: string | null;
   purchaseQty: number;
@@ -217,6 +219,7 @@ export function WmsRoomReorderPanel({ onPurchaseOrdersCreated }: { onPurchaseOrd
                     <td className="py-1.5 pr-2 text-right tabular-nums">{s.transferQty > 0 ? <>{qtyFormat.format(s.transferQty)}<span className="block text-[11px] text-[#525866]">{s.sourceWarehouseName}</span></> : "–"}</td>
                     <td className="py-1.5 text-right tabular-nums">
                       {s.purchaseQty > 0 ? <>{qtyFormat.format(s.purchaseQty)}<span className="block text-[11px] text-[#525866]">{s.supplier ? `${s.supplier}${s.lastPrice ? ` · ${currency.format(s.lastPrice)}` : ""}` : "supplier belum ada"}</span></> : "–"}
+                      {(s.onOrderQty ?? 0) > 0 && <span className="block text-[11px] font-semibold text-[#1D4ED8]">{qtyFormat.format(s.onOrderQty ?? 0)} sudah dipesan (PO)</span>}
                     </td>
                   </tr>
                 ))}

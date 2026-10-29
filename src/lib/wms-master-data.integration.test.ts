@@ -44,10 +44,11 @@ describe("kategori master", () => {
 
 describe("supplier master", () => {
   it("daftar supplier baru + muncul di list", async () => {
-    await svc.createWmsSupplier({ name: "CV Kopi Nusantara", phone: "0812" });
+    // Nomor WhatsApp divalidasi & dinormalisasi (+62 / spasi → 08…).
+    await svc.createWmsSupplier({ name: "CV Kopi Nusantara", phone: "+62 812 3456 7890" });
     const sups = await svc.listWmsSuppliers();
     const s = sups.find((x: any) => x.name === "CV Kopi Nusantara");
     expect(s).toBeTruthy();
-    expect(s.phone).toBe("0812");
+    expect(s.phone).toBe("081234567890");
   });
 });

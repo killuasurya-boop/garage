@@ -80,6 +80,7 @@ const nextConfig: NextConfig = {
     "/api/orders/[id]/invoice": ["./node_modules/pdfkit/js/data/*.afm"],
     "/api/payroll/payslips": ["./node_modules/pdfkit/js/data/*.afm", "./public/garage-brand/logo-website.png"],
     "/api/absen/slip": ["./node_modules/pdfkit/js/data/*.afm", "./public/garage-brand/logo-website.png"],
+    "/api/wms/purchase-orders/[id]/pdf": ["./node_modules/pdfkit/js/data/*.afm", "./public/garage-brand/garage-coffee-logo.png"],
   },
   allowedDevOrigins: lanDevOrigins(),
   // next/image lokal menolak query string kecuali diizinkan. QRIS memakai

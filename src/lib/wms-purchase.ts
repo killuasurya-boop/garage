@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -12,6 +12,7 @@ import {
   wmsReorderRule,
   wmsStockMovement,
   wmsSupplier,
+  wmsSupplierPayment,
   wmsWarehouse,
   wmsWarehouseStock,
 } from "@/db/schema";
@@ -26,7 +27,8 @@ import { loadProductUoms } from "@/lib/wms-uom";
 
 type Db = ReturnType<typeof getDb>;
 
-export type PurchaseOrderStatus = "draft" | "sent" | "partial" | "received" | "cancelled";
+export type { PoStatus as PurchaseOrderStatus } from "@/lib/wms-procurement-meta";
+import type { PoStatus } from "@/lib/wms-procurement-meta";
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
@@ -36,7 +38,10 @@ export type PurchaseOrderInput = {
   expectedDate?: string | null;
   note?: string;
   /** orderedQty & unitPrice dalam satuan dasar; uom/uomFactor = kemasan saat dipesan (cetak). */
-  items: Array<{ productId: string; orderedQty: number; unitPrice: number; uom?: string | null; uomFactor?: number | null }>;
+  items: Array<{ productId: string; orderedQty: number; unitPrice: number; uom?: string | null; uomFactor?: number | null; sourceRefs?: string[] }>;
+  deliveryNote?: string;
+  paymentTerms?: string;
+  showPrices?: boolean;
 };
 
 export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: string | null) {
@@ -47,11 +52,13 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
 export async function createPurchaseOrderInTx(tx: Db, input: PurchaseOrderInput, userId?: string | null) {
   // Satu baris per bahan: baris ganda digabung (qty dijumlah, harga rata-rata tertimbang)
   // supaya penerimaan selalu jatuh ke baris yang tepat.
-  const merged = new Map<string, { productId: string; orderedQty: number; value: number; uom: string | null; uomFactor: number | null }>();
+  const merged = new Map<string, { productId: string; orderedQty: number; value: number; uom: string | null; uomFactor: number | null; sourceRefs: string[] }>();
   for (const it of input.items) {
     if (!(it.orderedQty > 0)) continue;
-    const cur = merged.get(it.productId) ?? { productId: it.productId, orderedQty: 0, value: 0, uom: it.uom ?? null, uomFactor: it.uomFactor ?? null };
+    const cur = merged.get(it.productId) ?? { productId: it.productId, orderedQty: 0, value: 0, uom: it.uom ?? null, uomFactor: it.uomFactor ?? null, sourceRefs: [] };
     cur.orderedQty += it.orderedQty;
+    // Asal kebutuhan tetap tercatat walau baris digabung (mis. MRQ Bar + MRQ Dapur).
+    for (const ref of it.sourceRefs ?? []) if (!cur.sourceRefs.includes(ref)) cur.sourceRefs.push(ref);
     cur.value += it.orderedQty * Math.max(0, it.unitPrice);
     // Baris ganda beda kemasan → cetak pakai satuan dasar.
     if ((cur.uom ?? null) !== (it.uom ?? null)) {
@@ -60,7 +67,7 @@ export async function createPurchaseOrderInTx(tx: Db, input: PurchaseOrderInput,
     }
     merged.set(it.productId, cur);
   }
-  const items = [...merged.values()].map((m) => ({ productId: m.productId, orderedQty: m.orderedQty, unitPrice: m.value / m.orderedQty, uom: m.uom, uomFactor: m.uomFactor }));
+  const items = [...merged.values()].map((m) => ({ productId: m.productId, orderedQty: m.orderedQty, unitPrice: m.value / m.orderedQty, uom: m.uom, uomFactor: m.uomFactor, sourceRefs: m.sourceRefs }));
   if (!items.length) throw new Error("PO butuh minimal 1 bahan.");
   {
     const [supplier] = await tx.select().from(wmsSupplier).where(eq(wmsSupplier.id, input.supplierId)).limit(1);
@@ -74,6 +81,9 @@ export async function createPurchaseOrderInTx(tx: Db, input: PurchaseOrderInput,
         warehouseId: input.warehouseId ?? null,
         expectedDate: input.expectedDate || null,
         note: input.note?.trim() ?? "",
+        deliveryNote: input.deliveryNote?.trim() ?? "",
+        paymentTerms: input.paymentTerms?.trim() ?? "",
+        showPrices: input.showPrices ?? true,
         createdBy: userId ?? null,
       })
       .returning();
@@ -85,6 +95,7 @@ export async function createPurchaseOrderInTx(tx: Db, input: PurchaseOrderInput,
         unitPrice: round4(Math.max(0, it.unitPrice)),
         uom: it.uom && it.uomFactor && it.uomFactor > 1 ? it.uom : null,
         uomFactor: it.uom && it.uomFactor && it.uomFactor > 1 ? round4(it.uomFactor) : null,
+        sourceRefs: it.sourceRefs,
       })),
     );
     await writeWmsAudit(tx, { userId, action: "PO dibuat", object: po.doc, metadata: { supplier: supplier.name, items: items.length } });
@@ -129,6 +140,8 @@ export async function getPurchaseOrder(id: string) {
   return {
     ...po,
     supplierPhone: supplier?.phone ?? "",
+    supplierPic: supplier?.picName ?? "",
+    supplierAddress: supplier?.address ?? "",
     items: items.map((r) => ({
       uoms: r.item.productId ? (uoms.get(r.item.productId) ?? []) : [],
       uom: r.item.uom,
@@ -142,6 +155,7 @@ export async function getPurchaseOrder(id: string) {
       receivedQty: Number(r.item.receivedQty),
       remainingQty: Math.max(0, round4(Number(r.item.orderedQty) - Number(r.item.receivedQty))),
       unitPrice: Number(r.item.unitPrice),
+      sourceRefs: r.item.sourceRefs ?? [],
     })),
     receivings,
   };
@@ -152,12 +166,22 @@ export async function setPurchaseOrderStatus(id: string, action: "send" | "cance
     const [po] = await tx.select().from(wmsPurchaseOrder).where(eq(wmsPurchaseOrder.id, id)).for("update").limit(1);
     if (!po) return null;
     if (action === "send") {
-      if (po.status !== "draft") throw new Error("Hanya PO draft yang bisa ditandai terkirim.");
-      const [updated] = await tx.update(wmsPurchaseOrder).set({ status: "sent", sentAt: new Date() }).where(eq(wmsPurchaseOrder.id, id)).returning();
-      await writeWmsAudit(tx, { userId, action: "PO dikirim ke supplier", object: po.doc });
+      // "Terkirim" hanya setelah PO disetujui (konfirmasi manual petugas bahwa PO sudah dikirim).
+      if (po.status !== "approved" && po.status !== "wa_opened") throw new Error("PO harus disetujui dulu sebelum ditandai terkirim.");
+      const [updated] = await tx
+        .update(wmsPurchaseOrder)
+        .set({ status: "sent", sentAt: new Date(), sentBy: userId ?? null, sentRevision: po.revision })
+        .where(eq(wmsPurchaseOrder.id, id))
+        .returning();
+      await writeWmsAudit(tx, { userId, action: "PO dikirim ke supplier", object: po.doc, metadata: { revision: po.revision } });
       return updated;
     }
     if (po.status === "received" || po.status === "cancelled") throw new Error("PO sudah selesai / dibatalkan.");
+    const [paid] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(wmsSupplierPayment)
+      .where(and(eq(wmsSupplierPayment.purchaseOrderId, id), ne(wmsSupplierPayment.status, "void")));
+    if (Number(paid?.n)) throw new Error("PO ini sudah punya DP/pembayaran. Batalkan pembayaran itu dulu (Owner).");
     const [open] = await tx
       .select({ n: sql<number>`count(*)::int` })
       .from(wmsReceiving)
@@ -174,6 +198,7 @@ export async function createReceivingFromPurchaseOrder(id: string, userId?: stri
   const po = await getPurchaseOrder(id);
   if (!po) return null;
   if (po.status === "cancelled" || po.status === "received") throw new Error("PO sudah selesai / dibatalkan.");
+  if (po.status === "draft" || po.status === "pending_approval") throw new Error("PO belum disetujui — barang belum bisa diterima atas PO ini.");
   const items = po.items.filter((it) => it.productId && it.remainingQty > 0);
   if (!items.length) throw new Error("Semua bahan di PO ini sudah diterima.");
   return createReceiving(
@@ -216,7 +241,9 @@ export async function applyReceivingToPurchaseOrder(
   }
   const anyReceived = items.some((it) => Number(it.receivedQty) > 0);
   const allReceived = items.every((it) => Number(it.receivedQty) >= Number(it.orderedQty) - 0.00005);
-  const status: PurchaseOrderStatus = allReceived ? "received" : anyReceived ? "partial" : po.sentAt ? "sent" : "draft";
+  // Semua penerimaan dibatalkan → kembali ke tahap pengiriman terakhir yang tercapai.
+  const fallback: PoStatus = po.processingAt ? "processing" : po.confirmedAt ? "confirmed" : po.sentAt ? "sent" : po.waOpenedAt ? "wa_opened" : po.approvedAt ? "approved" : "draft";
+  const status: PoStatus = allReceived ? "received" : anyReceived ? "partial" : fallback;
   await tx.update(wmsPurchaseOrder).set({ status }).where(eq(wmsPurchaseOrder.id, purchaseOrderId));
 }
 
@@ -306,6 +333,8 @@ export type ReorderSuggestion = {
   minQty: number;
   maxQty: number;
   needQty: number;
+  /** Sudah dipesan di PO terbuka (belum diterima) — tidak dibeli lagi. */
+  onOrderQty: number;
   /** Bisa dipenuhi dari gudang utama area (Internal Order / transfer). */
   transferQty: number;
   sourceWarehouseId: string | null;
@@ -322,8 +351,7 @@ export type ReorderSuggestion = {
  * (Bar/Dapur) diisi dulu dari gudang utama areanya (stok layak, belum direservasi
  * aturan lain), sisanya jadi saran beli ke supplier terakhir.
  */
-export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
-  const db = getDb();
+export async function getReorderSuggestions(db: Db = getDb()): Promise<ReorderSuggestion[]> {
   const rules = await db
     .select({
       rule: wmsReorderRule,
@@ -360,11 +388,26 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     const key = `${e.productId}|${e.warehouseId}`;
     usable.set(key, (usable.get(key) ?? 0) - Number(e.qty));
   }
-  const prices = await getSupplierPriceHistory(productIds);
-  const preferred = new Map<string, (typeof prices)[number]>();
+  const prices = await getSupplierPriceHistory(productIds, db);
+  const lastBySupplier = new Map<string, (typeof prices)[number]>();
   for (const p of prices) {
-    const cur = preferred.get(p.productId);
-    if (!cur || (p.lastAt ?? "") > (cur.lastAt ?? "")) preferred.set(p.productId, p);
+    const cur = lastBySupplier.get(p.productId);
+    if (!cur || (p.lastAt ?? "") > (cur.lastAt ?? "")) lastBySupplier.set(p.productId, p);
+  }
+  // Supplier utama Master Data dulu; baru supplier penerimaan terakhir.
+  const { preferredSupplierFor } = await import("@/lib/wms-procurement");
+  const master = await preferredSupplierFor(db, productIds);
+  const supplierNames = new Map((await db.select({ id: wmsSupplier.id, name: wmsSupplier.name }).from(wmsSupplier)).map((x) => [x.id, x.name]));
+  // Qty yang sudah dipesan di PO terbuka (termasuk draft/menunggu persetujuan) tapi belum diterima.
+  const openLines = await db
+    .select({ productId: wmsPurchaseOrderItem.productId, ordered: wmsPurchaseOrderItem.orderedQty, received: wmsPurchaseOrderItem.receivedQty })
+    .from(wmsPurchaseOrderItem)
+    .innerJoin(wmsPurchaseOrder, eq(wmsPurchaseOrder.id, wmsPurchaseOrderItem.purchaseOrderId))
+    .where(and(inArray(wmsPurchaseOrderItem.productId, productIds), sql`${wmsPurchaseOrder.status} not in ('received','cancelled')`));
+  const onOrderLeft = new Map<string, number>();
+  for (const l of openLines) {
+    if (!l.productId) continue;
+    onOrderLeft.set(l.productId, round4((onOrderLeft.get(l.productId) ?? 0) + Math.max(0, Number(l.ordered) - Number(l.received))));
   }
   const allocated = new Map<string, number>();
   return due
@@ -383,7 +426,13 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
           allocated.set(key, (allocated.get(key) ?? 0) + transferQty);
         }
       }
-      const price = preferred.get(r.rule.productId);
+      const remaining = round4(needQty - transferQty);
+      const onOrderQty = round4(Math.min(remaining, onOrderLeft.get(r.rule.productId) ?? 0));
+      onOrderLeft.set(r.rule.productId, round4((onOrderLeft.get(r.rule.productId) ?? 0) - onOrderQty));
+      const pick = master.get(r.rule.productId);
+      const last = lastBySupplier.get(r.rule.productId);
+      const supplierId = pick?.supplierId ?? last?.supplierId ?? null;
+      const samePrice = prices.find((x) => x.productId === r.rule.productId && x.supplierId === supplierId)?.lastPrice;
       return {
         ruleId: r.rule.id,
         productId: r.rule.productId,
@@ -397,13 +446,14 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
         minQty: Number(r.rule.minQty),
         maxQty: Number(r.rule.maxQty),
         needQty,
+        onOrderQty,
         transferQty,
         sourceWarehouseId: transferQty > 0 ? (source?.id ?? null) : null,
         sourceWarehouseName: transferQty > 0 ? (source?.name ?? null) : null,
-        purchaseQty: round4(needQty - transferQty),
-        supplierId: price?.supplierId ?? null,
-        supplier: price?.supplier ?? null,
-        lastPrice: price?.lastPrice ?? null,
+        purchaseQty: round4(remaining - onOrderQty),
+        supplierId,
+        supplier: supplierId ? (supplierNames.get(supplierId) ?? last?.supplier ?? null) : null,
+        lastPrice: pick?.refPrice ?? samePrice ?? (pick ? null : (last?.lastPrice ?? null)),
       };
     })
     .filter((s) => s.needQty > 0)
@@ -412,29 +462,35 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
 
 /** Saran beli → PO draft per supplier (bahan tanpa riwayat supplier dilewati & dilaporkan). */
 export async function createPurchaseOrdersFromSuggestions(userId?: string | null) {
-  const suggestions = (await getReorderSuggestions()).filter((s) => s.purchaseQty > 0);
-  const bySupplier = new Map<string, Map<string, { qty: number; price: number }>>();
+  // Kunci + hitung ulang di dalam transaksi: klik ganda / dua perangkat tidak membuat PO dobel
+  // karena PO yang baru dibuat langsung terhitung sebagai "sudah dipesan".
+  return runInTx(async (tx) => {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('wms_reorder_po'))`);
+  const suggestions = (await getReorderSuggestions(tx)).filter((s) => s.purchaseQty > 0);
+  const bySupplier = new Map<string, Map<string, { qty: number; price: number; refs: string[] }>>();
   const skipped: string[] = [];
   for (const s of suggestions) {
     if (!s.supplierId) {
       skipped.push(s.name);
       continue;
     }
-    const lines = bySupplier.get(s.supplierId) ?? new Map<string, { qty: number; price: number }>();
+    const lines = bySupplier.get(s.supplierId) ?? new Map<string, { qty: number; price: number; refs: string[] }>();
     const cur = lines.get(s.productId);
-    lines.set(s.productId, { qty: round4((cur?.qty ?? 0) + s.purchaseQty), price: s.lastPrice ?? 0 });
+    lines.set(s.productId, { qty: round4((cur?.qty ?? 0) + s.purchaseQty), price: s.lastPrice ?? 0, refs: [...(cur?.refs ?? []), `Reorder ${s.warehouseName}`] });
     bySupplier.set(s.supplierId, lines);
   }
   const created = [];
   for (const [supplierId, lines] of bySupplier) {
     created.push(
-      await createPurchaseOrder(
-        { supplierId, note: "Dari saran reorder per ruang", items: [...lines].map(([productId, l]) => ({ productId, orderedQty: l.qty, unitPrice: l.price })) },
+      await createPurchaseOrderInTx(
+        tx,
+        { supplierId, note: "Dari saran reorder per ruang", items: [...lines].map(([productId, l]) => ({ productId, orderedQty: l.qty, unitPrice: l.price, sourceRefs: l.refs })) },
         userId,
       ),
     );
   }
   return { created, skipped: [...new Set(skipped)] };
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,8 @@ type Item = {
   sentQty: number;
   shortQty: number;
   sourceOnHand: number;
+  /** Diminta permintaan lain (belum dikirim) dari gudang yang sama. */
+  allocatedElsewhere?: number;
   note: string;
 };
 type Request = {
@@ -216,7 +218,12 @@ export default function WmsMaterialRequestsPage() {
                         <td className="py-1.5 pr-2">{i.name}{i.note ? <span className="block text-[11px] text-[#525866]">{i.note}</span> : null}</td>
                         <td className="py-1.5 pr-2 text-right tabular-nums"><PackQtyText qty={i.qty} unit={i.unit} uoms={i.uoms} /></td>
                         <td className="py-1.5 pr-2 text-right tabular-nums">{formatPacks(i.stockAtRequest, i.unit, i.uoms)}</td>
-                        <td className={`py-1.5 pr-2 text-right tabular-nums ${i.sourceOnHand < i.qty ? "font-semibold text-[#B45309]" : ""}`}>{formatPacks(i.sourceOnHand, i.unit, i.uoms)}</td>
+                        <td className={`py-1.5 pr-2 text-right tabular-nums ${i.sourceOnHand < i.qty ? "font-semibold text-[#B45309]" : ""}`}>
+                          {formatPacks(i.sourceOnHand, i.unit, i.uoms)}
+                          {(i.allocatedElsewhere ?? 0) > 0 && (
+                            <span className="block text-[11px] font-normal text-[#92400E]">dialokasikan lain {formatPacks(i.allocatedElsewhere ?? 0, i.unit, i.uoms)}</span>
+                          )}
+                        </td>
                         <td className="py-1.5 text-right">
                           {r.status === "submitted" ? (
                             <PackQtyInput

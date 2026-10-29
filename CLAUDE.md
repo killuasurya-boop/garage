@@ -359,6 +359,35 @@ Scroll direction:
   harga modal seeds the stock cost (`seedRetailStockCosts`). Product form shows ingredient stock in packs, portions
   left, "+ Stok awal" (`recordOpeningStock`, STOK-AWAL at current HPP, Owner/Manajer) and "Bahan Baru". The test
   harness strips 0158 data; `recipe-proposals.integration.test.ts` re-runs it.
+- Master Data (owner, Okt 2026, migration 0171) = `/warehouse/master` (tabs Bahan/Kategori/Supplier/Satuan/Impor,
+  `src/components/wms/master/`, server-guarded Owner/Manajer). Guards live in `src/lib/wms-master-data.ts`:
+  - Master edits never touch stock. Product/category/supplier writes run in one tx + `audit_logs` (`metadata.module =
+    'wms-master'`, before/after). API errors = `WmsMasterError` via `withMasterErrors` (`src/lib/wms-master-route.ts`).
+  - SKU empty = server-generated `PREFIX-NNN` under an advisory lock (archived + OS catalog counted); SKU/barcode unique.
+  - Base unit is locked once the product has ledger/stock/active recipe (`assertUnitChangeAllowed`, also in import preview).
+  - Archive refuses products in active menu/published WMS recipes or with stock ≠ 0. Categories are archived, never
+    deleted; renaming cascades `wms_product.category` + `inventory_items.category`. API calls pass `strict` (category must
+    exist); internal callers may still use unknown categories (area "umum").
+  - Supplier phone = WhatsApp, normalized to `08…`; supplied products + price history from completed receivings.
+- Pengadaan Phase 2 (owner, Okt 2026, migration 0172) = `src/lib/wms-procurement.ts` (+ `-meta.ts` client-safe),
+  UI `/warehouse/purchase-orders` (Procurement Command Center, `src/components/wms/procurement/`):
+  - PO status: draft → pending_approval → approved ("Siap Dikirim") → wa_opened → sent → confirmed → processing →
+    partial/received; cancelled. Approver ≠ creator unless Owner. Receiving from a PO / "send" need an approved PO.
+  - "Terkirim" only via `confirmPoSent` (manual staff confirmation of the CURRENT revision, status must be wa_opened) or
+    future official API evidence. Editing after WhatsApp was opened/sent = `revision+1` + re-approval; PDF/message say REVISI n.
+  - Every PDF/WA/send/supplier-response event is appended to `wms_po_dispatch` (user, time, recipient, revision, pdf sha256).
+  - PDF `/api/wms/purchase-orders/[id]/pdf` (Owner/Manajer only, no public link) = `wms-po-pdf.ts` (pdfkit, logo
+    `public/garage-brand/garage-coffee-logo.png`, deterministic: CreationDate = PO time). Message text = `buildPoWhatsappText`.
+  - WhatsApp Mode 1 = wa.me link, staff attaches the PDF. Mode 2 (Business API) is capability-detection only
+    (`getPoWhatsappCapabilities`, env `WMS_PO_WHATSAPP_TEMPLATE`); never claim delivery without provider proof.
+  - Shortage POs prefer the product's master supplier (`preferredSupplierFor`), PO lines keep `source_refs` (MRQ + division).
+  - Money: purchase cost stays ONE `expenses` row per receiving area (sourceDoc). Receiving `paymentMethod: "Tempo"` records
+    it as `recorded` + a `wms_supplier_bill`; `wms_supplier_payment` (payment/DP) never creates expenses, never touches the
+    drawer/cash ledger (fund: bank_jago | bank_bni | petty | external). Verified payments fully paying a bill flip that same
+    expense row to `paid`. Payments: Owner = auto-verified, others need Owner/another Manajer; void = Owner + reason.
+    Cancelling a receiving with active payments is refused.
+  - Invoices/proofs live in `storage/supplier-docs` (Docker volume `garage-supplier-docs`), served via
+    `/api/wms/supplier-docs/...` to Owner/Manajer only.
 - Preserve fields: `sku`, `name`, `alternativeName`, `category`, `unit`, `packageSize`, `onHand`, `min`, `status`, `movement`.
 - Daily inventory excludes equipment/minimal tools; those belong in a future asset/equipment module.
 - Keep low/watch/safe status readable and searchable.

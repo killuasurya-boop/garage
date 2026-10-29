@@ -69,7 +69,7 @@ export const KEEP_TABLES = [
   // WMS master
   "wms_warehouse", "wms_category", "wms_supplier", "wms_product", "wms_product_uom", "cash_accounts", "wms_recipe", "wms_recipe_version",
   "wms_recipe_audit_log", "wms_bom_item", "wms_production_recipe", "wms_production_bom",
-  "wms_reorder_rule",
+  "wms_reorder_rule", "wms_supplier_product",
   // Closing/replenishment: preserve approvals, reservations, counts and provenance.
   // Live documents also block reset below; never orphan their batch allocations.
   "wms_closing_settings", "wms_closing_location", "wms_closing_access",
@@ -111,6 +111,8 @@ export const CLEAR_TABLES = [
   "staff_payout_requests", "staff_thr_payments", "staff_earnings", "staff_earning_payouts",
   "earnings_failed_queue",
   // WMS transaksional
+  // Pengadaan Phase 2: pembayaran → tagihan → jejak kirim (anak dulu sebelum PO   "wms_batch", "wms_receiving", "wms_receiving_item", penerimaan).
+  "wms_supplier_payment", "wms_supplier_bill", "wms_po_dispatch",
   "wms_batch", "wms_receiving", "wms_receiving_item", "wms_internal_order", "wms_internal_order_item",
   "wms_stock_movement", "wms_stock_opname", "wms_opname_line", "wms_checklist_run", "wms_checklist_run_item",
   "wms_cold_chain_reading", "wms_stock_issue", "wms_waste", "wms_purchase_order_item", "wms_purchase_order",

@@ -12,7 +12,7 @@ const createSchema = z.object({
   poNumber: z.string().trim().max(60).optional(),
   additionalCost: z.number().nonnegative().max(1_000_000_000).optional(),
   warehouseId: z.string().uuid().optional(),
-  paymentMethod: z.enum(["Cash", "Transfer", "QRIS"]).optional(),
+  paymentMethod: z.enum(["Cash", "Transfer", "QRIS", "Tempo"]).optional(),
   receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal YYYY-MM-DD.").nullable().optional(),
   items: z
     .array(

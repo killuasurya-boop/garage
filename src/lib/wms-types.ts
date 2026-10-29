@@ -28,6 +28,12 @@ export type WmsProductRow = {
   sku: string;
   name: string;
   category: string;
+  subcategory?: string;
+  brand?: string;
+  /** Area dari kategori (bar | dapur | umum). */
+  area?: "bar" | "dapur" | "umum";
+  defaultSupplierId?: string | null;
+  supplierName?: string | null;
   unit: string;
   minStock: number;
   hpp: number; // HPP per satuan stok (Rp/ml, Rp/gr, Rp/pcs)

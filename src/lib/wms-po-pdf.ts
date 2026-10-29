@@ -214,7 +214,7 @@ function drawSummary(doc: Doc, data: PoDocument, startY: number, onNewPage: () =
   const blocks: Array<{ h: number; draw: (y: number) => void }> = [];
   if (data.showPrices) {
     blocks.push({
-      h: 44,
+      h: 56,
       draw: (y) => {
         const bx = M + W - 230;
         doc.roundedRect(bx, y + 6, 230, 34, 4).fillAndStroke(C.redSoft, C.red);

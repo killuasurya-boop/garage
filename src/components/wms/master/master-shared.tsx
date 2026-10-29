@@ -18,7 +18,20 @@ import {
 
 export type MasterArea = "bar" | "dapur" | "umum";
 export type MasterCategory = { id: string; name: string; area: MasterArea; archived: boolean; productCount: number };
-export type MasterSupplier = { id: string; name: string; phone: string; address: string; note: string; archived: boolean; productCount: number };
+export type MasterSupplier = {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  note: string;
+  picName?: string;
+  areas?: string[];
+  productCategories?: string;
+  paymentMethod?: string;
+  paymentTermDays?: number;
+  archived: boolean;
+  productCount: number;
+};
 
 export const AREA_LABEL: Record<MasterArea, string> = { bar: "Bar", dapur: "Dapur", umum: "Umum" };
 export const AREA_TONE: Record<MasterArea, string> = {

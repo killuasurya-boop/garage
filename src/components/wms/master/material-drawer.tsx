@@ -247,7 +247,7 @@ export function MaterialDrawer({
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full gap-0 border-[#E8E8E8] bg-white p-0 text-[#111111] data-[side=right]:w-full data-[side=right]:sm:max-w-[640px]"
+        className="[color-scheme:light] w-full gap-0 border-[#E8E8E8] bg-white p-0 text-[#111111] data-[side=right]:w-full data-[side=right]:sm:max-w-[640px]"
       >
         <SheetHeader className="border-b border-[#E8E8E8] px-5 py-4">
           <div className="flex items-start justify-between gap-3">

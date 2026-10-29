@@ -9,7 +9,9 @@ import { garageApi } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { unitCostCurrency } from "@/lib/garage-data";
 import { whatsappLink } from "@/lib/wms-master-form";
+import { SUPPLIER_AREA_LABEL, type SupplierArea } from "@/lib/wms-procurement-meta";
 import { ConfirmDialog, EmptyRow, Field, errorText, ui, type MasterSupplier } from "./master-shared";
+import { SupplierProductsPanel } from "./supplier-products-panel";
 
 type SupplierDetail = {
   id: string;
@@ -32,6 +34,11 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
   const [phone, setPhone] = useState(supplier?.phone ?? "");
   const [address, setAddress] = useState(supplier?.address ?? "");
   const [note, setNote] = useState(supplier?.note ?? "");
+  const [picName, setPicName] = useState(supplier?.picName ?? "");
+  const [areas, setAreas] = useState<string[]>(supplier?.areas ?? []);
+  const [productCategories, setProductCategories] = useState(supplier?.productCategories ?? "");
+  const [paymentMethod, setPaymentMethod] = useState(supplier?.paymentMethod ?? "");
+  const [paymentTermDays, setPaymentTermDays] = useState(String(supplier?.paymentTermDays ?? 0));
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -45,7 +52,17 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
     if (errName || errPhone || busy) return;
     setBusy(true);
     try {
-      const body = { name: name.trim(), phone: phone.trim(), address: address.trim(), note: note.trim() };
+      const body = {
+        name: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        note: note.trim(),
+        picName: picName.trim(),
+        areas,
+        productCategories: productCategories.trim(),
+        paymentMethod,
+        paymentTermDays: paymentMethod === "tempo" ? Math.max(0, Math.min(365, Number(paymentTermDays) || 0)) : 0,
+      };
       if (supplier) await garageApi.patch(`/api/wms/suppliers/${supplier.id}`, body);
       else await garageApi.post("/api/wms/suppliers", body);
       toast.push({ tone: "success", title: supplier ? "Supplier diperbarui" : "Supplier ditambahkan", body: body.name });
@@ -59,7 +76,7 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
 
   return (
     <Sheet open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
-      <SheetContent side="right" showCloseButton={false} className="w-full gap-0 border-[#E8E8E8] bg-white p-0 text-[#111111] data-[side=right]:w-full data-[side=right]:sm:max-w-[480px]">
+      <SheetContent side="right" showCloseButton={false} className="[color-scheme:light] w-full gap-0 border-[#E8E8E8] bg-white p-0 text-[#111111] data-[side=right]:w-full data-[side=right]:sm:max-w-[480px]">
         <SheetHeader className="border-b border-[#E8E8E8] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -75,9 +92,46 @@ function SupplierForm({ supplier, onClose, onSaved }: { supplier: MasterSupplier
             <Field id="s-name" label="Nama supplier" required error={submitted ? errName : null}>
               <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} className={ui.input} autoFocus />
             </Field>
-            <Field id="s-phone" label="Nomor WhatsApp" error={errPhone} ok={phone.trim() && !errPhone ? "Format nomor benar" : null} hint="mis. 0812 3456 7890">
+            <Field id="s-pic" label="Nama PIC / kontak">
+              <input id="s-pic" value={picName} onChange={(e) => setPicName(e.target.value)} maxLength={120} className={ui.input} />
+            </Field>
+            <Field id="s-phone" label="Nomor WhatsApp" error={errPhone} ok={phone.trim() && !errPhone ? "Format nomor benar" : null} hint="Dipakai untuk kirim PO. mis. 0812 3456 7890">
               <input id="s-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" className={ui.input} />
             </Field>
+            <fieldset>
+              <legend className={ui.label}>Area yang dilayani</legend>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(SUPPLIER_AREA_LABEL) as SupplierArea[]).map((a) => (
+                  <label key={a} className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md border border-[#D9DCE1] px-3 text-[13px] font-semibold text-[#374151]">
+                    <input
+                      type="checkbox"
+                      checked={areas.includes(a)}
+                      onChange={(e) => setAreas((cur) => (e.target.checked ? [...cur, a] : cur.filter((x) => x !== a)))}
+                      className="size-4 accent-[#C8102E]"
+                    />
+                    {SUPPLIER_AREA_LABEL[a]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <Field id="s-cats" label="Kategori produk" hint="mis. Susu, Syrup, Packaging.">
+              <input id="s-cats" value={productCategories} onChange={(e) => setProductCategories(e.target.value)} maxLength={200} className={ui.input} />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field id="s-pay" label="Metode bayar">
+                <select id="s-pay" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={ui.input}>
+                  <option value="">Belum ditentukan</option>
+                  <option value="cash">Tunai saat terima</option>
+                  <option value="transfer">Transfer</option>
+                  <option value="tempo">Tempo</option>
+                </select>
+              </Field>
+              {paymentMethod === "tempo" && (
+                <Field id="s-term" label="Termin (hari)" hint="Jatuh tempo dihitung dari tanggal terima.">
+                  <input id="s-term" inputMode="numeric" value={paymentTermDays} onChange={(e) => setPaymentTermDays(e.target.value.replace(/\D/g, ""))} className={cn(ui.input, "text-right")} />
+                </Field>
+              )}
+            </div>
             <Field id="s-addr" label="Alamat">
               <textarea id="s-addr" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} maxLength={300} className={cn(ui.input, `h-auto py-2`)} />
             </Field>
@@ -190,6 +244,12 @@ export function SupplierTab({ suppliers, canEdit, reload }: { suppliers: MasterS
                 <h3 className="text-[18px] font-extrabold text-[#111111]">{selected.name}</h3>
                 {selected.address && <p className="mt-0.5 flex items-start gap-1 text-[13px] text-[#374151]"><MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /> {selected.address}</p>}
                 {selected.note && <p className="mt-0.5 text-[12.5px] text-[#4B5563]">{selected.note}</p>}
+                <p className="mt-1 text-[12.5px] text-[#374151]">
+                  PIC: <b>{selected.picName || "-"}</b>
+                  {" · "}Area: {(selected.areas ?? []).length ? (selected.areas ?? []).map((a) => SUPPLIER_AREA_LABEL[a as SupplierArea] ?? a).join(", ") : "-"}
+                  {" · "}Bayar: {selected.paymentMethod === "tempo" ? `Tempo ${selected.paymentTermDays ?? 0} hari` : selected.paymentMethod === "cash" ? "Tunai" : selected.paymentMethod === "transfer" ? "Transfer" : "-"}
+                  {selected.productCategories && <> · Produk: {selected.productCategories}</>}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {whatsappLink(selected.phone) && (
@@ -209,8 +269,10 @@ export function SupplierTab({ suppliers, canEdit, reload }: { suppliers: MasterS
               </div>
             </div>
 
+            <SupplierProductsPanel key={selected.id} supplierId={selected.id} canEdit={canEdit && !selected.archived} />
+
             <div>
-              <h4 className="mb-2 text-[14px] font-bold text-[#111111]">Bahan yang disuplai</h4>
+              <h4 className="mb-2 text-[14px] font-bold text-[#111111]">Riwayat pembelian per bahan</h4>
               <div className="overflow-x-auto rounded-lg border border-[#E8E8E8]">
                 <table className="w-full min-w-[560px] border-collapse">
                   <thead className="bg-[#F3F4F6]">

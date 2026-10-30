@@ -20,7 +20,14 @@ function packText(p: WmsProductRow) {
   return `1 ${name} = ${qty.format(p.packQty)} ${p.unit}`;
 }
 
-function StockBadge({ status }: { status: StockStatus }) {
+function StockBadge({ status, prebaseline = false }: { status: StockStatus; prebaseline?: boolean }) {
+  if (prebaseline) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-bold text-[#15803D]" title="Master bahan siap disiapkan; jumlah fisik belum diverifikasi. Ini bukan status stok tersedia.">
+        <span aria-hidden="true">●</span> SIAP PENYESUAIAN
+      </span>
+    );
+  }
   const c = WMS_STATUS_COLOR[status];
   return (
     <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: c.bg, color: c.text }}>
@@ -40,6 +47,7 @@ export function MaterialTab({
 }) {
   const toast = useGarageToast();
   const [rows, setRows] = useState<WmsProductRow[]>([]);
+  const [baselinePending, setBaselinePending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -77,17 +85,25 @@ export function MaterialTab({
     return () => { alive = false; };
   }, [fetchRows]);
 
+  useEffect(() => {
+    let active = true;
+    garageApi.get<{ inventoryBaselinePending?: boolean }>("/api/wms/settings")
+      .then((settings) => { if (active) setBaselinePending(settings.inventoryBaselinePending === true); })
+      .catch(() => { if (active) setBaselinePending(false); });
+    return () => { active = false; };
+  }, []);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (area !== "all" && (r.area ?? "umum") !== area) return false;
       if (cat !== "all" && r.category !== cat) return false;
       if (sup === "none" ? r.defaultSupplierId : sup !== "all" && r.defaultSupplierId !== sup) return false;
-      if (status !== "all" && r.status !== status) return false;
+      if (!baselinePending && status !== "all" && r.status !== status) return false;
       if (!needle) return true;
       return `${r.sku} ${r.name} ${r.category} ${r.subcategory ?? ""} ${r.brand ?? ""} ${r.barcode ?? ""} ${r.supplierName ?? ""}`.toLowerCase().includes(needle);
     });
-  }, [rows, q, area, cat, sup, status]);
+  }, [rows, q, area, cat, sup, status, baselinePending]);
 
   const subcategoryHints = useMemo(() => Array.from(new Set(rows.map((r) => r.subcategory).filter(Boolean) as string[])).sort(), [rows]);
   const catOptions = useMemo(() => categories.filter((c) => area === "all" || c.area === area), [categories, area]);
@@ -132,6 +148,12 @@ export function MaterialTab({
 
   return (
     <div className="space-y-3">
+      {baselinePending && !archived && (
+        <section className="rounded-xl border border-[#B7E4C7] bg-[#F0FDF4] px-4 py-3" role="status" aria-label="Fase persiapan stok awal">
+          <p className="text-[13px] font-bold text-[#166534]">{rows.length} master bahan · SIAP PENYESUAIAN</p>
+          <p className="mt-1 text-[12px] text-[#166534]">Mode sebelum stok awal resmi. Hijau berarti siap dikonfigurasi, bukan bukti stok fisik tersedia. Saldo historis dan laporan tetap utuh. Tanggal cutover menunggu keputusan Owner.</p>
+        </section>
+      )}
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
@@ -166,12 +188,12 @@ export function MaterialTab({
           <option value="none">Tanpa supplier</option>
           {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        <select aria-label="Filter status stok" value={status} onChange={(e) => setStatus(e.target.value as "all" | StockStatus)} className={cn(ui.input, `h-9 w-auto`)}>
+        {!baselinePending && <select aria-label="Filter status stok" value={status} onChange={(e) => setStatus(e.target.value as "all" | StockStatus)} className={cn(ui.input, `h-9 w-auto`)}>
           <option value="all">Semua status stok</option>
           <option value="low">Menipis ({counts.low})</option>
           <option value="out">Habis ({counts.out})</option>
           <option value="in">Aman</option>
-        </select>
+        </select>}
         <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-[#D9DCE1] bg-white px-3 text-[13px] font-semibold text-[#374151]">
           <input type="checkbox" checked={archived} onChange={(e) => { setLoading(true); setArchived(e.target.checked); }} className="size-4 accent-[#C8102E]" /> Lihat arsip
         </label>
@@ -182,7 +204,7 @@ export function MaterialTab({
       </div>
 
       <p className="text-[12.5px] text-[#4B5563]" aria-live="polite">
-        {loading ? "Memuat bahan…" : `${filtered.length} dari ${rows.length} bahan${archived ? " terarsip" : ""}`} · stok = total semua ruang (hanya baca)
+        {loading ? "Memuat bahan…" : `${filtered.length} dari ${rows.length} bahan${archived ? " terarsip" : ""}`} · {baselinePending && !archived ? "saldo historis belum disahkan sebagai stok awal" : "stok = total semua ruang (hanya baca)"}
       </p>
 
       {loadError && (
@@ -238,9 +260,9 @@ export function MaterialTab({
                 <td className={cn(ui.td, `whitespace-nowrap text-right font-mono tabular-nums`)}>{r.packQty > 0 ? currency.format(r.packPrice) : "—"}</td>
                 <td className={cn(ui.td, `whitespace-nowrap text-right font-mono font-semibold tabular-nums`)}>{unitCostCurrency.format(r.hpp)}<span className="font-sans text-[11.5px] font-normal text-[#4B5563]">/{r.unit}</span></td>
                 <td className={cn(ui.td, `whitespace-nowrap text-right tabular-nums`)}>
-                  {qty.format(r.onHand)} <span className="text-[#6B7280]">/ {qty.format(r.minStock)} {r.unit}</span>
+                  {baselinePending && !archived ? <span className="text-[#6B7280]">Belum disahkan</span> : <>{qty.format(r.onHand)} <span className="text-[#6B7280]">/ {qty.format(r.minStock)} {r.unit}</span></>}
                 </td>
-                <td className={ui.td}><StockBadge status={r.status} /></td>
+                <td className={ui.td}><StockBadge status={r.status} prebaseline={baselinePending && !archived} /></td>
                 <td className={cn(ui.td, `whitespace-nowrap`)}>
                   {canEdit && (
                     <div className="flex justify-end gap-1">
@@ -277,10 +299,10 @@ export function MaterialTab({
                 <span className="block font-mono text-[12px] font-bold text-[#C8102E]">{r.sku}</span>
                 <span className="block text-[14px] font-semibold text-[#111111]">{r.name}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-[#4B5563]">
-                  {r.category} <AreaBadge area={r.area ?? "umum"} /> <StockBadge status={r.status} />
+                  {r.category} <AreaBadge area={r.area ?? "umum"} /> <StockBadge status={r.status} prebaseline={baselinePending && !archived} />
                 </span>
                 <span className="mt-1 block text-[12.5px] text-[#111111]">
-                  HPP <b className="font-mono tabular-nums">{unitCostCurrency.format(r.hpp)}</b>/{r.unit} · Stok {qty.format(r.onHand)} {r.unit}
+                  HPP <b className="font-mono tabular-nums">{unitCostCurrency.format(r.hpp)}</b>/{r.unit} · {baselinePending && !archived ? "Stok awal belum disahkan" : `Stok ${qty.format(r.onHand)} ${r.unit}`}
                 </span>
               </span>
             </button>

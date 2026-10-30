@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 // Potong stok WMS dari penjualan POS kini selalu aktif (lewat potong stok resep
 // order) — toggle yang tersisa di sini: auto-habis dari stok gudang.
 const patchSchema = z.object({
+  inventoryBaselinePending: z.boolean().optional(),
   autoSoldOutFromStock: z.boolean().optional(),
   expiryStrict: z.boolean().optional(),
   defaultPutAway: z.string().trim().max(40).optional(),

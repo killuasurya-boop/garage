@@ -48,6 +48,7 @@ export function MaterialTab({
   const toast = useGarageToast();
   const [rows, setRows] = useState<WmsProductRow[]>([]);
   const [baselinePending, setBaselinePending] = useState(false);
+  const [baselineTargetDate, setBaselineTargetDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -87,8 +88,12 @@ export function MaterialTab({
 
   useEffect(() => {
     let active = true;
-    garageApi.get<{ inventoryBaselinePending?: boolean }>("/api/wms/settings")
-      .then((settings) => { if (active) setBaselinePending(settings.inventoryBaselinePending === true); })
+    garageApi.get<{ inventoryBaselinePending?: boolean; inventoryBaselineTargetDate?: string | null }>("/api/wms/settings")
+      .then((settings) => {
+        if (!active) return;
+        setBaselinePending(settings.inventoryBaselinePending === true);
+        setBaselineTargetDate(settings.inventoryBaselineTargetDate ?? null);
+      })
       .catch(() => { if (active) setBaselinePending(false); });
     return () => { active = false; };
   }, []);
@@ -151,7 +156,8 @@ export function MaterialTab({
       {baselinePending && !archived && (
         <section className="rounded-xl border border-[#B7E4C7] bg-[#F0FDF4] px-4 py-3" role="status" aria-label="Fase persiapan stok awal">
           <p className="text-[13px] font-bold text-[#166534]">{rows.length} master bahan · SIAP PENYESUAIAN</p>
-          <p className="mt-1 text-[12px] text-[#166534]">Mode sebelum stok awal resmi. Hijau berarti siap dikonfigurasi, bukan bukti stok fisik tersedia. Saldo historis dan laporan tetap utuh. Tanggal cutover menunggu keputusan Owner.</p>
+          <p className="mt-1 text-[12px] font-semibold text-[#166534]">Target cutover: {baselineTargetDate ? new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${baselineTargetDate}T12:00:00Z`)) : "belum ditentukan"}</p>
+          <p className="mt-1 text-[12px] text-[#166534]">Hijau berarti master siap disesuaikan, bukan bukti stok fisik tersedia. Tanggal target tidak otomatis mengesahkan saldo. Saldo historis dan laporan tetap utuh sampai Owner menyetujui opname dan cutover.</p>
         </section>
       )}
       {/* Toolbar */}

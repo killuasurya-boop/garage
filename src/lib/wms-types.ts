@@ -86,6 +86,8 @@ export type WmsNotification = {
 export type WmsConfig = {
   /** Until Owner sets an official physical opening-stock date; UI readiness only, not stock availability. */
   inventoryBaselinePending: boolean;
+  /** Target date only; no automatic posting or certification of opening stock. */
+  inventoryBaselineTargetDate: string | null;
   expiryStrict: boolean;
   defaultPutAway: string;
   notifyLowStock: boolean;

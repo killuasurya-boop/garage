@@ -5990,6 +5990,7 @@ const WMS_CONFIG_KEY = "wms.config";
 const DEFAULT_WMS_CONFIG: WmsConfig = {
   // Garage OS remains in preparation until Owner explicitly certifies the opening-stock date.
   inventoryBaselinePending: true,
+  inventoryBaselineTargetDate: "2026-11-01",
   expiryStrict: true,
   defaultPutAway: "DRY",
   notifyLowStock: true,

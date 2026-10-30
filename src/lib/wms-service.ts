@@ -5988,6 +5988,7 @@ export type WmsConfig = {
 
 const WMS_CONFIG_KEY = "wms.config";
 const DEFAULT_WMS_CONFIG: WmsConfig = {
+  inventoryBaselinePending: false,
   expiryStrict: true,
   defaultPutAway: "DRY",
   notifyLowStock: true,

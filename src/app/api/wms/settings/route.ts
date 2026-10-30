@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 // order) — toggle yang tersisa di sini: auto-habis dari stok gudang.
 const patchSchema = z.object({
   inventoryBaselinePending: z.boolean().optional(),
+  inventoryBaselineTargetDate: z.string().date().nullable().optional(),
   autoSoldOutFromStock: z.boolean().optional(),
   expiryStrict: z.boolean().optional(),
   defaultPutAway: z.string().trim().max(40).optional(),

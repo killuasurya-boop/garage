@@ -65,9 +65,8 @@ afterAll(async () => {
 
 describe("garage_assign_kitchen_suppliers", () => {
   it("is R2, confirm-only, and only available with confirmation flow", async () => {
-    const { listAgentTools, runAgentTool } = await import("@/lib/agent-tools");
-    const tool = listAgentTools(undefined, { includeConfirmOnly: true })
-      .find((t) => t.name === "garage_assign_kitchen_suppliers");
+    const { findAgentTool, runAgentTool } = await import("@/lib/agent-tools");
+    const tool = findAgentTool("garage_assign_kitchen_suppliers");
     expect(tool).toMatchObject({ domain: "gudang", risk: "R2", write: true, confirmOnly: true });
     await expect(runAgentTool(as(OWNER, "Owner"), "garage_assign_kitchen_suppliers", args(["KIT-997"]), {
       authorization: "", internalOrigin: "http://127.0.0.1:1",

@@ -72,7 +72,10 @@ export function assessMasterData(
   const fieldCoverage = { essentialPresent: 0, essentialExpected: 0 };
   const outOfScopeCount = products.filter((p) => isRestricted(p.category)).length;
   const allowedProducts = products.filter((p) => !isRestricted(p.category));
-  const supplierById = new Map(suppliers.map((s) => [s.id, s]));
+  // Scope this module to food/beverage/packaging; do not create procurement
+  // improvement tasks for age-restricted product suppliers.
+  const allowedSuppliers = suppliers.filter((s) => !/djarum|rokok|tembakau|tobacco/i.test(s.name));
+  const supplierById = new Map(allowedSuppliers.map((s) => [s.id, s]));
   const supplierUsed = new Map<string, number>();
   const coverage = {
     productsWithSupplier: 0, productsWithPurchaseUom: 0,
@@ -202,7 +205,7 @@ export function assessMasterData(
     // subcategory, or product-level expiry. These are context-dependent.
   }
 
-  for (const s of suppliers) {
+  for (const s of allowedSuppliers) {
     if (nonEmpty(s.phone)) coverage.suppliersWithContact++;
     if (nonEmpty(s.address)) coverage.suppliersWithAddress++;
     if (["cash", "transfer", "tempo"].includes(s.paymentMethod ?? ""))
@@ -254,7 +257,7 @@ export function assessMasterData(
     metrics: {
       productsAudited: allowedProducts.length,
       productsExcludedFromThisScope: outOfScopeCount,
-      suppliersAudited: suppliers.length,
+      suppliersAudited: allowedSuppliers.length,
       essentialCompletionPct: fieldCoverage.essentialExpected
         ? Math.round(1000 * fieldCoverage.essentialPresent / fieldCoverage.essentialExpected) / 10
         : null,

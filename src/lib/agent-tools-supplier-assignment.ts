@@ -1,7 +1,7 @@
 // Penetapan supplier utama pada bahan Dapur yang sudah ada.
 // Khusus master WMS: tidak mengubah stok, ledger, POS, resep, ataupun harga.
 // Di MCP ChatGPT, perubahan massal wajib preview + konfirmasi Owner (R2).
-import { eq, inArray, isNull } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";

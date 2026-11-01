@@ -1,6 +1,7 @@
 import { fail } from "@/lib/api-response";
 import { ProductionBatchError } from "@/lib/garage-production";
 import { ProductionBatchPendingError } from "@/lib/garage-production-tickets";
+import { CompletionPrintError } from "@/lib/production-completion-print";
 import {
   HandoverPermissionError,
   HandoverRequiredError,
@@ -36,4 +37,12 @@ export function productionErrorResponse(error: unknown) {
     return fail(status, error.code, error.message);
   }
   return null;
+}
+
+// Antrean tiket SELESAI (V4) → respons API.
+export function completionPrintErrorResponse(error: unknown) {
+  if (!(error instanceof CompletionPrintError)) return null;
+  const status =
+    error.code === "NOT_FOUND" ? 404 : error.code === "FORBIDDEN" ? 403 : error.code === "CONFLICT" ? 409 : 422;
+  return fail(status, `COMPLETION_PRINT_${error.code}`, error.message);
 }

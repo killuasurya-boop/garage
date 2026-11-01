@@ -4071,3 +4071,94 @@ body {
     animation: none;
   }
 }
+
+/* ===========================================================================
+   Production Hub V4 (owner, Nov 2026) — industrial dark minimal, padat & terbaca.
+   Token warna dari brief V4; scope `.phv4` supaya modul lain tidak berubah.
+   =========================================================================== */
+.phv4 {
+  --phv4-bg: #0d0f12;
+  --phv4-bg2: #15171b;
+  --phv4-card: #202228;
+  --phv4-elev: #292c33;
+  --phv4-red: #d71920;
+  --phv4-red-hover: #ef233c;
+  --phv4-text: #f5f5f5;
+  --phv4-muted: #9ca3af;
+  --phv4-success: #22c55e;
+  --phv4-process: #3b82f6;
+  --phv4-wait: #f5b041;
+  --phv4-critical: #ef4444;
+  --phv4-border: #343840;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  background: var(--phv4-bg);
+  color: var(--phv4-text);
+}
+.phv4 .phv4-mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.phv4-grid-host {
+  container-type: size;
+}
+.phv4 .phv4-card {
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+.phv4 .phv4-critical {
+  animation: phv4-critical-pulse 2.2s ease-in-out infinite;
+}
+@keyframes phv4-critical-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45);
+  }
+}
+.phv4 .phv4-sheet-in {
+  animation: phv4-sheet-in 180ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+.phv4 .phv4-drawer-in {
+  animation: phv4-drawer-in 180ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+@keyframes phv4-sheet-in {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+@keyframes phv4-drawer-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phv4 .phv4-critical,
+  .phv4 .phv4-sheet-in,
+  .phv4 .phv4-drawer-in {
+    animation: none;
+  }
+  .phv4 .phv4-card {
+    transition: none;
+  }
+}
+
+/* V4: AYA tidak pernah menutupi pesanan. Default disembunyikan selama Production Hub
+   terbuka; bila operator menyalakannya (tombol kecil di status bar) Aya dikunci kecil
+   di pojok kiri bawah, di atas status bar — bukan di area grid. */
+html[data-phv4="on"] .aya-pet {
+  display: none;
+}
+html[data-phv4="on"][data-phv4-aya="on"] .aya-pet {
+  display: block;
+  transform: translate3d(6px, calc(100svh - 118px), 0) scale(0.5) !important;
+  transform-origin: top left;
+  transition: none !important;
+}
+@media (max-width: 767px) {
+  html[data-phv4="on"][data-phv4-aya="on"] .aya-pet {
+    display: none;
+  }
+}

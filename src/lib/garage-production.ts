@@ -47,6 +47,7 @@ import {
   roleDisplayName,
   updateKitchenStatus,
 } from "@/lib/garage-service";
+import { listCompletionPrints } from "@/lib/production-completion-print";
 import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -408,6 +409,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       cancelledAt: (ticket.issueAt ?? ticket.updatedAt).toISOString(),
       items: ticket.items,
     })),
+    completionPrints: await listCompletionPrints(garage, now),
   };
 }
 

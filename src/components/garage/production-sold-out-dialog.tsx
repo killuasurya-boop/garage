@@ -18,10 +18,13 @@ import { productionStationFor, type ProductionStation } from "@/lib/garage-produ
 export function ProductionSoldOutDialog({
   menuItems,
   stations,
+  triggerClassName,
 }: {
   menuItems: MenuItem[];
   /** Station yang boleh diatur akun ini (Owner/Manajer: semua). */
   stations: ProductionStation[];
+  /** Gaya tombol pemicu (Production Hub V4); kosong = gaya lama. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -59,7 +62,7 @@ export function ProductionSoldOutDialog({
       <Button
         type="button"
         variant="outline"
-        className="garage-press h-10 border-[#d11a2a]/50 bg-[#d11a2a]/10 px-3 text-xs font-bold text-[#ffc2c8]"
+        className={triggerClassName ?? "garage-press h-10 border-[#d11a2a]/50 bg-[#d11a2a]/10 px-3 text-xs font-bold text-[#ffc2c8]"}
         onClick={() => setOpen(true)}
       >
         <PackageX className="mr-1.5 size-4" />

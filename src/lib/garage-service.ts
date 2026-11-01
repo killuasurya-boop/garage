@@ -12912,6 +12912,13 @@ async function updateKitchenStatusImpl(
         .where(eq(kitchenTickets.orderId, ticket.orderId));
       const live = siblings.filter((row) => !["rejected", "canceled", "cancelled"].includes(row.status));
       if (status === "ready" && live.every((row) => row.status === "ready" || row.status === "delivered")) {
+        // Production Hub V4: tiket SELESAI masuk antrean cetak (idempoten per order).
+        try {
+          const { enqueueOrderCompletionPrint } = await import("@/lib/production-completion-print");
+          await enqueueOrderCompletionPrint(ticket.orderId, garage);
+        } catch (error) {
+          console.error("[completion-print] enqueue gagal", error);
+        }
         await announceOrderProgress(ticket.orderId, "all_ready");
       } else if (status === "delivered" && live.every((row) => row.status === "delivered")) {
         await announceOrderProgress(ticket.orderId, "handed");

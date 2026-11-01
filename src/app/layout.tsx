@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Anton, Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GarageToastProvider } from "@/components/garage/garage-toast";
 import { GarageThemeProvider } from "@/components/garage/theme/garage-theme-provider";
@@ -16,6 +16,12 @@ const anton = Anton({
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
+  subsets: ["latin"],
+});
+
+// Production Hub V4 (owner, Nov 2026): Inter untuk teks, JetBrains Mono untuk timer.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -70,7 +76,7 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${anton.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} dark h-full antialiased`}
+      className={`${anton.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} ${inter.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <GarageThemeProvider>

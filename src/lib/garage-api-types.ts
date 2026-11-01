@@ -3,6 +3,7 @@ import type {
   MenuCategory,
   Role,
 } from "@/lib/garage-data";
+import type { CompletionPrintView } from "@/lib/production-completion-print-rules";
 
 export type ApiEnvelope<T> = {
   data?: T;
@@ -248,6 +249,8 @@ export type ProductionBoard = {
     cancelledAt: string;
     items: string[];
   }>;
+  // V4: antrean tiket SELESAI (print_jobs) 12 jam terakhir outlet ini.
+  completionPrints: CompletionPrintView[];
 };
 
 export type KitchenPerformanceRow = {

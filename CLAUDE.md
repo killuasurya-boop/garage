@@ -252,6 +252,16 @@ Scroll direction:
     `type=ledger&month=|from&to[&format=pdf|xlsx]` (all outlets — bank accounts are global). Query schema: `owner-reports-query.ts`.
 - Browser-dialog printing uses `browserColumns` (huruf Besar → 24 col on 58 mm) with tall
   TOTAL/Kembali lines; cashier can print Bar/Dapur chits manually (`printKitchenChits`).
+- Production Hub V4 (owner, Nov 2026, no migration): UI `src/components/garage/production-hub/` (portal over the shell,
+  `production-view.tsx` only re-exports). Display rules are pure in `src/lib/production-hub-v4.ts` (one primary action per
+  status, pickup = no table → AMBIL/`serve_direct`, never delivery actions; `stabilizeOrder` keeps the card in use in place;
+  `resolveGrid` never shrinks cards below `CARD_MIN_*`). Transitions stay server-validated (`updateKitchenStatus`).
+  Completion ticket ("tiket SELESAI") = `print_jobs` rows `order_completion` / `order_completion_reprint`
+  (`production-completion-print.ts`, rules `-rules.ts`): queued once per order at the existing all-ready point (advisory
+  lock per order); a device with "Auto Print" claims atomically (pending → printing, lease 90 s) and prints through
+  `deliverPrintContent` without the Chrome dialog; definite failure → back to pending (max 5), expired claim → failed
+  "tidak pasti" (never auto-reprinted); reprint needs a reason, Kasir max 3/order, Owner/Manajer unlimited; every step
+  in `audit_logs`. History drawer = `GET /api/production/history` (read-only; corrections via existing reopen).
 
 - MCP ChatGPT (owner D-01, batch M0): OAuth 2.1 via `@better-auth/mcp` + `jwt` plugin, only when
   `GARAGE_MCP_CHATGPT_ENABLED=true` and `BETTER_AUTH_URL` is HTTPS (`resolveMcpChatgptConfig`, `mcp-chatgpt-config.ts`);

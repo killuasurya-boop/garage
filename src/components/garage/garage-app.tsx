@@ -1336,6 +1336,7 @@ function GarageWorkspace({
                   performanceError={kitchenPerformanceError}
                   canViewPerformance={canSeeKitchenPerformance}
                   onRefreshPerformance={() => loadKitchenPerformance()}
+                  onNavigateModule={(id) => handleModuleChange(id as ModuleId)}
                 />
               </div>
             )}

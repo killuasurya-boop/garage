@@ -47,6 +47,7 @@ import {
   roleDisplayName,
   updateKitchenStatus,
 } from "@/lib/garage-service";
+import { listCompletionPrints } from "@/lib/production-completion-print";
 import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -276,6 +277,8 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
     batchNo: batch.batchNo,
     station: normalizeProductionStation(batch.station),
     itemLabel: batch.itemLabel,
+    menuItemId: batch.menuItemId,
+    variantId: batch.variantId,
     note: batch.note,
     totalQty: batch.totalQty,
     status: batch.status,
@@ -335,6 +338,8 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
     key: suggestion.key,
     station: suggestion.station,
     itemLabel: suggestion.itemLabel,
+    menuItemId: suggestion.items[0]?.menuItemId ?? null,
+    variantId: suggestion.items[0]?.variantId ?? null,
     note: suggestion.note,
     totalQty: suggestion.totalQty,
     oldestAt: suggestion.oldestAt,
@@ -408,6 +413,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       cancelledAt: (ticket.issueAt ?? ticket.updatedAt).toISOString(),
       items: ticket.items,
     })),
+    completionPrints: await listCompletionPrints(garage, now),
   };
 }
 
@@ -637,6 +643,7 @@ async function completeProductionBatchImpl(
   batchId: string,
   allocationIds: string[],
   garage: GarageSession,
+  options: { partial?: boolean } = {},
 ) {
   const db = getDb();
   const now = new Date();
@@ -668,12 +675,50 @@ async function completeProductionBatchImpl(
       })),
       batch.totalQty,
     );
-    if (!coverage.complete) {
+    if (!coverage.complete && !options.partial) {
       throw new ProductionBatchError(
         `UNALLOCATED = ${coverage.unallocatedQty}. Cocokkan setiap porsi ke Nama + Meja + Order dulu.`,
         "UNALLOCATED",
         coverage.unallocatedQty,
       );
+    }
+
+    // V4 Partial Batch Completion: hanya porsi yang dipilih (dan belum selesai) yang
+    // menjadi READY; batch tetap berjalan sampai semua porsi teralokasi.
+    if (!coverage.complete) {
+      const fresh = allocations.filter((row) => !row.allocatedAt && confirmed.has(row.id));
+      if (!fresh.length) {
+        throw new ProductionBatchError("Pilih minimal satu porsi yang sudah jadi.", "BATCH_INVALID");
+      }
+      const marked = await tx
+        .update(productionBatchAllocations)
+        .set({ allocatedAt: now, allocatedByName: actorName })
+        .where(
+          and(
+            inArray(
+              productionBatchAllocations.id,
+              fresh.map((row) => row.id),
+            ),
+            isNull(productionBatchAllocations.allocatedAt),
+          ),
+        )
+        .returning({ id: productionBatchAllocations.id });
+      if (marked.length !== fresh.length) {
+        throw new ProductionBatchError("Porsi sudah diselesaikan staf lain. Muat ulang.", "BATCH_CONFLICT");
+      }
+      const itemIds = fresh.map((row) => row.ticketItemId).filter((id): id is string => Boolean(id));
+      if (itemIds.length) {
+        await tx
+          .update(productionTicketItems)
+          .set({ status: "ready", readyAt: now })
+          .where(and(inArray(productionTicketItems.id, itemIds), eq(productionTicketItems.batchId, batch.id)));
+      }
+      return {
+        batch,
+        allocations: fresh,
+        partial: true,
+        ticketIds: [...new Set(fresh.map((row) => row.ticketId).filter((id): id is string => Boolean(id)))],
+      };
     }
 
     await tx
@@ -701,6 +746,7 @@ async function completeProductionBatchImpl(
     return {
       batch: completed,
       allocations,
+      partial: false,
       ticketIds: [
         ...new Set(allocations.map((row) => row.ticketId).filter((id): id is string => Boolean(id))),
       ],
@@ -723,10 +769,10 @@ async function completeProductionBatchImpl(
 
   await createAuditLog({
     actor: actorLabel(garage),
-    action: "Production batch completed",
+    action: result.partial ? "Production batch partially completed" : "Production batch completed",
     object: result.batch.batchNo,
     device: garage.profile.deviceLabel,
-    status: "completed",
+    status: result.partial ? "partial" : "completed",
     metadata: {
       batchId: result.batch.id,
       station: result.batch.station,
@@ -742,7 +788,7 @@ async function completeProductionBatchImpl(
     },
   });
 
-  return { batch: result.batch, readyTicketNos: readied };
+  return { batch: result.batch, partial: result.partial, readyTicketNos: readied };
 }
 
 async function cancelProductionBatchImpl(
@@ -770,13 +816,17 @@ async function cancelProductionBatchImpl(
     if (!canOperateStation(garage.profile.role, garage.profile.workstation, current.station)) {
       throw new ProductionPermissionError(current.station);
     }
+    // Porsi yang sudah diselesaikan sebagian (READY) tetap READY dan tercatat;
+    // hanya porsi yang belum jadi kembali ke Waiting.
     await tx
       .update(productionTicketItems)
       .set({ status: "waiting", batchId: null })
-      .where(eq(productionTicketItems.batchId, current.id));
+      .where(and(eq(productionTicketItems.batchId, current.id), ne(productionTicketItems.status, "ready")));
     await tx
       .delete(productionBatchAllocations)
-      .where(eq(productionBatchAllocations.batchId, current.id));
+      .where(
+        and(eq(productionBatchAllocations.batchId, current.id), isNull(productionBatchAllocations.allocatedAt)),
+      );
     const [cancelled] = await tx
       .update(productionBatches)
       .set({ status: "cancelled", completedAt: now, completedByName: garage.user.name })
@@ -840,3 +890,98 @@ export async function markProductionChitsPrinted(
 export const startProductionBatch = notifyingProduction(startProductionBatchImpl);
 export const completeProductionBatch = notifyingProduction(completeProductionBatchImpl);
 export const cancelProductionBatch = notifyingProduction(cancelProductionBatchImpl);
+
+// ---------------------------------------------------------------------------
+// V4 Batch Produksi — riwayat batch (read-only) + status tiket terkait (Recall)
+// ---------------------------------------------------------------------------
+
+export type ProductionBatchHistoryRow = {
+  id: string;
+  batchNo: string;
+  station: "Bar" | "Food";
+  itemLabel: string;
+  menuItemId: string | null;
+  note: string | null;
+  totalQty: number;
+  doneQty: number;
+  status: string;
+  startedAt: string;
+  startedByName: string | null;
+  completedAt: string | null;
+  completedByName: string | null;
+  allocations: Array<{
+    id: string;
+    ticketNo: string | null;
+    orderNo: string | null;
+    table: string;
+    customerName: string | null;
+    qty: number;
+    allocatedAt: string | null;
+    allocatedByName: string | null;
+    ticketStatus: string | null;
+  }>;
+};
+
+export async function getProductionBatchHistory(
+  garage: GarageSession,
+  params: { date?: string | null } = {},
+): Promise<{ date: string; batches: ProductionBatchHistoryRow[] }> {
+  const db = getDb();
+  const { key: todayKey } = jakartaDayStart(new Date());
+  const key = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : todayKey;
+  const start = new Date(`${key}T00:00:00+07:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60_000);
+  const rows = await db
+    .select()
+    .from(productionBatches)
+    .where(
+      and(
+        eq(productionBatches.outletId, garage.profile.outlet.id),
+        gte(productionBatches.startedAt, start),
+        sql`${productionBatches.startedAt} < ${end}`,
+      ),
+    )
+    .orderBy(desc(productionBatches.startedAt))
+    .limit(200);
+  const ids = rows.map((row) => row.id);
+  const allocations = ids.length
+    ? await db
+        .select({ allocation: productionBatchAllocations, ticketNo: kitchenTickets.ticketNo, ticketStatus: kitchenTickets.status })
+        .from(productionBatchAllocations)
+        .leftJoin(kitchenTickets, eq(kitchenTickets.id, productionBatchAllocations.ticketId))
+        .where(inArray(productionBatchAllocations.batchId, ids))
+        .orderBy(asc(productionBatchAllocations.createdAt))
+    : [];
+  return {
+    date: key,
+    batches: rows.map((batch) => {
+      const own = allocations.filter((row) => row.allocation.batchId === batch.id);
+      return {
+        id: batch.id,
+        batchNo: batch.batchNo,
+        station: normalizeProductionStation(batch.station),
+        itemLabel: batch.itemLabel,
+        menuItemId: batch.menuItemId,
+        note: batch.note,
+        totalQty: batch.totalQty,
+        doneQty: own.filter((row) => row.allocation.allocatedAt).reduce((sum, row) => sum + row.allocation.qty, 0),
+        status: batch.status,
+        startedAt: batch.startedAt.toISOString(),
+        startedByName: batch.startedByName,
+        completedAt: batch.completedAt?.toISOString() ?? null,
+        completedByName: batch.completedByName ?? null,
+        allocations: own.map((row) => ({
+          id: row.allocation.id,
+          ticketNo: row.ticketNo ?? null,
+          orderNo: row.allocation.orderNo,
+          table: row.allocation.tableLabel,
+          customerName: row.allocation.customerName,
+          qty: row.allocation.qty,
+          allocatedAt: row.allocation.allocatedAt?.toISOString() ?? null,
+          allocatedByName: row.allocation.allocatedByName ?? null,
+          ticketStatus: row.ticketStatus ?? null,
+        })),
+      };
+    }),
+  };
+}

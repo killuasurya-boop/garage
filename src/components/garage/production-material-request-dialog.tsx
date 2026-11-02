@@ -61,7 +61,14 @@ function stepFor(unit: string) {
  * produksi → langsung ke gudang (tanpa approval, manajer dapat notifikasi). Tab
  * "Permintaan" untuk memantau status & konfirmasi barang diterima.
  */
-export function ProductionMaterialRequestDialog({ divisions }: { divisions: Division[] }) {
+export function ProductionMaterialRequestDialog({
+  divisions,
+  triggerClassName,
+}: {
+  divisions: Division[];
+  /** Gaya tombol pemicu (Production Hub V4); kosong = gaya lama. */
+  triggerClassName?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"list" | "requests">("list");
   const [division, setDivision] = useState<Division>(divisions[0] ?? "bar");
@@ -196,7 +203,7 @@ export function ProductionMaterialRequestDialog({ divisions }: { divisions: Divi
       <Button
         type="button"
         variant="outline"
-        className="garage-press h-10 border-[#f5a742]/50 bg-[#f5a742]/10 px-3 text-xs font-bold text-[#ffd58f]"
+        className={triggerClassName ?? "garage-press h-10 border-[#f5a742]/50 bg-[#f5a742]/10 px-3 text-xs font-bold text-[#ffd58f]"}
         onClick={() => void openDialog()}
         data-testid="production-material-request"
       >

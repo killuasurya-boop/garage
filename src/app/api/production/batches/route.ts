@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { ok, readJson } from "@/lib/api-response";
-import { startProductionBatch } from "@/lib/garage-production";
+import { fail, ok, readJson } from "@/lib/api-response";
+import { getProductionBatchHistory, startProductionBatch } from "@/lib/garage-production";
 import { productionErrorResponse } from "@/lib/garage-production-http";
 import { requirePermission } from "@/lib/server-auth";
 
@@ -31,4 +31,17 @@ export async function POST(request: Request) {
     if (response) return response;
     throw error;
   }
+}
+
+// Riwayat batch per hari (V4 Batch Produksi → tab Riwayat Batch / Recall). Read-only.
+export async function GET(request: Request) {
+  const session = await requirePermission("kitchen:read");
+  if (session.response) {
+    return session.response;
+  }
+  const date = new URL(request.url).searchParams.get("date");
+  if (date && !/^d{4}-d{2}-d{2}$/.test(date)) {
+    return fail(400, "INVALID_DATE", "Tanggal tidak valid.");
+  }
+  return ok(await getProductionBatchHistory(session.data, { date }));
 }

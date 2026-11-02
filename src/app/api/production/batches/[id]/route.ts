@@ -14,6 +14,11 @@ const batchActionSchema = z.discriminatedUnion("action", [
     allocationIds: z.array(z.string().uuid()).max(60),
   }),
   z.object({
+    // V4: selesaikan sebagian porsi (min. 1); batch tetap berjalan sampai semua selesai.
+    action: z.literal("complete_partial"),
+    allocationIds: z.array(z.string().uuid()).min(1).max(60),
+  }),
+  z.object({
     action: z.literal("cancel"),
     reason: z.string().trim().min(3).max(200),
   }),
@@ -37,6 +42,9 @@ export async function POST(
   try {
     if (body.data.action === "complete") {
       return ok(await completeProductionBatch(id, body.data.allocationIds, session.data));
+    }
+    if (body.data.action === "complete_partial") {
+      return ok(await completeProductionBatch(id, body.data.allocationIds, session.data, { partial: true }));
     }
     return ok(await cancelProductionBatch(id, body.data.reason, session.data));
   } catch (error) {

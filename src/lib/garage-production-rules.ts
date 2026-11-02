@@ -7,6 +7,7 @@
 // =============================================================================
 
 import type { Role } from "@/lib/garage-data";
+import { parseTableNumber } from "@/lib/garage-tables";
 
 // Nilai station tiket di DB tetap "Bar" / "Food" (data lama); UI menyebut
 // Food sebagai DAPUR.
@@ -282,6 +283,37 @@ export function allocationCoverage(
     unallocatedQty: Math.max(0, totalQty - allocatedQty),
     complete: allocatedQty === totalQty && totalQty > 0,
   };
+}
+
+const PLACEHOLDER_NAME = /^(tamu|guest customer|antrian\s*#?\d+)$/i;
+
+function sameTableLabel(label: string, table: string | null | undefined) {
+  if (label.trim().toLowerCase() === (table ?? "").trim().toLowerCase()) return true;
+  const n = parseTableNumber(label);
+  return n !== null && n === parseTableNumber(table ?? null);
+}
+
+/**
+ * Pisahkan nama TAMU dari identitas order. Order waiter disimpan sebagai
+ * "Meja 05 · Andi · Waiter Budi" (atau "Meja 05 · Waiter Budi" tanpa nama tamu);
+ * order kasir/QR = nama tamu langsung. Placeholder ("Guest Customer", "Tamu",
+ * "Antrian #12") bukan nama → customer null.
+ */
+export function splitOrderIdentity(
+  raw: string | null | undefined,
+  table: string | null | undefined,
+): { customer: string | null; waiter: string | null } {
+  const parts = (raw ?? "").split(" · ").map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return { customer: null, waiter: null };
+  if (sameTableLabel(parts[0], table)) {
+    const customer = parts.length >= 3 ? parts.slice(1, -1).join(" ") : null;
+    return {
+      customer: customer && !PLACEHOLDER_NAME.test(customer) ? customer : null,
+      waiter: parts.length >= 2 ? parts[parts.length - 1] : null,
+    };
+  }
+  const name = parts.join(" · ");
+  return { customer: PLACEHOLDER_NAME.test(name) ? null : name, waiter: null };
 }
 
 /** Identitas tampil: nama customer, fallback nomor antrian (BR-02). */

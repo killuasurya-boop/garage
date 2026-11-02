@@ -8,8 +8,25 @@ import {
   isDirectHandoverMenu,
   productionIdentityName,
   productionStationFor,
+  splitOrderIdentity,
   type BatchCandidateItem,
 } from "@/lib/garage-production-rules";
+
+describe("nama pemesan di kartu produksi (splitOrderIdentity)", () => {
+  it("order waiter: nama tamu dipisah dari meja & nama waiter", () => {
+    expect(splitOrderIdentity("Meja 05 · Andi · Waiter Budi", "Meja 05")).toEqual({ customer: "Andi", waiter: "Waiter Budi" });
+    expect(splitOrderIdentity("Meja 5 · Andi · Budi", "Meja 05")).toEqual({ customer: "Andi", waiter: "Budi" });
+    expect(splitOrderIdentity("Meja 05 · Budi", "Meja 05")).toEqual({ customer: null, waiter: "Budi" });
+    expect(splitOrderIdentity("Meja 05", "Meja 05")).toEqual({ customer: null, waiter: null });
+  });
+
+  it("order kasir/QR: nama tamu langsung; placeholder bukan nama", () => {
+    expect(splitOrderIdentity("Rina", "Takeaway")).toEqual({ customer: "Rina", waiter: null });
+    for (const raw of ["Guest Customer", "Tamu", "Antrian #12", "", null]) {
+      expect(splitOrderIdentity(raw, "Meja 02").customer).toBeNull();
+    }
+  });
+});
 
 // =============================================================================
 // Production Hub — aturan murni: auto routing (BR-04), hak READY per

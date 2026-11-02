@@ -14,7 +14,7 @@ import {
 import type { ProductionHistoryOrder } from "@/lib/production-hub-history";
 
 import { StationBadge } from "./hub-ui";
-import { tableText } from "./order-card";
+import { customerOf, tableText } from "./order-card";
 
 export type ReadyTab = "ready" | "delivering" | "done";
 
@@ -136,7 +136,8 @@ export function ReadyQueue({
                   <div className="flex min-w-0 items-center gap-1.5">
                     {pickup ? <ShoppingBag className="size-3.5 shrink-0" aria-hidden /> : <Utensils className="size-3.5 shrink-0" aria-hidden />}
                     <span className="phv4-mono text-[13px] font-bold">#{ticket.orderNo ?? ticket.ticketNo}</span>
-                    <span className="truncate text-[12px] text-[#e5e7eb]">{tableText(ticket.table)}</span>
+                    <span className="shrink-0 text-[12px] text-[#e5e7eb]">{tableText(ticket.table)}</span>
+                    <span className="min-w-0 truncate text-[13px] font-bold text-white">{customerOf(ticket).customer ?? ""}</span>
                     <span className={`phv4-mono ml-auto shrink-0 text-[12px] font-bold ${overdue ? "text-[var(--phv4-critical)]" : "text-[#86efac]"}`}>
                       {formatElapsed(since)}
                     </span>

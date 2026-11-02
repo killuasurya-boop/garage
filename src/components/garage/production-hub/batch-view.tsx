@@ -42,7 +42,7 @@ import {
 import { elapsedSeconds, formatElapsed, hubStatusOf } from "@/lib/production-hub-v4";
 
 import { HubSheet } from "./hub-ui";
-import { tableText } from "./order-card";
+import { customerOf, tableText } from "./order-card";
 import { AutoPrintSwitch } from "./printer-panel";
 
 type Station = "Bar" | "Food";
@@ -918,7 +918,9 @@ function BatchDetail({
                         {on ? <Check className="size-3.5" /> : null}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold">{a.identity}</span>
+                        <span className="block truncate text-[13px] font-semibold">
+                          {customerOf({ identity: a.customerName ?? a.identity, table: a.table }).customer ?? "Tanpa nama"}
+                        </span>
                         <span className="phv4-mono block truncate text-[11px] text-[var(--phv4-muted)]">
                           {tableText(a.table)} · #{a.orderNo ?? a.ticketNo ?? "-"}
                           {a.note ? ` · ${a.note}` : ""}

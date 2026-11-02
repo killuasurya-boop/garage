@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Loader2, Printer, RotateCcw } from "lucide
 import { StationPrintPanel } from "@/components/garage/station-print-panel";
 import type { ProductionTicketView } from "@/lib/garage-api-types";
 import {
+  COMPLETION_AUTO_PRINT_MAX_AGE_MS,
   COMPLETION_STATUS_LABEL,
   type CompletionPrintView,
 } from "@/lib/production-completion-print-rules";
@@ -61,6 +62,7 @@ export function PrinterPanel({
   onPrintNow,
   onReprint,
   onChanged,
+  now,
 }: {
   jobs: CompletionPrintView[];
   autoPrint: boolean;
@@ -74,6 +76,7 @@ export function PrinterPanel({
   onPrintNow: (job: CompletionPrintView) => void;
   onReprint: (orderId: string, reason: string) => Promise<boolean>;
   onChanged: () => void;
+  now: number;
 }) {
   const [reprintFor, setReprintFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -142,7 +145,9 @@ export function PrinterPanel({
                   ) : job.status === "failed" ? (
                     <AlertTriangle className="size-3" />
                   ) : null}
-                  {COMPLETION_STATUS_LABEL[job.status]}
+                  {job.status === "pending" && now - new Date(job.createdAt).getTime() > COMPLETION_AUTO_PRINT_MAX_AGE_MS
+                    ? "Lewat 6 jam — cetak manual"
+                    : COMPLETION_STATUS_LABEL[job.status]}
                 </span>
               </div>
               <p className="mt-0.5 truncate text-[11px] text-[var(--phv4-muted)]">

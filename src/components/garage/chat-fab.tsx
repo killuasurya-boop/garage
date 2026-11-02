@@ -185,6 +185,12 @@ export function ChatFab({
     setMentioned(false);
   }, []);
 
+  // Layar lain yang menutupi tombol ini (Production Hub V4) bisa membuka chat lewat event.
+  useEffect(() => {
+    window.addEventListener("garage:open-team-chat", openChat);
+    return () => window.removeEventListener("garage:open-team-chat", openChat);
+  }, [openChat]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

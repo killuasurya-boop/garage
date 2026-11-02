@@ -220,3 +220,17 @@ describe("aturan tiket SELESAI", () => {
     expect(text.split("\n").every((line) => line.length <= 32)).toBe(true);
   });
 });
+
+describe("pengelompokan order", () => {
+  it("tiket Bar & Dapur satu order berdampingan, urutan order tetap", async () => {
+    const { groupSiblings } = await import("@/lib/production-hub-v4");
+    const list = [
+      { no: "a-bar", order: "A" },
+      { no: "b-bar", order: "B" },
+      { no: "a-dapur", order: "A" },
+      { no: "x", order: null },
+      { no: "b-dapur", order: "B" },
+    ];
+    expect(groupSiblings(list, (t) => t.order).map((t) => t.no)).toEqual(["a-bar", "a-dapur", "b-bar", "b-dapur", "x"]);
+  });
+});

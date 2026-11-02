@@ -16,6 +16,7 @@ import {
   LogOut,
   Maximize2,
   Minimize2,
+  MessageCircle,
   MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
@@ -69,6 +70,7 @@ import type { CompletionPrintView } from "@/lib/production-completion-print-rule
 import type { ProductionHistoryOrder } from "@/lib/production-hub-history";
 import {
   DENSITY_PRESETS,
+  groupSiblings,
   hubStatusOf,
   resolveGrid,
   slaLevelOf,
@@ -366,8 +368,11 @@ export function ProductionHubV4({
   }, [areaTickets, prefs.filter, q]);
 
   const sortedKeys = useMemo(
-    () => sortHubTickets(gridTickets, now, prefs.sort).map((t) => t.ticketNo),
-    [gridTickets, now, prefs.sort],
+    () => {
+      const sorted = sortHubTickets(gridTickets, now, prefs.sort);
+      return (area === "all" ? groupSiblings(sorted, (t) => t.orderId) : sorted).map((t) => t.ticketNo);
+    },
+    [gridTickets, now, prefs.sort, area],
   );
   const sortedSig = sortedKeys.join("|");
   const order = useMemo(
@@ -634,6 +639,9 @@ export function ProductionHubV4({
             <BarChart3 className="mr-2 size-4" /> Laporan produksi
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem onClick={() => window.dispatchEvent(new Event("garage:open-team-chat"))}>
+          <MessageCircle className="mr-2 size-4" /> Chat tim
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setAyaOn((v) => !v)}>
           <Sparkles className="mr-2 size-4" /> AYA {ayaOn ? "ON" : "OFF"}
         </DropdownMenuItem>
@@ -698,6 +706,7 @@ export function ProductionHubV4({
       onPrintNow={(job) => void printer.printNow(job)}
       onReprint={reprint}
       onChanged={() => void load(true)}
+      now={now}
     />
   );
   const toolsRow = (
@@ -971,6 +980,9 @@ export function ProductionHubV4({
                       </button>
                       <button type="button" onClick={() => setSheet("printer")} className={toolButton}>
                         <Printer className="size-4" /> Printer
+                      </button>
+                      <button type="button" onClick={() => window.dispatchEvent(new Event("garage:open-team-chat"))} className={toolButton}>
+                        <MessageCircle className="size-4" /> Chat tim
                       </button>
                       {canViewPerformance ? (
                         <button type="button" onClick={() => void openReport()} className={toolButton}>

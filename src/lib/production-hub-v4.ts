@@ -199,3 +199,29 @@ export function fitItems<T extends { note: string | null }>(items: T[], maxLines
   }
   return { visible, hidden: items.length - visible.length };
 }
+
+/**
+ * Area "Semua": tiket Bar & Dapur dari order yang sama ditaruh berdampingan
+ * (posisi mengikuti tiket order itu yang paling depan), supaya satu order
+ * terbaca sebagai satu kelompok tanpa menggabung aksi per station.
+ */
+export function groupSiblings<T>(list: T[], orderOf: (item: T) => string | null): T[] {
+  const byOrder = new Map<string, T[]>();
+  for (const item of list) {
+    const key = orderOf(item);
+    if (key) byOrder.set(key, [...(byOrder.get(key) ?? []), item]);
+  }
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of list) {
+    const key = orderOf(item);
+    if (!key) {
+      out.push(item);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(...(byOrder.get(key) ?? [item]));
+  }
+  return out;
+}

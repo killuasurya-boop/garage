@@ -6,8 +6,10 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, "$1")), "..");
+// fileURLToPath: path repo boleh mengandung spasi (mis. "G A R A G E" → %20 di URL).
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = path.join(root, ".e2e-data");
 const port = process.env.E2E_PORT ?? "3101";
 

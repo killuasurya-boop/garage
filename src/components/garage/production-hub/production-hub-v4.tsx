@@ -82,7 +82,7 @@ import {
 } from "@/lib/production-hub-v4";
 import { useProductionStream } from "@/lib/use-production-stream";
 
-import { BatchPanel } from "./batch-panel";
+import { BatchView, type BatchActions } from "./batch-view";
 import { HistoryPanel } from "./history-panel";
 import { HubSheet, Segmented, SelectBox, StationBadge } from "./hub-ui";
 import { OrderCard, tableText, type SiblingInfo } from "./order-card";
@@ -191,6 +191,8 @@ export function ProductionHubV4({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [sheet, setSheet] = useState<Sheet>(null);
+  // Desktop/tablet: tampilan utama Produksi (grid order) atau Batch Produksi (tabel batch).
+  const [view, setView] = useState<"produksi" | "batch">("produksi");
   const [mobileTab, setMobileTab] = useState<MobileTab>("produksi");
   const [readyPanel, setReadyPanel] = useState<boolean | null>(null);
   const [readyTab, setReadyTab] = useState<ReadyTab>("ready");
@@ -523,7 +525,7 @@ export function ProductionHubV4({
     "Tiket dikembalikan ke proses.");
   }
   function startBatch(s: ProductionBatchSuggestionView) {
-    void runAction(`batch:${s.key}`, () => garageApi.post("/api/production/batches", { ticketItemIds: s.items.map((i) => i.id) }), `Batch ${s.itemLabel} ×${s.totalQty} dimulai.`);
+    return runAction(`batch:${s.key}`, () => garageApi.post("/api/production/batches", { ticketItemIds: s.items.map((i) => i.id) }), `Batch ${s.itemLabel} ×${s.totalQty} dimulai.`);
   }
   function completeBatch(batch: ProductionBatchView, allocationIds: string[]) {
     return runAction(`complete:${batch.id}`, () =>
@@ -559,6 +561,7 @@ export function ProductionHubV4({
     if (next === "printer") return setSheet("printer");
     if (!isDesktop) return setMobileTab(next);
     if (next === "ready") return isLarge ? setReadyPanel(!showReadyPanel) : setSheet("ready");
+    if (next === "batch") return setView("batch");
     setSheet(next);
   }
 
@@ -592,7 +595,11 @@ export function ProductionHubV4({
         <button
           key={label}
           type="button"
-          onClick={() => (filter === "ready" ? openPanel("ready") : savePrefs({ filter }))}
+          onClick={() => {
+            if (filter === "ready") return openPanel("ready");
+            setView("produksi");
+            savePrefs({ filter });
+          }}
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 text-[11px] font-bold tracking-wide text-[var(--phv4-muted)] hover:text-white"
         >
           {label}
@@ -675,18 +682,50 @@ export function ProductionHubV4({
       onOpen={onOpen}
     />
   );
-  const batchPanel = (
-    <BatchPanel
-      suggestions={suggestions}
-      batches={batches}
+  const batchActions: BatchActions = {
+    startRow: async (row) => {
+      // Satu POST per sub-batch kompatibel (produk + varian + catatan sama) — aturan server.
+      let ok = true;
+      for (const s of row.suggestions) ok = (await startBatch(s)) && ok;
+      return ok;
+    },
+    completePartial: (batch, allocationIds) =>
+      runAction(`complete:${batch.id}`, () =>
+        garageApi.post(`/api/production/batches/${batch.id}`, { action: "complete_partial", allocationIds }),
+      `${allocationIds.length} porsi ${batch.itemLabel} selesai.`),
+    completeFull: (batch) => completeBatch(batch, batch.allocations.map((a) => a.id)),
+    cancel: cancelBatch,
+    recall: (ticketNo) =>
+      runAction(`call:${ticketNo}`, () =>
+        garageApi.post(`/api/production/tickets/${encodeURIComponent(ticketNo)}`, { action: "ready_call" }),
+      "Waiter dipanggil ulang."),
+  };
+  const avgMinutes = {
+    Bar: board?.load.find((l) => l.station === "Bar")?.avgProductionMinutes ?? null,
+    Food: board?.load.find((l) => l.station === "Food")?.avgProductionMinutes ?? null,
+  };
+  const batchView = (
+    <BatchView
       station={batchStation}
       onStation={setBatchStation}
+      batches={batches}
+      suggestions={suggestions}
+      tickets={tickets}
+      menuItems={menuItems}
+      lateTicketNos={lateIds}
+      avgMinutes={avgMinutes}
+      now={now}
+      layout={!isDesktop ? "mobile" : isLarge ? "desktop" : "tablet"}
       canOperate={canOperate}
       busyKey={busyKey}
-      now={now}
-      onStart={startBatch}
-      onComplete={completeBatch}
-      onCancel={cancelBatch}
+      actions={batchActions}
+      readyTickets={readyTickets}
+      autoPrint={printer.enabled}
+      onAutoPrint={printer.toggle}
+      onOpenTicket={(no) => {
+        setDetail(no);
+        setReopenReason("");
+      }}
     />
   );
   const historyPanel = (
@@ -778,7 +817,9 @@ export function ProductionHubV4({
             className="h-5 w-auto object-contain md:h-6"
           />
         </div>
-        <span className="hidden text-[12px] font-semibold text-[var(--phv4-muted)] lg:inline">Production Hub</span>
+        <span className="hidden text-[12px] font-semibold text-[var(--phv4-muted)] lg:inline">
+          {view === "batch" && isDesktop ? "Batch Produksi" : "Production Hub"}
+        </span>
         <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] px-2 text-[11px] font-bold">
           <span className={`size-2 rounded-full ${live ? "bg-[var(--phv4-success)] motion-safe:animate-pulse" : "bg-[var(--phv4-wait)]"}`} />
           {live ? "LIVE" : "POLL"}
@@ -789,7 +830,12 @@ export function ProductionHubV4({
             {areaSelect}
             <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">{countPills}</div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              <button type="button" onClick={() => setSheet("batch")} className={`${toolButton} border-[var(--phv4-red)]/60`}>
+              <button
+                type="button"
+                aria-pressed={view === "batch"}
+                onClick={() => setView((v) => (v === "batch" ? "produksi" : "batch"))}
+                className={`${toolButton} border-[var(--phv4-red)]/60 ${view === "batch" ? "bg-[var(--phv4-red)] text-white hover:bg-[var(--phv4-red-hover)]" : ""}`}
+              >
                 <Layers className="size-4 text-[var(--phv4-red)]" /> BATCH
                 {batchCount ? <span className="phv4-mono rounded bg-[var(--phv4-red)] px-1 text-[11px] text-white">{batchCount}</span> : null}
               </button>
@@ -824,7 +870,7 @@ export function ProductionHubV4({
       </header>
 
       {/* Toolbar ringkas */}
-      {isDesktop || mobileTab === "produksi" ? (
+      {(isDesktop && view === "produksi") || (!isDesktop && mobileTab === "produksi") ? (
         <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 md:px-3">
           {/* Kiri boleh digulir horizontal; pager di kanan selalu terlihat. */}
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
@@ -918,6 +964,9 @@ export function ProductionHubV4({
       ) : null}
 
       {/* Isi utama */}
+      {isDesktop && view === "batch" ? (
+        <div className="flex min-h-0 flex-1">{batchView}</div>
+      ) : (
       <div className="flex min-h-0 flex-1">
         <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-2 md:p-2">
           {/* Toast HP: strip di alur konten (mendorong daftar, tidak menutupi kartu). */}
@@ -957,11 +1006,11 @@ export function ProductionHubV4({
             </div>
           ) : mobileTab === "produksi" ? (
             <div className="garage-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pb-2">{visible.length ? cards : emptyGrid}</div>
+          ) : mobileTab === "batch" ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] border border-[var(--phv4-border)]">{batchView}</div>
           ) : (
             <div className="garage-scroll min-h-0 flex-1 overflow-y-auto">
-              {mobileTab === "batch" ? (
-                <div className="p-1">{batchPanel}</div>
-              ) : mobileTab === "ready" ? (
+              {mobileTab === "ready" ? (
                 readyQueue
               ) : mobileTab === "history" ? (
                 <div className="p-1">{historyPanel}</div>
@@ -1009,6 +1058,7 @@ export function ProductionHubV4({
           </aside>
         ) : null}
       </div>
+      )}
 
       {/* Status bar */}
       {isDesktop ? (
@@ -1086,9 +1136,6 @@ export function ProductionHubV4({
       ) : null}
 
       {/* Overlay */}
-      <HubSheet open={sheet === "batch"} onClose={() => setSheet(null)} title="Batch Produksi" icon={Layers}>
-        {batchPanel}
-      </HubSheet>
       <HubSheet open={sheet === "ready"} onClose={() => setSheet(null)} title="Siap Antar / Ambil" icon={Bike} width="md:w-[400px]">
         <div className="-m-3 h-[70svh] md:h-full">{readyQueue}</div>
       </HubSheet>

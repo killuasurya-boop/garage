@@ -53,6 +53,8 @@ function suggestionsFor(lines: Line[], windowSec = 600): ProductionBatchSuggesti
     key: s.key,
     station: s.station,
     itemLabel: s.itemLabel,
+    menuItemId: s.items[0]?.menuItemId ?? null,
+    variantId: s.items[0]?.variantId ?? null,
     note: s.note,
     totalQty: s.totalQty,
     oldestAt: s.oldestAt,

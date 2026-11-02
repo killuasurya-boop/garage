@@ -434,7 +434,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/print-jobs/{id}","methods":["PATCH"],"note":""},
   {"path":"/api/print-jobs","methods":["GET","POST"],"note":""},
   {"path":"/api/production/batches/{id}","methods":["POST"],"note":""},
-  {"path":"/api/production/batches","methods":["POST"],"note":""},
+  {"path":"/api/production/batches","methods":["GET","POST"],"note":""},
   {"path":"/api/production/completion-prints/{id}","methods":["POST"],"note":""},
   {"path":"/api/production/completion-prints","methods":["GET","POST"],"note":""},
   {"path":"/api/production/history","methods":["GET"],"note":""},

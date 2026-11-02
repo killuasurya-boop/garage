@@ -27,13 +27,21 @@ const STATUS_STYLE: Record<string, string> = {
   failed: "text-[#fca5a5]",
 };
 
-export function AutoPrintSwitch({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+export function AutoPrintSwitch({
+  on,
+  onChange,
+  label = "Auto print tiket selesai di perangkat ini",
+}: {
+  on: boolean;
+  onChange: (next: boolean) => void;
+  label?: string;
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
-      aria-label="Auto print tiket selesai di perangkat ini"
+      aria-label={label}
       onClick={() => onChange(!on)}
       className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
         on ? "border-[var(--phv4-success)] bg-[var(--phv4-success)]/80" : "border-[var(--phv4-border)] bg-[var(--phv4-bg)]"

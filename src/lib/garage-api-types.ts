@@ -190,6 +190,9 @@ export type ProductionBatchView = {
   batchNo: string;
   station: "Bar" | "Food";
   itemLabel: string;
+  // V4 Batch Produksi: foto menu & pengelompokan per menu + varian.
+  menuItemId: string | null;
+  variantId: string | null;
   note: string | null;
   totalQty: number;
   status: string;
@@ -202,6 +205,8 @@ export type ProductionBatchSuggestionView = {
   key: string;
   station: "Bar" | "Food";
   itemLabel: string;
+  menuItemId: string | null;
+  variantId: string | null;
   note: string | null;
   totalQty: number;
   oldestAt: string;

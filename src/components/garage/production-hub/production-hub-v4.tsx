@@ -85,8 +85,9 @@ import { useProductionStream } from "@/lib/use-production-stream";
 
 import { BatchView, type BatchActions } from "./batch-view";
 import { HistoryPanel } from "./history-panel";
-import { HubSheet, Segmented, SelectBox, StationBadge } from "./hub-ui";
-import { customerOf, OrderCard, tableText, type SiblingInfo } from "./order-card";
+import { HubSheet, Segmented, SelectBox } from "./hub-ui";
+import { OrderDetail } from "./order-detail";
+import { OrderCard, tableText, type SiblingInfo } from "./order-card";
 import { AutoPrintSwitch, PrinterPanel } from "./printer-panel";
 import { ReadyQueue, type ReadyTab } from "./ready-queue";
 import { useCompletionPrintWorker } from "./use-completion-print";
@@ -200,7 +201,6 @@ export function ProductionHubV4({
   const [detail, setDetail] = useState<string | null>(null);
   const [waiterFor, setWaiterFor] = useState<string | null>(null);
   const [batchStation, setBatchStation] = useState<"Bar" | "Food">(stationOfDevice === "Food" ? "Food" : "Bar");
-  const [reopenReason, setReopenReason] = useState("");
   const [locked, setLocked] = useState<Set<string>>(new Set());
   // Kartu yang baru ditekan tetap di tempat 5 detik (layar sentuh tidak punya hover).
   const [recent, setRecent] = useState<string[]>([]);
@@ -517,7 +517,7 @@ export function ProductionHubV4({
   );
   const onOpen = useCallback((ticket: ProductionTicketView) => {
     setDetail(ticket.ticketNo);
-    setReopenReason("");
+    
   }, []);
 
   function pickup(ticket: ProductionTicketView, waiterId: string) {
@@ -746,7 +746,7 @@ export function ProductionHubV4({
       onAutoPrint={printer.toggle}
       onOpenTicket={(no) => {
         setDetail(no);
-        setReopenReason("");
+        
       }}
     />
   );
@@ -1215,20 +1215,17 @@ export function ProductionHubV4({
         onClose={() => setDetail(null)}
         title={detailTicket ? `#${detailTicket.orderNo ?? detailTicket.ticketNo} · ${tableText(detailTicket.table)}` : "Detail"}
         icon={LayoutGrid}
-        width="md:w-[460px]"
+        variant="modal"
+        width="md:w-[min(760px,94vw)]"
       >
         {detailTicket ? (
-          <TicketDetail
+          <OrderDetail
             ticket={detailTicket}
-            sibling={siblingOf(detailTicket)}
-            job={jobs.find((j) => j.orderId && j.orderId === detailTicket.orderId && !j.reprint) ?? null}
-            canOperate={canOperate[detailTicket.station]}
-            reason={reopenReason}
-            onReason={setReopenReason}
-            busy={busyKey === `reopen:${detailTicket.ticketNo}`}
-            onReopen={async () => {
-              if (await reopen(detailTicket.ticketNo, reopenReason.trim())) setDetail(null);
-            }}
+            siblings={detailTicket.orderId ? siblings.get(detailTicket.orderId) ?? [detailTicket] : [detailTicket]}
+            jobs={jobs.filter((j) => j.orderId && j.orderId === detailTicket.orderId)}
+            canOperate={canOperate}
+            reopenBusy={Boolean(busyKey?.startsWith("reopen:"))}
+            onReopen={reopen}
           />
         ) : null}
       </HubSheet>
@@ -1299,91 +1296,3 @@ export function ProductionHubV4({
   );
 }
 
-function TicketDetail({
-  ticket,
-  sibling,
-  job,
-  canOperate,
-  reason,
-  onReason,
-  busy,
-  onReopen,
-}: {
-  ticket: ProductionTicketView;
-  sibling: SiblingInfo;
-  job: CompletionPrintView | null;
-  canOperate: boolean;
-  reason: string;
-  onReason: (value: string) => void;
-  busy: boolean;
-  onReopen: () => void;
-}) {
-  const hhmm = (iso: string | null) =>
-    iso ? new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(iso)) : "—";
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-        <StationBadge station={ticket.station} />
-        <span className="text-[15px] font-bold">{customerOf(ticket).customer ?? customerOf(ticket).fallback}</span>
-        {customerOf(ticket).waiter ? <span className="text-[var(--phv4-muted)]">waiter {customerOf(ticket).waiter}</span> : null}
-        <span className="text-[var(--phv4-muted)]">{ticket.channel}</span>
-        {ticket.queueNo ? <span className="phv4-mono text-[var(--phv4-muted)]">Antrian {ticket.queueNo}</span> : null}
-      </div>
-      <ul className="space-y-1">
-        {ticket.items.map((item) => (
-          <li key={item.id} className="rounded-[6px] border border-[var(--phv4-border)] bg-[var(--phv4-card)] px-2.5 py-1.5">
-            <p className="text-[15px] font-semibold">
-              <span className="phv4-mono font-bold text-[var(--phv4-wait)]">{item.qty}×</span> {item.label}
-              {item.batchNo ? <span className="phv4-mono ml-1 text-[11px] text-[var(--phv4-muted)]">{item.batchNo}</span> : null}
-            </p>
-            {item.note ? <p className="text-[13px] font-semibold text-[#fde68a]">• {item.note}</p> : null}
-          </li>
-        ))}
-      </ul>
-      {ticket.issueReason ? <p className="text-[12px] font-semibold text-[#fca5a5]">{ticket.issueReason}</p> : null}
-      <dl className="grid grid-cols-4 gap-1 text-[11px]">
-        {(
-          [
-            ["Masuk", ticket.createdAt],
-            ["Mulai", ticket.acceptedAt],
-            ["Siap", ticket.readyAt],
-            ["Dipanggil", ticket.handoverAt],
-          ] as const
-        ).map(([label, at]) => (
-          <div key={label} className="rounded-[5px] border border-[var(--phv4-border)] px-1.5 py-1">
-            <dt className="text-[var(--phv4-muted)]">{label}</dt>
-            <dd className="phv4-mono font-bold">{hhmm(at)}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="text-[12px] text-[var(--phv4-muted)]">
-        {sibling
-          ? `Station lain (${sibling.station === "Bar" ? "Bar" : "Dapur"}): ${sibling.status === "ready" || sibling.status === "delivered" ? "selesai" : "masih diproses"}.`
-          : "Order ini hanya untuk satu station."}{" "}
-        Tiket SELESAI: {job ? `${job.status === "printed" ? "tercetak" : job.status === "failed" ? "gagal cetak" : "antre cetak"}` : "belum (menunggu semua station)"}.
-      </p>
-      {ticket.status === "ready" && canOperate && !ticket.claimedByName ? (
-        <div className="space-y-1.5 border-t border-[var(--phv4-border)] pt-2">
-          <p className="text-[12px] font-semibold">Koreksi: kembalikan ke proses (produk salah/rusak)</p>
-          <div className="flex gap-1.5">
-            <input
-              value={reason}
-              onChange={(event) => onReason(event.target.value)}
-              placeholder="Alasan (wajib, diaudit)"
-              aria-label="Alasan kembalikan"
-              className="h-9 min-w-0 flex-1 rounded-[6px] border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 text-[13px] outline-none focus:border-[var(--phv4-red)]"
-            />
-            <button
-              type="button"
-              disabled={reason.trim().length < 3 || busy}
-              onClick={onReopen}
-              className="h-9 shrink-0 rounded-[6px] bg-[var(--phv4-red)] px-3 text-[12px] font-bold text-white disabled:opacity-50"
-            >
-              Kembalikan
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}

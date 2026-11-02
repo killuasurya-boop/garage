@@ -5,10 +5,10 @@
 // alasan, dicek izin station di server).
 // =============================================================================
 
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { kitchenTickets, orders, productionTicketItems } from "@/db/schema";
+import { kitchenTickets, orders, productionTicketItems, user } from "@/db/schema";
 import { normalizeProductionStation, productionItemLabel } from "@/lib/garage-production-rules";
 import { completionPrintsForOrders } from "@/lib/production-completion-print";
 import type { CompletionPrintView } from "@/lib/production-completion-print-rules";
@@ -44,6 +44,11 @@ export type ProductionHistoryOrder = {
   channel: string;
   customerName: string | null;
   createdAt: string;
+  /** Kasir yang menerima order (orders.accepted_by). */
+  cashierName: string | null;
+  customerNote: string | null;
+  orderSource: string | null;
+  acceptedAt: string | null;
   tickets: ProductionHistoryTicket[];
   prints: CompletionPrintView[];
 };
@@ -72,10 +77,18 @@ const STATUS_SETS: Record<HistoryStatusFilter, string[] | null> = {
 
 export async function getProductionHistory(
   garage: GarageSession,
-  params: { q?: string | null; date?: string | null; status?: HistoryStatusFilter | null; limit?: number },
+  params: {
+    q?: string | null;
+    date?: string | null;
+    status?: HistoryStatusFilter | null;
+    limit?: number;
+    /** Popup detail: satu order persis (tanpa batas tanggal, tetap dibatasi outlet). */
+    orderId?: string | null;
+  },
 ) {
   const db = getDb();
   const { key, start, end } = jakartaRange(params.date);
+  const byOrder = params.orderId ?? null;
   const statuses = STATUS_SETS[params.status ?? "all"] ?? null;
   const q = params.q?.trim().slice(0, 40) ?? "";
   const like = q ? `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%` : null;
@@ -86,8 +99,8 @@ export async function getProductionHistory(
     .from(kitchenTickets)
     .where(
       and(
-        gte(kitchenTickets.createdAt, start),
-        lt(kitchenTickets.createdAt, end),
+        byOrder ? eq(kitchenTickets.orderId, byOrder) : gte(kitchenTickets.createdAt, start),
+        byOrder ? undefined : lt(kitchenTickets.createdAt, end),
         or(
           isNull(kitchenTickets.orderId),
           inArray(
@@ -119,6 +132,22 @@ export async function getProductionHistory(
     : [];
   const orderIds = [...new Set(ticketRows.map((row) => row.orderId).filter((id): id is string => Boolean(id)))];
   const prints = await completionPrintsForOrders(orderIds);
+  // Info order untuk popup detail: kasir penerima, catatan pelanggan, sumber order.
+  const orderMeta = orderIds.length
+    ? await db
+        .select({
+          id: orders.id,
+          // Kasir = yang menerima order (QR/waiter); order POS langsung = pembuatnya.
+          cashierName: user.name,
+          customerNote: orders.customerNote,
+          orderSource: orders.orderSource,
+          acceptedAt: orders.acceptedAt,
+        })
+        .from(orders)
+        .leftJoin(user, eq(user.id, sql`coalesce(${orders.acceptedBy}, ${orders.createdBy})`))
+        .where(inArray(orders.id, orderIds))
+    : [];
+  const metaById = new Map(orderMeta.map((m) => [m.id, m]));
 
   const byKey = new Map<string, ProductionHistoryOrder>();
   for (const row of ticketRows) {
@@ -133,6 +162,10 @@ export async function getProductionHistory(
         channel: row.channel,
         customerName: row.customerName,
         createdAt: row.createdAt.toISOString(),
+        cashierName: (row.orderId && metaById.get(row.orderId)?.cashierName) || null,
+        customerNote: (row.orderId && metaById.get(row.orderId)?.customerNote) || null,
+        orderSource: (row.orderId && metaById.get(row.orderId)?.orderSource) || null,
+        acceptedAt: (row.orderId && metaById.get(row.orderId)?.acceptedAt?.toISOString()) || null,
         tickets: [],
         prints: prints.filter((p) => row.orderId && p.orderId === row.orderId),
       } satisfies ProductionHistoryOrder);

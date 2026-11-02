@@ -16,6 +16,7 @@ export function HubSheet({
   children,
   width = "md:w-[min(560px,100vw)]",
   footer,
+  variant = "drawer",
 }: {
   open: boolean;
   onClose: () => void;
@@ -24,6 +25,8 @@ export function HubSheet({
   children: ReactNode;
   width?: string;
   footer?: ReactNode;
+  /** "modal" = di tengah layar pada tablet/desktop (popup detail); HP tetap lembar bawah. */
+  variant?: "drawer" | "modal";
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -47,7 +50,10 @@ export function HubSheet({
   }, [open]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[48] flex items-end justify-end md:items-stretch" role="presentation">
+    <div
+      className={`fixed inset-0 z-[48] flex items-end ${variant === "modal" ? "justify-center md:items-center md:p-6" : "justify-end md:items-stretch"}`}
+      role="presentation"
+    >
       <button
         type="button"
         aria-label="Tutup"
@@ -61,7 +67,9 @@ export function HubSheet({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`phv4-sheet-in relative flex max-h-[88svh] w-full flex-col rounded-t-[10px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] shadow-2xl outline-none md:max-h-none md:rounded-none md:border-y-0 md:border-r-0 ${width}`}
+        className={`phv4-sheet-in relative flex max-h-[88svh] w-full flex-col rounded-t-[10px] border border-[var(--phv4-border)] bg-[var(--phv4-bg2)] shadow-2xl outline-none ${
+          variant === "modal" ? "md:max-h-[86svh] md:rounded-[10px]" : "md:max-h-none md:rounded-none md:border-y-0 md:border-r-0"
+        } ${width}`}
       >
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--phv4-border)] px-3">
           {Icon ? <Icon className="size-4 text-[var(--phv4-red)]" aria-hidden /> : null}

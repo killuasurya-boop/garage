@@ -80,6 +80,7 @@ import {
   type HubAction,
   type HubSortMode,
 } from "@/lib/production-hub-v4";
+import { busyExtraByStation, DEFAULT_SLA_CONFIG } from "@/lib/production-sla";
 import { useProductionStream } from "@/lib/use-production-stream";
 
 import { BatchView, type BatchActions } from "./batch-view";
@@ -314,9 +315,15 @@ export function ProductionHubV4({
   const tickets = useMemo(() => board?.tickets ?? [], [board]);
   const inArea = useCallback((station: "Bar" | "Food") => area === "all" || area === station, [area]);
   const areaTickets = useMemo(() => tickets.filter((t) => inArea(t.station)), [tickets, inArea]);
+  // SLA v2: konfigurasi outlet + mode ramai per station (target tampilan +X menit).
+  const slaCfg = board?.sla ?? DEFAULT_SLA_CONFIG;
+  const busyExtra = useMemo(() => busyExtraByStation(tickets, slaCfg), [tickets, slaCfg]);
   const lateIds = useMemo(
-    () => new Set(tickets.filter((t) => slaLevelOf(t, now) === "critical").map((t) => t.ticketNo)),
-    [tickets, now],
+    () =>
+      new Set(
+        tickets.filter((t) => slaLevelOf(t, now, slaCfg, busyExtra[t.station]) === "critical").map((t) => t.ticketNo),
+      ),
+    [tickets, now, slaCfg, busyExtra],
   );
   const { soundEnabled, toggleSound } = useHubSound(board, area, lateIds, now);
 
@@ -371,10 +378,13 @@ export function ProductionHubV4({
 
   const sortedKeys = useMemo(
     () => {
-      const sorted = sortHubTickets(gridTickets, now, prefs.sort);
+      const sorted = sortHubTickets(gridTickets, now, prefs.sort, {
+        cfg: slaCfg,
+        busyExtra: (t) => busyExtra[t.station],
+      });
       return (area === "all" ? groupSiblings(sorted, (t) => t.orderId) : sorted).map((t) => t.ticketNo);
     },
-    [gridTickets, now, prefs.sort, area],
+    [gridTickets, now, prefs.sort, area, slaCfg, busyExtra],
   );
   const sortedSig = sortedKeys.join("|");
   const order = useMemo(
@@ -611,6 +621,17 @@ export function ProductionHubV4({
           <AlertTriangle className="size-3.5" /> SLA <span className="phv4-mono text-[14px]">{counts.critical}</span>
         </span>
       ) : null}
+      {(["Bar", "Food"] as const)
+        .filter((st) => inArea(st) && busyExtra[st] > 0)
+        .map((st) => (
+          <span
+            key={st}
+            title={`Antrean ${st === "Bar" ? "Bar" : "Dapur"} ≥ ${slaCfg.busyThreshold} tiket: target tampilan +${busyExtra[st]} menit`}
+            className="flex h-8 shrink-0 items-center gap-1 rounded-md border border-[var(--phv4-wait)]/60 bg-[var(--phv4-wait)]/12 px-2 text-[12px] font-bold text-[var(--phv4-wait)]"
+          >
+            RAMAI {st === "Bar" ? "BAR" : "DAPUR"} +{busyExtra[st]} mnt
+          </span>
+        ))}
     </>
   );
   const toolButton =
@@ -671,6 +692,7 @@ export function ProductionHubV4({
       done={done}
       doneLoading={doneLoading}
       now={now}
+      slaCfg={slaCfg}
       canHandover={canHandover}
       waiters={board?.waiters ?? []}
       busyKey={busyKey}
@@ -791,6 +813,8 @@ export function ProductionHubV4({
       canOperate={canOperate[ticket.station]}
       canHandover={canHandover[ticket.station]}
       sibling={siblingOf(ticket)}
+      slaCfg={slaCfg}
+      busyExtraMinutes={busyExtra[ticket.station]}
       fixedHeight={isDesktop}
       onAction={onAction}
       onOpen={onOpen}
@@ -1077,7 +1101,7 @@ export function ProductionHubV4({
           <span className="ml-auto flex shrink-0 items-center gap-2 text-[var(--phv4-muted)]">
             SLA:
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-success)]" />aman</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-wait)]" />≥60% target</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-wait)]" />mendekati target / belum dimulai</span>
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-critical)]" />lewat (prioritas)</span>
           </span>
           <span className="flex shrink-0 items-center gap-1.5 text-[var(--phv4-muted)]">

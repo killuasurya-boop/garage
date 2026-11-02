@@ -13,6 +13,8 @@ import {
 } from "@/lib/production-hub-v4";
 import type { ProductionHistoryOrder } from "@/lib/production-hub-history";
 
+import { DEFAULT_SLA_CONFIG, slaStateOf, type SlaConfig } from "@/lib/production-sla";
+
 import { StationBadge } from "./hub-ui";
 import { customerOf, tableText } from "./order-card";
 
@@ -27,6 +29,7 @@ export function ReadyQueue({
   done,
   doneLoading,
   now,
+  slaCfg,
   canHandover,
   waiters,
   busyKey,
@@ -41,6 +44,7 @@ export function ReadyQueue({
   done: ProductionHistoryOrder[];
   doneLoading: boolean;
   now: number;
+  slaCfg?: SlaConfig;
   canHandover: { Bar: boolean; Food: boolean };
   waiters: Array<{ id: string; name: string; activeDeliveries: number }>;
   busyKey: string | null;
@@ -122,7 +126,9 @@ export function ReadyQueue({
             const pickup = isPickupTicket(ticket);
             const allowed = canHandover[ticket.station];
             const since = elapsedSeconds(ticket.handoverAt ?? ticket.readyAt ?? ticket.createdAt, now);
-            const overdue = tab === "delivering" && since >= 180;
+            // SLA v2 tahap ANTAR: sejak SIAP, batas dari Pengaturan (bukan angka tetap).
+            const slaState = slaStateOf(ticket, now, slaCfg ?? DEFAULT_SLA_CONFIG, { pickup });
+            const overdue = slaState.level === "critical";
             const busy = busyKey?.endsWith(`:${ticket.ticketNo}`) ?? false;
             const items = ticket.items.reduce((sum, item) => sum + item.qty, 0);
             return (
@@ -135,16 +141,22 @@ export function ReadyQueue({
                 <button type="button" onClick={() => onOpen(ticket)} className="block w-full text-left">
                   <div className="flex min-w-0 items-center gap-1.5">
                     {pickup ? <ShoppingBag className="size-3.5 shrink-0" aria-hidden /> : <Utensils className="size-3.5 shrink-0" aria-hidden />}
-                    <span className="phv4-mono text-[13px] font-bold">#{ticket.orderNo ?? ticket.ticketNo}</span>
+                    <span className="phv4-mono min-w-0 truncate text-[13px] font-bold">#{ticket.orderNo ?? ticket.ticketNo}</span>
                     <span className="shrink-0 text-[12px] text-[#e5e7eb]">{tableText(ticket.table)}</span>
-                    <span className="min-w-0 truncate text-[13px] font-bold text-white">{customerOf(ticket).customer ?? ""}</span>
                     <span className={`phv4-mono ml-auto shrink-0 text-[12px] font-bold ${overdue ? "text-[var(--phv4-critical)]" : "text-[#86efac]"}`}>
                       {formatElapsed(since)}
                     </span>
                   </div>
+                  {/* Nama tamu baris sendiri supaya nomor order & meja tidak terdesak. */}
+                  <p className="mt-0.5 truncate text-[14px] font-bold text-white">
+                    {customerOf(ticket).customer ?? <span className="font-semibold text-[var(--phv4-muted)]">{customerOf(ticket).fallback}</span>}
+                  </p>
                   <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--phv4-muted)]">
                     <StationBadge station={ticket.station} compact />
                     <span className="truncate">
+                      {slaState.message ? (
+                        <b className={overdue ? "text-[#fca5a5]" : "text-[var(--phv4-wait)]"}>{slaState.message} · </b>
+                      ) : null}
                       {items} item · {readyLabel(ticket)}
                       {ticket.claimedByName ? ` · ${ticket.claimedByName}` : ""}
                     </span>

@@ -8,6 +8,7 @@
 
 import type { ProductionTicketView } from "@/lib/garage-api-types";
 import { parseTableNumber, tableNumberFromLabel } from "@/lib/garage-tables";
+import { DEFAULT_SLA_CONFIG, slaStateOf, type SlaConfig } from "@/lib/production-sla";
 
 export type HubStatus = "waiting" | "processing" | "ready" | "delivering" | "done";
 export type HubAction = "start" | "finish" | "call" | "serve" | "deliver_done";
@@ -94,26 +95,35 @@ export function formatElapsed(seconds: number) {
  * SLA sejak pesanan masuk station (sama dengan server: lewat targetMinutes = telat).
  * Hanya tiket yang masih diproduksi yang bisa kritis.
  */
-export function slaLevelOf(ticket: Pick<TicketLike, "status" | "createdAt" | "targetMinutes">, now: number): SlaLevel {
+export function slaLevelOf(
+  ticket: Pick<TicketLike, "status" | "createdAt" | "targetMinutes">,
+  now: number,
+  cfg: SlaConfig = DEFAULT_SLA_CONFIG,
+  busyExtraMinutes = 0,
+): SlaLevel {
+  // Hanya tahap produksi (menunggu/proses) yang menentukan prioritas & bunyi "telat";
+  // tahap antar punya penanda sendiri di antrean Siap.
   if (ticket.status !== "queue" && ticket.status !== "cooking") return "ok";
-  const minutes = elapsedSeconds(ticket.createdAt, now) / 60;
-  const target = Math.max(1, ticket.targetMinutes || 15);
-  if (minutes > target) return "critical";
-  if (minutes >= target * 0.6) return "warn";
-  return "ok";
+  return slaStateOf(ticket, now, cfg, { busyExtraMinutes }).level;
 }
 
 const STATUS_RANK: Record<HubStatus, number> = { waiting: 1, processing: 2, ready: 3, delivering: 4, done: 5 };
 
 /** Urutan: SLA kritis → menunggu terlama → sedang diproduksi → siap. */
-export function sortHubTickets<T extends TicketLike>(tickets: T[], now: number, mode: HubSortMode = "priority"): T[] {
+export function sortHubTickets<T extends TicketLike>(
+  tickets: T[],
+  now: number,
+  mode: HubSortMode = "priority",
+  sla: { cfg?: SlaConfig; busyExtra?: (ticket: T) => number } = {},
+): T[] {
   const time = (t: T) => new Date(t.createdAt).getTime();
   const tie = (a: T, b: T) => time(a) - time(b) || a.ticketNo.localeCompare(b.ticketNo);
   if (mode === "oldest") return [...tickets].sort(tie);
   if (mode === "newest") return [...tickets].sort((a, b) => -tie(a, b));
+  const critical = (t: T) => (slaLevelOf(t, now, sla.cfg, sla.busyExtra?.(t) ?? 0) === "critical" ? 0 : 1);
   return [...tickets].sort((a, b) => {
-    const ca = slaLevelOf(a, now) === "critical" ? 0 : 1;
-    const cb = slaLevelOf(b, now) === "critical" ? 0 : 1;
+    const ca = critical(a);
+    const cb = critical(b);
     if (ca !== cb) return ca - cb;
     const ra = STATUS_RANK[hubStatusOf(a)];
     const rb = STATUS_RANK[hubStatusOf(b)];

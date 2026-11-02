@@ -48,6 +48,7 @@ import {
   updateKitchenStatus,
 } from "@/lib/garage-service";
 import { listCompletionPrints } from "@/lib/production-completion-print";
+import { normalizeSlaConfig } from "@/lib/production-sla";
 import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
 import type { GarageSession } from "@/lib/server-auth";
 
@@ -414,6 +415,13 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       items: ticket.items,
     })),
     completionPrints: await listCompletionPrints(garage, now),
+    sla: normalizeSlaConfig({
+      startTargetMinutes: settings.productionStartTargetMinutes,
+      deliverTargetMinutes: settings.productionDeliverTargetMinutes,
+      warnBeforeMinutes: settings.productionWarnBeforeMinutes,
+      busyThreshold: settings.productionBusyThreshold,
+      busyExtraMinutes: settings.productionBusyExtraMinutes,
+    }),
   };
 }
 

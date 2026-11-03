@@ -168,6 +168,8 @@ export type ProductionTicketView = {
   addonSequence: number;
   // Waktu chit tercetak di printer stasiun (null = belum dicetak).
   chitPrintedAt: string | null;
+  // V4: pengajuan batal (order/item) yang menunggu persetujuan Owner/Manajer.
+  pendingCancel?: { approvalId: string; kind: "order" | "items"; summary: string } | null;
   items: ProductionItemView[];
   // Tiket lama tanpa porsi terstruktur (dibuat sebelum Production Hub).
   legacy: boolean;

@@ -14963,13 +14963,13 @@ export async function requestOrderVoidApproval(
     .where(
       and(
         eq(approvals.status, "pending"),
-        ilike(approvals.id, "APP-RFD-%"),
+        or(ilike(approvals.id, "APP-RFD-%"), ilike(approvals.id, "APP-PCX-%")),
         sql`${approvals.payload}->>'orderId' = ${order.id}`,
       ),
     )
     .limit(1);
   if (pendingRefund) {
-    throw new Error("Order ini masih punya pengajuan refund yang menunggu persetujuan.");
+    throw new Error("Order ini masih punya pengajuan refund yang menunggu persetujuan (termasuk batal item).");
   }
 
   const payload: ApprovalPayload = {
@@ -15036,7 +15036,10 @@ export async function getRefundableOrder(idOrOrderNo: string, garage: GarageSess
         eq(approvals.status, "pending"),
         or(
           ilike(approvals.id, `APP-VOID-${order.id}%`),
-          and(ilike(approvals.id, "APP-RFD-%"), sql`${approvals.payload}->>'orderId' = ${order.id}`),
+          and(
+            or(ilike(approvals.id, "APP-RFD-%"), ilike(approvals.id, "APP-PCX-%")),
+            sql`${approvals.payload}->>'orderId' = ${order.id}`,
+          ),
         ),
       ),
     )
@@ -15134,6 +15137,105 @@ export async function requestOrderRefundApproval(
   }
 
   return { approvalId, status: "pending" as const, refundAmount, orderNo: refundable.orderNo };
+}
+
+/**
+ * Production Hub V4 (owner Nov 2026, "wajib setuju Manajer"): ajukan BATAL SEBAGIAN ITEM
+ * pada bill yang BELUM lunas (mis. salah input kasir), dari layar Bar/Dapur atau kasir.
+ * Tidak ada yang berubah sebelum disetujui. Saat disetujui (applyApprovalDecision):
+ * item dipisah ke bill baru lewat splitCustomerOrder lalu bill pisahan di-void (voidOrder)
+ * — dua jalur resmi yang sudah ada (stok kembali, porsi produksi batal, audit).
+ * Bill lunas → requestOrderRefundApproval; seluruh order → requestOrderVoidApproval.
+ */
+export async function requestUnpaidItemCancelApproval(
+  idOrOrderNo: string,
+  input: OrderCancelRequestInput & { items: Array<{ orderItemId: string; qty: number }> },
+  garage: GarageSession,
+) {
+  const reasonError = validateCancelReason(input.reasonCode, input.note);
+  if (reasonError) throw new Error(reasonError);
+  const reason = composeCancelReason(input.reasonCode, input.note);
+  const db = getDb();
+  const actor = `${garage.user.name} / ${roleDisplayName[garage.profile.role]}`;
+  const order = await findOutletOrder(db, idOrOrderNo, garage);
+  if (!order) throw new Error("Order tidak ditemukan.");
+  if (order.status === "voided") throw new Error("Order ini sudah dibatalkan.");
+  if (order.status === "paid") throw new Error("Order sudah lunas — batal item lewat pengajuan refund.");
+  if (!customerOrderSources.includes(order.orderSource) || !SPLITTABLE_BILL_STATUSES.includes(order.status)) {
+    throw new Error("Bill ini tidak bisa dibatalkan per item — ajukan batal seluruh order.");
+  }
+  await assertFinanceDayOpen(order.createdAt);
+  const paymentRows = await db.select({ status: payments.status }).from(payments).where(eq(payments.orderId, order.id));
+  if (paymentRows.some((p) => p.status === "captured")) {
+    throw new Error("Bill ini sudah punya pembayaran — batal item lewat pengajuan refund.");
+  }
+  const refundable = await getRefundableOrder(order.id, garage);
+  if (refundable?.pendingApprovalId) {
+    throw new Error("Order ini masih punya pengajuan batal/refund yang menunggu persetujuan.");
+  }
+
+  const available = refundable?.items ?? [];
+  const wanted = new Map<string, number>();
+  for (const line of input.items) wanted.set(line.orderItemId, (wanted.get(line.orderItemId) ?? 0) + line.qty);
+  const payloadItems: RefundPayloadItem[] = [];
+  for (const [orderItemId, qty] of wanted) {
+    const item = available.find((row) => row.id === orderItemId);
+    if (!item) throw new Error("Item tidak ditemukan di order ini.");
+    if (qty < 1 || qty > item.qty) throw new Error(`Jumlah batal ${item.itemName} melebihi pesanan (${item.qty}).`);
+    payloadItems.push({ orderItemId, itemName: item.itemName, variantLabel: item.variantLabel, qty, unitPrice: item.unitPrice });
+  }
+  if (!payloadItems.length) throw new Error("Pilih minimal satu item.");
+  const allItems =
+    available.length > 0 &&
+    available.every((row) => (wanted.get(row.id) ?? 0) >= row.qty);
+  if (allItems) throw new Error("Semua item dipilih — ajukan batal seluruh order.");
+
+  const previous = await db
+    .select({ id: approvals.id })
+    .from(approvals)
+    .where(ilike(approvals.id, `APP-PCX-${order.id}%`));
+  const approvalId = `APP-PCX-${order.id}-${previous.length + 1}`;
+  const amount = payloadItems.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const itemSummary = payloadItems
+    .map((item) => `${item.qty}x ${item.itemName}${item.variantLabel ? ` ${item.variantLabel}` : ""}`)
+    .join(", ");
+  const payload: ApprovalPayload = {
+    orderId: order.id,
+    orderNo: order.orderNo,
+    reasonCode: input.reasonCode,
+    note: input.note?.trim() || null,
+    items: payloadItems,
+    requestedBy: actor,
+  };
+  await db.insert(approvals).values({
+    id: approvalId,
+    type: "Batal item (belum bayar)",
+    requester: actor,
+    requesterPhone: null,
+    amount: idrFormatter.format(amount),
+    reason: `Batal item ${order.orderNo}: ${itemSummary} — ${reason}`,
+    risk: orderRiskFor(amount),
+    age: "baru saja",
+    status: "pending",
+    payload,
+  });
+  await createAuditLog({
+    actor,
+    action: "Pengajuan batal item (belum bayar)",
+    object: order.orderNo,
+    device: garage.profile.deviceLabel,
+    status: "approval_required",
+    metadata: { approvalId, orderId: order.id, items: payloadItems, reason, workstation: garage.profile.workstation ?? null },
+  });
+  publishProductionChange();
+
+  if (canSelfApprove(garage)) {
+    await decideApproval(approvalId, { status: "approved", reasonDecided: "Diputus langsung oleh pengaju" }, garage, {
+      via: "langsung",
+    });
+    return { approvalId, status: "approved" as const, orderNo: order.orderNo };
+  }
+  return { approvalId, status: "pending" as const, orderNo: order.orderNo };
 }
 
 function resolveRefundItems(
@@ -20294,6 +20396,24 @@ async function applyApprovalDecision(
 
   if (id.startsWith("APP-RFD-") && status === "approved") {
     await executeOrderRefund(payload, requestReason, garage);
+  }
+
+  // Production Hub V4: batal item bill belum lunas = pisah bill + void bill pisahan (jalur resmi).
+  if (id.startsWith("APP-PCX-") && status === "approved" && payload.orderId) {
+    const items = (payload.items ?? []).map((item) => ({ orderItemId: item.orderItemId, qty: item.qty }));
+    const split = await splitCustomerOrder(payload.orderId, { items, guestName: `Batal item ${payload.orderNo ?? ""}`.trim() }, garage);
+    await voidOrder(split.child.id, requestReason, garage);
+  }
+
+  // Item yang batal bisa membuat sisa order langsung "selesai" tanpa transisi READY baru →
+  // cek ulang antrean tiket SELESAI (idempoten; order tanpa tiket hidup tidak dicetak).
+  if ((id.startsWith("APP-RFD-") || id.startsWith("APP-PCX-")) && status === "approved" && payload.orderId) {
+    try {
+      const { enqueueOrderCompletionPrint } = await import("@/lib/production-completion-print");
+      await enqueueOrderCompletionPrint(payload.orderId, garage);
+    } catch (error) {
+      console.error("[completion-print] enqueue setelah batal item gagal", error);
+    }
   }
 
   if (id.startsWith("APP-CASH-") && status === "approved" && payload.cashSessionId) {

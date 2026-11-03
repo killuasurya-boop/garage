@@ -13,6 +13,7 @@ const querySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   status: z.enum(["all", "active", "ready", "delivered", "cancelled"]).optional(),
+  orderId: z.string().uuid().optional(),
 });
 
 // Riwayat produksi per order (Production Hub V4, drawer Riwayat): cari no. order
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
     q: url.searchParams.get("q") || undefined,
     date: url.searchParams.get("date") || undefined,
     status: url.searchParams.get("status") || undefined,
+    orderId: url.searchParams.get("orderId") || undefined,
   });
   if (!parsed.success) {
     return fail(400, "INVALID_QUERY", "Filter riwayat tidak valid.");

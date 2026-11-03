@@ -6,10 +6,11 @@
 // Setiap porsi tetap membawa Nama + Meja + Order ID sampai diantar.
 // =============================================================================
 
-import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  approvals,
   kitchenTickets,
   orders,
   productionBatchAllocations,
@@ -161,6 +162,31 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
     for (const row of orderRows) queueByOrder.set(row.id, row.queueNo);
   }
 
+  // Pengajuan batal yang menunggu persetujuan (APP-VOID / APP-RFD / APP-PCX) per order.
+  const pendingCancelByOrder = new Map<string, { approvalId: string; kind: "order" | "items"; summary: string }>();
+  if (orderIds.length) {
+    const pendingRows = await db
+      .select({ id: approvals.id, reason: approvals.reason, payload: approvals.payload })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.status, "pending"),
+          or(ilike(approvals.id, "APP-VOID-%"), ilike(approvals.id, "APP-RFD-%"), ilike(approvals.id, "APP-PCX-%")),
+        ),
+      )
+      .limit(200);
+    for (const row of pendingRows) {
+      const payloadOrderId = (row.payload as { orderId?: string } | null)?.orderId;
+      const orderId = payloadOrderId ?? orderIds.find((id) => row.id.startsWith(`APP-VOID-${id}`));
+      if (!orderId || !orderIds.includes(orderId)) continue;
+      pendingCancelByOrder.set(orderId, {
+        approvalId: row.id,
+        kind: row.id.startsWith("APP-VOID-") ? "order" : "items",
+        summary: row.reason,
+      });
+    }
+  }
+
   const cancelledRows = await db
     .select()
     .from(kitchenTickets)
@@ -245,6 +271,7 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       issueReason: ticket.issueReason ?? null,
       addonSequence: ticket.orderId ? addonByOrder.get(ticket.orderId) ?? 1 : 1,
       chitPrintedAt: ticket.chitPrintedAt?.toISOString() ?? null,
+      pendingCancel: ticket.orderId ? pendingCancelByOrder.get(ticket.orderId) ?? null : null,
       legacy,
       pendingBatchNos,
       items: legacy

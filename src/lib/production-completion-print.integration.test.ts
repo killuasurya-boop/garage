@@ -250,6 +250,12 @@ describe("Tiket SELESAI — cetak ulang terkendali & riwayat", () => {
     expect(h.orders).toHaveLength(1);
     expect(h.orders[0].tickets).toHaveLength(2);
     expect(h.orders[0].prints.length).toBe(5);
+
+    // Popup detail: satu order persis lewat orderId + nama kasir penerima.
+    const one = await history.getProductionHistory(kasir(), { orderId });
+    expect(one.orders).toHaveLength(1);
+    expect(one.orders[0]).toMatchObject({ orderNo: res.orderNo, cashierName: "Staff Test" });
+    expect(one.orders[0].tickets.map((tk: any) => tk.station).sort()).toEqual(["Bar", "Food"]);
   });
 
   it("papan produksi membawa antrean tiket SELESAI outlet ini", async () => {

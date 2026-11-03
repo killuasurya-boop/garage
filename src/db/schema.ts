@@ -3688,11 +3688,15 @@ export const staffNotifications = pgTable(
     // Kunci anti-dobel (mis. "qr_new:<orderId>").
     dedupKey: text("dedup_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // V2: kejadian sudah tidak perlu aksi (order diterima, panggilan selesai, …).
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedReason: text("resolved_reason"),
   },
   (table) => ({
     outletCreatedIdx: index("staff_notifications_outlet_created_idx").on(table.outletId, table.createdAt),
     userIdx: index("staff_notifications_user_idx").on(table.userId),
     dedupIdx: uniqueIndex("staff_notifications_dedup_idx").on(table.dedupKey),
+    orderIdx: index("staff_notifications_order_idx").on(table.orderId),
   }),
 );
 

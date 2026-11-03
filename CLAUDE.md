@@ -262,6 +262,11 @@ Scroll direction:
   `deliverPrintContent` without the Chrome dialog; definite failure → back to pending (max 5), expired claim → failed
   "tidak pasti" (never auto-reprinted); reprint needs a reason, Kasir max 3/order, Owner/Manajer unlimited; every step
   in `audit_logs`. History drawer = `GET /api/production/history` (read-only; corrections via existing reopen).
+- Smart Notification V2 (Nov 2026, `docs/notifications/`, migration 0177): staff feed = `notifyStaff` only; audience `bar`/`dapur`
+  for single-station work (`production` = both). Resolve with `resolveStaffNotifications` after the domain mutation succeeds
+  (resolved = no toast/repeat/action). Client sound = once per device via `claimSound` (`sound-claim.ts`; pass a `dedupKey` to
+  `voice.announce`). Hub sound rules are pure in `hub-sound-rules.ts` (device station only; "pesanan siap" only when the whole
+  order is ready). Payment text in notifications via `paymentNoticeLabel` (QRIS never reads as paid). Logout releases push.
 
 - MCP ChatGPT (owner D-01, batch M0): OAuth 2.1 via `@better-auth/mcp` + `jwt` plugin, only when
   `GARAGE_MCP_CHATGPT_ENABLED=true` and `BETTER_AUTH_URL` is HTTPS (`resolveMcpChatgptConfig`, `mcp-chatgpt-config.ts`);

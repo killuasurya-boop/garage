@@ -20,6 +20,7 @@ import {
   VOICE_SCENARIO_AUDIO_URLS,
   type VoiceScenarioWithAudio,
 } from "@/lib/garage-voice-assets";
+import { claimSound } from "@/lib/sound-claim";
 
 export type VoiceChannel = "kasir" | "kitchen" | "bar" | "warning" | "executive";
 
@@ -114,6 +115,8 @@ export type AnnouncePayload = {
 
 export type AnnounceOptions = AnnouncePayload & {
   dedupKey?: string;
+  /** Lama "sekali per perangkat" untuk dedupKey ini (default 30 menit, sound-claim.ts). */
+  soundTtlMs?: number;
   dingKind?: DingKind;
   force?: boolean;
 };
@@ -1069,15 +1072,18 @@ export function announce(
   const meta = SCENARIO_META[scenario];
   const text = meta.build(opts);
   const dingKind: DingKind = opts.dingKind ?? meta.dingKind;
-  pushAnnouncementLog({
-    scenario,
-    channel: meta.channel,
-    text,
-    dedupKey: dedup,
-  });
 
   _queue = _queue.then(async () => {
     try {
+      // V2: event ber-dedupKey dibunyikan SEKALI per perangkat — tab lain,
+      // re-render, reconnect, dan refresh tidak mengulang (sound-claim.ts).
+      if (opts.dedupKey && !opts.force && !(await claimSound(`voice:${dedup}`, opts.soundTtlMs))) return;
+      pushAnnouncementLog({
+        scenario,
+        channel: meta.channel,
+        text,
+        dedupKey: dedup,
+      });
       // Resume audio context tiap announce — browser bisa suspend setelah idle/lock.
       const ctx = ensureAudioContext();
       if (ctx && ctx.state === "suspended") {

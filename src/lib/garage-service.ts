@@ -22,7 +22,8 @@ import {
 import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { denominationMismatches, isValidDenominationKey, sumDenominations } from "@/lib/cash-denominations";
 import { canTransitionKitchenStatus } from "@/lib/garage-kitchen-status";
-import { notifyStaff } from "@/lib/staff-notifications";
+import { notifyStaff, resolveStaffNotifications } from "@/lib/staff-notifications";
+import { paymentNoticeLabel } from "@/lib/payment-notice";
 import { sendOrderPush } from "@/lib/web-push-sender";
 import {
   buildTrackerSteps,
@@ -62,6 +63,7 @@ import {
   canOperateStation,
   productionStationFor,
   isDirectHandoverMenu,
+  normalizeProductionStation,
   productionStationLabel,
   type ProductionStation,
 } from "@/lib/garage-production-rules";
@@ -7915,6 +7917,7 @@ export async function resolveServiceRequest(id: string, userId: string, outletId
       ),
     )
     .returning();
+  if (row) await resolveStaffNotifications({ dedupKeys: [`service:${row.id}`] }, "Panggilan diselesaikan");
   return row ? { id: row.id } : null;
 }
 
@@ -8457,6 +8460,8 @@ export async function announceOrderProgress(orderId: string, kind: OrderProgress
       }).catch(() => null);
     }
   } else if (kind === "handed") {
+    // V2: "Take away siap diambil" selesai begitu pesanan diserahkan.
+    await resolveStaffNotifications({ orderId: order.id, kinds: ["takeaway_ready"] }, "Pesanan diserahkan");
     if (type === "delivery") return; // diserahkan ke kurir — kabar berikutnya dari status antar
     chat = type === "takeaway" ? `Pesanan ${order.orderNo} sudah diambil. Terima kasih! ☕` : `Pesanan ${order.orderNo} sudah diantar ke meja. Selamat menikmati! ☕`;
   } else if (kind === "courier_assigned") {
@@ -10002,7 +10007,9 @@ async function createCustomerOrderImpl(input: CustomerOrderInput) {
       kind: "qr_new",
       severity: payFirst ? "urgent" : "warning",
       title: `Order baru ${created.order.orderNo} · ${typeLabel}`,
-      body: `${created.order.customerName ?? "Pelanggan"} · ${created.order.paymentMethod ?? "-"}${
+      // Order menu digital selalu Pending saat dibuat: QRIS yang dipilih/ditampilkan
+      // pelanggan BUKAN berarti lunas (V2, nol "pembayaran sukses" palsu).
+      body: `${created.order.customerName ?? "Pelanggan"} · ${paymentNoticeLabel(created.order.paymentMethod, "pending")}${
         payFirst ? " · cek pembayaran dulu" : ""
       }`,
       url: "/os?module=pos&qr=1",
@@ -12434,7 +12441,49 @@ async function handoverKitchenTicketImpl(
       workstation: garage.profile.workstation ?? null,
     },
   });
+  await notifyReadyToDeliver(updated, waiter, garage).catch((error) =>
+    console.error("[notifications] siap antar gagal", error),
+  );
   return updated;
+}
+
+/**
+ * V2 (temuan F-03): "Siap · Panggil" benar-benar sampai ke waiter. Hanya pesanan
+ * dine-in bermeja (pickup/take away/delivery tidak diantar waiter). Antar parsial
+ * didukung per tiket, jadi body menyebut stasiun lain yang masih diproses.
+ * Panggil ulang = handover_at baru = notifikasi baru (sengaja, dipicu staf).
+ */
+async function notifyReadyToDeliver(
+  ticket: typeof kitchenTickets.$inferSelect,
+  waiter: { id: string; name: string } | null,
+  garage: GarageSession,
+) {
+  if (!ticket.orderId || !ticket.tableLabel?.trim() || !ticket.handoverAt) return;
+  const db = getDb();
+  const [order] = await db
+    .select({ fulfillment: orders.fulfillment, outletId: orders.outletId })
+    .from(orders)
+    .where(eq(orders.id, ticket.orderId))
+    .limit(1);
+  if (!order || order.fulfillment === "takeaway" || order.fulfillment === "delivery") return;
+  const siblings = await db
+    .select({ station: kitchenTickets.station, status: kitchenTickets.status })
+    .from(kitchenTickets)
+    .where(and(eq(kitchenTickets.orderId, ticket.orderId), ne(kitchenTickets.id, ticket.id)));
+  const stationName = (station: string | null) => (normalizeProductionStation(station) === "Bar" ? "Bar" : "Dapur");
+  const pending = siblings.filter((row) => row.status === "queue" || row.status === "cooking").map((row) => stationName(row.station));
+  await notifyStaff({
+    outletId: order.outletId ?? garage.profile.outlet.id,
+    audience: waiter ? "user" : "waiter",
+    userId: waiter?.id ?? null,
+    kind: "ready_to_deliver",
+    severity: "urgent",
+    title: `${ticket.tableLabel} · ${stationName(ticket.station)} siap diantar`,
+    body: `${ticket.orderNo}${pending.length ? ` · ${[...new Set(pending)].join(" & ")} masih diproses` : " · pesanan lengkap"}`,
+    url: "/os?module=waiter",
+    orderId: ticket.orderId,
+    dedupKey: `ready_to_deliver:${ticket.id}:${ticket.handoverAt.getTime()}`,
+  });
 }
 
 /** Waiter aktif (sedang login) + jumlah antaran berjalan — untuk dipanggil helper. */
@@ -12912,6 +12961,14 @@ async function updateKitchenStatusImpl(
     } catch (error) {
       await enqueueFailedEarning("ticket_delivered", deliveredPayload, error);
     }
+  }
+
+  // V2: "Siap antar" tiket ini tidak perlu aksi lagi setelah diantar/dibatalkan/dibuka ulang.
+  if (current.status !== status && (status === "delivered" || status === "cooking" || ["rejected", "canceled", "cancelled"].includes(status))) {
+    await resolveStaffNotifications(
+      { dedupPrefixes: [`ready_to_deliver:${ticket.id}:`] },
+      status === "delivered" ? "Sudah diantar" : status === "cooking" ? "Tiket dibuka ulang" : "Tiket dibatalkan",
+    );
   }
 
   // Kabar ke pelanggan (chat + push) & kasir: SATU pesan per pesanan saat
@@ -19121,7 +19178,9 @@ export async function closeCashSession(
   const effectiveResetTableMode =
     resetTableMode === "all" && !isSupervisor ? "completed" : resetTableMode;
 
-  return db.transaction(async (tx) => {
+  type VarianceNotice = { status: "review" | "critical"; discrepancy: number; code: string; outletId: string | null; cashier: string };
+  let varianceNotice: VarianceNotice | null = null;
+  const closed = await db.transaction(async (tx) => {
     // FOR UPDATE: transaksi POS/QR yang sedang berjalan memegang kunci baris
     // sesi ini, jadi tutup shift menunggu sampai kas mereka masuk ke expectedCash.
     const [current] = await tx
@@ -19344,6 +19403,7 @@ export async function closeCashSession(
     // Disetujui → sign-off Manajer tercatat di shift. Ditolak → perlu investigasi.
     // Selisih "minor" tidak dieskalasi, tapi tetap wajib diakui saat verifikasi.
     if (discrepancyStatus === "review" || discrepancyStatus === "critical") {
+      varianceNotice = { status: discrepancyStatus, discrepancy, code: current.code, outletId: current.outletId, cashier: actor };
       const direction = discrepancy < 0 ? "kurang" : "lebih";
       await tx
         .insert(approvals)
@@ -19396,6 +19456,23 @@ export async function closeCashSession(
         : null,
     };
   });
+  // V2 (F-09): selisih di luar toleransi langsung sampai ke Owner/Manajer (bukan
+  // hanya badge Persetujuan / suara di perangkat kasir). Nominal hanya untuk manajemen.
+  // (diisi di dalam callback transaksi — TS tidak melihatnya, jadi tipe ditegaskan)
+  const notice = varianceNotice as VarianceNotice | null;
+  if (notice) {
+    await notifyStaff({
+      outletId: notice.outletId,
+      audience: "management",
+      kind: "cash_variance",
+      severity: notice.status === "critical" ? "urgent" : "warning",
+      title: `Selisih kas ${notice.status === "critical" ? "KRITIS" : "perlu ditinjau"} · ${notice.code}`,
+      body: `Kas ${notice.discrepancy < 0 ? "kurang" : "lebih"} ${idrFormatter.format(Math.abs(notice.discrepancy))} · ${notice.cashier}`,
+      url: "/os?module=approvals",
+      dedupKey: `cash_variance:${id}`,
+    }).catch(() => null);
+  }
+  return closed;
 }
 
 // ─── Cashier shift history & reporting ─────────────────
@@ -22985,7 +23062,20 @@ export async function getStaffLeaderboard(): Promise<LeaderboardEntry[]> {
 // Realtime: setiap mutasi produksi yang SUKSES memancarkan tanda perubahan
 // (Production Hub & Control Center langsung mengambil ulang). Lihat production-events.ts.
 export const createOrder = notifyingProduction(createOrderImpl);
-export const updateCustomerOrderStatus = notifyingProduction(updateCustomerOrderStatusImpl);
+export const updateCustomerOrderStatus = notifyingProduction(
+  async (...args: Parameters<typeof updateCustomerOrderStatusImpl>) => {
+    const result = await updateCustomerOrderStatusImpl(...args);
+    // V2: "Order baru" / "batal otomatis" tidak lagi perlu aksi setelah kasir memutuskan.
+    const action = args[1].action;
+    if ((action === "accept" || action === "reject" || action === "paid") && isUuidLike(args[0])) {
+      await resolveStaffNotifications(
+        { orderId: args[0], kinds: ["qr_new", "unpaid_expiring"] },
+        action === "reject" ? "Order ditolak" : action === "paid" ? "Order lunas" : "Order diterima",
+      );
+    }
+    return result;
+  },
+);
 export const updateKitchenStatus = notifyingProduction(updateKitchenStatusImpl);
 export const claimKitchenTicket = notifyingProduction(claimKitchenTicketImpl);
 export const deliverClaimedTicket = notifyingProduction(deliverClaimedTicketImpl);
@@ -22994,7 +23084,17 @@ export const moveTable = notifyingProduction(moveTableImpl);
 export const pickupKitchenTicket = notifyingProduction(pickupKitchenTicketImpl);
 export const serveTicketDirect = notifyingProduction(serveTicketDirectImpl);
 export const releaseKitchenTicket = notifyingProduction(releaseKitchenTicketImpl);
-export const voidOrder = notifyingProduction(voidOrderImpl);
+export const voidOrder = notifyingProduction(async (...args: Parameters<typeof voidOrderImpl>) => {
+  const result = await voidOrderImpl(...args);
+  // V2: semua notifikasi order yang dibatalkan tidak boleh memicu aksi lagi.
+  const [row] = await getDb()
+    .select({ id: orders.id })
+    .from(orders)
+    .where(isUuidLike(args[0]) ? eq(orders.id, args[0]) : eq(orders.orderNo, args[0]))
+    .limit(1);
+  if (row) await resolveStaffNotifications({ orderId: row.id }, "Order dibatalkan");
+  return result;
+});
 
 function assertOwnerOrManager(garage: GarageSession) {
   if (garage.profile.role !== "Owner" && garage.profile.role !== "Manajer") {

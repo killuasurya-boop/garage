@@ -81,6 +81,7 @@ import {
   type HubSortMode,
 } from "@/lib/production-hub-v4";
 import { busyExtraByStation, DEFAULT_SLA_CONFIG } from "@/lib/production-sla";
+import { soundAreaFor } from "@/lib/hub-sound-rules";
 import { useProductionStream } from "@/lib/use-production-stream";
 
 import { BatchView, type BatchActions } from "./batch-view";
@@ -325,7 +326,19 @@ export function ProductionHubV4({
       ),
     [tickets, now, slaCfg, busyExtra],
   );
-  const { soundEnabled, toggleSound } = useHubSound(board, area, lateIds, now);
+  // V2: perangkat stasiun hanya bersuara untuk stasiunnya walau tampilan "Semua".
+  const { soundEnabled, toggleSound, audioState, testSound } = useHubSound(board, soundAreaFor(stationOfDevice, area), lateIds, now);
+  const soundLabel = !soundEnabled
+    ? "Suara OFF"
+    : audioState === "ready"
+      ? "Suara ON · siap"
+      : audioState === "unsupported"
+        ? "Suara ON · audio tidak didukung"
+        : "Suara ON · ketuk layar";
+  const runTestSound = async () => {
+    const ok = await testSound();
+    setToast(ok ? { tone: "ok", text: "Tes suara diputar. Tidak terdengar? Cek volume perangkat." } : { tone: "error", text: "Audio belum aktif — ketuk layar sekali lalu coba lagi." });
+  };
 
   const counts = useMemo(() => {
     const c = { waiting: 0, processing: 0, ready: 0, critical: 0 };
@@ -651,7 +664,10 @@ export function ProductionHubV4({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={toggleSound}>
           {soundEnabled ? <Volume2 className="mr-2 size-4" /> : <VolumeX className="mr-2 size-4" />}
-          Suara {soundEnabled ? "ON" : "OFF"}
+          {soundLabel}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void runTestSound()}>
+          <Volume2 className="mr-2 size-4" /> Tes suara
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setVoiceOpen(true)}>
           <Settings2 className="mr-2 size-4" /> Pengaturan suara
@@ -1046,7 +1062,10 @@ export function ProductionHubV4({
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <button type="button" onClick={toggleSound} className={toolButton}>
-                        {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} Suara {soundEnabled ? "ON" : "OFF"}
+                        {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />} {soundLabel}
+                      </button>
+                      <button type="button" onClick={() => void runTestSound()} className={toolButton}>
+                        <Volume2 className="size-4" /> Tes suara
                       </button>
                       <button type="button" onClick={() => setVoiceOpen(true)} className={toolButton}>
                         <Settings2 className="size-4" /> Suara/voice

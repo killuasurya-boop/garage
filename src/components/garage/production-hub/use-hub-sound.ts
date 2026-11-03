@@ -3,56 +3,77 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ProductionBoard } from "@/lib/garage-api-types";
-import { isOnlineChannel, voice } from "@/lib/garage-voice";
+import { getVoiceSettings, isOnlineChannel, voice, type VoiceScenario } from "@/lib/garage-voice";
+import { hubSoundEvents, inSoundArea, lateToneKey, type HubSoundArea } from "@/lib/hub-sound-rules";
+import { claimSound } from "@/lib/sound-claim";
 
-// Suara & voice Production Hub (dipindah apa adanya dari layar lama): bunyi tiket
-// baru / tiket telat, voice transisi status, dan pengingat READY yang belum
-// diambil. Hanya station yang tampil di layar ini; "Suara OFF" membisukan semua.
+// Suara & voice Production Hub. Smart Notification V2:
+// - `soundArea` = stasiun perangkat (Bar/Dapur); hanya Owner/Manajer/kasir tanpa
+//   stasiun yang mengikuti area tampilan. Bar tidak pernah bersuara untuk Dapur.
+// - Satu event = satu bunyi per perangkat (claimSound: lintas tab + refresh).
+// - "Pesanan siap" hanya saat seluruh pesanan siap (hub-sound-rules.ts).
+// "Suara OFF" membisukan semua; status audio browser dilaporkan lewat `audioState`.
 
 const PICKUP_REMIND_MINUTES = 3;
-type Area = "all" | "Bar" | "Food";
 
-export function useHubSound(board: ProductionBoard | null, area: Area, lateIds: Set<string>, now: number) {
+export type HubAudioState = "off" | "locked" | "ready" | "unsupported";
+
+export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundArea, lateIds: Set<string>, now: number) {
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [audioState, setAudioState] = useState<HubAudioState>("off");
   const audioRef = useRef<AudioContext | null>(null);
   const prevStatusRef = useRef<Map<string, string> | null>(null);
   const prevLateRef = useRef<Set<string>>(new Set());
   const remindRef = useRef<Map<string, number>>(new Map());
+
+  const refreshAudioState = useCallback((enabled: boolean) => {
+    if (!enabled) return setAudioState("off");
+    const ctx = audioRef.current;
+    if (!ctx) {
+      const hasCtor =
+        typeof window !== "undefined" &&
+        Boolean(window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+      return setAudioState(hasCtor ? "locked" : "unsupported");
+    }
+    setAudioState(ctx.state === "running" ? "ready" : "locked");
+  }, []);
+
+  const primeAudio = useCallback(() => {
+    const AudioCtor =
+      window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtor) return setAudioState("unsupported");
+    if (!audioRef.current || audioRef.current.state === "closed") audioRef.current = new AudioCtor();
+    const ctx = audioRef.current;
+    void ctx.resume().then(() => setAudioState(ctx.state === "running" ? "ready" : "locked")).catch(() => setAudioState("locked"));
+    voice.unlock();
+  }, []);
 
   useEffect(() => {
     try {
       if (localStorage.getItem("garage:kds:sound") === "on") {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- init sekali dari storage
         setSoundEnabled(true);
+        refreshAudioState(true);
         // Browser hanya mengizinkan audio setelah sentuhan: siapkan AudioContext pada sentuhan pertama.
-        const prime = () => {
-          const AudioCtor =
-            window.AudioContext ??
-            (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-          if (!AudioCtor) return;
-          if (!audioRef.current || audioRef.current.state === "closed") audioRef.current = new AudioCtor();
-          void audioRef.current.resume();
-          voice.unlock();
-        };
-        window.addEventListener("pointerdown", prime, { once: true });
-        return () => window.removeEventListener("pointerdown", prime);
+        window.addEventListener("pointerdown", primeAudio, { once: true });
+        return () => window.removeEventListener("pointerdown", primeAudio);
       }
     } catch {
       /* localStorage tidak tersedia */
     }
-  }, []);
+  }, [primeAudio, refreshAudioState]);
 
   const playTone = useCallback(
-    (kind: "new" | "late") => {
+    (kind: "new" | "late" | "test") => {
       const ctx = audioRef.current;
-      if (!soundEnabled || !ctx || ctx.state === "closed") return;
+      if (!ctx || ctx.state === "closed") return false;
       try {
         const t = ctx.currentTime;
         const gain = ctx.createGain();
         const osc = ctx.createOscillator();
-        osc.type = kind === "new" ? "sine" : "square";
-        osc.frequency.setValueAtTime(kind === "new" ? 880 : 440, t);
-        if (kind === "new") osc.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
+        osc.type = kind === "late" ? "square" : "sine";
+        osc.frequency.setValueAtTime(kind === "late" ? 440 : 880, t);
+        if (kind !== "late") osc.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
         gain.gain.setValueAtTime(0.0001, t);
         gain.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
@@ -60,16 +81,30 @@ export function useHubSound(board: ProductionBoard | null, area: Area, lateIds: 
         gain.connect(ctx.destination);
         osc.start(t);
         osc.stop(t + 0.4);
+        return ctx.state === "running";
       } catch {
         /* audio ditolak (kiosk) — abaikan */
+        return false;
       }
     },
-    [soundEnabled],
+    [],
+  );
+
+  /** Tone sekali per kunci event per perangkat. */
+  const playToneOnce = useCallback(
+    (kind: "new" | "late", key: string) => {
+      if (!soundEnabled) return;
+      void claimSound(key).then((ok) => {
+        if (ok) playTone(kind);
+      });
+    },
+    [playTone, soundEnabled],
   );
 
   const toggleSound = useCallback(() => {
     if (soundEnabled) {
       setSoundEnabled(false);
+      setAudioState("off");
       try {
         localStorage.setItem("garage:kds:sound", "off");
       } catch {
@@ -77,76 +112,85 @@ export function useHubSound(board: ProductionBoard | null, area: Area, lateIds: 
       }
       return;
     }
-    const AudioCtor =
-      window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtor) return;
-    if (!audioRef.current || audioRef.current.state === "closed") audioRef.current = new AudioCtor();
-    void audioRef.current.resume();
-    voice.unlock();
+    primeAudio();
     setSoundEnabled(true);
     try {
       localStorage.setItem("garage:kds:sound", "on");
     } catch {
       /* abaikan */
     }
-  }, [soundEnabled]);
+  }, [primeAudio, soundEnabled]);
 
-  // Tiket baru, transisi status → bunyi & voice.
+  /** Tombol "Tes suara": tanpa klaim (selalu bunyi), melaporkan apakah audio benar-benar jalan. */
+  const testSound = useCallback(async () => {
+    primeAudio();
+    try {
+      await audioRef.current?.resume();
+    } catch {
+      /* ditolak browser */
+    }
+    const ok = playTone("test");
+    refreshAudioState(true);
+    void voice.announce(soundArea === "Food" ? "order_new_kitchen" : "order_new_bar", { force: true, table: "07" });
+    return ok;
+  }, [playTone, primeAudio, refreshAudioState, soundArea]);
+
+  // Tiket baru, transisi status → bunyi & voice (hanya stasiun perangkat).
   useEffect(() => {
     if (!board) return;
-    const prev = prevStatusRef.current;
-    const next = new Map(board.tickets.map((t) => [t.ticketNo, t.status]));
-    if (prev) {
-      let hasNew = false;
-      for (const t of board.tickets) {
-        if (area !== "all" && area !== t.station) continue;
-        const before = prev.get(t.ticketNo);
-        if (!before) {
-          hasNew = true;
-          if (soundEnabled && isOnlineChannel(t.channel)) {
-            void voice.announce("online_new", { channel: t.channel, dedupKey: `${t.ticketNo}:online` });
-          }
-          continue;
+    const events = hubSoundEvents(prevStatusRef.current, board.tickets, soundArea, isOnlineChannel);
+    prevStatusRef.current = new Map(board.tickets.map((t) => [t.ticketNo, t.status]));
+    if (!soundEnabled) return;
+    let toneKey: string | null = null;
+    const voiceSettings = getVoiceSettings();
+    const voiceOn = (scenario: VoiceScenario) => voiceSettings.enabled && voiceSettings.scenariosEnabled[scenario] !== false;
+    for (const event of events) {
+      if (event.type === "new") {
+        const scenario: VoiceScenario = event.station === "Bar" ? "order_new_bar" : "order_new_kitchen";
+        // Satu bunyi per event: voice (sudah ber-ding) bila aktif, selain itu tone KDS.
+        if (voiceOn(scenario)) {
+          void voice.announce(scenario, { table: event.table, orderNo: event.orderNo, dedupKey: event.key });
+        } else {
+          toneKey = toneKey ? `${toneKey}|${event.key}` : event.key;
         }
-        if (!soundEnabled) continue;
-        if (before === "queue" && t.status === "cooking") {
-          void voice.announce(t.station === "Bar" ? "bar_mixing" : "kitchen_cooking", {
-            table: t.table,
-            dedupKey: `${t.ticketNo}:cook`,
-          });
-        } else if (before !== "ready" && t.status === "ready") {
-          void voice.announce("order_ready", { table: t.table, orderNo: t.orderNo, dedupKey: `${t.ticketNo}:ready` });
-        }
+      } else if (event.type === "online_new") {
+        void voice.announce("online_new", { channel: event.channel, dedupKey: event.key });
+      } else if (event.type === "cooking") {
+        void voice.announce(event.station === "Bar" ? "bar_mixing" : "kitchen_cooking", { table: event.table, dedupKey: event.key });
+      } else if (event.type === "order_ready") {
+        void voice.announce("order_ready", { table: event.table, orderNo: event.orderNo, dedupKey: event.key });
       }
-      if (hasNew) playTone("new");
     }
-    prevStatusRef.current = next;
-  }, [board, playTone, area, soundEnabled]);
+    if (toneKey) playToneOnce("new", toneKey);
+  }, [board, playToneOnce, soundArea, soundEnabled]);
 
-  // Tiket baru lewat SLA (hanya station yang tampil).
+  // Tiket baru lewat SLA (hanya stasiun perangkat) — satu tone per refresh.
   useEffect(() => {
     const visible = new Set(
-      (board?.tickets ?? []).filter((t) => area === "all" || t.station === area).map((t) => t.ticketNo),
+      (board?.tickets ?? []).filter((t) => inSoundArea(soundArea, t.station)).map((t) => t.ticketNo),
     );
-    let newlyLate = false;
-    for (const id of lateIds) if (!prevLateRef.current.has(id) && visible.has(id)) newlyLate = true;
-    if (newlyLate) playTone("late");
+    const key = lateToneKey(prevLateRef.current, lateIds, visible);
+    if (key) playToneOnce("late", key);
     prevLateRef.current = lateIds;
-  }, [lateIds, playTone, board, area]);
+  }, [lateIds, playToneOnce, board, soundArea]);
 
-  // READY dipanggil ≥3 menit belum diambil → umumkan ulang (maks. 3x).
+  // READY dipanggil ≥3 menit belum diambil → umumkan ulang (maks. 3x), berhenti
+  // begitu tiket diantar (tiket hilang dari papan / bukan READY lagi).
   useEffect(() => {
+    if (!soundEnabled) return;
     for (const t of board?.tickets ?? []) {
       if (t.status !== "ready" || !t.handoverAt) continue;
-      if (area !== "all" && area !== t.station) continue;
+      if (!inSoundArea(soundArea, t.station)) continue;
       const minutes = Math.floor((now - new Date(t.handoverAt).getTime()) / 60000);
       if (minutes < PICKUP_REMIND_MINUTES || minutes >= PICKUP_REMIND_MINUTES + 3) continue;
       if (remindRef.current.get(t.ticketNo) === minutes) continue;
       remindRef.current.set(t.ticketNo, minutes);
-      if (!soundEnabled) continue;
-      void voice.announce("order_ready_deliver", { table: t.table, dedupKey: `${t.ticketNo}:remind:${minutes}` });
+      void voice.announce("order_ready_deliver", {
+        table: t.table,
+        dedupKey: `hub:remind:${t.ticketNo}:${t.handoverAt}:${minutes}`,
+      });
     }
-  }, [now, board, area, soundEnabled]);
+  }, [now, board, soundArea, soundEnabled]);
 
-  return { soundEnabled, toggleSound };
+  return { soundEnabled, toggleSound, audioState, testSound };
 }

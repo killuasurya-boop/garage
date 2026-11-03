@@ -142,7 +142,7 @@ export async function createMaterialRequest(input: MaterialRequestInput, actor: 
 
 async function notify(
   outletId: string | null,
-  input: { audience: "management" | "production"; severity: "info" | "warning" | "urgent"; title: string; body: string; url: string; dedupKey: string },
+  input: { audience: "management" | "production" | "bar" | "dapur"; severity: "info" | "warning" | "urgent"; title: string; body: string; url: string; dedupKey: string },
 ) {
   try {
     const { notifyStaff } = await import("@/lib/staff-notifications");
@@ -275,8 +275,9 @@ export async function sendMaterialRequest(
     return { request: updated, shortCount };
   });
   if (result) {
+    // V2: hanya divisi peminta (Bar tidak menerima kiriman Dapur, dan sebaliknya).
     await notify(actor.outletId, {
-      audience: "production",
+      audience: result.request.division === "bar" ? "bar" : "dapur",
       severity: "info",
       title: `Bahan ${MATERIAL_DIVISION_LABEL[result.request.division as MaterialDivision]} dikirim gudang`,
       body: `${result.request.doc} — cek & tekan Terima di Minta Bahan.`,

@@ -372,12 +372,16 @@ export function ModuleNav({
   onChange,
   approvalBadgeCount = 0,
   recruitmentBadgeCount = 0,
+  compact = false,
+  desktopRail = false,
 }: {
   activeModule: ModuleId;
   profile: StaffCapabilityProfile;
   onChange: (module: ModuleId) => void;
   approvalBadgeCount?: number;
   recruitmentBadgeCount?: number;
+  compact?: boolean;
+  desktopRail?: boolean;
 }) {
   const accessibleModules = modules.filter((module) =>
     canAccessModuleAs(profile, module.id),
@@ -447,7 +451,13 @@ export function ModuleNav({
               }
             }}
             aria-current={isActive ? "page" : undefined}
-            className={`garage-press grid min-h-11 w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors ${
+            className={`garage-press relative min-h-11 w-full min-w-0 items-center gap-2 rounded-xl border text-left text-sm transition-colors duration-150 ${
+              compact
+                ? "flex justify-center px-1 py-1.5"
+                : desktopRail
+                  ? "flex justify-center px-1 py-1.5 xl:grid xl:grid-cols-[2rem_minmax(0,1fr)_auto] xl:px-2.5"
+                  : "grid grid-cols-[2rem_minmax(0,1fr)_auto] px-2.5 py-1.5"
+            } ${
               isActive
                 ? "border-[#ff2a3a]/45 bg-[#d11a2a]/18 text-white shadow-[inset_3px_0_0_rgba(255,42,58,0.95)]"
                 : "border-transparent text-[#d0d0d6] hover:border-white/10 hover:bg-white/[0.075] hover:text-white"
@@ -462,19 +472,19 @@ export function ModuleNav({
             >
               <module.icon className="size-4" />
             </span>
-            <span className="min-w-0 truncate text-sm font-semibold leading-tight">
+            <span className={`min-w-0 truncate text-sm font-semibold leading-tight ${compact ? "sr-only" : desktopRail ? "sr-only xl:not-sr-only" : ""}`}>
               {module.label}
             </span>
             {showBadge ? (
               <span
-                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full ${badgeColor} px-1.5 text-[10px] font-extrabold text-white`}
+                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full ${badgeColor} px-1.5 text-[10px] font-extrabold text-white ${compact ? "absolute -right-1 -top-1" : desktopRail ? "absolute -right-1 -top-1 xl:static" : ""}`}
                 aria-label={badgeLabel}
               >
                 {badgeCount > 99 ? "99+" : badgeCount}
               </span>
 
-            ) : isActive ? (
-              <ArrowRight className="hidden size-4 shrink-0 text-[#ffccd1] min-[420px]:block" />
+            ) : isActive && !compact ? (
+              <ArrowRight className={`hidden size-4 shrink-0 text-[#ffccd1] ${desktopRail ? "xl:block" : "min-[420px]:block"}`} />
             ) : null}
           </button>
         </TooltipTrigger>
@@ -484,10 +494,10 @@ export function ModuleNav({
   };
 
   return (
-    <nav className="grid min-w-0 gap-3">
+    <nav aria-label="Navigasi Garage OS" className={`grid min-w-0 gap-3 ${compact ? "gap-1.5" : desktopRail ? "gap-1.5 xl:gap-3" : ""}`}>
       {grouped.map((group) => (
-        <div key={group.title} className="grid min-w-0 gap-1">
-          <p className="garage-mono px-2.5 pb-0.5 text-[10px] uppercase tracking-[0.18em] text-[#7d7d87]">
+        <div key={group.title} className={`grid min-w-0 gap-1 ${compact ? "border-b border-[#34343c] pb-2 last:border-0" : desktopRail ? "border-b border-[#34343c] pb-2 xl:border-0 xl:pb-0" : ""}`}>
+          <p className={`garage-mono px-2.5 pb-0.5 text-[10px] uppercase tracking-[0.18em] text-[#7d7d87] ${compact ? "sr-only" : desktopRail ? "sr-only xl:not-sr-only" : ""}`}>
             {group.title}
           </p>
           <div className="grid min-w-0 gap-1.5">

@@ -25,6 +25,8 @@ import {
   wmsProduct,
   wmsProductionBom,
   wmsProductionRecipe,
+  wmsMaterialRequest,
+  wmsPurchaseOrder,
   wmsPurchaseOrderItem,
   wmsReceiving,
   wmsReceivingItem,
@@ -82,6 +84,7 @@ import {
 import { loadBusinessDayPolicy } from "@/lib/business-date-policy";
 import { jakartaDateKey } from "@/lib/finance-control-core";
 import { DEFAULT_TOLERANCE, classifyVariance, worstClass, type OpnameClass, type ToleranceConfig } from "@/lib/wms-opname-rules";
+import { notifyOpnameSubmitted, resolveOpnameReview } from "@/lib/wms-notify";
 
 // =============================================================================
 // GARAGE WMS — service layer. Aturan inti: SEMUA mutasi stok lewat
@@ -5301,7 +5304,7 @@ async function opnameVarianceEvents(db: Db, productId: string, warehouseId: stri
  * Penghitung mengirim hasil. Full = semua baris wajib dihitung; semua cakupan: baris yang
  * diminta dihitung ulang harus dihitung dulu.
  */
-export async function submitWmsOpname(id: string, userId?: string | null) {
+async function submitWmsOpnameTx(id: string, userId?: string | null) {
   return runInTx(async (tx) => {
     const [op] = await tx.select().from(wmsStockOpname).where(eq(wmsStockOpname.id, id)).for("update").limit(1);
     if (!op) return null;
@@ -5331,7 +5334,7 @@ export async function submitWmsOpname(id: string, userId?: string | null) {
 }
 
 /** Manajer/Owner meminta hitung ulang baris tertentu → sesi kembali draft; hitungan lama tersimpan. */
-export async function requestOpnameRecount(id: string, lineIds: string[], reason: string, userId?: string | null) {
+async function requestOpnameRecountTx(id: string, lineIds: string[], reason: string, userId?: string | null) {
   const why = reason.trim();
   if (why.length < 3) throw new Error("Alasan hitung ulang wajib diisi.");
   if (!lineIds.length) throw new Error("Pilih bahan yang dihitung ulang.");
@@ -5356,7 +5359,7 @@ export async function requestOpnameRecount(id: string, lineIds: string[], reason
 }
 
 /** Manajer menolak → kembali draft untuk dihitung ulang (alasan wajib). */
-export async function rejectWmsOpname(id: string, reason: string, userId?: string | null) {
+async function rejectWmsOpnameTx(id: string, reason: string, userId?: string | null) {
   const why = reason.trim();
   if (why.length < 3) throw new Error("Alasan penolakan wajib diisi.");
   return runInTx(async (tx) => {
@@ -5380,7 +5383,7 @@ export async function rejectWmsOpname(id: string, reason: string, userId?: strin
  * dari ledger (historis). `allowNegative` dipertahankan: penjualan sah sesudah hitung bisa membuat
  * saldo minus — ditandai `negativeAfter` di audit untuk ditinjau.
  */
-export async function finalizeWmsOpname(
+async function finalizeWmsOpnameTx(
   id: string,
   userId?: string | null,
   opts: { allowSelfApproval?: boolean; approverRole?: string | null } = {},
@@ -6034,12 +6037,23 @@ export async function getWmsNotifications(): Promise<WmsNotification[]> {
   if (config.notifyLowStock) {
     const products = await getWmsProducts();
     const low = products.filter((p) => p.status === "low" || p.status === "out");
-    for (const p of low.slice(0, 5)) {
+    // Habis dulu, baru menipis; sisanya diringkas (tidak dipotong diam-diam).
+    const ordered = [...low].sort((a, b) => (a.status === "out" ? 0 : 1) - (b.status === "out" ? 0 : 1));
+    for (const p of ordered.slice(0, 5)) {
       notes.push({
         id: `low-${p.id}`,
         level: p.status === "out" ? "critical" : "warning",
         title: p.status === "out" ? "Out of Stock" : "Low Stock",
         text: `${p.name} (${p.onHand} ${p.unit})`,
+        href: "/warehouse/inventory",
+      });
+    }
+    if (ordered.length > 5) {
+      notes.push({
+        id: "low-more",
+        level: "warning",
+        title: "Stok menipis lainnya",
+        text: `+${ordered.length - 5} bahan lagi menipis/habis`,
         href: "/warehouse/inventory",
       });
     }
@@ -6069,6 +6083,20 @@ export async function getWmsNotifications(): Promise<WmsNotification[]> {
       href: "/warehouse/receiving",
     });
   }
+  // V2: dokumen yang menunggu tindakan gudang/manajemen (satu baris per jenis).
+  const [[mrq], [po], [opname]] = await Promise.all([
+    db.select({ n: sql<number>`count(*)::int` }).from(wmsMaterialRequest).where(eq(wmsMaterialRequest.status, "submitted")),
+    db.select({ n: sql<number>`count(*)::int` }).from(wmsPurchaseOrder).where(eq(wmsPurchaseOrder.status, "pending_approval")),
+    db.select({ n: sql<number>`count(*)::int` }).from(wmsStockOpname).where(eq(wmsStockOpname.status, "submitted")),
+  ]);
+  const waiting: Array<[number, string, string, string, string]> = [
+    [Number(mrq?.n ?? 0), "mrq-pending", "Minta Bahan", "permintaan Bar/Dapur belum dikirim", "/warehouse/material-requests"],
+    [Number(po?.n ?? 0), "po-approval", "PO menunggu persetujuan", "PO perlu disetujui", "/warehouse/purchase-orders"],
+    [Number(opname?.n ?? 0), "opname-review", "Opname menunggu tinjauan", "opname perlu ditinjau", "/warehouse/opname"],
+  ];
+  for (const [n, id, title, what, href] of waiting) {
+    if (n > 0) notes.push({ id, level: "warning", title, text: `${n} ${what}`, href });
+  }
   const pendingApprovals = await db
     .select({ id: approvals.id, amount: approvals.amount })
     .from(approvals)
@@ -6084,4 +6112,43 @@ export async function getWmsNotifications(): Promise<WmsNotification[]> {
     });
   }
   return notes;
+}
+
+// --- Smart Notification V2: notifikasi persetujuan (setelah transaksi sukses) ---
+
+export async function submitWmsOpname(id: string, userId?: string | null) {
+  const result = await submitWmsOpnameTx(id, userId);
+  if (result) await notifyOpnameSubmitted(result, await opnameNeedsOwner(id));
+  return result;
+}
+
+export async function requestOpnameRecount(id: string, lineIds: string[], reason: string, userId?: string | null) {
+  const result = await requestOpnameRecountTx(id, lineIds, reason, userId);
+  if (result) await resolveOpnameReview(id, "Diminta hitung ulang");
+  return result;
+}
+
+export async function rejectWmsOpname(id: string, reason: string, userId?: string | null) {
+  const result = await rejectWmsOpnameTx(id, reason, userId);
+  if (result) await resolveOpnameReview(id, "Opname ditolak");
+  return result;
+}
+
+export async function finalizeWmsOpname(
+  id: string,
+  userId?: string | null,
+  opts: { allowSelfApproval?: boolean; approverRole?: string | null } = {},
+) {
+  const result = await finalizeWmsOpnameTx(id, userId, opts);
+  if (result?.status === "completed") await resolveOpnameReview(id, "Opname disetujui");
+  return result;
+}
+
+/** Ada baris dengan selisih di atas batas Owner → hanya Owner yang boleh menyetujui. */
+async function opnameNeedsOwner(id: string) {
+  const [row] = await getDb()
+    .select({ n: sql<number>`count(*)::int` })
+    .from(wmsOpnameLine)
+    .where(and(eq(wmsOpnameLine.opnameId, id), eq(wmsOpnameLine.classification, "owner")));
+  return Number(row?.n ?? 0) > 0;
 }

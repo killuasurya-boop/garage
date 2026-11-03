@@ -27,7 +27,19 @@ Feature flag: tidak ditambah. Alasannya: semua perubahan aditif, suara Hub tetap
 - Lint 0 error, typecheck bersih, unit + integrasi lulus, full suite tanpa regresi (lihat laporan).
 - Uji operasional di staging (butuh Owner/Manajer & perangkat): Bar/Dapur tablet, HP waiter, 2 tab di satu tablet, logout di tablet bersama.
 
-## Tahap 1 — P1 (berikutnya, belum dikerjakan)
+## Tahap 1 — P1 ✅ (dikerjakan setelah merge main #160)
+
+| # | Status | Catatan |
+|---|---|---|
+| 1.1 | ✅ | Pengumuman `all_ready` hanya oleh pemanggil yang membuat job cetak SELESAI (advisory lock per order yang sudah ada) → chat/push pelanggan sekali, termasuk reopen → READY lagi |
+| 1.2 | ✅ sebagian dari #160 | Notifikasi pengajuan batal dibuat PR #160; V2 menambah resolve saat approval diputus (`decideApproval`, juga jalur PIN & bulk) |
+| 1.3 | ✅ | `wms-notify.ts`: PO `pending_approval` (ajukan/revisi) & opname dikirim → management (urgent bila perlu Owner), selesai saat setuju/tolak/batal/hitung ulang. Drawer WMS: "+N lagi", Minta Bahan/PO/opname menunggu |
+| 1.4 | ✅ | `cash_variance` selesai saat `APP-CASH-*` diputus |
+| 1.5 | ✅ tidak perlu | Diverifikasi: cabang render saling eksklusif |
+| 1.6 | ✅ | Lonceng mengikat ulang langganan push yang ada ke akun yang sedang login |
+| 1.7 | ⏳ | Panel cek tutup shift terpadu — belum (perlu desain UI bersama Owner) |
+
+### Rencana awal Tahap 1
 
 | # | Pekerjaan | Temuan | Risiko / catatan |
 |---|---|---|---|

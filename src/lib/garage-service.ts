@@ -12982,13 +12982,18 @@ async function updateKitchenStatusImpl(
       const live = siblings.filter((row) => !["rejected", "canceled", "cancelled"].includes(row.status));
       if (status === "ready" && live.every((row) => row.status === "ready" || row.status === "delivered")) {
         // Production Hub V4: tiket SELESAI masuk antrean cetak (idempoten per order).
+        // V2 (F-14): dua stasiun READY bersamaan bisa sama-sama melihat "semua siap".
+        // Antrean cetak memakai advisory lock per order → hanya pemanggil yang MEMBUAT
+        // job yang mengumumkan (chat/push pelanggan sekali). Gagal enqueue → tetap umumkan.
+        let firstAllReady = true;
         try {
           const { enqueueOrderCompletionPrint } = await import("@/lib/production-completion-print");
-          await enqueueOrderCompletionPrint(ticket.orderId, garage);
+          const queued = await enqueueOrderCompletionPrint(ticket.orderId, garage);
+          if (queued && !queued.created) firstAllReady = false;
         } catch (error) {
           console.error("[completion-print] enqueue gagal", error);
         }
-        await announceOrderProgress(ticket.orderId, "all_ready");
+        if (firstAllReady) await announceOrderProgress(ticket.orderId, "all_ready");
       } else if (status === "delivered" && live.every((row) => row.status === "delivered")) {
         await announceOrderProgress(ticket.orderId, "handed");
       }
@@ -20449,6 +20454,17 @@ export async function decideApproval(
       via,
     },
   });
+
+  // V2: notifikasi yang menunggu keputusan ini (batal Bar/Dapur, selisih kas) selesai.
+  await resolveStaffNotifications(
+    {
+      dedupKeys: [
+        `cancel-request:${id}`,
+        ...(id.startsWith("APP-CASH-") ? [`cash_variance:${id.slice("APP-CASH-".length)}`] : []),
+      ],
+    },
+    input.status === "approved" ? "Disetujui" : "Ditolak",
+  );
 
   return approval;
 }

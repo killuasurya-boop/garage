@@ -69,3 +69,22 @@ Target "P95 realtime ≤ 5 dtk": **belum diukur** (butuh instrumentasi produksi,
 - Perilaku baru yang terasa di lantai: waiter kini menerima "siap antar" (urgent, ding + voice); tablet Bar/Dapur dengan Suara ON kini mengucapkan "order baru" untuk stasiunnya.
 - Sebelum merge: uji di staging dengan perangkat nyata — tablet Bar & Dapur, HP waiter, 2 tab di satu tablet, logout di tablet bersama, mode senyap/speaker mati.
 - Deploy hanya dengan OK Owner: `release-check.sh` di main yang sudah di-merge → `deploy-manual.sh --dry-run` → `--yes`.
+
+---
+
+## Tahap 1 (P1) — tambahan di PR yang sama
+
+Branch sudah di-merge dengan `origin/main` (PR #160, tanpa konflik). PR #160 sudah membuat notifikasi pengajuan batal Bar/Dapur → V2 tidak menduplikasi, hanya menambah resolve.
+
+| Perubahan | File |
+|---|---|
+| `all_ready` diumumkan sekali per order (gate pada job cetak SELESAI yang ber-advisory-lock) — temuan F-14 dikoreksi: event tidak bisa hilang, tapi bisa dobel | `garage-service.ts` |
+| Keputusan approval menyelesaikan `cancel-request:*` dan `cash_variance:*` (board, PIN, bulk) | `garage-service.ts` (`decideApproval`) |
+| PO menunggu persetujuan & opname dikirim → management, selesai saat diputus | `wms-notify.ts` (baru), `wms-procurement.ts`, `wms-purchase.ts`, `wms-service.ts` |
+| Drawer WMS: habis dulu, "+N lagi", Minta Bahan/PO/opname menunggu | `wms-service.ts` (`getWmsNotifications`) |
+| Lonceng mengikat ulang langganan push perangkat ke akun yang sedang login | `staff-notification-center.tsx` |
+| F-15 (lonceng dobel) diverifikasi tidak terjadi | — |
+
+Belum: panel cek tutup shift terpadu (1.7), seluruh Tahap 2.
+
+Hasil uji Tahap 1 (3 Nov 2026): lihat bagian bawah PR / komentar commit.

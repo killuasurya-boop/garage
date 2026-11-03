@@ -70,6 +70,9 @@ const KIND_META: Record<string, { icon: LucideIcon; voice?: VoiceScenario }> = {
   ready_to_deliver: { icon: UtensilsCrossed, voice: "order_ready_deliver" },
   cash_variance: { icon: TriangleAlert, voice: "cash_anomaly" },
   material_request: { icon: Package },
+  po_approval: { icon: Package, voice: "approval_pending" },
+  opname_review: { icon: Package, voice: "approval_pending" },
+  production_cancel_request: { icon: XCircle, voice: "approval_pending" },
 };
 
 /** Kunci bunyi bersama: event yang sama dari lonceng & layar lain (mis. waiter-view) cukup sekali. */
@@ -248,7 +251,18 @@ export function StaffNotificationCenter({
     }
     void ensureServiceWorker()
       .then((registration) => registration?.pushManager.getSubscription())
-      .then((subscription) => setPushState(subscription ? "on" : "off"))
+      .then(async (subscription) => {
+        if (!subscription) return setPushState("off");
+        // V2: langganan browser ini diikat ulang ke akun yang SEDANG login, supaya
+        // push akun sebelumnya (tablet bersama) tidak terus masuk ke perangkat ini.
+        const json = subscription.toJSON();
+        if (json.endpoint && json.keys) {
+          await garageApi
+            .post("/api/push/subscribe", { endpoint: json.endpoint, keys: json.keys, userAgent: navigator.userAgent })
+            .catch(() => undefined);
+        }
+        setPushState("on");
+      })
       .catch(() => setPushState("off"));
   }, []);
 

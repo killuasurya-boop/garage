@@ -117,9 +117,9 @@ Skenario 5 (multi-tab) gagal; skenario 6 (refresh) aman untuk lonceng & Hub (mua
 
 **F-13 · WMS: alert tidak lengkap & terpotong diam-diam [V]** — `getWmsNotifications` memotong low stock ke 5 tanpa "+N lagi", tidak mencakup Minta Bahan pending, PO menunggu approval, opname menunggu review, atau bahan yang memblokir resep; tidak ada push.
 
-**F-14 · Race "semua siap" [S]** — Pengecekan sibling di `updateKitchenStatus` (`garage-service.ts:12919-12925`) dilakukan setelah update tanpa lock per order. Dua stasiun menekan READY bersamaan bisa sama-sama melihat sibling belum siap → `all_ready` (chat pelanggan, push, `takeaway_ready`) tidak terkirim. (Enqueue cetak SELESAI sudah memakai advisory lock.) Perlu uji konkuren.
+**F-14 · Race "semua siap" [V, dikoreksi]** — Analisis ulang: pengecekan sibling di `updateKitchenStatus` berjalan SETELAH update tiket sendiri ter-commit, jadi stasiun yang membaca terakhir selalu melihat semua siap → event **tidak bisa hilang**. Risiko sebenarnya kebalikannya: dua stasiun READY bersamaan, atau tiket dibuka ulang lalu READY lagi, mengumumkan `all_ready` dua kali (chat + push pelanggan dobel; `takeaway_ready` sudah aman lewat dedup). Diperbaiki di Tahap 1.1.
 
-**F-15 · Komponen lonceng mungkin ter-mount dua kali [S]** — `garage-app.tsx:1061` dan `:1228` serta `pos-view.tsx:5379`. Jika dua header aktif bersamaan, ding dobel di satu tab. Perlu uji DOM.
+**F-15 · Lonceng ter-mount dua kali — TIDAK TERBUKTI [V]** — Tiga lonceng ada di cabang yang saling eksklusif: header `!isPosMode` (`garage-app.tsx:953`), header POS non-Kasir (`isPosMode && !isCashierPosMode`, `:1196`), dan POS Kasir (`pos-view.tsx`, `role === "Kasir"`). Tidak perlu perubahan.
 
 ### P2
 

@@ -17,7 +17,7 @@ Kolom ✅ = sudah diterapkan di branch `feat/smart-notification-v2`.
 | Siap antar / Panggil waiter (`ready_to_deliver`) | `handoverKitchenTicketImpl` (ready_call / handover) | **Tidak ada** (toast "Waiter dipanggil." saja) | Waiter (atau waiter yang dipilih → audience `user`), dine-in bermeja saja; body menyebut stasiun lain yang masih proses (antar parsial didukung per tiket) | high | tiket delivered | Panggil ulang = event baru (dedup per `handover_at`) | `/os?module=waiter` | ✅ |
 | Pengingat READY belum diambil | `use-hub-sound.ts:137-149` (3–5 mnt) | Voice di area tampilan | Perangkat stasiun saja; berhenti saat tiket bukan READY | normal | delivered | — | — | ✅ |
 | `takeaway_ready` pickup | `announceOrderProgress` all_ready | cashier feed + push + voice | Sama; resolve saat diserahkan. Speaker pickup khusus = NOT IMPLEMENTED (lihat rencana Fase 3) | high | handed | — | `/os?module=pos` | ✅ resolve |
-| Order dibatalkan / item batal (persetujuan) | `/api/production/cancel-requests` → approval | Badge Persetujuan (poll) | + notifikasi management (rencana P1) | high | approval diputus | — | `/os?module=approvals` | — |
+| Order dibatalkan / item batal (persetujuan) | `/api/production/cancel-requests` → approval | management urgent (PR #160) | Sama + selesai saat approval diputus | high | approval diputus | — | `/os?module=approvals` | ✅ |
 | Tiket dibatalkan | `getProductionBoard.cancelled` | Kartu "Dibatalkan" di Hub | Sama + resolve notifikasi order terkait | normal | — | — | — | ✅ resolve |
 
 ## 2. Waiter & meja
@@ -36,7 +36,7 @@ Kolom ✅ = sudah diterapkan di branch `feat/smart-notification-v2`.
 | `chat` | `:8104` | cashier, bucket 2 mnt | Sama | normal | dibalas (rencana) | — | `/os?module=pos&chat=1` | — |
 | `delivery_arrived` | `:8470` | cashier | Sama | info | — | — | `/os?module=courier` | — |
 | `courier_assigned` | `garage-courier.ts:283` | user kurir | Sama | high | delivered | Alamat pelanggan hanya ke kurir yang ditugaskan | `/os?module=courier` | — |
-| Selisih kas review/critical (`cash_variance`) | `closeCashSession` `:19343` | Approval saja; voice di perangkat kasir | + notifikasi **management** (Owner/Manajer outlet), tanpa ke kasir/stasiun | high / critical | approval diputus | Nominal hanya ke management | `/os?module=approvals` | ✅ |
+| Selisih kas review/critical (`cash_variance`) | `closeCashSession` `:19343` | Approval saja; voice di perangkat kasir | + notifikasi **management** (Owner/Manajer outlet), tanpa ke kasir/stasiun; selesai saat `APP-CASH-*` diputus | high / critical | approval diputus | Nominal hanya ke management | `/os?module=approvals` | ✅ |
 | Selisih minor (≤ Rp10.000) | idem | tidak dieskalasi | Tetap tidak dieskalasi (aturan kas) | — | — | — | — | — |
 | QRIS pending vs lunas | `paymentStatusOf` | Status benar; label notifikasi ambigu | Label eksplisit "menunggu verifikasi kasir"; QRIS di POS = "verifikasi manual kasir" | — | — | — | — | ✅ (notifikasi) |
 | Transaksi pending sebelum tutup shift | `pos-close-shift-form.tsx:431-437` | Banner meja aktif + QR pending | Sama (sudah ada); panel cek terpadu = rencana Fase 6 | — | — | — | — | — |
@@ -49,9 +49,9 @@ Kolom ✅ = sudah diterapkan di branch `feat/smart-notification-v2`.
 | Bahan dikirim gudang | `:279` | **production (Bar + Dapur)** | Hanya divisi peminta (`bar` / `dapur`) | normal | diterima | ✅ |
 | Kekurangan → perlu beli | `:288` | management | Sama | normal | PO dibuat | — |
 | Stok menipis (voice) | `garage-app.tsx:645` | Voice per SKU di setiap perangkat ber-inventori | Satu voice per batch ("N bahan menipis"), klaim lintas tab | normal | stok pulih | ✅ |
-| Low/out stock, cold chain, receiving draft | `getWmsNotifications` | Drawer WMS (pull, dipotong 5) | Rencana P1: tambah "+N lagi", MRQ pending, PO approval, opname review; collapse per item+lokasi+jenis | normal | kondisi hilang | — |
-| PO menunggu approval | `wms-procurement.ts` | NOT IMPLEMENTED | Rencana P1 → management | normal | diputus | — |
-| Opname menunggu review / selisih besar | `wms-opname*` | NOT IMPLEMENTED | Rencana P1 → management / Owner (≥ ownerValue) | high | difinalisasi | — |
+| Low/out stock, cold chain, receiving draft | `getWmsNotifications` | Drawer WMS (pull, dipotong 5) | Habis dulu, "+N lagi", + Minta Bahan / PO / opname menunggu (satu baris per jenis) | normal | kondisi hilang | ✅ |
+| PO menunggu approval (`po_approval`) | `submitPurchaseOrder` / `revisePurchaseOrder` | NOT IMPLEMENTED | management, satu per pengajuan/revisi | normal | setuju / tolak / batal | ✅ |
+| Opname menunggu review (`opname_review`) | `submitWmsOpname` | NOT IMPLEMENTED | management; urgent "perlu OWNER" bila ada baris kelas owner | high | disetujui / ditolak / hitung ulang | ✅ |
 
 ## 5. Owner & sistem
 

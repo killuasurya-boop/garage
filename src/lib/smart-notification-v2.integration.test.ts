@@ -202,6 +202,48 @@ describe("Smart Notification V2", () => {
     expect((await notif.resolveStaffNotifications({ dedupPrefixes: ["v2_"] }, "uji")).resolved).toBe(0);
   });
 
+  it("keputusan approval menyelesaikan notifikasi yang menunggunya (batal Bar/Dapur)", async () => {
+    await t.getDb().insert(t.schema.approvals).values({
+      id: "APP-V2-CANCEL-1",
+      type: "Lainnya",
+      requester: "Bar V2",
+      amount: "Rp0",
+      reason: "uji",
+      risk: "low",
+      age: "baru saja",
+    });
+    await notif.notifyStaff({ outletId, audience: "management", kind: "production_cancel_request", title: "Bar minta batal", dedupKey: "cancel-request:APP-V2-CANCEL-1" });
+    await svc.decideApproval("APP-V2-CANCEL-1", { status: "rejected", reasonDecided: "Sudah dibuat" }, owner());
+    const item = (await feedFor(OWNER, "Owner")).items.find((n: any) => n.dedupKey === "cancel-request:APP-V2-CANCEL-1");
+    expect(item.resolvedAt).toBeTruthy();
+    expect(item.resolvedReason).toBe("Ditolak");
+  });
+
+  it("'semua siap' diumumkan sekali per order walau tiket dibuka ulang lalu siap lagi (F-14)", async () => {
+    const res = await svc.createCustomerOrder({
+      orderType: "takeaway",
+      customerMode: "guest",
+      guestName: "Tono",
+      paymentMethod: "Cash",
+      source: "qr_takeaway",
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    });
+    const orderToken = (await (async () => {
+      const { eq } = await import("drizzle-orm");
+      const [row] = await t.getDb().select().from(t.schema.orders).where(eq(t.schema.orders.id, res.order.id));
+      return row.invoiceTrackingToken as string;
+    })());
+    await svc.postCustomerChatMessage({ chatToken: "chat-token-tono-0001", tableLabel: "Take away", body: "Halo", orderToken });
+    await svc.updateCustomerOrderStatus(res.order.id, { action: "paid", paymentMethod: "Cash" }, kasir());
+    const [ticket] = await ticketsOf(res.order.id);
+    await prod.productionTicketAction(ticket.ticketNo, "start", owner());
+    await prod.productionTicketAction(ticket.ticketNo, "ready", owner(), { qcConfirmed: true });
+    await prod.productionTicketAction(ticket.ticketNo, "reopen", owner(), { reason: "Rasa kurang manis" });
+    await prod.productionTicketAction(ticket.ticketNo, "ready", owner(), { qcConfirmed: true });
+    const chat = await svc.getCustomerChatMessages({ chatToken: "chat-token-tono-0001" });
+    expect(chat.messages.filter((m: any) => m.sender === "system" && /SIAP DIAMBIL/.test(m.body))).toHaveLength(1);
+  });
+
   it("RBAC: notifikasi manajemen tidak terlihat kasir/waiter/stasiun (skenario 10 & 13)", async () => {
     await notif.notifyStaff({ outletId, audience: "management", kind: "cash_variance", title: "Selisih kas", body: "Kas kurang Rp 75.000", dedupKey: "v2-mgmt-1" });
     expect((await feedFor(OWNER, "Owner")).items.some((n: any) => n.dedupKey === "v2-mgmt-1")).toBe(true);

@@ -87,4 +87,8 @@ Branch sudah di-merge dengan `origin/main` (PR #160, tanpa konflik). PR #160 sud
 
 Belum: panel cek tutup shift terpadu (1.7), seluruh Tahap 2.
 
-Hasil uji Tahap 1 (3 Nov 2026): lihat bagian bawah PR / komentar commit.
+Hasil uji Tahap 1 (3 Nov 2026, setelah merge main #160):
+- `tsc --noEmit` bersih; eslint file diubah 0 error.
+- Full suite `vitest run`: 242/250 file lulus (1.628 tes) di bawah beban CPU dari sesi lain; 8 file gagal hanya karena `beforeAll` timeout 60 dtk (setup DB PGlite, tanpa asersi gagal).
+- 8 file itu dijalankan ulang serial (`--maxWorkers=1`): **8/8 lulus (33 tes)**. Total **250/250 file, 1.661 tes lulus**.
+- `npm run build` belum diulang sejak Tahap 1 (perubahan Tahap 1 hanya server lib + satu komponen; typecheck bersih).

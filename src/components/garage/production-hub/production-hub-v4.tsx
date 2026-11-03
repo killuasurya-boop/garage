@@ -101,6 +101,7 @@ const VoiceSettingsDialog = dynamic(
 
 const POLL_MS = 4000;
 const POLL_LIVE_MS = 15_000;
+const READY_STALE_MS = 2 * 60_000;
 const GAP = 8;
 const PREFS_KEY = "garage:phv4:prefs";
 
@@ -419,8 +420,6 @@ export function ProductionHubV4({
     [order, byNo],
   );
 
-  // Antrean siap = panel kanan di layar ≥1280px; tablet = overlay (grid tetap 4×2).
-  const showReadyPanel = isLarge && (readyPanel ?? isWide);
   const grid = resolveGrid(prefs.density, box.w, box.h, GAP);
   const pageSize = Math.max(1, grid.cols * grid.rows);
   const pages = Math.max(1, Math.ceil(ordered.length / pageSize));
@@ -438,6 +437,12 @@ export function ProductionHubV4({
       ),
     [areaTickets, now],
   );
+  // Antrean siap = panel kanan di layar ≥1280px; tablet = overlay (grid tetap 4×2).
+  // Audit P1: di 1280–1599 (laptop 1366) panel dulu tertutup sehingga pesanan SIAP hanya
+  // tampak sebagai angka → kini terbuka otomatis selama ada pesanan siap (tetap bisa ditutup).
+  const showReadyPanel = isLarge && (readyPanel ?? (isWide || readyTickets.length > 0));
+  // Pesanan siap > 2 menit belum diantar → tanda mencolok di header (waiter lupa dipanggil).
+  const readyStale = readyTickets.filter((t) => t.readyAt && now - Date.parse(t.readyAt) > READY_STALE_MS).length;
   const suggestions = board?.suggestions ?? [];
   const batches = board?.batches ?? [];
   const batchCount = suggestions.filter((s) => inArea(s.station)).length + batches.filter((b) => inArea(b.station)).length;
@@ -633,6 +638,15 @@ export function ProductionHubV4({
         <span className="flex h-8 shrink-0 items-center gap-1 rounded-md bg-[var(--phv4-critical)]/15 px-2 text-[11px] font-bold text-[#fecaca]">
           <AlertTriangle className="size-3.5" /> SLA <span className="phv4-mono text-[14px]">{counts.critical}</span>
         </span>
+      ) : null}
+      {readyStale ? (
+        <button
+          type="button"
+          onClick={() => openPanel("ready")}
+          className="flex h-8 shrink-0 animate-pulse items-center gap-1 rounded-md bg-[var(--phv4-critical)] px-2 text-[12px] font-bold text-white"
+        >
+          <Bike className="size-3.5" /> SIAP &gt;2 MNT <span className="phv4-mono text-[14px]">{readyStale}</span>
+        </button>
       ) : null}
       {(["Bar", "Food"] as const)
         .filter((st) => inArea(st) && busyExtra[st] > 0)
@@ -1113,6 +1127,9 @@ export function ProductionHubV4({
             <span className={failedJobs ? "font-semibold text-[#fca5a5]" : "text-[var(--phv4-muted)]"}>
               antre {queuedJobs} · gagal {failedJobs}
             </span>
+            {printer.enabled && printer.printerReady === false ? (
+              <span className="font-semibold text-[#fca5a5]">printer tidak terdeteksi — job dibiarkan untuk perangkat lain</span>
+            ) : null}
           </span>
           {printer.notice && now - printer.notice.at < 15_000 ? (
             <span className={`min-w-0 truncate ${printer.notice.tone === "ok" ? "text-[#86efac]" : "text-[#fca5a5]"}`}>{printer.notice.text}</span>

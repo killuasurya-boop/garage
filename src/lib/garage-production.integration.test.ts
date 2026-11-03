@@ -500,3 +500,17 @@ describe("Production Hub — cetak chit stasiun", () => {
     expect(await prod.markProductionChitsPrinted(["", "  "])).toBe(0);
   });
 });
+
+describe("Production Hub — isolasi outlet (audit P1)", () => {
+  it("batch berjalan outlet lain tidak tampil dan tidak bisa diselesaikan dari outlet ini", async () => {
+    const [other] = await t.getDb().insert(t.schema.outlets).values({ code: "OTH", name: "Outlet Lain" }).returning();
+    const [foreign] = await t
+      .getDb()
+      .insert(t.schema.productionBatches)
+      .values({ batchNo: "BT-LAIN-1", outletId: other.id, station: "Bar", itemLabel: "Kopi Lain", totalQty: 3 })
+      .returning();
+    const board = await prod.getProductionBoard(bar());
+    expect(board.batches.map((b: any) => b.batchNo)).not.toContain("BT-LAIN-1");
+    await expect(prod.completeProductionBatch(foreign.id, [], bar())).rejects.toThrow(/tidak ditemukan/i);
+  });
+});

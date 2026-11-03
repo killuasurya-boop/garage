@@ -126,6 +126,25 @@ describe("Tiket SELESAI — antre sekali per order", () => {
     expect(jobs[0].payload.items.map((i: any) => i.station).sort()).toEqual(["Bar", "Dapur"]);
   });
 
+  it("rokok/mineral (tanpa produksi) ikut tercetak sebagai SERAHKAN KASIR", async () => {
+    await t.getDb().insert(t.schema.menuItems).values({ id: "itm-rokok", name: "Rokok Test", category: "Rokok", section: "Rokok", prep: "0m" }).onConflictDoNothing();
+    await t.getDb().insert(t.schema.menuVariants).values({ itemId: "itm-rokok", variantId: "reg", label: "Regular", price: 30_000 }).onConflictDoNothing();
+    const res = await order("37", "ROKOK", [
+      { itemId: "itm-coffee", qty: 1 },
+      { itemId: "itm-rokok", qty: 2 },
+    ]);
+    // Rokok tidak membuat tiket Dapur/Bar — hanya kopi yang diproduksi.
+    expect(await ticketOf(res.orderNo, "Food")).toBeUndefined();
+    await finish(res.orderNo, "Bar");
+    const [job] = await jobsOf((await ticketOf(res.orderNo, "Bar")).orderId);
+    expect(job.payload.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ station: "Bar", qty: 1 }),
+        expect.objectContaining({ station: "Kasir", label: "Rokok Test", qty: 2 }),
+      ]),
+    );
+  });
+
   it("enqueue berulang, reopen lalu READY lagi → tetap satu job (tanpa dobel)", async () => {
     const res = await order("32", "ULANG", [
       { itemId: "itm-coffee", qty: 1 },

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bike,
@@ -73,6 +73,8 @@ const ACTION_ICON: Record<HubAction, typeof Play> = {
  * Kartu order berukuran tetap. Satu aksi utama per status; SELESAIKAN butuh
  * ketukan kedua (konfirmasi QC) supaya server menerima `qcConfirmed`.
  */
+const QC_ARM_MS = 700;
+
 export const OrderCard = memo(function OrderCard({
   ticket,
   now,
@@ -155,12 +157,17 @@ export const OrderCard = memo(function OrderCard({
   const ActionIcon = primary ? ACTION_ICON[primary.action] : Check;
   const label = confirming ? "QC OK · Selesaikan" : primary?.label;
 
+  // Audit P1: dobel-ketuk cepat dulu langsung = "QC OK". Ketukan konfirmasi baru diterima
+  // setelah jeda QC_ARM_MS supaya staf benar-benar melihat isi pesanan dulu.
+  const armedAt = useRef(0);
   function press() {
     if (!primary || busy || lockText) return;
     if (primary.action === "finish" && !confirming) {
+      armedAt.current = Date.now();
       setConfirming(true);
       return;
     }
+    if (primary.action === "finish" && Date.now() - armedAt.current < QC_ARM_MS) return;
     setConfirming(false);
     onAction(ticket, primary.action);
   }

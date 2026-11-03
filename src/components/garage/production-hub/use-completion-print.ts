@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { garageApi } from "@/lib/api-client";
 import { DEVICE_PRINTER_MODE_LABELS, loadDevicePrinterConfig } from "@/lib/device-printer";
-import { deliverPrintContent } from "@/lib/print-client";
+import { deliverPrintContent, probeAutoPrinter } from "@/lib/print-client";
 import {
   buildCompletionTicketContent,
   canAutoPrintJob,
@@ -19,6 +19,7 @@ import {
 const ENABLED_KEY = "garage:completion-autoprint";
 const DEVICE_KEY = "garage:device-id";
 const TICK_MS = 3000;
+const PROBE_TTL_MS = 20_000;
 
 export type CompletionPrintNotice = { tone: "ok" | "error"; text: string; at: number };
 
@@ -60,7 +61,9 @@ export function useCompletionPrintWorker(
   const [enabled, setEnabled] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<CompletionPrintNotice | null>(null);
+  const [printerReady, setPrinterReady] = useState<boolean | null>(null);
   const busyRef = useRef(false);
+  const probeRef = useRef<{ at: number; ready: boolean; reason: string | null }>({ at: 0, ready: false, reason: null });
   const jobsRef = useRef(jobs);
   const onChangedRef = useRef(onChanged);
 
@@ -155,19 +158,27 @@ export function useCompletionPrintWorker(
 
   useEffect(() => {
     if (!enabled) return;
-    const tick = () => {
+    const tick = async () => {
       if (busyRef.current || (typeof document !== "undefined" && document.hidden)) return;
       if (!devicePrinterAutoCapable().ok) return;
       const now = Date.now();
       const next = [...jobsRef.current]
         .reverse()
         .find((job) => canAutoPrintJob(job, now));
-      if (next) void printJob(next);
+      if (!next) return;
+      // Klaim hanya bila printer terbukti siap (cache 20 dtk) — tablet tanpa printer
+      // tidak boleh mengambil job lalu menghabiskan jatah percobaannya.
+      if (now - probeRef.current.at > PROBE_TTL_MS) {
+        probeRef.current = { at: now, ...(await probeAutoPrinter().catch(() => ({ ready: false, reason: null }))) };
+        setPrinterReady(probeRef.current.ready);
+      }
+      if (!probeRef.current.ready || busyRef.current) return;
+      void printJob(next);
     };
-    tick();
-    const id = window.setInterval(tick, TICK_MS);
+    void tick();
+    const id = window.setInterval(() => void tick(), TICK_MS);
     return () => window.clearInterval(id);
   }, [enabled, printJob, jobs]);
 
-  return { enabled, toggle, busyId, notice, printNow: printJob };
+  return { enabled, toggle, busyId, notice, printerReady, printNow: printJob };
 }

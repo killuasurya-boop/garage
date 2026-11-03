@@ -24,7 +24,7 @@ export async function GET() {
       sku: p.sku,
       name: p.name,
       category: p.category,
-      area: p.area,
+      area: p.area ?? "umum",
       unit: p.unit,
       brand: p.brand,
       subcategory: p.subcategory,
@@ -36,9 +36,9 @@ export async function GET() {
       packageLabel: p.packageLabel,
       barcode: p.barcode,
       imageUrl: p.imageUrl,
-      uoms: p.uoms.map((u) => ({
+      uoms: (p.uoms ?? []).map((u) => ({
         uom: u.uom, factor: Number(u.factor),
-        isPurchase: u.isPurchase, isCount: u.isCount,
+        isPurchase: u.isPurchase === true, isCount: u.isCount === true,
       })),
     })),
     suppliers.map((s) => ({

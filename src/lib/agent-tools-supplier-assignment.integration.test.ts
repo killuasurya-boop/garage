@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { wmsProduct } from "@/db/schema";
 import type { Role } from "@/lib/garage-data";
 import type { GarageSession } from "@/lib/server-auth";
 import { seedGarageBasics, setupGarageTestDb, teardownGarageTestDb, type GarageTestDb } from "@/lib/test-helpers/garage-test-db";
 
 // Integration tests for owner-confirmed, supplier-only kitchen master changes.
 // Never use production database or menu/recipe/POS writes.
+type ProductRow = typeof wmsProduct.$inferSelect;
+type AssignmentResult = { tersimpan: boolean; diperbarui: string[]; sudahSesuai: string[] };
+
 let t: GarageTestDb;
 let outletId = "";
 const OWNER = "user-wms-supplier-owner";
@@ -85,11 +89,11 @@ describe("garage_assign_kitchen_suppliers", () => {
 
   it("writes only supplier reference, verifies rows, supports repeat without duplication", async () => {
     const { runAgentTool } = await import("@/lib/agent-tools");
-    const before = await t.getDb().select().from(t.schema.wmsProduct);
-    const result = await runAgentTool(as(OWNER, "Owner"), "garage_assign_kitchen_suppliers", args(["KIT-997", "KIT-998"]), ctx) as any;
+    const before: ProductRow[] = await t.getDb().select().from(t.schema.wmsProduct);
+    const result = await runAgentTool(as(OWNER, "Owner"), "garage_assign_kitchen_suppliers", args(["KIT-997", "KIT-998"]), ctx) as AssignmentResult;
     expect(result).toMatchObject({ tersimpan: true, verifikasi: { cocok: 2, total: 2 } });
     expect(result.diperbarui).toHaveLength(2);
-    const after = await t.getDb().select().from(t.schema.wmsProduct);
+    const after: ProductRow[] = await t.getDb().select().from(t.schema.wmsProduct);
     for (const sku of ["KIT-997", "KIT-998"]) {
       const prior = before.find((x) => x.sku === sku)!;
       const current = after.find((x) => x.sku === sku)!;
@@ -98,7 +102,7 @@ describe("garage_assign_kitchen_suppliers", () => {
       expect(current.minStock).toBe(prior.minStock);
       expect(current.unit).toBe(prior.unit);
     }
-    const again = await runAgentTool(as(OWNER, "Owner"), "garage_assign_kitchen_suppliers", args(["KIT-997", "KIT-998"]), ctx) as any;
+    const again = await runAgentTool(as(OWNER, "Owner"), "garage_assign_kitchen_suppliers", args(["KIT-997", "KIT-998"]), ctx) as AssignmentResult;
     expect(again.diperbarui).toHaveLength(0);
     expect(again.sudahSesuai).toHaveLength(2);
   });

@@ -44,3 +44,13 @@ Kriteria terima pengganti AC-PUB-03:
 - **Chat bebas Aya dengan OpenAI API (branch B):** jalur boleh dibangun (tool gateway, filter peran, konfirmasi), tetapi **budget guard default = Rp 0 → fitur mati**. Aya menjawab dengan fallback berbasis aturan/FAQ dan mengarahkan Owner ke ChatGPT. Aktif hanya bila Owner sendiri mengisi batas harian di pengaturan.
 - **Fitur AI lama yang sudah ada di produksi** (`/api/ai/pos-agent`, owner chat, shift copilot, system doctor, CEO broadcast) **tidak diubah diam-diam** oleh pekerjaan Aya V2. Agent cukup mencatat apakah fitur itu memanggil API berbayar dan melaporkannya ke Owner untuk diputuskan terpisah.
 - Kriteria terima: tidak ada panggilan ke `api.openai.com`, ElevenLabs, atau layanan berbayar lain dari fitur Aya V2 saat budget = 0 (dibuktikan dengan tes yang memblokir/mock fetch); semua fitur V2 untuk staf & customer tetap berfungsi tanpa `OPENAI_API_KEY`.
+
+## OD-04 — Suara, SFX, dan urutan animasi (4 Nov 2026)
+
+Owner memilih rekomendasi di [PLAN-ANIMASI-SUARA-SCROLL.md](PLAN-ANIMASI-SUARA-SCROLL.md):
+- **SFX = ZzFX (MIT)**, dibuat prosedural di browser; tanpa file audio. Kenney CC0 hanya cadangan.
+- **Suara**: di menu digital customer Aya **bicara + SFX** setelah customer menyentuh layar (aturan autoplay browser).
+  Di **POS, KDS, dan Production Hub suara & SFX Aya MATI secara bawaan** (tidak tertukar dengan bunyi pesanan); teks tetap tampil.
+  Notifikasi operasional selalu menang atas suara Aya.
+- **Urutan**: A3 `feat/aya-v2-rig` (animasi berlapis: kedip, tangan menunjuk, efek lucu) → A2 `feat/aya-v2-order-guide`
+  (scroll + terbang + tunjuk + sorot di `/order`) → A4 `feat/aya-v2-voice-sfx` (bank kalimat bijak/lucu/imut, Web Speech, ZzFX).

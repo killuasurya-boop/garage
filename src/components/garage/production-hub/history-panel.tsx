@@ -8,7 +8,7 @@ import type { ProductionHistoryOrder, ProductionHistoryTicket } from "@/lib/prod
 import { COMPLETION_STATUS_LABEL } from "@/lib/production-completion-print-rules";
 
 import { StationBadge } from "./hub-ui";
-import { tableText } from "./order-card";
+import { customerOf, tableText } from "./order-card";
 
 type StatusFilter = "all" | "active" | "ready" | "delivered" | "cancelled";
 
@@ -179,7 +179,7 @@ export function HistoryPanel({
                     <span className="truncate text-[12px] text-[#e5e7eb]">{tableText(order.table)}</span>
                   </span>
                   <span className="block truncate text-[11px] text-[var(--phv4-muted)]">
-                    {hhmm(order.createdAt)} · {order.customerName ?? "Tamu"} · {statuses.join(" / ")}
+                    {hhmm(order.createdAt)} · {customerOf({ identity: order.customerName, table: order.table }).customer ?? "Tanpa nama"} · {statuses.join(" / ")}
                     {order.prints.length
                       ? ` · Cetak: ${COMPLETION_STATUS_LABEL[order.prints[order.prints.length - 1].status]}`
                       : ""}

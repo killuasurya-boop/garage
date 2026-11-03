@@ -14,7 +14,7 @@ import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { kitchenTickets, orders, printJobs, productionTicketItems } from "@/db/schema";
-import { normalizeProductionStation, productionItemLabel } from "@/lib/garage-production-rules";
+import { normalizeProductionStation, productionItemLabel, splitOrderIdentity } from "@/lib/garage-production-rules";
 import {
   COMPLETION_CLAIM_LEASE_MS,
   COMPLETION_JOB_TYPE,
@@ -154,7 +154,8 @@ async function buildPayload(orderId: string): Promise<CompletionTicketPayload | 
     queueNo: order.queueNo ?? null,
     tableLabel: first?.tableLabel ?? "-",
     channel: first?.channel ?? "",
-    customerName: live.find((t) => t.customerName?.trim())?.customerName ?? null,
+    // Nama TAMU saja — order waiter tersimpan "Meja 05 · Andi · Waiter Budi".
+    customerName: splitOrderIdentity(live.find((t) => t.customerName?.trim())?.customerName, first?.tableLabel).customer,
     orderedAt: order.createdAt.toISOString(),
     completedAt: new Date(lastReady || Date.now()).toISOString(),
     items,

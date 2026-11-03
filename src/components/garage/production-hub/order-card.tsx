@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import type { ProductionTicketView } from "@/lib/garage-api-types";
+import { splitOrderIdentity } from "@/lib/garage-production-rules";
 import {
   elapsedSeconds,
   fitItems,
@@ -30,6 +31,19 @@ import {
 import { SLA_TEXT, STATUS_TONE, StationBadge, StatusChip } from "./hub-ui";
 
 export type SiblingInfo = { station: "Bar" | "Food"; status: string } | null;
+
+/**
+ * Nama pemesan untuk layar produksi: nama tamu (tanpa meja/waiter), nama waiter
+ * terpisah, dan pengganti "Antrian #12" / "Tanpa nama" bila tamu tidak diisi.
+ */
+export function customerOf(input: { identity: string | null; table: string; queueNo?: number | null }) {
+  const { customer, waiter } = splitOrderIdentity(input.identity, input.table);
+  return {
+    customer,
+    waiter,
+    fallback: input.queueNo ? `Antrian #${input.queueNo}` : "Tanpa nama",
+  };
+}
 
 /** Label meja ringkas: "Meja 08" / "Takeaway". */
 export function tableText(table: string) {
@@ -92,6 +106,7 @@ export const OrderCard = memo(function OrderCard({
   const seconds = elapsedSeconds(ticket.createdAt, now, ticket.readyAt);
   const table = tableText(ticket.table);
   const pickup = hubTableNumber(ticket.table) === null;
+  const who = customerOf(ticket);
   const { visible, hidden } = fitItems(ticket.items, Math.max(1, maxLines));
   const waitingBatch = status === "processing" && ticket.pendingBatchNos.length > 0;
   const critical = sla === "critical";
@@ -183,11 +198,20 @@ export const OrderCard = memo(function OrderCard({
             <span className="truncate">{table}</span>
           </span>
         </div>
-        <p className="min-w-0 truncate text-[12px] leading-4 text-[var(--phv4-muted)]">
-          {ticket.identity}
+        {/* Baris 3: NAMA PEMESAN menonjol (bukan teks mentah "Meja · Tamu · Waiter"). */}
+        <p className="flex min-w-0 items-baseline gap-1.5 leading-5">
+          <span
+            className={`min-w-0 truncate text-[15px] font-bold ${who.customer ? "text-white" : "text-[var(--phv4-muted)]"}`}
+            title={who.customer ?? undefined}
+          >
+            {who.customer ?? who.fallback}
+          </span>
+          {who.waiter ? (
+            <span className="min-w-0 shrink truncate text-[12px] text-[var(--phv4-muted)]">· {who.waiter}</span>
+          ) : null}
           {sibling ? (
-            <span className="ml-1.5 text-[#d1d5db]">
-              · {sibling.station === "Bar" ? "Bar" : "Dapur"}{" "}
+            <span className="ml-auto shrink-0 text-[12px] text-[#d1d5db]">
+              {sibling.station === "Bar" ? "Bar" : "Dapur"}{" "}
               {sibling.status === "ready" || sibling.status === "delivered" ? "✓" : "…"}
             </span>
           ) : null}

@@ -146,6 +146,14 @@ describe("Tiket SELESAI — antre sekali per order", () => {
     expect(await jobsOf(orderId)).toHaveLength(1);
   });
 
+  it("order waiter: tiket SELESAI mencetak nama TAMU, bukan 'Meja · Tamu · Waiter'", async () => {
+    const res = await order("39", "Meja 39 · Andi · Waiter Budi", [{ itemId: "itm-coffee", qty: 1 }]);
+    const bar = await ticketOf(res.orderNo, "Bar");
+    await finish(res.orderNo, "Bar");
+    const [job] = await jobsOf(bar.orderId);
+    expect(job.payload.customerName).toBe("Andi");
+  });
+
   it("order hanya satu station langsung antre saat station itu selesai; order belum selesai tidak antre", async () => {
     const res = await order("33", "BARONLY", [{ itemId: "itm-coffee", qty: 1 }]);
     const orderId = (await ticketOf(res.orderNo, "Bar")).orderId;

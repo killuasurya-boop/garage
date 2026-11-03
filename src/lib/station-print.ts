@@ -10,7 +10,7 @@
 // bukan diam-diam tanpa sentuhan.
 
 import type { ProductionTicketView } from "@/lib/garage-api-types";
-import { parseTableNumber } from "@/lib/garage-tables";
+import { splitOrderIdentity } from "@/lib/garage-production-rules";
 import { buildKitchenChitContent, type KitchenChitItem } from "@/lib/thermal-receipt";
 import { toPrinterText } from "@/lib/device-printer";
 
@@ -30,17 +30,7 @@ export function chitStationLabel(station: string): "Dapur" | "Bar" {
  * - order POS: nama customer; placeholder "Tamu" / "Antrian #12" → null.
  */
 export function chitCustomerName(ticket: Pick<ProductionTicketView, "identity" | "table">): string | null {
-  const parts = (ticket.identity ?? "").split(" · ").map((p) => p.trim()).filter(Boolean);
-  if (parts.length === 0) return null;
-  const sameTable = (label: string) =>
-    label.toLowerCase() === (ticket.table ?? "").trim().toLowerCase() ||
-    (parseTableNumber(label) !== null && parseTableNumber(label) === parseTableNumber(ticket.table ?? null));
-  if (sameTable(parts[0])) {
-    return parts.length >= 3 ? parts[1] : null;
-  }
-  const name = parts.join(" · ");
-  if (/^(tamu|guest customer|antrian\s*#?\d+)$/i.test(name)) return null;
-  return name;
+  return splitOrderIdentity(ticket.identity, ticket.table).customer;
 }
 
 /** Teks chit satu tiket produksi (tanpa harga), format sama dengan chit kasir. */

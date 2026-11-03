@@ -85,7 +85,7 @@ import { useProductionStream } from "@/lib/use-production-stream";
 import { BatchView, type BatchActions } from "./batch-view";
 import { HistoryPanel } from "./history-panel";
 import { HubSheet, Segmented, SelectBox, StationBadge } from "./hub-ui";
-import { OrderCard, tableText, type SiblingInfo } from "./order-card";
+import { customerOf, OrderCard, tableText, type SiblingInfo } from "./order-card";
 import { AutoPrintSwitch, PrinterPanel } from "./printer-panel";
 import { ReadyQueue, type ReadyTab } from "./ready-queue";
 import { useCompletionPrintWorker } from "./use-completion-print";
@@ -1300,7 +1300,8 @@ function TicketDetail({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
         <StationBadge station={ticket.station} />
-        <span className="font-semibold">{ticket.identity}</span>
+        <span className="text-[15px] font-bold">{customerOf(ticket).customer ?? customerOf(ticket).fallback}</span>
+        {customerOf(ticket).waiter ? <span className="text-[var(--phv4-muted)]">waiter {customerOf(ticket).waiter}</span> : null}
         <span className="text-[var(--phv4-muted)]">{ticket.channel}</span>
         {ticket.queueNo ? <span className="phv4-mono text-[var(--phv4-muted)]">Antrian {ticket.queueNo}</span> : null}
       </div>

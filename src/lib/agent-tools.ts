@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AgentToolError, dateKey, range, rupiah, type AgentTool, type AgentToolContext } from "@/lib/agent-tool-core";
 import { fraudTools } from "@/lib/agent-tools-fraud";
 import { masterTools } from "@/lib/agent-tools-master";
+import { supplierAssignmentTools } from "@/lib/agent-tools-supplier-assignment";
 import { ownerAiTools } from "@/lib/agent-tools-owner-ai";
 import { kasTools } from "@/lib/agent-tools-kas";
 import { posStaffTools } from "@/lib/agent-tools-pos-staf";
@@ -322,6 +323,7 @@ const tools: AgentTool[] = [
   ...kasTools,
   ...ownerAiTools,
   ...masterTools,
+  ...supplierAssignmentTools,
   ...fraudTools,
   // M3b: POS/Order (batal/refund lewat pengajuan, koreksi metode bayar) + Karyawan.
   ...posStaffTools,

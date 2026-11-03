@@ -16,6 +16,7 @@ import {
 
 import type { ProductionTicketView } from "@/lib/garage-api-types";
 import { splitOrderIdentity } from "@/lib/garage-production-rules";
+import { DEFAULT_SLA_CONFIG, slaStateOf, type SlaConfig } from "@/lib/production-sla";
 import {
   elapsedSeconds,
   fitItems,
@@ -24,7 +25,6 @@ import {
   hubTableNumber,
   primaryActionOf,
   readyLabel,
-  slaLevelOf,
   type HubAction,
 } from "@/lib/production-hub-v4";
 
@@ -81,6 +81,8 @@ export const OrderCard = memo(function OrderCard({
   canOperate,
   canHandover,
   sibling,
+  slaCfg,
+  busyExtraMinutes = 0,
   fixedHeight,
   onAction,
   onOpen,
@@ -93,6 +95,9 @@ export const OrderCard = memo(function OrderCard({
   canOperate: boolean;
   canHandover: boolean;
   sibling: SiblingInfo;
+  /** SLA v2: konfigurasi outlet & tambahan mode ramai station ini. */
+  slaCfg?: SlaConfig;
+  busyExtraMinutes?: number;
   fixedHeight: boolean;
   onAction: (ticket: ProductionTicketView, action: HubAction) => void;
   onOpen: (ticket: ProductionTicketView) => void;
@@ -100,14 +105,17 @@ export const OrderCard = memo(function OrderCard({
 }) {
   const [confirming, setConfirming] = useState(false);
   const status = hubStatusOf(ticket);
-  const sla = slaLevelOf(ticket, now);
+  const pickupOrder = hubTableNumber(ticket.table) === null;
+  const slaState = slaStateOf(ticket, now, slaCfg ?? DEFAULT_SLA_CONFIG, { busyExtraMinutes, pickup: pickupOrder });
+  const sla = slaState.level;
   const primary = primaryActionOf(ticket);
   const tone = STATUS_TONE[status];
   const seconds = elapsedSeconds(ticket.createdAt, now, ticket.readyAt);
   const table = tableText(ticket.table);
-  const pickup = hubTableNumber(ticket.table) === null;
+  const pickup = pickupOrder;
   const who = customerOf(ticket);
-  const { visible, hidden } = fitItems(ticket.items, Math.max(1, maxLines));
+  // Baris peringatan SLA memakai satu baris dari ruang item.
+  const { visible, hidden } = fitItems(ticket.items, Math.max(1, maxLines - (slaState.message ? 1 : 0)));
   const waitingBatch = status === "processing" && ticket.pendingBatchNos.length > 0;
   const critical = sla === "critical";
   const issue =
@@ -248,6 +256,22 @@ export const OrderCard = memo(function OrderCard({
         ) : null}
       </ul>
 
+      {slaState.message ? (
+        <p
+          role={sla === "critical" ? "alert" : undefined}
+          className={`mx-2.5 mt-1 flex min-w-0 items-center gap-1 truncate rounded-[5px] px-1.5 py-0.5 text-[12px] font-bold ${
+            sla === "critical"
+              ? "bg-[var(--phv4-critical)]/18 text-[#fecaca]"
+              : "bg-[var(--phv4-wait)]/15 text-[var(--phv4-wait)]"
+          }`}
+        >
+          <Clock className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">
+            {slaState.message}
+            {busyExtraMinutes ? ` · ramai +${busyExtraMinutes}` : ""}
+          </span>
+        </p>
+      ) : null}
       {issue ? (
         <p className="mx-2.5 mt-1 flex min-w-0 items-center gap-1 truncate rounded-[5px] bg-[var(--phv4-critical)]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#fecaca]">
           <AlertTriangle className="size-3 shrink-0" aria-hidden />

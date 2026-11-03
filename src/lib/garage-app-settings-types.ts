@@ -51,6 +51,16 @@ export type AppSettings = {
   // Target SLA tiket produksi (menit) — dipasang ke tiket BARU saat dibuat.
   productionTargetBarMinutes: number;
   productionTargetFoodMinutes: number;
+  // SLA v2 (owner, Nov 2026). S1: target tiket = waktu siap (prep) menu terlama; mati = target station.
+  productionTargetFromMenu: boolean;
+  // S2: batas tahap MULAI (masuk → mulai) & ANTAR (siap → diterima), menit.
+  productionStartTargetMinutes: number;
+  productionDeliverTargetMinutes: number;
+  // S3: peringatan dini sekian menit sebelum target produksi habis.
+  productionWarnBeforeMinutes: number;
+  // S4: mode ramai — antrean aktif per station ≥ batas (0 = mati) → target tampilan +menit.
+  productionBusyThreshold: number;
+  productionBusyExtraMinutes: number;
   // Delivery menu digital (wajib bayar QRIS dulu).
   deliveryEnabled: boolean;
   deliveryFee: number;
@@ -228,6 +238,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   productionBatchWindowSec: 120,
   productionTargetBarMinutes: 5,
   productionTargetFoodMinutes: 15,
+  productionTargetFromMenu: false,
+  productionStartTargetMinutes: 3,
+  productionDeliverTargetMinutes: 5,
+  productionWarnBeforeMinutes: 2,
+  productionBusyThreshold: 8,
+  productionBusyExtraMinutes: 3,
   deliveryEnabled: true,
   deliveryFee: 5000,
   deliveryMinItems: 2,

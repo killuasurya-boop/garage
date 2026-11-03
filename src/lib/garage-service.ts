@@ -238,6 +238,7 @@ import {
   lockedMessage,
 } from "@/lib/pin-guard";
 import { notifyingProduction, publishProductionChange } from "@/lib/production-events";
+import { menuTargetMinutes } from "@/lib/production-sla";
 import {
   channelGroupOf,
   ORDER_STATUSES_FOR_PAYMENT_STATUS,
@@ -698,15 +699,22 @@ function kitchenItemLabel(line: {
 // produk (menu_items.station) dengan fallback kategori — lihat
 // productionStationFor. `items`/`itemNotes` tetap diisi untuk chit & layar lama.
 /** Target SLA (menit) per kelompok dari Pengaturan; fallback default lama. */
+type ProductionTargets = Record<KitchenTargetGroup, number> & {
+  /** SLA v2 S1: target tiket dari waktu prep menu terlama (pengaturan productionTargetFromMenu). */
+  fromMenu?: boolean;
+};
+
 function productionTargetsFrom(settings?: {
   productionTargetBarMinutes?: number;
   productionTargetFoodMinutes?: number;
-} | null): Record<KitchenTargetGroup, number> {
+  productionTargetFromMenu?: boolean;
+} | null): ProductionTargets {
   const pick = (value: number | undefined, fallback: number) =>
     Number.isFinite(value) && (value as number) >= 1 ? Math.round(value as number) : fallback;
   return {
     drink: pick(settings?.productionTargetBarMinutes, kitchenTargetMinutes.drink),
     food: pick(settings?.productionTargetFoodMinutes, kitchenTargetMinutes.food),
+    fromMenu: settings?.productionTargetFromMenu === true,
   };
 }
 
@@ -720,8 +728,10 @@ function productionTicketDrafts(
     station?: string | null;
     /** Nama paket event — tampil di tiket supaya runner tahu komponen satu paket. */
     packageName?: string | null;
+    /** menu_items.prep ("5m") — target SLA per menu bila targets.fromMenu. */
+    prep?: string | null;
   }>,
-  targets: Record<KitchenTargetGroup, number> = kitchenTargetMinutes,
+  targets: ProductionTargets = kitchenTargetMinutes,
 ) {
   const linesByStation = new Map<ProductionStation, typeof lines>();
   for (const line of lines) {
@@ -743,7 +753,7 @@ function productionTicketDrafts(
     return {
       ticketNo: makeTicketNo(),
       targetGroup,
-      targetMinutes: targets[targetGroup],
+      targetMinutes: (targets.fromMenu ? menuTargetMinutes(groupLines) : null) ?? targets[targetGroup],
       station,
       items: groupLines.map(kitchenItemLabel),
       itemNotes,
@@ -10462,6 +10472,7 @@ async function updateCustomerOrderStatusImpl(
           category: menuItems.category,
           station: menuItems.station,
           batchEligible: menuItems.batchEligible,
+          prep: menuItems.prep,
         })
         .from(orderItems)
         .leftJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
@@ -11446,6 +11457,7 @@ async function createOrderOnce(
       itemName: menuItems.name,
       category: menuItems.category,
       station: menuItems.station,
+      prep: menuItems.prep,
       productType: menuItems.productType,
       batchEligible: menuItems.batchEligible,
       promoActive: menuItems.promoActive,

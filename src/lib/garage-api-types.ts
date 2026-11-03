@@ -4,6 +4,7 @@ import type {
   Role,
 } from "@/lib/garage-data";
 import type { CompletionPrintView } from "@/lib/production-completion-print-rules";
+import type { SlaConfig } from "@/lib/production-sla";
 
 export type ApiEnvelope<T> = {
   data?: T;
@@ -256,6 +257,8 @@ export type ProductionBoard = {
   }>;
   // V4: antrean tiket SELESAI (print_jobs) 12 jam terakhir outlet ini.
   completionPrints: CompletionPrintView[];
+  // SLA v2: batas tahap, peringatan dini, mode ramai (dari Pengaturan outlet).
+  sla: SlaConfig;
 };
 
 export type KitchenPerformanceRow = {

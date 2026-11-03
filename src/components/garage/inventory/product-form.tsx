@@ -417,7 +417,9 @@ export function ProductFormPanel({
             value={prep}
             onChange={(event) => onPrepChange(event.target.value)}
             className="h-10 border-[#34343c] bg-white/[0.06]"
-            placeholder="10m"
+            placeholder="Waktu prep, mis. 5m"
+            aria-label="Waktu prep (menit) — dipakai target SLA per menu"
+            title="Waktu prep (menit), mis. 5m — dipakai target SLA per menu di Production Hub"
           />
           <Select
             value={stock}

@@ -206,6 +206,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/finance/cash-movements","methods":["GET"],"note":""},
   {"path":"/api/finance/cash-sessions/{id}/approve-discrepancy","methods":["PATCH"],"note":""},
   {"path":"/api/finance/cash-sessions/{id}/close","methods":["PATCH"],"note":""},
+  {"path":"/api/finance/cash-sessions/{id}/close-check","methods":["GET"],"note":""},
   {"path":"/api/finance/cash-sessions/{id}/final","methods":["GET","POST"],"note":""},
   {"path":"/api/finance/cash-sessions/{id}/opening-verify","methods":["PATCH"],"note":""},
   {"path":"/api/finance/cash-sessions/{id}/qris","methods":["PATCH"],"note":""},

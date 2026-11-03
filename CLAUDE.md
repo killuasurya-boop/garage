@@ -267,6 +267,8 @@ Scroll direction:
   (resolved = no toast/repeat/action). Client sound = once per device via `claimSound` (`sound-claim.ts`; pass a `dedupKey` to
   `voice.announce`). Hub sound rules are pure in `hub-sound-rules.ts` (device station only; "pesanan siap" only when the whole
   order is ready). Payment text in notifications via `paymentNoticeLabel` (QRIS never reads as paid). Logout releases push.
+  Shift-close check panel = `shift-close-check.ts` (pure) + `GET /api/finance/cash-sessions/[id]/close-check`: info only, never blocks
+  closing, never sends cash/expected cash to a Kasir while the shift is open.
 
 - MCP ChatGPT (owner D-01, batch M0): OAuth 2.1 via `@better-auth/mcp` + `jwt` plugin, only when
   `GARAGE_MCP_CHATGPT_ENABLED=true` and `BETTER_AUTH_URL` is HTTPS (`resolveMcpChatgptConfig`, `mcp-chatgpt-config.ts`);

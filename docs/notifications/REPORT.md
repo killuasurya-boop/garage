@@ -85,7 +85,7 @@ Branch sudah di-merge dengan `origin/main` (PR #160, tanpa konflik). PR #160 sud
 | Lonceng mengikat ulang langganan push perangkat ke akun yang sedang login | `staff-notification-center.tsx` |
 | F-15 (lonceng dobel) diverifikasi tidak terjadi | — |
 
-Belum: panel cek tutup shift terpadu (1.7), seluruh Tahap 2.
+Tahap 1.7 (panel cek tutup shift) juga selesai — lihat IMPLEMENTATION-PLAN. Uji: `shift-close-check.test.ts` (5), integrasi blind count + belum lunas + akses kasir lain, `api-route-auth`, katalog API; tsc bersih, eslint 0 error, build lulus. Belum: uji browser (butuh login), seluruh Tahap 2.
 
 Hasil uji Tahap 1 (3 Nov 2026, setelah merge main #160):
 - `tsc --noEmit` bersih; eslint file diubah 0 error.

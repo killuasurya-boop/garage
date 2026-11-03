@@ -37,7 +37,7 @@ Feature flag: tidak ditambah. Alasannya: semua perubahan aditif, suara Hub tetap
 | 1.4 | ✅ | `cash_variance` selesai saat `APP-CASH-*` diputus |
 | 1.5 | ✅ tidak perlu | Diverifikasi: cabang render saling eksklusif |
 | 1.6 | ✅ | Lonceng mengikat ulang langganan push yang ada ke akun yang sedang login |
-| 1.7 | ⏳ | Panel cek tutup shift terpadu — belum (perlu desain UI bersama Owner) |
+| 1.7 | ✅ | Panel "Cek sebelum tutup shift" di form tutup shift: belum lunas (shift ini & sebelumnya), QR menunggu, meja aktif, kas keluar/masuk menunggu, koreksi metode & lunas dibatalkan, non-tunai per metode (cocokkan manual), kas kecil terpisah. Kasir tidak pernah menerima kas tunai/kas seharusnya selama shift buka (server). Hanya informasi, tidak memblokir. `shift-close-check.ts` (murni), `shift-close-check-service.ts`, `GET /api/finance/cash-sessions/[id]/close-check`, `shift-close-check-panel.tsx` |
 
 ### Rencana awal Tahap 1
 

@@ -39,7 +39,7 @@ Kolom ✅ = sudah diterapkan di branch `feat/smart-notification-v2`.
 | Selisih kas review/critical (`cash_variance`) | `closeCashSession` `:19343` | Approval saja; voice di perangkat kasir | + notifikasi **management** (Owner/Manajer outlet), tanpa ke kasir/stasiun; selesai saat `APP-CASH-*` diputus | high / critical | approval diputus | Nominal hanya ke management | `/os?module=approvals` | ✅ |
 | Selisih minor (≤ Rp10.000) | idem | tidak dieskalasi | Tetap tidak dieskalasi (aturan kas) | — | — | — | — | — |
 | QRIS pending vs lunas | `paymentStatusOf` | Status benar; label notifikasi ambigu | Label eksplisit "menunggu verifikasi kasir"; QRIS di POS = "verifikasi manual kasir" | — | — | — | — | ✅ (notifikasi) |
-| Transaksi pending sebelum tutup shift | `pos-close-shift-form.tsx:431-437` | Banner meja aktif + QR pending | Sama (sudah ada); panel cek terpadu = rencana Fase 6 | — | — | — | — | — |
+| Transaksi pending sebelum tutup shift | `pos-close-shift-form.tsx` | Banner meja aktif + QR pending | Panel cek terpadu (belum lunas, kas keluar/masuk menunggu, koreksi, non-tunai); tanpa kas tunai untuk Kasir | — | — | — | — | ✅ |
 
 ## 4. WMS, pengadaan
 

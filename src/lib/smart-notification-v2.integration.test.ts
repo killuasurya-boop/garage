@@ -244,6 +244,42 @@ describe("Smart Notification V2", () => {
     expect(chat.messages.filter((m: any) => m.sender === "system" && /SIAP DIAMBIL/.test(m.body))).toHaveLength(1);
   });
 
+  it("panel cek tutup shift: transaksi belum lunas terhitung; Kasir tidak melihat kas tunai (blind) (skenario 11)", async () => {
+    const { and, eq } = await import("drizzle-orm");
+    let [open] = await t
+      .getDb()
+      .select()
+      .from(t.schema.cashSessions)
+      .where(and(eq(t.schema.cashSessions.openedBy, KASIR), eq(t.schema.cashSessions.status, "open")));
+    if (!open) {
+      [open] = await t
+        .getDb()
+        .insert(t.schema.cashSessions)
+        .values({ code: "CS-V2-CHECK", openingCash: 100_000, expectedCash: 100_000, outletId, openedBy: KASIR, status: "open" })
+        .returning();
+    }
+    const res = await svc.createCustomerOrder({
+      orderType: "dine-in",
+      tableLabel: "Meja 09",
+      customerMode: "guest",
+      guestName: "Sari",
+      paymentMethod: "QRIS",
+      source: "qr_table",
+      items: [{ itemId: "itm-coffee", variantId: "reg", qty: 1 }],
+    });
+    const { getShiftCloseCheck } = await import("@/lib/shift-close-check-service");
+    const asKasir = await getShiftCloseCheck(open.id, { userId: KASIR, role: "Kasir", allowAll: false });
+    expect(asKasir?.sessionStatus).toBe("open");
+    expect(asKasir?.unpaidThisShift.orderNos).toContain(res.order.orderNo);
+    expect(asKasir?.cash).toBeNull(); // blind count: tidak ada kas tunai / kas seharusnya
+    expect(JSON.stringify(asKasir)).not.toMatch(/expectedCash/);
+
+    const asOwner = await getShiftCloseCheck(open.id, { userId: OWNER, role: "Owner", allowAll: true });
+    expect(asOwner?.cash).toMatchObject({ expectedCash: expect.any(Number) });
+    // Kasir lain tidak bisa membaca shift orang lain.
+    expect(await getShiftCloseCheck(open.id, { userId: WAITER, role: "Kasir", allowAll: false })).toBeNull();
+  });
+
   it("RBAC: notifikasi manajemen tidak terlihat kasir/waiter/stasiun (skenario 10 & 13)", async () => {
     await notif.notifyStaff({ outletId, audience: "management", kind: "cash_variance", title: "Selisih kas", body: "Kas kurang Rp 75.000", dedupKey: "v2-mgmt-1" });
     expect((await feedFor(OWNER, "Owner")).items.some((n: any) => n.dedupKey === "v2-mgmt-1")).toBe(true);

@@ -34,7 +34,8 @@ export const COMPLETION_AUTO_PRINT_MAX_AGE_MS = 6 * 60 * 60_000;
 export type CompletionPrintStatus = "pending" | "printing" | "printed" | "failed";
 
 export type CompletionTicketItem = {
-  station: "Bar" | "Dapur";
+  /** "Kasir" = barang tanpa produksi (rokok, mineral) yang diserahkan kasir. */
+  station: "Bar" | "Dapur" | "Kasir";
   label: string;
   qty: number;
   note: string | null;
@@ -145,10 +146,10 @@ export function buildCompletionTicketContent(payload: CompletionTicketPayload, w
   const customer = clean(payload.customerName);
   if (customer && customer.toLowerCase() !== "guest customer") rows.push(center(`NAMA: ${customer.toUpperCase()}`));
   rows.push("-".repeat(W));
-  for (const station of ["Bar", "Dapur"] as const) {
+  for (const station of ["Bar", "Dapur", "Kasir"] as const) {
     const items = payload.items.filter((item) => item.station === station);
     if (!items.length) continue;
-    rows.push(`[${station.toUpperCase()}]`);
+    rows.push(station === "Kasir" ? "[SERAHKAN KASIR]" : `[${station.toUpperCase()}]`);
     for (const item of items) {
       const prefix = `${item.qty}x `;
       wrapText(clean(item.label), W - prefix.length).forEach((part, index) =>

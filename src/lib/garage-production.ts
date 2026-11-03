@@ -139,7 +139,13 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
   const batchRows = await db
     .select()
     .from(productionBatches)
-    .where(eq(productionBatches.status, "processing"))
+    .where(
+      and(
+        eq(productionBatches.status, "processing"),
+        // Audit P1: batch outlet lain dulu ikut tampil (multi-outlet). Batch lama tanpa outlet tetap tampil.
+        or(eq(productionBatches.outletId, garage.profile.outlet.id), isNull(productionBatches.outletId)),
+      ),
+    )
     .orderBy(asc(productionBatches.startedAt));
   const batchIds = batchRows.map((row) => row.id);
   const allocationRows = batchIds.length
@@ -194,6 +200,13 @@ export async function getProductionBoard(garage: GarageSession): Promise<Product
       and(
         eq(kitchenTickets.status, "cancelled"),
         gte(kitchenTickets.issueAt, new Date(now.getTime() - CANCELLED_VISIBLE_MS)),
+        or(
+          isNull(kitchenTickets.orderId),
+          inArray(
+            kitchenTickets.orderId,
+            db.select({ id: orders.id }).from(orders).where(eq(orders.outletId, garage.profile.outlet.id)),
+          ),
+        ),
       ),
     )
     .orderBy(desc(kitchenTickets.issueAt))
@@ -691,7 +704,9 @@ async function completeProductionBatchImpl(
       .from(productionBatches)
       .where(eq(productionBatches.id, batchId))
       .limit(1);
-    if (!batch) throw new ProductionBatchError("Batch tidak ditemukan.", "BATCH_NOT_FOUND");
+    if (!batch || (batch.outletId && batch.outletId !== garage.profile.outlet.id)) {
+      throw new ProductionBatchError("Batch tidak ditemukan.", "BATCH_NOT_FOUND");
+    }
     if (batch.status !== "processing") {
       throw new ProductionBatchError("Batch sudah selesai atau dibatalkan.", "BATCH_CONFLICT");
     }
@@ -844,7 +859,9 @@ async function cancelProductionBatchImpl(
       .from(productionBatches)
       .where(eq(productionBatches.id, batchId))
       .limit(1);
-    if (!current) throw new ProductionBatchError("Batch tidak ditemukan.", "BATCH_NOT_FOUND");
+    if (!current || (current.outletId && current.outletId !== garage.profile.outlet.id)) {
+      throw new ProductionBatchError("Batch tidak ditemukan.", "BATCH_NOT_FOUND");
+    }
     if (current.status !== "processing") {
       throw new ProductionBatchError("Batch sudah selesai atau dibatalkan.", "BATCH_CONFLICT");
     }

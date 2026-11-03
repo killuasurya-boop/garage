@@ -9,7 +9,8 @@ import {
   requestUnpaidItemCancelApproval,
 } from "@/lib/garage-service";
 import { rateLimit } from "@/lib/rate-limit";
-import { requirePermission } from "@/lib/server-auth";
+import { notifyStaff } from "@/lib/staff-notifications";
+import { requirePermission, type GarageSession } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
   try {
     if (scope === "order") {
       const result = await requestOrderVoidApproval(orderId, { reasonCode, note }, session.data);
+      await notifyManagersOfPending(session.data, result, "seluruh order", orderId);
       return ok({ kind: "void", ...result }, { status: 201 });
     }
     const order = await getRefundableOrder(orderId, session.data);
@@ -73,8 +75,48 @@ export async function POST(request: Request) {
       order.status === "paid"
         ? { kind: "refund", ...(await requestOrderRefundApproval(orderId, { reasonCode, note, items: items ?? [] }, session.data)) }
         : { kind: "unpaid_items", ...(await requestUnpaidItemCancelApproval(orderId, { reasonCode, note, items: items ?? [] }, session.data)) };
+    const picked = (items ?? [])
+      .map((line) => {
+        const item = order.items.find((row) => row.id === line.orderItemId);
+        return item ? `${line.qty}× ${item.itemName}` : null;
+      })
+      .filter(Boolean)
+      .join(", ");
+    await notifyManagersOfPending(session.data, result, picked || "sebagian item", orderId);
     return ok(result, { status: 201 });
   } catch (error) {
     return fail(400, "CANCEL_REQUEST_FAILED", error instanceof Error ? error.message : "Gagal mengajukan pembatalan.");
+  }
+}
+
+/**
+ * Pengajuan dari Bar/Dapur menahan kartu ("jangan dibuat dulu") sampai diputus —
+ * tanpa notifikasi, Manajer baru tahu saat kebetulan membuka menu Persetujuan.
+ * Kirim notifikasi mendesak (feed + push HP) ke Owner/Manajer outlet ini.
+ * Gagal kirim tidak boleh menggagalkan pengajuan yang sudah tersimpan.
+ */
+async function notifyManagersOfPending(
+  session: GarageSession,
+  result: { status: string; approvalId?: string | null; orderNo?: string | null },
+  what: string,
+  orderId: string,
+) {
+  if (result.status !== "pending" || !result.approvalId) return;
+  const ws = (session.profile.workstation ?? "").toLowerCase();
+  const station = ws.includes("dapur") ? "Dapur" : ws.includes("bar") ? "Bar" : "Kasir";
+  try {
+    await notifyStaff({
+      outletId: session.profile.outlet.id,
+      audience: "management",
+      kind: "production_cancel_request",
+      severity: "urgent",
+      title: `${station} minta batal #${result.orderNo ?? ""}`.trim(),
+      body: `${what} — oleh ${session.user.name}. Kartu ditahan sampai diputus.`,
+      url: "/os?module=approvals",
+      orderId,
+      dedupKey: `cancel-request:${result.approvalId}`,
+    });
+  } catch (error) {
+    console.error("[production-cancel] notifikasi manajer gagal", error);
   }
 }

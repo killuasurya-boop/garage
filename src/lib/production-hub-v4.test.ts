@@ -200,6 +200,32 @@ describe("aturan tiket SELESAI", () => {
     expect(text.split("\n").every((line) => line.length <= 32)).toBe(true);
   });
 
+  it("tiket SELESAI mencantumkan barang tanpa produksi di blok SERAHKAN KASIR", () => {
+    const text = buildCompletionTicketContent(
+      {
+        orderId: "o3",
+        orderNo: "GC-0107",
+        queueNo: null,
+        tableLabel: "Meja 03",
+        channel: "dine-in",
+        customerName: null,
+        orderedAt: ago(6),
+        completedAt: ago(0),
+        items: [
+          { station: "Bar", label: "Latte", qty: 1, note: null },
+          { station: "Kasir", label: "Rokok Surya 12", qty: 1, note: null },
+          { station: "Kasir", label: "Air Mineral", qty: 2, note: null },
+        ],
+        stations: [{ station: "Bar", readyAt: ago(0), readyByName: null }],
+      },
+      32,
+    );
+    const lines = text.split("\n");
+    const kasir = lines.indexOf("[SERAHKAN KASIR]");
+    expect(kasir).toBeGreaterThan(lines.indexOf("[BAR]"));
+    expect(lines.slice(kasir)).toEqual(expect.arrayContaining(["1x Rokok Surya 12", "2x Air Mineral"]));
+  });
+
   it("nama petugas panjang tidak terpotong di kertas 32 kolom", () => {
     const text = buildCompletionTicketContent(
       {

@@ -1226,6 +1226,19 @@ export function ProductionHubV4({
             canOperate={canOperate}
             reopenBusy={Boolean(busyKey?.startsWith("reopen:"))}
             onReopen={reopen}
+            cancel={{
+              canRequest: canWrite && (canOperate.Bar || canOperate.Food || canHandover.Bar || canHandover.Food),
+              isManager: me.role === "Owner" || me.role === "Manajer",
+              busy: Boolean(busyKey?.startsWith("cancel-req:")),
+              onSubmit: (body) =>
+                runAction(
+                  `cancel-req:${body.orderId}`,
+                  () => garageApi.post("/api/production/cancel-requests", body),
+                  me.role === "Owner" || me.role === "Manajer"
+                    ? "Pembatalan dieksekusi."
+                    : "Pengajuan batal terkirim — menunggu persetujuan Owner/Manajer.",
+                ),
+            }}
           />
         ) : null}
       </HubSheet>

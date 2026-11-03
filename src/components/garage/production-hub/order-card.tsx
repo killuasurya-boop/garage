@@ -115,7 +115,7 @@ export const OrderCard = memo(function OrderCard({
   const pickup = pickupOrder;
   const who = customerOf(ticket);
   // Baris peringatan SLA memakai satu baris dari ruang item.
-  const { visible, hidden } = fitItems(ticket.items, Math.max(1, maxLines - (slaState.message ? 1 : 0)));
+  const { visible, hidden } = fitItems(ticket.items, Math.max(1, maxLines - (slaState.message ? 1 : 0) - (ticket.pendingCancel ? 1 : 0)));
   const waitingBatch = status === "processing" && ticket.pendingBatchNos.length > 0;
   const critical = sla === "critical";
   const issue =
@@ -142,7 +142,10 @@ export const OrderCard = memo(function OrderCard({
 
   const production = primary?.action === "start" || primary?.action === "finish";
   const allowed = production ? canOperate : canHandover;
-  const lockText = !allowed
+  const pendingCancel = ticket.pendingCancel ?? null;
+  const lockText = pendingCancel
+    ? "Menunggu batal"
+    : !allowed
     ? production
       ? `Hanya ${ticket.station === "Bar" ? "BAR" : "DAPUR"}`
       : "Menunggu helper"
@@ -256,6 +259,18 @@ export const OrderCard = memo(function OrderCard({
         ) : null}
       </ul>
 
+      {pendingCancel ? (
+        <p
+          role="alert"
+          title={pendingCancel.summary}
+          className="mx-2.5 mt-1 flex min-w-0 items-center gap-1 truncate rounded-[5px] bg-[var(--phv4-critical)]/20 px-1.5 py-0.5 text-[12px] font-bold text-[#fecaca]"
+        >
+          <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">
+            Menunggu persetujuan batal {pendingCancel.kind === "order" ? "order" : "item"} — jangan dibuat dulu
+          </span>
+        </p>
+      ) : null}
       {slaState.message ? (
         <p
           role={sla === "critical" ? "alert" : undefined}

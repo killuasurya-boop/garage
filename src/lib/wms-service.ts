@@ -259,7 +259,10 @@ export async function recordStockMovement(
     if (current + delta < Number(held.qty)) throw new Error("Stok tersedia tidak cukup; sebagian stok sudah direservasi permintaan lain.");
   }
   const next = current + delta;
-  if (next < 0 && !input.allowNegative) {
+  // Hanya pergerakan KELUAR yang boleh ditolak. Barang masuk (retur void/refund, penerimaan)
+  // ke stok yang sedang minus tetap diterima walau hasilnya masih minus — dulu ditolak
+  // ("Stok tidak cukup") sehingga void/refund gagal saat penjualan sudah membuat stok minus.
+  if (delta < 0 && next < 0 && !input.allowNegative) {
     throw new Error(`Stok tidak cukup (tersedia ${current}, diminta ${-delta}).`);
   }
 

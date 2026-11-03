@@ -15,6 +15,8 @@ export type ApprovalStatus = "pending" | "approved" | "rejected";
 // Prefix ID approval → kategori. ID dibuat server dengan pola APP-<KODE>-<ref>.
 const CATEGORY_BY_PREFIX: Array<[string, ApprovalCategory]> = [
   ["APP-VOID-", "void"],
+  // Production Hub V4: batal sebagian item bill BELUM lunas (dieksekusi = pisah bill + void bill pisahan).
+  ["APP-PCX-", "void"],
   ["APP-RFD-", "refund"],
   ["APP-DISC-", "diskon"],
   ["APP-EXP-", "pengeluaran"],
@@ -26,6 +28,7 @@ const CATEGORY_BY_PREFIX: Array<[string, ApprovalCategory]> = [
 // Fallback untuk baris lama/seed yang ID-nya tidak mengikuti pola prefix.
 const CATEGORY_BY_TYPE: Record<string, ApprovalCategory> = {
   "void transaksi": "void",
+  "batal item (belum bayar)": "void",
   refund: "refund",
   "refund item": "refund",
   "diskon manual": "diskon",

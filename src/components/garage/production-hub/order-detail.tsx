@@ -9,6 +9,7 @@ import { COMPLETION_STATUS_LABEL, type CompletionPrintView } from "@/lib/product
 import type { ProductionHistoryOrder, ProductionHistoryTicket } from "@/lib/production-hub-history";
 import { hubTableNumber, readyLabel } from "@/lib/production-hub-v4";
 
+import { CancelRequestPanel, type CancelRequestBody } from "./cancel-request";
 import { StationBadge } from "./hub-ui";
 import { customerOf, tableText } from "./order-card";
 
@@ -94,6 +95,7 @@ export function OrderDetail({
   canOperate,
   reopenBusy,
   onReopen,
+  cancel,
 }: {
   ticket: ProductionTicketView;
   siblings: ProductionTicketView[];
@@ -101,6 +103,8 @@ export function OrderDetail({
   canOperate: { Bar: boolean; Food: boolean };
   reopenBusy: boolean;
   onReopen: (ticketNo: string, reason: string) => Promise<boolean>;
+  /** Ajukan batal (wajib disetujui Owner/Manajer). */
+  cancel?: { canRequest: boolean; isManager: boolean; busy: boolean; onSubmit: (body: CancelRequestBody) => Promise<boolean> };
 }) {
   const [detail, setDetail] = useState<ProductionHistoryOrder | null>(null);
   const [loading, setLoading] = useState(false);
@@ -257,6 +261,17 @@ export function OrderDetail({
           </section>
         );
       })}
+
+      {ticket.orderId && cancel ? (
+        <CancelRequestPanel
+          orderId={ticket.orderId}
+          pending={ticket.pendingCancel ?? null}
+          canRequest={cancel.canRequest}
+          isManager={cancel.isManager}
+          busy={cancel.busy}
+          onSubmit={cancel.onSubmit}
+        />
+      ) : null}
 
       {/* Riwayat cetak tiket SELESAI */}
       <section className="rounded-[8px] border border-[var(--phv4-border)] bg-[var(--phv4-card)] p-3">

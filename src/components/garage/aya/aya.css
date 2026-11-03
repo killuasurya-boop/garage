@@ -1,106 +1,173 @@
-/* Aya — AI pet Garage OS. Gerak ringan (transform/opacity saja) dan mati total
-   saat prefers-reduced-motion. Kelas diawali `aya-` agar tidak bentrok. */
+/* Aya V2 — maskot Garage Coffee (OD-02). Tiga lapis agar transform tidak saling timpa:
+   .aya-mascot (dibalik saat pet menghadap kiri) → .aya-stage (gerak berulang) → .aya-img
+   (reaksi sekali saat state berganti). Hanya transform/opacity; mati total saat
+   prefers-reduced-motion atau data-reduced-motion. Kelas diawali `aya-` agar tidak bentrok. */
 
-.aya-svg {
+.aya-mascot {
+  --aya-bob: -4px;
+  position: relative;
   display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
+  pointer-events: none;
 }
 
-.aya-svg .aya-bounce,
-.aya-svg .aya-head,
-.aya-svg .aya-arm-l,
-.aya-svg .aya-arm-r,
-.aya-svg .aya-eye,
-.aya-svg .aya-tuft {
-  transform-box: fill-box;
+.aya-mascot[data-role="staff"] {
+  --aya-bob: -2px; /* POS/KDS: gerak lebih tenang */
 }
 
-.aya-svg .aya-arm-l > ellipse,
-.aya-svg .aya-arm-r > ellipse {
-  transition: transform 220ms ease;
+.aya-mascot[data-crop="head"] {
+  overflow: hidden;
+  border-radius: 9999px;
+}
+
+.aya-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: 50% 82%;
+}
+
+/* Potongan wajah: area 280×280 dari kanvas 520 (x 120–400, y 70–350). */
+.aya-mascot[data-crop="head"] .aya-stage {
+  inset: auto;
+  left: -42.9%;
+  top: -25%;
+  width: 185.7%;
+  height: 185.7%;
+}
+
+.aya-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: 50% 80%;
+}
+
+/* Mulut buka-tutup untuk state speaking (fallback, bukan lip-sync). Titik mulut SVG: (260, 271). */
+.aya-mouth {
+  position: absolute;
+  left: 47.6%;
+  top: 51.2%;
+  width: 4.8%;
+  height: 2.6%;
+  border-radius: 9999px;
+  background: #773d3d;
+  transform-origin: 50% 0;
+  transform: scaleY(0.35);
+}
+
+/* Cincin dengar untuk state listening. */
+.aya-ring {
+  position: absolute;
+  left: 13%;
+  top: 9%;
+  width: 74%;
+  height: 74%;
+  border-radius: 9999px;
+  border: 2px solid rgba(212, 65, 59, 0.55);
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* melayang pelan */
-  .aya-svg .aya-bounce {
-    animation: aya-hover 2.8s ease-in-out infinite;
-    transform-origin: 50% 100%;
+  .aya-mascot:not([data-reduced-motion]) .aya-img {
+    animation: aya-in 220ms ease-out both;
   }
-  .aya-svg .aya-shadow {
-    animation: aya-shadow 2.8s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: center;
+  .aya-mascot:not([data-reduced-motion]) .aya-stage {
+    animation: aya-bob 2.6s ease-in-out infinite;
   }
-  .aya-svg .aya-eye {
-    animation: aya-blink 5.2s infinite;
-    transform-origin: center;
-  }
-  .aya-svg .aya-tuft {
-    animation: aya-tuft 2.8s ease-in-out infinite;
-    transform-origin: 30% 100%;
-  }
-  .aya-svg .aya-zz {
-    animation: aya-zz 2.4s ease-in-out infinite;
-  }
-  .aya-svg.aya-exp-alert .aya-core-glow {
-    animation: aya-core 1s ease-in-out 3;
-    transform-box: fill-box;
-    transform-origin: center;
+  .aya-mascot.aya-sleepy:not([data-reduced-motion]) .aya-stage {
+    animation-duration: 4.4s;
   }
 
-  /* joget: badan squash & stretch, kepala geleng, lengan melambai */
-  .aya-svg.aya-pose-dance .aya-bounce {
+  /* state: gerak berulang */
+  .aya-mascot[data-state="listening"]:not([data-reduced-motion]) .aya-stage {
+    animation: aya-tilt 1.2s ease-in-out infinite;
+  }
+  .aya-mascot[data-state="listening"]:not([data-reduced-motion]) .aya-ring {
+    animation: aya-ring 1.2s ease-out infinite;
+  }
+  .aya-mascot[data-state="thinking"]:not([data-reduced-motion]) .aya-stage {
+    animation: aya-ponder 2s ease-in-out infinite;
+  }
+  .aya-mascot[data-state="speaking"]:not([data-reduced-motion]) .aya-mouth {
+    animation: aya-talk 0.28s ease-in-out infinite alternate;
+  }
+  .aya-mascot[data-state="guiding"]:not([data-reduced-motion]) .aya-stage {
+    animation: aya-lean 1.4s ease-in-out infinite;
+  }
+
+  /* state: reaksi sekali */
+  .aya-mascot[data-state="success"]:not([data-reduced-motion]) .aya-img {
+    animation: aya-in 220ms ease-out both, aya-pop 350ms ease-out 1;
+  }
+  .aya-mascot[data-state="warning"]:not([data-reduced-motion]) .aya-img,
+  .aya-mascot[data-state="error"]:not([data-reduced-motion]) .aya-img {
+    animation: aya-in 220ms ease-out both, aya-shake 450ms ease-in-out 1;
+  }
+
+  /* gerak tubuh (menimpa gerak state) */
+  .aya-mascot[data-motion="wave"]:not([data-reduced-motion]) .aya-stage {
+    animation: aya-wave 0.6s ease-in-out 3;
+  }
+  .aya-mascot[data-motion="dance"]:not([data-reduced-motion]) .aya-stage {
     animation: aya-dance 0.52s ease-in-out infinite;
   }
-  .aya-svg.aya-pose-dance .aya-head {
-    animation: aya-head-sway 0.52s ease-in-out infinite;
-    transform-origin: 50% 90%;
-  }
-  .aya-svg.aya-pose-wave .aya-arm-l {
-    animation: aya-wave 0.6s ease-in-out 3;
-    transform-origin: 90% 10%;
-  }
-  .aya-svg.aya-pose-fly .aya-bounce {
+  .aya-mascot[data-motion="fly"]:not([data-reduced-motion]) .aya-stage {
     animation: aya-fly 0.9s ease-in-out infinite;
   }
 }
 
-@keyframes aya-hover {
+@keyframes aya-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes aya-bob {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  50% { transform: translateY(var(--aya-bob)); }
 }
-@keyframes aya-shadow {
-  0%, 100% { transform: scaleX(1); opacity: 1; }
-  50% { transform: scaleX(0.82); opacity: 0.7; }
+@keyframes aya-tilt {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
 }
-@keyframes aya-blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
+@keyframes aya-ring {
+  0% { opacity: 0.7; transform: scale(0.86); }
+  100% { opacity: 0; transform: scale(1.08); }
 }
-@keyframes aya-tuft {
+@keyframes aya-ponder {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50% { transform: rotate(2deg) translateY(var(--aya-bob)); }
+}
+@keyframes aya-talk {
+  from { transform: scaleY(0.35); }
+  to { transform: scaleY(1); }
+}
+@keyframes aya-lean {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(3%) rotate(3deg); }
+}
+@keyframes aya-pop {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-6%) scale(1.04, 0.97); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes aya-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3%); }
+  50% { transform: translateX(3%); }
+  75% { transform: translateX(-2%); }
+}
+@keyframes aya-wave {
   0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-7deg); }
-}
-@keyframes aya-zz {
-  0%, 100% { opacity: 0.2; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-3px); }
-}
-@keyframes aya-core {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.5); opacity: 1; }
+  50% { transform: rotate(-8deg); }
 }
 @keyframes aya-dance {
   0% { transform: translateY(0) rotate(-6deg) scale(1.04, 0.95); }
   50% { transform: translateY(-7px) rotate(6deg) scale(0.96, 1.05); }
   100% { transform: translateY(0) rotate(-6deg) scale(1.04, 0.95); }
-}
-@keyframes aya-head-sway {
-  0%, 100% { transform: rotate(-5deg); }
-  50% { transform: rotate(6deg); }
-}
-@keyframes aya-wave {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-22deg); }
 }
 @keyframes aya-fly {
   0%, 100% { transform: translateY(0) rotate(-4deg); }

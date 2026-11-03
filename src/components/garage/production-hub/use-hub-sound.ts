@@ -6,6 +6,7 @@ import type { ProductionBoard } from "@/lib/garage-api-types";
 import { getVoiceSettings, isOnlineChannel, voice, type VoiceScenario } from "@/lib/garage-voice";
 import { hubSoundEvents, inSoundArea, lateToneKey, type HubSoundArea } from "@/lib/hub-sound-rules";
 import { claimSound } from "@/lib/sound-claim";
+import { getSoundTheme, playStationCue, type StationCue } from "@/lib/station-sound-theme";
 
 // Suara & voice Production Hub. Smart Notification V2:
 // - `soundArea` = stasiun perangkat (Bar/Dapur); hanya Owner/Manajer/kasir tanpa
@@ -64,9 +65,13 @@ export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundAr
   }, [primeAudio, refreshAudioState]);
 
   const playTone = useCallback(
-    (kind: "new" | "late" | "test") => {
+    (kind: "new" | "late" | "test", station: "Bar" | "Food" = "Bar") => {
       const ctx = audioRef.current;
       if (!ctx || ctx.state === "closed") return false;
+      if (getSoundTheme() === "station") {
+        const cue: StationCue = kind === "late" ? "late" : station === "Food" ? "new_dapur" : "new_bar";
+        return playStationCue(ctx, cue, getVoiceSettings().volume);
+      }
       try {
         const t = ctx.currentTime;
         const gain = ctx.createGain();
@@ -92,10 +97,10 @@ export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundAr
 
   /** Tone sekali per kunci event per perangkat. */
   const playToneOnce = useCallback(
-    (kind: "new" | "late", key: string) => {
+    (kind: "new" | "late", key: string, station: "Bar" | "Food" = "Bar") => {
       if (!soundEnabled) return;
       void claimSound(key).then((ok) => {
-        if (ok) playTone(kind);
+        if (ok) playTone(kind, station);
       });
     },
     [playTone, soundEnabled],
@@ -129,7 +134,7 @@ export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundAr
     } catch {
       /* ditolak browser */
     }
-    const ok = playTone("test");
+    const ok = playTone("test", soundArea === "Food" ? "Food" : "Bar");
     refreshAudioState(true);
     void voice.announce(soundArea === "Food" ? "order_new_kitchen" : "order_new_bar", { force: true, table: "07" });
     return ok;
@@ -142,6 +147,7 @@ export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundAr
     prevStatusRef.current = new Map(board.tickets.map((t) => [t.ticketNo, t.status]));
     if (!soundEnabled) return;
     let toneKey: string | null = null;
+    let toneStation: "Bar" | "Food" = "Bar";
     const voiceSettings = getVoiceSettings();
     const voiceOn = (scenario: VoiceScenario) => voiceSettings.enabled && voiceSettings.scenariosEnabled[scenario] !== false;
     for (const event of events) {
@@ -151,6 +157,7 @@ export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundAr
         if (voiceOn(scenario)) {
           void voice.announce(scenario, { table: event.table, orderNo: event.orderNo, dedupKey: event.key });
         } else {
+          if (!toneKey) toneStation = event.station;
           toneKey = toneKey ? `${toneKey}|${event.key}` : event.key;
         }
       } else if (event.type === "online_new") {
@@ -161,7 +168,7 @@ export function useHubSound(board: ProductionBoard | null, soundArea: HubSoundAr
         void voice.announce("order_ready", { table: event.table, orderNo: event.orderNo, dedupKey: event.key });
       }
     }
-    if (toneKey) playToneOnce("new", toneKey);
+    if (toneKey) playToneOnce("new", toneKey, toneStation);
   }, [board, playToneOnce, soundArea, soundEnabled]);
 
   // Tiket baru lewat SLA (hanya stasiun perangkat) — satu tone per refresh.

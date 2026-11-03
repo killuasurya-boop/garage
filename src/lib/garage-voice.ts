@@ -20,6 +20,7 @@ import {
   VOICE_SCENARIO_AUDIO_URLS,
   type VoiceScenarioWithAudio,
 } from "@/lib/garage-voice-assets";
+import { cueDurationMs, cueForScenario, getSoundTheme, playStationCue, type StationCue } from "@/lib/station-sound-theme";
 import { claimSound } from "@/lib/sound-claim";
 
 export type VoiceChannel = "kasir" | "kitchen" | "bar" | "warning" | "executive";
@@ -913,6 +914,16 @@ export function playDing(
   }
 }
 
+/** Putar cue tema stasiun dengan volume & sakelar suara perangkat. */
+export function playThemeCue(cue: StationCue, force = false): boolean {
+  const settings = getVoiceSettings();
+  if ((!settings.enabled && !force) || !settings.dingEnabled) return false;
+  const ctx = ensureAudioContext();
+  if (!ctx) return false;
+  playStationCue(ctx, cue, settings.volume);
+  return true;
+}
+
 function isIndonesianVoice(voice: SpeechSynthesisVoice) {
   const lang = voice.lang?.toLowerCase() ?? "";
   const name = voice.name.toLowerCase();
@@ -1101,8 +1112,14 @@ export function announce(
           /* ignore */
         }
       }
-      playDing(dingKind, undefined, opts.force);
-      await new Promise<void>((r) => window.setTimeout(r, 260));
+      // Tema "Stasiun Kereta": bunyi pembuka = cue stasiun (lonceng peron, bel perlintasan, ...).
+      const cue = getSoundTheme() === "station" ? cueForScenario(scenario) : null;
+      if (cue && playThemeCue(cue, opts.force)) {
+        await new Promise<void>((r) => window.setTimeout(r, cueDurationMs(cue)));
+      } else {
+        playDing(dingKind, undefined, opts.force);
+        await new Promise<void>((r) => window.setTimeout(r, 260));
+      }
       await speakChannelText(scenario, text, meta.channel, opts.force, opts);
       // gap kecil antar announcement supaya tidak menumpuk
       await new Promise<void>((r) => window.setTimeout(r, 120));
@@ -1412,6 +1429,7 @@ export const voice = {
   invalidateElevenLabsStatus: invalidateExecutiveTtsStatusCache,
   preview: previewScenario,
   playDing,
+  playThemeCue,
   stop: stopAllVoice,
   resetCooldown,
   getSettings: getVoiceSettings,

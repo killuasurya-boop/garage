@@ -34,6 +34,7 @@ type Draft = {
   packPrice: string;
   manualHpp: string;
   minStock: string;
+  parStock: string;
   barcode: string;
   autoSku: boolean;
   sku: string;
@@ -52,6 +53,7 @@ function draftFrom(p: WmsProductRow | null, cats: MasterCategory[]): Draft {
     packPrice: p && p.packQty > 0 ? String(p.packPrice) : "",
     manualHpp: p ? String(p.hpp).replace(".", ",") : "",
     minStock: p ? String(p.minStock).replace(".", ",") : "",
+    parStock: p && p.parStock ? String(p.parStock).replace(".", ",") : "",
     barcode: p?.barcode ?? "",
     autoSku: true,
     sku: p?.sku ?? "",
@@ -117,6 +119,7 @@ export function MaterialDrawer({
   const hasPackInput = d.packQty.trim() !== "" || d.packPrice.trim() !== "";
   const manualHppNum = parseIdNumber(d.manualHpp);
   const minNum = parseIdNumber(d.minStock);
+  const parNum = parseIdNumber(d.parStock);
   const convWarn = conversionWarning(d.unit, packQtyNum, d.packName);
 
   const errors = {
@@ -128,6 +131,7 @@ export function MaterialDrawer({
     packPrice: hasPackInput && !(packPriceNum >= 0) ? "Harga beli harus angka (contoh 222.000)." : null,
     manualHpp: !hasPackInput && d.manualHpp.trim() !== "" && !(manualHppNum >= 0) ? "HPP harus angka ≥ 0." : null,
     minStock: d.minStock.trim() !== "" && !(minNum >= 0) ? "Minimum stok harus angka ≥ 0." : null,
+    parStock: d.parStock.trim() !== "" && !(parNum >= 0) ? "Stok target harus angka ≥ 0." : null,
   };
   const firstError = Object.values(errors).find(Boolean) ?? null;
   const show = (k: keyof typeof errors) => (submitted || (k === "packQty" || k === "packPrice") ? errors[k] : null);
@@ -148,6 +152,7 @@ export function MaterialDrawer({
       brand: d.brand.trim(),
       defaultSupplierId: d.supplierId || null,
       minStock: Number.isFinite(minNum) ? minNum : 0,
+      parStock: Number.isFinite(parNum) ? parNum : 0,
       barcode: d.barcode.trim() || null,
     };
     if (!editing || d.unit !== product?.unit) body.unit = d.unit;
@@ -420,6 +425,14 @@ export function MaterialDrawer({
                 </Field>
                 <Field id="m-min" label={`Minimum stok (${d.unit})`} error={show("minStock")} hint="Di bawah angka ini bahan ditandai stok menipis.">
                   <input id="m-min" value={d.minStock} onChange={(e) => set("minStock", e.target.value)} inputMode="decimal" placeholder="0" className={cn(ui.input, `text-right tabular-nums`)} />
+                </Field>
+                <Field
+                  id="m-par"
+                  label={`Stok target Bar/Dapur (${d.unit})`}
+                  error={show("parStock")}
+                  hint="Minta Bahan mengusulkan sampai angka ini. Kosong = 2× minimum."
+                >
+                  <input id="m-par" value={d.parStock} onChange={(e) => set("parStock", e.target.value)} inputMode="decimal" placeholder="otomatis" className={cn(ui.input, `text-right tabular-nums`)} />
                 </Field>
                 <Field id="m-pack" label="Satuan pembelian" hint="Kemasan dari supplier.">
                   <input id="m-pack" list="m-pack-list" value={d.packName} onChange={(e) => set("packName", e.target.value)} placeholder="botol / pack / dus / karton" className={ui.input} />

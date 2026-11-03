@@ -15040,6 +15040,7 @@ export async function requestOrderVoidApproval(
     reasonCode: input.reasonCode,
     note: input.note?.trim() || null,
     refundAmount: order.total,
+    requestedByUserId: garage.user.id,
   };
   const values = {
     type: "Void transaksi",
@@ -15164,6 +15165,7 @@ export async function requestOrderRefundApproval(
     note: input.note?.trim() || null,
     refundAmount,
     items: payloadItems,
+    requestedByUserId: garage.user.id,
   };
   const itemSummary = payloadItems
     .map((item) => `${item.qty}x ${item.itemName}${item.variantLabel ? ` ${item.variantLabel}` : ""}`)
@@ -15268,6 +15270,7 @@ export async function requestUnpaidItemCancelApproval(
     note: input.note?.trim() || null,
     items: payloadItems,
     requestedBy: actor,
+    requestedByUserId: garage.user.id,
   };
   await db.insert(approvals).values({
     id: approvalId,
@@ -20465,6 +20468,25 @@ export async function decideApproval(
     },
     input.status === "approved" ? "Disetujui" : "Ditolak",
   );
+
+  // Pengaju batal (Bar/Dapur/kasir) diberi tahu hasilnya — kartu terbuka lagi / item hilang.
+  const decidedPayload = (approval.payload ?? {}) as ApprovalPayload;
+  if (/^APP-(VOID|RFD|PCX)-/.test(id) && decidedPayload.requestedByUserId && decidedPayload.requestedByUserId !== garage.user.id) {
+    const approved = input.status === "approved";
+    await notifyStaff({
+      outletId: garage.profile.outlet.id,
+      audience: "user",
+      userId: decidedPayload.requestedByUserId,
+      kind: "production_cancel_decided",
+      severity: approved ? "info" : "warning",
+      title: `Batal #${decidedPayload.orderNo ?? ""} ${approved ? "disetujui" : "ditolak"}`.trim(),
+      body: approved
+        ? `Disetujui ${deciderName}. Item sudah hilang dari layar produksi.`
+        : `Ditolak ${deciderName}${reasonText ? `: ${reasonText}` : ""}. Lanjutkan pesanan seperti biasa.`,
+      orderId: decidedPayload.orderId ?? null,
+      dedupKey: `cancel-decided:${id}`,
+    }).catch((error) => console.error("[approval] notifikasi pengaju gagal", error));
+  }
 
   return approval;
 }

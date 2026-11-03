@@ -36,6 +36,7 @@ import { garageApi } from "@/lib/api-client";
 import { voice, type VoiceScenario } from "@/lib/garage-voice";
 import { createPushSubscription, ensureServiceWorker, pushSupport } from "@/lib/push-client";
 import { claimSound } from "@/lib/sound-claim";
+import { getSoundTheme, type StationCue } from "@/lib/station-sound-theme";
 import { useProductionStream } from "@/lib/use-production-stream";
 
 type NotificationItem = {
@@ -73,7 +74,15 @@ const KIND_META: Record<string, { icon: LucideIcon; voice?: VoiceScenario }> = {
   po_approval: { icon: Package, voice: "approval_pending" },
   opname_review: { icon: Package, voice: "approval_pending" },
   production_cancel_request: { icon: XCircle, voice: "approval_pending" },
+  production_cancel_decided: { icon: CheckCheck },
 };
+
+/** Cue tema stasiun untuk notifikasi tanpa voice khusus (null = perilaku biasa). */
+export function stationCueForNotification(item: Pick<NotificationItem, "kind" | "dedupKey">): StationCue | null {
+  if (item.kind === "material_request" && item.dedupKey?.startsWith("mrq-sent:")) return "stock_sent";
+  if (item.kind === "production_cancel_decided") return "approved";
+  return null;
+}
 
 /** Kunci bunyi bersama: event yang sama dari lonceng & layar lain (mis. waiter-view) cukup sekali. */
 export function notificationSoundKey(item: Pick<NotificationItem, "id" | "dedupKey">) {
@@ -145,6 +154,9 @@ export function StaffNotificationCenter({
       // V2: satu event = satu bunyi per perangkat (tab lain / layar lain / refresh tidak mengulang).
       void claimSound(notificationSoundKey(item)).then((ok) => {
         if (!ok) return;
+        // Tema "Stasiun Kereta": bahan dikirim = klakson berangkat, batal diputus = derak roda.
+        const cue = getSoundTheme() === "station" ? stationCueForNotification(item) : null;
+        if (cue && voice.playThemeCue(cue)) return;
         if (meta?.voice) void voice.announce(meta.voice, { force: false });
         else voice.playDing(item.severity === "info" ? "soft" : "alert");
       });

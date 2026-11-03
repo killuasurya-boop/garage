@@ -158,4 +158,6 @@ export type ApprovalPayload = {
   /** Diskon manual: nominal maksimum yang disetujui & kasir peminta. */
   discountAmount?: number;
   requestedBy?: string;
+  /** Akun pengaju (batal Bar/Dapur/kasir) — penerima notifikasi saat diputus. */
+  requestedByUserId?: string;
 };

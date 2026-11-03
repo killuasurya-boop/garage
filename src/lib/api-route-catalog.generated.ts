@@ -543,6 +543,7 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/wms/material-requests/catalog","methods":["GET"],"note":""},
   {"path":"/api/wms/material-requests","methods":["GET","POST"],"note":""},
   {"path":"/api/wms/material-requests/shortages","methods":["GET","POST"],"note":""},
+  {"path":"/api/wms/material-requests/templates","methods":["GET","POST","DELETE"],"note":""},
   {"path":"/api/wms/notifications","methods":["GET"],"note":""},
   {"path":"/api/wms/opname/{id}/counts","methods":["GET"],"note":""},
   {"path":"/api/wms/opname/{id}/finalize","methods":["POST"],"note":""},

@@ -1035,6 +1035,7 @@ export async function getWmsProducts(params?: {
       supplierName: wmsSupplier.name,
       unit: wmsProduct.unit,
       minStock: wmsProduct.minStock,
+      parStock: wmsProduct.parStock,
       hpp: wmsProduct.hpp,
       packPrice: inventoryItems.purchasePrice,
       packQty: inventoryItems.packageQty,
@@ -1077,6 +1078,7 @@ export async function getWmsProducts(params?: {
     supplierName: r.supplierName ?? null,
     unit: r.unit,
     minStock: Number(r.minStock),
+    parStock: Number(r.parStock ?? 0),
     hpp: Number(r.hpp),
     packPrice: Number(r.packPrice ?? 0),
     packQty: Number(r.packQty ?? 0),
@@ -1248,13 +1250,15 @@ export type WmsProductPatch = {
   defaultSupplierId?: string | null;
   unit?: string;
   minStock?: number;
+  /** Stok target ruang Bar/Dapur (saran Minta Bahan); 0 = 2× minStock. */
+  parStock?: number;
   hpp?: number;
   imageUrl?: string | null;
   barcode?: string | null;
   archivedAt?: Date | null; // set null = restore dari arsip
 } & WmsPackInput;
 
-const PRODUCT_AUDIT_KEYS = ["name", "category", "subcategory", "brand", "defaultSupplierId", "unit", "minStock", "hpp", "barcode", "imageUrl"] as const;
+const PRODUCT_AUDIT_KEYS = ["name", "category", "subcategory", "brand", "defaultSupplierId", "unit", "minStock", "parStock", "hpp", "barcode", "imageUrl"] as const;
 
 /**
  * Update master bahan (tanpa menyentuh stok). Satu transaksi: master WMS + katalog OS +
@@ -1281,6 +1285,7 @@ export async function updateWmsProduct(id: string, patch: WmsProductPatch, dbOve
       set.unit = patch.unit.trim();
     }
     if (patch.minStock !== undefined) set.minStock = patch.minStock;
+    if (patch.parStock !== undefined) set.parStock = patch.parStock;
     if (patch.hpp !== undefined) set.hpp = patch.hpp;
     // Harga beli per kemasan + isi → HPP per satuan dihitung otomatis (menang atas hpp manual).
     const packUnitCost = unitCostFromPack(patch);
@@ -1349,6 +1354,7 @@ export async function createWmsProduct(
     defaultSupplierId?: string | null;
     unit: string;
     minStock?: number;
+    parStock?: number;
     hpp?: number;
     barcode?: string | null;
     initialStock?: number; // stok awal (opsional) → masuk ruang sesuai area kategori
@@ -1377,6 +1383,7 @@ export async function createWmsProduct(
         defaultSupplierId: input.defaultSupplierId || null,
         unit: input.unit.trim(),
         minStock: input.minStock ?? 0,
+        parStock: input.parStock ?? 0,
         hpp,
         barcode: input.barcode?.trim() || null,
         createdBy: userId ?? null,

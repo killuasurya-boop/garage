@@ -165,6 +165,17 @@ describe("Batal ITEM bill belum lunas dari Bar (APP-PCX)", () => {
     await svc.decideApproval(res.approvalId, { status: "rejected", reasonDecided: "tamu tetap mau" }, manajer());
     expect((await itemsOf(order.id)).find((i: any) => i.id === coffee.id).qty).toBe(2);
     expect(await beanNet()).toBe(before);
+    // Pengaju (Bar) diberi tahu hasilnya — notifikasi pribadi, bukan ke semua staf.
+    const { eq } = await import("drizzle-orm");
+    const notes = await t
+      .getDb()
+      .select()
+      .from(t.schema.staffNotifications)
+      .where(eq(t.schema.staffNotifications.dedupKey, `cancel-decided:${res.approvalId}`));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ audience: "user", userId: BAR, kind: "production_cancel_decided" });
+    expect(notes[0].title).toMatch(/ditolak/);
+    expect(notes[0].body).toMatch(/tamu tetap mau/);
   });
 
   it("validasi: alasan wajib, qty tidak melebihi, semua item → harus batal seluruh order, satu pengajuan aktif", async () => {

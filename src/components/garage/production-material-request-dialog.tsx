@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ClipboardList, Loader2, Minus, Plus, Send, Trash2 } from "lucide-react";
+import { BookmarkPlus, Check, ClipboardList, Loader2, Minus, Plus, Send, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,14 @@ type CatalogProduct = {
   onHand: number;
   sourceOnHand: number;
   status: "out" | "low" | "ok";
+  /** M1: jumlah usulan (0 = tidak perlu). */
+  suggestedQty?: number;
+  targetStock?: number;
+  /** M2: perkiraan habis & sisa porsi. */
+  runoutAt?: string | null;
+  portionsLeft?: number | null;
 };
+type Template = { name: string; items: Array<{ productId: string; qty: number }> };
 type Catalog = { division: Division; room: { id: string; name: string }; source: { id: string; name: string } | null; products: CatalogProduct[] };
 
 type RequestRow = {
@@ -35,8 +42,17 @@ type RequestRow = {
   note: string;
   requestedByName: string;
   createdAt: string;
-  items: Array<{ id: string; name: string; unit: string; uoms?: PackUom[]; qty: number; sentQty: number; shortQty: number }>;
+  sentAt?: string | null;
+  receivedAt?: string | null;
+  items: Array<{ id: string; name: string; unit: string; uoms?: PackUom[]; qty: number; sentQty: number; shortQty: number; receivedQty?: number | null }>;
 };
+
+/** Saran keranjang dari katalog (M1): bahan menipis/habis × jumlah usulan. */
+export function suggestedCart(products: Array<Pick<CatalogProduct, "id" | "suggestedQty">>) {
+  const cart: Record<string, number> = {};
+  for (const p of products) if ((p.suggestedQty ?? 0) > 0) cart[p.id] = p.suggestedQty as number;
+  return cart;
+}
 
 const DIVISION_LABEL: Record<Division, string> = { bar: "Bar", dapur: "Dapur" };
 const STATUS_LABEL: Record<RequestRow["status"], { label: string; cls: string }> = {
@@ -48,6 +64,7 @@ const STATUS_LABEL: Record<RequestRow["status"], { label: string; cls: string }>
 
 const qtyFormat = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const timeFormat = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", dateStyle: "short", timeZone: "Asia/Jakarta" });
+const clockFormat = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" });
 
 /** Langkah tambah cepat per satuan (ml/gr besar, pcs kecil). */
 function stepFor(unit: string) {
@@ -64,10 +81,13 @@ function stepFor(unit: string) {
 export function ProductionMaterialRequestDialog({
   divisions,
   triggerClassName,
+  openSignal,
 }: {
   divisions: Division[];
   /** Gaya tombol pemicu (Production Hub V4); kosong = gaya lama. */
   triggerClassName?: string;
+  /** M3: angka berubah → dialog dibuka (chip "Bahan menipis" di layar produksi). */
+  openSignal?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"list" | "requests">("list");
@@ -84,6 +104,12 @@ export function ProductionMaterialRequestDialog({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateName, setTemplateName] = useState("");
+  const [autoFilled, setAutoFilled] = useState(0);
+  const [lowCount, setLowCount] = useState(0);
+  // M6: jumlah diterima per baris (kosong = sesuai kiriman).
+  const [received, setReceived] = useState<Record<string, string>>({});
 
   const loadRequests = useCallback(async (div: Division) => {
     setRequests(await garageApi.get<RequestRow[]>(`/api/wms/material-requests?division=${div}`));
@@ -102,13 +128,32 @@ export function ProductionMaterialRequestDialog({
     };
   }, [division]);
 
+  /** Katalog + paket; keranjang kosong → diisi saran otomatis (M1). */
+  async function loadCatalog(div: Division, resetCart: boolean) {
+    const [cat, tpl] = await Promise.all([
+      garageApi.get<Catalog>(`/api/wms/material-requests/catalog?division=${div}`),
+      garageApi.get<Template[]>(`/api/wms/material-requests/templates?division=${div}`).catch(() => [] as Template[]),
+      loadRequests(div),
+    ]);
+    setCatalog(cat);
+    setTemplates(tpl);
+    setCart((current) => {
+      if (!resetCart && Object.keys(current).length) {
+        setAutoFilled(0);
+        return current;
+      }
+      const next = suggestedCart(cat.products);
+      setAutoFilled(Object.keys(next).length);
+      return next;
+    });
+  }
+
   async function openDialog() {
     setOpen(true);
     setMessage(null);
     setLoading(true);
     try {
-      const [cat] = await Promise.all([garageApi.get<Catalog>(`/api/wms/material-requests/catalog?division=${division}`), loadRequests(division)]);
-      setCatalog(cat);
+      await loadCatalog(division, false);
     } catch (error) {
       setMessage({ ok: false, text: error instanceof Error ? error.message : "Gagal memuat bahan." });
     } finally {
@@ -118,15 +163,66 @@ export function ProductionMaterialRequestDialog({
 
   async function switchDivision(next: Division) {
     setDivision(next);
-    setCart({});
     setLoading(true);
     try {
-      const [cat] = await Promise.all([garageApi.get<Catalog>(`/api/wms/material-requests/catalog?division=${next}`), loadRequests(next)]);
-      setCatalog(cat);
+      await loadCatalog(next, true);
     } catch (error) {
       setMessage({ ok: false, text: error instanceof Error ? error.message : "Gagal memuat bahan." });
     } finally {
       setLoading(false);
+    }
+  }
+
+  // M3: jumlah bahan menipis/habis divisi ini (ringan: ringkasan WMS, tiap 2 menit).
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      void garageApi
+        .get<{ outletAlerts: Array<{ area: string; items: unknown[] }> }>("/api/wms/summary")
+        .then((d) => alive && setLowCount((d.outletAlerts ?? []).filter((a) => a.area === division).reduce((n, a) => n + a.items.length, 0)))
+        .catch(() => undefined);
+    load();
+    const id = window.setInterval(load, 120_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [division]);
+
+  // M3: dibuka dari chip layar produksi.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- buka dialog saat sinyal berubah
+    if (openSignal) void openDialog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hanya saat sinyal berubah
+  }, [openSignal]);
+
+  /** M4: tambahkan isi paket ke keranjang (jumlah dijumlahkan). */
+  function applyTemplate(template: Template) {
+    setCart((current) => {
+      const next = { ...current };
+      for (const item of template.items) next[item.productId] = Math.round(((next[item.productId] ?? 0) + item.qty) * 1000) / 1000;
+      return next;
+    });
+    setMessage({ ok: true, text: `Paket "${template.name}" ditambahkan ke daftar.` });
+  }
+
+  async function saveTemplate() {
+    const name = templateName.trim();
+    if (!name || !cartLines.length) return;
+    setBusy(true);
+    try {
+      const list = await garageApi.post<Template[]>("/api/wms/material-requests/templates", {
+        division,
+        name,
+        items: cartLines.map(([productId, qty]) => ({ productId, qty })),
+      });
+      setTemplates(list);
+      setTemplateName("");
+      setMessage({ ok: true, text: `Paket "${name}" disimpan.` });
+    } catch (error) {
+      setMessage({ ok: false, text: error instanceof Error ? error.message : "Gagal menyimpan paket." });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -188,8 +284,24 @@ export function ProductionMaterialRequestDialog({
     setBusy(true);
     setMessage(null);
     try {
-      await garageApi.post(`/api/wms/material-requests/${id}/${action}`, {});
-      setMessage({ ok: true, text: action === "receive" ? "Bahan dikonfirmasi diterima." : "Permintaan dibatalkan." });
+      const row = requests.find((r) => r.id === id);
+      // M6: hanya baris yang dikoreksi staf yang dikirim.
+      const lines =
+        action === "receive" && row
+          ? row.items
+              .filter((i) => received[i.id] !== undefined && received[i.id] !== "")
+              .map((i) => ({ itemId: i.id, receivedQty: Number(received[i.id].replace(",", ".")) || 0 }))
+          : [];
+      await garageApi.post(`/api/wms/material-requests/${id}/${action}`, lines.length ? { lines } : {});
+      const short = lines.some((l) => {
+        const item = row?.items.find((i) => i.id === l.itemId);
+        return item ? l.receivedQty < item.sentQty : false;
+      });
+      setMessage({
+        ok: true,
+        text: action === "receive" ? (short ? "Diterima dengan selisih — manajer diberi tahu untuk cek gudang." : "Bahan dikonfirmasi diterima.") : "Permintaan dibatalkan.",
+      });
+      setReceived({});
       await loadRequests(division);
     } catch (error) {
       setMessage({ ok: false, text: error instanceof Error ? error.message : "Aksi gagal." });
@@ -209,6 +321,7 @@ export function ProductionMaterialRequestDialog({
       >
         <ClipboardList className="mr-1.5 size-4" />
         Minta Bahan{activeCount ? ` (${activeCount})` : ""}
+        {lowCount ? <span className="ml-1.5 rounded bg-[#f5a742] px-1.5 text-[12px] font-bold text-black">{lowCount} menipis</span> : null}
         {toReceive ? <span className="ml-1.5 size-2 rounded-full bg-[#7cc4ff]" aria-label="Ada bahan dikirim" /> : null}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -251,6 +364,21 @@ export function ProductionMaterialRequestDialog({
 
           {tab === "list" ? (
             <>
+              {autoFilled > 0 && (
+                <p className="flex items-center gap-1.5 rounded-md border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1.5 text-xs font-semibold text-[#ffd58f]">
+                  <Sparkles className="size-3.5 shrink-0" /> {autoFilled} bahan menipis otomatis masuk daftar (sampai stok target). Cek, ubah bila perlu, lalu kirim.
+                </p>
+              )}
+              {templates.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold text-[#c4c4cc]">Paket rutin:</span>
+                  {templates.map((t) => (
+                    <button key={t.name} type="button" onClick={() => applyTemplate(t)} className="h-8 rounded-md border border-[#34343c] px-2.5 text-xs font-bold text-white hover:bg-white/5">
+                      + {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <Input
                   value={query}
@@ -283,7 +411,14 @@ export function ProductionMaterialRequestDialog({
                               Sisa {formatPacks(p.onHand, p.unit, p.uoms)}
                               {p.minStock > 0 ? ` · min ${formatPacks(p.minStock, p.unit, p.uoms)}` : ""} · gudang {formatPacks(p.sourceOnHand, p.unit, p.uoms)}
                             </p>
-                            {pack && <p className="text-[11px] text-[#9c9ca6]">1 {pack.uom} = {qtyFormat.format(pack.factor)} {p.unit}</p>}
+                            {pack && <p className="text-[12px] text-[#9c9ca6]">1 {pack.uom} = {qtyFormat.format(pack.factor)} {p.unit}</p>}
+                            {(p.runoutAt || p.portionsLeft != null) && p.status !== "out" ? (
+                              <p className="text-[12px] font-semibold text-[#ffd58f]">
+                                {p.portionsLeft != null ? `cukup ±${p.portionsLeft} porsi` : ""}
+                                {p.portionsLeft != null && p.runoutAt ? " · " : ""}
+                                {p.runoutAt ? `habis ±${clockFormat.format(new Date(p.runoutAt))}` : ""}
+                              </p>
+                            ) : null}
                           </div>
                           <div className="ml-auto flex items-center gap-2">
                           {p.status !== "ok" && (
@@ -320,6 +455,20 @@ export function ProductionMaterialRequestDialog({
                 )}
               </div>
               <div className="grid gap-2 border-t border-[#26262d] pt-3">
+                {cartLines.length > 0 && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={templateName}
+                      onChange={(event) => setTemplateName(event.target.value)}
+                      placeholder="Simpan daftar ini sebagai paket (mis. Buka toko Bar)"
+                      maxLength={40}
+                      className="h-10 min-w-0 flex-1 border-[#34343c] bg-[#1b1b21] text-white placeholder:text-[#8d8d97]"
+                    />
+                    <Button type="button" variant="outline" disabled={busy || !templateName.trim()} onClick={() => void saveTemplate()} className="h-10 border-[#34343c] bg-transparent text-xs text-white">
+                      <BookmarkPlus className="mr-1.5 size-4" /> Simpan paket
+                    </Button>
+                  </div>
+                )}
                 <Input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
@@ -357,8 +506,14 @@ export function ProductionMaterialRequestDialog({
                         <span className="font-mono text-sm font-bold text-white">{r.doc}</span>
                         {r.urgent && <Badge className="bg-[#d11a2a] text-white">URGENT</Badge>}
                         <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${STATUS_LABEL[r.status].cls}`}>{STATUS_LABEL[r.status].label}</span>
-                        <span className="ml-auto text-xs text-[#c4c4cc]">{timeFormat.format(new Date(r.createdAt))} · {r.requestedByName}</span>
+                        <span className="ml-auto text-xs text-[#c4c4cc]">{r.requestedByName}</span>
                       </div>
+                      {/* M5: jejak status Diminta → Dikirim → Diterima. */}
+                      <p className="mt-1 text-xs text-[#c4c4cc]">
+                        Diminta {timeFormat.format(new Date(r.createdAt))}
+                        {r.sentAt ? ` → Dikirim ${clockFormat.format(new Date(r.sentAt))}` : ""}
+                        {r.receivedAt ? ` → Diterima ${clockFormat.format(new Date(r.receivedAt))}` : ""}
+                      </p>
                       <ul className="mt-2 grid gap-0.5 text-sm text-[#e4e4ea]">
                         {r.items.map((i) => (
                           <li key={i.id} className="flex justify-between gap-2">
@@ -367,7 +522,22 @@ export function ProductionMaterialRequestDialog({
                               {r.status === "submitted" || r.status === "cancelled"
                                 ? formatPacks(i.qty, i.unit, i.uoms)
                                 : `${formatPacks(i.sentQty, i.unit, i.uoms)} dari ${formatPacks(i.qty, i.unit, i.uoms)}${i.shortQty > 0 ? " · kurang, dibelikan" : ""}`}
+                              {r.status === "received" && i.receivedQty != null && i.receivedQty < i.sentQty ? ` · diterima ${formatPacks(i.receivedQty, i.unit, i.uoms)}` : ""}
                             </span>
+                            {r.status === "sent" && i.sentQty > 0 ? (
+                              <label className="flex shrink-0 items-center gap-1 text-xs text-[#c4c4cc]">
+                                datang
+                                <input
+                                  aria-label={`Jumlah ${i.name} yang datang`}
+                                  inputMode="decimal"
+                                  value={received[i.id] ?? ""}
+                                  placeholder={String(i.sentQty).replace(".", ",")}
+                                  onChange={(e) => setReceived((cur) => ({ ...cur, [i.id]: e.target.value.replace(/[^d.,]/g, "") }))}
+                                  className="h-8 w-16 rounded border border-[#34343c] bg-[#1b1b21] text-center text-sm text-white"
+                                />
+                                {i.unit}
+                              </label>
+                            ) : null}
                           </li>
                         ))}
                       </ul>

@@ -18,3 +18,17 @@ Kriteria terima pengganti AC-PUB-03:
 - "Cara pesan" menampilkan langkah sesuai alur `/order` aktual, dan Aya (state `guiding`) menunjuk + menyorot tombol yang sedang dibahas; anchor tidak meleset di mobile/tablet/desktop.
 - Penunjuk dan sorotan hilang saat customer menutup Aya atau menekan tombol; tidak menghalangi tombol (tidak ada overlay yang menangkap klik).
 - Tidak ada aksi pesan/bayar yang dijalankan Aya sendiri; `prefers-reduced-motion` → sorotan statis tanpa animasi gerak.
+
+## OD-02 — Karakter Aya V2 dipakai di SEMUA layar (4 Nov 2026)
+
+**Kata Owner:** "Ya, pakai V2."
+
+- Bentuk resmi Aya = `design-kit/assets/aya_master.svg` + 8 state (`idle, listening, speaking, thinking, warning, success, guiding, error`). Karakter V1 (D-07, `public/garage-brand/aya/aya-{avatar,full}.svg`, `AyaCharacter` lama) **diganti**, bukan dipasang berdampingan.
+- Titik pemasangan V1 di main 4f74bf5 yang wajib ikut berganti:
+  - `src/components/garage/garage-app-loader.tsx` → `AyaStaffCompanion` (semua layar Garage OS staf/Owner, termasuk POS & Production Hub).
+  - `src/components/garage/member-order-page.tsx` → `AyaFloatingPet scope="order"` + `order/aya-greeting.tsx` (menu digital customer).
+  - `src/components/garage/aya-avatar.tsx` (`AyaAvatar`, crop kepala) dan `src/lib/garage-ai-persona.ts` → `AYA_AVATAR_SRC` (avatar statis non-React).
+  - `src/components/garage/aya/aya-character.tsx`, `aya-floating-pet.tsx`, `aya.css` → digantikan `AyaMascot` V2 (boleh mempertahankan API props lama sebagai adapter agar pemanggil tidak pecah).
+- Aset V2 disalin ke `public/garage-brand/aya/v2/`; file V1 boleh dihapus setelah tidak ada referensi (cek `git grep`).
+- Kriteria terima: tidak ada lagi referensi visual V1; snapshot 8 state di 3 breakpoint; ukuran SVG tetap ringan untuk tablet kasir/KDS; animasi menghormati `prefers-reduced-motion`; tidak menutupi tombol POS/KDS/checkout; tes Aya yang ada (`aya-floating-pet.test.ts`, `aya-persona.test.ts`, `order/aya-greeting.test.ts`) diperbarui dan lulus.
+- Persona teks di `garage-ai-persona.ts` ("makhluk digital mungil putih bermata sipit…") tetap; deskripsi visual boleh dirapikan agar cocok V2 (mochi/awan, antena digital, aksen merah Garage Coffee), tanpa mengubah aturan perilaku.

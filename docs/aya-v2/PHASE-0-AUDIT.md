@@ -27,7 +27,7 @@ Deploy manual ke VPS: `scripts/release-check.sh` (wajib lulus) → `scripts/depl
 ## Konflik & keputusan yang dibutuhkan dari Owner (BLOCKER)
 
 1. ~~**Customer order dari menu digital.**~~ **SELESAI — diputuskan Owner 4 Nov 2026 ([OD-01](OWNER-DECISIONS.md)):** customer **tetap** memesan di `/order` (`member-order-page.tsx`: checkout QR meja, event checkout, bukti bayar via `/api/customer/orders`, `/api/customer/orders/payment-proof`; status menerima order mengikuti shift kasir via `/api/customer/ordering-status`). Aya memandu cara pesan dan **menunjuk dengan tangan (state `guiding`) ke tombol** yang tepat. Tidak perlu sakelar "lihat saja".
-2. **Identitas visual.** Spec menetapkan `design-kit/assets/aya_master.svg` sebagai bentuk resmi. Karakter V1 di `public/garage-brand/aya/` (D-07, 27 Okt) masih dipakai di POS, Production Hub, dan /order. Penggantian = keputusan visual Owner; disarankan ganti sekaligus di Phase 1 dengan fallback SVG ringan.
+2. ~~**Identitas visual.**~~ **SELESAI — diputuskan Owner 4 Nov 2026 ([OD-02](OWNER-DECISIONS.md)):** `aya_master.svg` + 8 state menggantikan karakter V1 di semua layar (Garage OS staf/Owner, POS, Production Hub, `/order`).
 3. **Biaya.** OpenAI API, ElevenLabs, dan STT server berbayar. Spec: jangan aktifkan layanan berbayar tanpa izin. Default V2 = Web Speech API (gratis) + batas biaya harian OpenAI yang ditentukan Owner (angka belum ada).
 
 ## Urutan kerja yang disarankan (menyesuaikan §17 dengan kondisi kode)

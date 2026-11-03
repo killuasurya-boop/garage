@@ -11,13 +11,13 @@ Catatan: §23 menyebut `AYA_V2_Claude_Code_Design_Kit.zip`; di repo isinya sudah
 - Satu PR = satu tahap yang bisa diverifikasi. Migrasi drizzle: cek nomor terakhir di `drizzle/` main **dan** PR terbuka (PR #159 memakai `0177`) supaya tidak tabrakan.
 
 ## Blocker yang menunggu keputusan Owner
-Lihat bagian "Konflik & keputusan" di [PHASE-0-AUDIT.md](PHASE-0-AUDIT.md): (2) ganti karakter V1 → `aya_master.svg`; (3) batas biaya OpenAI harian.
-Blocker (1) sudah diputuskan ([OD-01](OWNER-DECISIONS.md)): customer **tetap memesan** di `/order`, Aya memandu dan menunjuk tombol. Jangan mematikan atau mengubah alur checkout pelanggan.
+Tinggal satu: batas biaya OpenAI harian (lihat [PHASE-0-AUDIT.md](PHASE-0-AUDIT.md)). Branch B boleh dikerjakan dengan budget guard yang angkanya dari setting, default kecil, sampai Owner menetapkan angka.
+Sudah diputuskan: [OD-01](OWNER-DECISIONS.md) customer **tetap memesan** di `/order`, Aya memandu dan menunjuk tombol (jangan ubah alur checkout); [OD-02](OWNER-DECISIONS.md) karakter V2 **menggantikan** V1 di semua layar.
 
 ## Pekerjaan yang sudah bisa jalan tanpa menunggu blocker
 | Urutan | Branch saran | Isi | Gate |
 |---|---|---|---|
-| A | `feat/aya-v2-mascot` | Komponen `AyaMascot` + 8 state dari `design-kit/assets/` (salin ke `public/garage-brand/aya/v2/`), state machine, reduced-motion, mute; belum mengganti V1 sampai Owner setuju (pasang di balik flag/props) | Snapshot 8 state, 3 breakpoint, keyboard focus, tidak menutupi POS/KDS |
+| A | `feat/aya-v2-mascot` | Komponen `AyaMascot` + 8 state dari `design-kit/assets/` (salin ke `public/garage-brand/aya/v2/`), state machine, reduced-motion, mute; **ganti V1 di semua titik pemasangan** sesuai OD-02 (adapter props lama boleh) | Snapshot 8 state, 3 breakpoint, keyboard focus, tidak menutupi POS/KDS |
 | B | `feat/aya-v2-tool-gateway` | Aya in-app memakai `runAgentTool` (registry yang sama dengan ChatGPT MCP) via function calling OpenAI; filter tool per peran; R2/R3 via `mcp-confirmation`; budget guard yang memblokir | Tes role leakage, customer tak bisa baca data internal, R2 tanpa konfirmasi ditolak, budget habis, prompt injection |
 | C | `feat/aya-v2-release-registry` | Tabel rilis (migrasi aditif), versi/commit di `/api/health`, endpoint ber-secret yang dipanggil `deploy-manual.sh` **setelah smoke test lulus**, notifikasi Owner, What's New per divisi + acknowledgment | build ≠ deployed ≠ verified; rollback tercatat; tidak bocor ke customer |
 | A2 | `feat/aya-v2-order-guide` (setelah A) | Di `/order`: Aya menjelaskan cara pesan langkah demi langkah sesuai alur aktual (pilih menu → keranjang → checkout → bukti bayar) dan pada state `guiding` **menunjuk dengan tangan + menyorot tombol** yang sedang dibahas (anchor `data-aya-anchor` pada tombol tambah item, keranjang, checkout, upload bukti bayar). Aya tidak menekan tombol/isi pembayaran; tidak menunjuk checkout bila outlet tutup (`/api/customer/ordering-status`) | Kriteria OD-01: anchor tepat di 3 breakpoint, overlay tidak menangkap klik, hilang saat ditutup/diklik, reduced-motion statis, E2E alur pesan `/order` tetap lulus |

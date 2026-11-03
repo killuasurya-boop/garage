@@ -1,5 +1,7 @@
 # AYA V2 ULTIMATE — MASTER SPECIFICATION UNTUK CLAUDE CODE
 
+> **⚠ KEPUTUSAN OWNER 4 Nov 2026 (OD-01) — mengalahkan dokumen ini:** customer **tetap bisa memesan** di menu digital `/order`; Aya **memandu cara pesan dan menunjuk dengan tangan (state `guiding`) ke tombol pesan/checkout**. Abaikan semua aturan "customer tidak bisa order/checkout" di bawah. Detail: [OWNER-DECISIONS.md](OWNER-DECISIONS.md).
+
 **Produk:** Garage Coffee / Garage OS  
 **Pemilik keputusan:** Owner Garage Coffee  
 **Tanggal dokumen:** 4 November 2026  

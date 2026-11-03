@@ -32,3 +32,15 @@ Kriteria terima pengganti AC-PUB-03:
 - Aset V2 disalin ke `public/garage-brand/aya/v2/`; file V1 boleh dihapus setelah tidak ada referensi (cek `git grep`).
 - Kriteria terima: tidak ada lagi referensi visual V1; snapshot 8 state di 3 breakpoint; ukuran SVG tetap ringan untuk tablet kasir/KDS; animasi menghormati `prefers-reduced-motion`; tidak menutupi tombol POS/KDS/checkout; tes Aya yang ada (`aya-floating-pet.test.ts`, `aya-persona.test.ts`, `order/aya-greeting.test.ts`) diperbarui dan lulus.
 - Persona teks di `garage-ai-persona.ts` ("makhluk digital mungil putih bermata sipit…") tetap; deskripsi visual boleh dirapikan agar cocok V2 (mochi/awan, antena digital, aksen merah Garage Coffee), tanpa mengubah aturan perilaku.
+
+## OD-03 — Mode Rp 0: tanpa biaya OpenAI API untuk Aya V2 (4 Nov 2026)
+
+**Kata Owner:** "Mode Rp 0." (Owner berlangganan ChatGPT Plus/Go bulanan; langganan itu **tidak** mencakup OpenAI API.)
+
+- **Owner → kontrol Garage OS lewat ChatGPT + MCP Garage OS** (sudah ada di produksi: `mcp-chatgpt-gateway.ts`, OAuth + 2FA + kill switch + audit + konfirmasi R2/R3). Ini memakai langganan ChatGPT Owner, tanpa biaya API. Jangan membangun ulang kontrol Owner di jalur berbayar.
+  Catatan: ketersediaan connector/MCP kustom tergantung paket ChatGPT; Owner perlu memastikan di ChatGPT → Settings → Apps/Connectors (terutama paket Go).
+- **Aya di dalam aplikasi bekerja TANPA LLM berbayar**: pengingat per divisi (data `/api/ops-center`), panduan cara pesan + tangan menunjuk tombol (OD-01), What's New / release notes, notifikasi deployment, Smart Action Center, FAQ publik dari data menu/setting — semuanya **berbasis data sistem + aturan + template**, bukan model AI.
+- **Suara:** Web Speech API browser (gratis, sudah ada di `src/lib/garage-voice.ts`). ElevenLabs tetap **mati**. STT (mendengar) hanya Web Speech API browser dengan izin mikrofon; tanpa layanan STT server.
+- **Chat bebas Aya dengan OpenAI API (branch B):** jalur boleh dibangun (tool gateway, filter peran, konfirmasi), tetapi **budget guard default = Rp 0 → fitur mati**. Aya menjawab dengan fallback berbasis aturan/FAQ dan mengarahkan Owner ke ChatGPT. Aktif hanya bila Owner sendiri mengisi batas harian di pengaturan.
+- **Fitur AI lama yang sudah ada di produksi** (`/api/ai/pos-agent`, owner chat, shift copilot, system doctor, CEO broadcast) **tidak diubah diam-diam** oleh pekerjaan Aya V2. Agent cukup mencatat apakah fitur itu memanggil API berbayar dan melaporkannya ke Owner untuk diputuskan terpisah.
+- Kriteria terima: tidak ada panggilan ke `api.openai.com`, ElevenLabs, atau layanan berbayar lain dari fitur Aya V2 saat budget = 0 (dibuktikan dengan tes yang memblokir/mock fetch); semua fitur V2 untuk staf & customer tetap berfungsi tanpa `OPENAI_API_KEY`.

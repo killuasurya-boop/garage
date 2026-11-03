@@ -299,7 +299,7 @@ export function AyaFloatingPet({
       <button
         type="button"
         className="aya-pet-button"
-        style={{ width: PET_SIZE, height: PET_SIZE * 1.25 }}
+        style={{ width: PET_SIZE, height: PET_SIZE }}
         aria-label={open ? `Tutup sapaan ${AYA_NAME}` : `${AYA_NAME}, AI pet Garage — ketuk untuk bantuan, seret untuk memindahkan`}
         aria-expanded={open}
         onPointerDown={onPointerDown}
@@ -312,7 +312,7 @@ export function AyaFloatingPet({
           if (event.detail === 0) setOpen((current) => !current);
         }}
       >
-        <AyaCharacter expression={expression} pose={pose} />
+        <AyaCharacter expression={expression} pose={pose} role={scope === "order" ? "customer" : "staff"} />
       </button>
       {open ? (
         <div
@@ -322,7 +322,7 @@ export function AyaFloatingPet({
           style={{
             left: bubbleX,
             width: bubbleWidth,
-            ...(bubbleAbove ? { bottom: PET_SIZE * 1.25 + 6 } : { top: PET_SIZE * 1.25 + 6 }),
+            ...(bubbleAbove ? { bottom: PET_SIZE + 6 } : { top: PET_SIZE + 6 }),
           }}
         >
           {children({ close, hide })}

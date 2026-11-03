@@ -127,6 +127,33 @@ interface DeliverOptions {
  *   auto           → perangkat yang pernah diizinkan → agen → dialog print
  * Selalu resolve dengan Response (bentuk sama seperti route lama).
  */
+/**
+ * Production Hub V4 (P1 audit): apakah perangkat ini BENAR-BENAR bisa cetak otomatis
+ * sekarang — printer langsung yang sudah tersambung, atau agen cetak yang menjawab
+ * /health. Dipakai sebelum mengklaim job agar tablet tanpa printer tidak
+ * menghabiskan jatah percobaan job milik perangkat lain.
+ */
+export async function probeAutoPrinter(
+  config: DevicePrinterConfig = loadDevicePrinterConfig(),
+): Promise<{ ready: boolean; reason: string | null }> {
+  if (config.mode === "browser") return { ready: false, reason: "Printer perangkat = dialog Chrome." };
+  if (config.mode === "serial" || config.mode === "usb" || config.mode === "ble" || config.mode === "auto") {
+    const direct = await findRememberedDirectMode(config).catch(() => null);
+    if (direct && (config.mode === "auto" || direct === config.mode)) return { ready: true, reason: null };
+    if (config.mode !== "auto") return { ready: false, reason: "Printer langsung belum tersambung." };
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`${agentBaseUrl(config)}/health`, { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timer);
+    if (res.ok) return { ready: true, reason: null };
+  } catch {
+    // agen tidak berjalan
+  }
+  return { ready: false, reason: "Printer/agen cetak tidak terdeteksi." };
+}
+
 export async function deliverPrintContent(
   source: string | ((columns: number) => string),
   options: DeliverOptions,

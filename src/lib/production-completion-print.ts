@@ -13,8 +13,13 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { kitchenTickets, orders, printJobs, productionTicketItems } from "@/db/schema";
-import { normalizeProductionStation, productionItemLabel, splitOrderIdentity } from "@/lib/garage-production-rules";
+import { kitchenTickets, menuItems, orderItems, orders, printJobs, productionTicketItems } from "@/db/schema";
+import {
+  isDirectHandoverMenu,
+  normalizeProductionStation,
+  productionItemLabel,
+  splitOrderIdentity,
+} from "@/lib/garage-production-rules";
 import {
   COMPLETION_CLAIM_LEASE_MS,
   COMPLETION_JOB_TYPE,
@@ -146,6 +151,30 @@ async function buildPayload(orderId: string): Promise<CompletionTicketPayload | 
       }
     }
   }
+  // Barang tanpa produksi (rokok, air mineral) ikut dicetak di blok SERAHKAN KASIR —
+  // tanpa ini tiket tampak lengkap padahal barangnya belum diserahkan (audit P1).
+  const directRows = await db
+    .select({
+      itemName: orderItems.itemName,
+      variantLabel: orderItems.variantLabel,
+      qty: orderItems.qty,
+      note: orderItems.note,
+      station: menuItems.station,
+      category: menuItems.category,
+    })
+    .from(orderItems)
+    .leftJoin(menuItems, eq(menuItems.id, orderItems.menuItemId))
+    .where(eq(orderItems.orderId, orderId))
+    .orderBy(asc(orderItems.id));
+  for (const row of directRows) {
+    if (row.qty <= 0 || !isDirectHandoverMenu({ station: row.station, category: row.category })) continue;
+    items.push({
+      station: "Kasir",
+      label: productionItemLabel(row.itemName, row.variantLabel),
+      qty: row.qty,
+      note: row.note?.trim() || null,
+    });
+  }
   const lastReady = Math.max(0, ...live.map((t) => t.readyAt?.getTime() ?? 0));
   const first = live[0];
   return {
@@ -212,8 +241,16 @@ export async function enqueueOrderCompletionPrint(
   return { created: result.created, jobId: result.jobId };
 }
 
+// Audit P2: papan produksi polling tiap ±4 dtk per tablet; pemeriksaan klaim kedaluwarsa
+// (UPDATE) cukup sekali per 30 dtk per outlet — lease 90 dtk, jadi tetap tepat waktu.
+const EXPIRE_CHECK_EVERY_MS = 30_000;
+const lastExpireCheck = new Map<string, number>();
+
 /** Klaim yang kedaluwarsa → failed "tidak pasti" (tidak dicetak ulang otomatis). */
 async function expireStaleClaims(outletId: string, now: Date) {
+  const last = lastExpireCheck.get(outletId) ?? 0;
+  if (now.getTime() - last < EXPIRE_CHECK_EVERY_MS && now.getTime() >= last) return 0;
+  lastExpireCheck.set(outletId, now.getTime());
   const rows = await getDb()
     .update(printJobs)
     .set({ status: "failed", error: UNCERTAIN_PRINT_ERROR, updatedAt: now })

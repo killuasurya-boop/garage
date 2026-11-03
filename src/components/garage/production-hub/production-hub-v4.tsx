@@ -109,8 +109,10 @@ type GridFilter = "production" | "waiting" | "processing" | "ready" | "all";
 type Sheet = null | "batch" | "ready" | "history" | "printer" | "more" | "waiter";
 type MobileTab = "produksi" | "batch" | "ready" | "history" | "more";
 
-type Prefs = { density: DensityId; sort: HubSortMode; filter: GridFilter };
-const DEFAULT_PREFS: Prefs = { density: "auto", sort: "priority", filter: "production" };
+// zoom = Layar LCD/TV yang dibaca dari 1–3 m (fitur layar lama, audit P3).
+type HubZoom = "100" | "125" | "150";
+type Prefs = { density: DensityId; sort: HubSortMode; filter: GridFilter; zoom: HubZoom };
+const DEFAULT_PREFS: Prefs = { density: "auto", sort: "priority", filter: "production", zoom: "100" };
 
 function loadPrefs(): Prefs {
   try {
@@ -125,6 +127,7 @@ function loadPrefs(): Prefs {
       filter: (["production", "waiting", "processing", "ready", "all"] as const).includes(raw?.filter as GridFilter)
         ? (raw?.filter as GridFilter)
         : DEFAULT_PREFS.filter,
+      zoom: (["100", "125", "150"] as const).includes(raw?.zoom as HubZoom) ? (raw?.zoom as HubZoom) : DEFAULT_PREFS.zoom,
     };
   } catch {
     return DEFAULT_PREFS;
@@ -615,14 +618,14 @@ export function ProductionHubV4({
             setView("produksi");
             savePrefs({ filter });
           }}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 text-[11px] font-bold tracking-wide text-[var(--phv4-muted)] hover:text-white"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2 text-[12px] font-bold tracking-wide text-[var(--phv4-muted)] hover:text-white"
         >
           {label}
           <span className={`phv4-mono text-[15px] ${tone}`}>{String(value).padStart(2, "0")}</span>
         </button>
       ))}
       {counts.critical ? (
-        <span className="flex h-8 shrink-0 items-center gap-1 rounded-md bg-[var(--phv4-critical)]/15 px-2 text-[11px] font-bold text-[#fecaca]">
+        <span className="flex h-8 shrink-0 items-center gap-1 rounded-md bg-[var(--phv4-critical)]/15 px-2 text-[12px] font-bold text-[#fecaca]">
           <AlertTriangle className="size-3.5" /> SLA <span className="phv4-mono text-[14px]">{counts.critical}</span>
         </span>
       ) : null}
@@ -817,11 +820,13 @@ export function ProductionHubV4({
     </div>
   );
 
+  // Kartu memakai waktu kasar (5 dtk) untuk SLA; timer detik berdetak sendiri di kartu (audit P2).
+  const cardNow = Math.floor(now / 5000) * 5000;
   const cards = visible.map((ticket) => (
     <OrderCard
       key={ticket.ticketNo}
       ticket={ticket}
-      now={now}
+      now={cardNow}
       maxLines={maxLines}
       busy={busyKey?.endsWith(`:${ticket.ticketNo}`) ?? false}
       canOperate={canOperate[ticket.station]}
@@ -840,7 +845,11 @@ export function ProductionHubV4({
   // Portal ke <body>: hub menutupi shell (chat FAB, widget SOP) tanpa terjebak stacking context induk.
   if (!portalTarget) return null;
   return createPortal(
-    <div className="phv4 fixed inset-0 z-[45] flex flex-col overflow-hidden" aria-label="Production Hub">
+    <div
+      className="phv4 fixed inset-0 z-[45] flex flex-col overflow-hidden"
+      aria-label="Production Hub"
+      style={prefs.zoom !== "100" ? { zoom: Number(prefs.zoom) / 100 } : undefined}
+    >
       <VoiceSettingsDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
 
       {/* Header ramping */}
@@ -858,7 +867,7 @@ export function ProductionHubV4({
         <span className="hidden text-[12px] font-semibold text-[var(--phv4-muted)] lg:inline">
           {view === "batch" && isDesktop ? "Batch Produksi" : "Production Hub"}
         </span>
-        <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] px-2 text-[11px] font-bold">
+        <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] px-2 text-[12px] font-bold">
           <span className={`size-2 rounded-full ${live ? "bg-[var(--phv4-success)] motion-safe:animate-pulse" : "bg-[var(--phv4-wait)]"}`} />
           {live ? "LIVE" : "POLL"}
           <span className="phv4-mono hidden text-[12px] font-semibold text-[#d1d5db] sm:inline">{clock}</span>
@@ -875,13 +884,13 @@ export function ProductionHubV4({
                 className={`${toolButton} border-[var(--phv4-red)]/60 ${view === "batch" ? "bg-[var(--phv4-red)] text-white hover:bg-[var(--phv4-red-hover)]" : ""}`}
               >
                 <Layers className="size-4 text-[var(--phv4-red)]" /> BATCH
-                {batchCount ? <span className="phv4-mono rounded bg-[var(--phv4-red)] px-1 text-[11px] text-white">{batchCount}</span> : null}
+                {batchCount ? <span className="phv4-mono rounded bg-[var(--phv4-red)] px-1 text-[12px] text-white">{batchCount}</span> : null}
               </button>
               <button type="button" onClick={() => setSheet("printer")} className={toolButton} aria-label="Printer">
                 <Printer className="size-4" />
                 <span className="hidden xl:inline">PRINTER</span>
                 <span className={`size-2 rounded-full ${printerTone}`} />
-                {failedJobs ? <span className="phv4-mono text-[11px] text-[#fca5a5]">{failedJobs}</span> : null}
+                {failedJobs ? <span className="phv4-mono text-[12px] text-[#fca5a5]">{failedJobs}</span> : null}
               </button>
               <button
                 type="button"
@@ -948,6 +957,18 @@ export function ProductionHubV4({
               options={[{ value: "auto" as DensityId, label: `Auto (${grid.cols}×${grid.rows})` }, ...DENSITY_PRESETS.map((p) => ({ value: p.id as DensityId, label: p.label }))]}
             />
           ) : null}
+          {isDesktop ? (
+            <SelectBox
+              label="Zoom"
+              value={prefs.zoom}
+              onChange={(zoom) => savePrefs({ zoom })}
+              options={[
+                { value: "100" as HubZoom, label: "100%" },
+                { value: "125" as HubZoom, label: "125% (LCD)" },
+                { value: "150" as HubZoom, label: "150% (TV)" },
+              ]}
+            />
+          ) : null}
           <label className="flex h-8 min-w-[140px] max-w-[240px] flex-1 items-center gap-1.5 rounded-md border border-[var(--phv4-border)] bg-[var(--phv4-bg)] px-2">
             <Search className="size-3.5 shrink-0 text-[var(--phv4-muted)]" aria-hidden />
             <input
@@ -974,7 +995,7 @@ export function ProductionHubV4({
             <>
               <div className="flex shrink-0 items-center gap-1">
                 {grid.clamped ? (
-                  <span className="text-[11px] text-[var(--phv4-wait)]" title="Preset diturunkan agar teks tetap terbaca">
+                  <span className="text-[12px] text-[var(--phv4-wait)]" title="Preset diturunkan agar teks tetap terbaca">
                     {grid.cols * grid.rows}/{prefs.density}
                   </span>
                 ) : null}
@@ -1115,13 +1136,25 @@ export function ProductionHubV4({
           {printer.notice && now - printer.notice.at < 15_000 ? (
             <span className={`min-w-0 truncate ${printer.notice.tone === "ok" ? "text-[#86efac]" : "text-[#fca5a5]"}`}>{printer.notice.text}</span>
           ) : null}
-          <span className="ml-auto flex shrink-0 items-center gap-2 text-[var(--phv4-muted)]">
+          {/* Beban per station (fitur layar lama, audit P3): antre, terlama, rata-rata, risiko SLA. */}
+          {(board?.load ?? [])
+            .filter((l) => inArea(l.station))
+            .map((l) => (
+              <span key={l.station} className="flex shrink-0 items-center gap-1.5 text-[var(--phv4-muted)]">
+                <span className="font-bold text-white">{l.station === "Bar" ? "BAR" : "DAPUR"}</span>
+                antre <span className="phv4-mono text-white">{l.waiting}</span>
+                · terlama <span className="phv4-mono text-white">{l.oldestWaitingMinutes != null ? `${l.oldestWaitingMinutes}m` : "-"}</span>
+                · rata <span className="phv4-mono text-white">{l.avgProductionMinutes != null ? `${l.avgProductionMinutes}m` : "-"}</span>
+                {l.slaRisk ? <span className="font-bold text-[#fca5a5]">· risiko {l.slaRisk}</span> : null}
+              </span>
+            ))}
+          <span className="ml-auto hidden shrink-0 min-[1600px]:flex items-center gap-2 text-[var(--phv4-muted)]">
             SLA:
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-success)]" />aman</span>
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-wait)]" />mendekati target / belum dimulai</span>
             <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[var(--phv4-critical)]" />lewat (prioritas)</span>
           </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-[var(--phv4-muted)]">
+          <span className="ml-auto flex shrink-0 items-center min-[1600px]:ml-0 gap-1.5 text-[var(--phv4-muted)]">
             {loadError ? <span className="text-[var(--phv4-wait)]">Sinkron gagal</span> : null}
             <button type="button" onClick={() => void load()} aria-label="Muat ulang" className="grid size-7 place-items-center rounded hover:bg-white/5">
               <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
@@ -1145,7 +1178,7 @@ export function ProductionHubV4({
               type="button"
               aria-current={mobileTab === id ? "page" : undefined}
               onClick={() => setMobileTab(id)}
-              className={`relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold ${
+              className={`relative flex flex-col items-center justify-center gap-0.5 text-[12px] font-semibold ${
                 mobileTab === id ? "text-white" : "text-[var(--phv4-muted)]"
               }`}
             >
@@ -1153,7 +1186,7 @@ export function ProductionHubV4({
               <Icon className="size-5" />
               {label}
               {badge ? (
-                <span className="phv4-mono absolute right-[18%] top-1.5 min-w-4 rounded-full bg-[var(--phv4-red)] px-1 text-[10px] text-white">
+                <span className="phv4-mono absolute right-[18%] top-1.5 min-w-4 rounded-full bg-[var(--phv4-red)] px-1 text-[12px] text-white">
                   {badge}
                 </span>
               ) : null}

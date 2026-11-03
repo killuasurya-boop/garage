@@ -40,7 +40,7 @@ export function TicketTimeline({ ticket }: { ticket: ProductionHistoryTicket }) 
     ["Selesai", ticket.deliveredAt, ticket.deliveredByName],
   ];
   return (
-    <ol className="grid grid-cols-5 gap-1 text-[11px]">
+    <ol className="grid grid-cols-5 gap-1 text-[12px]">
       {steps.map(([label, at, by]) => (
         <li key={label} className={`rounded-[5px] border px-1 py-1 ${at ? "border-[var(--phv4-border)]" : "border-dashed border-[#2a2d33] opacity-60"}`}>
           <p className="text-[var(--phv4-muted)]">{label}</p>
@@ -178,7 +178,7 @@ export function HistoryPanel({
                     <span className="phv4-mono text-[13px] font-bold">#{order.orderNo ?? order.tickets[0]?.ticketNo}</span>
                     <span className="truncate text-[12px] text-[#e5e7eb]">{tableText(order.table)}</span>
                   </span>
-                  <span className="block truncate text-[11px] text-[var(--phv4-muted)]">
+                  <span className="block truncate text-[12px] text-[var(--phv4-muted)]">
                     {hhmm(order.createdAt)} · {customerOf({ identity: order.customerName, table: order.table }).customer ?? "Tanpa nama"} · {statuses.join(" / ")}
                     {order.prints.length
                       ? ` · Cetak: ${COMPLETION_STATUS_LABEL[order.prints[order.prints.length - 1].status]}`
@@ -206,7 +206,7 @@ export function HistoryPanel({
                       </ul>
                       <TicketTimeline ticket={ticket} />
                       {ticket.issueReason ? (
-                        <p className="text-[11px] text-[#fca5a5]">Catatan koreksi: {ticket.issueReason}</p>
+                        <p className="text-[12px] text-[#fca5a5]">Catatan koreksi: {ticket.issueReason}</p>
                       ) : null}
                       {canWrite && ticket.status === "ready" && !ticket.claimedByName ? (
                         <button
@@ -226,7 +226,7 @@ export function HistoryPanel({
                     </div>
                   ))}
                   <div className="space-y-1 border-t border-[var(--phv4-border)] pt-2">
-                    <p className="text-[11px] font-bold uppercase text-[var(--phv4-muted)]">Riwayat cetak SELESAI</p>
+                    <p className="text-[12px] font-bold uppercase text-[var(--phv4-muted)]">Riwayat cetak SELESAI</p>
                     {order.prints.length ? (
                       order.prints.map((p) => (
                         <p key={p.id} className="text-[12px]">

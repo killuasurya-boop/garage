@@ -110,7 +110,7 @@ function Progress({ done, total, status }: { done: number; total: number; status
 function Chip({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "order" }) {
   return (
     <span
-      className={`inline-flex h-6 shrink-0 items-center rounded-[5px] border px-1.5 text-[11px] font-semibold ${
+      className={`inline-flex h-6 shrink-0 items-center rounded-[5px] border px-1.5 text-[12px] font-semibold ${
         tone === "order" ? "phv4-mono border-[var(--phv4-border)] bg-[var(--phv4-bg)] text-[#e5e7eb]" : "border-[var(--phv4-border)] text-[#d1d5db]"
       }`}
     >
@@ -344,7 +344,7 @@ export function BatchView({
           }`}
         >
           <Icon className={`size-3.5 ${tone}`} aria-hidden />
-          <span className="text-[11px] font-semibold text-[var(--phv4-muted)]">{label}</span>
+          <span className="text-[12px] font-semibold text-[var(--phv4-muted)]">{label}</span>
           <span className={`phv4-mono text-[15px] font-bold ${tone}`}>{value}</span>
         </div>
       ))}
@@ -409,13 +409,13 @@ export function BatchView({
     return (
       <div className="min-w-0 space-y-1.5">
         <div className="flex items-center gap-2">
-          <span className={`inline-flex h-6 items-center gap-1 rounded-[5px] border px-1.5 text-[11px] font-bold ${chip.cls}`}>
+          <span className={`inline-flex h-6 items-center gap-1 rounded-[5px] border px-1.5 text-[12px] font-bold ${chip.cls}`}>
             <chip.Icon className="size-3.5" aria-hidden />
             {chip.label}
           </span>
           <span className="phv4-mono ml-auto text-[13px] font-bold">
             {row.doneQty}/{row.totalQty}
-            <span className="ml-1 text-[11px] font-semibold text-[var(--phv4-muted)]">{pct}%</span>
+            <span className="ml-1 text-[12px] font-semibold text-[var(--phv4-muted)]">{pct}%</span>
           </span>
         </div>
         <Progress done={row.doneQty} total={row.totalQty} status={row.status} />
@@ -444,7 +444,7 @@ export function BatchView({
         <MenuThumb menu={menu} station={row.station} size={thumb} />
         <div className="min-w-0">
           {row.priority ? (
-            <span className="mb-0.5 inline-flex h-5 items-center gap-1 rounded-[4px] bg-[var(--phv4-critical)]/20 px-1.5 text-[10px] font-bold tracking-wide text-[#fecaca]">
+            <span className="mb-0.5 inline-flex h-5 items-center gap-1 rounded-[4px] bg-[var(--phv4-critical)]/20 px-1.5 text-[12px] font-bold tracking-wide text-[#fecaca]">
               <Flag className="size-3" aria-hidden /> PRIORITAS
             </span>
           ) : null}
@@ -494,7 +494,7 @@ export function BatchView({
       : "grid-cols-[minmax(200px,1.4fr)_64px_minmax(150px,1fr)_minmax(110px,0.8fr)_auto]";
   const activeTable = rows.length ? (
     <div role="table" aria-label="Batch aktif" className="min-w-0">
-      <div role="row" className={`sticky top-0 z-[1] grid ${gridCols} items-center gap-3 border-b border-[var(--phv4-border)] bg-[var(--phv4-bg2)] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[var(--phv4-muted)]`}>
+      <div role="row" className={`sticky top-0 z-[1] grid ${gridCols} items-center gap-3 border-b border-[var(--phv4-border)] bg-[var(--phv4-bg2)] px-3 py-2 text-[12px] font-bold uppercase tracking-wide text-[var(--phv4-muted)]`}>
         <span role="columnheader">Menu &amp; Varian</span>
         <span role="columnheader" className="text-center">Jumlah</span>
         <span role="columnheader">Progress</span>
@@ -514,7 +514,7 @@ export function BatchView({
             <div role="cell" className="min-w-0">{menuCell(row)}</div>
             <div role="cell" className="text-center">
               <p className="phv4-mono text-[20px] font-bold leading-6">{row.totalQty}</p>
-              <p className="text-[11px] text-[var(--phv4-muted)]">{UNIT[row.station]}</p>
+              <p className="text-[12px] text-[var(--phv4-muted)]">{UNIT[row.station]}</p>
             </div>
             <div role="cell" className="min-w-0">{statusCell(row)}</div>
             <div role="cell" className="min-w-0">
@@ -578,7 +578,7 @@ export function BatchView({
             <MenuThumb menu={menu} station={station} size={40} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-bold">{m.label}</p>
-              <p className="truncate text-[11px] text-[var(--phv4-muted)]">
+              <p className="truncate text-[12px] text-[var(--phv4-muted)]">
                 {m.modifiers.map((x) => `${x.label} ${x.qty}`).join(" · ")} · {m.orders.length} order
               </p>
             </div>
@@ -592,7 +592,7 @@ export function BatchView({
               ).map(([label, value, tone]) => (
                 <span key={label} className="w-14 rounded-[6px] border border-[var(--phv4-border)] py-0.5">
                   <span className={`phv4-mono block text-[15px] font-bold ${tone}`}>{value}</span>
-                  <span className="block text-[10px] text-[var(--phv4-muted)]">{label}</span>
+                  <span className="block text-[12px] text-[var(--phv4-muted)]">{label}</span>
                 </span>
               ))}
             </div>
@@ -700,7 +700,7 @@ export function BatchView({
                       <span className="block truncate text-[13px] font-semibold">
                         #{(t.orderNo ?? t.ticketNo).replace(/^POS-/, "").slice(-6)} · {tableText(t.table)}
                       </span>
-                      <span className="block truncate text-[11px] text-[var(--phv4-muted)]">
+                      <span className="block truncate text-[12px] text-[var(--phv4-muted)]">
                         {t.items.map((i) => `${i.qty}× ${i.label}`).join(", ")}
                       </span>
                     </span>
@@ -717,7 +717,7 @@ export function BatchView({
           <Printer className="size-5 shrink-0 text-[var(--phv4-muted)]" />
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-bold">Auto Print</p>
-            <p className="text-[11px] text-[var(--phv4-muted)]">Tiket SELESAI 1× per order saat semua item siap</p>
+            <p className="text-[12px] text-[var(--phv4-muted)]">Tiket SELESAI 1× per order saat semua item siap</p>
           </div>
           <AutoPrintSwitch on={autoPrint} onChange={onAutoPrint} />
         </section>
@@ -725,7 +725,7 @@ export function BatchView({
           <h3 className="flex items-center gap-2 text-[14px] font-bold">
             <ShoppingCart className="size-4 text-[var(--phv4-muted)]" /> Pesanan Akan Ready
           </h3>
-          <p className="mb-2 text-[11px] text-[var(--phv4-muted)]">Siap begitu batch station ini selesai</p>
+          <p className="mb-2 text-[12px] text-[var(--phv4-muted)]">Siap begitu batch station ini selesai</p>
           {willBeReady.length ? (
             <div className="flex flex-wrap gap-1">
               {willBeReady.map((o) => (
@@ -752,7 +752,7 @@ export function BatchView({
             <Layers className="size-5 text-[var(--phv4-red)]" />
             <div className="min-w-0">
               <h2 className="text-[17px] font-bold leading-5">Batch Produksi</h2>
-              <p className="text-[11px] text-[var(--phv4-muted)]">Kelompokkan & proses produk sejenis.</p>
+              <p className="text-[12px] text-[var(--phv4-muted)]">Kelompokkan & proses produk sejenis.</p>
             </div>
           </div>
           <div role="radiogroup" aria-label="Station" className="grid h-10 grid-cols-2 gap-1">
@@ -858,11 +858,11 @@ function BatchDetail({
         <MenuThumb menu={menu} station={row.station} size={64} />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className={`inline-flex h-6 items-center gap-1 rounded-[5px] border px-1.5 text-[11px] font-bold ${chip.cls}`}>
+            <span className={`inline-flex h-6 items-center gap-1 rounded-[5px] border px-1.5 text-[12px] font-bold ${chip.cls}`}>
               <chip.Icon className="size-3.5" /> {chip.label}
             </span>
             {row.priority ? (
-              <span className="inline-flex h-6 items-center gap-1 rounded-[5px] bg-[var(--phv4-critical)]/20 px-1.5 text-[11px] font-bold text-[#fecaca]">
+              <span className="inline-flex h-6 items-center gap-1 rounded-[5px] bg-[var(--phv4-critical)]/20 px-1.5 text-[12px] font-bold text-[#fecaca]">
                 <Flag className="size-3" /> PRIORITAS
               </span>
             ) : null}
@@ -888,7 +888,7 @@ function BatchDetail({
                 {formatElapsed(elapsedSeconds(batch.startedAt, now))} · {batch.startedByName ?? ""}
               </span>
             </div>
-            <p className="mb-1 text-[11px] text-[var(--phv4-muted)]">Tap porsi yang sudah jadi & dicocokkan ke Nama + Meja + Order.</p>
+            <p className="mb-1 text-[12px] text-[var(--phv4-muted)]">Tap porsi yang sudah jadi & dicocokkan ke Nama + Meja + Order.</p>
             <ul className="space-y-1">
               {batch.allocations.map((a) => {
                 const on = a.allocated || picked.has(a.id);
@@ -921,7 +921,7 @@ function BatchDetail({
                         <span className="block truncate text-[13px] font-semibold">
                           {customerOf({ identity: a.customerName ?? a.identity, table: a.table }).customer ?? "Tanpa nama"}
                         </span>
-                        <span className="phv4-mono block truncate text-[11px] text-[var(--phv4-muted)]">
+                        <span className="phv4-mono block truncate text-[12px] text-[var(--phv4-muted)]">
                           {tableText(a.table)} · #{a.orderNo ?? a.ticketNo ?? "-"}
                           {a.note ? ` · ${a.note}` : ""}
                           {a.allocated ? " · selesai" : ""}
@@ -1009,10 +1009,10 @@ function BatchDetail({
       ) : null}
 
       <section>
-        <p className="mb-1 text-[11px] font-bold uppercase text-[var(--phv4-muted)]">Order terkait</p>
+        <p className="mb-1 text-[12px] font-bold uppercase text-[var(--phv4-muted)]">Order terkait</p>
         <div className="flex flex-wrap gap-1">
           {linkedOrders(row).map(({ ticketNo, orderNo }) => (
-            <button key={ticketNo} type="button" onClick={() => onOpenTicket(ticketNo)} className="phv4-mono h-8 rounded-[5px] border border-[var(--phv4-border)] px-2 text-[11px] font-semibold hover:bg-white/5">
+            <button key={ticketNo} type="button" onClick={() => onOpenTicket(ticketNo)} className="phv4-mono h-8 rounded-[5px] border border-[var(--phv4-border)] px-2 text-[12px] font-semibold hover:bg-white/5">
               #{orderNo ?? ticketNo}
             </button>
           ))}
@@ -1056,7 +1056,7 @@ function HistoryBatches({
                   <span className="truncate text-[14px] font-bold">{b.itemLabel}</span>
                   {b.note ? <span className="truncate text-[12px] text-[#fde68a]">• {b.note}</span> : null}
                 </span>
-                <span className="phv4-mono block truncate text-[11px] text-[var(--phv4-muted)]">
+                <span className="phv4-mono block truncate text-[12px] text-[var(--phv4-muted)]">
                   {b.batchNo} · {hhmm(b.startedAt)}–{hhmm(b.completedAt)} · {b.completedByName ?? b.startedByName ?? ""}
                 </span>
               </span>

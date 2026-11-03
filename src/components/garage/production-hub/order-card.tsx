@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   Bike,
@@ -73,6 +73,60 @@ const ACTION_ICON: Record<HubAction, typeof Play> = {
  * Kartu order berukuran tetap. Satu aksi utama per status; SELESAIKAN butuh
  * ketukan kedua (konfirmasi QC) supaya server menerima `qcConfirmed`.
  */
+// Audit P2: jam 1 dtk dulu menggambar ulang SEMUA kartu. Kini hanya teks timer yang
+// berdetak (satu ticker bersama untuk semua kartu); kartu lain memakai `now` kasar dari
+// induk dan dibandingkan per nilai (sibling = objek baru tiap render induk).
+let tickNow = Date.now();
+const tickListeners = new Set<() => void>();
+let tickTimer: number | null = null;
+function subscribeTick(listener: () => void) {
+  tickListeners.add(listener);
+  if (tickTimer === null && typeof window !== "undefined") {
+    tickTimer = window.setInterval(() => {
+      tickNow = Date.now();
+      tickListeners.forEach((fn) => fn());
+    }, 1000);
+  }
+  return () => {
+    tickListeners.delete(listener);
+    if (!tickListeners.size && tickTimer !== null) {
+      window.clearInterval(tickTimer);
+      tickTimer = null;
+    }
+  };
+}
+
+function LiveElapsed({ createdAt, readyAt }: { createdAt: string; readyAt: string | null }) {
+  const now = useSyncExternalStore(subscribeTick, () => tickNow, () => tickNow);
+  return <>{formatElapsed(elapsedSeconds(createdAt, now, readyAt))}</>;
+}
+
+type OrderCardProps = {
+  ticket: ProductionTicketView;
+  now: number;
+  maxLines: number;
+  busy: boolean;
+  canOperate: boolean;
+  canHandover: boolean;
+  sibling: SiblingInfo;
+  /** SLA v2: konfigurasi outlet & tambahan mode ramai station ini. */
+  slaCfg?: SlaConfig;
+  busyExtraMinutes?: number;
+  fixedHeight: boolean;
+  onAction: (ticket: ProductionTicketView, action: HubAction) => void;
+  onOpen: (ticket: ProductionTicketView) => void;
+  onInteract: (ticketNo: string, active: boolean) => void;
+};
+
+function sameCardProps(a: OrderCardProps, b: OrderCardProps) {
+  for (const key of Object.keys(a) as Array<keyof OrderCardProps>) {
+    if (key === "sibling") {
+      if (a.sibling?.station !== b.sibling?.station || a.sibling?.status !== b.sibling?.status) return false;
+    } else if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
 const QC_ARM_MS = 700;
 
 export const OrderCard = memo(function OrderCard({
@@ -89,22 +143,7 @@ export const OrderCard = memo(function OrderCard({
   onAction,
   onOpen,
   onInteract,
-}: {
-  ticket: ProductionTicketView;
-  now: number;
-  maxLines: number;
-  busy: boolean;
-  canOperate: boolean;
-  canHandover: boolean;
-  sibling: SiblingInfo;
-  /** SLA v2: konfigurasi outlet & tambahan mode ramai station ini. */
-  slaCfg?: SlaConfig;
-  busyExtraMinutes?: number;
-  fixedHeight: boolean;
-  onAction: (ticket: ProductionTicketView, action: HubAction) => void;
-  onOpen: (ticket: ProductionTicketView) => void;
-  onInteract: (ticketNo: string, active: boolean) => void;
-}) {
+}: OrderCardProps) {
   const [confirming, setConfirming] = useState(false);
   const status = hubStatusOf(ticket);
   const pickupOrder = hubTableNumber(ticket.table) === null;
@@ -112,7 +151,6 @@ export const OrderCard = memo(function OrderCard({
   const sla = slaState.level;
   const primary = primaryActionOf(ticket);
   const tone = STATUS_TONE[status];
-  const seconds = elapsedSeconds(ticket.createdAt, now, ticket.readyAt);
   const table = tableText(ticket.table);
   const pickup = pickupOrder;
   const who = customerOf(ticket);
@@ -199,7 +237,7 @@ export const OrderCard = memo(function OrderCard({
           </span>
           <span className={`phv4-mono inline-flex shrink-0 items-center gap-1 text-[14px] font-bold ${SLA_TEXT[sla]}`}>
             <Clock className="size-3.5" aria-hidden />
-            {formatElapsed(seconds)}
+            <LiveElapsed createdAt={ticket.createdAt} readyAt={ticket.readyAt} />
           </span>
         </div>
         {/* Baris 2: status + station + add-on, meja/takeaway mengisi sisa ruang. */}
@@ -207,7 +245,7 @@ export const OrderCard = memo(function OrderCard({
           <StatusChip status={status} label={readyLabel(ticket)} />
           <StationBadge station={ticket.station} responsive />
           {ticket.addonSequence > 1 ? (
-            <span className="h-5 shrink-0 rounded-[5px] border border-[var(--phv4-wait)]/60 px-1 text-[11px] font-bold leading-[18px] text-[var(--phv4-wait)]">
+            <span className="h-5 shrink-0 rounded-[5px] border border-[var(--phv4-wait)]/60 px-1 text-[12px] font-bold leading-[18px] text-[var(--phv4-wait)]">
               +{ticket.addonSequence}
             </span>
           ) : null}
@@ -245,7 +283,7 @@ export const OrderCard = memo(function OrderCard({
                 {item.label}
               </span>
               {item.batchNo ? (
-                <span className="phv4-mono ml-auto shrink-0 text-[10px] text-[var(--phv4-muted)]">{item.batchNo}</span>
+                <span className="phv4-mono ml-auto shrink-0 text-[12px] text-[var(--phv4-muted)]">{item.batchNo}</span>
               ) : null}
             </p>
             {item.note ? (
@@ -295,7 +333,7 @@ export const OrderCard = memo(function OrderCard({
         </p>
       ) : null}
       {issue ? (
-        <p className="mx-2.5 mt-1 flex min-w-0 items-center gap-1 truncate rounded-[5px] bg-[var(--phv4-critical)]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#fecaca]">
+        <p className="mx-2.5 mt-1 flex min-w-0 items-center gap-1 truncate rounded-[5px] bg-[var(--phv4-critical)]/15 px-1.5 py-0.5 text-[12px] font-semibold text-[#fecaca]">
           <AlertTriangle className="size-3 shrink-0" aria-hidden />
           <span className="truncate">{issue}</span>
         </p>
@@ -326,4 +364,4 @@ export const OrderCard = memo(function OrderCard({
       </div>
     </article>
   );
-});
+}, sameCardProps);

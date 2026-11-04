@@ -4,7 +4,7 @@
 // layar, menyapa pelanggan dan mengajak memesan. Teks statis — tidak memanggil AI, tidak
 // membuka data internal, tidak menjanjikan promo yang tidak ada.
 import { useEffect, useState } from "react";
-import { Hand, HandHelping, Search, Sparkles, X } from "lucide-react";
+import { Hand, HandHelping, MessageCircle, Search, Sparkles, X } from "lucide-react";
 
 import { AYA_NAME } from "@/lib/garage-ai-persona";
 
@@ -25,6 +25,7 @@ export function AyaGreeting({
   onFocusSearch,
   onHelp,
   onStartGuide,
+  onChat,
   onClose,
   onHide,
 }: {
@@ -37,6 +38,8 @@ export function AyaGreeting({
   onHelp?: () => void;
   /** Mulai panduan cara pesan (Aya menunjuk tombol satu per satu). */
   onStartGuide?: () => void;
+  /** Buka panel chat AYA Assistant. */
+  onChat?: () => void;
   onClose: () => void;
   onHide: () => void;
 }) {
@@ -73,6 +76,16 @@ export function AyaGreeting({
         Mau yang segar, yang manis, atau yang bikin kenyang? Pilih menunya, nanti kasir konfirmasi pesananmu.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
+        {onChat ? (
+          <button
+            type="button"
+            onClick={act(onChat)}
+            className="garage-press flex h-10 cursor-pointer items-center gap-1.5 rounded-md bg-garage-red px-3 text-sm font-bold text-white transition-colors hover:bg-garage-red-bright"
+          >
+            <MessageCircle className="size-4" aria-hidden />
+            Tanya {AYA_NAME}
+          </button>
+        ) : null}
         {onStartGuide ? (
           <button
             type="button"

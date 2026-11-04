@@ -363,6 +363,35 @@
 
   /* ---- Gerak (papan 06): hover 120 ms ease-out, tekan 80 ms ease-in ---- */
 
+  /* F4 AYA Assistant (papan 04): contoh pertanyaan, titik mengetik, gelombang mic. */
+  .gm5-prompt {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid var(--gm5-line);
+    border-radius: var(--gm5-radius-sm);
+    background: var(--gm5-surface);
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    color: #f6f2ee;
+    cursor: pointer;
+  }
+  .gm5-prompt:hover { border-color: color-mix(in srgb, var(--menu-red) 65%, #3a3436); }
+  .gm5-prompt:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 2px; }
+  .gm5-typing { display: inline-flex; align-items: center; gap: 4px; }
+  .gm5-typing i { display: block; width: 7px; height: 7px; border-radius: 999px; background: #cfc9c4; }
+  .gm5-wave { display: flex; height: 22px; align-items: center; gap: 3px; }
+  .gm5-wave i { display: block; width: 3px; height: 40%; border-radius: 2px; background: var(--menu-red-bright); }
+  .gm5-mic-active {
+    border-color: var(--menu-red-bright) !important;
+    background: linear-gradient(180deg, var(--menu-red-bright), var(--menu-red)) !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--menu-red) 30%, transparent);
+  }
+
   /* Hapus item (papan 03): kotak merah gelap bergaris, sebaris dengan stepper. */
   .gm5-trash {
     border: 1px solid color-mix(in srgb, var(--menu-red-bright) 70%, transparent);
@@ -442,6 +471,12 @@
     }
     .gm5-pop { animation: gm5-pop 180ms ease-out both; }
     .gm5-pulse { animation: gm5-pulse 300ms ease-out both; }
+    .gm5-typing i { animation: gm5-loading 1.2s ease-in-out infinite; }
+    .gm5-typing i:nth-child(2) { animation-delay: 160ms; }
+    .gm5-typing i:nth-child(3) { animation-delay: 320ms; }
+    .gm5-wave i { animation: gm5-wave 720ms ease-in-out infinite alternate; }
+    .gm5-prompt { transition: transform 120ms ease-out, border-color 120ms ease-out; }
+    .gm5-prompt:active { transform: scale(0.98); transition-duration: 80ms; transition-timing-function: ease-in; }
     .gm5-heart[aria-pressed="true"] svg { animation: gm5-heart-burst 300ms ease-out both; }
     .gm5-heart[aria-pressed="true"]::after {
       content: "";
@@ -481,3 +516,4 @@
   pointer-events: none;
   will-change: transform, opacity;
 }
+@keyframes gm5-wave { from { transform: scaleY(0.35); } to { transform: scaleY(1.6); } }

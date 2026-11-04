@@ -62,6 +62,7 @@ import { QuickViewV5 } from "@/components/garage/order/v5/quick-view-v5";
 import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } from "@/components/garage/order/v5/daftar-pilihan-v5";
 import { useMenuFavorites } from "@/components/garage/order/v5/use-menu-favorites";
 import { flyToList, playMenuSfx } from "@/components/garage/order/v5/menu-feedback";
+import { AyaChatV5 } from "@/components/garage/order/v5/aya-chat-v5";
 import { MENU_TOAST_MS, MenuToastStackV5, SuccessCheckV5, pushMenuToast, type MenuToast } from "@/components/garage/order/v5/toast-v5";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
@@ -822,7 +823,7 @@ export function MemberOrderPage({
   const [menuView, setMenuView] = useState<"grid" | "list">("grid");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [navTab, setNavTab] = useState<BottomNavTab>("home");
-  const [ayaAsk, setAyaAsk] = useState(0);
+  const [ayaChatOpen, setAyaChatOpen] = useState(false);
   // F3: Quick View (varian awal), lembar Daftar Pilihan HP, layar Tunjukkan ke Waiter.
   const [detailVariant, setDetailVariant] = useState<string | null>(null);
   const [daftarOpen, setDaftarOpen] = useState(false);
@@ -1865,7 +1866,7 @@ export function MemberOrderPage({
     if (tab === "list") return openList();
     setNavTab("info");
     if (qrContext.orderType === "dine-in" && !staffOrder) setHelpOpen(true);
-    else setAyaAsk((count) => count + 1);
+    else setAyaChatOpen(true);
   }
 
   function focusMenuSearch() {
@@ -2852,7 +2853,7 @@ export function MemberOrderPage({
                 ) : null}
                 {!staffOrder ? (
                   <div className="mt-6 lg:hidden">
-                    <AyaCardV5 compact onAsk={() => setAyaAsk((count) => count + 1)} />
+                    <AyaCardV5 compact onAsk={() => setAyaChatOpen(true)} />
                   </div>
                 ) : null}
                 <MenuSectionList
@@ -2905,7 +2906,7 @@ export function MemberOrderPage({
                 />
               </div>
             </div>
-            {!staffOrder ? <AyaCardV5 onAsk={() => setAyaAsk((count) => count + 1)} /> : null}
+            {!staffOrder ? <AyaCardV5 onAsk={() => setAyaChatOpen(true)} /> : null}
           </aside>
         </div>
       </div>
@@ -2993,7 +2994,7 @@ export function MemberOrderPage({
       }} /> : null}
 
       {!staffOrder ? (
-        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop} laneBottom={isDesktop ? 12 : navHeight + 4} laneX={isDesktop ? laneX : undefined} openSignal={ayaAsk}>
+        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop} laneBottom={isDesktop ? 12 : navHeight + 4} laneX={isDesktop ? laneX : undefined}>
           {({ close, hide }) =>
             orderGuide.active && orderGuide.step ? (
               <AyaGuideBubble
@@ -3021,12 +3022,33 @@ export function MemberOrderPage({
                 onFocusSearch={focusMenuSearch}
                 onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
                 onStartGuide={orderGuide.start}
+                onChat={() => setAyaChatOpen(true)}
                 onClose={close}
                 onHide={hide}
               />
             )
           }
         </AyaFloatingPet>
+      ) : null}
+
+      {!staffOrder ? (
+        <AyaChatV5
+          open={ayaChatOpen}
+          onOpenChange={(open) => {
+            setAyaChatOpen(open);
+            if (!open) releaseNavTab();
+          }}
+          items={regularMenu}
+          bestSellerIds={bestSellerIds}
+          onAdd={add}
+          onOpenItem={(item) => {
+            setAyaChatOpen(false);
+            openMenuItem(item);
+          }}
+          onStartGuide={orderGuide.start}
+          onStaff={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : canChooseFulfillment ? () => setChatOpen(true) : undefined}
+          staffLabel={qrContext.orderType === "dine-in" ? "Panggil staf" : "Chat kasir"}
+        />
       ) : null}
 
       {qrContext.orderType === "dine-in" && !staffOrder ? (

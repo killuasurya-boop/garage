@@ -38,7 +38,6 @@ import { CategoryNav, type CategoryTab } from "@/components/garage/order/categor
 import {
   MENU_GRID_CLASS,
   MenuCardSkeleton,
-  MenuPhoto,
 } from "@/components/garage/order/menu-card";
 import {
   MenuSectionList,
@@ -59,7 +58,9 @@ import {
 } from "@/components/garage/order/v5/layout-v5";
 import { MENU_GRID_V5, MENU_LIST_V5, MenuCardV5 } from "@/components/garage/order/v5/menu-card-v5";
 import { CHIP_LABEL, availableChips, categoryPhoto, filterByChip, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
-import { readSavedCart, savedCartKey, writeSavedCart } from "@/components/garage/order/v5/saved-cart";
+import { decodeDaftar, encodeDaftar, readSavedCart, savedCartKey, writeSavedCart } from "@/components/garage/order/v5/saved-cart";
+import { QuickViewV5 } from "@/components/garage/order/v5/quick-view-v5";
+import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } from "@/components/garage/order/v5/daftar-pilihan-v5";
 import { useMenuFavorites } from "@/components/garage/order/v5/use-menu-favorites";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
@@ -73,10 +74,8 @@ import {
 import {
   QuantityControl,
   cartKey,
-  categoryIcon,
   itemCartQty,
   itemHasPromo,
-  itemMinPrice,
   rupiah,
   variantPrice,
 } from "@/components/garage/order/order-ui";
@@ -448,144 +447,6 @@ function StepHeading({ step, title, aside }: { step: number; title: string; asid
   );
 }
 
-// Sheet detail item — memilih varian + qty. Foto hanya bila ada; keranjang
-// diperbarui langsung dari stepper per varian.
-function MenuDetailSheet({
-  item,
-  cart,
-  onAdjust,
-  onClose,
-}: {
-  item: MenuItem | null;
-  cart: Record<string, number>;
-  onAdjust: (itemId: string, variantId: string, delta: number) => void;
-  onClose: () => void;
-}) {
-  const totalInCart = item ? itemCartQty(item, cart) : 0;
-  const totalValue = item
-    ? item.variants.reduce(
-        (sum, variant) => sum + variantPrice(item, variant) * (cart[cartKey(item.id, variant.id)] ?? 0),
-        0,
-      )
-    : 0;
-  const multiVariant = (item?.variants.length ?? 0) > 1;
-
-  return (
-    <Sheet open={Boolean(item)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <SheetContent
-        side="bottom"
-        className="inset-x-0 bottom-0 z-[95] mx-auto flex max-h-[90svh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(520px,calc(100vw-32px))] sm:rounded-xl sm:border"
-      >
-        {item ? (
-          <>
-            <div className="relative aspect-[4/3] max-h-[42svh] w-full shrink-0 overflow-hidden bg-garage-bg-2">
-              <MenuPhoto item={item} iconClassName="size-16" eager />
-              <span
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-garage-bg-1 to-transparent"
-                aria-hidden
-              />
-              {itemHasPromo(item) ? (
-                <span className="absolute left-3 top-3 rounded-sm bg-garage-red px-2 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                  Promo
-                </span>
-              ) : null}
-            </div>
-            <SheetHeader className="border-b border-garage-line px-4 pb-4 pt-2 text-left">
-              <div className="flex items-center gap-2 pr-8">
-                {categoryIcon(item.category, "size-4 text-garage-amber")}
-                <span className="text-[13px] font-semibold text-garage-dim">
-                  {item.category} · {item.section}
-                </span>
-              </div>
-              <SheetTitle className="mt-1 font-sans text-xl font-bold leading-snug text-white">{item.name}</SheetTitle>
-              {item.description ? (
-                <p className="text-sm leading-6 text-garage-dim">{item.description}</p>
-              ) : null}
-              <SheetDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-garage-dim">
-                <span className="flex items-baseline gap-1.5">
-                  {multiVariant ? <span className="text-xs font-medium text-garage-dim">mulai</span> : null}
-                  <span className="font-mono text-lg font-bold tabular-nums text-white">
-                    {rupiah.format(itemMinPrice(item))}
-                  </span>
-                </span>
-                {item.prep ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="size-3.5" aria-hidden /> Siap ± {item.prep.replace(/m$/, " menit")}
-                  </span>
-                ) : null}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <p className="mb-2.5 text-sm font-bold text-garage-dim">
-                {multiVariant ? "Pilih varian" : "Jumlah pesanan"}
-              </p>
-              <div className="space-y-2">
-                {item.variants.map((variant) => {
-                  const qty = cart[cartKey(item.id, variant.id)] ?? 0;
-                  return (
-                    <div
-                      key={variant.id}
-                      className={`flex items-center justify-between gap-3 rounded-md border p-3 transition-colors ${
-                        qty > 0 ? "border-garage-red/70 bg-garage-red/10" : "border-garage-line bg-garage-bg-2"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className="break-words text-base font-bold text-white">
-                          {multiVariant ? variant.label : item.name}
-                        </p>
-                        {(variant as EventDisplayVariant).eventUnavailable ? <p className="mt-1 text-sm font-semibold text-garage-amber">{(variant as EventDisplayVariant).eventUnavailable === "quota" ? "Kuota event habis" : "Menu event tidak tersedia"}</p> : null}
-                        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-sm font-bold tabular-nums text-garage-dim">
-                          {variantPrice(item, variant) < variant.price ? (
-                            <>
-                              <span className="text-[#ff8a8a]">{rupiah.format(variantPrice(item, variant))}</span>
-                              <span className="text-xs font-semibold text-garage-mute line-through">
-                                {rupiah.format(variant.price)}
-                              </span>
-                            </>
-                          ) : (
-                            rupiah.format(variant.price)
-                          )}
-                        </p>
-                      </div>
-                      <QuantityControl
-                        label={`${item.name} ${variant.label}`}
-                        qty={qty}
-                        onMinus={() => onAdjust(item.id, variant.id, -1)}
-                        onPlus={() => onAdjust(item.id, variant.id, 1)}
-                        disabled={item.stock === "sold_out" || Boolean((variant as EventDisplayVariant).eventUnavailable)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="border-t border-garage-line bg-garage-bg-1 p-3 sm:p-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className={`garage-press flex h-12 w-full cursor-pointer items-center justify-between gap-2 rounded-md px-4 text-sm font-bold transition-colors ${
-                  totalInCart > 0
-                    ? "bg-garage-red text-white hover:bg-garage-red-bright"
-                    : "justify-center border border-garage-line-2 bg-garage-bg-2 text-white hover:bg-garage-bg-3"
-                }`}
-              >
-                {totalInCart > 0 ? (
-                  <>
-                    <span>Simpan ke pesanan ({totalInCart})</span>
-                    <span className="font-mono tabular-nums">{rupiah.format(totalValue)}</span>
-                  </>
-                ) : (
-                  "Tutup"
-                )}
-              </button>
-            </div>
-          </>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 function StationIcon({ station }: { station: string }) {
   if (station === "Bar") return <Coffee className="size-3.5" aria-hidden />;
   if (station === "Packaging" || station === "Packing") return <Package className="size-3.5" aria-hidden />;
@@ -868,6 +729,8 @@ export function MemberOrderPage({
     | "garageWhatsapp"
     | "unpaidOrderAutoRejectMinutes"
   > & {
+    /** Menu V5: mode menu digital outlet (bawaan "self_order"). */
+    digitalMenuMode?: AppSettings["digitalMenuMode"];
     /** Delivery sementara tidak bisa dipilih (mis. tidak ada kurir siap antar). */
     deliveryUnavailableReason?: string | null;
     /** Semua kurir sedang mengantar → pesanan delivery masuk antrean. */
@@ -937,6 +800,11 @@ export function MemberOrderPage({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [navTab, setNavTab] = useState<BottomNavTab>("home");
   const [ayaAsk, setAyaAsk] = useState(0);
+  // F3: Quick View (varian awal), lembar Daftar Pilihan HP, layar Tunjukkan ke Waiter.
+  const [detailVariant, setDetailVariant] = useState<string | null>(null);
+  const [daftarOpen, setDaftarOpen] = useState(false);
+  const [showWaiterOpen, setShowWaiterOpen] = useState(false);
+  const [waiterQrUrl, setWaiterQrUrl] = useState<string | null>(null);
   const favorites = useMenuFavorites();
   const isDesktop = useSyncExternalStore(subscribeDesktop, readDesktop, () => false);
   // Jalur AYA (audit F2): HP = tepat di atas navigasi bawah (tinggi diukur, ikut safe-area);
@@ -1250,6 +1118,9 @@ export function MemberOrderPage({
   // outlet, lalu promo QR (Pengaturan qrPromoPct/qrPromoMaxAmount) & voucher.
   // Dulu PB1 & pembulatan tidak dihitung → total di HP lebih murah dari tagihan kasir.
   const billingSettings = { ...DEFAULT_APP_SETTINGS, ...(billing ?? {}) };
+  // Mode menu outlet (Menu V5): "waiter_list" = pelanggan hanya menyusun Daftar Pilihan → Tunjukkan ke Waiter.
+  // Mode Pesankan waiter (staffOrder) selalu bisa mengirim pesanan.
+  const waiterList = !staffOrder && billingSettings.digitalMenuMode === "waiter_list";
   // Rekening transfer dari Pengaturan → Pembayaran (bukan lagi hardcode).
   const customerBankAccounts = parseBankAccounts(billingSettings.bankAccountsText);
   const selectedBank = customerBankAccounts.find((account) => account.id === paymentProvider) ?? customerBankAccounts[0] ?? null;
@@ -1268,7 +1139,9 @@ export function MemberOrderPage({
   // meja sebelum menu; meja dikunci di server & diperpanjang selama aktif.
   // ---------------------------------------------------------------------------
   const tableHoldKey = `garage:tableHold:${qrContext.outletId ?? "default"}`;
-  const needsTable = qrContext.orderType === "dine-in" && !staffOrder && !qrContext.tableIssue;
+  // Mode Daftar Pilihan (Menu V5): pelanggan tidak checkout → tidak perlu kunci meja (yang butuh shift buka);
+  // nomor meja dari QR tetap dipakai untuk layar "Tunjukkan ke Waiter".
+  const needsTable = qrContext.orderType === "dine-in" && !staffOrder && !qrContext.tableIssue && !waiterList;
 
   const saveTableHold = useCallback(
     (hold: TableHoldState | null) => {
@@ -1423,9 +1296,25 @@ export function MemberOrderPage({
   useEffect(() => {
     if (cartRestored.current || !menuItems.length) return;
     cartRestored.current = true;
+    // QR "Tunjukkan ke Waiter" (?daftar=...) menang atas simpanan lokal: waiter langsung mendapat daftar pelanggan.
+    const params = new URLSearchParams(window.location.search);
+    const daftarParam = params.get("daftar");
+    const fromQr = daftarParam ? decodeDaftar(daftarParam, menuItems) : null;
+    if (daftarParam) {
+      params.delete("daftar");
+      const rest = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    }
+    if (fromQr) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isi sekali dari QR pelanggan setelah mount
+      setCart(fromQr.cart);
+      setCartNotes(fromQr.notes);
+      const count = Object.values(fromQr.cart).reduce((sum, qty) => sum + qty, 0);
+      setMessage(`Daftar Pilihan pelanggan dimuat (${count} item). Cek jumlah & catatan, lalu kirim.`);
+      return;
+    }
     const saved = readSavedCart(cartStoreKey, menuItems);
     if (!saved) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- pemulihan sekali dari sessionStorage setelah mount
     setCart((current) => (Object.keys(current).length ? current : saved.cart));
     setCartNotes((current) => (Object.keys(current).length ? current : saved.notes));
   }, [cartStoreKey, menuItems]);
@@ -1621,6 +1510,11 @@ export function MemberOrderPage({
   }
 
   function openCheckout() {
+    // Mode Daftar Pilihan: pelanggan tidak checkout sendiri (server juga menolak).
+    if (waiterList) {
+      openShowWaiter();
+      return;
+    }
     setMessage("");
     setLastOrder(null);
     setOrderStatus(null);
@@ -1928,8 +1822,7 @@ export function MemberOrderPage({
   function openList() {
     setDrawerOpen(false);
     setNavTab("list");
-    if (cartLines.length) openCheckout();
-    else jumpToCategory(v5Categories[0]?.id);
+    setDaftarOpen(true);
   }
 
   function onBottomNav(tab: BottomNavTab) {
@@ -1948,10 +1841,41 @@ export function MemberOrderPage({
     input?.scrollIntoView({ block: "center" });
   }
 
-  function openMenuItem(item: MenuItem) {
+  function openMenuItem(item: MenuItem, variantId?: string) {
     const entry = eventContext?.entries.find(row => row.kind === "bundle" && `event:${row.id}` === item.id);
     if (entry) openBundle(entry);
-    else setDetailItem(item);
+    else {
+      setDetailVariant(variantId ?? null);
+      setDetailItem(item);
+    }
+  }
+
+  /** URL Pesankan waiter berisi Daftar Pilihan (hanya dine-in dengan nomor meja). */
+  function buildWaiterQrUrl() {
+    const label = tableHold?.tableLabel ?? qrContext.tableLabel;
+    const table = effectiveOrderType === "dine-in" ? label.match(/\d+/)?.[0] : null;
+    if (!table) return null;
+    const params = new URLSearchParams({ table, mode: "waiter", daftar: encodeDaftar(cart, cartNotes) });
+    if (qrContext.outletId) params.set("outletId", qrContext.outletId);
+    return `${window.location.origin}/order?${params.toString()}`;
+  }
+
+  function openShowWaiter() {
+    setDaftarOpen(false);
+    setWaiterQrUrl(buildWaiterQrUrl());
+    setShowWaiterOpen(true);
+  }
+
+  /** Tombol utama Daftar Pilihan: Checkout (pesan sendiri) atau Tunjukkan ke Waiter (mode Daftar Pilihan). */
+  function daftarPrimary() {
+    if (waiterList) return openShowWaiter();
+    setDaftarOpen(false);
+    openCheckout();
+  }
+
+  function clearDaftar() {
+    setCart((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key.startsWith("event:"))));
+    setCartNotes({});
   }
 
   const billLines = (
@@ -2907,7 +2831,7 @@ export function MemberOrderPage({
                   onOpen={openMenuItem}
                 />
                 <p className="mt-8 border-t border-garage-line pt-4 text-center text-sm text-garage-mute">
-                  Pesanan dikonfirmasi kasir sebelum diproses dapur &amp; bar.
+                  {waiterList ? "Pesanan resmi dicatat waiter, lalu diproses dapur & bar." : "Pesanan dikonfirmasi kasir sebelum diproses dapur & bar."}
                 </p>
               </>
             ) : (
@@ -2931,36 +2855,20 @@ export function MemberOrderPage({
                 </div>
               </div>
 
-              <div className="mt-4 min-h-0 max-h-[38dvh] overflow-y-auto overscroll-contain pr-1">
-                <CartList lines={cartLines} onAdjust={add} onNote={setLineNote} />
+              <div className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                <DaftarListV5 lines={cartLines} onAdjust={add} onEdit={(line) => openMenuItem(line.item, line.variant.id)} compact />
               </div>
-
-              {cartLines.length ? (
-                <div className="mt-3 space-y-1.5 border-t border-garage-line pt-3 text-sm">
-                  {billLines}
-                  <div className="mt-2 flex items-center justify-between border-t border-garage-line pt-3">
-                    <span className="text-base font-semibold text-[#ede6dc]">Estimasi Total</span>
-                    <strong className="font-mono text-xl font-bold tabular-nums text-white">
-                      {rupiah.format(total)}
-                    </strong>
-                  </div>
-                </div>
-              ) : null}
-
-              <button
-                data-aya-anchor="checkout"
-                className="gm5-btn-red mt-4 h-12 w-full text-[15px]"
-                onClick={openCheckout}
-                disabled={!cartLines.length}
-              >
-                <ShoppingBag className="size-4" />
-                Checkout
-              </button>
-              {!cartLines.length ? (
-                <p className="mt-3 text-center text-sm text-[#cfc9c4]">
-                  Pilih menu untuk melihat total dan lanjut checkout.
-                </p>
-              ) : null}
+              <div className="mt-3 shrink-0">
+                <DaftarSummaryV5
+                  waiterList={waiterList}
+                  hasItems={cartLines.length > 0}
+                  subtotal={subtotal}
+                  total={total}
+                  billLines={billLines}
+                  onPrimary={daftarPrimary}
+                  onClear={clearDaftar}
+                />
+              </div>
             </div>
             {!staffOrder ? <AyaCardV5 onAsk={() => setAyaAsk((count) => count + 1)} /> : null}
           </aside>
@@ -2979,7 +2887,7 @@ export function MemberOrderPage({
           </span>
         </p>
       ) : null}
-      <BottomNavV5 active={navTab} listCount={itemCount} listTotal={total} onSelect={onBottomNav} staff={Boolean(staffOrder)} />
+      <BottomNavV5 active={navTab} listCount={itemCount} listTotal={waiterList ? subtotal : total} onSelect={onBottomNav} staff={Boolean(staffOrder)} />
 
       {showScrollTop ? (
         <button
@@ -2999,11 +2907,50 @@ export function MemberOrderPage({
         </button>
       ) : null}
 
-      <MenuDetailSheet
+      <QuickViewV5
         item={detailItem}
+        initialVariantId={detailVariant}
         cart={cart}
+        notes={cartNotes}
         onAdjust={add}
+        onNote={setLineNote}
         onClose={() => setDetailItem(null)}
+      />
+      <DaftarSheetV5
+        open={daftarOpen}
+        onOpenChange={(open) => {
+          setDaftarOpen(open);
+          if (!open) releaseNavTab();
+        }}
+        count={itemCount}
+      >
+        <DaftarListV5 lines={cartLines} onAdjust={add} onEdit={(line) => { setDaftarOpen(false); openMenuItem(line.item, line.variant.id); }} />
+        <div className="mt-3">
+          <DaftarSummaryV5
+            waiterList={waiterList}
+            hasItems={cartLines.length > 0}
+            subtotal={subtotal}
+            total={total}
+            billLines={billLines}
+            onPrimary={daftarPrimary}
+            onClear={clearDaftar}
+          />
+        </div>
+      </DaftarSheetV5>
+      <ShowToWaiterSheetV5
+        open={showWaiterOpen}
+        onOpenChange={(open) => {
+          setShowWaiterOpen(open);
+          if (!open) releaseNavTab();
+        }}
+        lines={cartLines}
+        subtotal={subtotal}
+        tableLabel={tableHold?.tableLabel ?? qrContext.tableLabel}
+        dineIn={effectiveOrderType === "dine-in"}
+        qrUrl={waiterQrUrl}
+        onCallWaiter={qrContext.orderType === "dine-in" ? () => void callService("call", "Panggilan waiter") : undefined}
+        callBusy={helpBusy === "call"}
+        callMessage={helpMessage || null}
       />
       {ageGateEntry ? <BundleAgeConfirm onCancel={() => setAgeGateEntry(null)} onConfirm={() => { setBundleEntry(ageGateEntry); setAgeGateEntry(null); }} /> : null}
       {bundleEntry && eventContext ? <EventBundlePicker key={bundleEntry.id} entry={bundleEntry} products={eventContext.products} now={eventNow} onClose={() => setBundleEntry(null)} onConfirm={(selections, label) => {

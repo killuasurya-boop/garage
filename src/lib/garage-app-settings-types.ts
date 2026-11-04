@@ -82,6 +82,9 @@ export type AppSettings = {
   // memilih (menit) dan peringatan meja terisi tanpa aktivitas (jam).
   tableHoldMinutes: number;
   tableIdleWarnHours: number;
+  // Menu V5 (Owner, 4 Nov 2026): mode menu digital per outlet — "self_order" (pesan & bayar sendiri, bawaan)
+  // atau "waiter_list" (Daftar Pilihan → Tunjukkan ke Waiter). Lihat src/lib/digital-menu-mode.ts.
+  digitalMenuMode: "self_order" | "waiter_list";
   // Nomor WhatsApp Garage (format 62…) — tombol bukti bayar & chat pelanggan.
   garageWhatsapp: string;
   // Rekening transfer untuk pelanggan, satu per baris: "BANK | NOMOR | ATAS NAMA".
@@ -258,6 +261,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   garageLng: 0,
   tableHoldMinutes: 5,
   tableIdleWarnHours: 3,
+  digitalMenuMode: "self_order",
   garageWhatsapp: "6285121552341",
   bankAccountsText: "BNI | 2114194027 | Suryadi\nBANK JAGO | 507300982382 | Suryadi\nDANA | 081396186251 | Suryadi",
   wifiEnabled: false,

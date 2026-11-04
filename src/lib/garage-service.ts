@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
+import { parseDigitalMenuMode } from "@/lib/digital-menu-mode";
 
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -9343,6 +9344,18 @@ function deliveryTariffFrom(settings: AppSettings) {
 
 const NO_COURIER_MESSAGE = "Kurir sedang tidak tersedia. Silakan pilih Take away atau coba lagi nanti.";
 
+/** Mode menu digital outlet (Menu V5) — dipakai penjaga checkout pelanggan. */
+export async function getDigitalMenuMode(outletId?: string) {
+  const [settingsOutlet] = await getDb()
+    .select({ id: outlets.id })
+    .from(outlets)
+    .where(outletId ? eq(outlets.id, outletId) : eq(outlets.status, "active"))
+    .orderBy(outlets.code)
+    .limit(1);
+  const settings = await getAppSettings(settingsOutlet?.id ?? null);
+  return parseDigitalMenuMode(settings.digitalMenuMode);
+}
+
 export async function getCustomerOrderBillingSettings(outletId?: string) {
   const [settingsOutlet] = await getDb()
     .select({ id: outlets.id })
@@ -9356,7 +9369,9 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
       ? await deliveryCouriersOnline(settingsOutlet.id)
       : null;
   const noCourier = Boolean(couriers && couriers.online === 0);
+  const digitalMenuMode = parseDigitalMenuMode(settings.digitalMenuMode);
   return {
+    digitalMenuMode,
     serviceChargePct: settings.serviceChargePct,
     taxPct: settings.taxPct,
     roundingMode: settings.roundingMode,
@@ -9367,7 +9382,8 @@ export async function getCustomerOrderBillingSettings(outletId?: string) {
     memberPointValue: settings.memberPointValue,
     memberRedeemMaxPct: settings.memberRedeemMaxPct,
     memberRedeemMinPoints: settings.memberRedeemMinPoints,
-    deliveryEnabled: settings.deliveryEnabled && !noCourier,
+    // Mode Daftar Pilihan: pelanggan tidak checkout sendiri → delivery (bayar QRIS dulu) ikut nonaktif.
+    deliveryEnabled: settings.deliveryEnabled && !noCourier && digitalMenuMode === "self_order",
     deliveryUnavailableReason: !settings.deliveryEnabled
       ? "Delivery sedang tidak tersedia."
       : noCourier

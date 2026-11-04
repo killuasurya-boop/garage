@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MenuItem } from "@/lib/garage-api-types";
 
 import { availableChips, cardBadge, cardPrice, categoryPhoto, filterByChip, variantSummary } from "./menu-v5-model";
-import { restoreCart } from "./saved-cart";
+import { decodeDaftar, encodeDaftar, restoreCart } from "./saved-cart";
 import { toggleFavoriteIds } from "./use-menu-favorites";
 
 function menu(partial: Partial<MenuItem> & Pick<MenuItem, "id" | "name">): MenuItem {
@@ -77,5 +77,17 @@ describe("Menu V5 — aturan tampilan dari data", () => {
     expect(restoreCart({ cart: { "a::hot": 500 } }, menuNow)?.cart).toEqual({ "a::hot": 99 });
     expect(restoreCart("rusak", menuNow)).toBeNull();
     expect(restoreCart({ cart: {} }, menuNow)).toBeNull();
+  });
+
+  it("QR Tunjukkan ke Waiter: daftar bolak-balik utuh, tanpa harga, menu hilang dibuang", () => {
+    const payload = encodeDaftar({ "a::cold": 2, "n::regular": 1, "event:x::b": 1 }, { "a::cold": "es sedikit — tanpa gula" });
+    expect(payload).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(payload.includes("15000")).toBe(false);
+    expect(decodeDaftar(payload, [americano, nasi])).toEqual({
+      cart: { "a::cold": 2, "n::regular": 1 },
+      notes: { "a::cold": "es sedikit — tanpa gula" },
+    });
+    expect(decodeDaftar(payload, [nasi])).toEqual({ cart: { "n::regular": 1 }, notes: {} });
+    expect(decodeDaftar("%%%rusak", [nasi])).toBeNull();
   });
 });

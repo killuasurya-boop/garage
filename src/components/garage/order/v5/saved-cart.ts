@@ -54,3 +54,54 @@ export function writeSavedCart(key: string, cart: Record<string, number>, notes:
     // Penyimpanan diblokir (mode privat): Daftar Pilihan hanya bertahan selama halaman terbuka.
   }
 }
+
+// ---- QR "Tunjukkan ke Waiter" (mode Daftar Pilihan) ----
+// Isi QR = URL Pesankan waiter (/order?table=..&mode=waiter&daftar=...). Payload ringkas: [itemId, variantId, qty, catatan?]
+// dalam base64url. Tanpa harga — waiter mengecek, harga & total dihitung ulang dari menu terkini (server tetap penentu).
+
+type DaftarRow = [string, string, number, string?];
+
+function toBase64Url(text: string) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  bytes.forEach((byte) => (binary += String.fromCharCode(byte)));
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+  const binary = atob(padded);
+  return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
+}
+
+export function encodeDaftar(cart: Record<string, number>, notes: Record<string, string>): string {
+  const rows: DaftarRow[] = Object.entries(cart)
+    .filter(([key, qty]) => qty > 0 && !key.startsWith("event:"))
+    .slice(0, 40)
+    .map(([key, qty]) => {
+      const [itemId, variantId] = key.split("::");
+      const note = notes[key]?.trim();
+      return note ? [itemId, variantId, qty, note.slice(0, 80)] : [itemId, variantId, qty];
+    });
+  return toBase64Url(JSON.stringify(rows));
+}
+
+/** Kebalikan encodeDaftar, divalidasi seperti restoreCart (menu/varian harus masih ada). */
+export function decodeDaftar(value: string, menu: MenuItem[]): SavedCart | null {
+  try {
+    if (!value || value.length > 6000) return null;
+    const rows = JSON.parse(fromBase64Url(value)) as unknown;
+    if (!Array.isArray(rows)) return null;
+    const cart: Record<string, unknown> = {};
+    const notes: Record<string, unknown> = {};
+    for (const row of rows.slice(0, 40)) {
+      if (!Array.isArray(row) || typeof row[0] !== "string" || typeof row[1] !== "string") continue;
+      const key = cartKey(row[0], row[1]);
+      cart[key] = row[2];
+      if (typeof row[3] === "string") notes[key] = row[3];
+    }
+    return restoreCart({ cart, notes }, menu);
+  } catch {
+    return null;
+  }
+}

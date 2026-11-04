@@ -130,6 +130,7 @@
     cursor: pointer;
   }
   .gm5-chip[aria-pressed="true"],
+  .gm5-chip[aria-checked="true"],
   .gm5-chip[aria-current="true"] {
     border-color: color-mix(in srgb, var(--menu-red-bright) 75%, #ffb3ad);
     background: linear-gradient(180deg, var(--menu-red-bright), var(--menu-red) 60%, #a42a2a);

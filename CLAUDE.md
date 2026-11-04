@@ -461,6 +461,11 @@ Scroll direction:
   benar?"), server hold `table_sessions.held_until` (`tableHoldMinutes`, FOR UPDATE
   in tx). Occupied tables only via 4-digit `join_code` (cleared when emptied).
   `/api/customer/orders` sets `enforceTableClaim`; staff orders don't.
+- Digital menu mode (Menu V5, owner 4 Nov 2026) = setting `digitalMenuMode` per outlet (`src/lib/digital-menu-mode.ts`):
+  `self_order` (default, flow above) or `waiter_list` (customer builds a Daftar Pilihan → "Tunjukkan ke Waiter" QR =
+  `/order?table=NN&mode=waiter&daftar=<base64url ids/qty/notes, no prices>`; waiter's Pesankan opens prefilled, validated
+  against the current menu). `/api/customer/orders` returns 403 `DIGITAL_MENU_VIEW_ONLY` in `waiter_list`; delivery is off and
+  no table hold is needed in that mode. Staff orders are unaffected. Daftar Pilihan is kept in sessionStorage per outlet & table.
 
 ## Event Menu Rules
 

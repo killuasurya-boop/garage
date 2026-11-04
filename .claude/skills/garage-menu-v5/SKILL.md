@@ -71,6 +71,10 @@ Keputusan Owner 4 Nov 2026 (sisa, "pakai usulan Claude"):
 - Default saat rilis = perilaku `/order` sekarang; Owner mengganti mode di Pengaturan.
 - AYA berlari/berjalan hanya di jalur aman, berhenti saat pelanggan menggulir/mengetik/membuka Quick View.
 
+Status 4 Nov 2026: F1 (AYA V5 + token + font), F2 (layout) dan F3 (Quick View, Daftar Pilihan, mode outlet
+`digitalMenuMode`, Tunjukkan ke Waiter + QR prefill Pesankan) selesai. Berikutnya F4 (AYA chat/voice/quick prompts) dan
+F5 (state, toast, efek suara, QA penuh). Ukuran S/M/L & level gula masih menunggu data produk.
+
 Rencana fase: F1 fondasi (token #D43A3A, font, AYA V5 di semua layar + rig jalan/lari) -> F2 layout menu
 (header, sidebar, hero, ubin, chip, kartu, panel kanan, bottom nav) -> F3 Quick View + Daftar Pilihan + mode outlet
 + Tunjukkan ke Waiter -> F4 AYA chat/voice/quick prompts -> F5 state, toast, efek suara, QA penuh.

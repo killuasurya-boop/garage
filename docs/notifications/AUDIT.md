@@ -121,6 +121,8 @@ Skenario 5 (multi-tab) gagal; skenario 6 (refresh) aman untuk lonceng & Hub (mua
 
 **F-15 · Lonceng ter-mount dua kali — TIDAK TERBUKTI [V]** — Tiga lonceng ada di cabang yang saling eksklusif: header `!isPosMode` (`garage-app.tsx:953`), header POS non-Kasir (`isPosMode && !isCashierPosMode`, `:1196`), dan POS Kasir (`pos-view.tsx`, `role === "Kasir"`). Tidak perlu perubahan.
 
+**F-22 · Aya V2 bisa menghapus pengumuman operasional yang mengantre [V, ditemukan saat merge main 4 Nov 2026]** — `aya-sound.ts` (PR #169) memanggil `speechSynthesis.cancel()` saat Aya mengucapkan kalimat berikutnya / dihentikan. `cancel()` mengosongkan SELURUH antrean, termasuk pengumuman order yang sedang menunggu di belakang kalimat Aya → pengumuman hilang tanpa jejak (hanya di perangkat yang suara Aya-nya dinyalakan; staf default mati). Diperbaiki: `ayaMayCancel` (Aya hanya cancel bila tidak ada ucapan lain mengantre; bila ada, Aya mengalah) + `voice.announce` menghentikan Aya lebih dulu (suara operasional selalu menang).
+
 ### P2
 
 **F-16** `/api/smart-notif/trigger` tidak dipakai UI, menerima POST dari staf mana pun dan menulis `notification_logs` tiap panggilan (tanpa rate limit); respons tidak memakai format `{ data }`. [V]

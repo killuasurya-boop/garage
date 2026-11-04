@@ -165,9 +165,18 @@ export function getAyaSpeaking() {
   return speaking;
 }
 
+/**
+ * speechSynthesis.cancel() menghapus SELURUH antrean, termasuk pengumuman operasional
+ * yang mengantre di belakang kalimat Aya (Smart Notification V2). Aya hanya boleh
+ * membatalkan bila tidak ada ucapan lain yang menunggu.
+ */
+export function ayaMayCancel(synth: { speaking: boolean; pending: boolean }, hasOwnUtterance: boolean) {
+  return hasOwnUtterance && synth.speaking && !synth.pending;
+}
+
 export function stopAyaSpeech() {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  if (ourUtterance && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+  if (ayaMayCancel(window.speechSynthesis, Boolean(ourUtterance))) window.speechSynthesis.cancel();
   ourUtterance = null;
   setSpeaking(false);
 }
@@ -178,8 +187,9 @@ export function speakAya(text: string, audience: AyaAudienceSound) {
   const settings = readAyaSound(audience);
   if (!settings.enabled || !userActivated()) return false;
   const synth = window.speechSynthesis;
-  // Suara lain (mis. pengumuman operasional) sedang bicara → Aya mengalah.
+  // Suara lain (mis. pengumuman operasional) sedang bicara ATAU mengantre → Aya mengalah.
   if ((synth.speaking || synth.pending) && !ourUtterance) return false;
+  if (ourUtterance && synth.pending) return false;
   const voice = pickIndonesianVoice(synth.getVoices());
   if (!voice) return false;
   const clean = speakableText(text);
@@ -197,7 +207,7 @@ export function speakAya(text: string, audience: AyaAudienceSound) {
 }
 
 function speakNow(synth: SpeechSynthesis, voice: SpeechSynthesisVoice, clean: string, volume: number) {
-  if (ourUtterance) synth.cancel();
+  if (ayaMayCancel(synth, Boolean(ourUtterance))) synth.cancel();
   const utterance = new SpeechSynthesisUtterance(clean);
   utterance.voice = voice;
   utterance.lang = voice.lang;

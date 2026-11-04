@@ -363,6 +363,14 @@
 
   /* ---- Gerak (papan 06): hover 120 ms ease-out, tekan 80 ms ease-in ---- */
 
+  /* Hapus item (papan 03): kotak merah gelap bergaris, sebaris dengan stepper. */
+  .gm5-trash {
+    border: 1px solid color-mix(in srgb, var(--menu-red-bright) 70%, transparent);
+    background: color-mix(in srgb, var(--menu-red) 22%, #1a1617);
+    color: #ffb4b0;
+  }
+  .gm5-trash:hover { background: color-mix(in srgb, var(--menu-red) 38%, #1a1617); color: #fff; }
+
   /* F5 papan 06: toast bertingkat, titik terbang, centang sukses, skeleton. */
   .gm5-toast-stack {
     position: fixed;

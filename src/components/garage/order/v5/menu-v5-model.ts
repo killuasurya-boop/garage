@@ -1,8 +1,16 @@
 // Aturan tampilan Menu V5 yang murni (tanpa React) — dipakai kartu, hero, ubin & filter, dan diuji di
 // menu-v5-model.test.ts. Semua teks dan angka berasal dari data menu, tidak pernah dari gambar referensi.
-import type { MenuItem } from "@/lib/garage-api-types";
+import { menuGroupForCategory, type MenuItem } from "@/lib/garage-api-types";
 
 import { itemHasPromo, itemMinBasePrice, itemMinPrice, variantPrice } from "../order-ui";
+
+/** Contoh catatan yang cocok dengan jenis menu (minuman ≠ makanan). */
+export function notePlaceholder(item: Pick<MenuItem, "category" | "menuGroup">) {
+  const group = menuGroupForCategory(item.category, item.menuGroup);
+  if (group === "Bar") return "Contoh: less sugar, tanpa es, extra shot…";
+  if (group === "Dapur") return "Contoh: tidak pedas, tanpa sayur, sambal pisah…";
+  return "Contoh: yang dingin, tanpa sedotan…";
+}
 
 export type MenuChip = "all" | "signature" | "best" | "promo" | "favorite";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DIZZY_SPEED, RUN_SPEED, WALK_SPEED, clampPetPosition, nextDragSpeed, pickWalkTarget } from "@/components/garage/aya/aya-floating-pet";
+import { DIZZY_SPEED, RUN_SPEED, WALK_SPEED, clampPetPosition, clampToLane, nextDragSpeed, pickWalkTarget } from "@/components/garage/aya/aya-floating-pet";
 
 const phone = { width: 390, height: 844 };
 
@@ -33,6 +33,18 @@ describe("Aya melayang — posisi", () => {
     const near = pickWalkTarget({ x: 400, y: 500 }, tablet, () => 0.45);
     expect(near.gait).toBe("walk");
     expect(near.seconds).toBeCloseTo(Math.min(3.2, Math.max(0.7, Math.abs(near.target.x - 400) / WALK_SPEED)), 1);
+  });
+
+  it("jalur desktop dibatasi kolom tengah (tidak berhenti di atas panel kanan)", () => {
+    const desk = { width: 1366, height: 900 };
+    const lane = { min: 268, max: 1000 };
+    for (const r of [0, 0.5, 0.999]) {
+      const { target } = pickWalkTarget({ x: 600, y: 816 }, desk, () => r, 72, lane);
+      expect(target.x).toBeGreaterThanOrEqual(268);
+      expect(target.x).toBeLessThanOrEqual(1000 - 72);
+    }
+    expect(clampToLane(1300, desk, lane)).toBe(1000 - 72);
+    expect(clampToLane(10, desk, lane)).toBe(268);
   });
 
   it("pusing hanya bila dilempar kencang, bukan karena satu sentakan", () => {

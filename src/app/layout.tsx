@@ -31,6 +31,8 @@ const montserrat = Montserrat({
   subsets: ["latin"],
   weight: ["700", "800"],
   style: ["normal", "italic"],
+  // Hanya dipakai menu digital → jangan dipreload di semua halaman (POS/KDS tetap ringan).
+  preload: false,
 });
 
 const jetBrainsMono = JetBrains_Mono({

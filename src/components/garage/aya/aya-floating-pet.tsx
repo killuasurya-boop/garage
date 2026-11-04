@@ -67,6 +67,14 @@ export function clampPetPosition(point: Point, viewport: { width: number; height
 }
 
 export type AyaGait = "fly" | "walk" | "run";
+export type LaneX = { min: number; max: number };
+
+/** Jepit x ke batas jalur (bila ada). */
+export function clampToLane(x: number, viewport: { width: number }, bounds?: LaneX, size = PET_SIZE) {
+  const minX = Math.max(EDGE, bounds?.min ?? EDGE);
+  const maxX = Math.max(minX, Math.min(viewport.width - size - EDGE, (bounds?.max ?? viewport.width) - size));
+  return Math.min(Math.max(x, minX), maxX);
+}
 
 /** Kecepatan menapak (px/detik): jalan santai vs lari ceria. */
 export const WALK_SPEED = 150;
@@ -81,9 +89,11 @@ export function pickWalkTarget(
   viewport: { width: number; height: number },
   random = Math.random,
   size = PET_SIZE,
+  /** Batas kiri/kanan jalur (px layar), mis. kolom tengah di desktop supaya tidak berhenti di atas panel. */
+  bounds?: LaneX,
 ): { target: Point; gait: "walk" | "run"; seconds: number } {
-  const minX = EDGE;
-  const maxX = Math.max(EDGE, viewport.width - size - EDGE);
+  const minX = Math.max(EDGE, bounds?.min ?? EDGE);
+  const maxX = Math.max(minX, Math.min(viewport.width - size - EDGE, (bounds?.max ?? viewport.width) - size));
   const span = maxX - minX;
   let x = minX + random() * span;
   // Selalu benar-benar berpindah (minimal ~1/4 lebar jalur) supaya langkahnya terlihat.
@@ -113,8 +123,11 @@ export function AyaFloatingPet({
   guide = null,
   onGuideExit,
   laneBottom,
+  laneX,
   children,
 }: {
+  /** Batas kiri/kanan jalur aman (px layar). */
+  laneX?: LaneX;
   /** Jalur aman (Menu V5): Aya selalu menapak di garis ini, `laneBottom` px dari bawah layar (mis. di atas navigasi bawah). */
   laneBottom?: number;
   /** Panduan aktif: Aya terbang ke titik ini, menunjuk (state guiding), balon tetap terbuka. */
@@ -192,6 +205,10 @@ export function AyaFloatingPet({
   const lastActive = useRef(0);
   const lastBusy = useRef(0);
   const gaitRef = useRef<AyaGait>("fly");
+  const laneXRef = useRef<LaneX | undefined>(laneX);
+  useEffect(() => {
+    laneXRef.current = laneX;
+  });
   const posRef = useRef(pos);
   const settleRef = useRef<() => void>(() => {});
   const rest = mood ?? "default";
@@ -233,12 +250,12 @@ export function AyaFloatingPet({
     const snap = () => {
       if (drag.current) return;
       const vp = viewport();
-      setPos((current) => clampPetPosition({ x: current.x, y: vp.height - PET_SIZE - laneBottom }, vp));
+      setPos((current) => clampPetPosition({ x: clampToLane(current.x, vp, laneXRef.current), y: vp.height - PET_SIZE - laneBottom }, vp));
     };
     snap();
     window.addEventListener("resize", snap);
     return () => window.removeEventListener("resize", snap);
-  }, [laneBottom, ready]);
+  }, [laneBottom, ready, laneX?.min, laneX?.max]);
 
   // Ekspresi istirahat ikut keadaan bila Aya sedang diam.
   useEffect(() => {
@@ -356,7 +373,7 @@ export function AyaFloatingPet({
             setPose("idle");
             setExpression("sleepy");
           } else if (roam && Date.now() - lastBusy.current > BUSY_PAUSE_MS && !document.querySelector('[role="dialog"], [aria-modal="true"]')) {
-            walkTo(pickWalkTarget(posRef.current, viewport()));
+            walkTo(pickWalkTarget(posRef.current, viewport(), Math.random, PET_SIZE, laneXRef.current));
           }
         }
         schedule();

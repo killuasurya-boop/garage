@@ -63,7 +63,7 @@ export function Stepper({
       <button type="button" className="gm5-step gm5-step-minus" onClick={onMinus} disabled={qty <= 0} aria-label={minusOpens ? `Ubah ${label}` : `Kurangi ${label}`}>
         <Minus className="size-4" strokeWidth={2.6} aria-hidden />
       </button>
-      <span className="gm5-step-count" aria-live="polite" aria-label={`${qty} ${label} di Daftar Pilihan`}>{qty}</span>
+      <span className="gm5-step-count" aria-label={`${qty} ${label} di Daftar Pilihan`}>{qty}</span>
       <button type="button" className="gm5-step gm5-step-plus" onClick={onPlus} disabled={soldOut} aria-label={soldOut ? `${label} habis` : `Tambah ${label}`}>
         <Plus className="size-4" strokeWidth={2.6} aria-hidden />
       </button>

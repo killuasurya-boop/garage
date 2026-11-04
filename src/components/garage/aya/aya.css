@@ -347,6 +347,13 @@
   50% { transform: translateY(-34px) rotate(-6deg); }
 }
 
+/* Menu V5: saat laci/dialog/lembar terbuka, Aya menyingkir (tidak tampil di atas lapisan gelap). */
+body:has([data-slot="sheet-content"], [aria-modal="true"]) .aya-pet {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* ---- Panduan cara pesan (A2): sorotan tombol yang ditunjuk Aya ----
    Hanya outline & bayangan (tanpa ubah ukuran/posisi/z-index) dan tidak menangkap klik. */
 [data-aya-spotlight] {

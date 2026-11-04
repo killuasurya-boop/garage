@@ -20,7 +20,10 @@ export function CategoryNav({
   onQueryChange,
   tabs,
   resultCount,
+  onTabSelect,
 }: {
+  /** Ambil alih klik tab (true = sudah ditangani), mis. Menu V5 saat filter chip aktif & seksi kategori tersembunyi. */
+  onTabSelect?: (id: string) => boolean;
   query: string;
   onQueryChange: (value: string) => void;
   tabs: CategoryTab[];
@@ -87,6 +90,10 @@ export function CategoryNav({
   }, [activeId]);
 
   function jumpTo(id: string) {
+    if (onTabSelect?.(id)) {
+      setActiveId(id);
+      return;
+    }
     const el = document.getElementById(id);
     if (!el) return;
     setActiveId(id);

@@ -30,7 +30,7 @@ function ChipIcon({ chip }: { chip: MenuChip }) {
 export function CategoryTilesV5({ categories, onJump }: { categories: CategoryLink[]; onJump: (id: string) => void }) {
   if (!categories.length) return null;
   return (
-    <nav aria-label="Kategori menu" className="garage-scroll-x -mx-4 mt-4 flex gap-3 px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:px-0">
+    <nav aria-label="Pilih kategori" className="garage-scroll-x -mx-4 mt-4 flex gap-3 px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:px-0">
       {categories.map((category, index) => (
         <button
           key={category.id}
@@ -237,22 +237,26 @@ export function BottomNavV5({
   listCount,
   listTotal,
   onSelect,
+  staff = false,
 }: {
+  /** Mode waiter (Pesankan): hanya Beranda, Menu, Daftar Pilihan (Favorit/Info tidak relevan). */
+  staff?: boolean;
   active: BottomNavTab;
   listCount: number;
   listTotal: number;
   onSelect: (tab: BottomNavTab) => void;
 }) {
-  const items: Array<{ tab: BottomNavTab; label: string; icon: typeof Home }> = [
+  const all: Array<{ tab: BottomNavTab; label: string; icon: typeof Home }> = [
     { tab: "home", label: "Beranda", icon: Home },
     { tab: "menu", label: "Menu", icon: UtensilsCrossed },
     { tab: "favorite", label: "Favorit", icon: Heart },
     { tab: "list", label: "Daftar Pilihan", icon: ClipboardList },
     { tab: "info", label: "Info", icon: Info },
   ];
+  const items = staff ? all.filter((entry) => entry.tab !== "favorite" && entry.tab !== "info") : all;
   return (
     <nav className="gm5-bottom-nav lg:hidden" aria-label="Navigasi menu digital">
-      <div className="mx-auto grid max-w-xl grid-cols-5 gap-1 px-2 py-1.5">
+      <div className={`mx-auto grid max-w-xl gap-1 px-2 py-1.5 ${staff ? "grid-cols-3" : "grid-cols-5"}`}>
         {items.map(({ tab, label, icon: Icon }) => (
           <button
             key={tab}

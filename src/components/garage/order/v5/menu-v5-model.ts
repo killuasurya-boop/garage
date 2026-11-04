@@ -27,9 +27,11 @@ export function cardPrice(item: MenuItem): { from: boolean; price: number; strik
 
 const PLAIN_VARIANT = /^(regular|reguler|biasa|default|all)$/i;
 
-/** Baris kecil di bawah nama: "Hot / Cold", "Cold", atau kosong untuk varian tunggal "Regular". */
+/** Baris kecil di bawah nama: "Hot / Cold", "Cold", "8 pilihan", atau kosong untuk varian tunggal "Regular". */
 export function variantSummary(item: MenuItem): string {
   const labels = item.variants.map((variant) => variant.label.trim()).filter(Boolean);
+  // Banyak varian (mis. Indomie 8 pilihan) → ringkas supaya kartu tidak memanjang; detail di pilihan varian.
+  if (labels.length > 3) return `${labels.length} pilihan`;
   if (labels.length > 1) return labels.join(" / ");
   if (labels.length === 1 && !PLAIN_VARIANT.test(labels[0])) return labels[0];
   return "";

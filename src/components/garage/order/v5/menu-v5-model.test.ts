@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MenuItem } from "@/lib/garage-api-types";
 
 import { availableChips, cardBadge, cardPrice, categoryPhoto, filterByChip, variantSummary } from "./menu-v5-model";
+import { restoreCart } from "./saved-cart";
 import { toggleFavoriteIds } from "./use-menu-favorites";
 
 function menu(partial: Partial<MenuItem> & Pick<MenuItem, "id" | "name">): MenuItem {
@@ -35,6 +36,8 @@ describe("Menu V5 — aturan tampilan dari data", () => {
     expect(variantSummary(americano)).toBe("Hot / Cold");
     expect(variantSummary(choco)).toBe("Cold");
     expect(variantSummary(nasi)).toBe("");
+    const indomie = menu({ id: "i", name: "Indomie", variants: ["Telur", "Telur Keju", "Telur Ayam", "Telur Sosis", "Spesial"].map((label, i) => ({ id: `v${i}`, label, price: 12000 })) });
+    expect(variantSummary(indomie)).toBe("5 pilihan");
   });
 
   it("satu badge per kartu; habis tanpa badge (pakai overlay)", () => {
@@ -62,5 +65,17 @@ describe("Menu V5 — aturan tampilan dari data", () => {
     expect(toggleFavoriteIds([], "a")).toEqual(["a"]);
     expect(toggleFavoriteIds(["a"], "b")).toEqual(["b", "a"]);
     expect(toggleFavoriteIds(["b", "a"], "b")).toEqual(["a"]);
+  });
+
+  it("Daftar Pilihan tersimpan dipulihkan hanya untuk menu & varian yang masih ada", () => {
+    const menuNow = [americano, nasi, habis];
+    const saved = {
+      cart: { "a::cold": 2, "a::gone": 1, "n::regular": 1.5, "h::regular": 1, "event:x::b": 1, "zzz::regular": 3, "n::regular ": 1 },
+      notes: { "a::cold": "less ice", "h::regular": "x" },
+    };
+    expect(restoreCart(saved, menuNow)).toEqual({ cart: { "a::cold": 2 }, notes: { "a::cold": "less ice" } });
+    expect(restoreCart({ cart: { "a::hot": 500 } }, menuNow)?.cart).toEqual({ "a::hot": 99 });
+    expect(restoreCart("rusak", menuNow)).toBeNull();
+    expect(restoreCart({ cart: {} }, menuNow)).toBeNull();
   });
 });

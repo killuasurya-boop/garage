@@ -31,11 +31,10 @@ import {
   MapPin,
 } from "lucide-react";
 
-import { AyaFloatingPet, requestAyaChirp } from "@/components/garage/aya/aya-floating-pet";
+import { AyaFloatingPet, requestAyaChirp, type LaneX } from "@/components/garage/aya/aya-floating-pet";
 import { AyaGreeting } from "@/components/garage/order/aya-greeting";
 import { AyaGuideBubble, useAyaOrderGuide } from "@/components/garage/order/aya-order-guide";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
-import { type HeroKind } from "@/components/garage/order/hero-rail";
 import {
   MENU_GRID_CLASS,
   MenuCardSkeleton,
@@ -46,7 +45,6 @@ import {
   buildMenuGroups,
   categorySectionId,
 } from "@/components/garage/order/menu-section-list";
-import { type LastAdded } from "@/components/garage/order/order-cart-bar";
 import "@/components/garage/order/v5/order-v5.css";
 import { HeaderV5 } from "@/components/garage/order/v5/header-v5";
 import { HeroV5 } from "@/components/garage/order/v5/hero-v5";
@@ -61,6 +59,7 @@ import {
 } from "@/components/garage/order/v5/layout-v5";
 import { MENU_GRID_V5, MENU_LIST_V5, MenuCardV5 } from "@/components/garage/order/v5/menu-card-v5";
 import { CHIP_LABEL, availableChips, categoryPhoto, filterByChip, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
+import { readSavedCart, savedCartKey, writeSavedCart } from "@/components/garage/order/v5/saved-cart";
 import { useMenuFavorites } from "@/components/garage/order/v5/use-menu-favorites";
 import { OrderHelpSheet } from "@/components/garage/order/order-help-sheet";
 import {
@@ -814,6 +813,10 @@ function V5CardSlot({
   );
 }
 
+export type LastAdded = { name: string; stamp: number };
+/** Sumber "Menu Pilihan": unggulan admin → promo → terlaris. */
+type HeroKind = "featured" | "promo" | "best";
+
 // Menu V5: jalur aman AYA berbeda di HP (di atas navigasi bawah) dan desktop (tepi bawah layar).
 const DESKTOP_QUERY = "(min-width: 1024px)";
 function subscribeDesktop(onChange: () => void) {
@@ -936,6 +939,10 @@ export function MemberOrderPage({
   const [ayaAsk, setAyaAsk] = useState(0);
   const favorites = useMenuFavorites();
   const isDesktop = useSyncExternalStore(subscribeDesktop, readDesktop, () => false);
+  // Jalur AYA (audit F2): HP = tepat di atas navigasi bawah (tinggi diukur, ikut safe-area);
+  // desktop = dibatasi kolom tengah supaya tidak berhenti di atas sidebar/panel kanan.
+  const [navHeight, setNavHeight] = useState(72);
+  const [laneX, setLaneX] = useState<LaneX | undefined>(undefined);
   const [guestName, setGuestName] = useState("");
   // Pesan error nama baru tampil setelah kolom disentuh (bukan saat dialog baru dibuka).
   const [guestNameTouched, setGuestNameTouched] = useState(false);
@@ -1409,6 +1416,67 @@ export function MemberOrderPage({
   );
   const total = Math.max(0, regularGrossTotal - regularDiscount - pointsDiscount) + packageSubtotal + deliveryFee;
   const itemCount = cartLines.reduce((sum, line) => sum + line.qty, 0);
+
+  // Daftar Pilihan bertahan saat reload / sempat keluar ke website (audit F2): sessionStorage per outlet & meja.
+  const cartStoreKey = savedCartKey(qrContext.outletId, qrContext.tableLabel);
+  const cartRestored = useRef(false);
+  useEffect(() => {
+    if (cartRestored.current || !menuItems.length) return;
+    cartRestored.current = true;
+    const saved = readSavedCart(cartStoreKey, menuItems);
+    if (!saved) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- pemulihan sekali dari sessionStorage setelah mount
+    setCart((current) => (Object.keys(current).length ? current : saved.cart));
+    setCartNotes((current) => (Object.keys(current).length ? current : saved.notes));
+  }, [cartStoreKey, menuItems]);
+  useEffect(() => {
+    if (!cartRestored.current) return;
+    writeSavedCart(cartStoreKey, cart, cartNotes);
+  }, [cartStoreKey, cart, cartNotes]);
+
+  // Ukur navigasi bawah (HP) & kolom tengah (desktop) untuk jalur aman AYA.
+  useEffect(() => {
+    const nav = document.querySelector<HTMLElement>(".gm5-bottom-nav");
+    const main = document.getElementById("menu-v5-main");
+    const measure = () => {
+      if (nav && nav.offsetHeight) setNavHeight(nav.offsetHeight);
+      if (main && window.matchMedia(DESKTOP_QUERY).matches) {
+        const rect = main.getBoundingClientRect();
+        setLaneX({ min: Math.round(rect.left), max: Math.round(rect.right) });
+      } else setLaneX(undefined);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (nav) observer.observe(nav);
+    if (main) observer.observe(main);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  // Tab navigasi bawah mengikuti posisi gulir (Beranda di atas, Menu setelah turun).
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        setNavTab((tab) => (tab === "home" || tab === "menu" ? (window.scrollY < 240 ? "home" : "menu") : tab));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  /** Lembar (checkout/bantuan) ditutup → tab navigasi bawah kembali mengikuti posisi gulir. */
+  function releaseNavTab() {
+    setNavTab((tab) => (tab === "list" || tab === "info" ? (window.scrollY < 240 ? "home" : "menu") : tab));
+  }
   const allowedPaymentMethods: CustomerPaymentMethod[] = isDelivery ? ["QRIS"] : customerPaymentMethods;
   const phoneDigits = guestPhone.replace(/\D/g, "");
   const deliveryPhoneMissing = isDelivery && mode === "guest" && phoneDigits.length < 8;
@@ -2496,10 +2564,10 @@ export function MemberOrderPage({
         ) : null}
 
         <div className="mt-3 grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[236px_minmax(0,1fr)_340px]">
-          <aside className="hidden lg:sticky lg:top-3 lg:block" aria-label="Navigasi menu">
+          <aside className="hidden lg:sticky lg:top-3 lg:block" aria-label="Panel navigasi">
             {v5Sidebar}
           </aside>
-          <div className="min-w-0">
+          <div id="menu-v5-main" className="min-w-0">
             {!staffOrder && !qrContext.tableIssue ? (
               <div className="mb-3 space-y-2" role="status">
                 {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
@@ -2755,6 +2823,11 @@ export function MemberOrderPage({
                 onQueryChange={setQuery}
                 tabs={categoryTabs}
                 resultCount={filteredMenu.length}
+                onTabSelect={(id) => {
+                  if (menuChip === "all") return false;
+                  jumpToCategory(id);
+                  return true;
+                }}
               />
             </div>
 
@@ -2906,7 +2979,7 @@ export function MemberOrderPage({
           </span>
         </p>
       ) : null}
-      <BottomNavV5 active={navTab} listCount={itemCount} listTotal={total} onSelect={onBottomNav} />
+      <BottomNavV5 active={navTab} listCount={itemCount} listTotal={total} onSelect={onBottomNav} staff={Boolean(staffOrder)} />
 
       {showScrollTop ? (
         <button
@@ -2945,7 +3018,7 @@ export function MemberOrderPage({
       }} /> : null}
 
       {!staffOrder ? (
-        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop} laneBottom={isDesktop ? 12 : 60} openSignal={ayaAsk}>
+        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop} laneBottom={isDesktop ? 12 : navHeight + 4} laneX={isDesktop ? laneX : undefined} openSignal={ayaAsk}>
           {({ close, hide }) =>
             orderGuide.active && orderGuide.step ? (
               <AyaGuideBubble
@@ -2984,7 +3057,10 @@ export function MemberOrderPage({
       {qrContext.orderType === "dine-in" && !staffOrder ? (
         <OrderHelpSheet
           open={helpOpen}
-          onOpenChange={setHelpOpen}
+          onOpenChange={(open) => {
+            setHelpOpen(open);
+            if (!open) releaseNavTab();
+          }}
           tableLabel={qrContext.tableLabel}
           busyType={helpBusy}
           message={helpMessage}
@@ -3023,7 +3099,13 @@ export function MemberOrderPage({
           {v5Sidebar}
         </SheetContent>
       </Sheet>
-      <Sheet open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+      <Sheet
+        open={checkoutOpen}
+        onOpenChange={(open) => {
+          setCheckoutOpen(open);
+          if (!open) releaseNavTab();
+        }}
+      >
         <SheetContent
           side="bottom"
           className="inset-x-0 bottom-0 z-[90] mx-auto flex max-h-[92svh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border-garage-line bg-garage-bg-1 p-0 text-white sm:inset-x-4 sm:bottom-4 sm:w-[min(640px,calc(100vw-32px))] sm:rounded-xl sm:border"

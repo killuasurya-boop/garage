@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MenuItem } from "@/lib/garage-api-types";
 
-import { availableChips, cardBadge, cardPrice, categoryPhoto, filterByChip, notePlaceholder, variantSummary } from "./menu-v5-model";
+import { availableChips, cardBadge, cardPrice, categoryPhoto, filterByChip, heroCtaLabel, notePlaceholder, variantSummary } from "./menu-v5-model";
 import { decodeDaftar, encodeDaftar, restoreCart } from "./saved-cart";
 import { toggleFavoriteIds } from "./use-menu-favorites";
 
@@ -98,5 +98,14 @@ describe("contoh catatan Quick View", () => {
     expect(notePlaceholder({ category: "Makanan" })).toMatch(/pedas/);
     expect(notePlaceholder({ category: "Makanan" })).not.toMatch(/es,|shot/);
     expect(notePlaceholder({ category: "Minuman Botol" })).not.toMatch(/pedas|shot/);
+  });
+});
+
+describe("tombol utama hero", () => {
+  it("mengikuti mode outlet dan status buka", () => {
+    expect(heroCtaLabel({ waiterList: false, orderingOpen: true })).toBe("Pesan Sekarang");
+    expect(heroCtaLabel({ waiterList: false, orderingOpen: false })).toBe("Lihat Menu");
+    expect(heroCtaLabel({ waiterList: true, orderingOpen: true })).toBe("Pilih Menu");
+    expect(heroCtaLabel({ waiterList: false, orderingOpen: true, staff: true })).toBe("Pesankan Menu");
   });
 });

@@ -57,7 +57,7 @@ import {
   type CategoryLink,
 } from "@/components/garage/order/v5/layout-v5";
 import { MENU_GRID_V5, MENU_LIST_V5, MenuCardV5 } from "@/components/garage/order/v5/menu-card-v5";
-import { CHIP_LABEL, availableChips, categoryPhoto, filterByChip, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
+import { CHIP_LABEL, availableChips, categoryPhoto, filterByChip, heroCtaLabel, type MenuChip } from "@/components/garage/order/v5/menu-v5-model";
 import { decodeDaftar, encodeDaftar, readSavedCart, savedCartKey, writeSavedCart } from "@/components/garage/order/v5/saved-cart";
 import { QuickViewV5 } from "@/components/garage/order/v5/quick-view-v5";
 import { DaftarListV5, DaftarSheetV5, DaftarSummaryV5, ShowToWaiterSheetV5 } from "@/components/garage/order/v5/daftar-pilihan-v5";
@@ -2800,6 +2800,8 @@ export function MemberOrderPage({
                   items={hero.items}
                   onSeeMenu={() => jumpToCategory(hero.items.length ? HERO_SECTION_ID : v5Categories[0]?.id)}
                   onOpenItem={openMenuItem}
+                  ctaLabel={heroCtaLabel({ waiterList, orderingOpen, staff: Boolean(staffOrder) })}
+                  eta={staffOrder ? undefined : etaLabel}
                 />
                 <CategoryTilesV5 categories={v5Categories} onJump={jumpToCategory} />
               </>

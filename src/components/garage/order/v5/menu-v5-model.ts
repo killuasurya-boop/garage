@@ -12,6 +12,13 @@ export function notePlaceholder(item: Pick<MenuItem, "category" | "menuGroup">) 
   return "Contoh: yang dingin, tanpa sedotan…";
 }
 
+/** Label tombol utama hero sesuai mode outlet: pesan sendiri & buka → "Pesan Sekarang". */
+export function heroCtaLabel({ waiterList, orderingOpen, staff = false }: { waiterList: boolean; orderingOpen: boolean; staff?: boolean }) {
+  if (waiterList) return "Pilih Menu";
+  if (staff) return "Pesankan Menu";
+  return orderingOpen ? "Pesan Sekarang" : "Lihat Menu";
+}
+
 export type MenuChip = "all" | "signature" | "best" | "promo" | "favorite";
 
 export const CHIP_LABEL: Record<MenuChip, string> = {

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { buildOrderGuideSteps, petSpotBeside, pickVisible, type AyaGuideContext } from "@/lib/aya-order-guide";
+import { speakAya, stopAyaSpeech } from "@/lib/aya-sound";
 import { AYA_NAME } from "@/lib/garage-ai-persona";
 
 export type AyaPetGuide = { x: number; y: number; faceLeft: boolean; bubble: "above" | "below" };
@@ -132,6 +133,7 @@ export function AyaGuideBubble({
   onPrev,
   onNext,
   onStop,
+  onFinish,
 }: {
   title: string;
   text: string;
@@ -140,8 +142,15 @@ export function AyaGuideBubble({
   onPrev: () => void;
   onNext: () => void;
   onStop: () => void;
+  /** Tombol terakhir ("Siap, pesan!"); kosong = sama dengan tutup. */
+  onFinish?: () => void;
 }) {
   const last = index >= total - 1;
+  // Aya membacakan tiap langkah (bila suara nyala; caption tetap tampil di balon).
+  useEffect(() => {
+    speakAya(`${title}. ${text}`, "customer");
+  }, [title, text]);
+  useEffect(() => () => stopAyaSpeech(), []);
   return (
     <div>
       <div className="flex items-start justify-between gap-2">
@@ -175,7 +184,7 @@ export function AyaGuideBubble({
         </button>
         <button
           type="button"
-          onClick={last ? onStop : onNext}
+          onClick={last ? (onFinish ?? onStop) : onNext}
           className="garage-press flex h-10 cursor-pointer items-center gap-1 rounded-md bg-garage-red px-3 text-sm font-bold text-white transition-colors hover:bg-garage-red-bright"
         >
           {last ? "Siap, pesan!" : "Lanjut"}

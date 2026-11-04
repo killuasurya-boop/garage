@@ -42,6 +42,7 @@ export function AyaCharacter({
   role,
   effect,
   landing = false,
+  talking = false,
   look,
 }: {
   expression?: AyaExpression;
@@ -55,12 +56,14 @@ export function AyaCharacter({
   effect?: AyaEffect | null;
   /** Baru mendarat → squash & stretch sekali. */
   landing?: boolean;
+  /** Aya sedang bicara (suara) → mulut bergerak, kecuali saat sedang menunjuk. */
+  talking?: boolean;
   /** Arah lirik mata (mis. ke tombol yang sedang ditunjuk). */
   look?: AyaLook;
 }) {
   return (
     <AyaMascot
-      state={ayaStateForExpression(expression)}
+      state={talking && expression !== "centil" && pose !== "fly" ? "speaking" : ayaStateForExpression(expression)}
       motion={landing && pose === "idle" ? "land" : ayaMotionForPose(pose)}
       effect={effect ?? (expression === "sleepy" ? "zzz" : null)}
       crop={crop}

@@ -4,11 +4,28 @@
 // sesekali terbang sendiri ke tempat lain, joget saat diketuk, dan membuka balon sapaan.
 // Posisi diingat per perangkat (localStorage); "Sembunyikan" berlaku per sesi.
 // prefers-reduced-motion: tidak terbang sendiri dan tanpa animasi — tetap bisa diseret & diketuk.
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 
 import { AyaCharacter, type AyaExpression, type AyaPose } from "@/components/garage/aya/aya-character";
 import type { AyaEffect } from "@/components/garage/aya/aya-mascot";
+import { AyaSoundToggle } from "@/components/garage/aya/aya-sound-toggle";
+import { nextAyaLine, type AyaLineCategory } from "@/lib/aya-lines";
+import { getAyaSpeaking, playAyaSfx, speakAya, subscribeAyaSpeaking, type AyaSfx } from "@/lib/aya-sound";
 import { AYA_NAME } from "@/lib/garage-ai-persona";
+
+/** Event global agar layar lain bisa meminta Aya berceletuk (mis. panduan selesai). */
+export const AYA_CHIRP_EVENT = "garage:aya-chirp";
+export function requestAyaChirp(category: AyaLineCategory) {
+  window.dispatchEvent(new CustomEvent(AYA_CHIRP_EVENT, { detail: { category } }));
+}
+
+/** Celetukan spontan paling sering sekali per 2 menit. */
+const AMBIENT_GAP_MS = 120_000;
+
+/** Lama caption tampil: cukup untuk dibaca (±70 ms per huruf, minimal 3,5 dtk). */
+export function captionDurationMs(text: string) {
+  return Math.max(3500, Math.min(9000, text.length * 70));
+}
 
 const PET_SIZE = 72;
 const EDGE = 8;
@@ -109,8 +126,35 @@ export function AyaFloatingPet({
   const [expression, setExpression] = useState<AyaExpression>("default");
   const [effect, setEffect] = useState<AyaEffect | null>(null);
   const [landing, setLanding] = useState(false);
+  const [caption, setCaption] = useState<string | null>(null);
+  const audience = scope === "order" ? "customer" : "staff";
+  const talking = useSyncExternalStore(subscribeAyaSpeaking, getAyaSpeaking, () => false);
+  const captionTimer = useRef(0);
+  const lastAmbient = useRef(0);
   const guideRef = useRef(guide);
   const guiding = guide !== null;
+
+  const sfx = useCallback((name: AyaSfx) => playAyaSfx(name, audience), [audience]);
+  /** Aya berceletuk: caption selalu tampil, suara bila diizinkan (OD-04). */
+  const chirp = useCallback(
+    (category: AyaLineCategory) => {
+      const line = nextAyaLine(category);
+      setCaption(line);
+      window.clearTimeout(captionTimer.current);
+      captionTimer.current = window.setTimeout(() => setCaption(null), captionDurationMs(line));
+      speakAya(line, audience);
+    },
+    [audience],
+  );
+  useEffect(() => () => window.clearTimeout(captionTimer.current), []);
+  useEffect(() => {
+    const onChirp = (event: Event) => {
+      const category = (event as CustomEvent<{ category?: AyaLineCategory }>).detail?.category;
+      if (category) chirp(category);
+    };
+    window.addEventListener(AYA_CHIRP_EVENT, onChirp);
+    return () => window.removeEventListener(AYA_CHIRP_EVENT, onChirp);
+  }, [chirp]);
   const guideKey = guide ? `${Math.round(guide.x)},${Math.round(guide.y)},${guide.faceLeft}` : "";
   // Customer menutup/menyeret Aya di tengah panduan → panduan berhenti.
   const exitGuide = useCallback(() => {
@@ -146,10 +190,11 @@ export function AyaFloatingPet({
         setOpen(true);
         setPose("wave");
         setExpression("happy");
+        playAyaSfx("pop", scope === "order" ? "customer" : "staff"); // diam bila belum ada sentuhan
       }, 900);
       return () => window.clearTimeout(timer);
     }
-  }, [posKey, hiddenKey, greetedKey, greetingOnce, corner]);
+  }, [posKey, hiddenKey, greetedKey, greetingOnce, corner, scope]);
 
   // Ekspresi istirahat ikut keadaan bila Aya sedang diam.
   useEffect(() => {
@@ -166,9 +211,10 @@ export function AyaFloatingPet({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reaksi terhadap sinyal dari pemanggil
     setOpen(true);
     setPose("wave");
+    sfx("pop");
     const timer = window.setTimeout(() => setPose("idle"), 1800);
     return () => window.clearTimeout(timer);
-  }, [openSignal]);
+  }, [openSignal, sfx]);
 
   // Tetap di dalam layar saat ukuran berubah (rotasi tablet, keyboard HP).
   useEffect(() => {
@@ -184,9 +230,10 @@ export function AyaFloatingPet({
     setExpression("happy");
     setPos(target);
     posRef.current = target;
+    sfx("whoosh");
     // Mendarat setelah transisi CSS (1,7 dtk); timer, bukan transitionend, agar tidak macet bila jaraknya 0.
     window.setTimeout(() => settleRef.current(), 1750);
-  }, []);
+  }, [sfx]);
 
   // Panduan: terbang ke samping tombol yang dibahas lalu menunjuk; selesai → kembali santai.
   useEffect(() => {
@@ -214,10 +261,11 @@ export function AyaFloatingPet({
       setFacingLeft(target.faceLeft);
       setPose("idle");
       setExpression("centil");
+      sfx("point"); // suara bukan gerak: tetap berbunyi saat reduced-motion
       return;
     }
     flyTo(spot);
-  }, [ready, guideKey, flyTo]);
+  }, [ready, guideKey, flyTo, sfx]);
 
   // Terbang sendiri tiap 18–35 detik bila dibiarkan; mengantuk setelah 2 menit tanpa sentuhan.
   useEffect(() => {
@@ -259,7 +307,14 @@ export function AyaFloatingPet({
       setFacingLeft(guideNow.faceLeft);
       setPose("idle");
       setExpression("centil");
+      sfx("point");
       return;
+    }
+    sfx("boing");
+    // Sesekali berceletuk (bijak/lucu untuk pelanggan, semangat untuk staf) — jarang, tidak saat balon terbuka.
+    if (!open && Date.now() - lastAmbient.current > AMBIENT_GAP_MS && Math.random() < 0.4) {
+      lastAmbient.current = Date.now();
+      chirp(audience === "customer" ? (Math.random() < 0.5 ? "wisdom" : "joke") : "staffCheer");
     }
     // Sesekali joget setelah mendarat.
     if (Math.random() < 0.35) {
@@ -331,18 +386,22 @@ export function AyaFloatingPet({
         setPose("idle");
         setExpression("grumpy");
         flash("dizzy", 2700);
+        sfx("oops");
+        chirp("dizzy");
         window.setTimeout(() => settleRef.current(), 2700);
         return;
       }
       settle();
       return;
     }
-    // Ketuk = buka/tutup balon + reaksi (hati kecil).
+    // Ketuk = buka/tutup balon + reaksi (hati kecil); membuka balon → Aya menyapa singkat.
     if (open) exitGuide();
     setOpen((current) => !current);
     setPose("wave");
     setExpression("happy");
     flash("hearts", 1500);
+    sfx(open ? "tap" : "pop");
+    if (!open && !guiding) chirp("tapped");
     window.setTimeout(() => setPose("idle"), 1800);
   }
 
@@ -407,7 +466,7 @@ export function AyaFloatingPet({
           if (event.detail === 0) setOpen((current) => !current);
         }}
       >
-        <AyaCharacter expression={expression} pose={pose} effect={effect} landing={landing} look={guiding ? "right" : "center"} role={scope === "order" ? "customer" : "staff"} />
+        <AyaCharacter expression={expression} pose={pose} effect={effect} landing={landing} talking={talking} look={guiding ? "right" : "center"} role={audience} />
       </button>
       {open ? (
         <div
@@ -420,8 +479,30 @@ export function AyaFloatingPet({
             ...(bubbleAbove ? { bottom: PET_SIZE + 6 } : { top: PET_SIZE + 6 }),
           }}
         >
+          {caption ? (
+            <p className="aya-caption mb-2 rounded-md bg-garage-bg-3 px-2.5 py-1.5 text-[13px] italic leading-snug text-white" role="status">
+              {caption}
+            </p>
+          ) : null}
           {children({ close, hide })}
+          <div className="mt-2 flex justify-end border-t border-garage-line pt-1.5">
+            <AyaSoundToggle audience={audience} />
+          </div>
         </div>
+      ) : caption ? (
+        // Balon kecil celetukan saat balon utama tertutup.
+        <p
+          className="aya-bubble aya-caption-chip text-[13px] italic leading-snug"
+          role="status"
+          style={{
+            left: Math.min(Math.max(12, pos.x + PET_SIZE / 2 - Math.min(240, vp.width - 24) / 2), vp.width - Math.min(240, vp.width - 24) - 12) - pos.x,
+            width: Math.min(240, vp.width - 24),
+            padding: "8px 10px",
+            ...(pos.y > vp.height / 2 ? { bottom: PET_SIZE + 6 } : { top: PET_SIZE + 6 }),
+          }}
+        >
+          {caption}
+        </p>
       ) : null}
     </div>
   );

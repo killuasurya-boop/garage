@@ -30,7 +30,7 @@ import {
   MapPin,
 } from "lucide-react";
 
-import { AyaFloatingPet } from "@/components/garage/aya/aya-floating-pet";
+import { AyaFloatingPet, requestAyaChirp } from "@/components/garage/aya/aya-floating-pet";
 import { AyaGreeting } from "@/components/garage/order/aya-greeting";
 import { AyaGuideBubble, useAyaOrderGuide } from "@/components/garage/order/aya-order-guide";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
@@ -2746,6 +2746,11 @@ export function MemberOrderPage({
                 onStop={() => {
                   orderGuide.stop();
                   close();
+                }}
+                onFinish={() => {
+                  orderGuide.stop();
+                  close();
+                  requestAyaChirp("guideDone");
                 }}
               />
             ) : (

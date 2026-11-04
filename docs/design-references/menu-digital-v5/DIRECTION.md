@@ -66,3 +66,9 @@ Gunakan token `--garage-*`/`--gos-*`; jangan tambah hex baru kecuali glow/gradas
 4. Pemilih varian / quick view, favorit, AYA dock.
 5. State: loading, kosong, error, sukses; toast.
 6. Gerak sinematik (skill `animate`), lalu QA di 1366x900, 390x844, 768x1024.
+
+## Catatan 4 Nov 2026 (setelah tujuh papan komponen)
+
+Owner: papan komponen (`boards/`) adalah desain komponennya sendiri; ikuti detailnya. Lihat skill
+`.claude/skills/garage-menu-v5/` (keputusan, SPEC) dan jangan memakai tabel "Yang TIDAK boleh disalin" untuk menolak
+gaya, hanya untuk teks/data/logo (harga, nama menu, logo, alamat tetap dari sumber resmi).

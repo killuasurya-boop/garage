@@ -44,3 +44,21 @@ Angka dan label di bawah diambil dari gambar. Jika berbeda dari data repo, data 
   ("Berhasil!", Lanjut Belanja), toast (sukses, stok terbatas amber, gagal merah), badge status, toggle efek suara.
 - Gerak: hover 120 ms ease-out; pressed 80 ms ease-in; pop-in 180 ms ease-out; success pulse 300 ms ease-out;
   loading pulse 1,2 s ease-in-out.
+
+## Ketidakkonsistenan di dalam papan (diselesaikan di SKILL.md)
+- "Keranjang" (00, 05, 06) vs "Daftar Pilihan" (03, layar penuh); "Tambah ke Keranjang" (00) vs "Tambah ke Daftar" (02).
+- Kategori "Kopi/Non Kopi/Camilan" (00, 05) vs data "Coffee/Non-Coffee/Cemilan". Subkategori Espresso, Manual Brew,
+  Signature, Cold Brew vs data: Kopi Susu, Americano, Milk Series, Tea Series.
+- Satuan font ditulis "pt"; implementasi memakai px setara.
+- Label varian di 03 memuat ukuran gelas ("Regular (12oz)", "Hot (8oz)"); data hanya punya Cold/Hot/Regular.
+- Badge status berbahasa Inggris (Ready, Limited, Sold Out); ikuti papan.
+
+## Detail tambahan yang mudah terlewat
+- 02: handle + teks "Geser ke bawah untuk menutup" dan chevron; selektor Panas/Dingin berikon uap/kepingan salju;
+  ukuran L dan level "Manis" ditunjukkan disabled pada papan state; tombol primary punya state default/pressed/disabled.
+- 03: baris Subtotal berikon struk; tombol hapus merah persegi; "Kosongkan" dan "Edit Pesanan" bergaris tepi; chip
+  "Butuh Bantuan?" berikon lonceng.
+- 04: kartu hasil rekomendasi di chat memuat foto, nama, deskripsi pendek dan rating bintang; saran cepat berupa chip
+  (Rekomendasi menu, Menu dingin, Menu terbaru, Lainnya); status "Online" hijau di header chat; tombol suara dan kirim.
+- 05: breadcrumb "Beranda > Minuman > Espresso"; lencana jumlah filter; set ikon 24 px outline.
+- 06: tiga toast bertingkat (sukses hijau, stok terbatas amber "Sisa 3 porsi", gagal merah) dengan tombol tutup.

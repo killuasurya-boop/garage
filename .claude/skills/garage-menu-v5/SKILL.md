@@ -33,15 +33,24 @@ dan harus disebut ke owner sebelum dibuat.
 Logo (pakai `public/garage-brand/garage-coffee-logo.png`), maskot AYA (pakai aset resmi repo), harga dan nama menu
 (selalu dari data), foto minuman AI (foto asli atau placeholder), alamat dan akun sosial (dari Pengaturan/Owner).
 
-## Konflik yang HARUS diputuskan Owner sebelum dibangun
+## Keputusan Owner (Nov 2026)
 
-Jangan memilih sendiri. Tanyakan dulu, catat jawabannya di `DIRECTION.md`.
-1. Alur: papan 03 menampilkan "Daftar Pilihan, bukan checkout, Panggil Waiter". `/order` sekarang = pelanggan memesan
-   dan membayar sendiri. Pilihan: hanya tampilan / Daftar Pilihan + waiter / dua mode.
-2. Palet: papan 00 memakai Garage Red #D43A3A, Charcoal #0E0E0E, Steel Gray #2A2A2A, Smoke #4A4A4A, Metal Silver
-   #C8C8C8, Cream #EDE6DC. Repo: merah #d11a2a, bg #0a0a0c, tidak ada Cream. Pakai palet papan atau token repo?
-3. AYA: papan 04 menggambar robot berhelm; render lain menggambar gadis berheadphone; repo punya `aya/v2/*.svg`.
-   Mana yang resmi?
-4. Opsi yang tidak ada di data: ukuran S/M/L, level gula, rating bintang, urut "Terpopuler", filter/subkategori
-   "Cold Brew/Manual Brew", Favorit, tab Akun, toggle efek suara. Data menu hanya punya varian (mis. Hot/Cold),
-   catatan per baris dan status ready/limited/sold_out. Tambah fitur atau lewati?
+Owner menyatakan papan ini adalah **desain komponennya sendiri** untuk UI menu. Baca detailnya dan ikuti, bukan
+sekadar terinspirasi. Konsekuensinya:
+1. **Gaya dan palet = papan.** Warna papan (Garage Red #D43A3A, Charcoal #0E0E0E, Steel Gray #2A2A2A, Smoke #4A4A4A,
+   Metal Silver #C8C8C8, Cream #EDE6DC) dipasang sebagai token menu baru; token operasional (POS, Dapur) tidak diubah.
+2. **Semua komponen dibangun seperti papan**, termasuk Favorit, Quick View, Daftar Pilihan, Panggil Waiter, AYA,
+   filter/urut, bottom nav, FAB, toast, dan toggle efek suara.
+3. **Opsi yang belum ada di data** (ukuran S/M/L, level gula, subkategori, rating): UI dibuat sesuai papan dan hanya
+   tampil bila produk punya datanya. Menambah data/harga/resep/tiket dapur untuk opsi itu adalah pekerjaan terpisah
+   dan butuh rencana yang disetujui Owner dulu (menyentuh harga, HPP, dapur).
+4. **Teks harus dari data**, bukan dari papan: nama menu, harga, kategori (Coffee/Non-Coffee/Makanan/Cemilan),
+   bagian menu, label varian. Ejaan "Camilan" di papan adalah typo dari "Cemilan" di data.
+5. **Istilah**: papan memakai "Keranjang" (00, 05, 06) dan "Daftar Pilihan" (03, layar penuh). Pakai satu: "Daftar
+   Pilihan"/"Tambah ke Daftar", kecuali Owner menyatakan lain.
+
+Masih perlu konfirmasi Owner (satu kali, lalu catat di DIRECTION.md):
+- Perilaku "Panggil Waiter": hanya memanggil waiter dengan daftar terlampir (permintaan layanan meja), atau membuat
+  pesanan? Papan: "Ini bukan proses checkout... staf kami akan datang untuk mengonfirmasi pesanan." `/order` sekarang
+  = pelanggan memesan dan membayar sendiri; keduanya tidak bisa sama-sama jadi alur utama tanpa mode.
+- AYA: papan 04 = robot berhelm dengan "A" merah; repo punya `public/garage-brand/aya/v2/*.svg` (maskot lain).

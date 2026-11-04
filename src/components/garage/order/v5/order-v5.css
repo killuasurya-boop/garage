@@ -392,6 +392,19 @@
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--menu-red) 30%, transparent);
   }
 
+  /* Sidebar: kategori yang sedang terlihat (scrollspy) = garis merah + teks putih (bukan isian merah penuh). */
+  .gm5-side-sub[aria-current="location"] {
+    color: #fff;
+    background: color-mix(in srgb, var(--menu-red) 16%, transparent);
+    box-shadow: inset 3px 0 0 var(--menu-red-bright);
+  }
+  .gm5-member-cta {
+    border-color: color-mix(in srgb, var(--garage-amber) 45%, #3a3436);
+    background:
+      radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--garage-amber) 16%, transparent), transparent 60%),
+      var(--gm5-surface);
+  }
+
   /* Hapus item (papan 03): kotak merah gelap bergaris, sebaris dengan stepper. */
   .gm5-trash {
     border: 1px solid color-mix(in srgb, var(--menu-red-bright) 70%, transparent);

@@ -3,7 +3,8 @@
 // Potongan layout Menu V5 (layout referensi HP/tablet/desktop + papan 00/05): ubin kategori, chip filter + toggle
 // grid/list, sidebar (desktop & laci HP), navigasi bawah HP, kartu AYA, kartu lokasi & media sosial.
 // Tidak ada fitur palsu: chip hanya muncul bila datanya ada; lonceng/scan/mic baru muncul di fase berikutnya.
-import { ArrowUpRight, ChevronRight, Crown, Flame, Grid2x2, Heart, Home, Info, LayoutGrid, List, MapPin, ClipboardList, Sparkles, TicketPercent, UtensilsCrossed } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, BadgeCheck, ChevronDown, ChevronRight, Crown, Gift, Flame, Grid2x2, Heart, Home, Info, LayoutGrid, List, MapPin, ClipboardList, Sparkles, TicketPercent, UtensilsCrossed } from "lucide-react";
 
 import { AyaMascot } from "@/components/garage/aya/aya-mascot";
 import type { MenuItem } from "@/lib/garage-api-types";
@@ -87,12 +88,18 @@ export function FilterChipsV5({
   );
 }
 
-export function LocationCardV5() {
+export function LocationCardV5({ open }: { open?: boolean } = {}) {
   return (
     <a href={GARAGE_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" className="gm5-panel gm5-panel-red flex items-center gap-3 p-4 hover:brightness-110">
       <MapPin className="size-6 shrink-0 text-[var(--menu-red-bright)]" aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="gm5-title block text-base text-white">Lokasi Garage Coffee</span>
+        {open === undefined ? null : (
+          <span className={`mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${open ? "bg-[#1f6b3a]/60 text-[#bff5cf]" : "bg-[#f5a742]/20 text-[#ffd79e]"}`}>
+            <span className={`size-1.5 rounded-full ${open ? "bg-[#4ade80]" : "bg-[#f5a742]"}`} aria-hidden />
+            {open ? "Buka · bisa pesan sekarang" : "Belum buka"}
+          </span>
+        )}
         <span className="mt-0.5 block text-sm leading-5 text-[#cfc9c4]">Jl. Mayjen Sutoyo, Rambung, Tebing Tinggi</span>
       </span>
       <ArrowUpRight className="size-5 shrink-0 text-white" aria-hidden />
@@ -132,7 +139,7 @@ function TiktokGlyph() {
   );
 }
 
-/** Kartu AYA (panel desktop & sisipan HP). Mikrofon/chat baru dibangun di Fase 4 — kini membuka sapaan AYA. */
+/** Kartu AYA (panel desktop & sisipan HP): membuka panel chat AYA Assistant. */
 export function AyaCardV5({ onAsk, compact = false }: { onAsk: () => void; compact?: boolean }) {
   return (
     <section className={`gm5-panel gm5-panel-red relative overflow-hidden ${compact ? "p-3" : "p-4"}`} aria-label="AYA, asisten menu Garage Coffee">
@@ -162,59 +169,126 @@ export function AyaCardV5({ onAsk, compact = false }: { onAsk: () => void; compa
   );
 }
 
+/** Bagian kategori yang sedang terlihat (scrollspy) untuk menyalakan item sidebar/navbar. */
+export function useActiveSection(ids: readonly string[]) {
+  const [active, setActive] = useState<string | null>(null);
+  const key = ids.join("|");
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const visible = new Map<string, number>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.set(entry.target.id, entry.boundingClientRect.top);
+          else visible.delete(entry.target.id);
+        }
+        const first = [...visible.entries()].sort((a, b) => a[1] - b[1])[0];
+        setActive(first ? first[0] : null);
+      },
+      { rootMargin: "-130px 0px -55% 0px" },
+    );
+    for (const id of key.split("|")) {
+      const el = id ? document.getElementById(id) : null;
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [key]);
+  return active;
+}
+
+export type SidebarMember = { name: string; points?: number | null } | null;
+
 export function SidebarV5({
   categories,
   chips,
   activeChip,
+  activeSection,
   favoriteCount,
   listCount,
   onHome,
   onJump,
   onChip,
   onOpenList,
+  onRecommend,
+  member,
+  memberHref,
+  registerHref,
+  pointsPerThousand = 0,
+  orderingOpen,
+  staff = false,
 }: {
   categories: CategoryLink[];
   chips: MenuChip[];
   activeChip: MenuChip;
+  /** Id bagian kategori yang sedang terlihat (scrollspy). */
+  activeSection?: string | null;
   favoriteCount: number;
   listCount: number;
   onHome: () => void;
   onJump: (id: string) => void;
   onChip: (chip: MenuChip) => void;
   onOpenList: () => void;
+  /** Buka AYA Assistant untuk rekomendasi. */
+  onRecommend?: () => void;
+  member?: SidebarMember;
+  memberHref: string;
+  registerHref: string;
+  pointsPerThousand?: number;
+  /** false = kasir belum buka shift. */
+  orderingOpen?: boolean;
+  /** Mode waiter: tanpa kartu member & pemasaran. */
+  staff?: boolean;
 }) {
+  const [menuOpen, setMenuOpen] = useState(true);
   const shortcuts = chips.filter((chip) => chip === "signature" || chip === "best" || chip === "promo");
   return (
     <div className="flex flex-col gap-4">
       <nav className="gm5-panel flex flex-col gap-1 p-2" aria-label="Navigasi menu">
-        <button type="button" className="gm5-side-item" aria-current={activeChip === "all" ? "true" : undefined} onClick={onHome}>
+        <button type="button" className="gm5-side-item" aria-current={activeChip === "all" && !activeSection ? "true" : undefined} onClick={onHome}>
           <Home className="size-5" aria-hidden /> Beranda
         </button>
-        <p className="mt-2 flex items-center gap-3 px-3.5 text-sm font-semibold text-[#cfc9c4]">
-          <Grid2x2 className="size-5" aria-hidden /> Menu
-        </p>
-        {categories.map((category) => (
-          <button key={category.id} type="button" className="gm5-side-item !min-h-10 pl-6 text-[15px] font-medium" onClick={() => onJump(category.id)}>
-            {categoryIcon(category.label, "size-5 text-[#ede6dc]")}
-            {category.label}
-          </button>
-        ))}
-        {shortcuts.length ? <span className="my-1.5 h-px bg-white/10" aria-hidden /> : null}
+        <button type="button" className="gm5-side-item" aria-expanded={menuOpen} aria-controls="gm5-side-categories" onClick={() => setMenuOpen((open) => !open)}>
+          <Grid2x2 className="size-5" aria-hidden /> <span className="flex-1">Menu</span>
+          <ChevronDown className={`size-4 text-[#cfc9c4] transition-transform duration-150 ${menuOpen ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+        {menuOpen ? (
+          <div id="gm5-side-categories" className="flex flex-col gap-0.5">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                className="gm5-side-item gm5-side-sub !min-h-10 pl-6 text-[15px] font-medium"
+                aria-current={activeChip === "all" && activeSection === category.id ? "location" : undefined}
+                onClick={() => onJump(category.id)}
+              >
+                {categoryIcon(category.label, "size-5 text-[#ede6dc]")}
+                {category.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {shortcuts.length || onRecommend ? <span className="my-1.5 h-px bg-white/10" aria-hidden /> : null}
         {shortcuts.map((chip) => (
           <button key={chip} type="button" className="gm5-side-item" aria-current={activeChip === chip ? "true" : undefined} onClick={() => onChip(chip)}>
             <ChipIcon chip={chip} /> {CHIP_LABEL[chip]}
           </button>
         ))}
+        {onRecommend ? (
+          <button type="button" className="gm5-side-item" onClick={onRecommend}>
+            <Sparkles className="size-4 text-[#f5c451]" aria-hidden /> <span className="flex-1">Rekomendasi AYA</span>
+          </button>
+        ) : null}
         <span className="my-1.5 h-px bg-white/10" aria-hidden />
         <button type="button" className="gm5-side-item" aria-current={activeChip === "favorite" ? "true" : undefined} onClick={() => onChip("favorite")}>
           <Heart className="size-5" aria-hidden /> <span className="flex-1">Favorit Saya</span>
-          {favoriteCount ? <span className="gm5-count">{favoriteCount}</span> : null}
+          {favoriteCount ? <span className="gm5-count gm5-pulse" key={favoriteCount}>{favoriteCount}</span> : null}
         </button>
         <button type="button" className="gm5-side-item" onClick={onOpenList}>
           <ClipboardList className="size-5" data-gm5-list-target aria-hidden /> <span className="flex-1">Daftar Pilihan</span>
           {listCount ? <span className="gm5-count gm5-pulse" key={listCount}>{listCount}</span> : null}
         </button>
       </nav>
+      {staff ? null : <MemberCardV5 member={member ?? null} memberHref={memberHref} registerHref={registerHref} pointsPerThousand={pointsPerThousand} />}
       <a href={GARAGE_INSTAGRAM.href} target="_blank" rel="noopener noreferrer" className="gm5-panel gm5-panel-red flex items-center gap-3 p-4 hover:brightness-110">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white">
           <InstagramGlyph />
@@ -225,7 +299,57 @@ export function SidebarV5({
         </span>
         <ChevronRight className="size-5 text-white" aria-hidden />
       </a>
-      <LocationCardV5 />
+      <LocationCardV5 open={orderingOpen} />
+    </div>
+  );
+}
+
+/** Kalimat poin member dari Pengaturan (poin per Rp1.000), dibulatkan agar mudah dibaca. */
+export function memberPointsLine(pointsPerThousand: number) {
+  if (!(pointsPerThousand > 0)) return "Simpan riwayat pesanan dan dapatkan info promo lebih dulu.";
+  const tail = "bisa ditukar jadi potongan.";
+  if (pointsPerThousand >= 1) return `Dapat ${pointsPerThousand.toLocaleString("id-ID")} poin tiap belanja Rp1.000, ${tail}`;
+  const spend = Math.round(1000 / pointsPerThousand);
+  return `Dapat 1 poin tiap belanja Rp${spend.toLocaleString("id-ID")}, ${tail}`;
+}
+
+/** Kartu member: ajakan daftar (poin dari Pengaturan) atau sapaan + saldo poin. Tanpa angka karangan. */
+export function MemberCardV5({ member, memberHref, registerHref, pointsPerThousand }: { member: SidebarMember; memberHref: string; registerHref: string; pointsPerThousand: number }) {
+  if (member) {
+    return (
+      <a href={memberHref} className="gm5-panel flex items-center gap-3 p-4 hover:brightness-110">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[color:var(--garage-amber)]/15 text-[var(--garage-amber)]">
+          <BadgeCheck className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="gm5-title block truncate text-sm text-white">Hai, {member.name.split(/\s+/)[0]}</span>
+          <span className="block text-sm text-[#cfc9c4]">
+            {typeof member.points === "number" ? (
+              <>
+                <span className="font-mono font-bold tabular-nums text-[var(--garage-amber)]">{member.points.toLocaleString("id-ID")}</span> poin member
+              </>
+            ) : (
+              "Member Garage Coffee"
+            )}
+          </span>
+        </span>
+        <ChevronRight className="size-5 text-white" aria-hidden />
+      </a>
+    );
+  }
+  return (
+    <div className="gm5-panel gm5-member-cta p-4">
+      <span className="flex items-center gap-2 text-[var(--garage-amber)]">
+        <Gift className="size-5" aria-hidden />
+        <span className="gm5-title text-sm">Jadi Member Garage</span>
+      </span>
+      <p className="mt-1 text-sm leading-5 text-[#ede6dc]">
+        {memberPointsLine(pointsPerThousand)}
+      </p>
+      <div className="mt-3 flex gap-2">
+        <a href={registerHref} className="gm5-btn-red min-h-10 flex-1 px-3 text-sm">Daftar gratis</a>
+        <a href={memberHref} className="gm5-btn-ghost min-h-10 px-3 text-sm">Masuk</a>
+      </div>
     </div>
   );
 }

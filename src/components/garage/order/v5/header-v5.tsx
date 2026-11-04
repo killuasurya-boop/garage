@@ -2,14 +2,30 @@
 
 // Header Menu V5 (layout referensi): HP = menu (laci) · logo tengah · cari · login (meja tampil di kartu tipe pesanan);
 // desktop = logo · "Digital Menu" · navigasi Beranda/Menu/Pilihan/Promo/Tentang · tombol cari · suara AYA · meja · login.
-// Lonceng & scan di referensi belum punya fungsi nyata di sistem → belum ditampilkan (tanpa tombol palsu).
+// Navbar lengkap (papan desktop): Menu ▾ berisi kategori, Rekomendasi, Promo (hanya bila ada), pintasan cari "/" atau
+// Ctrl/⌘K, tombol AYA (buka asisten), lonceng = status pesanan & chat kasir (hanya bila ada pesanan/chat).
+// Scan QR tidak dipasang: pelanggan memindai QR meja dengan kamera HP, tidak ada fungsi scan di dalam menu.
+import { useEffect, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Clock, LogIn, Menu as MenuIcon, Search, UserRound } from "lucide-react";
+import { ArrowLeft, AudioLines, Bell, ChevronDown, Clock, LogIn, Menu as MenuIcon, Search, UserRound } from "lucide-react";
 
 import { AyaSoundToggle } from "@/components/garage/aya/aya-sound-toggle";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-export type HeaderNavLink = { key: string; label: string; current?: boolean } & ({ onSelect: () => void; href?: never } | { href: string; onSelect?: never });
+export type HeaderSubLink = { key: string; label: string; icon?: ReactNode; onSelect: () => void };
+export type HeaderNavLink = { key: string; label: string; current?: boolean; menu?: HeaderSubLink[] } & (
+  | { onSelect: () => void; href?: never }
+  | { href: string; onSelect?: never }
+);
+export type HeaderNotice = { count: number; label: string; onOpen: () => void };
+
+/** Pintasan cari: "/" atau Ctrl/⌘K, kecuali saat sedang mengetik. */
+export function isSearchShortcut(event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey">, typing: boolean) {
+  if (event.altKey) return false;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") return true;
+  return !typing && !event.ctrlKey && !event.metaKey && event.key === "/";
+}
 
 export function HeaderV5({
   dineIn,
@@ -22,8 +38,14 @@ export function HeaderV5({
   nav,
   onOpenDrawer,
   onSearch,
+  onAya,
+  notice,
   info,
 }: {
+  /** Buka AYA Assistant. */
+  onAya?: () => void;
+  /** Lonceng: status pesanan / chat kasir; kosong = lonceng tidak tampil. */
+  notice?: HeaderNotice | null;
   /** Info singkat (mis. perkiraan waktu siap) di bawah header. */
   info?: string;
   dineIn: boolean;
@@ -38,6 +60,18 @@ export function HeaderV5({
   onOpenDrawer: () => void;
   onSearch: () => void;
 }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = Boolean(target?.closest("input, textarea, select, [contenteditable='true']"));
+      if (!isSearchShortcut(event, typing)) return;
+      event.preventDefault();
+      onSearch();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onSearch]);
+
   const tableChip = (
     <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] px-3" aria-label={dineIn ? tableLabel : channelLabel}>
       <span className="text-xs font-semibold text-[#cfc9c4]">{dineIn ? "Meja" : "Order"}</span>
@@ -82,6 +116,30 @@ export function HeaderV5({
           {nav.map((link) => {
             const cls = "relative inline-flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-[15px] font-semibold text-[#ede6dc] hover:text-white aria-[current=true]:text-white";
             const bar = <span className={`absolute inset-x-3 bottom-1 h-[3px] rounded-full ${link.current ? "bg-[var(--menu-red)] shadow-[0_0_10px_var(--menu-red)]" : "bg-transparent"}`} aria-hidden />;
+            if (link.menu?.length) {
+              return (
+                <DropdownMenu key={link.key} modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" aria-current={link.current ? "true" : undefined} className={`${cls} gap-1`}>
+                      {link.label}
+                      <ChevronDown className="size-4" aria-hidden />
+                      {bar}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={8} className="gm5 z-[80] w-60 rounded-xl border border-[color:var(--gm5-line)] bg-[#141214] p-1.5 text-white">
+                    <DropdownMenuItem onSelect={link.onSelect} className="min-h-10 cursor-pointer rounded-lg px-3 text-[15px] font-semibold focus:bg-[color:var(--menu-red)]/25 focus:text-white">
+                      Semua menu
+                    </DropdownMenuItem>
+                    {link.menu.map((sub) => (
+                      <DropdownMenuItem key={sub.key} onSelect={sub.onSelect} className="min-h-10 cursor-pointer gap-2.5 rounded-lg px-3 text-[15px] focus:bg-[color:var(--menu-red)]/25 focus:text-white">
+                        {sub.icon}
+                        {sub.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            }
             return link.href ? (
               <Link key={link.key} href={link.href} className={cls}>{link.label}{bar}</Link>
             ) : (
@@ -89,14 +147,26 @@ export function HeaderV5({
             );
           })}
         </nav>
-        <button type="button" onClick={onSearch} className="hidden min-h-11 w-[220px] shrink-0 cursor-pointer items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#141214] px-4 text-left text-sm text-[#a7a09b] hover:border-[var(--menu-red)] xl:flex">
-          <Search className="size-4 text-white" aria-hidden /> Cari menu favorit…
+        <button type="button" onClick={onSearch} aria-keyshortcuts="/ Control+K Meta+K" className="hidden min-h-11 w-[220px] shrink-0 cursor-pointer items-center gap-2 rounded-full border border-[color:var(--gm5-line)] bg-[#141214] px-4 text-left text-sm text-[#a7a09b] hover:border-[var(--menu-red)] xl:flex">
+          <Search className="size-4 text-white" aria-hidden /> <span className="flex-1">Cari menu favorit…</span>
+          <kbd className="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#cfc9c4]">/</kbd>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
           <button type="button" className="gm5-icon-btn xl:hidden" aria-label="Cari menu" onClick={onSearch}>
             <Search className="size-[22px]" aria-hidden />
           </button>
-          {staff ? null : <span className="hidden lg:inline-flex"><AyaSoundToggle audience="customer" /></span>}
+          {notice ? (
+            <button type="button" className="gm5-icon-btn relative" aria-label={notice.count ? `${notice.label}, ${notice.count} pesan baru` : notice.label} onClick={notice.onOpen}>
+              <Bell className="size-[22px]" aria-hidden />
+              {notice.count ? <span className="gm5-count gm5-pulse absolute -right-1 -top-1" key={notice.count}>{notice.count > 9 ? "9+" : notice.count}</span> : null}
+            </button>
+          ) : null}
+          {onAya ? (
+            <button type="button" className="gm5-icon-btn hidden text-[var(--menu-red-bright)] lg:inline-flex" aria-label="Tanya AYA" onClick={onAya}>
+              <AudioLines className="size-[22px]" aria-hidden />
+            </button>
+          ) : null}
+          {staff ? null : <span className="hidden 2xl:inline-flex"><AyaSoundToggle audience="customer" /></span>}
           <span className="hidden sm:inline-flex">{tableChip}</span>
           {account}
         </div>

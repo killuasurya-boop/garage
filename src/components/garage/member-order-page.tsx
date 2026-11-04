@@ -52,6 +52,7 @@ import {
   CategoryTilesV5,
   FilterChipsV5,
   SidebarV5,
+  useActiveSection,
   type BottomNavTab,
   type CategoryLink,
 } from "@/components/garage/order/v5/layout-v5";
@@ -76,6 +77,7 @@ import {
 import {
   QuantityControl,
   cartKey,
+  categoryIcon,
   itemCartQty,
   itemHasPromo,
   rupiah,
@@ -1788,6 +1790,8 @@ export function MemberOrderPage({
     () => menuGroups.map((group) => ({ id: categorySectionId(group.category), label: group.category, photo: categoryPhoto(regularMenu, group.category) })),
     [menuGroups, regularMenu],
   );
+  const v5SectionIds = useMemo(() => v5Categories.map((category) => category.id), [v5Categories]);
+  const activeSection = useActiveSection(v5SectionIds);
   const v5Chips = useMemo(() => {
     const chips = availableChips(regularMenu, bestSellerSet, favorites.ids);
     return chips.includes(menuChip) ? chips : [...chips, menuChip];
@@ -2473,12 +2477,20 @@ export function MemberOrderPage({
       categories={v5Categories}
       chips={v5Chips}
       activeChip={menuChip}
+      activeSection={activeSection}
       favoriteCount={favorites.ids.length}
       listCount={itemCount}
       onHome={goHome}
       onJump={jumpToCategory}
       onChip={chooseChip}
       onOpenList={openList}
+      onRecommend={staffOrder ? undefined : () => { setDrawerOpen(false); setAyaChatOpen(true); }}
+      member={member ? { name: member.name, points: member.points ?? member.totalPoints ?? null } : null}
+      memberHref={loginHref}
+      registerHref={`${loginHref}&mode=register`}
+      pointsPerThousand={billingSettings.pointsPerThousand}
+      orderingOpen={staffOrder ? undefined : orderingOpen}
+      staff={Boolean(staffOrder)}
     />
   );
 
@@ -2500,11 +2512,27 @@ export function MemberOrderPage({
           staff={staffOrder}
           onOpenDrawer={() => setDrawerOpen(true)}
           onSearch={focusMenuSearch}
+          onAya={staffOrder ? undefined : () => setAyaChatOpen(true)}
+          notice={
+            staffOrder || (!trackId && !chatUnread)
+              ? null
+              : {
+                  count: chatUnread,
+                  label: chatUnread ? "Chat kasir" : "Status pesanan",
+                  onOpen: () => (chatUnread ? setChatOpen(true) : smoothTop()),
+                }
+          }
           info={etaLabel}
           nav={[
-            { key: "home", label: "Beranda", onSelect: goHome, current: menuChip === "all" && navTab !== "menu" },
-            { key: "menu", label: "Menu", onSelect: () => jumpToCategory(v5Categories[0]?.id), current: menuChip === "all" && navTab === "menu" },
-            ...(hero.items.length ? [{ key: "pick", label: "Pilihan", onSelect: () => jumpToCategory(HERO_SECTION_ID) }] : []),
+            { key: "home", label: "Beranda", onSelect: goHome, current: menuChip === "all" && navTab !== "menu" && !activeSection },
+            {
+              key: "menu",
+              label: "Menu",
+              onSelect: () => jumpToCategory(v5Categories[0]?.id),
+              current: menuChip === "all" && (navTab === "menu" || Boolean(activeSection)),
+              menu: v5Categories.map((category) => ({ key: category.id, label: category.label, icon: categoryIcon(category.label, "size-4 text-[#ede6dc]"), onSelect: () => jumpToCategory(category.id) })),
+            },
+            ...(hero.items.length ? [{ key: "pick", label: "Rekomendasi", onSelect: () => jumpToCategory(HERO_SECTION_ID) }] : []),
             ...(v5Chips.includes("promo") ? [{ key: "promo", label: "Promo", onSelect: () => chooseChip("promo"), current: menuChip === "promo" }] : []),
             { key: "about", label: "Tentang", href: "/" },
           ]}

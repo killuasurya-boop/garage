@@ -518,8 +518,12 @@ Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational sc
 `60fps-animation`, `accessible-animation`, `svg-animation`, `lottie-animation` (iart-ai); `gsap-core`, `gsap-timeline`,
 `gsap-scrolltrigger`, `gsap-react`, `gsap-performance`, `gsap-plugins`, `gsap-utils` (official GreenSock).
 Use `framer-motion` (installed) and CSS first. GSAP/Lottie are NOT dependencies yet: ask the owner before adding one.
-Skipped on purpose: glassmorphism (heavy blur conflicts with the motion policy) and AI image-generation skills that need
-API keys. Licenses: `.claude/skills/_licenses/`.
+Skipped on purpose: glassmorphism (heavy blur conflicts with the motion policy) and auto-invoking AI image-generation
+skills. Licenses: `.claude/skills/_licenses/`.
+Image generation (owner, Nov 2026): MCP `mcp-image` (pinned 0.18.2, template `.claude/mcp-ui.example.json`) needs
+`GEMINI_API_KEY` from the environment/secrets, never in a file or chat. Use it ONLY when the owner asks for an image
+(it spends API quota; never auto-generate). Output goes to `docs/design-handoff/assets-incoming/generated/`, then follow
+`docs/design-handoff/README.md` (no text/prices/logos inside images, logo and AYA only from official assets).
 
 MCP servers (free, no API key; config template `.claude/mcp-ui.example.json`, copy to `.mcp.json` which is gitignored
 because it can hold secrets; versions pinned):

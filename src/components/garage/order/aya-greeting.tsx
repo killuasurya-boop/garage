@@ -4,7 +4,7 @@
 // layar, menyapa pelanggan dan mengajak memesan. Teks statis — tidak memanggil AI, tidak
 // membuka data internal, tidak menjanjikan promo yang tidak ada.
 import { useEffect, useState } from "react";
-import { HandHelping, Search, Sparkles, X } from "lucide-react";
+import { Hand, HandHelping, Search, Sparkles, X } from "lucide-react";
 
 import { AYA_NAME } from "@/lib/garage-ai-persona";
 
@@ -24,6 +24,7 @@ export function AyaGreeting({
   onShowHero,
   onFocusSearch,
   onHelp,
+  onStartGuide,
   onClose,
   onHide,
 }: {
@@ -34,6 +35,8 @@ export function AyaGreeting({
   onFocusSearch: () => void;
   /** Dine-in saja: buka sheet bantuan meja. */
   onHelp?: () => void;
+  /** Mulai panduan cara pesan (Aya menunjuk tombol satu per satu). */
+  onStartGuide?: () => void;
   onClose: () => void;
   onHide: () => void;
 }) {
@@ -70,6 +73,16 @@ export function AyaGreeting({
         Mau yang segar, yang manis, atau yang bikin kenyang? Pilih menunya, nanti kasir konfirmasi pesananmu.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
+        {onStartGuide ? (
+          <button
+            type="button"
+            onClick={onStartGuide}
+            className="garage-press flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-garage-amber/60 px-3 text-sm font-bold text-white transition-colors hover:bg-garage-bg-3"
+          >
+            <Hand className="size-4" aria-hidden />
+            Cara pesan
+          </button>
+        ) : null}
         {heroLabel && onShowHero ? (
           <button
             type="button"

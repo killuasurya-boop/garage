@@ -204,7 +204,7 @@ export function MenuCard({
           <MenuPrice item={item} />
         </span>
       </button>
-      <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+      <div data-aya-anchor="add-item" className="px-3 pb-3 sm:px-4 sm:pb-4">
         {multiVariant ? <button type="button" onClick={onOpen} disabled={soldOut} aria-label={`Pilih varian ${item.name}`} className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-garage-line-2 bg-garage-bg-3 px-2 text-sm font-bold text-white transition-colors hover:border-garage-amber focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-garage-amber disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4 shrink-0" aria-hidden />{soldOut ? "Tidak tersedia" : "Pilih varian"}{cartQty ? <span className="font-mono tabular-nums">({cartQty})</span> : null}</button> : <div className="[&>button]:w-full [&>div]:w-full [&>div>span]:flex-1"><QuantityControl label={item.name} qty={cartQty} disabled={soldOut} onMinus={() => singleVariantId && onAdd(singleVariantId, -1)} onPlus={() => singleVariantId && onAdd(singleVariantId, 1)} /></div>}
       </div>
     </article>

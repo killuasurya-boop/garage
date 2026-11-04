@@ -389,7 +389,7 @@ function GarageWorkspace({
   const [activeModule, setActiveModule] = useState<ModuleId>(initialModule);
   const currentRole = data?.me.role;
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [garageTheme] = useState<GarageThemeMode>("dark");
   const [cashierTheme, setCashierTheme] = useState<CashierThemeMode>(() => {
     if (typeof window === "undefined") {
@@ -886,70 +886,107 @@ function GarageWorkspace({
       <div className="garage-os-frame flex h-full min-h-0">
         {!isCashierPosMode ? (
           <aside
-            className={`garage-scroll garage-side-panel garage-os-sidebar hidden h-full shrink-0 overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e] p-4 shadow-[18px_0_50px_rgba(0,0,0,0.22)] transition-[width,padding,opacity,transform] duration-300 xl:block ${
-              showDesktopSidebar && sidebarOpen
-                ? "w-[292px] opacity-100 xl:w-[304px]"
-                : "w-0 translate-x-[-10px] p-0 opacity-0"
+            data-nav-mode={!showDesktopSidebar ? "hidden" : sidebarOpen ? "expanded" : "compact"}
+            className={`garage-scroll garage-side-panel garage-os-sidebar hidden h-full shrink-0 overflow-x-hidden overflow-y-auto border-r border-[#34343c] bg-[#0b0b0e] px-2 py-3 shadow-[18px_0_50px_rgba(0,0,0,0.18)] transition-[width,padding,opacity] duration-200 md:block ${
+              !showDesktopSidebar
+                ? "w-0 border-0 p-0 opacity-0"
+                : sidebarOpen
+                  ? "md:w-[72px] xl:w-[276px] xl:px-3"
+                  : "md:w-[72px]"
             }`}
-            aria-hidden={!showDesktopSidebar || !sidebarOpen}
+            aria-hidden={!showDesktopSidebar}
           >
-            <BrandBlock />
-            <OutletSwitcher
-              activeOutlet={data.me.outlet}
-              role={data.me.role}
-              onSwitched={() => loadBootstrap()}
-            />
-            <div className="garage-theme-card mt-4 rounded-md border border-[#34343c] bg-white/[0.055] p-2">
-              <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                <span className="garage-mono text-[10px]">Tema Garage OS</span>
-                <Badge className="border-[#f5a742]/35 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
-                  {themeLabel}
-                </Badge>
-              </div>
+            <div className={`mb-3 flex items-center gap-2 ${sidebarOpen ? "justify-center xl:justify-between" : "justify-center"}`}>
+              {sidebarOpen ? (
+                <div className="hidden min-w-0 flex-1 xl:block">
+                  <BrandBlock />
+                </div>
+              ) : null}
               <button
                 type="button"
-                onClick={() => handleModuleChange("settings")}
-                className="garage-press flex h-9 w-full items-center justify-center gap-2 rounded-md border border-[#4a4a54] bg-white/[0.045] px-3 text-xs font-semibold text-[#d4d4d8] transition-colors hover:border-[#d11a2a]/60 hover:bg-white/[0.075] hover:text-white"
+                onClick={() => setSidebarOpen((value) => !value)}
+                title={sidebarOpen ? "Ringkas navigasi" : "Perluas navigasi"}
+                aria-label={sidebarOpen ? "Ringkas navigasi" : "Perluas navigasi"}
+                aria-expanded={sidebarOpen}
+                className="garage-press hidden size-11 shrink-0 items-center justify-center rounded-xl border border-[#34343c] bg-white/[0.06] transition-colors hover:border-[#d11a2a]/60 hover:bg-white/[0.1] xl:inline-flex"
               >
-                <Settings className="size-3.5" />
-                Atur di Pengaturan
+                {sidebarOpen ? (
+                  <PanelLeft className="size-4 text-[#d0d0d6]" />
+                ) : (
+                  <Image
+                    src="/garage-brand/garage-coffee-icon.png"
+                    alt=""
+                    aria-hidden="true"
+                    width={40}
+                    height={40}
+                    className="size-9 object-contain"
+                  />
+                )}
               </button>
+              <div className="flex size-11 items-center justify-center xl:hidden">
+                <Image
+                  src="/garage-brand/garage-coffee-icon.png"
+                  alt="Garage Coffee"
+                  width={40}
+                  height={40}
+                  className="size-9 object-contain"
+                />
+              </div>
             </div>
-            <Separator className="my-4 bg-[#34343c]" />
+
+            {sidebarOpen ? (
+              <div className="hidden xl:block">
+                <OutletSwitcher
+                  activeOutlet={data.me.outlet}
+                  role={data.me.role}
+                  onSwitched={() => loadBootstrap()}
+                />
+                <div className="garage-theme-card mt-3 rounded-xl border border-[#34343c] bg-white/[0.055] p-2">
+                  <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                    <span className="garage-mono text-[10px]">Tema Garage OS</span>
+                    <Badge className="border-[#f5a742]/35 bg-[#f5a742]/12 px-2 text-[10px] text-[#ffd08a]">
+                      {themeLabel}
+                    </Badge>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleModuleChange("settings")}
+                    className="garage-press flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-[#4a4a54] bg-white/[0.045] px-3 text-xs font-semibold text-[#d4d4d8] transition-colors hover:border-[#d11a2a]/60 hover:bg-white/[0.075] hover:text-white"
+                  >
+                    <Settings className="size-3.5" />
+                    Atur di Pengaturan
+                  </button>
+                </div>
+                <Separator className="my-3 bg-[#34343c]" />
+              </div>
+            ) : null}
+
             <ModuleNav
               activeModule={safeActiveModule}
               profile={data.me}
               onChange={handleModuleChange}
               approvalBadgeCount={pendingApprovalCount}
               recruitmentBadgeCount={newRecruitmentCount}
+              compact={!sidebarOpen}
+              desktopRail
             />
-            <div className="garage-panel garage-animate-in mt-6 rounded-md p-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-[#f4f4f5]">
-                <Signal className="size-4" />
-                Garage bay online
+
+            <div
+              title={`${data.me.user.name} · ${data.me.role} · ${data.me.outlet.name}`}
+              className={`mt-4 flex min-w-0 items-center gap-2 border-t border-[#34343c] pt-3 ${sidebarOpen ? "justify-center xl:justify-start" : "justify-center"}`}
+            >
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#d11a2a]/35 bg-[#d11a2a]/15 text-xs font-extrabold text-[#ffccd1]">
+                {data.me.user.name.slice(0, 2).toUpperCase()}
               </div>
-              <p className="mt-2 text-xs leading-5 text-[#d0d0d6]">
-                {data.me.outlet.name} siap jalan. API route, auth, dan database aktif.
-              </p>
+              {sidebarOpen ? (
+                <div className="hidden min-w-0 xl:block">
+                  <p className="truncate text-xs font-semibold text-foreground">{data.me.user.name}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">{data.me.role} · {data.me.outlet.code}</p>
+                </div>
+              ) : null}
             </div>
           </aside>
         ) : null}
-        {showDesktopSidebar && !sidebarOpen ? (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="garage-sidebar-peek garage-press garage-os-sidebar-peek group hidden h-full w-12 shrink-0 border-r border-[#34343c] bg-[#0b0b0e] text-[#d4d4d8] transition-colors hover:bg-[#15151b] hover:text-white xl:flex xl:items-center xl:justify-center"
-            aria-label="Tampilkan sidebar"
-          >
-            <span className="flex h-full w-full flex-col items-center justify-center gap-3">
-              <PanelLeft className="size-4 text-[#f5a742] transition-transform group-hover:translate-x-0.5" />
-              <span className="garage-sidebar-peek-label garage-mono text-[10px] tracking-[0.22em]">
-                MENU
-              </span>
-            </span>
-          </button>
-        ) : null}
-
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isPosMode && (
             <header
@@ -963,8 +1000,8 @@ function GarageWorkspace({
                     <Button
                       variant="outline"
                       size="icon"
-                      className="garage-press h-11 w-11 shrink-0 border-[#4a4a54] bg-white/[0.08] xl:hidden"
-                      aria-label="Open navigation"
+                      className="garage-press h-11 w-11 shrink-0 border-[#4a4a54] bg-white/[0.08] md:hidden"
+                      aria-label="Buka navigasi Garage OS"
                     >
                       <Menu className="size-4" />
                     </Button>
@@ -992,6 +1029,7 @@ function GarageWorkspace({
                         profile={data.me}
                         onChange={(value) => {
                           handleModuleChange(value);
+                          setMobileOpen(false);
                         }}
                         approvalBadgeCount={pendingApprovalCount}
                         recruitmentBadgeCount={newRecruitmentCount}

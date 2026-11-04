@@ -1,4 +1,4 @@
-// Avatar Aya — AI pet Garage (keputusan Owner D-07). Kepala dari AyaCharacter supaya
+// Avatar Aya — potongan wajah maskot V2 (OD-02) lewat AyaCharacter supaya
 // panel AI, notifikasi, dan pet melayang memakai satu desain. Teks status tetap ditulis
 // di samping avatar (avatar tidak menggantikan label).
 import { AyaCharacter, type AyaExpression } from "@/components/garage/aya/aya-character";

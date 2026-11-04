@@ -21,6 +21,7 @@ import {
   type VoiceScenarioWithAudio,
 } from "@/lib/garage-voice-assets";
 import { cueDurationMs, cueForScenario, getSoundTheme, playStationCue, type StationCue } from "@/lib/station-sound-theme";
+import { stopAyaSpeech } from "@/lib/aya-sound";
 import { claimSound } from "@/lib/sound-claim";
 
 export type VoiceChannel = "kasir" | "kitchen" | "bar" | "warning" | "executive";
@@ -1089,6 +1090,8 @@ export function announce(
       // V2: event ber-dedupKey dibunyikan SEKALI per perangkat — tab lain,
       // re-render, reconnect, dan refresh tidak mengulang (sound-claim.ts).
       if (opts.dedupKey && !opts.force && !(await claimSound(`voice:${dedup}`, opts.soundTtlMs))) return;
+      // Suara operasional selalu menang: hentikan kalimat Aya yang sedang diucapkan.
+      stopAyaSpeech();
       pushAnnouncementLog({
         scenario,
         channel: meta.channel,

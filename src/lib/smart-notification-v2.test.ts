@@ -174,3 +174,13 @@ describe("label pembayaran notifikasi (F-08, skenario 9)", () => {
     expect(paymentNoticeLabel("QRIS", "refund")).toBe("QRIS · refund");
   });
 });
+
+describe("Aya tidak pernah menghapus pengumuman operasional (merge Aya V2)", () => {
+  it("Aya hanya boleh cancel() bila tidak ada ucapan lain yang mengantre", async () => {
+    const { ayaMayCancel } = await import("@/lib/aya-sound");
+    expect(ayaMayCancel({ speaking: true, pending: false }, true)).toBe(true);
+    expect(ayaMayCancel({ speaking: true, pending: true }, true)).toBe(false); // order mengantre di belakang Aya
+    expect(ayaMayCancel({ speaking: true, pending: false }, false)).toBe(false); // yang bicara bukan Aya
+    expect(ayaMayCancel({ speaking: false, pending: false }, true)).toBe(false);
+  });
+});

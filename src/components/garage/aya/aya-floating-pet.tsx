@@ -112,8 +112,11 @@ export function AyaFloatingPet({
   openSignal = 0,
   guide = null,
   onGuideExit,
+  laneBottom,
   children,
 }: {
+  /** Jalur aman (Menu V5): Aya selalu menapak di garis ini, `laneBottom` px dari bawah layar (mis. di atas navigasi bawah). */
+  laneBottom?: number;
   /** Panduan aktif: Aya terbang ke titik ini, menunjuk (state guiding), balon tetap terbuka. */
   guide?: { x: number; y: number; faceLeft: boolean; bubble?: "above" | "below" } | null;
   /** Dipanggil bila customer menutup balon/menyeret Aya saat panduan berjalan. */
@@ -204,7 +207,8 @@ export function AyaFloatingPet({
     const vp = viewport();
     const saved = readJson<Point>("local", posKey);
     const fallback = { x: corner === "bottom-left" ? 16 : vp.width - PET_SIZE - 16, y: vp.height - PET_SIZE - 170 };
-    const start = clampPetPosition(saved ?? fallback, vp);
+    const base = clampPetPosition(saved ?? fallback, vp);
+    const start = laneBottom == null ? base : clampPetPosition({ x: base.x, y: vp.height - PET_SIZE - laneBottom }, vp);
     lastActive.current = Date.now();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- inisialisasi dari window/storage
     setPos(start);
@@ -220,7 +224,21 @@ export function AyaFloatingPet({
       }, 900);
       return () => window.clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- jalur dibaca sekali saat mount; perubahan diurus efek di bawah
   }, [posKey, hiddenKey, greetedKey, greetingOnce, corner, scope]);
+
+  // Jalur aman ikut ukuran layar (rotasi, keyboard, ganti breakpoint).
+  useEffect(() => {
+    if (laneBottom == null || !ready) return;
+    const snap = () => {
+      if (drag.current) return;
+      const vp = viewport();
+      setPos((current) => clampPetPosition({ x: current.x, y: vp.height - PET_SIZE - laneBottom }, vp));
+    };
+    snap();
+    window.addEventListener("resize", snap);
+    return () => window.removeEventListener("resize", snap);
+  }, [laneBottom, ready]);
 
   // Ekspresi istirahat ikut keadaan bila Aya sedang diam.
   useEffect(() => {

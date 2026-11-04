@@ -77,3 +77,19 @@ gaya, hanya untuk teks/data/logo (harga, nama menu, logo, alamat tetap dari sumb
 - Menu pelanggan: Daftar Pilihan + waiter. Alur pesan/bayar sendiri disimpan sebagai mode per outlet.
 - Merah utama menu: #D43A3A.
 - AYA robot V5 dipakai di semua layar (aset: `docs/design-references/aya-v5/`).
+
+## F2 (layout) — selisih dari referensi, 4 Nov 2026
+Dibangun: header (nav desktop, laci HP), sidebar, hero, ubin kategori (ikon HP / foto desktop), chip filter + toggle
+kotak/daftar, kartu menu V5, Menu Pilihan, panel Daftar Pilihan + kartu AYA, navigasi bawah HP, Favorit per perangkat,
+jalur aman AYA. Alur pesan/bayar tidak berubah (mode baru di F3).
+
+| Selisih | Alasan |
+|---|---|
+| Kartu HP 2 kolom vertikal (bukan horizontal) | Nama menu nyata ("Butterscotch Sea Salt") terpotong di kartu horizontal 175 px; tampilan horizontal ada di toggle "daftar" (tablet/desktop). |
+| Badge "Ready" di setiap kartu tidak dipakai | Ikut layout layar penuh; badge hanya Signature/Best Seller/Promo/Limited/Sold Out. |
+| Lonceng, scan, mic, chip "Baru"/"Rekomendasi", baris "Rekomendasi Untukmu" belum tampil | Belum ada data/fitur nyata (tanpa tombol palsu). Rekomendasi & mic di F4. |
+| Instagram + Lokasi di sidebar kiri (tablet ref: panel kanan) | Panel kanan + kartu AYA muat di layar 900 px. |
+| Foto produk di hero hanya bila ada menu unggulan/promo/terlaris berfoto | Data sistem; tanpa data hanya emblem resmi. |
+| Panel Daftar Pilihan: tanpa thumbnail, tombol masih "Checkout" | Bagian F3 (Daftar Pilihan + mode outlet). |
+| Header desktop "Digital Menu" tanpa "V5 · Smart · Interactive" | Label internal. |
+| AYA berjalan di tepi atas navigasi bawah (HP) / tepi bawah layar (desktop) | Jalur aman; saat lewat dapat melintas sebentar di atas konten; bisa diseret, posisi diingat. |

@@ -45,7 +45,7 @@ import {
 } from "@/components/garage/order/menu-section-list";
 import "@/components/garage/order/v5/order-v5.css";
 import { HeaderV5 } from "@/components/garage/order/v5/header-v5";
-import { HeroV5 } from "@/components/garage/order/v5/hero-v5";
+import { HeroV5, heroPhotoItems } from "@/components/garage/order/v5/hero-v5";
 import {
   AyaCardV5,
   BottomNavV5,
@@ -1790,6 +1790,7 @@ export function MemberOrderPage({
     () => menuGroups.map((group) => ({ id: categorySectionId(group.category), label: group.category, photo: categoryPhoto(regularMenu, group.category) })),
     [menuGroups, regularMenu],
   );
+  const heroPhotos = useMemo(() => heroPhotoItems(hero.items, regularMenu), [hero.items, regularMenu]);
   const v5SectionIds = useMemo(() => v5Categories.map((category) => category.id), [v5Categories]);
   const activeSection = useActiveSection(v5SectionIds);
   const v5Chips = useMemo(() => {
@@ -2796,8 +2797,7 @@ export function MemberOrderPage({
             {!searching ? (
               <>
                 <HeroV5
-                  categories={menuGroups.map((group) => group.category).filter((name) => name !== "Minuman Botol").slice(0, 4)}
-                  items={hero.items}
+                  items={heroPhotos}
                   onSeeMenu={() => jumpToCategory(hero.items.length ? HERO_SECTION_ID : v5Categories[0]?.id)}
                   onOpenItem={openMenuItem}
                   ctaLabel={heroCtaLabel({ waiterList, orderingOpen, staff: Boolean(staffOrder) })}

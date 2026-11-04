@@ -270,32 +270,42 @@
       linear-gradient(120deg, #1a1718 0%, #0f0e10 60%, #171314 100%);
     box-shadow: inset 0 1px 0 var(--gm5-line-soft), 0 20px 44px rgba(0, 0, 0, 0.45);
   }
-  /* Logo resmi utuh (object-contain): tanpa crop, tanpa blend; cahaya merah dari CSS di belakangnya. */
-  .gm5-hero-logo {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6% 5%;
-    pointer-events: none;
-    background: radial-gradient(60% 48% at 50% 50%, color-mix(in srgb, var(--menu-red) 32%, transparent), transparent 72%);
+  /* Panggung hero: emblem resmi UTUH (transparan, object-contain) besar di belakang-atas, foto menu (poster resmi)
+     sebagai kartu miring di depan-bawah sehingga puncak segitiga tetap terlihat. Tidak ada yang dipotong. */
+  .gm5-hero-stage {
+    overflow: hidden;
+    background: radial-gradient(70% 60% at 62% 38%, color-mix(in srgb, var(--menu-red) 26%, transparent), transparent 72%);
   }
-  .gm5-hero-logo > img { max-width: 380px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55)); }
-  .gm5-hero-mark {
+  .gm5-hero-emblem {
     position: absolute;
-    top: 8%;
-    right: 6%;
-    width: clamp(72px, 26%, 120px);
+    top: 5%;
+    right: 2%;
+    width: 96%;
+    height: 66%;
+    object-fit: contain;
+    object-position: 75% 0%;
+    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.55));
     pointer-events: none;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
   }
   .gm5-hero-photo {
     position: absolute;
+    top: 60%;
+    left: 46%;
+    z-index: 10;
+    display: block;
+    width: min(66%, 240px);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%) rotate(-4deg);
     overflow: hidden;
-    -webkit-mask-image: radial-gradient(75% 80% at 55% 50%, #000 55%, transparent 100%);
-    mask-image: radial-gradient(75% 80% at 55% 50%, #000 55%, transparent 100%);
+    border-radius: 16px;
+    cursor: pointer;
+    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.12);
   }
+  @media (max-width: 639px) {
+    .gm5-hero-emblem { top: 4%; height: 56%; }
+    .gm5-hero-photo { top: 62%; left: 50%; width: min(86%, 240px); }
+  }
+  .gm5-hero-photo:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 3px; }
   .gm5-swash {
     display: block;
     height: 4px;
@@ -553,6 +563,11 @@
     .gm5-skeleton { animation: gm5-loading 1.2s ease-in-out infinite; }
     .gm5-rise { animation: gm5-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--gm5-i, 0) * 60ms); }
     .gm5-hero-photo img { animation: gm5-hero-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .gm5-hero-emblem { animation: gm5-emblem-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    @media (hover: hover) {
+      .gm5-hero-photo { transition: transform 160ms ease-out; }
+      .gm5-hero-photo:hover { transform: translate(-50%, -50%) rotate(-2deg) scale(1.03); }
+    }
   }
 }
 
@@ -578,3 +593,4 @@
   will-change: transform, opacity;
 }
 @keyframes gm5-wave { from { transform: scaleY(0.35); } to { transform: scaleY(1.6); } }
+@keyframes gm5-emblem-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }

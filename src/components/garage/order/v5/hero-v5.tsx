@@ -1,8 +1,10 @@
 "use client";
 
-// Hero Menu V5: copy pemasaran bernada angkringan (Owner, Nov 2026), kategori & ETA dari data, CTA kontekstual,
-// foto menu unggulan dari sistem. Logo = logo resmi garage-coffee-logo.png UTUH (object-contain, tanpa crop/blend):
-// besar di kolom kanan bila belum ada foto, kecil sebagai tanda merek di atas foto. Tanpa rotasi otomatis.
+// Hero Menu V5 (papan desktop/HP): panggung = foto menu asli dari sistem (kartu poster) di depan emblem segitiga resmi
+// Garage UTUH (garage-coffee-emblem.png = garage-coffee-icon.png dengan latar hitam dihapus, bentuk tidak diubah;
+// object-contain, tanpa crop/blend).
+// Teks bernada angkringan (Owner, Nov 2026): headline, satu subjudul, info siap dari tipe pesanan, CTA kontekstual.
+// Satu momen gerak saat masuk (foto + emblem), mati saat prefers-reduced-motion. Tanpa rotasi otomatis.
 import { useState } from "react";
 import Image from "next/image";
 import { ArrowRight, Clock, Coffee, ThumbsUp, Users } from "lucide-react";
@@ -11,7 +13,7 @@ import type { MenuItem } from "@/lib/garage-api-types";
 
 import { MenuPhoto } from "../menu-card";
 
-const LOGO = { src: "/garage-brand/garage-coffee-logo.png", width: 1200, height: 282 };
+const EMBLEM = { src: "/garage-brand/garage-coffee-emblem.png", width: 386, height: 305 };
 
 const POINTS = [
   { icon: Users, label: "Nongkrong santai bareng teman" },
@@ -19,46 +21,53 @@ const POINTS = [
   { icon: ThumbsUp, label: "Favorit pelanggan" },
 ];
 
+/** Foto panggung hero: menu sorotan berfoto; bila kosong, menu lain berfoto (minuman dulu). Maks 5, tanpa yang habis. */
+export function heroPhotoItems(highlight: readonly MenuItem[], all: readonly MenuItem[], limit = 5): MenuItem[] {
+  const usable = (item: MenuItem) => Boolean(item.imageUrl) && item.stock !== "sold_out" && item.showInDigitalMenu !== false;
+  const picked = highlight.filter(usable);
+  if (picked.length) return picked.slice(0, limit);
+  const drinkRank = (item: MenuItem) => (item.category === "Coffee" ? 0 : item.category === "Non-Coffee" ? 1 : 2);
+  return all
+    .filter(usable)
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => drinkRank(a.item) - drinkRank(b.item) || a.index - b.index)
+    .slice(0, limit)
+    .map((entry) => entry.item);
+}
+
 export function HeroV5({
-  categories,
   items,
   onSeeMenu,
   onOpenItem,
   ctaLabel = "Lihat Menu",
   eta,
 }: {
+  /** Foto panggung (lihat `heroPhotoItems`). */
+  items: MenuItem[];
+  onSeeMenu: () => void;
+  onOpenItem: (item: MenuItem) => void;
   /** Label tombol utama (lihat `heroCtaLabel`). */
   ctaLabel?: string;
   /** Info siap/antar dari tipe pesanan (mis. "Siap ambil 15–20 menit"); kosong = tidak ditampilkan. */
   eta?: string;
-  categories: string[];
-  /** Menu unggulan/terlaris dari sistem; foto pertama yang ada dipakai. */
-  items: MenuItem[];
-  onSeeMenu: () => void;
-  onOpenItem: (item: MenuItem) => void;
 }) {
-  const withPhoto = items.filter((item) => item.imageUrl).slice(0, 5);
   const [active, setActive] = useState(0);
-  const current = withPhoto[Math.min(active, Math.max(0, withPhoto.length - 1))];
+  const current = items[Math.min(active, Math.max(0, items.length - 1))];
 
   return (
-    <section className="gm5-hero gm5-rise mt-3" aria-label="Sorotan Garage Coffee">
-      <div className="relative grid min-h-[230px] grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] sm:min-h-[260px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_auto]">
-        <div className="flex min-w-0 flex-col justify-center gap-3 p-4 sm:p-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--menu-red-bright)] sm:text-xs">
-            <span className="whitespace-nowrap">Garage Coffee</span> <span className="whitespace-nowrap">· Tebing Tinggi</span>
-          </p>
-          <h2 className="gm5-display text-[30px] leading-[1.02] text-white sm:text-[40px] lg:text-[44px]">
+    <section className="gm5-hero mt-3" aria-label="Sorotan Garage Coffee">
+      <div className="relative grid min-h-[248px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:min-h-[300px] 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto]">
+        <div className="relative z-10 flex min-w-0 flex-col justify-center gap-3 py-5 pl-4 pr-1 sm:gap-4 sm:p-7">
+          <h2 className="gm5-display text-[31px] leading-[0.98] text-white sm:text-[46px] lg:text-[50px]">
             Racikan Garage,
             <br />
-            <span className="text-[var(--menu-red-bright)]">Bikin Nagih.</span>
+            Bikin Nagih.
           </h2>
-          <span className="gm5-swash -mt-1 w-28 sm:w-40" aria-hidden />
-          <p className="text-sm leading-5 text-[#ede6dc] sm:text-[15px]">Tempat nongkrong santai, kopi &amp; cemilan khas Garage.</p>
-          {categories.length ? <p className="hidden text-sm text-[#cfc9c4] sm:block">{categories.join(" • ")}</p> : null}
+          <span className="gm5-swash w-24 sm:w-40" aria-hidden />
+          <p className="max-w-[26ch] text-sm leading-5 text-[#ede6dc] sm:text-base sm:leading-6">Tempat nongkrong santai, kopi dan cemilan khas Garage.</p>
           {eta ? (
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-[#ffd79e] lg:hidden">
-              <Clock className="size-4 shrink-0" aria-hidden /> {eta}
+            <p className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#f5a742]/40 bg-[#f5a742]/10 px-2.5 py-1 text-xs font-semibold text-[#ffd79e] sm:text-sm 2xl:hidden">
+              <Clock className="size-3.5 shrink-0" aria-hidden /> {eta}
             </p>
           ) : null}
           <span>
@@ -68,30 +77,25 @@ export function HeroV5({
           </span>
         </div>
 
-        <div className="relative min-h-[200px]">
-          {current ? null : (
-            <span className="gm5-hero-logo" aria-hidden>
-              <Image src={LOGO.src} alt="" width={LOGO.width} height={LOGO.height} sizes="(max-width: 640px) 45vw, 340px" className="h-auto w-full object-contain" priority />
-            </span>
-          )}
+        {/* Panggung: emblem resmi utuh di belakang, foto menu di depan. */}
+        <div className="gm5-hero-stage relative min-h-[230px] sm:min-h-[300px]">
+          <Image
+            src={EMBLEM.src}
+            alt=""
+            width={EMBLEM.width}
+            height={EMBLEM.height}
+            sizes="(max-width: 640px) 50vw, 420px"
+            className="gm5-hero-emblem"
+            priority
+          />
           {current ? (
-            <button
-              type="button"
-              onClick={() => onOpenItem(current)}
-              className="gm5-hero-photo inset-[6%_4%_14%_6%] block cursor-pointer"
-              aria-label={`Lihat ${current.name}`}
-            >
+            <button type="button" onClick={() => onOpenItem(current)} className="gm5-hero-photo" aria-label={`Lihat ${current.name}`}>
               <MenuPhoto key={current.id} item={current} eager />
             </button>
           ) : null}
-          {current ? (
-            <span className="gm5-hero-mark" aria-hidden>
-              <Image src={LOGO.src} alt="" width={LOGO.width} height={LOGO.height} sizes="120px" className="h-auto w-full object-contain" />
-            </span>
-          ) : null}
-          {withPhoto.length > 1 ? (
-            <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1" role="group" aria-label="Ganti foto menu unggulan">
-              {withPhoto.map((item, index) => (
+          {items.length > 1 ? (
+            <div className="absolute inset-x-0 bottom-1.5 z-20 flex justify-center gap-1" role="group" aria-label="Ganti foto menu">
+              {items.map((item, index) => (
                 <button
                   key={item.id}
                   type="button"
@@ -107,7 +111,7 @@ export function HeroV5({
           ) : null}
         </div>
 
-        <ul className="hidden min-w-[210px] flex-col justify-center gap-4 border-l border-white/10 px-6 py-5 lg:flex" aria-label="Keunggulan Garage Coffee">
+        <ul className="hidden min-w-[210px] flex-col justify-center gap-4 border-l border-white/10 px-6 py-5 2xl:flex" aria-label="Keunggulan Garage Coffee">
           {[...POINTS, ...(eta ? [{ icon: Clock, label: eta }] : [])].map(({ icon: Icon, label }) => (
             <li key={label} className="flex items-center gap-3 text-sm font-semibold text-[#ede6dc]">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5">

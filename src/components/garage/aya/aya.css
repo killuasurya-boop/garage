@@ -1,111 +1,221 @@
-/* Aya — AI pet Garage OS. Gerak ringan (transform/opacity saja) dan mati total
-   saat prefers-reduced-motion. Kelas diawali `aya-` agar tidak bentrok. */
+/* Aya V2 — maskot Garage Coffee (OD-02) + rig berlapis (A3). Lapisan transform:
+   .aya-mascot (dibalik saat pet menghadap kiri) → .aya-stage (gerak tubuh berulang) →
+   bagian rig (mata, tangan, antena, aksesori) / .aya-img (avatar). Hanya transform & opacity;
+   semua gerak mati saat prefers-reduced-motion atau data-reduced-motion. Kelas diawali `aya-`. */
 
-.aya-svg {
+.aya-mascot {
+  --aya-bob: -4px;
+  position: relative;
   display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
+  pointer-events: none;
 }
 
-.aya-svg .aya-bounce,
-.aya-svg .aya-head,
-.aya-svg .aya-arm-l,
-.aya-svg .aya-arm-r,
-.aya-svg .aya-eye,
-.aya-svg .aya-tuft {
+.aya-mascot[data-role="staff"] {
+  --aya-bob: -2px; /* POS/KDS: gerak lebih tenang */
+}
+
+.aya-mascot[data-crop="head"] {
+  overflow: hidden;
+  border-radius: 9999px;
+}
+
+.aya-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: 50% 82%;
+}
+
+/* Potongan wajah: area 280×280 dari kanvas 520 (x 120–400, y 70–350). */
+.aya-mascot[data-crop="head"] .aya-stage {
+  inset: auto;
+  left: -42.9%;
+  top: -25%;
+  width: 185.7%;
+  height: 185.7%;
+}
+
+.aya-img,
+.aya-rig {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---- Rig: titik putar tiap bagian (koordinat kotak bagian itu sendiri) ---- */
+.aya-rig .aya-eyes,
+.aya-rig .aya-eye-open,
+.aya-rig .aya-arm,
+.aya-rig .aya-antenna,
+.aya-rig .aya-acc,
+.aya-rig .aya-mouth-talk,
+.aya-rig .aya-cheeks,
+.aya-rig .aya-shadow,
+.aya-rig .aya-glow {
   transform-box: fill-box;
 }
+.aya-rig .aya-eye-open { transform-origin: 50% 55%; }
+.aya-rig .aya-antenna { transform-origin: 50% 100%; }
+.aya-rig .aya-arm-l { transform-origin: 88% 30%; } /* bahu kiri */
+.aya-rig .aya-arm-r { transform-origin: 12% 30%; } /* bahu kanan */
+.aya-rig .aya-mouth-talk { transform-origin: 50% 0%; transform: scaleY(0.4); }
+.aya-rig .aya-shadow,
+.aya-rig .aya-glow,
+.aya-rig .aya-acc { transform-origin: 50% 50%; }
 
-.aya-svg .aya-arm-l > ellipse,
-.aya-svg .aya-arm-r > ellipse {
-  transition: transform 220ms ease;
+/* Lirik mata (tanpa animasi pun tetap berlaku). */
+.aya-rig .aya-eyes { transition: transform 260ms ease-out; }
+.aya-rig[data-look="left"] .aya-eyes { transform: translateX(-7px); }
+.aya-rig[data-look="right"] .aya-eyes { transform: translateX(7px); }
+
+/* Tangan kanan menunjuk (state guiding). */
+.aya-rig .aya-arm-r.aya-arm-point { transform: rotate(-38deg); }
+
+/* Pipi merona. */
+.aya-rig .aya-cheeks ellipse { transition: opacity 300ms ease; }
+.aya-mascot[data-effect="blush"] .aya-rig .aya-cheeks ellipse { opacity: 0.85; }
+
+/* Cincin dengar untuk state listening. */
+.aya-ring {
+  position: absolute;
+  left: 13%;
+  top: 9%;
+  width: 74%;
+  height: 74%;
+  border-radius: 9999px;
+  border: 2px solid rgba(212, 65, 59, 0.55);
+  opacity: 0;
 }
+
+/* ---- Efek lucu ---- */
+.aya-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.aya-fx-item {
+  position: absolute;
+  width: 18%;
+  height: 18%;
+  overflow: visible;
+  opacity: 0;
+}
+.aya-fx-sparkle .aya-fx-item:nth-child(1) { left: 6%; top: 18%; }
+.aya-fx-sparkle .aya-fx-item:nth-child(2) { left: 76%; top: 10%; }
+.aya-fx-sparkle .aya-fx-item:nth-child(3) { left: 84%; top: 52%; width: 13%; height: 13%; }
+.aya-fx-sparkle .aya-fx-item:nth-child(4) { left: 2%; top: 58%; width: 12%; height: 12%; }
+.aya-fx-hearts .aya-fx-item { left: calc(30% + var(--i) * 16%); top: 18%; width: 15%; height: 15%; }
+.aya-fx-dizzy .aya-fx-item { left: 41%; top: 4%; width: 18%; height: 18%; }
+.aya-fx-zzz .aya-fx-item { left: calc(64% + var(--i) * 8%); top: calc(14% - var(--i) * 7%); width: 16%; height: 16%; }
+
+/* Tanpa gerak: efek tampil diam supaya maknanya tetap terbaca. */
+@media (prefers-reduced-motion: reduce) {
+  .aya-fx-item { opacity: 1; }
+}
+.aya-mascot[data-reduced-motion] .aya-fx-item { opacity: 1; }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* melayang pelan */
-  .aya-svg .aya-bounce {
-    animation: aya-hover 2.8s ease-in-out infinite;
-    transform-origin: 50% 100%;
-  }
-  .aya-svg .aya-shadow {
-    animation: aya-shadow 2.8s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-  .aya-svg .aya-eye {
-    animation: aya-blink 5.2s infinite;
-    transform-origin: center;
-  }
-  .aya-svg .aya-tuft {
-    animation: aya-tuft 2.8s ease-in-out infinite;
-    transform-origin: 30% 100%;
-  }
-  .aya-svg .aya-zz {
-    animation: aya-zz 2.4s ease-in-out infinite;
-  }
-  .aya-svg.aya-exp-alert .aya-core-glow {
-    animation: aya-core 1s ease-in-out 3;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
+  .aya-mascot:not([data-reduced-motion]) .aya-img { animation: aya-in 220ms ease-out both; }
+  .aya-mascot:not([data-reduced-motion]) .aya-stage { animation: aya-bob 2.6s ease-in-out infinite; }
+  .aya-mascot.aya-sleepy:not([data-reduced-motion]) .aya-stage { animation-duration: 4.4s; }
 
-  /* joget: badan squash & stretch, kepala geleng, lengan melambai */
-  .aya-svg.aya-pose-dance .aya-bounce {
-    animation: aya-dance 0.52s ease-in-out infinite;
+  /* rig: hidup walau diam */
+  .aya-mascot:not([data-reduced-motion]) .aya-rig .aya-eye-open {
+    animation: aya-blink var(--aya-blink-dur, 5.2s) var(--aya-blink-delay, 0s) infinite;
   }
-  .aya-svg.aya-pose-dance .aya-head {
-    animation: aya-head-sway 0.52s ease-in-out infinite;
-    transform-origin: 50% 90%;
-  }
-  .aya-svg.aya-pose-wave .aya-arm-l {
-    animation: aya-wave 0.6s ease-in-out 3;
-    transform-origin: 90% 10%;
-  }
-  .aya-svg.aya-pose-fly .aya-bounce {
-    animation: aya-fly 0.9s ease-in-out infinite;
-  }
+  .aya-mascot:not([data-reduced-motion]) .aya-rig .aya-antenna { animation: aya-antenna 2.6s ease-in-out infinite; }
+  .aya-mascot:not([data-reduced-motion]) .aya-rig .aya-shadow { animation: aya-shadow 2.6s ease-in-out infinite; }
+  .aya-mascot:not([data-reduced-motion]) .aya-rig .aya-glow { animation: aya-glow 3.2s ease-in-out infinite; }
+  .aya-mascot:not([data-reduced-motion]) .aya-rig .aya-arm-l { animation: aya-arm-idle-l 2.6s ease-in-out infinite; }
+  .aya-mascot:not([data-reduced-motion]) .aya-rig .aya-arm-r:not(.aya-arm-point) { animation: aya-arm-idle-r 2.6s ease-in-out infinite; }
+
+  /* state: gerak berulang */
+  .aya-mascot[data-state="listening"]:not([data-reduced-motion]) .aya-stage { animation: aya-tilt 1.2s ease-in-out infinite; }
+  .aya-mascot[data-state="listening"]:not([data-reduced-motion]) .aya-ring { animation: aya-ring 1.2s ease-out infinite; }
+  .aya-mascot[data-state="listening"]:not([data-reduced-motion]) .aya-acc-waves { animation: aya-waves 1.2s ease-in-out infinite; }
+  .aya-mascot[data-state="thinking"]:not([data-reduced-motion]) .aya-stage { animation: aya-ponder 2s ease-in-out infinite; }
+  .aya-mascot[data-state="thinking"]:not([data-reduced-motion]) .aya-acc-dots { animation: aya-float 2s ease-in-out infinite; }
+  .aya-mascot[data-state="speaking"]:not([data-reduced-motion]) .aya-mouth-talk { animation: aya-talk 0.26s ease-in-out infinite alternate; }
+  .aya-mascot[data-state="guiding"]:not([data-reduced-motion]) .aya-stage { animation: aya-lean 1.4s ease-in-out infinite; }
+  .aya-mascot[data-state="guiding"]:not([data-reduced-motion]) .aya-arm-point { animation: aya-point 1.4s ease-in-out infinite; }
+  .aya-mascot[data-state="guiding"]:not([data-reduced-motion]) .aya-acc-point { animation: aya-poke 1.4s ease-in-out infinite; }
+
+  /* state: reaksi sekali */
+  .aya-mascot[data-state="success"]:not([data-reduced-motion]) .aya-rig,
+  .aya-mascot[data-state="success"]:not([data-reduced-motion]) .aya-img { animation: aya-in 220ms ease-out both, aya-pop 350ms ease-out 1; }
+  .aya-mascot[data-state="success"]:not([data-reduced-motion]) .aya-acc-star { animation: aya-star 900ms ease-out 1 both; }
+  .aya-mascot[data-state="warning"]:not([data-reduced-motion]) .aya-rig,
+  .aya-mascot[data-state="warning"]:not([data-reduced-motion]) .aya-img,
+  .aya-mascot[data-state="error"]:not([data-reduced-motion]) .aya-rig,
+  .aya-mascot[data-state="error"]:not([data-reduced-motion]) .aya-img { animation: aya-in 220ms ease-out both, aya-shake 450ms ease-in-out 1; }
+  .aya-mascot[data-state="warning"]:not([data-reduced-motion]) .aya-acc-warn { animation: aya-alarm 600ms ease-out 2; }
+
+  /* gerak tubuh (menimpa gerak state) */
+  .aya-mascot[data-motion="wave"]:not([data-reduced-motion]) .aya-stage { animation: aya-sway 0.6s ease-in-out 3; }
+  .aya-mascot[data-motion="wave"]:not([data-reduced-motion]) .aya-arm-l,
+  .aya-mascot[data-motion="dance"]:not([data-reduced-motion]) .aya-arm-l { animation: aya-wave-l 0.3s ease-in-out infinite alternate; }
+  .aya-mascot[data-motion="dance"]:not([data-reduced-motion]) .aya-arm-r:not(.aya-arm-point) { animation: aya-wave-r 0.26s ease-in-out infinite alternate; }
+  .aya-mascot[data-motion="dance"]:not([data-reduced-motion]) .aya-stage { animation: aya-dance 0.52s ease-in-out infinite; }
+  .aya-mascot[data-motion="fly"]:not([data-reduced-motion]) .aya-stage { animation: aya-fly 0.9s ease-in-out infinite; }
+  .aya-mascot[data-motion="fly"]:not([data-reduced-motion]) .aya-arm { animation: aya-flap 0.22s ease-in-out infinite alternate; }
+  .aya-mascot[data-motion="land"]:not([data-reduced-motion]) .aya-stage { animation: aya-land 420ms cubic-bezier(0.3, 1.6, 0.5, 1) 1; }
+
+  /* efek */
+  .aya-mascot:not([data-reduced-motion]) .aya-fx-sparkle .aya-fx-item { animation: aya-twinkle 1.1s ease-in-out calc(var(--i) * 0.18s) 2 both; }
+  .aya-mascot:not([data-reduced-motion]) .aya-fx-hearts .aya-fx-item { animation: aya-heart 1.3s ease-out calc(var(--i) * 0.16s) 1 both; }
+  .aya-mascot:not([data-reduced-motion]) .aya-fx-dizzy .aya-fx-item { animation: aya-orbit 0.9s linear calc(var(--i) * -0.3s) 3; }
+  .aya-mascot[data-effect="dizzy"]:not([data-reduced-motion]) .aya-stage { animation: aya-wobble 0.9s ease-in-out 3; }
+  .aya-mascot:not([data-reduced-motion]) .aya-fx-zzz .aya-fx-item { animation: aya-zz 2.4s ease-in-out calc(var(--i) * 0.5s) infinite; }
 }
 
-@keyframes aya-hover {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-@keyframes aya-shadow {
-  0%, 100% { transform: scaleX(1); opacity: 1; }
-  50% { transform: scaleX(0.82); opacity: 0.7; }
-}
-@keyframes aya-blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
-}
-@keyframes aya-tuft {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-7deg); }
-}
-@keyframes aya-zz {
-  0%, 100% { opacity: 0.2; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-3px); }
-}
-@keyframes aya-core {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.5); opacity: 1; }
-}
+@keyframes aya-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+@keyframes aya-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(var(--aya-bob)); } }
+@keyframes aya-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.08); } }
+@keyframes aya-antenna { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
+@keyframes aya-shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.9); opacity: 0.75; } }
+@keyframes aya-glow { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
+@keyframes aya-arm-idle-l { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(4deg); } }
+@keyframes aya-arm-idle-r { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg); } }
+@keyframes aya-tilt { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes aya-ring { 0% { opacity: 0.7; transform: scale(0.86); } 100% { opacity: 0; transform: scale(1.08); } }
+@keyframes aya-waves { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+@keyframes aya-ponder { 0%, 100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(var(--aya-bob)); } }
+@keyframes aya-float { 0%, 100% { transform: translateY(0); opacity: 0.7; } 50% { transform: translateY(-8px); opacity: 1; } }
+@keyframes aya-talk { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
+@keyframes aya-lean { 0%, 100% { transform: translateX(0) rotate(0deg); } 50% { transform: translateX(3%) rotate(3deg); } }
+@keyframes aya-point { 0%, 100% { transform: rotate(-38deg); } 50% { transform: rotate(-30deg) translateX(4px); } }
+@keyframes aya-poke { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(6px); } }
+@keyframes aya-pop { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-6%) scale(1.04, 0.97); } 100% { transform: translateY(0) scale(1); } }
+@keyframes aya-star { 0% { transform: scale(0) rotate(-90deg); } 60% { transform: scale(1.3) rotate(15deg); } 100% { transform: scale(1) rotate(0deg); } }
+@keyframes aya-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3%); } 50% { transform: translateX(3%); } 75% { transform: translateX(-2%); } }
+@keyframes aya-alarm { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.2); } }
+@keyframes aya-sway { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-6deg); } }
+@keyframes aya-wave-l { from { transform: rotate(10deg); } to { transform: rotate(-55deg); } }
+@keyframes aya-wave-r { from { transform: rotate(-10deg); } to { transform: rotate(50deg); } }
 @keyframes aya-dance {
   0% { transform: translateY(0) rotate(-6deg) scale(1.04, 0.95); }
   50% { transform: translateY(-7px) rotate(6deg) scale(0.96, 1.05); }
   100% { transform: translateY(0) rotate(-6deg) scale(1.04, 0.95); }
 }
-@keyframes aya-head-sway {
-  0%, 100% { transform: rotate(-5deg); }
-  50% { transform: rotate(6deg); }
+@keyframes aya-fly { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-5px) rotate(4deg); } }
+@keyframes aya-flap { from { transform: rotate(0deg); } to { transform: rotate(-24deg); } }
+@keyframes aya-land {
+  0% { transform: translateY(-6px) scale(0.94, 1.08); }
+  40% { transform: translateY(0) scale(1.14, 0.84); }
+  70% { transform: scale(0.96, 1.05); }
+  100% { transform: scale(1, 1); }
 }
-@keyframes aya-wave {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-22deg); }
-}
-@keyframes aya-fly {
-  0%, 100% { transform: translateY(0) rotate(-4deg); }
-  50% { transform: translateY(-5px) rotate(4deg); }
-}
+@keyframes aya-twinkle { 0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+@keyframes aya-heart { 0% { opacity: 0; transform: translateY(0) scale(0.4); } 25% { opacity: 1; transform: translateY(-20%) scale(1); } 100% { opacity: 0; transform: translateY(-160%) scale(0.8); } }
+@keyframes aya-orbit { 0% { opacity: 1; transform: rotate(0deg) translateX(160%) rotate(0deg); } 100% { opacity: 1; transform: rotate(360deg) translateX(160%) rotate(-360deg); } }
+@keyframes aya-wobble { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
+@keyframes aya-zz { 0%, 100% { opacity: 0.15; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-30%); } }
 
 /* ---- Pet melayang (AyaFloatingPet) ---- */
 
@@ -164,4 +274,31 @@
 @keyframes aya-bubble-in {
   from { opacity: 0; transform: translateY(6px) scale(0.97); }
   to { opacity: 1; transform: none; }
+}
+
+/* Terbang melengkung: badan naik-turun selama perjalanan (posisi pet bergerak lurus). */
+@media (prefers-reduced-motion: no-preference) {
+  .aya-pet[data-moving="true"] .aya-mascot:not([data-reduced-motion]) .aya-stage {
+    animation: aya-arc 1.7s ease-in-out 1;
+  }
+}
+@keyframes aya-arc {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-34px) rotate(-6deg); }
+}
+
+/* ---- Panduan cara pesan (A2): sorotan tombol yang ditunjuk Aya ----
+   Hanya outline & bayangan (tanpa ubah ukuran/posisi/z-index) dan tidak menangkap klik. */
+[data-aya-spotlight] {
+  outline: 3px solid #ebc29c;
+  outline-offset: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-aya-spotlight] {
+    animation: aya-spot 1.2s ease-in-out infinite;
+  }
+}
+@keyframes aya-spot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(235, 194, 156, 0.55); }
+  50% { box-shadow: 0 0 0 12px rgba(235, 194, 156, 0); }
 }

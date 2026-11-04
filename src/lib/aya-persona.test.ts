@@ -29,7 +29,7 @@ async function instructions(role: string) {
 describe("persona Aya (D-07)", () => {
   it("Aya adalah AI pet companion (bukan hewan/manusia); avatar resmi tersedia", () => {
     expect(AYA_NAME).toBe("Aya");
-    expect(AYA_AVATAR_SRC).toBe("/garage-brand/aya/aya-avatar.svg");
+    expect(AYA_AVATAR_SRC).toBe("/garage-brand/aya/v2/aya-master.svg");
     for (const policy of [ayaOwnerIdentityPolicy, ayaStaffIdentityPolicy, ayaCustomerPolicy]) {
       expect(policy).toContain("AI pet companion");
       expect(policy).toContain("bermata sipit");

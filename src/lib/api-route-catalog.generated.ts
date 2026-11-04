@@ -524,6 +524,8 @@ export const API_ROUTE_CATALOG: ApiRouteEntry[] = [
   {"path":"/api/wms/activity-log","methods":["GET"],"note":"WMS Activity Log — audit siapa melakukan perpindahan stok kapan."},
   {"path":"/api/wms/adjustment","methods":["POST"],"note":""},
   {"path":"/api/wms/analytics","methods":["GET"],"note":""},
+  {"path":"/api/wms/apex-health","methods":["GET"],"note":""},
+  {"path":"/api/wms/apex-master-quality","methods":["GET"],"note":""},
   {"path":"/api/wms/categories/{id}","methods":["PATCH","DELETE"],"note":""},
   {"path":"/api/wms/categories","methods":["GET","POST"],"note":""},
   {"path":"/api/wms/checklist/{id}/item","methods":["PATCH"],"note":""},

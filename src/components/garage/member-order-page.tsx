@@ -30,8 +30,9 @@ import {
   MapPin,
 } from "lucide-react";
 
-import { AyaFloatingPet } from "@/components/garage/aya/aya-floating-pet";
+import { AyaFloatingPet, requestAyaChirp } from "@/components/garage/aya/aya-floating-pet";
 import { AyaGreeting } from "@/components/garage/order/aya-greeting";
+import { AyaGuideBubble, useAyaOrderGuide } from "@/components/garage/order/aya-order-guide";
 import { CategoryNav, type CategoryTab } from "@/components/garage/order/category-nav";
 import { HeroRail, type HeroKind } from "@/components/garage/order/hero-rail";
 import {
@@ -1282,6 +1283,14 @@ export function MemberOrderPage({
   const effectiveOrderType: OrderType =
     deliveryAvailable && fulfillment === "delivery" ? "delivery" : qrContext.orderType;
   const isDelivery = effectiveOrderType === "delivery";
+  // Panduan cara pesan Aya (OD-01): customer tetap memesan sendiri; Aya menunjuk tombolnya.
+  const orderGuide = useAyaOrderGuide({
+    orderingOpen,
+    hasCart: cartLines.length > 0,
+    hasOrderType: !staffOrder && !qrContext.tableIssue,
+    orderType: effectiveOrderType,
+    blocked: !typeChosen || showTablePicker,
+  });
   // Chat diikat ke pesanan yang sedang dilacak (bukti kepemilikan = token invoice).
   const chatOrderId = lastOrder?.order.id ?? trackedOrderId ?? null;
   const chatOrderNo = lastOrder?.order.orderNo ?? trackedOrderNo ?? null;
@@ -2332,7 +2341,7 @@ export function MemberOrderPage({
             {!staffOrder && !qrContext.tableIssue ? (
               <div className="mb-3 space-y-2" role="status">
                 {/* Pembeda tipe pesanan: Makan di tempat / Take away / Delivery. */}
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-garage-line bg-garage-bg-1 p-2.5">
+                <div data-aya-anchor="order-type" className="flex flex-wrap items-center gap-2 rounded-lg border border-garage-line bg-garage-bg-1 p-2.5">
                   <div className="flex min-w-[130px] flex-1 items-center gap-2.5"><span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-garage-line text-garage-amber">{effectiveOrderType === "takeaway" ? <ShoppingBag className="size-5" aria-hidden /> : effectiveOrderType === "delivery" ? <Bike className="size-5" aria-hidden /> : <UtensilsCrossed className="size-5" aria-hidden />}</span><div className="min-w-0"><p className="text-sm font-bold text-garage-fg">{effectiveOrderType === "takeaway" ? "Take away" : effectiveOrderType === "delivery" ? "Delivery" : qrContext.tableLabel}</p><p className="text-sm text-garage-dim">{effectiveOrderType === "takeaway" ? "Ambil di kasir" : effectiveOrderType === "delivery" ? "Diantar ke alamatmu" : "Diantar ke meja"}</p></div></div>
                   {qrContext.chooseType && typeChosen && !lastOrder ? <button type="button" aria-label="Ubah tipe pesanan" onClick={() => setTypeChosen(false)} className="garage-press min-h-11 shrink-0 rounded-md border border-garage-line px-3 text-sm font-bold text-garage-fg hover:bg-garage-bg-3 focus-visible:outline-2 focus-visible:outline-garage-amber">Ubah</button> : null}
                   {canChooseFulfillment ? <ChatLaunchButton compact label="Chat kasir (take away & delivery)" unread={chatUnread} onClick={() => setChatOpen(true)} /> : null}
@@ -2667,6 +2676,7 @@ export function MemberOrderPage({
               ) : null}
 
               <button
+                data-aya-anchor="checkout"
                 className="garage-press mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-garage-red px-4 text-[15px] font-bold text-white transition-colors hover:bg-garage-red-bright disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={openCheckout}
                 disabled={!cartLines.length}
@@ -2723,18 +2733,39 @@ export function MemberOrderPage({
       }} /> : null}
 
       {!staffOrder ? (
-        <AyaFloatingPet scope="order">
-          {({ close, hide }) => (
-            <AyaGreeting
-              name={member?.name ?? guestName}
-              heroLabel={hero.items.length ? heroLabel : null}
-              onShowHero={() => scrollToSection(HERO_SECTION_ID)}
-              onFocusSearch={focusMenuSearch}
-              onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
-              onClose={close}
-              onHide={hide}
-            />
-          )}
+        <AyaFloatingPet scope="order" guide={orderGuide.petGuide} onGuideExit={orderGuide.stop}>
+          {({ close, hide }) =>
+            orderGuide.active && orderGuide.step ? (
+              <AyaGuideBubble
+                title={orderGuide.step.title}
+                text={orderGuide.step.text}
+                index={orderGuide.index}
+                total={orderGuide.total}
+                onPrev={orderGuide.prev}
+                onNext={orderGuide.next}
+                onStop={() => {
+                  orderGuide.stop();
+                  close();
+                }}
+                onFinish={() => {
+                  orderGuide.stop();
+                  close();
+                  requestAyaChirp("guideDone");
+                }}
+              />
+            ) : (
+              <AyaGreeting
+                name={member?.name ?? guestName}
+                heroLabel={hero.items.length ? heroLabel : null}
+                onShowHero={() => scrollToSection(HERO_SECTION_ID)}
+                onFocusSearch={focusMenuSearch}
+                onHelp={qrContext.orderType === "dine-in" ? () => setHelpOpen(true) : undefined}
+                onStartGuide={orderGuide.start}
+                onClose={close}
+                onHide={hide}
+              />
+            )
+          }
         </AyaFloatingPet>
       ) : null}
 

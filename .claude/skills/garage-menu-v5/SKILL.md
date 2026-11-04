@@ -61,8 +61,19 @@ Keputusan Owner 4 Nov 2026 (final):
   bantuan di paket itu = gambar statis, bangun sebagai UI React. AYA boleh berjalan/berlari (kaki & tangan dipisah
   jadi grup), selalu di jalur aman, tidak menutupi harga/tombol, diam saat reduced-motion.
 
-Masih terbuka: logo "A" di AYA (paket menggambar ulang; ganti vektor resmi bila Owner memberi), tombol "+" kartu
-multi-varian, format harga "mulai", font judul miring, sumber foto produk.
+Keputusan Owner 4 Nov 2026 (sisa, "pakai usulan Claude"):
+- Logo "A" di AYA: pakai versi paket V5 dulu; diganti vektor resmi bila Owner memberikannya.
+- Tombol "+" pada kartu multi-varian membuka Quick View untuk memilih varian; angka di kartu = total semua varian.
+- Harga kartu: "mulai Rp X" hanya bila harga varian berbeda; harga tunggal bila sama.
+- Font judul miring tebal: Montserrat 800 italic (next/font/google), khusus judul/hero menu; teks lain tetap.
+- Foto produk: pakai `imageUrl` asli; tanpa foto = placeholder gelap ber-emblem kategori, bukan foto AI palsu.
+  Foto baru lewat alur handoff (ChatGPT/mcp-image) setelah Owner setuju.
+- Default saat rilis = perilaku `/order` sekarang; Owner mengganti mode di Pengaturan.
+- AYA berlari/berjalan hanya di jalur aman, berhenti saat pelanggan menggulir/mengetik/membuka Quick View.
+
+Rencana fase: F1 fondasi (token #D43A3A, font, AYA V5 di semua layar + rig jalan/lari) -> F2 layout menu
+(header, sidebar, hero, ubin, chip, kartu, panel kanan, bottom nav) -> F3 Quick View + Daftar Pilihan + mode outlet
++ Tunjukkan ke Waiter -> F4 AYA chat/voice/quick prompts -> F5 state, toast, efek suara, QA penuh.
 
 Catatan lama (sudah dijawab di atas):
 Masih perlu konfirmasi Owner (satu kali, lalu catat di DIRECTION.md):

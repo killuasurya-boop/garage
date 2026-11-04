@@ -512,6 +512,8 @@ Use these automatically when the task calls for them; do not wait to be asked. D
 
 Skills (`.claude/skills/`): `ui-ux-pro-max` (style/palette/layout ideas), `frontend-design` (hierarchy, type, restraint,
 copy; never a rebrand), `web-design-guidelines` (audit UI code, output `file:line`).
+Digital menu (`/order`) V5: skill `garage-menu-v5` is mandatory; the UI must closely match the boards in
+`docs/design-references/menu-digital-v5/` (owner, Nov 2026). Open questions it lists must be answered by the owner first.
 Animation skills (owner, Nov 2026: customer surfaces = cinematic, operational screens = fast and restrained):
 `animate`, `emil-design-eng`, `review-animations`, `improve-animations`, `animation-vocabulary` (Emil Kowalski, craft rules);
 `motion-design` (LottieFiles, choreography/timing tables); `micro-interaction`, `page-transition-animation`,

@@ -66,16 +66,38 @@ export function clampPetPosition(point: Point, viewport: { width: number; height
   };
 }
 
-/** Tujuan terbang acak: hindari 72 px teratas (header) & 140 px terbawah (bar keranjang/aksi). */
-export function pickRoamTarget(viewport: { width: number; height: number }, random = Math.random, size = PET_SIZE): Point {
-  const minY = 72;
-  const maxY = Math.max(minY, viewport.height - size - 140);
-  return clampPetPosition(
-    { x: EDGE + random() * Math.max(0, viewport.width - size - EDGE * 2), y: minY + random() * (maxY - minY) },
-    viewport,
-    size,
-  );
+export type AyaGait = "fly" | "walk" | "run";
+
+/** Kecepatan menapak (px/detik): jalan santai vs lari ceria. */
+export const WALK_SPEED = 150;
+export const RUN_SPEED = 380;
+
+/**
+ * Jalan-jalan sendiri (Owner, Nov 2026: "berjalan ceria, lari sana-sini"): Aya menapak di jalurnya
+ * sendiri (tinggi sama), jadi tidak melintasi isi halaman ke atas/bawah. Jarak jauh = berlari.
+ */
+export function pickWalkTarget(
+  current: Point,
+  viewport: { width: number; height: number },
+  random = Math.random,
+  size = PET_SIZE,
+): { target: Point; gait: "walk" | "run"; seconds: number } {
+  const minX = EDGE;
+  const maxX = Math.max(EDGE, viewport.width - size - EDGE);
+  const span = maxX - minX;
+  let x = minX + random() * span;
+  // Selalu benar-benar berpindah (minimal ~1/4 lebar jalur) supaya langkahnya terlihat.
+  const minStep = Math.min(span, Math.max(60, span * 0.25));
+  if (Math.abs(x - current.x) < minStep) x = current.x + (current.x - minX > span / 2 ? -minStep : minStep);
+  const target = clampPetPosition({ x, y: current.y }, viewport, size);
+  const distance = Math.abs(target.x - current.x);
+  const gait = distance > Math.max(220, viewport.width * 0.45) ? "run" : "walk";
+  const seconds = Math.min(3.2, Math.max(0.7, distance / (gait === "run" ? RUN_SPEED : WALK_SPEED)));
+  return { target, gait, seconds: Math.round(seconds * 100) / 100 };
 }
+
+/** Pelanggan sedang memakai halaman (menggulir/mengetik/membuka dialog) → Aya jangan berkeliaran. */
+export const BUSY_PAUSE_MS = 6_000;
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -126,6 +148,8 @@ export function AyaFloatingPet({
   const [expression, setExpression] = useState<AyaExpression>("default");
   const [effect, setEffect] = useState<AyaEffect | null>(null);
   const [landing, setLanding] = useState(false);
+  const [gait, setGait] = useState<AyaGait>("fly");
+  const [travel, setTravel] = useState(1.7);
   const [caption, setCaption] = useState<string | null>(null);
   const audience = scope === "order" ? "customer" : "staff";
   const talking = useSyncExternalStore(subscribeAyaSpeaking, getAyaSpeaking, () => false);
@@ -163,6 +187,8 @@ export function AyaFloatingPet({
 
   const drag = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean; lastX: number; lastY: number; lastT: number; speed: number } | null>(null);
   const lastActive = useRef(0);
+  const lastBusy = useRef(0);
+  const gaitRef = useRef<AyaGait>("fly");
   const posRef = useRef(pos);
   const settleRef = useRef<() => void>(() => {});
   const rest = mood ?? "default";
@@ -224,6 +250,9 @@ export function AyaFloatingPet({
   }, []);
 
   const flyTo = useCallback((target: Point) => {
+    gaitRef.current = "fly";
+    setGait("fly");
+    setTravel(1.7);
     setFacingLeft(target.x < posRef.current.x);
     setMoving(true);
     setPose("fly");
@@ -234,6 +263,35 @@ export function AyaFloatingPet({
     // Mendarat setelah transisi CSS (1,7 dtk); timer, bukan transitionend, agar tidak macet bila jaraknya 0.
     window.setTimeout(() => settleRef.current(), 1750);
   }, [sfx]);
+
+  /** Menapak ke kiri/kanan di jalurnya sendiri; jarak jauh = berlari. Tanpa suara (tidak berisik). */
+  const walkTo = useCallback((next: { target: Point; gait: "walk" | "run"; seconds: number }) => {
+    gaitRef.current = next.gait;
+    setGait(next.gait);
+    setTravel(next.seconds);
+    setFacingLeft(next.target.x < posRef.current.x);
+    setMoving(true);
+    setPose(next.gait);
+    setExpression(next.gait === "run" ? "happy" : restRef.current);
+    setPos(next.target);
+    posRef.current = next.target;
+    window.setTimeout(() => settleRef.current(), next.seconds * 1000 + 60);
+  }, []);
+
+  // Pelanggan sedang menggulir/mengetik → tandai sibuk (Aya menunggu, tidak berkeliaran).
+  useEffect(() => {
+    const busy = () => {
+      lastBusy.current = Date.now();
+    };
+    window.addEventListener("scroll", busy, { passive: true });
+    window.addEventListener("keydown", busy);
+    window.addEventListener("input", busy, true);
+    return () => {
+      window.removeEventListener("scroll", busy);
+      window.removeEventListener("keydown", busy);
+      window.removeEventListener("input", busy, true);
+    };
+  }, []);
 
   // Panduan: terbang ke samping tombol yang dibahas lalu menunjuk; selesai → kembali santai.
   useEffect(() => {
@@ -267,7 +325,8 @@ export function AyaFloatingPet({
     flyTo(spot);
   }, [ready, guideKey, flyTo, sfx]);
 
-  // Terbang sendiri tiap 18–35 detik bila dibiarkan; mengantuk setelah 2 menit tanpa sentuhan.
+  // Jalan-jalan sendiri (pelanggan 9–18 dtk, staf 18–35 dtk) bila dibiarkan; mengantuk setelah 2 menit tanpa sentuhan.
+  // Tidak berkeliaran saat pelanggan menggulir/mengetik atau ada dialog terbuka (mis. Quick View).
   useEffect(() => {
     if (!ready || hidden || guiding || prefersReducedMotion()) return;
     // Tanpa roam Aya tetap bisa mengantuk, tapi tidak pindah tempat sendiri.
@@ -278,16 +337,16 @@ export function AyaFloatingPet({
           if (Date.now() - lastActive.current > 120_000) {
             setPose("idle");
             setExpression("sleepy");
-          } else if (roam) {
-            flyTo(pickRoamTarget(viewport()));
+          } else if (roam && Date.now() - lastBusy.current > BUSY_PAUSE_MS && !document.querySelector('[role="dialog"], [aria-modal="true"]')) {
+            walkTo(pickWalkTarget(posRef.current, viewport()));
           }
         }
         schedule();
-      }, 18_000 + Math.random() * 17_000);
+      }, audience === "customer" ? 9_000 + Math.random() * 9_000 : 18_000 + Math.random() * 17_000);
     };
     schedule();
     return () => window.clearTimeout(timer);
-  }, [ready, hidden, open, flyTo, roam, guiding]);
+  }, [ready, hidden, open, walkTo, roam, guiding, audience]);
 
   /** Efek lucu sesaat (hati, pusing, …) lalu hilang sendiri. */
   function flash(next: AyaEffect, ms: number) {
@@ -298,9 +357,12 @@ export function AyaFloatingPet({
   function settle() {
     if (drag.current) return;
     setMoving(false);
-    // Mendarat: squash & stretch sekali.
-    setLanding(true);
-    window.setTimeout(() => setLanding(false), 450);
+    const flew = gaitRef.current === "fly";
+    // Mendarat: squash & stretch sekali (hanya setelah terbang; jalan/lari langsung berhenti).
+    if (flew) {
+      setLanding(true);
+      window.setTimeout(() => setLanding(false), 450);
+    }
     const guideNow = guideRef.current;
     if (guideNow) {
       // Mendarat di samping tombol: hadap ke tombol & menunjuk.
@@ -310,7 +372,7 @@ export function AyaFloatingPet({
       sfx("point");
       return;
     }
-    sfx("boing");
+    if (flew) sfx("boing");
     // Sesekali berceletuk (bijak/lucu untuk pelanggan, semangat untuk staf) — jarang, tidak saat balon terbuka.
     if (!open && Date.now() - lastAmbient.current > AMBIENT_GAP_MS && Math.random() < 0.4) {
       lastAmbient.current = Date.now();
@@ -361,6 +423,9 @@ export function AyaFloatingPet({
       setDragging(true);
       exitGuide();
       setOpen(false);
+      gaitRef.current = "fly"; // dilepas → mendarat (squash) seperti setelah terbang
+      setGait("fly");
+      setTravel(1.7);
       setPose("fly");
       setExpression("surprised");
     }
@@ -448,7 +513,8 @@ export function AyaFloatingPet({
     <div
       className={`aya-pet ${facingLeft ? "aya-pet-facing-left" : ""}`}
       data-moving={moving && !dragging ? "true" : "false"}
-      style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}
+      data-gait={gait}
+      style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`, ["--aya-travel" as string]: `${travel}s` }}
     >
       <button
         type="button"

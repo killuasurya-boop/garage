@@ -1,8 +1,7 @@
-// Aya V2 — maskot resmi Garage Coffee (keputusan Owner OD-02, 4 Nov 2026; sumber visual
-// docs/aya-v2/design-kit/assets/aya_master.svg): makhluk putih mungil seperti mochi, mata sipit,
-// tangan & kaki pendek, titik antena digital, syal merah.
-// - Badan penuh = AyaRig (SVG berlapis: kedip, lirik, tangan menunjuk/melambai, aksesori bergerak).
-// - Potongan kepala (avatar kecil) = <img> dari public/garage-brand/aya/v2/ (ringan, ter-cache).
+// Aya V5 — maskot resmi Garage Coffee: robot berhelm silver, visor hitam, headphone berlogo "A" merah
+// (keputusan Owner 4 Nov 2026, dipakai di SEMUA layar; sumber visual docs/design-references/aya-v5/).
+// - Badan penuh = AyaRig (SVG berlapis: kedip, lirik, tangan menunjuk/melambai, kaki berjalan/berlari).
+// - Potongan kepala (avatar kecil) = <img> dari public/garage-brand/aya/v5/ (ringan, ter-cache).
 // Gerak hanya CSS transform/opacity di aya.css; mati saat prefers-reduced-motion atau prop
 // `reducedMotion`. Tidak memutar suara dan tidak memanggil layanan apa pun (mode Rp 0, OD-03).
 import { AyaRig, type AyaLook } from "@/components/garage/aya/aya-rig";
@@ -12,8 +11,8 @@ import "./aya.css";
 export const AYA_STATES = ["idle", "listening", "speaking", "thinking", "warning", "success", "guiding", "error"] as const;
 export type AyaState = (typeof AYA_STATES)[number];
 
-/** Gerak tubuh di atas state: diam, melambai, joget, terbang, mendarat (squash & stretch). */
-export type AyaMotion = "rest" | "wave" | "dance" | "fly" | "land";
+/** Gerak tubuh di atas state: diam, melambai, joget, terbang, mendarat (squash & stretch), berjalan, berlari. */
+export type AyaMotion = "rest" | "wave" | "dance" | "fly" | "land" | "walk" | "run";
 
 /** Efek lucu sesaat di sekitar Aya. */
 export const AYA_EFFECTS = ["sparkle", "hearts", "dizzy", "zzz", "blush"] as const;
@@ -34,7 +33,7 @@ export const AYA_STATE_LABEL: Record<AyaState, string> = {
 };
 
 export function ayaAssetSrc(state: AyaState) {
-  return `/garage-brand/aya/v2/aya-${state}.svg`;
+  return `/garage-brand/aya/v5/aya-${state}.svg`;
 }
 
 /** Sukses otomatis berkilau bila pemanggil tidak memilih efek lain. */

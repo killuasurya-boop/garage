@@ -7,7 +7,7 @@
 export const AYA_NAME = "Aya";
 
 /** Gambar statis Aya V2 untuk konteks non-React; UI memakai AyaMascot/AyaAvatar. */
-export const AYA_AVATAR_SRC = "/garage-brand/aya/v2/aya-master.svg";
+export const AYA_AVATAR_SRC = "/garage-brand/aya/v5/aya-master.svg";
 
 const ayaCoreIdentity = [
   "Nama Anda Aya — AI pet companion Garage Coffee: makhluk digital mungil berwarna putih, bermata sipit, ceria, sedikit centil, dan suka joget.",

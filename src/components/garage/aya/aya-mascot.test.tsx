@@ -10,14 +10,14 @@ import { ayaSeed } from "@/components/garage/aya/aya-rig";
 
 const publicFile = (src: string) => path.join(process.cwd(), "public", src);
 
-describe("Aya V2 — maskot (OD-02)", () => {
+describe("Aya V5 — robot (Owner 4 Nov 2026, semua layar)", () => {
   it("delapan state resmi, masing-masing punya SVG lokal yang aman", () => {
     expect(AYA_STATES).toEqual(["idle", "listening", "speaking", "thinking", "warning", "success", "guiding", "error"]);
     for (const state of AYA_STATES) {
       const file = publicFile(ayaAssetSrc(state));
       expect(existsSync(file), file).toBe(true);
       const svg = readFileSync(file, "utf8");
-      expect(svg).toMatch(/^<svg[^>]+viewBox="0 0 520 520"/);
+      expect(svg).toMatch(/^<svg[^>]+viewBox="0 0 480 480"/);
       // Aset dimuat lewat <img>, tetapi tetap dijaga: tanpa skrip, handler, atau sumber luar.
       expect(svg).not.toMatch(/<script|\son[a-z]+=|<foreignObject|<image|href="https?:/i);
     }
@@ -32,10 +32,15 @@ describe("Aya V2 — maskot (OD-02)", () => {
       expect(full).toContain('role="img"');
       expect(full).toMatch(/aria-label="Aya — [^"]+"/);
       expect(full.includes('class="aya-ring"')).toBe(state === "listening");
-      expect(full.includes("aya-mouth-talk")).toBe(state === "speaking");
+      // Bicara & mendengar = gelombang suara di visor.
+      expect(full.includes('class="aya-bars"')).toBe(state === "speaking" || state === "listening");
       expect(full.includes("aya-arm-point")).toBe(state === "guiding");
       // Mata terbuka (bisa berkedip) hanya pada state yang memang matanya terbuka.
-      expect(full.includes("aya-eye-open")).toBe(["listening", "thinking", "warning", "guiding"].includes(state));
+      expect(full.includes("aya-eye-open")).toBe(["idle", "warning", "guiding"].includes(state));
+      // Kaki & tangan terpisah supaya bisa berjalan/berlari.
+      expect(full).toContain("aya-foot-l");
+      expect(full).toContain("aya-foot-r");
+      expect(full).toContain('viewBox="0 0 480 480"');
 
       const head = renderToStaticMarkup(<AyaMascot state={state} crop="head" />);
       expect(head).toContain(`src="${ayaAssetSrc(state)}"`);
@@ -48,9 +53,10 @@ describe("Aya V2 — maskot (OD-02)", () => {
     expect(acc("listening")).toContain("aya-acc-waves");
     expect(acc("thinking")).toContain("aya-acc-dots");
     expect(acc("warning")).toContain("aya-acc-warn");
-    expect(acc("success")).toContain("aya-acc-star");
+    expect(acc("success")).toContain("aya-acc-heart");
+    expect(acc("speaking")).toContain("aya-acc-talk");
     expect(acc("guiding")).toContain("aya-acc-point");
-    for (const state of ["idle", "speaking", "error"] as const) expect(acc(state)).not.toContain("aya-acc");
+    for (const state of ["idle", "error"] as const) expect(acc(state)).not.toContain("aya-acc");
   });
 
   it("dua Aya di satu halaman tidak berbagi id gradient", () => {
@@ -102,8 +108,8 @@ describe("Aya V2 — maskot (OD-02)", () => {
   });
 });
 
-describe("Aya V2 — adapter API lama (AyaCharacter)", () => {
-  it("setiap ekspresi lama dipetakan ke state V2 yang ada", () => {
+describe("Aya V5 — adapter API lama (AyaCharacter)", () => {
+  it("setiap ekspresi lama dipetakan ke state yang ada", () => {
     const expected: Record<AyaExpression, string> = {
       default: "idle",
       happy: "success",
@@ -119,19 +125,19 @@ describe("Aya V2 — adapter API lama (AyaCharacter)", () => {
     }
   });
 
-  it("pose lama dipetakan ke gerak V2", () => {
-    const expected: Record<AyaPose, string> = { idle: "rest", wave: "wave", dance: "dance", cross: "rest", fly: "fly" };
+  it("pose dipetakan ke gerak (termasuk jalan & lari)", () => {
+    const expected: Record<AyaPose, string> = { idle: "rest", wave: "wave", dance: "dance", cross: "rest", fly: "fly", walk: "walk", run: "run" };
     for (const [pose, motion] of Object.entries(expected) as [AyaPose, string][]) {
       expect(ayaMotionForPose(pose)).toBe(motion);
     }
   });
 
-  it("AyaCharacter merender maskot V2 (bukan SVG V1 inline)", () => {
+  it("AyaCharacter merender robot V5 (bukan SVG V1 inline)", () => {
     const html = renderToStaticMarkup(<AyaCharacter expression="alert" pose="wave" crop="head" title="Aya" />);
     expect(html).toContain('data-state="warning"');
     expect(html).toContain('data-motion="wave"');
     expect(html).toContain('data-crop="head"');
-    expect(html).toContain("/garage-brand/aya/v2/aya-warning.svg");
+    expect(html).toContain("/garage-brand/aya/v5/aya-warning.svg");
     expect(html).not.toContain("<svg");
     const sleepy = renderToStaticMarkup(<AyaCharacter expression="sleepy" />);
     expect(sleepy).toContain("aya-sleepy");
@@ -139,6 +145,7 @@ describe("Aya V2 — adapter API lama (AyaCharacter)", () => {
     // Mendarat hanya memicu squash saat pose diam; efek pemanggil menang atas zzz.
     expect(renderToStaticMarkup(<AyaCharacter landing />)).toContain('data-motion="land"');
     expect(renderToStaticMarkup(<AyaCharacter landing pose="fly" />)).toContain('data-motion="fly"');
+    expect(renderToStaticMarkup(<AyaCharacter pose="run" />)).toContain('data-motion="run"');
     expect(renderToStaticMarkup(<AyaCharacter expression="sleepy" effect="hearts" />)).toContain('data-effect="hearts"');
   });
 });

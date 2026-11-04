@@ -2551,7 +2551,7 @@ export function MemberOrderPage({
         ) : null}
 
         <div className="mt-3 grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[236px_minmax(0,1fr)_340px]">
-          <aside className="hidden lg:sticky lg:top-3 lg:block" aria-label="Panel navigasi">
+          <aside className="gm5-side-scroll hidden lg:sticky lg:top-3 lg:block lg:max-h-[calc(100svh-24px)] lg:overflow-y-auto lg:overscroll-contain lg:pb-2" aria-label="Panel navigasi">
             {v5Sidebar}
           </aside>
           <div id="menu-v5-main" className="min-w-0">

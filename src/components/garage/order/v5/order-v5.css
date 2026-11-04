@@ -405,6 +405,38 @@
       var(--gm5-surface);
   }
 
+  /* Kartu sosmed: satu baris per akun, ikon berwarna merek di kotak kecil (logo, bukan tema). */
+  .gm5-social {
+    display: flex;
+    min-height: 52px;
+    align-items: center;
+    gap: 0.6rem;
+    border: 1px solid var(--gm5-line-soft);
+    border-radius: var(--gm5-radius-sm);
+    background: #141214;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+  }
+  .gm5-social:hover { border-color: color-mix(in srgb, var(--menu-red) 65%, #3a3436); }
+  .gm5-social:focus-visible { outline: 2px solid var(--menu-red-bright); outline-offset: 2px; }
+  .gm5-social-icon {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    color: #fff;
+  }
+  .gm5-social[data-social="instagram"] .gm5-social-icon { background: linear-gradient(135deg, #f58529, #dd2a7b 55%, #8134af); }
+  .gm5-social[data-social="tiktok"] .gm5-social-icon { background: #010101; box-shadow: inset 0 0 0 1px #2a2a2a, -2px -1px 0 -1px #25f4ee, 2px 1px 0 -1px #fe2c55; }
+  .gm5-social[data-social="youtube"] .gm5-social-icon { background: #ff0000; }
+  .gm5-social[data-social="facebook"] .gm5-social-icon { background: #1877f2; }
+
+  /* Sidebar desktop lebih tinggi dari layar → gulir sendiri, scrollbar tipis. */
+  .gm5-side-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--menu-red) 45%, #3a3436) transparent; }
+
   /* Hapus item (papan 03): kotak merah gelap bergaris, sebaris dengan stepper. */
   .gm5-trash {
     border: 1px solid color-mix(in srgb, var(--menu-red-bright) 70%, transparent);
@@ -467,6 +499,8 @@
   .gm5-success-tick { stroke: #86efac; stroke-width: 2.4; stroke-dasharray: 16; stroke-dashoffset: 0; }
 
   @media (prefers-reduced-motion: no-preference) {
+    .gm5-social { transition: transform 120ms ease-out, border-color 120ms ease-out; }
+    .gm5-social:active { transform: scale(0.97); transition-duration: 80ms; transition-timing-function: ease-in; }
     .gm5 :is(.gm5-chip, .gm5-tile, .gm5-btn-red, .gm5-btn-ghost, .gm5-step, .gm5-heart, .gm5-nav-item, .gm5-side-item) {
       transition: transform 120ms ease-out, box-shadow 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out, filter 120ms ease-out;
     }

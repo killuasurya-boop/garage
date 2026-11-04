@@ -9,13 +9,12 @@ import { ArrowUpRight, BadgeCheck, ChevronDown, ChevronRight, Crown, Gift, Flame
 import { AyaMascot } from "@/components/garage/aya/aya-mascot";
 import type { MenuItem } from "@/lib/garage-api-types";
 import { GARAGE_LOCATION } from "@/lib/garage-location";
+import { GARAGE_SOCIALS, type GarageSocialId } from "@/lib/garage-socials";
 
 import { MenuPhoto } from "../menu-card";
 import { categoryIcon, rupiah } from "../order-ui";
 import { CHIP_LABEL, type MenuChip } from "./menu-v5-model";
 
-export const GARAGE_INSTAGRAM = { handle: "@garage_tbt.id", href: "https://www.instagram.com/garage_tbt.id/" };
-export const GARAGE_TIKTOK = { handle: "@garage_tbt.id", href: "https://www.tiktok.com/@garage_tbt.id" };
 
 export type CategoryLink = { id: string; label: string; photo: MenuItem | null };
 
@@ -107,34 +106,66 @@ export function LocationCardV5({ open }: { open?: boolean } = {}) {
   );
 }
 
+/** Semua akun sosmed resmi Garage dalam satu kartu (sidebar desktop & laci HP), satu baris per akun. */
 export function SocialCardV5() {
   return (
-    <div className="gm5-panel flex items-center gap-3 p-4">
-      <span className="gm5-title flex-1 text-base text-white">Ikuti Kami</span>
-      <a href={GARAGE_INSTAGRAM.href} target="_blank" rel="noopener noreferrer" className="gm5-icon-btn border border-white/10" aria-label={`Instagram ${GARAGE_INSTAGRAM.handle}`}>
-        <InstagramGlyph />
-      </a>
-      <a href={GARAGE_TIKTOK.href} target="_blank" rel="noopener noreferrer" className="gm5-icon-btn border border-white/10" aria-label={`TikTok ${GARAGE_TIKTOK.handle}`}>
-        <TiktokGlyph />
-      </a>
-    </div>
+    <section className="gm5-panel gm5-panel-red p-4" aria-labelledby="gm5-social-title">
+      <h2 id="gm5-social-title" className="gm5-title text-base text-white">Ikuti Garage Coffee</h2>
+      <p className="mt-0.5 text-sm leading-5 text-[#cfc9c4]">Promo, menu baru, dan suasana Garage setiap hari.</p>
+      <ul className="mt-3 flex flex-col gap-2">
+        {GARAGE_SOCIALS.map((social) => (
+          <li key={social.id}>
+            <a
+              href={social.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="gm5-social"
+              data-social={social.id}
+              aria-label={`${social.label} Garage Coffee ${social.handle} (buka tab baru)`}
+            >
+              <span className="gm5-social-icon" aria-hidden>
+                <SocialGlyph id={social.id} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold leading-tight text-white">{social.label}</span>
+                <span className="block break-all text-[13px] leading-tight text-[#cfc9c4]">{social.handle}</span>
+              </span>
+              <ArrowUpRight className="size-4 shrink-0 text-[#cfc9c4]" aria-hidden />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-function InstagramGlyph() {
+function SocialGlyph({ id }: { id: GarageSocialId }) {
+  if (id === "instagram") {
+    return (
+      <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={2}>
+        <rect x="3" y="3" width="18" height="18" rx="5" />
+        <circle cx="12" cy="12" r="4" />
+        <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  if (id === "tiktok") {
+    return (
+      <svg viewBox="0 0 24 24" className="size-5" fill="currentColor">
+        <path d="M16.6 3c.4 2.2 1.8 3.6 4 3.8v3.1c-1.5 0-2.8-.4-4-1.2v6.2a5.9 5.9 0 1 1-5.9-5.9c.3 0 .6 0 .9.1v3.2a2.8 2.8 0 1 0 1.9 2.6V3h3.1Z" />
+      </svg>
+    );
+  }
+  if (id === "youtube") {
+    return (
+      <svg viewBox="0 0 24 24" className="size-5" fill="currentColor">
+        <path d="M21.6 7.2a2.6 2.6 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.6 2.6 0 0 0 2.4 7.2 27 27 0 0 0 2 12a27 27 0 0 0 .4 4.8 2.6 2.6 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.6 2.6 0 0 0 1.8-1.8A27 27 0 0 0 22 12a27 27 0 0 0-.4-4.8ZM10 15V9l5.2 3L10 15Z" />
+      </svg>
+    );
+  }
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function TiktokGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
-      <path d="M16.6 3c.4 2.2 1.8 3.6 4 3.8v3.1c-1.5 0-2.8-.4-4-1.2v6.2a5.9 5.9 0 1 1-5.9-5.9c.3 0 .6 0 .9.1v3.2a2.8 2.8 0 1 0 1.9 2.6V3h3.1Z" />
+    <svg viewBox="0 0 24 24" className="size-5" fill="currentColor">
+      <path d="M13.5 21v-7.5h2.5l.4-3h-2.9V8.6c0-.9.3-1.5 1.5-1.5h1.5V4.4c-.3 0-1.2-.1-2.2-.1-2.2 0-3.7 1.3-3.7 3.8v2.4H8v3h2.6V21h2.9Z" />
     </svg>
   );
 }
@@ -289,16 +320,7 @@ export function SidebarV5({
         </button>
       </nav>
       {staff ? null : <MemberCardV5 member={member ?? null} memberHref={memberHref} registerHref={registerHref} pointsPerThousand={pointsPerThousand} />}
-      <a href={GARAGE_INSTAGRAM.href} target="_blank" rel="noopener noreferrer" className="gm5-panel gm5-panel-red flex items-center gap-3 p-4 hover:brightness-110">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white">
-          <InstagramGlyph />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="gm5-title block text-sm text-white">Follow Instagram Kami</span>
-          <span className="block truncate text-sm text-[#cfc9c4]">{GARAGE_INSTAGRAM.handle}</span>
-        </span>
-        <ChevronRight className="size-5 text-white" aria-hidden />
-      </a>
+      <SocialCardV5 />
       <LocationCardV5 open={orderingOpen} />
     </div>
   );
